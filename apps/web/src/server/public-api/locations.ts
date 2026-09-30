@@ -1,5 +1,6 @@
 import { GEOCODE_OUTCOME_END_HEADER, GEOCODE_OUTCOME_HEADER, type GeocodeOutcome, type Location } from "@tc/contracts";
 import { getGeocoder, type BoundingBox, type Geocoder, type GeocodeResult } from "@/server/geocoding";
+import { countryFilterFor } from "@/server/geocoding/region";
 import { consumeQuota, geocodeQuota, type QuotaDecision } from "@/server/quota";
 
 // **The v1 stop-write resolution order** (decided with Mitchell, 2026-09-18):
@@ -18,6 +19,18 @@ import { consumeQuota, geocodeQuota, type QuotaDecision } from "@/server/quota";
 // only adds lat/lng and fills country/city/area the caller left empty.
 // `precision` stays absent (= unknown): nothing here checks what granularity
 // the vendor's point describes.
+
+/**
+ * What a lookup for this trip is biased with: the box around its located stops
+ * (`tripRegionOf`) and the countries they are in (`tripCountriesOf`). A name
+ * lookup with no `countryCode` of its own is restricted to `countries`
+ * (Mitchell, 2026-09-30); both are empty on a trip with nothing located yet.
+ */
+export interface ResolveContext {
+  userId: string;
+  region: BoundingBox | null;
+  countries?: readonly string[];
+}
 
 export interface LocationResolution {
   location: Location;
@@ -66,7 +79,7 @@ export const GEOCODE_OUTCOME_END_DOC =
  */
 export async function resolveStopPlaces<T extends { location?: Location | null; endLocation?: Location | null }>(
   stop: T,
-  ctx: { userId: string; region: BoundingBox | null },
+  ctx: ResolveContext,
   responseHeaders: Headers,
   deps: ResolveDeps = defaultResolveDeps,
 ): Promise<T> {
@@ -89,7 +102,7 @@ export async function resolveStopPlaces<T extends { location?: Location | null; 
 
 export async function resolveStopLocation(
   input: Location,
-  ctx: { userId: string; region: BoundingBox | null },
+  ctx: ResolveContext,
   deps: ResolveDeps = defaultResolveDeps,
 ): Promise<LocationResolution> {
   if (input.lat !== undefined) return { location: input, outcome: "provided" };
@@ -113,7 +126,7 @@ export async function resolveStopLocation(
       : await geocoder.forward(input.name, {
           limit: 1,
           ...(ctx.region ? { viewbox: ctx.region } : {}),
-          ...(input.countryCode ? { countryCode: input.countryCode } : {}),
+          ...countryFilterFor(input.countryCode, ctx.countries ?? []),
         });
   } catch {
     return { location: input, outcome: "unavailable" };

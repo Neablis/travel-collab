@@ -208,7 +208,11 @@ fills them in when you leave them out, in this order:
 1. **`lat` + `lng`** — used as sent. No lookup. Send both or neither.
 2. **`address`** — geocoded as a structured address.
 3. **`name`** — geocoded as free text, preferring places near the trip's other stops
-   (and inside `countryCode`, if you set it).
+   and restricted to a country: `countryCode`, if you set it; otherwise the
+   countries the trip's already-located stops are in (all of them, if it spans
+   several). A trip with nothing located yet is not restricted at all. **Adding
+   the first stop in a new country by name? Send its `countryCode`**, or the
+   lookup is confined to the countries the trip already has.
 
 If the lookup finds nothing, the stop is **still created**, without coordinates.
 Every write whose body had a `location` answers with a `Geocode-Outcome` header:
@@ -275,7 +279,8 @@ Omitted means no reason given, which is what every stop written before the
 field existed reads as.
 
 **To check a place before writing it**, `GET /v1/trips/{tripId}/geocode?q=…`
-(optionally `&countryCode=JP`) returns up to five candidates. Each is a complete
+(optionally `&countryCode=JP`) returns up to five candidates — without
+`countryCode`, restricted to the trip's countries by the same rule as above. Each is a complete
 `location`: send one back as-is and the write costs no second lookup. Needs
 `trips:write` — a lookup spends the operator's geocoding allowance, so a
 read-only token cannot make one. A spent allowance answers `429` with

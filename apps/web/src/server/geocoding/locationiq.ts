@@ -65,8 +65,13 @@ async function search(
     url.searchParams.set("viewbox", `${minLng},${minLat},${maxLng},${maxLat}`);
   }
   // `countrycodes` (ISO alpha-2, lowercased), not the structured endpoint's
-  // `country`, which takes a country NAME — a code is what we hold.
-  if (opts?.countryCode) url.searchParams.set("countrycodes", opts.countryCode.toLowerCase());
+  // `country`, which takes a country NAME — a code is what we hold. It takes a
+  // comma list, which is how a trip spanning several countries is hinted; a
+  // country the caller named wins over that list outright.
+  const countries = opts?.countryCode ? [opts.countryCode] : (opts?.countryCodes ?? []);
+  if (countries.length > 0) {
+    url.searchParams.set("countrycodes", countries.map((code) => code.toLowerCase()).join(","));
+  }
   const res = await fetch(url, { headers: { Accept: "application/json" } });
   // A miss is HTTP 404 with body {"error":"Unable to geocode"}. It is an
   // answer, not a fault, and it has to reach the caller as one: the v1 stop

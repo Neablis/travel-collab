@@ -207,6 +207,17 @@ describe("LocationIQ geocoder adapter", () => {
     expect(url.searchParams.get("countrycodes")).toBe("jp");
   });
 
+  it("sends a trip's several countries as one comma list, and a named country instead of it", async () => {
+    const fetchMock = vi.fn(async (_input: string | URL | Request) => new Response("[]", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const geocoder = createLocationIQGeocoder("K");
+    await geocoder.forward("Ichiran", { countryCodes: ["JP", "KR"] });
+    await geocoder.forward("Ichiran", { countryCode: "US", countryCodes: ["JP", "KR"] });
+    await geocoder.forward("Ichiran", { countryCodes: [] });
+    const sent = fetchMock.mock.calls.map((c) => new URL(c[0] as string).searchParams.get("countrycodes"));
+    expect(sent).toEqual(["jp,kr", "us", null]);
+  });
+
   // LocationIQ answers a miss with HTTP 404 {"error":"Unable to geocode"}
   // (confirmed against its docs, 2026-09-18). It must surface as [] so a caller
   // can tell `no-match` from `unavailable`; every other non-OK status still throws.

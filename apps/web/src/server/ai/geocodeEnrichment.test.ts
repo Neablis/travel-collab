@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { BatchableCommand, Location } from "@tc/contracts";
-import type { GeocodeResult, Geocoder } from "@/server/geocoding";
+import type { GeocodeOptions, GeocodeResult, Geocoder } from "@/server/geocoding";
 import { enrichCommandLocations, hasUnverifiedLocations, type LocationEnrichmentReport } from "./geocodeEnrichment";
 
 const TRIP = "11111111-1111-4111-8111-111111111111";
@@ -1118,5 +1118,51 @@ describe("a stop the server already located", () => {
       noSleep,
     );
     expect(calls).toEqual(["Nowhere"]);
+  });
+});
+
+// Mitchell, 2026-09-30 (option A): the trip's countries restrict a venue lookup
+// the location names no country for. The derivation is region.test.ts's; this
+// is the approval path handing it to the vendor, on the region's own terms.
+describe("the trip's country hint", () => {
+  function recordingGeocoder() {
+    const options: Record<string, GeocodeOptions | undefined> = {};
+    const geocoder: Geocoder = {
+      async forward(query, opts) {
+        options[query] = opts;
+        return [];
+      },
+      forwardAddress: async () => [],
+    };
+    return { geocoder, options };
+  }
+  const noSleep = async () => {};
+
+  it("restricts a venue lookup to the trip's countries, unless the stop names its own or is where a leg arrives", async () => {
+    const { geocoder, options } = recordingGeocoder();
+    const leg = { ...addActivity("Flight", { name: "Haneda" }), kind: "transit", endLocation: { name: "Incheon" } } as BatchableCommand;
+    await enrichCommandLocations(
+      [addActivity("Lunch", { name: "Ichiran" }), addActivity("Dinner", { name: "Tim Ho Wan", countryCode: "HK" }), leg],
+      () => geocoder,
+      null,
+      noSleep,
+      undefined,
+      ["JP", "KR"],
+    );
+    expect(options["Ichiran"]?.countryCodes).toEqual(["JP", "KR"]);
+    expect(options["Haneda"]?.countryCodes).toEqual(["JP", "KR"]);
+    // The location's own country is never overridden by an inferred list...
+    expect(options["Tim Ho Wan"]).not.toHaveProperty("countryCodes");
+    // ...and a destination is judged without the trip's bias, so a flight to a
+    // new country is not filtered to the old ones.
+    expect(options["Incheon"]).not.toHaveProperty("countryCodes");
+  });
+
+  // A batch with no leg takes its own shorter path through
+  // `enrichCommandLocations`; the hint has to survive that one too.
+  it("hints a batch with no transit leg as well", async () => {
+    const { geocoder, options } = recordingGeocoder();
+    await enrichCommandLocations([addActivity("Lunch", { name: "Ichiran" })], () => geocoder, null, noSleep, undefined, ["JP"]);
+    expect(options["Ichiran"]?.countryCodes).toEqual(["JP"]);
   });
 });

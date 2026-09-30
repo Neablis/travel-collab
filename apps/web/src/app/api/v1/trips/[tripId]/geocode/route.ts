@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { GeocodeCandidates, type Location } from "@tc/contracts";
-import { tripRegionOf } from "@/server/geocoding/region";
+import { countryFilterFor, tripCountriesOf, tripRegionOf } from "@/server/geocoding/region";
 import { getGeocoder } from "@/server/geocoding";
 import { PublicApiError } from "@/server/public-api/commands";
 import { defaultResolveDeps } from "@/server/public-api/locations";
@@ -62,7 +62,9 @@ export const { GET } = route({
         results = await getGeocoder().forward(q, {
           limit: 5,
           ...(region ? { viewbox: region } : {}),
-          ...(countryCode ? { countryCode } : {}),
+          // The caller's `countryCode` wins; without one, the countries the
+          // trip's located stops are in (Mitchell, 2026-09-30).
+          ...countryFilterFor(countryCode, tripCountriesOf(trip!)),
         });
       } catch {
         // Unconfigured key or a vendor that failed. Either way it is ours, not

@@ -40,6 +40,11 @@ export interface GeocodeOptions {
   viewbox?: BoundingBox;
   // Restricts results to one country (ISO alpha-2). A filter, unlike `viewbox`.
   countryCode?: string;
+  // Restricts results to any of these countries (ISO alpha-2) — the trip-derived
+  // hint (`tripCountriesOf`, region.ts). A filter too. Ignored when
+  // `countryCode` is set: a country the caller named always beats one we
+  // inferred. Empty means no restriction.
+  countryCodes?: readonly string[];
 }
 
 // The swappable seam (ADR-007). Callers depend only on this; each adapter hides
@@ -52,6 +57,6 @@ export interface Geocoder {
   // caller's to set here.
   forwardAddress(
     address: PostalAddress,
-    opts?: Omit<GeocodeOptions, "countryCode">,
+    opts?: Omit<GeocodeOptions, "countryCode" | "countryCodes">,
   ): Promise<GeocodeResult[]>;
 }

@@ -23,7 +23,7 @@
 // acceptance and reporting are batch-shaped AI pipeline policy, not a
 // geocoding-provider concern; `geocoding/` stays a pure vendor seam.
 import type { BatchableCommand, Location } from "@tc/contracts";
-import type { Geocoder } from "@/server/geocoding";
+import type { Geocoder, GeocodeOptions } from "@/server/geocoding";
 import {
   boundingBoxAround,
   distanceKm,
@@ -287,6 +287,7 @@ async function resolveOne(
   name: string,
   hint: LatLng | null,
   region: BoundingBox | null,
+  countries: Pick<GeocodeOptions, "countryCodes"> = {},
 ): Promise<Resolution> {
   const fallback: Location = hint ? { name, lat: hint.lat, lng: hint.lng } : { name };
   const hintTrusted = hint != null && (region == null || withinBox(region, hint));
@@ -294,7 +295,7 @@ async function resolveOne(
 
   let match;
   try {
-    [match] = await geocoder.forward(name, { limit: 1, ...(viewbox ? { viewbox } : {}) });
+    [match] = await geocoder.forward(name, { limit: 1, ...(viewbox ? { viewbox } : {}), ...countries });
   } catch {
     // Best-effort by contract: a vendor failure never fails the AI request. It
     // is reported rather than swallowed, which is the half KI-15 was missing.
@@ -426,6 +427,7 @@ function cityLookupOf(location: Location): { key: string; query: string } | null
  * @param tripRegion - Bias from the trip's already-geocoded activities, if any
  * @param sleep - Throttle delay, injected as a no-op by tests
  * @param destinations - The slots that are a transit leg's `endLocation`
+ * @param tripCountries - Countries of the trip's located stops (`tripCountriesOf`), sent as a filter on venue lookups
  */
 async function enrichLocationSlots(
   commands: BatchableCommand[],
@@ -434,6 +436,7 @@ async function enrichLocationSlots(
   sleep?: (ms: number) => Promise<void>,
   charge: GeocodeCharge = UNMETERED,
   destinations: ReadonlySet<BatchableCommand> = new Set(),
+  tripCountries: readonly string[] = [],
 ): Promise<{ commands: BatchableCommand[]; report: LocationEnrichmentReport }> {
   // A destination is judged differently (see `enrichCommandLocations`), so it
   // must never share a lookup — or an answer — with an ordinary stop of the
@@ -452,7 +455,7 @@ async function enrichLocationSlots(
   // the stops it SKIPS looking up (see `isServerLocated` below), so the report
   // has to exist by then.
   const report = emptyReport();
-  const pending = new Map<string, { name: string; hint: LatLng | null; destination: boolean }>();
+  const pending = new Map<string, { name: string; hint: LatLng | null; destination: boolean; ownCountry: boolean }>();
   for (const command of commands) {
     if (!hasLocation(command)) continue;
     // **Already located by the server — do not look it up again** (M9
@@ -477,10 +480,12 @@ async function enrichLocationSlots(
     const key = keyOf(command);
     const existing = pending.get(key);
     const hint = plausibleCoords(command.location);
+    const ownCountry = command.location.countryCode !== undefined;
     if (!existing) {
-      pending.set(key, { name: command.location.name, hint, destination: destinations.has(command) });
-    } else if (!existing.hint && hint) {
-      existing.hint = hint;
+      pending.set(key, { name: command.location.name, hint, destination: destinations.has(command), ownCountry });
+    } else {
+      if (!existing.hint && hint) existing.hint = hint;
+      if (ownCountry) existing.ownCountry = true;
     }
   }
 
@@ -519,9 +524,17 @@ async function enrichLocationSlots(
   // lookup of a region-less trip can come back `unchecked` — and a destination,
   // which never sees the region and never anchors it.
   const anchors: LatLng[] = [];
-  const resolved = await mapRateLimited(attempted, MIN_INTERVAL_MS, async ([key, { name, hint, destination }]) => {
+  const resolved = await mapRateLimited(attempted, MIN_INTERVAL_MS, async ([key, { name, hint, destination, ownCountry }]) => {
     const region = destination ? null : tripRegion ?? boundingBoxAround(anchors, TRIP_REGION_MARGIN_KM);
-    const resolution = await resolveOne(geocoder, name, hint, region);
+    // The trip's countries as a filter (Mitchell, 2026-09-30), on the same
+    // terms as the region: never for a destination, which is judged without the
+    // region because it is where the trip goes NEXT — a flight to a new country
+    // filtered to the old one would find nothing. And never over a country the
+    // location names itself: this path has always sent that one nowhere, and a
+    // trip-derived list must not override it. (The city fallback's query names
+    // its country outright, so it takes no filter either.)
+    const countries = destination || ownCountry || tripCountries.length === 0 ? {} : { countryCodes: tripCountries };
+    const resolution = await resolveOne(geocoder, name, hint, region, countries);
     // Anything we settled on is evidence about where the trip is — including a
     // rejected lookup's surviving model hint. A `failed` lookup taught us
     // nothing new, so it contributes nothing, and neither does a destination:
@@ -762,6 +775,7 @@ export async function enrichCommandLocations(
   tripRegion: BoundingBox | null = null,
   sleep?: (ms: number) => Promise<void>,
   charge: GeocodeCharge = UNMETERED,
+  tripCountries: readonly string[] = [],
 ): Promise<{ commands: BatchableCommand[]; report: LocationEnrichmentReport }> {
   const slots: BatchableCommand[] = [];
   const destinations = new Set<BatchableCommand>();
@@ -773,9 +787,9 @@ export async function enrichCommandLocations(
     slots.push(destination);
   }
   if (slots.length === commands.length) {
-    return enrichLocationSlots(commands, getGeocoder, tripRegion, sleep, charge);
+    return enrichLocationSlots(commands, getGeocoder, tripRegion, sleep, charge, new Set(), tripCountries);
   }
-  const enriched = await enrichLocationSlots(slots, getGeocoder, tripRegion, sleep, charge, destinations);
+  const enriched = await enrichLocationSlots(slots, getGeocoder, tripRegion, sleep, charge, destinations, tripCountries);
   const folded: BatchableCommand[] = [];
   let i = 0;
   for (const command of commands) {
