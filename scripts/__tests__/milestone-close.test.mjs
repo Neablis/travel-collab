@@ -204,6 +204,17 @@ test("it lists steps 3 and 5 as still manual rather than inventing prose", () =>
   rmSync(root, { recursive: true, force: true });
 });
 
+test("it lists a retirement pass for a first-read file past the surface wall's NEAR_AT, and only then", () => {
+  // CLAUDE.md's surface budget is 10,000; 9,000 is past 0.85.
+  const near = repo({ "CLAUDE.md": "x".repeat(9_000) });
+  assert.match(run(near, ["close", "M20"]), /7\. retirement pass on CLAUDE\.md — 90% of its budget/);
+  rmSync(near, { recursive: true, force: true });
+
+  const calm = repo({ "CLAUDE.md": "x".repeat(1_000) });
+  assert.doesNotMatch(run(calm, ["close", "M20"]), /retirement pass/);
+  rmSync(calm, { recursive: true, force: true });
+});
+
 // --- the order: TODO.md's rows, top down ------------------------------------
 //
 // KI-2026-09-21-a, closed 2026-09-24 by Mitchell choosing "the rows ARE the

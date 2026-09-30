@@ -15,14 +15,14 @@ A milestone's gate passing is the single trigger for flipping **every** status
 flag, in **one commit** — never a trailing manual step (that is how M2 stayed
 unticked). When the deployed gate demo passes:
 
-> **`pnpm milestone close <id>` performs steps 1, 4 and 6 and refuses to do
-> them wrong.** It will not close a milestone with open exit-gate boxes, will
-> not proceed on a parse that found nothing, will not write anything
-> without `--confirm` — it prints a diff first — and **reads which milestone
+> **`pnpm milestone close <id>` performs steps 1, 4 and 6, lists 3, 5 and 7,
+> and refuses to do them wrong.** It will not close a milestone with open
+> exit-gate boxes, will not proceed on a parse that found nothing, will not
+> write anything without `--confirm` — it prints a diff first — and **reads which milestone
 > becomes current from `TODO.md`'s row order**: the next unticked milestone row,
 > skipping rows marked PAUSED. `--next <id>` is optional and only asserts that
 > answer; if it disagrees with the rows it refuses and tells you to move the
-> row. Steps 3 and 5 are prose and stay yours; it lists them rather than
+> row. Steps 3, 5 and 7 are judgement and stay yours; it lists them rather than
 > inventing them.
 >
 > **A reorder therefore moves `TODO.md`'s rows** (and is recorded below, under
@@ -31,12 +31,6 @@ unticked). When the deployed gate demo passes:
 > not the position", so row order carried nothing, the script had to require
 > `--next`, and closing M26 its row-order guess was M12 when the order was
 > `M26 → M13 → M12`.
->
-> This is automated because the list is what kept failing. Step 5 was *added*
-> to this checklist after M11a's and M11b's gate-close commits both missed it,
-> and on 2026-09-21 `TODO.md`'s header still opened *"M21 is the current
-> work"* four milestones after M21 closed. A sixth manual step would be one
-> more thing to forget.
 
 1. Tick the milestone in `TODO.md`.
 2. Check every exit-gate box in the milestone's own file (`docs/milestones/`).
@@ -54,11 +48,12 @@ unticked). When the deployed gate demo passes:
 
 6. **Delete the `docs/candidates.md` entries this gate absorbed.** Entries
    annotated *"<M>'s gate deletes this entry at close"* are deleted by
-   `pnpm milestone close`. This was already the stated rule — see the
-   2026-09-18 note's *"annotated in place and deleted at those gates"* — and
-   it was skipped: M23's entry survived its own gate closing on 2026-09-19 and
-   was still there two days later. An entry that says it is *"kept here only
-   for the reasoning"* is **scoped**, not placed, and is never auto-deleted.
+   `pnpm milestone close` (M23's survived its own gate by two days when this
+   was manual). An entry that says it is *"kept here only for the reasoning"*
+   is **scoped**, not placed, and is never auto-deleted.
+
+7. **A retirement pass on any first-read file past 85% of its surface budget**,
+   when `pnpm milestone close` lists one — `docs/guidelines/retiring-a-rule.md`.
 
 The *next* milestone's plan opens with a preflight that re-checks this list
 (`TODO.md` standing tasks), so a missed flag is caught at the next kickoff.

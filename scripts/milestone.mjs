@@ -54,6 +54,7 @@ import {
   assertAnchors,
   plain,
 } from "./lib/roadmap-read.mjs";
+import { collect as surfaceRows } from "./surface-size.mjs";
 
 const root = process.env.CLAUDE_PROJECT_DIR ?? process.cwd();
 
@@ -329,6 +330,16 @@ function close(id, { confirm, nextId }) {
   console.log("STILL YOURS TO WRITE — this script does not invent prose:");
   console.log(`  3. the retro note, appended to ${milestoneFile(root, id)}`);
   console.log(`  5. docs/STATUS.md's "Where the work is right now" and "Next action"`);
+  // Step 7 is conditional, and listed rather than done for the same reason as
+  // 3 and 5: deciding which rule stopped paying rent is judgement. A gate close
+  // is the calm cadence the surface wall lacks — without it, a first-read file
+  // grows until the wall is red and the trim happens under pressure.
+  for (const r of surfaceRows(root).filter((row) => row.near || row.over)) {
+    console.log(
+      `  7. retirement pass on ${r.rel} — ${Math.round((r.bytes / r.budget) * 100)}% of its budget` +
+        " (docs/guidelines/retiring-a-rule.md)",
+    );
+  }
   console.log("");
 
   if (!confirm) {

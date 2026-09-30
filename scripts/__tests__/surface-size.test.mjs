@@ -37,6 +37,29 @@ test("a file within budget is OK; one over is flagged", () => {
   rmSync(root, { recursive: true, force: true });
 });
 
+test("past NEAR_AT a file is `near` — warned, not failed; over budget it is not also near", () => {
+  // CLAUDE.md's budget is 10,000. The warning exists so a retirement pass
+  // happens before the wall is red; it must never itself fail the build, or it
+  // is just a lower wall with a worse message.
+  const root = repo({ "CLAUDE.md": 9_000, "TODO.md": 100 });
+  const rows = collect(root);
+  const claude = rows.find((r) => r.rel === "CLAUDE.md");
+  assert.equal(claude.near, true, "9,000 of 10,000 is past 0.85");
+  assert.equal(claude.over, false);
+  assert.equal(rows.find((r) => r.rel === "TODO.md").near, false);
+  assert.equal(collect(repo({ "CLAUDE.md": 8_000 })).find((r) => r.rel === "CLAUDE.md").near, false, "8,000 is 0.80");
+  assert.equal(collect(repo({ "CLAUDE.md": 12_000 })).find((r) => r.rel === "CLAUDE.md").near, false, "over is its own state");
+
+  const out = execFileSync(process.execPath, [SCRIPT, "--check"], {
+    env: { ...process.env, CLAUDE_PROJECT_DIR: root },
+    encoding: "utf8", stdio: ["ignore", "pipe", "pipe"],
+  });
+  assert.match(out, /!! CLAUDE\.md is at 90% of its budget/);
+  assert.match(out, /retiring-a-rule\.md/, "the warning must say what to do");
+  assert.match(out, /surface wall OK/, "and --check still passes");
+  rmSync(root, { recursive: true, force: true });
+});
+
 test("the un-walled directory is never `over`, whatever its size", () => {
   // docs/known-issues/open/ is reported but not walled: its size is a backlog
   // problem, and walling it would pressure people into shorter KI entries,
@@ -97,9 +120,13 @@ test("every budget leaves real headroom over the size it was set at", () => {
   for (const r of rows) {
     if (r.budget === null || r.bytes === null) continue;
     const headroom = (r.budget - r.bytes) / r.budget;
+    // When this fires on a file that GREW into its budget (rather than a budget
+    // set too tight), the remedy is a retirement pass, not a raise — say so,
+    // or the message invites the one fix the wall exists to prevent.
     assert.ok(
       headroom > 0.1,
-      `${r.rel}: only ${(headroom * 100).toFixed(1)}% headroom (${r.bytes}/${r.budget}) — too tight to survive one real edit`,
+      `${r.rel}: only ${(headroom * 100).toFixed(1)}% headroom (${r.bytes}/${r.budget}) — too tight to survive one real edit. ` +
+        "If the file grew here, run a retirement pass (docs/guidelines/retiring-a-rule.md) rather than raising the budget.",
     );
   }
 });

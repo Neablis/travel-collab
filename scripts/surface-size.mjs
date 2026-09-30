@@ -59,6 +59,16 @@ const BUDGETS = {
   "docs/known-issues/open/": null,
 };
 
+// The retirement line. A wall that only fires OVER budget has one remedy left
+// by the time it fires — a crisis trim against a red build, or a raised
+// budget. Past this fraction a file is `near`: nothing fails, the report says
+// so, and `pnpm milestone close` lists a retirement pass for it, so the trim
+// happens on a calm cadence rather than under pressure. The procedure is
+// docs/guidelines/retiring-a-rule.md. 0.85 sits below the 0.9 the headroom
+// test in __tests__/surface-size.test.mjs fails at, so the warning always
+// arrives before the red.
+export const NEAR_AT = 0.85;
+
 function sizeOf(root, rel) {
   const full = join(root, rel);
   if (rel.endsWith("/")) {
@@ -114,6 +124,7 @@ export function collect(root, { since } = {}) {
       budget,
       was,
       over: budget !== null && bytes !== null && bytes > budget,
+      near: budget !== null && bytes !== null && bytes <= budget && bytes > budget * NEAR_AT,
     };
   });
 }
@@ -149,7 +160,7 @@ function main() {
             (r.was ? ` (${(((r.bytes - r.was) / r.was) * 100).toFixed(0)}%)` : "");
       const budget = r.budget === null ? "not walled" : `budget ${fmt(r.budget)}`;
       console.log(
-        `  ${r.over ? "XX" : "OK"}  ${r.rel.padEnd(w)}  ${fmt(r.bytes).padStart(9)} B` +
+        `  ${r.over ? "XX" : r.near ? "!!" : "OK"}  ${r.rel.padEnd(w)}  ${fmt(r.bytes).padStart(9)} B` +
           `  ~${fmt(Math.round((r.bytes ?? 0) / 4)).padStart(7)} tok  ${budget}${delta}`,
       );
     }
@@ -161,6 +172,16 @@ function main() {
     console.log("");
     console.log("  Byte counts prove the SURFACE shrank, not that sessions got cheaper.");
     console.log("  The outcome measure is F1/F2 in `pnpm session-metrics`.");
+    const near = rows.filter((r) => r.near);
+    if (near.length) {
+      console.log("");
+      for (const r of near) {
+        console.log(
+          `  !! ${r.rel} is at ${Math.round((r.bytes / r.budget) * 100)}% of its budget — ` +
+            "due a retirement pass, not a raise: docs/guidelines/retiring-a-rule.md",
+        );
+      }
+    }
   }
 
   if (!check) return;
