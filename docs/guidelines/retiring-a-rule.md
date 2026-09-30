@@ -56,7 +56,11 @@ but keep it in place.
    one section per removal: the file, the criterion, the old text, and what
    replaced it. Archived rather than deleted, and greppable.
    `docs/retros/2026-09-30-retired-rules.md` is the first one and shows the
-   shape.
+   shape. **A file that already has its own archive uses it**: `STATUS.md`'s
+   closed sections go to `docs/retros/<date>-status-archive.md`, and
+   `docs/milestones/README.md`'s dated notes go to
+   `docs/milestones/decisions-archive.md` in date order, where other files'
+   citations by date still find them.
 2. Leave a pointer where a reader would still look for the rule. Leave
    nothing where the text was only history.
 3. Aim below 85%, not just under it. A pass that lands at 84% triggers again
