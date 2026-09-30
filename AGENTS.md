@@ -185,7 +185,9 @@ container with no local infra.
 
 **Skills** (`.claude/skills/`): `minimal-check-subset` (narrowest sufficient
 check), `ci-triage` (scoped failing-job logs), `worktree-hygiene` (read-only
-worktree audit).
+worktree audit), `write-a-test` (the testing guide as steps), `ai-usage` (the
+assistant's live cost and quality). The first three are symlinks into
+`.agents/skills/`; edit them there.
 
 **Content check** (`pnpm content:verify`): parses every bundle under `content/`
 against `travel-collab/content-bundle/v1`, runs the content rules a schema
@@ -200,16 +202,12 @@ code path as the import with the writes off. The same lint runs inside
 **Surface report and wall** (`pnpm surface`, `pnpm surface --check` inside
 `pnpm lint`): how big the files every session reads first actually are, with a
 per-file byte budget. It exists because the surface **doubled in nineteen
-days** — 315,687 B at the 2026-09-02 tooling review to 635,502 B on
-2026-09-21 — while nobody was watching, because no number was being kept. At
-the 51.3x cache re-read multiplier that review measured, this is the one place
-a byte saved is not saved once. `--since <ref>` prints the before/after
-against any commit. Each budget is ~1.25x the file's size when it was set, so
-the wall fires on growth rather than on the next legitimate paragraph; raising
-one is a decision to record in the commit that raises it.
-**What it proves and does not:** byte counts prove the *surface* shrank, not
-that sessions got cheaper. The outcome measure is F1/F2 in
-`pnpm session-metrics`. `docs/reviews/2026-09-21-development-loop-review.md`.
+days** while nobody was keeping a number, and at the measured 51.3x re-read
+multiplier a byte saved there is not saved once
+(`docs/reviews/2026-09-21-development-loop-review.md`). Past 85% of a budget a
+file is marked `!!` and `pnpm milestone close` lists a **retirement pass** for
+it — `docs/guidelines/retiring-a-rule.md`. Raising a budget is a decision to
+record in the commit that raises it.
 
 **Fixture check** (`pnpm seed:verify`): folds the canonical Japan demo trip
 through the real domain and reports counts, kind/tag coverage, coordinates,
@@ -289,13 +287,8 @@ Recording completion in a branch-local `docs/STATUS.md` does not count — no
 other session or Mitchell will ever read a `docs/STATUS.md` that only exists on
 an unmerged branch; a PR is the only thing that makes finished work visible and
 puts it in front of GitHub's own merge-conflict detection while the diff is
-still small. In M10 Wave 2, Phase 3's branch (`claude/m10-phase-3-rack`) was
-fully built and verified in a real browser on 2026-08-22, recorded "done" in
-its own branch-local `STATUS.md` — and then sat with no PR while Phase 4 was
-built independently on `main` and merged first (PR #25), leaving Phase 3
-diverged 12 commits each way with a likely `TimelineLens.tsx` conflict, only
-noticed a day later when a fresh session went looking for "the next milestone"
-and its own task list still claimed Phase 3 as done. Before starting new
+still small. M10 Wave 2's Phase 3 sat built, verified and PR-less while Phase 4
+merged past it (PR #25), 12 commits diverged each way. Before starting new
 phase/milestone work that another session's docs describe as independent,
 check for sibling `claude/*` branches on the current milestone first (`git
 branch -a`, `git ls-remote --heads origin`) — a finished-but-unmerged one needs
@@ -303,29 +296,15 @@ a PR opened (or an explicit, recorded reason it's being left) before you add
 more parallel work on top of it.
 
 Rule: **open that PR as a draft, and mark it ready only when you believe it is
-green.** The rule above wants the PR open early for visibility; CI wants it to
-stop paying for every intermediate commit. Draft status gives both — the PR is
-visible, `gh pr list` sees it, GitHub detects conflicts against it, and
-`.github/workflows/ci.yml` skips its jobs until you mark it ready. This is not
-a style preference: this repo is private on a GitHub Free plan (2,000 Linux
-minutes/month) and a measured 30-day sample burned 1,956 of them, 71% on
-pull-request runs. PR #55 alone spent **31 runs and 315 minutes** across 37
-commits, nearly all of them on work-in-progress an agent already knew was
-unfinished. Open a draft, push freely, then `gh pr ready <n>` and watch with
-`gh pr checks <n> --watch --fail-fast`. `docs/guidelines/ci-cost-and-capacity.md`
-carries the full accounting.
+green.** Draft status keeps the PR visible and conflict-checked while
+`.github/workflows/ci.yml` skips its jobs until `gh pr ready <n>`. The minute
+budget is 2,000/month and PR #55 alone spent **315 minutes** on
+work-in-progress; the draft-PR guard above now asks before a non-draft
+`gh pr create`. Full accounting: `docs/guidelines/ci-cost-and-capacity.md`.
 
 ## Definition of Done (every change)
 
 ### Verification scales to the change
-
-This section used to open with a single line — *"typecheck, lint, and all tests
-pass locally (`pnpm check`)"* — under a header that says **every change**. It
-was followed literally, including on changes that touched nothing but prose.
-Running the full suite to fix a typo in `TODO.md` is not caution; it spends
-local wall clock, Claude tokens reading the output, and — once a PR is open and
-someone starts watching it — time waiting for checks that `paths-ignore`
-guaranteed would never report.
 
 Classify the change by what it touches, then run **only** that tier.
 
@@ -354,10 +333,7 @@ root-level `*.md` (`README`, `AGENTS`, `CLAUDE`, `TODO`).
 > `packages/fixtures/src/japan/upstreamDrift.test.ts:30` and
 > `apps/web/scripts/geocode-japan-seed.mts:139` both read
 > `.design-sync/handoff/data/japan-trip-seed.json` — so a change there is Tier 2
-> even when only its markdown moved. (This used to cite
-> `api/dev/reset-demo-data/route.ts`, which stopped importing the seed and now
-> only carries a comment saying it once did; the rule was right, its reason had
-> gone stale. Corrected 2026-09-12.) `ci.yml` gets this right by
+> even when only its markdown moved. `ci.yml` gets this right by
 > listing `*.md` rather than `**/*.md`; classify the same way.
 
 > **A Tier 1 branch may go straight to `main`, without a PR.** Mitchell,
@@ -369,11 +345,8 @@ root-level `*.md` (`README`, `AGENTS`, `CLAUDE`, `TODO`).
 > paths out, per the paragraph above) and no merge risk worth a round trip, so a
 > PR buys nothing and costs a cycle.
 >
-> **The tier rule still decides, and it is a property of the whole branch.** If
-> any path the branch touches falls outside `docs/**`, `.claude/**`,
-> `.agents/**` or a root-level `*.md`, this does not apply — including
-> `.design-sync/**`, per the trap below. Verify before pushing rather than
-> assuming, which is one command:
+> **The tier rule still decides, per the whole branch** — `.design-sync/**`
+> included, per the trap above. Verify before pushing, in one command:
 >
 > ```
 > git diff --name-only origin/main...HEAD | grep -vE '^(docs/|\.claude/|\.agents/)|^[A-Za-z]+\.md$'
@@ -500,17 +473,6 @@ gh pr checks <n> --watch --fail-fast
 Hand-polling with repeated `gh pr checks` is a reliable time sink; that is why
 this is written down rather than left to each session to rediscover.
 
-**Why this section changed (2026-09-21).** It prescribed only the blocking
-command, from a period when sessions ran on a laptop.
-`docs/guidelines/cloud-agent-sessions.md` has recorded since 2026-09-08 that
-*most agent work on this repo now happens in a Claude Code remote session*, and
-`subscribe_pr_activity`, `external-event` and `wake reason` appeared **nowhere**
-in `AGENTS.md`, `CLAUDE.md`, `docs/guidelines/` or `.claude/` — so the one
-mechanism that answers "stop polling github" was undocumented while the
-complaint it answers was live. Measured context:
-`docs/reviews/2026-09-21-development-loop-review.md` (A4), against 100 CI runs
-across 15 branches at a median 6.6 minutes each.
-
 ### CodeRabbit is Mitchell's step, not an automated one
 
 **Decided 2026-09-01. Do not wait on CodeRabbit, and never read its status as
@@ -546,12 +508,9 @@ same rule, since the ~21-minute quiet window is the real constraint. If in
 doubt, hand off instead; a review that aborts is worse than one not yet asked
 for.
 
-**Its findings are bug reports, not noise.** It caught a fire-and-forget
-navigation race in M10 Wave 2 Phase 7 that no test covered, and on #105 a
-tautological assertion that `pnpm check` passed — a test reading its expected
-value from the same registry entry the component reads, so a component
-ignoring the registry entirely would still have passed it. Verify each finding
-against the code, then fix it. Scope and verbosity live in `.coderabbit.yaml`;
+**Its findings are bug reports, not noise** — it has caught a navigation race
+no test covered (M10 Wave 2 Phase 7) and a tautological assertion that
+`pnpm check` passed (#105). Verify each finding against the code, then fix it. Scope and verbosity live in `.coderabbit.yaml`;
 tune that file rather than ignoring comments in bulk.
 
 
@@ -620,15 +579,10 @@ locator ladder, the testid contract, and four copy-pasteable examples. Read it
 before writing a test; the `write-a-test` skill walks it as steps. What follows
 is the law it expands: invariants only, each one paid for.
 
-- **Red first: a test is not done until it has been seen to fail.** Break the
-  code it protects, watch it go red for *your* reason, restore, watch it go
-  green — and put the source edit and the real failure text in the PR. Three
-  tests written in one session (2026-09-02) passed while proving nothing: a
-  `waitFor` on a value that could not change between retries, an effect keyed so
-  it never re-ran, and an empty-patch check that accepted the emptiest patch.
-  Each was caught only by doing this, retroactively. `witness` does it
-  mechanically for property tests; for everything else it is manual and there is
-  no substitute.
+- **Red first: a test is not done until it has been seen to fail** (CLAUDE.md
+  rule 3 carries the procedure and the 2026-09-02 incident). Put the source edit
+  and the real failure text in the PR. `witness` does it mechanically for
+  property tests; for everything else it is manual and there is no substitute.
 - **Test count is a cost, not a score.** A PR that adds tests without covering a
   *new* failure mode made the suite slower and nothing else.
 - **Prove it at one layer.** Name the layer that owns each claim and do not
@@ -668,22 +622,13 @@ is the law it expands: invariants only, each one paid for.
   dedicated suite.
 - **E2E** (Playwright): one happy-path script per milestone, kept green forever
   after its gate.
-- **An e2e result may only be reported from `pnpm --filter web test:e2e:ci-like`.**
-  Plain `test:e2e` serves `pnpm dev`, which compiles each route on first hit;
-  `ci-like` builds and serves production, which is what CI runs. The dev lane is
-  for iterating on a spec you are writing — never for a verdict, a PR checkbox,
-  or a claim made to Mitchell. A failing local run now prints this at you
-  (`e2e/laneReporter.ts`); it is in the manual too because the reporter only
-  fires once you have already run the wrong thing.
+- **An e2e result may only be reported from `pnpm --filter web test:e2e:ci-like`**
+  (CLAUDE.md rule 1). A failing dev-lane run also prints this
+  (`e2e/laneReporter.ts`), but only after you have run the wrong thing.
 - **Before attributing any failure to the environment, grep `docs/known-issues/`
-  for the symptom.** Both times the dev-lane trap has been hit, the entry
-  describing it (KI-27) already existed and was not read — the second time it
-  cost a day and still reached the wrong answer, reported to Mitchell as a
-  hardware limit. "Environmental", "flaky" and "infra" are conclusions that
-  require evidence, and they are the two most expensive things to be wrong
-  about, because both end the investigation. Useful discriminator: **a failure
-  whose location moves between runs is a timeout; a real defect fails in the
-  same place every time.**
+  for the symptom** (CLAUDE.md rule 2). "Environmental", "flaky" and "infra"
+  are conclusions that need evidence, and the most expensive ones to get wrong,
+  because they end the investigation.
 
 ## Conventions
 
