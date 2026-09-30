@@ -119,17 +119,18 @@ export const SCOPE_CATALOGUE: Readonly<Record<ApiScope, ApiScopeDescription>> = 
   },
   "library:read": {
     title: "Read your library",
-    description: "Read your saved-days library.",
+    description:
+      "Read your saved-days library and your Playbooks (a Playbook is a view over saved days), and browse published Playbooks.",
   },
   "library:write": {
     title: "Change your library",
     description:
-      "Create and delete saved days, and publish or unpublish them to Discover.",
+      "Create, edit, import and delete saved days and Playbooks, and publish or unpublish them to Discover.",
   },
   "sharing:write": {
     title: "Invite and share",
     description:
-      "Invite people to a trip, revoke invites, remove members, and create or revoke share links.",
+      "Invite people to a trip and revoke invites, and create or revoke share links.",
   },
   "account:read": {
     title: "Read your account",

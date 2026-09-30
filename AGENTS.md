@@ -440,6 +440,10 @@ point: they describe the change, not the ceremony around it.
   OpenAPI entries for it unless the task is API work. The public surface is
   caught up in deliberate passes that find the gap mechanically: see
   `docs/guidelines/using-the-api.md`, *Features ship before their endpoints*.
+  It does owe one line: a new internal route is added to
+  `apps/web/src/server/public-api/exposure.ts` as `public`, `planned` or
+  `never`, or `exposure.test.ts` fails. `planned` is the default when nobody
+  has decided; `never` is Mitchell's call.
   Changing an endpoint that already exists (a contract it returns grew a field)
   is still in scope: that is keeping the existing surface honest, not adding
   to it.

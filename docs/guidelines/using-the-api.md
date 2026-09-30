@@ -48,6 +48,18 @@ no token.
 **It is generated from the route declarations themselves**, so it cannot
 describe an endpoint that does not exist or miss one that does.
 
+**`info.version` moves whenever the document does.** It is semver over the
+published contract: a **patch** bump for prose only (a summary, a field
+description, the scope text), **minor** for anything additive (an endpoint, an
+optional field, a new enum value on a response), **major** for anything that
+breaks a caller (a field or value removed, renamed or newly required). Compare it
+between fetches to know whether to re-read the reference; the changes themselves
+are in `docs/contracts/CHANGELOG.md`. It is enforced, not remembered:
+`openapi.ts` records a fingerprint (sha256 of the document without
+`info.version`, keys sorted) beside `API_VERSION`, and `openapi.test.ts` fails —
+printing the new fingerprint — when the generated document no longer matches it.
+Bump the version, paste the fingerprint, add the changelog line, in one diff.
+
 ### Discovery
 
 A caller who knows only the host can find the reference without guessing:
@@ -77,8 +89,8 @@ A token holds a set of scopes and nothing is implied by anything else —
 | `trips:read` | See your trips, their days and stops, costs, history, and existing share links |
 | `trips:write` | Create, change and delete trips, days and stops; undo, redo and revert |
 | `notebook:read` / `notebook:write` | Read / write the Notebook pages on a trip |
-| `library:read` / `library:write` | Read / write your saved-days library, including publishing to Discover |
-| `sharing:write` | Invite people to a trip, revoke invites, remove members, create and revoke share links |
+| `library:read` / `library:write` | Read / write your saved-days library **and your Playbooks** — a Playbook is a view over saved days (ADR-050), so the same two scopes cover `/v1/library`, `/v1/playbooks/**` and `/v1/discover/playbooks` — including publishing to Discover |
+| `sharing:write` | Invites (create, revoke) and share links (create, revoke). No v1 endpoint removes a member |
 | `account:read` | Who you are and what plan you hold |
 
 **Inviting someone is `sharing:write`, not `trips:write`**, even though an invite
@@ -339,6 +351,18 @@ the same thing as a saved day in your library — `/v1/playbooks` and
 days, where `/v1/library` keeps its published singular `dayId` (ADR-050). Only
 `/v1/playbooks` shows a Playbook's `version` and `summary`.
 
+**Two shapes, on purpose** (ADR-048, ADR-050). Because a Playbook *is* a saved
+day, the record you read back is the saved-day record:
+
+- **Its id key is `savedDayId`.** That value is the `playbookId` in every
+  `/v1/playbooks/{playbookId}` path; there is no separate `id` or `playbookId`
+  field.
+- **Writes are grouped, reads are flat.** `POST` (inline) and `PATCH` take
+  `days[].stops[]`; every read — `GET`, the list, and the `playbook` in a write's
+  answer — returns one ordered `stops[]` with a 0-based `dayIndex` on each stop,
+  plus `dayCount` (which counts empty rest days). Group by `dayIndex` to get the
+  days back.
+
 | | Scope | Role | Notes |
 |---|---|---|---|
 | `GET /v1/playbooks` | `library:read` | — | Yours, newest first, paged like every collection. `?visibility=private\|public` filters |
@@ -434,7 +458,10 @@ Only `playbookId` is required. The answer:
   the end of the trip. `{ "mode": "startingAt", "dayId" }` **merges**: Playbook
   day 0 goes onto `dayId`, day 1 onto the trip's next day, and so on; only the
   days that run past the end of the trip are added, at the end. Nothing is ever
-  inserted *between* two days — the trip's own days never move. An unknown
+  inserted *between* two days — the trip's own days never move. **On a merged
+  day the trip's existing stops stay first, and the Playbook's stops for that
+  day are appended after them in the Playbook's order** — nothing is sorted by
+  time, so a 09:00 Playbook stop lands after a 15:00 stop already there. An unknown
   `dayId` is a 400. If the trip's days change between your request and the
   write, the answer is a 409 rather than a stop on the wrong day.
 - **`dayIds[i]`** is the trip day the Playbook's day `i` landed on — new on an
@@ -554,6 +581,11 @@ choice — and reuse it only to retry that same operation.
 - **Billing.** Checkout and the portal move money and are session-only forever.
 - **Managing tokens.** Minting and revoking are session-only — a token that
   could mint tokens could widen itself and outlive its own revocation.
+- **Referrals.** They grant plan time, and scripted they could be gamed.
+- **Notebook reset, restore and add-missing-defaults, and weather.** In-app
+  only (Mitchell, 2026-09-30).
+- The full list, with reasons, is the `never` lines of
+  `apps/web/src/server/public-api/exposure.ts`; CI holds the API to it.
 - **`/api/*` without `v1`.** Those routes serve this app's own frontend. They
   are cookie-only, they are not versioned, and they change shape without notice.
 
@@ -570,13 +602,22 @@ The rule now:
    ADR or guideline says what it is and which internal route serves it
    (`apps/web/src/app/api/**`, outside `v1/`). No new `/api/v1/**` route, no new
    scope and no OpenAPI entry, unless the task is API work.
-2. **The gap is found mechanically, in a pass.** A deterministic script lists
-   every internal route and every public one, with its methods, and prints the
-   internal capabilities that have no public counterpart. An API pass reads that
-   list, picks what to publish, and adds the endpoints the way the next section
-   describes. *Status: the script is not written yet.* Until it is, the list is
-   `find apps/web/src/app/api -name route.ts` read against the same under
-   `api/v1/`.
+2. **Every internal route has one line in
+   `apps/web/src/server/public-api/exposure.ts`** (Mitchell, 2026-09-30):
+   `public` (naming the `v1/` routes that serve it), `planned` (wanted, with a
+   note on what it waits for) or `never` (with why, and the server code a `v1`
+   route must not import). A feature that adds an internal route pays that one
+   line, not an endpoint; `planned` is the right answer when nobody has decided.
+   **The `planned` lines are the gap list** an API pass reads, picks from, and
+   turns into endpoints the way the next section describes.
+   `exposure.test.ts` fails CI on an internal route with no line, a line for a
+   route that is gone, a `public` line naming a `v1/` route that does not exist,
+   and — the point of it — anything on the public side (`v1/` routes and the
+   `server/public-api/` helpers) that sits at a `never` route's path or imports
+   what a `never` line says it reaches. It cannot see the same logic rewritten
+   from scratch inside `v1/`; the `why` on each line is for the reviewer who
+   can. Moving a line from `never` to anything else is a decision for Mitchell,
+   not an edit to get CI green.
 3. **An endpoint that already exists stays correct.** If a contract it returns
    grows a field, the field reaches the public response and `openapi.json` is
    regenerated in the same PR: the surface we have must not drift, even while

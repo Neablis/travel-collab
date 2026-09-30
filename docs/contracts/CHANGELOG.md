@@ -13,6 +13,33 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-30 — Public API `info.version` 1.1.0, enforced by fingerprint; field, scope and Playbook docs
+
+- **Changed:** `openapi.json`'s `info.version` is `1.1.0` (was `1.0.0`), now `API_VERSION` in
+  `apps/web/src/server/public-api/openapi.ts`, beside `API_FINGERPRINT` (sha256 of the generated
+  document without `info.version`, keys sorted). `openapi.test.ts` fails when the two disagree and
+  prints the new fingerprint. Policy: patch = description-only, minor = additive, major = breaking.
+- **Described** (`.describe()`, so they reach the reference): `AddActivity` / `UpdateActivity`
+  `kind` (the three kinds; no `travel` kind — travel is `transit` plus `mode`; `idea`/`hold`/`booked`
+  refused on write), `mode`, `endLocation` (transit only, a 400 otherwise; on `PATCH`, changing
+  `kind` off `transit` clears them via `clearDetailFieldsForKind`), `pendingReason` (pending only),
+  and `Location.precision` (requires coordinates).
+- **Scope text** (`SCOPE_CATALOGUE`, `publicApi.ts`): `library:read`/`library:write` name
+  Playbooks (a view over saved days, ADR-050); `sharing:write` no longer claims to remove members —
+  no v1 endpoint does.
+- **Playbook operations** gain an OpenAPI `description` (new optional `description` on `route()`
+  declarations): the record's id key is `savedDayId`; writes take `days[].stops[]`, reads return
+  flat `stops[]` with `dayIndex` (ADR-048/050); a `startingAt` merge appends a Playbook day's stops
+  after the trip day's existing ones, in Playbook order, unsorted.
+- Why: an external API consumer's feedback. `1.0.0` had survived M24 (`mode`/`endLocation`,
+  additive) and M28 (kinds `idea`/`hold`/`booked` retired, which broke writers still sending them)
+  without a bump, so nothing told a consumer the contract had moved. `1.1.0` catches up; from here
+  the test keeps the version honest.
+- Consumers updated: `apps/web` (`openapi.ts`, `openapi.test.ts`, `route.ts`, the playbook routes,
+  regenerated `openapi.json`); `docs/guidelines/using-the-api.md` (versioning policy, Scopes table,
+  Playbooks section).
+- **Breaking?** No. Descriptions and prose only; parsing is unchanged.
+
 ## 2026-09-28 — `DateListRef` and `DatesRef`: a `dates` filter can hold separate days (PR #269 preview)
 
 - **Added:** `DateListRef` (a non-empty list of `YYYY-MM-DD` calendar dates, earliest first,

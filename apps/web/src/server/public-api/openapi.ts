@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readdirSync } from "node:fs";
 import path from "node:path";
 import { zodToJsonSchema } from "zod-to-json-schema";
@@ -21,6 +22,48 @@ import { IDEMPOTENCY_KEY_MAX_LENGTH, REPLAYED_HEADER } from "./idempotency";
 // changes only when the code does. `openapi.test.ts` regenerates and compares,
 // so a schema changed without regenerating fails CI in the same diff that
 // changed it — which is what makes "cannot drift" a fact rather than a wish.
+
+/**
+ * **The published `info.version`, and the document it was published for.**
+ *
+ * `info.version` sat at `"1.0.0"` through M24 (stops gained `mode` and
+ * `endLocation`) and M28 (the `idea`/`hold`/`booked` kinds retired), so a
+ * consumer comparing versions was told nothing had changed. The fingerprint is
+ * what makes a forgotten bump a failing test instead of a reviewer's catch:
+ * `openapi.test.ts` recomputes it from the generated document and fails, naming
+ * the new value, when it differs from the one recorded here.
+ *
+ * When that test fails: bump `API_VERSION` by semver — **patch** for prose only
+ * (a summary, a description, the scope text), **minor** for anything additive
+ * (a new endpoint, an optional field), **major** for anything that breaks a
+ * caller (a field or value removed, renamed or newly required) — then paste the
+ * fingerprint the failure printed into `API_FINGERPRINT`, and add a line to
+ * `docs/contracts/CHANGELOG.md`. Change both constants in the same diff.
+ */
+export const API_VERSION = "1.1.0";
+export const API_FINGERPRINT = "390594be99e89651f7e8d296843fe2de7a05f8ffe78bb096bd77a8694f1c521f";
+
+/**
+ * sha256 of the document with `info.version` left out, keys sorted at every
+ * level — so the fingerprint moves when the published contract does, and never
+ * because of the version it is checked against or of property order.
+ */
+export function fingerprintOf(doc: OpenApiDocument): string {
+  return createHash("sha256")
+    .update(canonicalJson({ ...doc, info: { ...doc.info, version: undefined } }))
+    .digest("hex");
+}
+
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  if (value !== null && typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([, v]) => v !== undefined)
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+    return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonicalJson(v)}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
 
 const HTTP_METHODS = ["GET", "POST", "PATCH", "DELETE"] as const;
 
@@ -164,6 +207,7 @@ export function buildOpenApi(
             : declared.trip === "path"
               ? `Requires at least the \`${declared.role}\` role on the trip.`
               : `Requires at least the \`${declared.role}\` role on the trip the body names, if it names one.`,
+          def.description,
         ]
           .filter(Boolean)
           .join(" "),
@@ -206,7 +250,7 @@ export function buildOpenApi(
     openapi: "3.0.3",
     info: {
       title: "Caesura API",
-      version: "1.0.0",
+      version: API_VERSION,
       description: [
         "The public REST API. Every endpoint takes an account API token as",
         "`Authorization: Bearer tc_...`, minted in Account settings.",

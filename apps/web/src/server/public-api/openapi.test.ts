@@ -13,7 +13,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
-import { buildOpenApi, routeModulePaths, urlOf } from "./openapi";
+import { API_FINGERPRINT, API_VERSION, buildOpenApi, fingerprintOf, routeModulePaths, urlOf } from "./openapi";
 import { DECLARED, type DeclaredHandler } from "./route";
 
 // Importing every v1 module pulls in `@/server/auth` and therefore `next-auth`,
@@ -44,6 +44,25 @@ describe("openapi.json is derived from the declarations", () => {
       readFileSync(COMMITTED, "utf8"),
       "openapi.json is stale — run `pnpm --filter web openapi:generate`",
     ).toBe(generated);
+  });
+
+  // **A changed document is a new version.** `info.version` stayed "1.0.0"
+  // through two contract changes because nothing tied it to the document. This
+  // does: the fingerprint excludes `info.version` itself, so the only way to
+  // make this pass after changing a schema, a summary or the scope text is to
+  // record the new fingerprint — beside `API_VERSION`, in the same diff, where
+  // a reviewer sees whether the version moved with it. Runs under
+  // `openapi:generate` too, so regenerating prints the value to paste.
+  it("records the fingerprint of the document its info.version was published for", async () => {
+    const doc = JSON.parse(await generate()) as Parameters<typeof fingerprintOf>[0];
+    expect(doc.info.version).toBe(API_VERSION);
+    const fingerprint = fingerprintOf(doc);
+    expect(
+      fingerprint,
+      `The published API document changed but its version record did not. In openapi.ts, bump ` +
+        `API_VERSION (now ${API_VERSION}) by semver — patch for prose only, minor for additive, major ` +
+        `for breaking — set API_FINGERPRINT to "${fingerprint}", and add a docs/contracts/CHANGELOG.md line.`,
+    ).toBe(API_FINGERPRINT);
   });
 
   it("documents every declared endpoint and invents none", async () => {

@@ -34,6 +34,19 @@ import type { HandlerContext, ResourceDef } from "./route";
  */
 export const MAX_PLAYBOOK_STOPS = 500;
 
+/**
+ * **The two shapes a Playbook has, said where a caller reads them** (ADR-048,
+ * ADR-050). An external consumer wrote grouped `days[].stops[]`, read back flat
+ * `stops[]`, and went looking for an `id` that is spelled `savedDayId`. Both are
+ * deliberate — a Playbook IS a saved day, stored as one ordered stop list — so
+ * the reference says so on every operation that shows either shape.
+ */
+export const PLAYBOOK_SHAPE_DOC =
+  "A Playbook is a view over saved days: the record is the same one `/v1/library` serves, and its id key " +
+  "is `savedDayId` (that value is the `playbookId` in these paths). Writes take stops grouped by day, " +
+  "`days[].stops[]`; reads return them flat, `stops[]` in order with a 0-based `dayIndex` on each, plus " +
+  "`dayCount` — deliberately (ADR-048, ADR-050). Group by `dayIndex` to get days back.";
+
 /** 1..366 — the bound `CreateSavedDayInput.dayIds` already chose, and why is written there. */
 const MAX_DAYS = 366;
 
@@ -254,6 +267,7 @@ async function createPlaybook(ctx: HandlerContext): Promise<PlaybookWritten> {
 
 export const createPlaybookDef: ResourceDef = {
   summary: "Create a Playbook — from days (or some activities) of a trip you can see, or written inline",
+  description: PLAYBOOK_SHAPE_DOC,
   scope: "library:write",
   body: CreatePlaybookBody,
   // A keep names its source trip in the body and is gated on it there; an
@@ -283,6 +297,7 @@ const MISSING = "No such playbook.";
  */
 export const getPlaybookDef: ResourceDef = {
   summary: "Get a Playbook — yours, or anyone's published one — every day and stop in order",
+  description: PLAYBOOK_SHAPE_DOC,
   scope: "library:read",
   response: SavedDay,
   handle: async (ctx) => {
@@ -294,6 +309,7 @@ export const getPlaybookDef: ResourceDef = {
 
 export const patchPlaybookDef: ResourceDef = {
   summary: "Edit one of your Playbooks — rename it, summarise it, replace its days, or publish it",
+  description: PLAYBOOK_SHAPE_DOC,
   scope: "library:write",
   body: PatchPlaybookBody,
   response: PlaybookWritten,
