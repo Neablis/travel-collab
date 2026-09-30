@@ -354,9 +354,12 @@ days, where `/v1/library` keeps its published singular `dayId` (ADR-050). Only
 **Two shapes, on purpose** (ADR-048, ADR-050). Because a Playbook *is* a saved
 day, the record you read back is the saved-day record:
 
-- **Its id key is `savedDayId`.** That value is the `playbookId` in every
-  `/v1/playbooks/{playbookId}` path; there is no separate `id` or `playbookId`
-  field.
+- **Its id key is `savedDayId`, and `playbookId` is the same value.** That value
+  is the `playbookId` in every `/v1/playbooks/{playbookId}` path, and since API
+  `1.2.0` every Playbook record `/v1/playbooks` answers — `GET`, the list, and
+  the `playbook` in a create, edit or import answer — also carries it as
+  `playbookId`. Either key works; `savedDayId` is not going away. `/v1/library`
+  is frozen and does not carry the alias.
 - **Writes are grouped, reads are flat.** `POST` (inline) and `PATCH` take
   `days[].stops[]`; every read — `GET`, the list, and the `playbook` in a write's
   answer — returns one ordered `stops[]` with a 0-based `dayIndex` on each stop,

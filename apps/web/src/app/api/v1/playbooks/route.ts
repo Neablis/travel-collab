@@ -1,5 +1,5 @@
 import { savedDayCollection } from "@/server/public-api/library";
-import { createPlaybookDef, PLAYBOOK_SHAPE_DOC } from "@/server/public-api/playbooks";
+import { asPlaybook, createPlaybookDef, Playbook, PLAYBOOK_SHAPE_DOC } from "@/server/public-api/playbooks";
 import { route } from "@/server/public-api/route";
 
 // **Your Playbooks** — the same `saved_days` rows `/v1/library` serves, in the
@@ -12,7 +12,11 @@ import { route } from "@/server/public-api/route";
 // Pass A). The declarations are in `server/public-api/playbooks.ts`.
 export const { GET, POST } = route({
   GET: {
-    ...savedDayCollection("List the Playbooks you have kept, newest first", { filterable: true }),
+    ...savedDayCollection("List the Playbooks you have kept, newest first", {
+      filterable: true,
+      item: Playbook,
+      view: asPlaybook,
+    }),
     description: PLAYBOOK_SHAPE_DOC,
   },
   POST: createPlaybookDef,

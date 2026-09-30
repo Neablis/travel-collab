@@ -13,6 +13,25 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-30 — Public API 1.2.0: Playbook records carry `playbookId`
+
+- **Added:** every Playbook record `/v1/playbooks` answers — `GET /v1/playbooks/{playbookId}`, the
+  `GET /v1/playbooks` items, and the `playbook` in the `POST /v1/playbooks`, `PATCH
+  /v1/playbooks/{playbookId}` and `POST /v1/playbooks/import` answers — carries `playbookId`,
+  always equal to `savedDayId`. Declared as `Playbook` (`SavedDay.extend({ playbookId })`) in
+  `apps/web/src/server/public-api/playbooks.ts`, with `asPlaybook` the one mapping.
+  `PLAYBOOK_SHAPE_DOC` says so on every Playbook operation.
+- **Not changed:** `SavedDay` in `packages/contracts`, the stored `saved_days` row, the app's
+  internal routes, and `/v1/library` (frozen; `LibraryDay` does not gain the alias). The alias is
+  a v1 response-boundary view only.
+- `API_VERSION` `1.2.0` (was `1.1.0`), `API_FINGERPRINT` updated, `openapi.json` regenerated.
+- Why: an external consumer read `/v1/playbooks/{playbookId}` and looked for `playbookId` in the
+  answer. Mitchell, 2026-09-30: add the alias, keep `savedDayId`.
+- Consumers updated: `apps/web` (`playbooks.ts`, `library.ts`'s `savedDayCollection` gains an
+  optional `view`, `/v1/playbooks` route, `openapi.ts`, `openapi.json`, `playbooks.int.test.ts`);
+  `docs/guidelines/using-the-api.md` (Playbooks section).
+- **Breaking?** No. Additive: a new always-present response field; nothing removed or renamed.
+
 ## 2026-09-30 — Public API `info.version` 1.1.0, enforced by fingerprint; field, scope and Playbook docs
 
 - **Changed:** `openapi.json`'s `info.version` is `1.1.0` (was `1.0.0`), now `API_VERSION` in

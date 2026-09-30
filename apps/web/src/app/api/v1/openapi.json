@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Caesura API",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "description": "The public REST API. Every endpoint takes an account API token as\n`Authorization: Bearer tc_...`, minted in Account settings.\n\nScopes:\n- `trips:read` — See your trips, their days and stops, costs, history, and existing share links.\n- `trips:write` — Create, change and delete trips, days and stops; undo, redo and revert.\n- `notebook:read` — Read the Notebook pages on a trip.\n- `notebook:write` — Create, change and delete the Notebook pages on a trip.\n- `library:read` — Read your saved-days library and your Playbooks (a Playbook is a view over saved days), and browse published Playbooks.\n- `library:write` — Create, edit, import and delete saved days and Playbooks, and publish or unpublish them to Discover.\n- `sharing:write` — Invite people to a trip and revoke invites, and create or revoke share links.\n- `account:read` — See who you are and what plan you hold."
   },
   "paths": {
@@ -3784,7 +3784,7 @@
     "/v1/playbooks/{playbookId}": {
       "get": {
         "summary": "Get a Playbook — yours, or anyone's published one — every day and stop in order",
-        "description": "Requires the `library:read` scope. A Playbook is a view over saved days: the record is the same one `/v1/library` serves, and its id key is `savedDayId` (that value is the `playbookId` in these paths). Writes take stops grouped by day, `days[].stops[]`; reads return them flat, `stops[]` in order with a 0-based `dayIndex` on each, plus `dayCount` — deliberately (ADR-048, ADR-050). Group by `dayIndex` to get days back.",
+        "description": "Requires the `library:read` scope. A Playbook is a view over saved days: the record is the same one `/v1/library` serves, and its id key is `savedDayId` (that value is the `playbookId` in these paths). Every Playbook record here also carries `playbookId`, the same value, so either key works. Writes take stops grouped by day, `days[].stops[]`; reads return them flat, `stops[]` in order with a 0-based `dayIndex` on each, plus `dayCount` — deliberately (ADR-048, ADR-050). Group by `dayIndex` to get days back.",
         "security": [
           {
             "bearerAuth": [
@@ -4307,6 +4307,11 @@
                       "maxLength": 500,
                       "nullable": true,
                       "default": null
+                    },
+                    "playbookId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "description": "The same value as `savedDayId`: the id in `/v1/playbooks/{playbookId}`."
                     }
                   },
                   "required": [
@@ -4319,7 +4324,8 @@
                     "adds",
                     "sourceTripId",
                     "sourceTripName",
-                    "createdAt"
+                    "createdAt",
+                    "playbookId"
                   ],
                   "additionalProperties": false
                 }
@@ -4333,7 +4339,7 @@
       },
       "patch": {
         "summary": "Edit one of your Playbooks — rename it, summarise it, replace its days, or publish it",
-        "description": "Requires the `library:write` scope. A Playbook is a view over saved days: the record is the same one `/v1/library` serves, and its id key is `savedDayId` (that value is the `playbookId` in these paths). Writes take stops grouped by day, `days[].stops[]`; reads return them flat, `stops[]` in order with a 0-based `dayIndex` on each, plus `dayCount` — deliberately (ADR-048, ADR-050). Group by `dayIndex` to get days back.",
+        "description": "Requires the `library:write` scope. A Playbook is a view over saved days: the record is the same one `/v1/library` serves, and its id key is `savedDayId` (that value is the `playbookId` in these paths). Every Playbook record here also carries `playbookId`, the same value, so either key works. Writes take stops grouped by day, `days[].stops[]`; reads return them flat, `stops[]` in order with a 0-based `dayIndex` on each, plus `dayCount` — deliberately (ADR-048, ADR-050). Group by `dayIndex` to get days back.",
         "security": [
           {
             "bearerAuth": [
@@ -5339,6 +5345,11 @@
                           "maxLength": 500,
                           "nullable": true,
                           "default": null
+                        },
+                        "playbookId": {
+                          "type": "string",
+                          "format": "uuid",
+                          "description": "The same value as `savedDayId`: the id in `/v1/playbooks/{playbookId}`."
                         }
                       },
                       "required": [
@@ -5351,7 +5362,8 @@
                         "adds",
                         "sourceTripId",
                         "sourceTripName",
-                        "createdAt"
+                        "createdAt",
+                        "playbookId"
                       ],
                       "additionalProperties": false
                     },
@@ -7005,6 +7017,11 @@
                           "maxLength": 500,
                           "nullable": true,
                           "default": null
+                        },
+                        "playbookId": {
+                          "type": "string",
+                          "format": "uuid",
+                          "description": "The same value as `savedDayId`: the id in `/v1/playbooks/{playbookId}`."
                         }
                       },
                       "required": [
@@ -7017,7 +7034,8 @@
                         "adds",
                         "sourceTripId",
                         "sourceTripName",
-                        "createdAt"
+                        "createdAt",
+                        "playbookId"
                       ],
                       "additionalProperties": false
                     },
@@ -7101,7 +7119,7 @@
     "/v1/playbooks": {
       "get": {
         "summary": "List the Playbooks you have kept, newest first",
-        "description": "Requires the `library:read` scope. A Playbook is a view over saved days: the record is the same one `/v1/library` serves, and its id key is `savedDayId` (that value is the `playbookId` in these paths). Writes take stops grouped by day, `days[].stops[]`; reads return them flat, `stops[]` in order with a 0-based `dayIndex` on each, plus `dayCount` — deliberately (ADR-048, ADR-050). Group by `dayIndex` to get days back.",
+        "description": "Requires the `library:read` scope. A Playbook is a view over saved days: the record is the same one `/v1/library` serves, and its id key is `savedDayId` (that value is the `playbookId` in these paths). Every Playbook record here also carries `playbookId`, the same value, so either key works. Writes take stops grouped by day, `days[].stops[]`; reads return them flat, `stops[]` in order with a 0-based `dayIndex` on each, plus `dayCount` — deliberately (ADR-048, ADR-050). Group by `dayIndex` to get days back.",
         "security": [
           {
             "bearerAuth": [
@@ -7657,6 +7675,11 @@
                             "maxLength": 500,
                             "nullable": true,
                             "default": null
+                          },
+                          "playbookId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "description": "The same value as `savedDayId`: the id in `/v1/playbooks/{playbookId}`."
                           }
                         },
                         "required": [
@@ -7669,7 +7692,8 @@
                           "adds",
                           "sourceTripId",
                           "sourceTripName",
-                          "createdAt"
+                          "createdAt",
+                          "playbookId"
                         ],
                         "additionalProperties": false
                       }
@@ -7690,7 +7714,7 @@
       },
       "post": {
         "summary": "Create a Playbook — from days (or some activities) of a trip you can see, or written inline",
-        "description": "Requires the `library:write` scope. Requires at least the `viewer` role on the trip the body names, if it names one. A Playbook is a view over saved days: the record is the same one `/v1/library` serves, and its id key is `savedDayId` (that value is the `playbookId` in these paths). Writes take stops grouped by day, `days[].stops[]`; reads return them flat, `stops[]` in order with a 0-based `dayIndex` on each, plus `dayCount` — deliberately (ADR-048, ADR-050). Group by `dayIndex` to get days back.",
+        "description": "Requires the `library:write` scope. Requires at least the `viewer` role on the trip the body names, if it names one. A Playbook is a view over saved days: the record is the same one `/v1/library` serves, and its id key is `savedDayId` (that value is the `playbookId` in these paths). Every Playbook record here also carries `playbookId`, the same value, so either key works. Writes take stops grouped by day, `days[].stops[]`; reads return them flat, `stops[]` in order with a 0-based `dayIndex` on each, plus `dayCount` — deliberately (ADR-048, ADR-050). Group by `dayIndex` to get days back.",
         "security": [
           {
             "bearerAuth": [
@@ -8769,6 +8793,11 @@
                           "maxLength": 500,
                           "nullable": true,
                           "default": null
+                        },
+                        "playbookId": {
+                          "type": "string",
+                          "format": "uuid",
+                          "description": "The same value as `savedDayId`: the id in `/v1/playbooks/{playbookId}`."
                         }
                       },
                       "required": [
@@ -8781,7 +8810,8 @@
                         "adds",
                         "sourceTripId",
                         "sourceTripName",
-                        "createdAt"
+                        "createdAt",
+                        "playbookId"
                       ],
                       "additionalProperties": false
                     },
