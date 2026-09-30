@@ -159,7 +159,8 @@ const COUNTRY_CODE = /^[A-Z]{2}$/;
  * The countries a trip already occupies: the distinct ISO alpha-2 codes on its
  * located places, sorted, or `[]` when none carries one. Mitchell, 2026-09-30
  * (option A): a trip-scoped lookup the caller gave no country is hinted with
- * these, as LocationIQ's `countrycodes`.
+ * these — LocationIQ's `countrycodes` first, unrestricted on a miss
+ * (`locationiq.ts`, `forward`).
  *
  * "Located" means what it means to `tripRegionOf` — believable coordinates — so
  * a stop the caller only named hints nothing. A transit leg's `endLocation`

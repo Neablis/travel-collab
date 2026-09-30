@@ -209,11 +209,13 @@ fills them in when you leave them out, in this order:
 1. **`lat` + `lng`** — used as sent. No lookup. Send both or neither.
 2. **`address`** — geocoded as a structured address.
 3. **`name`** — geocoded as free text, preferring places near the trip's other stops
-   and restricted to a country: `countryCode`, if you set it; otherwise the
-   countries the trip's already-located stops are in (all of them, if it spans
-   several). A trip with nothing located yet is not restricted at all. **Adding
-   the first stop in a new country by name? Send its `countryCode`**, or the
-   lookup is confined to the countries the trip already has.
+   and in a country: `countryCode`, if you set it, restricts the lookup to that
+   country. Otherwise the countries the trip's already-located stops are in (all
+   of them, if it spans several) are **preferred**: the lookup searches inside
+   them first and, only if that finds nothing, searches everywhere — so the
+   first stop in a new country still resolves by name. A trip with nothing
+   located yet is not restricted at all. Sending `countryCode` is still the
+   surest way to place a name that exists in several countries.
 
 If the lookup finds nothing, the stop is **still created**, without coordinates.
 Every write whose body had a `location` answers with a `Geocode-Outcome` header:
@@ -281,7 +283,7 @@ field existed reads as.
 
 **To check a place before writing it**, `GET /v1/trips/{tripId}/geocode?q=…`
 (optionally `&countryCode=JP`) returns up to five candidates — without
-`countryCode`, restricted to the trip's countries by the same rule as above. Each is a complete
+`countryCode`, preferring the trip's countries by the same rule as above. Each is a complete
 `location`: send one back as-is and the write costs no second lookup. Needs
 `trips:write` — a lookup spends the operator's geocoding allowance, so a
 `trips:read` token cannot make one (the tripless search below has its own

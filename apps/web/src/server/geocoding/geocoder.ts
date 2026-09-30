@@ -40,10 +40,12 @@ export interface GeocodeOptions {
   viewbox?: BoundingBox;
   // Restricts results to one country (ISO alpha-2). A filter, unlike `viewbox`.
   countryCode?: string;
-  // Restricts results to any of these countries (ISO alpha-2) — the trip-derived
-  // hint (`tripCountriesOf`, region.ts). A filter too. Ignored when
-  // `countryCode` is set: a country the caller named always beats one we
-  // inferred. Empty means no restriction.
+  // Prefers results in any of these countries (ISO alpha-2) — the trip-derived
+  // hint (`tripCountriesOf`, region.ts). Searched as a filter first; a free-text
+  // lookup that finds nothing inside it is retried unrestricted, so a trip's
+  // first stop in a new country still resolves. Ignored when `countryCode` is
+  // set: a country the caller named always beats one we inferred, and is never
+  // widened. Empty means no restriction.
   countryCodes?: readonly string[];
 }
 

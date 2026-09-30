@@ -98,7 +98,14 @@ async function search(
 export function createLocationIQGeocoder(apiKey: string): Geocoder {
   return {
     async forward(query, opts) {
-      return search(FREE_TEXT, apiKey, { q: query }, opts);
+      const results = await search(FREE_TEXT, apiKey, { q: query }, opts);
+      // The trip's countries are a hint, not a wall (Mitchell, 2026-09-30,
+      // option A). `countrycodes` filters, so a trip in Japan adding its first
+      // stop in Seoul by name would otherwise find nothing. A miss inside the
+      // hint is retried unrestricted: one more vendor call, on misses only. A
+      // country the CALLER named is never widened — that is their filter.
+      if (results.length > 0 || opts?.countryCode || !opts?.countryCodes?.length) return results;
+      return search(FREE_TEXT, apiKey, { q: query }, { ...opts, countryCodes: [] });
     },
     async forwardAddress(address, opts) {
       const params: Record<string, string> = { street: address.lines.join(", ") };

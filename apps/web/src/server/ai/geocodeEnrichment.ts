@@ -526,7 +526,7 @@ async function enrichLocationSlots(
   const anchors: LatLng[] = [];
   const resolved = await mapRateLimited(attempted, MIN_INTERVAL_MS, async ([key, { name, hint, destination, ownCountry }]) => {
     const region = destination ? null : tripRegion ?? boundingBoxAround(anchors, TRIP_REGION_MARGIN_KM);
-    // The trip's countries as a filter (Mitchell, 2026-09-30), on the same
+    // The trip's countries as a hint (Mitchell, 2026-09-30), on the same
     // terms as the region: never for a destination, which is judged without the
     // region because it is where the trip goes NEXT — a flight to a new country
     // filtered to the old one would find nothing. And never over a country the

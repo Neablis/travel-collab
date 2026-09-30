@@ -215,7 +215,31 @@ describe("LocationIQ geocoder adapter", () => {
     await geocoder.forward("Ichiran", { countryCode: "US", countryCodes: ["JP", "KR"] });
     await geocoder.forward("Ichiran", { countryCodes: [] });
     const sent = fetchMock.mock.calls.map((c) => new URL(c[0] as string).searchParams.get("countrycodes"));
-    expect(sent).toEqual(["jp,kr", "us", null]);
+    // Every call here misses, so the hinted one is retried unrestricted; the
+    // named country and the empty list are not.
+    expect(sent).toEqual(["jp,kr", null, "us", null]);
+  });
+
+  it("retries a miss inside the trip's countries unrestricted, and only then", async () => {
+    const hit = JSON.stringify([
+      { lat: "37.53", lon: "126.98", display_name: "War Memorial of Korea, Seoul", address: { country_code: "kr" } },
+    ]);
+    const fetchMock = vi.fn(async (input: string | URL | Request) =>
+      new URL(input as string).searchParams.get("countrycodes") === "jp"
+        ? new Response(JSON.stringify({ error: "Unable to geocode" }), { status: 404 })
+        : new Response(hit, { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const geocoder = createLocationIQGeocoder("K");
+
+    const widened = await geocoder.forward("War Memorial of Korea", { countryCodes: ["JP"] });
+    expect(widened.map((r) => r.countryCode)).toEqual(["KR"]);
+
+    await geocoder.forward("War Memorial of Korea", { countryCodes: ["KR"] });
+    await expect(geocoder.forward("War Memorial of Korea", { countryCode: "JP" })).resolves.toEqual([]);
+
+    const sent = fetchMock.mock.calls.map((c) => new URL(c[0] as string).searchParams.get("countrycodes"));
+    expect(sent).toEqual(["jp", null, "kr", "jp"]);
   });
 
   // LocationIQ answers a miss with HTTP 404 {"error":"Unable to geocode"}
