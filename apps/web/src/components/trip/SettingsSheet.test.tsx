@@ -36,6 +36,7 @@ vi.mock("@/components/trip/TravelersPanel", () => ({
 }));
 
 import { SettingsSheet } from "./SettingsSheet";
+import { DEMO_TRIP_ID } from "@/lib/demoTrip";
 
 const tripId = "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f";
 
@@ -76,12 +77,14 @@ function renderSheet(
     // The header's meta-pill figures, restated in the sheet so hiding that
     // pill below 768px loses nothing (TripHeader).
     counts?: TripCounts;
+    /** Which trip the sheet is for. The demo trip's id is the one that matters. */
+    tripId?: string;
   } = {},
 ) {
   const onCommand = overrides.onCommand ?? vi.fn();
   render(
     <SettingsSheet
-      tripId={tripId}
+      tripId={overrides.tripId ?? tripId}
       tripName="Japan"
       open
       onOpenChange={vi.fn()}
@@ -358,6 +361,19 @@ describe("SettingsSheet role gating", () => {
       expect(link.getAttribute("href")).toBe(`/api/v1/trips/${tripId}/export`);
       expect(link.hasAttribute("download")).toBe(true);
     }
+  });
+
+  // **Except on `/demo`** (Mitchell, 2026-10-01). The export is a `v1` route
+  // that a session satisfies, and a demo visitor has none, so the link was a
+  // 401 dressed as a download. HIDDEN rather than disabled, as every other
+  // control the demo has no session for is (KI-64). A signed-in viewer keeps
+  // it: the demo is decided by the trip, not by the role.
+  it("hides the download on the demo trip, and only there", () => {
+    renderSheet({ myRole: "viewer", tripId: DEMO_TRIP_ID });
+    expect(screen.queryByRole("link", { name: "Download Trip" })).toBeNull();
+    cleanup();
+    renderSheet({ myRole: "viewer" });
+    expect(screen.getByRole("link", { name: "Download Trip" })).toBeTruthy();
   });
 
   // **This asserted the OPPOSITE until 2026-09-20, and the reversal is a
