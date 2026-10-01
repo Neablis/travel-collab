@@ -31,7 +31,8 @@
   open. It had failed 0 of the 38 runs before that. The same wait fixes it; why the late
   focus keeps the panel open there was not traced further.
 - **Proof:** the fix is test-side — `insertFromRail` clicks the rail button and then
-  waits for the editor to hold focus before the test goes on; the six rail inserts that
+  waits for the editor's own `focus` event (a listener attached before the
+  click, not a read of `document.activeElement`) before the test goes on; the six rail inserts that
   are followed straight away by a popover or a click away use it. Red: the unmodified
   test, 10 of 14 full-file runs, with the dismiss trace above. Green: 20 of 20 full-file
   runs with the helper in place.

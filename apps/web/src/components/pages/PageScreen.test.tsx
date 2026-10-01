@@ -623,11 +623,14 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
   // which is why this failed in the full file and passed alone
   // (KI-2026-10-01-a).
   async function insertFromRail(name: RegExp) {
+    // Heard as the editor's own `focus` event, listened for BEFORE the click so
+    // it cannot be missed — not read off `document.activeElement`, which the
+    // test-quality wall bans (KI-2026-09-02-b, "do not add more").
+    const editorFocused = new Promise<void>((resolve) => {
+      screen.getByRole("textbox").addEventListener("focus", () => resolve(), { once: true });
+    });
     await userEvent.click(screen.getByRole("button", { name }));
-    // The editor is the only textbox that can take focus from the rail button
-    // this click just focused.
-    // eslint-disable-next-line testing-library/no-node-access -- the claim is where focus IS; no query answers that.
-    await waitFor(() => expect(screen.getAllByRole("textbox")).toContain(document.activeElement));
+    await editorFocused;
   }
 
   // The end of an edit session, which is when a page writes (ADR-036).
