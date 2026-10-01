@@ -115,6 +115,13 @@ test.describe("the demo trip", () => {
     // `toBeDisabled()` until KI-64: the header was the one place still
     // offering a greyed control on a board ADR-031 had otherwise gone quiet.
     await expect(page.getByRole("button", { name: "Add stop" })).toHaveCount(0);
+
+    // The export is a session-authenticated `v1` route, so on the demo it was
+    // a 401 posing as a download (Mitchell, 2026-10-01). Withheld here only:
+    // an invited viewer keeps it (m11-invites.spec.ts).
+    await page.getByRole("button", { name: "Japan: Tokyo → Kyoto → Osaka — Trip settings" }).click();
+    await expect(page.getByRole("heading", { name: "Trip settings" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Download Trip" })).toHaveCount(0);
   });
 
   test("shows the trip's own history, without offering to change it", async ({ page }) => {

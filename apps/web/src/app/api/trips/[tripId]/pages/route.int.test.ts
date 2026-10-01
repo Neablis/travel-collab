@@ -5,7 +5,10 @@ import { CURRENT_PAGE_DOC_VERSION, PAGE_TITLE_MAX, PageDoc, collectPageDocNodeTy
 import { DEFAULT_TEMPLATES, TEMPLATE_LIBRARY } from "@tc/pages";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { executeTripCommand } from "@/server/commands";
-import { MAX_PAGE_BODY_BYTES } from "@/server/pages";
+import { MAX_PAGE_BODY_BYTES, listPages } from "@/server/pages";
+import { db } from "@/server/db/client";
+import { grantMembership } from "@/server/access/members";
+import { entitleAccounts } from "@/server/test-support/entitledAccount";
 
 const ACTOR_ID = "user-1";
 const OUTSIDER_ID = "user-2";
@@ -299,6 +302,64 @@ describe("/api/trips/:id/pages", () => {
       const req = new Request("http://test/api/trips/not-a-uuid/pages");
       const res = await GET(req, { params: Promise.resolve({ tripId: "not-a-uuid" }) });
       expect(res.status).toBe(404);
+    });
+  });
+
+  // The server half of "a viewer cannot edit a notebook" (Mitchell,
+  // 2026-10-01). The page screen withholds every write control from a viewer,
+  // but a URL can be typed and a request can be sent by hand, so the boundary
+  // is here: a viewer reads every page and writes none of them.
+  describe("a viewer", () => {
+    async function sharedTrip() {
+      const ownerId = `owner-${randomUUID()}`;
+      await entitleAccounts([ownerId]); // so a granted collaborator keeps their role (M20)
+      const tripId = randomUUID();
+      const created = await executeTripCommand({ type: "CreateTrip", tripId, name: "Porto 2028" }, ownerId);
+      if (!created.ok) throw new Error("failed to seed trip");
+      const viewerId = `viewer-${randomUUID()}`;
+      await grantMembership(db, { tripId, userId: viewerId, role: "viewer", invitedBy: ownerId, now: new Date().toISOString() });
+      const pages = await listPages(tripId);
+      return { tripId, viewerId, pages, page: pages[0]! };
+    }
+
+    it("reads the pages and is refused every write, leaving them as they were", async () => {
+      const { tripId, viewerId, pages, page } = await sharedTrip();
+      const pageId = page.id;
+      currentUserId = viewerId;
+
+      const list = await GET(new Request(`http://test/api/trips/${tripId}/pages`), { params: Promise.resolve({ tripId }) });
+      expect(list.status).toBe(200);
+      const item = await GET_ITEM(new Request(`http://test/api/trips/${tripId}/pages/${pageId}`), {
+        params: Promise.resolve({ tripId, pageId }),
+      });
+      expect(item.status).toBe(200);
+
+      const json = (method: string, url: string, body: unknown) =>
+        new Request(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const writes = [
+        () =>
+          POST(json("POST", `http://test/api/trips/${tripId}/pages`, { title: "Mine", context: { tripId }, content: { type: "doc", content: [] } }), {
+            params: Promise.resolve({ tripId }),
+          }),
+        () =>
+          PATCH(json("PATCH", `http://test/api/trips/${tripId}/pages/${pageId}`, { title: "Renamed by a viewer" }), {
+            params: Promise.resolve({ tripId, pageId }),
+          }),
+        () =>
+          DELETE(new Request(`http://test/api/trips/${tripId}/pages/${pageId}`, { method: "DELETE" }), {
+            params: Promise.resolve({ tripId, pageId }),
+          }),
+      ];
+      for (const write of writes) {
+        const res = await write();
+        expect(res.status).toBe(403);
+        expect(await res.json()).toEqual({ error: "forbidden" });
+      }
+
+      const after = await listPages(tripId);
+      expect(after.map((p) => p.id).sort()).toEqual(pages.map((p) => p.id).sort());
+      expect(after.find((p) => p.id === pageId)?.title).toBe(page.title);
+      expect(after.some((p) => p.title === "Mine")).toBe(false);
     });
   });
 

@@ -54,6 +54,21 @@ const server = setupServer(
   http.get("/api/trips/:tripId/globals", () =>
     HttpResponse.json({ globals: { days: [], cities: [], tags: [] } }),
   ),
+  // And the reader's role, which every page reads now to decide whether it
+  // offers Editing at all (a viewer gets no way in). An owner unless a test
+  // says otherwise; tests about the role use a trip id of their own, because
+  // `cachedRead` keeps each trip's answer.
+  http.get("/api/trips/:tripId/access", ({ params }) =>
+    HttpResponse.json({
+      access: {
+        tripId: params.tripId,
+        myRole: "owner",
+        members: [{ userId: "u1", role: "owner", name: null, email: null, image: null }],
+        invites: [],
+        collaboratorsEntitled: true,
+      },
+    }),
+  ),
   // And the history its live-chip cursor is read off (KI-2026-09-05-i item 5).
   http.get("/api/trips/:tripId/history", ({ params }) =>
     HttpResponse.json({ history: { tripId: params.tripId, entries: [], canUndo: false, canRedo: false } }),
@@ -1807,7 +1822,7 @@ describe("PageScreen — a draft kept in the browser", () => {
 // SPEC §35.3 / M27 D6: *"Editing a notebook page always has a way back to the
 // trip."* It was "← Notebooks", one level up, with the trip two clicks away.
 describe("PageScreen — the breadcrumb", () => {
-  function accessAs(myRole: "owner" | "viewer") {
+  function accessAs(myRole: "owner" | "editor" | "viewer") {
     return http.get("/api/trips/:tripId/access", ({ params }) =>
       HttpResponse.json({
         access: {
@@ -1827,7 +1842,7 @@ describe("PageScreen — the breadcrumb", () => {
   async function open(
     tripId: string,
     from: "overview" | null,
-    role?: "owner" | "viewer" | "unanswered" | "failed",
+    role?: "owner" | "editor" | "viewer" | "unanswered" | "failed",
   ) {
     const trip = tripDetailFixture({ tripId, name: "Japan: Tokyo → Kyoto" });
     const page = pageFixture({ tripId, title: "Packing" });
@@ -1878,9 +1893,17 @@ describe("PageScreen — the breadcrumb", () => {
 
   // The editor must not open for a viewer even for the moment before the
   // role read lands, and a read that fails is not an answer that says "edit".
+  //
+  // **Nor is the CONTROL there while the role is unknown** (Mitchell,
+  // 2026-10-01): offering "Edit page" and then taking it away when the read
+  // says viewer is a flash of something a viewer may not do. Nothing renders
+  // in its place until the answer lands. A read that FAILS is not "viewer",
+  // and gets the toggle, as the board does (TripProvider: an unknown role
+  // behaves as before roles existed; the server is the boundary).
   it("stays in Reading until the role is known, and when it cannot be known", async () => {
     await open("ad4e5f60-7182-4d9e-8f0a-2b3c4d5e6f70", "overview", "unanswered");
-    expect(screen.getByRole("button", { name: "Edit page" }).getAttribute("aria-pressed")).toBe("false");
+    expect(screen.queryByRole("button", { name: "Edit page" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Done editing" })).toBeNull();
     cleanup();
 
     const failed = vi.fn();
@@ -1899,13 +1922,63 @@ describe("PageScreen — the breadcrumb", () => {
   });
 
   // Overview withholds Edit from a viewer, but a URL can be typed or shared.
-  it("puts a viewer who arrives that way back in Reading", async () => {
+  it("keeps a viewer who arrives that way in Reading", async () => {
     const tripId = "9c3d4e5f-6071-4c8d-8e9f-1a2b3c4d5e6f";
+    const roleAnswered = watchRole();
     await open(tripId, "overview", "viewer");
+    await roleAnswered();
 
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Edit page" }).getAttribute("aria-pressed")).toBe("false"),
-    );
+    expect(screen.queryByRole("button", { name: "Done editing" })).toBeNull();
+    expect(screen.getByRole("heading", { level: 1, name: "Packing" }).getAttribute("contenteditable")).toBe("false");
+  });
+
+  /**
+   * Call BEFORE `open`; await what it returns to be one task past the access
+   * read's answer, so the screen's `.then` has run.
+   */
+  function watchRole() {
+    const answered = vi.fn();
+    server.events.on("response:mocked", ({ request }) => {
+      if (request.url.endsWith("/access")) answered();
+    });
+    const settle = async () => {
+      // Tolerated here, and asserted by the caller AFTER what it is about, so
+      // a screen that never reads the role fails on the control it shows
+      // rather than on this wait.
+      await waitFor(() => expect(answered).toHaveBeenCalled()).catch(() => undefined);
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      server.events.removeAllListeners();
+    };
+    return Object.assign(settle, { answered });
+  }
+
+  // **A viewer cannot edit a notebook** (Mitchell, 2026-10-01). The toggle
+  // used to be offered to everyone, "the server is the boundary" — which put
+  // a viewer in an editor whose every save came back 403. The page now reads
+  // the role on every arrival and offers no way into Editing to a viewer.
+  it("offers a viewer no Edit page, and so no way into Editing", async () => {
+    const tripId = "c1d2e3f4-a5b6-4c7d-8e9f-0a1b2c3d4e5f";
+    const roleAnswered = watchRole();
+    await open(tripId, null, "viewer");
+    await roleAnswered();
+
+    expect(screen.queryByRole("button", { name: "Edit page" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Done editing" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Insert a widget" })).toBeNull();
+    expect(screen.getByRole("heading", { level: 1, name: "Packing" }).getAttribute("contenteditable")).toBe("false");
+    // And the above was asserted with the role KNOWN, not merely pending.
+    expect(roleAnswered.answered).toHaveBeenCalled();
+  });
+
+  it("still offers an editor Edit page, which opens Editing", async () => {
+    const tripId = "d2e3f4a5-b6c7-4d8e-9f0a-1b2c3d4e5f60";
+    await open(tripId, null, "editor");
+
+    await userEvent.click(await screen.findByRole("button", { name: "Edit page" }));
+    expect(screen.getByRole("button", { name: "Done editing" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByRole("heading", { level: 1, name: "Packing" }).getAttribute("contenteditable")).toBe("true");
   });
 });
 

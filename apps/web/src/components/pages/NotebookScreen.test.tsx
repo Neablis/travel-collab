@@ -94,7 +94,7 @@ const server = setupServer(
     });
   }),
 );
-let accessRole: "owner" | "editor" = "editor";
+let accessRole: "owner" | "editor" | "viewer" = "editor";
 let accessReads = 0;
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 beforeEach(() => {
@@ -223,6 +223,43 @@ describe("NotebookScreen", () => {
 
     await waitFor(() => expect(onDelete).toHaveBeenCalledWith(page.id));
     await waitFor(() => expect(within(list).queryByText(page.title)).toBeNull());
+  });
+
+  // **A viewer reads the notebooks and writes none of them** (Mitchell,
+  // 2026-10-01). Every write this index offers — Delete, a blank notebook, a
+  // template — is withheld from a viewer, not left for the server to refuse.
+  // Withheld until the role is KNOWN, too, so a viewer is never shown them for
+  // the moment before the read lands.
+  it("offers a viewer no Delete and no templates to start from", async () => {
+    accessRole = "viewer";
+    const page = pageFixture({ tripId: TRIP_ID, title: "Day Sheet" });
+    server.use(...makePagesHandlers([page]));
+
+    render(<NotebookScreen tripId={TRIP_ID} />);
+    const list = await screen.findByRole("region", { name: "Your notebooks" });
+    expect(await within(list).findByText("Day Sheet")).toBeTruthy();
+    // Join the read the component made, through the cache it made it with:
+    // once that has answered, so has the component's, inside `act`.
+    await act(async () => {
+      await cachedRead(tripKeys.access(TRIP_ID), () => fetchTripAccess(TRIP_ID));
+    });
+
+    expect(screen.queryByRole("button", { name: "Delete Day Sheet" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Start from a template" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Start from/ })).toBeNull();
+    // The way in to read it is still there.
+    expect(within(list).getByRole("link", { name: /Day Sheet/ })).toBeTruthy();
+    // And all of the above was asserted with the role answered, not pending.
+    expect(accessReads).toBe(1);
+  });
+
+  it("offers an editor the same index with Delete and the templates", async () => {
+    const page = pageFixture({ tripId: TRIP_ID, title: "Day Sheet" });
+    server.use(...makePagesHandlers([page]));
+
+    render(<NotebookScreen tripId={TRIP_ID} />);
+    expect(await screen.findByRole("button", { name: "Delete Day Sheet" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Start from a template" })).toBeTruthy();
   });
 
   // "Add missing default notebooks" (Mitchell, 2026-09-27; owner only). The

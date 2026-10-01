@@ -265,20 +265,41 @@ export function PageScreen({
   // Reading like any page and switches to Editing once the role read says the
   // reader is not a viewer. Not before: opening in Editing and switching off
   // put a viewer in the editor until the read landed. A read that fails is no
-  // answer, so it stays in Reading; the toggle is still there. Read only on
-  // this path: the toggle is offered to everyone and the server is the
-  // boundary, so no other arrival needs the answer.
+  // answer, so it stays in Reading.
+  //
+  // **A viewer cannot edit a notebook at all** (Mitchell, 2026-10-01). The
+  // toggle used to be offered to everyone, "the server is the boundary" — and
+  // the server is, but that put a viewer in an editor whose every save came
+  // back 403. So the role is read on EVERY arrival now, and `editRole` decides
+  // whether there is a way into Editing:
+  //
+  // - `pending`: no answer yet. The toggle renders NOTHING — offering "Edit
+  //   page" and then withdrawing it is a flash of a control a viewer may not
+  //   use, and an editor's toggle appearing a beat late (usually with the page
+  //   itself, the reads run together) is the less jarring of the two.
+  // - `viewer`: no toggle, and Editing can never be entered — the assistant's
+  //   switch below asks the same question.
+  // - `unknown`: the read failed. Not an answer that says viewer, so the toggle
+  //   is offered, exactly as the board stays live when TripProvider's read
+  //   fails; the server refuses whatever a real viewer then tries.
+  // - `writer`: owner or editor.
   const [editing, setEditing] = useState(false);
+  const [editRole, setEditRole] = useState<"pending" | "viewer" | "unknown" | "writer">("pending");
   useEffect(() => {
-    if (from !== "overview") return;
     let cancelled = false;
+    setEditRole("pending");
     void cachedRead(tripKeys.access(tripId), () => fetchTripAccess(tripId)).then((access) => {
-      if (!cancelled && access.ok && access.value.myRole !== "viewer") setEditing(true);
+      if (cancelled) return;
+      const role = !access.ok ? "unknown" : access.value.myRole === "viewer" ? "viewer" : "writer";
+      setEditRole(role);
+      if (role === "viewer") setEditing(false);
+      if (role === "writer" && from === "overview") setEditing(true);
     });
     return () => {
       cancelled = true;
     };
   }, [from, tripId]);
+  const mayToggleEditing = editRole === "writer" || editRole === "unknown";
   // **The rail's filter lives here because the rail does not.** §26 gives the
   // right column two states, and selecting a widget swaps the insert rail out
   // for that widget's settings — unmounting the picker. Owned inside it, the
@@ -935,7 +956,12 @@ export function PageScreen({
     if (refused !== null) handleRenameRef.current(refused.title);
   }, []);
 
-  const toggleEditing = () => setEditing((was) => !was);
+  // Guarded as well as hidden, so nothing that reaches this can open the
+  // editor for a viewer.
+  const toggleEditing = () => {
+    if (!mayToggleEditing) return;
+    setEditing((was) => !was);
+  };
 
   // **The page's shape in outlines, never a word** (KI-2026-09-20-e). It used
   // to paint `Loading…` alone, the flicker on Overview → Edit Overview; then it
@@ -1163,13 +1189,17 @@ export function PageScreen({
       <div className="mt-3 mb-3 flex flex-wrap items-center justify-between gap-3 md:sticky md:top-14 md:z-10 md:my-0 md:bg-paper md:py-3">
         {backLink}
         <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant={editing ? "primary" : "secondary"}
-            aria-pressed={editing}
-            onClick={toggleEditing}
-          >
-            {editing ? "Done editing" : "Edit page"}
-          </Button>
+          {/* Absent for a viewer, and until the role is known — see
+              `editRole`. */}
+          {mayToggleEditing ? (
+            <Button
+              variant={editing ? "primary" : "secondary"}
+              aria-pressed={editing}
+              onClick={toggleEditing}
+            >
+              {editing ? "Done editing" : "Edit page"}
+            </Button>
+          ) : null}
           {/* "Save as template" is no longer in this row: it is the pennant at
               the top right of the notebook card below (Mitchell, PR #269
               preview). */}
@@ -1278,7 +1308,10 @@ export function PageScreen({
           Couldn&apos;t save your latest changes. They&apos;re still here, and saving will be tried again.
         </Banner>
       ) : null}
-      {offeredDraft !== null ? (
+      {/* Not to a viewer: "Restore mine" is a save, and a draft a viewer holds
+          is one left from when they could edit — offering it would be a
+          button whose only answer is a 403. */}
+      {offeredDraft !== null && editRole !== "viewer" ? (
         <Banner
           variant="info"
           className="mb-3"

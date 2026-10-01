@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { TEMPLATE_LIBRARY, isOverviewPage, missingDefaultTemplates, type TemplateSeed } from "@tc/pages";
 import { newPageDoc } from "@tc/contracts";
-import type { PageContext, PageDoc, PageListEntry, SavedNotebookSummary, TripDetail } from "@tc/contracts";
+import type { PageContext, PageDoc, PageListEntry, SavedNotebookSummary, TripDetail, TripRole } from "@tc/contracts";
 import { addMissingDefaultNotebooks, createPage, deletePage, fetchPages } from "@/lib/pagesClient";
 import { deleteSavedNotebook, fetchSavedNotebooks, instantiateSavedNotebook } from "@/lib/savedNotebooksClient";
 import { RegionError, Skeleton, SkeletonRegion } from "@/components/ui/skeleton";
@@ -413,21 +413,28 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
   // same `@tc/pages` rule the server seeds by, so the button never promises
   // what the server would answer "nothing to add" to.
   //
-  // The role is read only when something IS missing: a trip with all its
-  // defaults, which is nearly every trip, costs no request.
+  // The role is read on every arrival now, not only when something is
+  // missing: it also decides whether this index offers ANY write (below).
   const somethingMissing = pages !== null && missingDefaultTemplates(pages).length > 0;
-  const [isOwner, setIsOwner] = useState(false);
+  // **A viewer writes no notebook** (Mitchell, 2026-10-01): no Delete, no
+  // blank notebook, no template gallery — every one of those is a write the
+  // server refuses a viewer. `pending` offers none of them either, so a viewer
+  // is never shown them for the moment before the read lands; a read that
+  // FAILS (`unknown`) offers them, as the board stays live when its own read
+  // fails (TripProvider), and the server refuses a real viewer regardless.
+  const [role, setRole] = useState<TripRole | "pending" | "unknown">("pending");
+  const isOwner = role === "owner";
+  const mayWrite = role !== "pending" && role !== "viewer";
   const [adding, setAdding] = useState(false);
   useEffect(() => {
-    if (!somethingMissing) return;
     let cancelled = false;
     void cachedRead(tripKeys.access(tripId), () => fetchTripAccess(tripId)).then((access) => {
-      if (!cancelled) setIsOwner(access.ok && access.value.myRole === "owner");
+      if (!cancelled) setRole(access.ok ? access.value.myRole : "unknown");
     });
     return () => {
       cancelled = true;
     };
-  }, [somethingMissing, tripId]);
+  }, [tripId]);
   const handleAddMissing = () => {
     setAdding(true);
     void addMissingDefaultNotebooks(tripId).then((result) => {
@@ -584,7 +591,11 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
           <RegionError
             className="mt-3"
             title={error ?? "Something went wrong"}
-            note="Only this list failed — the templates below still work, and nothing was lost."
+            note={
+              role === "viewer"
+                ? "Only this list failed, and nothing was lost."
+                : "Only this list failed — the templates below still work, and nothing was lost."
+            }
             onRetry={() => {
               setError(null);
               setStatus("loading");
@@ -595,7 +606,11 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
         ) : pages.length === 0 ? (
           <EmptyState
             title="No notebooks yet"
-            body="Start from a template below, or create a blank one and write your own."
+            body={
+              role === "viewer"
+                ? "Nobody has written one for this trip yet."
+                : "Start from a template below, or create a blank one and write your own."
+            }
           />
         ) : (
           <ul className="mt-3 flex flex-col gap-2">
@@ -657,7 +672,7 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
                       Read through `isOverviewPage` rather than by title: a
                       reader may rename this page, and the marker is what
                       identity means here. */}
-                  {isOverviewPage(page.context) ? null : (
+                  {isOverviewPage(page.context) || !mayWrite ? null : (
                     <Button size="sm" variant="ghost" onClick={() => handleDelete(page.id)} aria-label={`Delete ${page.title}`}>
                       Delete
                     </Button>
@@ -703,7 +718,17 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
           the empty state. Ours is exempt from all three states, and the test
           in `NotebookScreen.test.tsx` holds it there — a future reader who
           moves this inside the branch above takes away the only thing this
-          page can still offer when its list will not load. */}
+          page can still offer when its list will not load.
+
+          **The one wait it does have is the reader's ROLE** (2026-10-01): it
+          is a write, so it is withheld from a viewer and not offered until the
+          role read (one cached request, raced with the list) has said they
+          are not one. */}
+      {/* Withheld from a viewer, and until the role is known — see `role`.
+          Starting from any of these creates a notebook on THIS trip, which a
+          viewer may not do; their own saved templates are reachable from any
+          trip they can edit. */}
+      {mayWrite ? (
       <section aria-labelledby="start-from-a-template">
         {/* **Blank beside the heading, not a tenth card in the grid.** It was
             dressed as a peer of the templates so it would not read as a button
@@ -800,6 +825,7 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
           </TemplateGroup>
         )}
       </section>
+      ) : null}
 
       {/* **`presentation="sheet"` unconditionally, because the sheet is the
           only presentation this screen has.** The one control that can set
