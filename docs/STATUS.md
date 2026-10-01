@@ -58,6 +58,115 @@ ADR-037 says) and accepted the six widgets on their e2e and ADR-052 as built. On
 `docs/milestones/M14-rich-layer.md`. `docs/retros/2026-09-24-m14-stacked-prs-retro.md`
 is the *process* retro. The route map block is unblocked by M24 but unbuilt and
 unowned.
+
+**Operator items: both done** (verified 2026-09-27, three days after this file
+last called them outstanding). Production has `0000`-`0031` (runs #29/#30), and
+`EXTERNAL_DATA_CONTACT` is set for all three Vercel targets. Migration state is
+now `pnpm state`'s computed `PROD MIGRATIONS` line; don't restate it here.
+
+Branches cut from `main` before #221 still carry the part-3 version of
+`m14-notebook-widgets.spec.ts` *"a sentence inserted mid-sentence…"*. That
+version fails about 3 times in 20: it types into a repeat node view before
+React has mounted its editable line, and loses the first keystrokes. Merge
+`main` into those branches; `main`'s version passed 20 of 20. Known carriers
+are `claude/optimistic-shannon-tce4t8` and `claude/ecstatic-villani-13d488`.
+The mechanism is in `docs/guidelines/testing.md` § *Copy these → E2E*.
+
+## Live rules that the code cannot enforce
+
+Three standing facts, kept here because each is instruction rather than history and
+nothing in CI will tell you when one is broken. The narrative each came from is in
+`docs/retros/2026-09-11-status-archive.md`.
+
+- **Merging does not apply a migration.**
+  `gh workflow run migrate-production.yml -f confirm=migrate`, from `main`, is the only thing
+  that applies one. Whether production is current is **computed, not written here**: `pnpm
+  state`'s `PROD MIGRATIONS` line, or the row count of `drizzle.__drizzle_migrations` on the
+  production branch against `apps/web/drizzle/meta/_journal.json`. *(This entry said
+  "Production is at `0020`" for two weeks after `0021`-`0031` shipped; the one before it said
+  `0018` was NOT applied after it was. A number in this file is a snapshot. The rule
+  outlived three of them.)* Runbook:
+  `docs/guidelines/content-bundles.md` for what `0018` unblocks (`--prune` against a bundle
+  that has stopped declaring content).
+- **The `ai-live` flag's dashboard fallthrough stays "Simulated" until release, then flips
+  to "Live"** — ADR-019's **2026-09-13 amendment**, which reverses the 2026-09-08 rule that
+  it must stay Simulated forever. Until the flip the old reasoning holds exactly: targeting
+  only ever *widens*, a caller no rule matches falls through to the default, and that default
+  is the only thing keeping anyone off. **The flip is safe only after M20's entitlement gate
+  is live in production** — `selectAiModel` checks entitlement *before* the flag
+  (`modelSelection.ts:215-218`), so a paid-account check becomes the spend control and the
+  flag goes back to being an emergency disable. Flipping it early leaves an interval with no
+  spend control at all. **That precondition was met 2026-09-14**: the gate is live in
+  production and migrated, so the flip is now a decision rather than a dependency — and
+  Mitchell's, not a session's. Note what it would expose today: every account that predates
+  0019 holds a permanent `founder` grant, so the spend control binds on new accounts and not
+  on those. After the flip, keep Production's rule list empty: a widening rule
+  would make *the rule* load-bearing, and disabling in a hurry must stay one action. It lives
+  in the Vercel dashboard and no test can assert any of it.
+- **e2e refuses to start unless `AI_LIVE=false`.** `/api/health/ai-mode` reports
+  `{ live, source }` and `e2e/global.setup.ts` requires `source: "env"` — an anonymous
+  `live: false` from a *targetable* flag stopped being evidence about the signed-in user the
+  specs sign in as, which had quietly broken what KI-25 bought. `.env.example` ships it; CI
+  sets it in the workflow env.
+
+## Blocking / broken right now
+
+**Promoted out of the 2026-09-20 handoff on 2026-09-21.** These were live
+inside a section that was 69% of this file, where nothing looks for a blocker.
+
+* **Coordinates.** `KI-2026-09-20-d`. Every derivation above needs `lat`/`lng`
+  and the seed has three. The gateway blocks the geocoder (403 to `CONNECT
+  nominatim.openstreetmap.org:443`), so this cannot be closed from a cloud
+  session. Two routes that do not need one: lift coordinates from the 19
+  already-geocoded bundles under `content/` where the places overlap (Mexico
+  City, Glen Coe, New York are plausible — CHECK, do not assume), or run the
+  geocoder from a laptop per `docs/guidelines/content-bundles.md`.
+* **The preview's database.** It has never had `content:import` run and is not
+  reseeded by a deploy, so seed-side work stays invisible there until somebody
+  with the credential reseeds it. Mitchell knows; it is his to do.
+
+**1. The Map lens's tiles have still never been confirmed to paint.** KI-49,
+the cloud-session half, is resolved (2026-09-24). The e2e suite no longer fetches
+tiles at all: it serves a background-only fixture style at the real URL and
+asserts that no request left for a third party. So the e2e suite never renders a
+real basemap, by design. Confirming real tiles is now a written manual check on a
+preview: `docs/guidelines/third-party-services-on-a-preview.md` → *Map tiles*.
+The pixel caveat still holds. The WebGL canvas has captured blank in the
+screenshot pipeline, so look at the page, not the capture. A blank canvas is not
+a pass.
+
+**A preview deployment is walkable from a cloud session, and the CSP defect that
+found is fixed.** `pnpm --filter web walk:preview <url> [path ...]` —
+`docs/guidelines/cloud-agent-sessions.md` carries the diagnosis, and that file's
+old "the preview is NOT reachable from here" paragraph is gone; it was wrong and
+it cost several runs. Three obstacles stacked: Deployment Protection, Chromium
+not trusting the egress CA, and a TLS 1.3 ClientHello the `*.vercel.app` tunnel
+cannot carry.
+
+What the walk found is the point: **the CSP refused the Vercel Toolbar's loader
+on every preview page**, which breaks the Flags Explorer — the documented way to
+flip `ai-live` for one reviewer's session. M11's gate saw the same refusal and
+filed it as harmless preview noise; it was not. The policy now admits the
+Toolbar's origins on preview only, gated on `VERCEL_ENV`, with a test asserting
+production's policy is untouched.
+
+**One thing is still Mitchell's to do, and nothing unattended can test a preview
+until it is done:** generate **Protection Bypass for Automation** (Vercel → the
+project → Settings → Deployment Protection) and copy the value into a
+`VERCEL_AUTOMATION_BYPASS_SECRET` repo secret.
+
+**The `_vercel_share` fallback was tested on 2026-08-30 and is not a substitute
+— tried while looking for M18b's gate evidence.** A freshly minted link gets
+*past* Deployment Protection and is then stopped by `429 Vercel Security
+Checkpoint` at the redeem step, twice, five minutes apart, before any app
+response. That is Vercel's anti-bot interstitial challenging the client —
+headless Chromium on a datacenter IP — not rate limiting and not the protection
+layer. It suits a person in a browser; it does not reliably suit the automated
+walk. The bypass secret is honoured before the checkpoint renders, which is why
+it is the only dependable route. `docs/guidelines/cloud-agent-sessions.md`
+carries the detail. Treat the secret like `FLAGS_SECRET`:
+it unlocks every protected deployment this project has.
+
 **Not blocking:** KI-15 stays downgraded — the silent-corruption half (an
 unbiased top match overwriting correct model coordinates; rate-limit failures
 swallowed into coordinate-less locations) is fixed. The remaining architectural
