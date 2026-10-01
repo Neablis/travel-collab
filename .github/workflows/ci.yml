@@ -90,30 +90,51 @@ env:
   NEXT_PUBLIC_SENTRY_DSN: ""
 
 jobs:
-  # Static analysis and unit tests share a job because neither needs Postgres,
-  # a build, or a browser, and both were paying ~20s of checkout/pnpm/node
-  # setup plus a whole rounded-up billed minute to run apart. Merged, they cost
-  # one setup and one rounding instead of two: ~186 min/month at the sampled
-  # volume, for ~43s of extra wall clock.
+  # SIX JOBS, ALL IN PARALLEL (2026-10-01). Until then this was two jobs —
+  # `static-and-unit` (typecheck, lint, unit, script tests in a row) and
+  # `integration-e2e` (int, then build and e2e) — because each job paid its
+  # setup in billed minutes on a 2,000-minute private plan. The repo has been
+  # public since 2026-08-31, minutes are free, and what is left to save is wall
+  # clock: measured on #281, the two jobs took ~9 minutes end to end; split, the
+  # run is as long as its longest job (e2e, ~5.5 minutes).
   #
-  # The `!cancelled()` guards keep what the split used to buy. Running these
-  # serially would otherwise mean a `tsc` failure masks lint and test results
-  # until the next push; with the guards every step still runs and still fails
-  # the job, so one run reports every failure — same signal, one job.
-  static-and-unit:
-    # A draft PR is an agent mid-flight. Skip it here rather than at the `on:`
-    # level so the check still appears (skipped, not missing) on the PR.
+  # Every job runs the same `.github/actions/setup-workspace` (~18s on a warm
+  # pnpm store), so no job sets up differently from another. GitHub-hosted
+  # jobs cannot share a machine; one identical, cached setup per job is the
+  # floor, and at 18s it is the cheap part.
+  #
+  # Splitting also replaces the `!cancelled()` guards that kept one failing
+  # step from hiding the rest: each check is its own job now, so every one
+  # reports independently.
+  #
+  # Each job keeps the draft gate: a draft PR is an agent mid-flight. Skipped
+  # here rather than at the `on:` level so the checks still appear (skipped,
+  # not missing) on the PR. Timeouts are runaway caps, ~3x the measured job,
+  # not performance budgets: a false kill costs a whole re-run.
+
+  typecheck:
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
-    # Runaway cap, not a performance budget. The default is 360 minutes: one
-    # wedged run would hold a runner and a waiting PR for six hours (and, when
-    # the repo was private, would have billed 18% of its 2,000-minute cap).
-    # This job averages 4.6 min of measured job time (see
-    # docs/guidelines/ci-cost-and-capacity.md) and its slowest step is
-    # `pnpm test` at ~160s, so 15 leaves >3x headroom for a slow runner or a
-    # cold pnpm store. Raise it if a real run ever gets killed; do not tune it
-    # downward toward the average — a false kill costs a whole re-run.
-    timeout-minutes: 15
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-workspace
+      - run: pnpm typecheck
+      # `drizzle-kit check` reads the migration SNAPSHOTS and reports two things
+      # nothing else here does: a malformed snapshot, and a *collision* — two
+      # snapshots naming the same parent, which is what two branches generating
+      # migrations in parallel leaves behind when a merge keeps both. It reads
+      # `_journal.json` not at all (measured 2026-09-07: a journal with two
+      # `idx: 18` entries printed "Everything's fine"), which is why `pnpm lint`
+      # separately runs `scripts/check-migration-journal.mjs`. The two overlap
+      # nowhere. ~2s, no database, no build. KI-2026-09-05-k.
+      - if: '!cancelled()'
+        run: pnpm --filter web db:check
+
+  lint:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       # `pnpm lint` runs `scripts/check-migration-journal.mjs`, whose HEADLINE
@@ -140,38 +161,62 @@ jobs:
           git fetch --depth=1 origin main:refs/remotes/origin/main
           git rev-parse --verify refs/remotes/origin/main >/dev/null
           echo "baseline ref present: $(git rev-parse --short refs/remotes/origin/main)"
-      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm typecheck
-      - if: '!cancelled()'
-        run: pnpm lint
-      - if: '!cancelled()'
-        run: pnpm test
-      # `drizzle-kit check` reads the migration SNAPSHOTS and reports two things
-      # nothing else here does: a malformed snapshot, and a *collision* — two
-      # snapshots naming the same parent, which is what two branches generating
-      # migrations in parallel leaves behind when a merge keeps both. It reads
-      # `_journal.json` not at all (measured 2026-09-07: a journal with two
-      # `idx: 18` entries printed "Everything's fine"), which is why `pnpm lint`
-      # separately runs `scripts/check-migration-journal.mjs`. The two overlap
-      # nowhere. ~2s, no database, no build. KI-2026-09-05-k.
-      - if: '!cancelled()'
-        run: pnpm --filter web db:check
+      - uses: ./.github/actions/setup-workspace
+      - run: pnpm lint
 
-  # Everything that needs Postgres, a real build, and a browser: migrations,
-  # integration tests, and e2e. This is the long pole, so it runs in parallel
-  # with the lane above rather than after it.
-  integration-e2e:
+  # Every workspace package's vitest suite (`pnpm -r test`): ~2 minutes.
+  unit:
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
-    # Same runaway cap, sized for the long pole. 4.1 min average, but the
-    # worst legitimate case is a cold run that misses both caches: pnpm
-    # install, Playwright's chromium download, and a `next build` with no
-    # `.next/cache` stack up to roughly 6 minutes. 20 keeps >3x on that.
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-workspace
+      - run: pnpm test:unit
+
+  # `scripts/**/__tests__` under node:test: ~90s, most of it
+  # check-lint-wall.test.mjs running eslint against sabotaged configs.
+  script-tests:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-workspace
+      - run: pnpm test:scripts
+
+  # Postgres-backed integration tests: ~2.5 minutes.
+  integration:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: travel
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 2s --health-timeout 2s --health-retries 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-workspace
+      # No `db:migrate` step: since KI-2026-08-30-e both lanes below provision
+      # their own database per run (apps/web/scripts/with-test-db.mjs), applying
+      # the migrations themselves into a template. Migrating the service
+      # container's `travel` database would migrate a database nothing opens.
+      - run: pnpm --filter web test:int
+
+  # A production build and Playwright against it: the long pole, ~5.5 minutes.
+  # Needs its own Postgres for the same reason as `integration`: both lanes
+  # provision their databases per run (apps/web/scripts/with-test-db.mjs).
+  e2e:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    # The worst legitimate case is a cold run that misses both caches:
+    # Playwright's chromium download and a `next build` with no `.next/cache`.
     timeout-minutes: 20
     services:
       postgres:
@@ -185,17 +230,7 @@ jobs:
           --health-interval 2s --health-timeout 2s --health-retries 15
     steps:
       - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      # No `db:migrate` step: since KI-2026-08-30-e both lanes below provision
-      # their own database per run (apps/web/scripts/with-test-db.mjs), applying
-      # the migrations themselves into a template. Migrating the service
-      # container's `travel` database would migrate a database nothing opens.
-      - run: pnpm --filter web test:int
+      - uses: ./.github/actions/setup-workspace
       # Playwright's OS-level deps (apt packages) aren't cacheable and must
       # install fresh on every runner; the browser binary download is the
       # slow part and is what the cache step below skips on a hit.

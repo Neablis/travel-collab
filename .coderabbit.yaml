@@ -83,7 +83,7 @@ reviews:
   # resolve. Every review since the root `eslint.config.mjs` landed (#235,
   # 2026-09-25) posted "Some tools did not complete … ESLint" and linted
   # nothing. ESLint already runs in CI, with the real config and every plugin
-  # installed: `static-and-unit` → `pnpm lint`, a required check. A second,
+  # installed: ci.yml's `lint` job → `pnpm lint`. A second,
   # broken copy of it here added only the warning.
   tools:
     eslint:

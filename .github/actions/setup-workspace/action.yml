@@ -1,0 +1,27 @@
+name: setup-workspace
+description: >-
+  pnpm, Node from .nvmrc, and a frozen install of the whole workspace — the
+  setup every ci.yml job needs. Run actions/checkout first: a local action can
+  only be read from a checked-out tree.
+
+# One definition, used by every job, so the jobs cannot drift apart on how they
+# install, and each costs what this costs and no more. Measured 2026-10-01:
+# ~18s on a warm cache (pnpm/action-setup ~3s, setup-node with the pnpm store
+# restored ~5s, `pnpm install --frozen-lockfile` ~7-10s).
+#
+# Why the store is cached and node_modules is not: restoring the pnpm store and
+# linking from it is the ~7-10s above. A node_modules tarball for this
+# workspace is several hundred MB of symlinked trees; restoring one takes about
+# as long as the install it replaces, and adds a second cache key that can go
+# stale against the lockfile. GitHub-hosted jobs cannot share a machine, so a
+# fast, identical setup per job is the floor.
+runs:
+  using: composite
+  steps:
+    - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+    - uses: actions/setup-node@v7
+      with:
+        node-version-file: .nvmrc
+        cache: pnpm
+    - shell: bash
+      run: pnpm install --frozen-lockfile

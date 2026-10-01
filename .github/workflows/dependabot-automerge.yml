@@ -48,6 +48,7 @@ jobs:
           GH_REPO_OWNER: ${{ github.repository_owner }}
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
           HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
         run: |
           set -euo pipefail
 
@@ -67,16 +68,17 @@ jobs:
             exit 0
           fi
 
-          # A skipped job still leaves the run green (draft PRs skip both), so
-          # check that the jobs themselves passed on this exact head.
-          for check in static-and-unit integration-e2e; do
-            conclusion=$(gh api "repos/$GH_REPO/commits/$HEAD_SHA/check-runs?check_name=$check" \
-              --jq '.check_runs[0].conclusion // "missing"')
-            if [ "$conclusion" != "success" ]; then
-              echo "$check is '$conclusion' on $HEAD_SHA; not merging PR #$pr."
-              exit 0
-            fi
-          done
+          # A skipped job still leaves the run green (a draft PR skips them
+          # all), so every job of the `ci` run that triggered this one must
+          # itself have succeeded. Read from the run rather than by job name,
+          # so splitting or renaming ci.yml's jobs cannot quietly drop one
+          # from this check; zero jobs is a failure, not a vacuous pass.
+          not_passed=$(gh api "repos/$GH_REPO/actions/runs/$RUN_ID/jobs?per_page=100" \
+            --jq '(.jobs | length) as $n | if $n == 0 then "no jobs" else [.jobs[] | select(.conclusion != "success") | "\(.name)=\(.conclusion)"] | join(", ") end')
+          if [ -n "$not_passed" ]; then
+            echo "ci run $RUN_ID did not fully pass ($not_passed); not merging PR #$pr."
+            exit 0
+          fi
 
           # What it updates decides the rest: scripts/dependabot-versions.mjs
           # reads the package list from the commits' updated-dependencies

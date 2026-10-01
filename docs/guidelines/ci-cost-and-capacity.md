@@ -40,8 +40,8 @@ That condition has fired. Confirmed 2026-08-31:
 Pro or make this repository public"*. Branch protection is available and simply
 not switched on yet.
 
-**So there is a window, and we are in it.** The moment `static-and-unit` or
-`integration-e2e` is made a *required* status check, every prose-only PR — the
+**So there is a window, and we are in it.** The moment any `ci.yml` job (`typecheck`,
+`lint`, `unit`, `script-tests`, `integration`, `e2e`) is made a *required* status check, every prose-only PR — the
 exact Tier 1 case `AGENTS.md` now tells agents to expect — will sit unmergeable
 forever, because `paths-ignore` means the required job never reports at all. A
 skipped job reports; a job that never ran does not.
@@ -96,6 +96,34 @@ six minutes, not four. Job count is a cost, not just a structure choice.
 This file exists because the first instinct when CI gets expensive is to reach
 for a provider comparison — self-hosted runners, CircleCI, GitLab. For this repo
 that instinct is wrong, and the measurements below are why.
+
+## Job layout (2026-10-01): six parallel jobs, for wall clock
+
+`ci.yml` runs `typecheck`, `lint`, `unit`, `script-tests`, `integration` and
+`e2e` as separate jobs, all in parallel, each starting with the same
+`.github/actions/setup-workspace` (pnpm, Node from `.nvmrc`, frozen install
+from the cached pnpm store: ~18s warm). This **reverses** the 2026-08-27 merge
+below, deliberately: that merge saved billed minutes, which stopped being a
+constraint when the repo went public. What is left to save is wall clock — the
+time every agent and reviewer waits on a run.
+
+Measured on PR #281, the two-job layout (`static-and-unit`,
+`integration-e2e`) took ~9 minutes end to end: `pnpm test` alone was 3.5–5.5
+minutes behind typecheck and lint in one job, and `test:int` ran before the
+e2e build in the other. Split, a run lasts as long as its longest job, `e2e`
+(~5.5 minutes). The price is ~18–38s of repeated setup per extra job, in free
+minutes.
+
+Two things that were considered and not done, with the reason:
+- **Caching `node_modules` instead of the pnpm store.** A workspace
+  `node_modules` tarball restores in about the time `pnpm install` takes from
+  the store, and is a second cache key that can drift from the lockfile.
+- **Sharing one machine across jobs.** GitHub-hosted jobs cannot; passing
+  `node_modules` between jobs as an artifact is slower than installing it.
+
+If `e2e` stays the long pole, the next lever is Playwright sharding
+(`--shard=1/2`, `2/2` as a matrix): each shard repeats setup and `next build`
+(~20–45s with `.next/cache`) to halve the ~4.5-minute test step.
 
 ## What we actually spend
 
@@ -228,9 +256,9 @@ next quarter:
   built on `gh run` semantics. Migrating CI means rewriting the repo's triage
   tooling too.
 - **Self-hosted runner on the Mac → blocked by a hard constraint.** GitHub
-  Actions **service containers require a Linux runner**; `integration-e2e`'s
+  Actions **service containers require a Linux runner**; `integration` and `e2e` jobs'
   `services: postgres` block simply does not work on a macOS runner. A Mac runner
-  means rebuilding that job around `docker-compose.yml`. Separately, `claude/*`
+  means rebuilding those jobs around `docker-compose.yml`. Separately, `claude/*`
   branches push at 00:59–04:54 UTC, so a laptop runner queues while asleep.
 
 ## The last gate: migrations are now explicit
