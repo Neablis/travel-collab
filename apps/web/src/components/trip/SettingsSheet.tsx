@@ -17,6 +17,7 @@ import type { TripCounts } from "@/components/trip/TripMetaPill";
 import { TripMoneySettings } from "@/components/board/TripMoneySettings";
 import { TripDateControl } from "@/components/lenses/TripDateControl";
 import { formatInstantLong, formatTripDate } from "@/lib/formatDate";
+import { isDemoTripId } from "@/lib/demoTrip";
 import { formatMoney } from "@/lib/formatMoney";
 import type { TripSpend } from "@/lib/cost";
 
@@ -425,14 +426,23 @@ export function SettingsSheet({
               navigates is a control a reader cannot open in a new tab, copy the
               address of, or reach with their browser's own download handling.
               `buttonVariants` is how the rest of this app styles exactly that
-              (`OverviewLens`, `TokensSection`). */}
-          <a
-            href={`/api/v1/trips/${tripId}/export`}
-            download
-            className={buttonVariants({ variant: "secondary" }) + " no-underline"}
-          >
-            Download Trip
-          </a>
+              (`OverviewLens`, `TokensSection`).
+
+              **Not on `/demo`** (Mitchell, 2026-10-01): "a session cookie
+              satisfies every scope" is exactly why it fails there — a demo
+              visitor has no session, so the link was a 401 posing as a
+              download. Hidden, not disabled, like every other control the demo
+              has no session for (`TripHeader`, KI-64). Decided by the trip, not
+              the role: a signed-in viewer keeps it (ADR-028 decision 3). */}
+          {isDemoTripId(tripId) ? null : (
+            <a
+              href={`/api/v1/trips/${tripId}/export`}
+              download
+              className={buttonVariants({ variant: "secondary" }) + " no-underline"}
+            >
+              Download Trip
+            </a>
+          )}
           {/* **Duplicate and Delete are not here** — M26 link 6a, DRIFT D13,
               SPEC §34.2 and §27. They live on the trip card's popover on Home,
               which is where they already worked, and a trip you are INSIDE is
