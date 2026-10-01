@@ -75,11 +75,20 @@ type ConflictRefMap = ReadonlyMap<number, string>;
 // indices — that duplicated bookkeeping is exactly what drifted. A trip holds
 // tens of entities and a batch tens of refs, so the rescan is free, and there
 // is precisely one source of truth for what exists.
+/**
+ * A ref the model sent, as text to parse or to quote back to it. Refs are
+ * model output and typed `unknown`: `String()` on an object yields
+ * `[object Object]`, which the model cannot act on — JSON shows what it sent.
+ */
+function refText(refVal: unknown): string {
+  return typeof refVal === "string" ? refVal.trim() : (JSON.stringify(refVal) ?? String(refVal));
+}
+
 function resolveDay(state: TripState, refVal: unknown): Resolved<string | null> {
   if (refVal === undefined || refVal === null) return { ok: true, value: null };
   if (typeof refVal === "number") return dayByNumber(state, refVal, String(refVal));
 
-  const s = String(refVal).trim();
+  const s = refText(refVal);
   if (s.toLowerCase() === "backlog") return { ok: true, value: null };
   if (UUID_RE.test(s)) {
     return state.days.some((d) => d.dayId === s)
@@ -88,9 +97,9 @@ function resolveDay(state: TripState, refVal: unknown): Resolved<string | null> 
   }
   const m = /^(?:day\s*)?(\d+)$/i.exec(s);
   if (!m) {
-    return { ok: false, error: `Couldn't read “${refVal}” as a day. Use "day N" (1-based), a dayId, or "backlog".` };
+    return { ok: false, error: `Couldn't read “${s}” as a day. Use "day N" (1-based), a dayId, or "backlog".` };
   }
-  return dayByNumber(state, Number(m[1]), `“${refVal}”`);
+  return dayByNumber(state, Number(m[1]), `“${s}”`);
 }
 
 function dayByNumber(state: TripState, n: number, label: string): Resolved<string | null> {
@@ -134,9 +143,9 @@ function resolveActivity(state: TripState, refVal: unknown): Resolved<string> {
 // which conflicts are active. Whether the conflict is STILL active when the
 // dismissal is decided is decideTripCommand's call, not the ref map's.
 function resolveConflict(byRef: ConflictRefMap, refVal: unknown): Resolved<string> {
-  const n = typeof refVal === "number" ? refVal : Number(String(refVal).trim());
+  const n = typeof refVal === "number" ? refVal : Number(refText(refVal));
   if (!Number.isInteger(n)) {
-    return { ok: false, error: `Couldn't read “${refVal}” as a conflict number. Use its ref from the context's conflicts list.` };
+    return { ok: false, error: `Couldn't read “${refText(refVal)}” as a conflict number. Use its ref from the context's conflicts list.` };
   }
   const id = byRef.get(n);
   return id !== undefined

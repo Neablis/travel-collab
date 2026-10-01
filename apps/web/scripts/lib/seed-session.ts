@@ -107,6 +107,11 @@ function readSetCookie(res: Response, name: string): string | undefined {
 
 // ---- thin API helpers --------------------------------------------------
 
+// CodeQL `js/file-access-to-http` flags this fetch: `import-content.ts` reads a
+// content bundle from disk and posts it here. That is the script's job — the
+// file is tracked JSON in this repo, sent to the app it seeds — so the alert is
+// dismissed as a false positive on GitHub, not fixed. A NEW alert on this line
+// with a different source file is not covered by that dismissal; read it.
 export async function api(cookie: string, method: string, path: string, body?: unknown): Promise<any> {
   const res = await fetch(`${BASE_URL}${path}`, {
     method,

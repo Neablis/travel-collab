@@ -116,7 +116,8 @@ export function formEncode(payload: Record<string, unknown>, prefix = ""): strin
     } else if (typeof value === "object") {
       parts.push(formEncode(value as Record<string, unknown>, name));
     } else {
-      parts.push(`${encodeURIComponent(name)}=${encodeURIComponent(String(value))}`);
+      // Every object took the branch above, so this is a primitive.
+      parts.push(`${encodeURIComponent(name)}=${encodeURIComponent(String(value as string | number | boolean))}`);
     }
   }
   // An empty nested object contributes an empty string; dropping those keeps

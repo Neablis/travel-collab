@@ -40,8 +40,8 @@ That condition has fired. Confirmed 2026-08-31:
 Pro or make this repository public"*. Branch protection is available and simply
 not switched on yet.
 
-**So there is a window, and we are in it.** The moment `static-and-unit` or
-`integration-e2e` is made a *required* status check, every prose-only PR — the
+**So there is a window, and we are in it.** The moment any `ci.yml` job (`typecheck`,
+`lint`, `unit`, `script-tests`, `integration`, `e2e`) is made a *required* status check, every prose-only PR — the
 exact Tier 1 case `AGENTS.md` now tells agents to expect — will sit unmergeable
 forever, because `paths-ignore` means the required job never reports at all. A
 skipped job reports; a job that never ran does not.
@@ -52,6 +52,13 @@ keep the workflow always-triggering, and move the filter into a `changes` job
 its `if:`. The jobs then *run and skip*, which satisfies a required check.
 
 ## CodeQL: real spend that no measurement here has ever counted
+
+> **Since 2026-10-01 CodeQL runs from `.github/workflows/codeql.yml`**, not
+> default setup, on the `security-extended` suite (the file's header has why).
+> Its runs are now named `codeql`, so the re-measuring recipe below sees them.
+> It still runs on pushes to `main`, on every PR with no path filter, and
+> weekly. The bullets below describe the default-setup era and are kept as the
+> record of what was measured then.
 
 Every table in this document was built from the `ci` and `migrate-production`
 workflows. **CodeQL is neither**, and it has been running the whole time:
@@ -89,6 +96,47 @@ six minutes, not four. Job count is a cost, not just a structure choice.
 This file exists because the first instinct when CI gets expensive is to reach
 for a provider comparison — self-hosted runners, CircleCI, GitLab. For this repo
 that instinct is wrong, and the measurements below are why.
+
+## Job layout (2026-10-01): seven parallel jobs, for wall clock
+
+`ci.yml` runs `typecheck`, `lint`, `unit`, `script-tests`, `integration` and
+two `e2e` shards (`e2e (1/2)`, `e2e (2/2)`) as separate jobs, all in parallel, each starting with the same
+`.github/actions/setup-workspace` (pnpm, Node from `.nvmrc`, frozen install
+from the cached pnpm store: ~18s warm). This **reverses** the 2026-08-27 merge
+below, deliberately: that merge saved billed minutes, which stopped being a
+constraint when the repo went public. What is left to save is wall clock — the
+time every agent and reviewer waits on a run.
+
+Measured on PR #281, the two-job layout (`static-and-unit`,
+`integration-e2e`) took ~9 minutes end to end: `pnpm test` alone was 3.5–5.5
+minutes behind typecheck and lint in one job, and `test:int` ran before the
+e2e build in the other. Split into six jobs, the measured run was **5m30s**,
+as long as its longest job, `e2e` (5m24s, 4m10s of it Playwright). `e2e` is
+now two Playwright shards, each repeating setup, Postgres and a ~15s warm
+`next build` to run half the spec files. The price is ~18–38s of repeated
+setup per extra job, in free minutes. The one limit on a public repo is the
+Free plan's 20 concurrent jobs; a push starts about 12.
+
+Measured on PR #281, end to end (first job queued → last job done):
+
+| Layout | Run | Longest job |
+|---|---|---|
+| Two jobs | 8m53s / 8m44s | `static-and-unit` |
+| Six jobs | 5m30s | `e2e` 5m24s |
+| Seven jobs (e2e sharded) | **4m37s** | `e2e (1/2)` 4m34s |
+
+Job-to-job noise between runs is ±30–40s. **The shards are unbalanced**:
+Playwright shards by *file*, and shard 1's files took 2m57s against shard 2's
+1m48s. Balancing by test (`fullyParallel: true` in `playwright.config.ts`)
+should bring a run to ~3m50s, but needs every spec checked as safe to run
+interleaved first. Below that, `unit` (~3m45s) is the next long pole.
+
+Two things that were considered and not done, with the reason:
+- **Caching `node_modules` instead of the pnpm store.** A workspace
+  `node_modules` tarball restores in about the time `pnpm install` takes from
+  the store, and is a second cache key that can drift from the lockfile.
+- **Sharing one machine across jobs.** GitHub-hosted jobs cannot; passing
+  `node_modules` between jobs as an artifact is slower than installing it.
 
 ## What we actually spend
 
@@ -221,9 +269,9 @@ next quarter:
   built on `gh run` semantics. Migrating CI means rewriting the repo's triage
   tooling too.
 - **Self-hosted runner on the Mac → blocked by a hard constraint.** GitHub
-  Actions **service containers require a Linux runner**; `integration-e2e`'s
+  Actions **service containers require a Linux runner**; `integration` and `e2e` jobs'
   `services: postgres` block simply does not work on a macOS runner. A Mac runner
-  means rebuilding that job around `docker-compose.yml`. Separately, `claude/*`
+  means rebuilding those jobs around `docker-compose.yml`. Separately, `claude/*`
   branches push at 00:59–04:54 UTC, so a laptop runner queues while asleep.
 
 ## The last gate: migrations are now explicit

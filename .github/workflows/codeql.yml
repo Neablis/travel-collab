@@ -1,0 +1,67 @@
+name: codeql
+
+# CodeQL code scanning, run from this file instead of GitHub's default setup.
+# Two reasons to own it:
+#
+# - `security-extended`, not the default suite. Measured 2026-10-01 against
+#   `main`: the default suite found nothing; `security-extended` found nine,
+#   six of them a real supply-chain gap (`pnpm/action-setup` referenced by a
+#   movable tag in every workflow, including the three that hold production
+#   credentials). That is the bar this repo keeps.
+# - It runs on every pull request, Dependabot's included. Default setup skipped
+#   Dependabot PRs, which left a neutral "configurations not found" check on
+#   each one.
+#
+# **Default setup must be OFF** (Settings → Code security → Code scanning).
+# While it is on, GitHub refuses this workflow's uploads and the job fails.
+#
+# No `paths-ignore`, unlike `ci.yml`: a PR that skipped this would show the
+# same "configurations not found" check this file exists to remove. Docs-only
+# PRs pay ~2 minutes per language; minutes are free on a public repo.
+#
+# Adding a language to the repo means adding it to the matrix below. Default
+# setup noticed new languages by itself; this file does not.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Weekly, so new queries in a CodeQL release reach code nobody touched.
+    - cron: "23 6 * * 1"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      # Upload results to code scanning.
+      security-events: write
+      # Read workflow run metadata (the action asks for it on private repos;
+      # harmless here, and needed if the repo is ever private again).
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [actions, javascript-typescript, python]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          # None of the three needs a build to be analysed.
+          build-mode: none
+          queries: security-extended
+      - uses: github/codeql-action/analyze@v4
+        with:
+          # The same categories default setup used, so existing alerts carry
+          # over instead of closing and reopening under new names.
+          category: /language:${{ matrix.language }}

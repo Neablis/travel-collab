@@ -16,6 +16,11 @@
 #   does not hold them back. Every PR here costs a full run of both jobs
 #   (~9 billed minutes). The knobs below cap that at three PRs a month —
 #   roughly 30 minutes, ~1.5% of the cap — plus a re-run per push to one.
+#
+# Merging is automatic for patch and minor bumps once `ci` passes on the PR's
+# head (`.github/workflows/dependabot-automerge.yml`), security fixes included.
+# Majors and 0.x minors wait for a person, security or not, and so does any PR
+# whose versions cannot be read (`scripts/dependabot-versions.mjs`).
 version: 2
 updates:
   - package-ecosystem: npm # covers the whole pnpm workspace from the root lockfile

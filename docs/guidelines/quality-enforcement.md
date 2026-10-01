@@ -63,7 +63,7 @@ always before opening/updating a PR whose diff touches a user-facing flow.
 It builds production and runs the full suite with `CI=true`, which flips
 `webServer.command` to `pnpm start` and sets `AUTH_TRUST_HOST` for you
 (Auth.js rejects `next start` traffic from an untrusted host otherwise) —
-the same server CI's `integration-e2e` job actually runs against. It's
+the same server CI's `e2e` job actually runs against. It's
 slower (a full production build first) — that's the tradeoff for the
 signal being real; don't run it on every iteration, just before trusting
 the result.

@@ -14,7 +14,7 @@
 // gets a freshly generated pepper — random per checkout, never written
 // anywhere tracked. A pepper the example already gives a value is kept.
 import { randomBytes } from "node:crypto";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const example = fileURLToPath(new URL("../.env.example", import.meta.url));
@@ -24,7 +24,21 @@ const target = fileURLToPath(new URL("../apps/web/.env.local", import.meta.url))
 // touched, and `$` with nothing before it means only a blank value matches.
 const BLANK_PEPPER = /^API_TOKEN_PEPPER=[ \t]*$/m;
 
-if (existsSync(target)) {
+const source = readFileSync(example, "utf8");
+const pepper = randomBytes(32).toString("base64");
+// `wx` creates the file and fails if it exists, in one step. Checking first and
+// writing second (as this did) leaves a gap in which another `pnpm setup` — two
+// worktrees bootstrapping at once — could write between them, and this one
+// would then overwrite it (CodeQL js/file-system-race).
+let created = true;
+try {
+  writeFileSync(target, source.replace(BLANK_PEPPER, `API_TOKEN_PEPPER=${pepper}`), { flag: "wx" });
+} catch (error) {
+  if (error.code !== "EEXIST") throw error;
+  created = false;
+}
+
+if (!created) {
   console.log(`apps/web/.env.local already exists — leaving it alone.`);
   // Existing files are still never edited: a worktree's .env.local is its
   // owner's. Saying so is enough — the test lanes default a blank pepper
@@ -36,9 +50,6 @@ if (existsSync(target)) {
     console.log(`  Set one with:  openssl rand -base64 32`);
   }
 } else {
-  const source = readFileSync(example, "utf8");
-  const pepper = randomBytes(32).toString("base64");
-  writeFileSync(target, source.replace(BLANK_PEPPER, `API_TOKEN_PEPPER=${pepper}`));
   console.log(`Created apps/web/.env.local from .env.example.`);
   if (BLANK_PEPPER.test(source)) {
     console.log(`Generated a local API_TOKEN_PEPPER (random, this checkout only).`);

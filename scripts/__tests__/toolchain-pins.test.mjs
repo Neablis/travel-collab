@@ -29,9 +29,18 @@ function workspaceManifests() {
 }
 
 const workflowDir = join(root, ".github", "workflows");
-const workflows = readdirSync(workflowDir)
-  .filter((f) => f.endsWith(".yml") || f.endsWith(".yaml"))
-  .map((f) => [f, readFileSync(join(workflowDir, f), "utf8")]);
+const actionsDir = join(root, ".github", "actions");
+// Workflows, plus the composite actions they share (`.github/actions/*/action.yml`):
+// ci.yml's setup-node and pnpm steps live in `setup-workspace`, and a pin
+// checked only where it is NOT would be no check at all.
+const workflows = [
+  ...readdirSync(workflowDir)
+    .filter((f) => f.endsWith(".yml") || f.endsWith(".yaml"))
+    .map((f) => [f, readFileSync(join(workflowDir, f), "utf8")]),
+  ...(existsSync(actionsDir) ? readdirSync(actionsDir) : [])
+    .filter((d) => existsSync(join(actionsDir, d, "action.yml")))
+    .map((d) => [`actions/${d}/action.yml`, readFileSync(join(actionsDir, d, "action.yml"), "utf8")]),
+];
 
 test("only the root package.json declares packageManager", () => {
   const declaring = workspaceManifests().filter((p) => readJson(p).packageManager !== undefined);

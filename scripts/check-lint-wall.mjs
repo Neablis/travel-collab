@@ -45,6 +45,8 @@ function eslint(args, input, { lane = WEB_LANE } = {}) {
     cwd: lane.cwd,
     stdio: "pipe",
     input,
+    // Without the type-aware block: `eslint.type-aware.mjs` says why.
+    env: { ...process.env, TC_LINT_SKIP_TYPE_AWARE: "1" },
   }).toString();
 }
 

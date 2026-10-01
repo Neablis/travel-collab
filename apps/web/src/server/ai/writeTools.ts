@@ -335,7 +335,7 @@ export function groundCitedPlaces(
     delete args.placeRef;
     const candidate = typeof cited === "number" ? (cache?.get(cited) ?? null) : null;
     if (candidate === null) {
-      unresolved.push(`${describeCitingIntent(intent)} cited place ${String(cited)}, which was not one of this turn's search results — its location is not confirmed.`);
+      unresolved.push(`${describeCitingIntent(intent)} cited place ${JSON.stringify(cited)}, which was not one of this turn's search results — its location is not confirmed.`);
       return { ...intent, args };
     }
     return { ...intent, args: { ...args, location: locationFromCandidate(candidate) } };
