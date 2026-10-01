@@ -55,54 +55,75 @@ const view = (
     />,
   );
 
-const dataRows = () => screen.getAllByRole("row").filter((row) => row.hasAttribute("data-mode"));
+// A (day, city) row in either view: the table's heading row is the one that
+// holds column headers, and the graphic's tick row is hidden from roles.
+const dataRows = () =>
+  screen.getAllByRole("row").filter((row) => within(row).queryAllByRole("columnheader").length === 0);
+const cellsOf = (row: HTMLElement) =>
+  ["high", "low", "rain"].map((name) => within(row).getByRole("cell", { name }).textContent);
+
+const BEYOND = { forecast: { unavailable: "not-in-horizon" } } as const;
+const DOWN = { forecast: { unavailable: "source" }, typical: { unavailable: "source" } } as const;
 
 describe("the weather block", () => {
-  it("renders all four date-driven modes, each naming itself in words", () => {
-    view(trip(), {
-      points: [
-        point("2026-11-09"),
-        point(TODAY),
-        point("2026-11-13"),
-        point("2026-11-30", { forecast: { unavailable: "not-in-horizon" } }),
-      ],
-    });
+  // The graphic is what an absent `view` means, so every widget already on a
+  // page draws it. Forecast and typical differ in line style alone, which is
+  // presentation; `data-source` is the fact the style is drawn from.
+  it("draws a row per (day, city) by default: the payload's strings, and which source each is", () => {
+    view(trip(), { points: [point("2026-11-13"), point("2026-11-30", BEYOND)] });
     const rows = dataRows();
-    expect(rows.map((row) => row.getAttribute("data-mode"))).toEqual(["past", "today", "forecast", "typical"]);
-    expect(rows.map((row) => within(row).getAllByRole("cell")[0]!.textContent)).toEqual([
-      "Past day · Nov avg",
-      "Today · Cloudy",
-      "Forecast · Light rain",
-      "November average",
+    expect(rows.map((row) => row.getAttribute("data-source"))).toEqual(["forecast", "typical"]);
+    expect(rows.map(cellsOf)).toEqual([
+      ["18°C", "8°C", "2.14 mm"],
+      ["13°C", "4°C", "3.46 mm"],
     ]);
-    // Under a "Now" heading the value needs no word of its own.
-    expect(within(rows[1]!).getByRole("cell", { name: "now" }).textContent).toBe("12°C");
+    for (const row of rows) expect(within(row).getAllByTestId("weather-range")).toHaveLength(1);
+    // The sky is the forecast's alone: an average has none. No mode words.
+    expect(screen.getAllByRole("rowheader").map((h) => h.textContent)).toEqual([
+      "KyotoDay 3 · Light rain",
+      "KyotoDay 4",
+    ]);
+  });
+
+  it("has no column headers in the graphic, whatever `headings` says", () => {
+    view(trip(), { points: [point("2026-11-13")] }, false, { params: { headings: true } });
+    expect(screen.queryAllByRole("columnheader")).toEqual([]);
   });
 
   // Mitchell, on the #221 preview: *"I have no idea what the columns are
   // without a column header. But might be good to make that a toggle."*
-  // Without them the now cell is the bare temperature, still named "now" to a
-  // screen reader: the word did not fit its 48px (m14's fixed-columns walk).
-  it("heads its columns by default, and names the 'now' cell when the headings are off", () => {
-    const weather = { points: [point(TODAY), point("2026-11-13")] };
-    view(trip(), weather);
+  it("as a table, heads Day, City, High, Low, Rain and Source, and says each row's source in a word", () => {
+    const weather = { points: [point("2026-11-13"), point("2026-11-30", BEYOND)] };
+    view(trip(), weather, false, { params: { view: "table" } });
     expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual([
-      "Day", "Conditions", "Now", "High", "Low", "Rain",
+      "Day", "City", "High", "Low", "Rain", "Source",
     ]);
+    const rows = dataRows();
+    expect(rows.map((row) => within(row).getByRole("cell", { name: "source" }).textContent)).toEqual([
+      "Forecast",
+      "Typical",
+    ]);
+    expect(rows.map(cellsOf)).toEqual([
+      ["18°C", "8°C", "2.14 mm"],
+      ["13°C", "4°C", "3.46 mm"],
+    ]);
+    expect(screen.queryAllByTestId("weather-range")).toEqual([]);
     cleanup();
-    view(trip(), weather, false, { params: { headings: false } });
+    view(trip(), weather, false, { params: { view: "table", headings: false } });
     expect(screen.queryAllByRole("columnheader")).toEqual([]);
-    expect(within(dataRows()[0]!).getByRole("cell", { name: "now" }).textContent).toBe("12°C");
+    expect(dataRows()).toHaveLength(2);
   });
 
-  // *"We need to scroll to the right to see all the data here."* A column no
-  // row fills is width the conditions cell could have had.
-  it("drops the 'now' column, heading and cells, when no row has a value for it", () => {
-    view(trip(), { points: [point("2026-11-13"), point("2026-11-30", { forecast: { unavailable: "not-in-horizon" } })] });
-    expect(screen.getAllByRole("columnheader").map((h) => h.textContent)).toEqual([
-      "Day", "Conditions", "High", "Low", "Rain",
-    ]);
-    for (const row of dataRows()) expect(within(row).queryByRole("cell", { name: "now" })).toBeNull();
+  // One (day, city) with neither source, beside one with both: the row keeps
+  // its place (ADR-044) and says nothing it does not know.
+  it.each(["graphic", "table"] as const)("leaves an unavailable row as dashes with no bar in the %s", (shown) => {
+    view(trip(), { points: [point("2026-11-13"), point("2026-11-30", DOWN)] }, false, { params: { view: shown } });
+    const [known, unknown] = dataRows();
+    expect(cellsOf(known!)).toEqual(["18°C", "8°C", "2.14 mm"]);
+    expect(cellsOf(unknown!)).toEqual(["—", "—", "—"]);
+    expect(unknown!.hasAttribute("data-source")).toBe(false);
+    expect(within(unknown!).queryByTestId("weather-range")).toBeNull();
+    if (shown === "table") expect(within(unknown!).getByRole("cell", { name: "source" }).textContent).toBe("—");
   });
 
   // *"Make sure we are respecting the account settings for fahrenheit vs
@@ -111,19 +132,7 @@ describe("the weather block", () => {
   it("reads °F and inches for an account in miles", () => {
     const miles: UserPreferences = { displayName: null, homeAirport: null, distanceUnit: "mi", timeFormat: "12h" };
     view(trip(), { points: [point("2026-11-13")] }, false, { user: miles });
-    const [row] = dataRows();
-    expect(within(row!).getByRole("cell", { name: "high" }).textContent).toBe("64°F");
-    expect(within(row!).getByRole("cell", { name: "rain" }).textContent).toBe("0.08 in");
-  });
-
-  // Mitchell, on the #221 preview: a longer date wrapped the header out of its
-  // fixed-height row. The row names its day and nothing else; a reader who
-  // wants the dates puts them at the top of the page.
-  it("heads each row with its place and day, never the date", () => {
-    view(trip(), { points: [point("2026-11-09"), point(TODAY)] });
-    // A header's lines are its accessible text, in order; the date is gone
-    // from both. (Staying on one line is layout — the preview walk's to see.)
-    expect(screen.getAllByRole("rowheader").map((h) => h.textContent)).toEqual(["KyotoDay 1", "KyotoDay 2"]);
+    expect(cellsOf(dataRows()[0]!)).toEqual(["64°F", "47°F", "0.08″"]);
   });
 
   // Mitchell, on the PR 221 preview: *"I dont understand what this section is?
@@ -131,7 +140,7 @@ describe("the weather block", () => {
   // decision 5), so they stay — as ONE plain line naming what each source's
   // data is on the block, with the as-of and the period beside their source.
   it("credits its sources on one plain line: the forecast with its licence link and as-of, the averages with their period", () => {
-    view(trip(), { points: [point(TODAY), point("2026-11-30", { forecast: { unavailable: "not-in-horizon" } })] });
+    view(trip(), { points: [point(TODAY), point("2026-11-30", BEYOND)] });
     const sources = screen.getByRole("note", { name: "Weather sources" });
     expect(sources.textContent).toMatch(
       /^Forecast: Norwegian Meteorological Institute, CC BY 4\.0 \(updated \d{1,2}(:\d\d)? (am|pm)\) · Monthly averages: NASA POWER, 2001–2020$/,
@@ -141,7 +150,7 @@ describe("the weather block", () => {
   });
 
   it("names only the sources on the block: averages alone carry no forecast credit", () => {
-    view(trip(), { points: [point("2026-11-30", { forecast: { unavailable: "not-in-horizon" } })] });
+    view(trip(), { points: [point("2026-11-30", BEYOND)] });
     expect(screen.getByRole("note", { name: "Weather sources" }).textContent).toBe(
       "Monthly averages: NASA POWER, 2001–2020",
     );
@@ -151,7 +160,7 @@ describe("the weather block", () => {
   // fail (`weather/route.int.test.ts` proves the route sends exactly this).
   it("is the quiet placeholder when neither source answered — in Reading and in Editing", () => {
     const down: TripWeather = {
-      points: DATES.map((date) => point(date, { forecast: { unavailable: "source" }, typical: { unavailable: "source" } })),
+      points: DATES.map((date) => point(date, DOWN)),
     };
     view(trip(), down);
     expect(screen.getByText("weather unavailable")).toBeTruthy();

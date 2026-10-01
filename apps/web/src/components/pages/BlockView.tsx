@@ -80,7 +80,7 @@ export function BlockView({
     case "spend-breakdown":
       return <SpendBreakdownBlock payload={block} />;
     case "weather":
-      return <WeatherBlock payload={block} />;
+      return <WeatherBlock payload={block} accents={accents} />;
     case "link-card":
       return <LinkCardBlock payload={block} tripId={tripId} interactive={interactive} />;
     case "itinerary-schedule":
