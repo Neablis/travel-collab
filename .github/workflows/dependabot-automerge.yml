@@ -12,8 +12,9 @@ name: dependabot-automerge
 # job waits for `ci` to finish and then checks what it needs to itself.
 #
 # `workflow_run` runs with a write token in the context of `main`. That is safe
-# here only because nothing below checks out or runs code from the PR. It reads
-# metadata through the API and nothing else. Keep it that way.
+# here only because nothing below checks out or runs code from the PR: the one
+# checkout is of the default branch, and the PR is read as metadata through the
+# API. Keep it that way.
 on:
   workflow_run:
     workflows: [ci]
@@ -32,6 +33,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      # The DEFAULT branch, for scripts/dependabot-versions.mjs — never the
+      # PR's head. Code from the PR must not run with this job's write token.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          sparse-checkout: scripts/dependabot-versions.mjs
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
       - name: Merge if safe
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -69,29 +78,18 @@ jobs:
             fi
           done
 
-          # dependabot.yml ignores majors for version updates, but security
-          # updates ignore that file and can be majors. Read every "from A to B"
-          # in the title and body (single and grouped PRs both word it that way)
-          # and stop on a major, or on a minor below 1.0.0. If none can be read,
-          # don't guess.
-          text=$(gh pr view "$pr" --json title,body --jq '.title + "\n" + .body')
-          pairs=$(printf '%s\n' "$text" \
-            | grep -oE 'from `?v?[0-9]+(\.[0-9]+)*[^ `]*`? to `?v?[0-9]+(\.[0-9]+)*[^ `]*`?' \
-            | sed -E 's/`//g; s/(from|to) v/\1 /g; s/^from ([^ ]+) to ([^ ]+)$/\1 \2/; s/\.$//' \
-            | sort -u || true)
-          if [ -z "$pairs" ]; then
-            echo "Could not read any versions from PR #$pr; leaving it for review."
+          # What it updates decides the rest: scripts/dependabot-versions.mjs
+          # reads the package list from the commits' updated-dependencies
+          # metadata and each version pair from the PR's table or prose, and
+          # says no to a major, a 0.x minor, or anything it cannot read.
+          # That file has the reasons, and its test has real PR bodies.
+          export PR_COMMIT_MESSAGES PR_TEXT
+          PR_COMMIT_MESSAGES=$(gh api "repos/$GH_REPO/pulls/$pr/commits" --jq '[.[].commit.message] | join("\n")')
+          PR_TEXT=$(gh pr view "$pr" --json title,body --jq '.title + "\n" + .body')
+          if ! reason=$(node scripts/dependabot-versions.mjs); then
+            echo "Leaving PR #$pr for review: $reason"
             exit 0
           fi
-          while read -r old new; do
-            old_major=${old%%.*}; new_major=${new%%.*}
-            old_minor=$(echo "$old" | cut -d. -f2); new_minor=$(echo "$new" | cut -d. -f2)
-            if [ "$old_major" != "$new_major" ] || { [ "$old_major" = "0" ] && [ "$old_minor" != "$new_minor" ]; }; then
-              echo "PR #$pr includes a breaking bump ($old -> $new); leaving it for review."
-              exit 0
-            fi
-          done <<< "$pairs"
 
-          echo "Merging PR #$pr at $HEAD_SHA:"
-          echo "$pairs"
+          echo "Merging PR #$pr at $HEAD_SHA: $reason"
           gh pr merge "$pr" --merge --match-head-commit "$HEAD_SHA"
