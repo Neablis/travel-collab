@@ -9,58 +9,6 @@ any widget UI, and §11's "the logo is the save light" alongside §28.
 under `specs/`: `specs/notebook-widget-framework.md` (§21 — the three shape components and
 the ghost rule) and `specs/save-a-day-as-a-playbook.md` (§20).
 
-<!-- SPEC-INDEX:START -->
-
-## Sections, by number
-
-**Generated — do not edit by hand.** Run `node scripts/spec-section-index.mjs --write`
-after adding a section; `pnpm test` fails when this table and the headings disagree.
-
-This file is append-by-date and is never renumbered, so the sections below are **not**
-in file order — §17 sits after §18, and §21–§23 after §24. Jump by the line number here
-rather than grepping for `§n` and reading forward (KI-2026-09-14-c).
-
-| § | Section | Line |
-|---|---|---|
-| §1 | Focus scope — ~~the model behind the chrome~~ **REJECTED, do not build** | 64 |
-| §2 | Save state | 105 |
-| §3 | Trip dates — start only | 117 |
-| §4 | Calendar spans months | 127 |
-| §5 | Component mapping — the "unnamed element" answers | 146 |
-| §6 | Decisions (2026-08-22) | 166 |
-| §7 | Notebook — pages that read like documents | 178 |
-| §8 | Deliberately not designed yet | 311 |
-| §9 | The assistant — one panel, three presentations | 320 |
-| §10 | Mobile is a companion, not a second planner | 347 |
-| §11 | Project rules (2026-08-25) | 360 |
-| §12 | Calendar as a city view, account settings, focus rings — 2026-08-26 | 451 |
-| §13 | Mobile foundations | 557 |
-| §14 | The landing page — 2026-08-26 | 637 |
-| §15 | Playbooks becomes a public library — 2026-08-30 | 684 |
-| §16 | The shared day gets a map, and Playbooks reaches the phone — 2026-09-01 | 757 |
-| §17 | Billing surfaces — M20 / M21 — 2026-09-02 | 796 |
-| §18 | Notebook widgets — a page has no scope — 2026-09-02 | 236 |
-| §19 | The phone Notebook is the whole model — 2026-09-03 | 895 |
-| §20 | Save this day as a Playbook — 2026-09-04 | 974 |
-| §21 | The notebook widget framework — 2026-09-04 | 1082 |
-| §22 | The phone tab bar is scoped, not disabled — 2026-09-05 | 1047 |
-| §23 | The assistant reaches the phone — as a pill, not a tab — 2026-09-05 | 1001 |
-| §24 | The trip's four tabs, renamed and rescoped — 2026-09-12 | 1116 |
-| §25 | Overview IS a notebook page — 2026-09-12 | 1154 |
-| §26 | Widget settings live outside the page — 2026-09-12 | 1180 |
-| §27 | Trip lifecycle, and read-only as one mode with two ways in — 2026-09-12 | 1221 |
-| §28 | Identity, the Ledger look, and the front door on a phone — 2026-09-12 | 1262 |
-| §29 | Plans is a route, and paying has a confirm step — 2026-09-14 | 1320 |
-| §30 | New trip is a conversation; the transcript has no bubbles — 2026-09-15 | 1407 |
-| §31 | The new-trip transcript is chat-shaped — 2026-09-18 | 1524 |
-| §32 | The conversation is every surface's new-trip flow — 2026-09-18 | 1586 |
-| §33 | Playbooks hold several days, and the Discover bar is re-sorted by kind — 2026-09-19 | 1658 |
-| §34 | API tokens, a trip as a file, and the phone gets an account — 2026-09-19 | 1748 |
-| §35 | Simplify pass, the invite landing, Cass, and actions that look like actions — 2026-09-22 | 1905 |
-| §36 | Travel legs, co-travellers, the rich layer and reporting — 2026-09-25 | 2094 |
-
-<!-- SPEC-INDEX:END -->
-
 ## 1. Focus scope — ~~the model behind the chrome~~ **REJECTED, do not build**
 
 > **Struck 2026-08-26.** Mitchell rejected this section **as a whole**, not deferred it, and
@@ -2128,8 +2076,8 @@ queue drains. No modal. Review with the `coEditConflict` tweak.
 | Trip strip | block | — | One band per city, width = nights, the city's accent |
 | Still to book | block | days | A row per *Holding* or *Idea* stop; empty line when there are none |
 | Spend by day | block | days | A bar per day and a total. Single currency |
-| Weather | block | days | Per day: high/low and **which number it is** — *Forecast*, or *Typical for Oct — too far out to forecast*. A credit line names only the sources shown and an as-of time. When the source is down: one quiet line, never a stale number |
-| Sunrise and sunset | inline | day | *sunrise 5:41 am, sunset 5:38 pm in Kyoto* |
+| Weather | block | days | **Superseded 2026-09-30 — see §36.11.** Temperature rows; forecast solid, typical dashed. Credit line + as-of time. When the source is down: one quiet line, never a stale number |
+| Sunrise and sunset | block | days | **Superseded 2026-09-30 — see §36.11.** Daylight ribbons on a clock axis |
 | Time difference from home | inline | — | Reads the home airport on the account |
 | Know before you go | block | — | Plugs, driving side, calling code, **each emergency number labelled by service**, with its source |
 
@@ -2282,3 +2230,16 @@ design's position: an empty line that says what fills it reads well.
 
 - **One repeater** — *A sentence for each…* with the collection as an input (DRIFT D16).
 - A privacy line for data sent to weather providers (KI-2026-09-24-o).
+
+### 36.11 Sun and weather widgets (2026-09-30)
+
+Full contract: `specs/sun-and-weather-widgets.md`. In short:
+
+- **Weather = temperature rows (2a).** Days stack top to bottom; one shared temperature axis;
+  low→high bar per row — **forecast solid in the city colour, typical dashed**. City over
+  `Day N` (+ conditions when forecast). Rain always `0.00″`, never *DRY*. No *Typical for …* label.
+- **Sunrise and sunset = daylight ribbons (1a).** Becomes a block: one ribbon per day on a clock
+  axis matching Plan; golden hour at the ends; no text comment.
+- **Show as: Graphic · Table** is a per-widget setting in the settings panel, default Graphic.
+  Never a toggle on the page. Same value on desktop and phone.
+- States: empty, sync-fail (weather only — sun is computed locally), conflict re-renders.

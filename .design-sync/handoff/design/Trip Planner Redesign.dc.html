@@ -715,6 +715,74 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                       </div>
                     </div>
                   </sc-if>
+                  <sc-if value="{{ b.isSunG }}" hint-placeholder-val="{{ false }}">
+                    <div style="display: flex; flex-direction: column; gap: 4px; border: 1px solid var(--color-hairline); border-radius: 10px; padding: 12px 14px; background: var(--color-surface);">
+                      <div style="display: grid; grid-template-columns: 92px 40px minmax(0,1fr) 40px 52px; gap: 8px; align-items: end; height: 16px;">
+                        <span></span><span></span>
+                        <span style="position: relative; height: 14px;">
+                          <sc-for list="{{ b.ticks }}" as="t" hint-placeholder-count="5"><span style="position: absolute; left: {{ t.left }}; transform: translateX(-50%); font-family: var(--font-next-mono); font-size: 10px; color: var(--color-slate);">{{ t.label }}</span></sc-for>
+                        </span>
+                        <span></span><span></span>
+                      </div>
+                      <sc-for list="{{ b.rows }}" as="r" hint-placeholder-count="6">
+                        <div style="display: grid; grid-template-columns: 92px 40px minmax(0,1fr) 40px 52px; gap: 8px; align-items: center; height: 26px;">
+                          <span style="display: flex; align-items: baseline; gap: 6px; min-width: 0;">
+                            <span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate); white-space: nowrap;">{{ r.day }}</span>
+                            <span style="font-size: 12.5px; font-weight: 500; color: {{ r.ink }}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ r.city }}</span>
+                          </span>
+                          <span style="font-family: var(--font-next-mono); font-size: 11.5px; color: var(--color-ink); text-align: right;">{{ r.rise }}</span>
+                          <span style="position: relative; height: 16px; background: var(--color-moss); border-radius: 3px;">
+                            <sc-for list="{{ b.ticks }}" as="t" hint-placeholder-count="5"><span style="position: absolute; top: 0; bottom: 0; left: {{ t.left }}; width: 1px; background: var(--color-hairline);"></span></sc-for>
+                            <span style="position: absolute; top: 0; bottom: 0; left: {{ r.left }}; width: {{ r.width }}; background: var(--color-warning-tint); border-radius: 3px; overflow: hidden; display: flex; justify-content: space-between;">
+                              <span style="width: {{ r.gold }}; background: var(--color-warning);"></span><span style="width: {{ r.gold }}; background: var(--color-warning);"></span>
+                            </span>
+                          </span>
+                          <span style="font-family: var(--font-next-mono); font-size: 11.5px; color: var(--color-ink);">{{ r.set }}</span>
+                          <span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate); text-align: right;">{{ r.len }}</span>
+                        </div>
+                      </sc-for>
+                      <div style="display: flex; align-items: center; gap: 14px; padding-top: 6px; font-size: 12px; color: var(--color-slate);">
+                        <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 14px; height: 10px; background: var(--color-warning); border-radius: 2px;"></span>Golden hour</span>
+                        <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 14px; height: 10px; background: var(--color-warning-tint); border-radius: 2px;"></span>Daylight</span>
+                      </div>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ b.isWxG }}" hint-placeholder-val="{{ false }}">
+                    <div style="display: flex; flex-direction: column; border: 1px solid var(--color-hairline); border-radius: 10px; overflow: hidden; background: var(--color-surface);">
+                      <div style="display: flex; flex-direction: column; padding: 10px 14px 6px;">
+                        <div style="display: grid; grid-template-columns: 92px minmax(0,1fr) 64px; gap: 10px; align-items: end; height: 16px;">
+                          <span></span>
+                          <span style="position: relative; height: 14px;">
+                            <sc-for list="{{ b.ticks }}" as="t" hint-placeholder-count="5"><span style="position: absolute; left: {{ t.left }}; transform: translateX(-50%); font-family: var(--font-next-mono); font-size: 10px; color: var(--color-slate);">{{ t.label }}</span></sc-for>
+                          </span>
+                          <span style="font-family: var(--font-next-mono); font-size: 10px; color: var(--color-slate); text-align: right;">rain</span>
+                        </div>
+                        <sc-for list="{{ b.rows }}" as="r" hint-placeholder-count="6">
+                          <div style="display: grid; grid-template-columns: 92px minmax(0,1fr) 64px; gap: 10px; align-items: center; min-height: 40px; border-top: {{ r.rule }};">
+                            <span style="display: flex; flex-direction: column; min-width: 0;">
+                              <span style="font-size: 12.5px; font-weight: 500; color: {{ r.ink }}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ r.city }}</span>
+                              <span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ r.sub }}</span>
+                            </span>
+                            <span style="position: relative; height: 18px; margin: 0 26px;">
+                              <sc-for list="{{ b.ticks }}" as="t" hint-placeholder-count="5"><span style="position: absolute; top: -10px; bottom: -10px; left: {{ t.left }}; width: 1px; background: var(--color-hairline);"></span></sc-for>
+                              <span style="position: absolute; right: calc({{ r.loR }} + 5px); top: 50%; transform: translateY(-50%); font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate);">{{ r.lo }}</span>
+                              <span style="position: absolute; top: 3px; bottom: 3px; left: {{ r.barL }}; width: {{ r.barW }}; background: {{ r.fill }}; border: 1.5px {{ r.line }} {{ r.ink }}; border-radius: 999px; box-sizing: border-box;"></span>
+                              <span style="position: absolute; left: calc({{ r.hiL }} + 5px); top: 50%; transform: translateY(-50%); font-family: var(--font-next-mono); font-size: 11.5px; font-weight: 600; color: var(--color-ink);">{{ r.hi }}</span>
+                            </span>
+                            <span style="display: flex; align-items: center; justify-content: flex-end; gap: 5px;">
+                              <span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-info-ink);">{{ r.rain }}</span>
+                              <span style="width: 18px; height: 6px; background: var(--color-info-tint); border-radius: 3px; overflow: hidden;"><span style="display: block; height: 100%; width: {{ r.rainW }}; background: var(--color-info-ink);"></span></span>
+                            </span>
+                          </div>
+                        </sc-for>
+                      </div>
+                      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 0 14px 10px; font-size: 12px; color: var(--color-slate);">
+                        <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 16px; height: 10px; background: var(--color-brand); border-radius: 999px;"></span>Forecast</span>
+                        <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 16px; height: 10px; border: 1.5px dashed var(--color-brand); border-radius: 999px; box-sizing: border-box;"></span>Typical for the month</span>
+                      </div>
+                      <div style="padding: 8px 14px; border-top: 1px solid var(--color-hairline); background: var(--color-paper); font-size: 12px; line-height: 1.5; color: var(--color-slate);">{{ b.credit }}</div>
+                    </div>
+                  </sc-if>
                   <sc-if value="{{ b.isCosts }}" hint-placeholder-val="{{ false }}">
                     <div style="border: 1px solid var(--color-hairline); border-radius: 12px; overflow: hidden;">
                       <sc-for list="{{ b.rows }}" as="r" hint-placeholder-count="4">
@@ -2125,6 +2193,46 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                     </sc-if>
                     <sc-if value="{{ it.isWeather }}" hint-placeholder-val="{{ false }}">
                       <span style="display: flex; flex-direction: column; overflow: hidden; border-radius: 6px; border: 1px solid var(--color-hairline); background: var(--color-surface);">
+                        <sc-if value="{{ it.wxG }}" hint-placeholder-val="{{ true }}">
+                          <span style="display: flex; flex-direction: column; padding: 10px 12px 8px;">
+                            <span style="display: grid; grid-template-columns: 112px 104px minmax(0,1fr) 72px; gap: 12px; align-items: end; height: 18px;">
+                              <span></span><span></span>
+                              <span style="position: relative; height: 16px;">
+                                <sc-for list="{{ it.ticks }}" as="t" hint-placeholder-count="5">
+                                  <span style="position: absolute; left: {{ t.left }}; transform: translateX(-50%); font-family: var(--font-next-mono); font-size: 10px; color: var(--color-slate);">{{ t.label }}</span>
+                                </sc-for>
+                              </span>
+                              <span style="font-family: var(--font-next-mono); font-size: 10px; color: var(--color-slate); text-align: right;">rain</span>
+                            </span>
+                            <sc-for list="{{ it.rows }}" as="r" hint-placeholder-count="8">
+                              <span style="display: grid; grid-template-columns: 112px 104px minmax(0,1fr) 72px; gap: 12px; align-items: center; min-height: 36px; border-top: {{ r.rule }};">
+                                <span style="display: flex; align-items: baseline; gap: 7px; min-width: 0;">
+                                  <span style="width: 40px; flex: 0 0 auto; font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate); white-space: nowrap;">{{ r.day }}</span>
+                                  <span style="font-size: 13px; font-weight: 500; color: {{ r.ink }}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ r.city }}</span>
+                                </span>
+                                <span style="font-size: 12px; color: var(--color-slate); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ r.condShort }}</span>
+                                <span style="position: relative; height: 20px;">
+                                  <sc-for list="{{ it.ticks }}" as="t" hint-placeholder-count="5">
+                                    <span style="position: absolute; top: -8px; bottom: -8px; left: {{ t.left }}; width: 1px; background: var(--color-hairline);"></span>
+                                  </sc-for>
+                                  <span style="position: absolute; right: calc({{ r.loR }} + 6px); top: 50%; transform: translateY(-50%); font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate);">{{ r.lo }}</span>
+                                  <span style="position: absolute; top: 4px; bottom: 4px; left: {{ r.barL }}; width: {{ r.barW }}; background: {{ r.fill }}; border: 1.5px {{ r.line }} {{ r.ink }}; border-radius: 999px; box-sizing: border-box;"></span>
+                                  <span style="position: absolute; left: calc({{ r.hiL }} + 6px); top: 50%; transform: translateY(-50%); font-family: var(--font-next-mono); font-size: 12px; font-weight: 600; color: var(--color-ink);">{{ r.hi }}</span>
+                                </span>
+                                <span style="display: flex; align-items: center; justify-content: flex-end; gap: 6px;">
+                                  <span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-info-ink);">{{ r.rain }}</span>
+                                  <span style="width: 22px; height: 6px; background: var(--color-info-tint); border-radius: 3px; overflow: hidden;"><span style="display: block; height: 100%; width: {{ r.rainW }}; background: var(--color-info-ink);"></span></span>
+                                </span>
+                              </span>
+                            </sc-for>
+                          </span>
+                          <span style="display: flex; flex-wrap: wrap; align-items: center; gap: 14px; padding: 0 12px 10px; font-size: 12px; color: var(--color-slate);">
+                            <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 16px; height: 10px; background: var(--color-brand); border-radius: 999px;"></span>Forecast</span>
+                            <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 16px; height: 10px; border: 1.5px dashed var(--color-brand); border-radius: 999px; box-sizing: border-box;"></span>Typical for the month</span>
+                            <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 16px; height: 6px; background: var(--color-info-ink); border-radius: 3px;"></span>Rain in a day</span>
+                          </span>
+                        </sc-if>
+                        <sc-if value="{{ it.wxT }}" hint-placeholder-val="{{ false }}">
                         <span style="display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px; border-bottom: 1px solid var(--color-hairline); font-size: 11px; font-weight: 500; color: var(--color-slate);">
                           <span style="width: 96px; flex: 0 0 96px;">Where</span><span style="flex: 1; min-width: 0;">Conditions</span><span style="width: 40px; text-align: right;">High</span><span style="width: 40px; text-align: right;">Low</span><span style="width: 112px; text-align: right;">Rain</span>
                         </span>
@@ -2140,7 +2248,8 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                             <span style="width: 112px; text-align: right; font-family: var(--font-next-mono); font-size: 12px; color: var(--color-slate);">{{ r.rain }}</span>
                           </span>
                         </sc-for>
-                        <span style="display: block; padding: 8px 12px; background: var(--color-paper); font-size: 12px; color: var(--color-slate);">{{ it.credit }}</span>
+                        </sc-if>
+                        <span style="display: block; padding: 8px 12px; border-top: 1px solid var(--color-hairline); background: var(--color-paper); font-size: 12px; color: var(--color-slate);">{{ it.credit }}</span>
                       </span>
                     </sc-if>
                     <sc-if value="{{ it.isFacts }}" hint-placeholder-val="{{ false }}">
@@ -4035,6 +4144,74 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
                         <span style="font-size: 13px; font-weight: 600; color: var(--color-ink);">{{ b.totalLabel }}</span>
                         <span style="font-family: var(--font-next-mono); font-size: 12.5px; font-weight: 600; color: var(--color-ink);">{{ b.total }}</span>
                       </div>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ b.isSunG }}" hint-placeholder-val="{{ false }}">
+                    <div style="display: flex; flex-direction: column; gap: 4px; border: 1px solid var(--color-hairline); border-radius: 10px; padding: 12px 14px; background: var(--color-surface);">
+                      <div style="display: grid; grid-template-columns: 92px 40px minmax(0,1fr) 40px 52px; gap: 8px; align-items: end; height: 16px;">
+                        <span></span><span></span>
+                        <span style="position: relative; height: 14px;">
+                          <sc-for list="{{ b.ticks }}" as="t" hint-placeholder-count="5"><span style="position: absolute; left: {{ t.left }}; transform: translateX(-50%); font-family: var(--font-next-mono); font-size: 10px; color: var(--color-slate);">{{ t.label }}</span></sc-for>
+                        </span>
+                        <span></span><span></span>
+                      </div>
+                      <sc-for list="{{ b.rows }}" as="r" hint-placeholder-count="6">
+                        <div style="display: grid; grid-template-columns: 92px 40px minmax(0,1fr) 40px 52px; gap: 8px; align-items: center; height: 26px;">
+                          <span style="display: flex; align-items: baseline; gap: 6px; min-width: 0;">
+                            <span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate); white-space: nowrap;">{{ r.day }}</span>
+                            <span style="font-size: 12.5px; font-weight: 500; color: {{ r.ink }}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ r.city }}</span>
+                          </span>
+                          <span style="font-family: var(--font-next-mono); font-size: 11.5px; color: var(--color-ink); text-align: right;">{{ r.rise }}</span>
+                          <span style="position: relative; height: 16px; background: var(--color-moss); border-radius: 3px;">
+                            <sc-for list="{{ b.ticks }}" as="t" hint-placeholder-count="5"><span style="position: absolute; top: 0; bottom: 0; left: {{ t.left }}; width: 1px; background: var(--color-hairline);"></span></sc-for>
+                            <span style="position: absolute; top: 0; bottom: 0; left: {{ r.left }}; width: {{ r.width }}; background: var(--color-warning-tint); border-radius: 3px; overflow: hidden; display: flex; justify-content: space-between;">
+                              <span style="width: {{ r.gold }}; background: var(--color-warning);"></span><span style="width: {{ r.gold }}; background: var(--color-warning);"></span>
+                            </span>
+                          </span>
+                          <span style="font-family: var(--font-next-mono); font-size: 11.5px; color: var(--color-ink);">{{ r.set }}</span>
+                          <span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate); text-align: right;">{{ r.len }}</span>
+                        </div>
+                      </sc-for>
+                      <div style="display: flex; align-items: center; gap: 14px; padding-top: 6px; font-size: 12px; color: var(--color-slate);">
+                        <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 14px; height: 10px; background: var(--color-warning); border-radius: 2px;"></span>Golden hour</span>
+                        <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 14px; height: 10px; background: var(--color-warning-tint); border-radius: 2px;"></span>Daylight</span>
+                      </div>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ b.isWxG }}" hint-placeholder-val="{{ false }}">
+                    <div style="display: flex; flex-direction: column; border: 1px solid var(--color-hairline); border-radius: 10px; overflow: hidden; background: var(--color-surface);">
+                      <div style="display: flex; flex-direction: column; padding: 10px 14px 6px;">
+                        <div style="display: grid; grid-template-columns: 92px minmax(0,1fr) 64px; gap: 10px; align-items: end; height: 16px;">
+                          <span></span>
+                          <span style="position: relative; height: 14px;">
+                            <sc-for list="{{ b.ticks }}" as="t" hint-placeholder-count="5"><span style="position: absolute; left: {{ t.left }}; transform: translateX(-50%); font-family: var(--font-next-mono); font-size: 10px; color: var(--color-slate);">{{ t.label }}</span></sc-for>
+                          </span>
+                          <span style="font-family: var(--font-next-mono); font-size: 10px; color: var(--color-slate); text-align: right;">rain</span>
+                        </div>
+                        <sc-for list="{{ b.rows }}" as="r" hint-placeholder-count="6">
+                          <div style="display: grid; grid-template-columns: 92px minmax(0,1fr) 64px; gap: 10px; align-items: center; min-height: 40px; border-top: {{ r.rule }};">
+                            <span style="display: flex; flex-direction: column; min-width: 0;">
+                              <span style="font-size: 12.5px; font-weight: 500; color: {{ r.ink }}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ r.city }}</span>
+                              <span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ r.sub }}</span>
+                            </span>
+                            <span style="position: relative; height: 18px; margin: 0 26px;">
+                              <sc-for list="{{ b.ticks }}" as="t" hint-placeholder-count="5"><span style="position: absolute; top: -10px; bottom: -10px; left: {{ t.left }}; width: 1px; background: var(--color-hairline);"></span></sc-for>
+                              <span style="position: absolute; right: calc({{ r.loR }} + 5px); top: 50%; transform: translateY(-50%); font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate);">{{ r.lo }}</span>
+                              <span style="position: absolute; top: 3px; bottom: 3px; left: {{ r.barL }}; width: {{ r.barW }}; background: {{ r.fill }}; border: 1.5px {{ r.line }} {{ r.ink }}; border-radius: 999px; box-sizing: border-box;"></span>
+                              <span style="position: absolute; left: calc({{ r.hiL }} + 5px); top: 50%; transform: translateY(-50%); font-family: var(--font-next-mono); font-size: 11.5px; font-weight: 600; color: var(--color-ink);">{{ r.hi }}</span>
+                            </span>
+                            <span style="display: flex; align-items: center; justify-content: flex-end; gap: 5px;">
+                              <span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-info-ink);">{{ r.rain }}</span>
+                              <span style="width: 18px; height: 6px; background: var(--color-info-tint); border-radius: 3px; overflow: hidden;"><span style="display: block; height: 100%; width: {{ r.rainW }}; background: var(--color-info-ink);"></span></span>
+                            </span>
+                          </div>
+                        </sc-for>
+                      </div>
+                      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 0 14px 10px; font-size: 12px; color: var(--color-slate);">
+                        <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 16px; height: 10px; background: var(--color-brand); border-radius: 999px;"></span>Forecast</span>
+                        <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 16px; height: 10px; border: 1.5px dashed var(--color-brand); border-radius: 999px; box-sizing: border-box;"></span>Typical for the month</span>
+                      </div>
+                      <div style="padding: 8px 14px; border-top: 1px solid var(--color-hairline); background: var(--color-paper); font-size: 12px; line-height: 1.5; color: var(--color-slate);">{{ b.credit }}</div>
                     </div>
                   </sc-if>
                   <sc-if value="{{ b.isCosts }}" hint-placeholder-val="{{ false }}">
@@ -7724,6 +7901,27 @@ class Component extends DCLogic {
   // different days — which is why a page needs no scope of its own.
   wget(k, d) { const v = (this.state.wb || {})[k]; return v === undefined ? d : v; }
   wset(k, v) { this.setState(s => ({ wb: Object.assign({}, s.wb || {}, { [k]: v }) })); }
+  // Graphic or table is a setting of the widget, chosen in the inspector — the page never carries the toggle.
+  viewBind(key) {
+    return { label: 'Show as', value: this.wget(key, 'graphic'), w: '132px',
+      options: [{ value: 'graphic', label: 'Graphic' }, { value: 'table', label: 'Table' }], set: e => this.wset(key, e.target.value) };
+  }
+  wxData(stretch, d0) {
+    const lead = this.daysUntil(this.TODAY, this.NEXT_TRIP_START), P = v => (Math.max(0, Math.min(1, (v - 40) / 40)) * 100);
+    return { ticks: [40, 50, 60, 70, 80].map(t => ({ label: t + '°', left: P(t).toFixed(2) + '%' })),
+      rows: stretch.map((x, n) => { const d = d0 + n, fc = lead + d <= 9, hiC = 25 - ((d * 3) % 7), loC = hiC - 7 - (d % 3), hi = Math.round(hiC * 9 / 5 + 32), lo = Math.round(loC * 9 / 5 + 32), rain = ((d * 7) % 32) / 100;
+        return { day: x.label, city: x.city, ink: x.ink, sub: x.label + (fc ? ' · ' + ['Mostly clear', 'Some cloud', 'Showers likely', 'Clear', 'Overcast'][d % 5].toLowerCase() : ''), hi: hi + '°', lo: lo + '°', rain: rain.toFixed(2) + '"', rainW: (Math.min(1, rain / 0.35) * 100).toFixed(1) + '%',
+          barL: P(lo).toFixed(2) + '%', barW: (P(hi) - P(lo)).toFixed(2) + '%', hiL: P(hi).toFixed(2) + '%', loR: (100 - P(lo)).toFixed(2) + '%',
+          fill: fc ? x.ink : 'var(--color-surface)', line: fc ? 'solid' : 'dashed', rule: n === 0 ? '0' : '1px solid var(--color-hairline)' }; }) };
+  }
+  sunData(stretch) {
+    const H0 = 300, HS = 780, G = 34, P = m => ((m - H0) / HS * 100).toFixed(2) + '%';
+    const clk = m => { const h = Math.floor(m / 60); return (h > 12 ? h - 12 : h) + ':' + String(m % 60).padStart(2, '0') + (h >= 12 ? 'p' : 'a'); };
+    return { ticks: [[360, '6a'], [540, '9a'], [720, 'noon'], [900, '3p'], [1080, '6p']].map(t => ({ label: t[1], left: P(t[0]) })),
+      rows: stretch.map((x, i) => { const west = x.city === 'Kyoto' || x.city === 'Osaka' || x.city === 'Nara' ? 14 : 0, r = 338 + i % 7 + west, s = 1038 - i % 7 + west - 2;
+        return { day: x.label, city: x.city, ink: x.ink, rise: clk(r), set: clk(s), len: Math.floor((s - r) / 60) + 'h ' + String((s - r) % 60).padStart(2, '0') + 'm',
+          left: P(r), width: ((s - r) / HS * 100).toFixed(2) + '%', gold: (G / (s - r) * 100).toFixed(2) + '%' }; }) };
+  }
   dayOpts(days) { return days.map((x, i) => ({ value: String(i + 1), label: 'Day ' + (i + 1) + ' · ' + x.city })); }
   // Every bind control can be UNSET, because the build inserts a widget with
   // nothing bound (ADR-037 d4: the rail has no bind step) and a stale bind
@@ -7790,6 +7988,7 @@ class Component extends DCLogic {
         if (t === 'tags') binds.push(this.tagsBind(k + '.tags'));
         if (t === 'field') { binds.push(this.fieldBind(k + '.field')); if (this.wget(k + '.field', '') === '') missing.push('a detail'); }
       });
+      if (w.id === 'weather' || w.id === 'sunrise-and-sunset') binds.push(this.viewBind(k + '.view'));
       const row = { wname: w.title, binds: binds, unsetHint: missing.length ? 'needs ' + missing.join(' and ') : '' };
       const base = { wrows: [row], canRemove: true, remove: () => this.setState(s => ({ docIns: (s.docIns || []).filter(x => x.n !== it.n), docDirty: true })) };
       // A widget lands as a GHOST OF ITSELF, not as a warning: the shape of what is
@@ -7880,11 +8079,13 @@ class Component extends DCLogic {
       return { isBars: true, bars: stretch.map(x => ({ label: x.label, amount: x.costLabel, w: Math.round(100 * x.cost / top) + '%' })), totalLabel: 'Day ' + from + ' – Day ' + to, total: money(total) }; }
     if (id === 'budget-burn-down') { let left = budget;
       return { isBars: true, bars: days.map(x => { left -= x.cost; return { label: x.label, amount: money(left), w: Math.max(0, Math.round(100 * left / budget)) + '%' }; }), totalLabel: 'Left at the end', total: money(left) }; }
+    if (id === 'sunrise-and-sunset' && this.wget(k + '.view', 'graphic') === 'graphic') return Object.assign({ isSunG: true }, this.sunData(stretch));
     if (id === 'sunrise-and-sunset') return { isRepeat: true, edge: 'var(--color-border-strong)', repeatLabel: stretch.length + ' days', tagChips: [],
       rows: stretch.map((x, n) => ({ time: '', segs: [this.chip('day.label', x.label), this.txt(' — sunrise '), this.chip('day.sunrise', '5:' + (38 + n % 6) + ' am'), this.txt(', sunset '), this.chip('day.sunset', '5:' + (40 - n % 6) + ' pm'), this.txt('.')] })) };
     if (id === 'weather') {
       if (this.state.syncOff) return { isEmpty: true, text: 'Weather is unavailable right now. It fills in when the forecast answers.' };
       const lead = this.daysUntil(this.TODAY, this.NEXT_TRIP_START), anyFc = lead + from - 1 <= 9;
+      if (this.wget(k + '.view', 'graphic') === 'graphic') return Object.assign({ isWxG: true, credit: anyFc ? 'Forecast: Norwegian Meteorological Institute, CC BY 4.0 (updated 9:10 am) · Monthly averages: NASA POWER, 2001–2020' : 'Monthly averages: NASA POWER, 2001–2020' }, this.wxData(stretch, from - 1));
       return { isRows: true, wname: w.title, emptyLine: '', credit: anyFc ? 'Forecast: Norwegian Meteorological Institute (updated 9:10 am) · Monthly averages: NASA POWER' : 'Monthly averages: NASA POWER, 2001–2020',
         rows: stretch.map((x, n) => { const d = from - 1 + n, fc = lead + d <= 9, hi = 25 - ((d * 3) % 7), lo = hi - 7 - (d % 3);
           return plain({ label: x.label + ' · ' + x.city, sub: fc ? 'Forecast' : 'Typical for ' + String(x.dateLabel || '').split(' ')[1], right: hi + '° / ' + lo + '°' + (fc && d % 4 === 1 ? ' · rain' : ''), bg: fc ? 'var(--color-moss)' : 'transparent' }); }) }; }
@@ -7976,7 +8177,8 @@ class Component extends DCLogic {
     const R = id => {
       if (fresh && id === 'open') return { isRows: true, wname: W(id).title, rows: [], emptyLine: 'Nothing is waiting on you.' };
       if (fresh) return { isP: true, segs: [quiet(id)] };
-      return Object.assign({ wname: W(id).title }, this.resolveW(W(id), 'ov.' + id, days, trip));
+      const vb = (id === 'weather' || id === 'sunrise-and-sunset') ? { wrows: [{ wname: W(id).title, binds: [this.viewBind('ov.' + id + '.view')] }] } : {};
+      return Object.assign({ wname: W(id).title }, this.resolveW(W(id), 'ov.' + id, days, trip), vb);
     };
     const txt = t => this.txt(t);
     return [
@@ -9396,8 +9598,13 @@ class Component extends DCLogic {
       meta: x.city + ' · ' + x.items.length + (x.items.length === 1 ? ' stop' : ' stops') + (x.items.length ? ' · ' + x.items[0].start + ' – ' + x.items[x.items.length - 1].end : '') + ' · ' + x.costLabel })) });
     out.push(H('Before you go'), P(V('Tokyo is 16h ahead of home', 'The time difference appears once a stop has a place'), T(', so keep the first evening gentle and let the second day do the heavy lifting.')));
     out.push(P(T('What the sky usually does on your dates — the real forecast takes over about ten days out.')));
-    out.push(fresh ? Q('add a stop with a place to see this') : { isWeather: true, rows: days.map((x, n) => { const fc = lead + n <= 9, hi = 25 - ((n * 3) % 7), lo = hi - 7 - (n % 3);
-        return { city: x.city, date: x.dateLabel, cond: (fc ? 'Forecast' : 'Typical for ' + String(x.dateLabel || '').split(' ')[1]) + ' · ' + ['mostly clear', 'some cloud', 'showers likely', 'clear', 'overcast'][n % 5], hi: hi + '°', lo: lo + '°', rain: (15 + (n * 13) % 40) + '% of days wet' }; }),
+    const wxView = this.wget('ov.weather.view', 'graphic'), wxT0 = 40, wxTS = 40, wxP = v => (Math.max(0, Math.min(1, (v - wxT0) / wxTS)) * 100).toFixed(2) + '%';
+    out.push(fresh ? Q('add a stop with a place to see this') : { isWeather: true, wxView, wxG: wxView === 'graphic', wxT: wxView === 'table',
+      ticks: [40, 50, 60, 70, 80].map(t => ({ label: t + '°', left: wxP(t) })),
+      rows: days.map((x, n) => { const fc = lead + n <= 9, hiC = 25 - ((n * 3) % 7), loC = hiC - 7 - (n % 3), hi = Math.round(hiC * 9 / 5 + 32), lo = Math.round(loC * 9 / 5 + 32), rain = ((n * 7) % 32) / 100, word = ['Mostly clear', 'Some cloud', 'Showers likely', 'Clear', 'Overcast'][n % 5];
+        return { city: x.city, date: x.dateLabel, day: x.label, ink: x.ink, cond: (fc ? 'Forecast' : 'Typical for ' + String(x.dateLabel || '').split(' ')[1]) + ' · ' + word.toLowerCase(), condShort: fc ? word : 'Typical', hi: hi + '°', lo: lo + '°',
+          rain: rain.toFixed(2) + '"', rainW: (Math.min(1, rain / 0.35) * 100).toFixed(1) + '%', barL: wxP(lo), barW: (parseFloat(wxP(hi)) - parseFloat(wxP(lo))).toFixed(2) + '%', hiL: wxP(hi), loR: (100 - parseFloat(wxP(lo))).toFixed(2) + '%',
+          fill: fc ? x.ink : 'var(--color-surface)', line: fc ? 'solid' : 'dashed', rule: n === 0 ? '0' : '1px solid var(--color-hairline)' }; }),
       credit: lead <= 9 ? 'Forecast: Norwegian Meteorological Institute, CC BY 4.0 (updated 9:10 am) · Monthly averages: NASA POWER, 2001–2020' : 'Monthly averages: NASA POWER, 2001–2020' });
     out.push(P(T('And the practical things, country by country — the plug to pack, which side of the road, who to call.')));
     out.push(fresh ? Q('add a stop with a place to see this') : { isFacts: true, countries: [{ name: 'Japan', facts: [['Plugs', 'Type A · 100 V'], ['Drives on', 'The left'], ['Calling code', '+81'], ['Currency', 'Yen (¥)'], ['Police', '110'], ['Fire and ambulance', '119'], ['Tipping', 'Not expected']].map(f => ({ k: f[0], v: f[1] })) }] });

@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <meta name="design_doc_mode" content="canvas">
+  <link rel="stylesheet" href="_ds/travel-collab-ui-baseline-c5b66415-77a7-4370-aec7-2bcbd6dd88ec/fonts/fonts.css">
+  <link rel="stylesheet" href="_ds/travel-collab-ui-baseline-c5b66415-77a7-4370-aec7-2bcbd6dd88ec/_ds_bundle.css">
+  <link rel="stylesheet" href="_ds/travel-collab-ui-baseline-c5b66415-77a7-4370-aec7-2bcbd6dd88ec/styles.css">
+  <script src="_ds/travel-collab-ui-baseline-c5b66415-77a7-4370-aec7-2bcbd6dd88ec/_ds_bundle.js"></script>
+  <style>body{margin:0;background:var(--color-moss);} a{color:var(--color-brand);} a:hover{color:var(--color-brand-hover);}</style>
+</helmet>
+
+<section data-screen-label="Turn 2 — weather, vertical" style="padding: 48px 48px 0; display: flex; flex-direction: column; gap: 28px; font-family: var(--font-next-sans); color: var(--color-ink);">
+  <div style="display: flex; flex-direction: column; gap: 6px; max-width: 760px;">
+    <span style="font-family: var(--font-next-mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-slate);">Turn 2 · Weather</span>
+    <span style="font-family: var(--font-next-display); font-size: 28px; font-weight: 600;"><a href="#1c">1c</a>, turned on its side</span>
+    <span style="font-size: 14px; line-height: 1.55; color: var(--color-slate); text-wrap: pretty;">Days run top to bottom, temperature runs across, so it grows the same way <a href="#1a">1a</a> does. A second place on the same day tucks in under that day.</span>
+  </div>
+  <div style="display: flex; flex-wrap: wrap; gap: 28px; align-items: flex-start;">
+    <div id="2a" style="width: 640px; display: flex; flex-direction: column; gap: 12px;">
+      <div style="display: flex; align-items: baseline; gap: 10px;">
+        <span style="font-family: var(--font-next-mono); font-size: 12px; font-weight: 600; background: var(--color-ink); color: var(--color-surface); padding: 2px 7px; border-radius: 4px;">2a</span>
+        <span style="font-size: 15px; font-weight: 600;">Temperature ranges, rows</span>
+        <span style="font-size: 13px; color: var(--color-slate);">— same shared scale for every row</span>
+      </div>
+      <div style="background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 8px; overflow: hidden;">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--color-hairline);">
+          <span style="font-size: 14px; font-weight: 600;">Weather</span>
+          <x-import component-from-global-scope="TravelCollabUI.SegmentedControl" hint-size="160px,32px" value="{{ v2a }}" onValueChange="{{ set2a }}" options="{{ viewOpts }}" aria-label="View"></x-import>
+        </div>
+        <sc-if value="{{ g2a }}" hint-placeholder-val="{{ true }}">
+          <div style="padding: 14px 16px 12px; display: flex; flex-direction: column;">
+            <div style="display: grid; grid-template-columns: 116px 96px minmax(0,1fr) 72px; gap: 12px; align-items: end; height: 18px;">
+              <span></span><span></span>
+              <div style="position: relative; height: 16px;">
+                <sc-for list="{{ tticks }}" as="t" hint-placeholder-count="5">
+                  <span style="position: absolute; left: {{ t.bottom }}; transform: translateX(-50%); font-family: var(--font-next-mono); font-size: 10px; color: var(--color-slate);">{{ t.label }}</span>
+                </sc-for>
+              </div>
+              <span style="font-family: var(--font-next-mono); font-size: 10px; color: var(--color-slate); text-align: right;">rain</span>
+            </div>
+            <sc-for list="{{ wx }}" as="w" hint-placeholder-count="9">
+              <div style="display: grid; grid-template-columns: 116px 96px minmax(0,1fr) 72px; gap: 12px; align-items: center; min-height: 36px; border-top: {{ w.rule }};">
+                <span style="display: flex; align-items: baseline; gap: 7px; min-width: 0;">
+                  <span style="width: 40px; flex: 0 0 auto; font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate);">{{ w.dayShown }}</span>
+                  <span style="font-size: 13px; font-weight: 500; color: {{ w.ink }}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ w.city }}</span>
+                </span>
+                <span style="font-size: 12px; color: var(--color-slate); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ w.cond }}</span>
+                <div style="position: relative; height: 20px;">
+                  <sc-for list="{{ tticks }}" as="t" hint-placeholder-count="5">
+                    <span style="position: absolute; top: -8px; bottom: -8px; left: {{ t.bottom }}; width: 1px; background: var(--color-hairline);"></span>
+                  </sc-for>
+                  <span style="position: absolute; right: calc(100% - {{ w.bottom }} + 6px); top: 50%; transform: translateY(-50%); font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate);">{{ w.lo }}°</span>
+                  <div style="position: absolute; top: 4px; bottom: 4px; left: {{ w.bottom }}; width: {{ w.height }}; background: {{ w.fill }}; border: 1.5px {{ w.line }} {{ w.ink }}; border-radius: 999px; box-sizing: border-box;"></div>
+                  <span style="position: absolute; left: calc({{ w.top }} + 6px); top: 50%; transform: translateY(-50%); font-family: var(--font-next-mono); font-size: 12px; font-weight: 600;">{{ w.hi }}°</span>
+                </div>
+                <span style="display: flex; align-items: center; justify-content: flex-end; gap: 6px;">
+                  <span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-info-ink);">{{ w.rainShort }}</span>
+                  <span style="width: 22px; height: 6px; background: var(--color-info-tint); border-radius: 3px; overflow: hidden;"><span style="display: block; height: 100%; width: {{ w.rainW }}; background: var(--color-info-ink);"></span></span>
+                </span>
+              </div>
+            </sc-for>
+          </div>
+          <div style="padding: 0 16px 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 14px; font-size: 12px; color: var(--color-slate);">
+            <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 16px; height: 10px; background: var(--color-brand); border-radius: 999px;"></span>Forecast</span>
+            <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 16px; height: 10px; border: 1.5px dashed var(--color-brand); border-radius: 999px; box-sizing: border-box;"></span>Typical for October</span>
+            <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 16px; height: 6px; background: var(--color-info-ink); border-radius: 3px;"></span>Rain in a day</span>
+          </div>
+          <div style="padding: 10px 16px; border-top: 1px solid var(--color-hairline); background: var(--color-paper); font-size: 12px; line-height: 1.5; color: var(--color-slate);">{{ credit }}</div>
+        </sc-if>
+        <sc-if value="{{ t2a }}" hint-placeholder-val="{{ false }}">
+          <div style="padding: 4px 0;">
+            <sc-for list="{{ wx }}" as="w" hint-placeholder-count="9">
+              <div style="display: grid; grid-template-columns: 100px minmax(0,1fr) 48px 48px 64px; gap: 10px; align-items: baseline; padding: 8px 16px; border-bottom: 1px solid var(--color-hairline); font-size: 13px;">
+                <span style="display: flex; flex-direction: column;"><span style="font-weight: 600;">{{ w.city }}</span><span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate);">{{ w.day }}</span></span>
+                <span>{{ w.mode }}<span style="color: var(--color-slate);">{{ w.condSep }}</span></span>
+                <span style="font-family: var(--font-next-mono); font-size: 12px; text-align: right;">{{ w.hi }}°F</span>
+                <span style="font-family: var(--font-next-mono); font-size: 12px; text-align: right;">{{ w.lo }}°F</span>
+                <span style="font-family: var(--font-next-mono); font-size: 12px; text-align: right;">{{ w.rain }}</span>
+              </div>
+            </sc-for>
+            <div style="padding: 10px 16px; background: var(--color-paper); font-size: 12px; line-height: 1.5; color: var(--color-slate);">{{ credit }}</div>
+          </div>
+        </sc-if>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section data-screen-label="Turn 1 — sun and weather" style="padding: 48px; display: flex; flex-direction: column; gap: 28px; font-family: var(--font-next-sans); color: var(--color-ink);">
+  <div style="display: flex; flex-direction: column; gap: 6px; max-width: 760px;">
+    <span style="font-family: var(--font-next-mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-slate);">Turn 1 · Overview widgets</span>
+    <span style="font-family: var(--font-next-display); font-size: 28px; font-weight: 600;">Sunrise and sunset, and weather — drawn</span>
+    <span style="font-size: 14px; line-height: 1.55; color: var(--color-slate); text-wrap: pretty;">Two drawings each. Every widget keeps its table one tap away. Same 8-day Japan trip throughout; the solid-vs-outline language matches the Plan view — solid is known (forecast), outline is a guess (typical for the month).</span>
+  </div>
+
+  <div style="display: flex; flex-wrap: wrap; gap: 28px; align-items: flex-start;">
+
+    <!-- 1a -->
+    <div id="1a" style="width: 640px; display: flex; flex-direction: column; gap: 12px;">
+      <div style="display: flex; align-items: baseline; gap: 10px;">
+        <span style="font-family: var(--font-next-mono); font-size: 12px; font-weight: 600; background: var(--color-ink); color: var(--color-surface); padding: 2px 7px; border-radius: 4px;">1a</span>
+        <span style="font-size: 15px; font-weight: 600;">Daylight ribbons</span>
+        <span style="font-size: 13px; color: var(--color-slate);">— same clock as the Plan river, so light lines up with the day</span>
+      </div>
+      <div style="background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 8px; overflow: hidden;">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--color-hairline);">
+          <span style="font-size: 14px; font-weight: 600;">Sunrise and sunset</span>
+          <x-import component-from-global-scope="TravelCollabUI.SegmentedControl" hint-size="160px,32px" value="{{ v1a }}" onValueChange="{{ set1a }}" options="{{ viewOpts }}" aria-label="View"></x-import>
+        </div>
+        <sc-if value="{{ g1a }}" hint-placeholder-val="{{ true }}">
+          <div style="padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 6px;">
+            <div style="display: grid; grid-template-columns: 92px 48px minmax(0,1fr) 48px 62px; gap: 10px; align-items: end; height: 16px;">
+              <span></span><span></span>
+              <div style="position: relative; height: 16px;">
+                <sc-for list="{{ ticks }}" as="t" hint-placeholder-count="5">
+                  <span style="position: absolute; left: {{ t.left }}; transform: translateX(-50%); font-family: var(--font-next-mono); font-size: 10px; color: var(--color-slate);">{{ t.label }}</span>
+                </sc-for>
+              </div>
+              <span></span><span></span>
+            </div>
+            <sc-for list="{{ sun }}" as="d" hint-placeholder-count="8">
+              <div style="display: grid; grid-template-columns: 92px 48px minmax(0,1fr) 48px 62px; gap: 10px; align-items: center; height: 28px;">
+                <span style="display: flex; align-items: baseline; gap: 6px; min-width: 0;">
+                  <span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate);">{{ d.day }}</span>
+                  <span style="font-size: 13px; font-weight: 500; color: {{ d.ink }}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ d.city }}</span>
+                </span>
+                <span style="font-family: var(--font-next-mono); font-size: 12px; text-align: right;">{{ d.rise }}</span>
+                <div style="position: relative; height: 18px; background: var(--color-moss); border-radius: 3px;">
+                  <sc-for list="{{ tickLines }}" as="t" hint-placeholder-count="5">
+                    <span style="position: absolute; top: 0; bottom: 0; left: {{ t.left }}; width: 1px; background: var(--color-hairline);"></span>
+                  </sc-for>
+                  <div style="position: absolute; top: 0; bottom: 0; left: {{ d.left }}; width: {{ d.width }}; background: var(--color-warning-tint); border-radius: 3px; overflow: hidden; display: flex; justify-content: space-between;">
+                    <span style="width: {{ d.gold }}; background: var(--color-warning);"></span>
+                    <span style="width: {{ d.gold }}; background: var(--color-warning);"></span>
+                  </div>
+                </div>
+                <span style="font-family: var(--font-next-mono); font-size: 12px;">{{ d.set }}</span>
+                <span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate); text-align: right;">{{ d.len }}</span>
+              </div>
+            </sc-for>
+            <div style="display: flex; align-items: center; gap: 14px; padding-top: 8px; font-size: 12px; color: var(--color-slate);">
+              <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 14px; height: 10px; background: var(--color-warning); border-radius: 2px;"></span>Golden hour</span>
+              <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 14px; height: 10px; background: var(--color-warning-tint); border-radius: 2px;"></span>Daylight</span>
+            </div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ t1a }}" hint-placeholder-val="{{ false }}">
+          <div style="padding: 4px 0;">
+            <sc-for list="{{ sunTable }}" as="r" hint-placeholder-count="8">
+              <div style="display: grid; grid-template-columns: 56px 90px 1fr 1fr 1.6fr; gap: 10px; padding: 8px 16px; border-bottom: 1px solid var(--color-hairline); font-size: 13px;">
+                <span style="font-family: var(--font-next-mono); font-size: 12px; color: var(--color-slate);">{{ r.day }}</span>
+                <span style="color: {{ r.ink }};">{{ r.city }}</span>
+                <span style="font-family: var(--font-next-mono); font-size: 12px;">↑ {{ r.rise }}</span>
+                <span style="font-family: var(--font-next-mono); font-size: 12px;">↓ {{ r.set }}</span>
+                <span style="font-family: var(--font-next-mono); font-size: 12px; color: var(--color-slate);">{{ r.golden }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+      </div>
+    </div>
+
+    <!-- 1b -->
+    <div id="1b" style="width: 640px; display: flex; flex-direction: column; gap: 12px;">
+      <div style="display: flex; align-items: baseline; gap: 10px;">
+        <span style="font-family: var(--font-next-mono); font-size: 12px; font-weight: 600; background: var(--color-ink); color: var(--color-surface); padding: 2px 7px; border-radius: 4px;">1b</span>
+        <span style="font-size: 15px; font-weight: 600;">Sky columns</span>
+        <span style="font-size: 13px; color: var(--color-slate);">— a slice of sky per day, night above and below</span>
+      </div>
+      <div style="background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 8px; overflow: hidden;">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--color-hairline);">
+          <span style="font-size: 14px; font-weight: 600;">Sunrise and sunset</span>
+          <x-import component-from-global-scope="TravelCollabUI.SegmentedControl" hint-size="160px,32px" value="{{ v1b }}" onValueChange="{{ set1b }}" options="{{ viewOpts }}" aria-label="View"></x-import>
+        </div>
+        <sc-if value="{{ g1b }}" hint-placeholder-val="{{ true }}">
+          <div style="padding: 16px; display: flex; gap: 10px;">
+            <div style="position: relative; width: 34px; height: 260px; flex: 0 0 auto;">
+              <sc-for list="{{ vticks }}" as="t" hint-placeholder-count="5">
+                <span style="position: absolute; right: 0; top: {{ t.top }}; transform: translateY(-50%); font-family: var(--font-next-mono); font-size: 10px; color: var(--color-slate);">{{ t.label }}</span>
+              </sc-for>
+            </div>
+            <div style="flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(8, minmax(0,1fr)); gap: 6px;">
+              <sc-for list="{{ sun }}" as="d" hint-placeholder-count="8">
+                <div style="display: flex; flex-direction: column; gap: 8px; min-width: 0;">
+                  <div style="position: relative; height: 260px; background: var(--color-brand-pressed); border-radius: 6px; overflow: hidden;">
+                    <div style="position: absolute; left: 0; right: 0; top: {{ d.top }}; height: {{ d.height }}; background: var(--color-warning-tint); display: flex; flex-direction: column; justify-content: space-between;">
+                      <span style="height: {{ d.gold }}; background: var(--color-warning);"></span>
+                      <span style="height: {{ d.gold }}; background: var(--color-warning);"></span>
+                    </div>
+                    <span style="position: absolute; left: 0; right: 0; top: calc({{ d.top }} - 20px); text-align: center; font-family: var(--font-next-mono); font-size: 11px; color: var(--color-surface);">{{ d.rise }}</span>
+                    <span style="position: absolute; left: 0; right: 0; top: calc({{ d.bottom }} + 6px); text-align: center; font-family: var(--font-next-mono); font-size: 11px; color: var(--color-surface);">{{ d.set }}</span>
+                    <span style="position: absolute; left: 0; right: 0; top: {{ noonTop }}; height: 1px; background: var(--color-border-strong); opacity: 0.5;"></span>
+                  </div>
+                  <span style="display: flex; flex-direction: column; align-items: center; gap: 2px;">
+                    <span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate);">{{ d.day }}</span>
+                    <span style="max-width: 100%; font-size: 12px; font-weight: 500; color: {{ d.ink }}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ d.city }}</span>
+                  </span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+          <div style="padding: 0 16px 16px 60px; display: flex; flex-direction: column; gap: 8px;">
+            <div style="display: flex; align-items: center; gap: 14px; font-size: 12px; color: var(--color-slate);">
+              <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 14px; height: 10px; background: var(--color-warning); border-radius: 2px;"></span>Golden hour</span>
+              <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 14px; height: 10px; background: var(--color-brand-pressed); border-radius: 2px;"></span>Dark</span>
+              <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 14px; height: 1px; background: var(--color-border-strong);"></span>Noon</span>
+            </div>
+            <span style="font-size: 13px; line-height: 1.55; text-wrap: pretty;">Dark by 5:15 most of the week — plan the evening indoors, or be up high for the sunset.</span>
+          </div>
+        </sc-if>
+        <sc-if value="{{ t1b }}" hint-placeholder-val="{{ false }}">
+          <div style="padding: 4px 0;">
+            <sc-for list="{{ sunTable }}" as="r" hint-placeholder-count="8">
+              <div style="display: grid; grid-template-columns: 56px 90px 1fr 1fr 1.6fr; gap: 10px; padding: 8px 16px; border-bottom: 1px solid var(--color-hairline); font-size: 13px;">
+                <span style="font-family: var(--font-next-mono); font-size: 12px; color: var(--color-slate);">{{ r.day }}</span>
+                <span style="color: {{ r.ink }};">{{ r.city }}</span>
+                <span style="font-family: var(--font-next-mono); font-size: 12px;">↑ {{ r.rise }}</span>
+                <span style="font-family: var(--font-next-mono); font-size: 12px;">↓ {{ r.set }}</span>
+                <span style="font-family: var(--font-next-mono); font-size: 12px; color: var(--color-slate);">{{ r.golden }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+      </div>
+    </div>
+
+    <!-- 1c -->
+    <div id="1c" style="width: 640px; display: flex; flex-direction: column; gap: 12px;">
+      <div style="display: flex; align-items: baseline; gap: 10px;">
+        <span style="font-family: var(--font-next-mono); font-size: 12px; font-weight: 600; background: var(--color-ink); color: var(--color-surface); padding: 2px 7px; border-radius: 4px;">1c</span>
+        <span style="font-size: 15px; font-weight: 600;">Temperature ranges</span>
+        <span style="font-size: 13px; color: var(--color-slate);">— one bar per place per day, low to high</span>
+      </div>
+      <div style="background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 8px; overflow: hidden;">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--color-hairline);">
+          <span style="font-size: 14px; font-weight: 600;">Weather</span>
+          <x-import component-from-global-scope="TravelCollabUI.SegmentedControl" hint-size="160px,32px" value="{{ v1c }}" onValueChange="{{ set1c }}" options="{{ viewOpts }}" aria-label="View"></x-import>
+        </div>
+        <sc-if value="{{ g1c }}" hint-placeholder-val="{{ true }}">
+          <div style="padding: 16px; display: flex; gap: 10px;">
+            <div style="position: relative; width: 34px; height: 200px; flex: 0 0 auto;">
+              <sc-for list="{{ tticks }}" as="t" hint-placeholder-count="5">
+                <span style="position: absolute; right: 0; bottom: {{ t.bottom }}; transform: translateY(50%); font-family: var(--font-next-mono); font-size: 10px; color: var(--color-slate);">{{ t.label }}</span>
+              </sc-for>
+            </div>
+            <div style="flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(9, minmax(0,1fr)); gap: 6px;">
+              <sc-for list="{{ wx }}" as="w" hint-placeholder-count="9">
+                <div style="display: flex; flex-direction: column; gap: 6px; min-width: 0;">
+                  <div style="position: relative; height: 200px;">
+                    <sc-for list="{{ tticks }}" as="t" hint-placeholder-count="5">
+                      <span style="position: absolute; left: -3px; right: -3px; bottom: {{ t.bottom }}; height: 1px; background: var(--color-hairline);"></span>
+                    </sc-for>
+                    <span style="position: absolute; left: 0; right: 0; bottom: calc({{ w.top }} + 4px); text-align: center; font-family: var(--font-next-mono); font-size: 12px; font-weight: 600;">{{ w.hi }}°</span>
+                    <div style="position: absolute; left: 22%; right: 22%; bottom: {{ w.bottom }}; height: {{ w.height }}; background: {{ w.fill }}; border: 1.5px {{ w.line }} {{ w.ink }}; border-radius: 999px; box-sizing: border-box;"></div>
+                    <span style="position: absolute; left: 0; right: 0; top: calc(100% - {{ w.bottom }} + 4px); text-align: center; font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate);">{{ w.lo }}°</span>
+                  </div>
+                  <div style="height: 30px; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 3px;">
+                    <span style="width: 40%; height: {{ w.rainH }}; background: var(--color-info-ink); border-radius: 2px 2px 0 0; opacity: {{ w.rainOp }};"></span>
+                  </div>
+                  <span style="text-align: center; font-family: var(--font-next-mono); font-size: 10.5px; color: var(--color-info-ink);">{{ w.rain }}</span>
+                  <span style="display: flex; flex-direction: column; align-items: center; gap: 1px; border-top: 1px solid var(--color-hairline); padding-top: 6px;">
+                    <span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate);">{{ w.day }}</span>
+                    <span style="max-width: 100%; font-size: 12px; font-weight: 500; color: {{ w.ink }}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ w.city }}</span>
+                    <span style="max-width: 100%; font-size: 11px; color: var(--color-slate); text-align: center; line-height: 1.3;">{{ w.cond }}</span>
+                  </span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+          <div style="padding: 0 16px 14px; display: flex; flex-direction: column; gap: 10px;">
+            <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 14px; font-size: 12px; color: var(--color-slate);">
+              <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 10px; height: 16px; background: var(--color-brand); border-radius: 999px;"></span>Forecast</span>
+              <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 10px; height: 16px; border: 1.5px dashed var(--color-brand); border-radius: 999px; box-sizing: border-box;"></span>Typical for October</span>
+              <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 8px; height: 10px; background: var(--color-info-ink); border-radius: 2px 2px 0 0;"></span>Rain in a day</span>
+            </div>
+          </div>
+          <div style="padding: 10px 16px; border-top: 1px solid var(--color-hairline); background: var(--color-paper); font-size: 12px; line-height: 1.5; color: var(--color-slate);">{{ credit }}</div>
+        </sc-if>
+        <sc-if value="{{ t1c }}" hint-placeholder-val="{{ false }}">
+          <div style="padding: 4px 0;">
+            <sc-for list="{{ wx }}" as="w" hint-placeholder-count="9">
+              <div style="display: grid; grid-template-columns: 100px minmax(0,1fr) 48px 48px 64px; gap: 10px; align-items: baseline; padding: 8px 16px; border-bottom: 1px solid var(--color-hairline); font-size: 13px;">
+                <span style="display: flex; flex-direction: column;"><span style="font-weight: 600;">{{ w.city }}</span><span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate);">{{ w.day }}</span></span>
+                <span>{{ w.mode }}<span style="color: var(--color-slate);">{{ w.condSep }}</span></span>
+                <span style="font-family: var(--font-next-mono); font-size: 12px; text-align: right;">{{ w.hi }}°F</span>
+                <span style="font-family: var(--font-next-mono); font-size: 12px; text-align: right;">{{ w.lo }}°F</span>
+                <span style="font-family: var(--font-next-mono); font-size: 12px; text-align: right;">{{ w.rain }}</span>
+              </div>
+            </sc-for>
+            <div style="padding: 10px 16px; background: var(--color-paper); font-size: 12px; line-height: 1.5; color: var(--color-slate);">{{ credit }}</div>
+          </div>
+        </sc-if>
+      </div>
+    </div>
+
+    <!-- 1d -->
+    <div id="1d" style="width: 640px; display: flex; flex-direction: column; gap: 12px;">
+      <div style="display: flex; align-items: baseline; gap: 10px;">
+        <span style="font-family: var(--font-next-mono); font-size: 12px; font-weight: 600; background: var(--color-ink); color: var(--color-surface); padding: 2px 7px; border-radius: 4px;">1d</span>
+        <span style="font-size: 15px; font-weight: 600;">Temperature band</span>
+        <span style="font-size: 13px; color: var(--color-slate);">— the week as one shape; side trips hang off it</span>
+      </div>
+      <div style="background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 8px; overflow: hidden;">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--color-hairline);">
+          <span style="font-size: 14px; font-weight: 600;">Weather</span>
+          <x-import component-from-global-scope="TravelCollabUI.SegmentedControl" hint-size="160px,32px" value="{{ v1d }}" onValueChange="{{ set1d }}" options="{{ viewOpts }}" aria-label="View"></x-import>
+        </div>
+        <sc-if value="{{ g1d }}" hint-placeholder-val="{{ true }}">
+          <div style="padding: 22px 28px 12px;">
+            <div style="position: relative; height: 180px;">
+              <svg viewBox="0 0 800 180" preserveAspectRatio="none" style="position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible;">
+                <defs>
+                  <pattern id="wxHatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+                    <rect width="8" height="8" fill="var(--color-brand-tint)"></rect>
+                    <line x1="0" y1="0" x2="0" y2="8" stroke="var(--color-border-strong)" stroke-width="2"></line>
+                  </pattern>
+                </defs>
+                <path d="{{ bandAvg }}" fill="url(#wxHatch)"></path>
+                <path d="{{ bandFc }}" fill="var(--color-brand)" opacity="0.85"></path>
+                <line x1="{{ splitX }}" y1="0" x2="{{ splitX }}" y2="180" stroke="var(--color-border-strong)" stroke-dasharray="3 4" vector-effect="non-scaling-stroke"></line>
+              </svg>
+              <span style="position: absolute; left: {{ splitL }}; top: -18px; transform: translateX(-50%); white-space: nowrap; font-family: var(--font-next-mono); font-size: 10px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--color-slate);">forecast ends</span>
+              <sc-for list="{{ band }}" as="b" hint-placeholder-count="8">
+                <span style="position: absolute; left: {{ b.left }}; top: {{ b.hiTop }}; transform: translate(-50%, calc(-100% - 5px)); font-family: var(--font-next-mono); font-size: 12px; font-weight: 600;">{{ b.hi }}°</span>
+                <span style="position: absolute; left: {{ b.left }}; top: {{ b.loTop }}; transform: translate(-50%, 5px); font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate);">{{ b.lo }}°</span>
+              </sc-for>
+            </div>
+            <div style="position: relative; height: 34px; margin-top: 22px;">
+              <sc-for list="{{ band }}" as="b" hint-placeholder-count="8">
+                <span style="position: absolute; left: {{ b.left }}; bottom: 0; transform: translateX(-50%); width: 14px; height: {{ b.rainH }}; background: var(--color-info-ink); border-radius: 2px 2px 0 0; opacity: {{ b.rainOp }};"></span>
+              </sc-for>
+            </div>
+            <div style="position: relative; height: 70px; border-top: 1px solid var(--color-hairline);">
+              <sc-for list="{{ band }}" as="b" hint-placeholder-count="8">
+                <span style="position: absolute; left: {{ b.left }}; top: 6px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 1px; white-space: nowrap;">
+                  <span style="font-family: var(--font-next-mono); font-size: 10.5px; color: var(--color-info-ink);">{{ b.rain }}</span>
+                  <span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate);">{{ b.day }} <span style="color: {{ b.ink }}; font-family: var(--font-next-sans); font-weight: 500;">{{ b.short }}</span></span>
+                  <sc-if value="{{ b.hasSide }}" hint-placeholder-val="{{ false }}">
+                    <span style="margin-top: 4px; display: flex; align-items: center; gap: 5px; padding: 2px 7px; border: 1px dashed var(--color-info-ink); border-radius: 999px; font-size: 11px; color: var(--color-info-ink);">+ {{ side.name }} <span style="font-family: var(--font-next-mono);">{{ side.hi }}°/{{ side.lo }}°</span></span>
+                  </sc-if>
+                </span>
+              </sc-for>
+            </div>
+          </div>
+          <div style="padding: 4px 16px 14px; display: flex; flex-direction: column; gap: 10px;">
+            <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 14px; font-size: 12px; color: var(--color-slate);">
+              <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 16px; height: 10px; background: var(--color-brand); border-radius: 2px;"></span>Forecast</span>
+              <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 16px; height: 10px; background: var(--color-brand-tint); border: 1px solid var(--color-border-strong); border-radius: 2px;"></span>Typical for October</span>
+              <span style="display: flex; align-items: center; gap: 6px;"><span style="width: 8px; height: 10px; background: var(--color-info-ink); border-radius: 2px 2px 0 0;"></span>Rain in a day</span>
+            </div>
+            <span style="font-size: 13px; line-height: 1.55; text-wrap: pretty;">Mild and steady — low 70s by day, high 50s at night. Day 2 brings the showers; the hatched part firms up as the forecast reaches it.</span>
+          </div>
+          <div style="padding: 10px 16px; border-top: 1px solid var(--color-hairline); background: var(--color-paper); font-size: 12px; line-height: 1.5; color: var(--color-slate);">{{ credit }}</div>
+        </sc-if>
+        <sc-if value="{{ t1d }}" hint-placeholder-val="{{ false }}">
+          <div style="padding: 4px 0;">
+            <sc-for list="{{ wx }}" as="w" hint-placeholder-count="9">
+              <div style="display: grid; grid-template-columns: 100px minmax(0,1fr) 48px 48px 64px; gap: 10px; align-items: baseline; padding: 8px 16px; border-bottom: 1px solid var(--color-hairline); font-size: 13px;">
+                <span style="display: flex; flex-direction: column;"><span style="font-weight: 600;">{{ w.city }}</span><span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate);">{{ w.day }}</span></span>
+                <span>{{ w.mode }}<span style="color: var(--color-slate);">{{ w.condSep }}</span></span>
+                <span style="font-family: var(--font-next-mono); font-size: 12px; text-align: right;">{{ w.hi }}°F</span>
+                <span style="font-family: var(--font-next-mono); font-size: 12px; text-align: right;">{{ w.lo }}°F</span>
+                <span style="font-family: var(--font-next-mono); font-size: 12px; text-align: right;">{{ w.rain }}</span>
+              </div>
+            </sc-for>
+            <div style="padding: 10px 16px; background: var(--color-paper); font-size: 12px; line-height: 1.5; color: var(--color-slate);">{{ credit }}</div>
+          </div>
+        </sc-if>
+      </div>
+    </div>
+
+  </div>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { v: { a: 'graphic', b: 'graphic', c: 'graphic', d: 'graphic', e: 'graphic' } };
+  INK = { Tokyo: 'var(--color-success-ink)', Odawara: 'var(--color-slate)', Kyoto: 'var(--color-danger-ink)', 'Nikkō': 'var(--color-info-ink)' };
+  SUN = [['Tokyo', 339, 1038], ['Tokyo', 341, 1037], ['Tokyo', 341, 1036], ['Tokyo', 342, 1034], ['Tokyo', 343, 1033], ['Tokyo', 344, 1032], ['Odawara', 347, 1033], ['Kyoto', 361, 1045]];
+  // day, city, forecast?, cond, hi, lo, rain
+  WX = [[1, 'Tokyo', true, 'Partly cloudy', 75, 63, 0.02], [2, 'Tokyo', true, 'Showers', 69, 60, 0.28], [3, 'Tokyo', true, 'Clear', 73, 59, 0],
+    [4, 'Tokyo', false, '', 71, 58, 0.31], [4, 'Nikkō', false, '', 59, 44, 0.22], [5, 'Tokyo', false, '', 71, 58, 0.31],
+    [6, 'Tokyo', false, '', 71, 58, 0.31], [7, 'Odawara', false, '', 70, 57, 0.27], [8, 'Kyoto', false, '', 73, 56, 0.20]];
+  clock(m) { const h = Math.floor(m / 60), mm = String(m % 60).padStart(2, '0'); return (h > 12 ? h - 12 : h) + ':' + mm + (h >= 12 ? 'p' : 'a'); }
+  clockLong(m) { const h = Math.floor(m / 60), mm = String(m % 60).padStart(2, '0'); return (h > 12 ? h - 12 : h) + ':' + mm + (h >= 12 ? ' pm' : ' am'); }
+  renderVals() {
+    const v = this.state.v, pct = x => x.toFixed(2) + '%';
+    const H0 = 300, HS = 780, V0 = 240, VS = 960, GOLD = 34;
+    const sun = this.SUN.map(([city, r, s], i) => ({
+      day: 'D' + (i + 1), city, ink: this.INK[city], rise: this.clock(r), set: this.clock(s),
+      len: Math.floor((s - r) / 60) + 'h ' + String((s - r) % 60).padStart(2, '0') + 'm',
+      left: pct((r - H0) / HS * 100), width: pct((s - r) / HS * 100), gold: pct(GOLD / (s - r) * 100),
+      top: pct((r - V0) / VS * 100), height: pct((s - r) / VS * 100), bottom: pct((s - V0) / VS * 100)
+    }));
+    const sunTable = this.SUN.map(([city, r, s], i) => ({ day: 'Day ' + (i + 1), city, ink: this.INK[city], rise: this.clockLong(r), set: this.clockLong(s),
+      golden: this.clockLong(r) + '–' + this.clockLong(r + GOLD).replace(/ am| pm/, '') + ' · ' + this.clockLong(s - GOLD).replace(/ am| pm/, '') + '–' + this.clockLong(s) }));
+    const ticks = [[360, '6a'], [540, '9a'], [720, 'noon'], [900, '3p'], [1080, '6p']].map(([m, label]) => ({ label, left: pct((m - H0) / HS * 100) }));
+    const vticks = [[360, '6a'], [540, '9a'], [720, 'noon'], [900, '3p'], [1080, '6p']].map(([m, label]) => ({ label, top: pct((m - V0) / VS * 100) }));
+    const T0 = 40, TS = 40, maxRain = 0.35;
+    const tticks = [40, 50, 60, 70, 80].map(t => ({ label: t + '°', bottom: pct((t - T0) / TS * 100) }));
+    const wx = this.WX.map(([d, city, fc, cond, hi, lo, rain], i) => {
+      const same = i > 0 && this.WX[i - 1][0] === d;
+      const ink = this.INK[city] === 'var(--color-slate)' ? 'var(--color-ink)' : this.INK[city];
+      return { day: 'Day ' + d, city, hi, lo, ink,
+        mode: fc ? 'Forecast' : 'October average', condSep: fc ? ' · ' + cond : '', cond: fc ? cond : 'typical',
+        rain: rain === 0 ? 'dry' : rain.toFixed(2) + ' in',
+        rainH: Math.max(2, Math.round(rain / maxRain * 28)) + 'px', rainOp: rain === 0 ? 0.25 : 1,
+        bottom: pct((lo - T0) / TS * 100), height: pct((hi - lo) / TS * 100), top: pct((hi - T0) / TS * 100),
+        fill: fc ? ink : 'var(--color-surface)', line: fc ? 'solid' : 'dashed',
+        dayShown: same ? '' : 'Day ' + d, rule: same || i === 0 ? '0' : '1px solid var(--color-hairline)',
+        rainShort: rain.toFixed(2) + '"', rainW: pct(Math.min(1, rain / maxRain) * 100) };
+    });
+    // 1d band: main line = one entry per day (skip the side trip)
+    const main = this.WX.filter(w => w[1] !== 'Nikkō'), n = main.length;
+    const X = i => 30 + i * (740 / (n - 1)), Y = t => 180 - (t - 45) / 35 * 180;
+    const bandPath = arr => { const top = arr.map(([i, w]) => X(i) + ',' + Y(w[4])), bot = arr.slice().reverse().map(([i, w]) => X(i) + ',' + Y(w[5])); return 'M' + top.join(' L') + ' L' + bot.join(' L') + ' Z'; };
+    const idx = main.map((w, i) => [i, w]), lastFc = main.reduce((a, w, i) => w[2] ? i : a, 0);
+    const band = main.map((w, i) => ({ day: 'D' + w[0], short: w[1], ink: this.INK[w[1]], hi: w[4], lo: w[5],
+      left: pct(X(i) / 8), hiTop: pct(Y(w[4]) / 1.8), loTop: pct(Y(w[5]) / 1.8),
+      rain: w[6] === 0 ? 'dry' : w[6].toFixed(2), rainH: Math.max(2, Math.round(w[6] / maxRain * 30)) + 'px', rainOp: w[6] === 0 ? 0.25 : 1 }));
+    const ni = this.WX.find(w => w[1] === 'Nikkō'), niI = main.findIndex(w => w[0] === ni[0]);
+    const side = { name: ni[1], hi: ni[4], lo: ni[5] };
+    band.forEach((b, i) => { b.hasSide = i === niI; });
+    const setV = k => val => this.setState(s => ({ v: Object.assign({}, s.v, { [k]: val }) }));
+    return {
+      viewOpts: [{ value: 'graphic', label: 'Graphic' }, { value: 'table', label: 'Table' }],
+      v1a: v.a, v1b: v.b, v1c: v.c, v1d: v.d, set1a: setV('a'), set1b: setV('b'), set1c: setV('c'), set1d: setV('d'),
+      v2a: v.e, set2a: setV('e'), g2a: v.e === 'graphic', t2a: v.e === 'table',
+      g1a: v.a === 'graphic', t1a: v.a === 'table', g1b: v.b === 'graphic', t1b: v.b === 'table',
+      g1c: v.c === 'graphic', t1c: v.c === 'table', g1d: v.d === 'graphic', t1d: v.d === 'table',
+      sun, sunTable, ticks, tickLines: ticks, vticks, noonTop: pct((720 - V0) / VS * 100), tticks, wx,
+      band, side, bandFc: bandPath(idx.slice(0, lastFc + 1)), bandAvg: bandPath(idx.slice(lastFc)),
+      splitX: X(lastFc), splitL: pct(X(lastFc) / 8),
+      credit: 'Forecast: Norwegian Meteorological Institute, CC BY 4.0 (updated 10:18 am) · Monthly averages: NASA POWER, 2001–2020'
+    };
+  }
+}
+</script>
+</body>
+</html>

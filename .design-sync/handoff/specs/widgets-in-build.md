@@ -18,7 +18,7 @@ presets, under the same ids.
 4. **Three shapes**: `single` (inline, sits inside a sentence), `block` (a table/card/chart on
    its own line), `repeat` (a line per item). Every widget node is an inline atom, even blocks.
 
-## The catalogue (32 presets)
+## The catalogue (30 presets)
 
 | Preset | Primitive + params | Shape | Reads as |
 |---|---|---|---|
@@ -44,11 +44,9 @@ presets, under the same ids.
 | Trip strip | `trip.strip` | block | one band, a cell per day in its city colour, city named over each stay |
 | Spend by day | `cost.chart` | block | Recharts bars per day against the budget |
 | Budget burn-down | `cost.chart {view: burndown}` | block | same chart as remaining-after-each-day |
-| Spend by kind | `cost.breakdown {by: kind}` | block | a donut per kind (Planned / Pending / Travel) and a key of amount + share + total; filters day, dates, city, tag; *no costs yet* |
-| Spend by tag | `cost.breakdown {by: tag}` | block | the same donut per tag (Meal / Lodging / Ticketed / Outdoors / Untagged — a stop counts under its first tag, as Spend by day stacks it); filters day, dates, city, kind; *no costs yet* |
-| Sunrise and sunset | `day.sun` | repeat | per day: sunrise · sunset · golden hour |
+| Sunrise and sunset | `day.sun {view}` | **block** (was repeat) | daylight ribbons per day on a clock axis; *Show as* Table → Day · City · Sunrise · Sunset · Daylight. See `sun-and-weather-widgets.md` |
 | Time difference from home | `day.fromHome` | single | `Tokyo is 16h ahead of home` |
-| Weather | `day.weather` | block | a fixed-height row per (day, city): mode in words, temps, rain; one credit + as-of footer; quiet when down |
+| Weather | `day.weather {view}` | block | a row per (day, city) on one temperature axis; forecast solid, typical dashed; rain `0.00″`; one credit + as-of footer; quiet when down. *Show as* Table → Day · City · High · Low · Rain · Source. See `sun-and-weather-widgets.md` |
 | Costs, broken down | `cost.rows` | repeat | each day's spend, and the total; *nothing priced yet* |
 | What needs you | `open` | repeat | overlaps, empty days, parked ideas; *nothing is waiting on you* |
 
@@ -70,7 +68,7 @@ presets, under the same ids.
 | Trip Overview | gallery | prose prompts only |
 | Day overview | gallery | prose prompts only |
 | A day in detail | gallery | hours + cost sentence, day.detail, booked rows, holds |
-| Full trip breakdown | gallery | dates, counts, city.detail, day.detail, budget, cost.rows, spend by kind |
+| Full trip breakdown | gallery | dates, counts, city.detail, day.detail, budget, cost.rows |
 | Dinner tracker | gallery | `tag: meal` — counts, booked / hold / idea rows, cost |
 | Bookings | gallery | booked count, booked rows, lodging, transit, holds, paid cost |
 | Before you go | gallery | home airport + dates sentence, document & packing bullets, day-1 bookings, budget |
@@ -83,3 +81,6 @@ presets, under the same ids.
   are **Pending · to book** and **Pending · maybe**.
 - The design had *Everyone on a trip*, *Your email* and *A line for every trip you have*; the
   build has none — removed from the design's rail.
+- **2026-09-30:** `day.sun` and `day.weather` gain `view: graphic | table` (default graphic),
+  set in the settings panel. `day.sun` moves from repeat to block and drops golden hour as text.
+  Weather rain loses *DRY* for `0.00″`.
