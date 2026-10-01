@@ -221,6 +221,41 @@ describe("PhoneTabBar", () => {
     });
   });
 
+  // **`/demo` is a trip too** (ADR-031), just not one under `/trips/<id>`, so a
+  // bar that only recognised that shape gave a phone visitor no way to reach
+  // Plan or Map: the board hides its own view strip below 768px because this
+  // bar is supposed to carry them (Mitchell, 2026-10-01, option B).
+  describe("on the demo trip", () => {
+    // As a whole list, for the reason the scope tests above give: what matters
+    // is what is ABSENT. Notebook goes to `/trips/<id>/pages` and Trips and
+    // Playbooks to signed-in surfaces — every one of them a sign-in wall for a
+    // visitor with no account, which is a tab that leaves the demo.
+    it("shows only the views the demo itself serves, linked to the demo", () => {
+      renderAt("/demo");
+      expect(screen.getAllByRole("link").map((el) => el.textContent)).toEqual(["Plan", "Map"]);
+      expect(hrefOf("Plan")).toBe("/demo?view=Plan");
+      expect(hrefOf("Map")).toBe("/demo?view=Map");
+    });
+
+    it.each([
+      ["/demo", null],
+      ["/demo?view=Overview", null],
+      ["/demo?view=Plan", "Plan"],
+      ["/demo?view=Map", "Map"],
+      ["/demo?lens=Map", "Map"],
+    ])("selects %s → %s", (at, expected) => {
+      renderAt(at);
+      expect(currentTab()).toBe(expected);
+    });
+
+    it("renders the same pair from the server-safe fallback, lighting nothing", () => {
+      url = "/demo?view=Map";
+      render(<PhoneTabBarFallback />);
+      expect(screen.getAllByRole("link").map((el) => el.textContent)).toEqual(["Plan", "Map"]);
+      expect(currentTab()).toBeNull();
+    });
+  });
+
   it("renders no control at all for the trip views outside a trip", () => {
     renderAt("/playbooks");
 

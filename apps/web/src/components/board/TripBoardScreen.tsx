@@ -952,18 +952,17 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                   unpinned child squeezes instead of scrolling — which is the
                   failure mode this row is being changed to avoid. */}
               {/* `hidden md:block` — SPEC §10's "two views, not four" on the
-                  phone. Below 768px Plan and Map are PhoneTabBar's tabs, and
-                  the two views this strip adds (Day columns, Calendar) are the
-                  two §10 removes, so the whole strip is a duplicate of the tab
-                  bar plus two entries that must not be reachable. It was also
-                  actively breaking this row: four 26px tabs overflow a 390px
-                  screen far enough that the "Notebooks" pill beside them sat
-                  106px past the right edge.
+                  phone. Below 768px Plan and Map are PhoneTabBar's tabs, so
+                  this strip would duplicate them. It was also breaking this
+                  row: four 26px tabs overflow a 390px screen far enough that
+                  the "Notebooks" pill beside them sat 106px past the right
+                  edge.
 
-                  `display: none` on the wrapper, not `return null` inside
-                  TripViewTabs: the component still mounts, which is what keeps
-                  `usePhoneTwoViews` (its URL normalisation — see that hook)
-                  running on exactly the screens that need it. */}
+                  **Hiding this is only safe where the bar is mounted.** That
+                  is `(app)/layout.tsx` for a signed-in trip and
+                  `DemoTripScreen` for /demo. `(front)` has no bar of its own,
+                  and before the demo mounted one, a phone visitor there had no
+                  way off Overview at all. */}
               <div className="hidden shrink-0 md:block">
                 <TripViewTabs />
               </div>
