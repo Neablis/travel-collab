@@ -53,6 +53,13 @@ its `if:`. The jobs then *run and skip*, which satisfies a required check.
 
 ## CodeQL: real spend that no measurement here has ever counted
 
+> **Since 2026-10-01 CodeQL runs from `.github/workflows/codeql.yml`**, not
+> default setup, on the `security-extended` suite (the file's header has why).
+> Its runs are now named `codeql`, so the re-measuring recipe below sees them.
+> It still runs on pushes to `main`, on every PR with no path filter, and
+> weekly. The bullets below describe the default-setup era and are kept as the
+> record of what was measured then.
+
 Every table in this document was built from the `ci` and `migrate-production`
 workflows. **CodeQL is neither**, and it has been running the whole time:
 
