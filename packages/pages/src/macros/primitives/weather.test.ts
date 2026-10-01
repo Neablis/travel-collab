@@ -132,11 +132,11 @@ describe("day.weather", () => {
 
   it("prints the values each mode has, rounded, as data", () => {
     const [past, today, forecast] = payloadOf(ctxOf(trip(), "2026-11-10")).rows;
-    expect(forecast).toMatchObject({ high: "18°C", low: "8°C", rain: "2.1 mm", sky: "Light rain", now: null });
+    expect(forecast).toMatchObject({ high: "18°C", low: "8°C", rain: "2.14 mm", sky: "Light rain", now: null });
     // Today: now, and the rest of the day from the hours still to come.
-    expect(today).toMatchObject({ now: "12°C", high: "15°C", low: "10°C", rain: "1.3 mm" });
+    expect(today).toMatchObject({ now: "12°C", high: "15°C", low: "10°C", rain: "1.30 mm" });
     // Typical: an amount per day, never a chance of rain (ADR-052 review point 5).
-    expect(past).toMatchObject({ high: "13°C", low: "4°C", rain: "3.5 mm a day", sky: null, now: null });
+    expect(past).toMatchObject({ high: "13°C", low: "4°C", rain: "3.46 mm", sky: null, now: null });
   });
 
   it("carries the oldest forecast as-of shown, the averaging period, and both credits", () => {
@@ -252,26 +252,27 @@ describe("day.weather", () => {
     it("prints °F and inches for an account in miles, whole degrees and two places", () => {
       const [past, today, forecast] = payloadOf(ctxOf(trip(), "2026-11-10", "ready", miles)).rows;
       // 17.6 °C = 63.7 °F, 8.2 °C = 46.8 °F, 2.14 mm = 0.084 in.
-      expect(forecast).toMatchObject({ high: "64°F", low: "47°F", rain: "0.08 in" });
-      expect(today).toMatchObject({ now: "54°F", high: "59°F", low: "49°F", rain: "0.05 in" });
-      expect(past).toMatchObject({ high: "56°F", low: "40°F", rain: "0.14 in a day" });
+      expect(forecast).toMatchObject({ high: "64°F", low: "47°F", rain: "0.08″" });
+      expect(today).toMatchObject({ now: "54°F", high: "59°F", low: "49°F", rain: "0.05″" });
+      expect(past).toMatchObject({ high: "56°F", low: "40°F", rain: "0.14″" });
     });
 
     it("prints °C and mm for an account in km, and when the account's preferences did not load", () => {
-      const metric = { high: "18°C", low: "8°C", rain: "2.1 mm" };
+      const metric = { high: "18°C", low: "8°C", rain: "2.14 mm" };
       expect(payloadOf(ctxOf(trip(), "2026-11-10", "ready", km)).rows[2]).toMatchObject(metric);
       expect(payloadOf(ctxOf(trip(), "2026-11-10", "ready", null)).rows[2]).toMatchObject(metric);
     });
 
-    it("says a trace of rain in inches rather than rounding it to none", () => {
+    it("prints a trace of rain as 0.00″, never `<0.01`, and a dry day the same", () => {
       const t = setup(
         ["2026-11-12", "2026-11-13"],
         [
-          point("2026-11-12", { forecast: forecastDay({ precipitationMm: 0.1 }) }),
+          point("2026-11-12", { forecast: forecastDay({ precipitationMm: 0.05 }) }),
           point("2026-11-13", { forecast: forecastDay({ precipitationMm: 0 }) }),
         ],
       );
-      expect(payloadOf(ctxOf(t, "2026-11-10", "ready", miles)).rows.map((r) => r.rain)).toEqual(["<0.01 in", "0.00 in"]);
+      expect(payloadOf(ctxOf(t, "2026-11-10", "ready", miles)).rows.map((r) => r.rain)).toEqual(["0.00″", "0.00″"]);
+      expect(payloadOf(ctxOf(t, "2026-11-10", "ready", km)).rows.map((r) => r.rain)).toEqual(["0.05 mm", "0.00 mm"]);
     });
 
     it("never prints -0°, in either unit", () => {
@@ -295,5 +296,81 @@ describe("day.weather", () => {
   it("gives a travel day one row per city", () => {
     const t = setup(["2026-11-13"], [point("2026-11-13", { city: "Kyoto" }), point("2026-11-13", { city: "Osaka" })]);
     expect(payloadOf(ctxOf(t, "2026-11-10")).rows.map((r) => r.city)).toEqual(["Kyoto", "Osaka"]);
+  });
+});
+
+describe("day.weather — the graphic's numbers", () => {
+  const miles: UserPreferences = { displayName: null, homeAirport: null, distanceUnit: "mi", timeFormat: "12h" };
+  const km: UserPreferences = { ...miles, distanceUnit: "km" };
+  const one = (over: Partial<ForecastDay>) =>
+    setup(["2026-11-12"], [point("2026-11-12", { forecast: forecastDay(over) })]);
+  const axisOf = (t: ReturnType<typeof setup>, user: UserPreferences | null) =>
+    payloadOf(ctxOf(t, "2026-11-10", "ready", user)).axis;
+
+  it("shows the graphic unless the author asked for the table", () => {
+    const t = one({});
+    expect(payloadOf(ctxOf(t, "2026-11-10")).view).toBe("graphic");
+    expect(payloadOf(ctxOf(t, "2026-11-10"), { view: "table" }).view).toBe("table");
+  });
+
+  it("keeps the base axis when the rows sit inside it, in either unit", () => {
+    // 11.1 °C = 52 °F and 21.7 °C = 71 °F.
+    const t = one({ highC: 21.7, lowC: 11.1 });
+    expect(axisOf(t, miles)).toEqual({ min: 40, max: 80, ticks: [40, 50, 60, 70, 80], unit: "°F" });
+    expect(axisOf(one({ highC: 19, lowC: 8 }), km)).toEqual({ min: 5, max: 25, ticks: [5, 10, 15, 20, 25], unit: "°C" });
+  });
+
+  it("widens the axis to the next step past the rows", () => {
+    // -2.2 °C = 28 °F and 33.9 °C = 93 °F.
+    expect(axisOf(one({ highC: 33.9, lowC: -2.2 }), miles)).toMatchObject({ min: 20, max: 100, unit: "°F" });
+  });
+
+  it("lets a typical row move the axis too", () => {
+    const t = setup(["2026-11-30"], [point("2026-11-30", {
+      forecast: { unavailable: "not-in-horizon" }, typical: typicalMonth({ highC: 35, lowC: 12 }),
+    })]);
+    expect(axisOf(t, km)).toMatchObject({ min: 5, max: 35 });
+  });
+
+  it("tells a forecast row from a typical one, and an unavailable row has no numbers", () => {
+    const t = setup(
+      ["2026-11-09", "2026-11-10", "2026-11-12", "2026-11-13", "2026-11-30"],
+      [
+        point("2026-11-09"),
+        point("2026-11-10"),
+        point("2026-11-12", { forecast: { unavailable: "source" } }),
+        point("2026-11-13"),
+        point("2026-11-30", { forecast: { unavailable: "not-in-horizon" } }),
+        point("2026-11-30", { city: "Osaka", forecast: { unavailable: "source" }, typical: { unavailable: "source" } }),
+      ],
+    );
+    const rows = payloadOf(ctxOf(t, "2026-11-10")).rows;
+    expect(rows.map((r) => [r.mode, r.source])).toEqual([
+      ["past", "typical"], ["today", "forecast"], ["no-forecast", "typical"],
+      ["forecast", "forecast"], ["typical", "typical"], ["unavailable", null],
+    ]);
+    expect(rows[5]).toMatchObject({ highValue: null, lowValue: null, rainValue: null, rainShare: null });
+  });
+
+  it("carries the number the label prints, so the bar and the text cannot disagree", () => {
+    const row = payloadOf(ctxOf(one({ highC: 17.6, lowC: 8.2 }), "2026-11-10", "ready", km)).rows[0]!;
+    expect(row).toMatchObject({ high: "18°C", highValue: 18, low: "8°C", lowValue: 8 });
+    const f = payloadOf(ctxOf(one({ highC: 17.6, lowC: 8.2 }), "2026-11-10", "ready", miles)).rows[0]!;
+    expect(f).toMatchObject({ high: "64°F", highValue: 64, low: "47°F", lowValue: 47 });
+  });
+
+  it("fills the rain bar in proportion, full at 0.35 in", () => {
+    const share = (mm: number) => payloadOf(ctxOf(one({ precipitationMm: mm }), "2026-11-10")).rows[0]!.rainShare;
+    expect(share(0)).toBe(0);
+    expect(share(4.445)).toBeCloseTo(0.5, 5);
+    expect(share(8.89)).toBe(1);
+    expect(share(30)).toBe(1);
+    const row = payloadOf(ctxOf(one({ precipitationMm: 2.54 }), "2026-11-10", "ready", miles)).rows[0]!;
+    expect(row.rainValue).toBeCloseTo(0.1, 5);
+  });
+
+  it("gives rain in the reader's unit, unrounded", () => {
+    const row = payloadOf(ctxOf(one({ precipitationMm: 2.14 }), "2026-11-10", "ready", km)).rows[0]!;
+    expect(row.rainValue).toBe(2.14);
   });
 });
