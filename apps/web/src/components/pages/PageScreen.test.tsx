@@ -621,7 +621,7 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
   // ("Unable to find role=group and name Trip days"). Nobody clicks twice in
   // one frame; `userEvent` does, whenever the suite is running quickly enough,
   // which is why this failed in the full file and passed alone
-  // (KI-2026-10-01-a).
+  // (KI-2026-10-01-b).
   async function insertFromRail(name: RegExp) {
     // Heard as the editor's own `focus` event, listened for BEFORE the click so
     // it cannot be missed — not read off `document.activeElement`, which the

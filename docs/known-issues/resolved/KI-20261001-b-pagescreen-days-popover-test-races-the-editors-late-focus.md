@@ -1,4 +1,4 @@
-### KI-2026-10-01-a — `PageScreen.test.tsx` "closes the settings panel when the selection leaves" fails with `Unable to find role="group" and name "Trip days"` — RESOLVED
+### KI-2026-10-01-b — `PageScreen.test.tsx` "closes the settings panel when the selection leaves" fails with `Unable to find role="group" and name "Trip days"` — RESOLVED
 
 - **Severity:** reliability (a unit test that fails most full-file runs and passes alone;
   no product behaviour is wrong).
