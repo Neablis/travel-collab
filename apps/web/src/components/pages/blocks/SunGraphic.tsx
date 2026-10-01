@@ -12,32 +12,43 @@ import { CITY_FILL, CITY_INK, CITY_OUTLINE, type CityAccents } from "../cityAcce
 // There is no legend and no sentence under the graphic.
 //
 // **A polar day says so in words**, where the sunrise would be: there are no
-// two times to print. Its ribbon is the whole axis, or absent. `data-state`
-// carries the same fact for a test, which may not read a class.
+// two times to print. The words are the payload's (`row.words`). Its ribbon is
+// the whole axis, or absent. `data-state` carries the same fact for a test,
+// which may not read a class.
 //
-// **It never scrolls sideways.** The label and daylight columns are fixed, the
-// ribbon takes what is left, and no row has a minimum width. From `@lg` the
-// sunrise and sunset sit at the ribbon's two ends, as the design draws them.
-// Under it there is no room for two more columns beside a ribbon worth
-// drawing, so they drop beneath it, still at its ends. The step is on the
-// block's OWN width (a container query), as the weather graphic's is.
+// **It never scrolls sideways.** No row has a minimum width, and the ribbon
+// takes what the fixed columns leave. The layout steps on the block's OWN
+// width (a container query), as the weather graphic's does, and twice:
+//
+// - Under `@md` a row is two lines, as the weather graphic's is: the city and
+//   its day on one line at the row's full width; beneath it the ribbon, with
+//   the sunrise and sunset under its two ends, and the daylight beside it. In
+//   a 273px block (a 375px viewport) that is 271px inside the frame's border
+//   and 247px inside the row's padding; less the 56px of daylight and an 8px
+//   gap, the ribbon is 183px. In a 218px block (a 320px viewport) it is 128px.
+// - From `@md` the label is a column beside the ribbon, the city over its day.
+// - From `@lg` the sunrise and sunset sit at the ribbon's two ends, as the
+//   design draws them; under it there is no room for two more columns beside
+//   a ribbon worth drawing, so they stay beneath it.
+//
+// Under `@md` every other tick is a gridline without a label: "midnight" and
+// "6a" side by side need 36px between ticks, and a whole day on a 128px ribbon
+// gives them 32px.
 //
 // A row has a minimum height, not a fixed one: "12:03 am (next day)" wraps in
 // its column rather than being cut. The sun is a function of the trip, not of
 // today, so a row never changes height under a reader (ADR-044's concern).
 
-const LABEL = "w-20 shrink-0 @lg:w-24";
+const LABEL = "w-full min-w-0 @md:w-20 @md:shrink-0 @lg:w-24";
 // "14h 35m" is seven mono characters: 51px at text-xs.
 const LENGTH = "w-14 shrink-0 text-right";
-const ROW = "flex w-full items-center gap-2 px-3 @lg:gap-2.5 @lg:px-4";
-// The ribbon and its two times. Wrapping puts the ribbon on its own line when
-// narrow; from `@lg` the three sit in the design's order on one.
+const ROW = "flex w-full flex-wrap items-center gap-x-2 gap-y-1 px-3 @md:flex-nowrap @lg:gap-x-2.5 @lg:px-4";
+// The ribbon and its two times. Wrapping puts the ribbon on its own line under
+// `@lg`; from it the three sit in the design's order on one.
 const SPAN = "flex min-w-0 flex-1 flex-wrap items-center justify-between gap-x-2 gap-y-1 @lg:flex-nowrap @lg:gap-x-2.5";
 // 80px from `@lg`: "(next day)" is ten mono characters, 72px at text-xs.
 const EDGE = "max-w-full @lg:order-none @lg:w-20 @lg:shrink-0";
 const TRACK = "relative order-first block w-full @lg:order-none @lg:w-auto @lg:min-w-0 @lg:flex-1";
-
-const POLAR = { "up-all-day": "sun up all day", "down-all-day": "sun down all day" } as const;
 
 const clampOn = (axis: SunAxis) => (minute: number) => Math.min(axis.endMinute, Math.max(axis.startMinute, minute));
 const percentOn = (axis: SunAxis) => (minute: number) =>
@@ -47,15 +58,15 @@ function Ticks({ axis }: { axis: SunAxis }) {
   const at = percentOn(axis);
   return (
     <span aria-hidden className={cn(ROW, "h-5")}>
-      <span className={LABEL} />
+      <span className={cn(LABEL, "hidden @md:block")} />
       <span className={SPAN}>
         <span className={cn(EDGE, "hidden @lg:block")} />
         <span className={cn(TRACK, "h-4")}>
-          {axis.ticks.map((tick) => (
+          {axis.ticks.map((tick, i) => (
             <DataText
               key={tick.minute}
               size="xs"
-              className="absolute -translate-x-1/2 whitespace-nowrap"
+              className={cn("absolute -translate-x-1/2 whitespace-nowrap", i % 2 === 1 && "hidden @md:inline")}
               // eslint-disable-next-line no-restricted-syntax -- a tick's place on the axis is data; no token can name it
               style={{ left: `${at(tick.minute)}%` }}
             >
@@ -73,9 +84,11 @@ function Ticks({ axis }: { axis: SunAxis }) {
 /**
  * Where the ribbon sits on the axis, and how far in from each end its golden
  * hour reaches — as shares of the RIBBON, since they are drawn inside it. A
- * sunset past the axis's end stops at it, and its golden hour with it.
+ * sunset past the axis's end stops at it, and its golden hour with it. A sun
+ * down all day has no ribbon (`null`); one up all day has the whole axis and no
+ * golden ends, since it has no sunrise or sunset for them to lead in from.
  */
-function ribbonOf(row: SunRow, axis: SunAxis) {
+export function ribbonOf(row: SunRow, axis: SunAxis) {
   if (row.state === "down-all-day") return null;
   if (row.sunriseMinute === null || row.sunsetMinute === null) return { left: 0, width: 100, morning: 0, evening: 0 };
   const clamp = clampOn(axis);
@@ -131,13 +144,16 @@ function Ribbon({ row, axis, accents }: { row: SunRow; axis: SunAxis; accents: C
 function Row({ row, axis, accents }: { row: SunRow; axis: SunAxis; accents: CityAccents }) {
   return (
     <span role="row" data-state={row.state} className={cn(ROW, "min-h-10 border-t border-hairline py-1.5")}>
-      <span role="rowheader" className={cn(LABEL, "flex min-w-0 flex-col leading-tight")}>
+      <span
+        role="rowheader"
+        className={cn(LABEL, "flex items-baseline gap-2 leading-tight @md:flex-col @md:items-stretch @md:gap-0")}
+      >
         {/* A row with no city is headed by its day, so the day is not said twice. */}
-        <span className={cn("truncate text-sm font-medium", CITY_INK[accents.ofCity(row.city)])}>
+        <span className={cn("min-w-0 truncate text-sm font-medium", CITY_INK[accents.ofCity(row.city)])}>
           {row.city ?? row.label}
         </span>
         {row.city === null ? null : (
-          <DataText size="xs" className="truncate">
+          <DataText size="xs" className="shrink-0 truncate">
             {row.label}
           </DataText>
         )}
@@ -149,7 +165,7 @@ function Row({ row, axis, accents }: { row: SunRow; axis: SunAxis; accents: City
           size="xs"
           className={cn(EDGE, "order-1 leading-tight @lg:text-right", row.state === "normal" && "text-ink")}
         >
-          {row.state === "normal" ? row.sunrise : POLAR[row.state]}
+          {row.words ?? row.sunrise}
         </DataText>
         <Ribbon row={row} axis={axis} accents={accents} />
         <DataText role="cell" aria-label="sunset" size="xs" className={cn(EDGE, "order-2 text-right leading-tight text-ink @lg:text-left")}>

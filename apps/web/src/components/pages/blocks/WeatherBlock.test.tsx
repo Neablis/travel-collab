@@ -78,11 +78,22 @@ describe("the weather block", () => {
       ["13°C", "4°C", "3.46 mm"],
     ]);
     for (const row of rows) expect(within(row).getAllByTestId("weather-range")).toHaveLength(1);
-    // The sky is the forecast's alone: an average has none. No mode words.
+    // The sky is the forecast's alone: an average has none.
     expect(screen.getAllByRole("rowheader").map((h) => h.textContent)).toEqual([
-      "KyotoDay 3 · Light rain",
-      "KyotoDay 4",
+      "KyotoDay 3 · Light rainForecast",
+      "KyotoDay 4Typical",
     ]);
+  });
+
+  // Line style is presentation, and a screen reader does not get it: on the
+  // default view the row's own header has to say which the numbers are.
+  it("names each graphic row's source in its header's accessible name, and says nothing for a row with none", () => {
+    view(trip(), { points: [point(TODAY, DOWN), point("2026-11-13"), point("2026-11-30", BEYOND)] });
+    const [unknownRow, forecastRow, typicalRow] = dataRows();
+    expect(within(forecastRow!).getByRole("rowheader", { name: /Forecast/ })).toBeTruthy();
+    expect(within(forecastRow!).queryByRole("rowheader", { name: /Typical/ })).toBeNull();
+    expect(within(typicalRow!).getByRole("rowheader", { name: /Typical/ })).toBeTruthy();
+    expect(within(unknownRow!).queryByRole("rowheader", { name: /Forecast|Typical/ })).toBeNull();
   });
 
   it("has no column headers in the graphic, whatever `headings` says", () => {
