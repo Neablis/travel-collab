@@ -1,4 +1,5 @@
 import type { WeatherSource } from "@tc/contracts";
+import type { WidgetView } from "./widgetView";
 
 // What `day.weather` resolves to (M14 link 11, ADR-052). Its own file for
 // `chartPayloads.ts`' reason: the block's payload can grow without every other
@@ -13,14 +14,11 @@ import type { WeatherSource } from "@tc/contracts";
  * Which of decision 3's rows a (day, city) landed on.
  *
  * `past` and `no-forecast` are both "typical" (the month's average), told
- * apart because their words differ: a day already gone is *"Past day · …"*, and
- * a forecast that did not answer inside the horizon is the average rather than
- * nothing (review point 4).
+ * apart in `modeText` alone: a day already gone is *"Past day · …"*, and a
+ * forecast that did not answer inside the horizon is the average rather than
+ * nothing (review point 4). On the block both read as Typical (`source`).
  */
 export type WeatherMode = "forecast" | "today" | "typical" | "past" | "no-forecast" | "unavailable";
-
-/** How the block draws: the graphic by default, the table on request. */
-export type WeatherView = "graphic" | "table";
 
 /** Where a row's numbers come from: the forecast, or the month's average. */
 export type WeatherRowSource = "forecast" | "typical";
@@ -44,7 +42,11 @@ export interface WeatherRow {
   date: string;
   city: string | null;
   mode: WeatherMode;
-  /** The mode in words, always — the gate box's "each naming its mode in words". */
+  /**
+   * The mode in words, always. No view prints it since 2026-10-01 (ADR-052's
+   * amendment of that date): a reader is told `source` instead, by line style
+   * in the graphic and by a word in the table.
+   */
   modeText: string;
   /** Today only: the first hour still to come. */
   now: string | null;
@@ -91,7 +93,7 @@ export interface WeatherPayload {
   /** Whether the table opens with its column headings — the widget's `headings` param, shown unless turned off. */
   headings: boolean;
   /** The widget's `view` param, the graphic unless the author chose the table. */
-  view: WeatherView;
+  view: WidgetView;
   /** Shared by every row's bar. */
   axis: WeatherAxis;
   /** The block in one sentence, for its accessible name. */

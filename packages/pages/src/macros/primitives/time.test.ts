@@ -111,6 +111,16 @@ describe("day.sun", () => {
     expect(payload.axis.startMinute).toBeLessThan(300);
   });
 
+  // 3 am to midnight is eight three-hour ticks, and eight labels collide over
+  // a ribbon. A widened axis is ticked every six hours instead.
+  it("ticks a widened axis every six hours, never more than five labels", () => {
+    const { axis } = sun(contextOf(trip()));
+    expect(axis.ticks).toEqual([
+      { minute: 360, label: "6a" }, { minute: 720, label: "noon" },
+      { minute: 1080, label: "6p" }, { minute: 1440, label: "midnight" },
+    ]);
+  });
+
   it("keeps the base axis, 5 am to 6 pm, for a day that fits inside it", () => {
     const { axis } = sun(contextOf(equinox()));
     expect(axis).toMatchObject({ startMinute: 300, endMinute: 1080 });
@@ -128,7 +138,8 @@ describe("day.sun", () => {
     expect(tokyo!.sunrise).toMatch(/^04:2[4-7]$/);
     expect(tokyo!.sunset).toMatch(/^(18:5[89]|19:0[0-2])$/);
     expect(reykjavik!.sunset).toMatch(/^00:0\d \(next day\)$/);
-    expect(payload.axis.ticks.map((tick) => tick.label)).toContain("06:00");
+    // The axis says the hour alone: "06:00" five times over does not fit a phone's ribbon.
+    expect(payload.axis.ticks.map((tick) => tick.label)).toEqual(["06", "12", "18", "00"]);
   });
 
   // West of 180° on UTC+13: the day's own sun, never the next day's marked
@@ -155,14 +166,17 @@ describe("day.sun", () => {
     const NO_TIMES = { sunriseMinute: null, sunsetMinute: null, sunrise: null, sunset: null };
     const payload = sun(contextOf(polar));
     expect(payload.rows).toMatchObject([
-      { state: "up-all-day", daylight: "24h", ...NO_TIMES },
-      { state: "down-all-day", daylight: "0h", ...NO_TIMES, goldenMorningEndMinute: null, goldenEveningStartMinute: null },
+      { state: "up-all-day", words: "sun up all day", daylight: "24h", ...NO_TIMES },
+      {
+        state: "down-all-day", words: "sun down all day", daylight: "0h", ...NO_TIMES,
+        goldenMorningEndMinute: null, goldenEveningStartMinute: null,
+      },
     ]);
+    // The words are a polar day's alone: a day with two times prints those.
+    expect(sun(contextOf(equinox())).rows.map((row) => row.words)).toEqual([null]);
     // A sun that is up all day needs the whole day to be drawn across.
     expect(payload.axis).toMatchObject({ startMinute: 0, endMinute: 1440 });
-    expect(payload.axis.ticks.map((tick) => tick.label)).toEqual([
-      "midnight", "3a", "6a", "9a", "noon", "3p", "6p", "9p", "midnight",
-    ]);
+    expect(payload.axis.ticks.map((tick) => tick.label)).toEqual(["midnight", "6a", "noon", "6p", "midnight"]);
   });
 
   it("asks for dates when the located days have none", () => {

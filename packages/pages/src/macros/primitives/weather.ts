@@ -10,6 +10,7 @@ import { filterInputs, filterParams } from "../../filters";
 import { narrow, pinnedCity } from "../../select";
 import { readSlot } from "../../external";
 import { dayLabel, formatShortDate } from "../../format";
+import { VIEW_INPUT, viewParam } from "../../widgetView";
 
 // `day.weather` — "Weather" (M14 link 11), the first widget whose data the trip
 // does not hold. ADR-052 is the design; this file is its decisions 3 to 5 and 7.
@@ -32,16 +33,13 @@ const WeatherParams = filterParams(WEATHER_FILTERS, {
   // Absent is shown: *"I have no idea what the columns are without a column
   // header"* (Mitchell, #221 preview) — so only turning them OFF is stored.
   headings: z.boolean().optional(),
-  view: z.enum(["graphic", "table"]).optional(),
+  view: viewParam,
 });
 type WeatherParams = z.infer<typeof WeatherParams>;
 
 const WEATHER_INPUTS: readonly WidgetInput[] = [
   ...filterInputs(WEATHER_FILTERS),
-  {
-    name: "view", type: "choice", label: "Show as", default: "graphic",
-    options: [{ value: "graphic", label: "Graphic" }, { value: "table", label: "Table" }],
-  },
+  VIEW_INPUT,
   { name: "headings", type: "toggle", label: "Column headings", default: true },
 ];
 
@@ -223,20 +221,31 @@ const AXIS_BASE = {
   metric: { min: 5, max: 25, step: 5, unit: "°C" },
 } as const;
 
+// More ticks than this and their labels run into each other over the bars.
+const MAX_TICKS = 8;
+
 /**
  * One scale for the whole block, so a bar in one row means what it does in the
  * next. The base range holds an ordinary trip; it widens, by whole steps, only
  * for a row that would otherwise fall off it.
+ *
+ * A trip of extremes doubles the step until the ticks are few enough to label
+ * (-24…38 °C is eight ticks of 10°, not fourteen of 5°). The ends are snapped
+ * to the step in use, so min and max are always ticks.
  */
 function axisOf(rows: readonly WeatherRow[], units: Units): WeatherAxis {
-  const { min: baseMin, max: baseMax, step, unit } = AXIS_BASE[units];
+  const base = AXIS_BASE[units];
   const lows = rows.flatMap((row) => (row.lowValue === null ? [] : [row.lowValue]));
   const highs = rows.flatMap((row) => (row.highValue === null ? [] : [row.highValue]));
-  const min = lows.length > 0 ? Math.min(baseMin, Math.floor(Math.min(...lows) / step) * step) : baseMin;
-  const max = highs.length > 0 ? Math.max(baseMax, Math.ceil(Math.max(...highs) / step) * step) : baseMax;
+  const lowest = Math.min(base.min, ...lows);
+  const highest = Math.max(base.max, ...highs);
+  let step: number = base.step;
+  const ends = () => ({ min: Math.floor(lowest / step) * step, max: Math.ceil(highest / step) * step });
+  while ((ends().max - ends().min) / step + 1 > MAX_TICKS) step *= 2;
+  const { min, max } = ends();
   const ticks: number[] = [];
   for (let t = min; t <= max; t += step) ticks.push(t);
-  return { min, max, ticks, unit };
+  return { min, max, ticks, unit: base.unit };
 }
 
 const USES_FORECAST: ReadonlySet<WeatherMode> = new Set(["forecast", "today"]);
@@ -244,7 +253,9 @@ const USES_TYPICAL: ReadonlySet<WeatherMode> = new Set(["typical", "past", "no-f
 
 /**
  * `day.weather` — one row per selected (day, city): the forecast when there is
- * one, what's typical when there isn't, and the mode said in words either way.
+ * one, what's typical when there isn't. Which of the two a row is travels as
+ * `source`; the block draws it (a solid bar or a dashed one) or, as a table,
+ * says it in its Source column.
  *
  * The order of answers: a trip first; then **a trip with no days**, which is
  * `empty` with the fix before anything else is read — the one piece of trip
@@ -263,7 +274,7 @@ export const dayWeather: MacroDef<WeatherParams, WeatherPayload> = {
   selection: { entity: "day", filters: WEATHER_FILTERS },
   needs: ["weather"],
   description:
-    "The weather for each selected day at its stops: the forecast when the day is close, what's typical for the month when it is further out or already gone, each labelled. Filter it to a day or a city.",
+    "The weather for each selected day at its stops: the forecast when the day is close, what's typical for the month when it is further out or already gone. Drawn as a temperature bar per day — solid for a forecast, dashed for typical — or as a table whose Source column says Forecast or Typical. Filter it to a day or a city.",
   emptyText: "add a place to a stop to see this",
   // Fixed, never computed (ADR-037 decision 5) — the ADR's own wording.
   preview: "The weather for each day — the forecast when there is one, what's typical when there isn't.",

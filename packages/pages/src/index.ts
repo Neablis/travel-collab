@@ -5,6 +5,7 @@ export * from "./result";
 export * from "./registry-types";
 export * from "./external";
 export * from "./chartPayloads";
+export * from "./widgetView";
 export * from "./weatherPayload";
 export * from "./sunPayload";
 export * from "./registry";

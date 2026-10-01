@@ -325,6 +325,18 @@ describe("day.weather — the graphic's numbers", () => {
     expect(axisOf(one({ highC: 33.9, lowC: -2.2 }), miles)).toMatchObject({ min: 20, max: 100, unit: "°F" });
   });
 
+  // -24…38 °C at the base step is fourteen ticks, whose labels run together.
+  // The step doubles instead, and the ends move out to it so both are ticks.
+  it("doubles the step rather than print more than eight ticks", () => {
+    expect(axisOf(one({ highC: 38, lowC: -24 }), km)).toEqual({
+      min: -30, max: 40, ticks: [-30, -20, -10, 0, 10, 20, 30, 40], unit: "°C",
+    });
+    // -40 °C = -40 °F and 46 °C = 115 °F: sixteen °F at the base step, nine at double, five at four times.
+    expect(axisOf(one({ highC: 46, lowC: -40 }), miles)).toEqual({
+      min: -40, max: 120, ticks: [-40, 0, 40, 80, 120], unit: "°F",
+    });
+  });
+
   it("lets a typical row move the axis too", () => {
     const t = setup(["2026-11-30"], [point("2026-11-30", {
       forecast: { unavailable: "not-in-horizon" }, typical: typicalMonth({ highC: 35, lowC: 12 }),

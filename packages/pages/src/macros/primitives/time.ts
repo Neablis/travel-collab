@@ -11,6 +11,7 @@ import { clockIn, isKnownZone, noonIn, offsetMinutes } from "../../clock";
 import { dayLabel } from "../../format";
 import { readerClock, toClockLabel } from "../../clockLabel";
 import { sunEvents, type SunEvents, type SunTime } from "../../sun";
+import { VIEW_INPUT, viewParam } from "../../widgetView";
 
 // The two clock widgets of M14 link 11 (widget brainstorm tier B): the sun on a
 // day, and how far a day's clock is from home. Both are day primitives — entity
@@ -61,16 +62,10 @@ function locatedDay(globals: TripGlobals, index: number, city: string | undefine
 // day.sun
 // ---------------------------------------------------------------------------
 
-const SunParams = filterParams(TIME_FILTERS, { view: z.enum(["graphic", "table"]).optional() });
+const SunParams = filterParams(TIME_FILTERS, { view: viewParam });
 type SunParams = z.infer<typeof SunParams>;
 
-const SUN_INPUTS: readonly WidgetInput[] = [
-  ...filterInputs(TIME_FILTERS),
-  {
-    name: "view", type: "choice", label: "Show as", default: "graphic",
-    options: [{ value: "graphic", label: "Graphic" }, { value: "table", label: "Table" }],
-  },
-];
+const SUN_INPUTS: readonly WidgetInput[] = [...filterInputs(TIME_FILTERS), VIEW_INPUT];
 
 const DAY_MINUTES = 1440;
 
@@ -94,7 +89,8 @@ function onDay(instant: number, zone: string, date: string, format: TimeFormat):
 
 /**
  * One day's row. A polar day takes its state from whichever edge the sun never
- * crosses, and has no times: there are no two to print.
+ * crosses, and has no times: there are no two to print, so it carries the
+ * `words` both views print in their place.
  *
  * The golden hours are where the sun is under six degrees (`sun.ts`); a sun
  * that never climbs that high, or never drops that low, has no edge to draw.
@@ -109,12 +105,16 @@ function sunRow(
     goldenEveningStartMinute: minuteOf(sun.goldenEveningStart),
   };
   const none = { sunriseMinute: null, sunsetMinute: null, sunrise: null, sunset: null };
-  if (sun.sunrise === "up" || sun.sunset === "up") return { ...base, ...none, state: "up-all-day", daylight: "24h" };
-  if (sun.sunrise === "down" || sun.sunset === "down") return { ...base, ...none, state: "down-all-day", daylight: "0h" };
+  if (sun.sunrise === "up" || sun.sunset === "up") {
+    return { ...base, ...none, state: "up-all-day", words: "sun up all day", daylight: "24h" };
+  }
+  if (sun.sunrise === "down" || sun.sunset === "down") {
+    return { ...base, ...none, state: "down-all-day", words: "sun down all day", daylight: "0h" };
+  }
   const sunrise = at(sun.sunrise);
   const sunset = at(sun.sunset);
   return {
-    ...base, state: "normal",
+    ...base, state: "normal", words: null,
     sunriseMinute: sunrise.minute, sunsetMinute: sunset.minute, sunrise: sunrise.label, sunset: sunset.label,
     daylight: formatKind("duration", Math.round((sun.sunset - sun.sunrise) / 60_000), { currency }),
   };
@@ -122,10 +122,14 @@ function sunRow(
 
 // The design's clock: 5 am to 6 pm, a tick every three hours.
 const AXIS_BASE = { start: 300, end: 1080, step: 180 } as const;
+// More than this many labels cannot sit side by side over a phone's ribbon.
+const MAX_TICKS = 5;
 
+// Short on purpose: a label sits over a ribbon that can be under 100px wide, so
+// a 24-hour reader gets the hour alone ("06"), not "06:00".
 function tickLabel(minute: number, format: TimeFormat): string {
   const hour = (minute / 60) % 24;
-  if (format === "24h") return toClockLabel(`${hour}:00`, format);
+  if (format === "24h") return String(hour).padStart(2, "0");
   if (hour === 0) return "midnight";
   if (hour === 12) return "noon";
   return `${hour % 12}${hour < 12 ? "a" : "p"}`;
@@ -136,6 +140,9 @@ function tickLabel(minute: number, format: TimeFormat): string {
  * widens, by whole hours, to the trip's earliest sunrise and latest sunset, and
  * never past the day itself — a sunset after midnight clamps to the axis's end
  * and keeps its "(next day)" label. A sun up all day is drawn across all of it.
+ *
+ * A widened axis that would carry more than five three-hour ticks carries
+ * six-hour ones instead: the whole day is five labels, not nine.
  */
 function axisOf(rows: readonly SunRow[], format: TimeFormat): SunAxis {
   const rises = rows.flatMap((row) => (row.sunriseMinute === null ? [] : [row.sunriseMinute]));
@@ -145,11 +152,16 @@ function axisOf(rows: readonly SunRow[], format: TimeFormat): SunAxis {
   const endMinute = allDay
     ? DAY_MINUTES
     : Math.min(DAY_MINUTES, Math.max(AXIS_BASE.end, ...sets.map((m) => Math.ceil(m / 60) * 60)));
-  const ticks = [];
-  for (let minute = 0; minute <= DAY_MINUTES; minute += AXIS_BASE.step) {
-    if (minute >= startMinute && minute <= endMinute) ticks.push({ minute, label: tickLabel(minute, format) });
-  }
-  return { startMinute, endMinute, ticks };
+  const every = (step: number) => {
+    const minutes: number[] = [];
+    for (let minute = 0; minute <= DAY_MINUTES; minute += step) {
+      if (minute >= startMinute && minute <= endMinute) minutes.push(minute);
+    }
+    return minutes;
+  };
+  const threeHourly = every(AXIS_BASE.step);
+  const minutes = threeHourly.length > MAX_TICKS ? every(AXIS_BASE.step * 2) : threeHourly;
+  return { startMinute, endMinute, ticks: minutes.map((minute) => ({ minute, label: tickLabel(minute, format) })) };
 }
 
 /**

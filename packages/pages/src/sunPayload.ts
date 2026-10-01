@@ -7,15 +7,14 @@
 // graphic draws from — the day's local clock as a number, on one axis shared
 // by every row.
 
-/** How the block draws: the graphic by default, the table on request. */
-export type SunView = "graphic" | "table";
+import type { WidgetView } from "./widgetView";
 
 /** A day with a sunrise and a sunset, or one the sun spends wholly above or below the horizon. */
 export type SunState = "normal" | "up-all-day" | "down-all-day";
 
 export interface SunAxisTick {
   minute: number;
-  /** In the reader's clock: "6a" / "noon", or "06:00" / "12:00". */
+  /** In the reader's clock, short enough to sit over a narrow axis: "6a" / "noon", or "06" / "12". */
   label: string;
 }
 
@@ -43,9 +42,16 @@ export interface SunRow {
   /** Clock labels in the reader's format, keeping "(next day)" / "(day before)". `null` unless `"normal"`. */
   sunrise: string | null;
   sunset: string | null;
+  /** What a polar day says where its sunrise would be: "sun up all day" / "sun down all day". `null` when `"normal"`. */
+  words: string | null;
   /** "12h 47m"; "24h" for up-all-day, "0h" for down-all-day. */
   daylight: string;
-  /** Where the morning golden hour ends and the evening one starts; `null` when there is none to draw. */
+  /**
+   * Where the morning golden hour ends and the evening one starts; `null` when
+   * the sun never crosses six degrees on that side of the day. A sun up all day
+   * can still carry them (it dips that low without setting); its ribbon has no
+   * end to draw them at, so the graphic leaves them out.
+   */
   goldenMorningEndMinute: number | null;
   goldenEveningStartMinute: number | null;
 }
@@ -53,7 +59,7 @@ export interface SunRow {
 export interface SunPayload {
   kind: "sun";
   /** The widget's `view` param, the graphic unless the author chose the table. */
-  view: SunView;
+  view: WidgetView;
   /** Shared by every row's ribbon. */
   axis: SunAxis;
   rows: SunRow[];
