@@ -1991,15 +1991,18 @@ test("the weather and sun blocks fit a phone's column, as a graphic and as a tab
     source: "nasa-power", month: 6, highC: 28, lowC: 19, precipitationMmPerDay: 6.2,
     period: { fromYear: 2001, throughYear: 2020 },
   };
+  // Each point says its place's date, or the mode is chosen against the real
+  // one and the forecast row turns into a past day once June 2027 has gone.
+  const placeToday = "2027-05-31";
   const points = [
     {
-      date: "2027-06-01", city: TOKYO.city, typical,
+      date: "2027-06-01", city: TOKYO.city, placeToday, typical,
       forecast: {
         source: "met-norway", asOf: "2027-05-31T06:00:00Z", highC: 27.4, lowC: 18.1, precipitationMm: 2.14,
         symbol: "lightrainshowersandthunder_day", hours: [],
       },
     },
-    { date: "2027-06-02", city: KYOTO.city, typical, forecast: { unavailable: "not-in-horizon" } },
+    { date: "2027-06-02", city: KYOTO.city, placeToday, typical, forecast: { unavailable: "not-in-horizon" } },
   ];
   await page.route("**/api/trips/*/weather", (route) => route.fulfill({ json: { weather: { points } } }));
   await openBeforeYouGoOf(page, tripId);

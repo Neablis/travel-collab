@@ -1,7 +1,7 @@
 # Sun and weather widgets — graphic by default, table on request
 
 **Date:** 2026-09-30
-**Status:** design approved by Mitchell 2026-09-30; implementation plan not yet written.
+**Status:** design approved by Mitchell 2026-09-30; built from `docs/plans/2026-10-01-sun-and-weather-widgets.md`.
 **Design source:** `.design-sync/handoff/specs/sun-and-weather-widgets.md`, with geometry in
 `.design-sync/handoff/design/Sun and Weather Widgets.dc.html` (picks **1a** daylight ribbons and
 **2a** temperature rows) and `design/Trip Planner Redesign.dc.html` (Overview → *Before you go*,
