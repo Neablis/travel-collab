@@ -109,28 +109,28 @@ test("probeBrowser finds the macOS cache, which is not under ~/.cache", () => {
   // Playwright browsers — e2e cannot run here", and a session believed it and
   // skipped running a spec it had just edited.
   const cache = "/Users/m/Library/Caches/ms-playwright";
-  const r = probeBrowser(only(cache), { HOME: "/Users/m" }, "darwin");
+  const r = probeBrowser(only(cache), {}, "darwin", "/Users/m");
   assert.equal(r.status, "OK");
   assert.ok(r.note.includes(cache), r.note);
 });
 
 test("probeBrowser finds the Windows cache under %LOCALAPPDATA%", () => {
   const cache = "C:\\Users\\m\\AppData\\Local\\ms-playwright";
-  const r = probeBrowser(only(cache), { LOCALAPPDATA: "C:\\Users\\m\\AppData\\Local" }, "win32");
+  const r = probeBrowser(only(cache), { LOCALAPPDATA: "C:\\Users\\m\\AppData\\Local" }, "win32", "D:\\elsewhere");
   assert.equal(r.status, "OK");
   assert.ok(r.note.includes(cache), r.note);
 });
 
 test("probeBrowser finds the Linux cache, honouring XDG_CACHE_HOME as Playwright does", () => {
-  const home = probeBrowser(only("/root/.cache/ms-playwright"), { HOME: "/root" }, "linux");
+  const home = probeBrowser(only("/root/.cache/ms-playwright"), {}, "linux", "/root");
   assert.equal(home.status, "OK");
   assert.ok(home.note.includes("/root/.cache/ms-playwright"), home.note);
-  const xdg = probeBrowser(only("/xdg/ms-playwright"), { HOME: "/root", XDG_CACHE_HOME: "/xdg" }, "linux");
+  const xdg = probeBrowser(only("/xdg/ms-playwright"), { XDG_CACHE_HOME: "/xdg" }, "linux", "/root");
   assert.equal(xdg.status, "OK");
 });
 
 test("probeBrowser prefers PLAYWRIGHT_BROWSERS_PATH and reports it", () => {
-  const r = probeBrowser(only("/opt/pw"), { PLAYWRIGHT_BROWSERS_PATH: "/opt/pw", HOME: "/root" }, "linux");
+  const r = probeBrowser(only("/opt/pw"), { PLAYWRIGHT_BROWSERS_PATH: "/opt/pw" }, "linux", "/root");
   assert.equal(r.status, "OK");
   assert.ok(r.note.includes("/opt/pw"), r.note);
 });
@@ -138,8 +138,23 @@ test("probeBrowser prefers PLAYWRIGHT_BROWSERS_PATH and reports it", () => {
 test("probeBrowser does not accept another platform's cache — never a false OK", () => {
   // Playwright on macOS does not read ~/.cache; a leftover directory there
   // (a synced dotfile tree, say) must not turn a browserless Mac green.
-  const r = probeBrowser(only("/Users/m/.cache/ms-playwright"), { HOME: "/Users/m" }, "darwin");
+  const r = probeBrowser(only("/Users/m/.cache/ms-playwright"), {}, "darwin", "/Users/m");
   assert.equal(r.status, "BLOCKED");
-  assert.equal(probeBrowser(only(), { HOME: "/root" }, "linux").status, "BLOCKED");
-  assert.equal(probeBrowser(only(), {}, "win32").status, "BLOCKED");
+  assert.equal(probeBrowser(only(), {}, "linux", "/root").status, "BLOCKED");
+  assert.equal(probeBrowser(only(), {}, "win32", "C:\\Users\\m").status, "BLOCKED");
+});
+
+test("probeBrowser falls back to the home directory when the env vars are absent", () => {
+  // Playwright 1.62.1 resolves its cache from os.homedir(), not $HOME, and on
+  // Windows uses <home>\\AppData\\Local when LOCALAPPDATA is unset. A probe that
+  // needs the variables reports BLOCKED on a box Playwright can use. Copilot,
+  // PR #287.
+  const mac = probeBrowser(only("/Users/m/Library/Caches/ms-playwright"), {}, "darwin", "/Users/m");
+  assert.equal(mac.status, "OK");
+  const linux = probeBrowser(only("/root/.cache/ms-playwright"), {}, "linux", "/root");
+  assert.equal(linux.status, "OK");
+  const winCache = "C:\\Users\\m\\AppData\\Local\\ms-playwright";
+  const win = probeBrowser(only(winCache), {}, "win32", "C:\\Users\\m");
+  assert.equal(win.status, "OK");
+  assert.ok(win.note.includes(winCache), win.note);
 });

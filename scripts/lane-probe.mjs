@@ -46,6 +46,7 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
+import { homedir } from "node:os";
 import { join, win32 } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -182,25 +183,30 @@ function probeDatabase() {
 // directory counts: this probe once knew the Linux path alone, so every Mac
 // with browsers installed was told "e2e cannot run here" — and a session
 // believed it and skipped a spec it had edited (2026-10-01).
-function playwrightCacheDir(env, platform) {
-  if (platform === "darwin") {
-    return env.HOME ? join(env.HOME, "Library", "Caches", "ms-playwright") : null;
-  }
+// This mirrors playwright-core 1.62.1's `defaultCacheDirectory`, which takes
+// the home directory from os.homedir(), not $HOME — so an unset variable is
+// not a missing cache.
+function playwrightCacheDir(env, platform, home) {
+  if (platform === "darwin") return join(home, "Library", "Caches", "ms-playwright");
   if (platform === "win32") {
     // win32.join so the answer is the same whichever OS computes it.
-    return env.LOCALAPPDATA ? win32.join(env.LOCALAPPDATA, "ms-playwright") : null;
+    return win32.join(env.LOCALAPPDATA || win32.join(home, "AppData", "Local"), "ms-playwright");
   }
-  const base = env.XDG_CACHE_HOME || (env.HOME ? join(env.HOME, ".cache") : null);
-  return base ? join(base, "ms-playwright") : null;
+  return join(env.XDG_CACHE_HOME || join(home, ".cache"), "ms-playwright");
 }
 
-export function probeBrowser(fs = { existsSync }, env = process.env, platform = process.platform) {
+export function probeBrowser(
+  fs = { existsSync },
+  env = process.env,
+  platform = process.platform,
+  home = homedir(),
+) {
   const envPath = env.PLAYWRIGHT_BROWSERS_PATH;
   if (envPath && fs.existsSync(envPath)) {
     return { status: OK, note: `browsers at ${envPath}` };
   }
-  const cache = playwrightCacheDir(env, platform);
-  if (cache && fs.existsSync(cache)) {
+  const cache = playwrightCacheDir(env, platform, home);
+  if (fs.existsSync(cache)) {
     return { status: OK, note: `browsers at ${cache}` };
   }
   return {
