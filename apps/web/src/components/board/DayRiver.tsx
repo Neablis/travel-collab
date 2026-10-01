@@ -247,8 +247,8 @@ export function DayRiver({
   useEffect(() => {
     const element = riverRef.current;
     if (!element || !placing) return;
-    // Every drag source lands by the same rule — a block, a shelf card, a stop
-    // off the rack (`placeWindow`).
+    // Every drag source lands by the same rule — a block, or a card
+    // off the rack, day-less or untimed on a day (`placeWindow`).
     const windowFor = (clientY: number, source: Record<string | symbol, unknown>) =>
       placeWindow(latest.current.axis, clientY - element.getBoundingClientRect().top, source, latest.current.activities);
     const show = ({ self }: { self: { data: Record<string | symbol, unknown> } }) => {
@@ -688,7 +688,7 @@ function RiverGhost({ ghost, axis, clock }: { ghost: Ghost; axis: RiverAxis; clo
       // eslint-disable-next-line no-restricted-syntax -- the outline's top and height are its window on the shared axis, computed geometry
       style={{
         top: minuteToPx(axis, ghost.window.start),
-        height: Math.max(10, minuteToPx({ t0: 0 }, ghost.window.end - ghost.window.start)),
+        height: Math.max(10, minuteToPx({ t0: 0, pxPerHour: axis.pxPerHour }, ghost.window.end - ghost.window.start)),
       }}
     >
       <DataText

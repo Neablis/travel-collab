@@ -7,9 +7,9 @@ import { route } from "@/server/public-api/route";
 //
 // **No quota beyond the wrapper's.** A geocode lookup is charged because it
 // spends the operator's LocationIQ allowance per call; this reads a column of
-// this database. The place search that does spend it is
-// `GET /v1/trips/{tripId}/geocode`, which needs `trips:write` and a trip for
-// exactly that reason.
+// this database. The place searches that do spend it are
+// `GET /v1/trips/{tripId}/geocode` (`trips:write` and a trip) and
+// `GET /v1/geocode` (`places:read`, with its own per-token daily ceiling).
 
 /**
  * A cursor this endpoint minted, or `null`.

@@ -19,9 +19,10 @@
 //     second stop and every one of these days still ENDS in the city the
 //     export named, so correcting them no longer retags whole days — which is
 //     exactly the regression the 2026-08-29 attempt measured and reverted.
-//   - `detectConflicts`'s `transitExcusesDistance` (KI-60) stopped flagging a
-//     relocation the day's own shinkansen accounts for, so a travel day that
-//     honestly spans two cities does not light up as "same day, ~400km apart".
+//   - `detectConflicts` (KI-60) stopped flagging a relocation the day's own
+//     shinkansen accounts for, so a travel day that honestly spans two cities
+//     does not light up as "same day, ~400km apart". (Since 2026-09-30 any
+//     transit stop on a day excuses every distance on it.)
 //
 // The values are facts about geography, not judgement calls, and each entry
 // says which fact so a reader can check it against a map rather than trust it.

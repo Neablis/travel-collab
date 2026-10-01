@@ -8,7 +8,7 @@ import { useTrip } from "@/components/trip/context/TripProvider";
 import { useEditor } from "@/components/trip/context/EditorHost";
 import { useDaySync, useFocus } from "@/components/trip/context/FocusProvider";
 import { useLens } from "@/components/trip/context/LensRouter";
-import { chipModel } from "@/lib/dayChips";
+import { chipModel, cityFor } from "@/lib/dayChips";
 import { DayChips } from "@/components/trip/DayChips";
 import { MapLens } from "@/components/lenses/MapLens";
 import { CalendarLens } from "@/components/lenses/CalendarLens";
@@ -24,13 +24,14 @@ import { PageContainer } from "@/components/ui/page-container";
 import { TripHeader } from "@/components/trip/TripHeader";
 import { AddSavedDayButton } from "@/components/trip/AddSavedDayButton";
 import { ActivityEditorSheet } from "@/components/trip/editor/ActivityEditorSheet";
-import { UnscheduledRack } from "@/components/trip/UnscheduledRack";
+import { type RackItem, UnscheduledRack } from "@/components/trip/UnscheduledRack";
 import { fitIntoDay } from "@/components/trip/fitIntoDay";
 import { rackDropWindow } from "./rackDropWindow";
-import { type PlaceOutcome, placeCommands } from "./resolveDrop";
+import { kindBadge } from "./activityKind";
+import { type AnyTimeOutcome, anyTimeCommands, type PlaceOutcome, placeCommands } from "./resolveDrop";
 import { lensAcceptsDrops } from "./lensAcceptsDrops";
 import { rackDisclosure, type RackDisclosure, type RackEvent } from "@/components/trip/rackDisclosure";
-import { shortPlace } from "@/lib/place";
+import { legRoute, shortPlace } from "@/lib/place";
 import { isDemoTripId } from "@/lib/demoTrip";
 import { isInviteLook } from "@/lib/inviteLook";
 import { dayLabel } from "@/lib/dates";
@@ -291,6 +292,14 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // reducer with its own unit tests), not here.
   const [rack, setRack] = useState<RackDisclosure>({ open: false, openedByDrag: false });
   const onRackEvent = (event: RackEvent) => setRack((state) => rackDisclosure(state, event));
+  // The day whose group a column's "Unscheduled" chip last asked the rack to
+  // show (PR #269). `seq` so a second click on the same chip reveals again —
+  // after the reader has scrolled the rack elsewhere, say.
+  const [rackReveal, setRackReveal] = useState<{ dayId: string; seq: number } | null>(null);
+  const revealAnyTime = (dayId: string) => {
+    setRackReveal((prev) => ({ dayId, seq: (prev?.seq ?? 0) + 1 }));
+    onRackEvent({ type: "reveal" });
+  };
   // CodeRabbit (PR #46 final review): the assistant's minimized launcher and
   // the unscheduled rack are both independently `position: fixed` to the
   // viewport (see UnscheduledRack's own comment for why the rack can't just
@@ -433,21 +442,46 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // "whereabouts": KI-35's exact defect, at a call site that entry never
   // named. Now that Location carries a real `area`, the helper is what fills
   // it honestly, and the rack agrees with every other place line in the app.
+  // A transit leg with a destination fills the slot with both ends instead
+  // ("Taipei → Tainan", `legRoute()`; Mitchell, 2026-09-30, option "B"): its
+  // mode is already the card's badge, and where it goes was nowhere.
   // A backlog id with no matching activity is dropped rather than rendered as
   // a blank card.
-  const rackItems = activeTrip.backlog.flatMap((activityId) => {
+  //
+  // **Then every day's untimed stops, day by day** (PR #269). Mitchell, on the
+  // board's "Any time" shelf: *"Maybe anything without a time is in
+  // unscheduled?"*, then *"not sure how we should show the date ownership
+  // still in the unscheduled rack"*. Only where they are drawn changes — each
+  // keeps its day in the trip — so each carries that day: `Day N` as the
+  // card's tag, and `Day N · City` over its group, in the §35.7 form the
+  // Keep-a-day picker and the map's hover card already use, with the city
+  // from the same `cityFor` the day chips read.
+  const rackItem = (activityId: string, day: RackItem["day"]): RackItem[] => {
     const activity = activeTrip.activities[activityId];
     if (activity === undefined) return [];
     return [
       {
         activityId,
         title: activity.title,
-        area: shortPlace(activity.location),
+        area: legRoute(activity) ?? shortPlace(activity.location),
         timeWindow: activity.timeWindow,
         bookedBy: activity.bookedBy,
+        day,
+        badge: kindBadge(activity),
       },
     ];
-  });
+  };
+  const rackItems = [
+    ...activeTrip.backlog.flatMap((activityId) => rackItem(activityId, null)),
+    ...activeTrip.days.flatMap((day, index) => {
+      const city = cityFor(day, activeTrip.activities);
+      const tag = `Day ${index + 1}`;
+      const owner = { dayId: day.dayId, tag, heading: city === null ? tag : `${tag} · ${city}` };
+      return day.activityIds
+        .filter((activityId) => !activeTrip.activities[activityId]?.timeWindow)
+        .flatMap((activityId) => rackItem(activityId, owner));
+    }),
+  ];
   const rackDayOptions = activeTrip.days.map((day, index) => ({
     value: day.dayId,
     label: dayLabel(activeTrip.startDate, index),
@@ -458,6 +492,14 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // UpdateActivity gives it the real times fitIntoDay picks from the day's
   // existing windows. Both go through dispatch, so both land in the existing
   // undo history like every other mutation — no special-casing needed.
+  //
+  // **A stop already on a day** (an untimed one, in the rack under its day
+  // since PR #269) goes through the same picker with the same meaning: "put
+  // this on that day's timeline". So it is given a time on whichever day is
+  // picked, its own included — the time is what takes it out of the rack, as
+  // the day is for a parked stop. Picking its own day skips the move, which
+  // would change nothing and still cost an undo step. Moving it to another
+  // day while leaving it untimed is a drop on that day's "Unscheduled" chip.
   const assignFromRack = (activityId: string, dayId: string) => {
     const day = activeTrip.days.find((d) => d.dayId === dayId);
     if (day === undefined) return;
@@ -466,7 +508,9 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
       .map((id) => activeTrip.activities[id]?.timeWindow)
       .filter((w): w is { start: string; end: string } => w !== null && w !== undefined);
 
-    void dispatch({ type: "MoveActivity", tripId, activityId, toDayId: dayId, position: day.activityIds.length });
+    if (!day.activityIds.includes(activityId)) {
+      void dispatch({ type: "MoveActivity", tripId, activityId, toDayId: dayId, position: day.activityIds.length });
+    }
     void dispatch({ type: "UpdateActivity", tripId, activityId, timeWindow: fitIntoDay(existing) });
   };
 
@@ -509,6 +553,17 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // `resolveDrop` has already left out whichever half changes nothing.
   const placeActivity = (outcome: PlaceOutcome) => {
     const commands = placeCommands(tripId, outcome);
+    if (commands.length > 0) void dispatchBatch(commands);
+  };
+
+  // A drop on a day's "Unscheduled" chip (PR #269): the day, and no time, as ONE
+  // batch for the reason `placeActivity` is — one gesture, one undo. What the
+  // old "Any time" shelf's column drop did for an untimed stop, now available
+  // to a timed one too: with the shelf gone, it is the one drag that takes a
+  // stop's time away without taking its day (the editor's cleared Start is the
+  // other way).
+  const anyTimeActivity = (outcome: AnyTimeOutcome) => {
+    const commands = anyTimeCommands(tripId, outcome);
     if (commands.length > 0) void dispatchBatch(commands);
   };
 
@@ -900,18 +955,18 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                   unpinned child squeezes instead of scrolling — which is the
                   failure mode this row is being changed to avoid. */}
               {/* `hidden md:block` — SPEC §10's "two views, not four" on the
-                  phone. Below 768px Plan and Map are PhoneTabBar's tabs, and
-                  the two views this strip adds (Day columns, Calendar) are the
-                  two §10 removes, so the whole strip is a duplicate of the tab
-                  bar plus two entries that must not be reachable. It was also
-                  actively breaking this row: four 26px tabs overflow a 390px
-                  screen far enough that the "Notebooks" pill beside them sat
-                  106px past the right edge.
+                  phone. Below 768px Overview, Plan and Map are PhoneTabBar's
+                  tabs (Overview since 2026-10-01), so this strip would
+                  duplicate them, plus a Calendar §10 keeps off the phone. It was also breaking this
+                  row: four 26px tabs overflow a 390px screen far enough that
+                  the "Notebooks" pill beside them sat 106px past the right
+                  edge.
 
-                  `display: none` on the wrapper, not `return null` inside
-                  TripViewTabs: the component still mounts, which is what keeps
-                  `usePhoneTwoViews` (its URL normalisation — see that hook)
-                  running on exactly the screens that need it. */}
+                  **Hiding this is only safe where the bar is mounted.** That
+                  is `(app)/layout.tsx` for a signed-in trip and
+                  `DemoTripScreen` for /demo. `(front)` has no bar of its own,
+                  and before the demo mounted one, a phone visitor there had no
+                  way off Overview at all. */}
               <div className="hidden shrink-0 md:block">
                 <TripViewTabs />
               </div>
@@ -1071,6 +1126,8 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                       onMove: moveActivity,
                       onUnschedule: unscheduleActivity,
                       onPlace: placeActivity,
+                      onAnyTime: anyTimeActivity,
+                      onRevealAnyTime: revealAnyTime,
                       onRetime: retimeActivity,
                       onDragStart: () => onRackEvent({ type: "dragStart" }),
                       onDragEnd: () => onRackEvent({ type: "dragEnd" }),
@@ -1264,6 +1321,9 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             open={rack.open}
             onToggle={() => onRackEvent({ type: "toggle" })}
             onAssign={readOnly ? undefined : assignFromRack}
+            onEdit={readOnly ? undefined : openEdit}
+            onRemove={readOnly ? undefined : (activityId) => void dispatch({ type: "RemoveActivity", tripId, activityId })}
+            reveal={rackReveal}
           />
         </div>
       )}

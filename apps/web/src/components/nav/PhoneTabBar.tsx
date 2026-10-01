@@ -3,18 +3,20 @@
 import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { BookOpen, List, Luggage, Map, NotebookText } from "lucide-react";
+import { BookOpen, LayoutDashboard, List, Luggage, Map, NotebookText } from "lucide-react";
 import { resolveView, type View } from "@/components/trip/context/LensRouter";
 import { cn } from "@/lib/cn";
+import { DEMO_PATH } from "@/lib/demoTrip";
 
 // Handoff `Trip Planner Redesign.dc.html:863-871` (markup) and `:7211-7229`
 // (the active-state logic). The phone's bottom bar, and — per SPEC §13 "The tab
 // bar is the router" — the *only* phone navigation between the trip list, a
-// trip's three views, and Playbooks.
+// trip's views, and Playbooks.
 //
 // SPEC §22 (2026-09-05) supersedes §16's five-tab list: the bar is SCOPED —
 // Plan / Map / Notebook inside a trip, Trips / Playbooks everywhere else. See
-// `tabsForScope`.
+// `tabsForScope`. Overview joined the trip set on 2026-10-01 (Mitchell), so it
+// is now Overview / Plan / Map / Notebook.
 //
 // ─── The one rule this file exists to keep ───────────────────────────────────
 // SPEC §13: "'Trips' is **not** a storable tab value — the route alone says
@@ -35,9 +37,10 @@ import { cn } from "@/lib/cn";
 // iOS, Android and desktop Chrome, at different optical weights and baselines,
 // which is exactly the wobble a 16px glyph above an 11px label cannot absorb.
 // The mapping is semantic rather than shape-for-shape: Plan is the day's list,
-// Trips is the luggage. Names verified against the installed lucide-react
-// 1.24.0.
+// Trips is the luggage, Overview is the trip at a glance. Names verified
+// against the installed lucide-react (1.24.0; `LayoutDashboard` against 1.37.0).
 const TABS = {
+  overview: { label: "Overview", Icon: LayoutDashboard },
   plan: { label: "Plan", Icon: List },
   map: { label: "Map", Icon: Map },
   notebook: { label: "Notebook", Icon: NotebookText },
@@ -48,11 +51,32 @@ const TABS = {
 type PhoneTabId = keyof typeof TABS;
 
 /**
+ * Where the bar is: inside a signed-in trip, on the public demo trip, or
+ * anywhere else.
+ *
+ * `demo` is a trip scope with the account-only exits taken out. `/demo`
+ * (ADR-031) renders the real board, and that board hides its own view strip
+ * below 768px because this bar is meant to carry the views — so without a bar
+ * there, a phone visitor could not reach Plan or Map (Mitchell, 2026-10-01,
+ * option B). Notebook is left out because its route,
+ * `/trips/<id>/pages`, is a sign-in wall for a visitor with no account, which
+ * is the same reason `TripBoardScreen` gates the Notebooks pill on the demo.
+ * Trips and Playbooks are left out for the same reason, and because a trip
+ * scope never carries them (§22).
+ */
+type PhoneScope = "trip" | "demo" | "account";
+
+function scopeOf(pathname: string): PhoneScope {
+  if (tripIdFromPathname(pathname)) return "trip";
+  return pathname === DEMO_PATH ? "demo" : "account";
+}
+
+/**
  * Which tabs this route's scope contains — SPEC §22, "the phone tab bar is
  * scoped, not disabled" (2026-09-05).
  *
- * Plan, Map and Notebook are three views onto **one open trip**; Trips and
- * Playbooks are account-level destinations. Outside a trip the first three have
+ * Overview, Plan, Map and Notebook are views onto **one open trip**; Trips and
+ * Playbooks are account-level destinations. Outside a trip the trip views have
  * nothing to point at, so they are absent rather than greyed. The spec is
  * explicit about why, and it is `RULES.md` rule 2: a disabled control is UI with
  * no purpose on the page, and it lies about the reason it is off — "a greyed
@@ -64,9 +88,19 @@ type PhoneTabId = keyof typeof TABS;
  * moves. §22 weighed it and chose scope; the accepted cost is that Playbooks is
  * two taps from inside a trip (`‹ Trips` → Playbooks), and the way back out is
  * the header's `‹ Trips`, not a permanent fifth tab.
+ *
+ * **Overview is a tab since 2026-10-01** (Mitchell: *"it should have an
+ * overview tab, the demo trip should be functionally the same experience as if
+ * you are invited to a trip in read only mode."*). §24 lands every trip on
+ * Overview, but the phone had no tab for it, so once you tapped Plan or Map the
+ * only way back to where the trip opened was the browser's Back. Both trip
+ * scopes get it, because an invited viewer's phone was missing it too. SPEC
+ * §10's "two views, not four" still holds for Calendar, which has no tab.
  */
-function tabsForScope(inTrip: boolean): readonly PhoneTabId[] {
-  return inTrip ? (["plan", "map", "notebook"] as const) : (["trips", "playbooks"] as const);
+function tabsForScope(scope: PhoneScope): readonly PhoneTabId[] {
+  if (scope === "trip") return ["overview", "plan", "map", "notebook"];
+  if (scope === "demo") return ["overview", "plan", "map"];
+  return ["trips", "playbooks"];
 }
 
 /**
@@ -100,8 +134,8 @@ function tripIdFromPathname(pathname: string): string | null {
  * the string — the paragraph here still said so after the parameter changed,
  * which CodeRabbit caught on PR 170. Worth correcting rather than deleting,
  * because the reason it is a parameter at all has not changed: this component
- * sits in `(app)/layout.tsx`, *above* the `LensRouter` mounted inside the trip
- * page, so `useLens()` is not available here and the value has to be handed in.
+ * sits in `(app)/layout.tsx` (and beside the board in `DemoTripScreen`), outside
+ * the `LensRouter` mounted inside the trip page, so `useLens()` is not available here and the value has to be handed in.
  *
  * Handed in as a `View` rather than a string so there is one place that knows
  * how a URL becomes a view: `resolveView` reads **both the new `?view=` and the
@@ -133,16 +167,20 @@ export function taskOwnsScreen(pathname: string): boolean {
 }
 
 function activePhoneTab(pathname: string, view: View | null): PhoneTabId | null {
-  if (tripIdFromPathname(pathname)) {
+  if (scopeOf(pathname) !== "account") {
     if (/^\/trips\/[^/]+\/pages(?:\/|$)/.test(pathname)) return "notebook";
-    // **A tab is current only when its own view is on screen.** Overview and
-    // Calendar have no phone tab, so they light nothing. This used to light
+    // **A tab is current only when its own view is on screen.** Calendar has no
+    // phone tab, so it lights nothing (Overview did not either, until it got a
+    // tab on 2026-10-01 — see `tabsForScope`). This used to light
     // Plan for every non-Map view, on the reading that §10's two phone views
     // stand for all four desktop ones. But §24 lands a trip on Overview, so a
     // phone opened a trip on Overview with Plan marked `aria-current` — and
     // tapping that "current" tab navigated away to a different screen
     // (KI-2026-09-24-l). `null` also covers "not known yet" (the SSR fallback
     // below), for the same reason: no tab is better than a wrong one.
+    // `resolveView` returns Overview for a bare URL, so the trip's landing
+    // screen lights Overview whether or not `?view=` is spelled out.
+    if (view === "Overview") return "overview";
     if (view === "Map") return "map";
     if (view === "Plan") return "plan";
     return null;
@@ -164,16 +202,27 @@ function activePhoneTab(pathname: string, view: View | null): PhoneTabId | null 
  * disagree with the route which §13 forbids. Outside a trip they are simply
  * absent.
  */
-function phoneTabHref(tab: PhoneTabId, tripId: string | null): string {
+function phoneTabHref(tab: PhoneTabId, pathname: string): string {
+  const tripId = tripIdFromPathname(pathname);
+  // The path the trip's views live on. The demo's views are `/demo?view=…` —
+  // `LensRouter` reads `?view=` on whatever path it is mounted under — and
+  // `/trips/<demo id>` is a 404 behind a sign-in wall (`lib/demoTrip.ts`).
+  const tripPath = tripId ? `/trips/${tripId}` : pathname === DEMO_PATH ? DEMO_PATH : null;
   switch (tab) {
     case "trips":
       return "/";
     case "playbooks":
       return "/playbooks";
-    // The three trip views are only ever rendered inside a trip (`tabsForScope`),
-    // so `tripId` is non-null wherever these are reached. `""` is unreachable
-    // rather than a fallback worth designing — a tab with nowhere to go is the
-    // disabled state §22 removed.
+    // The trip views are only ever rendered inside a trip or the demo
+    // (`tabsForScope`), so `tripPath` is non-null wherever these are reached.
+    // `""` is unreachable rather than a fallback worth designing — a tab with
+    // nowhere to go is the disabled state §22 removed.
+    case "overview":
+      // `?view=Overview` rather than the bare path, though both resolve to
+      // Overview: it is what `LensRouter.setView` writes, so the desktop tab
+      // and this one produce the same URL, and `PhoneTabBarView`'s same-path
+      // `scroll: false` check recognises it as a view switch.
+      return tripPath ? `${tripPath}?view=Overview` : "";
     case "plan":
       // **`?view=Plan`, and Plan is day columns now.**
       //
@@ -193,9 +242,9 @@ function phoneTabHref(tab: PhoneTabId, tripId: string | null): string {
       // Mitchell, 2026-09-12: *"Lets just build the plan as is for now, and when
       // its ready we will figure out where editing moved to."* It is on
       // `TODO.md`. Do not resolve it here with a phone-only fallback.
-      return tripId ? `/trips/${tripId}?view=Plan` : "";
+      return tripPath ? `${tripPath}?view=Plan` : "";
     case "map":
-      return tripId ? `/trips/${tripId}?view=Map` : "";
+      return tripPath ? `${tripPath}?view=Map` : "";
     case "notebook":
       return tripId ? `/trips/${tripId}/pages` : "";
   }
@@ -211,7 +260,6 @@ const TAB_CLASS =
 function PhoneTabBarView({ pathname, view }: { pathname: string; view: View | null }) {
   const barRef = useRef<HTMLElement>(null);
 
-  const tripId = tripIdFromPathname(pathname);
   const active = activePhoneTab(pathname, view);
   const hidden = taskOwnsScreen(pathname);
 
@@ -288,9 +336,9 @@ function PhoneTabBarView({ pathname, view }: { pathname: string; view: View | nu
       // under the takeover that is meant to cover everything.
       className="phone-tab-bar fixed inset-x-0 bottom-0 z-20 flex border-t border-hairline bg-surface pt-2 md:hidden"
     >
-      {tabsForScope(tripId !== null).map((id) => {
+      {tabsForScope(scopeOf(pathname)).map((id) => {
         const { label, Icon } = TABS[id];
-        const href = phoneTabHref(id, tripId);
+        const href = phoneTabHref(id, pathname);
         const isActive = active === id;
 
         return (
@@ -338,7 +386,8 @@ function PhoneTabBarView({ pathname, view }: { pathname: string; view: View | nu
 }
 
 /**
- * What the server renders, and the Suspense fallback in `(app)/layout.tsx`.
+ * What the server renders, and the Suspense fallback in `(app)/layout.tsx` and
+ * `DemoTripScreen`.
  *
  * `useSearchParams()` opts its subtree out of static rendering, and Next
  * satisfies that by rendering the *fallback* on the server and the component
@@ -349,12 +398,12 @@ function PhoneTabBarView({ pathname, view }: { pathname: string; view: View | nu
  * avoid. Copilot caught it on PR #143.
  *
  * `usePathname()` triggers no such bailout, and the route alone settles which
- * SET the bar shows (§22's trip three vs account pair) and which tab is current
+ * SET the bar shows (§22's trip views vs account pair) and which tab is current
  * everywhere except the trip page itself, where the query picks the view. So
  * this renders `view: null`, which `activePhoneTab` reads as "unknown" and
  * lights no trip tab. It used to guess Plan, which was wrong for the commonest
- * case — a bare trip URL renders Overview (§24), which has no phone tab
- * (KI-2026-09-24-l). A reader who deep-links `?view=Plan` sees no tab lit for
+ * case — a bare trip URL renders Overview (§24) (KI-2026-09-24-l). Guessing
+ * Overview instead would be wrong for every deep link. A reader who deep-links `?view=Plan` sees no tab lit for
  * one paint and Plan thereafter; the bar's contents, position, size and hit
  * targets never move.
  */

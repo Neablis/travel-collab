@@ -468,13 +468,13 @@ test("two widgets on one page read two different days", async ({ page }) => {
 
   await insertFromList(page, /What it costs/);
   await bindSelectedTo(/What it costs: dates/, /Day 1/);
-  await expect(settingsPanel(page).getByRole("button", { name: /What it costs: dates/ })).toHaveText("2027-06-01");
+  await expect(settingsPanel(page).getByRole("button", { name: /What it costs: dates/ })).toHaveText("Jun 1");
 
   await insertFromList(page, /The days, in detail/);
   await bindSelectedTo(/The days in detail: dates/, /Day 2/);
   await expect(
     settingsPanel(page).getByRole("button", { name: /The days in detail: dates/ }),
-  ).toHaveText("2027-06-02");
+  ).toHaveText("Jun 2");
 
   await finishEditing(page);
   await page.reload();
@@ -944,7 +944,7 @@ test("a block widget's bindings are reachable by keyboard, not only by hover", a
   // clicking in it says nothing about the reveal either way.
   await page.getByRole("group", { name: "Trip days" }).getByRole("button", { name: /Day 2/ }).click();
   await page.keyboard.press("Escape");
-  await expect(days).toHaveText("2027-06-02");
+  await expect(days).toHaveText("Jun 2");
 });
 
 test("a repeat widget is one table as wide as the card it sits in", async ({ page }) => {

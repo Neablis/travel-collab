@@ -27,7 +27,7 @@ import { KeepDayFlag } from "@/components/trip/KeepDayFlag";
 import { Column, DAY_COLUMN_WIDTH_PX } from "./Column";
 import type { RiverGestures } from "./DayRiver";
 import { ConflictBanner } from "./ConflictBanner";
-import { type PlaceOutcome, resolveDrop } from "./resolveDrop";
+import { type AnyTimeOutcome, type PlaceOutcome, resolveDrop } from "./resolveDrop";
 import { riverAxis } from "./riverLayout";
 
 // Phase 6, Step 3 item 5: the trailing "One more day?" column, which replaces
@@ -57,10 +57,10 @@ function OneMoreDayColumn({ onAddDay, addSavedDay, fullWidth = false }: { onAddD
       data-testid="one-more-day-column"
       className={cn(
         "flex flex-col gap-2.5 rounded-2xl border border-dashed border-border-strong p-3.5",
-        // `row-span-4`: the desktop row is a four-row grid now (M29 part 2),
-        // and this column stands as tall as the days beside it, as it did in
-        // the flex row.
-        fullWidth ? "w-full" : "row-span-4 shrink-0",
+        // `row-span-2`: the desktop row is a two-row grid (M29 part 2; three
+        // rows until PR #269 took out the "Any time" shelf), and this column
+        // stands as tall as the days beside it, as it did in the flex row.
+        fullWidth ? "w-full" : "row-span-2 shrink-0",
       )}
       // eslint-disable-next-line no-restricted-syntax -- 268px matches the day columns' width, which has no token equivalent (Column.tsx carries the same escape hatch and owns the constant)
       style={fullWidth ? undefined : { width: DAY_COLUMN_WIDTH_PX }}
@@ -113,6 +113,16 @@ export type BoardCallbacks = {
    * as ONE change — one undo puts back both (`placeCommands`).
    */
   onPlace: (outcome: PlaceOutcome) => void;
+  /**
+   * A drop on a day's "Unscheduled" chip (PR #269): to that day, with no time, as
+   * ONE change (`anyTimeCommands`).
+   */
+  onAnyTime: (outcome: AnyTimeOutcome) => void;
+  /**
+   * A day's "Unscheduled" chip was clicked: open the Unscheduled rack on that
+   * day's untimed stops. Called on a read-only board too — it only shows.
+   */
+  onRevealAnyTime: (dayId: string) => void;
   /** A block's bottom edge was dragged: the stop's new window. */
   onRetime: (activityId: string, timeWindow: TimeWindow) => void;
   /** Raised for every drag, so the rack's disclosure reducer can auto-open. */
@@ -133,8 +143,9 @@ export type BoardCallbacks = {
   // copy of the form-to-command mapping is exactly how a field gets silently
   // dropped, which is what CodeRabbit found on PR #201.
   //
-  // `Column`'s own `onAddActivity` is unrelated and still live: it takes no
-  // arguments and opens the sheet.
+  // `Column`'s own `onAddActivity` (a per-day "+ Add a stop" button) went too,
+  // on 2026-09-28 (PR #269): the river's double-click and the header's "Add
+  // stop" already open the same sheet.
   onRemoveActivity: (activityId: string) => void;
   onDismissConflict: (conflictId: string) => void;
 };
@@ -563,11 +574,15 @@ export function Board({
             current.onPlace(outcome);
             return;
           }
+          if (outcome.kind === "anyTime") {
+            current.onAnyTime(outcome);
+            return;
+          }
           current.onMove(outcome.activityId, outcome.toDayId, outcome.position);
         },
       }),
       // Root cause of the Task-11-era drag-and-drop regression: nothing here
-      // is actually about Board/Column/ActivityCard's own restyle — it's that
+      // is actually about Board/Column/(then) ActivityCard's own restyle — it's that
       // the cumulative height of everything above the day-columns row (Task
       // 9's taller sticky header, Task 8's day-chips row, etc.) now commonly
       // pushes later day columns below the fold on an ordinary viewport,
@@ -578,7 +593,7 @@ export function Board({
       // valid pragmatic-drag-and-drop drop target — `location.current
       // .dropTargets` comes up empty because the browser's own hit-testing
       // has nothing to find at an off-screen point — so no restyle-local
-      // tweak to Board/Column/ActivityCard fixes this; the page needs to be
+      // tweak to those components fixes this; the page needs to be
       // able to scroll during a drag, same as it already can with the mouse
       // when not dragging. `autoScrollWindowForElements` is the
       // pragmatic-drag-and-drop project's own answer to exactly this shape
@@ -604,8 +619,9 @@ export function Board({
   // passes none, and its rivers then offer none — the same "absent, not
   // disabled" rule every other write affordance here follows (ADR-031).
   //
-  // Double-click and sketch open the add sheet this column's "+ Add a stop"
-  // opens, with the window prefilled; a resize is a plain UpdateActivity of
+  // Double-click and sketch open the add sheet with the day and window
+  // prefilled — the per-column "+ Add a stop" they duplicated is gone (PR
+  // #269), so with the header's "Add stop" these are the ways in; a resize is a plain UpdateActivity of
   // the window; a drop at a time comes back through the monitor above as a
   // `place` outcome. "Now ends at …" is the design's own flash for a resize.
   const clock = useTimeFormat();
@@ -651,7 +667,7 @@ export function Board({
           the grid — it is the Unscheduled drawer (UnscheduledRack), mounted
           by TripBoardScreen outside the lens switch. Creating an unscheduled
           stop lives on the header's "Add stop" (TripHeader), which is the
-          same openCreate() with no dayId this column's button used to be. */}
+          same openCreate() with no dayId the old Backlog button was. */}
       {/* Handoff README §"Day columns view": horizontally scrolling 268px
           columns rather than wrapping into rows. Adjacency for drag is
           dayId-based, not DOM order, so the switch from wrap to scroll
@@ -688,9 +704,9 @@ export function Board({
           // trailing "One more day?" belongs below the day rather than beside it.
           //
           // **A grid on the desktop, not a flex row** (M29 part 2): each day
-          // column is a four-row subgrid of it (`.day-columns-row` in
+          // column is a two-row subgrid of it (`.day-columns-row` in
           // globals.css), which is what holds every river's top edge at one
-          // height when the shelves above them differ. `auto-cols-max` keeps
+          // height when the headers above them differ. `auto-cols-max` keeps
           // each column at its own 268px, so the row still overflows and
           // scrolls rather than squashing (design-system.md, "Horizontal
           // scrollers").
@@ -736,8 +752,8 @@ export function Board({
               isFocused={focusedDay === index}
               onSelect={(clear) => callbacks.onSelectDay(clear ? null : index)}
               columnRef={columnRefSetters[index]}
-              onAddActivity={readOnly ? undefined : () => openCreate({ dayId: day.dayId })}
               gestures={gesturesFor(day.dayId)}
+              onRevealAnyTime={() => callbacks.onRevealAnyTime(day.dayId)}
               onDismissOverlap={callbacks.onDismissConflict}
               focusedTag={focusedTag}
               onToggleTag={onToggleTag}

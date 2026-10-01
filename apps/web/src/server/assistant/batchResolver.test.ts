@@ -198,6 +198,24 @@ describe("resolveBatch — errors are per-command, not fatal to the batch", () =
     expect(commands).toHaveLength(0);
     expect(errors[0]!.message).toMatch(/no conflict #1/i);
   });
+
+  // Refs are model output. A model that sends an object where a ref belongs
+  // has to be shown what it sent to correct it; `[object Object]` shows nothing.
+  it("quotes an object ref back as JSON, not [object Object]", () => {
+    const detail = tripWithDays([D1]);
+    const { errors } = resolve(
+      [
+        { type: "AddActivity", args: { title: "A", dayRef: { day: 1 } } },
+        { type: "DismissConflict", args: { conflictRef: { ref: 2 } } },
+      ],
+      detail,
+    );
+
+    expect(errors.map((e) => e.message)).toEqual([
+      expect.stringContaining('“{"day":1}”'),
+      expect.stringContaining('“{"ref":2}”'),
+    ]);
+  });
 });
 
 describe("resolveBatch — the running state tracks removals and moves", () => {

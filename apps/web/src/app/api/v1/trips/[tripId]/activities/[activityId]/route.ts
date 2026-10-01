@@ -6,7 +6,7 @@ import {
   TripDetail,
   UpdateActivity,
 } from "@tc/contracts";
-import { tripRegionOf } from "@/server/geocoding/region";
+import { tripCountriesOf, tripRegionOf } from "@/server/geocoding/region";
 import { orThrow, refuseUnparseable, runBatch, runCommand, type CommandInput } from "@/server/public-api/commands";
 import { GEOCODE_OUTCOME_DOC, GEOCODE_OUTCOME_END_DOC, resolveStopPlaces } from "@/server/public-api/locations";
 import { route } from "@/server/public-api/route";
@@ -84,7 +84,7 @@ export const { PATCH, DELETE } = route({
       // clears the stop's pin and an absent one leaves it alone, so neither
       // spends a geocode. `resolveStopPlaces` holds that rule for both places.
       if (commands[0]?.type === "UpdateActivity") {
-        const ctx = { userId: actor.userId, region: tripRegionOf(trip!) };
+        const ctx = { userId: actor.userId, region: tripRegionOf(trip!), countries: tripCountriesOf(trip!) };
         commands[0] = await resolveStopPlaces(commands[0], ctx, responseHeaders);
       }
       return orThrow(await runBatch(actor, commands));

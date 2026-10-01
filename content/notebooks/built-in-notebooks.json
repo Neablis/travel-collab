@@ -528,8 +528,8 @@
     },
     {
       "key": "trip-overview",
-      "title": "Trip Overview",
-      "description": "The whole trip in one place — the why, the shape, the money.",
+      "title": "Trip journal",
+      "description": "A blank page with prompts: why you're going, the rough shape, the budget.",
       "seedIntoNewTrips": false,
       "content": {
         "v": 5,

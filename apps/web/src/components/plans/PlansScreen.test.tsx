@@ -173,11 +173,25 @@ describe("the chooser", () => {
   it("enumerates each plan's own contents rather than referring to another's", async () => {
     render(<PlansScreen />);
     const premium = within(await screen.findByTestId("plan-card-premium"));
-    expect(premium.getByText(/200 questions and 1600 steps a day/)).toBeTruthy();
-    expect(premium.getByText(/Other people editing your trips/)).toBeTruthy();
+    expect(premium.getByText(/Ask the assistant 200 questions about your trips and have it make 1600 changes a day/)).toBeTruthy();
+    expect(premium.getByText(/Invite friends to plan your trips with you/)).toBeTruthy();
     for (const card of ["plan-card-free", "plan-card-plus", "plan-card-premium"]) {
       expect(screen.getByTestId(card).textContent).not.toMatch(/everything in/i);
     }
+  });
+
+  // Mitchell, PR #269 preview: "Steps a day" is the quota's word, not a
+  // buyer's, and "Other people editing" undersold inviting friends.
+  it("labels the comparison rows in a buyer's words, not the quota's", async () => {
+    render(<PlansScreen />);
+    const table = within(await screen.findByTestId("plan-comparison"));
+    const rows = table.getAllByRole("rowheader").map((th) => th.textContent);
+    expect(rows).toContain("Changes the assistant can make a day");
+    expect(rows).toContain("Invite friends to your trips");
+    expect(rows).toContain("Questions you can ask the assistant a day");
+    expect(rows).not.toContain("Steps a day");
+    expect(rows).not.toContain("Other people editing");
+    expect(rows).not.toContain("Questions a day");
   });
 
   // §29: *"the held card is the only emphasised one, and its CTA is disabled
@@ -263,6 +277,65 @@ describe("the chooser", () => {
     expect(note.textContent).toContain("as published");
     expect(note.textContent).toContain("has been granted");
     expect(note.textContent).not.toContain("free week");
+  });
+
+  // Mitchell, PR #269 preview: *"Its confusing this says premium, but when i
+  // click 'change plan' it says i have free"*. Account → Plan names the tier in
+  // effect; this page has to lead with the same one.
+  it("leads with the plan a grant puts you on, and names the one you pay for second", async () => {
+    serve({
+      plan: {
+        ...VIEW,
+        entitlements: ["ai.ask", "ai.command", "trip.collaborators"],
+        grantedVersionRefs: ["premium@v1"],
+        grants: [{ planId: "premium", version: 1, source: "admin", expiresAt: "2026-12-01T00:00:00.000Z" }],
+        billing: { ...VIEW.billing, state: "none" },
+      },
+    });
+    render(<PlansScreen />);
+    const line = (await screen.findByTestId("plans-held-line")).textContent ?? "";
+    expect(line).toMatch(/^You have premium right now, granted to your account until December 1/);
+    expect(line).toContain("The plan you pay for is free, at no charge.");
+    expect(within(screen.getByTestId("plan-card-premium")).getByText("You have this now")).toBeTruthy();
+    expect(within(screen.getByTestId("plan-card-free")).getByRole("button", { name: "What you pay for" })).toBeTruthy();
+    expect(screen.queryByText("What you hold")).toBeNull();
+  });
+
+  // CodeRabbit, PR #269. A lapse moves the tier in effect without any grant
+  // (plus confers free once it lapses), and a lapsed price is not a payment.
+  it("does not call a lapse a grant, nor a lapsed plan one you pay for", async () => {
+    serve({
+      plan: {
+        ...VIEW,
+        planVersionRef: "plus@v1",
+        conferredVersionRef: "free@v1",
+        catalogue: VIEW.catalogue.map((c) => ({ ...c, held: c.planId === "plus" })),
+        billing: { ...VIEW.billing, state: "lapsed" },
+      },
+    });
+    render(<PlansScreen />);
+    const line = (await screen.findByTestId("plans-held-line")).textContent ?? "";
+    expect(line).toBe("Your plus subscription has lapsed.");
+    expect(screen.queryByText("You have this now")).toBeNull();
+  });
+
+  it("names a lapsed plan as lapsed even while a grant is in effect", async () => {
+    serve({
+      plan: {
+        ...VIEW,
+        planVersionRef: "plus@v1",
+        conferredVersionRef: "free@v1",
+        entitlements: ["ai.ask", "ai.command", "trip.collaborators"],
+        grantedVersionRefs: ["premium@v1"],
+        grants: [{ planId: "premium", version: 1, source: "admin", expiresAt: null }],
+        catalogue: VIEW.catalogue.map((c) => ({ ...c, held: c.planId === "plus" })),
+        billing: { ...VIEW.billing, state: "lapsed" },
+      },
+    });
+    render(<PlansScreen />);
+    const line = (await screen.findByTestId("plans-held-line")).textContent ?? "";
+    expect(line).toBe("You have premium right now, granted to your account. Your plus subscription has lapsed.");
+    expect(within(screen.getByTestId("plan-card-plus")).getByRole("button", { name: "What you hold" })).toBeTruthy();
   });
 
   it("carries no such disclaimer when nothing is granted", async () => {

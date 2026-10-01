@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { historyFixture, tripDetailFixture } from "@tc/factories";
+import { activityFactory, historyFixture, locationFactory, tripDetailFixture } from "@tc/factories";
 import { ActivityEditorSheet } from "./ActivityEditorSheet";
 
 // Same mocking pattern TripHeader.test.tsx uses for a component that reads
@@ -401,6 +401,27 @@ describe("ActivityEditorSheet — a viewer gets no form", () => {
     expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Add stop" })).toBeNull();
     expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  // Mitchell, 2026-09-30 (option "B"): a leg's destination shows wherever the
+  // stop does, and this is the only place a viewer reads a stop in full.
+  it("names a leg's destination as well as its origin", async () => {
+    asViewer();
+    const trip = fixture();
+    trip.activities[SCHEDULED_ACTIVITY_ID] = activityFactory.build({
+      activityId: SCHEDULED_ACTIVITY_ID,
+      title: "Shinkansen",
+      kind: "transit",
+      mode: "train",
+      location: locationFactory.build({ name: "Odawara Station, Odawara, Japan", city: "Odawara", countryCode: "JP" }),
+      endLocation: locationFactory.build({ name: "Kyoto Station, Shimogyō, Kyoto, Japan", city: "Kyoto", countryCode: "JP" }),
+    });
+    vi.mocked(fetchTripDetail).mockResolvedValue({ ok: true, value: trip });
+    renderEditorSheet({ mode: "edit", activityId: SCHEDULED_ACTIVITY_ID });
+
+    expect(await screen.findByText("Shinkansen")).toBeTruthy();
+    expect(screen.getByText("Odawara Station, Odawara, Japan")).toBeTruthy();
+    expect(screen.getByText("Going to Kyoto Station, Kyoto, Japan")).toBeTruthy();
   });
 
   it("gives an owner the editable form at the same call site", async () => {

@@ -97,8 +97,9 @@ export const JAPAN_TRIP_EXPECTATIONS: JapanTripExpectations = {
   // FALSE — 4 on the Odawara -> Kyoto day and 6 on the Osaka -> Tokyo day,
   // every pair spanning a relocation the day's own shinkansen accounts for.
   // `detectConflicts` compared same-day located pairs against a flat 150km and
-  // never read `kind`; it now excuses a distance a `transit` stop crosses in
-  // time. The fixture never changed — the rule did.
+  // never read `kind`; it then excused a distance a `transit` stop crosses in
+  // time, and since 2026-09-30 (Mitchell) any `transit` stop on a day excuses
+  // every distance on that day. The fixture never changed — the rule did.
   //
   // If this number climbs back toward twelve, suspect the rule before the
   // content: a travel day flagging its own travel is the shape of that bug.

@@ -33,6 +33,24 @@ import { fetchTripAccess } from "@/lib/apiClient";
 import { cachedRead } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
 
+/** A notebook the reader saved as a template from another trip (M14 link 10). */
+function savedPackingList() {
+  return {
+    savedNotebookId: "5a0e0000-0000-4000-8000-0000000000aa",
+    ownerId: "dev-alice",
+    title: "Packing list",
+    docVersion: 1,
+    visibility: "private" as const,
+    provenance: {
+      sourceTripId: "5a0e0000-0000-4000-8000-0000000000bb",
+      sourceTripName: "Kyoto 2026",
+      sourcePageId: "5a0e0000-0000-4000-8000-0000000000cc",
+      savedAt: new Date().toISOString(),
+    },
+    content: { v: 1 as const, type: "doc" as const, content: [] },
+  };
+}
+
 /** The turn as `askAssistant` runs it: emit these events, then resolve `ok`. */
 function turnEmitting(...events: AskEvent[]) {
   return async (
@@ -63,8 +81,10 @@ const server = setupServer(
   // notebook ("Add missing default notebooks" is the owner's). An EDITOR by
   // default, so a suite written before the action sees the list it was
   // written against; the tests about the action set `accessRole`.
-  http.get("/api/trips/:tripId/access", ({ params }) => {
+  http.get("/api/trips/:tripId/access", async ({ params }) => {
     accessReads += 1;
+    // A test that needs the role PENDING holds the answer here until it lets go.
+    if (accessHeld) await accessHeld;
     return HttpResponse.json({
       access: {
         tripId: params.tripId,
@@ -76,8 +96,9 @@ const server = setupServer(
     });
   }),
 );
-let accessRole: "owner" | "editor" = "editor";
+let accessRole: "owner" | "editor" | "viewer" = "editor";
 let accessReads = 0;
+let accessHeld: Promise<void> | null = null;
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 beforeEach(() => {
   pushMock.mockClear();
@@ -89,6 +110,7 @@ afterEach(() => {
   cleanup();
   accessRole = "editor";
   accessReads = 0;
+  accessHeld = null;
 });
 afterAll(() => server.close());
 
@@ -132,25 +154,7 @@ describe("NotebookScreen", () => {
     const onInstantiate = vi.fn();
     server.use(
       ...makePagesHandlers([]),
-      ...makeSavedNotebookHandlers(
-        [
-          {
-            savedNotebookId: "5a0e0000-0000-4000-8000-0000000000aa",
-            ownerId: "dev-alice",
-            title: "Packing list",
-            docVersion: 1,
-            visibility: "private",
-            provenance: {
-              sourceTripId: "5a0e0000-0000-4000-8000-0000000000bb",
-              sourceTripName: "Kyoto 2026",
-              sourcePageId: "5a0e0000-0000-4000-8000-0000000000cc",
-              savedAt: new Date().toISOString(),
-            },
-            content: { v: 1, type: "doc", content: [] },
-          },
-        ],
-        { onInstantiate },
-      ),
+      ...makeSavedNotebookHandlers([savedPackingList()], { onInstantiate }),
     );
 
     render(<NotebookScreen tripId={TRIP_ID} />);
@@ -176,10 +180,12 @@ describe("NotebookScreen", () => {
   // gallery was a screenful of choices already made, sitting above the list of
   // what those choices produced.
   //
-  // Read off `getAllByRole`, which returns regions in document order, so this
+  // Read off `getAllByRole`, which returns elements in document order, so this
   // asserts the ORDER rather than the presence of two sections — which is the
   // whole of the request, and which a `mb-8` moved to the wrong element would
-  // still satisfy if it only counted them.
+  // still satisfy if it only counted them. The level-3 headings rather than the
+  // regions, because the gallery's groups are regions of their own now (PR
+  // #269 preview) and each top-level section is labelled by its level-3 one.
   it("lists your notebooks above the template gallery", async () => {
     const page = pageFixture({ tripId: TRIP_ID });
     server.use(...makePagesHandlers([page]));
@@ -187,9 +193,7 @@ describe("NotebookScreen", () => {
     render(<NotebookScreen tripId={TRIP_ID} />);
     await screen.findByRole("region", { name: "Your notebooks" });
 
-    const inOrder = screen
-      .getAllByRole("region")
-      .map((region) => within(region).getByRole("heading", { level: 3 }).textContent);
+    const inOrder = screen.getAllByRole("heading", { level: 3 }).map((heading) => heading.textContent);
     expect(inOrder).toEqual(["Your notebooks", "Start from a template"]);
   });
 
@@ -223,6 +227,53 @@ describe("NotebookScreen", () => {
 
     await waitFor(() => expect(onDelete).toHaveBeenCalledWith(page.id));
     await waitFor(() => expect(within(list).queryByText(page.title)).toBeNull());
+  });
+
+  // **A viewer reads the notebooks and writes none of them** (Mitchell,
+  // 2026-10-01). Every write this index offers — Delete, a blank notebook, a
+  // template — is withheld from a viewer, not left for the server to refuse.
+  // Withheld until the role is KNOWN, too, so a viewer is never shown them for
+  // the moment before the read lands.
+  it("offers a viewer no Delete and no templates to start from", async () => {
+    accessRole = "viewer";
+    let release: () => void = () => undefined;
+    accessHeld = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const page = pageFixture({ tripId: TRIP_ID, title: "Day Sheet" });
+    server.use(...makePagesHandlers([page]));
+
+    render(<NotebookScreen tripId={TRIP_ID} />);
+    const list = await screen.findByRole("region", { name: "Your notebooks" });
+    expect(await within(list).findByText("Day Sheet")).toBeTruthy();
+    // The list is up and the role is still unanswered: no write offered yet.
+    await waitFor(() => expect(accessReads).toBe(1));
+    expect(screen.queryByRole("button", { name: "Delete Day Sheet" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Start from a template" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Start from/ })).toBeNull();
+    release();
+    // Join the read the component made, through the cache it made it with:
+    // once that has answered, so has the component's, inside `act`.
+    await act(async () => {
+      await cachedRead(tripKeys.access(TRIP_ID), () => fetchTripAccess(TRIP_ID));
+    });
+
+    expect(screen.queryByRole("button", { name: "Delete Day Sheet" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Start from a template" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Start from/ })).toBeNull();
+    // The way in to read it is still there.
+    expect(within(list).getByRole("link", { name: /Day Sheet/ })).toBeTruthy();
+    // And all of the above was asserted with the role answered, not pending.
+    expect(accessReads).toBe(1);
+  });
+
+  it("offers an editor the same index with Delete and the templates", async () => {
+    const page = pageFixture({ tripId: TRIP_ID, title: "Day Sheet" });
+    server.use(...makePagesHandlers([page]));
+
+    render(<NotebookScreen tripId={TRIP_ID} />);
+    expect(await screen.findByRole("button", { name: "Delete Day Sheet" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Start from a template" })).toBeTruthy();
   });
 
   // "Add missing default notebooks" (Mitchell, 2026-09-27; owner only). The
@@ -341,10 +392,18 @@ describe("NotebookScreen", () => {
     render(<NotebookScreen tripId={TRIP_ID} />);
     await waitFor(() => expect(screen.queryByText(/Loading/)).toBeNull());
 
-    for (const template of TEMPLATE_LIBRARY) {
-      expect(screen.getByRole("button", { name: `Start from ${template.title}` })).toBeTruthy();
+    // Every template is offered under one of the two filters (there is no
+    // "All" — Mitchell, PR #269 preview), so this walks both.
+    const offered = new Set<string>();
+    for (const group of ["Essentials", "More"]) {
+      fireEvent.click(screen.getByRole("radio", { name: group }));
+      for (const template of TEMPLATE_LIBRARY) {
+        if (screen.queryByRole("button", { name: `Start from ${template.title}` })) offered.add(template.key);
+      }
     }
+    expect([...offered].sort()).toEqual(TEMPLATE_LIBRARY.map((t) => t.key).sort());
     expect(screen.getByRole("button", { name: "Start from Blank notebook" })).toBeTruthy();
+    // Still on "More": the gallery-only one, with its description.
     expect(screen.getByText(galleryOnly.description)).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: `Start from ${dayTemplate.title}` }));
@@ -362,6 +421,71 @@ describe("NotebookScreen", () => {
         }),
       ),
     );
+  });
+
+  // Mitchell, PR #269 preview: *"its just a wall of templates, its ugly and
+  // hard to navigate"*. The gallery is grouped by the seed's own
+  // `seedIntoNewTrips` and a filter narrows it to one group. Every expectation
+  // is derived from `TEMPLATE_LIBRARY`, so a template landing in the wrong
+  // group, or a filter that hides nothing, fails here by name.
+  it("groups the templates by whether a trip comes with them, and the filter narrows to one group", async () => {
+    server.use(...makePagesHandlers([]));
+    const essentials = TEMPLATE_LIBRARY.filter((t) => t.seedIntoNewTrips);
+    const more = TEMPLATE_LIBRARY.filter((t) => !t.seedIntoNewTrips);
+    // Witnesses (CodeRabbit, PR #269): an empty group would run its loop
+    // below zero times and pass while checking nothing.
+    expect(essentials.length).toBeGreaterThan(0);
+    expect(more.length).toBeGreaterThan(0);
+    const startButton = (title: string) => ({ name: `Start from ${title}` });
+
+    render(<NotebookScreen tripId={TRIP_ID} />);
+    await waitFor(() => expect(screen.queryByText(/Loading/)).toBeNull());
+
+    // Mitchell, PR #269 preview: *"Make the options, Essential and More, no
+    // all, and more shouldnt include essentials"*. It opens on Essentials alone.
+    const filter = screen.getByRole("radiogroup", { name: "Show templates" });
+    expect(within(filter).getAllByRole("radio").map((r) => r.textContent)).toEqual(["Essentials", "More"]);
+    expect(within(filter).getByRole("radio", { name: "Essentials", checked: true })).toBeTruthy();
+    const essentialGroup = screen.getByRole("region", { name: "Essentials" });
+    for (const t of essentials) expect(within(essentialGroup).getByRole("button", startButton(t.title))).toBeTruthy();
+    expect(screen.queryByRole("region", { name: "More templates" })).toBeNull();
+
+    fireEvent.click(within(filter).getByRole("radio", { name: "More" }));
+    const moreGroup = screen.getByRole("region", { name: "More templates" });
+    expect(screen.queryByRole("heading", { name: "More templates" })).toBeNull();
+    for (const t of more) expect(within(moreGroup).getByRole("button", startButton(t.title))).toBeTruthy();
+    for (const t of essentials) expect(screen.queryByRole("button", startButton(t.title))).toBeNull();
+    // Blank is not a group, so no filter takes it away.
+    expect(screen.getByRole("button", { name: "Start from Blank notebook" })).toBeTruthy();
+
+    fireEvent.click(within(filter).getByRole("radio", { name: "Essentials" }));
+    for (const t of essentials) expect(screen.getByRole("button", startButton(t.title))).toBeTruthy();
+    // Mitchell, PR #269 preview: *"Remove More templates, the tabs do the
+    // same"*, and of the Essentials note, *"Remove this line, and the Title"*.
+    // The filter says which group is showing; the group only names itself to
+    // assistive tech.
+    expect(screen.queryByRole("heading", { name: "Essentials" })).toBeNull();
+    expect(screen.queryByText(/every new trip comes with/)).toBeNull();
+    for (const t of more) expect(screen.queryByRole("button", startButton(t.title))).toBeNull();
+  });
+
+  it("filters to your own templates, and falls back to Essentials once the last one is removed", async () => {
+    server.use(...makePagesHandlers([]), ...makeSavedNotebookHandlers([savedPackingList()]));
+    const aSeed = TEMPLATE_LIBRARY[0]!;
+
+    render(<NotebookScreen tripId={TRIP_ID} />);
+    await screen.findByRole("region", { name: "Your templates" });
+
+    fireEvent.click(screen.getByRole("radio", { name: "Yours" }));
+    expect(screen.getByRole("button", { name: "Start from your template Packing list" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: `Start from ${aSeed.title}` })).toBeNull();
+
+    // Removing the last one takes the chip with it, and the gallery must not
+    // be left filtered onto a group that no longer exists — i.e. empty.
+    fireEvent.click(screen.getByRole("button", { name: "Remove your template Packing list" }));
+    await waitFor(() => expect(screen.queryByRole("radio", { name: "Yours" })).toBeNull());
+    expect(screen.getByRole("radio", { name: "Essentials", checked: true })).toBeTruthy();
+    expect(screen.getByRole("button", { name: `Start from ${aSeed.title}` })).toBeTruthy();
   });
 
   // SPEC §23 — the phone assistant, and this is the ONE screen where §23's

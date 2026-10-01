@@ -39,6 +39,24 @@ export interface WidgetPreset {
    * these are what the words match.
    */
   keywords: readonly string[];
+  /**
+   * **The sentence the picker prints under the title, written for a traveller.**
+   *
+   * Required, and on the preset rather than the primitive, because it names
+   * the ROW — "Budget burn-down" and "Spend by day" are one primitive and two
+   * different things to reach for. A whole sentence (starts with a capital,
+   * ends with a full stop, 60–140 characters so it fits the 320px rail in two
+   * lines), saying what the widget shows and when you would want it.
+   *
+   * Not `description`, which is written for the assistant's widget search and
+   * carries filter mechanics a reader does not need ("`distinct: true` lists a
+   * repeated value once"). Not `preview`, which is a FIXED sample of output
+   * (ADR-037 decision 5) and, for half the rows, had become a lower-case
+   * fragment instead: Mitchell, PR #269 preview — *"go through all the
+   * descriptions and improve them. Make them a real description, not a short
+   * incom[plete …]"*.
+   */
+  summary: string;
   /** Overrides the primitive's, when the preset is about something narrower. */
   description?: string;
   preview?: string;
@@ -91,6 +109,7 @@ export const PRESETS: readonly WidgetPreset[] = [
     widget: "cost",
     params: {},
     title: "What it costs",
+    summary: "Adds up what your stops cost: the whole trip, or only a day, dates, a city, a tag or a kind you choose.",
     keywords: ["total", "spend", "price", "sum", "budget", "money", "day", "trip"],
     preview: "the running total — the whole trip, or just what you point it at",
   },
@@ -99,6 +118,7 @@ export const PRESETS: readonly WidgetPreset[] = [
     widget: "count",
     params: {},
     title: "How many stops",
+    summary: "Counts the stops on your trip, or only the ones on a day, in a city or with a tag you choose.",
     keywords: ["number", "count", "how many", "stops", "activities"],
   },
   {
@@ -108,6 +128,7 @@ export const PRESETS: readonly WidgetPreset[] = [
     widget: "count",
     params: { kind: "pending" },
     title: "How many are still to book",
+    summary: "Counts the stops still marked Pending, so you can see at a glance how much is left to book.",
     keywords: ["number", "count", "pending", "to book", "unbooked", "outstanding", "progress"],
     description: "How many stops are still pending. Point it at a day for that day's.",
     preview: "how many of them are still to book",
@@ -117,6 +138,7 @@ export const PRESETS: readonly WidgetPreset[] = [
     widget: "count",
     params: { of: "day" },
     title: "How many days",
+    summary: "Shows how many days the trip lasts, or how many of them match a filter you set.",
     keywords: ["number", "count", "how many", "days", "long", "length", "nights"],
     description: "How long the trip is, in days. Filter it to count only the days that match.",
     preview: "how many days it runs",
@@ -129,6 +151,7 @@ export const PRESETS: readonly WidgetPreset[] = [
     widget: "count",
     params: { of: "city" },
     title: "How many cities",
+    summary: "Shows how many cities the trip visits, or only the cities on the days you choose.",
     keywords: ["number", "count", "how many", "cities", "places", "towns", "stops along the way"],
     description: "How many cities the trip reaches. Point it at days to count only the cities those days touch.",
     preview: "how many cities it reaches",
@@ -138,6 +161,7 @@ export const PRESETS: readonly WidgetPreset[] = [
     widget: "dates",
     params: {},
     title: "The dates",
+    summary: "Shows the dates your trip runs, from its first day to its last, or the date of a single day you pick.",
     keywords: ["date", "when", "range", "day", "trip", "calendar"],
   },
   {
@@ -150,6 +174,7 @@ export const PRESETS: readonly WidgetPreset[] = [
     widget: "attribute",
     params: { field: "trip.countdown" },
     title: "How long until it starts",
+    summary: "Counts down the days until the trip starts, then shows which day you are on, and how long ago it ended.",
     keywords: ["countdown", "when", "soon", "until", "days", "away", "left", "how long", "upcoming"],
     description:
       "How far off the trip is — counting down before it starts, which day of it you are on while it runs, and how long ago it ended after.",
@@ -171,6 +196,7 @@ export const PRESETS: readonly WidgetPreset[] = [
     // preview alone did not — it was already on the row he misread.
     params: {},
     title: "Start and end times",
+    summary: "Shows when your first stop starts and your last one ends, for the whole trip or for a single day.",
     keywords: ["time", "hours", "window", "start", "end", "schedule", "morning", "night", "clock", "first", "last"],
   },
   {
@@ -182,6 +208,7 @@ export const PRESETS: readonly WidgetPreset[] = [
     // ambiguous — for a person scanning the list, and for every test that finds
     // a row by its name.
     title: "Which cities",
+    summary: "Names the cities on your trip in the order you reach them, or only the ones on the days you pick.",
     keywords: ["city", "cities", "where", "place", "location"],
   },
   {
@@ -193,6 +220,7 @@ export const PRESETS: readonly WidgetPreset[] = [
     widget: "field",
     params: {},
     title: "A stop's detail",
+    summary: "Shows one detail of your stops, such as a name, place, note, status or cost. You pick which after it lands.",
     keywords: [
       "field", "detail", "any", "pick", "stop", "stops", "cost", "price", "place", "location",
       "notes", "status", "tags", "name",
@@ -206,6 +234,7 @@ export const PRESETS: readonly WidgetPreset[] = [
     widget: "attribute",
     params: { field: "trip.name" },
     title: "The trip's name",
+    summary: "Writes the trip's name into your sentence, and keeps it right if you rename the trip later.",
     keywords: ["name", "title", "trip"],
     description: "The trip's name.",
     preview: "Japan, spring",
@@ -215,6 +244,7 @@ export const PRESETS: readonly WidgetPreset[] = [
     widget: "attribute",
     params: { field: "trip.budgetRemaining" },
     title: "What's left of the budget",
+    summary: "Shows how much of your budget is left after what the trip costs so far, and goes negative if you are over.",
     keywords: ["budget", "remaining", "left", "money", "over", "under"],
     description: "The trip's budget minus what it costs so far. Negative when over budget.",
     preview: "what's left to spend",
@@ -224,6 +254,7 @@ export const PRESETS: readonly WidgetPreset[] = [
     widget: "attribute",
     params: { field: "account.name" },
     title: "Your name",
+    summary: "Writes the name on your account into your sentence, such as in a greeting or a sign-off.",
     keywords: ["me", "my name", "account", "profile", "who"],
     description: "The name on your account.",
     preview: "the name on your account",
@@ -233,6 +264,7 @@ export const PRESETS: readonly WidgetPreset[] = [
     widget: "attribute",
     params: { field: "account.homeAirport" },
     title: "Your home airport",
+    summary: "Writes your home airport's three-letter code into your sentence, handy in a note about flights.",
     keywords: ["airport", "home", "flight", "iata", "account"],
     description: "Your home airport, as a three-letter code.",
     preview: "your home airport code",
@@ -243,6 +275,7 @@ export const PRESETS: readonly WidgetPreset[] = [
     widget: "day.detail",
     params: {},
     title: "The days, in detail",
+    summary: "Lays out your stops day by day for the whole trip, or just one day's stops when you point it at that day.",
     keywords: ["itinerary", "schedule", "agenda", "plan", "day", "days", "stops"],
     preview: "every stop, day by day — or one day, if you point it at one",
   },
@@ -252,6 +285,7 @@ export const PRESETS: readonly WidgetPreset[] = [
     widget: "day.detail",
     params: { view: "schedule" },
     title: "The days, as an itinerary",
+    summary: "Lists every stop in time order, day by day, with where it is and whether it is still to book, like a printed itinerary.",
     keywords: ["itinerary", "schedule", "printed", "agenda", "timetable", "day by day", "times", "plan", "travel agent"],
     description: "Every stop, day by day, in time order — with where it is and whether it is still to book, like a printed itinerary.",
     preview: "9:00 am  Fushimi Inari Taisha, Kyoto",
@@ -262,6 +296,7 @@ export const PRESETS: readonly WidgetPreset[] = [
     widget: "link.internal",
     params: {},
     title: "Link to a notebook or tab",
+    summary: "Adds a card that opens another notebook, a day, or the Plan, Calendar or Map tab, with a line about what is there.",
     keywords: ["link", "notebook", "page", "go to", "open", "jump", "navigate", "tab", "plan", "calendar", "map", "day", "see also"],
   },
   {
@@ -269,6 +304,7 @@ export const PRESETS: readonly WidgetPreset[] = [
     widget: "link.external",
     params: {},
     title: "Link to a website",
+    summary: "Adds a link to a website in your own words, such as a booking confirmation. It opens in a new tab.",
     keywords: ["link", "url", "website", "web", "href", "address", "booking", "confirmation", "external", "site"],
   },
   {
@@ -276,6 +312,7 @@ export const PRESETS: readonly WidgetPreset[] = [
     widget: "city.detail",
     params: {},
     title: "The cities, in detail",
+    summary: "Gives each city on the trip a card showing which days you are there and how many stops you have planned.",
     keywords: ["city", "cities", "where", "places", "overview"],
   },
   // ---- a sentence each (ADR-035 decision 4) --------------------------------
@@ -290,6 +327,7 @@ export const PRESETS: readonly WidgetPreset[] = [
     params: {},
     repeat: true,
     title: "A sentence for each…",
+    summary: "Write a sentence once and it repeats for each day, stop or city, with each line filling in its own details.",
     keywords: ["repeat", "each", "every", "day", "days", "stop", "stops", "city", "cities", "sentence", "write", "template", "welcome"],
     description: "A sentence you write once, printed for each day, stop or city — like \"Welcome to\" and the city's name. Each line reads its own.",
     preview: "your own sentence, once per day, stop or city",
@@ -311,6 +349,7 @@ export const PRESETS: readonly WidgetPreset[] = [
     params: {},
     anyCollection: true,
     title: "A line for each…",
+    summary: "Builds a table with one line for each day, stop or city. You choose which in its settings after it lands.",
     keywords: [
       "list", "line", "lines", "table", "rows", "each", "every", "summary", "overview",
       "day", "days", "stop", "stops", "activities", "things to do", "city", "cities", "where",
@@ -327,6 +366,7 @@ export const PRESETS: readonly WidgetPreset[] = [
     widget: "stop.rows",
     params: { only: "needsBooking" },
     title: "Still to book",
+    summary: "Lists every stop still marked Pending, one per line, so you know exactly what is left to reserve.",
     keywords: ["book", "booking", "bookings", "to book", "unbooked", "outstanding", "todo", "reserve", "tickets", "pending"],
     description: "One line per stop that still needs booking — every stop marked Pending.",
     // Fixed, never computed (ADR-037 decision 5): no count, no names.
@@ -339,6 +379,7 @@ export const PRESETS: readonly WidgetPreset[] = [
     widget: "country.facts",
     params: {},
     title: "Know before you go",
+    summary: "Gives each country on your route a card with its plugs, voltage, driving side, emergency numbers, currency and tipping.",
     keywords: [
       "country", "countries", "plug", "adapter", "voltage", "power", "electricity", "driving",
       "emergency", "police", "ambulance", "currency", "money", "calling code", "phone", "tipping", "tip",
@@ -351,6 +392,7 @@ export const PRESETS: readonly WidgetPreset[] = [
     widget: "trip.strip",
     params: {},
     title: "Trip strip",
+    summary: "Draws the whole trip as one band, a cell per day coloured by city, so you can see your route at a glance.",
     keywords: ["strip", "timeline", "overview", "cities", "route", "days", "at a glance", "band"],
   },
   // M14 link 11, the first chart. Unfiltered: every day, every tag.
@@ -359,6 +401,7 @@ export const PRESETS: readonly WidgetPreset[] = [
     widget: "cost.chart",
     params: {},
     title: "Spend by day",
+    summary: "Charts what each day costs as a bar, stacked by tag, with your budget per day drawn across as a line.",
     keywords: ["spend", "spending", "chart", "graph", "bar", "costs", "money", "budget", "daily", "per day"],
   },
   // Mitchell, PR 221 preview: the same chart as a burn-down against the budget.
@@ -367,6 +410,7 @@ export const PRESETS: readonly WidgetPreset[] = [
     widget: "cost.chart",
     params: { view: "burndown" },
     title: "Budget burn-down",
+    summary: "Charts how much of your budget is left after each day against an even pace, so you can see if you are on track.",
     keywords: ["burn down", "burndown", "budget", "left", "remaining", "pace", "chart", "area", "spend", "money"],
   },
   // Mitchell, 2026-09-26: the Settings sheet's M19 breakdown, rebuilt as a pie
@@ -377,6 +421,7 @@ export const PRESETS: readonly WidgetPreset[] = [
     widget: "cost.breakdown",
     params: { by: "kind" },
     title: "Spend by kind",
+    summary: "Splits what the trip costs into a pie of planned, pending and travel stops, with each slice's amount and share.",
     keywords: [
       "spend", "spending", "chart", "pie", "donut", "breakdown", "split", "share", "kind", "planned", "pending",
       "travel", "transit", "costs", "money", "budget",
@@ -390,6 +435,7 @@ export const PRESETS: readonly WidgetPreset[] = [
     widget: "cost.breakdown",
     params: { by: "tag" },
     title: "Spend by tag",
+    summary: "Splits what the trip costs into a pie by tag, such as meals, lodging and tickets, with each slice's amount and share.",
     keywords: [
       "spend", "spending", "chart", "pie", "donut", "breakdown", "split", "share", "tag", "tags", "meal", "meals",
       "lodging", "ticketed", "outdoors", "untagged", "costs", "money", "budget",
@@ -404,6 +450,7 @@ export const PRESETS: readonly WidgetPreset[] = [
     widget: "day.sun",
     params: {},
     title: "Sunrise and sunset",
+    summary: "Shows sunrise, sunset and the golden hour for each day in local time, for planning early starts and photos.",
     keywords: ["sun", "sunrise", "sunset", "golden hour", "daylight", "dawn", "dusk", "light", "photo", "photography"],
   },
   {
@@ -411,6 +458,7 @@ export const PRESETS: readonly WidgetPreset[] = [
     widget: "day.fromHome",
     params: {},
     title: "Time difference from home",
+    summary: "Shows how many hours ahead of or behind home each day's place is, measured from your home airport.",
     keywords: ["time", "time zone", "timezone", "difference", "jet lag", "home", "clock", "hours ahead", "behind", "call home"],
   },
   {
@@ -418,6 +466,7 @@ export const PRESETS: readonly WidgetPreset[] = [
     widget: "day.weather",
     params: {},
     title: "Weather",
+    summary: "Shows each day's weather: the forecast when the day is close, and what is typical for that month when it is not.",
     keywords: ["weather", "forecast", "temperature", "rain", "typical", "climate", "sun", "cold", "hot", "umbrella", "pack"],
   },
   {
@@ -425,6 +474,7 @@ export const PRESETS: readonly WidgetPreset[] = [
     widget: "cost.rows",
     params: {},
     title: "Costs, broken down",
+    summary: "Lists what each day costs in a table, plus any unscheduled stops, with the trip's total at the end.",
     keywords: ["cost", "costs", "money", "breakdown", "table", "spend", "total"],
   },
   // ---- what is waiting on a decision -------------------------------------
@@ -438,6 +488,7 @@ export const PRESETS: readonly WidgetPreset[] = [
     widget: "open",
     params: {},
     title: "What needs you",
+    summary: "Lists everything waiting on a decision, such as overlapping stops, empty days and parked ideas, one row each.",
     keywords: ["open", "todo", "decide", "decisions", "waiting", "overlap", "conflict", "empty", "parked", "unscheduled"],
     preview: "one row per thing waiting on a decision",
   },
@@ -526,6 +577,8 @@ export interface WidgetCatalogEntry {
   widget: string;
   params: Readonly<Record<string, unknown>>;
   title: string;
+  /** The preset's own reader-facing sentence — see `WidgetPreset.summary`. */
+  summary: string;
   shape: WidgetShape;
   description: string;
   emptyText: string;
@@ -621,6 +674,7 @@ export function presetCatalog(): WidgetCatalogEntry[] {
       widget: preset.widget,
       params: preset.params,
       title: preset.title,
+      summary: preset.summary,
       shape: def.shape,
       description: preset.description ?? def.description,
       emptyText: def.emptyText,

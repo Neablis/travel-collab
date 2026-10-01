@@ -19,7 +19,7 @@
 // cannot be routed around: there is no way to reference another plan without
 // putting an identifier or a call inside the definition, and neither is
 // allowed here.
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -328,10 +328,13 @@ type PlanVersionArray = (typeof PLAN_VERSIONS)[number][];
 function grepRepo(root: string, pattern: RegExp): string[] {
   const out: string[] = [];
   const walk = (dir: string): void => {
-    for (const name of readdirSync(dir)) {
+    // `withFileTypes`: the entry says what it is, so there is no separate
+    // stat to go stale before the read (CodeQL js/file-system-race).
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const name = entry.name;
       if (name === "node_modules" || name === ".next" || name.startsWith(".")) continue;
       const full = path.join(dir, name);
-      if (statSync(full).isDirectory()) {
+      if (entry.isDirectory()) {
         walk(full);
         continue;
       }

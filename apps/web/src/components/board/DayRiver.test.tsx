@@ -124,6 +124,41 @@ describe("what a block has room to say", () => {
   });
 });
 
+describe("a transit block says where its leg goes", () => {
+  // Mitchell, 2026-09-30 (option "B"): the destination shows on the block, not
+  // only as the map's line.
+  const odawara = locationFactory.build({ name: "Odawara Station, Odawara, Japan", city: "Odawara", area: "Odawara" });
+  const kyoto = locationFactory.build({ name: "Kyoto Station, Shimogyō, Kyoto, Japan", city: "Kyoto", area: "Shimogyō" });
+  const osaka = locationFactory.build({ name: "Osaka Station, Kita, Osaka, Japan", city: "Osaka", area: "Kita" });
+
+  it("puts both ends on the time line of a block with room for one", () => {
+    const leg = activityFactory.build({
+      title: "Shinkansen",
+      kind: "transit",
+      mode: "train",
+      timeWindow: { start: "09:30", end: "11:45" },
+      location: odawara,
+      endLocation: kyoto,
+    });
+    renderRiver([leg]);
+    expect(block(leg.activityId).getByText("9:30 am – 11:45 am · Odawara → Kyoto")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Edit Shinkansen, 9:30 am – 11:45 am, Train, 2 h 15 m, Odawara → Kyoto" })).toBeTruthy();
+  });
+
+  it("joins them to the title of a block too short for a second line", () => {
+    const leg = activityFactory.build({
+      title: "Local",
+      kind: "transit",
+      mode: "train",
+      timeWindow: { start: "10:00", end: "10:40" },
+      location: kyoto,
+      endLocation: osaka,
+    });
+    renderRiver([leg]);
+    expect(block(leg.activityId).getByText("Train · Local · Kyoto → Osaka")).toBeTruthy();
+  });
+});
+
 describe("the order a river is read in", () => {
   it("is the order of the clock, not of the day's list", () => {
     // Listed evening first, as a drop at a new time can leave them; two stops

@@ -74,6 +74,13 @@ const ENTRY_POINTS = {
     args: ["scripts/db-seed.ts"],
     expect: { status: 1, output: /seed failed: fetch failed/ },
   },
+  // `landing:verify` (and `landing:generate`, which is the same file without
+  // `--check`). The check folds the Japan fixture in memory and compares it
+  // with the committed snapshot, so it touches no database and writes nothing.
+  "scripts/landing-demo.ts": {
+    args: [...LOADER, "scripts/landing-demo.ts", "--check"],
+    expect: { status: 0, output: /landing:verify OK/ },
+  },
   // Run by hand, never by CI. It is here because it is the same shape of
   // script and would break the same way; without a key it throws before
   // touching the vendor.

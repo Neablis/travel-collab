@@ -16,6 +16,21 @@ not by anybody remembering. That automation exists because the rule was being
 skipped: M23's entry survived its own gate closing on 2026-09-19 and was still
 here two days later.
 
+- **Structured booking fields on a stop — confirmation number, provider, link
+  (asked 2026-09-30).** From an external API consumer's feedback: confirmation
+  numbers live in `notes` today. A stop has `cost`, `bookedBy` (a member id) and
+  `pendingReason: "book"`, but nothing structured for *what* was booked. Mitchell,
+  2026-09-30, chose **not now** over a notes convention (`Confirmation: …` lines
+  a card recognises) — parsing free text is fragile and gives API callers nothing
+  typed. The shape if it comes: an optional `booking: { confirmation?, provider?,
+  url? }` on the activity contract. Additive, but it enters the event payloads
+  that are replayed forever (invariants 1 and 2), so it is placed as a small
+  milestone, not a PR.
+
+  Open questions: which fields actually render (card, editor, the Money notebook?),
+  whether check-in/out times belong here or in the time window, and whether a
+  confirmation number is sensitive enough to hide from viewers and share links.
+
 - **Reset a trip's default notebooks to their seed, and add any seed the trip is
   missing (asked 2026-09-27).** Mitchell, reading the M29/M30 Overview: *"Its hard to
   test this, we might want a way to reset a trips default notebooks back to there seed

@@ -30,6 +30,9 @@
 // `files` globs drifting off `packages/`, fails `pnpm lint`.
 import tsPlugin from "@typescript-eslint/eslint-plugin";
 import testingLibrary from "eslint-plugin-testing-library";
+import { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import { typeAwareRules, typeAwareSourceRules, typeAwareSkipped } from "./eslint.type-aware.mjs";
 
 const PACKAGE_SOURCES = ["packages/*/**/*.{ts,tsx,mts,cts}"];
 const PACKAGE_TESTS = ["packages/*/**/*.test.{ts,tsx}"];
@@ -97,4 +100,24 @@ export default [
       ],
     },
   },
+  ...(typeAwareSkipped
+    ? []
+    : [
+      {
+        // TYPE-AWARE RULES — the same set `apps/web` runs (`eslint.type-aware.mjs`
+        // has it and why). Scoped to what each package's `tsconfig.json` includes
+        // (`src`, and `test` where there is one); `vitest.config.ts` is outside
+        // every package's program and is a config file, not code under test.
+        files: ["packages/*/src/**/*.{ts,tsx}", "packages/*/test/**/*.{ts,tsx}"],
+        languageOptions: {
+          parserOptions: { projectService: true, tsconfigRootDir: dirname(fileURLToPath(import.meta.url)) },
+        },
+        rules: typeAwareRules,
+      },
+      {
+        files: ["packages/*/src/**/*.{ts,tsx}"],
+        ignores: PACKAGE_TESTS,
+        rules: typeAwareSourceRules,
+      },
+    ]),
 ];

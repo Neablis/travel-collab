@@ -13,6 +13,24 @@ const DOT_BG: Record<AccentFamily, string> = {
   neutral: "bg-slate",
 };
 
+// A 256px card over a leg label with no length limit, so each leg is one
+// ellipsised line rather than a wrap that pushes the card up the map. `title`
+// keeps the whole label a hover away.
+/** The day's travel legs, one line each ("Train · Odawara → Kyoto"); nothing for a day with none. */
+export function MapLegList({ legs }: { legs: readonly string[] }) {
+  if (legs.length === 0) return null;
+  return (
+    <ul className="flex flex-col text-xs text-info-ink">
+      {legs.map((leg, index) => (
+        // A day trip out and back can repeat a label, so the index keys it.
+        <li key={`${index}:${leg}`} className="truncate" title={leg}>
+          {leg}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 // Handoff `current/…dc.html:630-668` "focus card": floats over the map,
 // explaining whichever day the rail currently has focused — including an
 // empty day, where the camera deliberately doesn't move (Task 2.3) and this
@@ -43,6 +61,7 @@ export function MapFocusCard({ day }: { day: MapDay | null }) {
         <span className="text-sm font-bold text-ink">{day.city ?? day.label}</span>
       </div>
       {stat !== null && <div className="font-mono text-xs text-slate">{stat}</div>}
+      <MapLegList legs={day.legs} />
       {/* Phase 6, copy table row "map focus card, empty day". This card says
           "No stops yet" where the rail says "Nothing planned yet" about the
           very same day — the design's own distinction, kept honest by

@@ -25,7 +25,7 @@
 import { and, eq, lte, sql } from "drizzle-orm";
 import { NO_CEILINGS, type EntitlementCeilings } from "./assistant/entitlements";
 import { db } from "./db/client";
-import type { Db } from "./db/client";
+import type { Db, Queryable } from "./db/client";
 import { rateLimitCounters } from "./db/schema";
 
 /**
@@ -280,6 +280,34 @@ export function geocodeQuota(): QuotaPolicy[] {
       windowMs: DAY_MS,
       perUser: envCeiling("GEOCODE_RATE_LIMIT_PER_USER_DAILY", 300),
       global: envCeiling("GEOCODE_RATE_LIMIT_GLOBAL_DAILY", 4000),
+    },
+  ];
+}
+
+/**
+ * The per-TOKEN ceiling on `GET /v1/geocode`, the public place search (Mitchell,
+ * 2026-09-30): 100 lookups a day per token, below the app's 300 per user.
+ *
+ * **Charged by token id, and never instead of `geocodeQuota`.** The route charges
+ * this first and `geocodeQuota` second, so a lookup through a token counts
+ * against the owner's own daily allowance and the shared global one exactly as
+ * an in-app search does — an API caller can never exceed what the app would let
+ * them spend. This policy only narrows it per credential, so one leaked or
+ * runaway token cannot use a person's whole allowance.
+ *
+ * `consumeQuota` keys `perUser` by whatever identity it is handed; here that is
+ * the token id, the same trick `API_TOKEN_QUOTA` uses. Its `global` is the
+ * counter column's maximum on purpose, i.e. no ceiling at all: the shared
+ * ceiling is `geocodeQuota`'s, and a second, different global number would be a
+ * second answer to one question.
+ */
+export function placeSearchTokenQuota(): QuotaPolicy[] {
+  return [
+    {
+      name: "place-search-token-daily",
+      windowMs: DAY_MS,
+      perUser: envCeiling("PLACE_SEARCH_RATE_LIMIT_PER_TOKEN_DAILY", 100),
+      global: MAX_COUNTER_HITS,
     },
   ];
 }
@@ -742,17 +770,22 @@ export async function sweepExpiredCounters(
   now: Date = new Date(),
   database: Db = db,
 ): Promise<void> {
-  for (const policy of policies) {
-    await database
-      .delete(rateLimitCounters)
-      .where(
-        and(
-          // `starts_with`, not LIKE: a policy name is not a pattern, and the
-          // colon keeps "ai-hourly" from reaching "ai-hourly-something".
-          sql`starts_with(${rateLimitCounters.bucket}, ${`${policy.name}:`})`,
-          // A window [start, start + windowMs) has ended once `now` reaches its end.
-          lte(rateLimitCounters.windowStart, new Date(now.getTime() - policy.windowMs)),
-        ),
-      );
-  }
+  for (const policy of policies) await sweepStatement(policy, now, database);
+}
+
+/**
+ * One policy's sweep, unexecuted. Exported so `quota.int.test.ts` can EXPLAIN
+ * the exact statement: `rate_limit_counters_link_preview_window` (schema.ts) is
+ * partial on this `starts_with` text, and only a plan shows the two still agree.
+ */
+export function sweepStatement(policy: QuotaPolicy, now: Date, database: Queryable = db) {
+  return database.delete(rateLimitCounters).where(
+    and(
+      // `starts_with`, not LIKE: a policy name is not a pattern, and the
+      // colon keeps "ai-hourly" from reaching "ai-hourly-something".
+      sql`starts_with(${rateLimitCounters.bucket}, ${`${policy.name}:`})`,
+      // A window [start, start + windowMs) has ended once `now` reaches its end.
+      lte(rateLimitCounters.windowStart, new Date(now.getTime() - policy.windowMs)),
+    ),
+  );
 }

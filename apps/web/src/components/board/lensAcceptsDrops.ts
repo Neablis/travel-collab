@@ -16,8 +16,9 @@ import type { View } from "@/components/trip/context/LensRouter";
  * the drop targets rather than being restated beside them and drifting.
  *
  * Today only Plan registers any: `dropTargetForElements` is wired for the
- * rack's own zone, `Column.tsx`'s day columns and each `ActivityCard`, all
- * inside the Plan view. Nothing under `lenses/` registers one.
+ * rack's own zone, `Column.tsx`'s day columns and their "Unscheduled" chips, and
+ * each `DayRiver`, all inside the Plan view. Nothing under `lenses/` registers
+ * one.
  *
  * SPEC §24 renamed the view (Board -> Plan) and deleted Timeline; neither
  * changes the rule, and the four TODO.md rack gaps it used to name are now

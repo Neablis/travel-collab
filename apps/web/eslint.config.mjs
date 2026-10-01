@@ -4,6 +4,7 @@ import { FlatCompat } from "@eslint/eslintrc";
 import importPlugin from "eslint-plugin-import";
 import testingLibrary from "eslint-plugin-testing-library";
 import playwright from "eslint-plugin-playwright";
+import { typeAwareRules, typeAwareSourceRules, typeAwareSkipped } from "../../eslint.type-aware.mjs";
 
 const compat = new FlatCompat({
   baseDirectory: dirname(fileURLToPath(import.meta.url)),
@@ -682,4 +683,24 @@ export default [
       ],
     },
   },
+  ...(typeAwareSkipped
+    ? []
+    : [
+      {
+        // TYPE-AWARE RULES (`eslint.type-aware.mjs` has the set and why). The
+        // project service hands each file the TypeScript program `tsconfig.json`
+        // already describes, so a file tsc does not see is a parse error here —
+        // which is the point: nothing is linted without its types.
+        files: ["**/*.{ts,tsx}"],
+        languageOptions: {
+          parserOptions: { projectService: true, tsconfigRootDir: dirname(fileURLToPath(import.meta.url)) },
+        },
+        rules: typeAwareRules,
+      },
+      {
+        files: ["src/**/*.{ts,tsx}", "*.ts"],
+        ignores: ["src/**/*.test.{ts,tsx}"],
+        rules: typeAwareSourceRules,
+      },
+    ]),
 ];

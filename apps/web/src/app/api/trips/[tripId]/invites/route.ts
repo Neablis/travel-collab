@@ -2,6 +2,10 @@ import { CreateInviteInput, TripInvite } from "@tc/contracts";
 import { requireTripAccess } from "@/server/access/trip-access";
 import { createInvite } from "@/server/access/invites";
 import { accountCan } from "@/server/entitlements/resolver";
+import { readContact } from "@/server/users";
+import { sendEmail } from "@/server/email/send";
+import { tripInviteEmail } from "@/server/email/templates";
+import { deploymentOrigin } from "@/lib/deploymentOrigin";
 import {
   COLLABORATORS_NOT_ENTITLED_CODE,
   COLLABORATORS_NOT_ENTITLED_REASON,
@@ -40,5 +44,25 @@ export async function POST(request: Request, { params }: { params: Promise<{ tri
   const body = CreateInviteInput.safeParse(await request.json().catch(() => null));
   if (!body.success) return Response.json({ error: "invalid-invite" }, { status: 400 });
   const invite = await createInvite(tripId, access.userId, body.data);
-  return Response.json({ invite: TripInvite.parse(invite) }, { status: 201 });
+  // **An invite with an address is also emailed** — the link is still the
+  // invite, and the panel still copies it, so a send that fails or is not
+  // configured leaves the owner exactly where they were before email existed.
+  // `emailed` rides beside the DTO rather than in it: it describes this
+  // request, not the invite, and a reload of the list cannot know it.
+  let emailed = false;
+  if (invite.email !== null) {
+    const inviter = await readContact(access.userId);
+    const outcome = await sendEmail(
+      tripInviteEmail({
+        to: invite.email,
+        inviterName: inviter.name,
+        inviterEmail: inviter.email,
+        tripName: access.detail.name,
+        role: invite.role,
+        inviteUrl: `${deploymentOrigin()}/invite/${encodeURIComponent(invite.token)}`,
+      }),
+    );
+    emailed = outcome.sent;
+  }
+  return Response.json({ invite: TripInvite.parse(invite), emailed }, { status: 201 });
 }

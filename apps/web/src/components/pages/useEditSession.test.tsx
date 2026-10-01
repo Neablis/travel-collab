@@ -24,7 +24,9 @@ describe("useEditSession", () => {
   it("writes nothing while the author is still editing", () => {
     const { result, commit } = mount();
     act(() => result.current.change(doc("a")));
-    act(() => vi.advanceTimersByTime(EDIT_SESSION_IDLE_MS - 1));
+    act(() => {
+      vi.advanceTimersByTime(EDIT_SESSION_IDLE_MS - 1);
+    });
     expect(commit).not.toHaveBeenCalled();
   });
 
@@ -158,11 +160,17 @@ describe("useEditSession", () => {
   it("commits after a minute idle, counted from the LAST change", () => {
     const { result, commit } = mount();
     act(() => result.current.change(doc("a")));
-    act(() => vi.advanceTimersByTime(EDIT_SESSION_IDLE_MS / 2));
+    act(() => {
+      vi.advanceTimersByTime(EDIT_SESSION_IDLE_MS / 2);
+    });
     act(() => result.current.change(doc("ab")));
-    act(() => vi.advanceTimersByTime(EDIT_SESSION_IDLE_MS - 1));
+    act(() => {
+      vi.advanceTimersByTime(EDIT_SESSION_IDLE_MS - 1);
+    });
     expect(commit).not.toHaveBeenCalled();
-    act(() => vi.advanceTimersByTime(1));
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
     expect(commit.mock.calls).toEqual([[doc("ab"), { keepalive: false, overtaking: false }]]);
   });
 
@@ -190,7 +198,9 @@ describe("useEditSession", () => {
     rerender({ editing: false, commit });
     await act(() => Promise.resolve());
     expect(result.current.failed).toBe(true);
-    act(() => vi.advanceTimersByTime(EDIT_SESSION_IDLE_MS));
+    act(() => {
+      vi.advanceTimersByTime(EDIT_SESSION_IDLE_MS);
+    });
     await act(() => Promise.resolve());
     expect(commit.mock.calls).toEqual([
       [doc("a"), { keepalive: false, overtaking: false }],
@@ -229,7 +239,9 @@ describe("useEditSession", () => {
     act(() => result.current.change(doc("ab")));
     act(() => result.current.flush());
     act(() => result.current.change(doc("abc")));
-    act(() => vi.advanceTimersByTime(EDIT_SESSION_IDLE_MS));
+    act(() => {
+      vi.advanceTimersByTime(EDIT_SESSION_IDLE_MS);
+    });
     expect(commit.mock.calls.map(([d]) => d)).toEqual([doc("a")]);
     await act(async () => land(true));
     expect(commit.mock.calls).toEqual([
@@ -303,7 +315,9 @@ describe("useEditSession", () => {
     await act(() => Promise.resolve());
     await act(async () => land(false));
     expect(result.current.failed).toBe(false);
-    act(() => vi.advanceTimersByTime(EDIT_SESSION_IDLE_MS));
+    act(() => {
+      vi.advanceTimersByTime(EDIT_SESSION_IDLE_MS);
+    });
     unmount();
     expect(commit.mock.calls.map(([d]) => d)).toEqual([doc("a"), doc("ab")]);
   });
@@ -325,7 +339,9 @@ describe("useEditSession", () => {
     act(() => result.current.flush());
     await act(async () => land("superseded"));
     expect(result.current.failed).toBe(false);
-    act(() => vi.advanceTimersByTime(EDIT_SESSION_IDLE_MS));
+    act(() => {
+      vi.advanceTimersByTime(EDIT_SESSION_IDLE_MS);
+    });
     unmount();
     expect(commit.mock.calls.map(([d]) => d)).toEqual([doc("a")]);
   });

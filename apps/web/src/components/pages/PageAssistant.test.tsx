@@ -423,7 +423,10 @@ describe("the assistant on a notebook page", () => {
       expect(screen.getByRole("log", { name: "Conversation" }).textContent).toContain("you can only read this page"),
     );
     expect(screen.queryByText("Bring a raincoat")).toBeNull();
-    expect(screen.getByRole("button", { name: "Edit page" })).toBeTruthy();
+    // Still Reading — and a viewer has no Edit page to press either
+    // (Mitchell, 2026-10-01), so the absence of both is what says so.
+    expect(screen.queryByRole("button", { name: "Done editing" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Edit page" })).toBeNull();
     expect(onUpdate).not.toHaveBeenCalled();
   });
 

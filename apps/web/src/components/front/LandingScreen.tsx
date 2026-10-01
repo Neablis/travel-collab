@@ -13,12 +13,17 @@ import { cn } from "@/lib/cn";
 // Every string here is transcribed from the design source
 // `.design-sync/handoff/design/Trip Planner Redesign.dc.html:1840-2214`.
 //
-// SPEC §14's copy rules are load-bearing, not stylistic: no "free", no "open
-// source", no "no credit card" — Caesura is a product for groups, not a tool —
-// and the only footnote is "Early access". The previous build shipped all
-// three of those words plus a "twelve group chats" hero; they were removed
-// deliberately on this pass. `LandingScreen.test.tsx` guards the rule so they
-// cannot creep back. Reopen it in SPEC §14 first, not here.
+// **Except the words.** The copy is Mitchell's retro of 2026-09-28
+// (`docs/design-feedback/2026-09-28-landing-retro-copy.md`, DRIFT D21): same
+// page, new temperature — it sells the feeling of a day worth reliving and
+// lets the mechanics ride along. The design file still carries the old words.
+//
+// SPEC §14's copy rules hold: no "free", no "open source", no "no credit
+// card" — Caesura is a product for groups, not a tool. The retro briefly put
+// "Free during early access" under the hero and the closing CTA; Mitchell took
+// it back out on the preview (2026-09-28): "there will always be a free" tier,
+// so a line implying free ends with early access promised the wrong thing.
+// `LandingScreen.test.tsx` guards all three.
 //
 // The page runs on nothing (SPEC §14): no session, no fetch, no backend, every
 // value a fixture in this file. A data-model change must never be able to break
@@ -202,21 +207,22 @@ export function LandingScreen() {
           <div className="relative mx-auto grid w-full max-w-285 items-center gap-12 px-7 pt-13.5 pb-17 lg:grid-cols-2">
             <div className="flex flex-col gap-5.5">
               <DataText size="xs" className="text-2xs tracking-widest uppercase">
-                Trips, planned together
+                Days worth reliving
               </DataText>
 
               <Heading level={1} className="text-4xl text-pretty">
-                The trip everyone actually helped plan.
+                Put the best day on repeat.
               </Heading>
 
               <Text as="p" variant="secondary" className="max-w-115 text-md text-pretty">
-                One shared plan your whole group can move around — days, times, costs, who&rsquo;s in. The
-                good days get saved, and they drop straight into the next trip.
+                Caesura is a trip planner built on playbooks: real days from real trips, saved by the people
+                who lived them. Borrow a perfect day in Kyoto, plan the rest with your group, and relive it
+                all when you&rsquo;re home.
               </Text>
 
               <div className="flex flex-wrap items-center gap-2.5 pt-0.5">
                 <Link href="/signup" className={cn(buttonVariants({ variant: "primary" }), "no-underline")}>
-                  Continue with Google
+                  Start a trip
                 </Link>
                 {/* Real as of M11 link 4, and still a plain link: SPEC §14
                     says this page runs on nothing — no session, no fetch, no
@@ -237,7 +243,7 @@ export function LandingScreen() {
               </div>
 
               <Text as="p" variant="muted">
-                Early access — invite the group by link, nothing to install.
+                Invite the group with a link, nothing to install.
               </Text>
             </div>
 
@@ -245,10 +251,10 @@ export function LandingScreen() {
           </div>
         </section>
 
-        <div className="mx-auto flex w-full max-w-285 flex-col gap-7.5 px-7 pt-13.5 pb-2.5">
-          <Heading level={2} className="max-w-155 text-3xl text-pretty">
-            Planning is the trip, three times over.
-          </Heading>
+        {/* No section heading over the blocks any more: the retro gives each
+            block its own, and "Planning is the trip, three times over" had
+            stopped being true the day Countdown made it four. */}
+        <div className="mx-auto w-full max-w-285 px-7 pt-13.5 pb-2.5">
           <LandingFeatureBlocks />
         </div>
 
@@ -262,7 +268,10 @@ export function LandingScreen() {
                 A trip takes about a minute to set up. Everything after that is easier with company.
               </Text>
             </div>
-            <div className="flex flex-wrap gap-2.5">
+            {/* `items-center`: the two buttons sit on the band's vertical
+                centre, level with the heading and body beside them (Mitchell,
+                on the preview). */}
+            <div className="flex flex-wrap items-center gap-2.5">
               <Link href="/signup" className={cn(buttonVariants({ variant: "primary" }), "no-underline")}>
                 Start a trip
               </Link>
@@ -281,6 +290,23 @@ export function LandingScreen() {
           </div>
         </div>
       </main>
+
+      {/* Minimal and boring on purpose. Privacy and Terms are plain text, not
+          links, until those pages exist — a footer link that 404s is worse
+          than no link. */}
+      <footer className="border-t border-hairline">
+        <div className="mx-auto flex w-full max-w-285 flex-wrap items-center gap-x-2 gap-y-1 px-7 py-6">
+          <Text as="span" variant="muted">&copy; 2026 Caesura</Text>
+          <Text as="span" variant="muted" aria-hidden>&middot;</Text>
+          <Text as="span" variant="muted">Privacy</Text>
+          <Text as="span" variant="muted" aria-hidden>&middot;</Text>
+          <Text as="span" variant="muted">Terms</Text>
+          <Text as="span" variant="muted" aria-hidden>&middot;</Text>
+          <a href="mailto:mitchell@demarcosoftware.com" className="text-xs text-slate">
+            mitchell@demarcosoftware.com
+          </a>
+        </div>
+      </footer>
       </div>
     </>
   );

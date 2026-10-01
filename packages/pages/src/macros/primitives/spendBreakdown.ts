@@ -6,8 +6,8 @@ import { blockOf } from "../../registry-types";
 import type { SpendBreakdownBy, SpendBreakdownPayload, SpendBreakdownSlice } from "../../chartPayloads";
 import { ok, empty, needsTrip, type MacroResult } from "../../result";
 import { filterInputs, filterParams, withoutWithheld } from "../../filters";
-import { costOfStops, narrow, type Narrowed, type SelectedStop } from "../../select";
-import { dayLabel, formatMoney, formatShortDate } from "../../format";
+import { costOfStops, datesLabel, narrow, type Narrowed, type SelectedStop } from "../../select";
+import { dayLabel, formatMoney } from "../../format";
 import { collapseKind } from "../../kinds";
 import { KIND_LABEL, TAG_LABEL } from "../../enumLabels";
 import { SPEND_SERIES, SPEND_SERIES_LABEL, seriesOf } from "./spendSeries";
@@ -139,11 +139,9 @@ function titleOf(by: SpendBreakdownBy, selection: Narrowed): string {
   if (filters.kind !== undefined) parts.push(KIND_LABEL[filters.kind]);
   if (filters.city !== undefined) parts.push(filters.city);
   if (filters.day !== undefined && selection.days.length === 1) parts.push(dayLabel(selection.days[0]!));
-  if (filters.dates !== undefined) {
-    const from = formatShortDate(filters.dates.from)!;
-    const through = formatShortDate(filters.dates.through)!;
-    parts.push(from === through ? from : `${from} – ${through}`);
-  }
+  // The filter's own wording, so the title and the days button agree — a
+  // range as before ("Jun 1 – Jun 4"), separate days as a list.
+  if (filters.dates !== undefined) parts.push(datesLabel(filters.dates));
   return parts.join(" · ");
 }
 

@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { TEMPLATE_LIBRARY, isOverviewPage, missingDefaultTemplates, type TemplateSeed } from "@tc/pages";
 import { newPageDoc } from "@tc/contracts";
-import type { PageContext, PageDoc, PageListEntry, SavedNotebookSummary, TripDetail } from "@tc/contracts";
+import type { PageContext, PageDoc, PageListEntry, SavedNotebookSummary, TripDetail, TripRole } from "@tc/contracts";
 import { addMissingDefaultNotebooks, createPage, deletePage, fetchPages } from "@/lib/pagesClient";
 import { deleteSavedNotebook, fetchSavedNotebooks, instantiateSavedNotebook } from "@/lib/savedNotebooksClient";
 import { RegionError, Skeleton, SkeletonRegion } from "@/components/ui/skeleton";
@@ -20,6 +20,7 @@ import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { EmptyState } from "@/components/ui/empty-state";
 import { AskPill } from "@/components/assistant/AskPill";
 import { AssistantRail } from "@/components/assistant/AssistantRail";
@@ -82,7 +83,88 @@ const BLANK_STARTER: Starter = {
   build: (tripId) => ({ title: BLANK_TITLE, context: { tripId }, content: newPageDoc() }),
 };
 
-const STARTERS: Starter[] = [...TEMPLATE_LIBRARY.map(starterFrom), BLANK_STARTER];
+// **Grouped by the one thing the seeds already say about themselves.**
+// Mitchell, PR #269 preview: *"Find a better way to show these 'Start from a
+// template', its just a wall of templates, its ugly and hard to navigate"*. Nine
+// equal cards in a 3-up grid gave every starter the same weight, so nothing
+// said where to look first. `seedIntoNewTrips` is the split the library is
+// built on (`templates.ts`'s "Two lists" header): the ones every trip comes
+// with, which is how a deleted one comes back, and the ones you choose. Read
+// off the seed rather than out of a map keyed here by template key, for the
+// reason `starterFrom` gives — a new template lands in a group without an edit
+// to this file.
+const ESSENTIAL_STARTERS: Starter[] = TEMPLATE_LIBRARY.filter((t) => t.seedIntoNewTrips).map(starterFrom);
+const MORE_STARTERS: Starter[] = TEMPLATE_LIBRARY.filter((t) => !t.seedIntoNewTrips).map(starterFrom);
+
+// Which group the gallery's filter is showing — exactly one, always. "yours" is
+// offered only while there is a saved template to show, so it is never a
+// filter onto nothing. There is no "all": Mitchell, PR #269 preview: *"Make the
+// options, Essential and More, no all, and more shouldnt include essentials"*.
+// All was the same wall of templates the filter was added to break up, one
+// click away and selected by default, so the page opened on the wall.
+type TemplateFilter = "essentials" | "more" | "yours";
+
+// **One row per template, not one card.** Title, the description on ONE line,
+// and the action at the end — so a group reads as a list you run your eye down
+// rather than a grid you read tile by tile (PR #269 preview). `min-w-0` on the
+// text column is what lets `truncate` work inside a flex row; without it the
+// description pushes the button off a 320px phone and the page scrolls
+// sideways.
+const TEMPLATE_ROW = "flex items-center gap-3 px-3 py-2";
+
+// A named group of template rows. A `section` so each group is a region a
+// screen reader can jump between and a test can name — "Your templates" has
+// been one since M14 link 10, and the two seed groups follow its shape.
+//
+// **Named, not titled.** Mitchell, PR #269 preview: *"Remove More templates,
+// the tabs do the same"* and, of the Essentials note, *"Remove this line, and
+// the Title"*. The filter above shows one group at a time and already says
+// which, so a visible heading repeated it. The name stays for assistive tech.
+function TemplateGroup({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <section aria-label={label} className="mt-5">
+      <ul className="flex flex-col divide-y divide-hairline rounded-md border border-hairline bg-surface">
+        {children}
+      </ul>
+    </section>
+  );
+}
+
+function StarterRow({
+  starter,
+  disabled,
+  onUse,
+}: {
+  starter: Starter;
+  disabled: boolean;
+  onUse: (starter: Starter) => void;
+}) {
+  return (
+    <li className={TEMPLATE_ROW}>
+      <div className="min-w-0 flex-1">
+        <Text className="truncate font-medium text-ink">{starter.title}</Text>
+        {/* The full sentence stays one hover away; the row keeps one line. */}
+        <Text variant="secondary" className="truncate" title={starter.description}>
+          {starter.description}
+        </Text>
+      </div>
+      <Button
+        variant="secondary"
+        size="sm"
+        onClick={() => onUse(starter)}
+        disabled={disabled}
+        className="shrink-0"
+        // The starter's own title is in the accessible name because nine
+        // buttons all labelled "Use this" is nine buttons a screen-reader user
+        // cannot tell apart, and because the e2e suite has to be able to name
+        // the one it means.
+        aria-label={`Start from ${starter.title}`}
+      >
+        Use this
+      </Button>
+    </li>
+  );
+}
 
 // What the assistant says when a turn opened from this surface came back with
 // a proposal.
@@ -146,6 +228,21 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
   // gallery exactly as it was before templates existed rather than taking the
   // trip's list down with it. `null` until known, and nothing renders for it.
   const [savedTemplates, setSavedTemplates] = useState<SavedNotebookSummary[] | null>(null);
+  const hasSaved = savedTemplates !== null && savedTemplates.length > 0;
+  // Until the reader picks, it opens on YOURS when there are any — a template
+  // you kept is one you already chose once, the likeliest pick — and on
+  // Essentials otherwise, the notebooks every trip starts with.
+  const [chosenFilter, setTemplateFilter] = useState<TemplateFilter | null>(null);
+  // Removing your last saved template takes the "Yours" chip away; falling back
+  // to Essentials here, rather than in the remove handler, keeps the chip and
+  // the list from ever disagreeing about what is selected.
+  const templateFilter: TemplateFilter =
+    chosenFilter === null || (chosenFilter === "yours" && !hasSaved)
+      ? hasSaved
+        ? "yours"
+        : "essentials"
+      : chosenFilter;
+  const showing = (group: TemplateFilter) => templateFilter === group;
   useEffect(() => {
     let cancelled = false;
     void fetchSavedNotebooks().then((result) => {
@@ -316,21 +413,28 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
   // same `@tc/pages` rule the server seeds by, so the button never promises
   // what the server would answer "nothing to add" to.
   //
-  // The role is read only when something IS missing: a trip with all its
-  // defaults, which is nearly every trip, costs no request.
+  // The role is read on every arrival now, not only when something is
+  // missing: it also decides whether this index offers ANY write (below).
   const somethingMissing = pages !== null && missingDefaultTemplates(pages).length > 0;
-  const [isOwner, setIsOwner] = useState(false);
+  // **A viewer writes no notebook** (Mitchell, 2026-10-01): no Delete, no
+  // blank notebook, no template gallery — every one of those is a write the
+  // server refuses a viewer. `pending` offers none of them either, so a viewer
+  // is never shown them for the moment before the read lands; a read that
+  // FAILS (`unknown`) offers them, as the board stays live when its own read
+  // fails (TripProvider), and the server refuses a real viewer regardless.
+  const [role, setRole] = useState<TripRole | "pending" | "unknown">("pending");
+  const isOwner = role === "owner";
+  const mayWrite = role !== "pending" && role !== "viewer";
   const [adding, setAdding] = useState(false);
   useEffect(() => {
-    if (!somethingMissing) return;
     let cancelled = false;
     void cachedRead(tripKeys.access(tripId), () => fetchTripAccess(tripId)).then((access) => {
-      if (!cancelled) setIsOwner(access.ok && access.value.myRole === "owner");
+      if (!cancelled) setRole(access.ok ? access.value.myRole : "unknown");
     });
     return () => {
       cancelled = true;
     };
-  }, [somethingMissing, tripId]);
+  }, [tripId]);
   const handleAddMissing = () => {
     setAdding(true);
     void addMissingDefaultNotebooks(tripId).then((result) => {
@@ -487,7 +591,11 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
           <RegionError
             className="mt-3"
             title={error ?? "Something went wrong"}
-            note="Only this list failed — the templates below still work, and nothing was lost."
+            note={
+              role === "viewer"
+                ? "Only this list failed, and nothing was lost."
+                : "Only this list failed — the templates below still work, and nothing was lost."
+            }
             onRetry={() => {
               setError(null);
               setStatus("loading");
@@ -498,7 +606,11 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
         ) : pages.length === 0 ? (
           <EmptyState
             title="No notebooks yet"
-            body="Start from a template below, or create a blank one and write your own."
+            body={
+              role === "viewer"
+                ? "Nobody has written one for this trip yet."
+                : "Start from a template below, or create a blank one and write your own."
+            }
           />
         ) : (
           <ul className="mt-3 flex flex-col gap-2">
@@ -560,7 +672,7 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
                       Read through `isOverviewPage` rather than by title: a
                       reader may rename this page, and the marker is what
                       identity means here. */}
-                  {isOverviewPage(page.context) ? null : (
+                  {isOverviewPage(page.context) || !mayWrite ? null : (
                     <Button size="sm" variant="ghost" onClick={() => handleDelete(page.id)} aria-label={`Delete ${page.title}`}>
                       Delete
                     </Button>
@@ -597,8 +709,8 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
           comes first, and templates are last now.
 
           **Outside every load branch, and that is deliberate rather than
-          lucky.** `STARTERS` is a module constant — no request produces it —
-          so it is real from the first frame and stays real through a failed
+          lucky.** The starters are module constants — no request produces them —
+          so the gallery is real from the first frame and stays real through a failed
           read, which is why §3b's `nbTpl` region has no counterpart here.
           The handoff makes the same call for its own reason: *"Templates are
           not the account's data — an account with nothing in it still has
@@ -606,78 +718,114 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
           the empty state. Ours is exempt from all three states, and the test
           in `NotebookScreen.test.tsx` holds it there — a future reader who
           moves this inside the branch above takes away the only thing this
-          page can still offer when its list will not load. */}
+          page can still offer when its list will not load.
+
+          **The one wait it does have is the reader's ROLE** (2026-10-01): it
+          is a write, so it is withheld from a viewer and not offered until the
+          role read (one cached request, raced with the list) has said they
+          are not one. */}
+      {/* Withheld from a viewer, and until the role is known — see `role`.
+          Starting from any of these creates a notebook on THIS trip, which a
+          viewer may not do; their own saved templates are reachable from any
+          trip they can edit. */}
+      {mayWrite ? (
       <section aria-labelledby="start-from-a-template">
-        <Heading level={3} id="start-from-a-template">
-          Start from a template
-        </Heading>
-        <ul className="mt-3 grid gap-3 sm:grid-cols-3">
-          {STARTERS.map((starter) => (
-            <Card as="li" key={starter.key} className="flex flex-col gap-2">
-              <Text className="font-medium text-ink">{starter.title}</Text>
-              <Text variant="secondary" className="flex-1">
-                {starter.description}
-              </Text>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => handleCreate(starter)}
-                disabled={creating}
-                // The starter's own title is in the accessible name because
-                // seven buttons all labelled "Use this" is seven buttons a
-                // screen-reader user cannot tell apart, and because the e2e
-                // suite has to be able to name the one it means.
-                aria-label={`Start from ${starter.title}`}
-              >
-                Use this
-              </Button>
-            </Card>
-          ))}
-        </ul>
-        {/* **Yours, after the seeds.** A template you kept from another trip
-            is a starter like the others, so it sits in this section; its own
-            heading is what tells it apart from a seed of the same name, and
-            its provenance line says which trip it came from. Absent when there
-            are none — an empty "Your templates" is a heading promising a
-            feature before anyone has used it. */}
-        {savedTemplates !== null && savedTemplates.length > 0 && (
-          <section aria-labelledby="your-templates" className="mt-6">
-            <Heading level={4} id="your-templates">
-              Your templates
-            </Heading>
-            <ul className="mt-3 grid gap-3 sm:grid-cols-3">
-              {savedTemplates.map((template) => (
-                <Card as="li" key={template.savedNotebookId} className="flex flex-col gap-2">
-                  <Text className="font-medium text-ink">{template.title}</Text>
-                  <Text variant="secondary" className="flex-1">
+        {/* **Blank beside the heading, not a tenth card in the grid.** It was
+            dressed as a peer of the templates so it would not read as a button
+            in a different corner — and that is part of what made the section
+            a wall: every entry, blank included, the same size and the same
+            weight. Mitchell, PR #269 preview: *"its just a wall of templates,
+            its ugly and hard to navigate"*. Blank is the one starter that needs
+            no reading, so it sits where the eye lands first and the list below
+            is left to the ones worth comparing. Same `BLANK_STARTER`, same
+            `handleCreate`, same accessible name the e2e suite clicks. */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Heading level={3} id="start-from-a-template">
+            Start from a template
+          </Heading>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => handleCreate(BLANK_STARTER)}
+            disabled={creating}
+            aria-label={`Start from ${BLANK_STARTER.title}`}
+          >
+            {BLANK_STARTER.title}
+          </Button>
+        </div>
+        {/* The filter, as a pill — what a filter looks like elsewhere in this
+            app (`DiscoverScreen`) — and a radiogroup because exactly one group
+            shows at a time. `SegmentedControl` brings the roving tab stop and
+            the phone touch floor; three short labels fit a 320px row without
+            wrapping. */}
+        <div className="mt-3">
+          <SegmentedControl
+            aria-label="Show templates"
+            value={templateFilter}
+            onValueChange={setTemplateFilter}
+            options={[
+              ...(hasSaved ? [{ value: "yours" as const, label: "Yours" }] : []),
+              { value: "essentials", label: "Essentials" },
+              { value: "more", label: "More" },
+            ]}
+          />
+        </div>
+        {/* **Yours first, when you have any.** A template you kept from
+            another trip is one you already chose once, so it is the likeliest
+            pick; the Yours filter is what tells it apart from a seed of the
+            same name, and its provenance line says which trip it came from.
+            Absent when there are none — an empty "Your templates" is a group
+            promising a feature before anyone has used it. */}
+        {hasSaved && showing("yours") && (
+          <TemplateGroup label="Your templates">
+            {(savedTemplates ?? []).map((template) => (
+              <li key={template.savedNotebookId} className={TEMPLATE_ROW}>
+                <div className="min-w-0 flex-1">
+                  <Text className="truncate font-medium text-ink">{template.title}</Text>
+                  <Text variant="secondary" className="truncate">
                     From {template.provenance.sourceTripName} · saved{" "}
                     {formatRelativeInstant(template.provenance.savedAt) ?? "recently"}
                   </Text>
-                  <div className="flex items-center gap-1">
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => handleCreateFromSaved(template)}
-                      disabled={creating}
-                      aria-label={`Start from your template ${template.title}`}
-                    >
-                      Use this
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleRemoveSaved(template.savedNotebookId)}
-                      aria-label={`Remove your template ${template.title}`}
-                    >
-                      Remove
-                    </Button>
-                  </div>
-                </Card>
-              ))}
-            </ul>
-          </section>
+                </div>
+                <div className="flex shrink-0 items-center gap-1">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => handleCreateFromSaved(template)}
+                    disabled={creating}
+                    aria-label={`Start from your template ${template.title}`}
+                  >
+                    Use this
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleRemoveSaved(template.savedNotebookId)}
+                    aria-label={`Remove your template ${template.title}`}
+                  >
+                    Remove
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </TemplateGroup>
+        )}
+        {showing("essentials") && (
+          <TemplateGroup label="Essentials">
+            {ESSENTIAL_STARTERS.map((starter) => (
+              <StarterRow key={starter.key} starter={starter} disabled={creating} onUse={handleCreate} />
+            ))}
+          </TemplateGroup>
+        )}
+        {showing("more") && (
+          <TemplateGroup label="More templates">
+            {MORE_STARTERS.map((starter) => (
+              <StarterRow key={starter.key} starter={starter} disabled={creating} onUse={handleCreate} />
+            ))}
+          </TemplateGroup>
         )}
       </section>
+      ) : null}
 
       {/* **`presentation="sheet"` unconditionally, because the sheet is the
           only presentation this screen has.** The one control that can set

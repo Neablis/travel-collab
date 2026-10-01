@@ -1,5 +1,6 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
 import { pageFixture } from "@tc/factories";
@@ -52,6 +53,13 @@ function notebooks(tripId: string) {
   return { seeded, mine };
 }
 
+// "Reset to default" lives behind the notebook's `⋯` since Mitchell's PR #269
+// preview (*"reset to default shouldnt be so prominent"*), and the `⋯` is the
+// item's own trigger: where the item would not be offered, there is no `⋯`
+// either. So "is it offered" is now asked of the `⋯`, and the item is reached
+// by opening it.
+const MORE = { name: "More notebook actions" };
+
 describe("ResetToDefault", () => {
   it("is offered to the owner on a seeded notebook, and not on one they made", async () => {
     role = "owner";
@@ -63,9 +71,12 @@ describe("ResetToDefault", () => {
         <ResetToDefault tripId={tripId} page={mine} onReset={() => {}} />
       </>,
     );
-    // Both rendered side by side, so waiting for the seeded one's button is
+    // Both rendered side by side, so waiting for the seeded one's menu is
     // also waiting out the role read the other one would have needed.
-    expect(await screen.findAllByRole("button", { name: "Reset to default" })).toHaveLength(1);
+    const menus = await screen.findAllByRole("button", MORE);
+    expect(menus).toHaveLength(1);
+    await userEvent.click(menus[0]!);
+    expect(await screen.findByRole("button", { name: "Reset to default" })).toBeTruthy();
   });
 
   // Mitchell, 2026-09-27: a default may be renamed. "Money" renamed "Budget"
@@ -75,10 +86,25 @@ describe("ResetToDefault", () => {
     const tripId = crypto.randomUUID();
     const renamed = pageFixture({ id: crypto.randomUUID(), tripId, title: "Budget", context: { tripId }, actorId: SYSTEM_ACTOR_ID, seedKey: "money" });
     render(<ResetToDefault tripId={tripId} page={renamed} onReset={() => {}} />);
+    await userEvent.click(await screen.findByRole("button", MORE));
     expect(await screen.findByRole("button", { name: "Reset to default" })).toBeTruthy();
   });
 
-  it("is not offered to an editor, even on a seeded notebook", async () => {
+  // Mitchell, PR #269 preview: not prominent. The item is not on screen until
+  // the reader asks for more, and choosing it still asks before it acts.
+  it("stays behind the ⋯ until it is opened, and still confirms", async () => {
+    role = "owner";
+    const tripId = crypto.randomUUID();
+    render(<ResetToDefault tripId={tripId} page={notebooks(tripId).seeded} onReset={() => {}} />);
+    const more = await screen.findByRole("button", MORE);
+    expect(screen.queryByRole("button", { name: "Reset to default" })).toBeNull();
+
+    await userEvent.click(more);
+    await userEvent.click(await screen.findByRole("button", { name: "Reset to default" }));
+    expect(await screen.findByRole("dialog", { name: "Reset to default?" })).toBeTruthy();
+  });
+
+  it("is not offered to an editor, even on a seeded notebook — and neither is an empty ⋯", async () => {
     role = "editor";
     const tripId = crypto.randomUUID();
     render(<ResetToDefault tripId={tripId} page={notebooks(tripId).seeded} onReset={() => {}} />);
@@ -88,6 +114,7 @@ describe("ResetToDefault", () => {
     await act(async () => {
       await cachedRead(tripKeys.access(tripId), () => fetchTripAccess(tripId));
     });
+    expect(screen.queryByRole("button", MORE)).toBeNull();
     expect(screen.queryByRole("button", { name: "Reset to default" })).toBeNull();
   });
 });

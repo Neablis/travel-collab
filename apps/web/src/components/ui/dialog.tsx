@@ -3,8 +3,27 @@ import * as RadixDialog from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 import { Button } from "./button";
 import { Heading } from "./heading";
+import { cn } from "@/lib/cn";
 
-export function Dialog({ open, onOpenChange, title, children }: { open: boolean; onOpenChange: (open: boolean) => void; title: string; children: React.ReactNode }) {
+/**
+ * A centred modal. `size="wide"` is for a dialog laid out in two columns — a
+ * control on one side and what it will do on the other — which `max-w-md`
+ * cannot hold side by side. It is a cap, not a width: on a phone the dialog is
+ * still `w-full`, and the caller is expected to stack its columns below `md`.
+ */
+export function Dialog({
+  open,
+  onOpenChange,
+  title,
+  size = "default",
+  children,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  title: string;
+  size?: "default" | "wide";
+  children: React.ReactNode;
+}) {
   return (
     <RadixDialog.Root open={open} onOpenChange={onOpenChange}>
       <RadixDialog.Portal>
@@ -26,7 +45,10 @@ export function Dialog({ open, onOpenChange, title, children }: { open: boolean;
             reads exactly like a timeout. Every dialog in the app had it; the
             library is just the first list here long enough to reach it. */}
         <RadixDialog.Content
-          className="overlay-layer fixed top-1/2 left-1/2 flex w-full max-w-md -translate-x-1/2 -translate-y-1/2 flex-col rounded-lg bg-surface p-5 shadow-overlay"
+          className={cn(
+            "overlay-layer fixed top-1/2 left-1/2 flex w-full -translate-x-1/2 -translate-y-1/2 flex-col rounded-lg bg-surface p-5 shadow-overlay",
+            size === "wide" ? "max-w-4xl" : "max-w-md",
+          )}
           // A viewport-relative cap is not a design constant and has no token;
           // `max-h-[85vh]` in className is what the colour wall forbids, so this
           // takes the same inline-style escape hatch Board and Sparkline use for

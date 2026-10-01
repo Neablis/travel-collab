@@ -54,6 +54,21 @@ const server = setupServer(
   http.get("/api/trips/:tripId/globals", () =>
     HttpResponse.json({ globals: { days: [], cities: [], tags: [] } }),
   ),
+  // And the reader's role, which every page reads now to decide whether it
+  // offers Editing at all (a viewer gets no way in). An owner unless a test
+  // says otherwise; tests about the role use a trip id of their own, because
+  // `cachedRead` keeps each trip's answer.
+  http.get("/api/trips/:tripId/access", ({ params }) =>
+    HttpResponse.json({
+      access: {
+        tripId: params.tripId,
+        myRole: "owner",
+        members: [{ userId: "u1", role: "owner", name: null, email: null, image: null }],
+        invites: [],
+        collaboratorsEntitled: true,
+      },
+    }),
+  ),
   // And the history its live-chip cursor is read off (KI-2026-09-05-i item 5).
   http.get("/api/trips/:tripId/history", ({ params }) =>
     HttpResponse.json({ history: { tripId: params.tripId, entries: [], canUndo: false, canRedo: false } }),
@@ -126,6 +141,35 @@ describe("PageScreen", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Edit page" }));
     expect(screen.queryByRole("button", { name: "Save as template" })).toBeNull();
+  });
+
+  // Mitchell, PR #269 preview: *"Maybe a flag like when saving a day for saving
+  // a notebook on the top right of the notebook"*. The pennant is ON the
+  // document — inside the card its own title names — and not in the toolbar
+  // above it, where "Edit page" stays.
+  it("puts the Save as template pennant on the notebook, not in the toolbar", async () => {
+    const trip = tripDetailFixture();
+    const page = pageFixture({ tripId: trip.tripId, title: "Packing list" });
+    server.use(...makePagesHandlers([page]), http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })));
+
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    const notebook = await screen.findByRole("article", { name: "Packing list" });
+    expect(within(notebook).getByRole("heading", { level: 1, name: "Packing list" })).toBeTruthy();
+    expect(within(notebook).getByRole("button", { name: "Save as template" })).toBeTruthy();
+    expect(within(notebook).queryByRole("button", { name: "Edit page" })).toBeNull();
+  });
+
+  // The `⋯` holds one item, Reset to default, which is owner-only and
+  // seed-only. On a notebook a person made there is nothing to put in it, so
+  // there is no `⋯` — a menu that opens onto nothing lies about itself.
+  it("shows no ⋯ on a notebook a person made", async () => {
+    const trip = tripDetailFixture();
+    const page = pageFixture({ tripId: trip.tripId, title: "Bookings", actorId: "dev-alice" });
+    server.use(...makePagesHandlers([page]), http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })));
+
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    expect(await screen.findByRole("button", { name: "Save as template" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "More notebook actions" })).toBeNull();
   });
 
   // Mitchell, 2026-09-06 on a 411px phone, pointing at the notebook index's
@@ -961,7 +1005,7 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
         within(screen.getByTestId("widget-settings"))
           .getByRole("button", { name: /What it costs: dates/ })
           .textContent,
-      ).toBe("2027-06-01"),
+      ).toBe("Jun 1"),
     );
 
     // Back to the prose, then Escape — which is how a person leaves a widget:
@@ -981,7 +1025,7 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
         within(screen.getByTestId("widget-settings"))
           .getByRole("button", { name: /The days in detail: dates/ })
           .textContent,
-      ).toBe("2027-06-02"),
+      ).toBe("Jun 2"),
     );
 
     // The document holds both, which is the actual claim — and the only place
@@ -1363,7 +1407,10 @@ describe("PageScreen given a document the editor cannot mount (ADR-038 decision 
   it("opens read-only, explains why, and never autosaves over the page", async () => {
     const { onUpdate } = await renderWithStoredContent(withNewerNode);
 
-    const notice = await screen.findByRole("status");
+    // The loading outlines are a `status` region too; the notice is the one
+    // left once they are gone.
+    await waitFor(() => expect(screen.queryByRole("status", { name: "Loading this notebook" })).toBeNull());
+    const notice = screen.getByRole("status");
     expect(notice.textContent).toContain("callout");
 
     // No editor at all: mounting one is what destroys the document, so the
@@ -1390,6 +1437,10 @@ describe("PageScreen given a document the editor cannot mount (ADR-038 decision 
 
   it("takes the assistant away too, since what it inserts would be autosaved", async () => {
     await renderWithStoredContent(withNewerNode);
+    // The loading outlines are a `status` too, so wait for them to go and the
+    // locked branch to be what is on screen before asserting absences
+    // (CodeRabbit, PR #269).
+    await waitFor(() => expect(screen.queryByRole("status", { name: "Loading this notebook" })).toBeNull());
     await screen.findByRole("status");
     // Not only the rail — its launcher, in BOTH of its shapes. This branch
     // never mounts an editor at all (that is the whole of decision 4), so an
@@ -1408,7 +1459,10 @@ describe("PageScreen given a document the editor cannot mount (ADR-038 decision 
       content: [{ type: "heading", attrs: { level: 9 }, content: [] }],
     });
 
-    const notice = await screen.findByRole("status");
+    // The loading outlines are a `status` region too; the notice is the one
+    // left once they are gone.
+    await waitFor(() => expect(screen.queryByRole("status", { name: "Loading this notebook" })).toBeNull());
+    const notice = screen.getByRole("status");
     expect(notice.textContent).toContain("can't read");
     expect(editorTextbox()).toBeNull();
     // Nothing parsed, so there is no AST to render — and inventing one would be
@@ -1585,6 +1639,109 @@ describe("PageScreen — a draft kept in the browser", () => {
     await screen.findByText("same");
     expect(localStorage.getItem(draftKey(page.id))).toBeNull();
     expect(fetchSpy.mock.calls.filter(([, init]) => init?.method === "PATCH")).toEqual([]);
+  });
+
+  // ── A draft meets a reader who may no longer edit (Copilot, PR #280) ──────
+  //
+  // A draft is left by an editing session, so a viewer holding one was an
+  // editor when it was typed. Replaying it would PATCH (refused) and show
+  // words the page does not hold; offering it would be a save control. So a
+  // viewer gets neither — and the draft is LEFT in storage: the role can be
+  // given back, and deleting someone's unsaved words on a role read is the
+  // one step here that cannot be undone.
+
+  /** `serve`, on a trip of its own whose access read this test controls. */
+  function serveAs(content: unknown, access: Parameters<typeof http.get>[1]) {
+    const trip = tripDetailFixture({ tripId: crypto.randomUUID() });
+    const page = pageFixture({ tripId: trip.tripId, content: content as never });
+    const onUpdate = vi.fn();
+    server.use(
+      http.get("/api/trips/:tripId/access", access),
+      ...makePagesHandlers([page], { onUpdate }),
+      http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })),
+    );
+    return { trip, page, onUpdate };
+  }
+  const answerAs = (myRole: "viewer" | "editor") => ({ params }: { params: Record<string, unknown> }) =>
+    HttpResponse.json({
+      access: {
+        tripId: params.tripId,
+        myRole,
+        members: [{ userId: "u1", role: myRole, name: null, email: null, image: null }],
+        invites: [],
+        collaboratorsEntitled: true,
+      },
+    });
+  const settle = () =>
+    act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+
+  it("neither applies nor sends a viewer's draft nobody has written over, and keeps it", async () => {
+    const { trip, page, onUpdate } = serveAs(paragraph("as stored"), answerAs("viewer"));
+    const kept = JSON.stringify({ base: page.updatedAt, doc: paragraph("from the draft") });
+    localStorage.setItem(draftKey(page.id), kept);
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+
+    await screen.findByRole("heading", { level: 1 });
+    await settle();
+    expect(screen.queryByText("from the draft")).toBeNull();
+    expect(onUpdate).not.toHaveBeenCalled();
+    expect(screen.getByText("as stored")).toBeTruthy();
+    expect(localStorage.getItem(draftKey(page.id))).toBe(kept);
+  });
+
+  it("never offers a viewer Restore mine, not even while the role is unknown", async () => {
+    let answer: () => void = () => undefined;
+    const answered = new Promise<void>((resolve) => {
+      answer = resolve;
+    });
+    const viewer = answerAs("viewer");
+    const { trip, page, onUpdate } = serveAs(paragraph("theirs"), async (info) => {
+      await answered;
+      return viewer(info);
+    });
+    localStorage.setItem(draftKey(page.id), JSON.stringify({ base: "2020-01-01T00:00:00.000Z", doc: paragraph("mine") }));
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+
+    // The page is loaded and the role is still held: no offer.
+    expect(await screen.findByText("theirs")).toBeTruthy();
+    expect(screen.queryByTestId("page-draft-offer")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Restore mine" })).toBeNull();
+
+    answer();
+    expect(await screen.findByText("theirs")).toBeTruthy();
+    await settle();
+    expect(screen.queryByTestId("page-draft-offer")).toBeNull();
+    expect(onUpdate).not.toHaveBeenCalled();
+  });
+
+  // The editor paths, on a trip of their own so the role is genuinely read
+  // for them: unchanged — the matching draft is sent, the moved one offered.
+  it("still sends an editor's draft, and offers an editor the moved one", async () => {
+    const sent = serveAs(paragraph("as stored"), answerAs("editor"));
+    localStorage.setItem(draftKey(sent.page.id), JSON.stringify({ base: sent.page.updatedAt, doc: paragraph("from the draft") }));
+    render(<PageScreen tripId={sent.trip.tripId} pageId={sent.page.id} />);
+    expect(await screen.findByText("from the draft")).toBeTruthy();
+    await vi.waitFor(() => expect(sent.onUpdate).toHaveBeenCalledTimes(1));
+    cleanup();
+
+    const offered = serveAs(paragraph("theirs"), answerAs("editor"));
+    localStorage.setItem(draftKey(offered.page.id), JSON.stringify({ base: "2020-01-01T00:00:00.000Z", doc: paragraph("mine") }));
+    render(<PageScreen tripId={offered.trip.tripId} pageId={offered.page.id} />);
+    expect(within(await screen.findByTestId("page-draft-offer")).getByRole("button", { name: "Restore mine" })).toBeTruthy();
+  });
+
+  // A role read that fails is not "viewer" — the rule the Edit toggle follows —
+  // so an editor's draft is not lost to a network blip.
+  it("sends the draft when the role cannot be read", async () => {
+    const { trip, page, onUpdate } = serveAs(paragraph("as stored"), () =>
+      HttpResponse.json({ error: "boom" }, { status: 500 }),
+    );
+    localStorage.setItem(draftKey(page.id), JSON.stringify({ base: page.updatedAt, doc: paragraph("from the draft") }));
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    expect(await screen.findByText("from the draft")).toBeTruthy();
+    await vi.waitFor(() => expect(onUpdate).toHaveBeenCalledTimes(1));
   });
 
   // ── The stale-save guard (CodeRabbit, PR #222) ─────────────────────────────
@@ -1768,7 +1925,7 @@ describe("PageScreen — a draft kept in the browser", () => {
 // SPEC §35.3 / M27 D6: *"Editing a notebook page always has a way back to the
 // trip."* It was "← Notebooks", one level up, with the trip two clicks away.
 describe("PageScreen — the breadcrumb", () => {
-  function accessAs(myRole: "owner" | "viewer") {
+  function accessAs(myRole: "owner" | "editor" | "viewer") {
     return http.get("/api/trips/:tripId/access", ({ params }) =>
       HttpResponse.json({
         access: {
@@ -1788,7 +1945,7 @@ describe("PageScreen — the breadcrumb", () => {
   async function open(
     tripId: string,
     from: "overview" | null,
-    role?: "owner" | "viewer" | "unanswered" | "failed",
+    role?: "owner" | "editor" | "viewer" | "unanswered" | "failed",
   ) {
     const trip = tripDetailFixture({ tripId, name: "Japan: Tokyo → Kyoto" });
     const page = pageFixture({ tripId, title: "Packing" });
@@ -1839,9 +1996,17 @@ describe("PageScreen — the breadcrumb", () => {
 
   // The editor must not open for a viewer even for the moment before the
   // role read lands, and a read that fails is not an answer that says "edit".
+  //
+  // **Nor is the CONTROL there while the role is unknown** (Mitchell,
+  // 2026-10-01): offering "Edit page" and then taking it away when the read
+  // says viewer is a flash of something a viewer may not do. Nothing renders
+  // in its place until the answer lands. A read that FAILS is not "viewer",
+  // and gets the toggle, as the board does (TripProvider: an unknown role
+  // behaves as before roles existed; the server is the boundary).
   it("stays in Reading until the role is known, and when it cannot be known", async () => {
     await open("ad4e5f60-7182-4d9e-8f0a-2b3c4d5e6f70", "overview", "unanswered");
-    expect(screen.getByRole("button", { name: "Edit page" }).getAttribute("aria-pressed")).toBe("false");
+    expect(screen.queryByRole("button", { name: "Edit page" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Done editing" })).toBeNull();
     cleanup();
 
     const failed = vi.fn();
@@ -1860,13 +2025,63 @@ describe("PageScreen — the breadcrumb", () => {
   });
 
   // Overview withholds Edit from a viewer, but a URL can be typed or shared.
-  it("puts a viewer who arrives that way back in Reading", async () => {
+  it("keeps a viewer who arrives that way in Reading", async () => {
     const tripId = "9c3d4e5f-6071-4c8d-8e9f-1a2b3c4d5e6f";
+    const roleAnswered = watchRole();
     await open(tripId, "overview", "viewer");
+    await roleAnswered();
 
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Edit page" }).getAttribute("aria-pressed")).toBe("false"),
-    );
+    expect(screen.queryByRole("button", { name: "Done editing" })).toBeNull();
+    expect(screen.getByRole("heading", { level: 1, name: "Packing" }).getAttribute("contenteditable")).toBe("false");
+  });
+
+  /**
+   * Call BEFORE `open`; await what it returns to be one task past the access
+   * read's answer, so the screen's `.then` has run.
+   */
+  function watchRole() {
+    const answered = vi.fn();
+    server.events.on("response:mocked", ({ request }) => {
+      if (request.url.endsWith("/access")) answered();
+    });
+    const settle = async () => {
+      // Tolerated here, and asserted by the caller AFTER what it is about, so
+      // a screen that never reads the role fails on the control it shows
+      // rather than on this wait.
+      await waitFor(() => expect(answered).toHaveBeenCalled()).catch(() => undefined);
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      server.events.removeAllListeners();
+    };
+    return Object.assign(settle, { answered });
+  }
+
+  // **A viewer cannot edit a notebook** (Mitchell, 2026-10-01). The toggle
+  // used to be offered to everyone, "the server is the boundary" — which put
+  // a viewer in an editor whose every save came back 403. The page now reads
+  // the role on every arrival and offers no way into Editing to a viewer.
+  it("offers a viewer no Edit page, and so no way into Editing", async () => {
+    const tripId = "c1d2e3f4-a5b6-4c7d-8e9f-0a1b2c3d4e5f";
+    const roleAnswered = watchRole();
+    await open(tripId, null, "viewer");
+    await roleAnswered();
+
+    expect(screen.queryByRole("button", { name: "Edit page" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Done editing" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Insert a widget" })).toBeNull();
+    expect(screen.getByRole("heading", { level: 1, name: "Packing" }).getAttribute("contenteditable")).toBe("false");
+    // And the above was asserted with the role KNOWN, not merely pending.
+    expect(roleAnswered.answered).toHaveBeenCalled();
+  });
+
+  it("still offers an editor Edit page, which opens Editing", async () => {
+    const tripId = "d2e3f4a5-b6c7-4d8e-9f0a-1b2c3d4e5f60";
+    await open(tripId, null, "editor");
+
+    await userEvent.click(await screen.findByRole("button", { name: "Edit page" }));
+    expect(screen.getByRole("button", { name: "Done editing" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByRole("heading", { level: 1, name: "Packing" }).getAttribute("contenteditable")).toBe("true");
   });
 });
 
@@ -1887,6 +2102,24 @@ describe("PageScreen while its first read is pending", () => {
     const { container } = render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
 
     expect(container.textContent).not.toMatch(/Loading/);
+  });
+
+  // Mitchell, PR #269 preview: "Theres no skeleton loading page when opening a
+  // notebook". Not a word (above) and not a blank frame either: the toolbar
+  // row and the document card, outlined.
+  it("draws the notebook's shape in outlines", () => {
+    const trip = tripDetailFixture();
+    const page = pageFixture({ tripId: trip.tripId });
+    server.use(
+      ...makePagesHandlers([page]),
+      http.get("/api/trips/:tripId", () => new Promise<never>(() => {})),
+    );
+
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+
+    expect(screen.getByRole("status", { name: "Loading this notebook" })).toBeTruthy();
+    expect(screen.getByTestId("notebook-skeleton")).toBeTruthy();
+    expect(screen.getAllByTestId("notebook-skeleton-line").length).toBeGreaterThan(0);
   });
 });
 
@@ -1972,6 +2205,11 @@ describe("PageScreen — Undo reset", () => {
     );
 
     render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    // Behind the `⋯` since Mitchell's PR #269 preview: not in the toolbar
+    // until the menu is opened.
+    const more = await screen.findByRole("button", { name: "More notebook actions" });
+    expect(screen.queryByRole("button", { name: "Reset to default" })).toBeNull();
+    await userEvent.click(more);
     await userEvent.click(await screen.findByRole("button", { name: "Reset to default" }));
     await userEvent.click(await screen.findByRole("button", { name: "Reset notebook" }));
     expect(await screen.findByRole("button", { name: "Undo reset" })).toBeTruthy();

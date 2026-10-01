@@ -157,3 +157,32 @@ export function effectiveTierRef(plan: AccountPlanView): string {
   }
   return best;
 }
+
+/**
+ * **The plan a grant puts this account on, when that is not the plan it pays
+ * for** — or `null` when the tier it has is the one it holds.
+ *
+ * Mitchell, PR #269 preview: *"Its confusing this says premium, but when i
+ * click 'change plan' it says i have free"*. Both were true: Account → Plan
+ * names the tier the account HAS (`effectiveTierRef`, grants included) and
+ * `/plans` named the plan it HOLDS. This is the one fact both screens need to
+ * agree on: which plan is in effect, and until when. Of several grants for that
+ * plan, the longest-lasting one answers "until when" (a permanent one wins),
+ * the same rule `PlanSection` uses for its expiry line.
+ *
+ * **`null` unless a grant actually confers that plan** (CodeRabbit, PR #269).
+ * The effective tier can differ from the held plan WITHOUT any grant: after a
+ * lapse, a `plus` subscription confers `free` (`conferredVersionRef`), and
+ * calling that "granted to your account" would be false twice over.
+ */
+export function grantedTier(plan: AccountPlanView): { planId: string; expiresAt: string | null } | null {
+  const effectiveRef = effectiveTierRef(plan);
+  const planId = effectiveRef.split("@")[0] ?? effectiveRef;
+  const heldPlanId = plan.planVersionRef.split("@")[0];
+  if (planId === heldPlanId) return null;
+  const grant = plan.grants
+    .filter((g) => `${g.planId}@v${g.version}` === effectiveRef)
+    .sort((a, b) => (a.expiresAt === null ? -1 : b.expiresAt === null ? 1 : b.expiresAt.localeCompare(a.expiresAt)))[0];
+  if (grant === undefined) return null;
+  return { planId, expiresAt: grant.expiresAt };
+}

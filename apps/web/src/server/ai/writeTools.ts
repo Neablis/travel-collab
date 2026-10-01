@@ -48,7 +48,7 @@ import {
   type LocationEnrichmentReport,
 } from "@/server/ai/geocodeEnrichment";
 import { consumeQuota, geocodeQuota } from "@/server/quota";
-import { tripRegionOf } from "@/server/geocoding/region";
+import { tripCountriesOf, tripRegionOf } from "@/server/geocoding/region";
 import { summarizeBatch } from "@/server/ai/planSummary";
 import { REF_PARAM_NAMES } from "@/server/assistant/idFields";
 import type { AskDroppedCall } from "@/server/assistant/askAnalytics";
@@ -335,7 +335,7 @@ export function groundCitedPlaces(
     delete args.placeRef;
     const candidate = typeof cited === "number" ? (cache?.get(cited) ?? null) : null;
     if (candidate === null) {
-      unresolved.push(`${describeCitingIntent(intent)} cited place ${String(cited)}, which was not one of this turn's search results — its location is not confirmed.`);
+      unresolved.push(`${describeCitingIntent(intent)} cited place ${JSON.stringify(cited)}, which was not one of this turn's search results — its location is not confirmed.`);
       return { ...intent, args };
     }
     return { ...intent, args: { ...args, location: locationFromCandidate(candidate) } };
@@ -646,6 +646,7 @@ export async function commitProposal(
     tripRegionOf(detail),
     undefined,
     charge,
+    tripCountriesOf(detail),
   );
 
   // `insertCommands` — the SAME exported function the manual "Add to a trip"

@@ -48,6 +48,18 @@ no token.
 **It is generated from the route declarations themselves**, so it cannot
 describe an endpoint that does not exist or miss one that does.
 
+**`info.version` moves whenever the document does.** It is semver over the
+published contract: a **patch** bump for prose only (a summary, a field
+description, the scope text), **minor** for anything additive (an endpoint, an
+optional field, a new enum value on a response), **major** for anything that
+breaks a caller (a field or value removed, renamed or newly required). Compare it
+between fetches to know whether to re-read the reference; the changes themselves
+are in `docs/contracts/CHANGELOG.md`. It is enforced, not remembered:
+`openapi.ts` records a fingerprint (sha256 of the document without
+`info.version`, keys sorted) beside `API_VERSION`, and `openapi.test.ts` fails —
+printing the new fingerprint — when the generated document no longer matches it.
+Bump the version, paste the fingerprint, add the changelog line, in one diff.
+
 ### Discovery
 
 A caller who knows only the host can find the reference without guessing:
@@ -77,9 +89,10 @@ A token holds a set of scopes and nothing is implied by anything else —
 | `trips:read` | See your trips, their days and stops, costs, history, and existing share links |
 | `trips:write` | Create, change and delete trips, days and stops; undo, redo and revert |
 | `notebook:read` / `notebook:write` | Read / write the Notebook pages on a trip |
-| `library:read` / `library:write` | Read / write your saved-days library, including publishing to Discover |
-| `sharing:write` | Invite people to a trip, revoke invites, remove members, create and revoke share links |
+| `library:read` / `library:write` | Read / write your saved-days library **and your Playbooks** — a Playbook is a view over saved days (ADR-050), so the same two scopes cover `/v1/library`, `/v1/playbooks/**` and `/v1/discover/playbooks` — including publishing to Discover |
+| `sharing:write` | Invites (create, revoke) and share links (create, revoke). No v1 endpoint removes a member |
 | `account:read` | Who you are and what plan you hold |
+| `places:read` | Search real places by name outside any trip (`GET /v1/geocode`). **The one read that spends money**: every search counts against your daily geocoding allowance and a budget shared by every account, and one token may make at most 100 a day |
 
 **Inviting someone is `sharing:write`, not `trips:write`**, even though an invite
 is a write against a trip. Letting another person into your trip is a materially
@@ -98,7 +111,7 @@ A token is either account-wide or confined to named trips.
 
 **A confined token is refused on any request that is not about one trip**
 (`POST /v1/trips`, `GET /v1/account`, `GET /v1/library`, an inline
-`POST /v1/playbooks`). Creating a new trip from a credential restricted to two
+`POST /v1/playbooks`, `GET /v1/geocode`). Creating a new trip from a credential restricted to two
 existing ones is a widening.
 
 **A write that names its trip in the body is about that trip.**
@@ -196,7 +209,13 @@ fills them in when you leave them out, in this order:
 1. **`lat` + `lng`** — used as sent. No lookup. Send both or neither.
 2. **`address`** — geocoded as a structured address.
 3. **`name`** — geocoded as free text, preferring places near the trip's other stops
-   (and inside `countryCode`, if you set it).
+   and in a country: `countryCode`, if you set it, restricts the lookup to that
+   country. Otherwise the countries the trip's already-located stops are in (all
+   of them, if it spans several) are **preferred**: the lookup searches inside
+   them first and, only if that finds nothing, searches everywhere — so the
+   first stop in a new country still resolves by name. A trip with nothing
+   located yet is not restricted at all. Sending `countryCode` is still the
+   surest way to place a name that exists in several countries.
 
 If the lookup finds nothing, the stop is **still created**, without coordinates.
 Every write whose body had a `location` answers with a `Geocode-Outcome` header:
@@ -263,11 +282,37 @@ Omitted means no reason given, which is what every stop written before the
 field existed reads as.
 
 **To check a place before writing it**, `GET /v1/trips/{tripId}/geocode?q=…`
-(optionally `&countryCode=JP`) returns up to five candidates. Each is a complete
+(optionally `&countryCode=JP`) returns up to five candidates — without
+`countryCode`, preferring the trip's countries by the same rule as above. Each is a complete
 `location`: send one back as-is and the write costs no second lookup. Needs
 `trips:write` — a lookup spends the operator's geocoding allowance, so a
-read-only token cannot make one. A spent allowance answers `429` with
+`trips:read` token cannot make one (the tripless search below has its own
+scope and a per-token ceiling for the same reason). A spent allowance answers `429` with
 `Retry-After`; a geocoder that is down answers `503`.
+
+### Searching for a place outside a trip
+
+`GET /v1/geocode?q=…` (optionally `&countryCode=JP`) is the same search as the
+trip one above, without the trip: up to five candidates, each a complete
+`location` you can send back on a stop unchanged. There is no trip, so nothing
+biases it — send `countryCode` if you know the country.
+
+- **Scope `places:read`**, and an account-wide token: a token confined to named
+  trips is refused (`trip-out-of-scope`) like on every other tripless endpoint.
+  Such a token has `GET /v1/trips/{tripId}/geocode` for its own trips.
+- **Two daily ceilings, both charged before the lookup.** This token's own
+  place-search day — **100 searches per token** — and then your account's
+  geocoding allowance, the same one the app's own place search and the trip
+  search above draw on, inside a daily budget every account shares. So a token
+  can never spend more than you could in the app, and one runaway token cannot
+  spend all of yours. Either one spent answers `429` with `Retry-After`; the
+  message says which. A geocoder that is down answers `503`.
+- **An empty `q` (or only spaces) answers `{"results": []}` and costs nothing.**
+  A missing `q` is a `400`.
+
+The per-token number is `PLACE_SEARCH_RATE_LIMIT_PER_TOKEN_DAILY` on the
+server (default 100); the account's is `GEOCODE_RATE_LIMIT_PER_USER_DAILY`
+(default 300).
 
 ### Taking a trip out, and putting one back
 
@@ -338,6 +383,21 @@ the same thing as a saved day in your library — `/v1/playbooks` and
 `/v1/library` list the **same items** — but `/v1/playbooks` speaks in several
 days, where `/v1/library` keeps its published singular `dayId` (ADR-050). Only
 `/v1/playbooks` shows a Playbook's `version` and `summary`.
+
+**Two shapes, on purpose** (ADR-048, ADR-050). Because a Playbook *is* a saved
+day, the record you read back is the saved-day record:
+
+- **Its id key is `savedDayId`, and `playbookId` is the same value.** That value
+  is the `playbookId` in every `/v1/playbooks/{playbookId}` path, and since API
+  `1.2.0` every Playbook record `/v1/playbooks` answers — `GET`, the list, and
+  the `playbook` in a create, edit or import answer — also carries it as
+  `playbookId`. Either key works; `savedDayId` is not going away. `/v1/library`
+  is frozen and does not carry the alias.
+- **Writes are grouped, reads are flat.** `POST` (inline) and `PATCH` take
+  `days[].stops[]`; every read — `GET`, the list, and the `playbook` in a write's
+  answer — returns one ordered `stops[]` with a 0-based `dayIndex` on each stop,
+  plus `dayCount` (which counts empty rest days). Group by `dayIndex` to get the
+  days back.
 
 | | Scope | Role | Notes |
 |---|---|---|---|
@@ -434,7 +494,13 @@ Only `playbookId` is required. The answer:
   the end of the trip. `{ "mode": "startingAt", "dayId" }` **merges**: Playbook
   day 0 goes onto `dayId`, day 1 onto the trip's next day, and so on; only the
   days that run past the end of the trip are added, at the end. Nothing is ever
-  inserted *between* two days — the trip's own days never move. An unknown
+  inserted *between* two days — the trip's own days never move. **On a merged
+  day the Playbook's stops are placed by start time** (since `1.2.0`): each
+  timed one goes just before the first stop on the day that starts later — or
+  at the end if none does — and untimed ones go last, in the Playbook's order.
+  The trip's existing stops never move, so a day holding 09:00 and 15:00 that
+  takes 12:00, 18:00 and an untimed stop reads 09:00, 12:00, 15:00, 18:00,
+  untimed. A day the application *adds* keeps the Playbook's order. An unknown
   `dayId` is a 400. If the trip's days change between your request and the
   write, the answer is a 409 rather than a stop on the wrong day.
 - **`dayIds[i]`** is the trip day the Playbook's day `i` landed on — new on an
@@ -554,6 +620,11 @@ choice — and reuse it only to retry that same operation.
 - **Billing.** Checkout and the portal move money and are session-only forever.
 - **Managing tokens.** Minting and revoking are session-only — a token that
   could mint tokens could widen itself and outlive its own revocation.
+- **Referrals.** They grant plan time, and scripted they could be gamed.
+- **Notebook reset, restore and add-missing-defaults, and weather.** In-app
+  only (Mitchell, 2026-09-30).
+- The full list, with reasons, is the `never` lines of
+  `apps/web/src/server/public-api/exposure.ts`; CI holds the API to it.
 - **`/api/*` without `v1`.** Those routes serve this app's own frontend. They
   are cookie-only, they are not versioned, and they change shape without notice.
 
@@ -570,13 +641,22 @@ The rule now:
    ADR or guideline says what it is and which internal route serves it
    (`apps/web/src/app/api/**`, outside `v1/`). No new `/api/v1/**` route, no new
    scope and no OpenAPI entry, unless the task is API work.
-2. **The gap is found mechanically, in a pass.** A deterministic script lists
-   every internal route and every public one, with its methods, and prints the
-   internal capabilities that have no public counterpart. An API pass reads that
-   list, picks what to publish, and adds the endpoints the way the next section
-   describes. *Status: the script is not written yet.* Until it is, the list is
-   `find apps/web/src/app/api -name route.ts` read against the same under
-   `api/v1/`.
+2. **Every internal route has one line in
+   `apps/web/src/server/public-api/exposure.ts`** (Mitchell, 2026-09-30):
+   `public` (naming the `v1/` routes that serve it), `planned` (wanted, with a
+   note on what it waits for) or `never` (with why, and the server code a `v1`
+   route must not import). A feature that adds an internal route pays that one
+   line, not an endpoint; `planned` is the right answer when nobody has decided.
+   **The `planned` lines are the gap list** an API pass reads, picks from, and
+   turns into endpoints the way the next section describes.
+   `exposure.test.ts` fails CI on an internal route with no line, a line for a
+   route that is gone, a `public` line naming a `v1/` route that does not exist,
+   and — the point of it — anything on the public side (`v1/` routes and the
+   `server/public-api/` helpers) that sits at a `never` route's path or imports
+   what a `never` line says it reaches. It cannot see the same logic rewritten
+   from scratch inside `v1/`; the `why` on each line is for the reviewer who
+   can. Moving a line from `never` to anything else is a decision for Mitchell,
+   not an edit to get CI green.
 3. **An endpoint that already exists stays correct.** If a contract it returns
    grows a field, the field reaches the public response and `openapi.json` is
    regenerated in the same PR: the surface we have must not drift, even while

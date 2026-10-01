@@ -172,10 +172,11 @@ const DatesParams = filterParams(DATES_FILTERS);
 type DatesParams = z.infer<typeof DatesParams>;
 
 /**
- * `dates` — the span the selected days cover.
+ * `dates` — the span the selected days cover, or the days themselves.
  *
  * Wide it is the trip's range, first dated day to last dated day, which is
- * `trip.dates`; bound to one day it is that day's date, which is `day.date`.
+ * `trip.dates`; bound to one day it is that day's date, which is `day.date`;
+ * bound to a list of separate days it names each of them.
  * The third row of ADR-039's table of widgets written twice.
  *
  * The extremes are taken from the days that HAVE dates rather than from the
@@ -201,6 +202,11 @@ export const dates: MacroDef<DatesParams, string> = {
       .map((index) => trip.days[index]!.date)
       .filter((date): date is string => date !== null);
     if (dated.length === 0) return empty();
+    // Bound to separate days, it names each one: "Jun 2, 2027 – Jun 5, 2027"
+    // would claim the days between, which is exactly what a list of days
+    // leaves out (Mitchell, PR #269 preview, on picking Day 2 and Day 5
+    // together: *"Yes go ahead"*). A range, or no binding, is still the span.
+    if (Array.isArray(selection.value.filters.dates)) return ok(dated.map(formatDate).join(" · "));
     // ISO dates sort as strings; no `Date`, no timezone, no clock (Invariant 4).
     const first = dated.reduce((a, b) => (b < a ? b : a));
     const last = dated.reduce((a, b) => (b > a ? b : a));

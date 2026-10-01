@@ -1,10 +1,17 @@
 import { randomUUID } from "node:crypto";
 import fc from "fast-check";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { eq, like } from "drizzle-orm";
+import { eq, like, sql } from "drizzle-orm";
 import { db } from "./db/client";
 import { rateLimitCounters } from "./db/schema";
-import { consumeQuota, pgCounters, sweepExpiredCounters, type QuotaPolicy } from "./quota";
+import {
+  consumeQuota,
+  linkPreviewQuota,
+  pgCounters,
+  sweepExpiredCounters,
+  sweepStatement,
+  type QuotaPolicy,
+} from "./quota";
 import { referenceCounters } from "@/server/test-support/quotaCounters";
 import { witness } from "@/test-support/witness";
 
@@ -351,5 +358,38 @@ describe("sweepExpiredCounters", () => {
     expect(await readBuckets()).toEqual([]);
     expect(await consumeQuota([minute], "ip", counters, later)).toEqual({ allowed: true });
     expect(await counters.bump(`${minute.name}:user:ip`, later)).toBe(2);
+  });
+
+  // The partial index `rate_limit_counters_link_preview_window` (schema.ts)
+  // matches the sweep only while its predicate and the policy name agree, and
+  // a mismatch fails nothing: the sweep still deletes, by seq scan. So ask the
+  // planner. 20k IP rows with 1% ended is the table between two sweeps, where
+  // the scan it replaces reads every row to delete 200. All of it is inside a
+  // rolled-back transaction, the ANALYZE included.
+  it("plans the link-preview sweep on its partial index, not a table scan", async () => {
+    const [linkPreview] = linkPreviewQuota();
+    if (linkPreview === undefined) throw new Error("linkPreviewQuota() names no policy");
+    const now = new Date("2026-08-28T12:00:30.000Z");
+    const ended = new Date("2026-08-28T11:58:00.000Z");
+    const live = new Date("2026-08-28T12:00:00.000Z");
+    const rolledBack = new Error("rolled back");
+    let plan = "";
+    await db
+      .transaction(async (tx) => {
+        await tx.execute(sql`
+          insert into rate_limit_counters (bucket, window_start, hits)
+          select ${`${linkPreview.name}:${keyPrefix}`} || g,
+                 case when g <= 200 then ${ended}::timestamptz else ${live}::timestamptz end, 1
+          from generate_series(1, 20000) g`);
+        await tx.execute(sql`analyze rate_limit_counters`);
+        const { rows } = await tx.execute(sql`explain (format json) ${sweepStatement(linkPreview, now, tx).getSQL()}`);
+        plan = JSON.stringify(rows);
+        throw rolledBack;
+      })
+      .catch((error: unknown) => {
+        if (error !== rolledBack) throw error;
+      });
+
+    expect(plan).toContain('"Index Name":"rate_limit_counters_link_preview_window"');
   });
 });

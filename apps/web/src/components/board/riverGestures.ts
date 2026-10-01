@@ -101,8 +101,8 @@ export function snapMinute(minute: number): number {
 }
 
 /** The unsnapped minute at `y` px down the river — `minuteToPx`'s inverse. */
-export function minuteAtPx(axis: Pick<RiverAxis, "t0">, y: number): number {
-  return axis.t0 + (y / RIVER_PX_PER_HOUR) * 60;
+export function minuteAtPx(axis: Pick<RiverAxis, "t0" | "pxPerHour">, y: number): number {
+  return axis.t0 + (y / (axis.pxPerHour ?? RIVER_PX_PER_HOUR)) * 60;
 }
 
 /** Stored form: "HH:MM" both ends, midnight read as 23:59. */
@@ -175,8 +175,9 @@ export function stopMinutes(window: TimeWindow | null): number {
 
 /**
  * How far down the dragged thing it was picked up, in px. A river block says
- * (RiverBlock's drag data); a card — off the rack, off the "Any time" shelf —
- * is not drawn to scale, so it has no height on the clock to be held by and
+ * (RiverBlock's drag data); a card off the Unscheduled rack — parked, or
+ * untimed on a day — is not drawn to scale, so it has no height on the clock
+ * to be held by and
  * its top goes to the pointer.
  */
 export function grabOffsetOf(source: Record<string | symbol, unknown>): number {
@@ -185,7 +186,7 @@ export function grabOffsetOf(source: Record<string | symbol, unknown>): number {
 
 /**
  * **Any stop dropped on a day's river** — a block from this day or another, a
- * card off the "Any time" shelf, a stop off the Unscheduled rack — lands by
+ * card off the Unscheduled rack, day-less or waiting under its day — lands by
  * one rule. Mitchell, 2026-09-26: *"When dragging and dropping from anywhere,
  * it should have same functionality of set the start time to where it's
  * dropped, retain length it had, with a common sense default, 1h if no
@@ -211,7 +212,7 @@ export function placeWindow(
  * edge lands — the pointer, less where on the block it was picked up
  * (`grabOffsetPx`), so a block held by its middle lands where the outline under
  * the pointer shows it and does not jump down by half its height. A card (the
- * "Any time" shelf, the rack) has no block to hold, so its offset is 0 and its
+ * Unscheduled rack's) has no block to hold, so its offset is 0 and its
  * top goes to the pointer.
  *
  * It keeps its own length and has to fit in the day: no start above the axis,

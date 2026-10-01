@@ -1,0 +1,97 @@
+name: dependabot-automerge
+
+# Merges a Dependabot PR once `ci` has passed on its current head. Majors are
+# left for a person.
+#
+# Why this runs on `workflow_run` and not `gh pr merge --auto`:
+# GitHub's native auto-merge waits on *required* status checks, and `main` has
+# none (`docs/guidelines/ci-cost-and-capacity.md`). With no required checks,
+# `--auto` on a clean PR merges straight away, before CI has finished. Turning
+# on required checks is not the fix either: `ci.yml`'s `paths-ignore` would then
+# block every docs-only PR forever (the trap that guideline describes). So this
+# job waits for `ci` to finish and then checks what it needs to itself.
+#
+# `workflow_run` runs with a write token in the context of `main`. That is safe
+# here only because nothing below checks out or runs code from the PR: the one
+# checkout is of the default branch, and the PR is read as metadata through the
+# API. Keep it that way.
+on:
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  merge:
+    if: >-
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.actor.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # The DEFAULT branch, for scripts/dependabot-versions.mjs — never the
+      # PR's head. Code from the PR must not run with this job's write token.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          sparse-checkout: scripts/dependabot-versions.mjs
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - name: Merge if safe
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          GH_REPO_OWNER: ${{ github.repository_owner }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          set -euo pipefail
+
+          pr=$(gh api "repos/$GH_REPO/pulls?state=open&head=$GH_REPO_OWNER:$HEAD_BRANCH" \
+            --jq ".[] | select(.user.login == \"dependabot[bot]\" and .head.sha == \"$HEAD_SHA\") | .number")
+          if [ -z "$pr" ]; then
+            echo "No open Dependabot PR has $HEAD_SHA as its head (a newer push or already closed). Nothing to do."
+            exit 0
+          fi
+
+          # Every commit must be Dependabot's. A person who pushed a fix onto the
+          # branch should get a review, not a silent merge.
+          others=$(gh api "repos/$GH_REPO/pulls/$pr/commits" \
+            --jq '[.[] | (.author.login // "unknown") | select(. != "dependabot[bot]")] | length')
+          if [ "$others" != "0" ]; then
+            echo "PR #$pr has commits from someone other than Dependabot; leaving it for review."
+            exit 0
+          fi
+
+          # A skipped job still leaves the run green (a draft PR skips them
+          # all), so every job of the `ci` run that triggered this one must
+          # itself have succeeded. Read from the run rather than by job name,
+          # so splitting or renaming ci.yml's jobs cannot quietly drop one
+          # from this check; zero jobs is a failure, not a vacuous pass.
+          not_passed=$(gh api "repos/$GH_REPO/actions/runs/$RUN_ID/jobs?per_page=100" \
+            --jq '(.jobs | length) as $n | if $n == 0 then "no jobs" else [.jobs[] | select(.conclusion != "success") | "\(.name)=\(.conclusion)"] | join(", ") end')
+          if [ -n "$not_passed" ]; then
+            echo "ci run $RUN_ID did not fully pass ($not_passed); not merging PR #$pr."
+            exit 0
+          fi
+
+          # What it updates decides the rest: scripts/dependabot-versions.mjs
+          # reads the package list from the commits' updated-dependencies
+          # metadata and each version pair from the PR's table or prose, and
+          # says no to a major, a 0.x minor, or anything it cannot read.
+          # That file has the reasons, and its test has real PR bodies.
+          export PR_COMMIT_MESSAGES PR_TEXT
+          PR_COMMIT_MESSAGES=$(gh api "repos/$GH_REPO/pulls/$pr/commits" --jq '[.[].commit.message] | join("\n")')
+          PR_TEXT=$(gh pr view "$pr" --json title,body --jq '.title + "\n" + .body')
+          if ! reason=$(node scripts/dependabot-versions.mjs); then
+            echo "Leaving PR #$pr for review: $reason"
+            exit 0
+          fi
+
+          echo "Merging PR #$pr at $HEAD_SHA: $reason"
+          gh pr merge "$pr" --merge --match-head-commit "$HEAD_SHA"

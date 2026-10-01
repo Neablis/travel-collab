@@ -34,6 +34,40 @@ import type { HandlerContext, ResourceDef } from "./route";
  */
 export const MAX_PLAYBOOK_STOPS = 500;
 
+/**
+ * **The two shapes a Playbook has, said where a caller reads them** (ADR-048,
+ * ADR-050). An external consumer wrote grouped `days[].stops[]`, read back flat
+ * `stops[]`, and went looking for an `id` that is spelled `savedDayId`. Both are
+ * deliberate — a Playbook IS a saved day, stored as one ordered stop list — so
+ * the reference says so on every operation that shows either shape.
+ */
+export const PLAYBOOK_SHAPE_DOC =
+  "A Playbook is a view over saved days: the record is the same one `/v1/library` serves, and its id key " +
+  "is `savedDayId` (that value is the `playbookId` in these paths). Every Playbook record here also " +
+  "carries `playbookId`, the same value, so either key works. Writes take stops grouped by day, " +
+  "`days[].stops[]`; reads return them flat, `stops[]` in order with a 0-based `dayIndex` on each, plus " +
+  "`dayCount` — deliberately (ADR-048, ADR-050). Group by `dayIndex` to get days back.";
+
+/**
+ * **A Playbook as `/v1/playbooks` answers it: the saved-day record plus
+ * `playbookId`** (Mitchell, 2026-09-30). A consumer reading
+ * `/v1/playbooks/{playbookId}` looks for the key the path named; `savedDayId`
+ * stays, so this is additive. The alias lives here, at the v1 boundary, rather
+ * than in `SavedDay`: that contract is the app's too, `/v1/library` serves it
+ * frozen, and neither has a Playbook to name.
+ */
+export const Playbook = SavedDay.extend({
+  playbookId: SavedDay.shape.savedDayId.describe(
+    "The same value as `savedDayId`: the id in `/v1/playbooks/{playbookId}`.",
+  ),
+});
+export type Playbook = z.infer<typeof Playbook>;
+
+/** A saved day, answered as a Playbook. */
+export function asPlaybook(day: SavedDay): Playbook {
+  return { ...day, playbookId: day.savedDayId };
+}
+
 /** 1..366 — the bound `CreateSavedDayInput.dayIds` already chose, and why is written there. */
 const MAX_DAYS = 366;
 
@@ -140,7 +174,7 @@ const VisibilityResetWarning = z.object({
 });
 
 /** What a create or an edit answers: the Playbook as stored, and what was changed on the way in. */
-export const PlaybookWritten = z.object({ playbook: SavedDay, warnings: z.array(PlaybookWarning) });
+export const PlaybookWritten = z.object({ playbook: Playbook, warnings: z.array(PlaybookWarning) });
 type PlaybookWritten = z.infer<typeof PlaybookWritten>;
 
 export const PatchPlaybookBody = z
@@ -249,11 +283,12 @@ async function createPlaybook(ctx: HandlerContext): Promise<PlaybookWritten> {
     context: { route: "POST /v1/playbooks", tripId: "source" in body ? source.tripId : null },
   });
   if (!saved.ok) throw new PublicApiError(400, saved.error.message);
-  return { playbook: saved.value, warnings: warningsFor(stripped.removed) };
+  return { playbook: asPlaybook(saved.value), warnings: warningsFor(stripped.removed) };
 }
 
 export const createPlaybookDef: ResourceDef = {
   summary: "Create a Playbook — from days (or some activities) of a trip you can see, or written inline",
+  description: PLAYBOOK_SHAPE_DOC,
   scope: "library:write",
   body: CreatePlaybookBody,
   // A keep names its source trip in the body and is gated on it there; an
@@ -283,17 +318,19 @@ const MISSING = "No such playbook.";
  */
 export const getPlaybookDef: ResourceDef = {
   summary: "Get a Playbook — yours, or anyone's published one — every day and stop in order",
+  description: PLAYBOOK_SHAPE_DOC,
   scope: "library:read",
-  response: SavedDay,
+  response: Playbook,
   handle: async (ctx) => {
     const day = await readableSavedDay(playbookId(ctx), ctx.actor.userId);
     if (day === null) throw new PublicApiError(404, MISSING);
-    return day;
+    return asPlaybook(day);
   },
 };
 
 export const patchPlaybookDef: ResourceDef = {
   summary: "Edit one of your Playbooks — rename it, summarise it, replace its days, or publish it",
+  description: PLAYBOOK_SHAPE_DOC,
   scope: "library:write",
   body: PatchPlaybookBody,
   response: PlaybookWritten,
@@ -313,7 +350,7 @@ export const patchPlaybookDef: ResourceDef = {
       visibility: body.visibility,
       expectedVersion: body.expectedVersion,
     });
-    if (outcome.ok) return { playbook: outcome.value, warnings: warningsFor(removed) };
+    if (outcome.ok) return { playbook: asPlaybook(outcome.value), warnings: warningsFor(removed) };
     switch (outcome.reason) {
       case "not-found":
         throw new PublicApiError(404, "No such playbook of yours.");
@@ -382,7 +419,7 @@ export const exportPlaybookDef: ResourceDef = {
 const MAX_IMPORT_BYTES = 2_000_000;
 
 export const PlaybookImported = z.object({
-  playbook: SavedDay,
+  playbook: Playbook,
   warnings: z.array(z.union([PlaybookWarning, VisibilityResetWarning])),
   sourceVersion: z
     .number()
@@ -453,7 +490,7 @@ async function importPlaybook(actor: Actor, bundle: PlaybookImportBundle): Promi
       message: "The file said this playbook is public. An imported playbook starts private; publish it with PATCH { visibility: \"public\" }.",
     });
   }
-  return { playbook: saved.value, warnings, sourceVersion: file.version ?? null };
+  return { playbook: asPlaybook(saved.value), warnings, sourceVersion: file.version ?? null };
 }
 
 export const importPlaybookDef: ResourceDef = {

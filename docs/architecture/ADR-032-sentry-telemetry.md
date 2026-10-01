@@ -253,3 +253,25 @@ product purpose nor an authorization check. Gating it behind the dev-login flag
 was rejected for the reason the finding gives — nothing in it was worth keeping.
 `telemetry.int.test.ts` remains the check that the client is wired to a real
 transport; a real error on a preview is the round-trip check.
+
+## Amendment — 2026-09-28: Sentry is off on Vercel previews
+
+Mitchell, preview feedback on PR #269: *"Im seeing a 429 Too Many Requests for
+the monitoring api calls to sentry. Sentry shouldnt be running on previews
+any."* Decision 1's `environment` tag already kept preview events apart from
+production's, but every preview page still loaded Replay, profiling and
+tracing and posted through the `/monitoring` tunnel — enough, with a reviewer
+walking a branch, for Sentry to answer 429, spending the project's quota on
+sessions nobody triages.
+
+`SENTRY_DSN` is now `""` whenever `SENTRY_ENVIRONMENT` is `preview`, using the
+off switch decision 1 already documents. It is keyed on the environment rather
+than set as a Vercel preview env var, so it holds in the browser
+(`NEXT_PUBLIC_VERCEL_ENV`) and in the server and edge runtimes (`VERCEL_ENV`)
+alike, and an explicitly set `NEXT_PUBLIC_SENTRY_DSN` does not bring it back.
+`sentry.shared.test.ts` pins both runtimes, and production.
+
+That retires the amendment above's last clause: a real error on a preview is no
+longer a round-trip check, because a preview sends nothing.
+`telemetry.int.test.ts` is the check before merge; a real error in production
+is the check after.

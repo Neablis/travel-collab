@@ -3,7 +3,8 @@ export type RackEvent =
   | { type: "toggle" }
   | { type: "dragStart" }
   | { type: "dragEnd" }
-  | { type: "parked" };
+  | { type: "parked" }
+  | { type: "reveal" };
 
 /**
  * Who owns the unscheduled drawer being open.
@@ -23,6 +24,11 @@ export type RackEvent =
  * thing the user just parked. It leaves the drawer open and owned by the user
  * (so the next drag's `dragEnd` does not close it either), from both a
  * drag-opened and an already-open drawer.
+ *
+ * `reveal` is a day column's "N Unscheduled" chip asking to be shown its day's
+ * untimed stops (PR #269). It is not a `toggle`: clicked while the drawer is
+ * already open, a toggle would shut the drawer on the very stops the reader
+ * asked to see. It opens, or leaves open, and the user owns it — as `parked`.
  */
 export function rackDisclosure(state: RackDisclosure, event: RackEvent): RackDisclosure {
   switch (event.type) {
@@ -39,6 +45,7 @@ export function rackDisclosure(state: RackDisclosure, event: RackEvent): RackDis
     case "dragEnd":
       return state.openedByDrag ? { open: false, openedByDrag: false } : state;
     case "parked":
+    case "reveal":
       return { open: true, openedByDrag: false };
   }
 }

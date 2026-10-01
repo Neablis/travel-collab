@@ -572,6 +572,27 @@ describe("the slash menu", () => {
   // Mitchell, on the preview: *"starting to type the widget should filter down,
   // then tab iterates and enter selects"*. Tab used to commit like Enter — two
   // keys doing one job, and the job Tab is actually wanted for left undone.
+  // CodeRabbit, PR #269: a sentence per row makes the list taller than its
+  // cap, so moving the highlight must bring the row into view. jsdom has no
+  // layout, so the witness is the call on the row the highlight moved to.
+  it("scrolls the row Tab moves to into view", async () => {
+    const scrolled: string[] = [];
+    const original = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = function (this: Element) {
+      scrolled.push(this.id);
+    };
+    try {
+      const textbox = editorFor();
+      await userEvent.type(textbox, "/");
+      await screen.findByRole("listbox");
+      await userEvent.type(textbox, "{Tab}");
+      const second = within(await screen.findByRole("listbox")).getAllByRole("option")[1]!;
+      await waitFor(() => expect(scrolled.at(-1)).toBe(second.id));
+    } finally {
+      Element.prototype.scrollIntoView = original;
+    }
+  });
+
   it("moves the highlight on Tab rather than inserting, and Enter takes what Tab landed on", async () => {
     const onChange = vi.fn();
     const textbox = editorFor(onChange);

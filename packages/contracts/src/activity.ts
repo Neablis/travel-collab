@@ -142,7 +142,10 @@ export const Location = z
     // reaches the map indistinguishable from a vendor-verified venue. That is
     // a real gap and a deliberate omission: naming it is a product decision
     // about what the map should claim, not a shape this PR can settle.
-    precision: LocationPrecision.optional(),
+    precision: LocationPrecision.optional().describe(
+      "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — " +
+        "sent without them it is refused (\"precision requires coordinates\").",
+    ),
     // A structured postal address (see PostalAddress). Independent of
     // `city`/`area`, which are the geocoder's display/grouping fields: a post
     // town and the city a stop groups under legitimately differ. Only
@@ -342,6 +345,16 @@ export function clearDetailFieldsForKind<T extends Record<string, unknown>>(patc
 
 // ---- Commands ----
 
+// What a caller writing a stop needs to know about `kind`, published through
+// `.describe()` into the v1 reference (the two command schemas are the v1 add
+// and patch bodies). An external consumer looked for a `travel` kind and sent
+// `booked` after M28; both answers belong where the field is documented.
+const KIND_DOC =
+  "`planned`, `pending` (not settled yet; see `pendingReason`) or `transit` (a travel leg; see `mode` " +
+  "and `endLocation`). There is no `travel` kind — travel is `kind: \"transit\"` plus `mode`. The kinds " +
+  "retired in M28 — `idea`, `hold`, `booked` — are refused on write: send `pending` for the first two " +
+  "and `planned` for `booked`.";
+
 export const AddActivity = z.object({
   type: z.literal("AddActivity"),
   tripId: z.string().uuid(),
@@ -375,15 +388,22 @@ export const AddActivity = z.object({
   placeRef: z.number().int().nonnegative().optional(),
   notes: z.string().max(2000).optional(),
   anchors: z.array(Anchor).optional(),
-  kind: ActivityKind.optional(),         // omitted = "planned"
+  kind: ActivityKind.optional().describe(KIND_DOC + " Omitted = `planned`."),
   tags: z.array(ActivityTag).optional(), // omitted = none
   cost: Money.optional(), // omitted = no cost
   // M24. Legal only with `kind: "transit"` — refused on the command unions in
   // trip.ts and again by the decider (see `kindDetailFieldsOffKind`).
-  mode: ActivityMode.optional(),        // omitted = no mode
-  endLocation: Location.optional(),     // omitted = no destination; `location` is where the leg starts
+  mode: ActivityMode.optional().describe(
+    "How a travel leg travels. Only allowed when `kind` is `transit` — an omitted `kind` is `planned`, " +
+      "so send `kind: \"transit\"` with it; otherwise a 400.",
+  ),
+  endLocation: Location.optional().describe(
+    "Where a travel leg ends; `location` is where it starts. Only allowed when `kind` is `transit`; otherwise a 400.",
+  ),
   // ADR-055. Legal only with `kind: "pending"`, by the same rule as `mode`.
-  pendingReason: PendingReason.optional(), // omitted = no reason given
+  pendingReason: PendingReason.optional().describe(
+    "Why a stop is not settled: `book` (still has to be booked) or `maybe` (may not happen at all). Only allowed when `kind` is `pending`; otherwise a 400.",
+  ),
 });
 export type AddActivity = z.infer<typeof AddActivity>;
 
@@ -407,19 +427,34 @@ export const UpdateActivity = z.object({
   placeRef: z.number().int().nonnegative().optional(),
   notes: z.string().max(2000).nullable().optional(),
   anchors: z.array(Anchor).optional(),
-  kind: ActivityKind.optional(),         // omitted = unchanged; no null (set "planned" to clear)
+  kind: ActivityKind.optional().describe(
+    KIND_DOC +
+      " Omitted = unchanged; no null (send `planned`). Changing `kind` clears the fields the new kind " +
+      "cannot carry — `mode` and `endLocation` off `transit`, `pendingReason` off `pending` — unless the " +
+      "patch names them.",
+  ),
   tags: z.array(ActivityTag).optional(), // omitted = unchanged; whole-array replace, like anchors
   cost: Money.nullable().optional(), // omitted = unchanged, null = cleared
   // M24. Omitted = unchanged, null = cleared. Whether the RESULT is legal
   // depends on the stored `kind`, so the decider checks it, not this schema.
-  // Nothing clears these for you: moving a stop off `transit` while it keeps
-  // a mode is refused, and the caller sends `mode: null` alongside.
-  mode: ActivityMode.nullable().optional(),
-  endLocation: Location.nullable().optional(),
+  // The decider refuses a stray one rather than clearing it; the caller edges
+  // (v1 `PATCH`, the assistant) add the clear via `clearDetailFieldsForKind`
+  // when the same patch changes `kind`, and the descriptions say so because
+  // this schema is the v1 `PATCH` body's.
+  mode: ActivityMode.nullable().optional().describe(
+    "Omitted = unchanged, null = cleared. Only allowed while the stop is (or this patch makes it) " +
+      "`transit`; otherwise a 400. A patch that changes `kind` away from `transit` clears it for you.",
+  ),
+  endLocation: Location.nullable().optional().describe(
+    "Where a travel leg ends. Omitted = unchanged, null = cleared. Only allowed while the stop is (or this " +
+      "patch makes it) `transit`; otherwise a 400. A patch that changes `kind` away from `transit` clears it for you.",
+  ),
   // ADR-055. Omitted = unchanged, null = cleared, and — like `mode` — legal in
-  // the RESULT only while the stop is pending. Moving a stop off `pending`
-  // while it keeps a reason is refused; send `pendingReason: null` with it.
-  pendingReason: PendingReason.nullable().optional(),
+  // the RESULT only while the stop is pending.
+  pendingReason: PendingReason.nullable().optional().describe(
+    "Omitted = unchanged, null = cleared. Only allowed while the stop is (or this patch makes it) " +
+      "`pending`; otherwise a 400. A patch that changes `kind` away from `pending` clears it for you.",
+  ),
 });
 export type UpdateActivity = z.infer<typeof UpdateActivity>;
 

@@ -135,12 +135,17 @@ describe("impossible-geography rule", () => {
     expect(haversineKm(ROME, VATICAN)).toBeLessThan(10);
   });
 
-  // KI-60. A travel day is not a mistake. Every case below was a false
-  // conflict before the transit exclusion, and the "still flags" ones are the
-  // boundary that keeps it from excusing everything.
-  describe("a transit stop excuses the distance it crosses (KI-60)", () => {
+  // Mitchell, 2026-09-30 (option "B"): ANY transit stop on a day excuses every
+  // distance on that day — timed or not, located or not, wherever it goes. A
+  // day without one is checked exactly as before. History: KI-60 (resolved)
+  // excused only a pair a timed transit stop sat between in time; M24 then
+  // required its destination to agree; 2026-09-21 dropped the transit stop from
+  // pairing. An API user's untimed stops fell through all three, so every
+  // travel day still flagged.
+  describe("a transit stop on the day excuses every distance on it (Mitchell, 2026-09-30)", () => {
     const geo = (state: TripState) =>
       detectConflicts(state).filter((c) => c.kind === "impossible-geography");
+    const TOKYO = { name: "Tokyo", lat: 35.6812, lng: 139.7671 };
 
     it("excuses a pair a transit stop sits BETWEEN in time", () => {
       expect(
@@ -165,56 +170,36 @@ describe("impossible-geography rule", () => {
       ).toEqual([]);
     });
 
-    // COVERAGE NOTE, 2026-09-21. The test directly above used to be what
-    // exercised `transitExcusesDistance`'s `>= lo` boundary (rather than
-    // `> lo`): `t` was a pair member, so the pair formed and was excused by a
-    // transit start EQUAL to the interval's low end. Since a transit stop is
-    // no longer a pair member at all, that test now passes because no pair
-    // forms, and the boundary lost its only witness. This is that witness,
-    // rebuilt out of stops the exclusion does not touch: the non-transit `a`
-    // starts at 10:00 and so does the transit stop, so `>= lo` excuses the
-    // a<->b pair and `> lo` would not.
-    it("excuses a pair whose earlier stop starts at the same time as the travel", () => {
+    // Was "still flags when the transit stop is OUTSIDE the interval" (KI-60).
+    // Where on the day the travel falls no longer matters.
+    it("excuses a pair even when the transit stop is OUTSIDE its interval", () => {
       expect(
         geo(
           boardState([
-            { id: "a", point: ROME, window: { start: "10:00", end: "11:00" } },
-            { id: "t", point: ROME, window: { start: "10:00", end: "14:00" }, kind: "transit" },
-            { id: "b", point: NYC, window: { start: "18:00", end: "19:00" } },
+            { id: "a", point: ROME, window: { start: "08:00", end: "09:00" } },
+            { id: "b", point: NYC, window: { start: "10:00", end: "11:00" } },
+            { id: "t", point: NYC, window: { start: "20:00", end: "22:00" }, kind: "transit" },
           ]),
         ),
       ).toEqual([]);
     });
 
-    it("still flags when the transit stop is OUTSIDE the interval", () => {
-      // Travel at 20:00 cannot explain being in Rome at 08:00 and NYC at 10:00.
-      const conflicts = geo(
-        boardState([
-          { id: "a", point: ROME, window: { start: "08:00", end: "09:00" } },
-          { id: "b", point: NYC, window: { start: "10:00", end: "11:00" } },
-          { id: "t", point: NYC, window: { start: "20:00", end: "22:00" }, kind: "transit" },
-        ]),
-      );
-      expect(conflicts).toHaveLength(1);
-      expect(conflicts[0]!.subjects).toEqual(["a", "b"]);
-    });
-
-    it("still flags an untimed stop — 'when' is unknown, so travel cannot cover it", () => {
+    // Was "still flags an untimed stop" (KI-60). The API user's shape.
+    it("excuses untimed paired stops", () => {
       expect(
         geo(
           boardState([
             { id: "a", point: ROME },
             { id: "t", point: ROME, window: { start: "10:00", end: "14:00" }, kind: "transit" },
-            { id: "b", point: NYC, window: { start: "18:00", end: "19:00" } },
+            { id: "b", point: NYC },
           ]),
         ),
-      ).toHaveLength(1);
+      ).toEqual([]);
     });
 
-    // `t` carries no point in this test and the next, so it forms no far-apart
-    // pair of its own — the only conflict available is a<->b, which is exactly
-    // the question being asked.
-    it("ignores an untimed transit stop — it cannot be placed in the interval", () => {
+    // Was "ignores an untimed transit stop" (KI-60) and "keeps KI-60's floor"
+    // (M24). `t` has no time window and no point: its presence alone excuses.
+    it("excuses when the transit stop itself is untimed and unlocated", () => {
       expect(
         geo(
           boardState([
@@ -223,22 +208,54 @@ describe("impossible-geography rule", () => {
             { id: "b", point: NYC, window: { start: "18:00", end: "19:00" } },
           ]),
         ),
-      ).toHaveLength(1);
+      ).toEqual([]);
+    });
+
+    // Was "flags the pair when the destination is somewhere else" (M24). The
+    // destination is no longer consulted.
+    it("excuses even when the transit stop's endLocation is far from both stops", () => {
+      expect(
+        geo(
+          boardState([
+            { id: "a", point: ROME, window: { start: "08:00", end: "09:00" } },
+            { id: "t", point: ROME, end: TOKYO, window: { start: "10:00", end: "14:00" }, kind: "transit" },
+            { id: "b", point: NYC, window: { start: "18:00", end: "19:00" } },
+          ]),
+        ),
+      ).toEqual([]);
     });
 
     it("is transit-only — no other kind excuses a distance", () => {
       for (const kind of ["planned", "pending"] as const) {
-        expect(
-          geo(
-            boardState([
-              { id: "a", point: ROME, window: { start: "08:00", end: "09:00" } },
-              { id: "t", window: { start: "10:00", end: "14:00" }, kind },
-              { id: "b", point: NYC, window: { start: "18:00", end: "19:00" } },
-            ]),
-          ),
-          `kind ${kind} must not excuse a distance`,
-        ).toHaveLength(1);
+        const conflicts = geo(
+          boardState([
+            { id: "a", point: ROME, window: { start: "08:00", end: "09:00" } },
+            { id: "t", window: { start: "10:00", end: "14:00" }, kind },
+            { id: "b", point: NYC, window: { start: "18:00", end: "19:00" } },
+          ]),
+        );
+        expect(conflicts, `kind ${kind} must not excuse a distance`).toHaveLength(1);
+        expect(conflicts[0]!.subjects).toEqual(["a", "b"]);
       }
+    });
+
+    // The excuse is per DAY, not per trip: a train on day 2 says nothing about
+    // Rome and New York both being on day 1.
+    it("still flags a day with no transit, even when another day has one", () => {
+      const state = boardState([
+        { id: "a", point: ROME },
+        { id: "b", point: NYC },
+        { id: "t", kind: "transit" },
+        { id: "c", point: ROME },
+        { id: "d", point: TOKYO },
+      ]);
+      state.days = [
+        { dayId: "day-1", activityIds: ["a", "b"] },
+        { dayId: "day-2", activityIds: ["t", "c", "d"] },
+      ];
+      const conflicts = geo(state);
+      expect(conflicts).toHaveLength(1);
+      expect(conflicts[0]).toMatchObject({ id: "impossible-geography:day-1:a:b", subjects: ["a", "b"] });
     });
 
     it("does not touch time-overlap conflicts on the same day", () => {
@@ -253,107 +270,10 @@ describe("impossible-geography rule", () => {
     });
   });
 
-  // M24 link 4. With an `endLocation` the engine can ask what KI-60 could
-  // not: does the travel go to the right place? A timed transit stop in the
-  // interval now excuses a far-apart pair only if its destination is within
-  // GEO_INFEASIBLE_KM of the pair's LATER stop. A transit stop with no
-  // destination is exactly KI-60's rule, unchanged.
-  describe("a transit stop's destination must agree with where the day goes next (M24)", () => {
-    const geo = (state: TripState) =>
-      detectConflicts(state).filter((c) => c.kind === "impossible-geography");
-    // ~5 km from NYC: "near" by the rule's own threshold, not a copy of NYC.
-    const JFK_ISH = { name: "Queens", lat: 40.7282, lng: -73.7949 };
-    const TOKYO = { name: "Tokyo", lat: 35.6812, lng: 139.7671 };
-
-    it("excuses the pair when the destination is near the later stop", () => {
-      expect(
-        geo(
-          boardState([
-            { id: "a", point: ROME, window: { start: "08:00", end: "09:00" } },
-            { id: "t", point: ROME, end: JFK_ISH, window: { start: "10:00", end: "14:00" }, kind: "transit" },
-            { id: "b", point: NYC, window: { start: "18:00", end: "19:00" } },
-          ]),
-        ),
-      ).toEqual([]);
-    });
-
-    it("flags the pair when the destination is somewhere else — travel to Tokyo does not put you in New York", () => {
-      const conflicts = geo(
-        boardState([
-          { id: "a", point: ROME, window: { start: "08:00", end: "09:00" } },
-          { id: "t", point: ROME, end: TOKYO, window: { start: "10:00", end: "14:00" }, kind: "transit" },
-          { id: "b", point: NYC, window: { start: "18:00", end: "19:00" } },
-        ]),
-      );
-      expect(conflicts).toHaveLength(1);
-      expect(conflicts[0]!.subjects).toEqual(["a", "b"]);
-    });
-
-    // "Later" is TIME order (KI-60 property 1): `b` is stored first here, so a
-    // rule that took the second-stored stop as "later" would compare Queens
-    // with Rome and flag.
-    it("reads the later stop by time, not by stored order", () => {
-      expect(
-        geo(
-          boardState([
-            { id: "b", point: NYC, window: { start: "18:00", end: "19:00" } },
-            { id: "t", point: ROME, end: JFK_ISH, window: { start: "10:00", end: "14:00" }, kind: "transit" },
-            { id: "a", point: ROME, window: { start: "08:00", end: "09:00" } },
-          ]),
-        ),
-      ).toEqual([]);
-    });
-
-    it("with no endLocation, behaves exactly as KI-60 — any timed travel in the interval excuses", () => {
-      expect(
-        geo(
-          boardState([
-            { id: "a", point: ROME, window: { start: "08:00", end: "09:00" } },
-            { id: "t", point: ROME, window: { start: "10:00", end: "14:00" }, kind: "transit" },
-            { id: "b", point: NYC, window: { start: "18:00", end: "19:00" } },
-          ]),
-        ),
-      ).toEqual([]);
-    });
-
-    // An endLocation that was never geocoded names a place but not where it
-    // is. That is absence of evidence, not disagreement, so it falls back to
-    // the no-destination rule rather than flagging.
-    it("treats a destination without coordinates as no destination", () => {
-      expect(
-        geo(
-          boardState([
-            { id: "a", point: ROME, window: { start: "08:00", end: "09:00" } },
-            { id: "t", point: ROME, end: { name: "Somewhere in New York" }, window: { start: "10:00", end: "14:00" }, kind: "transit" },
-            { id: "b", point: NYC, window: { start: "18:00", end: "19:00" } },
-          ]),
-        ),
-      ).toEqual([]);
-    });
-
-    it("keeps KI-60's floor — a destination does not make an untimed transit stop excuse anything", () => {
-      expect(
-        geo(
-          boardState([
-            { id: "a", point: ROME, window: { start: "08:00", end: "09:00" } },
-            { id: "t", end: JFK_ISH, kind: "transit" },
-            { id: "b", point: NYC, window: { start: "18:00", end: "19:00" } },
-          ]),
-        ),
-      ).toHaveLength(1);
-    });
-  });
-
-  // Mitchell, 2026-09-21, on a real Portugal trip. A transit stop's coordinate
-  // is where the journey STARTS, so its distance to anything else on the day
-  // says nothing about whether the day is possible — it is never a member of a
-  // pair at all.
-  //
-  // Sibling of the KI-60 block above, not a replacement for it: that rule
-  // excuses a pair of NON-transit stops that travel sits between in time, and
-  // it needs BOTH of them timed to do it. Every case here is one it could not
-  // reach for exactly that reason.
-  describe("a transit stop is never a member of a distance pair", () => {
+  // Mitchell, 2026-09-21, on a real Portugal trip: "Train: Lisbon to Porto"
+  // (untimed) flagged against a timed Porto stop at ~273 km. Kept as the
+  // concrete regression case; the 2026-09-30 rule covers it as a special case.
+  describe("the Lisbon -> Porto train day", () => {
     const geo = (state: TripState) =>
       detectConflicts(state).filter((c) => c.kind === "impossible-geography");
 
@@ -367,9 +287,6 @@ describe("impossible-geography rule", () => {
     });
 
     it("does not flag 'Train: Lisbon to Porto' against a Porto stop", () => {
-      // The exact shape that was firing: the train carries no time window and
-      // the other stop does, so transitExcusesDistance — which returns false
-      // unless both have a `start` — could never excuse the pair.
       expect(
         geo(
           boardState([
@@ -473,63 +390,61 @@ describe("conflict engine properties", () => {
     w.atLeast(130); // observed 266-334 conflicts examined
   });
 
-  // M24 link 4's two "for ALL" claims. Each witness ticks only when today's
-  // (KI-60) rule actually excused something in the generated day, found by
-  // diffing against the same day with every transit stop untimed (an untimed
-  // transit stop excuses nothing and is never a pair member). A day where
-  // nothing was excused compares two equal lists and proves nothing.
-  const geoIds = (s: TripState) =>
-    detectConflicts(s).filter((c) => c.kind === "impossible-geography").map((c) => c.id);
-  const excusedByTravel = (specs: ActivitySpec[]) => {
-    const untimed = specs.map((a) => (a.kind === "transit" ? { ...a, window: undefined } : a));
-    return geoIds(boardState(untimed)).length > geoIds(boardState(specs.map((a) => ({ ...a, end: undefined })))).length;
-  };
+  // The 2026-09-30 rule's two halves, for ALL generated days. `arbStop` mixes
+  // timed/untimed, located/not, transit/not and endLocations, so none of the
+  // old rule's nuances can decide the outcome unnoticed.
+  const geoConflicts = (s: TripState) => detectConflicts(s).filter((c) => c.kind === "impossible-geography");
+  const arbStop = fc.record({
+    window: fc.option(arbWindow, { nil: undefined }),
+    point: fc.option(arbPoint, { nil: undefined, freq: 4 }),
+    transit: fc.boolean(),
+    end: fc.option(arbPoint, { nil: undefined }),
+  });
+  type Stop = { window?: TimeWindow; point?: ActivitySpec["point"]; transit: boolean; end?: ActivitySpec["point"] };
+  const toSpecs = (stops: Stop[]) =>
+    stops.map(
+      (s, i): ActivitySpec => ({
+        id: `a${i}`,
+        window: s.window,
+        point: s.point,
+        ...(s.transit ? { kind: "transit" as const, end: s.end } : {}),
+      }),
+    );
 
-  it("a destination only ever narrows the excuse — it never clears a conflict KI-60 raised", () => {
-    const w = witness("destination narrows");
-    const arbStop = fc.record({
-      // Mostly timed: an untimed stop can neither be excused nor excuse, so a
-      // generator at 50% untimed spent most runs on days with nothing at stake.
-      window: fc.option(arbWindow, { nil: undefined, freq: 8 }),
-      point: arbPoint,
-      transit: fc.boolean(),
-      end: fc.option(arbPoint, { nil: undefined }),
-    });
+  it("a day with any transit stop raises no impossible-geography conflict", () => {
+    // Ticks only when the SAME day with its transit stops recast as planned
+    // WOULD flag — i.e. when the transit stop is what excused something.
+    const w = witness("transit excuses the day");
     fc.assert(
-      fc.property(fc.array(arbStop, { minLength: 4, maxLength: 8 }), (stops) => {
-        const specs: ActivitySpec[] = stops.map((s, i) => ({
-          id: `a${i}`,
-          window: s.window,
-          point: s.point,
-          ...(s.transit ? { kind: "transit" as const, end: s.end } : {}),
-        }));
-        if (excusedByTravel(specs)) w.tick();
-        const today = geoIds(boardState(specs.map((a) => ({ ...a, end: undefined }))));
-        const withDestinations = new Set(geoIds(boardState(specs)));
-        return today.every((id) => withDestinations.has(id));
+      fc.property(fc.array(arbStop, { minLength: 2, maxLength: 7 }), (stops) => {
+        const specs = toSpecs(stops);
+        if (!specs.some((s) => s.kind === "transit")) return true;
+        const recast = specs.map((s) => ({ ...s, kind: undefined, end: undefined }));
+        if (geoConflicts(boardState(recast)).length > 0) w.tick();
+        return geoConflicts(boardState(specs)).length === 0;
       }),
       { numRuns: 300 },
     );
-    w.atLeast(7); // observed 15-30 excusing days in 300 runs over 15 runs
+    w.atLeast(17); // observed 35-52 excusing days in 300 runs over 15 runs
   });
 
-  it("a destination at the later stop changes nothing — every pair excused today is still excused", () => {
-    const w = witness("agreeing destination");
+  it("a day with no transit stop flags exactly the located pairs over GEO_INFEASIBLE_KM", () => {
+    // Independent oracle: count far pairs directly. Ticks per day that has one.
+    const w = witness("no transit flags every far pair");
     fc.assert(
-      fc.property(arbWindow, arbWindow, arbWindow, arbPoint, arbPoint, arbPoint, (wa, wb, wt, pa, pb, pt) => {
-        const later = wa.start < wb.start ? pb : wb.start < wa.start ? pa : pa;
-        const specs: ActivitySpec[] = [
-          { id: "a", window: wa, point: pa },
-          { id: "t", window: wt, point: pt, kind: "transit", end: later },
-          { id: "b", window: wb, point: pb },
-        ];
-        if (excusedByTravel(specs)) w.tick();
-        const today = geoIds(boardState(specs.map((a) => ({ ...a, end: undefined }))));
-        return JSON.stringify(geoIds(boardState(specs))) === JSON.stringify(today);
+      fc.property(fc.array(arbStop, { minLength: 2, maxLength: 7 }), (stops) => {
+        const specs = toSpecs(stops.map((s) => ({ ...s, transit: false })));
+        const located = specs.flatMap((s) => (s.point ? [s.point] : []));
+        let far = 0;
+        for (let i = 0; i < located.length; i++)
+          for (let j = i + 1; j < located.length; j++)
+            if (haversineKm(located[i]!, located[j]!) > GEO_INFEASIBLE_KM) far++;
+        if (far > 0) w.tick();
+        return geoConflicts(boardState(specs)).length === far;
       }),
       { numRuns: 300 },
     );
-    w.atLeast(13); // observed 26-47 excusing days in 300 runs over 15 runs
+    w.atLeast(17); // observed 35-58 days with a far pair in 300 runs over 15 runs
   });
 
   it("conflict ids are invariant under activity insertion order", () => {

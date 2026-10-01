@@ -11,8 +11,9 @@ export type Slot = { start: string; end: string };
  * of a column. A drop on a day's river names one, and every stop, a parked one
  * included, lands there by the river's rule instead (`placeWindow`,
  * `resolveDrop`'s `place` outcome; Mitchell, 2026-09-26). This is still reached
- * from the phone's card list and from the parts of a desktop column outside
- * the river.
+ * from the part of a column outside its river — its header, since the "Any
+ * time" shelf went in PR #269 — though not from the header's "Unscheduled" chip,
+ * whose drop means "no time" on purpose (`resolveDrop`'s `anyTime`).
  *
  * Extracted as a pure function for the reason `resolveDrop` and
  * `rackDisclosure` already are, and stated in m10-unscheduled-rack.spec.ts's

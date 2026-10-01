@@ -13,7 +13,7 @@ import { TAG_LABEL, tagFocusOpacity } from "@/lib/activityTags";
 import { cn } from "@/lib/cn";
 import type { AccentFamily } from "@/lib/dayAccent";
 import { formatMoney } from "@/lib/formatMoney";
-import { displayPlace } from "@/lib/place";
+import { displayPlace, legRoute } from "@/lib/place";
 import { formatDuration, toClockRange, toMinutes } from "@/lib/time";
 import { PENDING_REASON_DISPLAY } from "./PendingReasonPicker";
 import type { RiverPlacement } from "./riverLayout";
@@ -194,8 +194,8 @@ export function RiverBlock({
 
   useEffect(() => {
     const el = ref.current;
-    // Same reason as ActivityCard: a reader must not pick a stop up only for
-    // the provider to refuse the move and snap it back (ADR-031).
+    // A reader must not pick a stop up only for the provider to refuse the
+    // move and snap it back (ADR-031) — the rack's cards hold the same rule.
     if (!el || readOnly) return;
     return draggable({
       element: el,
@@ -229,7 +229,11 @@ export function RiverBlock({
   const look = riverLook(activity, window);
   const overlapping = overlapPartners.length > 0;
   const range = toClockRange(window.start, window.end, clock);
-  const where = activity.location ? displayPlace(activity.location) : null;
+  // A leg's place is both its ends (Mitchell, 2026-09-30, option "B"): "Taipei
+  // → Tainan" in the slot a stop's own place takes, where the map's line was
+  // the only thing that said where a leg went.
+  const route = legRoute(activity);
+  const where = route ?? (activity.location ? displayPlace(activity.location) : null);
   const cost = activity.cost ? formatMoney(activity.cost.amountMinor, currency) : null;
   // Everything the drawn block says is aria-hidden (the block is one button's
   // worth of picture), so the name carries what the card it replaced let a
@@ -342,7 +346,10 @@ export function RiverBlock({
             lets clicks through to it; the controls opt back in. */}
         <div className="pointer-events-none relative flex min-w-0 items-center gap-1.5">
           <span aria-hidden className="min-w-0 flex-1 truncate text-xs font-semibold text-ink">
-            {look.title}
+            {/* A compact block has no second line for the route to ride on,
+                and a leg under an hour is compact (the demo's Kyoto → Osaka),
+                so it joins the title and truncates with it. */}
+            {route !== null && !roomy ? `${look.title} · ${route}` : look.title}
           </span>
           {(hasConflict || (narrow && !roomy && overlapping)) && (
             <AlertTriangle aria-hidden className="size-3 shrink-0 text-warning-ink" />

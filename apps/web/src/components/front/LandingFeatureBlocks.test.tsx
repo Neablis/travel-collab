@@ -5,15 +5,16 @@ import { LandingFeatureBlocks } from "./LandingFeatureBlocks";
 afterEach(cleanup);
 
 describe("LandingFeatureBlocks", () => {
-  it.each(["Together", "Notebook", "Playbooks"])("names the %s block", (eyebrow) => {
+  it.each(["Playbooks", "Together", "Countdown", "Notebook"])("names the %s block", (eyebrow) => {
     render(<LandingFeatureBlocks />);
     expect(screen.getByText(eyebrow)).toBeDefined();
   });
 
   it.each([
-    "Four people, one schedule",
-    "Write it like a letter",
-    "Borrow a day from anyone",
+    "Relive someone’s perfect day.",
+    "The trip starts before the trip.",
+    "Too excited to sleep.",
+    "How you’ll remember it.",
   ])("titles the block %s", (title) => {
     render(<LandingFeatureBlocks />);
     expect(screen.getByRole("heading", { name: title })).toBeDefined();
@@ -37,7 +38,31 @@ describe("LandingFeatureBlocks", () => {
   it("shows the borrowed playbook's rating and reach", () => {
     render(<LandingFeatureBlocks />);
     expect(screen.getByText("4.8")).toBeDefined();
-    expect(screen.getByText("Shared 214 times")).toBeDefined();
+    expect(screen.getByText("Relived 214 times")).toBeDefined();
+  });
+
+  // In page order, because the retro's order is the argument: the feeling
+  // (Playbooks) first, the mechanics riding along after it.
+  it("puts the blocks in the retro's order", () => {
+    render(<LandingFeatureBlocks />);
+    expect(screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual([
+      "Relive someone’s perfect day.",
+      "The trip starts before the trip.",
+      "Too excited to sleep.",
+      "How you’ll remember it.",
+    ]);
+  });
+
+  it("counts the trip down to tomorrow and marks the steps already passed", () => {
+    render(<LandingFeatureBlocks />);
+    expect(screen.getByText("Wheels up tomorrow.")).toBeDefined();
+    expect(screen.getByText("day to go")).toBeDefined();
+    expect(screen.getAllByRole("listitem").map((li) => li.textContent)).toEqual(["One month", "One week", "Tomorrow"]);
+  });
+
+  it("lets the group mark the stop they can't wait for", () => {
+    render(<LandingFeatureBlocks />);
+    expect(screen.getByRole("img", { name: "Can't wait" })).toBeDefined();
   });
 
   it("marks the booked stop and the maybe on the Together timeline", () => {

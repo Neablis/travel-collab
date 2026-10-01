@@ -14,6 +14,9 @@ import { offerTrial } from "./entitlements/grants";
 import { rewardReferrer } from "./entitlements/referrals";
 import { isDevLoginEnabled } from "@/lib/devLogin";
 import { isBootstrapAdmin } from "@/lib/adminBootstrap";
+import { deploymentOrigin } from "@/lib/deploymentOrigin";
+import { sendEmail } from "./email/send";
+import { welcomeEmail } from "./email/templates";
 
 // The Identity module's whole write surface (AGENTS.md module map): a user row
 // is created or refreshed on sign-in and nothing else touches it. Identity is
@@ -272,6 +275,22 @@ export async function writePreferences(
 }
 
 /**
+ * How to address this person to someone else: the name they chose over the
+ * provider's, and their address. For outgoing mail (an invite's sender line
+ * and Reply-To); `null` fields for a session whose row has gone, same
+ * tolerance as `readPreferences`.
+ */
+export async function readContact(userId: string): Promise<{ name: string | null; email: string | null }> {
+  const rows = await db
+    .select({ displayName: users.displayName, name: users.name, email: users.email })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  const row = rows[0];
+  return { name: row?.displayName ?? row?.name ?? null, email: row?.email ?? null };
+}
+
+/**
  * Has this person been here before?
  *
  * Asked BEFORE the upsert, because after it the answer is always yes:
@@ -410,6 +429,15 @@ export async function recordSignIn(
           error,
         });
       }
+    }
+    // **The welcome email**, once, for the same "no row before this sign-in"
+    // reason as the trial above. There is no "confirm your address" step:
+    // every way in hands us an address its provider already verified (Google),
+    // or one we built ourselves (dev login). `sendEmail` never throws and
+    // does nothing without RESEND_API_KEY, so like the reward it can cost a
+    // sign-in some latency but never the sign-in itself.
+    if (identity.email !== null) {
+      await sendEmail(welcomeEmail({ to: identity.email, name: identity.name, appUrl: deploymentOrigin() }));
     }
   }
   return true;

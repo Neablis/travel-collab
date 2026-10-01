@@ -107,7 +107,7 @@ export function ActivityEditor({
    * control that looks broken.
    */
   members?: TripMember[];
-  onSave: (value: ActivityFormValue) => void;
+  onSave: (value: ActivityFormValue) => void | Promise<void>;
   onCancel: () => void;
 }) {
   const clock = useTimeFormat();
@@ -221,7 +221,7 @@ export function ActivityEditor({
       timeWindow = { start, end: computedEnd };
     }
 
-    onSave({
+    void onSave({
       title: trimmedTitle,
       dayId: selectedDayId !== "" ? selectedDayId : null,
       timeWindow,

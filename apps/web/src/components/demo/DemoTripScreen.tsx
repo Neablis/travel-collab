@@ -10,6 +10,7 @@ import { FocusProvider } from "@/components/trip/context/FocusProvider";
 import { EditorHost } from "@/components/trip/context/EditorHost";
 import { LensRouter } from "@/components/trip/context/LensRouter";
 import { FrontDoorHeader } from "@/components/front/FrontDoorHeader";
+import { PhoneTabBar, PhoneTabBarFallback } from "@/components/nav/PhoneTabBar";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
 import { duplicateTrip } from "@/lib/apiClient";
@@ -51,7 +52,10 @@ export function DemoTripScreen() {
         }
       />
       <DemoBanner />
-      <PageContainer as="main" width="full" className="px-0">
+      {/* `.phone-tab-bar-inset` for the reason `(app)/layout.tsx` gives: the
+          bar below is `position: fixed`, so without it the board's last row
+          sits under the bar. 0px at >=768px, where the bar is not rendered. */}
+      <PageContainer as="main" width="full" className="phone-tab-bar-inset px-0">
         {/* `LensRouter` reads `useSearchParams()` — which lens you are looking
             at is URL state, so a link to `/demo?lens=Map` opens the map. That
             makes this subtree opt out of static prerendering, and Next.js
@@ -77,6 +81,15 @@ export function DemoTripScreen() {
           </TripProvider>
         </Suspense>
       </PageContainer>
+      {/* The phone's only way between the views here: below 768px the board
+          hides its own view strip and leaves them to this bar. `(front)` has no
+          bar of its own, so the demo mounts the one `(app)/layout.tsx` does —
+          which scopes itself on `/demo` to Overview, Plan and Map, linked to
+          the demo, and offers nothing that needs an account. Its own Suspense boundary
+          and a real-bar fallback, for the reasons that layout records. */}
+      <Suspense fallback={<PhoneTabBarFallback />}>
+        <PhoneTabBar />
+      </Suspense>
     </>
   );
 }

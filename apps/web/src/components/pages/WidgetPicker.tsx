@@ -1,7 +1,6 @@
 "use client";
 import { useMemo, useRef, useState } from "react";
 import { presetCatalog } from "@tc/pages";
-import type { WidgetInput } from "@tc/pages";
 import type { WidgetShape } from "@tc/contracts";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -191,27 +190,6 @@ function KindGlyph({ rows, on }: { rows: readonly GlyphRow[]; on: boolean }) {
   );
 }
 
-// The gate's "a mono line naming what it takes", said BEFORE the click rather
-// than discovered after it.
-//
-// **"Narrow it by", not "point it at".** Under ADR-039 decision 2 a widget with
-// nothing bound is not waiting for anything — it is showing everything, which
-// is the widest true answer — so every row here is ready as soon as it lands
-// and the filters are what a person can do NEXT, not a debt the widget arrives
-// with. The old wording was correct about `cost.day`, which really was unbound
-// until you pointed it at a day, and is a lie about `cost`.
-function takesLine(inputs: readonly WidgetInput[]): string {
-  if (inputs.length === 0) return "takes nothing \u2014 goes straight in";
-  // **The registry's own labels, not the design's `INPUT_WORDS`.** The design
-  // carries a second vocabulary keyed by input TYPE (`a stretch of days`,
-  // `someone on the trip`); `filters.ts`'s `LABEL_OF` is where this repo says
-  // what a dimension is called, and it is what every bind control already
-  // shows. Two maps would be two surfaces disagreeing about one dimension,
-  // which is the thing `LABEL_OF`'s own comment exists to prevent \u2014 so this
-  // reads "takes day + tags" where the design reads "takes a day + tags".
-  return `takes ${inputs.map((i) => i.label.toLowerCase()).join(" + ")}`;
-}
-
 /**
  * Does this row match what was typed? (spec §6, findability.)
  *
@@ -224,7 +202,10 @@ function takesLine(inputs: readonly WidgetInput[]): string {
  * What a token can match:
  *
  * - the **title** they see;
- * - the **description**, which is the sentence under it;
+ * - the **summary**, which is the sentence under it — searched because a
+ *   person who just read "golden hour … photos" on a row will type it;
+ * - the **description**, the longer one the assistant's search reads, which
+ *   still carries words (`schedule`, `itinerary`) a person may try;
  * - the **id**, deliberately — someone who has read a document's JSON or the AI
  *   tool surface knows a widget by name, and a search that refused to find it
  *   would hide what the app itself uses;
@@ -238,6 +219,7 @@ export function widgetMatches(
   w: {
     name: string;
     title: string;
+    summary: string;
     description: string;
     keywords?: readonly string[];
     aliases?: readonly string[];
@@ -246,7 +228,7 @@ export function widgetMatches(
 ): boolean {
   const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
   if (tokens.length === 0) return true;
-  const haystack = [w.title, w.description, w.name, ...(w.keywords ?? []), ...(w.aliases ?? [])]
+  const haystack = [w.title, w.summary, w.description, w.name, ...(w.keywords ?? []), ...(w.aliases ?? [])]
     .join(" ")
     .toLowerCase();
   return tokens.every((token) => haystack.includes(token));
@@ -426,10 +408,9 @@ export function WidgetPicker({
             **The design's own sentence ends "It lands not set up." and that
             clause is deliberately dropped.** Under ADR-039 decision 2 a widget
             with nothing bound is not waiting for anything — it shows
-            everything, the widest true answer — which is the same correction
-            `takesLine` already carries below ("ready as soon as it lands"). The
-            design predates that decision; importing the words would reintroduce
-            the lie the build has already fixed once. */}
+            everything, the widest true answer, so every row is ready as soon
+            as it lands. The design predates that decision; importing the words
+            would reintroduce the lie the build has already fixed once. */}
         <p aria-live="polite" className="mt-3 text-xs text-slate">
           {`${shown.length} ${shown.length === 1 ? "widget" : "widgets"} · `}
           {draggable ? "click to drop one at the cursor, or drag it in." : "tap one to drop it into the page."}
@@ -448,14 +429,15 @@ export function WidgetPicker({
                   twenty-two of those in a 320px column read as a toolbar —
                   every row shouting "press me" with equal weight, so nothing in
                   the list has a hierarchy. The design draws a card: a quiet edge
-                  that takes the brand only on hover, and three lines inside it
-                  that each answer a different question (what it is, what it
-                  needs, what it will look like).
+                  that takes the brand only on hover. The design put three lines
+                  inside it (what it is, what it needs, what it will look like);
+                  since PR #269's preview it is two — the title, and one
+                  sentence saying what it is for (see the summary line below).
 
                   Still a real `<button>`, so the list stays keyboard-reachable
                   and `getAllByRole("button")` still means "the rows". The
                   `Button` primitive is what goes, not the semantics. */}
-              {/* eslint-disable-next-line no-restricted-syntax -- a three-line card that is also the control; Button&apos;s variants draw an action, and twenty-two actions in a 320px column is the toolbar this change exists to stop */}
+              {/* eslint-disable-next-line no-restricted-syntax -- a two-line card that is also the control; Button&apos;s variants draw an action, and twenty-two actions in a 320px column is the toolbar this change exists to stop */}
               <button
                 type="button"
                 className={cn(
@@ -489,23 +471,34 @@ export function WidgetPicker({
                       cursor is. */}
                   {draggable ? <span aria-hidden className="text-2xs text-slate">&#8759;</span> : null}
                   <span className="text-sm font-semibold text-ink">{w.title}</span>
-                  <Badge variant="neutral" className="font-mono text-2xs font-normal">
-                    {SHAPE_LABEL[w.shape]}
-                  </Badge>
+                  {/* Only under All. With one kind filtered on, every row is
+                      that kind, so the chip would repeat the filter on every
+                      line (Mitchell, PR #269 preview: "Drop the
+                      inline/block/list when you are filtering the widgets.
+                      They will always all be the same"). */}
+                  {shape === null && (
+                    <Badge variant="neutral" className="font-mono text-2xs font-normal">
+                      {SHAPE_LABEL[w.shape]}
+                    </Badge>
+                  )}
                 </span>
-                {/* `text-brand-pressed`, which is the one colour on the card
-                    that is not ink or slate — the design uses it to mark the
-                    line that says what you still get to choose, so the eye
-                    lands on it when scanning for a widget that takes a day. */}
-                <span className="font-mono text-2xs font-normal text-brand-pressed">{takesLine(w.inputs)}</span>
-                {/* A FIXED sample, never a computed value (ADR-037 decision 5):
-                    a preview asserting numbers the live widget computes makes
-                    the picker and the page contradict each other in one
-                    session. M14's gate box asks instead for "a real resolved
-                    preview" — the two were written the same day and the ADR is
-                    the accepted decision, so this follows the ADR. Recorded in
-                    the milestone file rather than settled silently here. */}
-                <span className="text-xs font-normal text-slate">{w.preview}</span>
+                {/* **The row's sentence is the preset's `summary`, and it is
+                    the only line under the title** (Mitchell, PR #269 preview:
+                    *"Remove the 'Takes' part, then go through all the
+                    descriptions and improve them. Make them a real
+                    description, not a short incom[plete …]"*).
+
+                    Two lines went. The mono "takes day + tags" line named the
+                    filters a widget offers — true, but a question the settings
+                    panel answers the moment it lands, and it cost every row a
+                    line before saying what the widget was for. And `preview`,
+                    which is a FIXED sample (ADR-037 decision 5) for rows like
+                    "in 34 days" but had become a lower-case fragment ("how many
+                    there are") for the rest — the "short incomplete"
+                    description he was reading. The sample still has its homes
+                    in the slash menu and the settings panel, where there is no
+                    sentence beside it; here the sentence says more. */}
+                <span className="text-xs font-normal text-slate">{w.summary}</span>
               </button>
             </li>
           ))}

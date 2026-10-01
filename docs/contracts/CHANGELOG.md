@@ -13,6 +13,132 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-30 — Public API 1.2.0: `places:read` and `GET /v1/geocode`, the tripless place search
+
+- **Added:** `places:read` to `ApiScope` and `SCOPE_CATALOGUE` (`packages/contracts/src/publicApi.ts`)
+  — the ninth scope, and the one read that spends money: its sentence says every search counts
+  against the account's daily geocoding allowance and a budget every account shares, capped at 100
+  a day per token. **Added:** `GET /v1/geocode?q=&countryCode=`, answering the existing
+  `GeocodeCandidates` (up to five `Location`s) — the tripless twin of
+  `GET /v1/trips/{tripId}/geocode`. `openapi.json` regenerated; `info.version` `1.2.0`, new
+  `API_FINGERPRINT`.
+- **Spend:** charged before the vendor, first against a new per-token daily policy
+  (`placeSearchTokenQuota`, `PLACE_SEARCH_RATE_LIMIT_PER_TOKEN_DAILY`, default 100) and then against
+  the existing `geocodeQuota` (per user 300, global 4000), so a token never spends past its owner's
+  app allowance. An empty `q` answers `{ results: [] }` with no charge and no lookup. A token confined
+  to named trips is refused (`trip-out-of-scope`), as on every tripless endpoint.
+- **Behaviour, same release (no contract change):** a trip-scoped name lookup with no `countryCode`
+  — v1 stop writes, `GET /v1/trips/{tripId}/geocode`, and the assistant's approval-path enrichment —
+  now prefers the countries of the trip's already-located stops: searched inside them first
+  (LocationIQ `countrycodes`) and, on a miss, retried unrestricted, so a trip's first stop in a new
+  country still resolves. An explicit `countryCode` still wins and is never widened; a trip with
+  nothing located is unrestricted.
+- Why: Mitchell, 2026-09-30 (API feedback item 12, and the country-hint decision, option A).
+- Consumers updated: `apps/web` (new `app/api/v1/geocode/route.ts`, `server/quota.ts`,
+  `server/public-api/{locations,exposure,openapi}.ts` — `geocode` moves from `planned` to `public`),
+  the token screen renders the new scope from the catalogue; `docs/guidelines/using-the-api.md`
+  (Scopes table, trip-scoped tokens, the place-search section); `.env.example`.
+- **Breaking?** No — additive (minor).
+
+## 2026-09-30 — Public API 1.2.0: a `startingAt` merge places stops by start time
+
+- **Changed (behaviour):** `POST /v1/trips/{tripId}/playbook-applications` with `placement: {
+  mode: "startingAt" }` no longer appends a Playbook day's stops after the trip day's existing ones.
+  Each timed incoming stop goes before the first stop on the day that starts strictly later (else at
+  the end); untimed incoming stops go last, in Playbook order; existing stops never move. Days the
+  application adds keep the Playbook's order. Supersedes the "appended, unsorted" line in the 1.1.0
+  entry below.
+- **How:** `insertCommands` (`apps/web/src/server/savedDays.ts`) still emits every `AddActivity` in
+  `stops[]` order, then `placeByTime` emits `MoveActivity` commands for the incoming stops that need
+  placing — the existing command vocabulary. **No command, event type or payload changed**; the
+  batch is still one history entry and one undo. `insertCommands`' `onto` parameter is now
+  `OntoDay[]` (day id plus its stops' start times) rather than day ids.
+- The app's own insert (`/api/trips/{tripId}/saved-days/{savedDayId}`) never merges — it passes no
+  `startingAt` — so it appends as before; any future merging caller gets the ordering through the
+  same function.
+- The operation's OpenAPI `description` says so; `API_FINGERPRINT` updated (version stays `1.2.0`).
+- Why: Mitchell, 2026-09-30 — merged stops land in time order.
+- Consumers updated: `apps/web` (`savedDays.ts`, the playbook-applications route, `openapi.ts`,
+  `openapi.json`, `playbooks.int.test.ts`); `docs/guidelines/using-the-api.md`.
+- **Breaking?** No schema change. A caller relying on the old append order on a merged day sees a
+  different order; `activityIds[i]` is still the Playbook's `stops[i]`.
+
+## 2026-09-30 — Public API 1.2.0: Playbook records carry `playbookId`
+
+- **Added:** every Playbook record `/v1/playbooks` answers — `GET /v1/playbooks/{playbookId}`, the
+  `GET /v1/playbooks` items, and the `playbook` in the `POST /v1/playbooks`, `PATCH
+  /v1/playbooks/{playbookId}` and `POST /v1/playbooks/import` answers — carries `playbookId`,
+  always equal to `savedDayId`. Declared as `Playbook` (`SavedDay.extend({ playbookId })`) in
+  `apps/web/src/server/public-api/playbooks.ts`, with `asPlaybook` the one mapping.
+  `PLAYBOOK_SHAPE_DOC` says so on every Playbook operation.
+- **Not changed:** `SavedDay` in `packages/contracts`, the stored `saved_days` row, the app's
+  internal routes, and `/v1/library` (frozen; `LibraryDay` does not gain the alias). The alias is
+  a v1 response-boundary view only.
+- `API_VERSION` `1.2.0` (was `1.1.0`), `API_FINGERPRINT` updated, `openapi.json` regenerated.
+- Why: an external consumer read `/v1/playbooks/{playbookId}` and looked for `playbookId` in the
+  answer. Mitchell, 2026-09-30: add the alias, keep `savedDayId`.
+- Consumers updated: `apps/web` (`playbooks.ts`, `library.ts`'s `savedDayCollection` gains an
+  optional `view`, `/v1/playbooks` route, `openapi.ts`, `openapi.json`, `playbooks.int.test.ts`);
+  `docs/guidelines/using-the-api.md` (Playbooks section).
+- **Breaking?** No. Additive: a new always-present response field; nothing removed or renamed.
+
+## 2026-09-30 — Public API `info.version` 1.1.0, enforced by fingerprint; field, scope and Playbook docs
+
+- **Changed:** `openapi.json`'s `info.version` is `1.1.0` (was `1.0.0`), now `API_VERSION` in
+  `apps/web/src/server/public-api/openapi.ts`, beside `API_FINGERPRINT` (sha256 of the generated
+  document without `info.version`, keys sorted). `openapi.test.ts` fails when the two disagree and
+  prints the new fingerprint. Policy: patch = description-only, minor = additive, major = breaking.
+- **Described** (`.describe()`, so they reach the reference): `AddActivity` / `UpdateActivity`
+  `kind` (the three kinds; no `travel` kind — travel is `transit` plus `mode`; `idea`/`hold`/`booked`
+  refused on write), `mode`, `endLocation` (transit only, a 400 otherwise; on `PATCH`, changing
+  `kind` off `transit` clears them via `clearDetailFieldsForKind`), `pendingReason` (pending only),
+  and `Location.precision` (requires coordinates).
+- **Scope text** (`SCOPE_CATALOGUE`, `publicApi.ts`): `library:read`/`library:write` name
+  Playbooks (a view over saved days, ADR-050); `sharing:write` no longer claims to remove members —
+  no v1 endpoint does.
+- **Playbook operations** gain an OpenAPI `description` (new optional `description` on `route()`
+  declarations): the record's id key is `savedDayId`; writes take `days[].stops[]`, reads return
+  flat `stops[]` with `dayIndex` (ADR-048/050); a `startingAt` merge appends a Playbook day's stops
+  after the trip day's existing ones, in Playbook order, unsorted.
+- Why: an external API consumer's feedback. `1.0.0` had survived M24 (`mode`/`endLocation`,
+  additive) and M28 (kinds `idea`/`hold`/`booked` retired, which broke writers still sending them)
+  without a bump, so nothing told a consumer the contract had moved. `1.1.0` catches up; from here
+  the test keeps the version honest.
+- Consumers updated: `apps/web` (`openapi.ts`, `openapi.test.ts`, `route.ts`, the playbook routes,
+  regenerated `openapi.json`); `docs/guidelines/using-the-api.md` (versioning policy, Scopes table,
+  Playbooks section).
+- **Breaking?** No. Descriptions and prose only; parsing is unchanged.
+
+## 2026-09-28 — `DateListRef` and `DatesRef`: a `dates` filter can hold separate days (PR #269 preview)
+
+- **Added:** `DateListRef` (a non-empty list of `YYYY-MM-DD` calendar dates, earliest first,
+  each once) and `DatesRef` (`DateRangeRef | DateListRef`) in `packages/contracts/src/pages.ts`.
+  **Changed:** `FILTER_VALUE_SCHEMAS.dates` is `DatesRef` (was `DateRangeRef`), so every
+  primitive declaring `dates` accepts `dates: ["2027-06-02", "2027-06-05"]` as well as
+  `dates: { from, through }`. `DateRangeRef` itself is unchanged.
+- Why: Mitchell, PR #269 preview, on the notebook widget's days control: *"get rid of the 'First
+  click start, second click end, select all elements between' this should be either drag and
+  select, or click one offs"*. With one range stored, a click could only replace the selection;
+  asked whether the filter should become a list so Day 2 and Day 5 could be picked together, he
+  answered *"Yes go ahead"*. ADR-039 amendment 2026-09-28.
+- **A run is still written as a range.** `DaysFilter` writes a list only when the days picked
+  are not one unbroken run of the trip's days, so a single day or a dragged run is stored exactly
+  as before. The list is refused, not tidied, when out of order or repeated — one spelling per
+  set, for the reason a reversed range is refused.
+- Consumers updated: `@tc/pages` — `narrow` tests days through the new `datesInclude` (the one
+  place a day is matched against `dates`), `datesLabel` is the one wording of a binding ("Jun 1 –
+  Jun 4", "Jun 2, Jun 5", "5 days"), `cost.breakdown`'s title uses it, and the `dates` widget
+  names each day of a list instead of printing a span. `apps/web` — `DaysFilter` (a click toggles
+  one day, a drag replaces with a run, Shift-click adds a run, the button reads `datesLabel`
+  instead of raw ISO dates), `day-grid.tsx`'s header, and the assistant's `FILTER_VALUE_FORMS`
+  names both spellings. `insertWidget`, `writeCheck` and the property sweep take the union
+  through the params schemas with no edit of their own.
+- **Breaking?** No for readers: every stored `dates` is a range and parses and resolves as
+  before; no document version, no `PAGE_DOC_MIGRATIONS` step (the 2026-09-24 `headings` / `view`
+  precedent). A build older than this one reading a page that stores a list renders that one
+  widget in `renderMacro`'s `bad-params` state (the page still opens) — the deploy-overlap
+  window only, since nothing outside this repo writes these documents.
+
 ## 2026-09-27 — `LinkPreviewMeta`: the text beside a per-link preview card
 
 - **Added:** `LinkPreviewMeta` (`{ title, description }`, `.strict()`), in

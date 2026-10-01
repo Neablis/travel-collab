@@ -185,9 +185,19 @@ test("the chips that used to be dead ends are clickable and answered", async ({ 
   // offers the booking chip on its own; mark it `hold` (a user setting it
   // deliberately "not settled yet") so the chip below has something real to
   // answer.
-  await page.getByRole("button", { name: "Edit Sample: coffee stop" }).click();
+  //
+  // The AI's stops carry no time, so since PR #269 they are drawn in the
+  // Unscheduled rack under Day 1 rather than on the column's "Any time"
+  // shelf — the day's "2 Unscheduled" chip opens the rack on them.
+  await page.getByTestId("day-column").first().getByRole("button", { name: /^2 Unscheduled/ }).click();
+  await page.getByTestId("unscheduled-rack").getByRole("button", { name: "Edit Sample: coffee stop" }).click();
   await page.getByRole("radiogroup", { name: "Kind" }).getByRole("radio", { name: "Pending" }).click();
   await page.getByRole("button", { name: "Save" }).click();
+  // Shut again, so the open drawer's height is not what the rest of this walk
+  // is clicking through.
+  const rackToggle = page.getByTestId("unscheduled-rack").getByRole("button", { name: /^Unscheduled/ });
+  await rackToggle.click();
+  await expect(rackToggle).toHaveAttribute("aria-expanded", "false");
 
   // Now the trip has a day with stops on it. Focus it, and the day-scoped chips
   // are the other three.

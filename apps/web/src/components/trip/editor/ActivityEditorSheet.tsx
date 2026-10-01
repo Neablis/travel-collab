@@ -1,6 +1,8 @@
 "use client";
 
 import type { ActivityView } from "@tc/contracts";
+import { useState } from "react";
+import { Banner } from "@/components/ui/banner";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { DataText } from "@/components/ui/data-text";
@@ -9,12 +11,12 @@ import { ActivityEditor, type ActivityDayOption, type ActivityFormValue } from "
 import { addActivityCommand, updateActivityCommand } from "@/components/board/activityCommands";
 import { ActivityConflicts } from "@/components/trip/editor/ActivityConflicts";
 import { useEditor } from "@/components/trip/context/EditorHost";
-import { useTrip } from "@/components/trip/context/TripProvider";
+import { useTrip, type DispatchResult } from "@/components/trip/context/TripProvider";
 import { dayLabel } from "@/lib/dates";
 import { toClockRange } from "@/lib/time";
 import { useTimeFormat } from "@/components/account/PreferencesProvider";
 import { formatMoney } from "@/lib/formatMoney";
-import { displayPlace } from "@/lib/place";
+import { displayPlace, legEnd } from "@/lib/place";
 
 // Behavior change #2 (M5 wave 2, resolves PR #11 comment #9): the activity
 // editor is now a portable Sheet raised from EditorHost's own state, not
@@ -111,7 +113,17 @@ export function ActivityEditorSheet() {
         .filter((w): w is { start: string; end: string } => w !== null && w !== undefined),
     })) ?? [];
 
-  function handleSave(value: ActivityFormValue) {
+  // **Closed only once the change is accepted** (Mitchell, PR #269 preview:
+  // "i cant add a stop, it just closes with no message"). This closed
+  // unconditionally, so a refused command — every edit on a deleted trip, the
+  // case he hit — shut the sheet and threw away what was typed, with the
+  // reason on a line under the header that a scrolled board hides. A refusal
+  // now keeps the sheet and the form as they are and says why, here. Cleared
+  // whenever the sheet closes, so it never greets the next stop.
+  const [refusal, setRefusal] = useState<string | null>(null);
+  if (!open && refusal !== null) setRefusal(null);
+
+  async function handleSave(value: ActivityFormValue) {
     if (activeTrip === null) return;
     // Unreachable while the form is not rendered for a viewer; kept so the
     // gate does not depend on the render branch above staying correct.
@@ -121,10 +133,15 @@ export function ActivityEditorSheet() {
     // standing fix the M18 comment that used to sit here asked for: the two
     // literals it warned about are gone, and a field added to the form is now
     // a compile error in one file rather than a silent drop in several.
+    let result: DispatchResult = { ok: true };
     if (state.mode === "edit" && state.activityId !== undefined) {
-      void dispatch(updateActivityCommand(activeTrip.tripId, state.activityId, value));
+      result = await dispatch(updateActivityCommand(activeTrip.tripId, state.activityId, value));
     } else if (state.mode === "create") {
-      void dispatch(addActivityCommand(activeTrip.tripId, crypto.randomUUID(), value));
+      result = await dispatch(addActivityCommand(activeTrip.tripId, crypto.randomUUID(), value));
+    }
+    if (!result.ok) {
+      setRefusal(result.message);
+      return;
     }
     close();
   }
@@ -147,6 +164,11 @@ export function ActivityEditorSheet() {
           currency={activeTrip?.currency ?? "USD"}
           onClose={close}
         />
+      )}
+      {open && !readOnly && refusal !== null && (
+        <Banner variant="danger" className="mb-3" data-testid="activity-save-refused">
+          {refusal} Nothing was saved.
+        </Banner>
       )}
       {open && !readOnly && (
         <ActivityEditor
@@ -194,6 +216,7 @@ function ReadOnlyActivity({
   onClose: () => void;
 }) {
   const clock = useTimeFormat();
+  const destination = activity === null ? null : legEnd(activity);
   return (
     <div className="flex flex-col gap-3">
       {activity === null ? (
@@ -210,6 +233,11 @@ function ReadOnlyActivity({
           </DataText>
           {activity.location && (
             <Text as="p" variant="secondary">{displayPlace(activity.location)}</Text>
+          )}
+          {/* The editable form names a leg's destination in its "Going to"
+              field; a viewer, who gets no form, read only the origin here. */}
+          {destination !== null && (
+            <Text as="p" variant="secondary">Going to {displayPlace(destination)}</Text>
           )}
           <DataText size="xs" className="block">
             {activity.cost === null ? "No cost yet" : formatMoney(activity.cost.amountMinor, currency)}

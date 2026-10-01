@@ -72,6 +72,15 @@ describe("resolveStopLocation", () => {
     expect(r.location.countryCode).toBe("JP"); // the caller's value wins over the vendor's
   });
 
+  it("a name with no country of its own is restricted to the trip's countries; one with a country is not", async () => {
+    const d = deps();
+    const trip = { userId: "u1", region: null, countries: ["JP", "KR"] };
+    await resolveStopLocation({ name: "Ichiran" }, trip, d);
+    expect(d.g.forward).toHaveBeenLastCalledWith("Ichiran", { limit: 1, countryCodes: ["JP", "KR"] });
+    await resolveStopLocation({ name: "Ichiran", countryCode: "US" }, trip, d);
+    expect(d.g.forward).toHaveBeenLastCalledWith("Ichiran", { limit: 1, countryCode: "US" });
+  });
+
   it("the vendor only fills the display fields the caller left empty", async () => {
     const d = deps();
     const r = await resolveStopLocation({ name: "Dinner", city: "Heidelberg-Handschuhsheim", area: "Neuenheim" }, ctx, d);

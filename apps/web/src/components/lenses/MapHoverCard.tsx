@@ -2,6 +2,7 @@ import { useDistanceUnit } from "@/components/account/PreferencesProvider";
 import { cn } from "@/lib/cn";
 import { kmLabel } from "@/lib/units";
 import type { AccentFamily } from "@/lib/dayAccent";
+import { MapLegList } from "./MapFocusCard";
 import type { MapDay } from "./mapRailData";
 
 // M26 link 5a. The design's own argument, and the one Mitchell restated:
@@ -118,6 +119,9 @@ export function MapHoverCard({
         </span>
       </div>
       {stat !== null && <div className="font-mono text-xs text-slate">{stat}</div>}
+      {/* Trimmed drops them for the reason it drops the stat: the focused
+          day's card beside it already lists them. */}
+      {!trimmed && <MapLegList legs={day.legs} />}
       {note !== null && (
         <p
           className="text-slate"

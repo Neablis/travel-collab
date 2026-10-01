@@ -420,6 +420,35 @@ describe("a shared day", () => {
     expect(within(list).getAllByText("Kyoto")).toHaveLength(2);
   });
 
+  // Mitchell, PR #269 preview: "Just drop this text line, i dont even know what
+  // its from". It was the "Kept out of {trip}. Order and gaps kept, no dates"
+  // sentence under the meta line; the trip it names is not on this page
+  // anywhere else, so nothing replaces it.
+  it("does not say which trip the day was kept out of", async () => {
+    renderDay();
+    await screen.findByTestId("stop-list");
+    expect(screen.queryByText(/Kept out of/)).toBeNull();
+    expect(screen.queryByText(/Order and gaps kept/)).toBeNull();
+  });
+
+  // Mitchell, PR #269 preview: "no progressive loading … it just pops in".
+  // Before the first answer the page draws its own shape in outlines — the
+  // map frame and the stop rows among them — not one block standing in for
+  // all of it; and the placeholder is gone once the day is here.
+  it("draws the page's shape in outlines until the day arrives", async () => {
+    let answer: (value: unknown) => void = () => {};
+    fetchSavedDayMock.mockReturnValue(new Promise((resolve) => (answer = resolve)));
+    renderDay();
+
+    expect(screen.getByRole("status", { name: "Loading this day" })).toBeTruthy();
+    expect(screen.getByTestId("shared-day-skeleton-map")).toBeTruthy();
+    expect(screen.getAllByTestId("shared-day-skeleton-stop")).toHaveLength(4);
+
+    await act(async () => answer(ok({ savedDay: savedDay(), isAuthor: false })));
+    await screen.findByTestId("stop-list");
+    expect(screen.queryByRole("status", { name: "Loading this day" })).toBeNull();
+  });
+
   // The facts §15 names, minus the ones M12 owns.
   // The screen somebody reads before deciding to take a day into their own
   // trip, so "who wrote it" belongs beside the title (ADR-041 decision 5).

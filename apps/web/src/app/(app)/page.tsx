@@ -19,6 +19,7 @@ import { RegionError } from "@/components/ui/skeleton";
 import { TripCard } from "@/components/home/TripCard";
 import { NewTripWizard } from "@/components/home/NewTripWizard";
 import { FirstTripStart } from "@/components/home/FirstTripStart";
+import { NextTripPrompt } from "@/components/home/NextTripPrompt";
 import { ImportTripButton, type ImportTripHandle } from "@/components/home/ImportTripButton";
 
 /** The inline first-run composer, so the page head's "New trip" can focus it. */
@@ -709,6 +710,16 @@ export default function Home() {
                     ))}
                   </div>
                 </>
+              )}
+              {/* **One trip, and nothing under it** — Mitchell, PR #269
+                  preview, asked for a larger call to action here on a new
+                  account (see `NextTripPrompt`). This branch already means the
+                  list landed non-empty, so the hero is above; zero other trips
+                  and no load error is the rest of the condition. It runs
+                  `startNewTrip`, the page-head button's own handler, so there
+                  is still one wizard. */}
+              {otherTrips.length === 0 && loadError === null && (
+                <NextTripPrompt onStart={startNewTrip} disabled={cloningDemo} />
               )}
               {/* **Import on a phone: a centred text link under the grid**
                   (SPEC §35.2), where the head's button used to be. It was a

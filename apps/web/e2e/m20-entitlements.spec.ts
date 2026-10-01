@@ -270,7 +270,11 @@ test.describe("M20 — an account knows what it may do", () => {
     // used to be a section of a modal Sheet.
     await openAccountPage(page, "plan");
     const sheet = accountPanel(page);
-    await expect(sheet.getByTestId("plan-held")).toContainText("free");
+    // The held plan is named as what the free week falls back to — the "Your
+    // plan is …" line went in PR #269's preview review.
+    // The whole fallback clause, not the word "free", which "Your free week"
+    // already contains (CodeRabbit, PR #269).
+    await expect(sheet.getByTestId("plan-trial-ends")).toContainText("this account is on free v1");
 
     // **The meters read the ceilings actually in force, not the held
     // version's** — and this account proves why the distinction matters. It

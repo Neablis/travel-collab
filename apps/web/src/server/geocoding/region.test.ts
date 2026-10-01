@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import { scenarios, tripDetailFactory } from "@tc/factories";
 import {
   boundingBoxAround,
+  countryFilterFor,
   distanceKm,
   plausibleCoords,
+  tripCountriesOf,
   tripRegionOf,
   TRIP_REGION_MARGIN_KM,
   withinBox,
@@ -140,5 +142,42 @@ describe("tripRegionOf", () => {
     // function applies without restating the number.
     expect(region).toEqual(boundingBoxAround([{ lat: only.lat!, lng: only.lng! }], TRIP_REGION_MARGIN_KM));
     expect(withinBox(region, { lat: only.lat!, lng: only.lng! })).toBe(true);
+  });
+});
+
+// The country hint (Mitchell, 2026-09-30, option A). The URL it becomes is
+// pinned in locationiq.test.ts; this is the derivation and the precedence.
+describe("tripCountriesOf", () => {
+  it("is empty for a trip with nothing located — a new trip gets no hint", () => {
+    expect(tripCountriesOf(scenarios.emptyTrip())).toEqual([]);
+    // Named places can carry a country the vendor never confirmed; unlocated,
+    // they are not evidence of where the trip is, exactly as for the region.
+    const named = tripDetailFactory.build({}, { transient: { dayCount: 2, activitiesPerDay: 2, located: "named" } });
+    for (const a of Object.values(named.activities)) a.location = { ...a.location!, countryCode: "IT" };
+    expect(tripCountriesOf(named)).toEqual([]);
+  });
+
+  it("lists every country the located stops are in, once each, sorted", () => {
+    // The factory cycles Colosseum (IT), Roman Forum (IT), Vatican (VA), Fushimi Inari (JP).
+    const trip = tripDetailFactory.build({}, { transient: { dayCount: 1, activitiesPerDay: 4, located: true } });
+    expect(tripCountriesOf(trip)).toEqual(["IT", "JP", "VA"]);
+  });
+
+  it("counts where a transit leg arrives, not only where it leaves", () => {
+    const trip = tripDetailFactory.build({}, { transient: { dayCount: 1, activitiesPerDay: 1, located: true } });
+    const leg = Object.values(trip.activities)[0]!;
+    leg.endLocation = { name: "Incheon Airport", lat: 37.46, lng: 126.44, countryCode: "kr" };
+    expect(tripCountriesOf(trip)).toEqual(["IT", "KR"]);
+  });
+});
+
+describe("countryFilterFor", () => {
+  it("never overrides a country the caller named", () => {
+    expect(countryFilterFor("DE", ["IT", "JP"])).toEqual({ countryCode: "DE" });
+  });
+
+  it("falls back to the trip's countries, and to no filter at all when there are none", () => {
+    expect(countryFilterFor(undefined, ["IT", "JP"])).toEqual({ countryCodes: ["IT", "JP"] });
+    expect(countryFilterFor(undefined, [])).toEqual({});
   });
 });

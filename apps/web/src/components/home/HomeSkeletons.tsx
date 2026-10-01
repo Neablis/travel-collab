@@ -121,6 +121,22 @@ export function SparklineSkeleton() {
   );
 }
 
+/**
+ * **The *Other trips* grid while the list is in flight — `TripCard`'s own
+ * stack, row for row** (Mitchell, PR #269 preview: *"the shape of the non main
+ * trips doesnt really look like anything but a bunch of geometric circles that
+ * are outside the rectangle container"*).
+ *
+ * Both halves of that were real. The card was a fixed `h-42` (168px) with
+ * `p-5` round five rows at `gap-3`, which adds up to about 200px, so the
+ * footer's bones were drawn below the card's own border. And nearly every bone
+ * was `circle`, so text lines read as pills. Now it is the loaded card's box
+ * (`Card`'s `rounded-md` and `p-3`, no fixed height) with its rows: the 46px
+ * accent bar and the menu, the title (at `PHONE_TOUCH`'s 44px floor below
+ * `md`, like the link it stands in for), the date line, the money slot at its
+ * reserved `min-h-10 md:min-h-5`, and the footer's two overlapping avatars and
+ * status badge. Text lines are bars; only the avatars and the badge are round.
+ */
 export function TripGridSkeleton() {
   return (
     <SkeletonRegion
@@ -128,25 +144,29 @@ export function TripGridSkeleton() {
       className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3"
     >
       {CARD_TITLE_WIDTHS.map((titleWidth, card) => (
-        <div key={card} className="flex h-42 flex-col gap-3 rounded-lg border border-hairline p-5">
-          <div className="flex items-center justify-between">
-            <Skeleton circle className="h-1.5 w-11" />
-            <Skeleton className="h-4 w-4" />
+        <div
+          key={card}
+          className="flex flex-col gap-3 rounded-md border border-hairline bg-surface p-3"
+          data-testid="trip-card-skeleton"
+        >
+          <div className="flex items-start justify-between gap-2">
+            <Skeleton circle className="h-1.5 w-11.5" />
+            <Skeleton className="size-6" />
           </div>
-          <div className="flex flex-col gap-1.5">
-            <Skeleton className={`h-4.5 ${titleWidth}`} />
-            <Skeleton circle className="h-2.5 w-2/5" delay={2} />
+          <div>
+            <div className="flex min-h-11 items-center md:min-h-0">
+              <Skeleton className={`h-5 ${titleWidth}`} />
+            </div>
+            <Skeleton className="mt-1 h-3.5 w-2/5" delay={2} />
+            <div className="mt-1 flex min-h-10 items-start pt-0.5 md:min-h-5">
+              <Skeleton className="h-3.5 w-1/2" delay={2} />
+            </div>
           </div>
-          <div className="flex flex-col gap-1.5">
-            <Skeleton circle className="h-2.5 w-11/12" delay={2} />
-            <Skeleton circle className="h-2.5 w-3/5" delay={2} />
-          </div>
-          <div className="flex-1" />
-          <div className="flex items-center gap-2 border-t border-hairline pt-3">
-            <Skeleton circle className="h-6.5 w-6.5" delay={3} />
-            <Skeleton circle className="h-6.5 w-6.5" delay={3} />
-            <Skeleton circle className="h-2.5 w-13" delay={3} />
-            <div className="flex-1" />
+          <div className="mt-auto flex items-center justify-between pt-1">
+            <div className="flex items-center">
+              <Skeleton circle className="size-6" delay={3} />
+              <Skeleton circle className="-ml-2 size-6" delay={3} />
+            </div>
             <Skeleton circle className="h-5 w-16" delay={3} />
           </div>
         </div>

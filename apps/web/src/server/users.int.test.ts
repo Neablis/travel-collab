@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { AdmissionRefusal } from "@tc/contracts";
@@ -9,6 +9,12 @@ import { inviteCodes, users } from "./db/schema";
 import { events } from "./db/schema";
 import { readPreferences, recordSignIn, upsertUser, writePreferences } from "./users";
 import { getTripDetail } from "./projections";
+import { sendEmail } from "./email/send";
+
+// Mail is the one thing here that leaves the process. Replaced for the whole
+// file — `recordSignIn` sends a welcome on every first sign-in — and asserted
+// on only by the "welcome email" block below.
+vi.mock("./email/send", () => ({ sendEmail: vi.fn(async () => ({ sent: true, id: null })) }));
 
 // No beforeEach truncation: every test mints its own id, same isolation
 // strategy as the sibling suites (see eventStore.int.test.ts and
@@ -544,5 +550,29 @@ describe("actorId refers to a user row (ADR-025)", () => {
     // deliberately not a users row — this is the reason there is no FK, and it
     // is asserted here so a future FK cannot be added without seeing it fail.
     expect(await readUser("system")).toBeNull();
+  });
+});
+
+describe("recordSignIn sends the welcome email", () => {
+  beforeEach(() => vi.mocked(sendEmail).mockClear());
+
+  it("once, to a brand-new account, and never again on a returning sign-in", async () => {
+    const id = signInId();
+    await recordSignIn(signInAs(id, { name: "Ana", email: "Ana@Gmail.com" }), admitting());
+
+    expect(sendEmail).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(sendEmail).mock.calls[0]![0]).toMatchObject({
+      tag: "welcome",
+      to: "ana@gmail.com",
+      subject: "Welcome to Caesura",
+    });
+
+    await recordSignIn(signInAs(id, { name: "Ana", email: "ana@gmail.com" }), fakeJar(null));
+    expect(sendEmail).toHaveBeenCalledTimes(1);
+  });
+
+  it("sends nothing to a newcomer the gate refused", async () => {
+    await recordSignIn(signInAs(signInId(), { email: "stranger@gmail.com" }), fakeJar(null));
+    expect(sendEmail).not.toHaveBeenCalled();
   });
 });

@@ -607,6 +607,12 @@ export function MapLens({
 
         setReady(true);
       });
+    }).catch(() => {
+      // The library's chunk never arrived (offline, or a deploy replaced the
+      // build mid-session). Uncaught, this was an unhandled rejection and a
+      // blank canvas until the ladder's last rung, 11s later. Say so now; the
+      // panel's *Try again* re-runs this effect, which retries the import.
+      if (!cancelled) setFailed(true);
     });
 
     return () => {

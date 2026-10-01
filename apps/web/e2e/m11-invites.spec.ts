@@ -265,7 +265,6 @@ test("an invited viewer can read the trip but is told, and shown, that it is rea
     // and toHaveCount is strict-mode-safe where getBy* would throw on 0 or 2.
     await expect(carol.getByTestId("one-more-day-column")).toHaveCount(0);
     await expect(carol.getByRole("button", { name: "Add a day" })).toHaveCount(0);
-    await expect(carol.getByRole("button", { name: /^Add activity to / })).toHaveCount(0);
     await expect(carol.getByRole("button", { name: /^Remove Day / })).toHaveCount(0);
     await expect(carol.getByRole("button", { name: `Remove ${stopTitle}` })).toHaveCount(0);
     await expect(carol.getByRole("button", { name: "Share" })).toHaveCount(0);
@@ -286,6 +285,43 @@ test("an invited viewer can read the trip but is told, and shown, that it is rea
     // presentation stays covered by ActivityEditorSheet.test.tsx, where it is
     // reachable, rather than being asserted through a door that is now shut.
     await expect(carol.getByRole("heading", { name: "Activity", level: 3 })).toHaveCount(0);
+
+    // Taking a copy is a read (ADR-028 decision 3), so the download a demo
+    // visitor is denied — for want of a session, not a role — stays hers.
+    await openTripSettings(carol, tripName);
+    await expect(carol.getByRole("link", { name: "Download Trip" })).toBeVisible();
+    await carol.keyboard.press("Escape");
+
+    // **The Notebook is read-only for her too** (Mitchell, 2026-10-01). The
+    // index offered her Delete and the whole template gallery, and an open
+    // notebook offered "Edit page" — every one a write the server refuses
+    // her. The notebooks themselves are content, so they stay readable.
+    //
+    // Each screen's role read is waited on, so the absences are asserted with
+    // her role KNOWN: the write controls are also absent while it is in
+    // flight, and a count of zero then would prove nothing. Full loads, not
+    // clicks, so neither read is answered from the client cache unseen.
+    const roleRead = () =>
+      carol.waitForResponse((r) => new URL(r.url()).pathname === `/api/trips/${tripId}/access`);
+    const indexRole = roleRead();
+    await carol.goto(`/trips/${tripId}/pages`);
+    await indexRole;
+    const notebooks = carol.getByRole("region", { name: "Your notebooks" });
+    const first = notebooks.getByRole("link").first();
+    await expect(first).toBeVisible();
+    await expect(notebooks.getByRole("button", { name: /^Delete / })).toHaveCount(0);
+    await expect(carol.getByRole("region", { name: "Start from a template" })).toHaveCount(0);
+
+    const href = await first.getAttribute("href");
+    expect(href).toMatch(new RegExp(`^/trips/${tripId}/pages/[^/?]+$`));
+    const pageRole = roleRead();
+    await carol.goto(href!);
+    await pageRole;
+    const title = carol.getByRole("article").getByRole("heading", { level: 1 });
+    await expect(title).toBeVisible();
+    await expect(title).toHaveAttribute("contenteditable", "false");
+    await expect(carol.getByRole("button", { name: "Edit page" })).toHaveCount(0);
+    await expect(carol.getByRole("button", { name: "Done editing" })).toHaveCount(0);
   } finally {
     await carol.context().close();
   }

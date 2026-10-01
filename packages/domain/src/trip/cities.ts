@@ -7,19 +7,19 @@ import type { TripDetail } from "@tc/contracts";
 // move was a roll call of every day, one `read_day` at a time.
 //
 // A day can span more than one city — a travel day, the exact case
-// `conflicts.ts`'s `transitExcusesDistance` was written to excuse a distance
-// conflict on — so this returns a LIST, not a single value.
+// `conflicts.ts`'s `geographyRule` excuses distance conflicts on — so this
+// returns a LIST, not a single value.
 //
 // Three decisions, each load-bearing enough to need a test:
 //
-//   1. **Order is TIME order, not stored order**, for the same reason
-//      `transitExcusesDistance` insists on it there: `day.activityIds` is
+//   1. **Order is TIME order, not stored order**: `day.activityIds` is
 //      display order, which a user can reorder without changing when anything
 //      actually happens, and "does this day end near Nara" needs the real
-//      sequence. A stop with no time window cannot be placed in time, so — the
-//      same conservative call `conflicts.ts` makes ("we don't know when this
-//      is" is not evidence either way) — its city is appended AFTER every
-//      timed city, in the day's stored order among themselves.
+//      sequence. A stop with no time window cannot be placed in time, so —
+//      "we don't know when this is" is not evidence either way — its city is
+//      appended AFTER every timed city, in the day's stored order among
+//      themselves. (`conflicts.ts` made the same two calls until 2026-09-30,
+//      when its geography rule stopped reading time at all.)
 //   2. **`location.city` only**, never `cityFor`'s name/area fallback
 //      (`DayChips.tsx`). That fallback exists so a day chip always has
 //      something to show; answering "which CITY" with a fallback that might

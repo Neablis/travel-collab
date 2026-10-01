@@ -242,6 +242,9 @@ test("fresh trip: Notebook default pages render their starter text", async ({ pa
   await page.getByRole("navigation", { name: "Breadcrumb" }).getByRole("link", { name: "Notebook", exact: true }).click();
   await expectNotebookIndex(page);
   await expect(page.getByRole("link", { name: /Day overview/ })).toHaveCount(0);
+  // The gallery opens on Essentials; Day overview is one of the "More"
+  // templates (PR #269: the filter is Essentials | More, with no "All").
+  await page.getByRole("radiogroup", { name: "Show templates" }).getByRole("radio", { name: "More" }).click();
   await page.getByRole("button", { name: "Start from Day overview" }).click();
   await expect(page.getByRole("heading", { name: "Day overview", level: 1 })).toBeVisible();
   await expect(page.getByText(/what's happening today/i)).toBeVisible();

@@ -101,6 +101,26 @@ describe("the preset table", () => {
     const ids = PRESETS.map((p) => p.id);
     expect(new Set(ids).size, `duplicate preset id in ${ids.join(", ")}`).toBe(ids.length);
   });
+
+  // Mitchell, PR #269 preview: *"Make them a real description, not a short
+  // incom[plete …]"* — about rows that read "how many there are". The picker
+  // prints `summary` under every title, so what makes it a description rather
+  // than a label is held here, on the data, for every row including the next
+  // one added: a capital, a full stop, long enough to say what the widget is
+  // FOR, short enough to sit in the 320px rail in about two lines — and no two
+  // rows saying the same thing ("Spend by day" and "Budget burn-down" shared a
+  // description once; they are different reasons to reach for a chart).
+  it("gives every row a whole sentence of its own under the title", () => {
+    for (const preset of PRESETS) {
+      const { id, summary } = preset;
+      expect(summary, `${id}'s summary does not start with a capital`).toMatch(/^[A-Z]/);
+      expect(summary, `${id}'s summary does not end with a full stop`).toMatch(/\.$/);
+      expect(summary.length, `${id}'s summary is ${summary.length} characters`).toBeGreaterThanOrEqual(60);
+      expect(summary.length, `${id}'s summary is ${summary.length} characters`).toBeLessThanOrEqual(140);
+    }
+    const summaries = PRESETS.map((p) => p.summary);
+    expect(new Set(summaries).size, "two presets share a summary").toBe(summaries.length);
+  });
 });
 
 describe("presets and the document migration agree", () => {
