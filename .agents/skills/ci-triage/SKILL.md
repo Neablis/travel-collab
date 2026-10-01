@@ -5,8 +5,9 @@ description: Fetch and triage failing GitHub Actions checks for travel-collab us
 
 # CI triage
 
-`.github/workflows/ci.yml` runs six parallel jobs — `typecheck` (plus
-`db:check`), `lint`, `unit`, `script-tests`, `integration` and `e2e` — each
+`.github/workflows/ci.yml` runs seven parallel jobs — `typecheck` (plus
+`db:check`), `lint`, `unit`, `script-tests`, `integration` and two `e2e`
+shards (`e2e (1/2)`, `e2e (2/2)`) — each
 with the same setup (`.github/actions/setup-workspace`). It runs on pull requests only — pushes to `main` no longer
 trigger CI, and production migrations are a separate, manually dispatched
 workflow (`migrate-production.yml`). Triage only the jobs that failed; don't
@@ -50,11 +51,15 @@ full output of every job and wastes context on the ones that passed.
   reading stack traces.
 - **script-tests** (`pnpm test:scripts`): node:test; grep for `✖`.
 - **integration** (`pnpm --filter web test:int`): vitest against Postgres.
-- **e2e**: Playwright runs with the `line` reporter (compact). Grep
+- **e2e (1/2), e2e (2/2)**: two Playwright shards, split by spec file, each
+  with its own build and database. Check both: one failing says nothing about
+  the other. Playwright runs with the `line` reporter (compact). Grep
   for `✘` (or `failed`) to find failing test titles. If you need a trace or
-  screenshot to debug further, download the artifact instead of reading raw
-  bytes into context: `gh run download <run-id> -n playwright-report` (or the
-  artifact name shown in the run), then open it locally.
+  screenshot to debug further, download that shard's artifact instead of
+  reading raw bytes into context: `gh run download <run-id> -n
+  playwright-report-1` (or `-2`), then open it locally. To run one shard's
+  specs locally: `pnpm --filter web test:e2e:ci-like --shard=N/2` (the extra
+  argument lands on the script's final `pnpm test:e2e`).
 
 ## 4. Reproduce locally with the narrowest command
 

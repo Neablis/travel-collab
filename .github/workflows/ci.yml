@@ -90,7 +90,7 @@ env:
   NEXT_PUBLIC_SENTRY_DSN: ""
 
 jobs:
-  # SIX JOBS, ALL IN PARALLEL (2026-10-01). Until then this was two jobs —
+  # SEVEN JOBS, ALL IN PARALLEL (2026-10-01): six, with e2e in two shards. Until then this was two jobs —
   # `static-and-unit` (typecheck, lint, unit, script tests in a row) and
   # `integration-e2e` (int, then build and e2e) — because each job paid its
   # setup in billed minutes on a 2,000-minute private plan. The repo has been
@@ -209,11 +209,25 @@ jobs:
       # container's `travel` database would migrate a database nothing opens.
       - run: pnpm --filter web test:int
 
-  # A production build and Playwright against it: the long pole, ~5.5 minutes.
+  # A production build and Playwright against it, in two shards. Unsplit this
+  # was the long pole: 5m24s of a 5m30s run, 4m10s of it Playwright. Each shard
+  # repeats setup, Postgres and `next build` (~15s on a warm `.next/cache`) to
+  # run half the specs; Playwright splits by file (24 and 22 of 45 files, plus
+  # `auth.setup.ts`, the `setup` project every spec depends on, in each).
   # Needs its own Postgres for the same reason as `integration`: both lanes
   # provision their databases per run (apps/web/scripts/with-test-db.mjs).
+  #
+  # Free on a public repo; the one limit is the Free plan's 20 concurrent
+  # jobs, which a push (7 ci jobs + 3 CodeQL + 2 others) stays well inside.
   e2e:
     if: github.event.pull_request.draft == false
+    name: e2e (${{ matrix.shard }}/2)
+    strategy:
+      # Both shards report even when one fails, so a red run lists every
+      # failing spec, not half of them.
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     runs-on: ubuntu-latest
     # The worst legitimate case is a cold run that misses both caches:
     # Playwright's chromium download and a `next build` with no `.next/cache`.
@@ -268,7 +282,7 @@ jobs:
       # was dropped or the build stopped seeing it. `test:e2e:ci-like` runs the
       # same script after its own build.
       - run: pnpm --filter web check:build-sentry
-      - run: pnpm --filter web test:e2e
+      - run: pnpm --filter web test:e2e --shard=${{ matrix.shard }}/2
       # playwright.config.ts sets `trace: "on-first-retry"`, so a CI failure
       # already produces a trace — without this step it was written to the
       # runner's disk and thrown away, leaving log-reading as the only way to
@@ -277,7 +291,7 @@ jobs:
       - if: failure()
         uses: actions/upload-artifact@v5
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.shard }}
           path: |
             apps/web/playwright-report/
             apps/web/test-results/

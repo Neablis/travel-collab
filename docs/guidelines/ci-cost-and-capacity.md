@@ -97,10 +97,10 @@ This file exists because the first instinct when CI gets expensive is to reach
 for a provider comparison — self-hosted runners, CircleCI, GitLab. For this repo
 that instinct is wrong, and the measurements below are why.
 
-## Job layout (2026-10-01): six parallel jobs, for wall clock
+## Job layout (2026-10-01): seven parallel jobs, for wall clock
 
 `ci.yml` runs `typecheck`, `lint`, `unit`, `script-tests`, `integration` and
-`e2e` as separate jobs, all in parallel, each starting with the same
+two `e2e` shards (`e2e (1/2)`, `e2e (2/2)`) as separate jobs, all in parallel, each starting with the same
 `.github/actions/setup-workspace` (pnpm, Node from `.nvmrc`, frozen install
 from the cached pnpm store: ~18s warm). This **reverses** the 2026-08-27 merge
 below, deliberately: that merge saved billed minutes, which stopped being a
@@ -110,9 +110,12 @@ time every agent and reviewer waits on a run.
 Measured on PR #281, the two-job layout (`static-and-unit`,
 `integration-e2e`) took ~9 minutes end to end: `pnpm test` alone was 3.5–5.5
 minutes behind typecheck and lint in one job, and `test:int` ran before the
-e2e build in the other. Split, a run lasts as long as its longest job, `e2e`
-(~5.5 minutes). The price is ~18–38s of repeated setup per extra job, in free
-minutes.
+e2e build in the other. Split into six jobs, the measured run was **5m30s**,
+as long as its longest job, `e2e` (5m24s, 4m10s of it Playwright). `e2e` is
+now two Playwright shards, each repeating setup, Postgres and a ~15s warm
+`next build` to run half the spec files. The price is ~18–38s of repeated
+setup per extra job, in free minutes. The one limit on a public repo is the
+Free plan's 20 concurrent jobs; a push starts about 12.
 
 Two things that were considered and not done, with the reason:
 - **Caching `node_modules` instead of the pnpm store.** A workspace
@@ -120,10 +123,6 @@ Two things that were considered and not done, with the reason:
   the store, and is a second cache key that can drift from the lockfile.
 - **Sharing one machine across jobs.** GitHub-hosted jobs cannot; passing
   `node_modules` between jobs as an artifact is slower than installing it.
-
-If `e2e` stays the long pole, the next lever is Playwright sharding
-(`--shard=1/2`, `2/2` as a matrix): each shard repeats setup and `next build`
-(~20–45s with `.next/cache`) to halve the ~4.5-minute test step.
 
 ## What we actually spend
 
