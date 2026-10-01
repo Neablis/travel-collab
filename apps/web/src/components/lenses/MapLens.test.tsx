@@ -143,7 +143,7 @@ vi.mock("maplibre-gl", () => {
       // microtask keeps that ordering (and satisfies the `await waitFor`
       // callers below) without an unawaited real network/GL round-trip.
       if (event === "load" && !mapStub.suppressLoad) {
-        Promise.resolve().then(() => {
+        void Promise.resolve().then(() => {
           mapOnLoad();
           cb();
         });
