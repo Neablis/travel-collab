@@ -117,6 +117,20 @@ now two Playwright shards, each repeating setup, Postgres and a ~15s warm
 setup per extra job, in free minutes. The one limit on a public repo is the
 Free plan's 20 concurrent jobs; a push starts about 12.
 
+Measured on PR #281, end to end (first job queued → last job done):
+
+| Layout | Run | Longest job |
+|---|---|---|
+| Two jobs | 8m53s / 8m44s | `static-and-unit` |
+| Six jobs | 5m30s | `e2e` 5m24s |
+| Seven jobs (e2e sharded) | **4m37s** | `e2e (1/2)` 4m34s |
+
+Job-to-job noise between runs is ±30–40s. **The shards are unbalanced**:
+Playwright shards by *file*, and shard 1's files took 2m57s against shard 2's
+1m48s. Balancing by test (`fullyParallel: true` in `playwright.config.ts`)
+should bring a run to ~3m50s, but needs every spec checked as safe to run
+interleaved first. Below that, `unit` (~3m45s) is the next long pole.
+
 Two things that were considered and not done, with the reason:
 - **Caching `node_modules` instead of the pnpm store.** A workspace
   `node_modules` tarball restores in about the time `pnpm install` takes from
