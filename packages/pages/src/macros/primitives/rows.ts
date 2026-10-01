@@ -26,10 +26,9 @@ const segOf = (v: RepeatValue) => (v.name === "label" ? text(v.text) : chip(v.na
 // already upstream. See `RenderedRow`.
 /**
  * A repeat payload as rendered rows, cell for cell: a label as text, every
- * other value as a chip. Exported so every repeat widget renders one way —
- * `day.sun` (`time.ts`) is the first outside this file.
+ * other value as a chip.
  */
-export const renderRows = (payload: RepeatPayload) =>
+const renderRows = (payload: RepeatPayload) =>
   rowsOf(
     payload.rows.map((row) => ({
       lead: [segOf(row.lead)],

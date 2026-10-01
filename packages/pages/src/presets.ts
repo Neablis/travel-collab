@@ -450,7 +450,7 @@ export const PRESETS: readonly WidgetPreset[] = [
     widget: "day.sun",
     params: {},
     title: "Sunrise and sunset",
-    summary: "Shows sunrise, sunset and the golden hour for each day in local time, for planning early starts and photos.",
+    summary: "Draws each day's daylight as a ribbon from sunrise to sunset in local time, for planning early starts and photos.",
     keywords: ["sun", "sunrise", "sunset", "golden hour", "daylight", "dawn", "dusk", "light", "photo", "photography"],
   },
   {

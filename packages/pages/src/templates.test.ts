@@ -169,6 +169,16 @@ describe("templates", () => {
     );
   });
 
+  // Under Clocks, not anywhere on the page: the sun is a clock fact, and the
+  // composition pin below would pass with it under Weather.
+  it("seeds sunrise and sunset in Before you go, between the Clocks and Weather headings", () => {
+    const top = getTemplate("before-you-go")!.content.content as { type: string; content?: { text?: string }[] }[];
+    const headingAt = (title: string) => top.findIndex((n) => n.type === "heading" && n.content?.[0]?.text === title);
+    const between = top.slice(headingAt("Clocks") + 1, headingAt("Weather"));
+    expect(headingAt("Clocks")).toBeGreaterThanOrEqual(0);
+    expect(between.flatMap((node) => widgetsIn(node)).map((node) => node.attrs?.name)).toEqual(["day.fromHome", "day.sun"]);
+  });
+
   /**
    * **A seeded page may only carry widgets that read well on an empty trip.**
    *
@@ -337,7 +347,7 @@ describe("templates", () => {
     ).toEqual({
       // The letter's facts, the printed schedule, the three notebook cards.
       Overview: ["dates", "city", "day.detail", "link.internal", "link.internal", "link.internal"],
-      "Before you go": ["day.fromHome", "day.weather", "country.facts"],
+      "Before you go": ["day.fromHome", "day.sun", "day.weather", "country.facts"],
       Bookings: ["stop.rows", "stop.rows", "stop.rows", "open"],
       Money: ["cost.chart", "cost.breakdown", "cost.breakdown", "cost.rows"],
     });
