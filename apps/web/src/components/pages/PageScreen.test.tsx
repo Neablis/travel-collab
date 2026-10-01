@@ -612,6 +612,27 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
     return { onUpdate };
   }
 
+  // **An insert from the rail gives the editor focus a frame LATE, and a test
+  // that opens a popover has to let that land first.** The rail's insert runs
+  // `chain().focus()`, and tiptap's `focus` defers `view.focus()` to a
+  // `requestAnimationFrame`. A popover opened inside that frame is open when
+  // the editor takes focus, Radix reads that as focus leaving the popover, and
+  // dismisses it — so the days grid the next line waits for never appears
+  // ("Unable to find role=group and name Trip days"). Nobody clicks twice in
+  // one frame; `userEvent` does, whenever the suite is running quickly enough,
+  // which is why this failed in the full file and passed alone
+  // (KI-2026-10-01-b).
+  async function insertFromRail(name: RegExp) {
+    // Heard as the editor's own `focus` event, listened for BEFORE the click so
+    // it cannot be missed — not read off `document.activeElement`, which the
+    // test-quality wall bans (KI-2026-09-02-b, "do not add more").
+    const editorFocused = new Promise<void>((resolve) => {
+      screen.getByRole("textbox").addEventListener("focus", () => resolve(), { once: true });
+    });
+    await userEvent.click(screen.getByRole("button", { name }));
+    await editorFocused;
+  }
+
   // The end of an edit session, which is when a page writes (ADR-036).
   async function finishEditing() {
     await userEvent.click(screen.getByRole("button", { name: "Done editing" }));
@@ -805,7 +826,7 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
     // The whole reason the chrome row exists: with no modal step at insert
     // time, a widget lands WIDE and this is where it gets narrowed.
     const { onUpdate } = await openPage();
-    await userEvent.click(screen.getByRole("button", { name: /What it costs/ }));
+    await insertFromRail(/What it costs/);
 
     // **Wide on arrival, not unbound** — ADR-039 decision 2, and the change
     // Mitchell asked for: *"it can also select All at the top, and it gives you
@@ -893,7 +914,7 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
   // happens and where it was found.
   it("closes the settings panel when the selection leaves", async () => {
     await openPage();
-    await userEvent.click(screen.getByRole("button", { name: /What it costs/ }));
+    await insertFromRail(/What it costs/);
     const panel = within(await screen.findByTestId("widget-settings"));
 
     await userEvent.click(panel.getByRole("button", { name: /What it costs: dates/ }));
@@ -942,7 +963,7 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
     // An INLINE widget, so it is one the filter actually left on screen — the
     // round trip has to start from a list this filter produced, not from a row
     // that happened to survive.
-    await userEvent.click(screen.getByRole("button", { name: /What it costs/ }));
+    await insertFromRail(/What it costs/);
     expect(await screen.findByTestId("widget-settings")).toBeTruthy();
     // The rail really is gone while the settings are up — otherwise this test
     // would pass without the filter ever having survived an unmount.
@@ -989,7 +1010,7 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
     // panel the control lives in, so the assertion after it found nothing. Two
     // things now answer to one key, and the order matters: assert while the
     // widget is still selected, then deselect on purpose.
-    await userEvent.click(screen.getByRole("button", { name: /What it costs/ }));
+    await insertFromRail(/What it costs/);
     // The widget itself, before its panel: this is the insert landing, and
     // waiting for it here keeps a failure in the bind below meaning "the panel
     // did not open" rather than "the insert did not happen".
@@ -1018,7 +1039,8 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
     await userEvent.keyboard("{Escape}");
     // No reopening step: leaving the widget put the column back on the rail, so
     // the catalogue is already there.
-    await userEvent.click(await screen.findByRole("button", { name: /The days, in detail/ }));
+    await screen.findByRole("button", { name: /The days, in detail/ });
+    await insertFromRail(/The days, in detail/);
     await bindSelectedTo(/The days in detail: dates/, /Day 2/);
     await vi.waitFor(() =>
       expect(
@@ -1046,7 +1068,7 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
   // on this day", which reads like a trip with no cities rather than a bug.
   it("renders a widget that is served only by the globals projection", async () => {
     await openPage();
-    await userEvent.click(screen.getByRole("button", { name: /Which cities/ }));
+    await insertFromRail(/Which cities/);
 
     await userEvent.click(screen.getByRole("button", { name: /The cities: dates/ }));
     await userEvent.click(

@@ -488,3 +488,28 @@ date, so a reader in UTC at 16:03 on the 27th saw Kyoto's 28th — already 01:03
   already the server's hour at fetch time (the as-of says how old), and it would add a clock to
   every widget's context — the Invariant 4 decision `time.ts` defers.
 
+## Amendment — 2026-10-01: the handoff's graphic supersedes two display decisions
+
+**Mitchell's decision, 2026-09-30:** *follow the handoff spec*
+(`.design-sync/handoff/specs/sun-and-weather-widgets.md`; recorded in
+`docs/specs/2026-09-30-sun-and-weather-widgets-design.md`). The block now draws a graphic by
+default and reads as a table on request ("Show as"). Nothing about how the data arrives
+changes — decisions 1, 2 and 4 to 9 stand as written, and so does decision 3's choice of
+mode. Two things a reader sees do change, and the text above is left as it was decided at
+the time:
+
+- **(a) Rain prints to two decimals, always** — `0.00″` for an Imperial account and
+  `0.00 mm` for a Metric one. This supersedes the 2026-09-24 amendment's `<0.01 in` for a
+  trace that rounds to nothing, and the *DRY* string with it. A trace that rounds to
+  nothing therefore prints as zero, which that amendment had chosen against.
+- **(b) A row no longer names its mode in words.** Decision 3's "typical, in words" — and
+  the labels built on it, "Forecast · <sky>", "<Month> average", "Past day · <Mon> avg",
+  "No forecast · <Mon> avg" — are replaced by **Forecast / Typical**: line style in the
+  graphic (a solid bar, or a dashed outline), the Source column in the table, and the same
+  word in the row's header for a screen reader. **A past day and a day whose forecast
+  failed inside the horizon therefore both read as Typical**, the same as a day too far
+  out to forecast. The resolver still chooses among decision 3's six modes
+  (`WeatherRow.mode`, `modeText`), and the credit line still names each source on the
+  block; only the per-row words are gone.
+- **Unchanged on purpose:** the "Now" value is still computed for today's row
+  (`WeatherRow.now`) and no view prints it; today's row is a forecast row.

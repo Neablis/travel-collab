@@ -203,7 +203,7 @@ function KindGlyph({ rows, on }: { rows: readonly GlyphRow[]; on: boolean }) {
  *
  * - the **title** they see;
  * - the **summary**, which is the sentence under it — searched because a
- *   person who just read "golden hour … photos" on a row will type it;
+ *   person who just read "early starts and photos" on a row will type it;
  * - the **description**, the longer one the assistant's search reads, which
  *   still carries words (`schedule`, `itinerary`) a person may try;
  * - the **id**, deliberately — someone who has read a document's JSON or the AI
