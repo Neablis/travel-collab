@@ -5,6 +5,7 @@ import type { MacroResult, UnboundNeeds } from "./result";
 import type { ExternalInputs, ExternalNeed } from "./external";
 import type { SpendBreakdownPayload, SpendByDayPayload } from "./chartPayloads";
 import type { WeatherPayload } from "./weatherPayload";
+import type { SunPayload } from "./sunPayload";
 import type { LinkCardPayload } from "./linkTarget";
 import type { ItineraryPayload } from "./itineraryPayload";
 import { VALUE_KIND_FORMATS } from "./kinds";
@@ -123,6 +124,7 @@ export type BlockPayload =
   | SpendByDayPayload
   | SpendBreakdownPayload
   | WeatherPayload
+  | SunPayload
   | LinkCardPayload
   | ItineraryPayload;
 

@@ -95,6 +95,16 @@ Read this before §1; it is why §1 is short now.
 - **M24 is current, 9 of 11** — `mode` (seven values, ADR-053) and `endLocation` on a transit stop,
   legs drawn on the map, `map-legend-modes` deleted. The Preview registry is down to **3** entries.
 
+## 0d. What moved since 2026-09-25
+
+- **2026-10-01 — the build matches `specs/sun-and-weather-widgets.md`.** *Weather* draws 2a
+  (temperature rows) and *Sunrise and sunset* draws 1a (daylight ribbons, now a block) by default,
+  each with a table view of the same rows. Three decisions (Mitchell, 2026-09-30): the setting is
+  labelled **"Show as"** (Graphic · Table); a forecast's **conditions are kept, inline** under the
+  city (`Day 1 · showers likely`); and the sun is **seeded in *Before you go***, under *Clocks*, for
+  new trips only. Not built: the design's legend row (line style alone tells a forecast from an
+  average) and a "Now" column in either view. The metric axis base is 5–25 °C in steps of 5.
+
 ## 1. Open drift — code and design still disagree
 
 | # | Thing | Code | Design | Call |

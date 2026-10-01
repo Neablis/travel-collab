@@ -13,6 +13,36 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-01 — widget registry: `day.weather` and `day.sun` gain a `view`, and `day.sun` becomes a block — no schema change
+
+- **Nothing in `packages/contracts` changed shape.** A page stores a widget as a name and opaque
+  `params`, and a widget's shape is derived from the registry, never stored — so every page written
+  before this parses, and **no stored document is migrated**. Logged here because stored documents
+  now carry the new key and render differently, per the 2026-09-24 entry's precedent.
+- Added: `day.weather` and `day.sun` accept `view: "graphic" | "table"` (absent = graphic; only
+  `"table"` is stored), declared as a `choice` input labelled "Show as". Every weather and sun
+  widget already on a page therefore draws the graphic. Weather's `headings` now applies to the
+  table view only.
+- Changed: `day.sun`'s shape is `block`, not `repeat`. It resolves to a new `SunPayload`
+  (`kind: "sun"`, `packages/pages/src/sunPayload.ts`), which joins the `BlockPayload` union: rows of
+  sunrise, sunset and daylight length on one shared clock axis. The golden hour is drawn on the
+  graphic and no longer written as text.
+- Changed in payloads (`@tc/pages`, not contracts): `WeatherPayload` gains `view` and `axis`;
+  `WeatherRow` gains `highValue`, `lowValue`, `rainValue`, `rainShare` and `source`
+  (`"forecast" | "typical" | null`). `WeatherRow.now` is still on the payload and is shown in
+  neither view.
+- Changed (display strings): weather rain is always two decimals in the reader's units — `0.08″`,
+  `2.10 mm` — with no " a day" suffix and no `<0.01`.
+- Seed: *Before you go* carries `day.sun` under *Clocks* for trips created from now on
+  (`templates.ts`, and `content/notebooks/built-in-notebooks.json` with it). Existing notebooks are
+  not rewritten; no migration or backfill.
+- Why: Mitchell, 2026-09-30 — `docs/specs/2026-09-30-sun-and-weather-widgets-design.md`.
+- Consumers updated: `apps/web` — `BlockView` gains the `sun` case; `WeatherBlock` and the new
+  `SunBlock` each choose a graphic or a table component from `payload.view`; the settings panel
+  already draws a `choice`. `m14-notebook-widgets.spec.ts` follows the new markup.
+- Breaking? No for stored data. Yes for anything reading the old text: a `day.sun` no longer
+  renders as a sentence, and the weather table's columns are Day · City · High · Low · Rain · Source.
+
 ## 2026-09-30 — Public API 1.2.0: `places:read` and `GET /v1/geocode`, the tripless place search
 
 - **Added:** `places:read` to `ApiScope` and `SCOPE_CATALOGUE` (`packages/contracts/src/publicApi.ts`)

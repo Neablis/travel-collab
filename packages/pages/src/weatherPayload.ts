@@ -1,4 +1,5 @@
 import type { WeatherSource } from "@tc/contracts";
+import type { WidgetView } from "./widgetView";
 
 // What `day.weather` resolves to (M14 link 11, ADR-052). Its own file for
 // `chartPayloads.ts`' reason: the block's payload can grow without every other
@@ -13,11 +14,24 @@ import type { WeatherSource } from "@tc/contracts";
  * Which of decision 3's rows a (day, city) landed on.
  *
  * `past` and `no-forecast` are both "typical" (the month's average), told
- * apart because their words differ: a day already gone is *"Past day · …"*, and
- * a forecast that did not answer inside the horizon is the average rather than
- * nothing (review point 4).
+ * apart in `modeText` alone: a day already gone is *"Past day · …"*, and a
+ * forecast that did not answer inside the horizon is the average rather than
+ * nothing (review point 4). On the block both read as Typical (`source`).
  */
 export type WeatherMode = "forecast" | "today" | "typical" | "past" | "no-forecast" | "unavailable";
+
+/** Where a row's numbers come from: the forecast, or the month's average. */
+export type WeatherRowSource = "forecast" | "typical";
+
+/** One temperature scale shared by every row, so bars compare across rows. */
+export interface WeatherAxis {
+  /** In `unit`, both on a tick. */
+  min: number;
+  max: number;
+  /** Ascending, inclusive of min and max. */
+  ticks: number[];
+  unit: "°F" | "°C";
+}
 
 export interface WeatherRow {
   /** Stable per (day, city), for React. */
@@ -28,7 +42,11 @@ export interface WeatherRow {
   date: string;
   city: string | null;
   mode: WeatherMode;
-  /** The mode in words, always — the gate box's "each naming its mode in words". */
+  /**
+   * The mode in words, always. No view prints it since 2026-10-01 (ADR-052's
+   * amendment of that date): a reader is told `source` instead, by line style
+   * in the graphic and by a word in the table.
+   */
   modeText: string;
   /** Today only: the first hour still to come. */
   now: string | null;
@@ -36,12 +54,21 @@ export interface WeatherRow {
   high: string | null;
   low: string | null;
   /**
-   * "2.1 mm" for a forecast; "3.5 mm a day" for typical, which is an amount and
-   * never a chance. Inches ("0.08 in") for an account in miles.
+   * "2.14 mm" for a forecast or typical alike, which is an amount and never a
+   * chance. Inches ("0.08″") for an account in miles.
    */
   rain: string | null;
   /** The forecast's sky in words; `null` for typical, which has none. */
   sky: string | null;
+  /** The rounded number `high` prints, in the axis unit — the bar is drawn from this, so it cannot disagree with the label. */
+  highValue: number | null;
+  lowValue: number | null;
+  /** In the reader's rain unit (inches or mm), unrounded. */
+  rainValue: number | null;
+  /** 0–1: how much of the rain bar is filled; full at 0.35 in (8.89 mm). */
+  rainShare: number | null;
+  /** `null` only when `mode` is `"unavailable"`. */
+  source: WeatherRowSource | null;
 }
 
 export interface WeatherCredit {
@@ -65,6 +92,10 @@ export interface WeatherPayload {
   credits: WeatherCredit[];
   /** Whether the table opens with its column headings — the widget's `headings` param, shown unless turned off. */
   headings: boolean;
+  /** The widget's `view` param, the graphic unless the author chose the table. */
+  view: WidgetView;
+  /** Shared by every row's bar. */
+  axis: WeatherAxis;
   /** The block in one sentence, for its accessible name. */
   summary: string;
 }

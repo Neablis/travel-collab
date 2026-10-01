@@ -4,12 +4,13 @@ import type {
 } from "@tc/contracts";
 import type { MacroDef, WidgetContext, WidgetInput } from "../../registry-types";
 import { blockOf } from "../../registry-types";
-import type { WeatherCredit, WeatherMode, WeatherPayload, WeatherRow } from "../../weatherPayload";
+import type { WeatherAxis, WeatherCredit, WeatherMode, WeatherPayload, WeatherRow } from "../../weatherPayload";
 import { ok, empty, needsTrip, unavailable, type MacroResult } from "../../result";
 import { filterInputs, filterParams } from "../../filters";
 import { narrow, pinnedCity } from "../../select";
 import { readSlot } from "../../external";
 import { dayLabel, formatShortDate } from "../../format";
+import { VIEW_INPUT, viewParam } from "../../widgetView";
 
 // `day.weather` — "Weather" (M14 link 11), the first widget whose data the trip
 // does not hold. ADR-052 is the design; this file is its decisions 3 to 5 and 7.
@@ -32,11 +33,13 @@ const WeatherParams = filterParams(WEATHER_FILTERS, {
   // Absent is shown: *"I have no idea what the columns are without a column
   // header"* (Mitchell, #221 preview) — so only turning them OFF is stored.
   headings: z.boolean().optional(),
+  view: viewParam,
 });
 type WeatherParams = z.infer<typeof WeatherParams>;
 
 const WEATHER_INPUTS: readonly WidgetInput[] = [
   ...filterInputs(WEATHER_FILTERS),
+  VIEW_INPUT,
   { name: "headings", type: "toggle", label: "Column headings", default: true },
 ];
 
@@ -97,20 +100,34 @@ const CREDITS: Record<WeatherSource, WeatherCredit> = {
 type Units = "metric" | "imperial";
 const unitsOf = (user: UserPreferences | null): Units => (user?.distanceUnit === "mi" ? "imperial" : "metric");
 
-// `Math.round` alone prints "-0°" for -0.4, which reads as a typo. The scale is
-// printed, not a bare "°": the unit follows a setting labelled for distance
-// until 2026-09-27, and Mitchell could not tell which one he was reading
-// (ADR-052, reviewed 2026-09-27).
-const degrees = (c: number, units: Units) =>
-  `${Math.round(units === "imperial" ? (c * 9) / 5 + 32 : c) || 0}°${units === "imperial" ? "F" : "C"}`;
+// `Math.round` alone gives -0 for -0.4, which prints "-0°" and reads as a typo.
+// The number is what the bar is drawn from AND what the label prints, so the two
+// cannot disagree. The scale is printed, not a bare "°": the unit follows a
+// setting labelled for distance until 2026-09-27, and Mitchell could not tell
+// which one he was reading (ADR-052, reviewed 2026-09-27).
+const degreeValue = (c: number, units: Units) => Math.round(units === "imperial" ? (c * 9) / 5 + 32 : c) || 0;
+const degrees = (value: number, units: Units) => `${value}°${units === "imperial" ? "F" : "C"}`;
 
-// Inches to two places, since a tenth of an inch is 2.5 mm and would print most
-// days' rain as 0.0 or 0.1. A trace that rounds to nothing says so, where a
-// millimetre figure would have shown it as a number.
+// Two places in both units: a tenth of an inch is 2.5 mm and would print most
+// days' rain as 0.0 or 0.1. A trace that rounds to nothing prints as zero; the
+// bar beside it is what shows there was any.
 function rainAmount(mm: number, units: Units): string {
-  if (units === "metric") return `${mm.toFixed(1)} mm`;
-  const inches = mm / 25.4;
-  return mm > 0 && inches < 0.005 ? "<0.01 in" : `${inches.toFixed(2)} in`;
+  return units === "metric" ? `${mm.toFixed(2)} mm` : `${(mm / 25.4).toFixed(2)}″`;
+}
+
+// A heavy day: 0.35 in. Anything wetter fills the bar and no further.
+const FULL_RAIN_MM = 8.89;
+
+/** The numbers and strings of one row's temperatures and rain, from one place so they agree. */
+function figures(highC: number, lowC: number, rainMm: number, units: Units) {
+  const highValue = degreeValue(highC, units);
+  const lowValue = degreeValue(lowC, units);
+  return {
+    high: degrees(highValue, units), low: degrees(lowValue, units), rain: rainAmount(rainMm, units),
+    highValue, lowValue,
+    rainValue: units === "imperial" ? rainMm / 25.4 : rainMm,
+    rainShare: Math.min(1, rainMm / FULL_RAIN_MM),
+  };
 }
 
 /**
@@ -133,15 +150,15 @@ export function skyInWords(symbol: string | null): string | null {
 
 function typicalValues(typical: TypicalMonth, units: Units) {
   return {
-    now: null, high: degrees(typical.highC, units), low: degrees(typical.lowC, units),
-    rain: `${rainAmount(typical.precipitationMmPerDay, units)} a day`, sky: null,
+    now: null, ...figures(typical.highC, typical.lowC, typical.precipitationMmPerDay, units),
+    sky: null, source: "typical" as const,
   };
 }
 
 function forecastValues(day: ForecastDay, units: Units) {
   return {
-    now: null, high: degrees(day.highC, units), low: degrees(day.lowC, units),
-    rain: rainAmount(day.precipitationMm, units), sky: skyInWords(day.symbol),
+    now: null, ...figures(day.highC, day.lowC, day.precipitationMm, units),
+    sky: skyInWords(day.symbol), source: "forecast" as const,
   };
 }
 
@@ -155,9 +172,9 @@ function todayValues(day: ForecastDay, units: Units) {
   if (first === undefined) return forecastValues(day, units);
   const temps = day.hours.map((h) => h.tempC);
   return {
-    now: degrees(first.tempC, units), high: degrees(Math.max(...temps), units), low: degrees(Math.min(...temps), units),
-    rain: rainAmount(day.hours.reduce((sum, h) => sum + h.precipitationMm, 0), units),
-    sky: skyInWords(first.symbol ?? day.symbol),
+    now: degrees(degreeValue(first.tempC, units), units),
+    ...figures(Math.max(...temps), Math.min(...temps), day.hours.reduce((sum, h) => sum + h.precipitationMm, 0), units),
+    sky: skyInWords(first.symbol ?? day.symbol), source: "forecast" as const,
   };
 }
 
@@ -188,7 +205,10 @@ function rowOf(point: TripWeatherPoint, mode: WeatherMode, dayIndex: number, uni
     case "no-forecast":
       return { ...base, modeText: `No forecast · ${month!.slice(0, 3)} avg`, ...typicalValues(typical!, units) };
     case "unavailable":
-      return { ...base, modeText: "Weather unavailable", now: null, high: null, low: null, rain: null, sky: null };
+      return {
+        ...base, modeText: "Weather unavailable", now: null, high: null, low: null, rain: null, sky: null,
+        highValue: null, lowValue: null, rainValue: null, rainShare: null, source: null,
+      };
     default: {
       const exhaustive: never = mode;
       return exhaustive;
@@ -196,12 +216,46 @@ function rowOf(point: TripWeatherPoint, mode: WeatherMode, dayIndex: number, uni
   }
 }
 
+const AXIS_BASE = {
+  imperial: { min: 40, max: 80, step: 10, unit: "°F" },
+  metric: { min: 5, max: 25, step: 5, unit: "°C" },
+} as const;
+
+// More ticks than this and their labels run into each other over the bars.
+const MAX_TICKS = 8;
+
+/**
+ * One scale for the whole block, so a bar in one row means what it does in the
+ * next. The base range holds an ordinary trip; it widens, by whole steps, only
+ * for a row that would otherwise fall off it.
+ *
+ * A trip of extremes doubles the step until the ticks are few enough to label
+ * (-24…38 °C is eight ticks of 10°, not fourteen of 5°). The ends are snapped
+ * to the step in use, so min and max are always ticks.
+ */
+function axisOf(rows: readonly WeatherRow[], units: Units): WeatherAxis {
+  const base = AXIS_BASE[units];
+  const lows = rows.flatMap((row) => (row.lowValue === null ? [] : [row.lowValue]));
+  const highs = rows.flatMap((row) => (row.highValue === null ? [] : [row.highValue]));
+  const lowest = Math.min(base.min, ...lows);
+  const highest = Math.max(base.max, ...highs);
+  let step: number = base.step;
+  const ends = () => ({ min: Math.floor(lowest / step) * step, max: Math.ceil(highest / step) * step });
+  while ((ends().max - ends().min) / step + 1 > MAX_TICKS) step *= 2;
+  const { min, max } = ends();
+  const ticks: number[] = [];
+  for (let t = min; t <= max; t += step) ticks.push(t);
+  return { min, max, ticks, unit: base.unit };
+}
+
 const USES_FORECAST: ReadonlySet<WeatherMode> = new Set(["forecast", "today"]);
 const USES_TYPICAL: ReadonlySet<WeatherMode> = new Set(["typical", "past", "no-forecast"]);
 
 /**
  * `day.weather` — one row per selected (day, city): the forecast when there is
- * one, what's typical when there isn't, and the mode said in words either way.
+ * one, what's typical when there isn't. Which of the two a row is travels as
+ * `source`; the block draws it (a solid bar or a dashed one) or, as a table,
+ * says it in its Source column.
  *
  * The order of answers: a trip first; then **a trip with no days**, which is
  * `empty` with the fix before anything else is read — the one piece of trip
@@ -220,7 +274,7 @@ export const dayWeather: MacroDef<WeatherParams, WeatherPayload> = {
   selection: { entity: "day", filters: WEATHER_FILTERS },
   needs: ["weather"],
   description:
-    "The weather for each selected day at its stops: the forecast when the day is close, what's typical for the month when it is further out or already gone, each labelled. Filter it to a day or a city.",
+    "The weather for each selected day at its stops: the forecast when the day is close, what's typical for the month when it is further out or already gone. Drawn as a temperature bar per day — solid for a forecast, dashed for typical — or as a table whose Source column says Forecast or Typical. Filter it to a day or a city.",
   emptyText: "add a place to a stop to see this",
   // Fixed, never computed (ADR-037 decision 5) — the ADR's own wording.
   preview: "The weather for each day — the forecast when there is one, what's typical when there isn't.",
@@ -285,6 +339,8 @@ export const dayWeather: MacroDef<WeatherParams, WeatherPayload> = {
       typicalPeriod: [...periods][0] ?? null,
       credits,
       headings: params.headings !== false,
+      view: params.view ?? "graphic",
+      axis: axisOf(rows, units),
       summary: `Weather for ${shown} of ${rows.length} ${rows.length === 1 ? "place-day" : "place-days"}.`,
     });
   },

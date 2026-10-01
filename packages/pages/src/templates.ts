@@ -252,8 +252,11 @@ const overviewPage: TemplateSeed = {
 
 /**
  * **Before you go** — seeded since M30. The week before leaving: what time it
- * will be, what the weather is doing, what is different about where you are
- * going, and the two lists nobody should write from memory.
+ * will be and when the light is, what the weather is doing, what is different
+ * about where you are going, and the two lists nobody should write from memory.
+ *
+ * `day.sun` sits under Clocks for trips created from 2026-10-01 (Mitchell,
+ * 2026-09-30: *seed it*). A notebook already on a trip is not rewritten.
  *
  * `day.weather` sends rounded stop locations to the weather providers, which
  * Mitchell accepted on 2026-09-26 (*"It's ok to send a users data to
@@ -271,6 +274,7 @@ const beforeYouGo: TemplateSeed = {
     // A label, as the Overview's facts are: `day.fromHome`'s empty reasons
     // ("set a home airport in Account to see this") are not a clause.
     para(text("Time difference: "), widget("day.fromHome"), text(".")),
+    block("day.sun"),
     heading("Weather"),
     block("day.weather"),
     heading("Know before you go"),

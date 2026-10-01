@@ -69,6 +69,19 @@ export const CITY_FILL: Record<AccentFamily, string> = {
   neutral: "bg-hairline",
 };
 
+// The same solid tone as a BORDER, for a mark drawn as an outline — the weather
+// graphic's typical bar, which is its forecast bar's colour with the fill taken
+// out. `neutral` is `slate` here, not the hairline: an outline in the hairline
+// on the surface is not a mark at all.
+export const CITY_OUTLINE: Record<AccentFamily, string> = {
+  brand: "border-brand",
+  info: "border-info",
+  success: "border-success",
+  warning: "border-warning",
+  danger: "border-danger",
+  neutral: "border-slate",
+};
+
 const NEUTRAL: CityAccents = { ofCity: () => "neutral", ofDayId: () => "neutral" };
 
 export function cityAccents(detail: TripDetail | null): CityAccents {

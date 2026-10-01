@@ -1,15 +1,18 @@
 "use client";
 import type { TimeFormat } from "@tc/contracts";
-import type { WeatherPayload, WeatherRow } from "@tc/pages";
-import { DataText } from "@/components/ui/data-text";
-import { cn } from "@/lib/cn";
+import type { WeatherPayload } from "@tc/pages";
 import { formatTripDate } from "@/lib/formatDate";
 import { toClockLabel } from "@/lib/time";
 import { useTimeFormat } from "@/components/account/PreferencesProvider";
 import { localTodayIso, useToday } from "@/lib/today";
+import type { CityAccents } from "../cityAccents";
+import { WeatherGraphic } from "./WeatherGraphic";
+import { WeatherTable } from "./WeatherTable";
 
-// "Weather" (M14 link 11, ADR-052) — one row per (day, city), each saying its
-// mode in words, over a footer that says whose the data is and how old.
+// "Weather" (M14 link 11, ADR-052) — one row per (day, city), drawn as the
+// graphic or read as the table (`payload.view`, the widget's "Show as"), over
+// a footer that says whose the data is and how old. Both views read the same
+// rows; this file chooses between them and owns what they share.
 //
 // **The footer is the block's, not the author's** (decision 5): the credit for
 // every source whose data is on the block, with the as-of beside the forecast's
@@ -23,23 +26,15 @@ import { localTodayIso, useToday } from "@/lib/today";
 // data IS on the block: *"Forecast: Norwegian Meteorological Institute, CC BY
 // 4.0 (updated 9:10 am) · Monthly averages: NASA POWER, 2001–2020"*.
 //
-// **Every row is one fixed height whatever its mode** (ADR-044): a forecast
-// row and a typical row carry the same columns, and a column a mode has no
-// value for keeps its place with a dash rather than closing up. So the
-// block's height is a function of the trip's days, not of the calendar, and
-// the page does not move when a day crosses into the forecast.
+// **Every row is one fixed height whatever its source, in either view**
+// (ADR-044): a row with nothing to show keeps its place with dashes rather
+// than closing up. So the block's height is a function of the trip's days, not
+// of the calendar, and the page does not move when a day crosses into the
+// forecast.
 //
-// **It fits the notebook's column** (Mitchell, on the #221 preview: *"We need
-// to scroll to the right to see all the data here"*). The conditions cell is
-// the one that gives — it flexes and truncates — and every other column is a
-// fixed width shared by the heading row and every data row, so they line up.
-// The "now" column is only there when some row has a now: a column of dashes
-// was width the conditions could have had. Without headings its value is the
-// bare temperature, as High's and Low's are: "now -12°C" was 70px in a 48px
-// column and wrapped, and the one row it is on already says "Today". Below
-// `min-w-112` a row stops shrinking and the table scrolls on its own, which is
-// the phone's case (the trip strip's rule, design-system.md): wrapping a row
-// onto two lines would break the fixed height above.
+// **It fits its column** (Mitchell, on the #221 preview: *"We need to scroll
+// to the right to see all the data here"*): neither view gives a row a minimum
+// width, so nothing here scrolls sideways.
 //
 // Spans with table roles, not `<table>`: a widget node is an inline atom and
 // renders inside a paragraph (`ItineraryDayBlock` records the hydration error).
@@ -62,85 +57,17 @@ export function asOfText(iso: string, today: string, clock: TimeFormat): string 
   return `updated ${day === today ? time : `${formatTripDate(day)}, ${time}`}`;
 }
 
-// One place for each column's width, so the heading row and the data rows
-// cannot disagree about where a column is.
-const COL = {
-  place: "w-24 shrink-0",
-  conditions: "min-w-0 flex-1",
-  now: "w-12 shrink-0 text-right",
-  // 48px: "-12°C" and "100°F" are five mono characters, 39px at text-sm.
-  temp: "w-12 shrink-0 text-right",
-  // 112px: the longest rain is "<0.01 in a day", fourteen mono characters,
-  // 109px at text-sm. Every fixed column's worst case is measured by m14's
-  // fixed-columns walk.
-  rain: "w-28 shrink-0 text-right",
-} as const;
-const ROW = "flex w-full min-w-112 items-center gap-2 border-b border-hairline px-3";
-
-function Value({ text, label, width }: { text: string | null; label: string; width: string }) {
-  return (
-    <span role="cell" aria-label={label} className={width}>
-      <DataText className={text === null ? undefined : "text-ink"}>{text ?? "—"}</DataText>
-    </span>
-  );
-}
-
-function Headings({ showNow }: { showNow: boolean }) {
-  return (
-    <span role="row" className={cn(ROW, "h-8 bg-paper text-xs font-medium text-slate")}>
-      <span role="columnheader" className={COL.place}>Day</span>
-      <span role="columnheader" className={COL.conditions}>Conditions</span>
-      {showNow ? <span role="columnheader" className={COL.now}>Now</span> : null}
-      <span role="columnheader" className={COL.temp}>High</span>
-      <span role="columnheader" className={COL.temp}>Low</span>
-      <span role="columnheader" className={COL.rain}>Rain</span>
-    </span>
-  );
-}
-
-function Row({ row, showNow }: { row: WeatherRow; showNow: boolean }) {
-  return (
-    <span role="row" data-mode={row.mode} className={cn(ROW, "h-10 last:border-b-0")}>
-      {/* The place and the day, one line each and never the date: a date
-          range wrapped out of the row's fixed height on the #221 preview, and
-          a reader who wants the dates puts them at the top of the page. */}
-      <span role="rowheader" className={cn(COL.place, "flex flex-col leading-tight")}>
-        <span className="truncate text-sm font-semibold text-ink">{row.city ?? row.label}</span>
-        {row.city === null ? null : (
-          <DataText size="xs" className="truncate">
-            {row.label}
-          </DataText>
-        )}
-      </span>
-      <span
-        role="cell"
-        className={cn(COL.conditions, "truncate text-sm text-ink")}
-        title={row.sky ? `${row.modeText} · ${row.sky}` : row.modeText}
-      >
-        {row.modeText}
-        {row.sky ? <span className="text-slate"> · {row.sky}</span> : null}
-      </span>
-      {showNow ? <Value text={row.now} label="now" width={COL.now} /> : null}
-      <Value text={row.high} label="high" width={COL.temp} />
-      <Value text={row.low} label="low" width={COL.temp} />
-      <Value text={row.rain} label="rain" width={COL.rain} />
-    </span>
-  );
-}
-
-/** The weather block: a fixed-height row per (day, city) naming its mode, and the as-of and credit footer. */
-export function WeatherBlock({ payload }: { payload: WeatherPayload }) {
+/** The weather block: its rows as the graphic or the table, over the as-of and credit footer. */
+export function WeatherBlock({ payload, accents }: { payload: WeatherPayload; accents: CityAccents }) {
   const clock = useTimeFormat();
   const today = useToday();
-  const showNow = payload.rows.some((row) => row.now !== null);
   return (
     <span className="flex flex-col overflow-hidden rounded-md border border-hairline bg-surface">
-      <span role="table" aria-label={payload.summary} className="flex flex-col overflow-x-auto">
-        {payload.headings ? <Headings showNow={showNow} /> : null}
-        {payload.rows.map((row) => (
-          <Row key={row.key} row={row} showNow={showNow} />
-        ))}
-      </span>
+      {payload.view === "table" ? (
+        <WeatherTable payload={payload} />
+      ) : (
+        <WeatherGraphic payload={payload} accents={accents} />
+      )}
       <span
         role="note"
         aria-label="Weather sources"

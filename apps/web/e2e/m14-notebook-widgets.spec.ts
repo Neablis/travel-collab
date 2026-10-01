@@ -1913,12 +1913,13 @@ test("the weather widget is the quiet placeholder while outside data is offline,
   expect(errors).toEqual([]);
 });
 
-// **The table fits the column** (Mitchell, #221 preview: *"We need to scroll to
-// the right to see all the data here"*), and says what its columns are. The
-// weather route is answered in the browser: this is about layout, and the
-// route's own answer is the offline walk's business above — no third party is
-// involved either way.
-test("the weather table heads its columns and fits the notebook column without scrolling", async ({ page }) => {
+// **The block fits the column** (Mitchell, #221 preview: *"We need to scroll to
+// the right to see all the data here"*) in both of its views: the graphic it
+// draws by default, and the table "Show as" turns it into, which says what its
+// columns are. The weather route is answered in the browser: this is about
+// layout, and the route's own answer is the offline walk's business above — no
+// third party is involved either way.
+test("the weather block draws a row per day, heads its table's columns, and fits the notebook column in both views", async ({ page }) => {
   const tripId = await createMappedTrip(page, e2eTripName("WeatherFit"), 2);
   // Answered for the trip's OWN days and cities: `mappedTrip` starts ten days
   // from today, and a point that matches no day is not drawn at all.
@@ -1947,19 +1948,171 @@ test("the weather table heads its columns and fits the notebook column without s
   await openBeforeYouGoOf(page, tripId);
   // The seeded "Before you go"'s own weather block (M30) — no insert needed.
   const table = page.locator('.tc-page-editor [data-macro-name="day.weather"]').getByRole("table");
-  await expect(table.getByRole("columnheader")).toHaveText(["Day", "Conditions", "High", "Low", "Rain"]);
-  await expect(table.getByRole("row")).toHaveCount(3);
-  const overflow = await table.evaluate((el) => el.scrollWidth - el.clientWidth);
-  expect(overflow, "the weather table scrolls sideways inside the notebook column").toBeLessThanOrEqual(0);
+  const overflow = () => table.evaluate((el) => el.scrollWidth - el.clientWidth);
+
+  // The graphic, which an unset "Show as" means: a row per day and no heading
+  // row. `data-source` is what the bar's line style is drawn from.
+  const rows = table.getByRole("row");
+  await expect(rows).toHaveCount(2);
+  await expect(table.getByRole("columnheader")).toHaveCount(0);
+  await expect(table.locator('[role="row"][data-source="forecast"]')).toHaveCount(2);
+  // In either unit: alice is shared, and the units are the account's.
+  await expect(rows.first().getByRole("cell", { name: "high", exact: true })).toHaveText(/^(27°C|81°F)$/);
+  await expect(rows.first().getByRole("cell", { name: "low", exact: true })).toHaveText(/^(18°C|65°F)$/);
+  await expect(rows.first().getByRole("cell", { name: "rain", exact: true })).toHaveText(/^(2\.14 mm|0\.08″)$/);
+  expect(await overflow(), "the weather graphic scrolls sideways inside the notebook column").toBeLessThanOrEqual(0);
+
+  await rows.first().click();
+  await settingsPanel(page).getByRole("combobox", { name: /show as/i }).selectOption("table");
+  await expect(table.getByRole("columnheader")).toHaveText(["Day", "City", "High", "Low", "Rain", "Source"]);
+  await expect(rows).toHaveCount(3);
+  await expect(rows.nth(1).getByRole("cell", { name: "source", exact: true })).toHaveText("Forecast");
+  expect(await overflow(), "the weather table scrolls sideways inside the notebook column").toBeLessThanOrEqual(0);
+});
+
+// **Both blocks fit a phone** (2026-10-01). The block is narrower than the
+// viewport by the page's and the card's padding — about 273px at 375 and 218px
+// at 320 — and three of the four views were laid out for more: the weather
+// graphic's bar came to a few pixels, the weather table's "Day 1" wrapped out
+// of its fixed row into the next, and the sun table's wrapped a character a
+// line beside a city cut to "T…". jsdom has no layout, so this is the only
+// layer that can see any of it. What is measured is what broke: the day on one
+// line and whole, the city not cut short, nothing outside its own row, every
+// row one height (ADR-044), no sideways scroll — and a bar worth reading.
+test("the weather and sun blocks fit a phone's column, as a graphic and as a table", async ({ page }) => {
+  const cities = [TOKYO.city, KYOTO.city];
+  const tripId = await createMappedTrip(page, e2eTripName("PhoneFit"), 2, {
+    startDate: "2027-06-01",
+    locations: [TOKYO, KYOTO],
+  });
+  // A forecast day and a typical one: the two modes a row has, which must not
+  // differ in height. The forecast's sky is the longest thing a label carries.
+  const typical = {
+    source: "nasa-power", month: 6, highC: 28, lowC: 19, precipitationMmPerDay: 6.2,
+    period: { fromYear: 2001, throughYear: 2020 },
+  };
+  // Each point says its place's date, or the mode is chosen against the real
+  // one and the forecast row turns into a past day once June 2027 has gone.
+  const placeToday = "2027-05-31";
+  const points = [
+    {
+      date: "2027-06-01", city: TOKYO.city, placeToday, typical,
+      forecast: {
+        source: "met-norway", asOf: "2027-05-31T06:00:00Z", highC: 27.4, lowC: 18.1, precipitationMm: 2.14,
+        symbol: "lightrainshowersandthunder_day", hours: [],
+      },
+    },
+    { date: "2027-06-02", city: KYOTO.city, placeToday, typical, forecast: { unavailable: "not-in-horizon" } },
+  ];
+  await page.route("**/api/trips/*/weather", (route) => route.fulfill({ json: { weather: { points } } }));
+  await openBeforeYouGoOf(page, tripId);
+
+  const weather = page.locator('.tc-page-editor [data-macro-name="day.weather"]').getByRole("table");
+  const sun = page.locator('.tc-page-editor [data-macro-name="day.sun"]').getByRole("table");
+
+  const measure = (table: Locator) =>
+    table.evaluate((el, names) => {
+      const frame = el.getBoundingClientRect();
+      const problems: string[] = [];
+      const heights = new Set<number>();
+      const rows = [...el.querySelectorAll('[role="row"]')].filter((row) => row.querySelector('[role="rowheader"]'));
+      for (const row of rows) {
+        const box = row.getBoundingClientRect();
+        heights.add(Math.round(box.height));
+        const texts: Text[] = [];
+        const walk = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
+        for (let text = walk.nextNode(); text; text = walk.nextNode()) texts.push(text as Text);
+        const rectsOf = (text: Text, end = text.length) => {
+          const range = document.createRange();
+          range.setStart(text, 0);
+          range.setEnd(text, end);
+          return [...range.getClientRects()];
+        };
+
+        // "Day N" on one line box, and inside the element that holds it.
+        const day = texts.find((text) => /^Day \d/.test(text.data));
+        if (!day) problems.push(`no day in "${row.textContent}"`);
+        else {
+          const label = /^Day \d+/.exec(day.data)![0];
+          const rects = rectsOf(day, label.length);
+          const holder = day.parentElement!.getBoundingClientRect();
+          if (new Set(rects.map((rect) => Math.round(rect.top))).size !== 1) problems.push(`"${label}" wraps`);
+          else if (rects.some((rect) => rect.right > holder.right + 1)) problems.push(`"${label}" is cut short`);
+        }
+
+        // The city whole, or — were it a long one — with at least 80px of it.
+        const city = texts.find((text) => names.includes(text.data));
+        if (!city) problems.push(`no city in "${row.textContent}"`);
+        else {
+          const needs = Math.min(80, Math.max(...rectsOf(city).map((rect) => rect.width)));
+          const has = city.parentElement!.getBoundingClientRect().width;
+          if (has < needs - 1) problems.push(`"${city.data}" has ${Math.round(has)}px of ${Math.round(needs)}px`);
+        }
+
+        // Nothing drawn reaches past its row, or past the block's sides. A
+        // 1px box is a visually hidden one, which is nowhere on purpose.
+        for (const part of row.querySelectorAll("*")) {
+          const r = part.getBoundingClientRect();
+          if (r.width <= 1 || r.height <= 1) continue;
+          if (r.top < box.top - 1 || r.bottom > box.bottom + 1 || r.left < frame.left - 1 || r.right > frame.right + 1) {
+            problems.push(`"${part.textContent}" leaves the row "${row.textContent}"`);
+          }
+        }
+      }
+      return {
+        rows: rows.length,
+        heights: heights.size,
+        problems,
+        // Of the block itself, and the block on the screen. Not the document's
+        // scroll: its header can be wider than a phone for reasons of its own.
+        scroll: Math.max(el.scrollWidth - el.clientWidth, frame.right - window.innerWidth, -frame.left, 0),
+      };
+    }, cities);
+  // The axis the bars are drawn on: the box each bar is positioned in.
+  const axisWidth = () =>
+    weather.getByTestId("weather-range").first().evaluate((bar) => (bar as HTMLElement).offsetParent!.getBoundingClientRect().width);
+
+  // The witness is the row count: a selector that matched no row would pass empty.
+  const FITS = { rows: 2, heights: 1, problems: [], scroll: 0 };
+  const onAPhone = async (view: string, also?: (width: number) => Promise<void>) => {
+    for (const width of [375, 320]) {
+      await page.setViewportSize({ width, height: 800 });
+      expect(await measure(weather), `the weather ${view} at ${width}px`).toEqual(FITS);
+      expect(await measure(sun), `the sun ${view} at ${width}px`).toEqual(FITS);
+      await also?.(width);
+    }
+    await page.setViewportSize({ width: 1280, height: 900 });
+  };
+  const showAsTable = async (table: Locator) => {
+    await table.getByRole("row").last().click();
+    await settingsPanel(page).getByRole("combobox", { name: /show as/i }).selectOption("table");
+    await expect(table.getByRole("columnheader").first()).toBeAttached();
+    // Deselected, or the phone width below opens its settings as a sheet.
+    await page.getByRole("heading", { name: "Before you go", level: 1 }).click();
+    await expect(settingsPanel(page)).toHaveCount(0);
+  };
+
+  await expect(weather.locator('[role="row"][data-source]')).toHaveCount(2);
+  await expect(sun.getByRole("cell", { name: "daylight", exact: true })).toHaveCount(2);
+  await onAPhone("graphic", async (width) => {
+    // 115px of axis in a 273px block, 60px in a 218px one (`WeatherGraphic.tsx`).
+    expect(await axisWidth(), `the weather graphic's axis at ${width}px`).toBeGreaterThanOrEqual(width === 375 ? 110 : 56);
+  });
+
+  await showAsTable(weather);
+  await showAsTable(sun);
+  await expect(weather.getByRole("cell", { name: "source", exact: true })).toHaveText(["Forecast", "Typical"]);
+  await onAPhone("table");
 });
 
 // **Every value fits its column, on one line** (2026-09-27): without headings
-// the now cell read "now -24°C", 70px in a 48px column, and wrapped out of the
-// row's fixed height (ADR-044). The rain column was suspected too, and is not:
-// "<0.01 in a day" is 109px of its 112. Widths are fixed, so the only proof is
-// the rendered font — the longest string each column can be handed, in both
-// units, headings on and off, at the desktop column and at the table's own
-// minimum (the phone, where it scrolls instead of shrinking).
+// a cell once read "now -24°C", 70px in a 48px column, and wrapped out of the
+// row's fixed height (ADR-044). Widths are fixed, so the only proof is the
+// rendered font — the longest string each column can be handed, in both units,
+// headings on and off, at the desktop column and at a phone's.
+//
+// This is the TABLE view ("Show as: Table"), which is the one with fixed
+// columns; the walk switches the seeded block to it first.
 test.describe("the weather table's fixed columns", () => {
   // A fresh account: the units are the account's, and alice is shared.
   test.use({ storageState: undefined });
@@ -1977,7 +2130,7 @@ test.describe("the weather table's fixed columns", () => {
     const placeToday = days[0]!.date;
     // Each figure is the longest its column prints: five characters of
     // temperature in either scale (-24°C / -11°F, 38°C / 100°F), and the rain
-    // at its longest — "29.1 mm" / "1.15 in" forecast, "<0.01 in a day" typical.
+    // at its longest — "29.10 mm" / "1.15″", two decimals whatever its source.
     const typical = (mmPerDay: number) => ({
       source: "nasa-power", month: 6, highC: 38, lowC: -24, precipitationMmPerDay: mmPerDay,
       period: { fromYear: 2001, throughYear: 2020 },
@@ -2000,17 +2153,18 @@ test.describe("the weather table's fixed columns", () => {
 
     const table = page.locator('.tc-page-editor [data-macro-name="day.weather"]').getByRole("table");
     // Every fixed-width cell, heading or value: its text on one line and inside
-    // the cell. The conditions and place cells truncate by design, so are not
-    // asked; every row keeps one height.
-    const measure = () =>
-      table.evaluate((el) => {
+    // the cell. The day and city are the phone walk's business above, so are not
+    // asked; every row keeps its one height — two lines of it (56px) in a
+    // phone's column, one (40px) at the desktop's.
+    const measure = (rowHeight: number) =>
+      table.evaluate((el, rowHeight) => {
         let checked = 0;
         const misfits = [...el.querySelectorAll('[role="row"]')].flatMap((row) => {
           const cells = [...row.querySelectorAll('[role="cell"][aria-label], [role="columnheader"]')].filter(
-            (cell) => !["Day", "Conditions"].includes(cell.textContent ?? ""),
+            (cell) => !["Day", "City"].includes(cell.textContent ?? ""),
           );
           checked += cells.length;
-          const tall = row.getBoundingClientRect().height > (row.hasAttribute("data-mode") ? 40 : 32);
+          const tall = row.getBoundingClientRect().height > (row.hasAttribute("data-source") ? rowHeight : 32);
           return [
             ...(tall ? [`row taller than its fixed height: ${row.textContent}`] : []),
             ...cells
@@ -2029,14 +2183,14 @@ test.describe("the weather table's fixed columns", () => {
           ];
         });
         return { checked, misfits };
-      });
-    // The witness is the count: four rows of now, high, low and rain, and the
-    // four headings over them — a selector that matched nothing would pass empty.
+      }, rowHeight);
+    // The witness is the count: four rows of high, low, rain and source, and
+    // the four headings over them — a selector that matched nothing would pass empty.
     const expectFits = async (state: string, headed: boolean) => {
-      await expect(table.locator('[role="cell"][aria-label="now"]', { hasText: /-(24°C|11°F)/ })).toHaveCount(1);
+      await expect(table.locator('[role="cell"][aria-label="low"]', { hasText: /-(24°C|11°F)/ })).toHaveCount(4);
       for (const width of [1280, 411]) {
         await page.setViewportSize({ width, height: 900 });
-        expect(await measure(), `${state} at ${width}px`).toEqual({ checked: headed ? 20 : 16, misfits: [] });
+        expect(await measure(width === 411 ? 56 : 40), `${state} at ${width}px`).toEqual({ checked: headed ? 20 : 16, misfits: [] });
       }
       await page.setViewportSize({ width: 1280, height: 900 });
     };
@@ -2050,7 +2204,14 @@ test.describe("the weather table's fixed columns", () => {
     };
 
     await openBeforeYouGoOf(page, tripId);
-    await expect(table.getByText("0.1 mm a day")).toBeVisible();
+    // The seeded block opens as the graphic, which has no heading row to count.
+    await table.getByRole("row").first().click();
+    await settingsPanel(page).getByRole("combobox", { name: /show as/i }).selectOption("table");
+    await expect(table.getByRole("columnheader")).toHaveText(["Day", "City", "High", "Low", "Rain", "Source"]);
+    await page.getByRole("heading", { name: "Before you go", level: 1 }).click();
+    await expect(settingsPanel(page)).toHaveCount(0);
+
+    await expect(table.getByText("0.10 mm", { exact: true })).toBeVisible();
     await expectFits("metric, headed", true);
     await headings(false);
     await expectFits("metric, heading-less", false);
@@ -2059,7 +2220,7 @@ test.describe("the weather table's fixed columns", () => {
     expect(prefs.ok(), `PATCH preferences -> ${prefs.status()}`).toBe(true);
     await page.reload();
     await page.getByRole("button", { name: "Edit page" }).click();
-    await expect(table.getByText("<0.01 in a day")).toBeVisible();
+    await expect(table.getByText("0.00″", { exact: true })).toBeVisible();
     await expectFits("imperial, heading-less", false);
     await headings(true);
     await expectFits("imperial, headed", true);
@@ -2126,7 +2287,7 @@ test.describe("the clock pair and the country card", () => {
     await page.getByRole("link", { name: /^Before you go/ }).click();
     await expect(page.getByRole("heading", { name: "Before you go", level: 1 })).toBeVisible();
 
-    // -- seeded on Before you go: the time difference and the country card --
+    // -- seeded on Before you go: the time difference, the sun and the country card --
     await expect(page.locator('[data-macro-name="day.fromHome"]')).toHaveText(
       "Tokyo is 16h ahead of home; Kyoto is 16h ahead of home",
     );
@@ -2134,22 +2295,25 @@ test.describe("the clock pair and the country card", () => {
     await expect(japan).toContainText("JP");
     await expect(japan.getByRole("definition")).toHaveText(["A, B", "100 V · 50/60 Hz", "Left", "110 · 119", /^JPY/, /81/, /./]);
 
-    // -- inserted from the rail: the sun, one line per located day --
+    // -- seeded under Clocks too: the sun, a block with a row per located day --
+    // The graphic, which an unset "Show as" means: the city over its day, and
+    // the three values beside the ribbon. The same in Reading and in Editing.
+    const sun = page.locator('[data-macro-name="day.sun"]').getByRole("row");
+    const expectSun = async () => {
+      await expect(sun).toHaveCount(2);
+      await expect(sun.getByRole("rowheader")).toHaveText([/^Tokyo\s*Day 1$/, /^Kyoto\s*Day 2$/]);
+      await expect(sun.getByRole("cell", { name: "sunrise", exact: true })).toHaveText([/^4:\d\d am$/, /^4:\d\d am$/]);
+      await expect(sun.getByRole("cell", { name: "sunset", exact: true })).toHaveText([/^6:\d\d pm$/, /^7:\d\d pm$/]);
+      await expect(sun.getByRole("cell", { name: "daylight", exact: true })).toHaveText([/^14h \d+m$/, /^14h \d+m$/]);
+    };
+    await expectSun();
+
     // The weather answers after the page does; clicking in before it has is
     // clicking a page that may yet move (m30's reason).
     await expect(page.getByText("loading weather")).toHaveCount(0);
     await page.getByRole("button", { name: "Edit page" }).click();
-    await insertFromList(page, /Sunrise and sunset/, "sunrise");
-    const sun = page.locator('[data-macro-name="day.sun"]').getByRole("row");
-    const sunRows = [
-      /^Day 1\s*Tokyo\s*sunrise 4:\d\d am\s*sunset 6:\d\d pm\s*golden hour \d/,
-      /^Day 2\s*Kyoto\s*sunrise 4:\d\d am\s*sunset 7:\d\d pm\s*golden hour \d/,
-    ];
-    await expect(sun).toHaveText(sunRows);
-
-    await finishEditing(page);
-    await expect(page.getByRole("button", { name: "Edit page" })).toBeVisible();
-    await expect(sun).toHaveText(sunRows);
+    await expect(page.getByRole("button", { name: "Done editing" })).toBeVisible();
+    await expectSun();
   });
 });
 
