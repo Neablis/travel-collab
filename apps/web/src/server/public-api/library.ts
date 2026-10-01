@@ -48,9 +48,19 @@ const VisibilityFilter = z.object({ visibility: SavedDayVisibility.optional() })
  */
 export function savedDayCollection(
   summary: string,
-  options: { readonly filterable?: boolean; readonly item?: typeof SavedDay | typeof LibraryDay } = {},
+  options: {
+    readonly filterable?: boolean;
+    readonly item?: z.ZodType<{ savedDayId: string; createdAt: string }>;
+    /**
+     * The record each stored day is answered as, before `item` parses it.
+     * `/v1/playbooks` passes `asPlaybook`, which adds the `playbookId` alias
+     * its `item` requires; omitted, the day is parsed as it is stored.
+     */
+    readonly view?: (day: z.infer<typeof SavedDay>) => unknown;
+  } = {},
 ): CollectionDef<CollectionItem> {
   const item = options.item ?? SavedDay;
+  const view = options.view ?? ((day: z.infer<typeof SavedDay>) => day);
   return {
     summary,
     scope: "library:read",
@@ -79,7 +89,7 @@ export function savedDayCollection(
                   (d.createdAt === after.sortKey && d.savedDayId < after.id),
               )
               .slice(0, page.limit);
-      return pageOf.map((d) => item.parse(d));
+      return pageOf.map((d) => item.parse(view(d)));
     },
   };
 }

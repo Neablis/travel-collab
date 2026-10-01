@@ -16,7 +16,7 @@ import { dayLabel } from "@/lib/dates";
 import { toClockRange } from "@/lib/time";
 import { useTimeFormat } from "@/components/account/PreferencesProvider";
 import { formatMoney } from "@/lib/formatMoney";
-import { displayPlace } from "@/lib/place";
+import { displayPlace, legEnd } from "@/lib/place";
 
 // Behavior change #2 (M5 wave 2, resolves PR #11 comment #9): the activity
 // editor is now a portable Sheet raised from EditorHost's own state, not
@@ -216,6 +216,7 @@ function ReadOnlyActivity({
   onClose: () => void;
 }) {
   const clock = useTimeFormat();
+  const destination = activity === null ? null : legEnd(activity);
   return (
     <div className="flex flex-col gap-3">
       {activity === null ? (
@@ -232,6 +233,11 @@ function ReadOnlyActivity({
           </DataText>
           {activity.location && (
             <Text as="p" variant="secondary">{displayPlace(activity.location)}</Text>
+          )}
+          {/* The editable form names a leg's destination in its "Going to"
+              field; a viewer, who gets no form, read only the origin here. */}
+          {destination !== null && (
+            <Text as="p" variant="secondary">Going to {displayPlace(destination)}</Text>
           )}
           <DataText size="xs" className="block">
             {activity.cost === null ? "No cost yet" : formatMoney(activity.cost.amountMinor, currency)}

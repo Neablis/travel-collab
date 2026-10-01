@@ -8,7 +8,7 @@ afterEach(cleanup);
 const day = (over: Partial<MapDay> = {}): MapDay => ({
   index: 0, dayId: "d1", label: "Day 1", date: "2026-09-05", city: "Rochester",
   accent: "warning", stops: [{ activityId: "a", title: "Stop A", lat: 43.15, lng: -77.6, kind: "planned" }],
-  unlocatedCount: 0, totalKm: 4.2, bars: [{ grow: 1, color: "warning" }], isEmpty: false, flagText: null, longest: null, ...over,
+  unlocatedCount: 0, totalKm: 4.2, bars: [{ grow: 1, color: "warning" }], isEmpty: false, flagText: null, longest: null, legs: [], ...over,
 });
 
 describe("MapFocusCard", () => {
@@ -23,6 +23,12 @@ describe("MapFocusCard", () => {
     expect(screen.getByText(/Rochester/)).toBeTruthy();
     expect(screen.getByText(/1 stop/)).toBeTruthy();
     expect(screen.getByText(/4.2 km/)).toBeTruthy();
+  });
+
+  it("lists the day's legs, mode and both ends", () => {
+    render(<MapFocusCard day={day({ legs: ["Train · Odawara → Kyoto", "Bus · Kyoto → Arashiyama"] })} />);
+    expect(screen.getByText("Train · Odawara → Kyoto")).toBeTruthy();
+    expect(screen.getByText("Bus · Kyoto → Arashiyama")).toBeTruthy();
   });
 
   it("shows the day's flag as a note when it has one", () => {

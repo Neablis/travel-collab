@@ -31,7 +31,7 @@ import { kindBadge } from "./activityKind";
 import { type AnyTimeOutcome, anyTimeCommands, type PlaceOutcome, placeCommands } from "./resolveDrop";
 import { lensAcceptsDrops } from "./lensAcceptsDrops";
 import { rackDisclosure, type RackDisclosure, type RackEvent } from "@/components/trip/rackDisclosure";
-import { shortPlace } from "@/lib/place";
+import { legRoute, shortPlace } from "@/lib/place";
 import { isDemoTripId } from "@/lib/demoTrip";
 import { isInviteLook } from "@/lib/inviteLook";
 import { dayLabel } from "@/lib/dates";
@@ -442,6 +442,9 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // "whereabouts": KI-35's exact defect, at a call site that entry never
   // named. Now that Location carries a real `area`, the helper is what fills
   // it honestly, and the rack agrees with every other place line in the app.
+  // A transit leg with a destination fills the slot with both ends instead
+  // ("Taipei → Tainan", `legRoute()`; Mitchell, 2026-09-30, option "B"): its
+  // mode is already the card's badge, and where it goes was nowhere.
   // A backlog id with no matching activity is dropped rather than rendered as
   // a blank card.
   //
@@ -460,7 +463,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
       {
         activityId,
         title: activity.title,
-        area: shortPlace(activity.location),
+        area: legRoute(activity) ?? shortPlace(activity.location),
         timeWindow: activity.timeWindow,
         bookedBy: activity.bookedBy,
         day,

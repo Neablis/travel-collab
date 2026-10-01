@@ -16,7 +16,7 @@
 // import allowlist (eslint.config.mjs), whose stated criterion is the whole
 // closure and not the direct imports.
 import type { TripDetail } from "@tc/contracts";
-import type { BoundingBox, LatLng } from "@/server/geocoding/geocoder";
+import type { BoundingBox, GeocodeOptions, LatLng } from "@/server/geocoding/geocoder";
 export type { BoundingBox, LatLng };
 
 // Half a degree around 0,0 — roughly 55 km of open water in the Gulf of Guinea.
@@ -151,4 +151,47 @@ export function tripRegionOf(detail: TripDetail): BoundingBox | null {
     .map((a) => (a.location ? plausibleCoords(a.location) : null))
     .filter((p): p is LatLng => p !== null);
   return boundingBoxAround(points, TRIP_REGION_MARGIN_KM);
+}
+
+const COUNTRY_CODE = /^[A-Z]{2}$/;
+
+/**
+ * The countries a trip already occupies: the distinct ISO alpha-2 codes on its
+ * located places, sorted, or `[]` when none carries one. Mitchell, 2026-09-30
+ * (option A): a trip-scoped lookup the caller gave no country is hinted with
+ * these — LocationIQ's `countrycodes` first, unrestricted on a miss
+ * (`locationiq.ts`, `forward`).
+ *
+ * "Located" means what it means to `tripRegionOf` — believable coordinates — so
+ * a stop the caller only named hints nothing. A transit leg's `endLocation`
+ * counts as well as its `location`: a flight's far end is a country the trip
+ * goes to, and the next stop there is exactly the one a hint must not filter
+ * out.
+ *
+ * **A brand-new trip has none, and so gets no hint** — the same gap as the
+ * region. `TripDetail` has no destination field that could seed it.
+ */
+export function tripCountriesOf(detail: TripDetail): string[] {
+  const codes = new Set<string>();
+  for (const activity of Object.values(detail.activities)) {
+    for (const place of [activity.location, activity.endLocation]) {
+      if (!place || !plausibleCoords(place)) continue;
+      const code = place.countryCode?.toUpperCase();
+      if (code && COUNTRY_CODE.test(code)) codes.add(code);
+    }
+  }
+  return [...codes].sort();
+}
+
+/**
+ * The country filter one lookup sends: the caller's own `countryCode` when it
+ * gave one — never overridden — else the trip's countries, else nothing.
+ * Options to spread, so "no filter" is an absent key rather than an empty one.
+ */
+export function countryFilterFor(
+  explicit: string | undefined,
+  tripCountries: readonly string[],
+): Pick<GeocodeOptions, "countryCode" | "countryCodes"> {
+  if (explicit) return { countryCode: explicit };
+  return tripCountries.length > 0 ? { countryCodes: tripCountries } : {};
 }

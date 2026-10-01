@@ -13,6 +13,75 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-09-30 — Public API 1.2.0: `places:read` and `GET /v1/geocode`, the tripless place search
+
+- **Added:** `places:read` to `ApiScope` and `SCOPE_CATALOGUE` (`packages/contracts/src/publicApi.ts`)
+  — the ninth scope, and the one read that spends money: its sentence says every search counts
+  against the account's daily geocoding allowance and a budget every account shares, capped at 100
+  a day per token. **Added:** `GET /v1/geocode?q=&countryCode=`, answering the existing
+  `GeocodeCandidates` (up to five `Location`s) — the tripless twin of
+  `GET /v1/trips/{tripId}/geocode`. `openapi.json` regenerated; `info.version` `1.2.0`, new
+  `API_FINGERPRINT`.
+- **Spend:** charged before the vendor, first against a new per-token daily policy
+  (`placeSearchTokenQuota`, `PLACE_SEARCH_RATE_LIMIT_PER_TOKEN_DAILY`, default 100) and then against
+  the existing `geocodeQuota` (per user 300, global 4000), so a token never spends past its owner's
+  app allowance. An empty `q` answers `{ results: [] }` with no charge and no lookup. A token confined
+  to named trips is refused (`trip-out-of-scope`), as on every tripless endpoint.
+- **Behaviour, same release (no contract change):** a trip-scoped name lookup with no `countryCode`
+  — v1 stop writes, `GET /v1/trips/{tripId}/geocode`, and the assistant's approval-path enrichment —
+  now prefers the countries of the trip's already-located stops: searched inside them first
+  (LocationIQ `countrycodes`) and, on a miss, retried unrestricted, so a trip's first stop in a new
+  country still resolves. An explicit `countryCode` still wins and is never widened; a trip with
+  nothing located is unrestricted.
+- Why: Mitchell, 2026-09-30 (API feedback item 12, and the country-hint decision, option A).
+- Consumers updated: `apps/web` (new `app/api/v1/geocode/route.ts`, `server/quota.ts`,
+  `server/public-api/{locations,exposure,openapi}.ts` — `geocode` moves from `planned` to `public`),
+  the token screen renders the new scope from the catalogue; `docs/guidelines/using-the-api.md`
+  (Scopes table, trip-scoped tokens, the place-search section); `.env.example`.
+- **Breaking?** No — additive (minor).
+
+## 2026-09-30 — Public API 1.2.0: a `startingAt` merge places stops by start time
+
+- **Changed (behaviour):** `POST /v1/trips/{tripId}/playbook-applications` with `placement: {
+  mode: "startingAt" }` no longer appends a Playbook day's stops after the trip day's existing ones.
+  Each timed incoming stop goes before the first stop on the day that starts strictly later (else at
+  the end); untimed incoming stops go last, in Playbook order; existing stops never move. Days the
+  application adds keep the Playbook's order. Supersedes the "appended, unsorted" line in the 1.1.0
+  entry below.
+- **How:** `insertCommands` (`apps/web/src/server/savedDays.ts`) still emits every `AddActivity` in
+  `stops[]` order, then `placeByTime` emits `MoveActivity` commands for the incoming stops that need
+  placing — the existing command vocabulary. **No command, event type or payload changed**; the
+  batch is still one history entry and one undo. `insertCommands`' `onto` parameter is now
+  `OntoDay[]` (day id plus its stops' start times) rather than day ids.
+- The app's own insert (`/api/trips/{tripId}/saved-days/{savedDayId}`) never merges — it passes no
+  `startingAt` — so it appends as before; any future merging caller gets the ordering through the
+  same function.
+- The operation's OpenAPI `description` says so; `API_FINGERPRINT` updated (version stays `1.2.0`).
+- Why: Mitchell, 2026-09-30 — merged stops land in time order.
+- Consumers updated: `apps/web` (`savedDays.ts`, the playbook-applications route, `openapi.ts`,
+  `openapi.json`, `playbooks.int.test.ts`); `docs/guidelines/using-the-api.md`.
+- **Breaking?** No schema change. A caller relying on the old append order on a merged day sees a
+  different order; `activityIds[i]` is still the Playbook's `stops[i]`.
+
+## 2026-09-30 — Public API 1.2.0: Playbook records carry `playbookId`
+
+- **Added:** every Playbook record `/v1/playbooks` answers — `GET /v1/playbooks/{playbookId}`, the
+  `GET /v1/playbooks` items, and the `playbook` in the `POST /v1/playbooks`, `PATCH
+  /v1/playbooks/{playbookId}` and `POST /v1/playbooks/import` answers — carries `playbookId`,
+  always equal to `savedDayId`. Declared as `Playbook` (`SavedDay.extend({ playbookId })`) in
+  `apps/web/src/server/public-api/playbooks.ts`, with `asPlaybook` the one mapping.
+  `PLAYBOOK_SHAPE_DOC` says so on every Playbook operation.
+- **Not changed:** `SavedDay` in `packages/contracts`, the stored `saved_days` row, the app's
+  internal routes, and `/v1/library` (frozen; `LibraryDay` does not gain the alias). The alias is
+  a v1 response-boundary view only.
+- `API_VERSION` `1.2.0` (was `1.1.0`), `API_FINGERPRINT` updated, `openapi.json` regenerated.
+- Why: an external consumer read `/v1/playbooks/{playbookId}` and looked for `playbookId` in the
+  answer. Mitchell, 2026-09-30: add the alias, keep `savedDayId`.
+- Consumers updated: `apps/web` (`playbooks.ts`, `library.ts`'s `savedDayCollection` gains an
+  optional `view`, `/v1/playbooks` route, `openapi.ts`, `openapi.json`, `playbooks.int.test.ts`);
+  `docs/guidelines/using-the-api.md` (Playbooks section).
+- **Breaking?** No. Additive: a new always-present response field; nothing removed or renamed.
+
 ## 2026-09-30 — Public API `info.version` 1.1.0, enforced by fingerprint; field, scope and Playbook docs
 
 - **Changed:** `openapi.json`'s `info.version` is `1.1.0` (was `1.0.0`), now `API_VERSION` in

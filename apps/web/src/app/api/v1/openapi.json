@@ -2,8 +2,8 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Caesura API",
-    "version": "1.1.0",
-    "description": "The public REST API. Every endpoint takes an account API token as\n`Authorization: Bearer tc_...`, minted in Account settings.\n\nScopes:\n- `trips:read` — See your trips, their days and stops, costs, history, and existing share links.\n- `trips:write` — Create, change and delete trips, days and stops; undo, redo and revert.\n- `notebook:read` — Read the Notebook pages on a trip.\n- `notebook:write` — Create, change and delete the Notebook pages on a trip.\n- `library:read` — Read your saved-days library and your Playbooks (a Playbook is a view over saved days), and browse published Playbooks.\n- `library:write` — Create, edit, import and delete saved days and Playbooks, and publish or unpublish them to Discover.\n- `sharing:write` — Invite people to a trip and revoke invites, and create or revoke share links.\n- `account:read` — See who you are and what plan you hold."
+    "version": "1.2.0",
+    "description": "The public REST API. Every endpoint takes an account API token as\n`Authorization: Bearer tc_...`, minted in Account settings.\n\nScopes:\n- `trips:read` — See your trips, their days and stops, costs, history, and existing share links.\n- `trips:write` — Create, change and delete trips, days and stops; undo, redo and revert.\n- `notebook:read` — Read the Notebook pages on a trip.\n- `notebook:write` — Create, change and delete the Notebook pages on a trip.\n- `library:read` — Read your saved-days library and your Playbooks (a Playbook is a view over saved days), and browse published Playbooks.\n- `library:write` — Create, edit, import and delete saved days and Playbooks, and publish or unpublish them to Discover.\n- `sharing:write` — Invite people to a trip and revoke invites, and create or revoke share links.\n- `account:read` — See who you are and what plan you hold.\n- `places:read` — Look up real places by name, outside any trip. Every search counts against your daily geocoding allowance (the one the app's own place search uses) and a daily budget shared by every account; one token may make at most 100 a day."
   },
   "paths": {
     "/v1/account": {
@@ -427,6 +427,170 @@
                       "nullable": true
                     }
                   }
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "One envelope for every failure: `{ error: { code, message, details? } }`. 401 carries `WWW-Authenticate: Bearer`; 429 carries `Retry-After`."
+          }
+        }
+      }
+    },
+    "/v1/geocode": {
+      "get": {
+        "summary": "Search for a real place by name, outside any trip, returning up to five locations ready to use on a stop (spends geocode quota; 100 a day per token)",
+        "description": "Requires the `places:read` scope.",
+        "security": [
+          {
+            "bearerAuth": [
+              "places:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "countryCode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Z]{2}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "headers": {
+              "Retry-After": {
+                "description": "On a 429: seconds until the exhausted daily allowance (this token's, or the account's) resets.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "results": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "lat": {
+                            "type": "number",
+                            "minimum": -90,
+                            "maximum": 90,
+                            "description": "Send with lng, or omit both. When omitted on a v1 write, the server geocodes `address`, then `name`."
+                          },
+                          "lng": {
+                            "type": "number",
+                            "minimum": -180,
+                            "maximum": 180,
+                            "description": "Send with lat, or omit both."
+                          },
+                          "countryCode": {
+                            "type": "string",
+                            "pattern": "^[A-Z]{2}$"
+                          },
+                          "city": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "area": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "precision": {
+                            "type": "string",
+                            "enum": [
+                              "venue",
+                              "area",
+                              "city"
+                            ],
+                            "description": "What the coordinates describe: a `venue`, an `area` or a `city`. Requires `lat` and `lng` — sent without them it is refused (\"precision requires coordinates\")."
+                          },
+                          "address": {
+                            "type": "object",
+                            "properties": {
+                              "countryCode": {
+                                "type": "string",
+                                "pattern": "^[A-Z]{2}$",
+                                "description": "ISO 3166-1 alpha-2, uppercase. Decides how the other fields are read."
+                              },
+                              "lines": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 200
+                                },
+                                "minItems": 1,
+                                "maxItems": 4,
+                                "description": "Street-level part, in the country's own order, e.g. [\"Hauptstraße 5\"] or [\"1-2-3 Nishi-Azabu\"]."
+                              },
+                              "dependentLocality": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 200,
+                                "description": "District, neighbourhood or suburb when it is part of the postal address."
+                              },
+                              "locality": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 200,
+                                "description": "City, town or post town."
+                              },
+                              "administrativeArea": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 200,
+                                "description": "State, province, prefecture or region."
+                              },
+                              "postalCode": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 20,
+                                "description": "A string: keeps leading zeros and letters."
+                              }
+                            },
+                            "required": [
+                              "countryCode",
+                              "lines"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": [
+                          "name"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "results"
+                  ],
+                  "additionalProperties": false
                 }
               }
             }
@@ -3784,7 +3948,7 @@
     "/v1/playbooks/{playbookId}": {
       "get": {
         "summary": "Get a Playbook — yours, or anyone's published one — every day and stop in order",
-        "description": "Requires the `library:read` scope. A Playbook is a view over saved days: the record is the same one `/v1/library` serves, and its id key is `savedDayId` (that value is the `playbookId` in these paths). Writes take stops grouped by day, `days[].stops[]`; reads return them flat, `stops[]` in order with a 0-based `dayIndex` on each, plus `dayCount` — deliberately (ADR-048, ADR-050). Group by `dayIndex` to get days back.",
+        "description": "Requires the `library:read` scope. A Playbook is a view over saved days: the record is the same one `/v1/library` serves, and its id key is `savedDayId` (that value is the `playbookId` in these paths). Every Playbook record here also carries `playbookId`, the same value, so either key works. Writes take stops grouped by day, `days[].stops[]`; reads return them flat, `stops[]` in order with a 0-based `dayIndex` on each, plus `dayCount` — deliberately (ADR-048, ADR-050). Group by `dayIndex` to get days back.",
         "security": [
           {
             "bearerAuth": [
@@ -4307,6 +4471,11 @@
                       "maxLength": 500,
                       "nullable": true,
                       "default": null
+                    },
+                    "playbookId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "description": "The same value as `savedDayId`: the id in `/v1/playbooks/{playbookId}`."
                     }
                   },
                   "required": [
@@ -4319,7 +4488,8 @@
                     "adds",
                     "sourceTripId",
                     "sourceTripName",
-                    "createdAt"
+                    "createdAt",
+                    "playbookId"
                   ],
                   "additionalProperties": false
                 }
@@ -4333,7 +4503,7 @@
       },
       "patch": {
         "summary": "Edit one of your Playbooks — rename it, summarise it, replace its days, or publish it",
-        "description": "Requires the `library:write` scope. A Playbook is a view over saved days: the record is the same one `/v1/library` serves, and its id key is `savedDayId` (that value is the `playbookId` in these paths). Writes take stops grouped by day, `days[].stops[]`; reads return them flat, `stops[]` in order with a 0-based `dayIndex` on each, plus `dayCount` — deliberately (ADR-048, ADR-050). Group by `dayIndex` to get days back.",
+        "description": "Requires the `library:write` scope. A Playbook is a view over saved days: the record is the same one `/v1/library` serves, and its id key is `savedDayId` (that value is the `playbookId` in these paths). Every Playbook record here also carries `playbookId`, the same value, so either key works. Writes take stops grouped by day, `days[].stops[]`; reads return them flat, `stops[]` in order with a 0-based `dayIndex` on each, plus `dayCount` — deliberately (ADR-048, ADR-050). Group by `dayIndex` to get days back.",
         "security": [
           {
             "bearerAuth": [
@@ -5339,6 +5509,11 @@
                           "maxLength": 500,
                           "nullable": true,
                           "default": null
+                        },
+                        "playbookId": {
+                          "type": "string",
+                          "format": "uuid",
+                          "description": "The same value as `savedDayId`: the id in `/v1/playbooks/{playbookId}`."
                         }
                       },
                       "required": [
@@ -5351,7 +5526,8 @@
                         "adds",
                         "sourceTripId",
                         "sourceTripName",
-                        "createdAt"
+                        "createdAt",
+                        "playbookId"
                       ],
                       "additionalProperties": false
                     },
@@ -7005,6 +7181,11 @@
                           "maxLength": 500,
                           "nullable": true,
                           "default": null
+                        },
+                        "playbookId": {
+                          "type": "string",
+                          "format": "uuid",
+                          "description": "The same value as `savedDayId`: the id in `/v1/playbooks/{playbookId}`."
                         }
                       },
                       "required": [
@@ -7017,7 +7198,8 @@
                         "adds",
                         "sourceTripId",
                         "sourceTripName",
-                        "createdAt"
+                        "createdAt",
+                        "playbookId"
                       ],
                       "additionalProperties": false
                     },
@@ -7101,7 +7283,7 @@
     "/v1/playbooks": {
       "get": {
         "summary": "List the Playbooks you have kept, newest first",
-        "description": "Requires the `library:read` scope. A Playbook is a view over saved days: the record is the same one `/v1/library` serves, and its id key is `savedDayId` (that value is the `playbookId` in these paths). Writes take stops grouped by day, `days[].stops[]`; reads return them flat, `stops[]` in order with a 0-based `dayIndex` on each, plus `dayCount` — deliberately (ADR-048, ADR-050). Group by `dayIndex` to get days back.",
+        "description": "Requires the `library:read` scope. A Playbook is a view over saved days: the record is the same one `/v1/library` serves, and its id key is `savedDayId` (that value is the `playbookId` in these paths). Every Playbook record here also carries `playbookId`, the same value, so either key works. Writes take stops grouped by day, `days[].stops[]`; reads return them flat, `stops[]` in order with a 0-based `dayIndex` on each, plus `dayCount` — deliberately (ADR-048, ADR-050). Group by `dayIndex` to get days back.",
         "security": [
           {
             "bearerAuth": [
@@ -7657,6 +7839,11 @@
                             "maxLength": 500,
                             "nullable": true,
                             "default": null
+                          },
+                          "playbookId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "description": "The same value as `savedDayId`: the id in `/v1/playbooks/{playbookId}`."
                           }
                         },
                         "required": [
@@ -7669,7 +7856,8 @@
                           "adds",
                           "sourceTripId",
                           "sourceTripName",
-                          "createdAt"
+                          "createdAt",
+                          "playbookId"
                         ],
                         "additionalProperties": false
                       }
@@ -7690,7 +7878,7 @@
       },
       "post": {
         "summary": "Create a Playbook — from days (or some activities) of a trip you can see, or written inline",
-        "description": "Requires the `library:write` scope. Requires at least the `viewer` role on the trip the body names, if it names one. A Playbook is a view over saved days: the record is the same one `/v1/library` serves, and its id key is `savedDayId` (that value is the `playbookId` in these paths). Writes take stops grouped by day, `days[].stops[]`; reads return them flat, `stops[]` in order with a 0-based `dayIndex` on each, plus `dayCount` — deliberately (ADR-048, ADR-050). Group by `dayIndex` to get days back.",
+        "description": "Requires the `library:write` scope. Requires at least the `viewer` role on the trip the body names, if it names one. A Playbook is a view over saved days: the record is the same one `/v1/library` serves, and its id key is `savedDayId` (that value is the `playbookId` in these paths). Every Playbook record here also carries `playbookId`, the same value, so either key works. Writes take stops grouped by day, `days[].stops[]`; reads return them flat, `stops[]` in order with a 0-based `dayIndex` on each, plus `dayCount` — deliberately (ADR-048, ADR-050). Group by `dayIndex` to get days back.",
         "security": [
           {
             "bearerAuth": [
@@ -8769,6 +8957,11 @@
                           "maxLength": 500,
                           "nullable": true,
                           "default": null
+                        },
+                        "playbookId": {
+                          "type": "string",
+                          "format": "uuid",
+                          "description": "The same value as `savedDayId`: the id in `/v1/playbooks/{playbookId}`."
                         }
                       },
                       "required": [
@@ -8781,7 +8974,8 @@
                         "adds",
                         "sourceTripId",
                         "sourceTripName",
-                        "createdAt"
+                        "createdAt",
+                        "playbookId"
                       ],
                       "additionalProperties": false
                     },
@@ -21041,7 +21235,7 @@
     "/v1/trips/{tripId}/playbook-applications": {
       "post": {
         "summary": "Apply a Playbook's days and stops to a trip, appended or merged, as one undoable change",
-        "description": "Requires the `trips:write` scope. Requires at least the `editor` role on the trip. With `placement: { mode: \"startingAt\" }`, a Playbook day that lands on an existing trip day is appended after that day's existing stops, in the Playbook's order; stops are not sorted by time.",
+        "description": "Requires the `trips:write` scope. Requires at least the `editor` role on the trip. With `placement: { mode: \"startingAt\" }`, a Playbook day that lands on an existing trip day is merged into it by start time: each timed Playbook stop goes before the first stop there that starts later (or at the end), and untimed Playbook stops go last, in the Playbook's order. The trip's existing stops never move. A day the application adds keeps the Playbook's order.",
         "security": [
           {
             "bearerAuth": [

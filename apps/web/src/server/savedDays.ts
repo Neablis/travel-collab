@@ -995,20 +995,19 @@ export async function deleteSavedDay(
  * trip, because the domain has no positioned `AddDay` and this does not invent
  * one. The default, `[]`, is "merge onto nothing": every day new, which is the
  * append every existing caller gets.
+ *
+ * **A merged day's stops land in time order** (Mitchell, 2026-09-30) — see
+ * `placeByTime`. A day this insert creates keeps the Playbook's own order.
  */
 export function insertCommands(
   saved: SavedDay,
   tripId: string,
-  onto: readonly string[] = [],
+  onto: readonly OntoDay[] = [],
 ): BatchableCommand[] {
   const days = sequenceLength(saved);
-  const dayIds = Array.from({ length: days }, (_, k) => onto[k] ?? randomUUID());
-  return [
-    ...dayIds
-      .slice(onto.length)
-      .map((dayId): BatchableCommand => ({ type: "AddDay", tripId, dayId })),
-    ...saved.stops.map(
-      (stop): BatchableCommand => ({
+  const dayIds = Array.from({ length: days }, (_, k) => onto[k]?.dayId ?? randomUUID());
+  const adds = saved.stops.map(
+    (stop): Extract<BatchableCommand, { type: "AddActivity" }> => ({
         type: "AddActivity",
         tripId,
         activityId: randomUUID(),
@@ -1028,8 +1027,81 @@ export function insertCommands(
         endLocation: stop.endLocation ?? undefined,
         pendingReason: stop.pendingReason ?? undefined,
       }),
+  );
+  return [
+    ...dayIds
+      .slice(onto.length)
+      .map((dayId): BatchableCommand => ({ type: "AddDay", tripId, dayId })),
+    // Every AddActivity in `stops[]` order, so the i-th one is `stops[i]`
+    // (`insertSavedDay` reads the minted ids back by that position).
+    ...adds,
+    ...onto.flatMap((day, k) =>
+      placeByTime(
+        tripId,
+        day,
+        adds.flatMap((add, i) =>
+          saved.stops[i]!.dayIndex === k
+            ? [{ activityId: add.activityId, start: add.timeWindow?.start ?? null }]
+            : [],
+        ),
+      ),
     ),
   ];
+}
+
+/** A stop of a day being merged onto: its id, and its start time if it has one (`HH:MM`). */
+export interface TimedStop {
+  readonly activityId: string;
+  readonly start: string | null;
+}
+
+/** A trip day a merge lands on, with its stops in the day's current order. */
+export interface OntoDay {
+  readonly dayId: string;
+  readonly stops: readonly TimedStop[];
+}
+
+/**
+ * **The `MoveActivity`s that put a merged day's incoming stops in time order**
+ * (Mitchell, 2026-09-30). Runs after the day's `AddActivity`s, which append
+ * (`ActivityAdded` in the domain's `evolve.ts`); `AddActivity` has no position
+ * and this adds none — events are replayed forever, so the existing command
+ * vocabulary is the one used. The batch stays one history entry and one undo.
+ *
+ * The rule, in full:
+ *  - **Existing stops never move**, relative to each other or by command.
+ *  - A **timed** incoming stop goes immediately before the first timed stop
+ *    (existing, or incoming and already placed) that starts strictly later;
+ *    with none, at the end of the day so far. An equal start goes after.
+ *  - **Untimed** incoming stops go after all of that, in the Playbook's order.
+ *
+ * Only incoming stops are ever the subject of a move: walking the target order
+ * left to right, the first mismatch is always an incoming stop, because the
+ * appended list and the target both hold the existing stops in their original
+ * order ahead of anything not yet placed.
+ */
+export function placeByTime(
+  tripId: string,
+  day: OntoDay,
+  incoming: readonly TimedStop[],
+): BatchableCommand[] {
+  const target: TimedStop[] = [...day.stops];
+  for (const stop of incoming) {
+    if (stop.start === null) continue;
+    const later = target.findIndex((t) => t.start !== null && t.start > stop.start!);
+    target.splice(later === -1 ? target.length : later, 0, stop);
+  }
+  target.push(...incoming.filter((s) => s.start === null));
+
+  const current = [...day.stops, ...incoming].map((s) => s.activityId);
+  const moves: BatchableCommand[] = [];
+  target.forEach(({ activityId }, position) => {
+    if (current[position] === activityId) return;
+    current.splice(current.indexOf(activityId), 1);
+    current.splice(position, 0, activityId);
+    moves.push({ type: "MoveActivity", tripId, activityId, toDayId: day.dayId, position });
+  });
+  return moves;
 }
 
 /** How many days a sequence occupies: its `dayCount`, floored by its stops. */
@@ -1121,7 +1193,7 @@ export async function insertSavedDay(
   // is pinned to that head: a day added or removed between this read and the
   // append makes the batch refuse rather than land day `k` somewhere else. A
   // caller's own `expectedSeq` is the stricter pin and wins.
-  let onto: string[] = [];
+  let onto: OntoDay[] = [];
   let expectedSeq = options.expectedSeq;
   if (options.startingAt !== undefined) {
     const envelopes = await readStream(db, tripId);
@@ -1137,12 +1209,21 @@ export async function insertSavedDay(
         },
       };
     }
-    const days = foldEnvelopes(envelopes)?.days ?? [];
+    const state = foldEnvelopes(envelopes);
+    const days = state?.days ?? [];
     const at = days.findIndex((d) => d.dayId === options.startingAt);
     if (at === -1) {
       return { ok: false, error: { code: "unknown-day", message: "That day is not in this trip." } };
     }
-    onto = days.slice(at).map((d) => d.dayId);
+    // Each day with its stops' start times, so the merge can place incoming
+    // stops among them (`placeByTime`). Read from the same pinned head.
+    onto = days.slice(at).map((d) => ({
+      dayId: d.dayId,
+      stops: d.activityIds.map((activityId) => ({
+        activityId,
+        start: state?.activities[activityId]?.timeWindow?.start ?? null,
+      })),
+    }));
     expectedSeq ??= envelopes.length;
   }
 
@@ -1164,13 +1245,14 @@ export async function insertSavedDay(
   if (!result.ok) return result;
   // Read back out of the batch rather than minted a second time, so these are
   // by construction the ids that landed. `insertCommands` emits every AddDay
-  // in sequence order and then one AddActivity per stop in `stops[]` order.
+  // in sequence order and then one AddActivity per stop in `stops[]` order;
+  // a merge's MoveActivitys come after and mint nothing.
   const createdDayIds = commands.flatMap((c) => (c.type === "AddDay" ? [c.dayId] : []));
   return {
     ...result,
     playbookVersion: saved.version,
     minted: {
-      dayIds: [...onto, ...createdDayIds].slice(0, sequenceLength(saved)),
+      dayIds: [...onto.map((d) => d.dayId), ...createdDayIds].slice(0, sequenceLength(saved)),
       createdDayIds,
       activityIds: commands.flatMap((c) => (c.type === "AddActivity" ? [c.activityId] : [])),
     },

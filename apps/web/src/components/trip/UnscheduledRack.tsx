@@ -445,7 +445,9 @@ function RackCard({
           </div>
           {item.area !== null ? (
             <div
-              className="text-xs text-slate"
+              // `truncate`: a leg's area is both its ends ("Taipei → Tainan"),
+              // and a long pair ellipsises rather than growing the card.
+              className="truncate text-xs text-slate"
               // eslint-disable-next-line no-restricted-syntax -- 2px offset is below Tailwind's spacing floor (mt-0.5 = 2px exists, but pairs with the 12px line box above only by coincidence)
               style={{ marginTop: "2px" }}
             >

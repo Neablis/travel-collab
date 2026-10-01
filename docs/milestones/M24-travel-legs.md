@@ -184,6 +184,9 @@ link 2 is the wide one, links 3 and 4 are consumers. Smallest first.
    to suspect the rule before the content if it climbs; if this link moves that
    number, the milestone says which conflicts changed and why.
 
+   > **Superseded 2026-09-30.** The destination check described above no
+   > longer runs: any `kind: "transit"` stop on a day now excuses every distance on that day (timed or not, located or not, `endLocation` ignored); a day with no transit stop is unchanged. Mitchell's decision, 2026-09-30 (option "B", over a list-order heuristic), after an API user's untimed stops kept every travel day flagging. Trade-off: a wrong geocode on a day with a transit leg is no longer caught. `transitExcusesDistance` is gone; rationale lives in `geographyRule`'s comment (`packages/domain/src/trip/conflicts.ts`).
+
 ## Exit gate
 
 - [x] **A `mode` on a non-transit stop is refused by the schema**, enforced by a
@@ -216,7 +219,8 @@ link 2 is the wide one, links 3 and 4 are consumers. Smallest first.
 - [x] **`geographyRule` excuses a distance only when the transit stop's
       destination agrees**, and a transit stop with no `endLocation` behaves
       exactly as it does today — both directions covered by tests, both **seen
-      to fail** before the change.
+      to fail** before the change. *(True at gate close; superseded 2026-09-30 —
+      any transit stop on a day now excuses every distance on it. See link 4.)*
 - [x] The Japan fixture's `conflictTotal` is either unchanged or changed with
       each moved conflict named in the PR body.
 - [x] `pnpm --filter web test:e2e:ci-like` green — **never plain `test:e2e`**,

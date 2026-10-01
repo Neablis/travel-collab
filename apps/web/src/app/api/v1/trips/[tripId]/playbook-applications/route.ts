@@ -131,12 +131,13 @@ function reject(logged: Logged, reason: string, error: PublicApiError): never {
 export const { POST } = route({
   POST: {
     summary: "Apply a Playbook's days and stops to a trip, appended or merged, as one undoable change",
-    // `insertCommands` (savedDays.ts) emits one `AddActivity` per stop in the
-    // Playbook's order, and `ActivityAdded` (domain evolve.ts) appends to the
-    // day's end — no step sorts by `timeWindow`.
+    // `insertCommands` (savedDays.ts) appends one `AddActivity` per stop, then
+    // `placeByTime` moves each merged stop into place with `MoveActivity`.
     description:
       "With `placement: { mode: \"startingAt\" }`, a Playbook day that lands on an existing trip day is " +
-      "appended after that day's existing stops, in the Playbook's order; stops are not sorted by time.",
+      "merged into it by start time: each timed Playbook stop goes before the first stop there that starts " +
+      "later (or at the end), and untimed Playbook stops go last, in the Playbook's order. The trip's " +
+      "existing stops never move. A day the application adds keeps the Playbook's order.",
     scope: "trips:write",
     trip: "path",
     role: "editor",

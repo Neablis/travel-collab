@@ -1,6 +1,8 @@
 import { GEOCODE_OUTCOME_END_HEADER, GEOCODE_OUTCOME_HEADER, type GeocodeOutcome, type Location } from "@tc/contracts";
 import { getGeocoder, type BoundingBox, type Geocoder, type GeocodeResult } from "@/server/geocoding";
+import { countryFilterFor } from "@/server/geocoding/region";
 import { consumeQuota, geocodeQuota, type QuotaDecision } from "@/server/quota";
+import { PublicApiError } from "./commands";
 
 // **The v1 stop-write resolution order** (decided with Mitchell, 2026-09-18):
 // explicit coordinates → a geocoded address → a geocoded name → saved without
@@ -18,6 +20,18 @@ import { consumeQuota, geocodeQuota, type QuotaDecision } from "@/server/quota";
 // only adds lat/lng and fills country/city/area the caller left empty.
 // `precision` stays absent (= unknown): nothing here checks what granularity
 // the vendor's point describes.
+
+/**
+ * What a lookup for this trip is biased with: the box around its located stops
+ * (`tripRegionOf`) and the countries they are in (`tripCountriesOf`). A name
+ * lookup with no `countryCode` of its own is restricted to `countries`
+ * (Mitchell, 2026-09-30); both are empty on a trip with nothing located yet.
+ */
+export interface ResolveContext {
+  userId: string;
+  region: BoundingBox | null;
+  countries?: readonly string[];
+}
 
 export interface LocationResolution {
   location: Location;
@@ -66,7 +80,7 @@ export const GEOCODE_OUTCOME_END_DOC =
  */
 export async function resolveStopPlaces<T extends { location?: Location | null; endLocation?: Location | null }>(
   stop: T,
-  ctx: { userId: string; region: BoundingBox | null },
+  ctx: ResolveContext,
   responseHeaders: Headers,
   deps: ResolveDeps = defaultResolveDeps,
 ): Promise<T> {
@@ -89,7 +103,7 @@ export async function resolveStopPlaces<T extends { location?: Location | null; 
 
 export async function resolveStopLocation(
   input: Location,
-  ctx: { userId: string; region: BoundingBox | null },
+  ctx: ResolveContext,
   deps: ResolveDeps = defaultResolveDeps,
 ): Promise<LocationResolution> {
   if (input.lat !== undefined) return { location: input, outcome: "provided" };
@@ -113,7 +127,7 @@ export async function resolveStopLocation(
       : await geocoder.forward(input.name, {
           limit: 1,
           ...(ctx.region ? { viewbox: ctx.region } : {}),
-          ...(input.countryCode ? { countryCode: input.countryCode } : {}),
+          ...countryFilterFor(input.countryCode, ctx.countries ?? []),
         });
   } catch {
     return { location: input, outcome: "unavailable" };
@@ -133,5 +147,39 @@ export async function resolveStopLocation(
       ...(area ? { area } : {}),
     },
     outcome,
+  };
+}
+
+/** What a v1 lookup answers when the geocoder is down or unconfigured: ours, and temporary. */
+export const GEOCODE_UNAVAILABLE = "Geocoding is unavailable. Try again shortly.";
+
+/**
+ * The v1 refusal for a quota charge that did not allow a lookup: `503` when the
+ * counter store itself failed (it fails closed), else `429` with `Retry-After`.
+ * `null` when the lookup may go ahead. `message` says whose allowance ran out,
+ * because the place search has two — the token's and the account's.
+ */
+export function lookupRefusal(decision: QuotaDecision, responseHeaders: Headers, message: string): PublicApiError | null {
+  if (decision.allowed) return null;
+  if (decision.reason === "unavailable") return new PublicApiError(503, GEOCODE_UNAVAILABLE, "service-unavailable");
+  responseHeaders.set("Retry-After", String(decision.retryAfterSeconds));
+  return new PublicApiError(429, message, "rate-limited");
+}
+
+/**
+ * A vendor result as a candidate `Location` — complete, so a caller can send it
+ * back as a stop's `location` unchanged and that write costs no second lookup.
+ */
+export function candidateLocation(result: GeocodeResult): Location {
+  return {
+    // A vendor's full label routinely runs past `Location.name`'s 200, and an
+    // over-long name fails the response schema on the way out — i.e. a 500 for
+    // a lookup that actually worked.
+    name: result.canonicalName.slice(0, 200),
+    lat: result.lat,
+    lng: result.lng,
+    ...(result.countryCode ? { countryCode: result.countryCode } : {}),
+    ...(result.city ? { city: result.city } : {}),
+    ...(result.area ? { area: result.area } : {}),
   };
 }

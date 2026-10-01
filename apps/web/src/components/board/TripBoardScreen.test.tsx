@@ -11,7 +11,7 @@ import { TripProvider } from "@/components/trip/context/TripProvider";
 import { EditorHost, useEditor } from "@/components/trip/context/EditorHost";
 import { FocusProvider } from "@/components/trip/context/FocusProvider";
 import { LensRouter } from "@/components/trip/context/LensRouter";
-import { costedTripDetailFixture, historyFixture, tripDetailFixture } from "@tc/factories";
+import { activityFactory, costedTripDetailFixture, historyFixture, locationFactory, tripDetailFixture } from "@tc/factories";
 import { makeTripHandlers, makeAccountPlanHandler } from "@/mocks/handlers";
 import { setViewportMatches, triggerResize } from "../../../vitest.setup";
 
@@ -1630,6 +1630,31 @@ describe("TripBoardScreen — a day's untimed stops", () => {
       true,
       false,
     ]);
+  });
+
+  // Mitchell, 2026-09-30 (option "B"): a leg's destination shows wherever the
+  // stop does. The badge already says the mode; the area line says where.
+  it("names a parked leg by both its ends", async () => {
+    const fixture = trip();
+    fixture.activities[PARKED] = activityFactory.build({
+      activityId: PARKED,
+      title: "Shinkansen",
+      timeWindow: null,
+      kind: "transit",
+      mode: "train",
+      location: locationFactory.build({ name: "Odawara Station, Odawara, Japan", city: "Odawara", area: "Odawara" }),
+      endLocation: locationFactory.build({ name: "Kyoto Station, Shimogyō, Kyoto, Japan", city: "Kyoto", area: "Shimogyō" }),
+    });
+    server.use(...makeTripHandlers(fixture));
+    renderScreen(fixture.tripId);
+
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+    const rack = screen.getByTestId("unscheduled-rack");
+    fireEvent.click(within(rack).getByRole("button", { name: /^Unscheduled/ }));
+    const card = within(rack).getAllByTestId("rack-card")[0]!;
+    expect(within(card).getByText("Shinkansen")).toBeTruthy();
+    expect(within(card).getByText("Train")).toBeTruthy();
+    expect(within(card).getByText("Odawara → Kyoto")).toBeTruthy();
   });
 
   it("gives one a time on its own day from Add to day, without moving it", async () => {

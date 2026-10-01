@@ -13,7 +13,7 @@ afterEach(() => {
 const day = (over: Partial<MapDay> = {}): MapDay => ({
   index: 0, dayId: "d1", label: "Day 1", date: "2026-09-05", city: "Rochester",
   accent: "warning", stops: [], unlocatedCount: 0, totalKm: 4.2,
-  bars: [{ grow: 1, color: "warning" }], isEmpty: false, flagText: null, longest: null, ...over,
+  bars: [{ grow: 1, color: "warning" }], isEmpty: false, flagText: null, longest: null, legs: [], ...over,
 });
 
 describe("MapRail", () => {

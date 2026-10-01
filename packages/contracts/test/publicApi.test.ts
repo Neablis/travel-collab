@@ -42,10 +42,11 @@ const CODE = (() => {
 })();
 
 describe("ApiScope", () => {
-  it("names the eight scopes, including the one plain language found", () => {
+  it("names the nine scopes, including the one plain language found", () => {
     // `sharing:write` is the eighth. The seven-scope draft let `trips:write`
     // create an invite — an ordinary table write against a trip — so a token
     // minted to sync an itinerary could have handed a stranger editor rights.
+    // `places:read` is the ninth (2026-09-30): the tripless place search.
     expect(API_SCOPES).toEqual([
       "trips:read",
       "trips:write",
@@ -55,6 +56,7 @@ describe("ApiScope", () => {
       "library:write",
       "sharing:write",
       "account:read",
+      "places:read",
     ]);
   });
 
@@ -114,7 +116,7 @@ describe("ApiScope", () => {
 });
 
 describe("SCOPE_CATALOGUE", () => {
-  // The exhaustive `Record` is the mechanism: a ninth scope fails to COMPILE
+  // The exhaustive `Record` is the mechanism: a new scope fails to COMPILE
   // until somebody writes the sentence a person reads when granting it. This
   // test covers what the type cannot — that the sentences are real sentences.
   it("describes every scope, in words a person could act on", () => {
