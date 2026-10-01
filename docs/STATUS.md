@@ -21,13 +21,15 @@ general setup.
 
 ## Where the work is right now
 
-**M14 — RICH LAYER — IS THE CURRENT MILESTONE AS OF 2026-09-26**, by **M28's
-gate closing at 9 of 9**. Order:
-`M17 ✓ → M9 [built 2026-09-16, paused — gate needs a live model call] → M20 ✓ → M21 ✓ → M22 ✓ → M25 ✓ → M23 ✓ → M26 ✓ → M13 ✓ → M27 ✓ → M12 ✓ → M24 ✓ → M28 ✓ → M14 → M19`.
-M14's code is already merged (built ahead of M24 on 2026-09-24). Its gate is
-at 20 of 22, and the two open boxes need a person, not code (next section).
+**M19 — A COST KNOWS WHO AND WHAT IT IS FOR — IS THE CURRENT MILESTONE AS OF
+2026-10-01**, by **M14's gate closing at 22 of 22**. Order:
+`M17 ✓ → M9 [built 2026-09-16, paused — gate needs a live model call] → M20 ✓ → M21 ✓ → M22 ✓ → M25 ✓ → M23 ✓ → M26 ✓ → M13 ✓ → M27 ✓ → M12 ✓ → M24 ✓ → M28 ✓ → M14 ✓ → M19`.
+M19 is **placed but not scoped**. Its exit gate is unwritten, and link 1 (a cost's kind)
+has already shipped outside it (2026-09-26). The first piece of work is writing the gate
+for links 2-5. `KI-20260905-o` (activity fields enumerated by hand) is still open, and
+link 2 adds an activity field.
 
-**Two more milestones are built beside M14, not current, and not in `TODO.md`'s
+**Two more milestones are built beside the current one, not current, and not in `TODO.md`'s
 order** (placing them is Mitchell's call). **M29 — The time river**: all four
 parts merged by 2026-09-26 (#242, #244, #245, #243). Its gate is 17 of 20 (five boxes came with #251's phone part) after
 the 2026-09-27 reconciliation and the `m29-kind-control.spec.ts` walks. What is
@@ -46,127 +48,16 @@ M24 shipped as #229, #230, #232 and #233. Its retro is at the end of
 `KI-2026-09-25-q` (surfaces that read a stop's city directly, first a shared
 helper and then a start-vs-end decision per surface).
 
-## MERGED 2026-09-24 — M14 Rich layer, pulled ahead of M24; gate 20 of 22
+## CLOSED 2026-10-01 — M14 Rich layer, pulled ahead of M24; gate 22 of 22
 
 Mitchell's call, 2026-09-24: build all of M14 ahead of M24. It shipped as four
-stacked PRs: #222 → #223 → #226 → #221. **The gate is not closed.** On
+stacked PRs: #222 → #223 → #226 → #221. **The gate closed 2026-10-01.** On
 2026-09-27 Mitchell settled the insert Sheet box (a fixed sample preview, as
-ADR-037 says) and accepted the six widgets on their e2e and ADR-052 as built. What is left:
-
-1. **The real-service weather walk.** Partly walked 2026-09-27 (the box says
-   what). KI-2026-09-27-b (NASA extremes read as averages) is fixed; walk step 3
-   again.
-2. **The milestone retro, appended at gate close.**
-   `docs/retros/2026-09-24-m14-stacked-prs-retro.md` is the *process* retro.
-
-**Operator items: both done** (verified 2026-09-27, three days after this file
-last called them outstanding). Production has `0000`-`0031` (runs #29/#30), and
-`EXTERNAL_DATA_CONTACT` is set for all three Vercel targets. Migration state is
-now `pnpm state`'s computed `PROD MIGRATIONS` line; don't restate it here.
-
-Branches cut from `main` before #221 still carry the part-3 version of
-`m14-notebook-widgets.spec.ts` *"a sentence inserted mid-sentence…"*. That
-version fails about 3 times in 20: it types into a repeat node view before
-React has mounted its editable line, and loses the first keystrokes. Merge
-`main` into those branches; `main`'s version passed 20 of 20. Known carriers
-are `claude/optimistic-shannon-tce4t8` and `claude/ecstatic-villani-13d488`.
-The mechanism is in `docs/guidelines/testing.md` § *Copy these → E2E*.
-
-## Live rules that the code cannot enforce
-
-Three standing facts, kept here because each is instruction rather than history and
-nothing in CI will tell you when one is broken. The narrative each came from is in
-`docs/retros/2026-09-11-status-archive.md`.
-
-- **Merging does not apply a migration.**
-  `gh workflow run migrate-production.yml -f confirm=migrate`, from `main`, is the only thing
-  that applies one. Whether production is current is **computed, not written here**: `pnpm
-  state`'s `PROD MIGRATIONS` line, or the row count of `drizzle.__drizzle_migrations` on the
-  production branch against `apps/web/drizzle/meta/_journal.json`. *(This entry said
-  "Production is at `0020`" for two weeks after `0021`-`0031` shipped; the one before it said
-  `0018` was NOT applied after it was. A number in this file is a snapshot. The rule
-  outlived three of them.)* Runbook:
-  `docs/guidelines/content-bundles.md` for what `0018` unblocks (`--prune` against a bundle
-  that has stopped declaring content).
-- **The `ai-live` flag's dashboard fallthrough stays "Simulated" until release, then flips
-  to "Live"** — ADR-019's **2026-09-13 amendment**, which reverses the 2026-09-08 rule that
-  it must stay Simulated forever. Until the flip the old reasoning holds exactly: targeting
-  only ever *widens*, a caller no rule matches falls through to the default, and that default
-  is the only thing keeping anyone off. **The flip is safe only after M20's entitlement gate
-  is live in production** — `selectAiModel` checks entitlement *before* the flag
-  (`modelSelection.ts:215-218`), so a paid-account check becomes the spend control and the
-  flag goes back to being an emergency disable. Flipping it early leaves an interval with no
-  spend control at all. **That precondition was met 2026-09-14**: the gate is live in
-  production and migrated, so the flip is now a decision rather than a dependency — and
-  Mitchell's, not a session's. Note what it would expose today: every account that predates
-  0019 holds a permanent `founder` grant, so the spend control binds on new accounts and not
-  on those. After the flip, keep Production's rule list empty: a widening rule
-  would make *the rule* load-bearing, and disabling in a hurry must stay one action. It lives
-  in the Vercel dashboard and no test can assert any of it.
-- **e2e refuses to start unless `AI_LIVE=false`.** `/api/health/ai-mode` reports
-  `{ live, source }` and `e2e/global.setup.ts` requires `source: "env"` — an anonymous
-  `live: false` from a *targetable* flag stopped being evidence about the signed-in user the
-  specs sign in as, which had quietly broken what KI-25 bought. `.env.example` ships it; CI
-  sets it in the workflow env.
-
-## Blocking / broken right now
-
-**Promoted out of the 2026-09-20 handoff on 2026-09-21.** These were live
-inside a section that was 69% of this file, where nothing looks for a blocker.
-
-* **Coordinates.** `KI-2026-09-20-d`. Every derivation above needs `lat`/`lng`
-  and the seed has three. The gateway blocks the geocoder (403 to `CONNECT
-  nominatim.openstreetmap.org:443`), so this cannot be closed from a cloud
-  session. Two routes that do not need one: lift coordinates from the 19
-  already-geocoded bundles under `content/` where the places overlap (Mexico
-  City, Glen Coe, New York are plausible — CHECK, do not assume), or run the
-  geocoder from a laptop per `docs/guidelines/content-bundles.md`.
-* **The preview's database.** It has never had `content:import` run and is not
-  reseeded by a deploy, so seed-side work stays invisible there until somebody
-  with the credential reseeds it. Mitchell knows; it is his to do.
-
-**1. The Map lens's tiles have still never been confirmed to paint.** KI-49,
-the cloud-session half, is resolved (2026-09-24). The e2e suite no longer fetches
-tiles at all: it serves a background-only fixture style at the real URL and
-asserts that no request left for a third party. So the e2e suite never renders a
-real basemap, by design. Confirming real tiles is now a written manual check on a
-preview: `docs/guidelines/third-party-services-on-a-preview.md` → *Map tiles*.
-The pixel caveat still holds. The WebGL canvas has captured blank in the
-screenshot pipeline, so look at the page, not the capture. A blank canvas is not
-a pass.
-
-**A preview deployment is walkable from a cloud session, and the CSP defect that
-found is fixed.** `pnpm --filter web walk:preview <url> [path ...]` —
-`docs/guidelines/cloud-agent-sessions.md` carries the diagnosis, and that file's
-old "the preview is NOT reachable from here" paragraph is gone; it was wrong and
-it cost several runs. Three obstacles stacked: Deployment Protection, Chromium
-not trusting the egress CA, and a TLS 1.3 ClientHello the `*.vercel.app` tunnel
-cannot carry.
-
-What the walk found is the point: **the CSP refused the Vercel Toolbar's loader
-on every preview page**, which breaks the Flags Explorer — the documented way to
-flip `ai-live` for one reviewer's session. M11's gate saw the same refusal and
-filed it as harmless preview noise; it was not. The policy now admits the
-Toolbar's origins on preview only, gated on `VERCEL_ENV`, with a test asserting
-production's policy is untouched.
-
-**One thing is still Mitchell's to do, and nothing unattended can test a preview
-until it is done:** generate **Protection Bypass for Automation** (Vercel → the
-project → Settings → Deployment Protection) and copy the value into a
-`VERCEL_AUTOMATION_BYPASS_SECRET` repo secret.
-
-**The `_vercel_share` fallback was tested on 2026-08-30 and is not a substitute
-— tried while looking for M18b's gate evidence.** A freshly minted link gets
-*past* Deployment Protection and is then stopped by `429 Vercel Security
-Checkpoint` at the redeem step, twice, five minutes apart, before any app
-response. That is Vercel's anti-bot interstitial challenging the client —
-headless Chromium on a datacenter IP — not rate limiting and not the protection
-layer. It suits a person in a browser; it does not reliably suit the automated
-walk. The bypass secret is honoured before the checkpoint renders, which is why
-it is the only dependable route. `docs/guidelines/cloud-agent-sessions.md`
-carries the detail. Treat the secret like `FLAGS_SECRET`:
-it unlocks every protected deployment this project has.
-
+ADR-037 says) and accepted the six widgets on their e2e and ADR-052 as built. On
+2026-10-01 he attested the real-service weather walk. The retro is at the end of
+`docs/milestones/M14-rich-layer.md`. `docs/retros/2026-09-24-m14-stacked-prs-retro.md`
+is the *process* retro. The route map block is unblocked by M24 but unbuilt and
+unowned.
 **Not blocking:** KI-15 stays downgraded — the silent-corruption half (an
 unbiased top match overwriting correct model coordinates; rate-limit failures
 swallowed into coordinate-less locations) is fixed. The remaining architectural
@@ -174,13 +65,12 @@ half, the model guessing a coordinate rather than citing one, is M9 scope.
 
 ## Next action
 
-**Close M14's gate** — 20 of 22. The two open boxes are under *MERGED
-2026-09-24* above: the real-service weather walk (step 3 again;
-`KI-2026-09-27-b` is fixed) and the retro. After M14, `TODO.md`'s next row is
-M19. M29 and M30 are built beside it and wait on Mitchell's Overview read and
-a place in the order.
+**Write M19's exit gate.** M19 is current and placed but not scoped. Link 1 shipped on
+2026-09-26, so the gate covers links 2-5: settled vs estimate, who an activity is for,
+splits, and the shared-day presentation. M29 and M30 are built beside it. They wait on
+Mitchell's Overview read, M29's whole-suite box, and a place in the order.
 
-**Carried out of M24, not gating M14:** `KI-2026-09-25-q`. About a dozen
+**Carried out of M24, not gating:** `KI-2026-09-25-q`. About a dozen
 surfaces read `activity.location.city` directly, including the M14 ones this
 section used to list (`placeOfDay`, weather, `select.ts`). Each still reads a
 travel leg's origin by default. The KI's first step adds one activity-level

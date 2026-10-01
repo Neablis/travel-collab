@@ -1,6 +1,8 @@
 # M19 — A cost knows who and what it is for
 
-**Status:** Approved and placed 2026-08-31 by Mitchell. **Runs last**, after
+**Status:** **Current milestone from 2026-10-01**, by M14's gate closing. Still
+**placed but not scoped**: write the exit gate first (see *Exit gate*).
+Approved and placed 2026-08-31 by Mitchell. **Runs last**, after
 M9: `M11a → M11b → M17 → M12 → M13 → M14 → M9 → M19`.
 
 Last is a real position rather than a shrug. Link 3 (who an activity is for)
