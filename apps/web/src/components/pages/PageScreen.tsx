@@ -445,6 +445,9 @@ export function PageScreen({
   // since it was typed: from an earlier visit, or `refused` by the server just
   // now. Offered, never applied unasked.
   const [offeredDraft, setOfferedDraft] = useState<(PageDraft & { refused?: boolean }) | null>(null);
+  // A draft the load found, held until the role is known (Copilot, PR #280).
+  // See the effect after `restoreDraft`.
+  const heldDraft = useRef<PageDraft | null>(null);
   // The edit session, for the load effect below, which is declared before it.
   const sessionRef = useRef<{ change: (doc: PageDoc) => void; flush: () => void } | null>(null);
 
@@ -488,19 +491,11 @@ export function PageScreen({
         forgetPageDraft(pageId);
         draft = null;
       }
-      if (draft !== null && draft.base === loaded.updatedAt) {
-        // Nobody has written since it was typed, so it IS the newest version:
-        // open on it and send it, as the session it came from would have.
-        setPage({ ...loaded, content: draft.doc });
-        setStored(inspectStoredPageDoc(draft.doc));
-        latestDocRef.current = draft.doc;
-        sessionRef.current?.change(draft.doc);
-        sessionRef.current?.flush();
-      } else {
-        if (draft !== null) setOfferedDraft(draft);
-        setPage(loaded);
-        setStored(inspected);
-      }
+      // What to DO with it waits for the role — see `heldDraft`. The page
+      // opens on what the server holds meanwhile.
+      heldDraft.current = draft;
+      setPage(loaded);
+      setStored(inspected);
       setTrip(tripResult.value);
       setStatus("ready");
     });
@@ -669,6 +664,31 @@ export function PageScreen({
     session.change(draft.doc);
     session.flush();
   };
+  // **A draft is replayed only for someone who may still edit** (Copilot,
+  // PR #280). It used to be applied the moment the page loaded, role unasked —
+  // so a reader made a viewer since they typed it sent a PATCH (refused) and
+  // was shown words the page does not hold.
+  //
+  // Held until `editRole` lands, then:
+  // - `viewer`: neither applied nor offered, and LEFT in storage. A draft is
+  //   left by an editing session, so its holder was an editor when they typed
+  //   it; the role can be given back, and deleting unsaved words on a role
+  //   read is the one step here that cannot be undone.
+  // - anyone else, `unknown` included (the Edit toggle's rule, so an editor's
+  //   draft is not lost to a failed read): nobody has written since it was
+  //   typed, so it IS the newest version — open on it and send it, as the
+  //   session it came from would have; otherwise offer it, never apply it.
+  // - `pending`: nothing yet, so a read that never answers writes nothing.
+  useEffect(() => {
+    if (status !== "ready" || editRole === "pending" || heldDraft.current === null) return;
+    const draft = heldDraft.current;
+    heldDraft.current = null;
+    if (editRole === "viewer") return;
+    if (draft.base === baseRef.current) restoreDraft(draft);
+    else setOfferedDraft(draft);
+    // `restoreDraft` is recreated every render and reads only refs and setters.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, editRole]);
   const discardDraft = () => {
     setOfferedDraft(null);
     forgetPageDraft(pageId);
@@ -1308,10 +1328,12 @@ export function PageScreen({
           Couldn&apos;t save your latest changes. They&apos;re still here, and saving will be tried again.
         </Banner>
       ) : null}
-      {/* Not to a viewer: "Restore mine" is a save, and a draft a viewer holds
-          is one left from when they could edit — offering it would be a
-          button whose only answer is a 403. */}
-      {offeredDraft !== null && editRole !== "viewer" ? (
+      {/* Only once the role is known and is not viewer — the Edit toggle's
+          rule, `pending` included: "Restore mine" is a save, and a draft a
+          viewer holds is one left from when they could edit. The load effect
+          already declines to offer a viewer one; this covers the moment
+          before `editRole` lands and any offer made later (a refused save). */}
+      {offeredDraft !== null && mayToggleEditing ? (
         <Banner
           variant="info"
           className="mb-3"

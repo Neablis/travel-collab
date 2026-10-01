@@ -1641,6 +1641,109 @@ describe("PageScreen — a draft kept in the browser", () => {
     expect(fetchSpy.mock.calls.filter(([, init]) => init?.method === "PATCH")).toEqual([]);
   });
 
+  // ── A draft meets a reader who may no longer edit (Copilot, PR #280) ──────
+  //
+  // A draft is left by an editing session, so a viewer holding one was an
+  // editor when it was typed. Replaying it would PATCH (refused) and show
+  // words the page does not hold; offering it would be a save control. So a
+  // viewer gets neither — and the draft is LEFT in storage: the role can be
+  // given back, and deleting someone's unsaved words on a role read is the
+  // one step here that cannot be undone.
+
+  /** `serve`, on a trip of its own whose access read this test controls. */
+  function serveAs(content: unknown, access: Parameters<typeof http.get>[1]) {
+    const trip = tripDetailFixture({ tripId: crypto.randomUUID() });
+    const page = pageFixture({ tripId: trip.tripId, content: content as never });
+    const onUpdate = vi.fn();
+    server.use(
+      http.get("/api/trips/:tripId/access", access),
+      ...makePagesHandlers([page], { onUpdate }),
+      http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })),
+    );
+    return { trip, page, onUpdate };
+  }
+  const answerAs = (myRole: "viewer" | "editor") => ({ params }: { params: Record<string, unknown> }) =>
+    HttpResponse.json({
+      access: {
+        tripId: params.tripId,
+        myRole,
+        members: [{ userId: "u1", role: myRole, name: null, email: null, image: null }],
+        invites: [],
+        collaboratorsEntitled: true,
+      },
+    });
+  const settle = () =>
+    act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+
+  it("neither applies nor sends a viewer's draft nobody has written over, and keeps it", async () => {
+    const { trip, page, onUpdate } = serveAs(paragraph("as stored"), answerAs("viewer"));
+    const kept = JSON.stringify({ base: page.updatedAt, doc: paragraph("from the draft") });
+    localStorage.setItem(draftKey(page.id), kept);
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+
+    await screen.findByRole("heading", { level: 1 });
+    await settle();
+    expect(screen.queryByText("from the draft")).toBeNull();
+    expect(onUpdate).not.toHaveBeenCalled();
+    expect(screen.getByText("as stored")).toBeTruthy();
+    expect(localStorage.getItem(draftKey(page.id))).toBe(kept);
+  });
+
+  it("never offers a viewer Restore mine, not even while the role is unknown", async () => {
+    let answer: () => void = () => undefined;
+    const answered = new Promise<void>((resolve) => {
+      answer = resolve;
+    });
+    const viewer = answerAs("viewer");
+    const { trip, page, onUpdate } = serveAs(paragraph("theirs"), async (info) => {
+      await answered;
+      return viewer(info);
+    });
+    localStorage.setItem(draftKey(page.id), JSON.stringify({ base: "2020-01-01T00:00:00.000Z", doc: paragraph("mine") }));
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+
+    // Pending: whether or not the page has painted yet, no offer.
+    await settle();
+    expect(screen.queryByTestId("page-draft-offer")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Restore mine" })).toBeNull();
+
+    answer();
+    expect(await screen.findByText("theirs")).toBeTruthy();
+    await settle();
+    expect(screen.queryByTestId("page-draft-offer")).toBeNull();
+    expect(onUpdate).not.toHaveBeenCalled();
+  });
+
+  // The editor paths, on a trip of their own so the role is genuinely read
+  // for them: unchanged — the matching draft is sent, the moved one offered.
+  it("still sends an editor's draft, and offers an editor the moved one", async () => {
+    const sent = serveAs(paragraph("as stored"), answerAs("editor"));
+    localStorage.setItem(draftKey(sent.page.id), JSON.stringify({ base: sent.page.updatedAt, doc: paragraph("from the draft") }));
+    render(<PageScreen tripId={sent.trip.tripId} pageId={sent.page.id} />);
+    expect(await screen.findByText("from the draft")).toBeTruthy();
+    await vi.waitFor(() => expect(sent.onUpdate).toHaveBeenCalledTimes(1));
+    cleanup();
+
+    const offered = serveAs(paragraph("theirs"), answerAs("editor"));
+    localStorage.setItem(draftKey(offered.page.id), JSON.stringify({ base: "2020-01-01T00:00:00.000Z", doc: paragraph("mine") }));
+    render(<PageScreen tripId={offered.trip.tripId} pageId={offered.page.id} />);
+    expect(within(await screen.findByTestId("page-draft-offer")).getByRole("button", { name: "Restore mine" })).toBeTruthy();
+  });
+
+  // A role read that fails is not "viewer" — the rule the Edit toggle follows —
+  // so an editor's draft is not lost to a network blip.
+  it("sends the draft when the role cannot be read", async () => {
+    const { trip, page, onUpdate } = serveAs(paragraph("as stored"), () =>
+      HttpResponse.json({ error: "boom" }, { status: 500 }),
+    );
+    localStorage.setItem(draftKey(page.id), JSON.stringify({ base: page.updatedAt, doc: paragraph("from the draft") }));
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    expect(await screen.findByText("from the draft")).toBeTruthy();
+    await vi.waitFor(() => expect(onUpdate).toHaveBeenCalledTimes(1));
+  });
+
   // ── The stale-save guard (CodeRabbit, PR #222) ─────────────────────────────
   //
   // Every ordinary commit names the revision it was typed against, so that of
