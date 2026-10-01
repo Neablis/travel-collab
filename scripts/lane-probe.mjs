@@ -46,7 +46,8 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
-import { join } from "node:path";
+import { homedir } from "node:os";
+import { join, win32 } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const root = process.env.CLAUDE_PROJECT_DIR ?? process.cwd();
@@ -178,14 +179,35 @@ function probeDatabase() {
 }
 
 // --- probe 5: Playwright browser ------------------------------------------
-function probeBrowser() {
-  const envPath = process.env.PLAYWRIGHT_BROWSERS_PATH;
-  if (envPath && existsSync(envPath)) {
+// Playwright's default cache is per-platform, and only the platform's own
+// directory counts: this probe once knew the Linux path alone, so every Mac
+// with browsers installed was told "e2e cannot run here" — and a session
+// believed it and skipped a spec it had edited (2026-10-01).
+// This mirrors playwright-core 1.62.1's `defaultCacheDirectory`, which takes
+// the home directory from os.homedir(), not $HOME — so an unset variable is
+// not a missing cache.
+function playwrightCacheDir(env, platform, home) {
+  if (platform === "darwin") return join(home, "Library", "Caches", "ms-playwright");
+  if (platform === "win32") {
+    // win32.join so the answer is the same whichever OS computes it.
+    return win32.join(env.LOCALAPPDATA || win32.join(home, "AppData", "Local"), "ms-playwright");
+  }
+  return join(env.XDG_CACHE_HOME || join(home, ".cache"), "ms-playwright");
+}
+
+export function probeBrowser(
+  fs = { existsSync },
+  env = process.env,
+  platform = process.platform,
+  home = homedir(),
+) {
+  const envPath = env.PLAYWRIGHT_BROWSERS_PATH;
+  if (envPath && fs.existsSync(envPath)) {
     return { status: OK, note: `browsers at ${envPath}` };
   }
-  const home = process.env.HOME ?? "";
-  if (home && existsSync(join(home, ".cache", "ms-playwright"))) {
-    return { status: OK, note: "browsers in ~/.cache/ms-playwright" };
+  const cache = playwrightCacheDir(env, platform, home);
+  if (fs.existsSync(cache)) {
+    return { status: OK, note: `browsers at ${cache}` };
   }
   return {
     status: BLOCKED,
