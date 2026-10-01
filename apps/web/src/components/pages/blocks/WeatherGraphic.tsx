@@ -16,7 +16,7 @@ import { CITY_FILL, CITY_INK, CITY_OUTLINE, type CityAccents } from "../cityAcce
 // column takes what is left, and no row has a minimum width. The widths step
 // on the block's OWN width (a container query), not the viewport's: the same
 // widget sits in the notebook's column, the Overview and the phone. Under
-// `@md` the rain column is 56px, which has room for the value and not for its
+// `@md` the rain column is 64px, which has room for the value and not for its
 // bar — so the bar goes and the value stays.
 //
 // The bar's track is inset from its column by `TRACK`'s margin, which is the
@@ -24,7 +24,8 @@ import { CITY_FILL, CITY_INK, CITY_OUTLINE, type CityAccents } from "../cityAcce
 // sitting on the axis minimum would otherwise print over the label column.
 
 const LABEL = "w-24 shrink-0 @md:w-40";
-const RAIN = "w-14 shrink-0 @md:w-24";
+// 64px narrow: "12.10 mm" is eight mono characters, 58px at text-xs.
+const RAIN = "w-16 shrink-0 @md:w-24";
 const ROW = "flex w-full items-center gap-2 px-3 @md:gap-3 @md:px-4";
 // 40px a side: "-12°C" is five mono characters, 36px at text-xs, plus the gap.
 const TRACK = "relative mx-10 block h-5";
