@@ -18,6 +18,16 @@ import { createMappedTrip, stripOverhang, TWENTY_DAYS_IN_JAPAN } from "./helpers
 // The trip is seeded through the API rather than by clicking, for the reason
 // the mobile assistant spec seeds its own: the board's phone layout is not what
 // is under test here, and walking it would make every failure ambiguous.
+/**
+ * The notebook index's Overview row. Narrowed to links into `/pages/` because
+ * the phone tab bar has had an Overview tab of the same name since 2026-10-01,
+ * and before the index has rendered its rows that tab is the only match, so
+ * `.first()` alone clicked off to the trip's Overview view.
+ */
+function overviewRow(page: import("@playwright/test").Page) {
+  return page.getByRole("link", { name: /Overview/ }).and(page.locator('[href*="/pages/"]')).first();
+}
+
 async function openTripOverview(
   page: import("@playwright/test").Page,
   { bookedStop }: { bookedStop?: string } = {},
@@ -38,7 +48,7 @@ async function openTripOverview(
     expect(added.ok()).toBe(true);
   }
   await page.goto(`/trips/${tripId}/pages`);
-  await page.getByRole("link", { name: /Overview/ }).first().click();
+  await overviewRow(page).click();
   await expect(page.getByRole("heading", { name: "Overview", level: 1 })).toBeVisible();
   // §19: "Edit / Done editing is one button… There is no separate phone editor
   // screen — the editor is a mode of the page, exactly as on desktop."
@@ -282,7 +292,7 @@ test.describe("phone Notebook (SPEC §19)", () => {
     // And a fresh load opens in Reading, rather than the toggle merely having
     // been flipped in this session.
     await page.goto(`/trips/${tripId}/pages`);
-    await page.getByRole("link", { name: /Overview/ }).first().click();
+    await overviewRow(page).click();
     await expect(page.getByRole("button", { name: "Edit page" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Insert a widget" })).toBeHidden();
   });
@@ -343,9 +353,9 @@ test.describe("the phone's widget affordances have geometry (SPEC §26)", () => 
     // past on a page none of them narrows.
     //
     // By URL rather than by tab, and the witness is the page body rather than a
-    // heading: SPEC §10 hides the four-view strip below 768px — the phone's two
-    // in-trip destinations stand for it — so there is no "Overview" tab to
-    // click and no `h1` on this route (the notebook's own title lives one route
+    // heading: SPEC §10 hides the four-view strip below 768px (the phone tab
+    // bar has carried Overview since 2026-10-01, but the claim here is about
+    // the route, not how you got to it), and there is no `h1` on this route (the notebook's own title lives one route
     // down, on `/pages/:id`). A bare `/trips/:id` resolves to Overview, and
     // what it renders is the seeded page.
     await page.goto(`/trips/${tripId}`);
@@ -455,7 +465,7 @@ test.describe("the phone's widget affordances have geometry (SPEC §26)", () => 
   test("the trip strip fits a phone's width on a 20-day trip", async ({ page }) => {
     const tripId = await createMappedTrip(page, e2eTripName("PhoneStrip"), 20, { locations: TWENTY_DAYS_IN_JAPAN });
     await page.goto(`/trips/${tripId}/pages`);
-    await page.getByRole("link", { name: /Overview/ }).first().click();
+    await overviewRow(page).click();
     await expect(page.getByRole("heading", { name: "Overview", level: 1 })).toBeVisible();
     await page.getByRole("button", { name: "Edit page" }).click();
 
