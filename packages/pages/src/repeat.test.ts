@@ -194,7 +194,9 @@ describe("ItemScope — a widget in a template reads its item when it is not bou
     expect(renderMacro(ctx, "day.weather", {}, rome)).toMatchObject({
       status: "ok", rendered: { block: { rows: [{ city: "Rome" }, { city: "Rome" }] } },
     });
-    expect(renderMacro(ctx, "day.sun", {}, rome)).toMatchObject({ status: "ok", rendered: { rows: [{}, {}] } });
+    expect(renderMacro(ctx, "day.sun", {}, rome)).toMatchObject({
+      status: "ok", rendered: { block: { rows: [{ city: "Rome" }, { city: "Rome" }] } },
+    });
   });
 
   it("a stop item on a travel day reads its own city's weather, not both", () => {

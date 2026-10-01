@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { TripDetail, TripGlobals, UserPreferences } from "@tc/contracts";
 import { tripDetailFactory } from "@tc/factories";
 import { renderMacro } from "../../registry";
-import type { Rendered, WidgetContext } from "../../registry-types";
+import type { WidgetContext } from "../../registry-types";
+import type { SunPayload } from "../../sunPayload";
 import { readerOn } from "../../test-support/reader";
 
 // "Sunrise and sunset" and "Time difference from home" (M14 link 11). Both
@@ -11,7 +12,7 @@ import { readerOn } from "../../test-support/reader";
 
 const TOKYO = { lat: 35.6812, lng: 139.7671 };
 const REYKJAVIK = { lat: 64.1466, lng: -21.9426 };
-const TROMSO = { lat: 69.6492, lng: 18.9553 };
+const LONGYEARBYEN = { lat: 78.22, lng: 15.65 };
 
 type DaySpec = {
   date: string | null; city?: string; cities?: string[]; place?: { lat: number; lng: number }; placeCity?: string; zone?: string;
@@ -39,14 +40,12 @@ const contextOf = (
   user: UserPreferences | null = null,
 ): WidgetContext => ({ trip, page: { tripId: trip.tripId }, user, globals, today: null });
 
-const rowsOf = (rendered: Rendered) => {
-  if (rendered.kind !== "rows") throw new Error(`expected rows, got ${rendered.kind}`);
-  return rendered.rows.map((row) => [row.lead, ...row.cells].map((cell) => cell.map((seg) => seg.text).join(" ")));
-};
-const sun = (ctx: WidgetContext, params: Record<string, unknown> = {}) => {
+const sun = (ctx: WidgetContext, params: Record<string, unknown> = {}): SunPayload => {
   const outcome = renderMacro(ctx, "day.sun", params);
-  if (outcome.status !== "ok") throw new Error(`expected ok, got ${JSON.stringify(outcome)}`);
-  return rowsOf(outcome.rendered);
+  if (outcome.status !== "ok" || outcome.rendered.kind !== "block" || outcome.rendered.block.kind !== "sun") {
+    throw new Error(`expected a sun block, got ${JSON.stringify(outcome)}`);
+  }
+  return outcome.rendered.block;
 };
 const sentence = (ctx: WidgetContext, params: Record<string, unknown> = {}) => {
   const outcome = renderMacro(ctx, "day.fromHome", params);
@@ -61,14 +60,34 @@ describe("day.sun", () => {
       { date: "2026-06-21", city: "Reykjavik", place: REYKJAVIK, zone: "Atlantic/Reykjavik" },
       { date: "2026-06-23", city: "Kyoto" },
     ]);
+  const equinox = () => setup([{ date: "2026-03-20", city: "Tokyo", place: TOKYO, zone: "Asia/Tokyo" }]);
 
-  it("gives each located day its sunrise, sunset and golden hour in that day's local time", () => {
-    const [tokyo] = sun(contextOf(trip()));
-    expect(tokyo![0]).toBe("Day 1");
-    expect(tokyo![1]).toBe("Tokyo");
-    expect(tokyo![2]).toMatch(/^sunrise 4:2[4-7] am$/);
-    expect(tokyo![3]).toMatch(/^sunset (6:5[89] pm|7 pm|7:0[12] pm)$/);
-    expect(tokyo![4]).toMatch(/^golden hour 4:2\d am – 5(:0\d)? am and 6:2\d pm – (6:5\d pm|7 pm|7:0\d pm)$/);
+  // Also the stored-document guarantee: a `day.sun` node saved when the widget
+  // was a repeat carries `params: {}`, and the shape is the registry's, not the
+  // document's — so it reads as the graphic block with no migration.
+  it("is a block, the graphic unless the table is asked for", () => {
+    expect(sun(contextOf(trip()))).toMatchObject({ kind: "sun", view: "graphic", summary: "Sunrise and sunset for 2 days." });
+    expect(sun(contextOf(trip()), { view: "table" }).view).toBe("table");
+    expect(sun(contextOf(equinox())).summary).toBe("Sunrise and sunset for 1 day.");
+  });
+
+  it("gives each located day its sunrise, sunset and daylight in that day's local time", () => {
+    const [tokyo] = sun(contextOf(trip())).rows;
+    expect(tokyo).toMatchObject({ key: "0", label: "Day 1", city: "Tokyo", state: "normal" });
+    expect(tokyo!.sunrise).toMatch(/^4:2[4-7] am$/);
+    expect(tokyo!.sunriseMinute).toBeGreaterThanOrEqual(264);
+    expect(tokyo!.sunriseMinute).toBeLessThanOrEqual(267);
+    expect(tokyo!.sunset).toMatch(/^(6:5[89] pm|7 pm|7:0[12] pm)$/);
+    expect(tokyo!.daylight).toMatch(/^14h \d+m$/);
+  });
+
+  // The golden hour is drawn, not written: the payload says where it ends and
+  // starts, inside the day's light.
+  it("places the golden hours inside the daylight", () => {
+    const [tokyo] = sun(contextOf(trip())).rows;
+    expect(tokyo!.goldenMorningEndMinute).toBeGreaterThan(tokyo!.sunriseMinute!);
+    expect(tokyo!.goldenEveningStartMinute).toBeLessThan(tokyo!.sunsetMinute!);
+    expect(tokyo!.goldenMorningEndMinute).toBeLessThan(tokyo!.goldenEveningStartMinute!);
   });
 
   // CodeRabbit on #223: an earlier stop with a city and no coordinates put its
@@ -76,47 +95,74 @@ describe("day.sun", () => {
   it("names the sunrise by the stop that located the day, not the day's first city", () => {
     const [row] = sun(contextOf(setup([
       { date: "2026-06-21", cities: ["Kyoto", "Tokyo"], place: TOKYO, placeCity: "Tokyo", zone: "Asia/Tokyo" },
-    ])));
-    expect(row![1]).toBe("Tokyo");
+    ]))).rows;
+    expect(row!.city).toBe("Tokyo");
   });
 
-  it("says so when a sunset falls after midnight, rather than printing it as the morning's", () => {
-    const [, reykjavik] = sun(contextOf(trip()));
-    expect(reykjavik![3]).toMatch(/^sunset 12(:0\d)? am \(next day\)$/);
+  // Reykjavik's June sunset is past midnight. It keeps its marker and its true
+  // minute, and the axis stops at the day's end: the ribbon clamps, the label
+  // does not.
+  it("says so when a sunset falls after midnight, and ends the axis at midnight", () => {
+    const payload = sun(contextOf(trip()));
+    const reykjavik = payload.rows[1]!;
+    expect(reykjavik.sunset).toMatch(/^12(:0\d)? am \(next day\)$/);
+    expect(reykjavik.sunsetMinute).toBeGreaterThan(1440);
+    expect(payload.axis.endMinute).toBe(1440);
+    expect(payload.axis.startMinute).toBeLessThan(300);
+  });
+
+  it("keeps the base axis, 5 am to 6 pm, for a day that fits inside it", () => {
+    const { axis } = sun(contextOf(equinox()));
+    expect(axis).toMatchObject({ startMinute: 300, endMinute: 1080 });
+    expect(axis.ticks).toEqual([
+      { minute: 360, label: "6a" }, { minute: 540, label: "9a" }, { minute: 720, label: "noon" },
+      { minute: 900, label: "3p" }, { minute: 1080, label: "6p" },
+    ]);
   });
 
   // The reader's clock, not the design's: a 24-hour reader gets "04:25", and
   // Reykjavik's after-midnight sunset keeps its marker in either format.
-  it("prints the sun's times on the reader's 24-hour clock when that is their setting", () => {
-    const [tokyo, reykjavik] = sun(contextOf(trip(), readerOn("24h")));
-    expect(tokyo![2]).toMatch(/^sunrise 04:2[4-7]$/);
-    expect(tokyo![3]).toMatch(/^sunset (18:5[89]|19:0[0-2])$/);
-    expect(reykjavik![3]).toMatch(/^sunset 00:0\d \(next day\)$/);
+  it("prints the sun's times and the axis on the reader's 24-hour clock when that is their setting", () => {
+    const payload = sun(contextOf(trip(), readerOn("24h")));
+    const [tokyo, reykjavik] = payload.rows;
+    expect(tokyo!.sunrise).toMatch(/^04:2[4-7]$/);
+    expect(tokyo!.sunset).toMatch(/^(18:5[89]|19:0[0-2])$/);
+    expect(reykjavik!.sunset).toMatch(/^00:0\d \(next day\)$/);
+    expect(payload.axis.ticks.map((tick) => tick.label)).toContain("06:00");
   });
 
   // West of 180° on UTC+13: the day's own sun, never the next day's marked
   // "(next day)" (#223 review). SunCalc: 06:11 / 19:02.
   it("gives Apia that day's sunrise, not the next morning's", () => {
     const apia = setup([{ date: "2027-01-15", city: "Apia", place: { lat: -13.8333, lng: -171.7667 }, zone: "Pacific/Apia" }]);
-    const [row] = sun(contextOf(apia));
-    expect(row![2]).toMatch(/^sunrise 6:(09|1[0-3]) am$/);
-    expect(row![3]).toMatch(/^sunset (7 pm|7:0[1-4] pm)$/);
+    const [row] = sun(contextOf(apia)).rows;
+    expect(row!.sunrise).toMatch(/^6:(09|1[0-3]) am$/);
+    expect(row!.sunset).toMatch(/^(7 pm|7:0[1-4] pm)$/);
   });
 
   it("leaves out a day with no located stop, and is empty when that is every day", () => {
-    expect(sun(contextOf(trip())).map((row) => row[0])).toEqual(["Day 1", "Day 2"]);
+    expect(sun(contextOf(trip())).rows.map((row) => row.label)).toEqual(["Day 1", "Day 2"]);
     const outcome = renderMacro(contextOf(trip()), "day.sun", { day: { kind: "index", index: 2 } });
-    expect(outcome.status).toBe("empty");
+    expect(outcome).toMatchObject({ status: "empty" });
+    expect(outcome).not.toHaveProperty("because");
   });
 
   it("says the sun does not set under the midnight sun, and does not rise in the polar night", () => {
     const polar = setup([
-      { date: "2026-06-21", city: "Tromsø", place: TROMSO, zone: "Europe/Oslo" },
-      { date: "2026-12-21", city: "Tromsø", place: TROMSO, zone: "Europe/Oslo" },
+      { date: "2026-06-21", city: "Longyearbyen", place: LONGYEARBYEN, zone: "Arctic/Longyearbyen" },
+      { date: "2026-12-21", city: "Longyearbyen", place: LONGYEARBYEN, zone: "Arctic/Longyearbyen" },
     ]);
-    const [june, december] = sun(contextOf(polar));
-    expect(june!.slice(2, 4)).toEqual(["sun up all day", ""]);
-    expect(december!.slice(2)).toEqual(["sun down all day", "", ""]);
+    const NO_TIMES = { sunriseMinute: null, sunsetMinute: null, sunrise: null, sunset: null };
+    const payload = sun(contextOf(polar));
+    expect(payload.rows).toMatchObject([
+      { state: "up-all-day", daylight: "24h", ...NO_TIMES },
+      { state: "down-all-day", daylight: "0h", ...NO_TIMES, goldenMorningEndMinute: null, goldenEveningStartMinute: null },
+    ]);
+    // A sun that is up all day needs the whole day to be drawn across.
+    expect(payload.axis).toMatchObject({ startMinute: 0, endMinute: 1440 });
+    expect(payload.axis.ticks.map((tick) => tick.label)).toEqual([
+      "midnight", "3a", "6a", "9a", "noon", "3p", "6p", "9p", "midnight",
+    ]);
   });
 
   it("asks for dates when the located days have none", () => {
