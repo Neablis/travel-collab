@@ -46,9 +46,16 @@ describe("PhoneTabBar", () => {
   // disabled. Both scopes asserted as a whole list rather than by membership —
   // a build that showed the trip three PLUS the account pair would satisfy any
   // "is Plan present" check, and the whole point of §22 is what is absent.
-  it("shows the trip's three views inside a trip, in order", () => {
+  // Overview joined the trip set on 2026-10-01 (Mitchell): without it a phone
+  // that tapped Plan or Map had no way back to the view a trip lands on.
+  it("shows the trip's views inside a trip, in order", () => {
     renderAt("/trips/t1");
-    expect(screen.getAllByRole("link").map((el) => el.textContent)).toEqual(["Plan", "Map", "Notebook"]);
+    expect(screen.getAllByRole("link").map((el) => el.textContent)).toEqual([
+      "Overview",
+      "Plan",
+      "Map",
+      "Notebook",
+    ]);
   });
 
   it("shows the account pair outside a trip, in order", () => {
@@ -69,8 +76,8 @@ describe("PhoneTabBar", () => {
     ["/playbooks/day/d1", "Playbooks"],
     ["/playbooks/board", "Trips"],
     ["/playbooks/profile/u1", "Trips"],
-    // A bare trip URL renders Overview (§24), which has no phone tab.
-    ["/trips/t1", null],
+    // A bare trip URL renders Overview (§24), so Overview is what it lights.
+    ["/trips/t1", "Overview"],
     ["/trips/t1?lens=Schedule&view=Timeline", "Plan"],
     ["/trips/t1?lens=Board", "Plan"],
     ["/trips/t1?lens=Map", "Map"],
@@ -82,10 +89,11 @@ describe("PhoneTabBar", () => {
     // tab the URL resolves to.
     ["/trips/t1?view=Map", "Map"],
     ["/trips/t1?view=Plan", "Plan"],
-    // Overview and Calendar have no tab of their own, so they light nothing.
-    // They used to light Plan, which marked a tab current whose link leads to
-    // a different screen than the one showing (KI-2026-09-24-l).
-    ["/trips/t1?view=Overview", null],
+    // Calendar has no tab of its own, so it lights nothing. It used to light
+    // Plan, which marked a tab current whose link leads to a different screen
+    // than the one showing (KI-2026-09-24-l). Overview was in the same row
+    // until it got a tab of its own (Mitchell, 2026-10-01).
+    ["/trips/t1?view=Overview", "Overview"],
     ["/trips/t1?view=Calendar", null],
     ["/trips/t1/pages", "Notebook"],
     ["/trips/t1/pages/p1", "Notebook"],
@@ -97,12 +105,12 @@ describe("PhoneTabBar", () => {
 
   // KI-2026-09-24-l, the invariant: `aria-current="page"` is on the tab of the
   // view that is ON SCREEN, or on none. A bare trip URL renders Overview
-  // (SPEC §24, "Entering a trip lands on Overview"), and the phone has no
-  // Overview tab — so nothing may be current. This bar used to light Plan
-  // there, while tapping Plan would have navigated AWAY to `?view=Plan`.
-  it("marks no tab current when a trip opens on Overview, which has no phone tab", () => {
+  // (SPEC §24, "Entering a trip lands on Overview"), so Overview is current —
+  // not Plan, which this bar used to light there while tapping it navigated
+  // AWAY to `?view=Plan`.
+  it("marks Overview current when a trip opens on Overview", () => {
     renderAt("/trips/t1");
-    expect(currentTab()).toBeNull();
+    expect(currentTab()).toBe("Overview");
   });
 
   // DRIFT build-check 4, as a test rather than a comment. No click, no
@@ -130,8 +138,9 @@ describe("PhoneTabBar", () => {
   // SettingsSheet.test.tsx:187 say the same) — read the DOM property.
   const hrefOf = (name: string) => screen.getByRole("link", { name }).getAttribute("href");
 
-  it("points Plan and Map at their views, and Notebook at the pages route", () => {
+  it("points Overview, Plan and Map at their views, and Notebook at the pages route", () => {
     renderAt("/trips/t1");
+    expect(hrefOf("Overview")).toBe("/trips/t1?view=Overview");
     expect(hrefOf("Plan")).toBe("/trips/t1?view=Plan");
     expect(hrefOf("Map")).toBe("/trips/t1?view=Map");
     expect(hrefOf("Notebook")).toBe("/trips/t1/pages");
@@ -208,7 +217,12 @@ describe("PhoneTabBar", () => {
       url = "/trips/t1?view=Plan";
       render(<PhoneTabBarFallback />);
 
-      expect(screen.getAllByRole("link").map((el) => el.textContent)).toEqual(["Plan", "Map", "Notebook"]);
+      expect(screen.getAllByRole("link").map((el) => el.textContent)).toEqual([
+        "Overview",
+        "Plan",
+        "Map",
+        "Notebook",
+      ]);
       expect(currentTab()).toBeNull();
     });
 
@@ -232,14 +246,16 @@ describe("PhoneTabBar", () => {
     // visitor with no account, which is a tab that leaves the demo.
     it("shows only the views the demo itself serves, linked to the demo", () => {
       renderAt("/demo");
-      expect(screen.getAllByRole("link").map((el) => el.textContent)).toEqual(["Plan", "Map"]);
+      expect(screen.getAllByRole("link").map((el) => el.textContent)).toEqual(["Overview", "Plan", "Map"]);
+      expect(hrefOf("Overview")).toBe("/demo?view=Overview");
       expect(hrefOf("Plan")).toBe("/demo?view=Plan");
       expect(hrefOf("Map")).toBe("/demo?view=Map");
     });
 
     it.each([
-      ["/demo", null],
-      ["/demo?view=Overview", null],
+      ["/demo", "Overview"],
+      ["/demo?view=Overview", "Overview"],
+      ["/demo?view=Calendar", null],
       ["/demo?view=Plan", "Plan"],
       ["/demo?view=Map", "Map"],
       ["/demo?lens=Map", "Map"],
@@ -248,10 +264,10 @@ describe("PhoneTabBar", () => {
       expect(currentTab()).toBe(expected);
     });
 
-    it("renders the same pair from the server-safe fallback, lighting nothing", () => {
+    it("renders the same set from the server-safe fallback, lighting nothing", () => {
       url = "/demo?view=Map";
       render(<PhoneTabBarFallback />);
-      expect(screen.getAllByRole("link").map((el) => el.textContent)).toEqual(["Plan", "Map"]);
+      expect(screen.getAllByRole("link").map((el) => el.textContent)).toEqual(["Overview", "Plan", "Map"]);
       expect(currentTab()).toBeNull();
     });
   });
@@ -259,7 +275,7 @@ describe("PhoneTabBar", () => {
   it("renders no control at all for the trip views outside a trip", () => {
     renderAt("/playbooks");
 
-    for (const label of ["Plan", "Map", "Notebook"]) {
+    for (const label of ["Overview", "Plan", "Map", "Notebook"]) {
       expect(screen.queryByRole("link", { name: label })).toBeNull();
       expect(screen.queryByRole("button", { name: new RegExp(`^${label}`) })).toBeNull();
     }

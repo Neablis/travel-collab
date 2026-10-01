@@ -81,11 +81,11 @@ export function DemoTripScreen() {
           </TripProvider>
         </Suspense>
       </PageContainer>
-      {/* The phone's only way to Plan and Map here: below 768px the board hides
-          its own view strip and leaves them to this bar. `(front)` has no bar
-          of its own, so the demo mounts the one `(app)/layout.tsx` does —
-          which scopes itself on `/demo` to Plan and Map, linked to the demo,
-          and offers nothing that needs an account. Its own Suspense boundary
+      {/* The phone's only way between the views here: below 768px the board
+          hides its own view strip and leaves them to this bar. `(front)` has no
+          bar of its own, so the demo mounts the one `(app)/layout.tsx` does —
+          which scopes itself on `/demo` to Overview, Plan and Map, linked to
+          the demo, and offers nothing that needs an account. Its own Suspense boundary
           and a real-bar fallback, for the reasons that layout records. */}
       <Suspense fallback={<PhoneTabBarFallback />}>
         <PhoneTabBar />

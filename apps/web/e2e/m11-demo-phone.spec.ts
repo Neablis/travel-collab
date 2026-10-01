@@ -26,7 +26,9 @@ test.describe("the demo trip on a phone", () => {
     await expect(bar).toBeVisible();
     // Only the views the demo serves. Notebook, Trips and Playbooks all lead
     // to signed-in routes, which for this visitor is a sign-in wall.
-    await expect(bar.getByRole("link")).toHaveText(["Plan", "Map"]);
+    await expect(bar.getByRole("link")).toHaveText(["Overview", "Plan", "Map"]);
+    // The demo lands on Overview (§24), and the bar says so.
+    await expect(bar.getByRole("link", { name: "Overview" })).toHaveAttribute("aria-current", "page");
 
     await bar.getByRole("link", { name: "Plan" }).click();
     await expect(page).toHaveURL(/\/demo\?view=Plan$/);
@@ -37,6 +39,16 @@ test.describe("the demo trip on a phone", () => {
     await expect(page).toHaveURL(/\/demo\?view=Map$/);
     await expect(page.getByTestId("map-lens")).toBeVisible();
     await expect(bar.getByRole("link", { name: "Map" })).toHaveAttribute("aria-current", "page");
+
+    // And back to where the demo opened — the tab Mitchell asked for on
+    // 2026-10-01. Without it the only way back off Map was the browser's Back.
+    // The witness is the Overview document's editor, the same one
+    // `m14-mobile-notebook` uses for a phone's Overview.
+    await bar.getByRole("link", { name: "Overview" }).click();
+    await expect(page).toHaveURL(/\/demo\?view=Overview$/);
+    await expect(page.locator(".tc-page-editor")).toBeVisible();
+    await expect(page.getByTestId("map-lens")).toHaveCount(0);
+    await expect(bar.getByRole("link", { name: "Overview" })).toHaveAttribute("aria-current", "page");
 
     // The bar is `position: fixed`, so the page has to reserve its height or
     // the board's last row ends up underneath it. Measured as rendered sizes —

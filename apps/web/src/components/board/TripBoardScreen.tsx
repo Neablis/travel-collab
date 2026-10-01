@@ -952,8 +952,9 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                   unpinned child squeezes instead of scrolling — which is the
                   failure mode this row is being changed to avoid. */}
               {/* `hidden md:block` — SPEC §10's "two views, not four" on the
-                  phone. Below 768px Plan and Map are PhoneTabBar's tabs, so
-                  this strip would duplicate them. It was also breaking this
+                  phone. Below 768px Overview, Plan and Map are PhoneTabBar's
+                  tabs (Overview since 2026-10-01), so this strip would
+                  duplicate them, plus a Calendar §10 keeps off the phone. It was also breaking this
                   row: four 26px tabs overflow a 390px screen far enough that
                   the "Notebooks" pill beside them sat 106px past the right
                   edge.
