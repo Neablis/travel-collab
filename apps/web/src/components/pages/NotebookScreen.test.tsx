@@ -81,8 +81,10 @@ const server = setupServer(
   // notebook ("Add missing default notebooks" is the owner's). An EDITOR by
   // default, so a suite written before the action sees the list it was
   // written against; the tests about the action set `accessRole`.
-  http.get("/api/trips/:tripId/access", ({ params }) => {
+  http.get("/api/trips/:tripId/access", async ({ params }) => {
     accessReads += 1;
+    // A test that needs the role PENDING holds the answer here until it lets go.
+    if (accessHeld) await accessHeld;
     return HttpResponse.json({
       access: {
         tripId: params.tripId,
@@ -96,6 +98,7 @@ const server = setupServer(
 );
 let accessRole: "owner" | "editor" | "viewer" = "editor";
 let accessReads = 0;
+let accessHeld: Promise<void> | null = null;
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 beforeEach(() => {
   pushMock.mockClear();
@@ -107,6 +110,7 @@ afterEach(() => {
   cleanup();
   accessRole = "editor";
   accessReads = 0;
+  accessHeld = null;
 });
 afterAll(() => server.close());
 
@@ -232,12 +236,22 @@ describe("NotebookScreen", () => {
   // the moment before the read lands.
   it("offers a viewer no Delete and no templates to start from", async () => {
     accessRole = "viewer";
+    let release: () => void = () => undefined;
+    accessHeld = new Promise<void>((resolve) => {
+      release = resolve;
+    });
     const page = pageFixture({ tripId: TRIP_ID, title: "Day Sheet" });
     server.use(...makePagesHandlers([page]));
 
     render(<NotebookScreen tripId={TRIP_ID} />);
     const list = await screen.findByRole("region", { name: "Your notebooks" });
     expect(await within(list).findByText("Day Sheet")).toBeTruthy();
+    // The list is up and the role is still unanswered: no write offered yet.
+    await waitFor(() => expect(accessReads).toBe(1));
+    expect(screen.queryByRole("button", { name: "Delete Day Sheet" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Start from a template" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Start from/ })).toBeNull();
+    release();
     // Join the read the component made, through the cache it made it with:
     // once that has answered, so has the component's, inside `act`.
     await act(async () => {

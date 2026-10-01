@@ -1704,8 +1704,8 @@ describe("PageScreen — a draft kept in the browser", () => {
     localStorage.setItem(draftKey(page.id), JSON.stringify({ base: "2020-01-01T00:00:00.000Z", doc: paragraph("mine") }));
     render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
 
-    // Pending: whether or not the page has painted yet, no offer.
-    await settle();
+    // The page is loaded and the role is still held: no offer.
+    expect(await screen.findByText("theirs")).toBeTruthy();
     expect(screen.queryByTestId("page-draft-offer")).toBeNull();
     expect(screen.queryByRole("button", { name: "Restore mine" })).toBeNull();
 
