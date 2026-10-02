@@ -170,7 +170,14 @@ function resultsSentence(data: DiscoverResponse): string {
 // instead (the effect below), so a reload or a copied link lands on the same
 // search.
 /** Discover: the public library, searched by place and narrowed by question. */
-export function DiscoverScreen({ initial = {} }: { initial?: Partial<DiscoverUrlState> }) {
+export function DiscoverScreen({
+  initial = {},
+  initialData,
+}: {
+  initial?: Partial<DiscoverUrlState>;
+  /** The server's answer to the URL's own search. Rendered without a first fetch. */
+  initialData?: DiscoverResponse;
+}) {
   const [filters, setFilters] = useState<Filters>({ ...NO_FILTERS, ...initial });
   const { cities, countries, sort, rating, budget, length } = filters;
   // **A reader with no account reads Everyone, whatever the URL says**
@@ -218,7 +225,7 @@ export function DiscoverScreen({ initial = {} }: { initial?: Partial<DiscoverUrl
     (value: DiscoverResponse) => value.days.map((d) => `${d.savedDayId}:${d.adds}`).join(","),
     [],
   );
-  const feed = useLibraryRead(read, signature);
+  const feed = useLibraryRead(read, signature, initialData);
 
   const set = <K extends keyof Filters>(key: K, value: Filters[K]) =>
     setFilters((prev) => ({ ...prev, [key]: value }));

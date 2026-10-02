@@ -2,6 +2,8 @@ import { DiscoverScreen } from "@/components/playbooks/DiscoverScreen";
 import { parseDiscoverUrl } from "@/components/playbooks/discoverUrl";
 import { linkPreviewMetadata } from "@/lib/linkPreview";
 import { playbooksPageMetadata } from "@/lib/playbooksPreview";
+import { auth } from "@/server/auth";
+import { discoverFor } from "@/server/playbooks";
 
 // Spec 2026-10-02 §2.7. A Discover link for exactly one city, and no country,
 // gets that city's card ("Kyoto playbooks"); any other search is not one
@@ -35,16 +37,24 @@ export async function generateMetadata({
 //
 // The query string seeds the search — `?city=` (a profile's "Knows" chip),
 // `?country=`, `?sort=`, `?rating=` and the rest. `discoverUrl.ts` owns the
-// spelling, and `DiscoverScreen` writes it back as the state changes.
+// spelling, and `DiscoverScreen` writes it back as the state changes. The
+// page also reads that search on the server (SEO pass, D5), so the HTML lists
+// the days rather than a skeleton.
 export default async function PlaybooksPage({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const initial = parseDiscoverUrl(await searchParams);
+  const session = await auth();
+  // The call `GET /api/playbooks` makes, with the URL's own filters and the
+  // budget band off (it is not in the URL), so this is exactly the answer the
+  // screen's first search would have fetched. A signed-out reader's scope is
+  // forced to Everyone inside `discoverFor`, as the screen does for itself.
+  const initialData = await discoverFor({ ...initial, budget: "any" }, session?.user?.id ?? null);
   return (
     <main className="mx-auto max-w-6xl px-6 py-8">
-      <DiscoverScreen initial={initial} />
+      <DiscoverScreen initial={initial} initialData={initialData} />
     </main>
   );
 }

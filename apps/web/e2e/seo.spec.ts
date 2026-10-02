@@ -237,3 +237,48 @@ test("a private day and an unknown one are the same 404 with the same body", asy
     await forget(page, savedDayId);
   }
 });
+
+test("Discover's HTML lists a published day without JavaScript", async ({ page, browser }) => {
+  test.slow();
+  const city = `Seoe2e${randomUUID().slice(0, 6)}`;
+  const name = `Listed day ${randomUUID().slice(0, 8)}`;
+  const savedDayId = await publishedDay(page, city, name);
+  try {
+    const visitor = await stranger(browser);
+    const html = await (await visitor.request.get(`/playbooks?city=${encodeURIComponent(city)}`)).text();
+    expect(html).toContain(name);
+    expect(html).toContain(sluggedPath(name, savedDayId));
+    await visitor.context().close();
+  } finally {
+    await forget(page, savedDayId);
+  }
+});
+
+test("Discover hydrates from the server's list and makes no first search", async ({ page, browser }) => {
+  test.slow();
+  const city = `Seoe2e${randomUUID().slice(0, 6)}`;
+  const name = `Listed day ${randomUUID().slice(0, 8)}`;
+  const savedDayId = await publishedDay(page, city, name);
+  try {
+    const visitor = await stranger(browser);
+    const searches: string[] = [];
+    visitor.on("request", (request) => {
+      if (new URL(request.url()).pathname === "/api/playbooks") searches.push(request.url());
+    });
+    await visitor.goto(`/playbooks?city=${encodeURIComponent(city)}`);
+    await expect(visitor.getByText(name).first()).toBeVisible();
+    // Hydration has finished once a control only React answers does: opening
+    // the Sort menu changes no search, and a click that lands before hydration
+    // is lost, so it is retried until the menu is open. A first fetch is sent
+    // from an effect on that same pass, so it has been sent by then.
+    const sort = visitor.getByRole("button", { name: "Sort" });
+    await expect(async () => {
+      await sort.click();
+      await expect(sort).toHaveAttribute("aria-expanded", "true", { timeout: 500 });
+    }).toPass();
+    expect(searches).toEqual([]);
+    await visitor.context().close();
+  } finally {
+    await forget(page, savedDayId);
+  }
+});
