@@ -434,6 +434,55 @@ describe("ActivityEditor attribution (M13 link 5)", () => {
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ bookedBy: null }));
   });
 
+  // A participant who has since left the trip is still on the stop and still
+  // priced (`stopHeadcount` counts every distinct id). Listing members only
+  // hid them: nothing to untick, and the line charged for somebody unseen.
+  describe("someone who has left the trip", () => {
+    const DEPARTED = "carol-left";
+
+    it("shows them picked, by a fallback name, and unticking them drops them from the save and the headcount", () => {
+      const onSave = mount(stop({ cost: { amountMinor: 30_00, currency: "USD" }, participants: ["bob", DEPARTED] }));
+      expect(screen.getByTestId("activity-cost-total").textContent).toBe("× 2 people = $60.00");
+      const chip = screen.getByRole("button", { name: "Former member (left the trip)" });
+      expect(chip.getAttribute("aria-pressed")).toBe("true");
+      expect(screen.queryByText(DEPARTED)).toBeNull();
+
+      fireEvent.click(chip);
+      expect(screen.getByTestId("activity-cost-total").textContent).toBe("× 1 person = $30.00");
+      // Removed for good: nothing offers them back.
+      expect(screen.queryByRole("button", { name: /former member/i })).toBeNull();
+      save();
+      expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ participants: ["bob"] }));
+    });
+
+    it("numbers them when more than one has left", () => {
+      mount(stop({ participants: [DEPARTED, "dave-left"] }));
+      expect(screen.getByRole("button", { name: "Former member 1 (left the trip)" })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Former member 2 (left the trip)" })).toBeTruthy();
+    });
+
+    it("shows who booked it as a former member, and lets it be replaced", () => {
+      const onSave = mount(stop({ bookedBy: DEPARTED }));
+      const select = screen.getByLabelText("Booked by") as HTMLSelectElement;
+      expect(select.value).toBe(DEPARTED);
+      expect(select.selectedOptions[0]?.textContent).toBe("Former member (left the trip)");
+
+      fireEvent.change(select, { target: { value: "alice" } });
+      expect(within(select).queryByText(/former member/i)).toBeNull();
+      save();
+      expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ bookedBy: "alice" }));
+    });
+
+    it("lets who booked it go back to nobody", () => {
+      const onSave = mount(stop({ bookedBy: DEPARTED }));
+      const select = screen.getByLabelText("Booked by") as HTMLSelectElement;
+      expect(select.value).toBe(DEPARTED);
+      fireEvent.change(select, { target: { value: "" } });
+      save();
+      expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ bookedBy: null }));
+    });
+  });
+
   // A solo trip has nobody to attribute to, so the controls would be an empty
   // box that reads as broken.
   it("says why there is nothing to pick on a trip with no other members", () => {
