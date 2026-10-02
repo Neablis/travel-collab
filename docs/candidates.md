@@ -58,7 +58,9 @@ here two days later.
   - structured data for a day;
   - whether profile and board pages earn a place in the index.
 
-  **Audited 2026-10-02; Mitchell: *"Lets start the SEO work"*.** What the audit
+  **Audited and designed 2026-10-02; Mitchell: *"Lets start the SEO work"*.**
+  The design, with its nine decisions and five stacked PRs, is
+  `docs/specs/2026-10-02-seo-pass-design.md`; it has no plan yet. What the audit
   added to that list, most valuable first:
   - **The Vercel firewall challenges crawlers on every page this pass is
     about.** `/`, `/robots.txt` and `/sitemap.xml` answered `429 Vercel Security
