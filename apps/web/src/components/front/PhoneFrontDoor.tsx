@@ -436,7 +436,10 @@ export function PhoneFrontDoor() {
             <Text variant="muted" className="uppercase tracking-widest">
               Days worth reliving
             </Text>
-            <Heading level={1} className="mt-2 text-3xl">
+            {/* An <h2> that announces as level 1. The desktop tree holds this
+                headline as the document's one <h1>; CSS shows one tree per
+                breakpoint, and a crawler reads both. */}
+            <Heading level={2} aria-level={1} className="mt-2 text-3xl">
               Put the best day on repeat.
             </Heading>
           </div>
