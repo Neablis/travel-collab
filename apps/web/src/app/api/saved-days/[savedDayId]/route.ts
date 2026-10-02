@@ -1,6 +1,7 @@
 import { SavedDay, SavedDayModeration } from "@tc/contracts";
 import { auth } from "@/server/auth";
-import { requireSavedDayRead } from "@/server/access/saved-day-access";
+import { readSavedDayAsViewer } from "@/server/access/saved-day-access";
+import { publicLibraryReader } from "@/server/publicLibraryLimit";
 import { deleteSavedDay, moderationOf, publishedAtOf } from "@/server/savedDays";
 import { schedulePinBackfill } from "@/server/savedDayPinBackfill";
 
@@ -27,14 +28,21 @@ import { schedulePinBackfill } from "@/server/savedDayPinBackfill";
 // (KI-2026-09-23-i): an operator's `hide-day` and its note are addressed to the
 // person whose day it is. Everyone else gets `null` — and cannot open a hidden
 // day anyway, so the branch is a second wall, not the only one.
+//
+// A reader with no account (ADR-061) gets a published, unmoderated day or the
+// same 404 as anyone else, and is charged per IP. They never start a pin
+// backfill: it spends the reader's geocode quota, and they have none — the
+// next signed-in reader's visit pins the day instead.
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ savedDayId: string }> },
 ) {
   const { savedDayId } = await params;
-  const access = await requireSavedDayRead(savedDayId);
+  const reader = await publicLibraryReader(request);
+  if ("refused" in reader) return reader.refused;
+  const access = await readSavedDayAsViewer(savedDayId);
   if ("error" in access) return access.error;
-  const pinning = schedulePinBackfill(access.day, access.readerId);
+  const pinning = access.readerId === null ? false : schedulePinBackfill(access.day, access.readerId);
   const publishedAt = await publishedAtOf(savedDayId);
   const moderation = access.isAuthor ? await moderationOf(savedDayId) : null;
   return Response.json({

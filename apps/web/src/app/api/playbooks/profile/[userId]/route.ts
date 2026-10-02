@@ -1,7 +1,7 @@
-import { auth } from "@/server/auth";
 import { PublicProfileResponse } from "@/lib/playbooks";
 import { citiesKnownBy, discoverDays, publicAuthor } from "@/server/playbooks";
 import { withDeprecatedProfileAlias } from "@/server/playbookWireAliases";
+import { publicLibraryReader } from "@/server/publicLibraryLimit";
 
 export const runtime = "nodejs";
 
@@ -15,14 +15,15 @@ export const runtime = "nodejs";
 // on a profile ARE Discover cards, produced by the same function, so "a
 // profile's day count and adds agree with the same person's numbers in
 // Discover" is true by construction rather than by two queries staying in step.
+//
+// Open to a reader with no account (ADR-061): a profile is already the page
+// everybody sees alike (`publishedOnly` below), so they get exactly it.
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ userId: string }> },
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return Response.json({ error: "unauthenticated" }, { status: 401 });
-  }
+  const reader = await publicLibraryReader(request);
+  if ("refused" in reader) return reader.refused;
   const { userId } = await params;
 
   const [author, knows, discovered] = await Promise.all([
@@ -52,7 +53,7 @@ export async function GET(
       // is a Discover control, not a property of a profile.
       length: "any",
 
-      readerId: session.user.id,
+      readerId: reader.readerId,
     }),
   ]);
 

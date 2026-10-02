@@ -13,6 +13,18 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-02 — `LeaderboardResponse.meUserId` is nullable (public playbooks, ADR-061)
+
+- **Changed (web-local wire shape, not `packages/contracts`):** `LeaderboardResponse.meUserId` in
+  `apps/web/src/lib/playbooks.ts` is `string | null`. `null` is a reader with no account, who has
+  no row on the board; `GET /api/playbooks/board` now serves them (ADR-061).
+- Why: spec 2026-10-02 (public playbooks) — the library's reads open to signed-out readers, so the
+  board has a reader who is nobody.
+- Consumers updated: `GET /api/playbooks/board` (sends `null` for an anonymous reader);
+  `LeaderboardScreen`, which only compares each row's `userId` to it, so a `null` tints no row.
+- Breaking? no for a reader that compares ids — no row's `userId` is ever `null`. A client that
+  assumed a string and called a string method on it would break; there is none.
+
 ## 2026-10-02 — Who owes what: `balances` and `stopPeople` (M19 part 2, ADR-060 decision 6)
 
 - **Added (functions, no schema):** `packages/contracts/src/costs.ts` — `stopPeople(activity,

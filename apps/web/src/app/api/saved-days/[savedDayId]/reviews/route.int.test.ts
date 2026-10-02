@@ -139,11 +139,43 @@ describe("PUT /api/saved-days/:id/reviews", () => {
     expect((await put(id, { stars: 4, seenPublishedAt: current })).status).toBe(200);
   });
 
-  it("401s when nobody is signed in, on every method", async () => {
+  // The reads opened to a reader with no account (ADR-061); the writes did not.
+  it("401s a write when nobody is signed in", async () => {
     const id = await authorsDay();
     expect((await put(id, { stars: 4 })).status).toBe(401);
-    expect((await GET(new Request("http://test/x"), ctx(id))).status).toBe(401);
     expect((await DELETE(new Request("http://test/x", { method: "DELETE" }), ctx(id))).status).toBe(401);
+  });
+});
+
+describe("GET /api/saved-days/:id/reviews, read by nobody signed in (ADR-061)", () => {
+  /** Nobody signed in, from an IP of its own — anonymous reads are charged per IP. */
+  const anonymousRead = (savedDayId: string) =>
+    GET(new Request("http://test/x", { headers: { "x-forwarded-for": `anon-${randomUUID()}` } }), ctx(savedDayId));
+
+  it("lists a published day's reviews with nothing marked as theirs", async () => {
+    const id = await authorsDay();
+    currentUserId = READER;
+    expect((await put(id, { stars: 4, note: "Go early." })).status).toBe(200);
+    // The witness: to its writer this review IS theirs, so `mine: null` below
+    // is the null reader's answer, not an empty fixture's.
+    expect((await read(id)).mine?.reviewerId).toBe(READER);
+
+    currentUserId = null;
+    const res = await anonymousRead(id);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as SavedDayReviewsResponse;
+    expect(body.mine).toBeNull();
+    expect(body.reviews.map((r) => [r.reviewerId, r.isMine])).toEqual([[READER, false]]);
+    expect(body.summary.count).toBe(1);
+  });
+
+  it("404s a private day and a moderated one, as it does a signed-in stranger", async () => {
+    const privateDay = await authorsDay("private");
+    const moderatedDay = await authorsDay();
+    await db.update(savedDays).set({ moderatedAt: new Date() }).where(eq(savedDays.id, moderatedDay));
+    for (const id of [privateDay, moderatedDay]) {
+      expect((await anonymousRead(id)).status, id).toBe(404);
+    }
   });
 });
 

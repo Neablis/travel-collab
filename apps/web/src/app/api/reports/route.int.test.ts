@@ -253,7 +253,7 @@ describe("hide-day", () => {
     await as(READER, async () => {
       expect((await discover(`city=${CITY}`)).days.map((d) => d.savedDayId)).toEqual([day]);
       expect((await discover(`city=${CITY}&scope=saved`)).days.map((d) => d.savedDayId)).toEqual([day]);
-      expect(((await (await BOARD()).json()) as LeaderboardResponse).authors.map((a) => a.userId)).toContain(MOD_AUTHOR);
+      expect(((await (await BOARD(new Request("http://test/x"))).json()) as LeaderboardResponse).authors.map((a) => a.userId)).toContain(MOD_AUTHOR);
       const seen = await profile(MOD_AUTHOR);
       expect(seen.days.map((d) => d.savedDayId)).toEqual([day]);
       expect(seen.knows).toEqual([{ city: CITY, days: 1 }]);
@@ -288,7 +288,7 @@ describe("hide-day", () => {
       expect((await discover(`city=${CITY}`)).days).toEqual([]);
       expect((await discover(`city=${CITY}&scope=saved`)).days).toEqual([]);
       expect((await discover(`city=${CITY}`)).sharedPlaybookCount).toBe(sharedBefore - 1);
-      expect(((await (await BOARD()).json()) as LeaderboardResponse).authors.map((a) => a.userId)).not.toContain(
+      expect(((await (await BOARD(new Request("http://test/x"))).json()) as LeaderboardResponse).authors.map((a) => a.userId)).not.toContain(
         MOD_AUTHOR,
       );
       const seen = await profile(MOD_AUTHOR);
@@ -393,7 +393,7 @@ describe("hide-day", () => {
 
     await as(READER, async () => {
       expect((await discover(`city=${CITY}`)).days.map((d) => d.savedDayId)).toEqual([day]);
-      expect(((await (await BOARD()).json()) as LeaderboardResponse).authors.map((a) => a.userId)).toContain(
+      expect(((await (await BOARD(new Request("http://test/x"))).json()) as LeaderboardResponse).authors.map((a) => a.userId)).toContain(
         RESTORE_AUTHOR,
       );
       expect((await profile(RESTORE_AUTHOR)).days.map((d) => d.savedDayId)).toEqual([day]);

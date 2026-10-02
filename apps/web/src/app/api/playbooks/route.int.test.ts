@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DiscoverResponse } from "@/lib/playbooks";
 import { eq } from "drizzle-orm";
 import { executeTripCommand } from "@/server/commands";
@@ -126,10 +126,37 @@ beforeEach(() => {
 });
 
 describe("GET /api/playbooks", () => {
-  it("refuses an anonymous read", async () => {
+  // ADR-061: Discover is open to a reader with no account, who owns nothing —
+  // so they see published, unmoderated days and nothing else, whatever
+  // `?scope=` says. The author's own private and moderated days are the
+  // fixture because they are exactly what a null reader could pick up by
+  // mistake (a scope or moderation clause that treated null as "the owner").
+  it("shows a reader with no account only published, unmoderated days, in every scope", async () => {
+    const only = city("anon");
+    const shared = await saveDay(`Shared ${RUN}`, [{ city: only }]);
+    await publish(shared);
+    await saveDay(`Kept back ${RUN}`, [{ city: only }]);
+    const hidden = await saveDay(`Hidden ${RUN}`, [{ city: only }]);
+    await publish(hidden);
+    await db.update(savedDays).set({ moderatedAt: new Date() }).where(eq(savedDays.id, hidden));
+    // The witness: the author sees all three, so the fixture really holds the
+    // days the anonymous reader must not.
+    expect(names((await discover(`city=${only}&scope=yours`)).body).sort()).toEqual(
+      [`Hidden ${RUN}`, `Kept back ${RUN}`, `Shared ${RUN}`],
+    );
+
     currentUserId = null;
-    const { status } = await discover("city=Kyoto");
-    expect(status).toBe(401);
+    for (const scope of ["everyone", "yours", "saved"]) {
+      const res = await GET(
+        new Request(`http://test/api/playbooks?city=${only}&scope=${scope}`, {
+          headers: { "x-forwarded-for": `anon-${RUN}-${scope}` },
+        }),
+      );
+      expect(res.status, scope).toBe(200);
+      const body = (await res.json()) as DiscoverResponse;
+      expect(names(body), scope).toEqual([`Shared ${RUN}`]);
+      expect(body.days[0]!.isMine, scope).toBe(false);
+    }
   });
 
   // The exit-gate line: "a query for one city returns a day that contains it
@@ -658,5 +685,41 @@ describe("GET /api/playbooks", () => {
     await publish(await saveDay(name, [{ city: only }]));
     const day = (await discover(`city=${only}`)).body.days.find((d) => d.name === name)!;
     expect(day.isMine).toBe(true);
+  });
+});
+
+// ADR-061's cost bound: a reader with no account is charged per IP against
+// `public-library-minute`; a signed-in reader is not charged at all. The
+// ceiling is lowered by env so the refusal is reachable in three requests.
+describe("GET /api/playbooks, rate-limited for a reader with no account", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.useRealTimers();
+  });
+
+  it("refuses an anonymous IP past its ceiling, and never charges a signed-in reader", async () => {
+    // Pinned mid-minute: the windows are epoch-aligned, so two requests either
+    // side of a boundary would land in different windows (og/limit.int.test.ts).
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2031-01-01T12:00:30.000Z"));
+    vi.stubEnv("PUBLIC_LIBRARY_RATE_LIMIT_PER_IP_MINUTE", "2");
+    const ip = `anon-limit-${randomUUID()}`;
+    const from = () => new Request("http://test/api/playbooks", { headers: { "x-forwarded-for": ip } });
+
+    currentUserId = READER;
+    for (let i = 0; i < 3; i += 1) expect((await GET(from())).status).toBe(200);
+
+    currentUserId = null;
+    expect((await GET(from())).status).toBe(200);
+    expect((await GET(from())).status).toBe(200);
+    const refused = await GET(from());
+    expect(refused.status).toBe(429);
+    expect(refused.headers.get("Cache-Control")).toBe("no-store");
+
+    // Per IP: somebody else's address is unaffected.
+    const elsewhere = new Request("http://test/api/playbooks", {
+      headers: { "x-forwarded-for": `anon-limit-${randomUUID()}` },
+    });
+    expect((await GET(elsewhere)).status).toBe(200);
   });
 });

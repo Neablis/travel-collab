@@ -112,7 +112,14 @@ export type DiscoverQuery = {
    * warns about. Caught by the integration suite, not by review.
    */
   publishedOnly?: boolean;
-  readerId: string;
+  /**
+   * Who is reading, or `null` for somebody with no account (ADR-061). A null
+   * reader owns nothing, so every owner clause below has an explicit branch
+   * for it rather than binding `owner_id = NULL` — which matches nothing only
+   * because SQL's NULL compares unknown, an accident a later `is not distinct
+   * from` would quietly undo.
+   */
+  readerId: string | null;
 };
 
 type DiscoverRow = {
@@ -195,7 +202,7 @@ const notModerated = sql`and d.moderated_at is null`;
  * reason `publishedOnly` exists at all.
  */
 function notModeratedUnlessMine(query: DiscoverQuery): SQL {
-  if (query.publishedOnly === true) return notModerated;
+  if (query.publishedOnly === true || query.readerId === null) return notModerated;
   return sql`and (d.moderated_at is null or d.owner_id = ${query.readerId})`;
 }
 
@@ -209,8 +216,12 @@ function notModeratedUnlessMine(query: DiscoverQuery): SQL {
  * results."* Having taken a day once does not keep it visible after its author
  * withdraws it — the ledger row is a record of what happened, not a grant.
  */
-function scopePredicate(scope: DiscoverScope, readerId: string): SQL {
+function scopePredicate(scope: DiscoverScope, readerId: string | null): SQL {
   const isPublic = sql`d.visibility = ${SavedDayVisibility.enum.public}`;
+  // A reader with no account (ADR-061) has no days and no ledger rows, so
+  // every scope collapses to the public half. The route already forces
+  // `everyone` for them; this is the query refusing to depend on that.
+  if (readerId === null) return isPublic;
   if (scope === "yours") return sql`d.owner_id = ${readerId}`;
   if (scope === "saved") {
     return sql`exists (
@@ -332,7 +343,7 @@ function orderBy(sort: DiscoverSort): SQL {
  * whole page — one unreadable fragment must not take the other twenty-three
  * with it.
  */
-function toDiscoverDay(row: DiscoverRow, queryCities: string[], readerId: string): DiscoverDay | null {
+function toDiscoverDay(row: DiscoverRow, queryCities: string[], readerId: string | null): DiscoverDay | null {
   // **The same helper `savedDays.ts`'s `fromRow` calls** (F-F05, and ADR-048
   // makes it a prerequisite of M23). This was a hand-copied duplicate of that
   // function's parses, with identical log strings, until the sequence work gave
