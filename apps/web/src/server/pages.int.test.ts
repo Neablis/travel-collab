@@ -61,7 +61,8 @@ describe("pages repository", () => {
     // What a link card and the index print, from the stored document.
     expect(entries.find((p) => p.title === "Money")!.preview).toEqual({
       firstLine: "What the trip costs, day by day, against the budget.",
-      widgetCount: 4,
+      // The chart, the two pies, the breakdown and "Who owes what" (M19 part 2).
+      widgetCount: 5,
     });
     // The public list stays `PageSummary`, with no preview on it.
     expect(Object.keys((await listPages(tripId))[0]!)).not.toContain("preview");
