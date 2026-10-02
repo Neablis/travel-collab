@@ -340,6 +340,10 @@ JSX move. Update the two comments that go stale with it (`:832-836`, `:839-841`)
 **The design is stale in two places here and the build is right.** The
 empty-state copy still blames the season filter §33.2 cut; and *"$N each"* /
 *"Budget each"* was retired on Mitchell's instruction and must not be re-added.
+*(**Superseded 2026-10-02 by M19 / ADR-060 decision 7:** a price is now per person, so a
+saved day's sum is what it costs each. The price reads "$N each" on Discover cards, the
+budget-filter bands and the shared-day rail, and Mitchell kept that wording on #292. The
+rail's label stays "Budget", as this note asked; only the value says "each".)*
 
 ## Link 3 — A Playbook's days become a scope (§33.1)
 
@@ -1995,7 +1999,8 @@ the same PR, not a regression in the code.
    header (link 1e), the 44px floor and tab-bar suppression, all of which link 11
    built. **Amend the sentence, do not build a phone Plans screen that already
    exists.**
-1. **`$N each` / `Budget each`** — retired on Mitchell's instruction.
+1. **`$N each` / `Budget each`** — retired on Mitchell's instruction. *(Superseded 2026-10-02 for
+   the price: M19 / ADR-060 decision 7 puts "$N each" back, and the label stays "Budget".)*
 2. **The Discover empty-state copy still blames the `Season` filter** §33.2 cut.
 3. **SPEC §16's five-tab phone bar** — superseded by §22, which both the build
    and the design file already follow.
