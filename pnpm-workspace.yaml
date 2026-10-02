@@ -8,6 +8,7 @@ allowBuilds:
   msw: false
   sharp: true
   unrs-resolver: true
+  vue-demi: false
 # Supply-chain cooldown: nothing published less than a day ago is resolved.
 # pnpm 11 already defaults to 1440, but in "loose" mode, which quietly adds a
 # too-new pick to minimumReleaseAgeExclude and installs it anyway. Setting the
