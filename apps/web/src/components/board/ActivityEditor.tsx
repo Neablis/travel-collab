@@ -408,11 +408,14 @@ export function ActivityEditor({
         >
           <MoneyInput id="activity-cost" value={cost} currency={tripCurrency} onChange={setCost} placeholder="e.g. 120" />
         </FormField>
-        {stopLine !== null && (
-          <Text variant="muted" data-testid="activity-cost-total">
-            {stopLine}
-          </Text>
-        )}
+        {/* Always rendered, a no-break space holding its line when there is
+            no cost. MoneyInput commits on blur, so a line that only appeared
+            once a cost existed appeared on the mousedown that blurred the
+            field — usually on "Add stop" — and pushed that button out from
+            under the pointer, so the click saved nothing. */}
+        <Text variant="muted" data-testid="activity-cost-total" aria-hidden={stopLine === null ? true : undefined}>
+          {stopLine ?? "\u00a0"}
+        </Text>
       </div>
 
       {/* Four toggles, never the handoff's six (KI-52). The design pairs each

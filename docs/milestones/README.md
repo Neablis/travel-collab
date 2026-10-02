@@ -177,10 +177,10 @@ Placement notes (decided 2026-07-07):
   wizard, and whether the landing copy may sell M11/M12 — see the review's §8.
 
 Current milestone: M19 — A cost knows who and what it is for
-**2026-10-01, BY M14'S GATE CLOSING** at **22 of 22**. M19 is placed but not
-scoped: its exit gate is unwritten until link 1's shape is settled, and link 1 has since
-shipped outside it (2026-09-26). Writing the gate is the first piece of work. Scope:
-`docs/milestones/M19-cost-model.md`.
+**2026-10-01, BY M14'S GATE CLOSING** at **22 of 22**. M19 was **scoped on
+2026-10-02** by ADR-060: a price is per person, committed vs estimate derives from kind,
+and Booked by pays. Its 13-box gate covers links 2-5 (link 1 shipped on 2026-09-26),
+built as three stacked parts. Scope and gate: `docs/milestones/M19-cost-model.md`.
 
 **M14 — Rich layer — was current from 2026-09-26 to 2026-10-01**, by M28's gate
 closing. Its retro is at the end of `docs/milestones/M14-rich-layer.md`.

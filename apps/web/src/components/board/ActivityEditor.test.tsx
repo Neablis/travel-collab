@@ -365,9 +365,17 @@ describe("ActivityEditor attribution (M13 link 5)", () => {
     expect(screen.getByTestId("activity-cost-total").textContent).toBe("× 1 person = $30.00");
   });
 
-  it("shows no total for a stop with no cost", () => {
+  // The line's room is kept with no cost to show. MoneyInput commits on blur,
+  // so the line used to APPEAR on the mousedown that blurs the field — on
+  // "Add stop" — and push the buttons below it out from under the pointer: the
+  // mouseup landed elsewhere and the first click saved nothing (found by
+  // m4-money-and-lenses, 4 of 4 runs). jsdom has no layout, so what is pinned
+  // is that the element is there, holding one line, and says nothing.
+  it("shows no total for a stop with no cost, but keeps the line's room", () => {
     mount(stop());
-    expect(screen.queryByTestId("activity-cost-total")).toBeNull();
+    const line = screen.getByTestId("activity-cost-total");
+    expect(line.textContent).toBe("\u00a0");
+    expect(line.getAttribute("aria-hidden")).toBe("true");
   });
 
   it("offers one toggle per member and sends who is going", () => {

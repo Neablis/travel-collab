@@ -2,10 +2,11 @@
 
 **Status:** **Current milestone from 2026-10-01**, by M14's gate closing. **Scoped
 2026-10-02** (ADR-060). The exit gate is written, and the build is three stacked parts.
-Approved and placed 2026-08-31 by Mitchell. **Runs last**, after
-M9: `M11a → M11b → M17 → M12 → M13 → M14 → M9 → M19`.
+Approved and placed 2026-08-31 by Mitchell, originally to run last, after M9
+(`M11a → M11b → M17 → M12 → M13 → M14 → M9 → M19`). That order is superseded:
+M9 is paused, and M19 became current when M14 closed.
 
-Last is a real position rather than a shrug. Link 3 (who an activity is for)
+*(The original reasoning for running last:)* Last is a real position rather than a shrug. Link 3 (who an activity is for)
 overlaps **M13**'s `add-stop-who`, and running after M13 lets M13 land that
 field while M19 builds splits on top of it — instead of two milestones each
 adding a per-stop person field, which is the drift `AGENTS.md` invariant 5
@@ -160,20 +161,26 @@ so it is not rebuilt here. Built as three stacked parts: `docs/plans/2026-10-02-
 
 Part 1 — a price is per person:
 
-- [ ] **ADR-060 accepted**, `docs/contracts/CHANGELOG.md` carries the meaning change, and
+- [x] **ADR-060 accepted**, `docs/contracts/CHANGELOG.md` carries the meaning change, and
       the OpenAPI description of `cost` says *per person*.
-- [ ] **One pure function prices a stop** (`stopHeadcount`, `stopTotal` in
+      *(Ticked 2026-10-02, #289: CHANGELOG entry; `openapi.json` 1.2.1 says "Price for one person"; `planning.test.ts` seen red with the wording changed.)*
+- [x] **One pure function prices a stop** (`stopHeadcount`, `stopTotal` in
       `packages/contracts/src/costs.ts`). The domain's `rollupCosts`, `apps/web/src/lib/cost.ts`
       and every `@tc/pages` cost widget call it, and a test of each fails if it sums the raw
       price.
-- [ ] **A trip's totals follow its members at read time.** An integration test adds a member
+      *(Ticked 2026-10-02, #289: `costs.test.ts`, `costs.property.test.ts`, `pages perPerson.test.ts`, `lib/cost.test.ts`, each seen red with the raw price summed. Headcount counts distinct ids.)*
+- [x] **A trip's totals follow its members at read time.** An integration test adds a member
       to a trip whose stop has nobody picked and sees the trip total rise, with no new event.
-- [ ] **Committed vs estimate derives from kind.** A pending stop's cost reads as an estimate
+      *(Ticked 2026-10-02, #289: `trip-access.int.test.ts`, 3000 → 6000 on a second member with no event, and the over-budget conflict follows too. Both seen red.)*
+- [x] **Committed vs estimate derives from kind.** A pending stop's cost reads as an estimate
       in the Settings sheet's budget line and the `cost` widget. A test fails if a planned
       stop's cost counts as an estimate.
-- [ ] **[walk]** The stop editor says *per person* beside Cost and shows the stop total for
+      *(Ticked 2026-10-02, #289: pages `cost` test and the Settings sheet test, seen red with planned counted as an estimate. Preview: "$29,275.00 committed · $1,920.00 estimated" on /demo.)*
+- [x] **[walk]** The stop editor says *per person* beside Cost and shows the stop total for
       its headcount.
-- [ ] The assistant's write tools describe `cost` as per person.
+      *(Ticked 2026-10-02, agent's walk on #289's preview (`4RubLfuZfHcUiESsX2VuS7CJEAP8`): "Cost per person"; "× 1 person = $120.00" after Tab; Add stop's box unmoved; first click saves; picking two in Who is in reads "× 2 people = $710.00" and the header drops by $355.)*
+- [x] The assistant's write tools describe `cost` as per person.
+      *(Ticked 2026-10-02, #289: planning tools are derived from the contract and carry COST_DOC; `planning.test.ts` seen red.)*
 
 Part 2 — who owes what:
 
