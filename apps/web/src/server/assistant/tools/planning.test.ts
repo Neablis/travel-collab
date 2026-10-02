@@ -109,6 +109,14 @@ describe("the planning tools", () => {
     ]);
   });
 
+  // ADR-060: a price is per person, and the model is told so where it writes
+  // one. Derived, not hand-written: the text is the contract's `cost`
+  // description, so a tool and the public API cannot describe it differently.
+  it.each(["AddActivity", "UpdateActivity"])("tells the model %s's `cost` is the price for one person", (name) => {
+    const cost = shapeOf(name)["cost"] as ZodTypeAny;
+    expect(cost.description).toMatch(/^Price for one person\b/);
+  });
+
   it("AddActivity accepts a validated payload with no ids", () => {
     const parsed = (byName("AddActivity").input as unknown as ZodTypeAny).safeParse({
       title: "Lunch",

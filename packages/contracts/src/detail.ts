@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { Conflict } from "./conflict.ts";
 import { TripLineage, TripMember, TripStatus } from "./trip.ts";
-import { ActivityMode, ActivitySnapshot, StoredActivityKind, ActivityTag, Anchor, Location, PendingReason, TimeWindow } from "./activity.ts";
+import { ActivityMode, ActivitySnapshot, COST_DOC, StoredActivityKind, ActivityTag, Anchor, Location, PendingReason, TimeWindow } from "./activity.ts";
 import { Money } from "./money.ts";
 
 export const ActivityView = z.object({
@@ -30,7 +30,7 @@ export const ActivityView = z.object({
   // apply them.
   kind: StoredActivityKind.default("planned"), // a retired kind in an old row reads as its replacement (ADR-054)
   tags: z.array(ActivityTag).default([]),
-  cost: Money.nullable(),
+  cost: Money.nullable().describe(COST_DOC),
   // M13 link 5, added by hand because this model is deliberately not derived —
   // the guard below forced the KEY and this line is the answer to it.
   //

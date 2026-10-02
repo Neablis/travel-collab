@@ -13,6 +13,37 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-02 — A stop's `cost` is per person (M19 part 1, ADR-060); Public API 1.2.1
+
+- **No schema changed shape.** `Money` is still `{ amountMinor, currency }` and every stored payload
+  and `trip_details.doc` parses as before; no migration. **What changed is what `cost` means:** the
+  price for ONE person. A stop's total is `cost × headcount`, where the headcount is
+  `participants.length`, or the trip's member count when `participants` is empty.
+- **Added:** `packages/contracts/src/costs.ts` — `stopHeadcount`, `stopTotal` and `isCommittedCost`
+  (a `pending` stop's cost is an estimate; `planned` and `transit` are committed). The one statement
+  of the rule; the domain, the web and `@tc/pages` call it.
+- **Added:** `COST_DOC`, the `.describe()` text on `cost` in `AddActivity`, `UpdateActivity`,
+  `ActivitySnapshot` (via `described()`'s description argument; the picker label stays "Cost") and
+  `ActivityView`. It is the OpenAPI description of every activity `cost` and of the assistant's
+  derived planning tools. `openapi.json` regenerated; `API_VERSION` `1.2.1` (patch: the document
+  changed in descriptions only), new `API_FINGERPRINT`.
+- **Changed (values, not shapes):** `TripDetail.days[].costSubtotal`, `unscheduledCostSubtotal`,
+  `tripCostTotal` and `budgetRemaining` sum stop totals. The stored projection computes them for the
+  log's own members (rebuild equals stored); every read that overlays the effective member list
+  recomputes them for those members through the domain's `recostDetail` — trip GET, command
+  responses, history-at-seq on `/api/trips`, the demo trip, and a share's `SharedTripView`. A member
+  joining changes a trip's totals with no event.
+- Why: Mitchell, 2026-10-02 — ADR-060's four answers ("always per person", "derive from kind").
+- Consumers updated: `packages/domain` (`rollupCosts(state, memberCount)`, `recostDetail`),
+  `packages/factories`, `packages/fixtures` (Japan verifier passes the log's members — its totals
+  are unchanged), `@tc/pages` (`costOfStops(stops, memberCount)`; `cost` reads "… committed · …
+  estimated" when a pending stop is in it), `apps/web` (`server/access/overlay.ts`, `lib/cost.ts`,
+  Settings sheet, stop editor, calendar city cards, MSW mocks, assistant instructions),
+  `docs/guidelines/using-the-api.md`.
+- **Breaking?** No for any shape or stored data. **Yes for meaning:** on a trip with more than one
+  member, every total that includes a stop nobody picked is now multiplied, and a reader that summed
+  `cost` itself to reproduce a total gets a different number. A solo trip reads exactly as before.
+
 ## 2026-10-01 — widget registry: `day.weather` and `day.sun` gain a `view`, and `day.sun` becomes a block — no schema change
 
 - **Nothing in `packages/contracts` changed shape.** A page stores a widget as a name and opaque
