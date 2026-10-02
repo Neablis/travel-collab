@@ -2,6 +2,7 @@ import { inArray, sql, type SQL } from "drizzle-orm";
 import { SavedDayVisibility } from "@tc/contracts";
 import type { CityMatch } from "@/lib/cities";
 import {
+  DISCOVER_PAGE_SIZE,
   DISCOVER_PREVIEW_STOPS,
   inBudgetBand,
   LENGTH_BAND_RANGE,
@@ -15,6 +16,8 @@ import {
   type PublicAuthor,
   type RatingFloor,
 } from "@/lib/playbooks";
+import { countryName } from "@/lib/place";
+import { countrySlug, slugify } from "@/lib/playbookUrls";
 import { savedDayFacts } from "@/lib/savedDayFacts";
 import { publicNameFor } from "@/lib/displayName";
 import { db, type Queryable } from "./db/client";
@@ -49,9 +52,6 @@ import { parseSavedDayColumns } from "./savedDayRow";
  * filtered count that silently means "of the first 200".
  */
 const CANDIDATE_LIMIT = 200;
-
-/** How many cards one Discover page shows. */
-const PAGE_LIMIT = 24;
 
 /** How many sibling / "busy right now" chips a row carries. Matches `cities.ts`. */
 const SIBLING_LIMIT = 12;
@@ -631,7 +631,7 @@ export async function discoverDays(query: DiscoverQuery): Promise<DiscoverRespon
   );
 
   return {
-    days: filtered.slice(0, PAGE_LIMIT),
+    days: filtered.slice(0, DISCOVER_PAGE_SIZE),
     // `filtered`, not `candidates` and not the page: the chips describe the set
     // the cards come from, band included. See `siblingCities`.
     siblings: siblingCities(filtered, query.cities),
@@ -648,7 +648,7 @@ export async function discoverDays(query: DiscoverQuery): Promise<DiscoverRespon
     // (CodeRabbit, PR 102). The profile day list is this same function, and
     // it says the same thing there by comparing its card count against
     // `playbooksShared`.
-    truncated: windowFull || filtered.length > PAGE_LIMIT,
+    truncated: windowFull || filtered.length > DISCOVER_PAGE_SIZE,
     // What the results sentence states (KI-2026-09-23-h). Inside the window
     // `filtered` IS the whole match — band applied, unreadable rows dropped —
     // so it is exact and agrees with the page to the day. Past the window the
@@ -953,4 +953,120 @@ export async function citiesKnownBy(userId: string): Promise<CityMatch[]> {
     order by days desc, city asc
   `);
   return [...rows.rows].map((row) => ({ city: String(row.city), days: Number(row.days) }));
+}
+
+/** A city or country page: its slug, its display name, the stored values it gathers, and how many days. */
+export type PlacePage = {
+  kind: "city" | "country";
+  slug: string;
+  /** What the page calls the place: the most-used spelling, or the country's English name. */
+  name: string;
+  /** The stored city spellings this page gathers, most-used first. Empty for a country. */
+  cities: string[];
+  /** The ISO codes this page gathers. Empty for a city. */
+  countries: string[];
+  /**
+   * Distinct published days that touch it — the same number `publishedDaysPage`
+   * totals for `cities` / `countries`, which is what `placeIndexable` needs.
+   */
+  days: number;
+};
+
+// Grouped here rather than in SQL because the key is `slugify`'s, and a second
+// spelling of it in Postgres would agree only until one of them changed. And
+// one row per DAY, not a count per spelling: summing per-spelling counts counts
+// a day carrying "Sao Paulo" and "São Paulo" twice, and the sitemap (which
+// reads `days`) would then disagree with the page's `total` about whether the
+// place clears `MIN_INDEXED_PLACE_DAYS`. Production is 155 published days on
+// 2026-10-02, so reading the three columns of each is cheap.
+/**
+ * Every place a published day touches, as the pages that list them.
+ *
+ * `cities` is free text, so spellings that slug alike ("São Paulo", "Sao
+ * Paulo") are one page, named by the spelling most days use. Countries are ISO
+ * codes and slug by their English name. A value with no slug has no page.
+ */
+export async function publishedPlaces(): Promise<PlacePage[]> {
+  const rows = await db.execute<{ id: string; cities: string[]; countries: string[] }>(sql`
+    select d.id, d.cities, d.countries
+    from saved_days d
+    where d.visibility = ${SavedDayVisibility.enum.public}
+      ${notDeleted}
+      ${notModerated}
+  `);
+
+  const gathered = new Map<string, { kind: PlacePage["kind"]; slug: string; days: Set<string>; uses: Map<string, number> }>();
+  const touch = (kind: PlacePage["kind"], slug: string, value: string, dayId: string) => {
+    const key = `${kind}:${slug}`;
+    let place = gathered.get(key);
+    if (place === undefined) gathered.set(key, (place = { kind, slug, days: new Set(), uses: new Map() }));
+    place.days.add(dayId);
+    place.uses.set(value, (place.uses.get(value) ?? 0) + 1);
+  };
+  for (const row of rows.rows) {
+    const dayId = String(row.id);
+    for (const city of new Set(row.cities)) {
+      const slug = slugify(city);
+      if (slug !== "") touch("city", slug, city, dayId);
+    }
+    for (const code of new Set(row.countries)) {
+      const slug = countrySlug(code);
+      if (slug !== null) touch("country", slug, code, dayId);
+    }
+  }
+
+  return [...gathered.values()].map(({ kind, slug, days, uses }) => {
+    // Most-used first, ties by code point, so the name does not change between two builds of one library.
+    const values = [...uses]
+      .sort(([a, aUses], [b, bUses]) => bUses - aUses || (a < b ? -1 : a > b ? 1 : 0))
+      .map(([value]) => value);
+    return kind === "city"
+      ? { kind, slug, name: values[0]!, cities: values, countries: [], days: days.size }
+      : { kind, slug, name: countryName(values[0]!)!, cities: [], countries: values, days: days.size };
+  });
+}
+
+/** The page for one slug, or null when no published day touches it — which the route answers with a 404. */
+export async function placeFor(kind: PlacePage["kind"], slug: string): Promise<PlacePage | null> {
+  return (await publishedPlaces()).find((place) => place.kind === kind && place.slug === slug) ?? null;
+}
+
+/**
+ * Published days for a place or an author, most-added first, one offset page.
+ *
+ * `matchPredicate` with a reader who owns nothing and `publishedOnly`, so the
+ * rows are exactly what a stranger can open, and `toDiscoverDay`, so each is
+ * the card Discover would show. Offset paging, unlike `discoverPage`'s keyset:
+ * a place page is addressed by `?page=N`, which a crawler follows as a link.
+ * `total` is 0 for a page past the end.
+ */
+export async function publishedDaysPage(
+  filter: { cities?: string[]; countries?: string[]; authorId?: string },
+  page: { limit: number; offset: number },
+): Promise<{ days: DiscoverDay[]; total: number }> {
+  const query: DiscoverQuery = {
+    cities: filter.cities ?? [],
+    countries: filter.countries ?? [],
+    authorId: filter.authorId ?? null,
+    scope: "everyone",
+    sort: "most-added",
+    budget: "any",
+    length: "any",
+    publishedOnly: true,
+    readerId: null,
+  };
+  const rows = await db.execute<DiscoverRow>(sql`
+    select ${discoverColumns}, ${matchedCount(query)}::int as matched_count,
+      count(*) over ()::int as total_count
+    from saved_days d
+    where ${matchPredicate(query)}
+    order by ${orderBy(query.sort)}
+    limit ${page.limit} offset ${page.offset}
+  `);
+  return {
+    days: [...rows.rows]
+      .map((row) => toDiscoverDay(row, query.cities, null))
+      .filter((day): day is DiscoverDay => day !== null),
+    total: Number(rows.rows[0]?.total_count ?? 0),
+  };
 }

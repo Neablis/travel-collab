@@ -1,7 +1,18 @@
 import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { witness } from "../test-support/witness";
-import { dayPath, daySegment, parseDaySegment, slugify } from "./playbookUrls";
+import {
+  cityPath,
+  countryPath,
+  countrySlug,
+  dayPath,
+  daySegment,
+  MIN_INDEXED_PLACE_DAYS,
+  parseDaySegment,
+  placeIndexable,
+  placePagePath,
+  slugify,
+} from "./playbookUrls";
 
 const ID = "3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b";
 
@@ -66,5 +77,32 @@ describe("day URLs", () => {
       }),
     );
     w.atLeast(50);
+  });
+});
+
+describe("place URLs", () => {
+  it("slugs a city and a country's English name", () => {
+    expect(cityPath("São Paulo")).toBe("/playbooks/city/sao-paulo");
+    expect(countryPath("JP")).toBe("/playbooks/country/japan");
+  });
+
+  // `countryName` hands back the code itself for one it cannot map ("??"
+  // throws inside `Intl.DisplayNames`, "XX" is returned as is) — a code is not
+  // a name, and slugging it would mint `/playbooks/country/xx`.
+  it("has no path for a place with no slug", () => {
+    expect(cityPath("京都")).toBeNull();
+    expect(countrySlug("??")).toBeNull();
+    expect(countrySlug("XX")).toBeNull();
+    expect(countryPath("??")).toBeNull();
+  });
+
+  it("leaves page one bare and numbers the rest", () => {
+    expect(placePagePath("/playbooks/city/kyoto", 1)).toBe("/playbooks/city/kyoto");
+    expect(placePagePath("/playbooks/city/kyoto", 3)).toBe("/playbooks/city/kyoto?page=3");
+  });
+
+  it("indexes a place from the threshold up, not below it", () => {
+    expect(placeIndexable({ days: MIN_INDEXED_PLACE_DAYS - 1 })).toBe(false);
+    expect(placeIndexable({ days: MIN_INDEXED_PLACE_DAYS })).toBe(true);
   });
 });
