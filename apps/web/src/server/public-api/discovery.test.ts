@@ -94,6 +94,10 @@ describe("/llms.txt", () => {
     for (const href of targets) expect(new URL(href).origin, href).toBe("https://example.test");
   });
 
+  it("names the landing by its canonical address, /, not /welcome", async () => {
+    expect((await read()).text).toContain("- [Caesura](https://example.test/): the landing page");
+  });
+
   it("links only to routes and pages that exist", async () => {
     for (const href of links((await read()).text)) {
       const { pathname } = new URL(href);
