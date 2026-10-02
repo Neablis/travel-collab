@@ -7,6 +7,13 @@ describe("pageMetadata", () => {
     expect(meta.twitter).toEqual({ card: "summary_large_image", title: "Developers", description: "The API." });
   });
 
+  it("gives the card its own title when one is passed, and leaves the tab's alone", () => {
+    const meta = pageMetadata({ title: "A slow day · Kyoto", cardTitle: "A slow day", description: "B" });
+    expect(meta.title).toBe("A slow day · Kyoto");
+    expect(meta.openGraph?.title).toBe("A slow day");
+    expect(meta.twitter?.title).toBe("A slow day");
+  });
+
   it("sets the canonical and og:url only when asked", () => {
     expect(pageMetadata({ title: "A", description: "B" }).alternates).toBeUndefined();
     const meta = pageMetadata({ title: "A", description: "B", canonical: "/playbooks" });

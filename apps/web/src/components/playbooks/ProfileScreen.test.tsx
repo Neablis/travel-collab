@@ -247,7 +247,7 @@ describe("the contextual back link", () => {
     const days = await screen.findByTestId("profile-days");
     const link = within(days).getByRole("link", { name: "Kyoto temples on foot" });
     expect(link.getAttribute("href")).toBe(
-      "/playbooks/day/aa000000-0000-4000-8000-000000000001?from=profile&profile=dev-alice",
+      "/playbooks/day/kyoto-temples-on-foot-aa000000-0000-4000-8000-000000000001?from=profile&profile=dev-alice",
     );
   });
 });

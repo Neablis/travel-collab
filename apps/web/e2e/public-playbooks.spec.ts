@@ -25,8 +25,10 @@ test("a stranger opens a shared playbook, browses, and is asked to sign in to ad
     const visitor = await stranger(browser);
 
     // The shared link opens — no bounce to /signin.
+    // The bare id is the link as it was shared before days had slugs; it
+    // lands on the day's current URL, `<slug>-<id>`.
     await visitor.goto(`/playbooks/day/${savedDayId}`);
-    await expect(visitor).toHaveURL(new RegExp(`/playbooks/day/${savedDayId}$`));
+    await expect(visitor).toHaveURL(new RegExp(`/playbooks/day/[a-z0-9-]*${savedDayId}$`));
     await expect(visitor.getByRole("heading", { name: dayName, level: 1 })).toBeVisible();
 
     // Its preview card is the day's, not the site's. The FIRST og:image is
@@ -69,7 +71,7 @@ test("a stranger opens a shared playbook, browses, and is asked to sign in to ad
     await visitor.getByLabel("Invite code").fill(E2E_SUPER_CODE);
     await visitor.fill('input[name="username"]', mint("pubreader"));
     await visitor.getByRole("button", { name: /sign in with dev login/i }).click();
-    await expect(visitor).toHaveURL(new RegExp(`/playbooks/day/${savedDayId}$`));
+    await expect(visitor).toHaveURL(new RegExp(`/playbooks/day/[a-z0-9-]*${savedDayId}$`));
     await expect(visitor.getByRole("dialog", { name: `Add “${dayName}” to a trip` })).toBeVisible();
 
     await visitor.context().close();

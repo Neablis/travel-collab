@@ -11,6 +11,7 @@ import { toClockLabel, toClockRange } from "@/lib/time";
 import { useTimeFormat } from "@/components/account/PreferencesProvider";
 import { cn } from "@/lib/cn";
 import { PHONE_TOUCH } from "@/components/ui/button";
+import { dayPath } from "@/lib/playbookUrls";
 import { backQuery, type BackOrigin } from "./backLink";
 
 // One day in the public library, as Discover and a public profile both render
@@ -149,7 +150,7 @@ export function DiscoverCard({ day, origin }: { day: DiscoverDay; origin: BackOr
               items-center` so the floor makes the link taller rather than
               leaving the text at the top of an empty 44px. */}
           <Link
-            href={`/playbooks/day/${day.savedDayId}${back}`}
+            href={`${dayPath(day)}${back}`}
             className={cn("inline-flex items-center hover:underline", PHONE_TOUCH)}
           >
             {day.name}

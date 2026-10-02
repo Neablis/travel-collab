@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { deploymentOrigin } from "@/lib/deploymentOrigin";
+import { dayPath } from "@/lib/playbookUrls";
 import { sitemapDays } from "@/server/playbooks";
 
 // Read per request, not at build: the build has no database in CI, and a day
@@ -19,7 +20,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   return [
     ...STATIC_PATHS.map((path) => ({ url: `${origin}${path}` })),
     ...days.map((day) => ({
-      url: `${origin}/playbooks/day/${day.savedDayId}`,
+      url: `${origin}${dayPath(day)}`,
       ...(day.publishedAt === null ? {} : { lastModified: day.publishedAt }),
     })),
   ];
