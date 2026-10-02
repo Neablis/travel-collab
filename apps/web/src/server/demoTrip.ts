@@ -15,6 +15,7 @@ import {
   japanTripCommandGroups,
 } from "@tc/fixtures";
 import { serverConflictContext } from "./conflictContext";
+import { overlayMembers } from "./access/overlay";
 import { DEMO_TRIP_ID } from "@/lib/demoTrip";
 import { DEMO_TRIP_LEAD_DAYS, isoDateInDays } from "@/lib/seedDate";
 
@@ -175,7 +176,10 @@ function buildDemo(startDate: string): Demo {
     // meta pill's traveller count, the timeline's attribution chip, the map
     // card's), and a demo whose folded state carries one synthetic member
     // showed "1 travellers" beside a raw uuid on every timeline card.
-    detail: { ...tripDetailFromState(state, envelopes[0]!.occurredAt, serverConflictContext()), members: DEMO_TRAVELLERS.map(({ userId, role }) => ({ userId, role })) },
+    detail: overlayMembers(
+      tripDetailFromState(state, envelopes[0]!.occurredAt, serverConflictContext()),
+      DEMO_TRAVELLERS.map(({ userId, role }) => ({ userId, role })),
+    ),
     history: {
       tripId: DEMO_TRIP_ID,
       entries: buildHistoryEntries(envelopes).reverse(),

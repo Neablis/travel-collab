@@ -26,6 +26,7 @@ import { appendToStream, readStream } from "./eventStore";
 import { applyTripEvents, upsertTripDetail } from "./projections";
 import { memberRolePolicy } from "./accessPolicy";
 import { effectiveMembers } from "./access/members";
+import { overlayMembers } from "./access/overlay";
 
 export type CommandResult =
   | { ok: true; tripId: string; detail: TripDetail; history: TripHistory }
@@ -183,13 +184,14 @@ async function appendAndProject(
 // The stored projection stays exactly what the log produces (invariant 2 —
 // `upsertTripDetail` above already wrote it); only the DTO handed back to the
 // caller carries the effective member list, so a command response and a
-// subsequent GET agree about who is on the trip.
+// subsequent GET agree about who is on the trip — and, since a price is per
+// person (ADR-060), about what it costs.
 //
 // `members` is null only for CreateTrip, whose stream did not exist when the
 // merge was attempted; the created trip's own projection already carries its
 // owner and there are no grants to merge yet.
 function withMembers(detail: TripDetail, members: TripMember[] | null): TripDetail {
-  return members === null ? detail : { ...detail, members };
+  return members === null ? detail : overlayMembers(detail, members);
 }
 
 const BatchBody = z.array(BatchableCommand).min(1);
