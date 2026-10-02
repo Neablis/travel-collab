@@ -47,6 +47,21 @@ here two days later.
   long-press drag on the board is unverified (the `phone` e2e project is desktop
   Chrome at 411px with no touch).
 
+- **The assistant on eve, with a per-tool ledger first (asked 2026-10-02).**
+  ADR-062 (Proposed) records the decision. Mitchell chose a full port onto Vercel's
+  eve framework over a spike or Vercel-only changes. He set two terms: measurement
+  stays first-class, so a per-step and per-tool ledger ships on the current stack
+  *before* any eve code; and user memory is designed for now and built later. The
+  milestone is placed **after M19** and is minted by the planning session, whose
+  first job is ADR-062's Phase 0 questions.
+
+- **User memory: the assistant knows who you are and what trips you like
+  (asked 2026-10-02).** Deferred out of ADR-062 by agreement. The expected shape is
+  a per-user profile derived from the command and event log, recalled through
+  eve's memory slot, rather than embeddings. It opens with two decisions ADR-062
+  §6 leaves open: whether conversation text is stored at all, and how memory
+  behaves on a shared trip. It depends on the eve milestone.
+
 - **An SEO pass over the public library (asked 2026-10-02).** ADR-061 made
   `/playbooks`, its days, profiles and board readable without an account.
   Mitchell, 2026-10-02: *"I have no issue being crawled, we should do a seo pass
