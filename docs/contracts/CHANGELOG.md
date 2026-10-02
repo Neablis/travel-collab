@@ -13,6 +13,42 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-02 — public API discovery: `/llms.txt`, `/developers`, the reference, and two new links — outside `openapi.json`
+
+- **Nothing in `packages/contracts` changed, and `openapi.json` did not either** — so no
+  `API_VERSION` or `API_FINGERPRINT` change. `info.version` versions the OpenAPI document only
+  (`docs/guidelines/using-the-api.md`, *`info.version` moves whenever the document does*); these
+  are the discovery surfaces around it, logged here because a caller can read them.
+- Added: `GET /api/v1` gains `docs: "/developers/reference"`, and its `auth` string now names the
+  Premium plan and points at `/developers` (`apps/web/src/app/api/v1/route.ts`). The existing keys
+  `name`, `version` and `openapi` are unchanged.
+- Added: `GET /.well-known/api-catalog` gains a `service-doc` link (`/developers/reference`,
+  `text/html`) beside its `service-desc` (`apps/web/src/app/.well-known/api-catalog/route.ts`).
+- Added: `GET /llms.txt` — plain text, no token; scopes rendered from `SCOPE_CATALOGUE`
+  (`apps/web/src/app/llms.txt/route.ts`).
+- Added: two public pages — `/developers` (getting a token, the scope table) and
+  `/developers/reference` (Scalar rendering `/api/v1/openapi`).
+- Why: an agent handed only the host had to guess paths to learn what Caesura is and how a person
+  gets a token; these answer it from the standard places.
+- Consumers updated: `discovery.test.ts` follows every link to a route or page that exists;
+  `m22-api-tokens.spec.ts` renders the reference under the CSP.
+- Breaking? No — additive keys and links, and a changed human-readable `auth` string.
+
+## 2026-10-02 — Public API 1.2.1: no tuple-form `items` in `openapi.json` — no schema change
+
+- **Nothing in `packages/contracts` changed, and nothing on the wire did.** The generator
+  (`apps/web/src/server/public-api/openapi.ts`, `withoutTupleItems`) now rewrites the tuple form
+  zod-to-json-schema emits for a `z.tuple`, which OpenAPI 3.0 does not have. Six `items: []` — the
+  always-empty `trips`/`playbooks`/`notebooks`/`activities` of `GET /v1/trips/{tripId}/export` and
+  `GET /v1/playbooks/{playbookId}/export` — are now `items: {}` beside the `maxItems: 0` they
+  already carried. `info.version` `1.2.1` (patch: the same responses, described validly), new
+  `API_FINGERPRINT`.
+- Why: the document was invalid OpenAPI 3.0. The Scalar reference at `/developers/reference`
+  threw on it (`structuredClone` after a validation failure on both export paths), and a caller
+  that validates the document before trusting it would refuse it.
+- Consumers updated: `openapi.json` regenerated; `openapi.test.ts` fails on an array-valued `items`.
+- Breaking? No.
+
 ## 2026-10-01 — widget registry: `day.weather` and `day.sun` gain a `view`, and `day.sun` becomes a block — no schema change
 
 - **Nothing in `packages/contracts` changed shape.** A page stores a widget as a name and opaque

@@ -250,6 +250,7 @@ const CLAIMS: readonly { label: string; body: string; example?: ReactNode }[] = 
   },
 ];
 
+/** The phone's front door (SPEC §28): a pinned scroll sequence, not the desktop landing at a narrower width. */
 export function PhoneFrontDoor() {
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const pinRef = useRef<HTMLDivElement | null>(null);
@@ -493,13 +494,17 @@ export function PhoneFrontDoor() {
         </Link>
       </section>
 
-      {/* The desktop landing's footer, same four items (see LandingScreen). */}
+      {/* The desktop landing's footer, same five items (see LandingScreen). */}
       <footer className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-hairline bg-paper px-6 py-5">
         <Text as="span" variant="muted">&copy; 2026 Caesura</Text>
         <Text as="span" variant="muted" aria-hidden>&middot;</Text>
         <Text as="span" variant="muted">Privacy</Text>
         <Text as="span" variant="muted" aria-hidden>&middot;</Text>
         <Text as="span" variant="muted">Terms</Text>
+        <Text as="span" variant="muted" aria-hidden>&middot;</Text>
+        <Link href="/developers" className="text-xs text-slate">
+          Developers
+        </Link>
         <a href="mailto:mitchell@demarcosoftware.com" className="w-full text-xs text-slate">
           mitchell@demarcosoftware.com
         </a>

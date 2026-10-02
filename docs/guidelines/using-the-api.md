@@ -18,7 +18,8 @@ and nothing else.
 ### Get a token
 
 Account → Profile → **API tokens** → *New token*. Pick what it may do, pick how
-long it lives, copy the secret.
+long it lives, copy the secret. Getting an account first (signup is invite-only) is
+walked through, publicly, at `/developers`.
 
 **The secret is shown once.** Nothing stores it — the database keeps a keyed
 digest, not the value — so there is no screen anywhere that can show it to you
@@ -64,20 +65,46 @@ Bump the version, paste the fingerprint, add the changelog line, in one diff.
 
 A caller who knows only the host can find the reference without guessing:
 
+- **`GET /llms.txt`** — the front page for a model (llmstxt.org): what Caesura
+  is, who it is for, every link below as an absolute URL on the requesting
+  host, how a person gets a token, and the scopes. Plain text, no token. The
+  scopes are rendered from `SCOPE_CATALOGUE`, not retyped.
+- **`GET /.well-known/api-catalog`** — the standard shape (RFC 9727): an
+  `application/linkset+json` linkset whose `service-desc` is the OpenAPI
+  document and whose `service-doc` is `/developers/reference`. No token.
 - **`GET /api/v1`** — a small JSON index: the API's name, where the OpenAPI
-  document is (`/api/v1/openapi`), and how to authenticate. No token.
-- **`GET /.well-known/api-catalog`** — the same pointer in the standard shape
-  (RFC 9727): an `application/linkset+json` linkset whose `service-desc` is the
-  OpenAPI document. No token.
+  document is (`openapi`), where the reference page is (`docs`), and how to
+  authenticate. No token.
+- **`/developers`** — a public page with the onboarding path a person (or the
+  agent they are setting up) follows: get invited, create the account, be on
+  Premium, mint a token, discover and call. Same scope table, same no-drift rule.
+- **`/developers/reference`** — the OpenAPI document rendered by Scalar
+  (`@scalar/api-reference-react`), bundled rather than loaded from a CDN, with
+  its fonts, telemetry, hosted AI chat, MCP and hosted-client buttons turned off
+  so it runs under our CSP unchanged. Its request runner calls this origin.
 
-There is no `/.well-known/agent.json` or similar; those two are the entry points.
+`discovery.test.ts` follows every link in all of these to a route or page that
+exists. There is no `/.well-known/agent.json` or similar.
 
-**`/.well-known/api-catalog` is not reachable by bots until the Vercel firewall
-exempts it.** The firewall challenges automated traffic on every path outside
-`/api/*`, and that rule is dashboard configuration, not code in this repo.
-Mitchell adds the exemption (Vercel → Firewall → a bypass rule for the path
-`/.well-known/api-catalog`); until then a browser can read it and a crawler
-gets a challenge page. `/api/v1` needs nothing, since it is under `/api/*`.
+**The OpenAPI document has no `servers` entry; its paths are `/v1/...` and are
+served under `/api`.** The reference page passes `servers: [{ url: "/api" }]`
+to Scalar so its snippets and runner resolve; `llms.txt` and `/developers` say
+it in words. Adding `servers` to the document itself would be a contract change
+(`API_FINGERPRINT`, a version bump, a changelog line) and has not been made.
+
+**Bots cannot reach the non-`/api` discovery paths until the Vercel firewall
+exempts them.** The firewall challenges automated traffic on every path outside
+`/api/*`, and that rule is dashboard configuration, not code in this repo. What
+Mitchell adds (Vercel → Firewall → a bypass rule per path):
+
+| Path | Exemption | Why |
+|---|---|---|
+| `/.well-known/api-catalog` | **required** | The standard entry point; a crawler that gets a challenge page finds nothing |
+| `/llms.txt` | **required** | Read by agents before anything else |
+| `/developers`, `/developers/reference` | **recommended** | An agent following `service-doc` or `llms.txt` reads these too. `/developers/reference` is a client-rendered page, so a crawler gets the header and must fetch `/api/v1/openapi` for the content; `/developers` is static HTML and fully readable |
+
+Until then a browser can read them and a crawler gets a challenge page.
+`/api/v1` and `/api/v1/openapi` need nothing, since they are under `/api/*`.
 
 ### Scopes
 
