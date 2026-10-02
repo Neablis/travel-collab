@@ -20,7 +20,7 @@ describe("playbookDayCopy", () => {
     expect(playbookDayCopy(day)).toEqual({
       label: "Caesura · playbook",
       title: "Temples before the crowds",
-      description: "Kyoto · 3 days · 12 stops · by Traveler a1b2c3 · ★ 4.6 (12)",
+      description: "Kyoto · 3 days · 12 stops · by Traveler a1b2c3 · rated 4.6 from 12 reviews",
     });
   });
 
@@ -28,6 +28,10 @@ describe("playbookDayCopy", () => {
     const plain = { ...day, cities: [], dayCount: 1, stopCount: 1, rating: null, reviewCount: 0 };
 
     expect(playbookDayCopy(plain).description).toBe("1 stop · by Traveler a1b2c3");
+  });
+
+  it("says one review in the singular, in words", () => {
+    expect(playbookDayCopy({ ...day, rating: 5, reviewCount: 1 }).description).toMatch(/· rated 5\.0 from 1 review$/);
   });
 
   it("names every city it was given", () => {
