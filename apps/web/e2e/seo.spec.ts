@@ -13,7 +13,10 @@ test("a signed-out / serves the landing in place, uncached, with one h1", async 
   const visitor = await stranger(browser);
   const response = await visitor.request.get("/", { maxRedirects: 0 });
   expect(response.status()).toBe(200);
-  expect(response.headers()["cache-control"]).toContain("no-store");
+  // `/` is two pages by session: never stored by a CDN or the browser. (A
+  // `Vary: Cookie` set beside this is not asserted because it does not arrive:
+  // Next replaces `Vary` on the rewritten response with its own RSC list.)
+  expect(response.headers()["cache-control"]).toBe("private, no-store");
   const html = await response.text();
   expect(html).toMatch(HEADLINE);
   // The phone and desktop trees are both in the document; only one may be an h1.
@@ -48,8 +51,10 @@ test("page metadata: canonical, description, title and twitter image", async ({ 
   // One page whatever its filters: the canonical drops the query string.
   const playbooks = await head("/playbooks?city=Kyoto");
   expect(playbooks).toMatch(/<link rel="canonical" href="[^"]*\/playbooks"/);
-  // A page that passes a preview image resolves a twitter:image from it.
-  expect(playbooks).toMatch(/<meta name="twitter:image" content="[^"]+"/);
+  // /playbooks passes the Playbooks card as its `image`; twitter states no
+  // images of its own, so it must inherit that card. The site card is also
+  // a twitter:image, so the match is on the card's path, not mere presence.
+  expect(playbooks).toMatch(/<meta name="twitter:image" content="[^"]*\/api\/og\/playbooks/);
 
   const demo = await head("/demo");
   expect(demo).toMatch(/<meta name="description" content="[^"]{10,}"/);

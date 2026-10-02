@@ -68,7 +68,6 @@ export default auth((req) => {
       // visitor who signs in could be shown the landing again from a cache.
       const landing = NextResponse.rewrite(new URL("/welcome", req.nextUrl));
       landing.headers.set("Cache-Control", "private, no-store");
-      landing.headers.set("Vary", "Cookie");
       return landing;
     }
     // M27 link 6: the invite landing is PUBLIC — it is what an invite link
