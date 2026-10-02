@@ -1,4 +1,4 @@
-import { expect, type Locator, type Page } from "@playwright/test";
+import { expect, type Browser, type Locator, type Page } from "@playwright/test";
 import type { Location } from "@tc/contracts";
 import { commandsFor, type CommandsForOverrides } from "@tc/factories";
 import { E2E_SUPER_CODE } from "./admission";
@@ -497,4 +497,10 @@ export async function openAccountPage(page: Page, tab?: "profile" | "plan" | "to
 /** The account page's content, for a spec that used to scope to the Sheet's dialog. */
 export function accountPanel(page: Page): Locator {
   return page.getByRole("tabpanel");
+}
+
+/** A browser context with no session at all: what a crawler or a first-time visitor is. */
+export async function stranger(browser: Browser): Promise<Page> {
+  const context = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+  return context.newPage();
 }

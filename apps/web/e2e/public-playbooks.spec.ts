@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
-import type { Browser, Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures/test";
 import { E2E_SUPER_CODE } from "./admission";
+import { stranger } from "./helpers";
 import { e2eTripName } from "./tripNames";
 
 // ADR-061: the playbook library is readable without an account. alice
@@ -47,12 +48,6 @@ async function forget(page: Page, savedDayId: string): Promise<void> {
   await page.request.delete(`/api/saved-days/${savedDayId}/publish`);
   const res = await page.request.delete(`/api/saved-days/${savedDayId}`);
   expect(res.ok(), `forget -> ${res.status()}`).toBe(true);
-}
-
-/** A browser context with no session at all. */
-async function stranger(browser: Browser): Promise<Page> {
-  const context = await browser.newContext({ storageState: { cookies: [], origins: [] } });
-  return context.newPage();
 }
 
 test("a stranger opens a shared playbook, browses, and is asked to sign in to add it", async ({ page, browser }) => {
