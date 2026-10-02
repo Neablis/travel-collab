@@ -16,8 +16,12 @@ export async function generateMetadata({
 }) {
   const { cities, countries } = parseDiscoverUrl(await searchParams);
   const fallback = playbooksPageMetadata("Playbooks");
-  if (cities.length !== 1 || countries.length > 0) return fallback;
-  return linkPreviewMetadata(`/api/og/playbooks/city/${encodeURIComponent(cities[0]!)}`, fallback);
+  const meta =
+    cities.length !== 1 || countries.length > 0
+      ? fallback
+      : await linkPreviewMetadata(`/api/og/playbooks/city/${encodeURIComponent(cities[0]!)}`, fallback);
+  // Discover is one page whatever its filters.
+  return { ...meta, alternates: { canonical: "/playbooks" } };
 }
 
 // `/playbooks` — Discover (M11b link 5). This route used to be an 18-line shell

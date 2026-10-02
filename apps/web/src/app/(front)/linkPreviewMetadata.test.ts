@@ -46,6 +46,7 @@ describe("/invite/<token> metadata", () => {
 
     expect(await inviteMetadata({ params: Promise.resolve({ token: "tok_123" }) })).toEqual({
       title: "You're invited",
+      robots: { index: false, follow: false },
     });
   });
 
@@ -54,6 +55,7 @@ describe("/invite/<token> metadata", () => {
 
     expect(await inviteMetadata({ params: Promise.resolve({ token: "tok_123" }) })).toEqual({
       title: "You're invited",
+      robots: { index: false, follow: false },
     });
   });
 });
