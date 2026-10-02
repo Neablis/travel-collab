@@ -1,6 +1,7 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures/test";
 import { DEFAULT_TEMPLATES } from "@tc/pages";
+import { JAPAN_TRAVELLERS } from "@tc/fixtures";
 import { createEmptyTripViaWizard } from "./helpers";
 import { e2eTripName } from "./tripNames";
 
@@ -127,6 +128,12 @@ test.describe("the Japan demo's Overview", () => {
 
     await expect(page).toHaveURL(/\/demo\?view=Overview&page=[0-9a-f-]+$/);
     await expect(page.getByRole("heading", { name: "Spend by day" })).toBeVisible();
+    // "Who owes what" (M19 part 2) names each traveller from the trip's access
+    // read. Without it a member reads "Traveler 1", so a row led by each of the
+    // demo's own travellers is the names reaching the widget. The roster is the
+    // fixture's, not a literal here: it has already changed once (part 1).
+    await expect(page.getByRole("heading", { name: "Who owes what" })).toBeVisible();
+    for (const name of JAPAN_TRAVELLERS) await expect(page.getByRole("rowheader", { name, exact: true })).toBeVisible();
     await expect(page.getByText(/^Here is your itinerary, day by day/)).toHaveCount(0);
     // Read-only, as the Overview is: no Edit, and nothing on the page takes typing.
     await expect(page.getByRole("link", { name: "Edit" })).toHaveCount(0);

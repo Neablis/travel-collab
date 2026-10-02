@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { activityFactory, historyFixture, locationFactory, tripDetailFixture } from "@tc/factories";
 import { ActivityEditorSheet } from "./ActivityEditorSheet";
@@ -39,6 +39,7 @@ const fetchTripAccessMock = vi.fn();
 import { fetchTripDetail, fetchTripHistory } from "@/lib/apiClient";
 import { TripProvider } from "@/components/trip/context/TripProvider";
 import { EditorHost, useEditor } from "@/components/trip/context/EditorHost";
+import { PeopleProvider } from "@/components/pages/people";
 
 const TRIP_ID = "10000000-0000-4000-8000-000000000000";
 const DAY_1 = "day-1";
@@ -112,12 +113,16 @@ function Opener({ mode, activityId }: { mode: "create" | "edit"; activityId?: st
   return null;
 }
 
+// Under a `PeopleProvider`, as TripBoardScreen mounts it: the attribution
+// controls name members from the access read the mock above answers.
 function renderEditorSheet({ mode, activityId }: { mode: "create" | "edit"; activityId?: string }) {
   render(
     <TripProvider tripId={TRIP_ID}>
       <EditorHost>
         <Opener mode={mode} activityId={activityId} />
-        <ActivityEditorSheet />
+        <PeopleProvider tripId={TRIP_ID}>
+          <ActivityEditorSheet />
+        </PeopleProvider>
       </EditorHost>
     </TripProvider>,
   );
@@ -492,5 +497,61 @@ describe("ActivityEditorSheet — a viewer gets no form", () => {
     expect(screen.queryByLabelText("What or where")).toBeNull();
     expect(screen.queryByRole("button", { name: "Add stop" })).toBeNull();
     expect(dispatch).not.toHaveBeenCalled();
+  });
+});
+
+// Booked by decides who is owed money (ADR-060 decision 6), so the editor's
+// attribution controls must read as people: the Travelers list's names, then
+// "Traveler N" by place in the trip while they are missing — never an id, and
+// never an email (a co-traveller's address is not this surface's to show).
+describe("ActivityEditorSheet — who a stop is for, by name", () => {
+  const U1 = "8f1c2d3e-0000-4000-8000-000000000001";
+  const U2 = "8f1c2d3e-0000-4000-8000-000000000002";
+  const withTwoMembers = () => {
+    const trip = fixture();
+    trip.members = [
+      { userId: U1, role: "owner" },
+      { userId: U2, role: "editor" },
+    ];
+    vi.mocked(fetchTripDetail).mockResolvedValue({ ok: true, value: trip });
+  };
+  const labels = () => {
+    const toggles = within(screen.getByRole("group", { name: "Who is going" })).getAllByRole("button");
+    const options = [...(screen.getByLabelText("Booked by") as HTMLSelectElement).options].slice(1);
+    return { toggles: toggles.map((b) => b.textContent), bookedBy: options.map((o) => o.text) };
+  };
+
+  it("names members from the trip's access list", async () => {
+    withTwoMembers();
+    fetchTripAccessMock.mockResolvedValue({
+      ok: true,
+      value: {
+        tripId: TRIP_ID,
+        myRole: "owner",
+        members: [
+          { userId: U1, role: "owner", name: "Dana Reyes", email: "dana@example.com", image: null },
+          { userId: U2, role: "editor", name: null, email: "sam@example.com", image: null },
+        ],
+        invites: [],
+      },
+    });
+    renderEditorSheet({ mode: "edit", activityId: SCHEDULED_ACTIVITY_ID });
+
+    expect(await screen.findByRole("button", { name: "Dana Reyes" })).toBeTruthy();
+    // Sam has no name: the handle `displayNameFor` gives, not the address.
+    const { toggles, bookedBy } = labels();
+    expect(toggles).toEqual(["Dana Reyes", "Traveler 000002"]);
+    expect(bookedBy).toEqual(toggles);
+  });
+
+  it("says Traveler N while names are unavailable, never the raw id", async () => {
+    withTwoMembers();
+    fetchTripAccessMock.mockResolvedValue({ ok: false, error: { status: 500, message: "down" } });
+    renderEditorSheet({ mode: "edit", activityId: SCHEDULED_ACTIVITY_ID });
+
+    expect(await screen.findByRole("button", { name: "Traveler 1" })).toBeTruthy();
+    const { toggles, bookedBy } = labels();
+    expect(toggles).toEqual(["Traveler 1", "Traveler 2"]);
+    expect(bookedBy).toEqual(toggles);
   });
 });

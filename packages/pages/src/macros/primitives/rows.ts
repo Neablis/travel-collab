@@ -28,7 +28,7 @@ const segOf = (v: RepeatValue) => (v.name === "label" ? text(v.text) : chip(v.na
  * A repeat payload as rendered rows, cell for cell: a label as text, every
  * other value as a chip.
  */
-const renderRows = (payload: RepeatPayload) =>
+export const renderRows = (payload: RepeatPayload) =>
   rowsOf(
     payload.rows.map((row) => ({
       lead: [segOf(row.lead)],

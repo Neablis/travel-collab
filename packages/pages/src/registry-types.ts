@@ -314,11 +314,15 @@ export const rowsOf = (rows: RenderedRow[], headings?: readonly string[]): Rende
 // correspondence is enforced by a registry-wide test rather than by convention.
 export type WidgetInput =
   | { name: string; type: "day"; label: string }
-  // No `person` input: Mitchell, 2026-09-24, *"person is removed for now"*
-  // (M14 decision 5). Nothing links a stop to a person yet, so a control for
-  // one would resolve against data that does not exist. It comes back with
-  // M13's `add-stop-who` / M19 link 3, as a member here and a case in every
-  // switch the compiler then points at.
+  // **Whose money a widget is about** (M19 part 2, `person.share`). It was
+  // removed on 2026-09-24 (*"person is removed for now"*, M14 decision 5)
+  // because nothing linked a stop to a person; M13 link 5 gave stops
+  // `participants` and `bookedBy`, and this is the input coming back as that
+  // comment promised. It names the SUBJECT, not a filter: `narrow` still
+  // refuses the `person` dimension, because "the stops somebody is in" and
+  // "the stops somebody booked" are two answers and a filter would have to
+  // pick one. Its control is a select over the trip's members, by name.
+  | { name: string; type: "person"; label: string }
   | { name: string; type: "tags"; label: string }
   // The three ADR-039 decision 1 adds, one per filter dimension that had no
   // control before it: a city select, a kind select, and a from/through date
@@ -490,6 +494,18 @@ export interface WidgetContext {
    * that widget "not handed" and "not landed" are the same answer.
    */
   external?: ExternalInputs;
+  /**
+   * What to call each member, by `userId` — `TripMember` carries no name, so
+   * the web hands one in. It is the Travelers list's own join
+   * (`TripAccess.members`, already fetched by the notebook surfaces), named by
+   * `displayNameFor` with no email: a notebook is a shared document, the rule
+   * `attribute`'s `account.name` states. One naming rule, in `apps/web`.
+   *
+   * **Optional, and absent is not an error**: the server, the assistant and
+   * every test build a context without it, and a widget then calls a member
+   * "Traveler 2" by their place in `trip.members` (`personName`).
+   */
+  people?: Readonly<Record<string, string>> | null;
 }
 
 // The per-iteration scope a repeat renderer passes as it maps a row template

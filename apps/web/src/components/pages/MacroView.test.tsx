@@ -439,6 +439,9 @@ describe("every widget is legal where widgets actually go", () => {
       // settings would — the notebook `richExternal` lists, and an address.
       if (input.type === "target") params[input.name] = { kind: "notebook", pageId: LINKED_NOTEBOOK };
       if (input.type === "url") params[input.name] = "https://example.com/tickets";
+      // "What one person is in for" lands asking who; its member select
+      // answers with one of the trip's members.
+      if (input.type === "person") params[input.name] = costedDetail.members[0]!.userId;
       // A field the preset leaves to the reader: the picker's first entry.
       if (input.type === "field" && !input.multiple && !(input.name in params)) {
         params[input.name] = fieldChoices(input.of)[0]!.path;

@@ -4,6 +4,7 @@ import { repeatLabel, repeatNoun, repeatTemplate, resolveRepeat, sentenceLines, 
 import { cn } from "@/lib/cn";
 import { useToday } from "@/lib/today";
 import { EmptyChip } from "../EmptyChip";
+import { usePeople } from "../people";
 import { SELECTED_RING } from "./MacroNodeView";
 import { useMacroEditorContext } from "./MacroEditorContext";
 import { useSelectionReport } from "./useSelectionReport";
@@ -66,9 +67,10 @@ function Unrepeated({ outcome, onBindDay }: { outcome: Exclude<RepeatOutcome, { 
 export function RepeatNodeView({ node, selected, editor }: ReactNodeViewProps) {
   const value = useMacroEditorContext();
   const today = useToday();
+  const people = usePeople();
   const name = node.attrs.name as string;
   const params = useSelectionReport(selected, name, node.attrs.params, editor);
-  const ctx = { trip: value.detail, page: value.context, user: value.user, globals: value.globals, today, external: value.external };
+  const ctx = { trip: value.detail, page: value.context, user: value.user, globals: value.globals, today, external: value.external, people };
   const outcome = resolveRepeat(ctx, name, params);
   const { editing } = value;
   const { label, resolved } = rail(outcome);

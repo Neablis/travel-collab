@@ -184,12 +184,15 @@ Part 1 — a price is per person:
 
 Part 2 — who owes what:
 
-- [ ] **A "Who owes what" widget** lists each member's share, what they paid (as Booked by)
+- [x] **A "Who owes what" widget** lists each member's share, what they paid (as Booked by)
       and their balance, plus a *not paid yet* line for stops nobody booked. Unit tests on the
       pure balance function are seen to fail.
-- [ ] **"What one person is in for"** (`w-person`, parked out of M14 on 2026-09-03) is built
+      *(Ticked 2026-10-02, #290: `balances` in `packages/contracts/src/costs.ts`, property-tested Σ net = −unpaid, seen red with the payer credited one share instead of the stop total (`expected -1 to be +0`). Preview walk on #290: the demo's four travellers by name, shares summing to the $31,195 total; setting Booked by moved $60 to the payer and left the other owing $30.)*
+- [x] **"What one person is in for"** (`w-person`, parked out of M14 on 2026-09-03) is built
       on the same function.
-- [ ] The Money notebook seeded into a new trip carries the balances widget.
+      *(Ticked 2026-10-02, #290: `person.share` calls the same `balances`; a test checks each member's sentence matches their row, seen red with the stop count bypassing `stopPeople`. Preview walk: "choose a person" until chosen, then the sentence matches that person's Share row.)*
+- [x] The Money notebook seeded into a new trip carries the balances widget.
+      *(Ticked 2026-10-02, #290: `templates.test.ts` "seeds Money with Who owes what", seen red before the template change (`expected [ Array(4) ] to include 'cost.balances'`); the preview walk's fresh trip shows the section.)*
 
 Part 3 — the shared day says *each*:
 

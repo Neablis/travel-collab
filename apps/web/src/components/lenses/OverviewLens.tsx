@@ -16,6 +16,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { RegionError, Skeleton, SkeletonRegion } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/cn";
+import { PeopleProvider } from "@/components/pages/people";
 
 // SPEC §25: **Overview IS a notebook page.**
 //
@@ -336,18 +337,22 @@ export function OverviewLens({
     }
 
     return (
-      <PageEditor
-        detail={detail}
-        context={state.page.context}
-        user={user}
-        globals={globals ?? null}
-        value={state.doc}
-        // Reading mode never writes. The tab does not edit (§25), so there is
-        // no change to carry anywhere and a no-op is the honest handler rather
-        // than a missing prop.
-        onChange={() => {}}
-        editable={false}
-      />
+      // Member names for its widgets, from the access read `TripProvider` has
+      // already cached.
+      <PeopleProvider tripId={tripId}>
+        <PageEditor
+          detail={detail}
+          context={state.page.context}
+          user={user}
+          globals={globals ?? null}
+          value={state.doc}
+          // Reading mode never writes. The tab does not edit (§25), so there is
+          // no change to carry anywhere and a no-op is the honest handler rather
+          // than a missing prop.
+          onChange={() => {}}
+          editable={false}
+        />
+      </PeopleProvider>
     );
   };
 
