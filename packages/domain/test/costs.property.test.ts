@@ -92,4 +92,29 @@ describe("recostDetail", () => {
     }));
     w.atLeast(17); // observed 34-54 over 10 runs
   });
+
+  // The over-budget conflict reads `tripCostTotal`, so it has to move with it.
+  // Before this, a join that pushed a trip over budget showed the banner and a
+  // negative `budgetRemaining` but no conflict on the board, because conflicts
+  // were the log's (one member's) answer and the overlay left them alone.
+  it("recomputes the over-budget conflict with the totals, so the banner and the board agree", () => {
+    const w = witness("recost moves the over-budget conflict");
+    const stop = fc.record({ cost: fc.nat({ max: 100_000 }), picked: fc.nat({ max: 3 }), onDay: fc.boolean() });
+    fc.assert(fc.property(fc.array(stop, { maxLength: 8 }), fc.integer({ min: 1, max: 5 }), fc.nat({ max: 600_000 }), (stops, members, b) => {
+      const costs = stops.map((s) => s.cost);
+      const onDay = stops.map((s) => s.onDay);
+      const picked = stops.map((s) => s.picked);
+      const withBudget = (st: TripState): TripState => ({ ...st, budget: { amountMinor: b, currency: "USD" } });
+      const stored = tripDetailFromState(withBudget(stateOf(costs, onDay, picked, 1)), "2026-10-02T00:00:00.000Z");
+      const joined = tripDetailFromState(withBudget(stateOf(costs, onDay, picked, members)), "2026-10-02T00:00:00.000Z");
+      const recosted = recostDetail(stored, members);
+      // Ticks only where the join changes the answer: the log's one member is
+      // within budget and the effective members are not.
+      const over = (d: typeof stored) => d.conflicts.some((c) => c.kind === "over-budget");
+      if (!over(stored) && over(joined)) w.tick();
+      expect(recosted.conflicts).toEqual(joined.conflicts);
+      expect(over(recosted)).toBe(recosted.budgetRemaining! < 0);
+    }), { numRuns: 400 });
+    w.atLeast(9); // observed 18-34 over 10 runs of 400
+  });
 });

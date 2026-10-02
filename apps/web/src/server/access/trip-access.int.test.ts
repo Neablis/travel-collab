@@ -347,4 +347,44 @@ describe("a trip's totals follow its members at read time", () => {
     expect(write.status).toBe(200);
     expect(TripDetail.parse(((await write.json()) as { detail: unknown }).detail).tripCostTotal).toBe(60_00);
   });
+
+  // The over-budget conflict reads the same total, so it follows the members
+  // too. Without this the join below showed the banner and a negative
+  // `budgetRemaining`, and the board showed no conflict at all.
+  it("raises the over-budget conflict when a join pushes the total past the budget, with no event", async () => {
+    const tripId = randomUUID();
+    const dayId = randomUUID();
+    const usd = (amountMinor: number) => ({ amountMinor, currency: "USD" });
+    await executeTripCommand({ type: "CreateTrip", tripId, name: "Over by two" }, OWNER);
+    await executeTripCommand({ type: "SetTripBudget", tripId, budget: usd(50_00) }, OWNER);
+    await executeTripCommand({ type: "AddDay", tripId, dayId }, OWNER);
+    await executeTripCommand(
+      { type: "AddActivity", tripId, activityId: randomUUID(), dayId, title: "Ramen", cost: usd(30_00) },
+      OWNER,
+    );
+    const read = async () => {
+      const res = await GET_TRIP(new Request("http://test/x"), { params: Promise.resolve({ tripId }) });
+      expect(res.status).toBe(200);
+      return TripDetail.parse(((await res.json()) as { trip: unknown }).trip);
+    };
+    const overBudget = (d: TripDetail) => d.conflicts.filter((c) => c.kind === "over-budget");
+
+    const solo = await read();
+    expect([solo.budgetRemaining, overBudget(solo)]).toEqual([20_00, []]);
+    const head = await readStreamHeadSeq(db, tripId);
+
+    await grantMembership(db, { tripId, userId: GUEST, role: "editor", invitedBy: OWNER, now: new Date().toISOString() });
+
+    const pair = await read();
+    expect(pair.budgetRemaining).toBe(-10_00);
+    expect(overBudget(pair)).toEqual([
+      expect.objectContaining({
+        id: `over-budget:${tripId}`,
+        description: "Trip total (60.00 USD) exceeds the budget (50.00 USD) by 10.00 USD.",
+      }),
+    ]);
+    expect(await readStreamHeadSeq(db, tripId), "a join is not a planning event").toBe(head);
+    // The stored projection is the log's one-member answer: within budget.
+    expect(overBudget((await getTripDetail(tripId))!)).toEqual([]);
+  });
 });

@@ -202,19 +202,31 @@ const anchorRule: Rule = (state, ctx) => {
   return conflicts;
 };
 
-const budgetRule: Rule = (state, _ctx) => {
-  if (state.budget === null) return [];
-  const { tripCostTotal } = rollupCosts(state, state.members.length);
-  if (tripCostTotal <= state.budget.amountMinor) return [];
+/**
+ * The over-budget conflict for a trip whose stops total `tripCostTotal`, or
+ * none. Exported, not just a rule, because the total depends on who is on the
+ * trip (ADR-060): `recostDetail` calls it again at read time for the effective
+ * members, so the conflict, the banner and `budgetRemaining` read one number.
+ * The id is the trip's alone, so a dismissal survives the total moving.
+ */
+export function overBudgetConflicts(
+  trip: { tripId: string; currency: string; budget: { amountMinor: number } | null },
+  tripCostTotal: number,
+): Conflict[] {
+  const { tripId, currency, budget } = trip;
+  if (budget === null || tripCostTotal <= budget.amountMinor) return [];
   return [{
-    id: `over-budget:${state.tripId}`,
+    id: `over-budget:${tripId}`,
     kind: "over-budget",
     severity: "warn",
-    subjects: [state.tripId],
-    description: `Trip total (${fmt(tripCostTotal, state.currency)}) exceeds the budget (${fmt(state.budget.amountMinor, state.currency)}) by ${fmt(tripCostTotal - state.budget.amountMinor, state.currency)}.`,
+    subjects: [tripId],
+    description: `Trip total (${fmt(tripCostTotal, currency)}) exceeds the budget (${fmt(budget.amountMinor, currency)}) by ${fmt(tripCostTotal - budget.amountMinor, currency)}.`,
     resolutions: ["Raise the budget", "Remove or reduce a cost"],
   }];
-};
+}
+
+const budgetRule: Rule = (state, _ctx) =>
+  overBudgetConflicts(state, rollupCosts(state, state.members.length).tripCostTotal);
 
 // Rules are registered here; each is pure and individually testable
 // (docs/guidelines/building-the-parts.md). Sorted output keeps the
@@ -222,5 +234,9 @@ const budgetRule: Rule = (state, _ctx) => {
 const rules: Rule[] = [timeOverlapRule, geographyRule, anchorRule, budgetRule];
 
 export function detectConflicts(state: TripState, ctx: ConflictContext = DEFAULT_CONFLICT_CONTEXT): Conflict[] {
-  return rules.flatMap((rule) => rule(state, ctx)).sort((a, b) => a.id.localeCompare(b.id));
+  return sortConflicts(rules.flatMap((rule) => rule(state, ctx)));
+}
+
+export function sortConflicts(conflicts: Conflict[]): Conflict[] {
+  return conflicts.sort((a, b) => a.id.localeCompare(b.id));
 }
