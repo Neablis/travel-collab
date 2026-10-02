@@ -16,6 +16,37 @@ not by anybody remembering. That automation exists because the rule was being
 skipped: M23's entry survived its own gate closing on 2026-09-19 and was still
 here two days later.
 
+- **Caesura installable as a phone app, as a PWA and not a store release (asked
+  2026-10-02).** Mitchell: *"what would be the lift to get Caesura working as a
+  mobile app? Not like a full on app store"*, then *"add the PWA to potential
+  future work"*. Nothing exists today: no manifest, no service worker, no PNG
+  icons, no `viewport` export (`apps/web/src/app/layout.tsx` exports `metadata`
+  only), and nothing blocks adding them. Sized by reading code on 2026-10-02,
+  not measured, in four tiers:
+  - **Installable, about a day.** `app/manifest.ts`, PNG icons (192, 512,
+    maskable, apple 180) from `scripts/generate-og-assets.mjs`, and a `viewport`
+    export. `viewport-fit=cover` turns on the tab bar's existing bottom inset
+    and exposes the missing top one, so it ships with that fix or waits for the
+    next tier.
+  - **Feels like an app, about a week.** The service worker is the small half:
+    hand-written, because the build is Turbopack (the MapLibre worker in
+    `apps/web/scripts/copy-maplibre-worker.mjs` is the precedent). It caches
+    static assets only and never `/api/**`, `/s/**`, `/invite/**` or
+    `/monitoring`. The large half is the phone layout already recorded in
+    KI-2026-09-24-i, KI-2026-09-24-j and KI-2026-09-25-f.
+  - **Push, one to two weeks; offline trip data, a milestone.** Nothing
+    generates a notification today. Offline reverses ADR-012 and ADR-046 (the
+    client holds no store), so it needs its own ADR; read-only offline is the
+    cheaper middle.
+  - **Store wrapper.** An Android TWA is days. iOS is weeks: Google blocks OAuth
+    in a webview, Apple requires Sign in with Apple, and Stripe subscriptions
+    meet both stores' billing rules.
+
+  Open questions, none walked on a device: an installed iOS app has its own
+  cookie jar, emailed invite links open in Safari and not in the app, and
+  long-press drag on the board is unverified (the `phone` e2e project is desktop
+  Chrome at 411px with no touch).
+
 - **An SEO pass over the public library (asked 2026-10-02).** ADR-061 made
   `/playbooks`, its days, profiles and board readable without an account.
   Mitchell, 2026-10-02: *"I have no issue being crawled, we should do a seo pass
@@ -26,6 +57,25 @@ here two days later.
   - per-page `description`s, which today come from the og `meta` lookup;
   - structured data for a day;
   - whether profile and board pages earn a place in the index.
+
+  **Audited 2026-10-02; Mitchell: *"Lets start the SEO work"*.** What the audit
+  added to that list, most valuable first:
+  - **The Vercel firewall challenges crawlers on every page this pass is
+    about.** `/`, `/robots.txt` and `/sitemap.xml` answered `429 Vercel Security
+    Checkpoint` to non-browser clients from two networks; `/llms.txt` and
+    `/api/og/playbooks` answered 200. It is the dashboard rule
+    `docs/guidelines/using-the-api.md` already describes. Whether verified
+    Googlebot passes was not testable from here.
+  - Every day page has one `<title>`, "A playbook — Caesura"
+    (`apps/web/src/lib/linkPreview.ts` keeps the tab title generic on purpose).
+  - The public screens are client-rendered, so the HTML a crawler gets is a
+    skeleton (KI-2026-09-20-f), and a missing day answers 200.
+  - Discover shows 24 days with no pagination, so the sitemap is the only way
+    most days are found.
+  - City pages as paths (`/playbooks/city/kyoto`) and not `?city=`: the city
+    card and copy already exist.
+  - `/welcome` renders two `<h1>`s, and `/s/<token>` and `/invite/<token>`
+    carry no `noindex`.
 
 - **Structured booking fields on a stop — confirmation number, provider, link
   (asked 2026-09-30).** From an external API consumer's feedback: confirmation
