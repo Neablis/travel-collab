@@ -1,4 +1,7 @@
+import { JsonLd } from "@/components/JsonLd";
 import { LandingScreen } from "@/components/front/LandingScreen";
+import { deploymentOrigin } from "@/lib/deploymentOrigin";
+import { organizationJsonLd, webSiteJsonLd } from "@/lib/jsonLd";
 import { SITE_DESCRIPTION, pageMetadata } from "@/lib/siteMetadata";
 
 // `absolute`: the landing page leads with the brand, so the layout's
@@ -10,5 +13,11 @@ export const metadata = pageMetadata({
 });
 
 export default function WelcomePage() {
-  return <LandingScreen />;
+  const origin = deploymentOrigin();
+  return (
+    <>
+      <JsonLd data={[organizationJsonLd(origin), webSiteJsonLd(origin)]} />
+      <LandingScreen />
+    </>
+  );
 }

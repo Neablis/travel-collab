@@ -552,6 +552,21 @@ export async function publishedAtOf(savedDayId: string): Promise<string | null> 
 }
 
 /**
+ * A day's average rating and review count, off the row's denormalised
+ * counters. Beside `publishedAtOf` and on its terms: the caller has already
+ * passed the read seam, and this answers nothing about access. `rating` is
+ * null exactly when nobody has rated it.
+ */
+export async function ratingOf(savedDayId: string): Promise<{ rating: number | null; reviewCount: number }> {
+  if (!isUuid(savedDayId)) return { rating: null, reviewCount: 0 };
+  const rows = await db
+    .select({ rating: savedDays.rating, reviewCount: savedDays.reviewCount })
+    .from(savedDays)
+    .where(eq(savedDays.id, savedDayId));
+  return { rating: rows[0]?.rating ?? null, reviewCount: rows[0]?.reviewCount ?? 0 };
+}
+
+/**
  * Whether an operator hid this day from the library, and the note they left
  * its author — or null when it is not hidden (KI-2026-09-23-i).
  *
