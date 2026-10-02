@@ -1,0 +1,143 @@
+import { randomUUID } from "node:crypto";
+import type { Browser, Page } from "@playwright/test";
+import { expect, test } from "./fixtures/test";
+import { E2E_SUPER_CODE } from "./admission";
+import { e2eTripName } from "./tripNames";
+
+// ADR-061: the playbook library is readable without an account. alice
+// publishes a day, a stranger with no cookies opens its link, browses, and
+// presses Add — which asks them to sign in or make an account, and opens the
+// add dialog once they come back signed in.
+//
+// The city is minted per run for `m11b-playbooks.spec.ts`'s reason: the
+// published library is global and cumulative across runs.
+
+function mint(stem: string): string {
+  return `${stem}${randomUUID().replace(/-/g, "").slice(0, 8)}`;
+}
+
+/** alice keeps a one-stop day in `city` and publishes it. Returns its id. */
+async function publishedDay(page: Page, city: string, name: string): Promise<string> {
+  const post = async (path: string, data?: unknown) => {
+    const res = await page.request.post(path, data === undefined ? undefined : { data });
+    expect(res.ok(), `${path} -> ${res.status()}`).toBe(true);
+    return res;
+  };
+  const created = await post("/api/trips", { name: e2eTripName("Public playbook") });
+  const { tripId } = (await created.json()) as { tripId: string };
+  const dayId = randomUUID();
+  await post(`/api/trips/${tripId}/commands`, { type: "AddDay", tripId, dayId });
+  await post(`/api/trips/${tripId}/commands`, {
+    type: "AddActivity",
+    tripId,
+    activityId: randomUUID(),
+    dayId,
+    title: `Stop in ${city}`,
+    timeWindow: { start: "09:00", end: "10:00" },
+    location: { name: `Somewhere in ${city}`, city },
+  });
+  const kept = await post("/api/saved-days", { name, tripId, dayIds: [dayId] });
+  const { savedDayId } = ((await kept.json()) as { savedDay: { savedDayId: string } }).savedDay;
+  await post(`/api/saved-days/${savedDayId}/publish`);
+  return savedDayId;
+}
+
+/** Unpublish, then delete — the same two steps `m11b-playbooks.spec.ts`'s `forgetDay` walks. */
+async function forget(page: Page, savedDayId: string): Promise<void> {
+  await page.request.delete(`/api/saved-days/${savedDayId}/publish`);
+  const res = await page.request.delete(`/api/saved-days/${savedDayId}`);
+  expect(res.ok(), `forget -> ${res.status()}`).toBe(true);
+}
+
+/** A browser context with no session at all. */
+async function stranger(browser: Browser): Promise<Page> {
+  const context = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+  return context.newPage();
+}
+
+test("a stranger opens a shared playbook, browses, and is asked to sign in to add it", async ({ page, browser }) => {
+  test.slow();
+  const city = mint("Lisbone2e");
+  const dayName = `Tiles and tarts ${randomUUID().slice(0, 8)}`;
+  const savedDayId = await publishedDay(page, city, dayName);
+
+  try {
+    const visitor = await stranger(browser);
+
+    // The shared link opens — no bounce to /signin.
+    await visitor.goto(`/playbooks/day/${savedDayId}`);
+    await expect(visitor).toHaveURL(new RegExp(`/playbooks/day/${savedDayId}$`));
+    await expect(visitor.getByRole("heading", { name: dayName, level: 1 })).toBeVisible();
+
+    // Its preview card is the day's, not the site's.
+    await expect(visitor.locator('meta[property="og:title"]')).toHaveAttribute("content", dayName);
+    await expect(visitor.locator('meta[property="og:image"]')).toHaveAttribute(
+      "content",
+      new RegExp(`/api/og/playbooks/day/${savedDayId}$`),
+    );
+
+    // The header offers the way in, and nothing a stranger could only fail at.
+    const header = visitor.getByRole("banner");
+    await expect(header.getByRole("link", { name: "Sign in" })).toBeVisible();
+    await expect(header.getByRole("link", { name: "Create an account" })).toBeVisible();
+    await expect(visitor.getByRole("button", { name: /^Report/ })).toHaveCount(0);
+
+    // Add asks them to sign in or sign up, and both come back here.
+    await visitor.getByRole("button", { name: "Add to a trip" }).click();
+    const prompt = visitor.getByRole("dialog", { name: "Sign in to add this day" });
+    await expect(prompt).toBeVisible();
+    const back = encodeURIComponent(`/playbooks/day/${savedDayId}`);
+    await expect(prompt.getByRole("link", { name: "Sign in" })).toHaveAttribute("href", `/signin?callbackUrl=${back}`);
+    await expect(prompt.getByRole("link", { name: "Create an account" })).toHaveAttribute(
+      "href",
+      `/signup?callbackUrl=${back}`,
+    );
+
+    // Browsing the rest of the library works too, without the scopes that
+    // only mean something to an account.
+    await visitor.goto(`/playbooks?city=${encodeURIComponent(city)}`);
+    await expect(visitor.getByTestId("discover-card").filter({ hasText: dayName })).toBeVisible();
+    await expect(visitor.getByRole("tab", { name: "Yours" })).toHaveCount(0);
+
+    // Making the account brings them back to the day with the add dialog open.
+    await visitor.goto(`/playbooks/day/${savedDayId}`);
+    await visitor.getByRole("button", { name: "Add to a trip" }).click();
+    await visitor.getByRole("dialog", { name: "Sign in to add this day" }).getByRole("link", { name: "Create an account" }).click();
+    await expect(visitor).toHaveURL(/\/signup\?callbackUrl=/);
+    await visitor.getByLabel("Invite code").fill(E2E_SUPER_CODE);
+    // eslint-disable-next-line playwright/prefer-locator -- KI-2026-09-02-b: the dev-login field has no label; m11b-playbooks.spec.ts uses the same selector.
+    await visitor.fill('input[name="username"]', mint("pubreader"));
+    await visitor.getByRole("button", { name: /sign in with dev login/i }).click();
+    await expect(visitor).toHaveURL(new RegExp(`/playbooks/day/${savedDayId}$`));
+    await expect(visitor.getByRole("dialog", { name: `Add “${dayName}” to a trip` })).toBeVisible();
+
+    await visitor.context().close();
+  } finally {
+    await forget(page, savedDayId);
+  }
+});
+
+test("a private day is the same not-found to a stranger as one that never existed", async ({ page, browser }) => {
+  test.slow();
+  const city = mint("Portoe2e");
+  const dayName = `Kept to myself ${randomUUID().slice(0, 8)}`;
+  const savedDayId = await publishedDay(page, city, dayName);
+  await page.request.delete(`/api/saved-days/${savedDayId}/publish`);
+
+  try {
+    const visitor = await stranger(browser);
+    const day = await visitor.request.get(`/api/saved-days/${savedDayId}`);
+    expect(day.status()).toBe(404);
+    const unknown = await visitor.request.get(`/api/saved-days/${randomUUID()}`);
+    expect(unknown.status()).toBe(404);
+    // Writes still need an account.
+    const review = await visitor.request.put(`/api/saved-days/${savedDayId}/reviews`, { data: { rating: 5 } });
+    expect(review.status()).toBe(401);
+    // And its preview says nothing about it.
+    await visitor.goto(`/playbooks/day/${savedDayId}`);
+    await expect(visitor.locator('meta[property="og:title"]')).not.toHaveAttribute("content", dayName);
+    await visitor.context().close();
+  } finally {
+    await forget(page, savedDayId);
+  }
+});

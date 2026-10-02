@@ -485,7 +485,8 @@ export async function getSavedDay(savedDayId: string, ownerId: string): Promise<
 
 /**
  * The read rule the public library rests on: **your own day, or anybody's
- * published one.** The access seam over it, and the reasoning for why it is a
+ * published one.** A `null` reader is somebody with no account (ADR-061), who
+ * gets the published half only. The access seam over it, and the reasoning for why it is a
  * seam of its own rather than a role on `requireTripAccess`, is
  * `access/saved-day-access.ts`.
  *
@@ -498,7 +499,7 @@ export async function getSavedDay(savedDayId: string, ownerId: string): Promise<
  */
 export async function readableSavedDay(
   savedDayId: string,
-  readerId: string,
+  readerId: string | null,
 ): Promise<SavedDay | null> {
   // `getSavedDay`'s reason. This one also covers `insertSavedDay`, which reads
   // through here — so `POST /api/trips/:id/saved-days/not-a-uuid` answers 404
@@ -515,8 +516,11 @@ export async function readableSavedDay(
         // route's 404 cannot tell the two apart. `saved-day-access.ts` records
         // why that indistinguishability is load-bearing.
         isNull(savedDays.deletedAt),
+        // `readerId` null is a reader with no account (ADR-061): they own
+        // nothing, so only the published branch is left. Spelled as a branch
+        // rather than `owner_id = NULL`, whose NULL only works by accident.
         or(
-          eq(savedDays.ownerId, readerId),
+          readerId === null ? undefined : eq(savedDays.ownerId, readerId),
           // Published AND not moderated (M12 link 6). The author keeps their
           // moderated day — this is also their direct read and the insert path
           // into their own trips — while everyone else gets the same no-row a
