@@ -1,4 +1,4 @@
-### KI-2026-10-02-a — the public library's rate-limit rows have no sweep index
+### KI-2026-10-02-a — the public library's rate-limit rows have no sweep index — RESOLVED
 
 - **Severity:** cost / performance, once anonymous traffic is real. Nothing is broken today.
 - **Found 2026-10-02** while building ADR-061. Signed-out reads of the playbook library are
@@ -17,3 +17,14 @@
   IP-keyed policy.
 - **Watch:** this only matters once there are many distinct anonymous IPs. Until then the
   table stays small.
+- **Resolved 2026-10-02 (Mitchell: "go ahead and add the rate limit index").** Migration
+  `0034_public_library_sweep_index` adds `rate_limit_counters_public_library_window`, a
+  partial, window-led index on the `public-library-minute:` prefix, beside the link-preview
+  one in `server/db/schema.ts`. `quota.int.test.ts`'s planner test now runs for both
+  policies. Seen failing: renaming the policy to `public-library-minutes` turned the planner
+  test red (`expected '[{"QUERY PLAN"…' to contain '"Index Name":"rate_limit_counters_pub…'`),
+  and restoring it turned the test green. The shared `sweeping` flag is unchanged: a skipped
+  sweep is retried on a later request, which is harmless.
+- **Production:** previews migrate on build. Production is migrated by dispatching
+  `migrate-production` from `main` after merge, and that run applies 0033 too, which
+  `pnpm state` reports as not yet applied.
