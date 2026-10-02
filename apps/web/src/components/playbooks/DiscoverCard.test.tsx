@@ -12,6 +12,7 @@ function day(over: Partial<DiscoverDay> = {}): DiscoverDay {
   return {
     savedDayId: "aa000000-0000-4000-8000-000000000001",
     ownerId: "dev-alice",
+    ownerDisplayName: "Alice C.",
     name: "Kyoto temples on foot",
     cities: ["Kyoto"],
     matchedCities: [],
@@ -136,5 +137,18 @@ describe("a Discover card's city chips", () => {
       />,
     );
     expect(chipTexts()).toEqual(["Nara", "Tokyo", "Hakone", "+2 more"]);
+  });
+});
+
+// Mitchell, 2026-10-02: the library names a person "Alice C." — first name and
+// last initial, resolved by the server from the `users` row. The card prints
+// that, and must not fall back to deriving a handle from `ownerId` ("Alice"),
+// which is what it did while the library showed only handles.
+describe("a Discover card's author", () => {
+  it("is the name the server resolved, linking to their profile", () => {
+    render(<DiscoverCard day={day()} origin={{ from: "playbooks" }} />);
+    expect(screen.getByRole("link", { name: "Alice C." }).getAttribute("href")).toContain(
+      "/playbooks/profile/dev-alice",
+    );
   });
 });

@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { beforeAll, describe, expect, it } from "vitest";
 import { SavedDayVisibility } from "@tc/contracts";
-import { displayNameFor } from "@/lib/displayName";
 import { db } from "@/server/db/client";
 import { savedDays, users } from "@/server/db/schema";
 import { executeTripCommand } from "@/server/commands";
@@ -14,9 +13,9 @@ import { cityCardFor, dayCardFor, profileCardFor } from "./playbooks";
 
 // The Playbooks link-preview lookups (spec 2026-10-02 §2.7). Under test is
 // what a stranger holding a link learns: a published day's name and its
-// author's HANDLE — never the real name, which is seeded as "Dana Reyes" with
-// an address so all three are there to leak — and the generic card for every
-// day, person or city a signed-out reader could not open.
+// author's PUBLIC name, "Dana R." (Mitchell, 2026-10-02) — never the surname or
+// the address, which are seeded so they are there to leak — and the generic
+// card for every day, person or city a signed-out reader could not open.
 //
 // Cities are minted per run: the city count is over every published day in
 // the database, so a shared name would make it a function of other files.
@@ -26,7 +25,7 @@ const OWNER = `dev-og-pb-owner-${run}`;
 const NOBODY = `dev-og-pb-nobody-${run}`;
 const CITY = `Kyotoish${run}`;
 const OTHER_CITY = `Naraish${run}`;
-const HANDLE = displayNameFor({ userId: OWNER });
+const PUBLIC_NAME = "Dana R.";
 
 /** A one-day playbook by OWNER with one stop per city, published unless told not to. */
 async function seedDay(
@@ -87,7 +86,7 @@ beforeAll(async () => {
 const printed = (...values: unknown[]) => JSON.stringify(values);
 
 describe("dayCardFor", () => {
-  it("draws a published day with its name, cities, facts, rating and the author's handle", async () => {
+  it("draws a published day with its name, cities, facts, rating and the author's public name", async () => {
     const card = await dayCardFor(published);
 
     expect(card).toEqual({
@@ -96,18 +95,20 @@ describe("dayCardFor", () => {
       cities: [CITY, OTHER_CITY],
       dayCount: 1,
       stopCount: 2,
-      author: HANDLE,
+      author: PUBLIC_NAME,
       rating: 4.62,
       reviewCount: 12,
     });
-    expect(playbookDayCopy(card).description).toBe(`${CITY}, ${OTHER_CITY} · 2 stops · by ${HANDLE} · ★ 4.6 (12)`);
+    expect(playbookDayCopy(card).description).toBe(
+      `${CITY}, ${OTHER_CITY} · 2 stops · by ${PUBLIC_NAME} · rated 4.6 from 12 reviews`,
+    );
   });
 
-  it("never prints the author's real name or address", async () => {
+  it("never prints the author's surname or address", async () => {
     const card = await dayCardFor(published);
 
     const text = printed(card, playbookDayCopy(card));
-    for (const leak of ["Dana", "Reyes", "dana@", "example.com"]) expect(text).not.toContain(leak);
+    for (const leak of ["Reyes", "dana@", "example.com"]) expect(text).not.toContain(leak);
   });
 
   it.each([
@@ -122,13 +123,13 @@ describe("dayCardFor", () => {
 });
 
 describe("profileCardFor", () => {
-  it("draws someone who has shared, by handle, with their numbers and the cities they know", async () => {
+  it("draws someone who has shared, by public name, with their numbers and the cities they know", async () => {
     const card = await profileCardFor(OWNER);
 
     // The private, moderated and deleted days count for nothing here.
-    expect(card).toEqual({ kind: "profile", author: HANDLE, playbooksShared: 1, adds: 0, cities: [CITY, OTHER_CITY] });
+    expect(card).toEqual({ kind: "profile", author: PUBLIC_NAME, playbooksShared: 1, adds: 0, cities: [CITY, OTHER_CITY] });
     const text = printed(card, playbookProfileCopy(card));
-    for (const leak of ["Dana", "Reyes", "dana@"]) expect(text).not.toContain(leak);
+    for (const leak of ["Reyes", "dana@"]) expect(text).not.toContain(leak);
   });
 
   it.each([

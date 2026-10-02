@@ -1,4 +1,4 @@
-import { sql, type SQL } from "drizzle-orm";
+import { inArray, sql, type SQL } from "drizzle-orm";
 import { SavedDayVisibility } from "@tc/contracts";
 import type { CityMatch } from "@/lib/cities";
 import {
@@ -16,8 +16,9 @@ import {
   type RatingFloor,
 } from "@/lib/playbooks";
 import { savedDayFacts } from "@/lib/savedDayFacts";
-import { displayNameFor } from "@/lib/displayName";
-import { db } from "./db/client";
+import { publicNameFor } from "@/lib/displayName";
+import { db, type Queryable } from "./db/client";
+import { users } from "./db/schema";
 import { isUuid } from "./ids";
 import { parseSavedDayColumns } from "./savedDayRow";
 
@@ -140,7 +141,52 @@ type DiscoverRow = {
   created_at: unknown;
   published_at: unknown;
   matched_count: number;
-};
+} & OwnerNames;
+
+/** The owner's two name columns, as `ownerNames` selects them. Never the email. */
+type OwnerNames = { owner_display_name: string | null; owner_name: string | null };
+
+/**
+ * The columns `publicNameFor` reads, for the person `ownerId` names — the
+ * chosen name and the sign-in name, and deliberately NOT `users.email`, so an
+ * address cannot reach a library row even by a later mistake in the resolver.
+ *
+ * Correlated sub-selects rather than a join, so the queries keep their one
+ * `from saved_days d` and every grouped one stays grouped by `d.owner_id`
+ * alone. Two primary-key lookups a row. An owner with no `users` row reads as
+ * two nulls, which `publicNameFor` answers with the handle.
+ */
+function ownerNames(ownerId: SQL): SQL {
+  return sql`(select u.display_name from users u where u.id = ${ownerId}) as owner_display_name,
+      (select u.name from users u where u.id = ${ownerId}) as owner_name`;
+}
+
+/**
+ * **What the public library calls each of `userIds`** — `publicNameFor` over
+ * one batched `users` read (Mitchell, 2026-10-02; ADR-061 decision 4), for the
+ * surfaces that hold ids rather than a query to add `ownerNames` to: review
+ * bylines and the link-preview cards.
+ *
+ * Returns a lookup rather than a map so an id the caller did not ask about
+ * still gets its handle instead of `undefined`. Takes a transaction for the
+ * review write, which reads inside one.
+ */
+export async function publicNamesOf(
+  userIds: readonly string[],
+  q: Queryable = db,
+): Promise<(userId: string) => string> {
+  const unique = [...new Set(userIds)];
+  const rows =
+    unique.length === 0
+      ? []
+      : await q
+          .select({ id: users.id, displayName: users.displayName, name: users.name })
+          .from(users)
+          .where(inArray(users.id, unique));
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  return (userId) =>
+    publicNameFor({ userId, displayName: byId.get(userId)?.displayName, name: byId.get(userId)?.name });
+}
 
 /**
  * A timestamp column, as an ISO-8601 string.
@@ -364,6 +410,11 @@ function toDiscoverDay(row: DiscoverRow, queryCities: string[], readerId: string
   return {
     savedDayId: row.id,
     ownerId: row.owner_id,
+    ownerDisplayName: publicNameFor({
+      userId: row.owner_id,
+      displayName: row.owner_display_name,
+      name: row.owner_name,
+    }),
     name: row.name,
     cities: row.cities,
     // Derived from the day's OWN cities rather than echoed back from the query
@@ -518,7 +569,8 @@ function matchedCount(query: Pick<DiscoverQuery, "cities" | "countries">): SQL {
 /** The columns a `DiscoverRow` is read from. */
 const discoverColumns = sql`
       d.id, d.owner_id, d.name, d.stops, d.cities, d.visibility, d.adds, d.rating, d.review_count,
-      d.author_kind, d.day_count, d.source_trip_name, d.created_at, d.published_at`;
+      d.author_kind, d.day_count, d.source_trip_name, d.created_at, d.published_at,
+      ${ownerNames(sql`d.owner_id`)}`;
 
 export async function discoverDays(query: DiscoverQuery): Promise<DiscoverResponse> {
   const rows = await db.execute<DiscoverRow>(sql`
@@ -703,7 +755,7 @@ type AuthorRow = {
   playbooks_shared: number;
   reviews_received: number | null;
   average_rating: number | null;
-};
+} & OwnerNames;
 
 /**
  * Everyone who has ever had a day taken, ranked on the ledger.
@@ -735,7 +787,8 @@ export async function leaderboard(): Promise<PublicAuthor[]> {
       count(a.saved_day_id)::int as adds,
       count(distinct d.id) filter (where d.visibility = ${SavedDayVisibility.enum.public})::int as playbooks_shared,
       rt.reviews_received,
-      rt.average_rating
+      rt.average_rating,
+      ${ownerNames(sql`d.owner_id`)}
     from saved_days d
     left join saved_day_adds a on a.saved_day_id = d.id
     left join review_totals rt on rt.owner_id = d.owner_id
@@ -759,9 +812,13 @@ export async function leaderboard(): Promise<PublicAuthor[]> {
 function toAuthor(row: AuthorRow): PublicAuthor {
   return {
     userId: String(row.owner_id),
-    // The M17 seam. One resolver, and today it returns the identifier — see
-    // `lib/displayName.ts` for the recorded decision behind that.
-    displayName: displayNameFor({ userId: String(row.owner_id) }),
+    // First name and last initial, or the handle (`publicNameFor`; Mitchell,
+    // 2026-10-02). `publicAuthor` overrides it for someone with nothing.
+    displayName: publicNameFor({
+      userId: String(row.owner_id),
+      displayName: row.owner_display_name,
+      name: row.owner_name,
+    }),
     playbooksShared: Number(row.playbooks_shared),
     adds: Number(row.adds),
     reviewsReceived: Number(row.reviews_received ?? 0),
@@ -770,7 +827,7 @@ function toAuthor(row: AuthorRow): PublicAuthor {
 }
 
 /**
- * What a profile with nothing on it is called. The same string `displayNameFor`
+ * What a profile with nothing on it is called. The same string `publicNameFor`
  * itself falls back to for an id with no readable characters, so the app has
  * one neutral name for a person it cannot name rather than two.
  */
@@ -795,7 +852,8 @@ export async function publicAuthor(userId: string): Promise<PublicAuthor> {
       count(a.saved_day_id)::int as adds,
       count(distinct d.id) filter (where d.visibility = ${SavedDayVisibility.enum.public})::int as playbooks_shared,
       (select rt.reviews_received from review_totals rt where rt.owner_id = ${userId}) as reviews_received,
-      (select rt.average_rating from review_totals rt where rt.owner_id = ${userId}) as average_rating
+      (select rt.average_rating from review_totals rt where rt.owner_id = ${userId}) as average_rating,
+      ${ownerNames(sql`${userId}`)}
     from saved_days d
     left join saved_day_adds a on a.saved_day_id = d.id
     where d.owner_id = ${userId}
@@ -813,20 +871,26 @@ export async function publicAuthor(userId: string): Promise<PublicAuthor> {
   const row = rows.rows[0]!;
   const author = toAuthor({ ...row, owner_id: userId });
 
-  // A person with nothing gets NO derived handle. `displayNameFor` will turn
-  // any string into something person-shaped — `publicAuthor("someuserxyz")`
-  // returned `"Traveler serxyz"` — and this is the one call site whose
-  // argument is a URL segment a stranger typed, so a mistyped or invented id
-  // rendered as a plausible individual who has simply shared nothing
-  // (KI-2026-09-05-y / F-G05).
+  // A person with nothing gets NO name — neither their real one nor a derived
+  // handle. This is the one call site whose argument is a URL segment a
+  // stranger typed, and either would leak:
   //
-  // Deliberately NOT a `users` lookup and a 404: that answers "does this
-  // account exist" for anyone who asks, which is exactly what the docstring
-  // above refuses to do. Zero days and zero adds is the strongest statement
-  // that can be made without asking that question, and it is true of every
-  // nonexistent id — so the neutral name costs nothing on a page that has
-  // nothing to attribute, while everyone the leaderboard actually ranks (adds
-  // or days > 0) keeps the distinct suffix it needs.
+  //   * The real name (2026-10-02, when the row above began carrying the
+  //     `users` name columns): "Dana R." for a real id and a handle for an
+  //     invented one answers "does this account exist" for anyone who asks,
+  //     and names a person on the strength of a URL alone.
+  //   * The handle: `publicNameFor` turns any string into something
+  //     person-shaped — `publicAuthor("someuserxyz")` returned
+  //     `"Traveler serxyz"` — so a mistyped or invented id rendered as a
+  //     plausible individual who had simply shared nothing (KI-2026-09-05-y /
+  //     F-G05).
+  //
+  // Deliberately NOT a 404 when the `users` lookup misses, for the same
+  // reason. Zero days and zero adds is the strongest statement that can be
+  // made without answering it, and it is true of every nonexistent id — so the
+  // neutral name costs nothing on a page with nothing to attribute, while
+  // everyone the board ranks (adds or days > 0) is named. `board/route.int.test.ts`
+  // holds both halves.
   return author.playbooksShared === 0 && author.adds === 0 ? { ...author, displayName: NO_ONE_IN_PARTICULAR } : author;
 }
 

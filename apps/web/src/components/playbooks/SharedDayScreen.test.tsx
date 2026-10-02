@@ -103,7 +103,7 @@ function savedDay(over: Partial<SavedDay> = {}): SavedDay {
 
 function profile(over: Partial<PublicProfileResponse["author"]> = {}): PublicProfileResponse {
   return {
-    author: { userId: "dev-alice", displayName: "dev-alice", playbooksShared: 2, adds: 3, reviewsReceived: 0, averageRating: null, ...over },
+    author: { userId: "dev-alice", displayName: "Alice C.", playbooksShared: 2, adds: 3, reviewsReceived: 0, averageRating: null, ...over },
     knows: [],
     days: [],
   };
@@ -614,10 +614,11 @@ describe("a shared day", () => {
     renderDay();
     const strip = await screen.findByTestId("author-strip");
     expect(within(strip).getByText("2 playbooks shared · added to 3 trips")).toBeTruthy();
-    // A readable handle, never the raw identifier — the link still CARRIES the
-    // id, which is the distinction: `displayNameFor` decides what the link
-    // says, not where it goes.
-    expect(within(strip).getByRole("link", { name: "Alice" }).getAttribute("href")).toContain(
+    // The name the profile endpoint resolved ("Alice C.", `publicNameFor` on
+    // the server), not one re-derived here from the id ("Alice") — and never
+    // the raw identifier. The link still CARRIES the id: the name decides what
+    // the link says, not where it goes.
+    expect(within(strip).getByRole("link", { name: "Alice C." }).getAttribute("href")).toContain(
       "/playbooks/profile/dev-alice",
     );
     expect(within(strip).queryByText("dev-alice")).toBeNull();

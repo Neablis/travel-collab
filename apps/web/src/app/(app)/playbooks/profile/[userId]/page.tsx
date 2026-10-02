@@ -3,7 +3,7 @@ import { backTarget } from "@/components/playbooks/backLink";
 import { linkPreviewMetadata } from "@/lib/linkPreview";
 import { playbooksPageMetadata } from "@/lib/playbooksPreview";
 
-// The profile's own preview card (spec 2026-10-02 §2.7): the handle the page
+// The profile's own preview card (spec 2026-10-02 §2.7): the name the page
 // shows and its numbers, or the Playbooks card for someone with nothing
 // shared. Decoded as the page body decodes it, so both name the same id.
 /** Metadata for `/playbooks/profile/<id>`: the profile's card, or the Playbooks card if its lookup fails. */

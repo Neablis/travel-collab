@@ -1,19 +1,19 @@
 import { and, arrayContains, count, eq, isNull } from "drizzle-orm";
 import { SavedDayVisibility } from "@tc/contracts";
-import { displayNameFor } from "@/lib/displayName";
 import { db } from "../db/client";
 import { savedDays } from "../db/schema";
-import { citiesKnownBy, publicAuthor } from "../playbooks";
+import { citiesKnownBy, publicAuthor, publicNamesOf } from "../playbooks";
 import { readableSavedDay } from "../savedDays";
 
 // The Playbooks link-preview lookups (spec 2026-10-02 §2.7). An unfurler has
 // no session, so each one reads as a reader who owns nothing, and returns only
 // what its card prints.
 //
-// **Names are the page's own handle.** The library is pseudonymous: a day and
-// a profile name their author `displayNameFor({ userId })`, "Traveler a1b2c3",
-// and never `users.name`, `users.display_name` or an address. This module
-// reads no `users` column at all, so a preview cannot say more than the page.
+// **Names are the page's own.** A day and a profile name their author the way
+// the library does everywhere — `publicNameFor`, "Dana R." or the handle
+// (Mitchell, 2026-10-02; ADR-061 decision 4) — through the same server reads
+// the pages use (`publicNamesOf`, `publicAuthor`), never `users.email`. So a
+// preview cannot say more than the page under it.
 //
 // **Every miss is the generic card**, never a refusal of its own: a private,
 // moderated, deleted or unknown day, an author with nothing shared, a city no
@@ -32,7 +32,7 @@ const MAX_CITY_LENGTH = 200;
 
 type Generic = { kind: "generic" };
 
-/** What a shared day's card prints: its name, where and how long, the author's handle, its rating. */
+/** What a shared day's card prints: its name, where and how long, the author's public name, its rating. */
 export type PlaybookDayCard =
   | {
       kind: "day";
@@ -47,7 +47,7 @@ export type PlaybookDayCard =
     }
   | Generic;
 
-/** What a public profile's card prints: the handle and the profile's own numbers. */
+/** What a public profile's card prints: the author's public name and the profile's own numbers. */
 export type PlaybookProfileCard =
   | { kind: "profile"; author: string; playbooksShared: number; adds: number; cities: string[] }
   | Generic;
@@ -64,17 +64,20 @@ export async function dayCardFor(savedDayId: string): Promise<PlaybookDayCard> {
   if (day === null) return { kind: "generic" };
   // Rating rides the row, not the `SavedDay` contract. `readableSavedDay`
   // already proved the id is a readable uuid.
-  const [row] = await db
-    .select({ rating: savedDays.rating, reviewCount: savedDays.reviewCount })
-    .from(savedDays)
-    .where(eq(savedDays.id, day.savedDayId));
+  const [[row], nameOf] = await Promise.all([
+    db
+      .select({ rating: savedDays.rating, reviewCount: savedDays.reviewCount })
+      .from(savedDays)
+      .where(eq(savedDays.id, day.savedDayId)),
+    publicNamesOf([day.ownerId]),
+  ]);
   return {
     kind: "day",
     name: day.name,
     cities: day.cities.slice(0, CITIES_SHOWN),
     dayCount: day.dayCount,
     stopCount: day.stops.length,
-    author: displayNameFor({ userId: day.ownerId }),
+    author: nameOf(day.ownerId),
     rating: row?.rating ?? null,
     reviewCount: row?.reviewCount ?? 0,
   };

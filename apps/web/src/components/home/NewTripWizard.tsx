@@ -590,7 +590,7 @@ function Conversation({
         if (pbRead.current.token !== token || !result.ok) return;
         pbRead.current = {
           token,
-          days: pickPopularDays(result.value.days, (ownerId) => displayNameFor({ userId: ownerId })),
+          days: pickPopularDays(result.value.days),
         };
       })();
     }

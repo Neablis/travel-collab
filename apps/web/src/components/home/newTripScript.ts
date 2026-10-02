@@ -37,8 +37,8 @@ export type NewTripQuestionId = "where" | "pb" | "date" | "start" | "len" | "pac
  * **A published day offered on the Playbook-day turn** (SPEC §35.8, M27 D13).
  *
  * Plain data, handed in: the read that finds these is the component's, and
- * this module only decides what they mean for the script. `author` arrives
- * already said, because saying a person's name is `displayNameFor`'s job and
+ * this module only decides what they mean for the script. `author` is the
+ * day's `ownerDisplayName`, already said by the server (`publicNameFor`), and
  * this file imports nothing from `@/lib`.
  */
 export interface PopularDay {
@@ -200,10 +200,9 @@ export function pickPopularDays(
     name: string;
     adds: number;
     dayCount: number;
-    ownerId: string;
+    ownerDisplayName: string;
     isMine: boolean;
   }[],
-  authorOf: (ownerId: string) => string,
 ): PopularDay[] {
   return days
     .filter((day) => day.adds >= 1 && !day.isMine)
@@ -214,7 +213,7 @@ export function pickPopularDays(
       name: day.name,
       adds: day.adds,
       dayCount: day.dayCount,
-      author: authorOf(day.ownerId),
+      author: day.ownerDisplayName,
     }));
 }
 

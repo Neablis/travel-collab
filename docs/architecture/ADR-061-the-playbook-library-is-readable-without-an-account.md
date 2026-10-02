@@ -34,9 +34,21 @@ saw only the site card.
    another account, so nothing new can be enumerated. Every write still answers 401.
 3. **Anonymous reads are rate-limited per IP** (`publicLibraryQuota`), in Postgres like every
    other limiter (ADR-059 decision 1). Signed-in reads are not charged.
-4. **The library stays pseudonymous.** Authors are shown as the `displayNameFor({ userId })`
-   handle, and the preview cards print that same handle. A card never reveals more than the
+4. ~~**The library stays pseudonymous.** Authors are shown as the `displayNameFor({ userId })`
+   handle, and the preview cards print that same handle.~~ A card never reveals more than the
    page does.
+
+   > **Amended 2026-10-02 (Mitchell).** The library names people by a **safe public name**: first
+   > name and last initial ("Dana Reyes" → "Dana R."; a one-word name as it is), from the chosen
+   > display name (`users.display_name`, M17) if set, else the sign-in name (`users.name`). Never
+   > the email or anything derived from it. An account with no usable name — blank, or containing
+   > "@" — keeps the handle. This covers authors and reviewers on every library surface: the
+   > shared day, Discover cards, the board, a profile, review bylines, the day-changed banner and
+   > the link-preview cards. One function, `publicNameFor` (`lib/displayName.ts`), decides it, so
+   > a future username changes one place. A profile with nothing shared and no adds is still
+   > "A traveler" (`publicAuthor`), so a typed URL cannot learn whether an account exists or
+   > what it is called. The public REST API (`GET /v1/discover/playbooks`) does not carry the
+   > name.
 5. **Signed-out readers do not see controls they could only fail at** (ADR-031). That means no
    Yours/Saved scopes, no Report, no review composer and no tab bar. **Add to a trip** is the
    exception and stays. It is the thing the page exists to sell, so it opens a sign-in or

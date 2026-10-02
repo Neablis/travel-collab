@@ -11,9 +11,9 @@ import { LeaderboardScreen } from "./LeaderboardScreen";
 
 const board: LeaderboardResponse = {
   authors: [
-    { userId: "dev-bob", displayName: "dev-bob", playbooksShared: 1, adds: 4, reviewsReceived: 0, averageRating: null },
-    { userId: "dev-alice", displayName: "dev-alice", playbooksShared: 2, adds: 3, reviewsReceived: 0, averageRating: null },
-    { userId: "dev-carol", displayName: "dev-carol", playbooksShared: 3, adds: 0, reviewsReceived: 0, averageRating: null },
+    { userId: "dev-bob", displayName: "Bob K.", playbooksShared: 1, adds: 4, reviewsReceived: 0, averageRating: null },
+    { userId: "dev-alice", displayName: "Alice C.", playbooksShared: 2, adds: 3, reviewsReceived: 0, averageRating: null },
+    { userId: "dev-carol", displayName: "Carol M.", playbooksShared: 3, adds: 0, reviewsReceived: 0, averageRating: null },
   ],
   meUserId: "dev-alice",
 };
@@ -49,6 +49,18 @@ describe("the leaderboard", () => {
     // The fixture is built so that order is a real claim: dev-carol shares the
     // most days and comes LAST, so a board that started ranking on post volume
     // would reverse it rather than agree by coincidence.
+  });
+
+  // Each row says what the server resolved ("Alice C.", Mitchell 2026-10-02),
+  // not a handle re-derived here from the id ("Alice").
+  it("names each row as the server resolved it", async () => {
+    render(<LeaderboardScreen />);
+    const rows = await screen.findByTestId("board-rows");
+    expect(within(rows).getAllByRole("link").map((link) => link.textContent)).toEqual([
+      "Bob K.",
+      "Alice C.",
+      "Carol M.",
+    ]);
   });
 
   // Tinted and badged, never pinned. The exit gate names all three.

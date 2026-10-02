@@ -28,6 +28,11 @@ Facts below were checked against `main` at `0be6472`.
 - **The library is pseudonymous.** `publicAuthor` and `toAuthor` name an author with
   `displayNameFor({ userId })`, so a person appears as a handle like "Traveler a1b2c3" and never
   by their real name. A preview must not reveal more than the page does.
+  - **Amended 2026-10-02 (Mitchell, after a meta-tag inspector showed "by Traveler 768833").** The
+    library now names authors and reviewers as first name and last initial ("Dana R."). The name
+    comes from the chosen display name, else the sign-in name. It never comes from the email, and
+    the handle is the fallback. One function decides it: `publicNameFor` in `lib/displayName.ts`.
+    It applies on every surface, preview cards included. See ADR-061 decision 4.
 - **What can be reused:**
   - The per-link preview cards from spec 2026-09-27: `renderCard`, `CardCopy`, the
     `/api/og/**` + `/meta` pair, `linkPreviewMetadata`, and the per-IP `limitLinkPreview`.
@@ -99,7 +104,8 @@ Facts below were checked against `main` at `0be6472`.
    | `/playbooks?city=Kyoto` | `/api/og/playbooks/city/<city>` | "Kyoto playbooks" | "N days other travelers planned in Kyoto" |
    | `/playbooks`, `/playbooks/board` | `/api/og/playbooks` (static) | "Playbooks on Caesura" / "Who shares the most" | the Discover line |
 
-   - **Names are the page's own handle**, never a real name (§1).
+   - **Names are the page's own public name** ("Dana R.", §1 as amended), so a card never says
+     more than its page.
    - **Failure gets the generic card.** A private, moderated, deleted or unknown day, an author
      with nothing shared, or a city with no published days all fall back to the generic
      Playbooks card. This keeps the routes from becoming an oracle for private days, and stops

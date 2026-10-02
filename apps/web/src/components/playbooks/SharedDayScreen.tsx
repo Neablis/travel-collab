@@ -30,7 +30,6 @@ import {
   unpublishSavedDay,
   type ApiResult,
 } from "@/lib/apiClient";
-import { displayNameFor } from "@/lib/displayName";
 import { type PublicAuthor } from "@/lib/playbooks";
 import { takePlaybookAdd } from "@/lib/pendingPlaybookAdd";
 import { dayLength, savedDayFacts, DAY_LENGTH_LABELS } from "@/lib/savedDayFacts";
@@ -509,23 +508,23 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
               below it moves when the map arrives. */}
           <SharedDayMap savedDayId={savedDayId} days={groups} scope={dayScope} pinning={pinning} />
 
-          {/* The author strip. One resolver for the name (M17's seam), and the
-              two numbers beside it are the profile's own. */}
+          {/* The author strip. The name and the two numbers beside it are the
+              profile endpoint's own, so the strip cannot disagree with the
+              profile it links to. */}
           <Card className="flex flex-wrap items-center justify-between gap-3 p-3" data-testid="author-strip">
             <div className="min-w-0">
               {/* "You" on your own day, rather than your own account id sitting
                   next to the Publish button (Mitchell, 2026-09-01: "Dont show
                   the UUID in the header bar where publish button is"). Somebody
-                  ELSE's name still goes through `displayNameFor`, which is the
-                  M17 seam — and which no longer hands back a raw identifier
-                  either. This branch is not that fix; it is the better answer
-                  for the one reader who does not need to be told their own
-                  name. */}
+                  ELSE's name is the server's — `publicNameFor`, "Dana R." or
+                  their handle (Mitchell, 2026-10-02) — never derived here from
+                  the id. This branch is the better answer for the one reader
+                  who does not need to be told their own name. */}
               <Link
                 href={`/playbooks/profile/${encodeURIComponent(author.userId)}${backQuery({ from: "day", day: day.savedDayId })}`}
                 className="font-semibold text-ink hover:underline"
               >
-                {isAuthor ? "You" : displayNameFor({ userId: author.userId })}
+                {isAuthor ? "You" : author.displayName}
               </Link>
               <Text variant="secondary">
                 {author.playbooksShared} playbook{author.playbooksShared === 1 ? "" : "s"} shared · added to{" "}

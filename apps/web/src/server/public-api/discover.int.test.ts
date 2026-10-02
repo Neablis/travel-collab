@@ -13,7 +13,7 @@ import { issueGrant } from "@/server/entitlements/grants";
 import { livePlanVersion } from "@/server/entitlements/planVersions";
 import { mintToken } from "@/server/api-tokens";
 import { db } from "@/server/db/client";
-import { savedDays } from "@/server/db/schema";
+import { savedDays, users } from "@/server/db/schema";
 import { discoverDays } from "@/server/playbooks";
 
 vi.mock("@/server/auth", () => ({ auth: vi.fn(async () => null) }));
@@ -86,7 +86,7 @@ async function playbookIn(
   return playbook;
 }
 
-type Page = { items: DiscoverDay[]; nextCursor: string | null };
+type Page = { items: Omit<DiscoverDay, "ownerDisplayName">[]; nextCursor: string | null };
 
 async function discover(secret: string, params: Record<string, string>): Promise<Page> {
   const url = `http://localhost/api/v1/discover/playbooks?${new URLSearchParams(params)}`;
@@ -96,8 +96,8 @@ async function discover(secret: string, params: Record<string, string>): Promise
 }
 
 /** Follow `nextCursor` to the end, returning every page. */
-async function allPages(secret: string, params: Record<string, string>): Promise<DiscoverDay[][]> {
-  const pages: DiscoverDay[][] = [];
+async function allPages(secret: string, params: Record<string, string>): Promise<Page["items"][]> {
+  const pages: Page["items"][] = [];
   let cursor: string | null = null;
   do {
     const page = await discover(secret, { ...params, ...(cursor === null ? {} : { cursor }) });
@@ -205,7 +205,26 @@ describe("GET /v1/discover/playbooks", () => {
       });
       const api = (await allPages(secret, { city, sort, limit: "4" })).flat();
       expect(api.map((d) => d.savedDayId), sort).toEqual(app.days.map((d) => d.savedDayId));
-      expect(api, sort).toEqual(app.days);
+      // The app's card, field for field, less the owner's name the API never
+      // sends (the last test in this file).
+      expect(api, sort).toEqual(app.days.map(({ ownerDisplayName: _name, ...day }) => day));
     }
+  });
+
+  // The app's Discover card names its owner ("Dana R.", Mitchell 2026-10-02);
+  // this API does not. `route()` sends the handler's objects, not the item
+  // schema's parse, so the field has to be dropped by the handler — an
+  // `.omit` on the schema alone would still ship it.
+  it("names nobody: the item carries the owner's id and not their name", async () => {
+    const city = `Discoverville-${RUN}-names`;
+    const { owner, secret } = await entitledToken();
+    await db.update(users).set({ displayName: "Dana Reyes", name: "Dana Reyes" }).where(eq(users.id, owner));
+    await playbookIn(secret, city);
+
+    const { items } = await discover(secret, { city });
+    expect(items).toHaveLength(1);
+    expect(items[0]!.ownerId).toBe(owner);
+    expect(Object.keys(items[0]!)).not.toContain("ownerDisplayName");
+    expect(JSON.stringify(items)).not.toContain("Dana");
   });
 });

@@ -281,6 +281,13 @@ export const DISCOVER_PREVIEW_STOPS = 3;
 export const DiscoverDay = z.object({
   savedDayId: z.string().uuid(),
   ownerId: z.string().min(1),
+  /**
+   * What the card calls the owner: first name and last initial, or their
+   * handle (`publicNameFor`; Mitchell, 2026-10-02). Resolved by the server,
+   * which reads `users`; the card prints it and never derives one from
+   * `ownerId`. **Not on the public API** — `public-api/discover.ts` drops it.
+   */
+  ownerDisplayName: z.string().min(1),
   name: z.string().min(1),
   /** Every city the day touches, in the day's own time order (`citiesOfStops`). */
   cities: z.array(z.string().min(1)),
@@ -443,9 +450,10 @@ export type DiscoverResponse = z.infer<typeof DiscoverResponse>;
 export const PublicAuthor = z.object({
   userId: z.string().min(1),
   /**
-   * What to call them. Today this is the identifier — M17 is what resolves it
-   * to a chosen display name, and it fills this by changing ONE function
-   * (`lib/displayName.ts`), not two routes.
+   * What to call them: first name and last initial from the name they chose or
+   * signed in with, else their handle — never the address (`publicNameFor`;
+   * Mitchell, 2026-10-02, which retired the handle-only rule). "A traveler"
+   * for a profile with nothing on it (`publicAuthor`).
    */
   displayName: z.string().min(1),
   /**

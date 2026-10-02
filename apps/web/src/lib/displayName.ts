@@ -32,6 +32,16 @@
  * own reviewed PR with a changelog entry and every consumer updated. It is a
  * one-field follow-up, not a design problem: `withProfiles` already reads the
  * whole `users` row and the column it needs is now on it.
+ *
+ * **The public library no longer shows only the handle** (Mitchell,
+ * 2026-10-02; ADR-061 decision 4, amended). Until then a Playbook's author and
+ * reviewers were `displayNameFor({ userId })` and nothing more, for the
+ * saved-day reason above. Now every surface of the library — the shared day,
+ * Discover, the board, a profile, review bylines, the link previews — names a
+ * person `publicNameFor`'s way: first name and last initial, from what they
+ * chose or signed in with, never the address. The server resolves it (a
+ * `users` read beside the `saved_days` one) and the client prints what it was
+ * sent, so a future username changes `publicNameFor` and nothing else.
  */
 export type NameableUser = {
   userId: string;
@@ -51,6 +61,40 @@ export type NameableUser = {
 
 export function displayNameFor(who: NameableUser): string {
   return who.displayName ?? who.name ?? who.email ?? handleFor(who.userId);
+}
+
+/**
+ * **What the public library calls a person** — "Dana Reyes" → "Dana R.", a
+ * one-word name as it is, and the id's handle when there is no usable name
+ * (Mitchell, 2026-10-02; ADR-061 decision 4).
+ *
+ * The chosen display name first, then the sign-in name; each is skipped when
+ * blank or when it contains "@", so an address typed as a name never reaches a
+ * stranger. There is no `email` field to pass, on purpose: nothing derived from
+ * the address is a public name.
+ */
+export function publicNameFor(who: Pick<NameableUser, "userId" | "displayName" | "name">): string {
+  return shortName(who.displayName) ?? shortName(who.name) ?? handleFor(who.userId);
+}
+
+// The initial is the last word's first letter or digit as a whole code point:
+// `word[0]` is a UTF-16 unit, half of any character outside the BMP, and a
+// lone surrogate prints as a replacement box. Punctuation is skipped so
+// "Dana (Reyes)" is "Dana R.", not "Dana (.".
+function shortName(raw: string | null | undefined): string | null {
+  const words = (raw ?? "").trim().split(/\s+/).filter((word) => word !== "");
+  if (words.length === 0 || words.some((word) => word.includes("@"))) return null;
+  // Capitalised like the initial, so a sign-in that stores "dana reyes" — and
+  // dev login, which stores "alice" — reads "Dana R." and "Alice", as the
+  // handle it replaces did. Only the first code point; the rest is as typed.
+  const first = capitalise(words[0]!);
+  const initial = /[\p{L}\p{N}]/u.exec(words[words.length - 1]!)?.[0];
+  return words.length === 1 || initial === undefined ? first : `${first} ${initial.toUpperCase()}.`;
+}
+
+function capitalise(word: string): string {
+  const [head = "", ...rest] = [...word];
+  return head.toUpperCase() + rest.join("");
 }
 
 /**

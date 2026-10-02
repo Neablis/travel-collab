@@ -6,7 +6,6 @@ import { DataText } from "@/components/ui/data-text";
 import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
 import { formatMoney } from "@/lib/formatMoney";
-import { displayNameFor } from "@/lib/displayName";
 import type { DiscoverDay } from "@/lib/playbooks";
 import { toClockLabel, toClockRange } from "@/lib/time";
 import { useTimeFormat } from "@/components/account/PreferencesProvider";
@@ -219,12 +218,14 @@ export function DiscoverCard({ day, origin }: { day: DiscoverDay; origin: BackOr
       )}
 
       <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-hairline pt-3">
-        {/* The M17 seam, and the only place this card names a person. */}
+        {/* The only place this card names a person, and the name is the
+            server's (`publicNameFor`, Mitchell 2026-10-02) — never derived
+            from `ownerId` here. */}
         <Link
           href={`/playbooks/profile/${encodeURIComponent(day.ownerId)}${back}`}
           className={cn("inline-flex items-center text-xs text-slate hover:underline", PHONE_TOUCH)}
         >
-          {displayNameFor({ userId: day.ownerId })}
+          {day.ownerDisplayName}
         </Link>
         <Text as="span" variant="muted" className="text-xs">
           Added to {day.adds} trip{day.adds === 1 ? "" : "s"}
