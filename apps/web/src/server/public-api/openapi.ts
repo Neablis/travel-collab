@@ -40,8 +40,8 @@ import { IDEMPOTENCY_KEY_MAX_LENGTH, REPLAYED_HEADER } from "./idempotency";
  * fingerprint the failure printed into `API_FINGERPRINT`, and add a line to
  * `docs/contracts/CHANGELOG.md`. Change both constants in the same diff.
  */
-export const API_VERSION = "1.2.0";
-export const API_FINGERPRINT = "41c1394033187039930ffb8d53c5dec12c9939176b0aa47d5e05eb821446133b";
+export const API_VERSION = "1.2.1";
+export const API_FINGERPRINT = "572673f055ec3d0d0e49090867cf01cf289651594fca7940e10e766d45ba1039";
 
 /**
  * sha256 of the document with `info.version` left out, keys sorted at every
@@ -94,7 +94,34 @@ function schemaOf(zod: z.ZodTypeAny): JsonSchema {
   // `target: "openApi3"` because zod-to-json-schema's default emits JSON Schema
   // draft-07, whose `nullable` and `exclusiveMinimum` spellings OpenAPI 3.0 does
   // not accept. zod is v3 here, which is why this library and not a v4-only one.
-  return zodToJsonSchema(zod, { target: "openApi3", $refStrategy: "none" });
+  return withoutTupleItems(zodToJsonSchema(zod, { target: "openApi3", $refStrategy: "none" })) as JsonSchema;
+}
+
+// **OpenAPI 3.0 has no tuples, and `openApi3` still emits one.** A `z.tuple`
+// comes out as `items: [ ...schemas ]`, the draft-04 array form, where 3.0
+// requires `items` to be a single Schema Object. The export bundles'
+// `z.tuple([])` (`activities`, `playbooks`, `notebooks`, `trips` — "always
+// empty in this file") published six `items: []`, which made the document
+// invalid: Scalar's reference threw on it at `/developers/reference`, and any
+// caller validating the document before trusting it would refuse it.
+//
+// An empty tuple becomes `items: {}`; the `maxItems: 0` beside it already says
+// nothing may be there. A non-empty one becomes `anyOf` its members, which
+// keeps every allowed value and loses only the position — nothing declares one
+// today. `openapi.test.ts` fails on an array-valued `items` anywhere.
+function withoutTupleItems(node: unknown): unknown {
+  if (Array.isArray(node)) return node.map(withoutTupleItems);
+  if (node === null || typeof node !== "object") return node;
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(node)) {
+    out[key] =
+      key === "items" && Array.isArray(value)
+        ? value.length === 0
+          ? {}
+          : { anyOf: value.map(withoutTupleItems) }
+        : withoutTupleItems(value);
+  }
+  return out;
 }
 
 export interface OpenApiDocument {

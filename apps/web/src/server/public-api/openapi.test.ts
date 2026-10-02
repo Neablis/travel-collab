@@ -104,6 +104,24 @@ describe("openapi.json is derived from the declarations", () => {
     }
   });
 
+  // OpenAPI 3.0's `items` is one Schema Object; the array form is a draft-04
+  // tuple that 3.0 does not have. Six of them made the document invalid and
+  // broke the Scalar reference (see `withoutTupleItems`).
+  it("never publishes a tuple-form `items`, which OpenAPI 3.0 does not have", async () => {
+    const tuples: string[] = [];
+    const walk = (node: unknown, at: string): void => {
+      if (Array.isArray(node)) node.forEach((child, i) => walk(child, `${at}/${i}`));
+      else if (node !== null && typeof node === "object") {
+        for (const [key, value] of Object.entries(node)) {
+          if (key === "items" && Array.isArray(value)) tuples.push(`${at}/items`);
+          walk(value, `${at}/${key}`);
+        }
+      }
+    };
+    walk(JSON.parse(await generate()), "");
+    expect(tuples).toEqual([]);
+  });
+
   it("names the scope and the role on every operation", async () => {
     const doc = JSON.parse(await generate()) as {
       paths: Record<string, Record<string, { description: string; security: unknown[] }>>;

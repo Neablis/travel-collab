@@ -13,6 +13,21 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-02 — Public API 1.2.1: no tuple-form `items` in `openapi.json` — no schema change
+
+- **Nothing in `packages/contracts` changed, and nothing on the wire did.** The generator
+  (`apps/web/src/server/public-api/openapi.ts`, `withoutTupleItems`) now rewrites the tuple form
+  zod-to-json-schema emits for a `z.tuple`, which OpenAPI 3.0 does not have. Six `items: []` — the
+  always-empty `trips`/`playbooks`/`notebooks`/`activities` of `GET /v1/trips/{tripId}/export` and
+  `GET /v1/playbooks/{playbookId}/export` — are now `items: {}` beside the `maxItems: 0` they
+  already carried. `info.version` `1.2.1` (patch: the same responses, described validly), new
+  `API_FINGERPRINT`.
+- Why: the document was invalid OpenAPI 3.0. The Scalar reference at `/developers/reference`
+  threw on it (`structuredClone` after a validation failure on both export paths), and a caller
+  that validates the document before trusting it would refuse it.
+- Consumers updated: `openapi.json` regenerated; `openapi.test.ts` fails on an array-valued `items`.
+- Breaking? No.
+
 ## 2026-10-01 — widget registry: `day.weather` and `day.sun` gain a `view`, and `day.sun` becomes a block — no schema change
 
 - **Nothing in `packages/contracts` changed shape.** A page stores a widget as a name and opaque
