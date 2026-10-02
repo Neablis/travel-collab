@@ -1,5 +1,6 @@
 import { and, arrayContains, count, eq, isNull } from "drizzle-orm";
 import { SavedDayVisibility } from "@tc/contracts";
+import { countryName } from "@/lib/place";
 import { db } from "../db/client";
 import { savedDays } from "../db/schema";
 import { citiesKnownBy, publicAuthor, publicNamesOf } from "../playbooks";
@@ -55,6 +56,9 @@ export type PlaybookProfileCard =
 /** What `/playbooks?city=` prints: the city as stored, and how many published days touch it. */
 export type PlaybookCityCard = { kind: "city"; city: string; days: number } | Generic;
 
+/** What a country page's card prints: its English name, and how many published days touch it. */
+export type PlaybookCountryCard = { kind: "country"; country: string; days: number } | Generic;
+
 /** The card for `/playbooks/day/<savedDayId>`: a published, unmoderated day, or the generic card. */
 export async function dayCardFor(savedDayId: string): Promise<PlaybookDayCard> {
   // `null`: nobody's own day. What is left is published and not moderated,
@@ -108,19 +112,43 @@ export async function profileCardFor(userId: string): Promise<PlaybookProfileCar
  */
 export async function cityCardFor(city: string): Promise<PlaybookCityCard> {
   if (city === "" || city.length > MAX_CITY_LENGTH) return { kind: "generic" };
+  const days = await publishedDaysCarrying(savedDays.cities, city);
+  return days === 0 ? { kind: "generic" } : { kind: "city", city, days };
+}
+
+/**
+ * The card for `/playbooks/country/<slug>`, by ISO alpha-2 code: how many
+ * published days touch that country, or the generic card when none does or the
+ * code names no country. `cityCardFor`'s rule: nothing is printed that a
+ * published day does not already carry.
+ */
+export async function countryCardFor(code: string): Promise<PlaybookCountryCard> {
+  const upper = code.toUpperCase();
+  // `countryName` hands an unmappable code back unchanged, and a code is not a name.
+  const name = /^[A-Z]{2}$/.test(upper) ? countryName(upper) : null;
+  if (name === null || name === upper) return { kind: "generic" };
+  const days = await publishedDaysCarrying(savedDays.countries, upper);
+  return days === 0 ? { kind: "generic" } : { kind: "country", country: name, days };
+}
+
+// One count behind the city and the country card, so the two cannot disagree
+// about which days a stranger could open.
+async function publishedDaysCarrying(
+  column: typeof savedDays.cities | typeof savedDays.countries,
+  value: string,
+): Promise<number> {
   const [row] = await db
     .select({ days: count() })
     .from(savedDays)
     .where(
       and(
-        arrayContains(savedDays.cities, [city]),
+        arrayContains(column, [value]),
         eq(savedDays.visibility, SavedDayVisibility.enum.public),
         isNull(savedDays.deletedAt),
         isNull(savedDays.moderatedAt),
       ),
     );
-  const days = Number(row?.days ?? 0);
-  return days === 0 ? { kind: "generic" } : { kind: "city", city, days };
+  return Number(row?.days ?? 0);
 }
 
 /** A route segment, decoded once; a malformed escape is kept as it came. */

@@ -299,3 +299,29 @@ test("Discover hydrates from the server's list and makes no first search", async
     await forget(page, savedDayId);
   }
 });
+
+// Whether a thin place page is indexed is not asserted here: off production
+// every page is `noindex` (`siteRobots`), so the threshold is proven against
+// the metadata builder in `server/placePage.int.test.ts`.
+test("a city page lists its days in the HTML, and an unknown city or page is a 404", async ({ page, browser }) => {
+  test.slow();
+  const city = `Seoe2e${randomUUID().slice(0, 6)}`;
+  const name = `City page day ${randomUUID().slice(0, 8)}`;
+  const savedDayId = await publishedDay(page, city, name);
+  try {
+    const visitor = await stranger(browser);
+    const path = `/playbooks/city/${city.toLowerCase()}`;
+    const response = await visitor.request.get(path);
+    expect(response.status()).toBe(200);
+    const html = await response.text();
+    expect(html).toMatch(new RegExp(`>${city} playbooks</h1>`));
+    expect(html).toContain(sluggedPath(name, savedDayId));
+    expect(html).toMatch(new RegExp(`<link rel="canonical" href="[^"]*${path}"`));
+
+    expect((await visitor.request.get("/playbooks/city/no-such-city-anywhere")).status()).toBe(404);
+    expect((await visitor.request.get(`${path}?page=9`)).status()).toBe(404);
+    await visitor.context().close();
+  } finally {
+    await forget(page, savedDayId);
+  }
+});
