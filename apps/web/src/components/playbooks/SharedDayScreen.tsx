@@ -232,7 +232,11 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
   // The day's `publishedAt` as this page read it: a review held offline sends
   // it back as `seenPublishedAt`, so a republish in between becomes §15's
   // conflict banner. `undefined` until the day has been read ("do not check").
-  const reviews = useDayReviews(savedDayId, feed.data?.publishedAt, !signedOut);
+  // A review held on this device is loaded and sent only for a CONFIRMED
+  // reader, not merely one not yet known to be signed out: an expired cookie
+  // reads `undefined` first, and flushing then would be a PUT that can only
+  // 401 (Copilot, PR #293).
+  const reviews = useDayReviews(savedDayId, feed.data?.publishedAt, Boolean(user));
 
   // **Back from signing in, having pressed Add while signed out**
   // (`SignInToAddDialog` banked it). Opens the add dialog and adds nothing:

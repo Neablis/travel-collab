@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { metadata as boardMetadata } from "./board/page";
 import { generateMetadata as dayMetadata } from "./day/[savedDayId]/page";
 import { generateMetadata as discoverMetadata } from "./page";
+import { generateMetadata as profileMetadata } from "./profile/[userId]/page";
 
 // Spec 2026-10-02 §2.7, "Link previews": which card each Playbooks page points
 // og:image at. The `meta` routes are stubbed — what they answer is
@@ -84,6 +85,37 @@ describe("/playbooks/day/<id> metadata", () => {
     expect(ogImageUrls(metadata)).toEqual(["/api/og/playbooks/day/d-1", SITE_IMAGE]);
     expect(metadata.openGraph?.title).toBe("Castle and canals");
     expect(metadata.title).toBe("A playbook");
+  });
+});
+
+describe("/playbooks/profile/<id> metadata", () => {
+  // Copilot, PR #293: the one playbook page whose mapping had no test.
+  it("points og:image at the profile's card, asking its meta, keeping the page's own tab title", async () => {
+    const fetchMock = stubMeta(Response.json({ title: "Traveler a1b2c3's playbooks", description: "3 playbooks" }));
+
+    const metadata = await profileMetadata({ params: Promise.resolve({ userId: "dev-alice" }) });
+
+    expect(ogImageUrls(metadata)).toEqual(["/api/og/playbooks/profile/dev-alice", SITE_IMAGE]);
+    expect(String(fetchMock.mock.calls[0]?.[0])).toMatch(/\/api\/og\/playbooks\/profile\/dev-alice\/meta$/);
+    expect(metadata.openGraph?.title).toBe("Traveler a1b2c3's playbooks");
+    expect(metadata.title).toBe("A traveler's playbooks");
+  });
+
+  it("decodes the id as the page body does, then encodes it into one path segment", async () => {
+    stubMeta(Response.json({ title: "x", description: "y" }));
+
+    const metadata = await profileMetadata({ params: Promise.resolve({ userId: "a%2Fb" }) });
+
+    expect(ogImageUrls(metadata)[0]).toBe("/api/og/playbooks/profile/a%2Fb");
+  });
+
+  it("falls back to the static Playbooks card when the lookup fails", async () => {
+    stubMeta(new Error("connection refused"));
+
+    const metadata = await profileMetadata({ params: Promise.resolve({ userId: "dev-alice" }) });
+
+    expect(ogImageUrls(metadata)).toEqual([PLAYBOOKS_IMAGE, SITE_IMAGE]);
+    expect(metadata.title).toBe("A traveler's playbooks");
   });
 });
 

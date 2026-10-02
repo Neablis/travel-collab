@@ -1111,6 +1111,24 @@ describe("a shared day, read with no account", () => {
     expect(putReviewMock).not.toHaveBeenCalled();
   });
 
+  // Copilot, PR #293: an expired cookie reads `undefined` before `null`, and a
+  // review held from an earlier session must not be sent in that window — the
+  // PUT could only 401. It waits for a CONFIRMED reader.
+  it("does not send a held review while the session is not known yet", async () => {
+    session = undefined;
+    holdReview(DAY_ID, { stars: 4, note: null, heldAt: "2026-09-10T00:00:00.000Z" });
+    try {
+      renderDay();
+      expect(await screen.findByRole("heading", { level: 1 })).toBeTruthy();
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      expect(putReviewMock).not.toHaveBeenCalled();
+    } finally {
+      window.localStorage.clear();
+    }
+  });
+
   // Signed-in-only controls hide on a CONFIRMED `null` only.
   it("keeps Report while the session is not known yet", async () => {
     session = undefined;
