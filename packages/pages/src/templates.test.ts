@@ -71,6 +71,14 @@ describe("templates", () => {
     expect(inputs.map((i) => i.context)).toEqual([{ tripId, kind: "overview" }, { tripId }, { tripId }, { tripId }]);
   });
 
+  // M19 gate, part 2: *"The Money notebook seeded into a new trip carries the
+  // balances widget."* Through `instantiateDefaults`, which is what the seeder
+  // calls, so a template that has it but is not what gets seeded still fails.
+  it("seeds Money with Who owes what", () => {
+    const money = instantiateDefaults(crypto.randomUUID(), () => crypto.randomUUID()).find((i) => i.title === "Money")!;
+    expect(widgetsIn(money.content).map((w) => w.attrs?.name)).toContain("cost.balances");
+  });
+
   // ADR-056: the Overview names its siblings by the ids the SEEDER minted —
   // not the placeholders `content` carries, and not titles, which a reader may
   // change. Seen red with `instantiateDefaults` passing `t.content` instead of
@@ -349,7 +357,8 @@ describe("templates", () => {
       Overview: ["dates", "city", "day.detail", "link.internal", "link.internal", "link.internal"],
       "Before you go": ["day.fromHome", "day.sun", "day.weather", "country.facts"],
       Bookings: ["stop.rows", "stop.rows", "stop.rows", "open"],
-      Money: ["cost.chart", "cost.breakdown", "cost.breakdown", "cost.rows"],
+      // "Who owes what" last, before the notes (M19 part 2).
+      Money: ["cost.chart", "cost.breakdown", "cost.breakdown", "cost.rows", "cost.balances"],
     });
     // The Overview's schedule is the printed itinerary, not the glance.
     expect(widgetsIn(DEFAULT_TEMPLATES[0]!.content).find((node) => node.attrs?.name === "day.detail")?.attrs?.params).toEqual({

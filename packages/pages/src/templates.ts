@@ -346,8 +346,14 @@ const money: TemplateSeed = {
     block("cost.breakdown", { by: "tag" }),
     heading("Costs, broken down"),
     block("cost.rows"),
+    // M19 part 2 (ADR-060 decision 6). New trips only: `listPages` seeds into a
+    // trip with zero pages, so an existing Money notebook is left as it is.
+    // On an empty trip it reads "nothing priced yet".
+    heading("Who owes what"),
+    para(text("A price is per person, and whoever booked a stop paid for everyone in it.")),
+    block("cost.balances"),
     heading("Notes"),
-    para(text("Who is paying for what, what is already deposited, and what you would cut first.")),
+    para(text("What is already deposited, and what you would cut first.")),
   ]),
 };
 

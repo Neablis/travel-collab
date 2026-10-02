@@ -522,6 +522,39 @@
             "content": [
               {
                 "type": "text",
+                "text": "Who owes what"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "A price is per person, and whoever booked a stop paid for everyone in it."
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "macro",
+                "attrs": {
+                  "name": "cost.balances",
+                  "params": {}
+                }
+              }
+            ]
+          },
+          {
+            "type": "heading",
+            "attrs": {
+              "level": 2
+            },
+            "content": [
+              {
+                "type": "text",
                 "text": "Notes"
               }
             ]
@@ -531,7 +564,7 @@
             "content": [
               {
                 "type": "text",
-                "text": "Who is paying for what, what is already deposited, and what you would cut first."
+                "text": "What is already deposited, and what you would cut first."
               }
             ]
           }
