@@ -413,6 +413,31 @@ export const PRESETS: readonly WidgetPreset[] = [
     summary: "Charts how much of your budget is left after each day against an even pace, so you can see if you are on track.",
     keywords: ["burn down", "burndown", "budget", "left", "remaining", "pace", "chart", "area", "spend", "money"],
   },
+  // M19 part 2 (ADR-060 decision 6): who owes whom, as a table for everyone
+  // and as a sentence for one person. "What one person is in for" arrives
+  // with nobody chosen, so the insert step asks who.
+  {
+    id: "who-owes-what",
+    widget: "cost.balances",
+    params: {},
+    title: "Who owes what",
+    summary: "Lists each traveller's share, what they paid for stops they booked, and what they owe or are owed, plus anything not paid yet.",
+    keywords: [
+      "who owes", "owe", "owes", "owed", "balance", "balances", "split", "settle", "share", "paid", "payer",
+      "booked by", "debt", "money", "costs", "people", "travellers", "travelers",
+    ],
+  },
+  {
+    id: "person-share",
+    widget: "person.share",
+    params: {},
+    title: "What one person is in for",
+    summary: "Says in one line what a traveller is in for, what they have paid and whether they owe or are owed.",
+    keywords: [
+      "person", "one person", "traveller", "traveler", "member", "share", "my share", "in for", "owe", "owes",
+      "owed", "paid", "balance", "money",
+    ],
+  },
   // Mitchell, 2026-09-26: the Settings sheet's M19 breakdown, rebuilt as a pie
   // in the notebook, then split two ways — one primitive, `cost.breakdown`,
   // and a preset per `by`. Otherwise unfiltered: the whole trip.
