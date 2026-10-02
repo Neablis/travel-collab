@@ -13,6 +13,20 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-02 — Who owes what: `balances` and `stopPeople` (M19 part 2, ADR-060 decision 6)
+
+- **Added (functions, no schema):** `packages/contracts/src/costs.ts` — `stopPeople(activity,
+  memberIds)` (who is in a stop: its participants, or every member when nobody is picked) and
+  `balances(activities, memberIds)` → `{ perMember: { userId, share, paid, net, former }[], unpaid }`.
+  Every person in a priced stop owes `cost` to its `bookedBy`, who is credited the stop's
+  `stopTotal`; a stop with no `bookedBy` adds its total to `unpaid`. `net = paid − share`, and
+  Σ net = −unpaid for every input (property-tested). An id that is no longer a member — a
+  `bookedBy` or participant `ActivityView` keeps on purpose — is still counted, listed after the
+  members with `former: true`, so the balances keep adding up.
+- Why: M19 gate, part 2 — "Who owes what" and "What one person is in for" are both built on it.
+- Consumers updated: `@tc/pages` (`cost.balances`, `person.share`). Nothing else changes.
+- Breaking? no — additive.
+
 ## 2026-10-02 — A stop's `cost` is per person (M19 part 1, ADR-060); Public API 1.2.1
 
 - **No schema changed shape.** `Money` is still `{ amountMinor, currency }` and every stored payload
