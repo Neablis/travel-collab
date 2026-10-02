@@ -441,7 +441,7 @@ describe("ActivityEditor attribution (M13 link 5)", () => {
     const DEPARTED = "carol-left";
 
     it("shows them picked, by a fallback name, and unticking them drops them from the save and the headcount", () => {
-      const onSave = mount(stop({ cost: { amountMinor: 30_00, currency: "USD" }, participants: ["bob", DEPARTED] }));
+      const onSave = mount(stop({ cost: { amountMinor: 30_00, currency: "USD" }, participants: ["u-bob", DEPARTED] }));
       expect(screen.getByTestId("activity-cost-total").textContent).toBe("× 2 people = $60.00");
       const chip = screen.getByRole("button", { name: "Former member (left the trip)" });
       expect(chip.getAttribute("aria-pressed")).toBe("true");
@@ -452,7 +452,7 @@ describe("ActivityEditor attribution (M13 link 5)", () => {
       // Removed for good: nothing offers them back.
       expect(screen.queryByRole("button", { name: /former member/i })).toBeNull();
       save();
-      expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ participants: ["bob"] }));
+      expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ participants: ["u-bob"] }));
     });
 
     it("numbers them when more than one has left", () => {
@@ -467,10 +467,10 @@ describe("ActivityEditor attribution (M13 link 5)", () => {
       expect(select.value).toBe(DEPARTED);
       expect(select.selectedOptions[0]?.textContent).toBe("Former member (left the trip)");
 
-      fireEvent.change(select, { target: { value: "alice" } });
+      fireEvent.change(select, { target: { value: "u-alice" } });
       expect(within(select).queryByText(/former member/i)).toBeNull();
       save();
-      expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ bookedBy: "alice" }));
+      expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ bookedBy: "u-alice" }));
     });
 
     it("lets who booked it go back to nobody", () => {
