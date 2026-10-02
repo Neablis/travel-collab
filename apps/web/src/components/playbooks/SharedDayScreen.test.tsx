@@ -472,7 +472,10 @@ describe("a shared day", () => {
     // so the bare "2" this asserted here is now there instead.
     expect(within(rail).queryByText("Stops")).toBeNull();
     expect(screen.getByTestId("playbook-meta").textContent).toContain("2 stops");
-    expect(within(rail).getByText("$23.00")).toBeTruthy();
+    // A saved day's sum is what it costs EACH (ADR-060 decision 7): its stops
+    // carry per-person prices and no people. The value says "each" and the
+    // label stays Mitchell's "Budget", so the word is not said twice.
+    expect(within(rail).getByText("$23.00 each")).toBeTruthy();
     expect(within(rail).getByText("Budget")).toBeTruthy();
     expect(within(rail).queryByText("Budget each")).toBeNull();
     expect(within(rail).getByText("2 trips")).toBeTruthy();
