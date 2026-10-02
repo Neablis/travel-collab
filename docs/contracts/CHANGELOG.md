@@ -39,8 +39,9 @@ Format:
   `conflicts` agrees with `budgetRemaining`.
 - Why: Mitchell, 2026-10-02 — ADR-060's four answers ("always per person", "derive from kind").
 - Consumers updated: `packages/domain` (`rollupCosts(state, memberCount)`, `recostDetail`),
-  `packages/factories`, `packages/fixtures` (Japan verifier passes the log's members — its totals
-  are unchanged), `@tc/pages` (`costOfStops(stops, memberCount)`; `cost` reads "… committed · …
+  `packages/factories`, `packages/fixtures` (the Japan demo names its four travellers and picks who
+  goes on six stops; the verifier recosts through `recostDetail` for those four, as `/demo` reads it,
+  so `plannedTotalMinor` moves 908,500 → 3,119,500 and the budget 1,640,000 → 3,400,000), `@tc/pages` (`costOfStops(stops, memberCount)`; `cost` reads "… committed · …
   estimated" when a pending stop is in it), `apps/web` (`server/access/overlay.ts`, `lib/cost.ts`,
   Settings sheet, stop editor, calendar city cards, MSW mocks, assistant instructions),
   `docs/guidelines/using-the-api.md`.
