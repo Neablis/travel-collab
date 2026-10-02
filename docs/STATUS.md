@@ -24,10 +24,9 @@ general setup.
 **M19 — A COST KNOWS WHO AND WHAT IT IS FOR — IS THE CURRENT MILESTONE AS OF
 2026-10-01**, by **M14's gate closing at 22 of 22**. Order:
 `M17 ✓ → M9 [built 2026-09-16, paused — gate needs a live model call] → M20 ✓ → M21 ✓ → M22 ✓ → M25 ✓ → M23 ✓ → M26 ✓ → M13 ✓ → M27 ✓ → M12 ✓ → M24 ✓ → M28 ✓ → M14 ✓ → M19`.
-M19 is **placed but not scoped**. Its exit gate is unwritten, and link 1 (a cost's kind)
-has already shipped outside it (2026-09-26). The first piece of work is writing the gate
-for links 2-5. `KI-20260905-o` (activity fields enumerated by hand) is still open, and
-link 2 adds an activity field.
+M19 was **scoped on 2026-10-02** (ADR-060: a price is per person, committed vs estimate
+derives from kind, and Booked by pays). It is built as three stacked parts:
+`docs/plans/2026-10-02-M19-cost-model.md`.
 
 **Two more milestones are built beside the current one, not current, and not in
 `TODO.md`'s order** (placing them is Mitchell's call). **M29 — The time river**: all parts
@@ -172,9 +171,8 @@ half, the model guessing a coordinate rather than citing one, is M9 scope.
 
 ## Next action
 
-**Write M19's exit gate.** M19 is current and placed but not scoped. Link 1 shipped on
-2026-09-26, so the gate covers links 2-5: settled vs estimate, who an activity is for,
-splits, and the shared-day presentation. M29 and M30 are built beside it. They wait on
+**Build M19 part 1** (`claude/m19-p1-per-person`): a price is per person, following the plan
+in `docs/plans/2026-10-02-M19-cost-model.md`. M29 and M30 are built beside it. They wait on
 M29's whole-suite box, both retros, and a place in the order.
 
 **Carried out of M24, not gating:** `KI-2026-09-25-q`. About a dozen
