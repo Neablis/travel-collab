@@ -268,5 +268,6 @@ describe("the phone front door (SPEC §28)", () => {
     expect(footer.getByRole("link", { name: "mitchell@demarcosoftware.com" }).getAttribute("href")).toBe(
       "mailto:mitchell@demarcosoftware.com",
     );
+    expect(footer.getByRole("link", { name: "Developers" }).getAttribute("href")).toBe("/developers");
   });
 });

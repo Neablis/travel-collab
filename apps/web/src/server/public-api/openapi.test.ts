@@ -13,7 +13,15 @@ import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
-import { API_FINGERPRINT, API_VERSION, buildOpenApi, fingerprintOf, routeModulePaths, urlOf } from "./openapi";
+import {
+  API_FINGERPRINT,
+  API_VERSION,
+  buildOpenApi,
+  fingerprintOf,
+  routeModulePaths,
+  urlOf,
+  withoutTupleItems,
+} from "./openapi";
 import { DECLARED, type DeclaredHandler } from "./route";
 
 // Importing every v1 module pulls in `@/server/auth` and therefore `next-auth`,
@@ -102,6 +110,41 @@ describe("openapi.json is derived from the declarations", () => {
       expect(url, url).not.toContain("[");
       expect(url.startsWith("/v1"), url).toBe(true);
     }
+  });
+
+  // OpenAPI 3.0's `items` is one Schema Object; the array form is a draft-04
+  // tuple that 3.0 does not have. Six of them made the document invalid and
+  // broke the Scalar reference (see `withoutTupleItems`).
+  it("never publishes a tuple-form `items`, which OpenAPI 3.0 does not have", async () => {
+    const tuples: string[] = [];
+    const walk = (node: unknown, at: string): void => {
+      if (Array.isArray(node)) node.forEach((child, i) => walk(child, `${at}/${i}`));
+      else if (node !== null && typeof node === "object") {
+        for (const [key, value] of Object.entries(node)) {
+          if (key === "items" && Array.isArray(value)) tuples.push(`${at}/items`);
+          walk(value, `${at}/${key}`);
+        }
+      }
+    };
+    walk(JSON.parse(await generate()), "");
+    expect(tuples).toEqual([]);
+  });
+
+  // The rewrite above only knows how to make an *empty* tuple valid. A
+  // non-empty one cannot be expressed in 3.0 without widening the contract, so
+  // the generator must refuse it and say where — not quietly publish `anyOf`.
+  it("refuses a non-empty tuple, naming its JSON path, instead of widening it", () => {
+    const schema = {
+      type: "object",
+      properties: {
+        empty: { type: "array", items: [], maxItems: 0 },
+        pair: { type: "array", items: [{ type: "string" }, { type: "number" }], minItems: 2, maxItems: 2 },
+      },
+    };
+    expect(() => withoutTupleItems(schema)).toThrow(
+      /non-empty tuple at #\/properties\/pair\/items \(2 positions\)/,
+    );
+    expect(withoutTupleItems({ items: [], maxItems: 0 })).toEqual({ items: {}, maxItems: 0 });
   });
 
   it("names the scope and the role on every operation", async () => {
