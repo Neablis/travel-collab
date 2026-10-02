@@ -204,7 +204,7 @@ const anchorRule: Rule = (state, ctx) => {
 
 const budgetRule: Rule = (state, _ctx) => {
   if (state.budget === null) return [];
-  const { tripCostTotal } = rollupCosts(state);
+  const { tripCostTotal } = rollupCosts(state, state.members.length);
   if (tripCostTotal <= state.budget.amountMinor) return [];
   return [{
     id: `over-budget:${state.tripId}`,

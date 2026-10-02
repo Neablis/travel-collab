@@ -410,7 +410,7 @@ export function verifyJapanTrip(startDate: string = REFERENCE_START_DATE): Japan
     withCost,
     cities: [...cities].sort(),
     budgetMinor: state.budget?.amountMinor ?? 0,
-    plannedTotalMinor: rollupCosts(state).tripCostTotal,
+    plannedTotalMinor: rollupCosts(state, state.members.length).tripCostTotal,
     currencies: [...currencies].sort(),
     conflictsByKind,
     conflictTotal: conflicts.length,

@@ -15,7 +15,7 @@ export function tripDetailFromState(
   ctx: ConflictContext = DEFAULT_CONFLICT_CONTEXT,
 ): TripDetail {
   const dayDates = deriveDayDates(state.startDate, state.days.length);
-  const { dayCostSubtotals, unscheduledCostSubtotal, tripCostTotal } = rollupCosts(state);
+  const { dayCostSubtotals, unscheduledCostSubtotal, tripCostTotal } = rollupCosts(state, state.members.length);
   return {
     tripId: state.tripId,
     name: state.name,

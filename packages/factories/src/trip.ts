@@ -196,7 +196,7 @@ export const tripDetailFactory = Factory.define<TripDetail, TripTransient>(
     });
 
     afterBuild((trip) => {
-      const { dayCostSubtotals, unscheduledCostSubtotal, tripCostTotal } = rollupCosts(trip);
+      const { dayCostSubtotals, unscheduledCostSubtotal, tripCostTotal } = rollupCosts(trip, trip.members.length);
       trip.days = trip.days.map((day, i) => ({ ...day, costSubtotal: dayCostSubtotals[i] ?? 0 }));
       trip.unscheduledCostSubtotal = unscheduledCostSubtotal;
       trip.tripCostTotal = tripCostTotal;
