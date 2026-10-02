@@ -204,10 +204,11 @@ test("a private day and an unknown one are the same 404 with the same body", asy
   try {
     const visitor = await stranger(browser);
     const unknownId = randomUUID();
+    const slug = sluggedPath(name, "").slice("/playbooks/day/".length, -1);
     const asked = {
       hidden: savedDayId,
       // With the slug it would have: a right guess at the name earns nothing.
-      hiddenSlugged: sluggedPath(name, savedDayId).slice("/playbooks/day/".length),
+      hiddenSlugged: `${slug}-${savedDayId}`,
       unknown: unknownId,
       unknownSlugged: `a-plausible-name-${unknownId}`,
       junk: "not-a-day",
@@ -222,6 +223,9 @@ test("a private day and an unknown one are the same 404 with the same body", asy
       expect(body, which).not.toContain(name);
       bodies[which] = comparable(body, segment);
     }
+    // Nor the name as a slug: with the asked-for segment taken out, no answer
+    // may spell it, least of all the one that was asked by bare id.
+    for (const which of Object.keys(asked)) expect(bodies[which], which).not.toContain(slug);
     for (const which of Object.keys(asked)) expect(bodies[which], which).toBe(bodies.unknown);
 
     // Its author still opens it.

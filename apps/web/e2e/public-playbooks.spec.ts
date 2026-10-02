@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures/test";
 import { E2E_SUPER_CODE } from "./admission";
 import { forget, publishedDay, stranger } from "./helpers";
@@ -15,6 +16,28 @@ function mint(stem: string): string {
   return `${stem}${randomUUID().replace(/-/g, "").slice(0, 8)}`;
 }
 
+// A day page prefetches the links on it, the author's profile among them, and
+// a browser that leaves mid-prefetch aborts the request: the server then logs
+// "The destination stream closed early" for a render nobody is waiting for.
+// Measured (2026-10-02): every such line was the profile's prefetch, so this
+// watches only that one and returns a wait for "none in flight", called before
+// each step that LEAVES a day page. Watching every prefetch flaked: one that is
+// never reported finished held the wait open. Clean server output is what lets
+// a real error stand out.
+function prefetchesOf(page: Page): () => Promise<void> {
+  const inFlight = new Set<unknown>();
+  page.on("request", (request) => {
+    if (request.url().includes("/playbooks/profile/") && request.url().includes("_rsc=")) inFlight.add(request);
+  });
+  page.on("requestfinished", (request) => inFlight.delete(request));
+  page.on("requestfailed", (request) => inFlight.delete(request));
+  // A new document cannot finish the last one's requests.
+  page.on("framenavigated", (frame) => {
+    if (frame === page.mainFrame()) inFlight.clear();
+  });
+  return () => expect.poll(() => inFlight.size, { message: "prefetches still in flight" }).toBe(0);
+}
+
 test("a stranger opens a shared playbook, browses, and is asked to sign in to add it", async ({ page, browser }) => {
   test.slow();
   const city = mint("Lisbone2e");
@@ -23,6 +46,7 @@ test("a stranger opens a shared playbook, browses, and is asked to sign in to ad
 
   try {
     const visitor = await stranger(browser);
+    const settled = prefetchesOf(visitor);
 
     // The shared link opens — no bounce to /signin.
     // The bare id is the link as it was shared before days had slugs; it
@@ -59,6 +83,7 @@ test("a stranger opens a shared playbook, browses, and is asked to sign in to ad
 
     // Browsing the rest of the library works too, without the scopes that
     // only mean something to an account.
+    await settled();
     await visitor.goto(`/playbooks?city=${encodeURIComponent(city)}`);
     await expect(visitor.getByTestId("discover-card").filter({ hasText: dayName })).toBeVisible();
     await expect(visitor.getByRole("tab", { name: "Yours" })).toHaveCount(0);
@@ -66,6 +91,7 @@ test("a stranger opens a shared playbook, browses, and is asked to sign in to ad
     // Making the account brings them back to the day with the add dialog open.
     await visitor.goto(`/playbooks/day/${savedDayId}`);
     await visitor.getByRole("button", { name: "Add to a trip" }).click();
+    await settled();
     await visitor.getByRole("dialog", { name: "Sign in to add this day" }).getByRole("link", { name: "Create an account" }).click();
     await expect(visitor).toHaveURL(/\/signup\?callbackUrl=/);
     await visitor.getByLabel("Invite code").fill(E2E_SUPER_CODE);
@@ -74,6 +100,7 @@ test("a stranger opens a shared playbook, browses, and is asked to sign in to ad
     await expect(visitor).toHaveURL(new RegExp(`/playbooks/day/[a-z0-9-]*${savedDayId}$`));
     await expect(visitor.getByRole("dialog", { name: `Add “${dayName}” to a trip` })).toBeVisible();
 
+    await settled();
     await visitor.context().close();
   } finally {
     await forget(page, savedDayId);

@@ -1,6 +1,6 @@
 import { addDaysIso } from "@/lib/dates";
 import { formatTripDateWithYear } from "@/lib/formatDate";
-import { PLAYBOOKS_BOARD, PLAYBOOKS_GENERIC, dayFactsLine } from "@/lib/playbooksPreview";
+import { PLAYBOOKS_BOARD, PLAYBOOKS_GENERIC, dayFactsLine, plural } from "@/lib/playbooksPreview";
 import type { InviteCard } from "./invite";
 import type { PlaybookCityCard, PlaybookDayCard, PlaybookProfileCard } from "./playbooks";
 
@@ -77,10 +77,6 @@ export function playbookCityCopy(card: PlaybookCityCard): CardCopy {
         ? `1 day a traveler planned in ${card.city}`
         : `${card.days} days other travelers planned in ${card.city}`,
   };
-}
-
-function plural(n: number, noun: string): string {
-  return `${n} ${noun}${n === 1 ? "" : "s"}`;
 }
 
 // "Jun 1, 2027 – Jun 3, 2027 · 3 days · 2 cities · with Dana, Mei, Priya +1".

@@ -60,8 +60,7 @@ export type DayFacts = {
 
 /**
  * "Kyoto, Osaka · 3 days · 12 stops · by Dana R. · rated 4.6 from 12 reviews".
- * Pure. The day's preview card, its meta description and its structured data
- * all print this one line.
+ * Pure. The day's preview card and its meta description print this one line.
  *
  * It is the page's own (`SharedDayScreen`'s meta line): a day count only past
  * one, and the stops counted over the whole sequence. A day with no cities
@@ -100,6 +99,7 @@ export function dayIndexable(view: { day: { visibility: "public" | "private" }; 
   return view.day.visibility === "public" && view.moderation === null;
 }
 
-function plural(n: number, noun: string): string {
+/** "1 stop", "12 stops": a count and its noun, with an "s" unless the count is one. */
+export function plural(n: number, noun: string): string {
   return `${n} ${noun}${n === 1 ? "" : "s"}`;
 }
