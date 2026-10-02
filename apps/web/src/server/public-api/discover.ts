@@ -12,6 +12,13 @@ import type { CollectionDef } from "./route";
 // stops (those are `GET /v1/playbooks/{id}`, which a published Playbook
 // answers too).
 //
+// **Minus the owner's name.** `DiscoverDay.ownerDisplayName` is the app's
+// ("Dana R.", Mitchell 2026-10-02) and the API does not publish it: the item
+// schema omits it and the handler drops it, both, because `route()` validates
+// an item against the schema but sends the handler's object — an `.omit` alone
+// would document the field away and still ship it. `discover.int.test.ts`
+// pins its absence from the wire.
+//
 // **Published only, whoever asks.** The app's `everyone` scope also shows the
 // reader their own private days; an API listing called "discover" that
 // sometimes held private rows would need every caller to filter `visibility`
@@ -36,19 +43,22 @@ const Query = z.object({
 });
 type Query = z.infer<typeof Query>;
 
-export const discoverPlaybooksDef: CollectionDef<DiscoverDay> = {
+const ApiDiscoverDay = DiscoverDay.omit({ ownerDisplayName: true });
+type ApiDiscoverDay = z.infer<typeof ApiDiscoverDay>;
+
+export const discoverPlaybooksDef: CollectionDef<ApiDiscoverDay> = {
   summary: "Discover published Playbooks from everyone — filter by place, length and rating, ranked as the app ranks them",
   scope: "library:read",
   query: Query,
   collection: {
-    item: DiscoverDay,
+    item: ApiDiscoverDay,
     // The cursor is the last card's id; the next page is what ranks after that
     // row now. See `discoverPage` for what that does and does not promise.
-    cursorOf: (day: DiscoverDay) => day.savedDayId,
+    cursorOf: (day: ApiDiscoverDay) => day.savedDayId,
   },
-  handle: ({ actor, page, query }) => {
+  handle: async ({ actor, page, query }) => {
     const q = query as Query;
-    return discoverPage(
+    const days = await discoverPage(
       {
         cities: q.city === undefined ? [] : [q.city],
         countries: q.country === undefined ? [] : [q.country],
@@ -61,5 +71,6 @@ export const discoverPlaybooksDef: CollectionDef<DiscoverDay> = {
       },
       page,
     );
+    return days.map(({ ownerDisplayName: _name, ...day }) => day);
   },
 };

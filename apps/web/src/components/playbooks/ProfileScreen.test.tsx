@@ -14,6 +14,7 @@ function day(over: Partial<DiscoverDay> = {}): DiscoverDay {
   return {
     savedDayId: "aa000000-0000-4000-8000-000000000001",
     ownerId: "dev-alice",
+    ownerDisplayName: "Alice",
     name: "Kyoto temples on foot",
     cities: ["Kyoto"],
     matchedCities: [],
@@ -36,8 +37,8 @@ function day(over: Partial<DiscoverDay> = {}): DiscoverDay {
 }
 
 const profile: PublicProfileResponse = {
-  // `displayName` is what the ENDPOINT resolved (`displayNameFor` on the
-  // server), which for `dev-alice` is "Alice" — not the raw id this fixture
+  // `displayName` is what the ENDPOINT resolved (`publicNameFor` on the
+  // server), which for a `dev-alice` with no name is "Alice" — not the raw id this fixture
   // used to carry, which the endpoint has never returned and which the page
   // now renders verbatim because it stopped re-deriving the name itself.
   author: { userId: "dev-alice", displayName: "Alice", playbooksShared: 2, adds: 3, reviewsReceived: 0, averageRating: null },

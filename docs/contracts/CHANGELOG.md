@@ -13,6 +13,29 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-02 — The library names people "Dana R.": `DiscoverDay.ownerDisplayName`, and what the names mean (ADR-061 decision 4, amended)
+
+- **Added (web-local wire shape, not `packages/contracts`):** `DiscoverDay.ownerDisplayName`
+  (`apps/web/src/lib/playbooks.ts`), `z.string().min(1)`. It is the owner's public name, resolved
+  by the server from `users`.
+- **Changed meaning, no shape:** `PublicAuthor.displayName` (board, profile, the shared day's
+  author strip), `Review.reviewerDisplayName` and `ReviewDayChanged.authorDisplayName`
+  (`packages/contracts/src/review.ts`; the schema is untouched). Before, these held the
+  `displayNameFor({ userId })` handle ("Traveler a1b2c3"). Now each holds `publicNameFor`'s answer:
+  first name and last initial from the chosen display name, else the sign-in name, and never the
+  email. An account with no usable name still gets the handle. A profile with nothing on it is
+  still "A traveler".
+- Why: Mitchell, 2026-10-02 — the public library should name people, safely. This reverses the
+  handle-only rule recorded in `lib/displayName.ts` and ADR-061 decision 4.
+- Consumers updated: `server/playbooks.ts` (`leaderboard`, `publicAuthor`, `discoverDays`,
+  `discoverPage`, new `publicNamesOf`); `server/reviews.ts`; `server/og/playbooks.ts`;
+  `DiscoverCard`, `LeaderboardScreen`, `SharedDayScreen` and the new-trip wizard's popular days
+  (`pickPopularDays`), which now print the server's name instead of deriving one from the id.
+  **`GET /v1/discover/playbooks` is unchanged:** its item schema omits `ownerDisplayName` and its
+  handler drops it, so the public API names nobody. No `openapi.json` change.
+- Breaking? no — the field is additive and the changed fields keep their shape. A tab running the
+  previous bundle derived names itself and ignores the new field until it reloads.
+
 ## 2026-10-02 — `LeaderboardResponse.meUserId` is nullable (public playbooks, ADR-061)
 
 - **Changed (web-local wire shape, not `packages/contracts`):** `LeaderboardResponse.meUserId` in

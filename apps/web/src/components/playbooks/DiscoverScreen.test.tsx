@@ -22,6 +22,7 @@ function day(over: Partial<DiscoverDay> = {}): DiscoverDay {
   return {
     savedDayId: "aa000000-0000-4000-8000-000000000001",
     ownerId: "dev-alice",
+    ownerDisplayName: "Alice C.",
     name: "Kyoto temples on foot",
     cities: ["Kyoto"],
     matchedCities: [],

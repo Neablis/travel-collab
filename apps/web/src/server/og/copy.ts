@@ -47,7 +47,7 @@ export { PLAYBOOKS_BOARD, PLAYBOOKS_GENERIC };
 
 /**
  * A shared day's words: its name over "Kyoto, Osaka · 3 days · 12 stops · by
- * Traveler a1b2c3 · ★ 4.6 (12)", or the generic Playbooks card. Pure.
+ * Dana R. · rated 4.6 from 12 reviews", or the generic Playbooks card. Pure.
  *
  * The facts line is the page's own (`SharedDayScreen`'s meta line): a day
  * count only past one, and the stops counted over the whole sequence.
@@ -60,12 +60,18 @@ export function playbookDayCopy(card: PlaybookDayCard): CardCopy {
   parts.push(plural(card.stopCount, "stop"));
   parts.push(`by ${card.author}`);
   // `DiscoverCard`'s `ratingLine` rule: keyed on the count, so a day nobody
-  // has rated says nothing rather than "★ 0.0".
-  if (card.reviewCount > 0 && card.rating !== null) parts.push(`★ ${card.rating.toFixed(1)} (${card.reviewCount})`);
+  // has rated says nothing rather than "rated 0.0".
+  //
+  // **Words, not "★ 4.6 (12)"** (Mitchell, 2026-10-02, from a meta-tag
+  // inspector): none of the card's bundled fonts carries U+2605, so satori drew
+  // the star as a box, and a bare "(12)" did not say it counted reviews.
+  if (card.reviewCount > 0 && card.rating !== null) {
+    parts.push(`rated ${card.rating.toFixed(1)} from ${plural(card.reviewCount, "review")}`);
+  }
   return { label: "Caesura · playbook", title: card.name, description: parts.join(" · ") };
 }
 
-/** A public profile's words: "Traveler a1b2c3's playbooks", over its numbers and the cities it knows. Pure. */
+/** A public profile's words: "Dana R.'s playbooks", over its numbers and the cities it knows. Pure. */
 export function playbookProfileCopy(card: PlaybookProfileCard): CardCopy {
   if (card.kind === "generic") return PLAYBOOKS_GENERIC;
   const parts = [plural(card.playbooksShared, "playbook")];

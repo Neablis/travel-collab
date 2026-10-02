@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
-import { expect, it, describe, vi } from "vitest";
-import type { LeaderboardResponse, PublicProfileResponse } from "@/lib/playbooks";
+import { beforeAll, expect, it, describe, vi } from "vitest";
+import type { DiscoverResponse, LeaderboardResponse, PublicProfileResponse } from "@/lib/playbooks";
 import { executeTripCommand } from "@/server/commands";
 import { db } from "@/server/db/client";
-import { savedDays } from "@/server/db/schema";
+import { savedDays, users } from "@/server/db/schema";
+import { entitleAccounts } from "@/server/test-support/entitledAccount";
 import { eq } from "drizzle-orm";
 
 // The leaderboard (M11b link 7) and the public profile (link 8), against the
@@ -296,6 +297,8 @@ describe("GET /api/playbooks/profile/:userId", () => {
   // as somebody in particular. A flat "A traveler" for POPULAR here would make
   // every row on that page the same person — the failure `lib/displayName.ts`'s
   // six-character suffix exists to prevent.
+  // POPULAR has no `users` name, so the handle is `publicNameFor`'s answer;
+  // the named cases are "what the library calls a person" below.
   it("keeps the derived handle for somebody who HAS shared", async () => {
     currentUserId = TAKER;
     const seen = await profile(POPULAR);
@@ -375,6 +378,80 @@ describe("GET /api/playbooks/profile/:userId", () => {
     const seen = await profile(SEQUENCE);
     expect(seen.days.map((d) => d.dayCount)).toEqual([3]);
     expect(seen.author.playbooksShared).toBe(1);
+  });
+});
+
+// Mitchell, 2026-10-02 (ADR-061 decision 4, amended): the library names a
+// person by first name and last initial — the chosen name, else the sign-in
+// name, never the address — and keeps the handle for an account with no usable
+// name. Every surface reads it off the same `users` columns, so the board, the
+// profile and Discover are checked against one seed here. The surname and the
+// address are seeded on every account so there is something to leak.
+describe("what the library calls a person", () => {
+  const CHOSEN = `board-chosen-${RUN}`;
+  const SIGNED_IN = `board-signed-in-${RUN}`;
+  const ADDRESS = `board-address-${RUN}`;
+  const SILENT = `board-silent-${RUN}`;
+  const NAMES_CITY = city("names");
+
+  beforeAll(async () => {
+    await entitleAccounts([CHOSEN, SIGNED_IN, ADDRESS, SILENT]);
+    const named = async (id: string, set: { name: string | null; displayName: string | null }) =>
+      db.update(users).set({ ...set, email: `${id}@example.com` }).where(eq(users.id, id));
+    await named(CHOSEN, { displayName: "Dee Ray", name: "Dana Reyes" });
+    await named(SIGNED_IN, { displayName: null, name: "Sam Ortiz" });
+    await named(ADDRESS, { displayName: null, name: `${ADDRESS}@example.com` });
+    await named(SILENT, { displayName: "Nora Quist", name: "Nora Quist" });
+    for (const id of [CHOSEN, SIGNED_IN, ADDRESS]) {
+      currentUserId = id;
+      await publish(await saveDay(`Named ${id}`, NAMES_CITY));
+    }
+  });
+
+  /**
+   * The board row, the profile and the Discover card for one person, as a
+   * stranger's client receives them. Signed in, so these reads are not charged
+   * to the shared anonymous allowance; a name does not depend on the reader.
+   */
+  async function everywhere(userId: string) {
+    currentUserId = TAKER;
+    const onBoard = (await board()).body.authors.find((a) => a.userId === userId)!;
+    const onProfile = (await profile(userId)).author;
+    const res = await DISCOVER(new Request(`http://test/api/playbooks?city=${NAMES_CITY}`));
+    const card = ((await res.json()) as DiscoverResponse).days.find((d) => d.ownerId === userId)!;
+    return {
+      names: [onBoard.displayName, onProfile.displayName, card.ownerDisplayName],
+      wire: JSON.stringify([onBoard, onProfile, card]),
+    };
+  }
+
+  it("prefers the name they chose, cut to its first word and last initial", async () => {
+    const { names, wire } = await everywhere(CHOSEN);
+    expect(names).toEqual(["Dee R.", "Dee R.", "Dee R."]);
+    for (const leak of ["Reyes", "Ray", "Dana", "@example.com"]) expect(wire).not.toContain(leak);
+  });
+
+  it("uses the sign-in name when nothing was chosen", async () => {
+    const { names, wire } = await everywhere(SIGNED_IN);
+    expect(names).toEqual(["Sam O.", "Sam O.", "Sam O."]);
+    expect(wire).not.toContain("Ortiz");
+  });
+
+  it("keeps the handle when the only name is an address", async () => {
+    const { names, wire } = await everywhere(ADDRESS);
+    const handle = `Traveler ${ADDRESS.replace(/[^A-Za-z0-9]/g, "").slice(-6)}`;
+    expect(names).toEqual([handle, handle, handle]);
+    expect(wire).not.toContain("@example.com");
+  });
+
+  // `publicAuthor`'s rule survives the names: a profile with nothing shared and
+  // no adds names nobody, so a URL cannot learn that an account exists or what
+  // it is called. SILENT has a perfectly good name and must not get it here.
+  it("names nobody on a profile with nothing on it, however good their name", async () => {
+    currentUserId = TAKER;
+    const author = (await profile(SILENT)).author;
+    expect(author.displayName).toBe("A traveler");
+    expect(JSON.stringify(author)).not.toContain("Nora");
   });
 });
 

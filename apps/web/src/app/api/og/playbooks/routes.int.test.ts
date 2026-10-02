@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { SavedDayVisibility } from "@tc/contracts";
-import { displayNameFor } from "@/lib/displayName";
 import { db } from "@/server/db/client";
 import { users } from "@/server/db/schema";
 import { executeTripCommand } from "@/server/commands";
@@ -26,7 +25,8 @@ const run = randomUUID().slice(0, 8);
 const OWNER = `dev-og-pb-routes-${run}`;
 // A space, so the `meta` test below proves the segment is decoded.
 const CITY = `Osaka Bay ${run}`;
-const HANDLE = displayNameFor({ userId: OWNER });
+// What the library calls "Dana Reyes" (Mitchell, 2026-10-02).
+const PUBLIC_NAME = "Dana R.";
 const GENERIC = {
   title: "Playbooks on Caesura",
   description: "Days other people planned and rated. Find one for your city and drop it into your trip.",
@@ -77,7 +77,10 @@ async function seedDay(name: string, visibility: SavedDayVisibility): Promise<st
 
 beforeAll(async () => {
   await entitleAccounts([OWNER]);
-  await db.update(users).set({ name: "Dana Reyes", displayName: "Dana Reyes" }).where(eq(users.id, OWNER));
+  await db
+    .update(users)
+    .set({ name: "Dana Reyes", displayName: "Dana Reyes", email: "dana@example.com" })
+    .where(eq(users.id, OWNER));
   published = await seedDay("Castle and canals", SavedDayVisibility.enum.public);
   privateDay = await seedDay("Not for sharing", SavedDayVisibility.enum.private);
 });
@@ -102,12 +105,12 @@ describe("the Playbooks preview images", () => {
 });
 
 describe("GET /api/og/playbooks/day/:savedDayId/meta", () => {
-  it("titles a published day with its name, by the author's handle", async () => {
+  it("titles a published day with its name, by the author's public name", async () => {
     const response = await dayMeta(request, withDay(published));
 
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe(HOUR);
-    expect(await response.json()).toEqual({ title: "Castle and canals", description: `${CITY} · 1 stop · by ${HANDLE}` });
+    expect(await response.json()).toEqual({ title: "Castle and canals", description: `${CITY} · 1 stop · by ${PUBLIC_NAME}` });
   });
 
   it("answers a private day with the generic words and a 200, naming nobody", async () => {
@@ -121,12 +124,12 @@ describe("GET /api/og/playbooks/day/:savedDayId/meta", () => {
 });
 
 describe("GET /api/og/playbooks/profile/:userId/meta", () => {
-  it("titles a profile by handle, never by the real name", async () => {
+  it("titles a profile by public name, never by the surname or address", async () => {
     const response = await profileMeta(request, withUser(OWNER));
 
     const body = (await response.json()) as typeof GENERIC;
-    expect(body).toEqual({ title: `${HANDLE}'s playbooks`, description: `1 playbook · knows ${CITY}` });
-    for (const leak of ["Dana", "Reyes"]) expect(JSON.stringify(body)).not.toContain(leak);
+    expect(body).toEqual({ title: `${PUBLIC_NAME}'s playbooks`, description: `1 playbook · knows ${CITY}` });
+    for (const leak of ["Reyes", "dana@"]) expect(JSON.stringify(body)).not.toContain(leak);
   });
 });
 

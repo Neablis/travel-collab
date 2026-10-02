@@ -7,10 +7,10 @@ import {
   type ReviewSummary,
   type SavedDayReviewsResponse,
 } from "@tc/contracts";
-import { displayNameFor } from "@/lib/displayName";
 import { db, type Queryable } from "./db/client";
 import { savedDayReviews, savedDays } from "./db/schema";
 import { isUuid } from "./ids";
+import { publicNamesOf } from "./playbooks";
 
 // Reviews of a published Playbook (M12 links 1-4). Ordinary CRUD on
 // `saved_day_reviews`, NOT the event log: a review is not trip state (see the
@@ -25,18 +25,18 @@ import { isUuid } from "./ids";
 // `reviews.int.test.ts` fails if a counter drifts from the rows (M12's gate
 // box), and `test-support/reviewCounters.ts` is the check other writers reuse.
 //
-// Names are `displayNameFor({ userId })`, the same resolver and the same input
-// the shared day's author strip and the board use. A `users` join could pass
-// the chosen M17 name, but then a reviewer would be called one thing on the
-// rail and another on their profile — the seam's own rule is one answer.
+// Names are `publicNamesOf` — `publicNameFor` over the `users` row, the same
+// resolver the shared day's author strip, the board and a profile use, so a
+// reviewer is called one thing on the rail and on their profile ("Dana R.";
+// Mitchell, 2026-10-02). One batched read per response, never one per review.
 
 type ReviewRow = typeof savedDayReviews.$inferSelect;
 
-function toReview(row: ReviewRow, readerId: string | null): Review {
+function toReview(row: ReviewRow, readerId: string | null, nameOf: (userId: string) => string): Review {
   return {
     savedDayId: row.savedDayId,
     reviewerId: row.reviewerId,
-    reviewerDisplayName: displayNameFor({ userId: row.reviewerId }),
+    reviewerDisplayName: nameOf(row.reviewerId),
     stars: row.stars,
     note: row.note,
     createdAt: row.createdAt.toISOString(),
@@ -168,7 +168,7 @@ export async function putReview(
           body: {
             error: "day-changed",
             changedAt: day.publishedAt.toISOString(),
-            authorDisplayName: displayNameFor({ userId: day.ownerId }),
+            authorDisplayName: (await publicNamesOf([day.ownerId], tx))(day.ownerId),
           },
         };
       }
@@ -187,7 +187,11 @@ export async function putReview(
       })
       .returning();
     await recomputeReviewCounters(tx, savedDayId);
-    return { kind: "saved", review: toReview(row!, reviewerId), summary: await summaryOf(tx, savedDayId) };
+    return {
+      kind: "saved",
+      review: toReview(row!, reviewerId, await publicNamesOf([reviewerId], tx)),
+      summary: await summaryOf(tx, savedDayId),
+    };
   });
 }
 
@@ -258,9 +262,12 @@ export async function reviewsFor(
             and(eq(savedDayReviews.savedDayId, savedDayId), eq(savedDayReviews.reviewerId, readerId), visible),
           ),
   ]);
+  // `own` is the reader's row and so already among `rows` unless the list cap
+  // cut it; one read covers both.
+  const nameOf = await publicNamesOf([...rows, ...own].map((row) => row.reviewerId));
   return {
     summary,
-    reviews: rows.map((row) => toReview(row, readerId)),
-    mine: own[0] === undefined ? null : toReview(own[0], readerId),
+    reviews: rows.map((row) => toReview(row, readerId, nameOf)),
+    mine: own[0] === undefined ? null : toReview(own[0], readerId, nameOf),
   };
 }
