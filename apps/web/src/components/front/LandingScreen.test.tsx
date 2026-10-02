@@ -96,6 +96,15 @@ describe("LandingScreen", () => {
     ).toBeDefined();
   });
 
+  // ADR-061: the playbook library is open without an account, so the front
+  // door links it (Mitchell, 2026-10-02).
+  it("links the playbook library from the header", () => {
+    render(<LandingScreen />);
+    expect(within(screen.getByTestId("desktop-landing")).getByRole("link", { name: "Playbooks" }).getAttribute("href")).toBe(
+      "/playbooks",
+    );
+  });
+
   it("links the developers page from the footer", () => {
     render(<LandingScreen />);
     const footer = within(within(screen.getByTestId("desktop-landing")).getByRole("contentinfo"));
