@@ -551,6 +551,31 @@ async function publishedPlaybookCount(): Promise<number> {
   return Number(rows.rows[0]?.days ?? 0);
 }
 
+/** One published day, as the sitemap lists it. */
+export type SitemapDay = { savedDayId: string; name: string; publishedAt: string | null };
+
+/**
+ * Every day a stranger can open, for `sitemap.ts`: published, not moderated,
+ * not deleted. Its own query, and not `discoverDays`: that one answers a
+ * screen and stops at `CANDIDATE_LIMIT`, and a sitemap that stopped at 200
+ * would silently drop the rest of the library.
+ */
+export async function sitemapDays(): Promise<SitemapDay[]> {
+  const rows = await db.execute<{ id: string; name: string; published_at: unknown }>(sql`
+    select d.id, d.name, d.published_at
+    from saved_days d
+    where d.visibility = ${SavedDayVisibility.enum.public}
+      ${notDeleted}
+      ${notModerated}
+    order by d.published_at desc nulls last, d.id asc
+  `);
+  return [...rows.rows].map((row) => ({
+    savedDayId: String(row.id),
+    name: String(row.name),
+    publishedAt: isoOf(row.published_at),
+  }));
+}
+
 /**
  * How many of the asked-for places a day touches — cities plus countries,
  * `orderBy`'s first key. One spelling for the select below and for
