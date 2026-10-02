@@ -330,7 +330,18 @@ export function TokensSection() {
           question a reader actually has. */}
       <Text variant="secondary" className="text-xs">
         A token lets a program you write read and change your trips. Treat one like a password: it
-        is shown once, it always expires, and it can never do more than you can.
+        is shown once, it always expires, and it can never do more than you can.{" "}
+        {/* **The reference beside the thing it is for.** Somebody minting a
+            token is about to ask which endpoint takes which scope; the answer
+            is one click away here rather than a search for a page they may not
+            know exists. Shown on every plan — reading the docs is not Premium. */}
+        <Link href="/developers/reference" className="underline" data-testid="tokens-reference-link">
+          API reference
+        </Link>{" "}
+        ·{" "}
+        <Link href="/developers" className="underline" data-testid="tokens-guide-link">
+          Getting started
+        </Link>
       </Text>
 
       {/* **What a free or plus account sees instead — a prompt, not a hidden
