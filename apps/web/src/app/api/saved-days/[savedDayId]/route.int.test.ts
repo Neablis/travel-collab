@@ -112,7 +112,7 @@ async function profileOf(userId: string): Promise<PublicProfileResponse> {
 }
 
 async function boardRowFor(userId: string): Promise<LeaderboardResponse["authors"][number] | undefined> {
-  const res = await BOARD();
+  const res = await BOARD(new Request("http://test/x"));
   expect(res.status).toBe(200);
   const body = (await res.json()) as LeaderboardResponse;
   return body.authors.find((a) => a.userId === userId);
@@ -189,6 +189,52 @@ describe("GET /api/saved-days/:id carries publishedAt", () => {
       .from(savedDays)
       .where(eq(savedDays.id, savedDayId));
     expect(after.publishedAt).toBe(row!.publishedAt!.toISOString());
+  });
+});
+
+// ADR-061: a shared link opens for somebody with no account. They read what a
+// signed-in stranger reads — a published, unmoderated day, or the same 404 —
+// and none of the author's envelope.
+describe("GET /api/saved-days/:id, read by nobody signed in", () => {
+  const anonymousRead = (savedDayId: string) =>
+    READ(new Request("http://test/x", { headers: { "x-forwarded-for": `anon-${randomUUID()}` } }), {
+      params: Promise.resolve({ savedDayId }),
+    });
+
+  // No `pinning` assertion: the pin backfill is off wherever LocationIQ has no
+  // key, which includes this lane, so `false` here would hold whatever the
+  // route did. The guard is in the type instead — `schedulePinBackfill` takes
+  // a `string` reader, and a null one cannot reach it.
+  it("serves a published day, without the author's envelope", async () => {
+    const savedDayId = await saveDay("Out in the open");
+    await publish(savedDayId);
+    currentUserId = null;
+    const res = await anonymousRead(savedDayId);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      savedDay: { savedDayId: string };
+      isAuthor: boolean;
+      moderation: unknown;
+    };
+    expect(body.savedDay.savedDayId).toBe(savedDayId);
+    expect(body.isAuthor).toBe(false);
+    expect(body.moderation).toBeNull();
+  });
+
+  it("404s a private day and a moderated one, though the author can read both", async () => {
+    const privateDay = await saveDay("Kept back");
+    const moderatedDay = await saveDay("Taken down");
+    await publish(moderatedDay);
+    await db.update(savedDays).set({ moderatedAt: new Date() }).where(eq(savedDays.id, moderatedDay));
+    // The witness: both days exist and are readable — to their author.
+    for (const id of [privateDay, moderatedDay]) expect((await read(id)).status, id).toBe(200);
+
+    currentUserId = null;
+    for (const id of [privateDay, moderatedDay]) {
+      const res = await anonymousRead(id);
+      expect(res.status, id).toBe(404);
+      expect(await res.json()).toEqual({ error: "not-found" });
+    }
   });
 });
 

@@ -150,6 +150,13 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
   "og/invite/[token]/meta": { status: "never", why: "Link-preview images for chat apps, not data", reaches: [] },
   "og/referral/[code]": { status: "never", why: "Link-preview images for chat apps, not data", reaches: [] },
   "og/referral/[code]/meta": { status: "never", why: "Link-preview images for chat apps, not data", reaches: [] },
+  "og/playbooks": { status: "never", why: "Link-preview images for chat apps, not data", reaches: [] },
+  "og/playbooks/city/[city]": { status: "never", why: "Link-preview images for chat apps, not data", reaches: [] },
+  "og/playbooks/city/[city]/meta": { status: "never", why: "Link-preview images for chat apps, not data", reaches: [] },
+  "og/playbooks/day/[savedDayId]": { status: "never", why: "Link-preview images for chat apps, not data", reaches: [] },
+  "og/playbooks/day/[savedDayId]/meta": { status: "never", why: "Link-preview images for chat apps, not data", reaches: [] },
+  "og/playbooks/profile/[userId]": { status: "never", why: "Link-preview images for chat apps, not data", reaches: [] },
+  "og/playbooks/profile/[userId]/meta": { status: "never", why: "Link-preview images for chat apps, not data", reaches: [] },
   "trips/[tripId]/commands": {
     status: "never",
     why: "The app's raw command channel; v1 publishes resources (days, stops) over the same domain",

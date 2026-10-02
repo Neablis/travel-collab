@@ -10,6 +10,10 @@ vi.mock("@/lib/apiClient", () => ({
   searchPlaybooks: (...args: unknown[]) => searchPlaybooksMock(...args),
   searchPlaces: (...args: unknown[]) => searchPlacesMock(...args),
 }));
+// Who is reading. `undefined` (not known yet) unless a test says otherwise —
+// the state in which the screen renders as it did before ADR-061.
+let session: { id: string } | null | undefined = undefined;
+vi.mock("@/components/account/useSessionUser", () => ({ useSessionUser: () => session }));
 
 import { DiscoverScreen } from "./DiscoverScreen";
 import { matchLine } from "./DiscoverCard";
@@ -68,6 +72,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers();
   cleanup();
+  session = undefined;
   // The screen writes its state into the URL; a test that set `?rating=4`
   // must not hand it to the next one.
   window.history.replaceState(null, "", "/");
@@ -170,6 +175,34 @@ describe("Discover", () => {
     // Not a second page: no navigation, and the results list is still the one
     // this component owns.
     expect(screen.queryByRole("link", { name: /yours/i })).toBeNull();
+  });
+
+  // ADR-061: a reader with no account owns nothing, so *Yours* and *Saved* are
+  // not places they can be. Seeded from a pasted `?scope=saved` on purpose — the
+  // link a signed-in reader copies is the link a stranger opens.
+  it("offers a reader with no account no scope tabs, and reads Everyone whatever the URL says", async () => {
+    session = null;
+    searchPlaybooksMock.mockResolvedValue(ok(response({ days: [] })));
+    render(<DiscoverScreen initial={{ scope: "saved" }} />);
+
+    expect(await screen.findByText("No days match")).toBeTruthy();
+    expect(screen.queryByRole("tablist", { name: "Whose days" })).toBeNull();
+    expect(screen.queryByRole("tab", { name: "Saved" })).toBeNull();
+    expect(searchPlaybooksMock).toHaveBeenCalled();
+    for (const [query] of searchPlaybooksMock.mock.calls) expect(query).toMatchObject({ scope: "everyone" });
+    // *Saved*'s empty copy is about the reader's own trips, which they have none of.
+    expect(screen.queryByText(/Days you take into a trip/)).toBeNull();
+  });
+
+  // Only on a CONFIRMED signed-out session: while it is being read, the tabs
+  // and the URL's scope stand, so a signed-in reader never sees either move.
+  it("keeps the tabs and the URL's scope while the session is not known", async () => {
+    session = undefined;
+    render(<DiscoverScreen initial={{ scope: "saved" }} />);
+    await waitFor(() =>
+      expect(searchPlaybooksMock).toHaveBeenLastCalledWith(expect.objectContaining({ scope: "saved" })),
+    );
+    expect(screen.getByRole("tab", { name: "Saved" })).toBeTruthy();
   });
 
   // §15's four sorts, restored by M12 link 5 now that `saved_days` carries a

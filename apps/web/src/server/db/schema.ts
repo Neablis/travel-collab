@@ -1012,6 +1012,13 @@ export const rateLimitCounters = pgTable(
     index("rate_limit_counters_link_preview_window")
       .on(t.windowStart)
       .where(sql`starts_with(${t.bucket}, 'link-preview-minute:')`),
+    // The same, for the other IP-keyed policy: signed-out reads of the playbook
+    // library (`publicLibraryQuota`, ADR-061; KI-2026-10-02-a). One partial
+    // index per swept policy rather than one over both, because each sweep
+    // binds its own prefix and only a predicate with that exact text is used.
+    index("rate_limit_counters_public_library_window")
+      .on(t.windowStart)
+      .where(sql`starts_with(${t.bucket}, 'public-library-minute:')`),
   ],
 );
 

@@ -39,8 +39,17 @@ export type DayReviews = {
  * **The average recomputes live from the PUT's own summary**, never from a
  * re-read: the server computes it from the rows under the same lock that wrote
  * the review, so the response is already the number a reload would show.
+ *
+ * `canSend` is false for a reader with no account (ADR-061). A review held on
+ * this device — written by whoever was signed in here before — is then neither
+ * shown nor flushed: a *Queued* row headed "You" would be somebody else's, and
+ * the flush could only be refused. It stays in storage for when they sign in.
  */
-export function useDayReviews(savedDayId: string, publishedAt: string | null | undefined): DayReviews {
+export function useDayReviews(
+  savedDayId: string,
+  publishedAt: string | null | undefined,
+  canSend = true,
+): DayReviews {
   const online = useOnline();
   const [data, setData] = useState<SavedDayReviewsResponse | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -74,9 +83,9 @@ export function useDayReviews(savedDayId: string, publishedAt: string | null | u
   // storage, and a first client render that differed from it would be a
   // hydration mismatch on every page with a held review.
   useEffect(() => {
-    setHeld(loadHeldReview(savedDayId));
+    setHeld(canSend ? loadHeldReview(savedDayId) : null);
     setConflict(null);
-  }, [savedDayId]);
+  }, [savedDayId, canSend]);
 
   const accept = useCallback(
     (outcome: Extract<PutReviewOutcome, { kind: "saved" }>) => {

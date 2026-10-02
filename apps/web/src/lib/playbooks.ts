@@ -485,8 +485,11 @@ export type PublicAuthor = z.infer<typeof PublicAuthor>;
 export const LeaderboardResponse = z.object({
   /** Ranked by `adds` descending. Your own row is in place, never lifted. */
   authors: z.array(PublicAuthor),
-  /** Which row is yours, so the page can tint it without knowing your id. */
-  meUserId: z.string().min(1),
+  /**
+   * Which row is yours, so the page can tint it without knowing your id. `null`
+   * for a reader with no account (ADR-061), who has no row.
+   */
+  meUserId: z.string().min(1).nullable(),
 });
 export type LeaderboardResponse = z.infer<typeof LeaderboardResponse>;
 

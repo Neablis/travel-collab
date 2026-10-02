@@ -32,7 +32,7 @@ import { isUuid } from "./ids";
 
 type ReviewRow = typeof savedDayReviews.$inferSelect;
 
-function toReview(row: ReviewRow, readerId: string): Review {
+function toReview(row: ReviewRow, readerId: string | null): Review {
   return {
     savedDayId: row.savedDayId,
     reviewerId: row.reviewerId,
@@ -232,9 +232,13 @@ const REVIEW_LIST_LIMIT = 100;
 /**
  * The rating rail for one day: summary, visible reviews newest-updated first,
  * and the reader's own. Readability is the CALLER's check
- * (`requireSavedDayRead`) — this function reads whatever id it is given.
+ * (`readSavedDayAsViewer`) — this function reads whatever id it is given.
+ * A `null` reader has no account: `mine` is null and nothing `isMine`.
  */
-export async function reviewsFor(savedDayId: string, readerId: string): Promise<SavedDayReviewsResponse> {
+export async function reviewsFor(
+  savedDayId: string,
+  readerId: string | null,
+): Promise<SavedDayReviewsResponse> {
   const [summary, rows, own] = await Promise.all([
     summaryOf(db, savedDayId),
     db
@@ -243,12 +247,16 @@ export async function reviewsFor(savedDayId: string, readerId: string): Promise<
       .where(and(eq(savedDayReviews.savedDayId, savedDayId), visible))
       .orderBy(desc(savedDayReviews.updatedAt), savedDayReviews.reviewerId)
       .limit(REVIEW_LIST_LIMIT),
-    db
-      .select()
-      .from(savedDayReviews)
-      .where(
-        and(eq(savedDayReviews.savedDayId, savedDayId), eq(savedDayReviews.reviewerId, readerId), visible),
-      ),
+    // A reader with no account (ADR-061) has written nothing, so there is no
+    // own review to look up — and no `reviewer_id = NULL` to get wrong.
+    readerId === null
+      ? Promise.resolve([])
+      : db
+          .select()
+          .from(savedDayReviews)
+          .where(
+            and(eq(savedDayReviews.savedDayId, savedDayId), eq(savedDayReviews.reviewerId, readerId), visible),
+          ),
   ]);
   return {
     summary,

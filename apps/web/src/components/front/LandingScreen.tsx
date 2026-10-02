@@ -142,6 +142,13 @@ export function LandingScreen() {
       <FrontDoorHeader
         actions={
           <>
+            {/* The playbook library is open without an account (ADR-061), so
+                the front door links it: a visitor can browse real days before
+                deciding to sign up. A plain link, so SPEC §14's "this page
+                fetches nothing" still holds. */}
+            <Link href="/playbooks" className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "no-underline")}>
+              Playbooks
+            </Link>
             <Link href="/signin" className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "no-underline")}>
               Sign in
             </Link>

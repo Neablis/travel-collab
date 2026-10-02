@@ -1,7 +1,7 @@
-import { auth } from "@/server/auth";
 import { LeaderboardResponse } from "@/lib/playbooks";
 import { leaderboard } from "@/server/playbooks";
 import { withDeprecatedLeaderboardAlias } from "@/server/playbookWireAliases";
+import { publicLibraryReader } from "@/server/publicLibraryLimit";
 
 export const runtime = "nodejs";
 
@@ -11,15 +11,14 @@ export const runtime = "nodejs";
 //
 // `meUserId` rides along because the page has to tint and badge YOUR row
 // without pinning it, and the browser is not handed the signed-in id to compare
-// against. Same reason `GET /api/saved-days/:id` returns `isAuthor`.
-export async function GET() {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return Response.json({ error: "unauthenticated" }, { status: 401 });
-  }
+// against. Same reason `GET /api/saved-days/:id` returns `isAuthor`. A reader
+// with no account (ADR-061) has no row, so theirs is `null`.
+export async function GET(request: Request) {
+  const reader = await publicLibraryReader(request);
+  if ("refused" in reader) return reader.refused;
   return Response.json(
     withDeprecatedLeaderboardAlias(
-      LeaderboardResponse.parse({ authors: await leaderboard(), meUserId: session.user.id }),
+      LeaderboardResponse.parse({ authors: await leaderboard(), meUserId: reader.readerId }),
     ),
   );
 }

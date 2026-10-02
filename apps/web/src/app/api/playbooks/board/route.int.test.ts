@@ -28,6 +28,14 @@ vi.mock("@/server/auth", () => ({
 }));
 
 const { GET: BOARD } = await import("./route");
+
+/**
+ * A request from a reader with no account, from an IP of its own: anonymous
+ * reads are charged per IP (`publicLibraryLimit.ts`), and a shared one would
+ * make this file's count depend on every other file's.
+ */
+const anonymous = () =>
+  new Request("http://test/x", { headers: { "x-forwarded-for": `anon-${randomUUID()}` } });
 const { GET: PROFILE } = await import("../profile/[userId]/route");
 const { GET: DISCOVER } = await import("../route");
 const { POST: SAVE } = await import("../../saved-days/route");
@@ -87,7 +95,7 @@ async function take(savedDayId: string): Promise<void> {
 }
 
 async function board(): Promise<{ status: number; body: LeaderboardResponse }> {
-  const res = await BOARD();
+  const res = await BOARD(new Request("http://test/x"));
   return { status: res.status, body: (await res.json()) as LeaderboardResponse };
 }
 
@@ -132,9 +140,15 @@ let quietDay: string;
 }
 
 describe("GET /api/playbooks/board", () => {
-  it("refuses an anonymous read", async () => {
+  // ADR-061: the board is public. A reader with no account has no row, so
+  // there is nothing to tint — `meUserId` is null, not absent and not 401.
+  it("serves a reader with no account, with no row of theirs", async () => {
     currentUserId = null;
-    expect((await board()).status).toBe(401);
+    const res = await BOARD(anonymous());
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as LeaderboardResponse;
+    expect(body.meUserId).toBeNull();
+    expect(body.authors.map((a) => a.userId)).toContain(POPULAR);
     currentUserId = POPULAR;
   });
 
@@ -184,12 +198,18 @@ describe("GET /api/playbooks/board", () => {
 });
 
 describe("GET /api/playbooks/profile/:userId", () => {
-  it("refuses an anonymous read", async () => {
+  // ADR-061: a profile is already the page everybody sees alike, so a reader
+  // with no account gets exactly the signed-in stranger's page.
+  it("serves a reader with no account the same page a signed-in stranger sees", async () => {
+    currentUserId = TAKER;
+    const stranger = await profile(POPULAR);
     currentUserId = null;
-    const res = await PROFILE(new Request("http://test/x"), {
-      params: Promise.resolve({ userId: POPULAR }),
-    });
-    expect(res.status).toBe(401);
+    const res = await PROFILE(anonymous(), { params: Promise.resolve({ userId: POPULAR }) });
+    expect(res.status).toBe(200);
+    const seen = (await res.json()) as PublicProfileResponse;
+    expect(seen.days.map((d) => d.savedDayId).sort()).toEqual(stranger.days.map((d) => d.savedDayId).sort());
+    expect(seen.days).toHaveLength(2);
+    expect(seen.days.every((d) => !d.isMine)).toBe(true);
     currentUserId = POPULAR;
   });
 

@@ -37,6 +37,19 @@ export const REFERRAL_CACHE_CONTROL = "public, max-age=3600, s-maxage=86400, sta
  */
 export const INVITE_CACHE_CONTROL = "public, max-age=3600, s-maxage=3600, stale-while-revalidate=604800";
 
+/**
+ * A playbook day or profile card: the invite card's hour, for the invite's
+ * reason (spec 2026-10-02 §2.7). An unpublished or moderated day keeps its
+ * card at our edge for up to that hour; then it is the generic card.
+ */
+export const PLAYBOOK_CACHE_CONTROL = INVITE_CACHE_CONTROL;
+
+/**
+ * The city and the generic Playbooks cards: a day. Neither names a person, and
+ * a city's count going stale by a day misleads nobody.
+ */
+export const PLAYBOOKS_GENERIC_CACHE_CONTROL = REFERRAL_CACHE_CONTROL;
+
 // Bundled, never fetched: KI-2026-09-27-a is a production deploy that failed
 // because Google Fonts did not answer, and a card that fetched at request time
 // would fail the same way per unfurl. Static TTF instances, because satori

@@ -64,6 +64,21 @@ describe("the leaderboard", () => {
     expect(within(rows).getAllByTestId("board-row").indexOf(mine)).toBe(1);
   });
 
+  // ADR-061: a reader with no account has no row, so nothing is tinted or
+  // badged — `meUserId` is null, and every author's id is a non-empty string.
+  it("marks no row as yours for a reader with no account", async () => {
+    fetchLeaderboardMock.mockResolvedValue(ok({ ...board, meUserId: null }));
+    render(<LeaderboardScreen />);
+    const rows = await screen.findByTestId("board-rows");
+    expect(within(rows).getAllByTestId("board-row")).toHaveLength(3);
+    expect(within(rows).getAllByTestId("board-row").map((r) => r.getAttribute("data-me"))).toEqual([
+      "false",
+      "false",
+      "false",
+    ]);
+    expect(within(rows).queryByText("You")).toBeNull();
+  });
+
   it("has one way back, to Discover, and no empty state", async () => {
     render(<LeaderboardScreen />);
     await screen.findByTestId("board-rows");

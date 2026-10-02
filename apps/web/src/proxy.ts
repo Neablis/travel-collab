@@ -126,14 +126,19 @@ function tripInviteToken(pathname: string): string | null {
 // none of which should ever hit this file. An explicit list matches
 // exactly the `(app)` route group instead:
 //   - `/`                 — Home (apps/web/src/app/(app)/page.tsx)
-//   - `/playbooks/:path*` — matches `/playbooks` itself *and* any nested
-//     path (Next.js treats a `:path*` segment as zero-or-more, so the bare
-//     prefix matches too, not just children)
 //   - `/trips/:path*`     — matches `/trips/:tripId` and the nested notebook
-//     routes under `/trips/:tripId/pages/...` for the same zero-or-more reason
+//     routes under `/trips/:tripId/pages/...` (Next.js treats a `:path*`
+//     segment as zero-or-more, so the bare prefix matches too, not just
+//     children)
 //   - `/invite/:path*`   — the invite landing and its look (M27 link 6).
 //     NOT to send anyone to /signin — both pages are public — but to bank the
 //     token for M11a's gate on the way past (see the handler above).
+//
+// `/playbooks/:path*` was on this list until ADR-061 made the public library
+// readable without an account: a shared playbook link has to open for somebody
+// who has not signed up, so a signed-out visitor must reach those pages rather
+// than be sent to /signin. They stay in `(app)`; what a signed-out reader may
+// DO there is decided by the API routes, which still answer every write 401.
 export const config = {
-  matcher: ["/", "/playbooks/:path*", "/trips/:path*", "/invite/:path*"],
+  matcher: ["/", "/trips/:path*", "/invite/:path*"],
 };

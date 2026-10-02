@@ -7,6 +7,7 @@ import { rateLimitCounters } from "./db/schema";
 import {
   consumeQuota,
   linkPreviewQuota,
+  publicLibraryQuota,
   pgCounters,
   sweepExpiredCounters,
   sweepStatement,
@@ -366,9 +367,14 @@ describe("sweepExpiredCounters", () => {
   // planner. 20k IP rows with 1% ended is the table between two sweeps, where
   // the scan it replaces reads every row to delete 200. All of it is inside a
   // rolled-back transaction, the ANALYZE included.
-  it("plans the link-preview sweep on its partial index, not a table scan", async () => {
-    const [linkPreview] = linkPreviewQuota();
-    if (linkPreview === undefined) throw new Error("linkPreviewQuota() names no policy");
+  // Each IP-keyed policy has its own partial index (the public library's since
+  // ADR-061, KI-2026-10-02-a), and each is checked the same way.
+  it.each([
+    ["link-preview", linkPreviewQuota, "rate_limit_counters_link_preview_window"],
+    ["public-library", publicLibraryQuota, "rate_limit_counters_public_library_window"],
+  ] as const)("plans the %s sweep on its partial index, not a table scan", async (_name, quota, indexName) => {
+    const [linkPreview] = quota();
+    if (linkPreview === undefined) throw new Error(`${_name} names no policy`);
     const now = new Date("2026-08-28T12:00:30.000Z");
     const ended = new Date("2026-08-28T11:58:00.000Z");
     const live = new Date("2026-08-28T12:00:00.000Z");
@@ -390,6 +396,6 @@ describe("sweepExpiredCounters", () => {
         if (error !== rolledBack) throw error;
       });
 
-    expect(plan).toContain('"Index Name":"rate_limit_counters_link_preview_window"');
+    expect(plan).toContain(`"Index Name":"${indexName}"`);
   });
 });
