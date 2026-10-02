@@ -237,6 +237,11 @@ export function detectConflicts(state: TripState, ctx: ConflictContext = DEFAULT
   return sortConflicts(rules.flatMap((rule) => rule(state, ctx)));
 }
 
+/**
+ * `conflicts` in the one order a detail stores them, by id, sorted in place.
+ * Shared with `recostDetail`, which swaps the over-budget conflict at read
+ * time and must leave the list exactly as the projection would have.
+ */
 export function sortConflicts(conflicts: Conflict[]): Conflict[] {
   return conflicts.sort((a, b) => a.id.localeCompare(b.id));
 }
