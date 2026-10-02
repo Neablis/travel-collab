@@ -29,6 +29,7 @@ import { viewerOwnsTrip } from "@/lib/tripRole";
 import { useSessionUser } from "@/components/account/useSessionUser";
 import { DEMO_TRIP_ID } from "@/lib/demoTrip";
 import { takeDemoClone } from "@/lib/pendingDemoClone";
+import { pendingPlaybookAddDay } from "@/lib/pendingPlaybookAdd";
 import { tripSpend, plannedOfBudgetLine } from "@/lib/cost";
 import { orderHomeTrips } from "@/lib/homeTripOrder";
 
@@ -270,6 +271,22 @@ export default function Home() {
       setError("We could not take a copy of the example trip. Open the demo and press it again.");
     });
   }, [trips, unauthenticated, router]);
+
+  // Back to the Playbook somebody pressed *Add* on before they had an account
+  // (ADR-061). Same reason as the demo copy above: this is where a sign-up
+  // that lost its `callbackUrl` lands. The day page spends the marker and
+  // opens its add dialog; this only takes them there. After the demo copy,
+  // which wins if both were somehow banked.
+  const playbookReturnAttempted = useRef(false);
+  useEffect(() => {
+    // `demoCloneAttempted` too: it is set in the same commit, before
+    // `cloningDemo`'s state lands.
+    if (playbookReturnAttempted.current || trips === null || unauthenticated) return;
+    if (cloningDemo || demoCloneAttempted.current) return;
+    playbookReturnAttempted.current = true;
+    const savedDayId = pendingPlaybookAddDay();
+    if (savedDayId !== null) router.replace(`/playbooks/day/${encodeURIComponent(savedDayId)}`);
+  }, [trips, unauthenticated, cloningDemo, router]);
 
   // **SPEC §27: the card goes on the CLICK, and there is no confirm dialog.**
   //

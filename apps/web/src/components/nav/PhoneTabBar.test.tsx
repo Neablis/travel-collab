@@ -19,9 +19,18 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(url.split("?")[1] ?? ""),
 }));
 
+// Who is reading, as `useSessionUser` reports it. `undefined` (not known yet)
+// unless a test says otherwise — the state every test above the signed-out
+// block was written against, and the one in which the bar draws as it always has.
+let session: { id: string } | null | undefined = undefined;
+vi.mock("@/components/account/useSessionUser", () => ({ useSessionUser: () => session }));
+
 import { PhoneTabBar, PhoneTabBarFallback } from "./PhoneTabBar";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  session = undefined;
+});
 
 function renderAt(at: string) {
   url = at;
@@ -206,6 +215,45 @@ describe("PhoneTabBar", () => {
       unmount();
       renderAt("/account");
       expect(document.documentElement.style.getPropertyValue("--phone-tab-bar-height")).toBe("");
+    });
+  });
+
+  // ADR-061: the playbooks are readable without an account, and outside a trip
+  // this bar is Trips (theirs, of which they have none) and Playbooks (where
+  // they already are). The header's *Sign in* is their way in.
+  describe("for a reader with no account", () => {
+    it.each(["/playbooks", "/playbooks/day/d1", "/playbooks/board", "/"])("renders no bar on %s", (route) => {
+      session = null;
+      renderAt(route);
+      expect(tabs()).toEqual([]);
+      expect(screen.queryByRole("navigation", { name: "Phone navigation" })).toBeNull();
+    });
+
+    // The bar was drawn while the session was still unknown and published its
+    // height; `.phone-tab-bar-inset` would keep that 83px under nothing.
+    it("unpublishes its height once the session says signed out", () => {
+      const { rerender } = renderAt("/playbooks");
+      expect(document.documentElement.style.getPropertyValue("--phone-tab-bar-height")).not.toBe("");
+      session = null;
+      rerender(<PhoneTabBar />);
+      expect(tabs()).toEqual([]);
+      expect(document.documentElement.style.getPropertyValue("--phone-tab-bar-height")).toBe("");
+    });
+
+    // The demo is a signed-out visitor's trip, and below 768px this bar is the
+    // only way between its views.
+    it("still renders the demo's views", () => {
+      session = null;
+      renderAt("/demo");
+      expect(screen.getAllByRole("link").map((el) => el.textContent)).toEqual(["Overview", "Plan", "Map"]);
+    });
+
+    // Hidden on a confirmed `null` only: a signed-in reader must not see the
+    // bar missing for the length of the session read.
+    it("renders as always while the session is not known yet", () => {
+      session = undefined;
+      renderAt("/playbooks");
+      expect(screen.getAllByRole("link").map((el) => el.textContent)).toEqual(["Trips", "Playbooks"]);
     });
   });
 

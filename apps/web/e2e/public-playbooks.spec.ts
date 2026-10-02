@@ -105,7 +105,6 @@ test("a stranger opens a shared playbook, browses, and is asked to sign in to ad
     await visitor.getByRole("dialog", { name: "Sign in to add this day" }).getByRole("link", { name: "Create an account" }).click();
     await expect(visitor).toHaveURL(/\/signup\?callbackUrl=/);
     await visitor.getByLabel("Invite code").fill(E2E_SUPER_CODE);
-    // eslint-disable-next-line playwright/prefer-locator -- KI-2026-09-02-b: the dev-login field has no label; m11b-playbooks.spec.ts uses the same selector.
     await visitor.fill('input[name="username"]', mint("pubreader"));
     await visitor.getByRole("button", { name: /sign in with dev login/i }).click();
     await expect(visitor).toHaveURL(new RegExp(`/playbooks/day/${savedDayId}$`));

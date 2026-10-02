@@ -33,6 +33,11 @@ vi.mock("@/lib/apiClient", () => ({
   createReport: (...a: unknown[]) => createReportMock(...a),
 }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: pushMock }) }));
+// Who is reading. `undefined` (not known yet) unless a test says otherwise —
+// the state in which the screen renders exactly as it did before ADR-061, so
+// every test written before it still describes the page it was written for.
+let session: { id: string } | null | undefined = undefined;
+vi.mock("@/components/account/useSessionUser", () => ({ useSessionUser: () => session }));
 // jsdom has no WebGL, so the real MapLibre cannot run. This screen's tests only
 // ask whether the map is MOUNTED — what it draws is `SharedDayMap.test.tsx`'s —
 // so the fake's style never finishes loading and nothing is ever drawn.
@@ -51,6 +56,8 @@ vi.mock("maplibre-gl", () => {
 });
 
 import { SharedDayScreen, ledgerLabel } from "./SharedDayScreen";
+import { rememberPlaybookAdd } from "@/lib/pendingPlaybookAdd";
+import { holdReview } from "./reviewQueue";
 
 const DAY_ID = "aa000000-0000-4000-8000-000000000001";
 const TRIP_ID = "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f";
@@ -142,6 +149,8 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  session = undefined;
+  window.localStorage.clear();
 });
 
 const renderDay = () =>
@@ -1028,5 +1037,162 @@ describe("deleting your own day", () => {
     const banner = await screen.findByTestId("delete-failed");
     expect(banner.textContent).toContain("Unpublish it first");
     expect(pushMock).not.toHaveBeenCalled();
+  });
+});
+
+// ADR-061: the library is readable without an account. Everything a reader
+// sees, none of what only an account can do, and Add asks them to sign in.
+describe("a shared day, read with no account", () => {
+  const MARKER = "pending_playbook_add";
+
+  it("asks them to sign in from Add, both ways back to this day, and banks the add first", async () => {
+    session = null;
+    renderDay();
+    await userEvent.click(await screen.findByRole("button", { name: "Add to a trip" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Sign in to add this day" });
+    const back = encodeURIComponent(`/playbooks/day/${DAY_ID}`);
+    const signIn = within(dialog).getByRole("link", { name: "Sign in" });
+    expect(signIn.getAttribute("href")).toBe(`/signin?callbackUrl=${back}`);
+    expect(within(dialog).getByRole("link", { name: "Create an account" }).getAttribute("href")).toBe(
+      `/signup?callbackUrl=${back}`,
+    );
+    // Never the trip picker: there are no trips to pick from.
+    expect(screen.queryByLabelText("Which trip")).toBeNull();
+    expect(fetchTripsMock).not.toHaveBeenCalled();
+
+    // Opening the dialog is not a request; the click on the way out is.
+    expect(window.localStorage.getItem(MARKER)).toBeNull();
+    fireEvent.click(signIn);
+    expect(JSON.parse(window.localStorage.getItem(MARKER) ?? "null")).toMatchObject({ savedDayId: DAY_ID });
+  });
+
+  it("offers no Report and no review form, and still lists what people said", async () => {
+    session = null;
+    fetchReviewsMock.mockResolvedValue(
+      ok({
+        summary: { average: 5, count: 1, histogram: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 1 } },
+        reviews: [
+          {
+            savedDayId: DAY_ID,
+            reviewerId: "dev-mei",
+            reviewerDisplayName: "Mei Tanaka",
+            stars: 5,
+            note: "Go early.",
+            createdAt: "2026-09-10T00:00:00.000Z",
+            updatedAt: "2026-09-10T00:00:00.000Z",
+            isMine: false,
+          },
+        ],
+        mine: null,
+      }),
+    );
+    renderDay();
+
+    expect(await screen.findByText("Mei Tanaka")).toBeTruthy();
+    expect(screen.queryByTestId("review-form")).toBeNull();
+    expect(screen.queryByRole("button", { name: "1 star" })).toBeNull();
+    expect(screen.queryAllByRole("button", { name: /^Report / })).toHaveLength(0);
+  });
+
+  // A review held on this device was written by whoever was signed in here
+  // before. Shown, it would be a "You · Queued" row that is not theirs; sent,
+  // it could only be refused. It waits in storage for a session.
+  it("neither shows nor sends a review held on this device", async () => {
+    session = null;
+    holdReview(DAY_ID, { stars: 4, note: null, heldAt: "2026-09-10T00:00:00.000Z" });
+    renderDay();
+
+    expect(await screen.findByTestId("reviews-empty")).toBeTruthy();
+    expect(screen.queryByText("Queued")).toBeNull();
+    expect(putReviewMock).not.toHaveBeenCalled();
+  });
+
+  // Signed-in-only controls hide on a CONFIRMED `null` only.
+  it("keeps Report while the session is not known yet", async () => {
+    session = undefined;
+    renderDay();
+    expect(await screen.findByRole("button", { name: "Report this day" })).toBeTruthy();
+  });
+});
+
+describe("back from signing in to add", () => {
+  it("opens the add dialog for a live marker on this day, and adds nothing by itself", async () => {
+    session = { id: "dev-bob" };
+    rememberPlaybookAdd(DAY_ID);
+    renderDay();
+
+    expect(await screen.findByLabelText("Which trip")).toBeTruthy();
+    expect(insertSavedDayMock).not.toHaveBeenCalled();
+    // Spent: a reload must not open it again.
+    expect(window.localStorage.getItem("pending_playbook_add")).toBeNull();
+  });
+
+  it("does not open for a marker banked on another day", async () => {
+    session = { id: "dev-bob" };
+    rememberPlaybookAdd("aa000000-0000-4000-8000-0000000000ff");
+    renderDay();
+
+    expect(await screen.findByRole("button", { name: "Add to a trip" })).toBeTruthy();
+    // The marker is read once the day has loaded; wait for that to have happened.
+    await waitFor(() => expect(window.localStorage.getItem("pending_playbook_add")).toBeNull());
+    expect(screen.queryByLabelText("Which trip")).toBeNull();
+  });
+
+  it("waits for a signed-in reader before it reads the marker", async () => {
+    session = null;
+    rememberPlaybookAdd(DAY_ID);
+    renderDay();
+
+    expect(await screen.findByRole("button", { name: "Add to a trip" })).toBeTruthy();
+    expect(screen.queryByLabelText("Which trip")).toBeNull();
+    expect(window.localStorage.getItem("pending_playbook_add")).not.toBeNull();
+  });
+});
+
+// Decision 6: for every reader, signed in or not, and always the clean link —
+// never `?from=`, which would hand the next reader this one's way back.
+describe("sharing a day", () => {
+  const cleanUrl = `${window.location.origin}/playbooks/day/${DAY_ID}`;
+
+  function stubNavigator(key: "share" | "clipboard", value: unknown) {
+    const before = Object.getOwnPropertyDescriptor(navigator, key);
+    Object.defineProperty(navigator, key, { value, configurable: true });
+    return () => {
+      if (before) Object.defineProperty(navigator, key, before);
+      else delete (navigator as unknown as Record<string, unknown>)[key];
+    };
+  }
+
+  it("copies the clean link where there is no share sheet, and says so", async () => {
+    session = null;
+    const writeText = vi.fn(async () => {});
+    const restore = [stubNavigator("share", undefined), stubNavigator("clipboard", { writeText })];
+    try {
+      renderDay();
+      fireEvent.click(await screen.findByRole("button", { name: "Share" }));
+      expect(await screen.findByRole("button", { name: "Link copied" })).toBeTruthy();
+      expect(writeText).toHaveBeenCalledWith(cleanUrl);
+    } finally {
+      restore.forEach((undo) => undo());
+    }
+  });
+
+  it("hands the day to the share sheet where there is one, and says nothing when it is dismissed", async () => {
+    const share = vi.fn(async () => {
+      throw new DOMException("dismissed", "AbortError");
+    });
+    const writeText = vi.fn(async () => {});
+    const restore = [stubNavigator("share", share), stubNavigator("clipboard", { writeText })];
+    try {
+      renderDay();
+      fireEvent.click(await screen.findByRole("button", { name: "Share" }));
+      await waitFor(() => expect(share).toHaveBeenCalledWith({ title: "Kyoto temples on foot", url: cleanUrl }));
+      // Dismissing is the reader saying no: no copy behind their back.
+      expect(writeText).not.toHaveBeenCalled();
+      expect(screen.getByRole("button", { name: "Share" })).toBeTruthy();
+    } finally {
+      restore.forEach((undo) => undo());
+    }
   });
 });

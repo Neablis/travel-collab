@@ -1,6 +1,6 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { useSessionUser } from "./useSessionUser";
+import { SessionUserProvider, useSessionUser } from "./useSessionUser";
 
 afterEach(() => {
   cleanup();
@@ -54,5 +54,45 @@ describe("useSessionUser", () => {
     render(<Probe />);
     await new Promise((r) => setTimeout(r, 0));
     expect(read()).toBe("unknown");
+  });
+});
+
+// ADR-061: under `(app)/layout.tsx` the header, the tab bar and the playbook
+// screens all ask, and a provider is what makes that one read rather than one
+// per caller.
+describe("SessionUserProvider", () => {
+  it("reads the session once for every caller beneath it", async () => {
+    const sessionRead = vi.fn(async () => new Response(JSON.stringify({}), { status: 200 }));
+    vi.stubGlobal("fetch", sessionRead);
+    render(
+      <SessionUserProvider>
+        <Probe />
+        <Probe />
+        <Probe />
+      </SessionUserProvider>,
+    );
+    await waitFor(() => expect(screen.getAllByTestId("probe").map((el) => el.textContent)).toEqual(["signed-out", "signed-out", "signed-out"]));
+    expect(sessionRead).toHaveBeenCalledTimes(1);
+  });
+
+  // The provider's own "not known yet" must not read as "no provider here",
+  // or every caller would start a fetch of its own while the first is in flight.
+  it("does not let a caller fetch for itself while the provider's read is in flight", async () => {
+    let answer: (r: Response) => void = () => {};
+    const sessionRead = vi.fn(() => new Promise<Response>((resolve) => (answer = resolve)));
+    vi.stubGlobal("fetch", sessionRead);
+    render(
+      <SessionUserProvider>
+        <Probe />
+        <Probe />
+      </SessionUserProvider>,
+    );
+    expect(screen.getAllByTestId("probe").map((el) => el.textContent)).toEqual(["unknown", "unknown"]);
+    expect(sessionRead).toHaveBeenCalledTimes(1);
+    answer(new Response(JSON.stringify({ user: { email: "sam@example.com" } }), { status: 200 }));
+    await waitFor(() =>
+      expect(screen.getAllByTestId("probe").map((el) => el.textContent)).toEqual(["sam@example.com", "sam@example.com"]),
+    );
+    expect(sessionRead).toHaveBeenCalledTimes(1);
   });
 });

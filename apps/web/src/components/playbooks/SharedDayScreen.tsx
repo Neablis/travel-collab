@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Fragment, useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import type { SavedDay, SavedDayModeration, TimeFormat } from "@tc/contracts";
 import { Badge } from "@/components/ui/badge";
 import { SharedDayMap } from "./SharedDayMap";
 import { mapPanel } from "./sharedDayFacts";
 import { scopedGeometry } from "./sharedDayGeometry";
 import { useDistanceUnit } from "@/components/account/PreferencesProvider";
+import { useSessionUser } from "@/components/account/useSessionUser";
 import { AuthorKindBadge } from "./AuthorKindBadge";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,7 @@ import {
 } from "@/lib/apiClient";
 import { displayNameFor } from "@/lib/displayName";
 import { type PublicAuthor } from "@/lib/playbooks";
+import { takePlaybookAdd } from "@/lib/pendingPlaybookAdd";
 import { dayLength, savedDayFacts, DAY_LENGTH_LABELS } from "@/lib/savedDayFacts";
 import { toClockLabel, toClockRange } from "@/lib/time";
 import { useTimeFormat } from "@/components/account/PreferencesProvider";
@@ -41,6 +43,7 @@ import { AddToTripDialog } from "./AddToTripDialog";
 import { ReportAction } from "./ReportDialog";
 import { ReviewRail } from "./ReviewRail";
 import { ReviewConflictBanner, ReviewsSection } from "./ReviewsSection";
+import { SignInToAddDialog } from "./SignInToAddDialog";
 import { useDayReviews } from "./useDayReviews";
 
 // A shared day (M11b link 6). The full stop list with per-stop notes and city
@@ -52,6 +55,12 @@ import { useDayReviews } from "./useDayReviews";
 // `ReviewConflictBanner` sits with the other banners, and `ReportAction` is the
 // quiet "Report" on the day and on each review. They read the reviews endpoint,
 // never the day's own read, so posting a review does not re-read the day.
+//
+// **Readable without an account** (ADR-061). A reader with no account sees
+// everything a reader sees, and none of what only an account can do: no Report
+// on the day or on a review, no review form. *Add to a trip* stays and asks them
+// to sign in. All of it keys on a CONFIRMED signed-out session (`null`), never
+// on `undefined`, so a signed-in reader never watches their controls arrive.
 
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
@@ -195,8 +204,11 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
     [],
   );
   const feed = useLibraryRead(read, signature);
+  const user = useSessionUser();
+  const signedOut = user === null;
 
   const [adding, setAdding] = useState(false);
+  const [signingIn, setSigningIn] = useState(false);
   const [withdrawn, setWithdrawn] = useState(false);
   // §33.1: **`All days` is the default and opening any Playbook resets to it.**
   // Keyed on `savedDayId` rather than reset in an effect: a key change
@@ -220,7 +232,27 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
   // The day's `publishedAt` as this page read it: a review held offline sends
   // it back as `seenPublishedAt`, so a republish in between becomes §15's
   // conflict banner. `undefined` until the day has been read ("do not check").
-  const reviews = useDayReviews(savedDayId, feed.data?.publishedAt);
+  const reviews = useDayReviews(savedDayId, feed.data?.publishedAt, !signedOut);
+
+  // **Back from signing in, having pressed Add while signed out**
+  // (`SignInToAddDialog` banked it). Opens the add dialog and adds nothing:
+  // which trip it goes into is still the reader's click, so a marker that
+  // somehow is not theirs can do no more than open a dialog.
+  //
+  // Once per day per mount — a ref, like `DemoBanner`'s. StrictMode runs this
+  // twice; read-and-clear already makes the second pass find nothing, and the
+  // ref is the cheaper guard. Waits for the day (an add dialog over a skeleton
+  // has nothing to name) and for a signed-in reader; the author is left out,
+  // since a day of their own is not what they went to sign in for.
+  const redeemedFor = useRef<string | null>(null);
+  const dayLoaded = feed.data !== null;
+  const readerIsAuthor = feed.data?.isAuthor === true;
+  useEffect(() => {
+    if (!dayLoaded || !user || redeemedFor.current === savedDayId) return;
+    redeemedFor.current = savedDayId;
+    // Taken (and so cleared) for the author too — it is spent either way.
+    if (takePlaybookAdd(savedDayId) && !readerIsAuthor) setAdding(true);
+  }, [dayLoaded, user, readerIsAuthor, savedDayId]);
 
   // Read again while the server is still pinning — silently, because the
   // stops gaining coordinates is not "the library moved" (the signature above
@@ -393,6 +425,7 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
                   are deciding on, not three paragraphs down beside the
                   leaderboard numbers. */}
               <AuthorKindBadge authorKind={day.authorKind} />
+              <ShareDayButton savedDayId={day.savedDayId} title={day.name} />
             </div>
             {/* §33.1: **the title block always speaks for the whole Playbook**,
                 so no number below it is stated twice. This line is why the rail
@@ -621,7 +654,12 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
             </div>
           )}
 
-          <ReviewsSection reviews={reviews} savedDayId={day.savedDayId} canReview={!isAuthor} />
+          <ReviewsSection
+            reviews={reviews}
+            savedDayId={day.savedDayId}
+            canReview={!isAuthor && !signedOut}
+            canReport={!signedOut}
+          />
         </div>
 
         {/* The sticky rail: the facts, and the one action. */}
@@ -692,6 +730,12 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
               variant="primary"
               className="mt-1 w-full justify-center"
               onClick={() => {
+                // Shown to a reader with no account too, and it asks them to
+                // sign in rather than vanishing (ADR-061, the share page's shape).
+                if (signedOut) {
+                  setSigningIn(true);
+                  return;
+                }
                 setWithdrawn(false);
                 setAdding(true);
               }}
@@ -758,8 +802,9 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
               </>
             )}
             {/* Not for the author: reporting your own day is refused (403
-                `own-content`), so the control could only fail. */}
-            {!isAuthor && (
+                `own-content`), so the control could only fail. Not for a reader
+                with no account either — the report answers 401 (ADR-061). */}
+            {!isAuthor && !signedOut && (
               <div className="flex justify-end">
                 <ReportAction target={{ kind: "saved_day", savedDayId: day.savedDayId }} name="this day" />
               </div>
@@ -788,6 +833,8 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
           </Button>
         </DialogFooter>
       </Dialog>
+
+      <SignInToAddDialog open={signingIn} onOpenChange={setSigningIn} savedDayId={day.savedDayId} />
 
       <AddToTripDialog
         open={adding}
@@ -870,5 +917,52 @@ function BackLink({ href, label }: { href: string; label: string }) {
     <Link href={href} className="w-fit text-sm text-slate hover:underline">
       ← {label}
     </Link>
+  );
+}
+
+/**
+ * *Share* (ADR-061, spec 2026-10-02 decision 6) — for every reader, because a
+ * reader with no account can pass a link on too.
+ *
+ * The clean `/playbooks/day/<id>`, never the address bar: that carries `?from=`
+ * (`backLink.ts`), which would hand the next reader a back link to wherever
+ * THIS reader came from. The system share sheet where there is one (phones,
+ * mostly), else a copy with a moment of "Link copied" on the button. Dismissing
+ * the share sheet rejects with `AbortError`, which is the reader saying no and
+ * gets no answer; any other refusal falls through to copying.
+ */
+function ShareDayButton({ savedDayId, title }: { savedDayId: string; title: string }) {
+  const [outcome, setOutcome] = useState<"idle" | "copied" | "failed">("idle");
+
+  // The label goes back after a moment; the cleanup is what keeps a timer from
+  // setting state on a page somebody has already left.
+  useEffect(() => {
+    if (outcome === "idle") return;
+    const timer = setTimeout(() => setOutcome("idle"), 2_000);
+    return () => clearTimeout(timer);
+  }, [outcome]);
+
+  async function share() {
+    const url = `${window.location.origin}/playbooks/day/${encodeURIComponent(savedDayId)}`;
+    if (typeof navigator.share === "function") {
+      try {
+        await navigator.share({ title, url });
+        return;
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      setOutcome("copied");
+    } catch {
+      setOutcome("failed");
+    }
+  }
+
+  return (
+    <Button variant="secondary" size="sm" className="ml-auto" onClick={() => void share()} data-testid="share-day">
+      {outcome === "copied" ? "Link copied" : outcome === "failed" ? "Could not copy" : "Share"}
+    </Button>
   );
 }

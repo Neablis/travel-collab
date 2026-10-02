@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { Popover } from "@/components/ui/popover";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -246,13 +247,20 @@ export function AccountMenu({
 // so it cannot answer that itself. One island, one `getSession()`: gating the
 // nav separately would mean a second fetch of the same fact.
 //
-// Signed out, this renders nothing at all. Before PR #55 the header offered a
+// Signed out, there is no nav and no avatar. Before PR #55 the header offered a
 // signed-out visitor "Trips" and "Playbooks" — links into pages they cannot
 // see (Mitchell, preview feedback: "Trips and playbooks shouldnt render when
 // signed out"). The logo stays, because it is the way back to the landing
 // page.
+//
+// What it offers instead, since the playbooks became readable without an
+// account (ADR-061), is the way in: *Sign in* and *Create an account*, both
+// bringing the reader back to the page they were on. Only on a confirmed
+// `null` — while the session is `undefined` this still renders nothing, so a
+// signed-in reader is never shown a sign-in button for the length of a fetch.
 export function HeaderSessionChrome({ demoResetEnabled = false }: { demoResetEnabled?: boolean } = {}) {
   const user = useSessionUser();
+  if (user === null) return <SignedOutActions />;
   if (!user) return null;
 
   return (
@@ -302,6 +310,35 @@ export function HeaderSessionChrome({ demoResetEnabled = false }: { demoResetEna
         <AccountMenuFor user={user} demoResetEnabled={demoResetEnabled} />
       </div>
     </>
+  );
+}
+
+/**
+ * The signed-out right half of the header: the two doors, each returning here.
+ *
+ * `usePathname()`, not the full URL. `useSearchParams()` in the header would opt
+ * every route under `(app)/layout.tsx` out of static rendering — the cost the
+ * layout's Suspense note keeps on the tab bar — and the path alone is where
+ * somebody reading a day or a profile wants to land again. A Discover search
+ * loses its filters on the way through; the place it was on does not.
+ */
+function SignedOutActions() {
+  const back = encodeURIComponent(usePathname() ?? "/");
+  return (
+    <div className="ml-auto flex items-center gap-2">
+      <Link
+        href={`/signin?callbackUrl=${back}`}
+        className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "no-underline")}
+      >
+        Sign in
+      </Link>
+      <Link
+        href={`/signup?callbackUrl=${back}`}
+        className={cn(buttonVariants({ variant: "primary", size: "sm" }), "no-underline")}
+      >
+        Create an account
+      </Link>
+    </div>
   );
 }
 

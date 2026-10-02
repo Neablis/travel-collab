@@ -12,6 +12,7 @@ import { Text } from "@/components/ui/text";
 import { UnderlineTabs } from "@/components/ui/underline-tabs";
 import { cn } from "@/lib/cn";
 import { PHONE_TOUCH } from "@/components/ui/button";
+import { useSessionUser } from "@/components/account/useSessionUser";
 import { searchPlaybooks } from "@/lib/apiClient";
 import type {
   BudgetBand,
@@ -171,7 +172,18 @@ function resultsSentence(data: DiscoverResponse): string {
 /** Discover: the public library, searched by place and narrowed by question. */
 export function DiscoverScreen({ initial = {} }: { initial?: Partial<DiscoverUrlState> }) {
   const [filters, setFilters] = useState<Filters>({ ...NO_FILTERS, ...initial });
-  const { cities, countries, scope, sort, rating, budget, length } = filters;
+  const { cities, countries, sort, rating, budget, length } = filters;
+  // **A reader with no account reads Everyone, whatever the URL says**
+  // (ADR-061). *Yours* and *Saved* mean nothing without an account, so their
+  // tabs are not drawn — and a pasted `?scope=saved` must not tell a stranger
+  // "Days you take into a trip show up here" either. Derived rather than
+  // written back into `filters`, so the read, the URL and the empty state all
+  // follow one value; the server forces `everyone` for them regardless.
+  //
+  // Only on a confirmed `null`: while the session is still being read the tabs
+  // render as they always have, so a signed-in reader never sees them arrive.
+  const signedOut = useSessionUser() === null;
+  const scope: DiscoverScope = signedOut ? "everyone" : filters.scope;
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [phoneFiltersOpen, setPhoneFiltersOpen] = useState(false);
 
@@ -313,13 +325,15 @@ export function DiscoverScreen({ initial = {} }: { initial?: Partial<DiscoverUrl
           the content keeps `PageContainer`'s gutter. Not sticky from `md` up,
           where the whole header is on screen at once. */}
       <div className="sticky top-0 z-10 -mx-6 flex flex-col gap-5 bg-paper px-6 pt-1 pb-1 md:static md:mx-0 md:px-0 md:pt-0 md:pb-0">
-      <UnderlineTabs
-        value={scope}
-        onValueChange={(value) => set("scope", value)}
-        options={SCOPES}
-        idPrefix="discover-scope"
-        aria-label="Whose days"
-      />
+      {!signedOut && (
+        <UnderlineTabs
+          value={scope}
+          onValueChange={(value) => set("scope", value)}
+          options={SCOPES}
+          idPrefix="discover-scope"
+          aria-label="Whose days"
+        />
+      )}
 
       <PlaceSearch selected={{ cities, countries }} onAdd={addPlace} onRemove={removePlace} />
       </div>

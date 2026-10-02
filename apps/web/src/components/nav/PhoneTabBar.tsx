@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { BookOpen, LayoutDashboard, List, Luggage, Map, NotebookText } from "lucide-react";
+import { useSessionUser } from "@/components/account/useSessionUser";
 import { resolveView, type View } from "@/components/trip/context/LensRouter";
 import { cn } from "@/lib/cn";
 import { DEMO_PATH } from "@/lib/demoTrip";
@@ -257,11 +258,30 @@ const TAB_CLASS =
  * The bar itself, taking the route as plain values so it can be rendered from
  * both the server-safe path and the `useSearchParams()` one below.
  */
-function PhoneTabBarView({ pathname, view }: { pathname: string; view: View | null }) {
+function PhoneTabBarView({
+  pathname,
+  view,
+  signedOut = false,
+}: {
+  pathname: string;
+  view: View | null;
+  signedOut?: boolean;
+}) {
   const barRef = useRef<HTMLElement>(null);
 
   const active = activePhoneTab(pathname, view);
-  const hidden = taskOwnsScreen(pathname);
+  // **A reader with no account gets no account pair** (ADR-061). Outside a trip
+  // the bar is Trips — their trips, which they have none of — and Playbooks,
+  // which they are already reading; the header's *Sign in* is their way in. The
+  // demo is NOT this case: its scope carries Overview / Plan / Map for the same
+  // signed-out visitor, and below 768px it is the only way between them.
+  //
+  // Folded into `hidden` rather than returned early so the effect below
+  // unpublishes `--phone-tab-bar-height`: the bar is drawn while the session is
+  // still `undefined` and has published its height by the time `null` arrives,
+  // and without that `.phone-tab-bar-inset` keeps 83px of padding under a bar
+  // that is gone.
+  const hidden = taskOwnsScreen(pathname) || (signedOut && scopeOf(pathname) === "account");
 
   // The bar is `position: fixed`, so it reserves no space in normal flow and a
   // page's last row ends up underneath it. This is the same problem — and the
@@ -419,5 +439,11 @@ export function PhoneTabBar() {
   // `view` directly is the other half: it is the one place that knows the
   // legacy URL shapes, so a bookmark carrying `?lens=Map` lights the same tab
   // it navigates to instead of disagreeing with the screen under it.
-  return <PhoneTabBarView pathname={usePathname()} view={resolveView(useSearchParams())} />;
+  //
+  // `signedOut` only on a confirmed `null`: while the session is `undefined`
+  // the bar draws as it always has, so the signed-in majority never sees it
+  // arrive late. The fallback above takes no session at all — it is what the
+  // server renders, and the server here does not know.
+  const signedOut = useSessionUser() === null;
+  return <PhoneTabBarView pathname={usePathname()} view={resolveView(useSearchParams())} signedOut={signedOut} />;
 }
