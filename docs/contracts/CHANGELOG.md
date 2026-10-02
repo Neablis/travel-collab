@@ -13,7 +13,7 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
-## 2026-10-02 — A stop's `cost` is per person (M19 part 1, ADR-060); Public API 1.2.1
+## 2026-10-02 — A stop's `cost` is per person (M19 part 1, ADR-060); Public API 1.3.0
 
 - **No schema changed shape.** `Money` is still `{ amountMinor, currency }` and every stored payload
   and `trip_details.doc` parses as before; no migration. **What changed is what `cost` means:** the
@@ -27,8 +27,10 @@ Format:
 - **Added:** `COST_DOC`, the `.describe()` text on `cost` in `AddActivity`, `UpdateActivity`,
   `ActivitySnapshot` (via `described()`'s description argument; the picker label stays "Cost") and
   `ActivityView`. It is the OpenAPI description of every activity `cost` and of the assistant's
-  derived planning tools. `openapi.json` regenerated; `API_VERSION` `1.2.1` (patch: the document
-  changed in descriptions only), new `API_FINGERPRINT`.
+  derived planning tools. `openapi.json` regenerated; `API_VERSION` `1.3.0`, new `API_FINGERPRINT`.
+  The document changed in descriptions only, which the rule calls a patch. It is a **minor** bump
+  because what `cost` and the totals *mean* changed (Mitchell, on #289's review). No shape broke, so
+  it is not a major one.
 - **Changed (values, not shapes):** `TripDetail.days[].costSubtotal`, `unscheduledCostSubtotal`,
   `tripCostTotal` and `budgetRemaining` sum stop totals. The stored projection computes them for the
   log's own members (rebuild equals stored); every read that overlays the effective member list
