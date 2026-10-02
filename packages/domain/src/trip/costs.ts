@@ -10,7 +10,8 @@ import type { TripState } from "./state";
 // `state.members.length` because the two callers disagree on purpose: the
 // projection passes the log's own members, so rebuild equals stored (invariant
 // 2), and the server's read-time overlay passes the effective members, which
-// the log does not hold (`recostDetail` in `detail.ts`).
+// the log does not hold (`recostDetail` in `detail.ts`) — and so does the
+// decider, when the server tells it that count (`DecideContext.memberCount`).
 export function rollupCosts(
   state: Pick<TripState, "days" | "backlog" | "activities">,
   memberCount: number,

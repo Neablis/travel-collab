@@ -26,6 +26,7 @@ vi.mock("../auth", () => ({
 const { requireTripAccess, withEffectiveMembers } = await import("./trip-access");
 const { GET: GET_TRIP } = await import("@/app/api/trips/[tripId]/route");
 const { POST: POST_COMMAND } = await import("@/app/api/trips/[tripId]/commands/route");
+const { POST: POST_BATCH } = await import("@/app/api/trips/[tripId]/commands/batch/route");
 
 // No DB truncation: every test seeds its own randomUUID() trip and reads back
 // through it — the convention the sibling route int tests use.
@@ -386,5 +387,46 @@ describe("a trip's totals follow its members at read time", () => {
     expect(await readStreamHeadSeq(db, tripId), "a join is not a planning event").toBe(head);
     // The stored projection is the log's one-member answer: within budget.
     expect(overBudget((await getTripDetail(tripId))!)).toEqual([]);
+  });
+
+  // PR #289 review: the decider judged the conflict for the log's members while
+  // the reader showed it for the effective ones. So the conflict the person can
+  // see was refused as `conflict-not-found`, and a dismissal made any other way
+  // lapsed on the next unrelated command. Both doors — the single command and
+  // the batch — have to hand the decider the reader's count.
+  it("dismisses a conflict only the members raise, and keeps it dismissed across the next edit", async () => {
+    const tripId = randomUUID();
+    const dayId = randomUUID();
+    const usd = (amountMinor: number) => ({ amountMinor, currency: "USD" });
+    await executeTripCommand({ type: "CreateTrip", tripId, name: "Dismissed by two" }, OWNER);
+    await executeTripCommand({ type: "SetTripBudget", tripId, budget: usd(50_00) }, OWNER);
+    await executeTripCommand({ type: "AddDay", tripId, dayId }, OWNER);
+    await executeTripCommand(
+      { type: "AddActivity", tripId, activityId: randomUUID(), dayId, title: "Ramen", cost: usd(30_00) },
+      OWNER,
+    );
+    await grantMembership(db, { tripId, userId: GUEST, role: "editor", invitedBy: OWNER, now: new Date().toISOString() });
+    const params = { params: Promise.resolve({ tripId }) };
+    const post = (route: typeof POST_COMMAND, body: unknown) =>
+      route(
+        new Request("http://test/x", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(body),
+        }),
+        params,
+      );
+    const conflictId = `over-budget:${tripId}`;
+
+    const dismiss = await post(POST_COMMAND, { type: "DismissConflict", tripId, conflictId });
+    expect(dismiss.status, JSON.stringify(await dismiss.clone().json())).toBe(200);
+
+    const rename = await post(POST_BATCH, { commands: [{ type: "SetTripName", tripId, name: "Still over" }] });
+    expect(rename.status).toBe(200);
+
+    const res = await GET_TRIP(new Request("http://test/x"), params);
+    const after = TripDetail.parse(((await res.json()) as { trip: unknown }).trip);
+    expect(after.conflicts.map((c) => c.id)).toContain(conflictId);
+    expect(after.dismissedConflictIds).toEqual([conflictId]);
   });
 });
