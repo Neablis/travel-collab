@@ -64,9 +64,11 @@ export function plannedOfBudgetLine(spend: TripSpend, currency: string): string 
     : `${formatMoney(spend.total, currency)} planned of ${formatMoney(spend.budget, currency)}`;
 }
 
-// "¥… committed · ¥… estimated" when part of the total is a pending stop's
-// guess, or null when none of it is — a total with nothing to split says what
-// it said before.
+/**
+ * "¥… committed · ¥… estimated" when part of the total is a pending stop's
+ * guess, or null when none of it is — a total with nothing to split says what
+ * it said before.
+ */
 export function committedLine(spend: TripSpend, currency: string): string | null {
   if (spend.estimated === 0) return null;
   return `${formatMoney(spend.total - spend.estimated, currency)} committed · ${formatMoney(spend.estimated, currency)} estimated`;
@@ -83,11 +85,14 @@ export function daySpend(detail: TripDetail, dayId: string): { total: number; un
   return { total: day.costSubtotal, unpriced };
 }
 
-// "× 3 people = ¥9,000" — the multiplication a per-person price implies, shown
-// where the price is typed and where a viewer reads it (ADR-060: a per-person
-// price is wrong for a shared room, so the editor makes the total visible
-// rather than leaving it to be discovered on the budget line). Null for a stop
-// with no cost: there is nothing to multiply.
+// ADR-060: a per-person price is wrong for a shared room, so the editor makes
+// the total visible where the price is typed, rather than leaving it to be
+// discovered on the budget line.
+/**
+ * "× 3 people = ¥9,000": a stop's per-person price times its headcount, for the
+ * stop editor and a viewer's read-only sheet. Null for a stop with no cost —
+ * there is nothing to multiply.
+ */
 export function stopTotalLine(
   stop: Pick<ActivityView, "cost" | "participants">,
   memberCount: number,
