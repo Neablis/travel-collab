@@ -69,6 +69,15 @@ describe("get_widget", () => {
     expect(field.fields!.field!.map((f) => f.path)).toContain("stop.cost");
   });
 
+  it("lists the trip's members for a widget about one person, since `who` takes a member's id", async () => {
+    // Through `invoke`, so the result has passed the tool's own output schema —
+    // which named every input type but `person` until M19 part 2.
+    const result = await getWidgetTool.invoke({ id: "person-share" }, deps());
+    if ("error" in result) throw new Error(result.error);
+    expect(result.inputs).toContainEqual({ type: "person", name: "who", label: "Person" });
+    expect(result.people).toEqual(TRIP.members.map((m) => ({ who: m.userId, role: m.role })));
+  });
+
   it("answers an unknown id with a sentence rather than throwing", async () => {
     expect(await getWidgetTool.invoke({ id: "nope" }, deps())).toEqual({
       error: 'No widget has the id "nope". Use an id search_widgets returned.',
