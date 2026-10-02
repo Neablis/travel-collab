@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { FilterDimension } from "@tc/contracts";
+import { isCommittedCost, type FilterDimension } from "@tc/contracts";
 import type { MacroDef, WidgetContext } from "../../registry-types";
 import { chip, ghost, inlineOf, text } from "../../registry-types";
 import { ok, empty, needsTrip, type MacroResult } from "../../result";
@@ -39,6 +39,9 @@ type CostParams = z.infer<typeof CostParams>;
  * same stops `rollupCosts` sums in `@tc/domain`, so there is one number and one
  * implementation of it (ADR-039's *"no second answer that can drift from the
  * board's"*), proved in `select.test.ts` against totals the domain computed.
+ *
+ * When some of it is a pending stop's estimate, it reads "$… committed · $…
+ * estimated" (ADR-060), which still adds up to that same total.
  */
 export const cost: MacroDef<CostParams, string> = {
   name: "cost", title: "What it costs", shape: "single",
@@ -52,12 +55,21 @@ export const cost: MacroDef<CostParams, string> = {
     if (!trip) return needsTrip([ghost("money", "cost")]);
     const selection = narrow(trip, globals, params, item);
     if (selection.status !== "ok") return selection;
-    const total = costOfStops(selection.value.stops);
+    const { stops } = selection.value;
+    const total = costOfStops(stops, trip.members.length);
     // Zero is `empty()` rather than "$0.00", which is what `cost.trip` and
     // `cost.day` both already answer: a trip nobody has priced yet has no
     // total, and printing a currency-formatted zero into a sentence reads as a
     // priced answer.
-    return total === 0 ? empty() : ok(formatMoney(total, trip.currency));
+    if (total === 0) return empty();
+    // Committed vs estimate is the stop's kind (ADR-060 decision 5). A
+    // selection with nothing pending reads as one number, as it always did;
+    // only a guess in the sum earns the split, so the reader can tell the two
+    // apart where it matters.
+    const estimated = costOfStops(stops.filter((s) => !isCommittedCost(s.activity.kind)), trip.members.length);
+    if (estimated === 0) return ok(formatMoney(total, trip.currency));
+    const estimate = `${formatMoney(estimated, trip.currency)} estimated`;
+    return ok(estimated === total ? estimate : `${formatMoney(total - estimated, trip.currency)} committed · ${estimate}`);
   },
   render: (value) => inlineOf(chip("value", value)),
 };

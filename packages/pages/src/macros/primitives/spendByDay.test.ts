@@ -302,6 +302,7 @@ describe("cost.chart properties", () => {
         const expected = trip.days.map((_, day) =>
           costOfStops(
             selection.value.stops.filter((s) => s.dayIndex === day && s.activity.cost?.currency === trip.currency),
+            trip.members.length,
           ),
         );
         if (expected.every((sum) => sum === 0)) {
