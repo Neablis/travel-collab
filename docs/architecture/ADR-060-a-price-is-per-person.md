@@ -29,7 +29,7 @@ Mitchell, 2026-10-02, asked four questions at M19's kickoff:
 
 1. **A stop's `cost` is the price for one person.** The contract does not change shape:
    `Money` stays `{ amountMinor, currency }`. What changes is what every reader does with it.
-2. **A stop's headcount is `participants.length`, or the trip's member count when nobody is
+2. **A stop's headcount is the number of distinct ids in `participants`, or the trip's member count when nobody is
    picked.** "Nobody picked" means everyone, which is what the editor's *Who is in* already
    implies. **A stop's total is `cost × headcount`.** Day subtotals, the backlog subtotal,
    the trip total and `budgetRemaining` all sum stop totals. A solo trip reads exactly as

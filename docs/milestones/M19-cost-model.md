@@ -2,10 +2,11 @@
 
 **Status:** **Current milestone from 2026-10-01**, by M14's gate closing. **Scoped
 2026-10-02** (ADR-060). The exit gate is written, and the build is three stacked parts.
-Approved and placed 2026-08-31 by Mitchell. **Runs last**, after
-M9: `M11a → M11b → M17 → M12 → M13 → M14 → M9 → M19`.
+Approved and placed 2026-08-31 by Mitchell, originally to run last, after M9
+(`M11a → M11b → M17 → M12 → M13 → M14 → M9 → M19`). That order is superseded:
+M9 is paused, and M19 became current when M14 closed.
 
-Last is a real position rather than a shrug. Link 3 (who an activity is for)
+*(The original reasoning for running last:)* Last is a real position rather than a shrug. Link 3 (who an activity is for)
 overlaps **M13**'s `add-stop-who`, and running after M13 lets M13 land that
 field while M19 builds splits on top of it — instead of two milestones each
 adding a per-stop person field, which is the drift `AGENTS.md` invariant 5

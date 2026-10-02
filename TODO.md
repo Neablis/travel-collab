@@ -362,7 +362,7 @@ reorder and the one place a reorder updates.
       last Consequence and in the milestone's gate. Note §18 reached `main`
       **after** #126 merged, so part of that PR — the Trip-wide / Day 6 badge —
       is un-shipped on purpose by link 2 rather than regressed.)*
-- [ ] **M19 A cost knows who and what it is for** ← **current milestone** (from 2026-10-01, by M14's gate closing; **placed but not scoped**, so the exit gate is written first) →
+- [ ] **M19 A cost knows who and what it is for** ← **current milestone** (from 2026-10-01, by M14's gate closing; **scoped 2026-10-02** by ADR-060, with a 13-box gate, built as three stacked parts) →
       `docs/milestones/M19-cost-model.md`
       *(**Added to this file 2026-09-01. It was missing entirely** — minted and
       placed last on 2026-08-31, recorded in `docs/milestones/README.md` and in
