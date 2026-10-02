@@ -509,3 +509,12 @@ export const PublicProfileResponse = z.object({
   days: z.array(DiscoverDay),
 });
 export type PublicProfileResponse = z.infer<typeof PublicProfileResponse>;
+
+/**
+ * The cities a search names: trimmed, blanks dropped, duplicates collapsed.
+ * One rule for `GET /api/playbooks` and the Discover page, so the server's
+ * first paint is the answer the API would give for the same URL.
+ */
+export function normalizeCities(raw: readonly string[]): string[] {
+  return [...new Set(raw.map((c) => c.trim()).filter((c) => c !== ""))];
+}

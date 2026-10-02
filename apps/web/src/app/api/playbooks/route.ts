@@ -3,6 +3,7 @@ import { withDeprecatedDiscoverAlias } from "@/server/playbookWireAliases";
 import {
   BudgetBand,
   LengthBand,
+  normalizeCities,
   DiscoverResponse,
   DiscoverScope,
   DiscoverSort,
@@ -40,7 +41,7 @@ export async function GET(request: Request) {
 
   // Repeated `?city=` rather than one comma-joined value: a city name may
   // contain a comma and splitting on one would invent a city called " Japan".
-  const cities = [...new Set(params.getAll("city").map((c) => c.trim()).filter((c) => c !== ""))];
+  const cities = normalizeCities(params.getAll("city"));
   // Repeated `?country=` beside it (M12 link 7), as ISO alpha-2 codes —
   // uppercased, because the column stores them uppercase and containment is
   // exact. A value that is not two letters is DROPPED rather than 400'd, the

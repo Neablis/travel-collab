@@ -45,8 +45,12 @@ export default async function PlaybooksPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const initial = parseDiscoverUrl(await searchParams);
   const session = await auth();
+  // A reader with no account reads Everyone whatever the URL says, so the
+  // screen is seeded with that too: the first render, the server's HTML and
+  // the hook then agree, and no Saved tab is drawn over an Everyone list.
+  const parsed = parseDiscoverUrl(await searchParams);
+  const initial = session?.user?.id ? parsed : { ...parsed, scope: "everyone" as const };
   // The call `GET /api/playbooks` makes, with the URL's own filters and the
   // budget band off (it is not in the URL), so this is exactly the answer the
   // screen's first search would have fetched. A signed-out reader's scope is

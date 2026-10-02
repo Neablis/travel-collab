@@ -265,7 +265,9 @@ test("Discover hydrates from the server's list and makes no first search", async
     visitor.on("request", (request) => {
       if (new URL(request.url()).pathname === "/api/playbooks") searches.push(request.url());
     });
-    await visitor.goto(`/playbooks?city=${encodeURIComponent(city)}`);
+    // `scope=saved` and a padded city: a stranger reads Everyone, and the
+    // API's own trim applies, so the server's list is still the right one.
+    await visitor.goto(`/playbooks?scope=saved&city=${encodeURIComponent(` ${city}`)}`);
     await expect(visitor.getByText(name).first()).toBeVisible();
     // Hydration has finished once a control only React answers does: opening
     // the Sort menu changes no search, and a click that lands before hydration

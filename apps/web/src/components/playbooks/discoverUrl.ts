@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import { DiscoverScope, DiscoverSort, LengthBand, RatingFloor } from "@/lib/playbooks";
+import { DiscoverScope, DiscoverSort, LengthBand, normalizeCities, RatingFloor } from "@/lib/playbooks";
 
 // Discover's state as a URL, both directions, in one place — so the page that
 // READS `?rating=4` and the screen that WRITES it cannot spell it two ways.
@@ -49,7 +49,7 @@ function pick<T>(schema: z.ZodType<T>, raw: string | undefined, fallback: T): T 
 /** Discover's state from a page's `searchParams`; anything absent or unreadable is its default. */
 export function parseDiscoverUrl(params: RawParams): DiscoverUrlState {
   return {
-    cities: all(params.city).filter((c) => c !== ""),
+    cities: normalizeCities(all(params.city)),
     // Upper-cased because the stored codes are (`countriesOfStops`), and a
     // lower-case `?country=jp` typed by hand should mean Japan, not nothing.
     countries: all(params.country)
