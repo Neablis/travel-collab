@@ -37,6 +37,7 @@ function servedPaths(): Set<string> {
 }
 
 const SERVED = servedPaths();
+/** Whether the app serves `urlPath` as a route or a page. */
 const served = (urlPath: string) => SERVED.has(urlPath);
 
 describe("API discovery", () => {
@@ -63,6 +64,7 @@ describe("API discovery", () => {
 });
 
 describe("/llms.txt", () => {
+  /** The served document for a request on `example.test`, and its body. */
   const read = async () => {
     const response = llms(new Request("https://example.test/llms.txt"));
     return { response, text: await response.text() };

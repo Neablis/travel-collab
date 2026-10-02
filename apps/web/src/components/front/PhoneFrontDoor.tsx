@@ -250,6 +250,7 @@ const CLAIMS: readonly { label: string; body: string; example?: ReactNode }[] = 
   },
 ];
 
+/** The phone's front door (SPEC §28): a pinned scroll sequence, not the desktop landing at a narrower width. */
 export function PhoneFrontDoor() {
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const pinRef = useRef<HTMLDivElement | null>(null);

@@ -133,6 +133,7 @@ const HERO_PLOTS = [
 // one. It IS a test problem, because jsdom applies no media queries and sees
 // both — so the tests below scope themselves to one tree by testid rather than
 // querying the screen.
+/** The signed-out landing page at `/welcome`: the desktop tree and the phone front door, one shown per breakpoint. */
 export function LandingScreen() {
   return (
     <>

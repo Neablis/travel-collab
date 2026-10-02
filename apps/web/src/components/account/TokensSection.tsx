@@ -132,6 +132,7 @@ const STATE_BADGE = { live: "success", expired: "warning", revoked: "neutral" } 
 // **This took an `onNavigate` prop until M26 link 1, and it is gone** — it
 // existed only to close the account Sheet behind a navigation to `/plans`.
 // Account is a route now (§34.4), so there is no container to close.
+/** Account's API tokens section: mint, list and revoke tokens, or an upgrade prompt on a plan without the API. */
 export function TokensSection() {
   const [tokens, setTokens] = useState<ApiToken[] | null>(null);
   const [entitled, setEntitled] = useState<boolean | null>(null);

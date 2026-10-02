@@ -51,6 +51,7 @@ function InlineLink({ href, children }: { href: string; children: React.ReactNod
   );
 }
 
+/** An inline code span — a path, a header, a scope — in running text. */
 function Code({ children }: { children: React.ReactNode }) {
   return (
     <DataText as="span" className="rounded-sm bg-moss px-1 py-0.5 text-ink">
@@ -59,6 +60,7 @@ function Code({ children }: { children: React.ReactNode }) {
   );
 }
 
+/** One numbered step of the getting-started list, its number hidden from assistive tech (the `<ol>` already counts). */
 function Step({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
   return (
     <li className="flex gap-4">
