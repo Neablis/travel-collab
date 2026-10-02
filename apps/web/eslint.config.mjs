@@ -130,6 +130,21 @@ const domainAndServerWallPatterns = [
   },
 ];
 
+// What every exempt-shell block (admin, sitemap, playbooks pages) still
+// refuses. Flat config replaces a rule's options for the last matching block,
+// so each block must restate these two; one copy here means a third block
+// cannot drift from the first two. The admin block overrides the domain message.
+const exemptDomainPattern = {
+  group: ["@tc/domain", "@tc/domain/*"],
+  message: "Only src/server and src/app/api may import the domain package (AGENTS.md lint wall).",
+};
+const exemptAuthConfigPattern = {
+  group: ["@/lib/authConfig"],
+  message:
+    "Only src/server/auth.ts and src/proxy.ts may build an Auth.js instance from authConfig (AGENTS.md lint wall, ADR-024).",
+};
+const exemptWallPatterns = [exemptDomainPattern, exemptAuthConfigPattern];
+
 export default [
   ...compat.extends("next/core-web-vitals", "next/typescript"),
   {
@@ -453,15 +468,11 @@ export default [
         {
           patterns: [
             {
-              group: ["@tc/domain", "@tc/domain/*"],
+              ...exemptDomainPattern,
               message:
                 "The operator console reads entitlement state; it does not do planning. Only src/server and src/app/api may import the domain package (AGENTS.md lint wall).",
             },
-            {
-              group: ["@/lib/authConfig"],
-              message:
-                "Only src/server/auth.ts and src/proxy.ts may build an Auth.js instance from authConfig (AGENTS.md lint wall, ADR-024).",
-            },
+            exemptAuthConfigPattern,
           ],
         },
       ],
@@ -481,19 +492,24 @@ export default [
       "no-restricted-imports": [
         "error",
         {
-          patterns: [
-            {
-              group: ["@tc/domain", "@tc/domain/*"],
-              message: "Only src/server and src/app/api may import the domain package (AGENTS.md lint wall).",
-            },
-            {
-              group: ["@/lib/authConfig"],
-              message:
-                "Only src/server/auth.ts and src/proxy.ts may build an Auth.js instance from authConfig (AGENTS.md lint wall, ADR-024).",
-            },
-          ],
+          patterns: exemptWallPatterns,
         },
       ],
+    },
+  },
+  {
+    // THE PLAYBOOKS PAGE BLOCK (SEO pass, spec 2026-10-02 D5). The public
+    // library's pages render on the server so a crawler receives the day, not
+    // a skeleton (KI-2026-09-20-f). They read `src/server` in-process for the
+    // console's reason: a server component fetching its own API over HTTP
+    // keeps the wall's letter and inverts its reason, and it puts a rate limit
+    // and a timeout in the render path — which is what `linkPreviewMetadata`
+    // does and why a day's card could silently fall back to the generic one.
+    // **This block is the exemption.** Page files only: the screens they
+    // render are still UI and still call the API.
+    files: ["src/app/(app)/playbooks/**/page.tsx"],
+    rules: {
+      "no-restricted-imports": ["error", { patterns: exemptWallPatterns }],
     },
   },
   {
