@@ -26,13 +26,24 @@ const contextOf = ({ trip, globals }: ReturnType<typeof selectionTrip>): WidgetC
   today: null,
 });
 
+// The fixture's two pending stops are s0 (day 1) and s3 (day 2), so their
+// prices are the estimate part of any total that includes them (ADR-060). The
+// fixture is one member and nobody picked, so a stop's total is its price.
+const pendingOf = (fixture: ReturnType<typeof selectionTrip>, ids: ("s0" | "s3")[]) =>
+  ids.reduce((sum, id) => sum + fixture.trip.activities[fixture.ids[id]]!.cost!.amountMinor, 0);
+const split = (total: number, estimated: number) =>
+  `${formatMoney(total - estimated, "USD")} committed · ${formatMoney(estimated, "USD")} estimated`;
+
 describe("cost", () => {
   it("is the trip's total when nothing is filtered — what `cost.trip` answered", () => {
     const fixture = selectionTrip();
     const ctx = contextOf(fixture);
     expect(renderMacro(ctx, "cost", {})).toEqual({
       status: "ok",
-      rendered: { kind: "inline", segs: [{ kind: "chip", name: "value", text: formatMoney(fixture.trip.tripCostTotal, "USD") }] },
+      rendered: {
+        kind: "inline",
+        segs: [{ kind: "chip", name: "value", text: split(fixture.trip.tripCostTotal, pendingOf(fixture, ["s0", "s3"])) }],
+      },
     });
   });
 
@@ -48,8 +59,9 @@ describe("cost", () => {
             {
               kind: "chip",
               name: "value",
-              // The board's own number for that day, not one this test adds up.
-              text: formatMoney(fixture.trip.days[index]!.costSubtotal, "USD"),
+              // The board's own number for that day, not one this test adds up,
+              // split around that day's one pending stop.
+              text: split(fixture.trip.days[index]!.costSubtotal, pendingOf(fixture, [index === 0 ? "s0" : "s3"])),
             },
           ],
         },
@@ -64,7 +76,8 @@ describe("cost", () => {
       + fixture.trip.activities[fixture.ids.s3]!.cost!.amountMinor;
     expect(renderMacro(ctx, "cost", { kind: "pending" })).toEqual({
       status: "ok",
-      rendered: { kind: "inline", segs: [{ kind: "chip", name: "value", text: formatMoney(booked, "USD") }] },
+      // Every stop it leaves is pending, so all of it is the estimate.
+      rendered: { kind: "inline", segs: [{ kind: "chip", name: "value", text: `${formatMoney(booked, "USD")} estimated` }] },
     });
   });
 

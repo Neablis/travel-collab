@@ -7,6 +7,7 @@ import { getTripDetailAtWithHead } from "../history";
 import { isUuid } from "../ids";
 import { getTripDetail } from "../projections";
 import { readStream } from "../eventStore";
+import { overlayMembers } from "./overlay";
 import { effectiveMembers } from "./members";
 import { toSharedView } from "./sharedView";
 import type { AccessResult } from "./invites";
@@ -165,7 +166,9 @@ export async function readShare(token: string): Promise<AccessResult<SharedTripV
     ok: true,
     // `toDto(share)`, not the row: `sharedAt` crosses the API boundary, so it
     // takes the same single conversion every other share timestamp takes.
-    value: toSharedView(replayed.detail, toDto(share), members.length, replayed.headSeq),
+    // Recosted for today's members: the page says how many are travelling, and
+    // a price is per person (ADR-060), so its totals are for that many.
+    value: toSharedView(overlayMembers(replayed.detail, members), toDto(share), members.length, replayed.headSeq),
   };
 }
 

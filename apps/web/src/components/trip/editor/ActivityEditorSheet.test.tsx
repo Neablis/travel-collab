@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { activityFactory, historyFixture, locationFactory, tripDetailFixture } from "@tc/factories";
 import { ActivityEditorSheet } from "./ActivityEditorSheet";
+import { formatMoney } from "@/lib/formatMoney";
 
 // Same mocking pattern TripHeader.test.tsx uses for a component that reads
 // everything through useTrip()/useEditor(): a real TripProvider/EditorHost
@@ -230,6 +231,33 @@ describe("ActivityEditorSheet", () => {
     );
   });
 
+  // Somebody who left the trip is still in the stop's participants, and still
+  // priced for. Through the real sheet and dispatch: the one way to stop paying
+  // for them is to untick them here, and the command must carry that.
+  it("lets a participant who has left the trip be removed, and saves without them", async () => {
+    const trip = fixture();
+    trip.members = [
+      { userId: "u1", role: "owner" },
+      { userId: "u2", role: "editor" },
+    ];
+    trip.activities[SCHEDULED_ACTIVITY_ID] = activityFactory.build({
+      activityId: SCHEDULED_ACTIVITY_ID,
+      title: "Existing stop",
+      cost: { amountMinor: 15_00, currency: trip.currency },
+      participants: ["u1", "departed-user"],
+    });
+    vi.mocked(fetchTripDetail).mockResolvedValue({ ok: true, value: trip });
+    const dispatch = renderEditorSheet({ mode: "edit", activityId: SCHEDULED_ACTIVITY_ID });
+    await screen.findByDisplayValue("Existing stop");
+
+    expect(screen.getByTestId("activity-cost-total").textContent).toBe(`× 2 people = ${formatMoney(30_00, trip.currency)}`);
+    await userEvent.click(screen.getByRole("button", { name: "Former member (left the trip)" }));
+    expect(screen.getByTestId("activity-cost-total").textContent).toBe(`× 1 person = ${formatMoney(15_00, trip.currency)}`);
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: "UpdateActivity", participants: ["u1"] }));
+  });
+
   it("treats Half day as four hours", async () => {
     const dispatch = renderEditorSheet({ mode: "create" });
     await userEvent.type(screen.getByLabelText("What or where"), "Museum");
@@ -401,6 +429,30 @@ describe("ActivityEditorSheet — a viewer gets no form", () => {
     expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Add stop" })).toBeNull();
     expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  // ADR-060: a viewer reads the same per-person price and stop total the
+  // editor shows. Three members and nobody picked, so the stop is for all three.
+  it("reads the price as per person, with the stop's total for its headcount", async () => {
+    asViewer();
+    const trip = fixture();
+    trip.members = [
+      { userId: "u1", role: "owner" },
+      { userId: "u2", role: "editor" },
+      { userId: "u3", role: "viewer" },
+    ];
+    trip.activities[SCHEDULED_ACTIVITY_ID] = activityFactory.build({
+      activityId: SCHEDULED_ACTIVITY_ID,
+      cost: { amountMinor: 15_00, currency: trip.currency },
+      participants: [],
+    });
+    vi.mocked(fetchTripDetail).mockResolvedValue({ ok: true, value: trip });
+    renderEditorSheet({ mode: "edit", activityId: SCHEDULED_ACTIVITY_ID });
+    // By text, not by test id: the editor's own line is always rendered (it
+    // holds its room so a committed cost never moves the buttons), so the id
+    // can resolve to an empty line before the viewer's sheet is up.
+    expect(await screen.findByText(`× 3 people = ${formatMoney(45_00, trip.currency)}`)).toBeTruthy();
+    expect(screen.getByText(`${formatMoney(15_00, trip.currency)} per person`)).toBeTruthy();
   });
 
   // Mitchell, 2026-09-30 (option "B"): a leg's destination shows wherever the

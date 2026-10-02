@@ -10,11 +10,12 @@ import {
 } from "@tc/domain";
 import {
   deterministicMintId,
+  JAPAN_TRAVELLERS,
   JAPAN_TRIP_NAME,
-  JAPAN_TRIP_TRAVELLERS,
   japanTripCommandGroups,
 } from "@tc/fixtures";
 import { serverConflictContext } from "./conflictContext";
+import { overlayMembers } from "./access/overlay";
 import { DEMO_TRIP_ID } from "@/lib/demoTrip";
 import { DEMO_TRIP_LEAD_DAYS, isoDateInDays } from "@/lib/seedDate";
 
@@ -56,20 +57,20 @@ const DEMO_ACTOR_ID = "00000000-0000-4000-8000-00000000a000";
  * actor that "issued" the commands — and a trip planned by one person, on the
  * one page arguing for planning together, undersells the product it is
  * demonstrating. It is part of the fixture's fiction like its name and its 72
- * stops, and `JAPAN_TRIP_TRAVELLERS` is where that count is declared.
+ * stops, and `JAPAN_TRAVELLERS` is where the names are declared — the design
+ * export's own crew, organizer first, because each stop's `participants` name
+ * them too.
  *
  * No email addresses: an invented address on a public page is the kind of
  * thing that eventually gets mailed.
  */
-const DEMO_TRAVELLERS: TripMemberProfile[] = ["Mika", "Jonah", "Priya", "Sam"]
-  .slice(0, JAPAN_TRIP_TRAVELLERS)
-  .map((name, i) => ({
-    userId: name,
-    role: i === 0 ? "owner" : "editor",
-    name,
-    email: null,
-    image: null,
-  }));
+const DEMO_TRAVELLERS: TripMemberProfile[] = JAPAN_TRAVELLERS.map((name, i) => ({
+  userId: name,
+  role: i === 0 ? "owner" : "editor",
+  name,
+  email: null,
+  image: null,
+}));
 
 /**
  * How the demo's own history is spaced out, in hours per batch, ending now.
@@ -113,7 +114,14 @@ function buildDemo(startDate: string): Demo {
   const now = Date.now();
   const envelopes: EventEnvelope[] = [];
 
-  const groups = japanTripCommandGroups(DEMO_TRIP_ID, { startDate, mintId: deterministicMintId() });
+  // The member ids ARE the names (`DEMO_TRAVELLERS`), so a stop's
+  // `participants` are too, and the per-person totals (ADR-060) count the
+  // people the fixture says are going rather than all four on every stop.
+  const groups = japanTripCommandGroups(DEMO_TRIP_ID, {
+    startDate,
+    mintId: deterministicMintId(),
+    travellerId: (name) => name,
+  });
   // +1 for the genesis batch, which is a batch of the trip's history like any
   // other ("Trip created") and has to land before the ones that follow it.
   const batchCount = groups.length + 1;
@@ -175,7 +183,10 @@ function buildDemo(startDate: string): Demo {
     // meta pill's traveller count, the timeline's attribution chip, the map
     // card's), and a demo whose folded state carries one synthetic member
     // showed "1 travellers" beside a raw uuid on every timeline card.
-    detail: { ...tripDetailFromState(state, envelopes[0]!.occurredAt, serverConflictContext()), members: DEMO_TRAVELLERS.map(({ userId, role }) => ({ userId, role })) },
+    detail: overlayMembers(
+      tripDetailFromState(state, envelopes[0]!.occurredAt, serverConflictContext()),
+      DEMO_TRAVELLERS.map(({ userId, role }) => ({ userId, role })),
+    ),
     history: {
       tripId: DEMO_TRIP_ID,
       entries: buildHistoryEntries(envelopes).reverse(),

@@ -367,7 +367,9 @@ curl -X POST -H "Authorization: Bearer $TC_TOKEN" \
 1. **An export carries days and activities. Nothing else.** No budget, no
    currency, no members, invites or share links, no notebook pages, no lineage
    or trip status. A stop's own `cost` **is** carried — it is a field of an
-   activity, and `Money` names its own currency. So is the backlog. This is a
+   activity, and `Money` names its own currency. It is the price for **one
+   person** (ADR-060), so an imported trip totals it for its own members, not
+   the exporting trip's. So is the backlog. This is a
    scope line taken deliberately (Mitchell, 2026-09-18), not a gap; one thing it
    buys is that **an export cannot carry a membership list out of the system**.
 2. **An export is a snapshot, not a backup and not the event log.** A

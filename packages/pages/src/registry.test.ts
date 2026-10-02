@@ -193,7 +193,7 @@ describe("every widget renders (ADR-037 decision 2)", () => {
         // whose stops are all merely planned, so with a null kind it never
         // reached `render` and the witness floor refused — the floor working,
         // again, rather than a reason to lower it.
-        notes: null, kind: "pending", tags: [],
+        notes: null, kind: "pending", tags: [], participants: [],
       },
     } as unknown as TripDetail["activities"],
     tripCostTotal: 5000,
@@ -217,11 +217,11 @@ describe("every widget renders (ADR-037 decision 2)", () => {
     ...populated.activities,
     a2: {
       activityId: "a2", tripId: detail.tripId, title: "Ghibli Museum", dayId: null, position: 0,
-      timeWindow: null, location: null, cost: null, notes: null, kind: "idea", tags: [],
+      timeWindow: null, location: null, cost: null, notes: null, kind: "idea", tags: [], participants: [],
     },
     a3: {
       activityId: "a3", tripId: detail.tripId, title: "Tea ceremony", dayId: "d0", position: 1,
-      timeWindow: null, location: null, cost: null, notes: null, kind: "hold", tags: [],
+      timeWindow: null, location: null, cost: null, notes: null, kind: "hold", tags: [], participants: [],
     },
   } as unknown as TripDetail["activities"];
 

@@ -71,9 +71,13 @@ test.describe("the demo trip", () => {
     //
     // Only the date is a pattern: the fixture is dated relative to today
     // (ADR-030), so the weekday and month move while the rest is fixed.
+    //
+    // $3,960 is Day 1's three prices ($990) once for each of the demo's four
+    // travellers: a price is per person (ADR-060), and none of Day 1's priced
+    // stops picks who is going, so each is for everyone.
     await expect(
       page.getByLabel(
-        /^Day 1, \w{3}, \w{3} \d{1,2}\. Tokyo, 4 stops, \$990\.00, 2:30 pm to 10:30 pm, 2 to book$/,
+        /^Day 1, \w{3}, \w{3} \d{1,2}\. Tokyo, 4 stops, \$3,960\.00, 2:30 pm to 10:30 pm, 2 to book$/,
       ),
     ).toBeVisible();
     // Day 14 is the trip's one two-city cell, and that is the point of

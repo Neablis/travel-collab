@@ -12,7 +12,7 @@ import type {
 import { blockOf } from "../../registry-types";
 import { ok, empty, needsTrip, type MacroResult } from "../../result";
 import { filterInputs, filterParams } from "../../filters";
-import { cityDayOrdinals, narrow, stopsInCity, type SelectedStop } from "../../select";
+import { cityDayOrdinals, costOfStops, narrow, stopsInCity, type SelectedStop } from "../../select";
 import { formatDate, formatLongDate, formatMoney } from "../../format";
 import { readerClock, toClockLabel, toClockRange } from "../../clockLabel";
 
@@ -64,8 +64,10 @@ function dayCard(
   // Summed from the stops on the card rather than read off `day.costSubtotal`
   // — see `ItineraryDayPayload`. A filtered card and a whole-day total are two
   // different selections, and printing one as the other is the kind of
-  // disagreement between two surfaces this repo keeps finding.
-  const costMinor = stops.reduce((total, { activity }) => total + (activity.cost?.amountMinor ?? 0), 0);
+  // disagreement between two surfaces this repo keeps finding. Each stop line
+  // below stays its per-person price; the card's total is what the day costs
+  // the people in it (ADR-060), which is what `costOfStops` sums.
+  const costMinor = costOfStops(stops, trip.members.length);
   return {
     kind: "itinerary-day",
     dayId: day.dayId,

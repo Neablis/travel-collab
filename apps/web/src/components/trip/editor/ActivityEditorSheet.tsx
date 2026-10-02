@@ -16,6 +16,7 @@ import { dayLabel } from "@/lib/dates";
 import { toClockRange } from "@/lib/time";
 import { useTimeFormat } from "@/components/account/PreferencesProvider";
 import { formatMoney } from "@/lib/formatMoney";
+import { stopTotalLine } from "@/lib/cost";
 import { displayPlace, legEnd } from "@/lib/place";
 
 // Behavior change #2 (M5 wave 2, resolves PR #11 comment #9): the activity
@@ -162,6 +163,7 @@ export function ActivityEditorSheet() {
         <ReadOnlyActivity
           activity={editingActivity}
           currency={activeTrip?.currency ?? "USD"}
+          memberCount={activeTrip?.members.length ?? 1}
           onClose={close}
         />
       )}
@@ -209,10 +211,12 @@ export function ActivityEditorSheet() {
 function ReadOnlyActivity({
   activity,
   currency,
+  memberCount,
   onClose,
 }: {
   activity: ActivityView | null;
   currency: string;
+  memberCount: number;
   onClose: () => void;
 }) {
   const clock = useTimeFormat();
@@ -240,8 +244,14 @@ function ReadOnlyActivity({
             <Text as="p" variant="secondary">Going to {displayPlace(destination)}</Text>
           )}
           <DataText size="xs" className="block">
-            {activity.cost === null ? "No cost yet" : formatMoney(activity.cost.amountMinor, currency)}
+            {activity.cost === null ? "No cost yet" : `${formatMoney(activity.cost.amountMinor, currency)} per person`}
           </DataText>
+          {/* The same line the editor shows under its Cost field (ADR-060). */}
+          {activity.cost !== null && (
+            <Text variant="muted" data-testid="activity-cost-total">
+              {stopTotalLine(activity, memberCount, currency)}
+            </Text>
+          )}
           {activity.notes !== null && activity.notes !== "" && (
             <Text as="p" variant="secondary">{activity.notes}</Text>
           )}

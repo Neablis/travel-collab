@@ -66,6 +66,11 @@ const detailArb: fc.Arbitrary<TripDetail> = fc
         cost,
         kind,
         tags,
+        // Defaulted on parse like `kind` and `tags`, and read by every cost
+        // widget since a price became per person (ADR-060): a missing list
+        // was a resolver throwing on `.length`.
+        bookedBy: null,
+        participants: [],
       };
     }
     const days = Array.from({ length: nDays }, (_, i) => ({

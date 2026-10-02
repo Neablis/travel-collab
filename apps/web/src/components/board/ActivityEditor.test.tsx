@@ -355,6 +355,29 @@ describe("ActivityEditor attribution (M13 link 5)", () => {
   };
   const save = () => fireEvent.click(screen.getByRole("button", { name: /save/i }));
 
+  // ADR-060: the price typed here is for one person, and the line under it
+  // multiplies by who is going — everyone when nobody is picked — live.
+  it("labels Cost per person and shows the stop's total for its headcount", () => {
+    mount(stop({ cost: { amountMinor: 30_00, currency: "USD" } }));
+    expect(screen.getByLabelText("Cost per person")).toBeTruthy();
+    expect(screen.getByTestId("activity-cost-total").textContent).toBe("× 2 people = $60.00");
+    fireEvent.click(screen.getByRole("button", { name: "bob" }));
+    expect(screen.getByTestId("activity-cost-total").textContent).toBe("× 1 person = $30.00");
+  });
+
+  // The line's room is kept with no cost to show. MoneyInput commits on blur,
+  // so the line used to APPEAR on the mousedown that blurs the field — on
+  // "Add stop" — and push the buttons below it out from under the pointer: the
+  // mouseup landed elsewhere and the first click saved nothing (found by
+  // m4-money-and-lenses, 4 of 4 runs). jsdom has no layout, so what is pinned
+  // is that the element is there, holding one line, and says nothing.
+  it("shows no total for a stop with no cost, but keeps the line's room", () => {
+    mount(stop());
+    const line = screen.getByTestId("activity-cost-total");
+    expect(line.textContent).toBe("\u00a0");
+    expect(line.getAttribute("aria-hidden")).toBe("true");
+  });
+
   it("offers one toggle per member and sends who is going", () => {
     const onSave = mount(stop());
     fireEvent.click(screen.getByRole("button", { name: "bob" }));
@@ -394,6 +417,55 @@ describe("ActivityEditor attribution (M13 link 5)", () => {
     fireEvent.change(screen.getByLabelText("Booked by"), { target: { value: "" } });
     save();
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ bookedBy: null }));
+  });
+
+  // A participant who has since left the trip is still on the stop and still
+  // priced (`stopHeadcount` counts every distinct id). Listing members only
+  // hid them: nothing to untick, and the line charged for somebody unseen.
+  describe("someone who has left the trip", () => {
+    const DEPARTED = "carol-left";
+
+    it("shows them picked, by a fallback name, and unticking them drops them from the save and the headcount", () => {
+      const onSave = mount(stop({ cost: { amountMinor: 30_00, currency: "USD" }, participants: ["bob", DEPARTED] }));
+      expect(screen.getByTestId("activity-cost-total").textContent).toBe("× 2 people = $60.00");
+      const chip = screen.getByRole("button", { name: "Former member (left the trip)" });
+      expect(chip.getAttribute("aria-pressed")).toBe("true");
+      expect(screen.queryByText(DEPARTED)).toBeNull();
+
+      fireEvent.click(chip);
+      expect(screen.getByTestId("activity-cost-total").textContent).toBe("× 1 person = $30.00");
+      // Removed for good: nothing offers them back.
+      expect(screen.queryByRole("button", { name: /former member/i })).toBeNull();
+      save();
+      expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ participants: ["bob"] }));
+    });
+
+    it("numbers them when more than one has left", () => {
+      mount(stop({ participants: [DEPARTED, "dave-left"] }));
+      expect(screen.getByRole("button", { name: "Former member 1 (left the trip)" })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Former member 2 (left the trip)" })).toBeTruthy();
+    });
+
+    it("shows who booked it as a former member, and lets it be replaced", () => {
+      const onSave = mount(stop({ bookedBy: DEPARTED }));
+      const select = screen.getByLabelText("Booked by") as HTMLSelectElement;
+      expect(select.value).toBe(DEPARTED);
+      expect(select.selectedOptions[0]?.textContent).toBe("Former member (left the trip)");
+
+      fireEvent.change(select, { target: { value: "alice" } });
+      expect(within(select).queryByText(/former member/i)).toBeNull();
+      save();
+      expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ bookedBy: "alice" }));
+    });
+
+    it("lets who booked it go back to nobody", () => {
+      const onSave = mount(stop({ bookedBy: DEPARTED }));
+      const select = screen.getByLabelText("Booked by") as HTMLSelectElement;
+      expect(select.value).toBe(DEPARTED);
+      fireEvent.change(select, { target: { value: "" } });
+      save();
+      expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ bookedBy: null }));
+    });
   });
 
   // A solo trip has nobody to attribute to, so the controls would be an empty

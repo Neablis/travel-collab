@@ -774,7 +774,7 @@ export const readTripTool = defineTool({
 
 export const readDayTool = defineTool({
   name: "read_day",
-  description: `Read one or MORE days in full: every stop with its time window, location, notes, kind, tags and cost, plus the active conflicts that touch each day. Pass \`days\` as a single number or a list (up to ${MAX_READ_DAYS}) — if a question needs several days, put them all in ONE call rather than calling this once per day. Use this whenever the question is about what happens on a day, when a stop's time matters, or when the question is about a day's conflicts or what it still needs booked.`,
+  description: `Read one or MORE days in full: every stop with its time window, location, notes, kind, tags and cost (the price for one person — the day and trip totals already multiply it by who is going), plus the active conflicts that touch each day. Pass \`days\` as a single number or a list (up to ${MAX_READ_DAYS}) — if a question needs several days, put them all in ONE call rather than calling this once per day. Use this whenever the question is about what happens on a day, when a stop's time matters, or when the question is about a day's conflicts or what it still needs booked.`,
   domain: "itinerary",
   effect: "read",
   spend: "none",

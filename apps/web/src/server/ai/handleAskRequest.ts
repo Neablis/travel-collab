@@ -1322,6 +1322,9 @@ export function instructionBlocks(
           // "nobody knows yet". `cost` is optional in the contract precisely so
           // this can be left out.
           "NEVER invent a price. `cost` is optional: if you do not know what something costs, leave `cost` out entirely. A cost of 0 means free — writing 0 for something whose price you do not know is a wrong number, not a blank.",
+          // ADR-060: the trip multiplies a stop's price by who is going, so a
+          // whole-group figure typed as `cost` would be counted once per person.
+          "`cost` is the price for ONE person. The trip multiplies it by who is going, so never enter a whole group's bill as a stop's cost.",
           // **The citation rule** — the same shape as the `savedDayId` rule two
           // lines below, and for the same reason: the server resolves what the
           // model cites, so a number it did not read resolves to nothing.

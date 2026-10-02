@@ -13,6 +13,44 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-02 — A stop's `cost` is per person (M19 part 1, ADR-060); Public API 1.3.0
+
+- **No schema changed shape.** `Money` is still `{ amountMinor, currency }` and every stored payload
+  and `trip_details.doc` parses as before; no migration. **What changed is what `cost` means:** the
+  price for ONE person. A stop's total is `cost × headcount`, where the headcount is the number of
+  distinct ids in `participants`, or the trip's member count when `participants` is empty.
+  `participants` stays an unconstrained `string[]` (a uniqueness refinement would refuse events
+  already in the log); a repeated id counts once.
+- **Added:** `packages/contracts/src/costs.ts` — `stopHeadcount`, `stopTotal` and `isCommittedCost`
+  (a `pending` stop's cost is an estimate; `planned` and `transit` are committed). The one statement
+  of the rule; the domain, the web and `@tc/pages` call it.
+- **Added:** `COST_DOC`, the `.describe()` text on `cost` in `AddActivity`, `UpdateActivity`,
+  `ActivitySnapshot` (via `described()`'s description argument; the picker label stays "Cost") and
+  `ActivityView`. It is the OpenAPI description of every activity `cost` and of the assistant's
+  derived planning tools. `openapi.json` regenerated; `API_VERSION` `1.3.0`, new `API_FINGERPRINT`.
+  The document changed in descriptions only, which the rule calls a patch. It is a **minor** bump
+  because what `cost` and the totals *mean* changed (Mitchell, on #289's review). No shape broke, so
+  it is not a major one.
+- **Changed (values, not shapes):** `TripDetail.days[].costSubtotal`, `unscheduledCostSubtotal`,
+  `tripCostTotal` and `budgetRemaining` sum stop totals. The stored projection computes them for the
+  log's own members (rebuild equals stored); every read that overlays the effective member list
+  recomputes them for those members through the domain's `recostDetail` — trip GET, command
+  responses, history-at-seq on `/api/trips`, the demo trip, and a share's `SharedTripView`. A member
+  joining changes a trip's totals with no event. The same overlay recomputes the `over-budget`
+  `Conflict` from the recosted total (its id, `over-budget:<tripId>`, does not change), so
+  `conflicts` agrees with `budgetRemaining`.
+- Why: Mitchell, 2026-10-02 — ADR-060's four answers ("always per person", "derive from kind").
+- Consumers updated: `packages/domain` (`rollupCosts(state, memberCount)`, `recostDetail`),
+  `packages/factories`, `packages/fixtures` (the Japan demo names its four travellers and picks who
+  goes on six stops; the verifier recosts through `recostDetail` for those four, as `/demo` reads it,
+  so `plannedTotalMinor` moves 908,500 → 3,119,500 and the budget 1,640,000 → 3,400,000), `@tc/pages` (`costOfStops(stops, memberCount)`; `cost` reads "… committed · …
+  estimated" when a pending stop is in it), `apps/web` (`server/access/overlay.ts`, `lib/cost.ts`,
+  Settings sheet, stop editor, calendar city cards, MSW mocks, assistant instructions),
+  `docs/guidelines/using-the-api.md`.
+- **Breaking?** No for any shape or stored data. **Yes for meaning:** on a trip with more than one
+  member, every total that includes a stop nobody picked is now multiplied, and a reader that summed
+  `cost` itself to reproduce a total gets a different number. A solo trip reads exactly as before.
+
 ## 2026-10-02 — public API discovery: `/llms.txt`, `/developers`, the reference, and two new links — outside `openapi.json`
 
 - **Nothing in `packages/contracts` changed, and `openapi.json` did not either** — so no

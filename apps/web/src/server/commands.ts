@@ -19,6 +19,7 @@ import {
   foldEnvelopes,
   groupBatches,
   tripDetailFromState,
+  type DecideContext,
 } from "@tc/domain";
 import { serverConflictContext } from "./conflictContext";
 import { db } from "./db/client";
@@ -26,6 +27,7 @@ import { appendToStream, readStream } from "./eventStore";
 import { applyTripEvents, upsertTripDetail } from "./projections";
 import { memberRolePolicy } from "./accessPolicy";
 import { effectiveMembers } from "./access/members";
+import { overlayMembers } from "./access/overlay";
 
 export type CommandResult =
   | { ok: true; tripId: string; detail: TripDetail; history: TripHistory }
@@ -95,7 +97,7 @@ export async function executeTripCommand(input: unknown, actorId: string): Promi
       events = decision.events;
       origin = decision.origin;
     } else {
-      const decision = decideTripCommand(state, command, { actorId });
+      const decision = decideTripCommand(state, command, decideContext(actorId, members));
       if (!decision.ok) return { ok: false, error: decision.rejection };
       events = decision.events;
       origin = { kind: "user" };
@@ -183,13 +185,22 @@ async function appendAndProject(
 // The stored projection stays exactly what the log produces (invariant 2 —
 // `upsertTripDetail` above already wrote it); only the DTO handed back to the
 // caller carries the effective member list, so a command response and a
-// subsequent GET agree about who is on the trip.
+// subsequent GET agree about who is on the trip — and, since a price is per
+// person (ADR-060), about what it costs.
 //
 // `members` is null only for CreateTrip, whose stream did not exist when the
 // merge was attempted; the created trip's own projection already carries its
 // owner and there are no grants to merge yet.
 function withMembers(detail: TripDetail, members: TripMember[] | null): TripDetail {
-  return members === null ? detail : { ...detail, members };
+  return members === null ? detail : overlayMembers(detail, members);
+}
+
+// The decider judges conflicts for the member count the reader is shown, so a
+// dismissal is decided against the same over-budget conflict `withMembers`
+// hands back (ADR-060, PR #289 review). `members` is null only before the
+// stream exists, where there is nothing to recost.
+function decideContext(actorId: string, members: TripMember[] | null): DecideContext {
+  return members === null ? { actorId } : { actorId, memberCount: members.length };
 }
 
 const BatchBody = z.array(BatchableCommand).min(1);
@@ -279,7 +290,7 @@ export async function executeTripCommandBatch(
       }
 
       // 4. decide each command in order against the evolving state
-      const decided = decideInOrder(loaded.state, commands, actorId);
+      const decided = decideInOrder(loaded.state, commands, decideContext(actorId, loaded.members));
       if (!decided.ok) return decided;
       const { events } = decided;
       // If every sub-command was a no-op there is nothing to append — report it the
@@ -322,12 +333,12 @@ export async function executeTripCommandBatch(
 function decideInOrder(
   initial: ReturnType<typeof foldEnvelopes>,
   commands: readonly BatchableCommand[],
-  actorId: string,
+  ctx: DecideContext,
 ): { ok: true; events: TripEvent[] } | CommandFailure {
   let state = initial;
   const events: TripEvent[] = [];
   for (const command of commands) {
-    const decision = decideTripCommand(state, command, { actorId });
+    const decision = decideTripCommand(state, command, ctx);
     if (!decision.ok) {
       if (decision.rejection.code === "no-op") continue;
       return { ok: false, error: decision.rejection };
@@ -426,7 +437,7 @@ export async function executeTripCreation(
       // so the genesis above goes with it.
       const loaded = await loadAndAuthorize(tx, tripId, actorId, commands.map((c) => c.type));
       if (!loaded.ok) return refuse(loaded);
-      const decided = decideInOrder(loaded.state, commands, actorId);
+      const decided = decideInOrder(loaded.state, commands, decideContext(actorId, loaded.members));
       if (!decided.ok) return refuse(decided);
       // Nothing to follow with (none sent, or every one a no-op): the trip as
       // created is the whole answer.

@@ -243,7 +243,7 @@ describe("costOfStops — one number, one implementation", () => {
     // `rollupCosts` inside `tripDetailFactory`, so this compares against the
     // board's arithmetic rather than against this file's.
     const { trip, globals } = selectionTrip();
-    expect(costOfStops(selected(trip, globals, {}).stops)).toBe(trip.tripCostTotal);
+    expect(costOfStops(selected(trip, globals, {}).stops, trip.members.length)).toBe(trip.tripCostTotal);
     expect(trip.tripCostTotal).toBeGreaterThan(0);
   });
 
@@ -251,14 +251,14 @@ describe("costOfStops — one number, one implementation", () => {
     const { trip, globals } = selectionTrip();
     for (const index of [0, 1, 2]) {
       const day = selected(trip, globals, { day: { kind: "index", index } });
-      expect(costOfStops(day.stops), `day ${index + 1}`).toBe(trip.days[index]!.costSubtotal);
+      expect(costOfStops(day.stops, trip.members.length), `day ${index + 1}`).toBe(trip.days[index]!.costSubtotal);
     }
   });
 
   it("leaves the unscheduled subtotal as the difference between the two", () => {
     const { trip, globals } = selectionTrip();
     const scheduled = trip.days.reduce((sum, day) => sum + day.costSubtotal, 0);
-    expect(costOfStops(selected(trip, globals, {}).stops) - scheduled).toBe(trip.unscheduledCostSubtotal);
+    expect(costOfStops(selected(trip, globals, {}).stops, trip.members.length) - scheduled).toBe(trip.unscheduledCostSubtotal);
     expect(trip.unscheduledCostSubtotal).toBeGreaterThan(0);
   });
 });

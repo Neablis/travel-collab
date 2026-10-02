@@ -17,7 +17,9 @@ import {
   JAPAN_STOPS,
   type JapanBacklogItem,
   type JapanStop,
+  type JapanTraveller,
 } from "./trip.ts";
+import { participantsOf } from "./participants.ts";
 
 /** Mints a fresh uuid. Injectable so the verifier can be deterministic. */
 export type MintId = () => string;
@@ -48,6 +50,16 @@ export type JapanTripOptions = {
   startDate: string;
   /** Defaults to `crypto.randomUUID` (Node 22+ and every browser). */
   mintId?: MintId;
+  /**
+   * The member id each traveller has on the trip being seeded. Given, every
+   * stop carries `participants` (./participants.ts); absent, none does.
+   *
+   * Optional because only `/demo` has the four travellers as members. `db:seed`
+   * and the preview reset seed a trip whose one member is whoever ran them, and
+   * `participants` naming people who are not on the trip would be four
+   * strangers in every stop's *Who is in* and, from M19 part 2, in its split.
+   */
+  travellerId?: (name: JapanTraveller) => string;
 };
 
 /** Calendar-date arithmetic in UTC, so it cannot drift across a local offset. */
@@ -88,10 +100,12 @@ export function unscheduledLocationName(place: string, area: string): string {
 }
 
 /**
- * Folds `who` into the notes field. It is the last piece of stop metadata the
- * domain doesn't model — Access & Membership's data, not an activity field
- * (module map) — and "all" is the uninteresting default, omitted so notes stay
- * quiet for the common case.
+ * Folds `who` into the notes field, as the export wrote it — "(Priya R + Mei
+ * T)". Older than `participants` (M13), which now carries the same people as
+ * member ids where the caller has them (./participants.ts); the note stays
+ * because a seeded trip without the travellers as members has no other way to
+ * show it. "all" is the uninteresting default, omitted so notes stay quiet for
+ * the common case.
  *
  * `status` used to be folded in here too, which is why cards once read
  * "(transit)" and "(idea)". M18 gave it a real home: `AddActivity.kind`. Do
@@ -124,10 +138,11 @@ function placeOf(row: JapanStop | JapanBacklogItem): Location {
  * absent — no `dayId` (`AddActivity`'s documented "omitted = backlog"), no time
  * window, and no cost.
  *
- * `who` is folded into `notes` here rather than carried as a field, because
- * Trip Planning does not know who is invited (module map, AGENTS.md), and
- * `tags`/`cost` are omitted entirely when empty so the emitted command matches
- * what a real user's action would have produced.
+ * `who` is folded into `notes` as the export wrote it, and becomes
+ * `participants` only when the caller says who the travellers are on this trip
+ * (`JapanTripOptions.travellerId`). `tags`/`cost`/`participants` are omitted
+ * entirely when empty so the emitted command matches what a real user's action
+ * would have produced.
  */
 function addActivity(
   tripId: string,
@@ -136,8 +151,10 @@ function addActivity(
   dayId: string | undefined,
   timeWindow: { start: string; end: string } | undefined,
   costUsd: number | null,
+  travellerId: JapanTripOptions["travellerId"],
 ): TripCommand {
   const notes = buildNotes(row.note, row.who);
+  const participants = travellerId ? participantsOf(row).map(travellerId) : [];
   const end = row.endsAt === undefined ? undefined : JAPAN_STOPS.find((s) => s.id === row.endsAt);
   // A dangling reference is a fixture bug, and a leg silently missing its
   // destination would pass every count below it — so it throws.
@@ -156,6 +173,7 @@ function addActivity(
     ...(end ? { endLocation: placeOf(end) } : {}),
     ...(row.tags.length > 0 ? { tags: row.tags as ActivityTag[] } : {}),
     ...(costUsd !== null ? { cost: { amountMinor: costUsd * 100, currency: JAPAN_TRIP_CURRENCY } } : {}),
+    ...(participants.length > 0 ? { participants } : {}),
     ...(notes ? { notes } : {}),
   };
 }
@@ -181,7 +199,7 @@ function addActivity(
  * atomicity on a throwaway preview reset, not an oversight.
  */
 export function japanTripCommandGroups(tripId: string, options: JapanTripOptions): TripCommand[][] {
-  const { startDate, mintId = () => crypto.randomUUID() } = options;
+  const { startDate, mintId = () => crypto.randomUUID(), travellerId } = options;
   const dayIds = Array.from({ length: JAPAN_TRIP_DAY_COUNT }, mintId);
 
   const setup: TripCommand[] = [
@@ -208,13 +226,13 @@ export function japanTripCommandGroups(tripId: string, options: JapanTripOptions
   const days: TripCommand[][] = Array.from({ length: JAPAN_TRIP_DAY_COUNT }, () => []);
   for (const stop of JAPAN_STOPS) {
     days[stop.day - 1]!.push(
-      addActivity(tripId, mintId(), stop, dayIds[stop.day - 1]!, { start: stop.start, end: stop.end }, stop.costUsd),
+      addActivity(tripId, mintId(), stop, dayIds[stop.day - 1]!, { start: stop.start, end: stop.end }, stop.costUsd, travellerId),
     );
   }
 
   // No dayId, no time window, no cost — `AddActivity`'s documented
   // "omitted = backlog", and a parked idea has neither a slot nor a price yet.
-  const backlog = JAPAN_BACKLOG.map((item) => addActivity(tripId, mintId(), item, undefined, undefined, null));
+  const backlog = JAPAN_BACKLOG.map((item) => addActivity(tripId, mintId(), item, undefined, undefined, null, travellerId));
 
   return [setup, ...days, backlog];
 }

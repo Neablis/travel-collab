@@ -13,6 +13,7 @@ import {
   PutReviewInput,
   RestorePageInput,
   SYSTEM_ACTOR_ID,
+  stopTotal,
   TripCommand,
   TripWeatherResponse,
   UpdatePageInput,
@@ -50,8 +51,13 @@ function rederiveDates(detail: TripDetail): void {
 
 // Deliberately naive rollup — the mock stands in for the projection
 // (`packages/domain` may not be imported here, per the UI/server lint wall).
+// A stop's price is still `stopTotal`'s, from contracts: per person, times who
+// is in it (ADR-060). Naive about structure, never about what a price means.
 function rerollup(detail: TripDetail): void {
-  const costOf = (id: string): number => detail.activities[id]?.cost?.amountMinor ?? 0;
+  const costOf = (id: string): number => {
+    const activity = detail.activities[id];
+    return activity ? stopTotal(activity, detail.members.length) : 0;
+  };
   detail.days.forEach((day) => (day.costSubtotal = day.activityIds.reduce((s, id) => s + costOf(id), 0)));
   detail.unscheduledCostSubtotal = detail.backlog.reduce((s, id) => s + costOf(id), 0);
   detail.tripCostTotal = detail.days.reduce((s, d) => s + d.costSubtotal, 0) + detail.unscheduledCostSubtotal;

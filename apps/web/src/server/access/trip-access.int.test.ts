@@ -6,6 +6,7 @@ import { db } from "../db/client";
 import { tripDetails } from "../db/schema";
 import { executeTripCommand } from "../commands";
 import { getTripDetail } from "../projections";
+import { readStreamHeadSeq } from "../eventStore";
 import { saveDay } from "../savedDays";
 import { grantMembership } from "./members";
 import { acceptInvite, createInvite, revokeInvite } from "./invites";
@@ -25,6 +26,7 @@ vi.mock("../auth", () => ({
 const { requireTripAccess, withEffectiveMembers } = await import("./trip-access");
 const { GET: GET_TRIP } = await import("@/app/api/trips/[tripId]/route");
 const { POST: POST_COMMAND } = await import("@/app/api/trips/[tripId]/commands/route");
+const { POST: POST_BATCH } = await import("@/app/api/trips/[tripId]/commands/batch/route");
 
 // No DB truncation: every test seeds its own randomUUID() trip and reads back
 // through it — the convention the sibling route int tests use.
@@ -293,5 +295,138 @@ describe("requireTripAccess with an invite token", () => {
       params,
     );
     expect(write.status).toBe(401);
+  });
+});
+
+// ADR-060 decision 4: a price is per person, a stop nobody picked is priced
+// for everyone on the trip, and who is on the trip is not in the planning log.
+// So the totals follow the EFFECTIVE members at read time — a join changes
+// them with no event — while the stored projection keeps the log's answer
+// (invariant 2).
+describe("a trip's totals follow its members at read time", () => {
+  it("doubles a nobody-picked stop's total when a second member joins, with no event", async () => {
+    const tripId = randomUUID();
+    const dayId = randomUUID();
+    const usd = (amountMinor: number) => ({ amountMinor, currency: "USD" });
+    await executeTripCommand({ type: "CreateTrip", tripId, name: "Per person" }, OWNER);
+    await executeTripCommand({ type: "SetTripBudget", tripId, budget: usd(100_00) }, OWNER);
+    await executeTripCommand({ type: "AddDay", tripId, dayId }, OWNER);
+    await executeTripCommand(
+      { type: "AddActivity", tripId, activityId: randomUUID(), dayId, title: "Ramen", cost: usd(30_00) },
+      OWNER,
+    );
+    const params = { params: Promise.resolve({ tripId }) };
+    const read = async () => {
+      const res = await GET_TRIP(new Request("http://test/x"), params);
+      expect(res.status).toBe(200);
+      return TripDetail.parse(((await res.json()) as { trip: unknown }).trip);
+    };
+
+    const solo = await read();
+    expect([solo.tripCostTotal, solo.days[0]!.costSubtotal, solo.budgetRemaining]).toEqual([30_00, 30_00, 70_00]);
+    const head = await readStreamHeadSeq(db, tripId);
+
+    await grantMembership(db, { tripId, userId: GUEST, role: "editor", invitedBy: OWNER, now: new Date().toISOString() });
+
+    const pair = await read();
+    expect(pair.members).toHaveLength(2);
+    expect([pair.tripCostTotal, pair.days[0]!.costSubtotal, pair.budgetRemaining]).toEqual([60_00, 60_00, 40_00]);
+    expect(await readStreamHeadSeq(db, tripId), "a join is not a planning event").toBe(head);
+    // The stored projection is the log's answer and is left alone.
+    expect((await getTripDetail(tripId))!.tripCostTotal).toBe(30_00);
+
+    // A command's response is the same overlay, so the board does not flick
+    // back to the log's total after an edit.
+    const write = await POST_COMMAND(
+      new Request("http://test/x", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ type: "SetTripName", tripId, name: "Per person, two" }),
+      }),
+      params,
+    );
+    expect(write.status).toBe(200);
+    expect(TripDetail.parse(((await write.json()) as { detail: unknown }).detail).tripCostTotal).toBe(60_00);
+  });
+
+  // The over-budget conflict reads the same total, so it follows the members
+  // too. Without this the join below showed the banner and a negative
+  // `budgetRemaining`, and the board showed no conflict at all.
+  it("raises the over-budget conflict when a join pushes the total past the budget, with no event", async () => {
+    const tripId = randomUUID();
+    const dayId = randomUUID();
+    const usd = (amountMinor: number) => ({ amountMinor, currency: "USD" });
+    await executeTripCommand({ type: "CreateTrip", tripId, name: "Over by two" }, OWNER);
+    await executeTripCommand({ type: "SetTripBudget", tripId, budget: usd(50_00) }, OWNER);
+    await executeTripCommand({ type: "AddDay", tripId, dayId }, OWNER);
+    await executeTripCommand(
+      { type: "AddActivity", tripId, activityId: randomUUID(), dayId, title: "Ramen", cost: usd(30_00) },
+      OWNER,
+    );
+    const read = async () => {
+      const res = await GET_TRIP(new Request("http://test/x"), { params: Promise.resolve({ tripId }) });
+      expect(res.status).toBe(200);
+      return TripDetail.parse(((await res.json()) as { trip: unknown }).trip);
+    };
+    const overBudget = (d: TripDetail) => d.conflicts.filter((c) => c.kind === "over-budget");
+
+    const solo = await read();
+    expect([solo.budgetRemaining, overBudget(solo)]).toEqual([20_00, []]);
+    const head = await readStreamHeadSeq(db, tripId);
+
+    await grantMembership(db, { tripId, userId: GUEST, role: "editor", invitedBy: OWNER, now: new Date().toISOString() });
+
+    const pair = await read();
+    expect(pair.budgetRemaining).toBe(-10_00);
+    expect(overBudget(pair)).toEqual([
+      expect.objectContaining({
+        id: `over-budget:${tripId}`,
+        description: "Trip total (60.00 USD) exceeds the budget (50.00 USD) by 10.00 USD.",
+      }),
+    ]);
+    expect(await readStreamHeadSeq(db, tripId), "a join is not a planning event").toBe(head);
+    // The stored projection is the log's one-member answer: within budget.
+    expect(overBudget((await getTripDetail(tripId))!)).toEqual([]);
+  });
+
+  // PR #289 review: the decider judged the conflict for the log's members while
+  // the reader showed it for the effective ones. So the conflict the person can
+  // see was refused as `conflict-not-found`, and a dismissal made any other way
+  // lapsed on the next unrelated command. Both doors — the single command and
+  // the batch — have to hand the decider the reader's count.
+  it("dismisses a conflict only the members raise, and keeps it dismissed across the next edit", async () => {
+    const tripId = randomUUID();
+    const dayId = randomUUID();
+    const usd = (amountMinor: number) => ({ amountMinor, currency: "USD" });
+    await executeTripCommand({ type: "CreateTrip", tripId, name: "Dismissed by two" }, OWNER);
+    await executeTripCommand({ type: "SetTripBudget", tripId, budget: usd(50_00) }, OWNER);
+    await executeTripCommand({ type: "AddDay", tripId, dayId }, OWNER);
+    await executeTripCommand(
+      { type: "AddActivity", tripId, activityId: randomUUID(), dayId, title: "Ramen", cost: usd(30_00) },
+      OWNER,
+    );
+    await grantMembership(db, { tripId, userId: GUEST, role: "editor", invitedBy: OWNER, now: new Date().toISOString() });
+    const params = { params: Promise.resolve({ tripId }) };
+    const post = (route: typeof POST_COMMAND, body: unknown) =>
+      route(
+        new Request("http://test/x", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(body),
+        }),
+        params,
+      );
+    const conflictId = `over-budget:${tripId}`;
+
+    const dismiss = await post(POST_COMMAND, { type: "DismissConflict", tripId, conflictId });
+    expect(dismiss.status, JSON.stringify(await dismiss.clone().json())).toBe(200);
+
+    const rename = await post(POST_BATCH, { commands: [{ type: "SetTripName", tripId, name: "Still over" }] });
+    expect(rename.status).toBe(200);
+
+    const res = await GET_TRIP(new Request("http://test/x"), params);
+    const after = TripDetail.parse(((await res.json()) as { trip: unknown }).trip);
+    expect(after.conflicts.map((c) => c.id)).toContain(conflictId);
+    expect(after.dismissedConflictIds).toEqual([conflictId]);
   });
 });
