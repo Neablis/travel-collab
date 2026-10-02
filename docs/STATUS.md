@@ -21,14 +21,12 @@ general setup.
 
 ## Where the work is right now
 
-**M19 — A COST KNOWS WHO AND WHAT IT IS FOR — IS THE CURRENT MILESTONE AS OF
-2026-10-01**, by **M14's gate closing at 22 of 22**. Order:
-`M17 ✓ → M9 [built 2026-09-16, paused — gate needs a live model call] → M20 ✓ → M21 ✓ → M22 ✓ → M25 ✓ → M23 ✓ → M26 ✓ → M13 ✓ → M27 ✓ → M12 ✓ → M24 ✓ → M28 ✓ → M14 ✓ → M19`.
-M19 was **scoped on 2026-10-02** (ADR-060: a price is per person, committed vs estimate
-derives from kind, and Booked by pays). It is built as three stacked parts:
-`docs/plans/2026-10-02-M19-cost-model.md`.
+**NO MILESTONE IS IN ACTIVE BUILD AS OF 2026-10-02.** M19's gate closed at **13 of 13**.
+The only unchecked row in `TODO.md`'s order is **M9, which is still paused**. Order:
+`M17 ✓ → M9 [built 2026-09-16, paused — gate needs a live model call] → M20 ✓ → M21 ✓ → M22 ✓ → M25 ✓ → M23 ✓ → M26 ✓ → M13 ✓ → M27 ✓ → M12 ✓ → M24 ✓ → M28 ✓ → M14 ✓ → M19 ✓`.
+What runs next, M9 resumed or something placed ahead of it, is Mitchell's call.
 
-**Two more milestones are built beside the current one, not current, and not in
+**Two more milestones are built and not in
 `TODO.md`'s order** (placing them is Mitchell's call). **M29 — The time river**: all parts
 merged by 2026-09-26 (#242-#245, #251). Gate 18 of 20. Mitchell attested the Overview read
 on 2026-10-02. What is left is the whole-suite box and the retro. **M30 — Notebooks with one
@@ -45,29 +43,15 @@ M24 shipped as #229, #230, #232 and #233. Its retro is at the end of
 `KI-2026-09-25-q` (surfaces that read a stop's city directly, first a shared
 helper and then a start-vs-end decision per surface).
 
-## CLOSED 2026-10-01 — M14 Rich layer, pulled ahead of M24; gate 22 of 22
+## CLOSED 2026-10-02 — M19 A cost knows who and what it is for; gate 13 of 13
 
-Mitchell's call, 2026-09-24: build all of M14 ahead of M24. It shipped as four
-stacked PRs: #222 → #223 → #226 → #221. **The gate closed 2026-10-01.** On
-2026-09-27 Mitchell settled the insert Sheet box (a fixed sample preview, as
-ADR-037 says) and accepted the six widgets on their e2e and ADR-052 as built. On
-2026-10-01 he attested the real-service weather walk. The retro is at the end of
-`docs/milestones/M14-rich-layer.md`. `docs/retros/2026-09-24-m14-stacked-prs-retro.md`
-is the *process* retro. The route map block is unblocked by M24 but unbuilt and
-unowned.
-
-**Operator items: both done** (verified 2026-09-27, three days after this file
-last called them outstanding). Production has `0000`-`0031` (runs #29/#30), and
-`EXTERNAL_DATA_CONTACT` is set for all three Vercel targets. Migration state is
-now `pnpm state`'s computed `PROD MIGRATIONS` line; don't restate it here.
-
-Branches cut from `main` before #221 still carry the part-3 version of
-`m14-notebook-widgets.spec.ts` *"a sentence inserted mid-sentence…"*. That
-version fails about 3 times in 20: it types into a repeat node view before
-React has mounted its editable line, and loses the first keystrokes. Merge
-`main` into those branches; `main`'s version passed 20 of 20. Known carriers
-are `claude/optimistic-shannon-tce4t8` and `claude/ecstatic-villani-13d488`.
-The mechanism is in `docs/guidelines/testing.md` § *Copy these → E2E*.
+Scoped, built and closed on 2026-10-02 as four stacked PRs: #288 → #289 → #290 → #292
+(ADR-060). A price is per person, and a stop's total is the price times who is in, or times
+every member when nobody is picked. Totals are recosted at read time, so a new member
+changes them with no event. Committed vs estimate comes from the stop's kind. "Who owes
+what" and "What one person is in for" are built on one `balances` function, with Booked by
+as the payer. The shared day and Discover say *each*. The retro is at the end of
+`docs/milestones/M19-cost-model.md`.
 
 ## Live rules that the code cannot enforce
 
@@ -171,9 +155,10 @@ half, the model guessing a coordinate rather than citing one, is M9 scope.
 
 ## Next action
 
-**Build M19 part 1** (`claude/m19-p1-per-person`): a price is per person, following the plan
-in `docs/plans/2026-10-02-M19-cost-model.md`. M29 and M30 are built beside it. They wait on
-M29's whole-suite box, both retros, and a place in the order.
+**Mitchell picks what is next.** M19 closed on 2026-10-02, and M9 is the only unchecked
+row, still paused on a live model call. The cheapest closes on the table are M29 (the
+whole-suite box and the retro) and M30 (the retro only). Both are built and wait on a place
+in the order.
 
 **Carried out of M24, not gating:** `KI-2026-09-25-q`. About a dozen
 surfaces read `activity.location.city` directly, including the M14 ones this
@@ -218,3 +203,4 @@ carries the next step.
 | The 2026-09-20 shared-day-map handoff (43,702 B) | `docs/retros/2026-09-21-status-archive.md` |
 | The closed M12, M13 and M26-link-4b `DONE` sections, moved 2026-09-25 | `docs/retros/2026-09-25-status-archive.md` |
 | The M11-gate retired list, the pre-M14 *Next action* history, *Landed in the last week* (2026-08-28 to 2026-09-11), and this header's cut history, moved 2026-09-30 | `docs/retros/2026-09-30-status-archive.md` |
+| The closed M14 section, moved at M19's gate close on 2026-10-02 | `docs/retros/2026-10-02-status-archive.md` |
