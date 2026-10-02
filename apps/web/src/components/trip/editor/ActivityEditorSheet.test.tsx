@@ -231,6 +231,33 @@ describe("ActivityEditorSheet", () => {
     );
   });
 
+  // Somebody who left the trip is still in the stop's participants, and still
+  // priced for. Through the real sheet and dispatch: the one way to stop paying
+  // for them is to untick them here, and the command must carry that.
+  it("lets a participant who has left the trip be removed, and saves without them", async () => {
+    const trip = fixture();
+    trip.members = [
+      { userId: "u1", role: "owner" },
+      { userId: "u2", role: "editor" },
+    ];
+    trip.activities[SCHEDULED_ACTIVITY_ID] = activityFactory.build({
+      activityId: SCHEDULED_ACTIVITY_ID,
+      title: "Existing stop",
+      cost: { amountMinor: 15_00, currency: trip.currency },
+      participants: ["u1", "departed-user"],
+    });
+    vi.mocked(fetchTripDetail).mockResolvedValue({ ok: true, value: trip });
+    const dispatch = renderEditorSheet({ mode: "edit", activityId: SCHEDULED_ACTIVITY_ID });
+    await screen.findByDisplayValue("Existing stop");
+
+    expect(screen.getByTestId("activity-cost-total").textContent).toBe(`× 2 people = ${formatMoney(30_00, trip.currency)}`);
+    await userEvent.click(screen.getByRole("button", { name: "Former member (left the trip)" }));
+    expect(screen.getByTestId("activity-cost-total").textContent).toBe(`× 1 person = ${formatMoney(15_00, trip.currency)}`);
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: "UpdateActivity", participants: ["u1"] }));
+  });
+
   it("treats Half day as four hours", async () => {
     const dispatch = renderEditorSheet({ mode: "create" });
     await userEvent.type(screen.getByLabelText("What or where"), "Museum");
