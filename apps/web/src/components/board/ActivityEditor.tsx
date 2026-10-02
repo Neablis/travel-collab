@@ -404,7 +404,7 @@ export function ActivityEditor({
         <FormField
           id="activity-cost"
           label="Cost per person"
-          description="Rough is fine. It counts against the trip budget as an estimate until you confirm."
+          description="Rough is fine. While the stop is Pending, its cost counts as an estimate."
         >
           <MoneyInput id="activity-cost" value={cost} currency={tripCurrency} onChange={setCost} placeholder="e.g. 120" />
         </FormField>

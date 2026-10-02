@@ -10,8 +10,9 @@
 // (`JAPAN_TRIP_BUDGET_USD`).
 //
 // The picks follow the pairs the export already draws: Priya and Mei take the
-// museums together (Hama-rikyū, Nezu, Nakanoshima), Sam and Jonah the late
-// nights (Bar Trench), and Mei goes off alone for pottery. Nothing here moves a
+// Hakone Open-Air Museum and lunch at Monk, Sam and Jonah the Osaka and Kyoto
+// late nights (Kichi Kichi, Shinsekai, Yaekatsu), and Mei goes off alone to
+// Itoya. Each pick's `why` below says the rest. Nothing here moves a
 // price, a time or a `who` — those stay upstream's, and `upstreamDrift.test.ts`
 // still compares them verbatim. Hotels and transit are left to everyone,
 // because everyone sleeps and travels.
