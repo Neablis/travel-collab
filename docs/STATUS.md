@@ -29,14 +29,12 @@ has already shipped outside it (2026-09-26). The first piece of work is writing 
 for links 2-5. `KI-20260905-o` (activity fields enumerated by hand) is still open, and
 link 2 adds an activity field.
 
-**Two more milestones are built beside the current one, not current, and not in `TODO.md`'s
-order** (placing them is Mitchell's call). **M29 — The time river**: all four
-parts merged by 2026-09-26 (#242, #244, #245, #243). Its gate is 17 of 20 (five boxes came with #251's phone part) after
-the 2026-09-27 reconciliation and the `m29-kind-control.spec.ts` walks. What is
-left is part 4's Overview read and the gate-close items. **M30 — Notebooks with one job each**: merged as #247, then #248-#253. Its
-gate is 7 of 9; the preview walk was done 2026-09-27 on #256's preview. Mitchell reading the
-Overview, and the retro, are what is left. Part 4 of M29 was superseded by M30's
-itinerary Overview, so its read and M30's are the same read.
+**Two more milestones are built beside the current one, not current, and not in
+`TODO.md`'s order** (placing them is Mitchell's call). **M29 — The time river**: all parts
+merged by 2026-09-26 (#242-#245, #251). Gate 18 of 20. Mitchell attested the Overview read
+on 2026-10-02. What is left is the whole-suite box and the retro. **M30 — Notebooks with one
+job each**: merged as #247, then #248-#253. Gate 8 of 9. The same Overview read ticked it,
+and only the retro is left.
 
 **M28 — Three kinds — closed 2026-09-26** (#238, #239): a stop's kind is
 `planned`, `pending` or `transit`, and the retired `idea`/`hold`/`booked` are
@@ -177,7 +175,7 @@ half, the model guessing a coordinate rather than citing one, is M9 scope.
 **Write M19's exit gate.** M19 is current and placed but not scoped. Link 1 shipped on
 2026-09-26, so the gate covers links 2-5: settled vs estimate, who an activity is for,
 splits, and the shared-day presentation. M29 and M30 are built beside it. They wait on
-Mitchell's Overview read, M29's whole-suite box, and a place in the order.
+M29's whole-suite box, both retros, and a place in the order.
 
 **Carried out of M24, not gating:** `KI-2026-09-25-q`. About a dozen
 surfaces read `activity.location.city` directly, including the M14 ones this
