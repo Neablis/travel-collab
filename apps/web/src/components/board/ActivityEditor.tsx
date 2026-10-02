@@ -172,6 +172,18 @@ export function ActivityEditor({
   // Nobody picked is everyone; with no member list to hand (a caller that
   // passes none) `stopHeadcount` reads it as the one person who is here.
   const stopLine = stopTotalLine({ cost, participants }, members.length, tripCurrency);
+  // Ids this stop names for people who have since LEFT the trip. The read path
+  // keeps them (contracts' detail.ts) and `stopHeadcount` still prices them, so
+  // a picker that listed members only hid a person the line was charging for,
+  // with no way to untick them. They are shown, picked, under a fallback name
+  // (never the raw id) and can only be removed: the list is taken from what the
+  // stop arrived with, and each is rendered while it is still picked, so one
+  // removed is never offered back. With no member list there is no telling a
+  // departed id from an unknown one, so nothing is called departed.
+  const memberIds = new Set(members.map((member) => member.userId));
+  const departedIds =
+    members.length === 0 ? [] : [...new Set(initial?.participants ?? [])].filter((id) => !memberIds.has(id));
+  const departedBookedBy = members.length > 0 && bookedBy !== null && !memberIds.has(bookedBy) ? bookedBy : null;
   // Kept while the kind is switched away, so switching back does not lose
   // them; only what is SAVED is cleared (see submit).
   const [travelMode, setTravelMode] = useState<ActivityMode | null>(initial?.mode ?? null);
@@ -491,6 +503,21 @@ export function ActivityEditor({
                   </Button>
                 );
               })}
+              {departedIds.map((id, index) =>
+                participants.includes(id) ? (
+                  <Button
+                    key={id}
+                    variant="primary"
+                    size="sm"
+                    aria-pressed
+                    className="rounded-full px-3"
+                    onClick={() => setParticipants((current) => current.filter((p) => p !== id))}
+                  >
+                    {departedIds.length > 1 ? `Former member ${index + 1}` : "Former member"}{" "}
+                    <span className="opacity-80">(left the trip)</span>
+                  </Button>
+                ) : null,
+              )}
             </div>
             <FormField
               id="activity-booked-by"
@@ -503,6 +530,9 @@ export function ActivityEditor({
                 onChange={(e) => setBookedBy(e.target.value === "" ? null : e.target.value)}
               >
                 <option value="">Nobody yet</option>
+                {/* Shown only while it is the value, so choosing anything else
+                    drops it for good — same rule as Who is in above. */}
+                {departedBookedBy !== null && <option value={departedBookedBy}>Former member (left the trip)</option>}
                 {members.map((member) => (
                   <option key={member.userId} value={member.userId}>
                     {member.name}
