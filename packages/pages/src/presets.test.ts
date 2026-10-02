@@ -317,6 +317,19 @@ describe("presetCatalog", () => {
     expect(getMacro("stop.rows")!.inputs.map((i) => i.name)).toContain("kind");
   });
 
+  // The phone insert sheet prints `preset.description ?? macro.description`
+  // above a preset's controls. These two macros' descriptions are written for
+  // the assistant ("`who` is a member's userId"), so the presets carry their
+  // own — and the macros keep theirs, which is what the assistant reads.
+  it("gives the money presets a description a traveller can read", () => {
+    for (const id of ["who-owes-what", "person-share"]) {
+      const preset = getPreset(id)!;
+      expect(preset.description, `${id} has no description of its own`).toBeDefined();
+      expect(preset.description, `${id}'s description reads like code`).not.toMatch(/`|userId|\bparams?\b/);
+      expect(getMacro(preset.widget)!.description, `${preset.widget}'s own description changed`).not.toBe(preset.description);
+    }
+  });
+
   it("falls through to the primitive's copy unless the preset overrides it", () => {
     const cost = presetCatalog().find((e) => e.name === "cost")!;
     expect(cost.description).toBe(getMacro("cost")!.description);

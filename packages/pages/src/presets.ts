@@ -426,6 +426,10 @@ export const PRESETS: readonly WidgetPreset[] = [
       "who owes", "owe", "owes", "owed", "balance", "balances", "split", "settle", "share", "paid", "payer",
       "booked by", "debt", "money", "costs", "people", "travellers", "travelers",
     ],
+    // The insert sheet prints this above the controls. The macro's own keeps
+    // the parameter notes the assistant needs, and stays as it is.
+    description:
+      "What each traveller is in for, what they paid for the stops they booked, and who owes whom. Point it at a day, a city or a tag to settle just those stops.",
   },
   {
     id: "person-share",
@@ -437,6 +441,7 @@ export const PRESETS: readonly WidgetPreset[] = [
       "person", "one person", "traveller", "traveler", "member", "share", "my share", "in for", "owe", "owes",
       "owed", "paid", "balance", "money",
     ],
+    description: "What one traveller is in for, what they have paid and whether they owe or are owed. Pick who it is about.",
   },
   // Mitchell, 2026-09-26: the Settings sheet's M19 breakdown, rebuilt as a pie
   // in the notebook, then split two ways — one primitive, `cost.breakdown`,
