@@ -6,6 +6,7 @@ import { fetchPage, restorePageVersion, updatePage } from "@/lib/pagesClient";
 import { fetchTripAccess, fetchTripDetail, fetchTripGlobals, fetchTripHistory } from "@/lib/apiClient";
 import { cachedRead, invalidate } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
+import { PeopleProvider } from "./people";
 import { headSeqOf, useTripBroadcast } from "@/components/trip/context/broadcast";
 import { usePreferences } from "@/components/account/PreferencesProvider";
 import { PageContainer } from "@/components/ui/page-container";
@@ -1181,6 +1182,9 @@ export function PageScreen({
   }
 
   return (
+    // Member names for every widget on the page, its settings and its insert
+    // sheet alike — from the access read the effect above already makes.
+    <PeopleProvider tripId={tripId}>
     <PageContainer>
       {/* The row above the container: where you came from on the left, the one
           mode toggle on the right (dc.html:2326). Everything that acts on the
@@ -1639,6 +1643,7 @@ export function PageScreen({
         />
       ) : null}
     </PageContainer>
+    </PeopleProvider>
   );
 }
 

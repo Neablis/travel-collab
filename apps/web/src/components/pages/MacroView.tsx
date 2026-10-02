@@ -4,6 +4,7 @@ import type { TripDetail, PageContext, TripGlobals, UserPreferences } from "@tc/
 import { renderMacro, getMacro, UNBOUND_GHOSTS, type ExternalInputs, type ExternalNeed, type Seg } from "@tc/pages";
 import { cn } from "@/lib/cn";
 import { useToday } from "@/lib/today";
+import { usePeople } from "./people";
 import { cityAccents, CITY_INK, type CityAccents } from "./cityAccents";
 import { EmptyChip } from "./EmptyChip";
 import { BlockView } from "./BlockView";
@@ -149,7 +150,10 @@ export function MacroView({ detail, context, user = null, globals = null, extern
   // ignores it — see `WidgetContext.today` for why it is passed rather than
   // read inside the package.
   const today = useToday();
-  const outcome = renderMacro({ trip: detail, page: context, user, globals, today, external }, name, params);
+  // Member names, for the widgets that say who (`WidgetContext.people`).
+  // `null` outside a `PeopleProvider` — the widget then says "Traveler 2".
+  const people = usePeople();
+  const outcome = renderMacro({ trip: detail, page: context, user, globals, today, external, people }, name, params);
   // Never the stored name: that is raw syntax on the screen (M14 gate box, `noRawSyntax.test.tsx`).
   if (outcome.status === "unknown") return <EmptyChip tone="error" label="this widget isn't available in this version" />;
   if (outcome.status === "bad-params") return <EmptyChip tone="error" label="this widget's settings no longer fit it" />;
@@ -200,19 +204,15 @@ export function MacroView({ detail, context, user = null, globals = null, extern
       // save). Both are fixed the same way, from the widget's field picker.
       case "field":
         return <EmptyChip tone="muted" label="choose a field" />;
-      // **Reachable now, and it says the truth about why.** ADR-039 decision 7
-      // declares `person` as a filter dimension and states plainly that it
-      // cannot resolve: `TripMember` is `{ userId, role }` with no display
-      // name, and no stop carries a person at all. So a widget filtered by one
-      // answers ADR-037 decision 7's "needs a field" state.
-      //
-      // "no one set" was the old label and it would now be a lie in the one way
-      // that matters: it invites a reader to set somebody, and there is no
-      // control to do it with and no field for it to write to. Naming the
-      // missing FIELD says whose problem this is — ours, until M13
-      // `add-stop-who` / M19 link 3 lands.
+      // "What one person is in for" with nobody chosen (M19 part 2). Stops
+      // carry people now (M13 link 5) and the widget's settings hold a member
+      // select, so this asks for a person rather than blaming a missing field
+      // as it did while ADR-039 decision 7's `person` had nothing behind it.
+      // A widget FILTERED by person still lands here, and the same select is
+      // not what fixes that — but no widget declares that filter any more
+      // (`registry.test.ts`), so only a hand-written document can carry one.
       case "person":
-        return <EmptyChip tone="muted" label="needs a person field" />;
+        return <EmptyChip tone="muted" label="choose a person" />;
       // A link with nowhere to go yet (ADR-056) — in Reading, since Editing
       // draws the ghost above. Its settings hold the one control that answers it.
       case "target":

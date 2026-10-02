@@ -3,6 +3,7 @@ import { useState } from "react";
 import type { MacroNode, PageRepeatNode, TripDetail, TripGlobals } from "@tc/contracts";
 import { getMacro, getPreset, insertPreset } from "@tc/pages";
 import { useIsPhone } from "@/lib/useIsPhone";
+import { usePeople } from "@/components/pages/people";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Text } from "@/components/ui/text";
@@ -68,6 +69,7 @@ export function WidgetInsert({
   onFilterChange?: (next: WidgetFilter) => void;
 }) {
   const isPhone = useIsPhone();
+  const people = usePeople();
   const [open, setOpen] = useState(false);
   // The phone's second step. `null` is the browse step; a name means "point this
   // one at something before it lands". Desktop has no such state: a widget
@@ -144,7 +146,7 @@ export function WidgetInsert({
   const showing =
     pending === null || pendingTarget === null
       ? null
-      : bindSummary(pendingTarget.widget, { ...pendingTarget.params, ...params }, detail, globals, presetBindableInputs(pending));
+      : bindSummary(pendingTarget.widget, { ...pendingTarget.params, ...params }, detail, globals, presetBindableInputs(pending), people);
 
   return (
     <>
