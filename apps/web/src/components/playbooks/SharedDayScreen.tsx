@@ -695,28 +695,21 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
                 day that says nothing about when it runs must not be labelled
                 "Short". That is a fact about the data, not a day-count branch. */}
             {length !== null && <Fact label="Length" value={DAY_LENGTH_LABELS[length]} />}
-            {/* "Budget", not "Budget each" (Mitchell, 2026-09-01) — this rail
-                is the only place that string was actually VISIBLE, since
-                Discover's matching label is an aria-label over a select that
-                shows its option instead.
-
-                The word stays "Budget" on purpose. That was Mitchell's own
-                wording in this same review (*"Budget each → Should just say
-                Budget"*), so it is not up for a tidy-up into "Cost" or
-                "Total" here. What went is the per-person READING that the
-                first pass left standing on the number: `facts.totalCost` is a
-                plain sum of the day's priced stops, dividing by nothing, so
-                every surface now shows it as the day's total and none of them
-                says "each" (Mitchell, same day: *"just show total cost there,
-                any per person logic and math should go into the future
-                milestone around cost"*). Real per-head math is M19's —
-                `docs/milestones/M19-cost-model.md`. */}
+            {/* SPEC §15's "budget each". A saved stop's price is per person
+                and a saved day carries no people, so `facts.totalCost`, the
+                plain sum of its priced stops, is what the day costs one
+                person (ADR-060 decision 7). The "each" goes on the value, as
+                it does on the Discover card, and the label stays "Budget":
+                that was Mitchell's own wording (2026-09-01, *"Budget each →
+                Should just say Budget"*), so it is not up for a tidy-up into
+                "Cost" or "Total". The word "each" came off the number that day
+                because nothing yet said what a price meant. M19 settled it. */}
             <Fact
               label="Budget"
               value={
                 facts.totalCost === null
                   ? "Not priced"
-                  : formatMoney(facts.totalCost.amountMinor, facts.totalCost.currency)
+                  : `${formatMoney(facts.totalCost.amountMinor, facts.totalCost.currency)} each`
               }
             />
             {/* **Kept in left this rail too** — it is the third part of the

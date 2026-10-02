@@ -67,7 +67,7 @@ describe("what appears in the row", () => {
     const budget = def("budget");
     const options = budget.options(USD)!;
     expect(chipLabel(budget, NONE, options)).toBe("Budget");
-    expect(chipLabel(budget, { ...NONE, budget: "under200" }, options)).toBe("Under $200.00");
+    expect(chipLabel(budget, { ...NONE, budget: "under200" }, options)).toBe("Under $200.00 each");
   });
 
   // A value with no matching option — a band renamed under a stored filter —
@@ -89,14 +89,15 @@ describe("what a filter can honestly offer", () => {
   });
 
   // Four bands over three edges, mutually exclusive so a Playbook cannot match
-  // two at once (Mitchell, 2026-09-01).
-  it("offers four budget bands over $200/$500/$1,000, plus Any", () => {
+  // two at once (Mitchell, 2026-09-01). Each band is a price per person, as
+  // SPEC §15's "budget per person" filter is (ADR-060 decision 7).
+  it("offers four per-person budget bands over $200/$500/$1,000, plus Any", () => {
     expect(def("budget").options(USD)!.map((o) => o.label)).toEqual([
       "Any budget",
-      "Under $200.00",
-      "$200.00 – $500.00",
-      "$500.00 – $1,000.00",
-      "Over $1,000.00",
+      "Under $200.00 each",
+      "$200.00 – $500.00 each",
+      "$500.00 – $1,000.00 each",
+      "Over $1,000.00 each",
     ]);
   });
 

@@ -512,7 +512,7 @@ export interface PlaybookDayReadout {
   /** Every city the day touches, in its own time order (`citiesOfStops`). */
   cities: string[];
   stopCount: number;
-  /** The day's total across its priced stops, or null when nothing is priced. */
+  /** The day's sum across its priced stops — for ONE person, since every price is (ADR-060) — or null when nothing is priced. */
   totalCost: { amountMinor: number; currency: string } | null;
   /** How many trips have taken this day — the adds ledger's count (M11b). */
   adds: number;
@@ -825,7 +825,7 @@ export const findFreeTimeTool = defineTool({
 export const searchPlaybooksTool = defineTool({
   name: "search_playbooks",
   description:
-    "Search the playbook library — ready-made days somebody has written and published, plus your own saved ones — by city. Returns each day's savedDayId, name, cities, stop count, total cost and how many trips have taken it. This is the ONLY way to find a day to add with insert_playbook_day, and the savedDayId must come from here: there is no other way to name one.",
+    "Search the playbook library — ready-made days somebody has written and published, plus your own saved ones — by city. Returns each day's savedDayId, name, cities, stop count, what the day costs for one person (the sum of its stops' per-person prices) and how many trips have taken it. This is the ONLY way to find a day to add with insert_playbook_day, and the savedDayId must come from here: there is no other way to name one.",
   // `library`, not `itinerary`: the corpus it reads is outside the trip, which
   // is the capability boundary that earned the tool (ADR-042 Decision 2).
   domain: "library",
