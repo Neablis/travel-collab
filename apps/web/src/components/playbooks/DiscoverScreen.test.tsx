@@ -135,21 +135,18 @@ describe("Discover", () => {
     expect(within(chips).getByText("Uji").getAttribute("data-matched")).toBe("false");
   });
 
-  // The card's money line is the day's TOTAL, and must not qualify it "each".
-  // It read "$27.00 each" for a number `savedDayFacts` builds by adding up
-  // `stop.cost` and dividing by nothing — Mitchell, 2026-09-01: *"why are we
-  // calculating per person in a notebook? just show total cost there."*
-  // Pinned by a test because the old string had none: a per-person claim that
-  // lives only in a template literal is exactly the "invariant asserted by a
-  // name with nothing behind it" this repo keeps rediscovering (KI-1, KI-14),
-  // and the rename alone would not stop somebody re-adding the word.
-  it("prints the day's total with no per-person qualifier on it", async () => {
+  // The card's money line is what the day costs EACH (ADR-060 decision 7). A
+  // saved stop's price is per person and a saved day carries no people, so
+  // the sum `savedDayFacts` builds is already one person's, and the card says
+  // so as the design's "$N each" does. The word was removed once (2026-09-01,
+  // when nothing yet said a price was per person); a claim that lives only in
+  // a template literal is the KI-1/KI-14 shape, so it is pinned here.
+  it("prints the day's price as what it costs each", async () => {
     render(<DiscoverScreen />);
     // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByTestId("discover-results")).toBeTruthy());
     const line = screen.getByText(/\$27\.00/);
-    expect(line.textContent).toContain("$27.00");
-    expect(line.textContent).not.toMatch(/each/i);
+    expect(line.textContent).toMatch(/ · \$27\.00 each$/);
   });
 
   it("says nothing about matching on an unfiltered browse", () => {
@@ -241,10 +238,10 @@ describe("Discover", () => {
     );
     for (const label of [
       "Any budget",
-      "Under $200.00",
-      "$200.00 – $500.00",
-      "$500.00 – $1,000.00",
-      "Over $1,000.00",
+      "Under $200.00 each",
+      "$200.00 – $500.00 each",
+      "$500.00 – $1,000.00 each",
+      "Over $1,000.00 each",
     ]) {
       expect(screen.getByText(label)).toBeTruthy();
     }
@@ -268,7 +265,7 @@ describe("Discover", () => {
         expect.objectContaining({ budget: "under200" }),
       ),
     );
-    expect(chipText(screen.getByTestId("filter-chip-budget"))).toBe("Under $200.00");
+    expect(chipText(screen.getByTestId("filter-chip-budget"))).toBe("Under $200.00 each");
 
     await user.keyboard("{Escape}");
     await user.click(screen.getByTestId("filter-chip-budget"));
@@ -933,6 +930,6 @@ describe("the phone's one filter sheet", () => {
   it("shares its state with the desktop chips rather than keeping a second copy", async () => {
     const user = await openSheet();
     await user.click(screen.getByTestId("sheet-budget-under200"));
-    expect(chipText(screen.getByTestId("filter-chip-budget"))).toBe("Under $200.00");
+    expect(chipText(screen.getByTestId("filter-chip-budget"))).toBe("Under $200.00 each");
   });
 });

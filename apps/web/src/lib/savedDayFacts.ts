@@ -37,22 +37,23 @@ export type SavedDayFacts = {
    */
   window: TimeWindow | null;
   /**
-   * What the whole day costs: the sum of its priced stops, in one currency, or
-   * null. Not a per-head figure — nothing here is divided by anything.
+   * What the day costs EACH person: the sum of its priced stops, in one
+   * currency, or null. Nothing here is divided or multiplied by anything.
    *
-   * **Named `totalCost` because it was called `budgetPerPerson` and was never
-   * per person.** Mitchell, 2026-09-01: *"why are we calculating per person in
-   * a notebook? just show total cost there, any per person logic and math
-   * should go into the future milestone around cost."* The loop below adds up
-   * `stop.cost` and stops; there is no traveller count in this codebase to
-   * divide by, so the old name asserted a semantic the computation did not
-   * have — the exact defect class KI-1 and KI-14 named, an invariant claimed
-   * by a name with nothing behind it. `docs/milestones/M19-cost-model.md` §1
-   * recorded it, and M19 owns the real model (a cost's kind, settled vs
-   * estimate, who an activity is for, splits, shared-day presentation). This
-   * rename is only the half that stops the lie; it deliberately builds none of
-   * that. `totalCost` rather than `total` or `cost` so it does not read as a
-   * near-twin of a stop's own `cost` at a call site holding both.
+   * **Per person because every price in the sum is** (ADR-060 decision 7). A
+   * stop's `cost` is the price for one person, and a `SavedStop` carries no
+   * `participants`, so there is no headcount to multiply by: adding up one
+   * person's prices gives one person's day. That is why the shared-day rail
+   * and the Discover card print it with "each", and why Discover's bands are
+   * "per person". The sum-and-nothing-else is pinned by the property test in
+   * `savedDayFacts.test.ts`.
+   *
+   * **Named `totalCost` because it was called `budgetPerPerson` before anything
+   * said a price was per person** (renamed on 2026-09-01, pull request 104, when
+   * the old name claimed a division the loop never did — KI-1 and KI-14's
+   * shape). It is the total across the day's stops, for one person. The name
+   * stays because it is also a wire field on `DiscoverDay` and the assistant's
+   * playbook readout, and renaming it again would be a break for a word.
    *
    * Null in two different situations that a caller renders the same way and
    * must not conflate in code:

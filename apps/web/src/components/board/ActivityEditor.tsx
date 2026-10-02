@@ -272,7 +272,6 @@ export function ActivityEditor({
       <FormField
         id="activity-title"
         label="What or where"
-        description="Type a place and we fill in the address, hours and travel time."
       >
         <Input
           id="activity-title"
@@ -424,7 +423,6 @@ export function ActivityEditor({
         <FormField
           id="activity-cost"
           label="Cost per person"
-          description="Rough is fine. While the stop is Pending, its cost counts as an estimate."
         >
           <MoneyInput id="activity-cost" value={cost} currency={tripCurrency} onChange={setCost} placeholder="e.g. 120" />
         </FormField>
@@ -447,7 +445,6 @@ export function ActivityEditor({
       <div className="flex flex-col gap-1.5">
         <div className="flex items-baseline justify-between gap-2.5">
           <Text variant="muted">Tags</Text>
-          <Text variant="muted">Pick as many as fit</Text>
         </div>
         <div role="group" aria-label="Tags" className="flex flex-wrap gap-1.5">
           {TAG_ORDER.map((tag) => {
@@ -475,7 +472,6 @@ export function ActivityEditor({
       <div className="flex flex-col gap-1.5">
         <div className="flex items-baseline justify-between gap-2.5">
           <Text variant="muted">Who is in</Text>
-          {members.length > 0 && <Text variant="muted">Pick as many as are going</Text>}
         </div>
         {members.length === 0 ? (
           <Text variant="muted">Invite someone to the trip to say who a stop is for.</Text>
@@ -522,7 +518,6 @@ export function ActivityEditor({
             <FormField
               id="activity-booked-by"
               label="Booked by"
-              description="Who is handling this one. Not the same as who is going."
             >
               <NativeSelect
                 id="activity-booked-by"
@@ -561,8 +556,7 @@ export function ActivityEditor({
         </Text>
       )}
 
-      <div className="flex items-center justify-between gap-2 border-t border-hairline pt-4">
-        <Text variant="muted">Have a confirmation? Attach it after saving.</Text>
+      <div className="flex items-center justify-end gap-2 border-t border-hairline pt-4">
         <div className="flex gap-2">
           <Button type="button" variant="ghost" onClick={onCancel}>
             Cancel

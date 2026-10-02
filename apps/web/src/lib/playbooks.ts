@@ -113,15 +113,13 @@ export function seasonOfInstant(iso: string): Season | null {
 }
 
 /**
- * A day's TOTAL cost, in bands rather than a slider — four ranges over the sum
- * of its priced stops.
+ * What a day costs each person, in bands rather than a slider — four ranges
+ * over the sum of its priced stops (SPEC §15's "budget per person").
  *
- * This docstring opened "Budget per person" until 2026-09-01, and the number it
- * bands never was one: `savedDayFacts` adds up `stop.cost` and divides by
- * nothing. Mitchell: *"why are we calculating per person in a notebook? just
- * show total cost there, any per person logic and math should go into the
- * future milestone around cost."* The control is unchanged — same edges, same
- * `?budget=` values — only the claim about what it compares.
+ * The sum is per person because every price in it is and a saved day carries
+ * no people to multiply by (ADR-060 decision 7). Between 2026-09-01 and M19
+ * this docstring said "TOTAL", because nothing yet said what a price meant.
+ * The control never changed: same edges, same `?budget=` values.
  *
  * Four bands, not three: Mitchell, Vercel toolbar comment on `/playbooks` at
  * 411px with the budget `<select>` selected (2026-09-01): *"the default
@@ -239,8 +237,8 @@ export const BUDGET_BAND_EDGES = { twoHundred: 20_000, fiveHundred: 50_000, oneT
 /**
  * `any` accepts a day with no priced stops at all; the other four do not.
  *
- * `amountMinor` is a day's total (`SavedDayFacts.totalCost`), not a per-head
- * share — see `BudgetBand` above for why that stopped being claimed.
+ * `amountMinor` is what a day costs each (`SavedDayFacts.totalCost`) — see
+ * `BudgetBand` above.
  *
  * Each band's lower edge is inclusive and its upper edge is exclusive, and
  * the top band is open-ended — the ordinary "$X+" reading a price filter
@@ -327,8 +325,8 @@ export const DiscoverDay = z.object({
     .max(DISCOVER_PREVIEW_STOPS),
   /**
    * Sum of the day's priced stops; null when nothing is priced or currencies
-   * disagree. The day's TOTAL — nothing divides it by a traveller count,
-   * because there is no traveller count.
+   * disagree. What the day costs EACH: the prices are per person and a saved
+   * day has no people (ADR-060 decision 7), so the card prints it with "each".
    *
    * **This wire field was `budgetPerPerson` and renamed here on pull request
    * 104** (Mitchell, 2026-09-01: *"just show total cost there"*). `DiscoverDay`

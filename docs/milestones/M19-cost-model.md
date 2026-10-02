@@ -196,11 +196,13 @@ Part 2 — who owes what:
 
 Part 3 — the shared day says *each*:
 
-- [ ] `cost-estimate-state` and `budget-breakdown` are wired up or deleted — no
+- [x] `cost-estimate-state` and `budget-breakdown` are wired up or deleted — no
       M19-tagged entry remains in `preview-registry.ts`. *(Both deleted as of 2026-09-26.)*
-- [ ] `budgetPerPerson` either divides by a real person count or no longer
+      *(Ticked 2026-10-02, part 3: `grep -c 'milestone: "M19"' apps/web/src/lib/preview-registry.ts` prints 0. The registry's two entries are both M9 (`add-stop-suggestions`, `wizard-assistant-draft`); both names survive only in its comments.)*
+- [x] `budgetPerPerson` either divides by a real person count or no longer
       claims to, and a test fails if that stops being true. *(The shared-day rail and
       Discover's band read a saved day's sum as the price each, per ADR-060 decision 7.)*
+      *(Ticked 2026-10-02, part 3: the sum stays `totalCost`, a wire field on `DiscoverDay` and the assistant's readout, so no rename. Its doc now says per person. The rail reads "Budget · $23.00 each", the card "· $27.00 each", the bands "Under $200.00 each" and so on. `SharedDayScreen.test`, `DiscoverScreen.test` and `discoverFilters.test` were seen red before the change (`expected '4 stops · 7:30 am – 6:30 pm · $27.00' to match / · \$27\.00 each$/`, 7 failures). `savedDayFacts.test`'s property test was seen red with a headcount of 2 slipped into the sum (`Counterexample: ["USD",[{"amountMinor":1}]]`, `expected { amountMinor: 2 … } to deeply equal { amountMinor: 1 … }`).)*
 
 Whole milestone:
 

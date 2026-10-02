@@ -171,16 +171,13 @@ export function DiscoverCard({ day, origin }: { day: DiscoverDay; origin: BackOr
               (ADR-048 decision 4) — so nothing renders here rather than
               something false. */}
           {day.window !== null && ` · ${toClockRange(day.window.start, day.window.end, clock)}`}
-          {/* No trailing "each": this is the day's TOTAL. The card read
-              "$27.00 each" for a number `savedDayFacts` produces by adding up
-              stop costs and dividing by nothing — Mitchell, 2026-09-01: *"why
-              are we calculating per person in a notebook? just show total cost
-              there, any per person logic and math should go into the future
-              milestone around cost."* A real per-head figure needs a person
-              count that does not exist yet; that is M19's
-              (`docs/milestones/M19-cost-model.md`), not this line's. */}
+          {/* "each", as the design draws it: a saved stop's price is per
+              person and a saved day carries no people, so the sum
+              `savedDayFacts` produces is what the day costs one person
+              (ADR-060 decision 7). The word came off on 2026-09-01, when
+              nothing yet said what a price meant, and M19 settled that. */}
           {day.totalCost !== null &&
-            ` · ${formatMoney(day.totalCost.amountMinor, day.totalCost.currency)}`}
+            ` · ${formatMoney(day.totalCost.amountMinor, day.totalCost.currency)} each`}
         </DataText>
       </div>
 
