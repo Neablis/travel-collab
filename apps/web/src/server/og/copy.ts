@@ -1,6 +1,8 @@
 import { addDaysIso } from "@/lib/dates";
 import { formatTripDateWithYear } from "@/lib/formatDate";
+import { PLAYBOOKS_BOARD, PLAYBOOKS_GENERIC } from "@/lib/playbooksPreview";
 import type { InviteCard } from "./invite";
+import type { PlaybookCityCard, PlaybookDayCard, PlaybookProfileCard } from "./playbooks";
 
 // The words on a preview card and in its og:title / og:description, written
 // once. The image route and the `meta` route both read these, so the picture a
@@ -39,6 +41,54 @@ export function referralCopy(referrerFirstName: string | null): CardCopy {
     title: referrerFirstName === null ? "You're invited to Caesura" : `${referrerFirstName} invited you to Caesura`,
     description: PRODUCT_LINE,
   };
+}
+
+export { PLAYBOOKS_BOARD, PLAYBOOKS_GENERIC };
+
+/**
+ * A shared day's words: its name over "Kyoto, Osaka · 3 days · 12 stops · by
+ * Traveler a1b2c3 · ★ 4.6 (12)", or the generic Playbooks card. Pure.
+ *
+ * The facts line is the page's own (`SharedDayScreen`'s meta line): a day
+ * count only past one, and the stops counted over the whole sequence.
+ */
+export function playbookDayCopy(card: PlaybookDayCard): CardCopy {
+  if (card.kind === "generic") return PLAYBOOKS_GENERIC;
+  const parts: string[] = [];
+  if (card.cities.length > 0) parts.push(card.cities.join(", "));
+  if (card.dayCount > 1) parts.push(`${card.dayCount} days`);
+  parts.push(plural(card.stopCount, "stop"));
+  parts.push(`by ${card.author}`);
+  // `DiscoverCard`'s `ratingLine` rule: keyed on the count, so a day nobody
+  // has rated says nothing rather than "★ 0.0".
+  if (card.reviewCount > 0 && card.rating !== null) parts.push(`★ ${card.rating.toFixed(1)} (${card.reviewCount})`);
+  return { label: "Caesura · playbook", title: card.name, description: parts.join(" · ") };
+}
+
+/** A public profile's words: "Traveler a1b2c3's playbooks", over its numbers and the cities it knows. Pure. */
+export function playbookProfileCopy(card: PlaybookProfileCard): CardCopy {
+  if (card.kind === "generic") return PLAYBOOKS_GENERIC;
+  const parts = [plural(card.playbooksShared, "playbook")];
+  if (card.adds > 0) parts.push(`added to ${plural(card.adds, "trip")}`);
+  if (card.cities.length > 0) parts.push(`knows ${card.cities.join(", ")}`);
+  return { label: "Caesura · playbooks", title: `${card.author}'s playbooks`, description: parts.join(" · ") };
+}
+
+/** Discover for one city: "Kyoto playbooks", and how many days there are. Pure. */
+export function playbookCityCopy(card: PlaybookCityCard): CardCopy {
+  if (card.kind === "generic") return PLAYBOOKS_GENERIC;
+  return {
+    label: "Caesura · playbooks",
+    title: `${card.city} playbooks`,
+    description:
+      card.days === 1
+        ? `1 day a traveler planned in ${card.city}`
+        : `${card.days} days other travelers planned in ${card.city}`,
+  };
+}
+
+function plural(n: number, noun: string): string {
+  return `${n} ${noun}${n === 1 ? "" : "s"}`;
 }
 
 // "Jun 1, 2027 – Jun 3, 2027 · 3 days · 2 cities · with Dana, Mei, Priya +1".

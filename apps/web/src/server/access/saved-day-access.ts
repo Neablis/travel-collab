@@ -95,6 +95,7 @@ export type SavedDayViewResult =
   | { error: Response }
   | { readerId: string | null; day: SavedDay; isAuthor: boolean };
 
+/** Read `savedDayId` for whoever is asking, signed in or not; 404 unless they may see it. */
 export async function readSavedDayAsViewer(savedDayId: string): Promise<SavedDayViewResult> {
   const session = await auth();
   const readerId = session?.user?.id ?? null;
