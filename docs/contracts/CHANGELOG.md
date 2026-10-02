@@ -16,7 +16,7 @@ Format:
 ## 2026-10-02 — Who owes what: `balances` and `stopPeople` (M19 part 2, ADR-060 decision 6)
 
 - **Added (functions, no schema):** `packages/contracts/src/costs.ts` — `stopPeople(activity,
-  memberIds)` (who is in a stop: its participants, or every member when nobody is picked) and
+  memberIds)` (who is in a stop: its participants, each once as `stopHeadcount` counts them, or every member when nobody is picked) and
   `balances(activities, memberIds)` → `{ perMember: { userId, share, paid, net, former }[], unpaid }`.
   Every person in a priced stop owes `cost` to its `bookedBy`, who is credited the stop's
   `stopTotal`; a stop with no `bookedBy` adds its total to `unpaid`. `net = paid − share`, and

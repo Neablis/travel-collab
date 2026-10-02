@@ -44,13 +44,16 @@ export function isCommittedCost(kind: ActivityKind): boolean {
 }
 
 /**
- * Who is in a stop: the people picked in *Who is in*, or every member when
- * nobody is (ADR-060 decision 2). `stopHeadcount` is this list's length for any
- * trip with a member; with none at all — not a state a trip can reach, since it
- * always has its owner — this is empty and there is nobody to charge.
+ * Who is in a stop: the people picked in *Who is in*, each once, or every
+ * member when nobody is (ADR-060 decision 2). `stopHeadcount` is this list's
+ * length for any trip with a member; with none at all — not a state a trip can
+ * reach, since it always has its owner — this is empty and there is nobody to
+ * charge.
  */
 export function stopPeople(activity: { participants: readonly string[] }, memberIds: readonly string[]): readonly string[] {
-  return activity.participants.length > 0 ? activity.participants : memberIds;
+  // Distinct, as `stopHeadcount` counts: a repeated id is one person, so it
+  // owes one share of a total that charged one head for it.
+  return activity.participants.length > 0 ? [...new Set(activity.participants)] : memberIds;
 }
 
 /** One person's side of the trip's money, in minor units of the one currency the caller summed. */

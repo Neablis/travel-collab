@@ -71,6 +71,10 @@ describe("stopPeople", () => {
     expect(stopPeople({ participants: ["u2"] }, ["u1", "u2", "u3"])).toEqual(["u2"]);
     expect(stopPeople({ participants: [] }, ["u1", "u2"])).toEqual(["u1", "u2"]);
   });
+
+  it("names a repeated participant once, as stopHeadcount counts them", () => {
+    expect(stopPeople({ participants: ["u2", "u2"] }, ["u1", "u2"])).toEqual(["u2"]);
+  });
 });
 
 describe("balances", () => {
@@ -160,7 +164,9 @@ describe("balances", () => {
     const ids = ["a", "b", "c", "d", "gone"];
     const arbStop = fc.record({
       cost: fc.option(fc.nat({ max: 50_000 }).map(YEN), { nil: null }),
-      participants: fc.subarray(ids),
+      // Repeats included: `participants` is not constrained unique, and a
+      // repeated id is one person (`stopHeadcount`), so it must owe once.
+      participants: fc.array(fc.constantFrom(...ids), { maxLength: 6 }),
       bookedBy: fc.option(fc.constantFrom(...ids), { nil: null }),
     });
     let withMoney = 0;
@@ -175,6 +181,6 @@ describe("balances", () => {
         for (const m of result.perMember) expect(m.net).toBe(m.paid - m.share);
       }),
     );
-    expect(withMoney).toBeGreaterThanOrEqual(40); // observed 80-89 of 100 carry money
+    expect(withMoney).toBeGreaterThanOrEqual(39); // observed 78-90 of 100 carry money
   });
 });
