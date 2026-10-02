@@ -12,6 +12,7 @@ import { Preview } from "@/components/ui/preview";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Text } from "@/components/ui/text";
 import { Textarea } from "@/components/ui/textarea";
+import { stopTotalLine } from "@/lib/cost";
 import { formatDuration, toClockRange, toEndMinutes, toMinutes, toTimeString } from "@/lib/time";
 import { useTimeFormat } from "@/components/account/PreferencesProvider";
 import type { Slot } from "@/components/trip/fitIntoDay";
@@ -160,6 +161,9 @@ export function ActivityEditor({
   const [bookedBy, setBookedBy] = useState<string | null>(initial?.bookedBy ?? null);
   const [participants, setParticipants] = useState<string[]>(initial?.participants ?? []);
   const [cost, setCost] = useState<Money | null>(initial?.cost ?? null);
+  // Nobody picked is everyone; with no member list to hand (a caller that
+  // passes none) `stopHeadcount` reads it as the one person who is here.
+  const stopLine = stopTotalLine({ cost, participants }, members.length, tripCurrency);
   // Kept while the kind is switched away, so switching back does not lose
   // them; only what is SAVED is cleared (see submit).
   const [travelMode, setTravelMode] = useState<ActivityMode | null>(initial?.mode ?? null);
@@ -392,13 +396,24 @@ export function ActivityEditor({
         <LocationInput id="end-location-search" label="Going to" value={endLocation} onChange={setEndLocation} />
       )}
 
-      <FormField
-        id="activity-cost"
-        label="Cost"
-        description="Rough is fine. It counts against the trip budget as an estimate until you confirm."
-      >
-        <MoneyInput id="activity-cost" value={cost} currency={tripCurrency} onChange={setCost} placeholder="e.g. 120" />
-      </FormField>
+      {/* ADR-060: a typed price is for ONE person, and the trip multiplies it
+          by who is going. The label says so, and the line under it does the
+          multiplication with the Who-is-in picks below, live, so a shared bill
+          typed here shows up as the wrong number before it is saved. */}
+      <div className="flex flex-col gap-1">
+        <FormField
+          id="activity-cost"
+          label="Cost per person"
+          description="Rough is fine. It counts against the trip budget as an estimate until you confirm."
+        >
+          <MoneyInput id="activity-cost" value={cost} currency={tripCurrency} onChange={setCost} placeholder="e.g. 120" />
+        </FormField>
+        {stopLine !== null && (
+          <Text variant="muted" data-testid="activity-cost-total">
+            {stopLine}
+          </Text>
+        )}
+      </div>
 
       {/* Four toggles, never the handoff's six (KI-52). The design pairs each
           chip with the "power" it grants — "Pins where you sleep that night",

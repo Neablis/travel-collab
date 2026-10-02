@@ -19,7 +19,7 @@ import { TripDateControl } from "@/components/lenses/TripDateControl";
 import { formatInstantLong, formatTripDate } from "@/lib/formatDate";
 import { isDemoTripId } from "@/lib/demoTrip";
 import { formatMoney } from "@/lib/formatMoney";
-import type { TripSpend } from "@/lib/cost";
+import { committedLine, type TripSpend } from "@/lib/cost";
 
 function SectionHeading({ children }: { children: React.ReactNode }) {
   return (
@@ -141,6 +141,9 @@ export function SettingsSheet({
       : spend.over
         ? `${formatMoney(Math.abs(spend.remaining ?? 0), currency)} over budget`
         : `${formatMoney(spend.remaining ?? 0, currency)} left`;
+  // Committed vs estimate is the stop's kind (ADR-060 decision 5): only a
+  // total with a pending stop's guess in it earns the line.
+  const split = committedLine(spend, currency);
 
   return (
     <Sheet title="Trip settings" open={open} onOpenChange={onOpenChange}>
@@ -297,6 +300,11 @@ export function SettingsSheet({
                 M19) is gone: Mitchell, 2026-09-26, *"Lets remove it there, and
                 implement it as a PIE chart widget for notebooks"* — it is the
                 "Spend by kind" widget (`cost.breakdown`) now, on real kinds. */}
+            {split !== null && (
+              <Text as="span" className="text-xs text-slate" data-testid="budget-committed">
+                {split}
+              </Text>
+            )}
             <Text as="span" className="text-xs text-slate">
               {spend.unpriced} stop{spend.unpriced === 1 ? "" : "s"} with no cost yet
             </Text>

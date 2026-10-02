@@ -355,6 +355,21 @@ describe("ActivityEditor attribution (M13 link 5)", () => {
   };
   const save = () => fireEvent.click(screen.getByRole("button", { name: /save/i }));
 
+  // ADR-060: the price typed here is for one person, and the line under it
+  // multiplies by who is going — everyone when nobody is picked — live.
+  it("labels Cost per person and shows the stop's total for its headcount", () => {
+    mount(stop({ cost: { amountMinor: 30_00, currency: "USD" } }));
+    expect(screen.getByLabelText("Cost per person")).toBeTruthy();
+    expect(screen.getByTestId("activity-cost-total").textContent).toBe("× 2 people = $60.00");
+    fireEvent.click(screen.getByRole("button", { name: "bob" }));
+    expect(screen.getByTestId("activity-cost-total").textContent).toBe("× 1 person = $30.00");
+  });
+
+  it("shows no total for a stop with no cost", () => {
+    mount(stop());
+    expect(screen.queryByTestId("activity-cost-total")).toBeNull();
+  });
+
   it("offers one toggle per member and sends who is going", () => {
     const onSave = mount(stop());
     fireEvent.click(screen.getByRole("button", { name: "bob" }));

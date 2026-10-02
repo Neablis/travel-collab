@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { activityFactory, historyFixture, locationFactory, tripDetailFixture } from "@tc/factories";
 import { ActivityEditorSheet } from "./ActivityEditorSheet";
+import { formatMoney } from "@/lib/formatMoney";
 
 // Same mocking pattern TripHeader.test.tsx uses for a component that reads
 // everything through useTrip()/useEditor(): a real TripProvider/EditorHost
@@ -401,6 +402,29 @@ describe("ActivityEditorSheet — a viewer gets no form", () => {
     expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Add stop" })).toBeNull();
     expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  // ADR-060: a viewer reads the same per-person price and stop total the
+  // editor shows. Three members and nobody picked, so the stop is for all three.
+  it("reads the price as per person, with the stop's total for its headcount", async () => {
+    asViewer();
+    const trip = fixture();
+    trip.members = [
+      { userId: "u1", role: "owner" },
+      { userId: "u2", role: "editor" },
+      { userId: "u3", role: "viewer" },
+    ];
+    trip.activities[SCHEDULED_ACTIVITY_ID] = activityFactory.build({
+      activityId: SCHEDULED_ACTIVITY_ID,
+      cost: { amountMinor: 15_00, currency: trip.currency },
+      participants: [],
+    });
+    vi.mocked(fetchTripDetail).mockResolvedValue({ ok: true, value: trip });
+    renderEditorSheet({ mode: "edit", activityId: SCHEDULED_ACTIVITY_ID });
+    expect((await screen.findByTestId("activity-cost-total")).textContent).toBe(
+      `× 3 people = ${formatMoney(45_00, trip.currency)}`,
+    );
+    expect(screen.getByText(`${formatMoney(15_00, trip.currency)} per person`)).toBeTruthy();
   });
 
   // Mitchell, 2026-09-30 (option "B"): a leg's destination shows wherever the

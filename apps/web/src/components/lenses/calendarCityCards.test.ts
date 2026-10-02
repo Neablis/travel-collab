@@ -50,7 +50,7 @@ describe("calendarCityCards", () => {
       stop("b", "Tokyo", { start: "13:00", end: "14:30" }, 500),
     ]);
 
-    expect(calendarCityCards(day, activities)).toEqual([
+    expect(calendarCityCards(day, activities, 1)).toEqual([
       {
         city: "Tokyo",
         stops: 2,
@@ -77,8 +77,8 @@ describe("calendarCityCards", () => {
       // Null rather than the stop count, so the lens can tell "nothing is
       // focused" from "a focus everything happens to match" without being
       // handed the focus a second time.
-      expect(calendarCityCards(day, activities).map((c) => c.matches)).toEqual([null, null]);
-      expect(calendarCityCards(day, activities, null).map((c) => c.matches)).toEqual([null, null]);
+      expect(calendarCityCards(day, activities, 1).map((c) => c.matches)).toEqual([null, null]);
+      expect(calendarCityCards(day, activities, 1, null).map((c) => c.matches)).toEqual([null, null]);
     });
 
     it("counts only the stops carrying the focused tag, per card", () => {
@@ -89,7 +89,7 @@ describe("calendarCityCards", () => {
         stop("d", "Kyoto", { start: "18:00", end: "19:00" }, undefined, "planned", ["outdoors"]),
       ]);
 
-      const cards = calendarCityCards(day, activities, "meal");
+      const cards = calendarCityCards(day, activities, 1, "meal");
       expect(cards.map((c) => [c.city, c.matches, c.stops])).toEqual([
         ["Tokyo", 2, 3],
         // Zero, not null — this is the card CalendarLens drops to 0.28.
@@ -104,7 +104,7 @@ describe("calendarCityCards", () => {
         stop("c", null, null),
       ]);
 
-      const cards = calendarCityCards(day, activities, "meal");
+      const cards = calendarCityCards(day, activities, 1, "meal");
       expect(cards[cards.length - 1]!.city).toBeNull();
       expect(cards[cards.length - 1]!.matches).toBe(1);
       expect(cards[cards.length - 1]!.stops).toBe(2);
@@ -120,8 +120,8 @@ describe("calendarCityCards", () => {
         stop("b", "Kyoto", { start: "13:00", end: "14:00" }, 500),
       ]);
 
-      const unfocused = calendarCityCards(day, activities);
-      const focused = calendarCityCards(day, activities, "meal");
+      const unfocused = calendarCityCards(day, activities, 1);
+      const focused = calendarCityCards(day, activities, 1, "meal");
       expect(focused).toHaveLength(unfocused.length);
       expect(focused.map(({ matches: _m, ...rest }) => rest)).toEqual(
         unfocused.map(({ matches: _m, ...rest }) => rest),
@@ -141,7 +141,7 @@ describe("calendarCityCards", () => {
       stop("c", "Hakone", { start: "15:00", end: "16:00" }),
     ]);
 
-    const cards = calendarCityCards(day, activities);
+    const cards = calendarCityCards(day, activities, 1);
     expect(cards.map((c) => c.city)).toEqual(["Tokyo", "Hakone"]);
     expect(cards[0]!.stops).toBe(1);
     expect(cards[0]!.firstStart).toBe("08:20");
@@ -162,7 +162,7 @@ describe("calendarCityCards", () => {
         stop("dinner", "Kyoto", { start: "19:00", end: "21:00" }, undefined, "pending"),
       ]);
 
-      expect(calendarCityCards(day, activities)[0]!.toBook).toBe(2);
+      expect(calendarCityCards(day, activities, 1)[0]!.toBook).toBe(2);
     });
 
     it("does NOT count a plain `planned` stop — the default is not a decision", () => {
@@ -173,7 +173,7 @@ describe("calendarCityCards", () => {
         stop("shrine", "Kyoto", { start: "09:00", end: "11:00" }, undefined, "planned", ["outdoors"]),
       ]);
 
-      expect(calendarCityCards(day, activities)[0]!.toBook).toBe(0);
+      expect(calendarCityCards(day, activities, 1)[0]!.toBook).toBe(0);
     });
 
     // It used to: `ticketed` counted a `planned` stop until M28 retired
@@ -183,7 +183,7 @@ describe("calendarCityCards", () => {
         stop("museum", "Kyoto", { start: "10:00", end: "12:00" }, undefined, "planned", ["ticketed"]),
       ]);
 
-      expect(calendarCityCards(day, activities)[0]!.toBook).toBe(0);
+      expect(calendarCityCards(day, activities, 1)[0]!.toBook).toBe(0);
     });
 
     it("is zero, not null, when nothing on the day needs booking", () => {
@@ -192,7 +192,7 @@ describe("calendarCityCards", () => {
         transit("bus", "Kyoto", { start: "14:00", end: "14:40" }),
       ]);
 
-      expect(calendarCityCards(day, activities)[0]!.toBook).toBe(0);
+      expect(calendarCityCards(day, activities, 1)[0]!.toBook).toBe(0);
     });
 
     it("counts per card, so a travel day's two cities each carry their own", () => {
@@ -203,7 +203,7 @@ describe("calendarCityCards", () => {
         stop("temple", "Kyoto", { start: "15:00", end: "17:00" }, undefined, "pending"),
       ]);
 
-      const cards = calendarCityCards(day, activities);
+      const cards = calendarCityCards(day, activities, 1);
       expect(cards[0]!.toBook).toBe(1);
       expect(cards[1]!.toBook).toBe(1);
     });
@@ -216,12 +216,12 @@ describe("calendarCityCards", () => {
       stop("c", "Tokyo", { start: "20:00", end: "21:00" }),
     ]);
 
-    expect(calendarCityCards(day, activities).map((c) => c.city)).toEqual(["Tokyo", "Nikkō", "Tokyo"]);
+    expect(calendarCityCards(day, activities, 1).map((c) => c.city)).toEqual(["Tokyo", "Nikkō", "Tokyo"]);
   });
 
   it("clamps the span bar to the 7am–11pm track rather than overflowing it", () => {
     const { day, activities } = dayOf([stop("a", "Tokyo", { start: "05:30", end: "23:50" })]);
-    const [card] = calendarCityCards(day, activities);
+    const [card] = calendarCityCards(day, activities, 1);
 
     expect(card!.span).toEqual({ from: 0, to: 1 });
     // The window itself is still the truth — only the bar is clamped.
@@ -234,12 +234,12 @@ describe("calendarCityCards", () => {
       stop("a", "Tokyo", { start: at(SPAN_TRACK_START_MIN), end: at(SPAN_TRACK_END_MIN) }),
     ]);
 
-    expect(calendarCityCards(day, activities)[0]!.span).toEqual({ from: 0, to: 1 });
+    expect(calendarCityCards(day, activities, 1)[0]!.span).toEqual({ from: 0, to: 1 });
   });
 
   it("carries no window or span for a day whose stops have no times", () => {
     const { day, activities } = dayOf([stop("a", "Tokyo", null), stop("b", "Tokyo", null)]);
-    const [card] = calendarCityCards(day, activities);
+    const [card] = calendarCityCards(day, activities, 1);
 
     expect(card).toMatchObject({ city: "Tokyo", stops: 2, window: null, span: null, firstStart: null });
   });
@@ -248,7 +248,7 @@ describe("calendarCityCards", () => {
     // Zero and "unpriced" are different answers; a card showing $0.00 for a day
     // nobody has costed would be a fabricated one.
     const { day, activities } = dayOf([stop("a", "Tokyo", { start: "09:00", end: "10:00" })]);
-    expect(calendarCityCards(day, activities)[0]!.costMinor).toBeNull();
+    expect(calendarCityCards(day, activities, 1)[0]!.costMinor).toBeNull();
   });
 
   it("sums only the priced stops when a group is partly costed", () => {
@@ -256,7 +256,15 @@ describe("calendarCityCards", () => {
       stop("a", "Tokyo", { start: "09:00", end: "10:00" }, 700),
       stop("b", "Tokyo", { start: "11:00", end: "12:00" }),
     ]);
-    expect(calendarCityCards(day, activities)[0]!.costMinor).toBe(700);
+    expect(calendarCityCards(day, activities, 1)[0]!.costMinor).toBe(700);
+  });
+
+  it("prices each stop per person — times who is in it, or times everyone when nobody is (ADR-060)", () => {
+    const everyone = stop("a", "Tokyo", { start: "09:00", end: "10:00" }, 700);
+    const two = { ...stop("b", "Tokyo", { start: "11:00", end: "12:00" }, 300), participants: ["u1", "u2"] };
+    const { day, activities } = dayOf([everyone, two]);
+    // 700 × 3 members + 300 × 2 picked. The raw prices would be 1000.
+    expect(calendarCityCards(day, activities, 3)[0]!.costMinor).toBe(2_700);
   });
 
   // Round the houses three times now, so the whole arc is worth keeping.
@@ -290,7 +298,7 @@ describe("calendarCityCards", () => {
       stop("c", null, { start: "17:00", end: "17:30" }, 250),
     ]);
 
-    const cards = calendarCityCards(day, activities);
+    const cards = calendarCityCards(day, activities, 1);
     expect(cards).toHaveLength(2);
     expect(cards[0]).toMatchObject({ city: "Rome", stops: 2, costMinor: 1500 });
     // The bucket keeps its own count, cost and window rather than donating them
@@ -310,7 +318,7 @@ describe("calendarCityCards", () => {
       stop("c", null, { start: "12:00", end: "13:00" }),
     ]);
 
-    const cards = calendarCityCards(day, activities);
+    const cards = calendarCityCards(day, activities, 1);
     expect(cards.map((c) => c.city)).toEqual(["Kyoto", null]);
     expect(cards[1]!.stops).toBe(2);
     // The bucket's window spans both, even though a city sat between them in
@@ -330,7 +338,7 @@ describe("calendarCityCards", () => {
       stop("e", null, { start: "19:00", end: "20:00" }),
     ]);
 
-    const cards = calendarCityCards(day, activities);
+    const cards = calendarCityCards(day, activities, 1);
     expect(cards.map((c) => [c.city, c.stops])).toEqual([
       ["Tokyo", 3],
       ["Kyoto", 1],
@@ -340,18 +348,18 @@ describe("calendarCityCards", () => {
 
   it("groups stops with no location at all under a null city", () => {
     const { day, activities } = dayOf([stop("a", null, { start: "09:00", end: "10:00" })]);
-    expect(calendarCityCards(day, activities)[0]!.city).toBeNull();
+    expect(calendarCityCards(day, activities, 1)[0]!.city).toBeNull();
   });
 
   it("is empty for a day with nothing on it", () => {
     const { day, activities } = dayOf([]);
-    expect(calendarCityCards(day, activities)).toEqual([]);
+    expect(calendarCityCards(day, activities, 1)).toEqual([]);
   });
 
   it("skips an id the trip no longer has rather than throwing", () => {
     const { day, activities } = dayOf([stop("a", "Tokyo", { start: "09:00", end: "10:00" })]);
     const withGhost = { ...day, activityIds: [...day.activityIds, "deleted-since"] };
 
-    expect(calendarCityCards(withGhost, activities)).toHaveLength(1);
+    expect(calendarCityCards(withGhost, activities, 1)).toHaveLength(1);
   });
 });

@@ -102,9 +102,10 @@ describe("MacroView", () => {
     // whole trip is more than its days. $123.45 + $5.00 — and a `cost` that
     // summed only scheduled stops, or read `tripCostTotal` off the projection
     // without summing anything, is told apart from the right answer here and
-    // nowhere else in this file.
+    // nowhere else in this file. The souvenirs are pending, so their $5.00 is
+    // the estimate part of the line (ADR-060) — which is where it shows up.
     render(<MacroView detail={backloggedDetail} context={ctx} name="cost" params={{}} />);
-    expect(screen.getByText("$128.45")).toBeTruthy();
+    expect(screen.getByText("$123.45 committed · $5.00 estimated")).toBeTruthy();
   });
 
   it("shows the 'no costs yet' chip when nothing is priced", () => {

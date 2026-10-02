@@ -51,6 +51,7 @@ beforeEach(() => {
 
 const defaultSpend: TripSpend = {
   total: 150_000,
+  estimated: 0,
   unpriced: 2,
   budget: 500_000,
   remaining: 350_000,
@@ -195,6 +196,19 @@ describe("SettingsSheet redesign (Task 4.2)", () => {
     expect(screen.queryByRole("status")).toBeNull();
   });
 
+  // ADR-060 decision 5: a pending stop's cost is an estimate, and the budget
+  // line says how much of the total that is. The figures are `tripSpend`'s;
+  // what this sheet owns is printing the split, and only when there is one.
+  it("splits the total into committed and estimated when part of it is pending", () => {
+    renderSheet({ spend: { ...defaultSpend, estimated: 40_000 } });
+    expect(screen.getByTestId("budget-committed").textContent).toBe("$1,100.00 committed · $400.00 estimated");
+  });
+
+  it("prints no split when nothing in the total is an estimate", () => {
+    renderSheet();
+    expect(screen.queryByTestId("budget-committed")).toBeNull();
+  });
+
   it("counts stops with no cost", () => {
     renderSettings({ open: true });
     expect(screen.getByText(/no cost yet/i)).toBeTruthy();
@@ -203,6 +217,7 @@ describe("SettingsSheet redesign (Task 4.2)", () => {
   it("hides the budget meter (but still shows the status line) when no budget is set", () => {
     const noBudgetSpend: TripSpend = {
       total: 150_000,
+      estimated: 0,
       unpriced: 2,
       budget: null,
       remaining: null,
