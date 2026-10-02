@@ -8,8 +8,8 @@
 // fails instead.
 //
 // It runs the REAL domain: every command goes through `decideTripCommand` and
-// `evolveTrip`, and the resulting state through `rollupCosts` and
-// `detectConflicts`. No database, no HTTP, no clock — so it is fast enough to
+// `evolveTrip`, and the resulting state through `tripDetailFromState` and the
+// read-time `recostDetail`. No database, no HTTP, no clock — so it is fast enough to
 // live in `pnpm check` and deterministic enough to assert exact numbers.
 // A command the domain would reject shows up here as a rejection, which is the
 // same thing `db:seed` would hit at runtime, found earlier.
@@ -25,17 +25,18 @@ import {
   citiesOfStops,
   decideCreateTrip,
   decideTripCommand,
-  detectConflicts,
   evolveTrip,
-  rollupCosts,
+  recostDetail,
+  tripDetailFromState,
   type TripState,
 } from "@tc/domain";
 import { deterministicMintId, japanTripCommands } from "./commands.ts";
 import { COORDINATE_OVERRIDES } from "./coordinateOverrides.ts";
 import { COORDINATE_GAPS } from "./coordinateGaps.ts";
 import coordinatesOverlay from "./coordinates.json" with { type: "json" };
+import { PARTICIPANT_PICKS } from "./participants.ts";
 import { JAPAN_SAVED_DAYS } from "./savedDays.ts";
-import { JAPAN_BACKLOG, JAPAN_STOPS, JAPAN_TRIP_NAME, REFERENCE_START_DATE } from "./trip.ts";
+import { JAPAN_BACKLOG, JAPAN_STOPS, JAPAN_TRIP_NAME, JAPAN_TRIP_TRAVELLERS, REFERENCE_START_DATE } from "./trip.ts";
 
 export { REFERENCE_START_DATE };
 
@@ -188,7 +189,10 @@ export function verifyJapanTrip(startDate: string = REFERENCE_START_DATE): Japan
   if (!genesis.ok) throw new Error(`CreateTrip rejected: ${genesis.rejection.message}`);
   let state: TripState = genesis.events.reduce<TripState | null>((s, e: TripEvent) => evolveTrip(s, e), null)!;
 
-  for (const command of japanTripCommands(REFERENCE_TRIP_ID, { startDate, mintId: deterministicMintId() })) {
+  // The travellers' names as their member ids, which is what `/demo` uses
+  // (apps/web/src/server/demoTrip.ts) — so every stop carries `participants`.
+  const travellerId = (name: string) => name;
+  for (const command of japanTripCommands(REFERENCE_TRIP_ID, { startDate, mintId: deterministicMintId(), travellerId })) {
     const decision = decideTripCommand(state, command, ctx);
     if (!decision.ok) {
       rejections.push(`${command.type}: ${decision.rejection.code} — ${decision.rejection.message}`);
@@ -285,8 +289,13 @@ export function verifyJapanTrip(startDate: string = REFERENCE_START_DATE): Japan
     }
   });
 
+  // Money and conflicts as `/demo` reads them: the fold has one member, the
+  // actor, and the demo overlays four. A price is per person (ADR-060), so
+  // the trip total and the over-budget conflict follow the four, through the
+  // same `recostDetail` the server's overlay calls.
+  const read = recostDetail(tripDetailFromState(state, `${startDate}T00:00:00.000Z`), JAPAN_TRIP_TRAVELLERS);
   const conflictsByKind: Record<string, number> = {};
-  const conflicts = detectConflicts(state);
+  const conflicts = read.conflicts;
   for (const c of conflicts) conflictsByKind[c.kind] = (conflictsByKind[c.kind] ?? 0) + 1;
 
   // --- The demo library (M11b) --------------------------------------------
@@ -360,6 +369,10 @@ export function verifyJapanTrip(startDate: string = REFERENCE_START_DATE): Japan
   for (const id of Object.keys(COORDINATE_GAPS)) {
     if (!rowIds.has(id)) staleOverrides.push(`${id} is recorded as a geocode gap but no stop or backlog item has that id`);
   }
+  // And for the participant picks: one naming no row narrows nobody's stop.
+  for (const id of Object.keys(PARTICIPANT_PICKS)) {
+    if (!rowIds.has(id)) staleOverrides.push(`${id} has a participant pick but no stop or backlog item has that id`);
+  }
   // A stop cannot be both "the overlay proposes something else" and "the
   // overlay has nothing". Listing it twice means one of the two is a lie.
   for (const id of Object.keys(COORDINATE_GAPS)) {
@@ -410,7 +423,7 @@ export function verifyJapanTrip(startDate: string = REFERENCE_START_DATE): Japan
     withCost,
     cities: [...cities].sort(),
     budgetMinor: state.budget?.amountMinor ?? 0,
-    plannedTotalMinor: rollupCosts(state, state.members.length).tripCostTotal,
+    plannedTotalMinor: read.tripCostTotal,
     currencies: [...currencies].sort(),
     conflictsByKind,
     conflictTotal: conflicts.length,

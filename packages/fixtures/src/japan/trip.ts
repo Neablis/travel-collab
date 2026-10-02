@@ -93,8 +93,9 @@ export type JapanStop = {
    *  commands.ts. */
   costUsd: number | null;
   note: string | null;
-  /** "all", or the travellers this stop is for. Folded into the activity's
-   *  notes by commands.ts — Trip Planning has no field for it (module map). */
+  /** "all", or the travellers this stop is for, as the export names them.
+   *  Folded into the activity's notes by commands.ts, and read into its
+   *  `participants` by ./participants.ts. */
   who: "all" | string[];
   lat: number;
   lng: number;
@@ -125,23 +126,37 @@ export type JapanBacklogItem = Omit<JapanStop, "day" | "start" | "end" | "costUs
 
 export const JAPAN_TRIP_NAME = "Japan: Tokyo → Kyoto → Osaka";
 export const JAPAN_TRIP_DAY_COUNT = 14;
-/** Whole USD. `commands.ts` converts to minor units. */
-export const JAPAN_TRIP_BUDGET_USD = 16400;
+/**
+ * Whole USD, for the whole group. `commands.ts` converts to minor units.
+ *
+ * **Not the export's 16,400** (`JAPAN_TRIP_BUDGET_UPSTREAM_USD`). The export
+ * budgeted against prices summed once each; since ADR-060 a price is per person
+ * and a stop costs it once for everyone going, so the four travellers' trip
+ * totals 31,195 and the export's budget would put `/demo` 90% over. 34,000
+ * leaves it about 8% under, which is what a worked-on trip looks like.
+ * `upstreamDrift.test.ts` pins both numbers, so a re-sync that moves the
+ * export's budget still fails loudly.
+ */
+export const JAPAN_TRIP_BUDGET_USD = 34000;
+/** The design export's own `trip.budget.total`; see `JAPAN_TRIP_BUDGET_USD`. */
+export const JAPAN_TRIP_BUDGET_UPSTREAM_USD = 16400;
 export const JAPAN_TRIP_CURRENCY = "USD";
 
 /**
- * How many people this trip is planned for.
+ * Who this trip is planned for: the export's `trip.travelers`, first names
+ * only, organizer first. `upstreamDrift.test.ts` pins them.
  *
- * Not derivable from the rows: every stop is `who: "all"`, and travellers are
- * Access & Membership's data, not Trip Planning's (module map) — a folded
- * fixture has exactly one member, the actor who "issued" its commands. The
- * number exists because the public demo (`/s/featured`, ADR-031) renders
- * `travellerCount`, and "1 traveller" on the one page that argues for planning
- * *together* undersells the product it is demonstrating. It is part of the
- * fixture's fiction, exactly like the trip's name and its 72 stops, and it is
- * declared here so the fiction stays in one file.
+ * Travellers are Access & Membership's data, not Trip Planning's (module map),
+ * so a folded fixture has exactly one member, the actor who "issued" its
+ * commands. These names exist because `/demo` (ADR-031) overlays them as its
+ * members, and a stop's `participants` name them (`./participants.ts`). "1
+ * traveller" on the one page that argues for planning *together* would
+ * undersell the product it is demonstrating. They are part of the fixture's
+ * fiction, exactly like the trip's name and its 72 stops.
  */
-export const JAPAN_TRIP_TRAVELLERS = 4;
+export const JAPAN_TRAVELLERS = ["Sam", "Priya", "Jonah", "Mei"] as const;
+export type JapanTraveller = (typeof JAPAN_TRAVELLERS)[number];
+export const JAPAN_TRIP_TRAVELLERS = JAPAN_TRAVELLERS.length;
 /** Every location this trip creates sits in Japan. */
 export const JAPAN_COUNTRY_CODE = "JP";
 

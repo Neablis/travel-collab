@@ -21,8 +21,10 @@ export {
   JAPAN_TRIP_DAY_COUNT,
   JAPAN_TRIP_NAME,
   JAPAN_TRIP_TRAVELLERS,
+  JAPAN_TRAVELLERS,
   type JapanBacklogItem,
   type JapanStop,
+  type JapanTraveller,
 } from "./japan/trip.ts";
 
 export {

@@ -84,8 +84,16 @@ export const JAPAN_TRIP_EXPECTATIONS: JapanTripExpectations = {
   // If this drops back to six, suspect the override list went stale before you
   // suspect the content: the drift test will say which entry.
   cities: ["Hakone", "Kyoto", "Naoshima", "Nikkō", "Odawara", "Osaka", "Tamano", "Tokyo"],
-  budgetMinor: 1_640_000,
-  plannedTotalMinor: 908_500,
+  // ADR-060: a price is per person, so these are the totals `/demo` shows its
+  // four travellers, measured through the same read-time recost the server
+  // applies. Before ADR-060 they were 1_640_000 and 908_500 (every price once);
+  // read per person with everyone on every stop, the planned total was
+  // 3_634_000 and the trip sat 90% over. `participants` (./participants.ts) and
+  // the raised budget (`JAPAN_TRIP_BUDGET_USD`) put it about 8% under. If the
+  // planned total passes the budget, `conflictsByKind` below gains an
+  // `over-budget` and says so too.
+  budgetMinor: 3_400_000,
+  plannedTotalMinor: 3_119_500,
   currencies: ["USD"],
 
   // Two, and both are wanted: "Nezu Museum" against "Lunch at Kagari", and

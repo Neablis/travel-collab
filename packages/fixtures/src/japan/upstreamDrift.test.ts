@@ -22,7 +22,9 @@ import { KIND_OVERRIDES } from "./kindOverrides.ts";
 import {
   JAPAN_BACKLOG,
   JAPAN_STOPS,
+  JAPAN_TRIP_BUDGET_UPSTREAM_USD,
   JAPAN_TRIP_BUDGET_USD,
+  JAPAN_TRAVELLERS,
   JAPAN_TRIP_CURRENCY,
   JAPAN_TRIP_DAY_COUNT,
   JAPAN_TRIP_NAME,
@@ -85,7 +87,12 @@ describe("the canonical copy still matches the design handoff export", () => {
   it("carries the same trip-level facts", () => {
     expect(JAPAN_TRIP_NAME).toBe(seed.trip.name);
     expect(JAPAN_TRIP_DAY_COUNT).toBe(seed.days.length);
-    expect(JAPAN_TRIP_BUDGET_USD).toBe(seed.trip.budget.total);
+    // The one trip-level fact we deliberately do not take: the export budgeted
+    // prices summed once, and since ADR-060 a price is per person. Both
+    // numbers are pinned, so the export moving still fails here.
+    expect(JAPAN_TRIP_BUDGET_UPSTREAM_USD).toBe(seed.trip.budget.total);
+    expect(JAPAN_TRIP_BUDGET_USD).toBe(34000);
+    expect(JAPAN_TRAVELLERS).toEqual(seed.trip.travelers.map((t) => t.name.split(" ")[0]));
     expect(JAPAN_TRIP_CURRENCY).toBe(seed.trip.budget.currency);
   });
 
