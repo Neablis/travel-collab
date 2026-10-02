@@ -77,13 +77,22 @@ describe("/playbooks metadata", () => {
 });
 
 describe("/playbooks/day/<id> metadata", () => {
-  it("points og:image at the day's card, keeping the page's own tab title", async () => {
+  it("points og:image at the day's card, and names the tab for the day", async () => {
     stubMeta(Response.json({ title: "Castle and canals", description: "Osaka · 1 stop" }));
 
     const metadata = await dayMetadata({ params: Promise.resolve({ savedDayId: "d-1" }) });
 
     expect(ogImageUrls(metadata)).toEqual(["/api/og/playbooks/day/d-1", SITE_IMAGE]);
     expect(metadata.openGraph?.title).toBe("Castle and canals");
+    expect(metadata.title).toBe("Castle and canals");
+  });
+
+  it("keeps the generic tab title and Playbooks card when the lookup fails", async () => {
+    stubMeta(new Error("connection refused"));
+
+    const metadata = await dayMetadata({ params: Promise.resolve({ savedDayId: "d-1" }) });
+
+    expect(ogImageUrls(metadata)).toEqual([PLAYBOOKS_IMAGE, SITE_IMAGE]);
     expect(metadata.title).toBe("A playbook");
   });
 });
