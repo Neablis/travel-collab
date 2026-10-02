@@ -95,4 +95,19 @@ describe("SessionUserProvider", () => {
     );
     expect(sessionRead).toHaveBeenCalledTimes(1);
   });
+
+  // The layout saw no session cookie (`lib/sessionHint.ts`). Nobody is signed
+  // in, so the first render already says so — which is what the server paints —
+  // and nothing is asked.
+  it("starts signed out and asks nothing when there is no session cookie", () => {
+    const sessionRead = vi.fn(async () => new Response(JSON.stringify({ user: { email: "x@example.com" } }), { status: 200 }));
+    vi.stubGlobal("fetch", sessionRead);
+    render(
+      <SessionUserProvider noSessionCookie>
+        <Probe />
+      </SessionUserProvider>,
+    );
+    expect(read()).toBe("signed-out");
+    expect(sessionRead).not.toHaveBeenCalled();
+  });
 });

@@ -76,8 +76,19 @@ export function useSessionUser(): SessionUser | null | undefined {
  * session itself, exactly as it always has, so a component rendered bare in its
  * own test, or on a route outside `(app)` (`/demo`, the front door), still works.
  */
-export function SessionUserProvider({ children }: { children: ReactNode }) {
-  const user = useResolvedSession(true);
+export function SessionUserProvider({
+  children,
+  noSessionCookie = false,
+}: {
+  children: ReactNode;
+  /**
+   * The server saw no session cookie (`lib/sessionHint.ts`), so nobody is
+   * signed in: start at `null` — the first paint is already the signed-out one —
+   * and do not ask. Without it, the state starts `undefined` and is fetched.
+   */
+  noSessionCookie?: boolean;
+}) {
+  const user = useResolvedSession(!noSessionCookie, noSessionCookie ? null : undefined);
   return createElement(SessionUserContext.Provider, { value: user }, children);
 }
 
@@ -90,8 +101,11 @@ const NO_PROVIDER = Symbol("no SessionUserProvider");
 
 const SessionUserContext = createContext<SessionUser | null | undefined | typeof NO_PROVIDER>(NO_PROVIDER);
 
-function useResolvedSession(enabled: boolean): SessionUser | null | undefined {
-  const [user, setUser] = useState<SessionUser | null | undefined>(undefined);
+function useResolvedSession(
+  enabled: boolean,
+  initial: SessionUser | null | undefined = undefined,
+): SessionUser | null | undefined {
+  const [user, setUser] = useState<SessionUser | null | undefined>(initial);
 
   useEffect(() => {
     if (!enabled) return;

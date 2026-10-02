@@ -65,6 +65,11 @@ Facts below were checked against `main` at `0be6472`.
    bar and the playbook screens all read it.
    - **Signed-in-only controls hide only on a confirmed `null`.** While the session is still
      `undefined`, they render as they do today, so the signed-in majority sees no shift.
+   - **The first paint already knows a signed-out reader** (added 2026-10-02, Mitchell). The
+     layout checks whether an Auth.js session cookie exists at all (`lib/sessionHint.ts`).
+     With none, the session starts `null`, so the server renders the signed-out shell and
+     skips the session and preferences fetches. A cookie is only a reason to ask. It is
+     never treated as signed in. The cost is that the `(app)` group renders per request.
 5. **What a signed-out reader sees, and what they do not:**
 
    | Surface | Signed out |

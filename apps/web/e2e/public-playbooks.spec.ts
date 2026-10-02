@@ -142,3 +142,19 @@ test("a private day is the same not-found to a stranger as one that never existe
     await forget(page, savedDayId);
   }
 });
+
+// The FIRST paint, before any script runs: the server HTML. With no session
+// cookie the layout knows nobody is signed in (`lib/sessionHint.ts`), so the
+// shell arrives signed out instead of as a signed-in skeleton that changes its
+// mind. With alice's cookie it arrives as it always has.
+test("the server paints the signed-out shell for a stranger, and the signed-in one for alice", async ({ page, browser }) => {
+  const visitor = await stranger(browser);
+  const strangerHtml = await (await visitor.request.get("/playbooks")).text();
+  expect(strangerHtml).toContain("Create an account");
+  expect(strangerHtml).not.toContain('aria-label="Phone navigation"');
+  await visitor.context().close();
+
+  const aliceHtml = await (await page.request.get("/playbooks")).text();
+  expect(aliceHtml).not.toContain("Create an account");
+  expect(aliceHtml).toContain('aria-label="Phone navigation"');
+});

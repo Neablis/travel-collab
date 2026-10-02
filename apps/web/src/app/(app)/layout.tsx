@@ -1,8 +1,10 @@
+import { cookies } from "next/headers";
 import { Suspense } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { PhoneTabBar, PhoneTabBarFallback } from "@/components/nav/PhoneTabBar";
 import { PreferencesProvider } from "@/components/account/PreferencesProvider";
 import { SessionUserProvider } from "@/components/account/useSessionUser";
+import { hasSessionCookie } from "@/lib/sessionHint";
 
 // The app chrome belongs to the app's surfaces, not to every route. The
 // front door — /welcome, /signin, /signup — draws its own header
@@ -23,10 +25,20 @@ import { SessionUserProvider } from "@/components/account/useSessionUser";
 // branch on who is reading — the playbooks are open to a reader with no
 // account — and one `SessionUserProvider` is what keeps them asking once and
 // agreeing on the answer. See `useSessionUser`.
-export default function AppLayout({ children }: { children: React.ReactNode }) {
+//
+// **The cookie, read here, decides the first paint.** With no session cookie at
+// all the provider starts at `null`, so the server renders the signed-out shell
+// — Sign in in the header, no account tab bar, no Yours/Saved — instead of the
+// signed-in skeleton that then changed its mind. A cookie only means "ask"
+// (`lib/sessionHint.ts`). The cost: reading cookies makes this group render per
+// request, so the four shells that were prerendered (`/`, `/account`, `/plans`,
+// `/playbooks/board`) no longer are. They fetch their data on the client either
+// way; what moved is one server render of a shell.
+export default async function AppLayout({ children }: { children: React.ReactNode }) {
+  const noSessionCookie = !hasSessionCookie((await cookies()).getAll().map((cookie) => cookie.name));
   return (
-    <SessionUserProvider>
-      <PreferencesProvider>
+    <SessionUserProvider noSessionCookie={noSessionCookie}>
+      <PreferencesProvider noSessionCookie={noSessionCookie}>
         <AppHeader />
         {/* `.phone-tab-bar-inset` (globals.css) keeps the page's last row clear
             of the fixed tab bar below, and is 0px at >=768px where the bar is

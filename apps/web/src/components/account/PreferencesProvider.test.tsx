@@ -7,8 +7,9 @@ import type { UpdateUserPreferences, UserPreferences } from "@tc/contracts";
 // below exists for, and one that cannot be reproduced by awaiting them in turn.
 const pending: Array<{ patch: UpdateUserPreferences; settle: (value: UserPreferences) => void }> = [];
 
+const preferencesRead = vi.fn();
 vi.mock("@/lib/apiClient", () => ({
-  fetchPreferences: async () => ({
+  fetchPreferences: async () => (preferencesRead(), {
     ok: true as const,
     value: {
       preferences: { displayName: null, homeAirport: null, distanceUnit: "km", timeFormat: "12h" } satisfies UserPreferences,
@@ -38,6 +39,7 @@ function Probe() {
 
 beforeEach(() => {
   pending.length = 0;
+  preferencesRead.mockClear();
 });
 afterEach(cleanup);
 
@@ -95,5 +97,27 @@ describe("PreferencesProvider", () => {
     await waitFor(() => expect(pending).toHaveLength(2));
     pending[1]!.settle({ displayName: "Sam", homeAirport: null, distanceUnit: "mi", timeFormat: "12h" });
     await waitFor(() => expect(screen.getByTestId("unit").textContent).toBe("mi"));
+  });
+
+  // A reader with no session cookie (ADR-061's public playbooks): their read
+  // could only 401, so it is not made, and the defaults stand.
+  it("does not read preferences when there is no session cookie", async () => {
+    render(
+      <PreferencesProvider noSessionCookie>
+        <Probe />
+      </PreferencesProvider>,
+    );
+    expect(screen.getByTestId("unit").textContent).toBe("km");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(preferencesRead).not.toHaveBeenCalled();
+  });
+
+  it("reads them when there may be a session", async () => {
+    render(
+      <PreferencesProvider>
+        <Probe />
+      </PreferencesProvider>,
+    );
+    await waitFor(() => expect(preferencesRead).toHaveBeenCalledTimes(1));
   });
 });

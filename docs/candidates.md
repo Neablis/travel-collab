@@ -16,13 +16,16 @@ not by anybody remembering. That automation exists because the rule was being
 skipped: M23's entry survived its own gate closing on 2026-09-19 and was still
 here two days later.
 
-- **Should search engines index the public playbook library? (asked 2026-10-02).**
-  ADR-061 made `/playbooks`, its days, profiles and board readable without an
-  account so a shared link opens for anyone. Whether Google should *list* them
-  is a separate product call it did not make. There is no `robots` file today,
-  so they are crawlable by default. Options: a `robots.ts` disallowing
-  `/playbooks`, `noindex` on the pages, or an opt-in sitemap of published days.
-  Spec `docs/specs/2026-10-02-public-playbooks-design.md` §2 decision 8.
+- **An SEO pass over the public library (asked 2026-10-02).** ADR-061 made
+  `/playbooks`, its days, profiles and board readable without an account.
+  Mitchell, 2026-10-02: *"I have no issue being crawled, we should do a seo pass
+  at some point soon"*. So crawling stays allowed (there is no `robots` file,
+  and none is wanted to block it). The pass would cover:
+  - a `sitemap.ts` of published days;
+  - canonical URLs without `?from=`;
+  - per-page `description`s, which today come from the og `meta` lookup;
+  - structured data for a day;
+  - whether profile and board pages earn a place in the index.
 
 - **Structured booking fields on a stop — confirmation number, provider, link
   (asked 2026-09-30).** From an external API consumer's feedback: confirmation

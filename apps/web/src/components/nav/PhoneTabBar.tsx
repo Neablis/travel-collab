@@ -428,7 +428,11 @@ function PhoneTabBarView({
  * targets never move.
  */
 export function PhoneTabBarFallback() {
-  return <PhoneTabBarView pathname={usePathname()} view={null} />;
+  // The server render. It knows a confirmed signed-out reader when the layout
+  // saw no session cookie (`lib/sessionHint.ts`), so the account bar a stranger
+  // is not offered is not painted first and taken away after.
+  const signedOut = useSessionUser() === null;
+  return <PhoneTabBarView pathname={usePathname()} view={null} signedOut={signedOut} />;
 }
 
 export function PhoneTabBar() {
@@ -442,8 +446,8 @@ export function PhoneTabBar() {
   //
   // `signedOut` only on a confirmed `null`: while the session is `undefined`
   // the bar draws as it always has, so the signed-in majority never sees it
-  // arrive late. The fallback above takes no session at all — it is what the
-  // server renders, and the server here does not know.
+  // arrive late. With no session cookie the layout starts the session at
+  // `null`, so the fallback above already drew the signed-out bar.
   const signedOut = useSessionUser() === null;
   return <PhoneTabBarView pathname={usePathname()} view={resolveView(useSearchParams())} signedOut={signedOut} />;
 }

@@ -281,6 +281,15 @@ describe("PhoneTabBar", () => {
       expect(screen.getAllByRole("link").map((el) => el.textContent)).toEqual(["Trips", "Playbooks"]);
       expect(screen.getByRole("link", { name: "Playbooks" }).getAttribute("aria-current")).toBe("page");
     });
+
+    // The layout saw no session cookie, so the session starts `null` and the
+    // server paints no account bar — rather than painting it and taking it away.
+    it("paints no account bar for a reader known to be signed out", () => {
+      session = null;
+      url = "/playbooks";
+      render(<PhoneTabBarFallback />);
+      expect(screen.queryAllByRole("link")).toEqual([]);
+    });
   });
 
   // **`/demo` is a trip too** (ADR-031), just not one under `/trips/<id>`, so a
