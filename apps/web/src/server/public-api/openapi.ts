@@ -41,7 +41,7 @@ import { IDEMPOTENCY_KEY_MAX_LENGTH, REPLAYED_HEADER } from "./idempotency";
  * `docs/contracts/CHANGELOG.md`. Change both constants in the same diff.
  */
 export const API_VERSION = "1.3.0";
-export const API_FINGERPRINT = "4da919c497d8da04ee3a557c0a540a56b834c73add91bce551a27377114dd2e8";
+export const API_FINGERPRINT = "215db0e99ea5cea071f58b3637a0bb0b88e1a72f55e6d1fecab45fdded21d499";
 
 /**
  * sha256 of the document with `info.version` left out, keys sorted at every
@@ -94,7 +94,51 @@ function schemaOf(zod: z.ZodTypeAny): JsonSchema {
   // `target: "openApi3"` because zod-to-json-schema's default emits JSON Schema
   // draft-07, whose `nullable` and `exclusiveMinimum` spellings OpenAPI 3.0 does
   // not accept. zod is v3 here, which is why this library and not a v4-only one.
-  return zodToJsonSchema(zod, { target: "openApi3", $refStrategy: "none" });
+  return withoutTupleItems(zodToJsonSchema(zod, { target: "openApi3", $refStrategy: "none" })) as JsonSchema;
+}
+
+// **OpenAPI 3.0 has no tuples, and `openApi3` still emits one.** A `z.tuple`
+// comes out as `items: [ ...schemas ]`, the draft-04 array form, where 3.0
+// requires `items` to be a single Schema Object. The export bundles'
+// `z.tuple([])` (`activities`, `playbooks`, `notebooks`, `trips` — "always
+// empty in this file") published six `items: []`, which made the document
+// invalid: Scalar's reference threw on it at `/developers/reference`, and any
+// caller validating the document before trusting it would refuse it.
+//
+// An empty tuple becomes `items: {}`; the `maxItems: 0` beside it already says
+// nothing may be there. A non-empty one **throws**, naming where it is: 3.0
+// cannot say "a string, then a number", and the obvious fallback — `anyOf` the
+// members — would publish a wider contract than the route accepts without
+// anyone deciding to. Nothing declares one today; the day something does, the
+// generator stops and the author chooses (an object, an array of one type, or
+// a 3.1 document). `openapi.test.ts` also fails on an array-valued `items`
+// anywhere in the published document.
+/**
+ * `node` with every empty tuple-form `items: []` rewritten to `items: {}`, so
+ * the result is valid OpenAPI 3.0.
+ *
+ * @throws when it meets a non-empty tuple, with the JSON pointer of its
+ * `items` in the message — 3.0 has no way to express tuple positions.
+ */
+export function withoutTupleItems(node: unknown, at = "#"): unknown {
+  if (Array.isArray(node)) return node.map((child, i) => withoutTupleItems(child, `${at}/${i}`));
+  if (node === null || typeof node !== "object") return node;
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(node)) {
+    const here = `${at}/${key.replaceAll("~", "~0").replaceAll("/", "~1")}`; // RFC 6901 escaping
+    if (key === "items" && Array.isArray(value)) {
+      if (value.length > 0) {
+        throw new Error(
+          `openapi: non-empty tuple at ${here} (${value.length} positions) — OpenAPI 3.0 cannot express tuple ` +
+            `positions, and widening it to anyOf would change the contract. Declare an object or a single-type array instead.`,
+        );
+      }
+      out[key] = {};
+    } else {
+      out[key] = withoutTupleItems(value, here);
+    }
+  }
+  return out;
 }
 
 export interface OpenApiDocument {

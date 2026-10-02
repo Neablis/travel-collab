@@ -96,6 +96,12 @@ describe("LandingScreen", () => {
     ).toBeDefined();
   });
 
+  it("links the developers page from the footer", () => {
+    render(<LandingScreen />);
+    const footer = within(within(screen.getByTestId("desktop-landing")).getByRole("contentinfo"));
+    expect(footer.getByRole("link", { name: "Developers" }).getAttribute("href")).toBe("/developers");
+  });
+
   it("ends on a footer with the contact address", () => {
     render(<LandingScreen />);
     const footer = within(within(screen.getByTestId("desktop-landing")).getByRole("contentinfo"));

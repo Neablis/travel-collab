@@ -2971,7 +2971,7 @@
                       "type": "array",
                       "minItems": 0,
                       "maxItems": 0,
-                      "items": [],
+                      "items": {},
                       "default": []
                     },
                     "playbooks": {
@@ -3918,14 +3918,14 @@
                       "type": "array",
                       "minItems": 0,
                       "maxItems": 0,
-                      "items": [],
+                      "items": {},
                       "default": []
                     },
                     "activities": {
                       "type": "array",
                       "minItems": 0,
                       "maxItems": 0,
-                      "items": [],
+                      "items": {},
                       "default": []
                     }
                   },
@@ -15157,21 +15157,21 @@
                       "type": "array",
                       "minItems": 0,
                       "maxItems": 0,
-                      "items": [],
+                      "items": {},
                       "default": []
                     },
                     "notebooks": {
                       "type": "array",
                       "minItems": 0,
                       "maxItems": 0,
-                      "items": [],
+                      "items": {},
                       "default": []
                     },
                     "activities": {
                       "type": "array",
                       "minItems": 0,
                       "maxItems": 0,
-                      "items": [],
+                      "items": {},
                       "default": []
                     }
                   },
