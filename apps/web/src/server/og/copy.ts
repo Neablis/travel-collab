@@ -47,7 +47,7 @@ export { PLAYBOOKS_BOARD, PLAYBOOKS_GENERIC };
 
 /**
  * A shared day's words: its name over "Kyoto, Osaka · 3 days · 12 stops · by
- * Traveler a1b2c3 · rated 4.6 from 12 reviews", or the generic Playbooks card. Pure.
+ * Dana R. · rated 4.6 from 12 reviews", or the generic Playbooks card. Pure.
  *
  * The facts line is the page's own (`SharedDayScreen`'s meta line): a day
  * count only past one, and the stops counted over the whole sequence.
@@ -71,7 +71,7 @@ export function playbookDayCopy(card: PlaybookDayCard): CardCopy {
   return { label: "Caesura · playbook", title: card.name, description: parts.join(" · ") };
 }
 
-/** A public profile's words: "Traveler a1b2c3's playbooks", over its numbers and the cities it knows. Pure. */
+/** A public profile's words: "Dana R.'s playbooks", over its numbers and the cities it knows. Pure. */
 export function playbookProfileCopy(card: PlaybookProfileCard): CardCopy {
   if (card.kind === "generic") return PLAYBOOKS_GENERIC;
   const parts = [plural(card.playbooksShared, "playbook")];

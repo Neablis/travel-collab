@@ -36,10 +36,16 @@ function codePoints(file: string): Set<number> {
       const delta = font.readInt16BE(deltas + s * 2);
       const rangeOffset = font.readUInt16BE(ranges + s * 2);
       for (let c = start; c <= end && c !== 0xffff; c++) {
-        const glyph =
-          rangeOffset === 0
-            ? (c + delta) & 0xffff
-            : font.readUInt16BE(ranges + s * 2 + rangeOffset + (c - start) * 2);
+        // Per the OpenType spec, idDelta applies on BOTH paths: added to the
+        // code point directly, or to a nonzero glyphIdArray entry (Copilot,
+        // PR #294). A zero entry is "missing" before any delta.
+        let glyph: number;
+        if (rangeOffset === 0) {
+          glyph = (c + delta) & 0xffff;
+        } else {
+          const raw = font.readUInt16BE(ranges + s * 2 + rangeOffset + (c - start) * 2);
+          glyph = raw === 0 ? 0 : (raw + delta) & 0xffff;
+        }
         if (glyph !== 0) mapped.add(c);
       }
     }
@@ -60,6 +66,19 @@ const copies = [
   referralCopy("Dana"),
   referralCopy(null),
   inviteCopy({ kind: "generic" }),
+  // The personal invite carries its own words too: a date range with an en
+  // dash, the facts line and "+N" (Copilot, PR #294).
+  inviteCopy({
+    kind: "personal",
+    inviterFirstName: "Dana",
+    tripName: "Trip",
+    startDate: "2027-06-01",
+    dayCount: 3,
+    cityCount: 2,
+    crew: ["Mei", "Priya"],
+    crewOverflow: 1,
+  }),
+  inviteCopy({ kind: "personal", inviterFirstName: "Dana", tripName: "Trip", startDate: null, dayCount: 1, cityCount: 1, crew: [], crewOverflow: 0 }),
 ];
 
 describe("the cards' own words", () => {
