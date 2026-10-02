@@ -142,6 +142,13 @@ two days. `scripts/check-lint-wall.mjs` lints three fixtures under
 `src/app/admin` — one per pattern, one open and two shut — so the exemption is
 proven to be exactly one hole.
 
+Since 2026-10-02 the shell also holds **`src/app/sitemap.ts` and
+`src/app/robots.ts`** (SEO pass, D2). The sitemap lists every published day,
+which only the database knows, and a self-fetch to the public API would put a
+rate limit and a timeout in a file a crawler reads. Same terms as the console:
+`src/server` internals yes, `packages/domain` and an Auth.js instance no.
+`scripts/check-lint-wall.mjs` holds it to those two files with five fixtures.
+
 The UI/server lint wall is CI-enforced and is our escape hatch: if serverless
 stops fitting (likely at Phase 2 realtime), `src/server` extracts into a
 standalone service without touching domain or contracts (ADR-002).

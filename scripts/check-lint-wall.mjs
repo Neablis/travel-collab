@@ -106,8 +106,10 @@ const PACKAGES_LANE = {
 // with a FIXED name, so a `tsc --noEmit` or ESLint pass over `src` in the same
 // checkout reported errors in files that were gone when anyone looked, and two
 // wall runs at once deleted each other's fixtures.
-function lintFixture(name, source, { dir = "src/app", ext = "tsx", lane = WEB_LANE } = {}) {
-  const relative = `${dir}/__${name}__.${ext}`;
+function lintFixture(name, source, { dir = "src/app", ext = "tsx", lane = WEB_LANE, file } = {}) {
+  // `file` names the fixture exactly, for a wall whose glob is a FILE NAME
+  // (`sitemap.ts`, `page.tsx`): the `__name__` shape can never match one.
+  const relative = file ?? `${dir}/__${name}__.${ext}`;
   const fixture = `${lane.prefix}${relative}`;
   // `-o` rather than reading stdout: when the linted file has problems `pnpm exec` appends
   // its own `[ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL] ...` line to STDOUT, so the report is not
@@ -223,6 +225,37 @@ expectRejectedBy(
   ),
   "no-restricted-imports",
   "the operator console still may not build an Auth.js instance",
+);
+
+// THE SITEMAP EXEMPTION (SEO pass, D2), proven to be exactly two files.
+// `sitemap.ts` reads published days in-process; `robots.ts` rides with it. The
+// claim is: those two files may import `@/server/*`, they still may not reach
+// the domain or build an Auth.js instance, and a neighbouring metadata file
+// gets nothing.
+const FIXTURE_BODY = "\nexport default function fixture() { return []; }\n";
+
+expectClean(
+  lintFixture("sitemap_server", `import "@/server/playbooks";${FIXTURE_BODY}`, { file: "src/app/sitemap.ts" }),
+  "sitemap.ts may import @/server/* (the exemption is open)",
+);
+expectClean(
+  lintFixture("robots_server", `import "@/server/playbooks";${FIXTURE_BODY}`, { file: "src/app/robots.ts" }),
+  "robots.ts may import @/server/* (the exemption is open)",
+);
+expectRejectedBy(
+  lintFixture("sitemap_domain", `import "@tc/domain";${FIXTURE_BODY}`, { file: "src/app/sitemap.ts" }),
+  "no-restricted-imports",
+  "sitemap.ts still may not import @tc/domain",
+);
+expectRejectedBy(
+  lintFixture("sitemap_authconfig", `import "@/lib/authConfig";${FIXTURE_BODY}`, { file: "src/app/sitemap.ts" }),
+  "no-restricted-imports",
+  "sitemap.ts still may not build an Auth.js instance",
+);
+expectRejectedBy(
+  lintFixture("manifest_server", `import "@/server/playbooks";${FIXTURE_BODY}`, { file: "src/app/manifest.ts" }),
+  "no-restricted-imports",
+  "a neighbouring metadata file (manifest.ts) gets no exemption",
 );
 
 // THE GATEWAY CHOKEPOINT WALL (ADR-019's 2026-08-25 amendment): only

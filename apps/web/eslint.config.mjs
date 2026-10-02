@@ -468,6 +468,35 @@ export default [
     },
   },
   {
+    // THE SITEMAP BLOCK (SEO pass, spec 2026-10-02 D2). `sitemap.ts` lists
+    // every published day, which only the database knows; `robots.ts` rides
+    // with it. The alternative was a self-fetch to the public API, which keeps
+    // the wall's letter and puts a rate limit and a timeout in a file a
+    // crawler reads. **This block is the exemption**, the admin block's
+    // mechanism: flat config replaces a rule's options for the last matching
+    // block, so what this list omits is allowed and what it names is refused.
+    // `check-lint-wall.mjs` holds it to exactly these two files.
+    files: ["src/app/sitemap.ts", "src/app/robots.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@tc/domain", "@tc/domain/*"],
+              message: "Only src/server and src/app/api may import the domain package (AGENTS.md lint wall).",
+            },
+            {
+              group: ["@/lib/authConfig"],
+              message:
+                "Only src/server/auth.ts and src/proxy.ts may build an Auth.js instance from authConfig (AGENTS.md lint wall, ADR-024).",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     // THE ELEMENT WALL (design-system.md): text, controls, and tables render
     // through components/ui primitives; no inline styles. Enumerated inline-
     // style exceptions (drag opacity, map container, computed timeline/calendar
