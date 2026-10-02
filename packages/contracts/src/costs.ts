@@ -15,9 +15,14 @@ import type { Money } from "./money.ts";
  * `memberCount` is the EFFECTIVE member count at read time, not the log's. It is
  * never trusted below 1, because a trip always has its owner and a zero would
  * make every price vanish.
+ *
+ * People are counted by distinct id. `participants` is not constrained unique
+ * and the log keeps what it was given, so a repeated id is one person, not two
+ * charges.
  */
 export function stopHeadcount(activity: { participants: readonly string[] }, memberCount: number): number {
-  return activity.participants.length > 0 ? activity.participants.length : Math.max(memberCount, 1);
+  const picked = new Set(activity.participants).size;
+  return picked > 0 ? picked : Math.max(memberCount, 1);
 }
 
 /** A stop's whole price in minor units: per-person `cost` × headcount, or 0 when it has no cost. */

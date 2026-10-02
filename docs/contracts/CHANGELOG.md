@@ -17,8 +17,10 @@ Format:
 
 - **No schema changed shape.** `Money` is still `{ amountMinor, currency }` and every stored payload
   and `trip_details.doc` parses as before; no migration. **What changed is what `cost` means:** the
-  price for ONE person. A stop's total is `cost × headcount`, where the headcount is
-  `participants.length`, or the trip's member count when `participants` is empty.
+  price for ONE person. A stop's total is `cost × headcount`, where the headcount is the number of
+  distinct ids in `participants`, or the trip's member count when `participants` is empty.
+  `participants` stays an unconstrained `string[]` (a uniqueness refinement would refuse events
+  already in the log); a repeated id counts once.
 - **Added:** `packages/contracts/src/costs.ts` — `stopHeadcount`, `stopTotal` and `isCommittedCost`
   (a `pending` stop's cost is an estimate; `planned` and `transit` are committed). The one statement
   of the rule; the domain, the web and `@tc/pages` call it.
@@ -32,7 +34,9 @@ Format:
   log's own members (rebuild equals stored); every read that overlays the effective member list
   recomputes them for those members through the domain's `recostDetail` — trip GET, command
   responses, history-at-seq on `/api/trips`, the demo trip, and a share's `SharedTripView`. A member
-  joining changes a trip's totals with no event.
+  joining changes a trip's totals with no event. The same overlay recomputes the `over-budget`
+  `Conflict` from the recosted total (its id, `over-budget:<tripId>`, does not change), so
+  `conflicts` agrees with `budgetRemaining`.
 - Why: Mitchell, 2026-10-02 — ADR-060's four answers ("always per person", "derive from kind").
 - Consumers updated: `packages/domain` (`rollupCosts(state, memberCount)`, `recostDetail`),
   `packages/factories`, `packages/fixtures` (Japan verifier passes the log's members — its totals

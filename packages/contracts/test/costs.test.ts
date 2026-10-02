@@ -17,6 +17,15 @@ describe("stopHeadcount", () => {
     expect(stopHeadcount({ participants: [] }, 3)).toBe(3);
   });
 
+  // `participants` is an unconstrained string[] and the domain stores what it
+  // is given, so a duplicate id is valid input. Counting the array would charge
+  // that person twice; a schema-level refusal would reject events already in
+  // the log.
+  it("counts a person once however many times they are picked", () => {
+    expect(stopHeadcount({ participants: ["u1", "u1", "u2"] }, 5)).toBe(2);
+    expect(stopTotal({ cost: YEN(3000), participants: ["u1", "u1"] }, 5)).toBe(3000);
+  });
+
   it("is never 0: a trip always has its owner, so a zero member count reads as one", () => {
     expect(stopHeadcount({ participants: [] }, 0)).toBe(1);
   });
