@@ -2,6 +2,7 @@
 
 import type { ActivityView } from "@tc/contracts";
 import { useState } from "react";
+import { personNames } from "@tc/pages";
 import { Banner } from "@/components/ui/banner";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,7 @@ import { addActivityCommand, updateActivityCommand } from "@/components/board/ac
 import { ActivityConflicts } from "@/components/trip/editor/ActivityConflicts";
 import { useEditor } from "@/components/trip/context/EditorHost";
 import { useTrip, type DispatchResult } from "@/components/trip/context/TripProvider";
+import { usePeople } from "@/components/pages/people";
 import { dayLabel } from "@/lib/dates";
 import { toClockRange } from "@/lib/time";
 import { useTimeFormat } from "@/components/account/PreferencesProvider";
@@ -34,6 +36,7 @@ import { displayPlace, legEnd } from "@/lib/place";
 export function ActivityEditorSheet() {
   const { state, close } = useEditor();
   const { activeTrip, dispatch, readOnly } = useTrip();
+  const people = usePeople();
 
   const open = state.mode !== null;
   // A viewer never gets the form. This is the backstop for every caller of
@@ -100,6 +103,10 @@ export function ActivityEditorSheet() {
       : editingActivityId !== undefined
         ? activeTrip?.days.find((d) => d.activityIds.includes(editingActivityId))?.dayId
         : undefined;
+
+  const memberIds = activeTrip?.members.map((m) => m.userId) ?? [];
+  const names = activeTrip === null ? new Map<string, string>() : personNames(activeTrip, people, memberIds);
+  const namedMembers = memberIds.map((userId) => ({ userId, name: names.get(userId)! }));
 
   const dayOptions: ActivityDayOption[] =
     activeTrip?.days.map((day, index) => ({
@@ -195,7 +202,9 @@ export function ActivityEditorSheet() {
           // M13 link 5. The trip's own member list is the only vocabulary the
           // attribution controls offer, so an id from nowhere is not reachable
           // through the product — which is why the domain does not validate it.
-          members={activeTrip?.members ?? []}
+          // Named by `personNames` over `PeopleProvider`'s names (mounted by
+          // TripBoardScreen): "Traveler 2" until they land, never the id.
+          members={namedMembers}
           onSave={handleSave}
           onCancel={close}
         />

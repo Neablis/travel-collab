@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { type ActivityKind, type ActivityMode, type ActivityTag, type ActivityView, type Anchor, type Location, type Money, type PendingReason, type TimeWindow, type TripMember } from "@tc/contracts";
+import { type ActivityKind, type ActivityMode, type ActivityTag, type ActivityView, type Anchor, type Location, type Money, type PendingReason, type TimeWindow } from "@tc/contracts";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
@@ -63,6 +63,9 @@ const KIND_HELP: Record<ActivityKind, string> = {
   transit: "Moving between the stops either side",
 };
 
+/** A trip member as the attribution controls show them: the id is the value, `name` the label. */
+export type NamedMember = { userId: string; name: string };
+
 export type ActivityDayOption = { dayId: string; label: string; existing: Slot[] };
 
 /** The "How long" value for a length drawn on the river that is none of the five. */
@@ -106,8 +109,13 @@ export function ActivityEditor({
    * working: with no members there is nobody to attribute to, and the section
    * renders a plain "nobody else is on this trip yet" rather than an empty
    * control that looks broken.
+   *
+   * Named by the caller, because `TripMember` carries no name and Booked by
+   * decides who is owed money (ADR-060 decision 6): a toggle reading a UUID
+   * cannot be picked correctly. The sheet names them through `personNames`,
+   * the rule the notebook's balances use, so the two never disagree.
    */
-  members?: TripMember[];
+  members?: NamedMember[];
   onSave: (value: ActivityFormValue) => void | Promise<void>;
   onCancel: () => void;
 }) {
@@ -479,7 +487,7 @@ export function ActivityEditor({
                       )
                     }
                   >
-                    {member.userId}
+                    {member.name}
                   </Button>
                 );
               })}
@@ -497,7 +505,7 @@ export function ActivityEditor({
                 <option value="">Nobody yet</option>
                 {members.map((member) => (
                   <option key={member.userId} value={member.userId}>
-                    {member.userId}
+                    {member.name}
                   </option>
                 ))}
               </NativeSelect>

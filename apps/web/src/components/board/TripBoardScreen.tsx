@@ -24,6 +24,7 @@ import { PageContainer } from "@/components/ui/page-container";
 import { TripHeader } from "@/components/trip/TripHeader";
 import { AddSavedDayButton } from "@/components/trip/AddSavedDayButton";
 import { ActivityEditorSheet } from "@/components/trip/editor/ActivityEditorSheet";
+import { PeopleProvider } from "@/components/pages/people";
 import { type RackItem, UnscheduledRack } from "@/components/trip/UnscheduledRack";
 import { fitIntoDay } from "@/components/trip/fitIntoDay";
 import { rackDropWindow } from "./rackDropWindow";
@@ -1284,7 +1285,11 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
       {/* Behavior change #2 (M5 wave 2, resolves #9): the activity editor is a
           portable Sheet raised via EditorHost, mounted once here outside the
           lens switch so it's available regardless of which lens is active. */}
-      <ActivityEditorSheet />
+      {/* Names the stop editor's Who is in / Booked by (M19). The same cached
+          access read TripProvider makes, so no second request. */}
+      <PeopleProvider tripId={tripId}>
+        <ActivityEditorSheet />
+      </PeopleProvider>
       {/* The unscheduled rack (Phase 3): mounted here, outside the lens
           switch, because the design has the drawer present in every view.
           It pins itself to the bottom of the viewport via `.unscheduled-rack`

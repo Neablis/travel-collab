@@ -536,6 +536,28 @@ describe("TripBoardScreen", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
+  // M19: Booked by decides who is owed money, so the editor this screen mounts
+  // names members through `PeopleProvider` — a dev-login id resolves to its
+  // username. Without the provider the sheet still says "Traveler 1", which is
+  // what this tells apart.
+  it("names the trip's members in the editor's attribution controls", async () => {
+    const fixture = costedTripDetailFixture();
+    fixture.members = [
+      { userId: "dev-dana", role: "owner" },
+      { userId: "dev-sam", role: "editor" },
+    ];
+    server.use(...makeTripHandlers(fixture));
+    renderScreen(fixture.tripId);
+
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+    navigateToView("Plan");
+    fireEvent.click(await screen.findByRole("button", { name: /^Edit Colosseum tour, / }));
+
+    expect(await screen.findByRole("button", { name: "Dana" })).toBeTruthy();
+    const bookedBy = screen.getByLabelText("Booked by") as HTMLSelectElement;
+    expect([...bookedBy.options].map((o) => o.text)).toEqual(["Nobody yet", "Dana", "Sam"]);
+  });
+
   // E1 review finding, continued: E2 hasn't wired any UI trigger to
   // openCreate yet (confirmed by review), so create-mode is exercised via a
   // direct useEditor() consumer rendered inside the same provider stack —

@@ -317,9 +317,10 @@ describe("ActivityEditor tag picker", () => {
 // BOOKED it (bookedBy). A single "who" would read fine and be wrong for every
 // cost split M19 later derives from the participants.
 describe("ActivityEditor attribution (M13 link 5)", () => {
+  // Ids that are not the names, so a control labelled with the id is caught.
   const MEMBERS = [
-    { userId: "alice", role: "owner" as const },
-    { userId: "bob", role: "editor" as const },
+    { userId: "u-alice", name: "Alice" },
+    { userId: "u-bob", name: "Bob" },
   ];
   const stop = (over: Partial<ActivityView> = {}): ActivityView => ({
     activityId: "11111111-1111-1111-1111-111111111111",
@@ -361,7 +362,7 @@ describe("ActivityEditor attribution (M13 link 5)", () => {
     mount(stop({ cost: { amountMinor: 30_00, currency: "USD" } }));
     expect(screen.getByLabelText("Cost per person")).toBeTruthy();
     expect(screen.getByTestId("activity-cost-total").textContent).toBe("× 2 people = $60.00");
-    fireEvent.click(screen.getByRole("button", { name: "bob" }));
+    fireEvent.click(screen.getByRole("button", { name: "Bob" }));
     expect(screen.getByTestId("activity-cost-total").textContent).toBe("× 1 person = $30.00");
   });
 
@@ -380,40 +381,54 @@ describe("ActivityEditor attribution (M13 link 5)", () => {
 
   it("offers one toggle per member and sends who is going", () => {
     const onSave = mount(stop());
-    fireEvent.click(screen.getByRole("button", { name: "bob" }));
+    fireEvent.click(screen.getByRole("button", { name: "Bob" }));
     save();
-    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ participants: ["bob"] }));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ participants: ["u-bob"] }));
+  });
+
+  // Booked by decides who is owed money (ADR-060 decision 6), so both
+  // controls read as people. The id is the value, never the label.
+  it("labels both controls with the members' names, not their ids", () => {
+    mount(stop());
+    const group = screen.getByRole("group", { name: "Who is going" });
+    expect(within(group).getAllByRole("button").map((b) => b.textContent)).toEqual(["Alice", "Bob"]);
+    const options = [...(screen.getByLabelText("Booked by") as HTMLSelectElement).options];
+    expect(options.map((o) => [o.value, o.text])).toEqual([
+      ["", "Nobody yet"],
+      ["u-alice", "Alice"],
+      ["u-bob", "Bob"],
+    ]);
   });
 
   it("sends who booked it, separately from who is going", () => {
     const onSave = mount(stop());
-    fireEvent.click(screen.getByRole("button", { name: "bob" }));
-    fireEvent.change(screen.getByLabelText("Booked by"), { target: { value: "alice" } });
+    fireEvent.click(screen.getByRole("button", { name: "Bob" }));
+    fireEvent.change(screen.getByLabelText("Booked by"), { target: { value: "u-alice" } });
     save();
     expect(onSave).toHaveBeenCalledWith(
-      expect.objectContaining({ bookedBy: "alice", participants: ["bob"] }),
+      expect.objectContaining({ bookedBy: "u-alice", participants: ["u-bob"] }),
     );
   });
 
   it("seeds both from the stop being edited", () => {
-    mount(stop({ bookedBy: "alice", participants: ["bob"] }));
-    expect(screen.getByRole("button", { name: "bob" }).getAttribute("aria-pressed")).toBe("true");
-    expect((screen.getByLabelText("Booked by") as HTMLSelectElement).value).toBe("alice");
+    mount(stop({ bookedBy: "u-alice", participants: ["u-bob"] }));
+    expect(screen.getByRole("button", { name: "Bob" }).getAttribute("aria-pressed")).toBe("true");
+    expect((screen.getByLabelText("Booked by") as HTMLSelectElement).value).toBe("u-alice");
   });
 
   // The drop this milestone's preflight exists to prevent: an edit that never
   // touches attribution must not clear it.
   it("round-trips attribution through an unrelated edit", () => {
-    const onSave = mount(stop({ bookedBy: "alice", participants: ["bob"] }));
+    const onSave = mount(stop({ bookedBy: "u-alice", participants: ["u-bob"] }));
     fireEvent.change(screen.getByLabelText("What or where"), { target: { value: "Colosseum tour" } });
     save();
     expect(onSave).toHaveBeenCalledWith(
-      expect.objectContaining({ bookedBy: "alice", participants: ["bob"] }),
+      expect.objectContaining({ bookedBy: "u-alice", participants: ["u-bob"] }),
     );
   });
 
   it("clears who booked it back to nobody", () => {
-    const onSave = mount(stop({ bookedBy: "alice" }));
+    const onSave = mount(stop({ bookedBy: "u-alice" }));
     fireEvent.change(screen.getByLabelText("Booked by"), { target: { value: "" } });
     save();
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ bookedBy: null }));
