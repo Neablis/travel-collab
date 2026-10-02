@@ -127,6 +127,11 @@ test.describe("the Japan demo's Overview", () => {
 
     await expect(page).toHaveURL(/\/demo\?view=Overview&page=[0-9a-f-]+$/);
     await expect(page.getByRole("heading", { name: "Spend by day" })).toBeVisible();
+    // "Who owes what" (M19 part 2) names each traveller from the trip's access
+    // read. Without it a member reads "Traveler 1", so a row led by the demo's
+    // own traveller is the names reaching the widget.
+    await expect(page.getByRole("heading", { name: "Who owes what" })).toBeVisible();
+    await expect(page.getByRole("row", { name: /^Mika\b/ })).toBeVisible();
     await expect(page.getByText(/^Here is your itinerary, day by day/)).toHaveCount(0);
     // Read-only, as the Overview is: no Edit, and nothing on the page takes typing.
     await expect(page.getByRole("link", { name: "Edit" })).toHaveCount(0);
