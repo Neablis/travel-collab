@@ -106,20 +106,37 @@ function schemaOf(zod: z.ZodTypeAny): JsonSchema {
 // caller validating the document before trusting it would refuse it.
 //
 // An empty tuple becomes `items: {}`; the `maxItems: 0` beside it already says
-// nothing may be there. A non-empty one becomes `anyOf` its members, which
-// keeps every allowed value and loses only the position — nothing declares one
-// today. `openapi.test.ts` fails on an array-valued `items` anywhere.
-function withoutTupleItems(node: unknown): unknown {
-  if (Array.isArray(node)) return node.map(withoutTupleItems);
+// nothing may be there. A non-empty one **throws**, naming where it is: 3.0
+// cannot say "a string, then a number", and the obvious fallback — `anyOf` the
+// members — would publish a wider contract than the route accepts without
+// anyone deciding to. Nothing declares one today; the day something does, the
+// generator stops and the author chooses (an object, an array of one type, or
+// a 3.1 document). `openapi.test.ts` also fails on an array-valued `items`
+// anywhere in the published document.
+/**
+ * `node` with every empty tuple-form `items: []` rewritten to `items: {}`, so
+ * the result is valid OpenAPI 3.0.
+ *
+ * @throws when it meets a non-empty tuple, with the JSON pointer of its
+ * `items` in the message — 3.0 has no way to express tuple positions.
+ */
+export function withoutTupleItems(node: unknown, at = "#"): unknown {
+  if (Array.isArray(node)) return node.map((child, i) => withoutTupleItems(child, `${at}/${i}`));
   if (node === null || typeof node !== "object") return node;
   const out: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(node)) {
-    out[key] =
-      key === "items" && Array.isArray(value)
-        ? value.length === 0
-          ? {}
-          : { anyOf: value.map(withoutTupleItems) }
-        : withoutTupleItems(value);
+    const here = `${at}/${key.replaceAll("~", "~0").replaceAll("/", "~1")}`; // RFC 6901 escaping
+    if (key === "items" && Array.isArray(value)) {
+      if (value.length > 0) {
+        throw new Error(
+          `openapi: non-empty tuple at ${here} (${value.length} positions) — OpenAPI 3.0 cannot express tuple ` +
+            `positions, and widening it to anyOf would change the contract. Declare an object or a single-type array instead.`,
+        );
+      }
+      out[key] = {};
+    } else {
+      out[key] = withoutTupleItems(value, here);
+    }
   }
   return out;
 }
