@@ -421,9 +421,10 @@ describe("ActivityEditorSheet — a viewer gets no form", () => {
     });
     vi.mocked(fetchTripDetail).mockResolvedValue({ ok: true, value: trip });
     renderEditorSheet({ mode: "edit", activityId: SCHEDULED_ACTIVITY_ID });
-    expect((await screen.findByTestId("activity-cost-total")).textContent).toBe(
-      `× 3 people = ${formatMoney(45_00, trip.currency)}`,
-    );
+    // By text, not by test id: the editor's own line is always rendered (it
+    // holds its room so a committed cost never moves the buttons), so the id
+    // can resolve to an empty line before the viewer's sheet is up.
+    expect(await screen.findByText(`× 3 people = ${formatMoney(45_00, trip.currency)}`)).toBeTruthy();
     expect(screen.getByText(`${formatMoney(15_00, trip.currency)} per person`)).toBeTruthy();
   });
 
