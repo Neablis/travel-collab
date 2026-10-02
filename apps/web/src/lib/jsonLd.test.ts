@@ -38,6 +38,8 @@ describe("dayJsonLd", () => {
 
   it("says nothing about a rating nobody gave", () => {
     expect(dayJsonLd(DAY)[0]).not.toHaveProperty("aggregateRating");
+    // Each half of the guard on its own: an average left over with no reviews behind it is not shown either.
+    expect(dayJsonLd({ ...DAY, rating: 4, reviewCount: 0 })[0]).not.toHaveProperty("aggregateRating");
   });
 
   it("carries the rating once there are reviews", () => {
@@ -91,5 +93,12 @@ describe("serializeJsonLd", () => {
     const out = serializeJsonLd({ "@context": "https://schema.org", "@type": "Thing", name: "</script><script>alert(1)" });
     expect(out).not.toContain("</script>");
     expect(JSON.parse(out).name).toBe("</script><script>alert(1)");
+  });
+
+  it("cannot open an HTML comment inside the script element either", () => {
+    // `<!--` inside a script switches the HTML parser into its escaped state, where a later `</script>` is misread.
+    const out = serializeJsonLd({ "@context": "https://schema.org", "@type": "Thing", name: "a <!-- b" });
+    expect(out).not.toContain("<!--");
+    expect(JSON.parse(out).name).toBe("a <!-- b");
   });
 });
