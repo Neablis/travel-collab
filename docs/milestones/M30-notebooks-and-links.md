@@ -95,6 +95,10 @@ His answers when asked: seed several notebooks into every new trip (reversing
       `window.opener === null`, and the first tab did not move. The destination itself did
       not load, because the cloud container's egress blocks that host. Whether it reads as
       a professional itinerary is the next box, Mitchell's.)*
-- [ ] **[walk]** Mitchell reads the Overview on the Japan demo and says whether it now
+- [x] **[walk]** Mitchell reads the Overview on the Japan demo and says whether it now
       reads like a professional itinerary.
+      *(**Ticked 2026-10-02 on Mitchell's attestation**, in chat: *"Walked time rover
+      walkthrough done"*. He was answering whether his time river walk included the
+      Overview read. Part 4 was superseded by M30's itinerary Overview, so this is the
+      same read as M29's part 4 box.)*
 - [ ] A retro is appended at gate close.

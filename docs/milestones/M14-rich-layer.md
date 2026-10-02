@@ -1,5 +1,8 @@
 # M14 — Rich layer
 
+**Gate closed 2026-10-01, 22 of 22.** The retro is at the end of this file. M19 is
+current because this gate closed.
+
 **Status:** Scoped 2026-09-01. Placed **after M13** in the order set the same day
 (`M17 → M9 → M12 → M13 → M14 → M19`). It had no file and no exit gate until now
 — a table row and nothing else.
@@ -965,8 +968,12 @@ milestone opens:**
       In a browser, `m14-notebook-widgets.spec.ts` *"the weather widget is the
       quiet placeholder while outside data is offline"* covers Editing and
       Reading. The live-source half is the next box, which is a walk by hand.)*
-- [ ] Weather walked against the real MET Norway and NASA POWER on a preview, per
+- [x] Weather walked against the real MET Norway and NASA POWER on a preview, per
       docs/guidelines/external-data-manual-check.md.
+      *(**Ticked 2026-10-01 on Mitchell's attestation**, in chat: *"i can confirm ive
+      walked the weather feature"*. That walk covers what a cloud session could not
+      reach: step 2's comparison against met.no and step 6. The agent walks below are
+      the earlier record.)*
       *(**Partly walked 2026-09-27**, on #256's preview with Kyoto stops, by an agent in a
       cloud session. Steps 1-4 pass on the words: forecast, today with Now, month
       averages, past, the miles switch and both credits. Step 5 had no `[external]` line.
@@ -1004,7 +1011,7 @@ milestone opens:**
       20 there, and 0 in 20 on `main`, on the ci-like build; see `testing.md`. The whole-stack Tier 3 that each
       part's body deferred was paid by that CI run, not by a separate local
       `pnpm check`.)*
-- [ ] Retro appended at gate close.
+- [x] Retro appended at gate close. *(2026-10-01, at the end of this file.)*
 
 ## Deliberately not here
 
@@ -1191,3 +1198,37 @@ gating**. Each entry's own **Milestone:** line points back here.
 | KI-2026-09-24-n | Know before you go: emergency numbers carry no service label; 57 of 244 countries have none recorded (re-counted 2026-09-25) | carried |
 | KI-2026-09-24-o | Weather sends rounded stop locations to MET Norway / NASA POWER; no privacy page says so | carried |
 | KI-2026-09-24-p | Cost totals (`costOfStops`, `rollupCosts`: the `cost` single, `cost.rows`, board totals) add amounts across currencies; `kinds.ts` and the spend chart already keep them apart | carried |
+
+## Retro — 2026-10-01
+
+**Code merged on 2026-09-24. The gate closed a week later.** Every link merged in one day
+as four stacked PRs: #222, #223, #226 and #221. The open boxes then waited on a person,
+not on code. The six widgets were accepted on 2026-09-27 and the weather walk on
+2026-10-01. Both were Mitchell's calls. The process retro for that build day is
+`docs/retros/2026-09-24-m14-stacked-prs-retro.md`, and it is not repeated here.
+
+**What went well.**
+- **The decisions came before the code.** Calendar sync was dropped, ghosts were
+  limited to Editing, and the `days`/`trip` inputs were retired. All three calls were
+  made on 2026-09-24, before #221 was opened. Nothing was built and then reverted.
+- **Real-service data stays out of the automated tests.** The e2e server runs with
+  `EXTERNAL_DATA_OFFLINE=true`. The unavailable states were proved with failing port
+  stubs, so the only live check left was one walk by hand.
+
+**What it cost.**
+- **The weather walk found a real defect a stub could not.** NASA POWER's monthly
+  extremes were shown as averages (KI-2026-09-27-b). The agent walk also found that
+  "today" followed the reader's clock (KI-2026-09-27-c). Both were fixed on #257. Both
+  passed every test, because the tests stub the sources.
+- **A cloud session cannot finish an external-data walk.** Egress to api.met.no and
+  power.larc.nasa.gov is blocked, so step 2's comparison and step 6 needed a person.
+  That was most of the week between merge and close.
+
+**Left open, not gating.**
+- **The route map block is not built.** Link 11 parked it until M24's legs existed. M24
+  closed on 2026-09-25, so it is unblocked, but no milestone owns it.
+- Ten carried KIs are in the table above, among them KI-2026-09-24-p: cost totals add
+  amounts across currencies. That one is M19's ground.
+
+**M19 is current**, by this gate closing.
+

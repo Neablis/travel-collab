@@ -292,7 +292,7 @@ reorder and the one place a reorder updates.
       enforced rather than remembered.)*
 - [x] **M28 Three kinds** — gate closed 2026-09-26 (9 of 9; #238, #239) — a stop's kind is `planned`, `pending` or `transit`; `idea`/`hold`/`booked` are retired and read back as their replacement (ADR-054).
       → `docs/milestones/M28-three-kinds.md`
-- [ ] **M14 Rich layer** ← **current milestone** (from 2026-09-26, by M28's gate closing; first current 2026-09-25, by M24's) — the macro vocabulary deferred out of M8 returns here.
+- [x] **M14 Rich layer** — gate closed 2026-10-01 (22 of 22; #222, #223, #226, #221; the weather walk on Mitchell's attestation) — the macro vocabulary deferred out of M8 returns here.
       → `docs/milestones/M14-rich-layer.md`
       *(**M29 The time river is in flight beside it** — minted 2026-09-26, not
       current; all four parts merged 2026-09-26 (#242-#245, and the phone part as #251), gate 17/20, what is left
@@ -362,7 +362,7 @@ reorder and the one place a reorder updates.
       last Consequence and in the milestone's gate. Note §18 reached `main`
       **after** #126 merged, so part of that PR — the Trip-wide / Day 6 badge —
       is un-shipped on purpose by link 2 rather than regressed.)*
-- [ ] **M19 A cost knows who and what it is for** →
+- [ ] **M19 A cost knows who and what it is for** ← **current milestone** (from 2026-10-01, by M14's gate closing; **scoped 2026-10-02** by ADR-060, with a 13-box gate, built as three stacked parts) →
       `docs/milestones/M19-cost-model.md`
       *(**Added to this file 2026-09-01. It was missing entirely** — minted and
       placed last on 2026-08-31, recorded in `docs/milestones/README.md` and in

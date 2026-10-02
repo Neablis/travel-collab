@@ -1,9 +1,12 @@
 # M19 — A cost knows who and what it is for
 
-**Status:** Approved and placed 2026-08-31 by Mitchell. **Runs last**, after
-M9: `M11a → M11b → M17 → M12 → M13 → M14 → M9 → M19`.
+**Status:** **Current milestone from 2026-10-01**, by M14's gate closing. **Scoped
+2026-10-02** (ADR-060). The exit gate is written, and the build is three stacked parts.
+Approved and placed 2026-08-31 by Mitchell, originally to run last, after M9
+(`M11a → M11b → M17 → M12 → M13 → M14 → M9 → M19`). That order is superseded:
+M9 is paused, and M19 became current when M14 closed.
 
-Last is a real position rather than a shrug. Link 3 (who an activity is for)
+*(The original reasoning for running last:)* Last is a real position rather than a shrug. Link 3 (who an activity is for)
 overlaps **M13**'s `add-stop-who`, and running after M13 lets M13 land that
 field while M19 builds splits on top of it — instead of two milestones each
 adding a per-stop person field, which is the drift `AGENTS.md` invariant 5
@@ -152,19 +155,49 @@ them.
 
 ## Exit gate
 
-Not written — this milestone is **placed but not scoped**, and those are
-different things. Placing it fixed when it runs; the gate needs the shape of
-link 1 decided first (does a cost inherit its category from `ActivityKind` or
-carry its own), which is a design question nobody has answered yet.
+**Written 2026-10-02 at kickoff**, from Mitchell's four answers (ADR-060). Link 1 shipped
+on 2026-09-26. Link 3 was landed by M13 link 5 (`bookedBy`, `participants`, 2026-09-22),
+so it is not rebuilt here. Built as three stacked parts: `docs/plans/2026-10-02-M19-cost-model.md`.
 
-**Two boxes are already known**, because they are why it exists:
+Part 1 — a price is per person:
+
+- [ ] **ADR-060 accepted**, `docs/contracts/CHANGELOG.md` carries the meaning change, and
+      the OpenAPI description of `cost` says *per person*.
+- [ ] **One pure function prices a stop** (`stopHeadcount`, `stopTotal` in
+      `packages/contracts/src/costs.ts`). The domain's `rollupCosts`, `apps/web/src/lib/cost.ts`
+      and every `@tc/pages` cost widget call it, and a test of each fails if it sums the raw
+      price.
+- [ ] **A trip's totals follow its members at read time.** An integration test adds a member
+      to a trip whose stop has nobody picked and sees the trip total rise, with no new event.
+- [ ] **Committed vs estimate derives from kind.** A pending stop's cost reads as an estimate
+      in the Settings sheet's budget line and the `cost` widget. A test fails if a planned
+      stop's cost counts as an estimate.
+- [ ] **[walk]** The stop editor says *per person* beside Cost and shows the stop total for
+      its headcount.
+- [ ] The assistant's write tools describe `cost` as per person.
+
+Part 2 — who owes what:
+
+- [ ] **A "Who owes what" widget** lists each member's share, what they paid (as Booked by)
+      and their balance, plus a *not paid yet* line for stops nobody booked. Unit tests on the
+      pure balance function are seen to fail.
+- [ ] **"What one person is in for"** (`w-person`, parked out of M14 on 2026-09-03) is built
+      on the same function.
+- [ ] The Money notebook seeded into a new trip carries the balances widget.
+
+Part 3 — the shared day says *each*:
 
 - [ ] `cost-estimate-state` and `budget-breakdown` are wired up or deleted — no
-      M19-tagged entry remains in `preview-registry.ts`. *(Both are deleted as
-      of 2026-09-26 and no M19 entry remains; left unticked because closing a
-      gate is Mitchell's call.)*
+      M19-tagged entry remains in `preview-registry.ts`. *(Both deleted as of 2026-09-26.)*
 - [ ] `budgetPerPerson` either divides by a real person count or no longer
-      claims to, and a test fails if that stops being true.
+      claims to, and a test fails if that stops being true. *(The shared-day rail and
+      Discover's band read a saved day's sum as the price each, per ADR-060 decision 7.)*
+
+Whole milestone:
+
+- [ ] `pnpm check`, `pnpm --filter web test:int` and `pnpm --filter web test:e2e:ci-like`
+      green on the last part.
+- [ ] A retro is appended at gate close.
 
 ## Prerequisites
 

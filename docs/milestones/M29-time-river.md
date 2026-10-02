@@ -260,8 +260,12 @@ Part 3:
 
 Part 4:
 
-- [ ] **[walk]** A new trip's Overview reads as the rewritten page, built only from
+- [x] **[walk]** A new trip's Overview reads as the rewritten page, built only from
       registry widgets.
+      *(**Ticked 2026-10-02 on Mitchell's attestation**, in chat: *"Walked time rover
+      walkthrough done"*. He was answering whether his time river walk included the
+      Overview read. Part 4 was superseded by M30's itinerary Overview, so this is the
+      same read as M30's box.)*
 
 Part 5 (the phone, and any touch pointer — see *Part 5* below):
 
