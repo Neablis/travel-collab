@@ -69,9 +69,11 @@ test("a stranger opens a shared playbook, browses, and is asked to sign in to ad
     await expect(visitor).toHaveURL(new RegExp(`/playbooks/day/${savedDayId}$`));
     await expect(visitor.getByRole("heading", { name: dayName, level: 1 })).toBeVisible();
 
-    // Its preview card is the day's, not the site's.
+    // Its preview card is the day's, not the site's. The FIRST og:image is
+    // what an unfurler draws; `pageMetadata` lists the site image after it as
+    // the fallback, so there are two.
     await expect(visitor.locator('meta[property="og:title"]')).toHaveAttribute("content", dayName);
-    await expect(visitor.locator('meta[property="og:image"]')).toHaveAttribute(
+    await expect(visitor.locator('meta[property="og:image"]').first()).toHaveAttribute(
       "content",
       new RegExp(`/api/og/playbooks/day/${savedDayId}$`),
     );
