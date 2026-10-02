@@ -94,6 +94,10 @@ describe("optionsFor a person input", () => {
   it("says the chosen person by name in the summary line", () => {
     expect(bindSummary("person.share", { who: "u-ben" }, pair, null, [PERSON], { "u-ben": "Ben" })).toBe("Ben");
   });
+
+  it("summarises a person input nobody has chosen as a choice still owed, not everything", () => {
+    expect(bindSummary("person.share", {}, pair, null, [PERSON], { "u-ben": "Ben" })).toBe("choose a person");
+  });
 });
 
 describe("optionsFor a field input", () => {

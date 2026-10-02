@@ -333,6 +333,11 @@ export function bindSummary(
   if (inputs.some((i) => i.type === "field" && !i.multiple && valueOf(i, params, detail) === "")) {
     return "choose a field";
   }
+  // Same for a person: "What one person is in for" about nobody says nothing
+  // (#290 review).
+  if (inputs.some((i) => i.type === "person" && valueOf(i, params, detail) === "")) {
+    return "choose a person";
+  }
   const bound = inputs
     .map((input) => {
       if (input.type === "dates") {
