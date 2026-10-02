@@ -8,7 +8,7 @@ import {
   DiscoverSort,
   RatingFloor,
 } from "@/lib/playbooks";
-import { discoverDays } from "@/server/playbooks";
+import { discoverFor } from "@/server/playbooks";
 
 export const runtime = "nodejs";
 
@@ -55,20 +55,20 @@ export async function GET(request: Request) {
     ),
   ];
 
-  const result = await discoverDays({
-    cities,
-    countries,
-    // *Yours* and *Saved* mean nothing without an account, so a signed-out
-    // reader's `?scope=` is ignored rather than answered with an empty page.
-    scope: readerId === null ? "everyone" : DiscoverScope.catch("everyone").parse(params.get("scope")),
-    sort: DiscoverSort.catch("most-added").parse(params.get("sort")),
-    budget: BudgetBand.catch("any").parse(params.get("budget")),
-    // `.catch("any")` for the reason every parameter here falls back rather
-    // than 400ing: an unrecognised or stale `?length=` stops narrowing instead
-    // of breaking the page.
-    length: LengthBand.catch("any").parse(params.get("length")),
-    rating: RatingFloor.catch("any").parse(params.get("rating")),
+  const result = await discoverFor(
+    {
+      cities,
+      countries,
+      scope: DiscoverScope.catch("everyone").parse(params.get("scope")),
+      sort: DiscoverSort.catch("most-added").parse(params.get("sort")),
+      budget: BudgetBand.catch("any").parse(params.get("budget")),
+      // `.catch("any")` for the reason every parameter here falls back rather
+      // than 400ing: an unrecognised or stale `?length=` stops narrowing instead
+      // of breaking the page.
+      length: LengthBand.catch("any").parse(params.get("length")),
+      rating: RatingFloor.catch("any").parse(params.get("rating")),
+    },
     readerId,
-  });
+  );
   return Response.json(withDeprecatedDiscoverAlias(DiscoverResponse.parse(result)));
 }

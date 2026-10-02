@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
-import type { SavedDay, SavedDayModeration, TimeFormat } from "@tc/contracts";
+import type { SavedDay, TimeFormat } from "@tc/contracts";
 import { Badge } from "@/components/ui/badge";
 import { SharedDayMap } from "./SharedDayMap";
 import { mapPanel } from "./sharedDayFacts";
@@ -30,7 +30,7 @@ import {
   unpublishSavedDay,
   type ApiResult,
 } from "@/lib/apiClient";
-import { type PublicAuthor } from "@/lib/playbooks";
+import type { SharedDayView } from "@/lib/sharedDayView";
 import { takePlaybookAdd } from "@/lib/pendingPlaybookAdd";
 import { dayLength, savedDayFacts, DAY_LENGTH_LABELS } from "@/lib/savedDayFacts";
 import { toClockLabel, toClockRange } from "@/lib/time";
@@ -146,16 +146,6 @@ export function dayDividerLine(group: PlaybookDay, clock: TimeFormat): string {
     : `${toClockRange(group.window.start, group.window.end, clock)} · ${count}`;
 }
 
-type DayView = {
-  day: SavedDay;
-  isAuthor: boolean;
-  author: PublicAuthor;
-  pinning: boolean;
-  publishedAt?: string | null;
-  /** An operator hid it (KI-2026-09-23-i). Only ever non-null on the author's own read. */
-  moderation: SavedDayModeration | null;
-};
-
 /**
  * How often, and how many times, the page reads again while the server is
  * placing the day's stops on its map (M27 link 10). One server pass is at most
@@ -175,7 +165,7 @@ const MAX_PIN_REREADS = 8;
  * shared / how often their days were added" say the same thing beside a day as
  * it does on the profile that day links to.
  */
-async function readDay(savedDayId: string): Promise<ApiResult<DayView>> {
+async function readDay(savedDayId: string): Promise<ApiResult<SharedDayView>> {
   const dayResult = await fetchSavedDay(savedDayId);
   if (!dayResult.ok) return dayResult;
   const authorResult = await fetchPublicProfile(dayResult.value.savedDay.ownerId);
@@ -199,7 +189,7 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
   // Visibility and the adds count are what somebody else can move under a
   // reader — the day's stops are a snapshot and never change after it is saved.
   const signature = useCallback(
-    (value: DayView) => `${value.day.visibility}:${value.day.adds}`,
+    (value: SharedDayView) => `${value.day.visibility}:${value.day.adds}`,
     [],
   );
   const feed = useLibraryRead(read, signature);
