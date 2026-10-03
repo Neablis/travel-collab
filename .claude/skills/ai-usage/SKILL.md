@@ -146,6 +146,15 @@ floor with tool-result growth (each step re-sends the whole envelope plus
 what earlier tool calls returned), so a rising total doesn't tell you which
 half moved.
 
+**The live baseline is committed, not remembered:**
+`apps/web/src/server/ai/contextBudget.test.ts` measures every turn shape's
+instruction plus tool schemas exactly as the SDK sends them, against
+`contextBudget.baseline.json`, and fails on any change in either direction.
+Read the per-tool and per-shape figures there first; the dated measurements
+below are history. When production's `usageByStep[0]` disagrees with the
+baseline's `approxTokens`, re-measure `CHARS_PER_TOKEN` in that file rather
+than trusting either number.
+
 **Baselines, measured 2026-08-29 against the real `/ask` endpoint**
 (`askIntent.ts`'s own header comment) — a snapshot, not a contract; re-measure
 rather than trusting these blind:

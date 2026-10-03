@@ -26,8 +26,11 @@ import { ID_FIELDS, refParamName, type IdRole } from "@/server/assistant/idField
 import { defineTool, type AnyAssistantTool } from "@/server/assistant/defineTool";
 import type { TaskClass } from "@/server/assistant/taskClass";
 
-const MONEY_UNITS_NOTE =
-  "Money is integer minor units (cents): amountMinor 500 = 5.00, so multiply a decimal amount by 100 (e.g. 500 EUR → amountMinor 50000).";
+// How to WRITE a money amount is said once per turn, in the instruction
+// (`handleAskRequest.ts`, on every posture that can write or escalate to
+// writing), not here. It used to be appended to AddActivity, UpdateActivity and
+// SetTripBudget, so an edit turn read it three times on top of the
+// instruction's own rule, on every step (contextBudget.test.ts).
 
 const DESCRIPTIONS: Record<BatchableCommandType["type"], string> = {
   AddDay: "Add a new day to the trip (the server assigns its id).",
@@ -35,15 +38,15 @@ const DESCRIPTIONS: Record<BatchableCommandType["type"], string> = {
   SetTripStartDate: "Set (or clear, with null) the trip's start date.",
   SetTripName: "Rename the trip.",
   SetTripDates: "Set the trip's date range; the server reconciles day count to match it.",
-  AddActivity: `Add a new activity; place it on a day via dayRef ("day N") or leave it in the backlog. ${MONEY_UNITS_NOTE}`,
-  UpdateActivity: `Update fields on an existing activity (activityRef — its title or id). Omitted fields are unchanged, except that a new kind clears the details only another kind may carry (pendingReason off pending; mode and endLocation off transit). ${MONEY_UNITS_NOTE}`,
+  AddActivity: `Add a new activity; place it on a day via dayRef ("day N") or leave it in the backlog.`,
+  UpdateActivity: `Update fields on an existing activity (activityRef — its title or id). Omitted fields are unchanged, except that a new kind clears the details only another kind may carry (pendingReason off pending; mode and endLocation off transit).`,
   MoveActivity:
     'Move an activity (activityRef) to a different day (dayRef: "day N", a dayId, or null/backlog) and position.',
   RemoveActivity: "Remove an activity from the trip (activityRef — its title or id).",
   DismissConflict:
     "Dismiss an active conflict by its number in the context's `conflicts` list (conflictRef: e.g. 1). Only conflicts shown there can be dismissed.",
   SetTripCurrency: "Set the trip's currency (ISO 4217 code).",
-  SetTripBudget: `Set (or clear, with null) the trip's budget. ${MONEY_UNITS_NOTE}`,
+  SetTripBudget: `Set (or clear, with null) the trip's budget.`,
 };
 
 /**
