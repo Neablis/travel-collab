@@ -27,10 +27,14 @@ export async function suggestionsRevForRole(
 ): Promise<string | undefined> {
   const scope = visibleTo(userId, role);
   if (scope === null) return undefined;
-  const rows = await db
+  const changes = db
     .select({ id: tripSuggestionChanges.id, status: tripSuggestionChanges.status })
     .from(tripSuggestionChanges)
-    .innerJoin(tripSuggestions, eq(tripSuggestions.id, tripSuggestionChanges.suggestionId))
-    .where(and(eq(tripSuggestionChanges.tripId, tripId), scope));
-  return revOf(rows);
+    .$dynamic();
+  // A reviewer's scope is the changes table alone, which is every owner's and
+  // editor's poll; only a suggester's names the author.
+  const query = scope.byAuthor
+    ? changes.innerJoin(tripSuggestions, eq(tripSuggestions.id, tripSuggestionChanges.suggestionId))
+    : changes;
+  return revOf(await query.where(and(eq(tripSuggestionChanges.tripId, tripId), scope.where)));
 }

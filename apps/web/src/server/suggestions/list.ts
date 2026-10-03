@@ -12,11 +12,17 @@ import { refuse, revOf, roleOn, toChange, type SuggestionResult } from "./shared
  * revision moves, and a trip's resolved history would grow every read of it
  * for nothing anyone can still decide. Shared by the list and the poll's
  * revision so the two can never disagree about scope.
+ *
+ * `byAuthor` says whether `where` names `trip_suggestions.author_id`, so the
+ * query must join it. Only a suggester's does; the poll skips the join for
+ * everyone else (review of #308).
  */
-export function visibleTo(userId: string, role: TripRole | null): SQL | undefined | null {
+export function visibleTo(userId: string, role: TripRole | null): { where: SQL; byAuthor: boolean } | null {
   if (role === null || !roleAtLeast(role, "suggester")) return null;
   const pending = eq(tripSuggestionChanges.status, "pending");
-  return roleAtLeast(role, "editor") ? pending : and(pending, eq(tripSuggestions.authorId, userId));
+  return roleAtLeast(role, "editor")
+    ? { where: pending, byAuthor: false }
+    : { where: and(pending, eq(tripSuggestions.authorId, userId))!, byAuthor: true };
 }
 
 /**
@@ -36,7 +42,7 @@ export async function listSuggestionChanges(
     .select({ change: tripSuggestionChanges, suggestion: tripSuggestions })
     .from(tripSuggestionChanges)
     .innerJoin(tripSuggestions, eq(tripSuggestions.id, tripSuggestionChanges.suggestionId))
-    .where(and(eq(tripSuggestionChanges.tripId, tripId), scope))
+    .where(and(eq(tripSuggestionChanges.tripId, tripId), scope.where))
     .orderBy(
       asc(tripSuggestionChanges.createdAt),
       asc(tripSuggestionChanges.suggestionId),
