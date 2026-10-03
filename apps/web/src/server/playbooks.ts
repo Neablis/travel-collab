@@ -978,7 +978,7 @@ export type PlacePage = {
 // a day carrying "Sao Paulo" and "São Paulo" twice, and the sitemap (which
 // reads `days`) would then disagree with the page's `total` about whether the
 // place clears `MIN_INDEXED_PLACE_DAYS`. Production is 155 published days on
-// 2026-10-02, so reading the three columns of each is cheap.
+// 2026-10-02, so reading the columns each one needs is cheap.
 /**
  * Every place a published day touches, as the pages that list them.
  *
@@ -987,8 +987,16 @@ export type PlacePage = {
  * codes and slug by their English name. A value with no slug has no page.
  */
 export async function publishedPlaces(): Promise<PlacePage[]> {
-  const rows = await db.execute<{ id: string; cities: string[]; countries: string[] }>(sql`
-    select d.id, d.cities, d.countries
+  const rows = await db.execute<{
+    id: string;
+    cities: string[];
+    countries: string[];
+    stops: unknown;
+    visibility: string;
+    author_kind: string;
+    day_count: number;
+  }>(sql`
+    select d.id, d.cities, d.countries, d.stops, d.visibility, d.author_kind, d.day_count
     from saved_days d
     where d.visibility = ${SavedDayVisibility.enum.public}
       ${notDeleted}
@@ -1005,6 +1013,15 @@ export async function publishedPlaces(): Promise<PlacePage[]> {
   };
   for (const row of rows.rows) {
     const dayId = String(row.id);
+    // A day `publishedDaysPage` cannot read is no card on the page, so it is no day here either.
+    const readable = parseSavedDayColumns({
+      savedDayId: dayId,
+      stops: row.stops,
+      visibility: row.visibility,
+      authorKind: row.author_kind,
+      dayCount: row.day_count,
+    });
+    if (readable === null) continue;
     for (const city of new Set(row.cities)) {
       const slug = slugify(city);
       if (slug !== "") touch("city", slug, city, dayId);
@@ -1064,18 +1081,18 @@ export async function publishedDaysPage(
     publishedOnly: true,
     readerId: null,
   };
+  // Every match is read and paged here, not by `limit`/`offset`: a row
+  // `toDiscoverDay` cannot read is dropped, and counting rows in SQL would
+  // then disagree with the cards and leave a page short. One place's days are
+  // a small slice of a library of a few hundred.
   const rows = await db.execute<DiscoverRow>(sql`
-    select ${discoverColumns}, ${matchedCount(query)}::int as matched_count,
-      count(*) over ()::int as total_count
+    select ${discoverColumns}, ${matchedCount(query)}::int as matched_count
     from saved_days d
     where ${matchPredicate(query)}
     order by ${orderBy(query.sort)}
-    limit ${page.limit} offset ${page.offset}
   `);
-  return {
-    days: [...rows.rows]
-      .map((row) => toDiscoverDay(row, query.cities, null))
-      .filter((day): day is DiscoverDay => day !== null),
-    total: Number(rows.rows[0]?.total_count ?? 0),
-  };
+  const readable = [...rows.rows]
+    .map((row) => toDiscoverDay(row, query.cities, null))
+    .filter((day): day is DiscoverDay => day !== null);
+  return { days: readable.slice(page.offset, page.offset + page.limit), total: readable.length };
 }

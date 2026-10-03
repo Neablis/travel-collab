@@ -117,6 +117,13 @@ describe("place URLs", () => {
     expect(countrySlug("XK")).toBe("kosovo");
   });
 
+  // The country table omits the uninhabited ISO codes (it holds travel facts), but they are still countries.
+  it("gives an uninhabited territory a page, and a retired code none", () => {
+    expect(countrySlug("AQ")).toBe("antarctica");
+    expect(countrySlug("TF")).toBe("french-southern-territories");
+    for (const code of ["UK", "SU", "YU"]) expect(countrySlug(code)).toBeNull();
+  });
+
   it("puts a city or country page under its kind", () => {
     expect(placePath({ kind: "city", slug: "kyoto" })).toBe("/playbooks/city/kyoto");
     expect(placePath({ kind: "country", slug: "japan" })).toBe("/playbooks/country/japan");
