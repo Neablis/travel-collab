@@ -41,12 +41,13 @@ export const SEED_PREFIX = "[Seed] ";
 // prefix, v5's convention — v4 used `next-auth.*`) before assuming the rest
 // of this script is broken.
 //
-// SINCE M11a, this needs one more thing: the invite gate. `recordSignIn`
+// SINCE M11a, this sends one more thing: an admission credential. `recordSignIn`
 // evaluates admission for anyone with no `users` row, and `db:reset` truncates
 // `users` — it derives its table list from the schema, so every table lands
 // there the day it does. The very first sign-in after a reset is therefore a
-// brand-new account every time, and it is refused with `MISSING_INVITE_CODE`
-// unless a credential is presented. A browser carries one in the
+// brand-new account every time. Since ADR-063 that account is admitted with or
+// without a code; the super code is still sent so the seeded sign-in walks the
+// same path a browser holding one does. A browser carries one in the
 // `pending_admission` cookie across the OAuth round trip (`server/admission.ts`);
 // there is no round trip here, so the cookie is simply sent with the callback
 // POST. Same cookie, same name, same reader — deliberately NOT a

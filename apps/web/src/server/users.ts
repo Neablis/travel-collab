@@ -4,7 +4,7 @@ import {
   cookiePendingAdmission,
   normalizeCredential,
   redeemAdmission,
-  refusalRedirect,
+  type AdmissionGrant,
   type PendingAdmission,
 } from "./admission";
 import { db } from "./db/client";
@@ -325,17 +325,14 @@ async function hasUserRow(id: string): Promise<boolean> {
  * designed `/signup?error=` screen), and a database failure propagates rather
  * than being swallowed into a session with no durable identity behind it.
  *
- * **M11a widens the return to `boolean | string`** (ADR-025 amendment
- * 2026-08-30). Auth.js collapses every falsy return into a single
- * `AccessDenied` code, so `false` cannot say *why* the gate refused; a returned
- * path is passed through the `redirect` callback instead, which is the only way
- * the three refusals reach three different sentences. Fail-closed is unchanged:
- * `false` and a refusal path both end at `/signin`, and nothing here returns
- * `true` on a path the gate did not clear.
+ * The return type is still `boolean | string` (ADR-025 amendment 2026-08-30),
+ * but since signup opened (ADR-063) no path returns a refusal string: a
+ * brand-new account is admitted whether or not it presented a code. A code
+ * that IS claimable is still claimed, so who-invited-whom is still recorded
+ * and the referral reward below still fires.
  *
- * The gate applies **only to someone with no `users` row**. An existing row is
- * admission, full stop, with no credential consumed — nobody already here gets
- * locked out, and a returning user never spends a code they still hold.
+ * An existing row is admission, full stop, with no credential consumed — a
+ * returning user never spends a code they still hold.
  *
  * The `pending_admission` cookie is cleared unconditionally, before either
  * answer is returned: an admission credential must not outlive the sign-in that
@@ -352,8 +349,8 @@ export async function recordSignIn(
   if (identity === null) return false;
 
   const returning = await hasUserRow(identity.id);
-  // DEV LOGIN IS ITS OWN ADMISSION. The invite gate exists to control who
-  // reaches a real deployment; dev login cannot reach one. `isDevLoginEnabled()`
+  // DEV LOGIN IS ITS OWN ADMISSION, and claims no code. The invite gate
+  // existed to control who reaches a real deployment; dev login cannot reach one. `isDevLoginEnabled()`
   // requires AUTH_DEV_LOGIN=true AND VERCEL_ENV !== "production", and Vercel
   // sets VERCEL_ENV itself, so production cannot satisfy it however the opt-in
   // was scoped — the provider is not even registered there
@@ -368,15 +365,13 @@ export async function recordSignIn(
   // starting with `dev-` would be the bug — that string arrives from the
   // provider's subject and a Google account could carry it.
   //
-  // THE ONE OPT-OUT, and it exists because this bypass would otherwise delete
-  // the invite gate's only end-to-end coverage. `m11a-invite-gate.spec.ts`
-  // proves the gate through DEV LOGIN — four refusals, a single-use race, and
-  // the pending-admission cookie — because dev login is the only way a browser
-  // test can mint an identity the app has never seen. Admitting every dev-login
-  // sign-in makes all of that vacuous, so the e2e server sets this and the gate
-  // applies there exactly as it did before. Set in `playwright.config.ts`
-  // beside `INVITE_SUPER_CODE`, nowhere else: a human never sets it, and a
-  // deployment never should.
+  // THE ONE OPT-OUT. Dev-login sign-ins skip the code entirely, so without
+  // this a browser test could never prove a code is claimed through the real
+  // cookie round trip — and dev login is the only way a browser test can mint
+  // an identity the app has never seen. `m11a-invite-gate.spec.ts` relies on
+  // it to prove who-invited-whom is still recorded now that signup is open
+  // (ADR-063). Set in `playwright.config.ts` beside `INVITE_SUPER_CODE`,
+  // nowhere else: a human never sets it, and a deployment never should.
   const gateAppliesAnyway = process.env.DEV_LOGIN_HONOURS_INVITE_GATE === "true";
   const viaDevLogin =
     isDevLoginEnabled() && payload?.account?.provider === "dev-login" && !gateAppliesAnyway;
@@ -394,6 +389,10 @@ export async function recordSignIn(
     : viaDevLogin
       ? ({ admitted: true, via: "dev-login" } as const)
       : await redeemAdmission(presented, identity.id);
+  // OPEN SIGNUP (ADR-063). A refusal no longer keeps anyone out — it only
+  // means nothing was claimed, so nobody is credited. Missing, unknown and
+  // already-spent codes all land here.
+  const via: AdmissionGrant = outcome.admitted ? outcome.via : "open-signup";
 
   // After the decision and before either answer, so a refusal cannot leave the
   // rejected credential behind to be replayed by the next sign-in attempt. Not
@@ -401,7 +400,6 @@ export async function recordSignIn(
   // than be masked by whatever this throws.
   await pending.clear();
 
-  if (!outcome.admitted) return refusalRedirect(outcome.reason);
   await upsertUser(identity);
   // **The one-week `plus` trial, offered exactly once ever** (M20 link 2,
   // Mitchell 2026-09-13). Only for an account that had no row before this
@@ -427,14 +425,14 @@ export async function recordSignIn(
     // **The referral reward** (M20 link 8): *someone I invited got an account*.
     // Only for a genuinely new account, and only when a single-use code was
     // what admitted them — `via` is the gate's own answer, so a super code, a
-    // trip invite and dev login each earn nobody anything, which is correct:
-    // none of them was somebody's referral.
+    // trip invite, dev login and open signup each earn nobody anything, which
+    // is correct: none of them was somebody's referral.
     //
     // **After admission, never in its path.** A reward that failed must not
     // stop someone getting an account. M11a decides who reaches the product;
     // this decides what their inviter earns, and keeping them separate is why
     // `rewardReferrer` reports its refusals rather than throwing them.
-    if (outcome.admitted && outcome.via === "invite-code") {
+    if (via === "invite-code") {
       try {
         const code = normalizeCredential(presented);
         if (code !== null) await rewardReferrer(code, identity.id);
