@@ -42,7 +42,7 @@
   | Referer (the page being left) | Prefetch cut off | Spec |
   | --- | --- | --- |
   | `/playbooks?city=Naraemod…` | the day card, the author's profile link | `e2e/m12-moderation.spec.ts` (`discoverIn` → immediate `goto`) |
-  | `/playbooks?scope=yours` | two day cards | `e2e/m12-moderation.spec.ts:151` |
+  | `/playbooks?scope=yours` | two day cards | `e2e/m12-moderation.spec.ts:160` |
   | `/playbooks` | a day card, the profile link | another `/playbooks` visitor in the same run |
   | `/playbooks/day/nothing-located-…` | the author's profile link | `e2e/m26-shared-day-map.spec.ts:150` (last step, then the context closes) |
 
