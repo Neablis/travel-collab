@@ -18,6 +18,7 @@ import { TripMoneySettings } from "@/components/board/TripMoneySettings";
 import { TripDateControl } from "@/components/lenses/TripDateControl";
 import { formatInstantLong, formatTripDate } from "@/lib/formatDate";
 import { isDemoTripId } from "@/lib/demoTrip";
+import { boardMode } from "@/lib/tripRole";
 import { formatMoney } from "@/lib/formatMoney";
 import { committedLine, type TripSpend } from "@/lib/cost";
 
@@ -118,8 +119,10 @@ export function SettingsSheet({
   onCommand: (command: TripCommand) => void;
 }) {
   // A viewer holds read access and executes no planning command at all —
-  // accessPolicy.ts's MINIMUM_ROLE table has no `viewer` entry.
-  const readOnly = myRole === "viewer";
+  // accessPolicy.ts's MINIMUM_ROLE table has no `viewer` entry — and nor does
+  // a suggester (W8, default closed). TripProvider's own rule, unknown role
+  // included, so the sheet and the header cannot disagree.
+  const readOnly = myRole !== null && boardMode(myRole) !== "write";
   // Dispatch is severed at the SOURCE, not at each control. The individual
   // controls are disabled below so a viewer is not offered something that
   // silently does nothing — but a future control added to this sheet would
@@ -330,9 +333,9 @@ export function SettingsSheet({
               child — the slot the design left for a control on the right, now
               filled.
 
-              `!readOnly`, which is this file's existing `myRole === "viewer"`
-              and NOT a second rule: TripProvider derives the header's own
-              `readOnly` from the identical comparison, so the gate here and
+              `!readOnly`, which is this file's existing role gate and NOT a
+              second rule: TripProvider derives the header's own `readOnly`
+              from the identical `boardMode` comparison, so the gate here and
               the gate in the header cannot disagree. It also keeps ADR-031's
               /demo behaviour intact for free — `requireTripAccess` resolves a
               demo visitor as a `viewer` (server/access/trip-access.ts), so a

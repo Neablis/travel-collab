@@ -604,4 +604,14 @@ describe("SettingsSheet share", () => {
       expect(screen.getByRole("button", { name: "Share" })).toBeTruthy();
     }
   });
+
+  // W8, default closed: a suggester may suggest board edits but writes
+  // nothing directly, so every control this sheet gates on `readOnly` stays
+  // withheld until a surface opts in to suggest mode. Share never does.
+  it("withholds Share from a suggester", () => {
+    renderSheet({ myRole: "suggester" });
+    // The sheet rendered, so an absent Share is the gate and not an empty tree.
+    expect(screen.getByRole("link", { name: "Download Trip" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Share" })).toBeNull();
+  });
 });
