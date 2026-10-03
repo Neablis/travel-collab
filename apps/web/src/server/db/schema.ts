@@ -915,7 +915,7 @@ export const inviteCodes = pgTable("invite_codes", {
 // USD — and a live request costs **$0.0006**, six hundredths of a cent, which
 // rounds to **zero**. Every request would record as free. That is the KI-1 /
 // KI-14 / `budgetPerPerson` defect class on its third recurrence, and
-// `aiUsage.noMoney.test.ts` fails if a currency type or a dollar column
+// `usage.noMoney.test.ts` fails if a currency type or a dollar column
 // appears anywhere on this path.
 //
 // **Turn and classifier tokens stay separate, permanently.** *"Did the
@@ -964,6 +964,10 @@ export const aiUsage = pgTable(
     // is not derivable from `created_at`: two accounts billing on the same day
     // can sit on different versions.
     planVersionRef: text("plan_version_ref"),
+    // Request arrival to the recorder's latch, in milliseconds (M31 Phase 1).
+    // Null on rows written before it existed. The parity gate's p75 latency
+    // is read from here rather than from a log nobody keeps (ADR-062 §7).
+    latencyMs: integer("latency_ms"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
   },
   (t) => [
@@ -972,6 +976,73 @@ export const aiUsage = pgTable(
     index("ai_usage_user_created").on(t.userId, t.createdAt),
     index("ai_usage_created").on(t.createdAt),
   ],
+);
+
+// **One row per agent step** (M31 Phase 1, ADR-062 §5).
+//
+// `ai_usage` has one model per turn, and a turn that escalates runs its later
+// steps on a different one — so pricing the turn at `turn_model` bills every
+// step at the first model's rate (KI-2026-09-17-c). The step is the grain at
+// which a price can be right, and the grain at which cached reads, which
+// prompt caching makes most of a long turn's input, can be seen at all.
+//
+// Keyed `(turn_id, step_index)` so writing a turn twice leaves one row per
+// step: a durable runtime that replays a step must upsert, not append.
+//
+// **The same two rules as `ai_usage`**: no dollars (`usage.noMoney.test.ts`
+// covers this table and this migration), and no content — token counts, ids
+// and a finish reason, and no column a sentence could go in. No user id
+// either: the turn's row carries that, and a join reaches it.
+export const aiUsageSteps = pgTable(
+  "ai_usage_steps",
+  {
+    // An `ai_usage.id`, on the schema's no-foreign-key terms (ADR-025).
+    turnId: uuid("turn_id").notNull(),
+    stepIndex: integer("step_index").notNull(),
+    // The RESOLVED model this step ran on, as `prepareStep` chose it.
+    model: text("model").notNull(),
+    tier: text("tier"),
+    // Null means the provider did not report it. Never zero.
+    tokensIn: integer("tokens_in"),
+    cacheReadTokens: integer("cache_read_tokens"),
+    cacheWriteTokens: integer("cache_write_tokens"),
+    tokensOut: integer("tokens_out"),
+    finishReason: text("finish_reason"),
+    escalated: boolean("escalated").notNull(),
+    pivoted: boolean("pivoted").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.turnId, t.stepIndex] }), index("ai_usage_steps_created").on(t.createdAt)],
+);
+
+// **One row per tool call** (M31 Phase 1, ADR-062 §5) — which tools work, and
+// which earn the schema they cost on every step.
+//
+// `outcome` is `ok | failed | repaired | refused-by-grant | unfinished`
+// (`ToolCallOutcome`, ledger.ts). A refused call never ran, and an unfinished
+// one was still running when the turn ended, so neither has a duration. Sizes are bytes
+// of JSON, never the JSON: the input is the model's arguments and the output
+// is trip content, and neither belongs in a durable table.
+//
+// Keyed `(turn_id, call_id)` on the SDK's `toolCallId`, for the upsert reason
+// `ai_usage_steps` gives.
+export const aiUsageToolCalls = pgTable(
+  "ai_usage_tool_calls",
+  {
+    turnId: uuid("turn_id").notNull(),
+    callId: text("call_id").notNull(),
+    stepIndex: integer("step_index"),
+    tool: text("tool").notNull(),
+    outcome: text("outcome").notNull(),
+    durationMs: integer("duration_ms"),
+    inputBytes: integer("input_bytes"),
+    outputBytes: integer("output_bytes"),
+    // Null for a tool that cannot propose; false for a write on a turn that
+    // produced no proposal, or one whose every collected intent was dropped.
+    reachedProposal: boolean("reached_proposal"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.turnId, t.callId] }), index("ai_usage_tool_calls_created").on(t.createdAt)],
 );
 
 // Vendor-spend rate limiting (security review 2026-08-28, H1/L4). Not part of

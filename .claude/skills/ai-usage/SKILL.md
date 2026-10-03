@@ -1,20 +1,64 @@
 ---
 name: ai-usage
-description: Inspect the travel-collab assistant's live AI cost and quality from `ai.ask` / `ai.proposal.apply` records in Vercel runtime logs — cost per turn, tool efficiency, classifier health, failure rate. Reporting only; it does not change code. Use when asked "what is the assistant costing", "is usage getting better or worse", or before/after a change to tools, the system instruction, or the intent classifier.
+description: Inspect the travel-collab assistant's live AI cost and quality — from the `ai_usage` ledger tables (per turn, per step, per tool call) and from `ai.ask` / `ai.proposal.apply` records in Vercel runtime logs — cost per turn, tool failure rates, tool efficiency, cached tokens, escalation, classifier health, failure rate. Reporting only; it does not change code. Use when asked "what is the assistant costing", "is usage getting better or worse", or before/after a change to tools, the system instruction, or the intent classifier.
 ---
 
 # AI usage
 
-`/ask` and `/ask/apply` write one structured line per turn to the runtime
-log — no table, no migration, because a migration needs a dispatched
-production run (`docs/guidelines/environments-and-deploys.md`) and Vercel
-already captures a `console.info` line as a queryable record. This skill
-reads those lines. It never changes code, a tool, or the classifier — it
-tells you whether one is worth changing.
+There are two sources, and they answer different questions:
 
-Read `apps/web/src/server/ai/askAnalytics.ts` and `askIntent.ts` before
-trusting any field name below — they are the source of truth and this file
-can drift from them.
+- **The ledger tables** (`ai_usage`, `ai_usage_steps`, `ai_usage_tool_calls`).
+  These are durable, queryable over any window, and hold no user text. Use them
+  for any **rate, percentile or trend**: which tools fail, how many tokens a turn
+  spends, how much of it is cached, and how often turns escalate or reach a
+  proposal. See *From the database* below. The per-step and per-tool tables
+  exist from migration `0035` (M31 Phase 1); older turns have only their
+  `ai_usage` row.
+- **The `ai.ask` log line.** It has a short retention, but it carries what the
+  tables deliberately do not: the question text, the tool arguments, and
+  `uncalledTools`. Use it to see **why** one turn went the way it did.
+
+This skill never changes code, a tool, or the classifier. It tells you whether
+one is worth changing.
+
+Read `apps/web/src/server/assistant/askAnalytics.ts` (the recorder and the
+record), `apps/web/src/server/assistant/ledger.ts` (the ledger's types) and
+`apps/web/src/server/ai/askIntent.ts` (the classifier) before trusting any
+field name below. They are the source of truth, and this file can drift from
+them.
+
+## From the database
+
+`.claude/skills/ai-usage/ledger.sql` holds seven named, read-only queries:
+
+1. tool failure rate per tool (`failed` and `repaired` together; `refused-by-grant`
+   on its own);
+2. p50 and p75 duration per tool;
+3. calls per turn per tool;
+4. tokens per turn at p50 and p75, with the cached-read share;
+5. proposal-reached rate;
+6. escalation rate, and the tokens spent after escalating;
+7. turn latency by outcome.
+
+Each starts with a `window_` CTE; change `since` there. Simulated turns are
+excluded.
+
+- **Production:** run one query at a time with the Neon MCP `run_sql` against the
+  production branch. These are reads; never run a write through this skill.
+- **Locally:** `psql "$DATABASE_URL" -f .claude/skills/ai-usage/ledger.sql`.
+
+**There are no dollars in SQL.** Price is the token counts joined to the dated
+rate record in `apps/web/src/server/entitlements/modelRates.ts`, in TypeScript:
+`costPerAccount` and `microUsdForSteps` in `entitlements/usage.ts`. A turn with
+step rows is priced per step, at the model each step ran on, with cached reads at
+the cached rate (KI-2026-09-17-c, resolved). To price a window by hand, take
+query 4's token counts and multiply by `modelRates.ts`' entry in force on those
+dates, keeping cached reads separate.
+
+**A baseline for comparing two stacks** (M31's parity gate) is the live set,
+`apps/web/src/server/ai/eval/live-set.json`. Run it with
+`pnpm --filter web live-set` (`apps/web/scripts/assistant-live-set.mjs`), which prints the window and the account to put
+into these queries.
 
 ## The records
 

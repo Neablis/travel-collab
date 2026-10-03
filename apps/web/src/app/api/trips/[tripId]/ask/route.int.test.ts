@@ -17,6 +17,7 @@ import { askIntentVerdictText, isAskIntentCall } from "@/server/ai/askIntent";
 import { UNTRUSTED_DATA_RULE } from "@/server/assistant/prompt";
 import { tripDetailFactory } from "@tc/factories";
 import type { AskAnalyticsRecord } from "@/server/assistant/askAnalytics";
+import type { TurnLedger } from "@/server/assistant/ledger";
 
 const ACTOR_ID = "ask-owner";
 // A second author, so a published library day belongs to SOMEONE ELSE.
@@ -163,7 +164,7 @@ const { getPage } = await import("@/server/pages");
 const { aiStepQuotas } = await import("@/server/quota");
 const { upsertUser, writePreferences } = await import("@/server/users");
 const { issueGrant } = await import("@/server/entitlements/grants");
-const { aiUsage } = await import("@/server/db/schema");
+const { aiUsage, aiUsageSteps, aiUsageToolCalls } = await import("@/server/db/schema");
 const { eq } = await import("drizzle-orm");
 const { AI_NOT_ENTITLED_REASON } = await import("@/server/ai/modelSelection");
 
@@ -479,6 +480,69 @@ function escalatingModel() {
   // first — read by skipping it rather than by index arithmetic at the call
   // site.
   return { model, turnOffers: () => offeredPerCall.slice(1) };
+}
+
+/**
+ * A model whose first turn step calls a tool the turn was NOT handed
+ * (`AddActivity`, built but inactive on a withheld turn) and a tool that does
+ * not exist at all, then answers in prose. The SDK refuses both before any
+ * code runs; the ledger must tell the two apart (Copilot on #301).
+ */
+function strayToolsModel() {
+  const usage = {
+    inputTokens: { total: 0, noCache: 0, cacheRead: undefined, cacheWrite: undefined },
+    outputTokens: { total: 0, text: undefined, reasoning: undefined },
+  };
+  function stepFor(options: { prompt?: { role?: string; content?: unknown }[] }) {
+    const system = (options.prompt ?? [])
+      .filter((m) => m.role === "system" && typeof m.content === "string")
+      .map((m) => m.content as string)
+      .join("\n");
+    if (isAskIntentCall(system)) {
+      return { content: [{ type: "text", text: askIntentVerdictText("question", "sure") }], finish: "stop" };
+    }
+    const answeredOnce = (options.prompt ?? []).some((m) => m.role === "tool");
+    return answeredOnce
+      ? { content: [{ type: "text", text: "Day 1 has two stops." }], finish: "stop" }
+      : {
+          content: [
+            { type: "tool-call", toolCallId: "stray-granted", toolName: "AddActivity", input: JSON.stringify({ title: "x" }) },
+            { type: "tool-call", toolCallId: "stray-invented", toolName: "teleport_trip", input: "{}" },
+          ],
+          finish: "tool-calls",
+        };
+  }
+  return {
+    specificationVersion: "v4",
+    provider: "test",
+    modelId: "test/stray",
+    supportedUrls: {},
+    doGenerate: async (options: Parameters<typeof stepFor>[0]) => {
+      const { content, finish } = stepFor(options);
+      return { content, finishReason: { unified: finish, raw: undefined }, usage, warnings: [] };
+    },
+    doStream: async (options: Parameters<typeof stepFor>[0]) => {
+      const { content, finish } = stepFor(options);
+      return {
+        stream: new ReadableStream({
+          start(controller) {
+            controller.enqueue({ type: "stream-start", warnings: [] });
+            for (const part of content) {
+              if (part.type !== "text") {
+                controller.enqueue(part);
+                continue;
+              }
+              controller.enqueue({ type: "text-start", id: "0" });
+              controller.enqueue({ type: "text-delta", id: "0", delta: (part as { text: string }).text });
+              controller.enqueue({ type: "text-end", id: "0" });
+            }
+            controller.enqueue({ type: "finish", finishReason: { unified: finish, raw: undefined }, usage });
+            controller.close();
+          },
+        }),
+      };
+    },
+  } as unknown as Parameters<typeof handleAskRequest>[2];
 }
 
 /** One tool call as a scripted model emits it. */
@@ -2589,14 +2653,21 @@ describe("POST /api/trips/:id/ask", () => {
       const records: AskAnalyticsRecord[] = [];
       const controller = new AbortController();
       controller.abort();
+      // What the route hands to Next's `after()`: the work that must outlive
+      // the response. Collected here and awaited, which is what the platform
+      // does once the response has closed.
+      const afterResponse: (() => Promise<void>)[] = [];
 
       const res = await handleAskRequest(
         req(tripId, { messages: [userMessage("how does this look?")], scope: { kind: "trip" } }, controller.signal),
         tripId,
         simulatedModel(),
         (r) => records.push(r),
+        undefined,
+        (task) => afterResponse.push(task),
       );
       await res.text().catch(() => "");
+      await Promise.all(afterResponse.map((task) => task()));
 
       expect(records).toHaveLength(1);
       expect(records[0]!.finishReason).toBe("abort");
@@ -2606,33 +2677,28 @@ describe("POST /api/trips/:id/ask", () => {
 
       // **And it still writes an `ai_usage` row** (M20 link 9). This asserted
       // only the analytics record, so the abort path's durable write was
-      // covered by a direct `recordAiUsage` test and by nothing that drove the
+      // covered by a direct `recordTurnLedger` test and by nothing that drove the
       // endpoint. Abort is the outcome a reader is most likely to assume is
       // free — the user closed the rail — and the round-trips the provider had
       // already been paid for are exactly what the ledger must not lose.
       // Caught by CodeRabbit on PR #174.
       //
-      // **`waitFor`, because this path does not await the write and that is
-      // deliberate** — the response is already gone, so the abort and error
-      // paths are best-effort on the same terms `settleAiSteps` has been since
-      // ADR-033. Asserting it synchronously passed alone and failed in the full
-      // suite, which is the honest signal that the guarantee is eventual rather
-      // than immediate. KI-2026-09-14-b carries what closing that gap properly
-      // would take.
+      // **Synchronous, since KI-2026-09-14-b.** This path does not await the
+      // write in the stream — the response is already gone — so it used to be
+      // best-effort and this used `waitFor`. The handler now registers the
+      // write with `after()` (the `afterResponse` task above), so once that
+      // task has run the row is there or the write failed. Nothing eventual
+      // is left to wait for.
       // **One NEW row from THIS request**, counted against a baseline taken
       // before it. `ACTOR_ID` is shared and accumulates rows across the file,
       // so `> 0` passed whenever any earlier test had aborted — including when
       // this request wrote nothing at all, which is the exact case the
       // assertion exists for. CodeRabbit, PR #174.
-      await vi.waitFor(async () => {
-        const rows = await db.select().from(aiUsage).where(eq(aiUsage.userId, ACTOR_ID));
-        expect(rows.length).toBe(usageRowsBefore.length + 1);
-        const added = rows.filter(
-          (row) => !usageRowsBefore.some((before) => before.id === row.id),
-        );
-        expect(added).toHaveLength(1);
-        expect(added[0]!.outcome).toBe("abort");
-      });
+      const rows = await db.select().from(aiUsage).where(eq(aiUsage.userId, ACTOR_ID));
+      expect(rows.length).toBe(usageRowsBefore.length + 1);
+      const added = rows.filter((row) => !usageRowsBefore.some((before) => before.id === row.id));
+      expect(added).toHaveLength(1);
+      expect(added[0]!.outcome).toBe("abort");
     });
   });
 
@@ -2759,6 +2825,66 @@ describe("the cost ledger", () => {
     // The RESOLVED model that actually ran, never a compiled default.
     expect(row.turnModel).toBe("simulated/no-op");
     expect(row.steps).toBeGreaterThan(0);
+  });
+
+  // **M31 Phase 1: the turn's step and tool-call rows, under its own id.**
+  // The row's id is the turn id the handler minted, every step the agent ran
+  // has a row on the model it ran on, and every tool call has a row with how
+  // it ended — the join the `ai-usage` skill's queries are built on.
+  it("writes one row per step and per tool call under the turn's id", async () => {
+    const tripId = await seedTrip();
+    const ledgers: TurnLedger[] = [];
+    const afterResponse: (() => Promise<void>)[] = [];
+    const res = await handleAskRequest(
+      req(tripId, { messages: [userMessage("how long is this trip?")], scope: { kind: "trip" } }),
+      tripId,
+      simulatedModel(),
+      (_record, ledger) => ledgers.push(ledger),
+      undefined,
+      (task) => afterResponse.push(task),
+    );
+    await chunksOf(res);
+    await Promise.all(afterResponse.map((task) => task()));
+
+    expect(ledgers).toHaveLength(1);
+    const turnId = ledgers[0]!.cost.turnId!;
+    expect(turnId).toMatch(/^[0-9a-f-]{36}$/);
+    const [row] = await db.select().from(aiUsage).where(eq(aiUsage.id, turnId));
+    expect(row).toMatchObject({ outcome: "completed", turnModel: "simulated/no-op" });
+    expect(row!.latencyMs).toBeGreaterThanOrEqual(0);
+
+    const steps = await db.select().from(aiUsageSteps).where(eq(aiUsageSteps.turnId, turnId));
+    expect(steps.map((step) => step.stepIndex).sort()).toEqual(
+      Array.from({ length: row!.steps }, (_, index) => index),
+    );
+    expect(steps.every((step) => step.model === "simulated/no-op" && !step.escalated)).toBe(true);
+
+    const calls = await db.select().from(aiUsageToolCalls).where(eq(aiUsageToolCalls.turnId, turnId));
+    // Non-empty, or the loop below asserts nothing: the simulated model reads
+    // the trip before it answers.
+    expect(calls.length).toBeGreaterThan(0);
+    expect(calls).toHaveLength(ledgers[0]!.toolCalls.length);
+    for (const call of calls) {
+      expect(call.outcome).toBe("ok");
+      expect(call.stepIndex).not.toBeNull();
+    }
+  });
+
+  // A tool the step did not hold is a refusal by the grant; a tool that does
+  // not exist is the model inventing one, which is a broken call and counts
+  // as failed. The SDK reports both as `NoSuchToolError`.
+  it("records a withheld tool as refused-by-grant and an invented one as failed", async () => {
+    const tripId = await seedTrip();
+    const ledgers: TurnLedger[] = [];
+    const res = await handleAskRequest(
+      req(tripId, { messages: [userMessage("what is on day 1?")], scope: { kind: "trip" } }),
+      tripId,
+      strayToolsModel(),
+      (_record, ledger) => ledgers.push(ledger),
+    );
+    await chunksOf(res);
+    const outcomes = Object.fromEntries(ledgers[0]!.toolCalls.map((call) => [call.callId, call.outcome]));
+    expect(outcomes).toEqual({ "stray-granted": "refused-by-grant", "stray-invented": "failed" });
   });
 
   // **The failure path.** The provider was paid for the round-trips it made

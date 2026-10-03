@@ -1,4 +1,4 @@
-### KI-2026-09-14-b — the `ai_usage` row is best-effort on the abort and error paths
+### KI-2026-09-14-b — the `ai_usage` row is best-effort on the abort and error paths — RESOLVED
 
 - **Severity:** a lost billing row, rarely. The completed path — every turn that finishes — now awaits the write inside the request's own lifetime, so this is the tail: a turn the user abandoned, or one the provider failed partway through.
 - **Milestone:** **M9, carried (assigned 2026-09-24, KI pass)** — owned by M9, not a gate box. Parked under Mitchell's 2026-09-01 rule that every open AI known issue belongs to M9; filed after that audit, so it had no owner until now. Listed in `docs/milestones/M9-ai-planning-partner.md` § *Parked 2026-09-24*.
@@ -9,3 +9,13 @@
 - **Scope:** wrap the sink's writes in `after()` at the route-handler boundary rather than inside `handleAskRequest`, so the request scope is guaranteed and the handler stays directly callable; then drop the `vi.waitFor` in `route.int.test.ts`'s abort test back to a synchronous assertion, which is what proves the guarantee became immediate. Settle `settleAiSteps` the same way in the same pass — the two writes have the same lifetime and should not have two different guarantees.
 - **First noted:** 2026-09-14, working CodeRabbit's review of PR #174.
 - **Re-verified 2026-09-25 (overnight sweep):** STILL TRUE. `handleAskRequest.ts` awaits `settled` only on the completed path (:565); the error path calls `recorder.abandon("error", error)` from `onError` (:661-668) without awaiting it. No `after()` from `next/server` is used anywhere under `server/ai` or `app/api/trips` (`grep -rn "after("` → nothing), and `route.int.test.ts` still asserts the abort/error rows via `vi.waitFor` (:2341, 2467, 2491, 2509).
+- **Resolved 2026-10-03 (M31 Phase 1), by the scope above.** `handleAskRequest` takes an
+  `afterResponse` hook. It registers one task before the stream starts, inside the request's
+  scope, and the task awaits `settled` when it runs. `settled` is already `settleAiSteps` and
+  the ledger write together, so the two writes have one guarantee. The route passes Next's
+  `after()`; integration tests pass a collector and await it. That keeps `handleAskRequest`
+  directly callable, and `after()` is only ever called from the route. The writer is now
+  `recordTurnLedger`, which also writes the turn's per-step and per-tool rows.
+  `route.int.test.ts`'s abort test asserts synchronously. Seen failing: with the
+  registration line removed, it went red with `expected 46 to be 47`, a row short. Restored,
+  it is green. The completed path still awaits in `onEnd` as before.

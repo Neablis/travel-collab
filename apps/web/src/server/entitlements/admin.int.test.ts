@@ -9,7 +9,7 @@ import { db } from "@/server/db/client";
 import { entitlementGrants, users } from "@/server/db/schema";
 import { upsertUser } from "@/server/users";
 import type { TurnLedger } from "@/server/assistant/ledger";
-import { recordAiUsage } from "./usage";
+import { recordTurnLedger } from "./usage";
 import { allGrantsFor, issueGrant, offerTrial } from "./grants";
 import { accountCan } from "./resolver";
 import { adminAccounts, adminTopSpenders, grantSourcePanel, isAdmin, planPanel } from "./admin";
@@ -46,9 +46,12 @@ function usage(userId: string): TurnLedger {
       classifier: { model: "zai/glm-4.7-flash", tokensIn: 198, tokensOut: 49 },
       steps: 2,
       planVersionRef: "plus@v1",
+      turnId: null,
+      latencyMs: null,
     },
     capacity: [],
     toolCalls: [],
+    stepSpend: [],
   };
 }
 
@@ -177,7 +180,7 @@ describe("the console answers from real data", () => {
 
   it("reports cost per account and ranks the top spenders", async () => {
     const heavy = await account({ planId: "plus" });
-    for (let i = 0; i < 3; i += 1) await recordAiUsage(usage(heavy));
+    for (let i = 0; i < 3; i += 1) await recordTurnLedger(usage(heavy));
     const spenders = await adminTopSpenders(50);
     const entry = spenders.find((row) => row.userId === heavy);
     expect(entry!.requests).toBe(3);
