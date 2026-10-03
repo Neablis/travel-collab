@@ -321,9 +321,9 @@ export interface AccountCost {
  */
 export async function costPerAccount(since: Date): Promise<AccountCost[]> {
   const rows = await usageSince(since);
-  // Every step row in the window, by turn. A step is written in the same
-  // transaction as its turn with the same timestamp, so the window that
-  // selects a turn selects its steps.
+  // Every step row in the window, by turn. `recordTurnLedger` stamps a turn's
+  // row and its step rows with the same `now`, though in separate writes, so
+  // the window that selects a turn selects its steps.
   const stepsByTurn = new Map<string, AiUsageStepRow[]>();
   // Only the columns pricing reads: this runs on every console load, over
   // every step of every account in the window.
