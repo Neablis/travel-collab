@@ -37,10 +37,29 @@ const OG_IMAGE = {
   alt: "Caesura — put the best day on repeat. A day-column trip board beside the wordmark.",
 };
 
+/** Robots metadata for a page that must stay out of every index and pass no links. */
+export const NOINDEX = { index: false, follow: false } as const;
+
+/** Robots metadata for a page that stays out of the index but whose links are followed. */
+export const NOINDEX_FOLLOW = { index: false, follow: true } as const;
+
+/**
+ * The root layout's robots value: undefined when `VERCEL_ENV` is "production",
+ * otherwise `noindex, nofollow`. A preview is kept out of the index here rather
+ * than by `robots.txt`,
+ * because a disallowed URL is never crawled and so its `noindex` is never read.
+ */
+export function siteRobots(): typeof NOINDEX | undefined {
+  return process.env.VERCEL_ENV === "production" ? undefined : NOINDEX;
+}
+
+/** The `Metadata` for one page: title, description, share card, and optionally canonical and robots. */
 export function pageMetadata({
   title,
   description,
   image,
+  canonical,
+  robots,
 }: {
   // A plain string composes with the layout's `%s — Caesura` template; pass
   // `{ absolute }` for a page that owns its whole <title>.
@@ -50,11 +69,17 @@ export function pageMetadata({
   // goes FIRST, and the site card stays after it as the fallback for an
   // unfurler that cannot fetch the first.
   image?: { url: string; alt: string };
+  // The path a search engine should index this page under, relative to
+  // `metadataBase`. Also og:url, so a shared link and the index agree.
+  canonical?: string;
+  robots?: Metadata["robots"];
 }): Metadata {
   const ogTitle = typeof title === "string" ? title : title.absolute;
   return {
     title,
     description,
+    ...(canonical === undefined ? {} : { alternates: { canonical } }),
+    ...(robots === undefined ? {} : { robots }),
     openGraph: {
       siteName: SITE_NAME,
       type: "website",
@@ -63,7 +88,11 @@ export function pageMetadata({
       // and share cards render both.
       title: ogTitle,
       description,
+      ...(canonical === undefined ? {} : { url: canonical }),
       images: image === undefined ? [OG_IMAGE] : [{ ...image, width: 1200, height: 630 }, OG_IMAGE],
     },
+    // Stated rather than left to Next's inheritance from openGraph, so a
+    // framework change cannot alter what a card shows.
+    twitter: { card: "summary_large_image", title: ogTitle, description },
   };
 }

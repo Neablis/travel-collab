@@ -1,7 +1,8 @@
 import { InviteLookScreen } from "@/components/access/InviteLookScreen";
 import { isGoogleSignInAvailable } from "@/lib/googleAuth";
+import { NOINDEX } from "@/lib/siteMetadata";
 
-export const metadata = { title: "Having a look" };
+export const metadata = { title: "Having a look", robots: NOINDEX };
 
 // *Have a look first* (M27 D12): the real trip, read-only, for the holder of a
 // pending invite. Public for the same reason the landing above it is, and

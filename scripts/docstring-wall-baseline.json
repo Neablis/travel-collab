@@ -295,7 +295,6 @@
   "apps/web/src/lib/playbooks.ts::seasonOfMonth",
   "apps/web/src/lib/safeCallbackUrl.ts::safeCallbackUrl",
   "apps/web/src/lib/savedDayFacts.ts::savedDayFacts",
-  "apps/web/src/lib/siteMetadata.ts::pageMetadata",
   "apps/web/src/lib/time.ts::formatDuration",
   "apps/web/src/lib/time.ts::toMinutes",
   "apps/web/src/lib/time.ts::toTimeString",

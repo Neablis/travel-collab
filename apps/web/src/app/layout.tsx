@@ -7,7 +7,7 @@ import { Bricolage_Grotesque, IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/goo
 import "maplibre-gl/dist/maplibre-gl.css";
 import "./globals.css";
 import { SaveLightProvider } from "@/components/SaveLight";
-import { SITE_DESCRIPTION, SITE_NAME } from "@/lib/siteMetadata";
+import { SITE_DESCRIPTION, SITE_NAME, siteRobots } from "@/lib/siteMetadata";
 import { deploymentOrigin } from "@/lib/deploymentOrigin";
 
 const display = Bricolage_Grotesque({ subsets: ["latin"], weight: ["500", "600"], variable: "--font-next-display" });
@@ -43,6 +43,7 @@ export const metadata: Metadata = {
     description: SITE_DESCRIPTION,
   },
   twitter: { card: "summary_large_image" },
+  robots: siteRobots(),
 };
 
 // SPEC §35.1: Ledger is the only look. The other three and the theme switch

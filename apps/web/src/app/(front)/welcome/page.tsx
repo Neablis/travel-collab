@@ -6,6 +6,7 @@ import { SITE_DESCRIPTION, pageMetadata } from "@/lib/siteMetadata";
 export const metadata = pageMetadata({
   title: { absolute: "Caesura — plan the trip together" },
   description: SITE_DESCRIPTION,
+  canonical: "/",
 });
 
 export default function WelcomePage() {

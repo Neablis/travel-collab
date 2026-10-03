@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Metadata } from "next";
+import { NOINDEX_FOLLOW } from "@/lib/siteMetadata";
 import { metadata as boardMetadata } from "./board/page";
 import { generateMetadata as dayMetadata } from "./day/[savedDayId]/page";
 import { generateMetadata as discoverMetadata } from "./page";
@@ -77,13 +78,24 @@ describe("/playbooks metadata", () => {
 });
 
 describe("/playbooks/day/<id> metadata", () => {
-  it("points og:image at the day's card, keeping the page's own tab title", async () => {
+  it("points og:image at the day's card, and names the tab for the day", async () => {
     stubMeta(Response.json({ title: "Castle and canals", description: "Osaka · 1 stop" }));
 
     const metadata = await dayMetadata({ params: Promise.resolve({ savedDayId: "d-1" }) });
 
     expect(ogImageUrls(metadata)).toEqual(["/api/og/playbooks/day/d-1", SITE_IMAGE]);
     expect(metadata.openGraph?.title).toBe("Castle and canals");
+    expect(metadata.title).toBe("Castle and canals");
+    // The clean path: `?from=` and friends are never part of it (Copilot, PR #295).
+    expect(metadata.alternates?.canonical).toBe("/playbooks/day/d-1");
+  });
+
+  it("keeps the generic tab title and Playbooks card when the lookup fails", async () => {
+    stubMeta(new Error("connection refused"));
+
+    const metadata = await dayMetadata({ params: Promise.resolve({ savedDayId: "d-1" }) });
+
+    expect(ogImageUrls(metadata)).toEqual([PLAYBOOKS_IMAGE, SITE_IMAGE]);
     expect(metadata.title).toBe("A playbook");
   });
 });
@@ -99,6 +111,10 @@ describe("/playbooks/profile/<id> metadata", () => {
     expect(String(fetchMock.mock.calls[0]?.[0])).toMatch(/\/api\/og\/playbooks\/profile\/dev-alice\/meta$/);
     expect(metadata.openGraph?.title).toBe("Traveler a1b2c3's playbooks");
     expect(metadata.title).toBe("A traveler's playbooks");
+    // Out of the index but followed, on its own path. Asserted here because a
+    // preview's site-wide noindex hides the route's own value from e2e (Copilot, PR #295).
+    expect(metadata.robots).toEqual(NOINDEX_FOLLOW);
+    expect(metadata.alternates?.canonical).toBe("/playbooks/profile/dev-alice");
   });
 
   it("decodes the id as the page body does, then encodes it into one path segment", async () => {
@@ -123,5 +139,7 @@ describe("/playbooks/board metadata", () => {
   it("points og:image at the board's static card", () => {
     expect(ogImageUrls(boardMetadata)).toEqual([`${PLAYBOOKS_IMAGE}?board=1`, SITE_IMAGE]);
     expect(boardMetadata.openGraph?.title).toBe("Who shares the most");
+    expect(boardMetadata.robots).toEqual(NOINDEX_FOLLOW);
+    expect(boardMetadata.alternates?.canonical).toBe("/playbooks/board");
   });
 });

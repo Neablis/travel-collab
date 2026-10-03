@@ -42,3 +42,15 @@ export function playbooksPageMetadata(
   // tab keeps the page's own name under the layout's template.
   return { ...pageMetadata({ title: { absolute: title }, description, image: { url: imagePath, alt: title } }), title: pageTitle };
 }
+
+/** What a day page's tab says when its card lookup misses. */
+export const DAY_FALLBACK_TITLE = "A playbook";
+
+/**
+ * A day page's `<title>` from its card's og:title: the day's name, or the
+ * fallback when the lookup failed or answered with the generic card (a
+ * private, moderated or unknown day).
+ */
+export function dayTabTitle(ogTitle: unknown): string {
+  return typeof ogTitle === "string" && ogTitle !== PLAYBOOKS_GENERIC.title ? ogTitle : DAY_FALLBACK_TITLE;
+}

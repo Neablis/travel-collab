@@ -4,7 +4,7 @@ import { isGoogleSignInAvailable } from "@/lib/googleAuth";
 import { AuthScreen } from "@/components/front/AuthScreen";
 import { AUTH_COPY } from "@/components/front/authCopy";
 import { linkPreviewMetadata } from "@/lib/linkPreview";
-import { pageMetadata } from "@/lib/siteMetadata";
+import { NOINDEX, pageMetadata } from "@/lib/siteMetadata";
 import { safeCallbackUrl } from "@/lib/safeCallbackUrl";
 import {
   PENDING_ADMISSION_COOKIE,
@@ -18,12 +18,18 @@ import {
 const SIGNUP_METADATA = pageMetadata({
   title: "Start planning",
   description: AUTH_COPY.signup.sub,
+  robots: NOINDEX,
 });
 
 // `?code=` is the referral link (Account → "Bring someone in"), and it gets
 // its own card, "Dana invited you to Caesura" (spec 2026-09-27 §2). Without a
 // code, or when the code names nobody, the page keeps the site card.
-/** Metadata for `/signup`: the referral card when `?code=` names a referrer, the site card otherwise. */
+/**
+ * Metadata for `/signup` with `noindex, nofollow`: the referral card when
+ * `?code=` names a referrer, or the site card for absent or invalid codes and
+ * failed lookups.
+ * @throws {URIError} If a code accepted for lookup contains an unpaired UTF-16 surrogate.
+ */
 export async function generateMetadata({
   searchParams,
 }: {
@@ -32,7 +38,7 @@ export async function generateMetadata({
   const { code } = await searchParams;
   const referral = normalizePendingAdmission(typeof code === "string" ? code : null);
   if (referral === null) return SIGNUP_METADATA;
-  return linkPreviewMetadata(`/api/og/referral/${encodeURIComponent(referral)}`, SIGNUP_METADATA);
+  return { ...(await linkPreviewMetadata(`/api/og/referral/${encodeURIComponent(referral)}`, SIGNUP_METADATA)), robots: NOINDEX };
 }
 
 // M11a link 5, and the one genuinely fiddly part of this milestone: the

@@ -102,6 +102,8 @@ Mitchell adds (Vercel → Firewall → a bypass rule per path):
 | `/.well-known/api-catalog` | **required** | The standard entry point; a crawler that gets a challenge page finds nothing |
 | `/llms.txt` | **required** | Read by agents before anything else |
 | `/developers`, `/developers/reference` | **recommended** | An agent following `service-doc` or `llms.txt` reads these too. `/developers/reference` is a client-rendered page, so a crawler gets the header and must fetch `/api/v1/openapi` for the content; `/developers` is static HTML and fully readable |
+| `/`, `/welcome`, `/playbooks/**` | **required for search** | The landing and the public library. Until exempt, only crawlers Vercel verifies can read them (SEO pass, spec 2026-10-02) |
+| `/robots.txt`, `/sitemap.xml` | **required for search** | A crawler that is challenged on these cannot learn what to crawl |
 
 Until then a browser can read them and a crawler gets a challenge page.
 `/api/v1` and `/api/v1/openapi` need nothing, since they are under `/api/*`.
