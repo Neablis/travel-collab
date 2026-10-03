@@ -105,6 +105,19 @@ export const MODEL_RATES: readonly ModelRate[] = [
     outputMicroUsdPerMTok: 260_000,
     cacheReadInputMicroUsdPerMTok: 28_000,
   },
+  {
+    // **The turn model production actually runs** (`AI_MODEL`, tier mid) from
+    // its first live turn on 2026-10-03; until this entry every one of its
+    // rows was unpriced in the cost console. Read from the live catalogue on
+    // 2026-10-03: US regional input $0.15, output $0.50 and `input_cache_read`
+    // $0.03 per MTok. The catalogue marks it `varies_by_provider`, and cache
+    // hits do too — the first three live turns cached 0%, 0% and ~70% of input.
+    model: "zai/glm-5.3-flash",
+    effectiveFrom: "2026-10-03",
+    inputMicroUsdPerMTok: 150_000,
+    outputMicroUsdPerMTok: 500_000,
+    cacheReadInputMicroUsdPerMTok: 30_000,
+  },
 ];
 
 // Frozen for the same reason the plan versions are: `readonly` is a
