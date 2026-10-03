@@ -54,6 +54,8 @@ here two days later.
   *before* any eve code; and user memory is designed for now and built later. The
   milestone is placed **after M19** and is minted by the planning session, whose
   first job is ADR-062's Phase 0 questions.
+  **Placed 2026-10-03 as M31** (`docs/milestones/M31-assistant-on-eve.md`); Phase 0 is
+  done. M31's gate deletes this entry at close.
 
 - **User memory: the assistant knows who you are and what trips you like
   (asked 2026-10-02).** Deferred out of ADR-062 by agreement. The expected shape is

@@ -3,7 +3,9 @@
 **Status:** **Proposed — 2026-10-02.** Mitchell chose the full port (option 2 of three) and
 set two terms in the same conversation: measurement and visibility are kept as a first-class
 goal, and user memory is designed for but built later. Nothing here is built. Acceptance is
-the planning session that turns this into a milestone.
+the planning session that turns this into a milestone. **2026-10-03:** that session minted
+M31 and ran Phase 0 (*Phase 0 findings*, below; (a) holds). The status stays Proposed until
+Mitchell approves M31's parity thresholds.
 **Deciders:** Mitchell (product/eng); Claude — drafted
 Supersedes:
 - **ADR-033 Decision 1** — the one AI route is no longer `/api/trips/[tripId]/ask`.
@@ -137,7 +139,9 @@ as follows:
 - **Tools.** Tools still never take a `tripId` (ADR-022 §3). They read it from session state.
 - **The demo trip.** It is refused before session creation (KI-079), exactly as today.
 
-> **To verify in Phase 0:** eve's docs do not say how app data is attached to a session at
+> **Answered in Phase 0 (2026-10-03), see *Phase 0 findings (a)*:** the binding is eve's
+> pinned `auth.initiator`, and a stream-read gap adds an `assistant_sessions` table.
+> Original question, kept for the reasoning: eve's docs do not say how app data is attached to a session at
 > creation, or whether it is immutable. The candidates are a `defineState` slot written on the
 > first turn, or our own channel's `onMessage`. If neither can be made write-once, this
 > decision needs a different mechanism before any other phase starts.
@@ -317,6 +321,186 @@ on the ledger:
 3. **`apply_proposal`** with approval, idempotency and expiry.
 4. **Client.** `useEveAgent`, resume, the contract change, and `localStorage` removed.
 5. **Evals and the parity gate**, then the old route is deleted.
+
+The milestone is **M31** (`docs/milestones/M31-assistant-on-eve.md`); Phase 1's plan is
+`docs/plans/2026-10-03-M31-p1-ledger.md`.
+
+## Phase 0 findings (2026-10-03)
+
+Run as a throwaway spike in a scratch directory, never in `apps/web`: `eve@0.70.1` (the
+`latest` tag on 2026-10-02), `node_modules/eve/docs` read in full where relevant, and a fixture
+agent run under `eve dev --no-ui` against eve's local Workflow world. The fixture had a
+deterministic `mockModel`, a custom `AuthFn`, a `turn.started` re-guard hook, one tool that
+reports the binding, one `approval: always()` tool, and a `defineInstrumentation` file that
+logged every ledger-relevant event. Nothing from it is kept. Vercel's own pages
+(`vercel.com/docs/workflows/pricing`, `vercel.com/pricing`) and the Workflow SDK's
+(`workflow-sdk.dev`) were read on 2026-10-03.
+
+**Verdict: (a) holds, so the plan continues.** (b) changes how Decision 4 is built. It does not
+change what Decision 4 requires. One new finding, the *session stream* below, adds a table to
+Phase 2 that the ADR did not foresee.
+
+### (a) Write-once trip binding: yes, by `auth.initiator`, proven
+
+Neither candidate the ADR named is the best mechanism.
+
+- `defineState` has an `update()` that any runtime code can call. It is write-once only by
+  convention.
+- The default eve channel's `onMessage` returns `{ auth, context, title }` and can carry no
+  state.
+- A custom channel's `state` *is* seeded only when `send()` creates the session. But a custom
+  channel's routes are not the ones `useEveAgent` talks to, so the browser client would have to
+  be our own.
+
+The mechanism that works is eve's own pinned initiator:
+
+- Our `AuthFn` reads the trip from the request and runs the guard **before any session
+  exists**. It throws `ForbiddenError` for a non-member. It returns
+  `{ principalId: userId, principalType: "user", attributes: { tripId } }`.
+- `ctx.session.auth.initiator` is fixed at creation. eve's auth docs: *"A follow-up message
+  updates `auth.current` but leaves `auth.initiator` alone."*
+- The binding is `initiator.attributes.tripId`, and nothing else is ever read as the trip.
+
+Evidence from the fixture. alice is a member of tripA; mallory is a member of tripB only.
+
+| Request | Result |
+|---|---|
+| alice creates a session with `tripA` | the tool reads `boundTrip: "tripA"` |
+| alice follows up claiming `tripB` while not a member | **403** from the `AuthFn`; no delivery |
+| alice is made a member of both trips, then follows up claiming `tripB` | 202. `current.attributes.tripId` is `tripB`, and **the tool still reads `boundTrip: "tripA"`** |
+| mallory follows up on alice's session with her own valid `tripB` | 202 at route auth. The `turn.started` hook's `guard(initiator.tripId, current.principalId)` fails, `ctx.cancel()` runs, and the stream shows `turn.cancelled` **with no model step** |
+
+**New finding: eve does not check who owns a session, and the stream is readable.** In the same
+run, mallory's `GET /eve/v1/session/:id/stream` returned alice's whole conversation. eve's docs
+say so plainly: *"Route auth does not enforce session ownership … you must implement the
+per-user, per-tenant, or per-session authorization your application requires."* The
+`turn.started` re-guard stops a non-member from *acting*. Only route auth can stop them
+*reading*.
+
+Phase 2 therefore adds **an `assistant_sessions` table**: `session_id`, `trip_id` and
+`created_by`, written when the session is created. The `AuthFn` checks it on every
+`/eve/v1/session/:id*` request, the stream included, by running the trip guard for the
+caller. Because the table lives in each environment's own Postgres, it also refuses a
+production session id presented to a preview, which is (d)'s residual risk.
+
+**Simulated model, for Decision 3:** session- and turn-scoped model resolvers may return only
+model id *strings*; a live `LanguageModel` object is allowed only from `step.started`. The
+simulated model (ADR-019) is a `LanguageModel`, so the `ai-live`-off branch lives in a
+`step.started` resolver.
+
+### (b) Approval expiry: eve has none, so it is ours, at commit time
+
+- **eve has no TTL.** Nothing in the docs or the `ApprovalRequest` type carries a deadline or a
+  timestamp. The HITL docs: the run *"waits durably, for as long as it takes — seconds or
+  days"*.
+- **`sessionTimeoutMs` does not expire a parked approval.** With `sessionTimeoutMs: 40_000`, an
+  approval parked at 23:45:48 was approved at 23:47:11, 43 seconds past the deadline.
+  **`apply_proposal` executed and committed.** Only then did `session.completed` fire. *"At
+  the deadline, eve lets an active turn settle"*, and a turn waiting on a person has not
+  settled.
+- **Cancelling withdraws it.** `POST …/cancel` on a parked turn followed by the approve
+  committed nothing. eve turned the late answer into a plain message: *"This does not
+  authorize an earlier action; request approval again if that action is still needed."*
+
+What Phase 3 builds:
+
+1. **The guarantee is in `apply_proposal`'s `execute`.** It refuses a proposal whose server
+   record is older than 24 hours, as `expired`, before `commitProposal`. The record is keyed by
+   `proposalId` and is the same ADR-051 row that makes the commit idempotent. This holds
+   whatever eve does, because it is the commit itself that checks.
+2. **Clean-up of the parked turn is lazy and needs no Cron.** When the client re-attaches to a
+   session, the server cancels any turn parked on an expired proposal.
+3. **The old-code window stays.** The parked turn resumes on the deployment that created it,
+   so the expiry check runs on old code too. Twenty-four hours bounds the window but does not
+   close it. Phase 3 decides whether `commitProposal` also refuses when the database's
+   migration head is newer than the build's.
+
+### (c) Cached tokens: yes, and the key is replay-stable
+
+`model.call.completed.usage` is eve's `InstrumentationUsage`:
+
+```ts
+{ inputTokens?, outputTokens?, costUsd?,
+  inputTokenDetails?: { cacheReadTokens?, cacheWriteTokens? } }
+```
+
+It is from `dist/src/instrumentation/lifecycle.d.ts`. A field is absent when the provider omits
+it. Every `model.call.completed` in the fixture carried
+`inputTokenDetails: { cacheReadTokens, cacheWriteTokens }`. Those were zeros, because the model
+was a mock: the *shape* is proven, and the values ride on the provider.
+
+Three details for the ledger:
+
+- **The `idempotencyKey` is replay-stable.** It is
+  `model:<session>:<turn>:<step>:<attempt>:<n>:<call>` and is reconstructed on replay. The
+  ADR's "re-fire with new event ids" is true of stream event ids, not of these keys. A
+  per-step row keyed `(turnId, stepIndex)` remains correct, and retries of one step are
+  `attemptIndex`es inside it.
+- **`tool.call.completed` carries no tool name and no `callId`.** It must be joined to its
+  `tool.call.started` on the shared `idempotencyKey`, or carried in the file's `ctx.state`.
+- **`step.attempt.metadata` carries AI Gateway's provider metadata**, including its cost data,
+  when the call went through the Gateway.
+
+Correction to Decision 5's "dollars come from our rate table": **no dollar is stored at all.**
+`ledger.ts` rule 2 and `aiUsage.noMoney.test.ts` forbid it. Price is a join, performed
+downstream against the dated rate record, and the new ledger tables obey the same rule.
+
+### (d) Workflow store across preview and production: separate, with one trap
+
+- **Isolated per environment.** The Vercel World *"isolates data per environment (production,
+  preview, development)"* (workflow-sdk.dev, *Vercel World*).
+- **Runs cannot cross environments.** Since Workflow 5.0, *"`start()` stamps the environment it
+  was called from onto the queue message, and a deployment refuses a delivery whose run was
+  created in a different environment."*
+- **Each run is pinned to its deployment.** eve's vendored client keys runs by `projectId` and
+  `runId`, and guards deployment affinity.
+- **Trap: the Local World fallback.** If the project's *"Enable access to System Environment
+  Variables"* setting is off, *"a Vercel deployment is indistinguishable from a non-Vercel
+  environment"*. The runtime then selects the **Local World, which stores workflow state on the
+  filesystem**, silently. Phase 2's preview walk asserts the Vercel World is in use.
+
+### (e) What a turn costs on Workflow
+
+Vercel's rates, 2026-10-03, from `vercel.com/docs/workflows/pricing`:
+
+| Resource | Hobby | Pro |
+|---|---|---|
+| Workflow events | 50K a month included | $0.02 per 1K |
+| Data written | 1 GB included | $0.50 per GB |
+| Data retained | not available | $0.50 per GB-month, kept 7 days after a run completes |
+| Queues | 1M operations included | from $0.60 per 1M |
+
+Compute stays at Fluid rates. **Pro has no included Workflow events**: it is billed from the
+first one.
+
+Measured from the local world's event log, in Workflow events, not stream events:
+
+| What | Events | Data written |
+|---|---|---|
+| A session's creation plus its first one-tool turn | 22 | ≈ 46 KB |
+| A one-tool turn (2 model steps) | 11 | ≈ 33 KB |
+| A three-tool turn (4 model steps) | 35 | ≈ 115 KB |
+| An approval round trip (park, then approve and commit) | 12 | ≈ 42 KB |
+
+**One representative turn, three tools, costs about $0.0008 on Workflow.** That is $0.0007 in
+events, under $0.0001 in data, and negligible Queues and retention. A one-tool turn is about
+$0.0002.
+
+Against today's measured model cost of about **$0.0011 per request** (`ledger.ts`), Workflow
+adds **roughly 20 to 70 percent** to a turn's spend. That is not negligible. The fixture's
+payloads were tiny, so data written will be larger with real tool results, but events
+dominate the price.
+
+This is why the parity gate (M31) has a cost row, not just a token row.
+
+**Limit that shapes Phase 2:** one eve session is one Workflow run. Vercel caps a run at
+**25,000 events** and warns that replay slows past **2,000**. At 11 to 35 events a turn, that
+is about 60 to 180 turns before replay slows. So a session has to be bounded:
+
+- a `sessionTimeoutMs` far below the 30-day default, which Decision 6 already intends;
+- **and** a turn ceiling after which the client starts a fresh session.
+
+Phase 2 sets both, and records them in the session contract.
 
 ## Alternatives rejected
 

@@ -28,6 +28,11 @@ M19 was **scoped on 2026-10-02** (ADR-060: a price is per person, committed vs e
 derives from kind, and Booked by pays). It is built as three stacked parts:
 `docs/plans/2026-10-02-M19-cost-model.md`.
 
+**M31 — The assistant runs on eve — was minted 2026-10-03 and placed after M19** (ADR-062,
+Proposed). Its Phase 0 spike is done, and the findings are in the ADR. Its parity thresholds
+wait on Mitchell. Phase 1, the per-step and per-tool ledger, starts when M31 is current:
+`docs/plans/2026-10-03-M31-p1-ledger.md`.
+
 **Two more milestones are built beside the current one, not current, and not in
 `TODO.md`'s order** (placing them is Mitchell's call). **M29 — The time river**: all parts
 merged by 2026-09-26 (#242-#245, #251). Gate 18 of 20. Mitchell attested the Overview read

@@ -111,6 +111,7 @@ for collaboration later landing on a product people already want to join.
 | M28 | Three kinds | **Gate closed 2026-09-26, 9 of 9** (#238, #239); placed by Mitchell 2026-09-25. A stop's kind is `planned`, `pending` or `transit`; `idea` and `hold` fold into `pending`, `booked` into `planned`. Retired kinds are never written and read back as their replacement (ADR-054): `M28-three-kinds.md` |
 | M29 | The time river | **Merged, gate open, not current.** SPEC §36.9b, four PRs merged 2026-09-26; ADR-055: `M29-time-river.md` |
 | M30 | Notebooks with one job each, and links between them | **Built 2026-09-26, unplaced.** Four seeded notebooks and two id-based link widgets (ADR-056): `M30-notebooks-and-links.md` |
+| M31 | The assistant runs on eve, and we can see what it costs | **Minted and placed 2026-10-03 — runs after M19.** ADR-062 (Proposed): the assistant moves onto Vercel's eve framework as an adapter around the framework-free kernel, and a per-step and per-tool ledger ships first on the current stack. Phase 0 (the spike) is done and its findings are in the ADR. Its gate's parity thresholds are proposed and wait on Mitchell: `M31-assistant-on-eve.md` |
 
 - **Restructure (2026-07-28), from the Phase 1 gate review.** The gate had not
   been met and the reason was structural, not cosmetic: a trip cannot be renamed
