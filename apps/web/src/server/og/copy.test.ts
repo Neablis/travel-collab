@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PLAYBOOKS_GENERIC, playbookCityCopy, playbookDayCopy, playbookProfileCopy } from "./copy";
+import { PLAYBOOKS_GENERIC, playbookCityCopy, playbookCountryCopy, playbookDayCopy, playbookProfileCopy } from "./copy";
 
 // The words on the Playbooks cards (spec 2026-10-02 §2.7). Which card a link
 // gets is `og.int.test.ts`; this is what each one says.
@@ -84,5 +84,18 @@ describe("playbookCityCopy", () => {
       title: "Playbooks on Caesura",
       description: "Days other people planned and rated. Find one for your city and drop it into your trip.",
     });
+  });
+});
+
+describe("playbookCountryCopy", () => {
+  it("names a country's card by its name and count, and falls back to the generic card", () => {
+    expect(playbookCountryCopy({ kind: "country", country: "Japan", days: 12 })).toMatchObject({
+      title: "Japan playbooks",
+      description: "12 days other travelers planned in Japan",
+    });
+    expect(playbookCountryCopy({ kind: "country", country: "Japan", days: 1 }).description).toBe(
+      "1 day a traveler planned in Japan",
+    );
+    expect(playbookCountryCopy({ kind: "generic" })).toBe(PLAYBOOKS_GENERIC);
   });
 });

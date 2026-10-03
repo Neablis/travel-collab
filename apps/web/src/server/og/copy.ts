@@ -2,7 +2,7 @@ import { addDaysIso } from "@/lib/dates";
 import { formatTripDateWithYear } from "@/lib/formatDate";
 import { PLAYBOOKS_BOARD, PLAYBOOKS_GENERIC, dayFactsLine, plural } from "@/lib/playbooksPreview";
 import type { InviteCard } from "./invite";
-import type { PlaybookCityCard, PlaybookDayCard, PlaybookProfileCard } from "./playbooks";
+import type { PlaybookCityCard, PlaybookCountryCard, PlaybookDayCard, PlaybookProfileCard } from "./playbooks";
 
 // The words on a preview card and in its og:title / og:description, written
 // once. The image route and the `meta` route both read these, so the picture a
@@ -76,6 +76,19 @@ export function playbookCityCopy(card: PlaybookCityCard): CardCopy {
       card.days === 1
         ? `1 day a traveler planned in ${card.city}`
         : `${card.days} days other travelers planned in ${card.city}`,
+  };
+}
+
+/** A country page's words: "Japan playbooks", and how many days there are. Pure. */
+export function playbookCountryCopy(card: PlaybookCountryCard): CardCopy {
+  if (card.kind === "generic") return PLAYBOOKS_GENERIC;
+  return {
+    label: "Caesura · playbooks",
+    title: `${card.country} playbooks`,
+    description:
+      card.days === 1
+        ? `1 day a traveler planned in ${card.country}`
+        : `${card.days} days other travelers planned in ${card.country}`,
   };
 }
 

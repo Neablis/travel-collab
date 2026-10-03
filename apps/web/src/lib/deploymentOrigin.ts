@@ -6,16 +6,17 @@
 // the deployment's own URL for a deployment that has no alias, localhost
 // otherwise.
 //
-// **One caller today — `app/layout.tsx`'s `metadataBase`** — and the module
-// survives its second one, which is worth recording because the second caller
+// **First called for `app/layout.tsx`'s `metadataBase`** — and the module
+// survived its second caller, which is worth recording because the second caller
 // is why it exists. `app/admin/page.tsx` used to render by fetching its own API
 // and forwarding the operator's session cookie, and this file was extracted so
 // that the destination came from configuration instead of from `host` and
 // `x-forwarded-proto` (CodeRabbit, PR #174). The console reads the Entitlements
 // module directly now — `src/app/admin/**` is on the lint wall's exempt shell —
 // so there is no cookie, no second request and no origin to get wrong on that
-// path at all. This stayed because `metadataBase` still needs the answer and
-// the precedence below is worth stating once.
+// path at all. This stayed because `metadataBase` still needs the answer, and
+// invite links, `robots.ts`, the sitemap and the pages' JSON-LD have needed it
+// since; the precedence below is worth stating once.
 //
 // **The branch alias comes before the deployment URL, and getting that backwards
 // took the console down.** `VERCEL_URL` is the per-deployment host

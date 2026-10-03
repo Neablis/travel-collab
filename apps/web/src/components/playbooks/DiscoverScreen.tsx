@@ -163,8 +163,9 @@ function resultsSentence(data: DiscoverResponse): string {
 }
 
 // `initial` comes from the URL (`parseDiscoverUrl`) — a profile's "Knows" chip
-// is a link to `/playbooks?city=Kyoto`, because §15 wants a profile to be a way
-// INTO the library rather than a dead end. It seeds state once rather than
+// for a city with no page of its own is a link to `/playbooks?city=<city>`,
+// because §15 wants a profile to be a way INTO the library rather than a dead
+// end. It seeds state once rather than
 // controlling it: the controls are editable from here on, and a URL that kept
 // overwriting them would fight the person using them. The URL follows the state
 // instead (the effect below), so a reload or a copied link lands on the same

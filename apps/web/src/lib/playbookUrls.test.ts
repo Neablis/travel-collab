@@ -1,7 +1,18 @@
 import * as fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { witness } from "../test-support/witness";
-import { dayPath, daySegment, parseDaySegment, slugify } from "./playbookUrls";
+import {
+  cityPath,
+  countrySlug,
+  dayPath,
+  daySegment,
+  MIN_INDEXED_PLACE_DAYS,
+  parseDaySegment,
+  placeIndexable,
+  placePagePath,
+  placePath,
+  slugify,
+} from "./playbookUrls";
 
 const ID = "3f2b8c1e-9a4d-4e6f-8b7a-1c2d3e4f5a6b";
 
@@ -80,5 +91,51 @@ describe("day URLs", () => {
       }),
     );
     w.atLeast(50);
+  });
+});
+
+describe("place URLs", () => {
+  it("slugs a city and a country's English name", () => {
+    expect(cityPath("São Paulo")).toBe("/playbooks/city/sao-paulo");
+    expect(countrySlug("JP")).toBe("japan");
+  });
+
+  // `countryName` hands back the code itself for one it cannot map ("??"
+  // throws inside `Intl.DisplayNames`, "XX" is returned as is) — a code is not
+  // a name, and slugging it would mint `/playbooks/country/xx`.
+  it("has no path for a place with no slug", () => {
+    expect(cityPath("京都")).toBeNull();
+    expect(countrySlug("??")).toBeNull();
+    expect(countrySlug("XX")).toBeNull();
+    expect(countrySlug("??")).toBeNull();
+  });
+
+  // `Intl` names these, but they are not countries: "ZZ" would mint
+  // `/playbooks/country/unknown-region`. Kosovo has a user-assigned code and is one.
+  it("has no country page for a region Intl names that is not a country, and keeps Kosovo", () => {
+    for (const code of ["ZZ", "EU", "UN"]) expect(countrySlug(code)).toBeNull();
+    expect(countrySlug("XK")).toBe("kosovo");
+  });
+
+  // The country table omits the uninhabited ISO codes (it holds travel facts), but they are still countries.
+  it("gives an uninhabited territory a page, and a retired code none", () => {
+    expect(countrySlug("AQ")).toBe("antarctica");
+    expect(countrySlug("TF")).toBe("french-southern-territories");
+    for (const code of ["UK", "SU", "YU"]) expect(countrySlug(code)).toBeNull();
+  });
+
+  it("puts a city or country page under its kind", () => {
+    expect(placePath({ kind: "city", slug: "kyoto" })).toBe("/playbooks/city/kyoto");
+    expect(placePath({ kind: "country", slug: "japan" })).toBe("/playbooks/country/japan");
+  });
+
+  it("leaves page one bare and numbers the rest", () => {
+    expect(placePagePath("/playbooks/city/kyoto", 1)).toBe("/playbooks/city/kyoto");
+    expect(placePagePath("/playbooks/city/kyoto", 3)).toBe("/playbooks/city/kyoto?page=3");
+  });
+
+  it("indexes a place from the threshold up, not below it", () => {
+    expect(placeIndexable({ days: MIN_INDEXED_PLACE_DAYS - 1 })).toBe(false);
+    expect(placeIndexable({ days: MIN_INDEXED_PLACE_DAYS })).toBe(true);
   });
 });

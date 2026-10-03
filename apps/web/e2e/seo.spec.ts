@@ -54,8 +54,10 @@ test("page metadata: canonical, description, title and twitter image", async ({ 
   const visitor = await stranger(browser);
   const head = async (path: string) => (await visitor.request.get(path)).text();
 
-  // One page whatever its filters: the canonical drops the query string.
-  const playbooks = await head("/playbooks?city=Kyoto");
+  // A search that is not one indexed place is Discover itself: the canonical
+  // drops the query string. A city nobody published in, so another spec's days
+  // cannot tip it over the threshold mid-run.
+  const playbooks = await head(`/playbooks?city=Nowheree2e${randomUUID().slice(0, 8)}`);
   expect(playbooks).toMatch(/<link rel="canonical" href="[^"]*\/playbooks"/);
   // /playbooks passes the Playbooks card as its `image`; twitter states no
   // images of its own, so it must inherit that card. The site card is also
@@ -311,6 +313,46 @@ test("Discover hydrates from the server's list and makes no first search", async
       await expect(sort).toHaveAttribute("aria-expanded", "true", { timeout: 500 });
     }).toPass();
     expect(searches).toEqual([]);
+    await visitor.context().close();
+  } finally {
+    await forget(page, savedDayId);
+  }
+});
+
+// Whether a thin place page is indexed is not asserted here: off production
+// every page is `noindex` (`siteRobots`), so the threshold is proven against
+// the metadata builder in `server/placePage.int.test.ts`.
+test("a city page lists its days in the HTML, and an unknown city or page is a 404", async ({ page, browser }) => {
+  test.slow();
+  const city = `Seoe2e${randomUUID().slice(0, 6)}`;
+  const name = `City page day ${randomUUID().slice(0, 8)}`;
+  const savedDayId = await publishedDay(page, city, name);
+  try {
+    const visitor = await stranger(browser);
+    const path = `/playbooks/city/${city.toLowerCase()}`;
+    const response = await visitor.request.get(path);
+    expect(response.status()).toBe(200);
+    const html = await response.text();
+    expect(html).toMatch(new RegExp(`>${city} playbooks</h1>`));
+    expect(html).toContain(sluggedPath(name, savedDayId));
+    expect(html).toMatch(new RegExp(`<link rel="canonical" href="[^"]*${path}"`));
+
+    // The day links back to its city, in its title block and in its breadcrumb.
+    const dayHtml = await (await visitor.request.get(sluggedPath(name, savedDayId))).text();
+    expect(dayHtml).toContain(`href="${path}"`);
+    const crumbs = ldJson(dayHtml).find((n) => (n as { "@type": string })["@type"] === "BreadcrumbList") as {
+      itemListElement: { name: string; item: string }[];
+    };
+    expect(crumbs.itemListElement.map((c) => [c.name, new URL(c.item).pathname])).toContainEqual([city, path]);
+
+    // One published day is below the threshold, so Discover's search for the
+    // city stays canonical to Discover: a canonical naming a `noindex` page
+    // would leave neither in the index.
+    const discover = await (await visitor.request.get(`/playbooks?city=${city}`)).text();
+    expect(discover).toMatch(/<link rel="canonical" href="[^"]*\/playbooks"/);
+
+    expect((await visitor.request.get("/playbooks/city/no-such-city-anywhere")).status()).toBe(404);
+    expect((await visitor.request.get(`${path}?page=9`)).status()).toBe(404);
     await visitor.context().close();
   } finally {
     await forget(page, savedDayId);

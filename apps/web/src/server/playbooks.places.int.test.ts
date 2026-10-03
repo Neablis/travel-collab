@@ -1,0 +1,128 @@
+import { randomUUID } from "node:crypto";
+import { afterAll, describe, expect, it, vi } from "vitest";
+import { inArray } from "drizzle-orm";
+import { slugify } from "@/lib/playbookUrls";
+import { db } from "./db/client";
+import { savedDays } from "./db/schema";
+import { placeFor, publishedDaysInCity, publishedDaysPage, publishedPlaces } from "./playbooks";
+import { newSavedDayRow } from "./savedDays";
+
+// Cities minted per run: the published library is global, so a shared name
+// like "Kyoto" would count other tests' days. Two spellings of each, which
+// differ as text and slug alike.
+function spellings(): [string, string] {
+  const stem = `Placetest${randomUUID().slice(0, 6)}`;
+  return [`${stem} City`, `${stem}-city`];
+}
+const [SPELLING_A, SPELLING_B] = spellings();
+const OWNER = `place-owner-${randomUUID().slice(0, 8)}`;
+const ids: string[] = [];
+
+// Rows are written directly, as `playbooks.sitemap.int.test.ts` does: what
+// matters is the columns the queries filter on, not how a day gets published.
+async function day(name: string, columns: Partial<typeof savedDays.$inferInsert>): Promise<string> {
+  const row = newSavedDayRow({
+    ownerId: OWNER,
+    name,
+    stops: [],
+    sourceTripId: randomUUID(),
+    sourceTripName: "Source",
+    createdAt: new Date(),
+  });
+  await db.insert(savedDays).values({ ...row, visibility: "public", publishedAt: new Date(), ...columns });
+  ids.push(row.id);
+  return row.id;
+}
+
+afterAll(async () => {
+  await db.delete(savedDays).where(inArray(savedDays.id, ids));
+});
+
+describe("place pages", () => {
+  it("merges spellings that slug alike, and counts only what a stranger can open", async () => {
+    const a = await day("One", { cities: [SPELLING_A] });
+    const b = await day("Two", { cities: [SPELLING_B] });
+    await day("Private", { cities: [SPELLING_A], visibility: "private" });
+    await day("Moderated", { cities: [SPELLING_A], moderatedAt: new Date() });
+    await day("Deleted", { cities: [SPELLING_A], deletedAt: new Date() });
+
+    const slug = slugify(SPELLING_A);
+    expect(slugify(SPELLING_B)).toBe(slug);
+
+    const place = await placeFor("city", slug);
+    expect(place).toMatchObject({ kind: "city", slug, days: 2 });
+    expect(new Set(place!.cities)).toEqual(new Set([SPELLING_A, SPELLING_B]));
+    expect((await publishedPlaces()).filter((p) => p.kind === "city" && p.slug === slug)).toHaveLength(1);
+
+    const listed = await publishedDaysPage({ cities: place!.cities }, { limit: 24, offset: 0 });
+    expect(listed.total).toBe(2);
+    expect(new Set(listed.days.map((d) => d.savedDayId))).toEqual(new Set([a, b]));
+  });
+
+  // The sitemap and the page both apply the threshold to `days`, which must be
+  // the number of days the page lists (`total`): a day carrying two spellings
+  // of one city, summed per spelling, would be three, and the place listed in
+  // the sitemap but `noindex`.
+  it("counts a day carrying two spellings of one city once, as the page does", async () => {
+    const [one, other] = spellings();
+    await day("Both", { cities: [one, other] });
+    await day("One", { cities: [one] });
+
+    const place = await placeFor("city", slugify(one));
+    expect(place?.days).toBe(2);
+    const listed = await publishedDaysPage({ cities: place!.cities }, { limit: 24, offset: 0 });
+    expect(listed.total).toBe(place!.days);
+  });
+
+  // A day's "More in <city>" asks by its own spelling; the other spelling's
+  // days are the same place and belong in the list too.
+  it("lists a city's days under every spelling its page merges", async () => {
+    const [one, other] = spellings();
+    const a = await day("Spelled one way", { cities: [one] });
+    const b = await day("Spelled the other", { cities: [other] });
+
+    const listed = await publishedDaysInCity(one, { limit: 24, offset: 0 });
+    expect(new Set(listed.days.map((d) => d.savedDayId))).toEqual(new Set([a, b]));
+  });
+
+  // A stored day this server cannot parse is no card, so it is in no count:
+  // counted, it would short a page, or keep a place in the sitemap whose page
+  // shows fewer days than the threshold it was listed for.
+  it("counts and pages only the days it can read", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const city = `Readtest${randomUUID().slice(0, 6)}`;
+    const a = await day("Readable one", { cities: [city] });
+    const b = await day("Readable two", { cities: [city] });
+    await day("Unreadable", { cities: [city], stops: [{ title: "no kind" }] as never });
+
+    const place = await placeFor("city", slugify(city));
+    expect(place?.days).toBe(2);
+    const listed = await publishedDaysPage({ cities: place!.cities }, { limit: 24, offset: 0 });
+    expect(listed.total).toBe(2);
+    expect(new Set(listed.days.map((d) => d.savedDayId))).toEqual(new Set([a, b]));
+    // Paging is over the readable days: the second page of one holds the other readable day.
+    const second = await publishedDaysPage({ cities: place!.cities }, { limit: 1, offset: 1 });
+    expect(second.days).toHaveLength(1);
+    expect(error).toHaveBeenCalled();
+    error.mockRestore();
+  });
+
+  it("pages by offset", async () => {
+    // Its own city, so it runs alone (`-t`) as it runs after the others.
+    const city = `Pagetest${randomUUID().slice(0, 6)}`;
+    await day("First", { cities: [city] });
+    await day("Second", { cities: [city] });
+    const place = await placeFor("city", slugify(city));
+    expect(place?.days).toBe(2);
+    const first = await publishedDaysPage({ cities: place!.cities }, { limit: 1, offset: 0 });
+    const second = await publishedDaysPage({ cities: place!.cities }, { limit: 1, offset: 1 });
+    expect(first.days).toHaveLength(1);
+    expect(second.days).toHaveLength(1);
+    expect(second.days[0]!.savedDayId).not.toBe(first.days[0]!.savedDayId);
+  });
+
+  it("has no page for a slug no published day touches", async () => {
+    expect(await placeFor("city", `nowhere-${randomUUID().slice(0, 8)}`)).toBeNull();
+    expect(await placeFor("country", "atlantis")).toBeNull();
+  });
+});

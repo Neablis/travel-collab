@@ -1,29 +1,53 @@
 import { DiscoverScreen } from "@/components/playbooks/DiscoverScreen";
-import { parseDiscoverUrl } from "@/components/playbooks/discoverUrl";
+import { DISCOVER_URL_DEFAULTS, parseDiscoverUrl, type DiscoverUrlState } from "@/components/playbooks/discoverUrl";
 import { linkPreviewMetadata } from "@/lib/linkPreview";
+import { countrySlug, placeIndexable, placePath, slugify } from "@/lib/playbookUrls";
 import { playbooksPageMetadata } from "@/lib/playbooksPreview";
 import { auth } from "@/server/auth";
-import { discoverFor } from "@/server/playbooks";
+import { discoverFor, placeFor } from "@/server/playbooks";
+
+// One city or one country and nothing else is the list that place's page
+// shows, so the page is the canonical (SEO pass, D6). Only an indexed one: a
+// canonical naming a `noindex` page leaves neither URL in the index. Any other
+// search — a sort, a rating, a second place — is Discover's own.
+async function placeCanonical({ cities, countries, ...rest }: DiscoverUrlState): Promise<string | null> {
+  const asked = (Object.keys(rest) as (keyof typeof rest)[]).some((key) => rest[key] !== DISCOVER_URL_DEFAULTS[key]);
+  if (asked) return null;
+  const wanted =
+    cities.length === 1 && countries.length === 0
+      ? { kind: "city" as const, slug: slugify(cities[0]!) }
+      : countries.length === 1 && cities.length === 0
+        ? { kind: "country" as const, slug: countrySlug(countries[0]!) ?? "" }
+        : null;
+  if (wanted === null || wanted.slug === "") return null;
+  const place = await placeFor(wanted.kind, wanted.slug);
+  return place !== null && placeIndexable(place) ? placePath(place) : null;
+}
 
 // Spec 2026-10-02 §2.7. A Discover link for exactly one city, and no country,
 // gets that city's card ("Kyoto playbooks"); any other search is not one
 // place a card can name, and gets the static Playbooks card. Parsed by the
 // same function the page seeds its search from, so the card names the city
 // the page searches for.
-/** Metadata for `/playbooks`: one city's card for `?city=<one>`, the Playbooks card otherwise. */
+/**
+ * Metadata for `/playbooks`: one city's card for `?city=<one>`, the Playbooks
+ * card otherwise; canonical to a place's page for a search that is that place alone.
+ */
 export async function generateMetadata({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const { cities, countries } = parseDiscoverUrl(await searchParams);
+  const state = parseDiscoverUrl(await searchParams);
+  const { cities, countries } = state;
   const fallback = playbooksPageMetadata("Playbooks");
-  const meta =
+  const [meta, place] = await Promise.all([
     cities.length !== 1 || countries.length > 0
       ? fallback
-      : await linkPreviewMetadata(`/api/og/playbooks/city/${encodeURIComponent(cities[0]!)}`, fallback);
-  // Discover is one page whatever its filters.
-  return { ...meta, alternates: { canonical: "/playbooks" } };
+      : linkPreviewMetadata(`/api/og/playbooks/city/${encodeURIComponent(cities[0]!)}`, fallback),
+    placeCanonical(state),
+  ]);
+  return { ...meta, alternates: { canonical: place ?? "/playbooks" } };
 }
 
 // `/playbooks` — Discover (M11b link 5). This route used to be an 18-line shell
@@ -35,7 +59,8 @@ export async function generateMetadata({
 // link opens for somebody with no account, and the screens hide what only an
 // account can do. They stay in `(app)` so a signed-in reader sees the same page.
 //
-// The query string seeds the search — `?city=` (a profile's "Knows" chip),
+// The query string seeds the search — `?city=` (a profile's "Knows" chip
+// for a city with no page),
 // `?country=`, `?sort=`, `?rating=` and the rest. `discoverUrl.ts` owns the
 // spelling, and `DiscoverScreen` writes it back as the state changes. The
 // page also reads that search on the server (SEO pass, D5), so the HTML lists
