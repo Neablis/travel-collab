@@ -1,4 +1,4 @@
-import type { LinkTarget } from "@tc/pages";
+import type { ResolvedLinkTarget } from "@tc/pages";
 
 /**
  * Where an internal link card goes (ADR-056) — the one place a stored
@@ -16,7 +16,7 @@ import type { LinkTarget } from "@tc/pages";
  * (`?page=`, `OverviewLens`): until 2026-09-27 the demo's "Also in this trip"
  * cards drew with no link at all, and Mitchell reported them dead.
  */
-export function linkHref(to: LinkTarget, tripId: string, pathname: string): string {
+export function linkHref(to: ResolvedLinkTarget, tripId: string, pathname: string): string {
   // No pathname is a render outside the router, which only a test does.
   const offTrip = pathname !== "" && !pathname.startsWith("/trips/");
   if (to.kind === "notebook") {

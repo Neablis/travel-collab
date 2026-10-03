@@ -21,6 +21,8 @@ export type Slot<T> = { state: "pending" } | { state: "failed" } | { state: "rea
  */
 export interface NotebookRef {
   id: string;
+  /** The default template this notebook is the trip's seed of (`Page.seedKey`), or `null` for one a person made. */
+  seedKey: string | null;
   title: string;
   /** The notebook's first line of prose, or `null` when it opens on a widget or nothing. */
   firstLine: string | null;

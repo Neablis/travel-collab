@@ -450,9 +450,10 @@ function uniqueViolation(error: unknown): { constraint: string | undefined } | n
  * Adds every default notebook the trip has no seed for, as `listPages`' lazy
  * seeding would have — owned by `system`, under the same ids scheme, each with
  * its template's key — and touches nothing that exists. Owner only. A trip
- * missing nothing appends nothing (`seq: null`).
+ * missing nothing appends nothing (`seq: null`). `only` adds one template's
+ * seed and leaves the other missing ones missing.
  */
-export async function addMissingDefaultPages(tripId: string, actorId: string): Promise<PageCommandResult> {
+export async function addMissingDefaultPages(tripId: string, actorId: string, only?: string): Promise<PageCommandResult> {
   return commitPageStep(tripId, actorId, "owner", async ({ tx, history, pages: state }) => {
       const candidates = await seedCandidates(tx, tripId);
       // Minted up front and SORTED, so the new notebooks come back from the
@@ -462,7 +463,7 @@ export async function addMissingDefaultPages(tripId: string, actorId: string): P
         .map(() => randomUUID())
         .sort();
       let next = 0;
-      const seeds = instantiateMissingDefaults(tripId, candidates, () => fresh[next++]!, genesisOf(history));
+      const seeds = instantiateMissingDefaults(tripId, candidates, () => fresh[next++]!, genesisOf(history), only);
 
       let folded = state;
       const events: PageEvent[] = [];
@@ -516,7 +517,7 @@ export async function resetPageToDefault(
     const candidates = await seedCandidates(tx, tripId);
     const page = candidates.find((row) => row.id === pageId);
     if (page === undefined) return { ok: false, error: { code: "page-not-found", message: "No such page." } };
-    const seed = defaultDocumentFor(page, candidates);
+    const seed = defaultDocumentFor(page);
     if (seed === null) {
       return { ok: false, error: { code: "not-a-default", message: "This notebook did not come with the trip, so it has no default to reset to." } };
     }

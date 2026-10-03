@@ -1,10 +1,29 @@
-import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
-import type { LinkCardPayload } from "@tc/pages";
-import { LinkCardBlock } from "./LinkCardBlock";
+import { cleanup, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
+import { http, HttpResponse } from "msw";
+import { setupServer } from "msw/node";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import type { LinkCardPayload, MissingNotebookPayload } from "@tc/pages";
+import { clearQueryCache } from "@/lib/queryCache";
+import { makePagesHandlers } from "@/mocks/handlers";
+import { useExternalInputs } from "../useExternalInputs";
+import { LinkCardBlock, MissingNotebookBlock } from "./LinkCardBlock";
 import { linkHref } from "./linkHref";
 
-afterEach(cleanup);
+type Role = "owner" | "editor" | "viewer";
+const accessBody = (tripId: unknown, myRole: Role) => ({
+  access: { tripId, myRole, members: [{ userId: "dev-alice", role: myRole, name: null, email: null, image: null }], invites: [], collaboratorsEntitled: true },
+});
+const accessAs = (myRole: Role) =>
+  http.get("/api/trips/:tripId/access", ({ params }) => HttpResponse.json(accessBody(params.tripId, myRole)));
+
+const server = setupServer();
+beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
+afterEach(() => {
+  cleanup();
+  server.resetHandlers();
+  clearQueryCache();
+});
+afterAll(() => server.close());
 
 // The internal link card (M30, ADR-056). What it SAYS is the resolver's and is
 // pinned in `link.test.ts`; this is whether it goes anywhere, and where.
@@ -65,5 +84,65 @@ describe("linkHref", () => {
     expect(linkHref({ kind: "day", day: { kind: "dayId", dayId: DAY } }, TRIP, `/trips/${TRIP}`)).toBe(
       `/trips/${TRIP}?view=Plan&day=${DAY}`,
     );
+  });
+});
+
+// A link to a default notebook the trip does not have (Mitchell, 2026-10-03):
+// the card offers to add it, the owner's click adds that one notebook, and the
+// page's cards hear about it.
+describe("MissingNotebookBlock", () => {
+  const missing: MissingNotebookPayload = {
+    kind: "link-missing",
+    seedKey: "money",
+    title: "Money",
+    description: "What it costs, day by day, against the budget.",
+  };
+
+  it("adds the notebook it names, and no other missing default, then has the page re-read its notebooks", async () => {
+    server.use(accessAs("owner"), ...makePagesHandlers([]));
+    const { result } = renderHook(() => useExternalInputs(TRIP, new Set(["notebooks"] as const)));
+    await waitFor(() => expect(result.current.notebooks).toEqual({ state: "ready", value: { pages: [] } }));
+
+    render(<MissingNotebookBlock payload={missing} tripId={TRIP} />);
+    expect(screen.getByTestId("link-missing").textContent).toContain("Money");
+    fireEvent.click(await screen.findByRole("button", { name: "Add Money" }));
+
+    await waitFor(() => {
+      const slot = result.current.notebooks;
+      expect(slot?.state === "ready" ? slot.value.pages.map((p) => p.seedKey) : null).toEqual(["money"]);
+    });
+  });
+
+  // Adding a default is the owner's on the server; a control it would refuse
+  // is not offered. And in Editing a click selects the widget.
+  it("offers no button to an editor, nor to the owner while the page is being edited", async () => {
+    let asked = 0;
+    server.use(
+      http.get("/api/trips/:tripId/access", ({ params }) => {
+        asked++;
+        return HttpResponse.json(accessBody(params.tripId, asked === 1 ? "editor" : "owner"));
+      }),
+    );
+    render(<MissingNotebookBlock payload={missing} tripId={TRIP} />);
+    await waitFor(() => expect(asked).toBe(1));
+    expect(screen.queryByRole("button")).toBeNull();
+    cleanup();
+    clearQueryCache();
+
+    render(<MissingNotebookBlock payload={missing} tripId={TRIP} interactive={false} />);
+    await waitFor(() => expect(asked).toBe(2));
+    expect(screen.queryByRole("button")).toBeNull();
+    expect(screen.getByTestId("link-missing").textContent).toContain("Money");
+  });
+
+  it("says why when the add is refused, and keeps the card", async () => {
+    server.use(
+      accessAs("owner"),
+      http.post("/api/trips/:tripId/pages/defaults", () => HttpResponse.json({ error: "Someone else changed this trip. Retry." }, { status: 409 })),
+    );
+    render(<MissingNotebookBlock payload={missing} tripId={TRIP} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Add Money" }));
+    expect((await screen.findByRole("alert")).textContent).toBe("Someone else changed this trip. Retry.");
+    expect(screen.getByRole("button", { name: "Add Money" })).toBeTruthy();
   });
 });
