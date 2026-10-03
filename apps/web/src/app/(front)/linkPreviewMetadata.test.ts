@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Metadata } from "next";
+import { NOINDEX } from "@/lib/siteMetadata";
 import { generateMetadata as inviteMetadata } from "./invite/[token]/page";
 import { generateMetadata as signupMetadata } from "./signup/page";
 
@@ -68,6 +69,9 @@ describe("/signup metadata", () => {
 
     expect(ogImageUrls(metadata)).toEqual(["/api/og/referral/ABCDEFGHJK", SITE_IMAGE]);
     expect(metadata.openGraph?.title).toBe("Dana invited you to Caesura");
+    // A found card builds fresh metadata, so the page's own override is what
+    // keeps a referral URL out of the index (Copilot, PR #295).
+    expect(metadata.robots).toEqual(NOINDEX);
   });
 
   it("keeps the site card when the code names nobody", async () => {
