@@ -48,6 +48,25 @@ which the templates, their tests and three e2e walks all pinned.
    The server passes `randomUUID`; the demo passes its fixed `…e00n` ids. A racing second
    seeder loses every row, not some — one statement, rows in one order — so a winner's
    Overview never points at a loser's sibling.
+   **Amended 2026-10-03, on Mitchell's report** (*"when you recreate those missing default
+   notebooks, they dont automatically now show up where those links are, forcing you to go
+   back and reset that overview … Links to a default notebook use the default, not the
+   notebook id so they can find them if they get added later"*): **a link to a default
+   notebook names it by seed key.** `LinkTarget` gains `{seed, seedKey}`, which
+   `link.internal` resolves against the notebook list (`NotebookRef.seedKey`) to whichever
+   page is the trip's seed of that template today. The seeded Overview's three cards are
+   seed links, so its document is the same on every trip: `buildContent`, `SiblingIds` and
+   the placeholder ids are gone, and `instantiateDefaults` mints ids only for the rows. The
+   picker writes a seed link when the notebook chosen is one of the trip's defaults, and an
+   id link otherwise. **A seed link whose notebook the trip lacks is a card that offers to
+   add it** (`link-missing`): the owner's click adds that one notebook
+   (`POST …/pages/defaults` with `{ seedKey }`), and the page's cards re-read the list. This
+   takes up the rejected alternative below, which was rejected when no page carried its
+   seed key; `Page.seedKey` has existed since 2026-09-27, so there is no second marker to
+   add. Links written before this still work: an id link is unchanged, a re-added seed
+   still comes back under the id it had, and a stored placeholder id is read as the seed
+   link it stood for (`LEGACY_PLACEHOLDER_SEEDS`). The assistant still writes a notebook
+   link by id (ADR-057), from the number it was shown.
 4. **The notebook list is an `ExternalInputs` slot** — `notebooks: Slot<NotebookIndex>` —
    though it is our own data. It has exactly a slot's lifecycle (asked for only when a
    widget names it, `pending` until it lands, `failed` if not), and every piece of that

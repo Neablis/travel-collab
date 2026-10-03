@@ -11,7 +11,7 @@ import { SpendByDayBlock } from "./blocks/SpendByDayBlock";
 import { SpendBreakdownBlock } from "./blocks/SpendBreakdownBlock";
 import { WeatherBlock } from "./blocks/WeatherBlock";
 import { SunBlock } from "./blocks/SunBlock";
-import { LinkCardBlock } from "./blocks/LinkCardBlock";
+import { LinkCardBlock, MissingNotebookBlock } from "./blocks/LinkCardBlock";
 import { ItineraryScheduleBlock } from "./blocks/ItineraryScheduleBlock";
 
 // The one place a block payload becomes a component, and the reason ADR-037
@@ -86,6 +86,8 @@ export function BlockView({
       return <SunBlock payload={block} accents={accents} />;
     case "link-card":
       return <LinkCardBlock payload={block} tripId={tripId} interactive={interactive} />;
+    case "link-missing":
+      return <MissingNotebookBlock payload={block} tripId={tripId} interactive={interactive} />;
     case "itinerary-schedule":
       return <ItineraryScheduleBlock payload={block} accents={accents} />;
     default: {

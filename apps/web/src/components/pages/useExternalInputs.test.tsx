@@ -89,19 +89,22 @@ describe("useExternalInputs — notebooks (ADR-056)", () => {
         pages: [{
           id: "44444444-4444-4444-8444-444444444444", tripId, title: "Money", context: { tripId },
           createdAt: "2026-09-26T00:00:00.000Z", updatedAt: "2026-09-26T00:00:00.000Z", actorId: "system",
+          seedKey: "money",
           preview: { firstLine: "What it costs.", widgetCount: 2 },
         }],
       }),
     );
 
-  it("hands over each notebook with what it says", async () => {
+  // The seed key rides along: it is what a link to a default notebook finds
+  // its page by (`link.internal`, `{ kind: "seed" }`).
+  it("hands over each notebook with what it says and which default it is", async () => {
     server.use(listFor(TRIP));
     const { result } = renderHook(() => useExternalInputs(TRIP, NOTEBOOKS));
     await waitFor(() =>
       expect(result.current.notebooks).toEqual({
         state: "ready",
         value: {
-          pages: [{ id: "44444444-4444-4444-8444-444444444444", title: "Money", firstLine: "What it costs.", widgetCount: 2 }],
+          pages: [{ id: "44444444-4444-4444-8444-444444444444", seedKey: "money", title: "Money", firstLine: "What it costs.", widgetCount: 2 }],
         },
       }),
     );

@@ -6,7 +6,9 @@ import { ok, empty, needsTrip, unbound, type MacroResult } from "../../result";
 import { readSlot } from "../../external";
 import { dayIndexOf } from "../../select";
 import { dayLabel, formatShortDate } from "../../format";
-import { LinkTarget, type LinkCardPayload, type LinkView } from "../../linkTarget";
+import { LinkTarget, type LinkCardPayload, type LinkView, type MissingNotebookPayload } from "../../linkTarget";
+import type { NotebookRef } from "../../external";
+import { DEFAULT_TEMPLATES, LEGACY_PLACEHOLDER_SEEDS } from "../../templates";
 
 // The two link widgets (M30, ADR-056). Mitchell, 2026-09-26: *"we should have a
 // Link widget that lets you link to other notebooks, or pages in the website,
@@ -65,6 +67,31 @@ function viewCard(view: LinkView, trip: TripDetail, globals: TripGlobals | null)
   }
 }
 
+/** The card for a notebook the trip has. Always by id, so the href is the page's own whatever was stored. */
+function notebookCard(page: NotebookRef): LinkCardPayload {
+  return {
+    kind: "link-card",
+    to: { kind: "notebook", pageId: page.id },
+    eyebrow: "Notebook",
+    title: page.title,
+    summary:
+      page.firstLine ?? (page.widgetCount > 0 ? `${plural(page.widgetCount, "widget")}, no words yet` : "Nothing in it yet"),
+  };
+}
+
+/**
+ * The trip's seed of a default template: its card, or the offer to add it.
+ * A key no default template has (one retired since the link was written) is
+ * the "deleted" answer, because nothing can add it back.
+ */
+function seedCard(pages: readonly NotebookRef[], seedKey: string): MacroResult<LinkCardPayload | MissingNotebookPayload> {
+  const page = pages.find((p) => p.seedKey === seedKey);
+  if (page !== undefined) return ok(notebookCard(page));
+  const template = DEFAULT_TEMPLATES.find((t) => t.key === seedKey);
+  if (template === undefined) return empty("this notebook was deleted");
+  return ok({ kind: "link-missing", seedKey, title: template.title, description: template.description });
+}
+
 /**
  * `link.internal` — a card for another notebook, a day or a tab of this trip.
  *
@@ -77,19 +104,24 @@ function viewCard(view: LinkView, trip: TripDetail, globals: TripGlobals | null)
  * **deleted**, and says so: `empty` with the reason, never a card pointing at
  * nothing. A day that is gone is `unbound("day")`, the "that day was removed"
  * every day filter already gives.
+ *
+ * **A default notebook is found by its seed key** (`{ kind: "seed" }`), so the
+ * card follows whichever page is the trip's Money today. A trip without one
+ * gets `link-missing`: a card that names the notebook and offers to add it,
+ * rather than "deleted", which is not true of a notebook the trip never had.
  */
-export const internalLink: MacroDef<InternalLinkParams, LinkCardPayload> = {
+export const internalLink: MacroDef<InternalLinkParams, LinkCardPayload | MissingNotebookPayload> = {
   name: "link.internal", title: "Link to a notebook or tab", shape: "block",
   params: InternalLinkParams,
   inputs: [{ name: "to", type: "target", label: "Links to" }],
   needs: ["notebooks"],
   description:
-    "A card linking to another notebook in this trip, a day, or the trip's Plan, Calendar or Map, with its name and a line about it. Follows renames; says so if the notebook is deleted.",
+    "A card linking to another notebook in this trip, a day, or the trip's Plan, Calendar or Map, with its name and a line about it. Follows renames; says so if the notebook is deleted, and offers to add a default notebook the trip does not have.",
   emptyText: "this notebook was deleted",
   // Fixed (ADR-037 decision 5), and generic on purpose: which notebook the
   // reader will point it at is theirs to choose.
   preview: "a card for another notebook, a day or a tab — its name and a line about it",
-  resolve: ({ trip, globals, external }: WidgetContext, params): MacroResult<LinkCardPayload> => {
+  resolve: ({ trip, globals, external }: WidgetContext, params): MacroResult<LinkCardPayload | MissingNotebookPayload> => {
     if (!trip) return needsTrip();
     const to = params.to;
     if (to === undefined) return unbound("target", [ghost("text", "where it goes")]);
@@ -116,16 +148,18 @@ export const internalLink: MacroDef<InternalLinkParams, LinkCardPayload> = {
         const slot = readSlot(external, "notebooks");
         if (slot.status !== "ok") return slot;
         const page = slot.value.pages.find((p) => p.id === to.pageId);
-        if (page === undefined) return empty("this notebook was deleted");
-        return ok({
-          kind: "link-card",
-          to,
-          eyebrow: "Notebook",
-          title: page.title,
-          summary:
-            page.firstLine ??
-            (page.widgetCount > 0 ? `${plural(page.widgetCount, "widget")}, no words yet` : "Nothing in it yet"),
-        });
+        if (page !== undefined) return ok(notebookCard(page));
+        // An Overview reset before 2026-10-03, on a trip without the sibling,
+        // stored a placeholder id where the link is now a seed key. Read as
+        // the seed it stood for, so that Overview needs no second reset.
+        const legacySeed = LEGACY_PLACEHOLDER_SEEDS[to.pageId];
+        if (legacySeed !== undefined) return seedCard(slot.value.pages, legacySeed);
+        return empty("this notebook was deleted");
+      }
+      case "seed": {
+        const slot = readSlot(external, "notebooks");
+        if (slot.status !== "ok") return slot;
+        return seedCard(slot.value.pages, to.seedKey);
       }
     }
   },
