@@ -21,9 +21,9 @@
         "request_change_tools"
       ],
       "toolChars": 4838,
-      "instructionChars": 2241,
-      "totalChars": 7079,
-      "approxTokens": 2139
+      "instructionChars": 2337,
+      "totalChars": 7175,
+      "approxTokens": 2168
     },
     "trip · edit": {
       "tools": [
@@ -46,10 +46,10 @@
         "SetTripBudget",
         "insert_playbook_day"
       ],
-      "toolChars": 21582,
-      "instructionChars": 3554,
-      "totalChars": 25136,
-      "approxTokens": 7594
+      "toolChars": 21180,
+      "instructionChars": 3650,
+      "totalChars": 24830,
+      "approxTokens": 7502
     },
     "trip · plan": {
       "tools": [
@@ -69,10 +69,10 @@
         "RemoveActivity",
         "insert_playbook_day"
       ],
-      "toolChars": 20389,
-      "instructionChars": 3861,
-      "totalChars": 24250,
-      "approxTokens": 7326
+      "toolChars": 20121,
+      "instructionChars": 3957,
+      "totalChars": 24078,
+      "approxTokens": 7274
     },
     "trip · unsure": {
       "tools": [
@@ -95,10 +95,10 @@
         "SetTripBudget",
         "insert_playbook_day"
       ],
-      "toolChars": 21582,
-      "instructionChars": 3554,
-      "totalChars": 25136,
-      "approxTokens": 7594
+      "toolChars": 21180,
+      "instructionChars": 3650,
+      "totalChars": 24830,
+      "approxTokens": 7502
     },
     "page · compose": {
       "tools": [
@@ -130,12 +130,12 @@
   },
   "tools": {
     "UpdateActivity": {
-      "chars": 7011,
-      "approxTokens": 2118
+      "chars": 6877,
+      "approxTokens": 2078
     },
     "AddActivity": {
-      "chars": 6354,
-      "approxTokens": 1920
+      "chars": 6220,
+      "approxTokens": 1879
     },
     "search_widgets": {
       "chars": 1288,
@@ -181,10 +181,6 @@
       "chars": 529,
       "approxTokens": 160
     },
-    "SetTripBudget": {
-      "chars": 499,
-      "approxTokens": 151
-    },
     "DismissConflict": {
       "chars": 470,
       "approxTokens": 142
@@ -204,6 +200,10 @@
     "insert_text": {
       "chars": 385,
       "approxTokens": 116
+    },
+    "SetTripBudget": {
+      "chars": 365,
+      "approxTokens": 110
     },
     "RemoveActivity": {
       "chars": 319,

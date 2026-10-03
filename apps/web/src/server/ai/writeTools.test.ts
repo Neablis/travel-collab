@@ -22,6 +22,8 @@ import { savedDayLibrary } from "@/server/ai/assistantPorts";
 import { newPlaceCache, newProposalBuffer, type CollectedInsert } from "@/server/assistant/deps";
 import { aiToolsFor, contextTool, type AssistantToolSet } from "@/server/assistant/registry";
 import { PLANNING_TOOLS } from "@/server/assistant/tools/planning";
+import { grantFor, toolsFor } from "@/server/assistant/grants";
+import { instructionsFor } from "@/server/ai/handleAskRequest";
 import { insertPlaybookDayTool } from "@/server/assistant/tools/insertPlaybookDay";
 
 // `commitProposal` submits through `executeTripCommandBatch`, which reaches
@@ -1132,5 +1134,27 @@ describe("commitProposal", () => {
       ok: false,
       error: { code: "concurrency-conflict", message: "someone else changed this trip" },
     });
+  });
+});
+
+// How to write a money amount is said ONCE per turn that can write. It was
+// appended to three tool descriptions on top of the instruction's own rule, so
+// an edit turn read it four times on every step (contextBudget.test.ts).
+describe("the money rule", () => {
+  const EXAMPLE = "500 EUR → amountMinor 50000";
+  const count = (text: string) => text.split(EXAMPLE).length - 1;
+  const changeTools = toolsFor(grantFor({ surface: "trip", role: "propose", plan: "propose", classifier: "propose" }), "edit", "propose");
+  const descriptions = changeTools.map((tool) => tool.description).join("\n");
+
+  // `withheld` too: that turn escalates to these same tools mid-turn, and its
+  // instruction is not rebuilt when it does.
+  it.each(["propose", "withheld"] as const)("is said exactly once on a %s turn, tools included", (posture) => {
+    expect(count(instructionsFor({ kind: "trip" }, 3, posture) + "\n" + descriptions)).toBe(1);
+  });
+
+  it("is still stated, without the writing example, to a viewer who cannot write", () => {
+    const readOnly = instructionsFor({ kind: "trip" }, 3, "read-only");
+    expect(readOnly).toContain("minor units (cents), never a decimal");
+    expect(count(readOnly)).toBe(0);
   });
 });
