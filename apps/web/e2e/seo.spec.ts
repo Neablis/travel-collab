@@ -40,6 +40,10 @@ test("robots.txt allows the site, keeps /api out, and names the sitemap", async 
   const visitor = await stranger(browser);
   const body = await (await visitor.request.get("/robots.txt")).text();
   expect(body).toContain("Disallow: /api/");
+  // As whole lines, so `Disallow: /api/` cannot pass for a site-wide one.
+  expect(body).toMatch(/^Allow: \/$/m);
+  expect(body).toMatch(/^Allow: \/api\/og\/playbooks$/m);
+  expect(body).not.toMatch(/^Disallow: \/$/m);
   expect(body).toMatch(/Sitemap: \S+\/sitemap\.xml/);
   expect(body).not.toContain("/invite");
   expect(body).not.toContain("/s/");

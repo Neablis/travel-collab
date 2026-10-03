@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import type { SavedDay } from "@tc/contracts";
 import type { SharedDayView } from "@/lib/sharedDayView";
 import { MIN_INDEXED_PLACE_DAYS } from "@/lib/playbookUrls";
+import { NOINDEX_FOLLOW } from "@/lib/siteMetadata";
 
 const sharedDayViewMock = vi.fn();
 vi.mock("@/server/sharedDayView", () => ({ sharedDayView: (...a: unknown[]) => sharedDayViewMock(...a) }));
@@ -234,6 +235,10 @@ describe("/playbooks/profile/<id> metadata", () => {
     expect(String(fetchMock.mock.calls[0]?.[0])).toMatch(/\/api\/og\/playbooks\/profile\/dev-alice\/meta$/);
     expect(metadata.openGraph?.title).toBe("Traveler a1b2c3's playbooks");
     expect(metadata.title).toBe("A traveler's playbooks");
+    // Out of the index but followed, on its own path. Asserted here because a
+    // preview's site-wide noindex hides the route's own value from e2e (Copilot, PR #295).
+    expect(metadata.robots).toEqual(NOINDEX_FOLLOW);
+    expect(metadata.alternates?.canonical).toBe("/playbooks/profile/dev-alice");
   });
 
   it("decodes the id as the page body does, then encodes it into one path segment", async () => {
@@ -258,5 +263,7 @@ describe("/playbooks/board metadata", () => {
   it("points og:image at the board's static card", () => {
     expect(ogImageUrls(boardMetadata)).toEqual([`${PLAYBOOKS_IMAGE}?board=1`, SITE_IMAGE]);
     expect(boardMetadata.openGraph?.title).toBe("Who shares the most");
+    expect(boardMetadata.robots).toEqual(NOINDEX_FOLLOW);
+    expect(boardMetadata.alternates?.canonical).toBe("/playbooks/board");
   });
 });
