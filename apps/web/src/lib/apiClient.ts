@@ -22,6 +22,7 @@ import {
   TripHistory,
   TripInvite,
   TripShare,
+  TripSuggestionsResponse,
   TripSummary,
   UpdateUserPreferences,
   UserPreferences,
@@ -32,6 +33,7 @@ import {
   type CreateSavedDayInput,
   type CreateSuggestionInput,
   type PutReviewInput,
+  type ResolveSuggestionChangeInput,
   type TripCommand,
 } from "@tc/contracts";
 import { z } from "zod";
@@ -474,8 +476,9 @@ export function inviteLink(token: string): string {
 
 // ── Suggestions (spec 2026-10-03, ADR-063) ───────────────────────────────────
 
-// The create route's 201 body. Contracts names the list read's shape
-// (`TripSuggestionsResponse`) but not this one, which is only ever read here.
+// The create route's 201 body, and the resolve route's 200 (W33). Contracts
+// names the list read's shape (`TripSuggestionsResponse`) but not this one,
+// which is only ever read here.
 const CreatedSuggestion = z.object({ changes: z.array(SuggestionChange) });
 
 /**
@@ -514,6 +517,52 @@ export async function createTripSuggestion(
     return { ok: true, value: CreatedSuggestion.parse(await res.json()).changes };
   } catch (err) {
     return networkError(err);
+  }
+}
+
+/**
+ * The trip's suggestion changes this reader may see, with the revision the
+ * events poll compares against (`suggestionsRev`). A viewer is answered 404.
+ */
+export async function fetchTripSuggestions(tripId: string): Promise<ApiResult<TripSuggestionsResponse>> {
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/suggestions`), { cache: "no-store" });
+    if (!res.ok) return await refusal(res);
+    return { ok: true, value: TripSuggestionsResponse.parse(await res.json()) };
+  } catch (err) {
+    return networkError(err);
+  }
+}
+
+// A trip write: an accept appends a batch to the log, so the trip's cached
+// reads are cleared whatever the outcome, like every other writer here. A
+// dismiss or withdraw writes no event, but a response that never arrived
+// cannot say which it was, and the cost is one cache miss.
+/**
+ * Accept, dismiss or withdraw one change. Resolves the changes it resolved,
+ * the named one first and then the pending dependents it took with it (W33);
+ * a refusal carries the route's `code` (`already-resolved`,
+ * `dependency-pending`, `no-longer-applies`, …).
+ */
+export async function resolveSuggestionChange(
+  tripId: string,
+  changeId: string,
+  action: ResolveSuggestionChangeInput["action"],
+): Promise<ApiResult<SuggestionChange[]>> {
+  const scope = tripKeys.all(tripId);
+  beginWrite(scope);
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/suggestions/changes/${changeId}`), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action }),
+    });
+    if (!res.ok) return await refusal(res);
+    return { ok: true, value: CreatedSuggestion.parse(await res.json()).changes };
+  } catch (err) {
+    return networkError(err);
+  } finally {
+    endWrite(scope);
   }
 }
 
