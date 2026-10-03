@@ -220,3 +220,64 @@ function deepEqual(a: unknown, b: unknown): boolean {
   for (const k of keys) if (!deepEqual(ao[k], bo[k])) return false;
   return true;
 }
+
+/** Where every pending change shows: on the board, or in the header chip. */
+export type SuggestionGhosts = {
+  /** Ghosts by the day they land on and by the stop they mark — `Board`'s `suggestions`, less its review slot. */
+  board: { days: Map<string, Ghost[]>; stops: Map<string, Ghost[]> };
+  /** One ghost per change the board cannot draw — trip fields, days, the rack, untimed stops. */
+  offBoard: Ghost[];
+  /** One ghost per change that no longer applies. */
+  stale: Ghost[];
+  /** Every pending change this reader may see. */
+  pending: SuggestionChange[];
+};
+
+/**
+ * The trip's pending suggestions, placed (spec §2.4). `TripProvider` runs it
+ * once per list and trip, on the CONFIRMED trip — a suggester's unsent draft
+ * is already their optimistic board, and is not a ghost — and the board and
+ * the header chip both read that one result.
+ */
+// The board draws a change only where it can sit on a river: a timed stop that
+// is there now, or a timed stop landing on a day that is there now. Everything
+// else goes to the chip, so every pending change is reachable once (W42). A
+// change the overlay files as trip-level — a removed day, whose stops it also
+// moves to the rack — is shown only in the chip, not as markers too.
+export function placeGhosts(trip: TripDetail, changes: SuggestionChange[]): SuggestionGhosts {
+  const overlay = suggestionOverlay(trip, changes);
+  const tripLevel = new Set(overlay.tripLevel.map((g) => g.changeId));
+  const days = new Map<string, Ghost[]>();
+  const stops = new Map<string, Ghost[]>();
+  const drawn = new Set<string>();
+  const dayIds = new Set(trip.days.map((d) => d.dayId));
+  const onRiver = new Set(trip.days.flatMap((d) => d.activityIds.filter((id) => trip.activities[id]?.timeWindow)));
+  const first = new Map<string, Ghost>();
+
+  for (const [activityId, ghosts] of overlay.byActivity) {
+    for (const ghost of ghosts) {
+      if (!first.has(ghost.changeId)) first.set(ghost.changeId, ghost);
+      if (tripLevel.has(ghost.changeId)) continue;
+      const lands = (ghost.kind === "add" || ghost.kind === "move") && ghost.activity?.timeWindow;
+      if (lands && typeof ghost.dayId === "string" && dayIds.has(ghost.dayId)) {
+        days.set(ghost.dayId, [...(days.get(ghost.dayId) ?? []), ghost]);
+        drawn.add(ghost.changeId);
+      }
+      if (ghost.kind !== "add" && onRiver.has(activityId)) {
+        stops.set(activityId, [...(stops.get(activityId) ?? []), ghost]);
+        drawn.add(ghost.changeId);
+      }
+    }
+  }
+
+  const offBoard = [
+    ...overlay.tripLevel,
+    ...[...first.values()].filter((g) => !drawn.has(g.changeId) && !tripLevel.has(g.changeId)),
+  ];
+  return {
+    board: { days, stops },
+    offBoard,
+    stale: overlay.stale,
+    pending: changes.filter((c) => c.status === "pending"),
+  };
+}

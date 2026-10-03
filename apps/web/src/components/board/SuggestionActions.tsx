@@ -1,13 +1,13 @@
 "use client";
 
 import { type ReactElement, useId, useMemo, useState } from "react";
-import type { ResolveSuggestionChangeInput, SuggestionChange, TripDetail } from "@tc/contracts";
+import type { ResolveSuggestionChangeInput } from "@tc/contracts";
 import { useSessionUser } from "@/components/account/useSessionUser";
 import { useTrip } from "@/components/trip/context/TripProvider";
 import { Button } from "@/components/ui/button";
 import { Popover } from "@/components/ui/popover";
 import { Text } from "@/components/ui/text";
-import { type Ghost, suggestionOverlay } from "@/lib/suggestionOverlay";
+import type { Ghost } from "@/lib/suggestionOverlay";
 import type { BoardSuggestions } from "./DayRiver";
 
 /**
@@ -98,29 +98,6 @@ export function authorName(people: Readonly<Record<string, string>> | null, auth
   return people[authorId] ?? "a former traveler";
 }
 
-/** Where every pending change shows: on the board, or in the header chip. */
-export type SuggestionGhosts = {
-  board: Omit<BoardSuggestions, "review">;
-  /** One ghost per change the board cannot draw — trip fields, days, the rack, untimed stops. */
-  offBoard: Ghost[];
-  /** One ghost per change that no longer applies. */
-  stale: Ghost[];
-  /** Every pending change this reader may see. */
-  pending: SuggestionChange[];
-};
-
-/**
- * The trip's pending suggestions, placed (spec §2.4). Null for a reader who
- * sees none (`suggestions` is null for `boardMode === "read"`). Runs the
- * overlay on the CONFIRMED trip: a suggester's unsent draft is already their
- * optimistic board, and is not a ghost.
- */
-export function useSuggestionGhosts(): SuggestionGhosts | null {
-  const { trip, suggestions } = useTrip();
-  const changes = suggestions?.changes ?? null;
-  return useMemo(() => (trip === null || changes === null ? null : placeGhosts(trip, changes)), [trip, changes]);
-}
-
 /**
  * `Board`'s `suggestions` prop: ghosts by day and by stop, plus the review
  * popover as a slot (it reads `useTrip()`, and `Board` is props-only).
@@ -128,8 +105,7 @@ export function useSuggestionGhosts(): SuggestionGhosts | null {
  * drafted against.
  */
 export function useBoardSuggestions(): BoardSuggestions | undefined {
-  const ghosts = useSuggestionGhosts();
-  const { preview } = useTrip();
+  const { suggestionGhosts: ghosts, preview } = useTrip();
   return useMemo(
     () =>
       ghosts === null || preview.seq !== null
@@ -157,47 +133,4 @@ function SuggestionReview({ ghosts, trigger }: { ghosts: readonly Ghost[]; trigg
       </ul>
     </Popover>
   );
-}
-
-// The board draws a change only where it can sit on a river: a timed stop that
-// is there now, or a timed stop landing on a day that is there now. Everything
-// else goes to the chip, so every pending change is reachable once (W42). A
-// change the overlay files as trip-level — a removed day, whose stops it also
-// moves to the rack — is shown only in the chip, not as markers too.
-function placeGhosts(trip: TripDetail, changes: SuggestionChange[]): SuggestionGhosts {
-  const overlay = suggestionOverlay(trip, changes);
-  const tripLevel = new Set(overlay.tripLevel.map((g) => g.changeId));
-  const days = new Map<string, Ghost[]>();
-  const stops = new Map<string, Ghost[]>();
-  const drawn = new Set<string>();
-  const dayIds = new Set(trip.days.map((d) => d.dayId));
-  const onRiver = new Set(trip.days.flatMap((d) => d.activityIds.filter((id) => trip.activities[id]?.timeWindow)));
-  const first = new Map<string, Ghost>();
-
-  for (const [activityId, ghosts] of overlay.byActivity) {
-    for (const ghost of ghosts) {
-      if (!first.has(ghost.changeId)) first.set(ghost.changeId, ghost);
-      if (tripLevel.has(ghost.changeId)) continue;
-      const lands = (ghost.kind === "add" || ghost.kind === "move") && ghost.activity?.timeWindow;
-      if (lands && typeof ghost.dayId === "string" && dayIds.has(ghost.dayId)) {
-        days.set(ghost.dayId, [...(days.get(ghost.dayId) ?? []), ghost]);
-        drawn.add(ghost.changeId);
-      }
-      if (ghost.kind !== "add" && onRiver.has(activityId)) {
-        stops.set(activityId, [...(stops.get(activityId) ?? []), ghost]);
-        drawn.add(ghost.changeId);
-      }
-    }
-  }
-
-  const offBoard = [
-    ...overlay.tripLevel,
-    ...[...first.values()].filter((g) => !drawn.has(g.changeId) && !tripLevel.has(g.changeId)),
-  ];
-  return {
-    board: { days, stops },
-    offBoard,
-    stale: overlay.stale,
-    pending: changes.filter((c) => c.status === "pending"),
-  };
 }

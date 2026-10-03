@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Popover } from "@/components/ui/popover";
 import { Text } from "@/components/ui/text";
 import type { Ghost } from "@/lib/suggestionOverlay";
-import { authorName, SuggestionActions, useSuggestionGhosts } from "./SuggestionActions";
+import { useTrip } from "@/components/trip/context/TripProvider";
+import { authorName, SuggestionActions } from "./SuggestionActions";
 
 /**
  * The header's pending-suggestion count (spec §2.4) — the only notification
@@ -17,7 +18,7 @@ import { authorName, SuggestionActions, useSuggestionGhosts } from "./Suggestion
  * Author names come from `PeopleProvider` (W15), which `TripHeader` mounts.
  */
 export function SuggestionsChip() {
-  const ghosts = useSuggestionGhosts();
+  const { suggestionGhosts: ghosts } = useTrip();
   const people = usePeople();
   const [open, setOpen] = useState(false);
   if (ghosts === null || ghosts.pending.length === 0) return null;

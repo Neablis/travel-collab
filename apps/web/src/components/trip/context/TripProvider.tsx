@@ -28,6 +28,7 @@ import {
   type SendFailure,
 } from "./optimistic";
 import { isDemoTripId } from "@/lib/demoTrip";
+import { placeGhosts, type SuggestionGhosts } from "@/lib/suggestionOverlay";
 import { boardMode } from "@/lib/tripRole";
 import { headSeqOf, useTripBroadcast } from "./broadcast";
 import { drainAfter, sendUnit } from "./queueDrain";
@@ -108,6 +109,10 @@ type TripCtx = {
   // editor or the owner. Null for a reader who sees none — a viewer, or a role
   // not yet known (the list is 404 to a viewer, so it is not asked for).
   suggestions: TripSuggestions | null;
+  // Those changes placed on the confirmed trip (`placeGhosts`): computed here
+  // once, so the board and the header chip read one overlay. Null when
+  // `suggestions` is, or while the trip loads.
+  suggestionGhosts: SuggestionGhosts | null;
   // True once the access read has completed and FAILED — not while it is still
   // in flight. See `load()` for why the failure stays non-fatal, and TripHeader
   // for where it is said out loud.
@@ -784,6 +789,11 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
   const history: TripHistory | null = optimistic ? activeHistory(optimistic) : null;
   const trip = optimistic?.confirmed.detail ?? null;
   const activeTrip = previewSeq !== null && previewTrip !== null ? previewTrip : confirmedDetail;
+  const suggestionChanges = suggestions?.changes ?? null;
+  const suggestionGhosts = useMemo(
+    () => (trip === null || suggestionChanges === null ? null : placeGhosts(trip, suggestionChanges)),
+    [trip, suggestionChanges],
+  );
 
   // One object for the context and for the header's save light, so the two
   // can never disagree about whether there is unsent work.
@@ -822,6 +832,7 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
         canEditBoard,
         draft,
         suggestions,
+        suggestionGhosts,
         accessUnknown,
         sync,
         preview: { seq: previewSeq, enter, exit },
