@@ -12,6 +12,20 @@ describe("slugify", () => {
     expect(slugify("  --Kyoto--  ")).toBe("kyoto");
   });
 
+  it("spells out the Latin letters that have no decomposition, rather than dropping them", () => {
+    // A city's URL has no redirect behind it, so a letter dropped now is a 404
+    // the day the rule is corrected (review of #299).
+    expect(slugify("Wrocław")).toBe("wroclaw");
+    expect(slugify("Łódź")).toBe("lodz");
+    expect(slugify("Tromsø")).toBe("tromso");
+    expect(slugify("Đà Nẵng")).toBe("da-nang");
+    expect(slugify("Straße")).toBe("strasse");
+    expect(slugify("Þórsmörk")).toBe("thorsmork");
+    expect(slugify("Ærø")).toBe("aero");
+    expect(slugify("Œuvre")).toBe("oeuvre");
+    expect(slugify("Kırklareli")).toBe("kirklareli");
+  });
+
   it("is empty for a name with no Latin letters or digits", () => {
     expect(slugify("京都の一日")).toBe("");
     expect(slugify("🍜🍣")).toBe("");
