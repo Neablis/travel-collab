@@ -259,6 +259,12 @@ export interface ToolCallDetail {
 export type ToolCallIssue = "repaired" | "refused-by-grant" | "invalid";
 
 export interface TurnMeter {
+  /**
+   * A call has started executing. Recorded so that a call still running when
+   * the turn is abandoned — the latch fires at once on abort, while the call
+   * is mid-await — still has a row (Copilot on #301).
+   */
+  callStarted(callId: string, name: string, proposes?: boolean): void;
   /** One tool execution, recorded whether it returned or threw. */
   toolCall(name: string, ms: number, ok: boolean, detail?: ToolCallDetail): void;
   /**
@@ -297,10 +303,16 @@ export function newTurnMeter(): TurnMeter {
   const tools: LedgerToolCall[] = [];
   const proposing = new Set<string>();
   const issues = new Map<string, { name: string; issue: ToolCallIssue }>();
+  const running = new Map<string, string>();
   const vendors = new Map<CapacityLine["vendor"], number>();
   return {
+    callStarted(callId, name, proposes = false) {
+      running.set(callId, name);
+      if (proposes) proposing.add(callId);
+    },
     toolCall(name, ms, ok, detail = {}) {
       const callId = detail.callId ?? null;
+      if (callId !== null) running.delete(callId);
       const repaired = callId !== null && issues.get(callId)?.issue === "repaired";
       if (callId !== null && detail.proposes === true) proposing.add(callId);
       tools.push({
@@ -336,7 +348,20 @@ export function newTurnMeter(): TurnMeter {
           outputBytes: null,
           reachedProposal: null,
         }));
-      return [...tools.map((tool) => ({ ...tool })), ...neverRan];
+      // Started and not finished: the turn ended around it. It did not
+      // return, so it is `failed`, with no duration to report.
+      const unfinished: LedgerToolCall[] = [...running].map(([callId, name]) => ({
+        callId,
+        name,
+        ms: null,
+        ok: false,
+        outcome: "failed",
+        stepIndex: null,
+        inputBytes: null,
+        outputBytes: null,
+        reachedProposal: null,
+      }));
+      return [...tools.map((tool) => ({ ...tool })), ...neverRan, ...unfinished];
     },
     proposes: (callId) => proposing.has(callId),
     capacity: () => [...vendors].map(([vendor, calls]) => ({ vendor, calls })),
@@ -345,6 +370,7 @@ export function newTurnMeter(): TurnMeter {
 
 /** A meter for a turn nobody is measuring — the default, so a caller may omit one. */
 export const NO_METER: TurnMeter = {
+  callStarted: () => {},
   toolCall: () => {},
   callIssue: () => {},
   vendorCall: () => {},

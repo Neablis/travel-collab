@@ -77,6 +77,7 @@ const ASK_RECORD: AskAnalyticsRecord = {
   droppedInserts: [],
   pivots: [],
   latencyMs: 4210,
+  turnId: null,
 };
 
 /**

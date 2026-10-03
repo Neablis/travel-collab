@@ -159,6 +159,7 @@ describe("the per-ask record", () => {
         droppedInserts: [],
         pivots: [],
         latencyMs: 1,
+        turnId: null,
       });
       const [message, payload] = spy.mock.calls[0]!;
       expect(message).toBe("ai.ask");
@@ -211,6 +212,7 @@ describe("the per-ask record", () => {
         droppedInserts: [],
         pivots: [],
         latencyMs: 1,
+        turnId: null,
       });
       const [, payload] = spy.mock.calls[0]!;
       // What actually reaches the log line — not the record object.
@@ -261,6 +263,7 @@ describe("the per-ask record", () => {
           droppedInserts: [],
           pivots: [],
           latencyMs: 1,
+          turnId: null,
         }),
       ).not.toThrow();
 
@@ -651,6 +654,7 @@ function recordWith(overrides: Partial<AskAnalyticsRecord>): AskAnalyticsRecord 
     droppedInserts: [],
     pivots: [],
     latencyMs: 1,
+    turnId: null,
     ...overrides,
   };
 }
@@ -838,5 +842,30 @@ describe("the per-step and per-tool ledger", () => {
     recorder.finish({ finishReason: "stop" });
     expect(ledgers[0]!.cost.turnId).toBe("turn-1");
     expect(ledgers[0]!.cost.latencyMs).toBe(records[0]!.latencyMs);
+  });
+
+  // The log line is the only place the question and tool arguments are kept,
+  // and the turn id is what joins it to the durable rows (Copilot on #301).
+  it("writes the turn's id onto the serialized ai.ask line", () => {
+    const { recorder, records } = recorderWith({ turnId: "turn-9" });
+    recorder.finish({ finishReason: "stop" });
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    try {
+      logAskAnalytics(records[0]!);
+      const line = String(info.mock.calls[0]![1]);
+      expect(JSON.parse(line).turnId).toBe("turn-9");
+    } finally {
+      info.mockRestore();
+    }
+  });
+
+  // Latency runs from the REQUEST's arrival, so admission and the
+  // classifier's round-trip are inside it (Copilot on #301).
+  it("measures latency from the request's start when the handler passes one", () => {
+    // The fixture clock advances 40 per read; a start 1,000 earlier than the
+    // recorder's own first read is what the handler's pre-admission start is.
+    const { recorder, records } = recorderWith({ startedAt: 0 });
+    recorder.finish({ finishReason: "stop" });
+    expect(records[0]!.latencyMs).toBe(1_040);
   });
 });

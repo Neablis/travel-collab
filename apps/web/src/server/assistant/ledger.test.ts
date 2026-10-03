@@ -286,6 +286,20 @@ describe("the turn meter", () => {
     ]);
   });
 
+  // A turn abandoned mid-call fires its latch while the call is still
+  // awaiting; the call must still have a row (Copilot on #301).
+  it("reports a call that started and never finished as failed, with no duration", () => {
+    const meter = newTurnMeter();
+    meter.callStarted("c1", "add_activity", true);
+    meter.callStarted("c2", "read_day");
+    meter.toolCall("read_day", 4, true, { callId: "c2" });
+    expect(meter.toolCalls()).toEqual([
+      call({ name: "read_day", ms: 4, callId: "c2" }),
+      call({ name: "add_activity", ms: null, ok: false, callId: "c1", outcome: "failed" }),
+    ]);
+    expect(meter.proposes("c1")).toBe(true);
+  });
+
   it("knows which calls can propose", () => {
     const meter = newTurnMeter();
     meter.toolCall("add_activity", 5, true, { callId: "w", proposes: true });

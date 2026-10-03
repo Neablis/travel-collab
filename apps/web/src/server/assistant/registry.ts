@@ -183,6 +183,7 @@ async function measured<T>(
   // declaration that decides whether the buffer is handed to it.
   const proposes = (definition.needs as readonly string[]).includes("proposalBuffer");
   const detail = { callId: callId ?? null, inputBytes: byteSize(input), proposes };
+  if (callId !== undefined) meter.callStarted(callId, definition.name, proposes);
   try {
     // Inside the call's scope, so the buffer can tag what this call collects
     // (callScope.ts). Outside it, nothing changes: the scope is read-only.

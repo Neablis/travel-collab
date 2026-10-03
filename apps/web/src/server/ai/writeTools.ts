@@ -472,7 +472,9 @@ export function droppedWriteCalls(
   detail: TripDetail,
   opts: { tripId: string; actorId: string; placeCache?: PlaceCache },
 ): AskDroppedCall[] {
-  return droppedWrites(intents, detail, opts).map((dropped) => dropped.call);
+  return droppedWrites(intents, detail, opts)
+    .filter((dropped) => !dropped.noOp)
+    .map((dropped) => dropped.call);
 }
 
 /**
@@ -488,7 +490,7 @@ export function droppedWrites(
   intents: RawToolIntent[],
   detail: TripDetail,
   opts: { tripId: string; actorId: string; placeCache?: PlaceCache },
-): { index: number; call: AskDroppedCall }[] {
+): { index: number; noOp: boolean; call: AskDroppedCall }[] {
   // **The same grounding pass `buildProposal` runs, and for the same reason it
   // runs there: without it the two disagree.** A `placeRef`-only
   // `UpdateActivity` is a domain `no-op` until the citation becomes a location,
@@ -497,10 +499,13 @@ export function droppedWrites(
   // contract is that it is the same dry run.
   const { intents: cited } = groundCitedPlaces(intents, opts.placeCache ?? null);
   const { errors } = resolveBatch(detailIntentsWithKind(cited), detail, opts);
-  return errors
-    .filter((e) => e.code !== "no-op")
-    .map((e) => ({
+  // **No-ops are kept here and filtered by `droppedWriteCalls`.** A no-op is
+  // not a failure worth a diagnostic line, but it is not in the proposal
+  // either, so the ledger's `reachedProposal` must see its index (Copilot on
+  // #301: setting a USD trip to USD recorded a proposal that never existed).
+  return errors.map((e) => ({
       index: e.index,
+      noOp: e.code === "no-op",
       call: {
         type: e.type,
         code: e.code,

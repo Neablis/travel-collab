@@ -44,7 +44,18 @@ import { aiLiveMode, resolvedTierMap } from "@/server/ai/modelSelection";
 // here. It is reported on every deployment rather than only when live, because
 // a simulated deployment's configured ids are exactly what an operator needs to
 // check BEFORE switching the flag on.
+//
+// `environment` is which Vercel environment answered (`VERCEL_ENV`;
+// "development" off Vercel). It is how a script that spends real model calls
+// (`scripts/assistant-live-set.mjs`) refuses production: a deployment's own
+// URL looks the same on a preview and on production, so the hostname is no
+// evidence, and only the deployment can say which it is. Not a secret.
 export async function GET() {
   const { live, source } = await aiLiveMode();
-  return Response.json({ live, source, tiers: resolvedTierMap() });
+  return Response.json({
+    live,
+    source,
+    tiers: resolvedTierMap(),
+    environment: process.env.VERCEL_ENV ?? "development",
+  });
 }

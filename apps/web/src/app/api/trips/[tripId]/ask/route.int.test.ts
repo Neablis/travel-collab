@@ -482,6 +482,69 @@ function escalatingModel() {
   return { model, turnOffers: () => offeredPerCall.slice(1) };
 }
 
+/**
+ * A model whose first turn step calls a tool the turn was NOT handed
+ * (`AddActivity`, built but inactive on a withheld turn) and a tool that does
+ * not exist at all, then answers in prose. The SDK refuses both before any
+ * code runs; the ledger must tell the two apart (Copilot on #301).
+ */
+function strayToolsModel() {
+  const usage = {
+    inputTokens: { total: 0, noCache: 0, cacheRead: undefined, cacheWrite: undefined },
+    outputTokens: { total: 0, text: undefined, reasoning: undefined },
+  };
+  function stepFor(options: { prompt?: { role?: string; content?: unknown }[] }) {
+    const system = (options.prompt ?? [])
+      .filter((m) => m.role === "system" && typeof m.content === "string")
+      .map((m) => m.content as string)
+      .join("\n");
+    if (isAskIntentCall(system)) {
+      return { content: [{ type: "text", text: askIntentVerdictText("question", "sure") }], finish: "stop" };
+    }
+    const answeredOnce = (options.prompt ?? []).some((m) => m.role === "tool");
+    return answeredOnce
+      ? { content: [{ type: "text", text: "Day 1 has two stops." }], finish: "stop" }
+      : {
+          content: [
+            { type: "tool-call", toolCallId: "stray-granted", toolName: "AddActivity", input: JSON.stringify({ title: "x" }) },
+            { type: "tool-call", toolCallId: "stray-invented", toolName: "teleport_trip", input: "{}" },
+          ],
+          finish: "tool-calls",
+        };
+  }
+  return {
+    specificationVersion: "v4",
+    provider: "test",
+    modelId: "test/stray",
+    supportedUrls: {},
+    doGenerate: async (options: Parameters<typeof stepFor>[0]) => {
+      const { content, finish } = stepFor(options);
+      return { content, finishReason: { unified: finish, raw: undefined }, usage, warnings: [] };
+    },
+    doStream: async (options: Parameters<typeof stepFor>[0]) => {
+      const { content, finish } = stepFor(options);
+      return {
+        stream: new ReadableStream({
+          start(controller) {
+            controller.enqueue({ type: "stream-start", warnings: [] });
+            for (const part of content) {
+              if (part.type !== "text") {
+                controller.enqueue(part);
+                continue;
+              }
+              controller.enqueue({ type: "text-start", id: "0" });
+              controller.enqueue({ type: "text-delta", id: "0", delta: (part as { text: string }).text });
+              controller.enqueue({ type: "text-end", id: "0" });
+            }
+            controller.enqueue({ type: "finish", finishReason: { unified: finish, raw: undefined }, usage });
+            controller.close();
+          },
+        }),
+      };
+    },
+  } as unknown as Parameters<typeof handleAskRequest>[2];
+}
+
 /** One tool call as a scripted model emits it. */
 function toolCall(toolName: string, input: unknown): Record<string, unknown> {
   return { type: "tool-call", toolCallId: randomUUID(), toolName, input: JSON.stringify(input) };
@@ -2805,6 +2868,23 @@ describe("the cost ledger", () => {
       expect(call.outcome).toBe("ok");
       expect(call.stepIndex).not.toBeNull();
     }
+  });
+
+  // A tool the step did not hold is a refusal by the grant; a tool that does
+  // not exist is the model inventing one, which is a broken call and counts
+  // as failed. The SDK reports both as `NoSuchToolError`.
+  it("records a withheld tool as refused-by-grant and an invented one as failed", async () => {
+    const tripId = await seedTrip();
+    const ledgers: TurnLedger[] = [];
+    const res = await handleAskRequest(
+      req(tripId, { messages: [userMessage("what is on day 1?")], scope: { kind: "trip" } }),
+      tripId,
+      strayToolsModel(),
+      (_record, ledger) => ledgers.push(ledger),
+    );
+    await chunksOf(res);
+    const outcomes = Object.fromEntries(ledgers[0]!.toolCalls.map((call) => [call.callId, call.outcome]));
+    expect(outcomes).toEqual({ "stray-granted": "refused-by-grant", "stray-invented": "failed" });
   });
 
   // **The failure path.** The provider was paid for the round-trips it made

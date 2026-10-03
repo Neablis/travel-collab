@@ -326,7 +326,18 @@ export interface AskAnalyticsRecord {
    * reader counts them.
    */
   pivots: AskPivot[];
+  /**
+   * Request arrival to the end of the turn, admission and the classifier's
+   * round-trip included — the same number `ai_usage.latency_ms` stores.
+   */
   latencyMs: number;
+  /**
+   * The turn's id (M31 Phase 1): `ai_usage.id`, and the key of the turn's step
+   * and tool-call rows. It is what joins this line — the only place the
+   * question and the tool arguments are kept — to the durable ledger. Null
+   * only from a caller that minted none.
+   */
+  turnId: string | null;
 }
 
 /**
@@ -614,6 +625,13 @@ export interface AskRecorderParams {
    * proposal, so it is never asked.
    */
   reachedCalls?: () => ReadonlySet<string>;
+  /**
+   * When the REQUEST arrived, on `now`'s clock. The handler passes its own
+   * start, read before admission, so latency counts admission and the
+   * classifier's round-trip too. Omitted, the recorder's construction is the
+   * start, which is how a test fixture without a request reads it.
+   */
+  startedAt?: number;
   /** Injected so a test can read the record instead of the console, and so a clock is never read in a pure path. */
   sink?: AskAnalyticsSink;
   now?: () => number;
@@ -675,7 +693,7 @@ export function createAskRecorder(params: AskRecorderParams): AskRecorder {
   const sink = params.sink ?? logAskAnalytics;
   const meter = params.meter ?? NO_METER;
   const now = params.now ?? Date.now;
-  const startedAt = now();
+  const startedAt = params.startedAt ?? now();
   const toolCalls: AskToolCallRecord[] = [];
   const usageByStep: AskUsage[] = [];
   const stepSpend: StepSpend[] = [];
@@ -818,6 +836,7 @@ export function createAskRecorder(params: AskRecorderParams): AskRecorder {
       droppedInserts: [...(params.droppedInserts?.() ?? [])],
       pivots: [...(params.pivots?.() ?? [])],
       latencyMs,
+      turnId: params.turnId ?? null,
     }, ledger);
   }
 

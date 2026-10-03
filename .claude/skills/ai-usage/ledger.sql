@@ -88,23 +88,29 @@ SELECT count(*) AS turns,
        round(sum(cache_read)::numeric / nullif(sum(tokens_in), 0), 3) AS cached_share
 FROM per_turn;
 
--- 5. Proposal-reached rate: of turns that could change the trip and called a
---    write tool, how many put something in front of the user to approve.
+-- 5. Proposal-reached rate, over CHANGE turns: every measured turn admitted
+--    as `edit` or `plan`, whether or not it ever called a write tool. A
+--    change turn that answered in prose, or whose only write call was
+--    invalid, reached nothing and counts against the rate (a rate taken only
+--    over turns that ran a write tool would read 100% for ten turns with one
+--    proposal). A turn that escalated from `question` is admitted as
+--    `question`, so it is outside this cohort; query 6 counts those.
 WITH window_ AS (SELECT now() - interval '7 days' AS since),
-     writing AS (
+     change_turns AS (
        SELECT u.id,
-              bool_or(c.reached_proposal) AS reached
+              coalesce(bool_or(c.reached_proposal), false) AS reached
        FROM ai_usage u
-       JOIN ai_usage_tool_calls c ON c.turn_id = u.id
        CROSS JOIN window_ w
+       LEFT JOIN ai_usage_tool_calls c ON c.turn_id = u.id
        WHERE u.created_at >= w.since AND u.turn_model NOT LIKE 'simulated/%'
-         AND c.reached_proposal IS NOT NULL
+         AND u.task_class IN ('edit', 'plan')
+         AND EXISTS (SELECT 1 FROM ai_usage_steps s WHERE s.turn_id = u.id)
        GROUP BY u.id
      )
-SELECT count(*) AS writing_turns,
+SELECT count(*) AS change_turns,
        count(*) FILTER (WHERE reached) AS reached,
        round(count(*) FILTER (WHERE reached)::numeric / nullif(count(*), 0), 3) AS reached_rate
-FROM writing;
+FROM change_turns;
 
 -- 6. Escalation: how many turns escalated, and what the escalated steps spent.
 WITH window_ AS (SELECT now() - interval '7 days' AS since),

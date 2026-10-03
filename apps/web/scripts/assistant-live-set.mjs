@@ -6,8 +6,9 @@
  *
  *   pnpm --filter web live-set <deployment-url> --trip <tripId> --cookie <session cookie> --confirm
  *
- * - `<deployment-url>` must be localhost or a Vercel preview deployment. It
- *   refuses anything else, so a mistyped production URL spends nothing there.
+ * - `<deployment-url>` must be a deployment that reports itself as `preview`
+ *   or `development` from `/api/health/ai-mode`. Anything else, an
+ *   unreachable health route included, is refused before a turn is sent.
  * - `--trip` is a trip the signed-in account can EDIT: change prompts propose,
  *   and the demo trip is refused by the route (KI-079). Use a copy of the
  *   seeded Japan trip; the prompts name its Kyoto days.
@@ -35,18 +36,42 @@ function argValue(flag) {
   return index === -1 ? null : (process.argv[index + 1] ?? null);
 }
 
-/** Localhost, or a preview deployment's own hostname (`<project>-<hash>-<team>.vercel.app` or a `-git-` branch alias). */
-export function isAllowedTarget(url) {
-  const host = url.hostname;
-  if (host === "localhost" || host === "127.0.0.1") return true;
-  if (!host.endsWith(".vercel.app")) return false;
-  return /-git-/.test(host) || /-[a-z0-9]{9}-/.test(host);
+/**
+ * Whether a target may be sent paid turns: only when the deployment ITSELF
+ * reports `preview` or `development` from `/api/health/ai-mode`.
+ *
+ * Not decided from the hostname. A production deployment has its own hashed
+ * `*.vercel.app` URL exactly like a preview's, so no URL pattern separates
+ * them (Copilot on #301); the first version of this guard did and would have
+ * let a production deployment URL through. Fails closed: an unreachable or
+ * unreadable health route, or any other environment, is a refusal.
+ */
+export function targetVerdict(environment) {
+  return environment === "preview" || environment === "development"
+    ? { ok: true }
+    : { ok: false, reason: `the deployment reports environment ${JSON.stringify(environment ?? null)}` };
 }
 
-async function runTurn(base, tripId, cookie, text) {
+function headersFor(cookie) {
   const headers = { "Content-Type": "application/json", Cookie: cookie };
   const bypass = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
   if (bypass) headers["x-vercel-protection-bypass"] = bypass;
+  return headers;
+}
+
+async function environmentOf(base, cookie) {
+  try {
+    const res = await fetch(new URL("/api/health/ai-mode", base), { headers: headersFor(cookie) });
+    if (!res.ok) return null;
+    const body = await res.json();
+    return typeof body.environment === "string" ? body.environment : null;
+  } catch {
+    return null;
+  }
+}
+
+async function runTurn(base, tripId, cookie, text) {
+  const headers = headersFor(cookie);
   const startedAt = Date.now();
   const res = await fetch(new URL(`/api/trips/${tripId}/ask`, base), {
     method: "POST",
@@ -70,8 +95,9 @@ async function main() {
     process.exit(2);
   }
   const base = new URL(raw);
-  if (!isAllowedTarget(base)) {
-    console.error(`live-set: refusing ${base.hostname} — localhost or a Vercel preview deployment only.`);
+  const verdict = targetVerdict(await environmentOf(base, cookie));
+  if (!verdict.ok) {
+    console.error(`live-set: refusing ${base.hostname}: ${verdict.reason}. Preview or local development only.`);
     process.exit(2);
   }
   const set = JSON.parse(readFileSync(SET, "utf8"));

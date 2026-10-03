@@ -387,6 +387,9 @@ export async function handleAskRequest(
 
   const recorder = createAskRecorder({
     turnId,
+    // The request's own start, read before admission, so the turn's latency
+    // includes admission and the classifier's round-trip (Copilot on #301).
+    startedAt,
     tier: grant.tier,
     stepPlan: (index) => stepPlans.get(index),
     // **Which write calls reached the proposal**: a call whose collected
@@ -595,9 +598,13 @@ export async function handleAskRequest(
     // call against the step's ACTIVE tools, so a tool the model was not handed
     // this step arrives as `NoSuchToolError` — refused by the grant, whatever
     // repair makes of it, since a re-parse against the same set refuses again.
+    // A name that is not a tool at all also arrives as `NoSuchToolError`; that
+    // is the model inventing a tool, a broken call rather than a refusal, so it
+    // is recorded `invalid` and counts as failed (Copilot on #301).
     repairToolCall: async ({ toolCall, error }) => {
       if (NoSuchToolError.isInstance(error)) {
-        meter.callIssue(toolCall.toolCallId, toolCall.toolName, "refused-by-grant");
+        const granted = Object.hasOwn(tools, toolCall.toolName);
+        meter.callIssue(toolCall.toolCallId, toolCall.toolName, granted ? "refused-by-grant" : "invalid");
         return null;
       }
       let parsed: unknown;
@@ -725,7 +732,7 @@ export async function handleAskRequest(
       droppedIndices = new Set(dropped.map((entry) => entry.index));
       recorder.finish(
         end,
-        dropped.map((entry) => entry.call),
+        dropped.filter((entry) => !entry.noOp).map((entry) => entry.call),
       );
       // `finish` ran the sink, which started the settlement. See `settled`.
       await settled;
