@@ -53,8 +53,9 @@ decision that changes Mitchell's approved §2 stops the task and comes back to t
 
 **Scope:**
 - `apps/web/src/lib/tripRole.ts` and its test
-- `components/trip/context/TripProvider.tsx` (only the `readOnly` line, which becomes
-  `boardMode(myRole) === "read"`; suggest mode itself is T6)
+- `components/trip/context/TripProvider.tsx`: `readOnly` becomes `boardMode(myRole) !== "write"`,
+  and the context gains `canEditBoard` (`boardMode !== "read"`) and `boardMode`. Suggest mode
+  itself is T6.
 - `components/trip/SettingsSheet.tsx`
 - `components/pages/NotebookScreen.tsx`
 - `components/pages/PageScreen.tsx`
@@ -66,11 +67,26 @@ decision that changes Mitchell's approved §2 stops the task and comes back to t
 Every literal `"viewer"` check in those files moves onto one of the two helpers. A suggester sees
 the notebook exactly as a viewer does.
 
+**Default closed (W8 as amended).** `readOnly` stays true for a suggester, so every existing
+consumer keeps hiding its controls until it opts in. T2 opts nothing in. It only changes the
+helpers and the literals. T6 opts in the board surfaces: `Board`, `ActivityEditorSheet`,
+`TripBoardScreen`'s edit paths, and `SettingsSheet`'s trip fields. These stay behind `readOnly`,
+and the tests prove it:
+- `ShareButton` (via `SettingsSheet`)
+- `NotebooksMenu` create (via `TripProvider`)
+- `AddSavedDayButton`
+- `ConflictBanner` Dismiss
+- `UndoRedoControls`
+- `OverviewLens` and `TripHeader`, whatever they gate on `readOnly`. Audit both and list them in
+  the report.
+
 **Tests:**
 - Table tests for both helpers.
 - One render test proving a suggester gets the notebook read-only. Use the existing
   `NotebookScreen` or `PageScreen` test harness with `myRole: "suggester"`. It must go red when
   `canEditNotebook` returns true for a suggester.
+- With `myRole: "suggester"`, `SettingsSheet` shows no Share and `NotebooksMenu` shows no create.
+  This must go red when `readOnly` is computed as `boardMode === "read"`.
 
 ## T3 — Inviting as "Can suggest"
 
@@ -200,7 +216,11 @@ test:int -- suggestions commands`.
   - On success it clears pending, so the display returns to confirmed, and refreshes the
     suggestions.
   - On a 422 it keeps the draft and reports which change no longer applies.
-- Undo and redo controls are hidden for a suggester (W13).
+- Undo and redo controls are hidden for a suggester (W13). They are already behind `readOnly`,
+  which T2 left true for a suggester.
+- The board surfaces opt in to suggest mode through `canEditBoard`: `Board`,
+  `ActivityEditorSheet`, `TripBoardScreen`'s edit paths, and `SettingsSheet`'s trip fields (name,
+  dates, currency, budget). Nothing else opts in, and conflict Dismiss stays hidden (W3).
 - The tray:
   - reads "1 change not sent" / "N changes not sent", with Discard, Send suggestion and an
     optional note field
@@ -237,8 +257,15 @@ test:int -- suggestions commands`.
     to `tripLevel`.
 - The hook fetches on mount for `boardMode !== "read"`, and again whenever `suggestionsRev`
   changes.
+- **`useTripBroadcast` gains `onSuggestionsChanged(rev)` (W16).** It fires when the page's
+  `suggestionsRev` differs from the last one seen, independently of `headSeq`. Today's `poll`
+  calls back only when `headSeq > before || resync` (`broadcast.ts:154`). That check is
+  unchanged.
 
 **Tests:**
+- A broadcast test: a poll response with the same `headSeq` and a new `suggestionsRev` calls
+  `onSuggestionsChanged` exactly once and `onChanged` not at all. The same rev again calls
+  nothing. It must go red with the new branch removed.
 - Overlay unit tests built from `@tc/factories`: an add, a move, a remove, a trip-level change, a
   stale target and a dependent pair.
 - One property test: the overlay never mutates `confirmed`.
@@ -250,7 +277,9 @@ test:int -- suggestions commands`.
 - `components/board/SuggestionsChip.tsx` (new)
 - `components/board/SuggestionActions.tsx` (new: Accept / Dismiss / Withdraw)
 - `TripHeader.tsx` (mount the chip)
-- `HistoryPanel.tsx` ("Suggested by <name>" when `origin.kind === "suggestion"`)
+- `HistoryPanel.tsx` ("Suggested by <name>" when `origin.kind === "suggestion"`). The name comes
+  from the trip's member profiles, and a non-member reads "a former traveler" (W15). Find where
+  `TravelersPanel` gets `TripMemberProfile[]` and reuse that fetch. Do not add a route.
 - the tests for each
 
 **Content:**
