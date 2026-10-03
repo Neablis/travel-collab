@@ -35,7 +35,10 @@ import { displayPlace, legEnd } from "@/lib/place";
 // needs, and wiring dayId correctly into AddActivity/UpdateActivity.
 export function ActivityEditorSheet() {
   const { state, close } = useEditor();
-  const { activeTrip, dispatch, readOnly } = useTrip();
+  const { activeTrip, dispatch, canEditBoard } = useTrip();
+  // Opted in to suggest mode (W8): a suggester's save joins their draft, so
+  // only a reader gets the read-only sheet.
+  const readOnly = !canEditBoard;
   const people = usePeople();
 
   const open = state.mode !== null;

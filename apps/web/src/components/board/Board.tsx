@@ -25,7 +25,7 @@ import { dayAccents } from "@/lib/dayAccent";
 import { stopsForDay } from "@/lib/savedStops";
 import { KeepDayFlag } from "@/components/trip/KeepDayFlag";
 import { Column, DAY_COLUMN_WIDTH_PX } from "./Column";
-import type { RiverGestures } from "./DayRiver";
+import type { BoardSuggestions, RiverGestures } from "./DayRiver";
 import { ConflictBanner } from "./ConflictBanner";
 import { type AnyTimeOutcome, type PlaceOutcome, resolveDrop } from "./resolveDrop";
 import { riverAxis } from "./riverLayout";
@@ -166,6 +166,7 @@ export type BoardCallbacks = {
  * @param sync - Optional handle for synchronizing scrolling with day selection
  * @param keepFlag - Optional "keep this day" pennant, rendered in each day's header
  * @param addSavedDay - Optional control for inserting a saved day, after the last column
+ * @param suggestions - Optional pending suggestions, drawn as ghosts
  */
 export function Board({
   trip,
@@ -174,11 +175,18 @@ export function Board({
   focusedTag = null,
   onToggleTag,
   readOnly = false,
+  suggesting = false,
   sync,
   addSavedDay,
   oneDay = false,
+  suggestions,
 }: {
   trip: TripDetail;
+  /**
+   * Pending suggestions to draw as ghosts (spec §2.4) — `useBoardSuggestions`,
+   * passed in because it reads `useTrip()`. Absent for a viewer, who sees none.
+   */
+  suggestions?: BoardSuggestions;
   callbacks: BoardCallbacks;
   /**
    * **One day at a time, at full width** — M26 link 13, SPEC §13.4: *"The day
@@ -221,6 +229,14 @@ export function Board({
    * buttons would have left that one path live.
    */
   readOnly?: boolean;
+  /**
+   * A suggester's board (spec §2.3): every edit above stays live and lands in
+   * their draft, but the two controls that are not planning edits stay hidden
+   * as they are for a viewer — dismissing a conflict, which cannot be
+   * suggested (W3), and keeping a day, which writes to the reader's own
+   * account rather than the trip. Meaningless with `readOnly`.
+   */
+  suggesting?: boolean;
   /** Index of the focused day, or null. Owned by TripBoardScreen's useFocus,
       the same value the day chips read — passed in rather than read from
       context here so Board stays renderable on its own in tests. */
@@ -457,15 +473,17 @@ export function Board({
   // of more than one crossing pair and has room for one dismiss, so the first
   // wins; the other pair is still drawn (see `overlapPartners` below) and
   // dismissable from the banner.
+  // Empty for a suggester: this map is only the dismiss control's (W3).
   const overlapsByActivity = useMemo(() => {
     const byActivity = new Map<string, Overlap>();
+    if (suggesting) return byActivity;
     for (const day of trip.days) {
       for (const overlap of overlapsForDay(trip, day.dayId)) {
         if (!byActivity.has(overlap.laterActivityId)) byActivity.set(overlap.laterActivityId, overlap);
       }
     }
     return byActivity;
-  }, [trip]);
+  }, [trip, suggesting]);
 
   // Both halves of every undismissed overlap, each with the titles it
   // overlaps. `overlapsByActivity` above is the dismissable half — the later
@@ -490,9 +508,15 @@ export function Board({
   // **One axis for the whole trip** (SPEC §36.9b): every column is drawn on
   // it, so a 09:00 stop on Day 1 and on Day 5 sit at the same height. Taken
   // over the scheduled days only — an unscheduled stop is not on any river.
+  // A suggested stop's time is on the axis too, or a ghost at 23:00 would hang
+  // off the bottom of every river.
   const axis = useMemo(
-    () => riverAxis(trip.days.flatMap((day) => day.activityIds.map((id) => trip.activities[id]?.timeWindow ?? null))),
-    [trip],
+    () =>
+      riverAxis([
+        ...trip.days.flatMap((day) => day.activityIds.map((id) => trip.activities[id]?.timeWindow ?? null)),
+        ...[...(suggestions?.days.values() ?? [])].flat().map((ghost) => ghost.activity?.timeWindow ?? null),
+      ]),
+    [trip, suggestions],
   );
 
   // Badge-worthy conflict subjects: a `time-overlap` the board actually draws
@@ -661,7 +685,7 @@ export function Board({
         activities={trip.activities}
         onDismiss={callbacks.onDismissConflict}
         onSelectActivity={readOnly ? undefined : openEdit}
-        readOnly={readOnly}
+        readOnly={readOnly || suggesting}
       />
       {/* The unscheduled pool is no longer a full-width Backlog column above
           the grid — it is the Unscheduled drawer (UnscheduledRack), mounted
@@ -758,6 +782,7 @@ export function Board({
               focusedTag={focusedTag}
               onToggleTag={onToggleTag}
               readOnly={readOnly}
+              suggestions={suggestions}
               // SPEC §24's "keep this day" pennant, which lived in the day
               // header of a lens this milestone DELETED. Timeline going was the
               // handoff's own instruction ("deleted, not hidden ... do not port
@@ -783,7 +808,7 @@ export function Board({
               // every day, and rebuilding it N times would be N passes over every
               // activity in the trip.
               keepFlag={
-                readOnly ? undefined : (
+                readOnly || suggesting ? undefined : (
                   <KeepDayFlag
                     dayIndex={index}
                     accent={accents[index]?.ink ?? "neutral"}

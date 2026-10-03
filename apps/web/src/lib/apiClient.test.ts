@@ -10,6 +10,9 @@ import {
   createSavedDay,
   createTrip,
   createTripInvite,
+  createTripSuggestion,
+  fetchTripSuggestions,
+  resolveSuggestionChange,
   createTripShare,
   deleteSavedDay,
   duplicateTrip,
@@ -209,6 +212,10 @@ const FETCHING_HELPERS: Record<string, () => Promise<ApiResult<unknown>>> = {
   fetchTripAccess: () => fetchTripAccess(TRIP_ID),
   createTripInvite: () => createTripInvite(TRIP_ID, { email: "a@b.com", role: "editor" }),
   revokeTripInvite: () => revokeTripInvite(TRIP_ID, UUID),
+  createTripSuggestion: () =>
+    createTripSuggestion(TRIP_ID, { units: [{ commands: [{ type: "AddDay", tripId: TRIP_ID, dayId: UUID }] }] }),
+  fetchTripSuggestions: () => fetchTripSuggestions(TRIP_ID),
+  resolveSuggestionChange: () => resolveSuggestionChange(TRIP_ID, UUID, "accept"),
   fetchInviteLanding: () => fetchInviteLanding("tok"),
   acceptInvite: () => acceptInvite("tok"),
   fetchTripShares: () => fetchTripShares(TRIP_ID),
@@ -585,6 +592,8 @@ const TRIP_WRITERS: Record<string, () => Promise<ApiResult<unknown>>> = {
   insertSavedDay: () => insertSavedDay(TRIP_ID, UUID),
   createTripInvite: () => createTripInvite(TRIP_ID, { email: "a@b.com", role: "editor" }),
   revokeTripInvite: () => revokeTripInvite(TRIP_ID, UUID),
+  // An accept appends a batch; see the helper for why every action clears.
+  resolveSuggestionChange: () => resolveSuggestionChange(TRIP_ID, UUID, "accept"),
   applyAssistantProposal: () =>
     applyAssistantProposal(TRIP_ID, {
       proposalId: "p1",
@@ -1171,5 +1180,22 @@ describe("applyAssistantProposal", () => {
     if (result.ok) return;
     expect(result.error.status).toBe(409);
     expect(result.error.code).toBe("concurrency-conflict");
+  });
+});
+
+// Suggestions (spec 2026-10-03). The reviewer's next step depends on which
+// refusal it was — "accept the parent first" and "already resolved" are both
+// 409 — so the route's code must reach the caller.
+describe("resolveSuggestionChange", () => {
+  it("passes a refusal's status and code through", async () => {
+    server.use(
+      http.post("*/api/trips/:tripId/suggestions/changes/:changeId", () =>
+        HttpResponse.json({ error: "Accept the change it builds on first.", code: "dependency-pending" }, { status: 409 }),
+      ),
+    );
+    const result = await resolveSuggestionChange(TRIP_ID, UUID, "accept");
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatchObject({ status: 409, code: "dependency-pending" });
   });
 });

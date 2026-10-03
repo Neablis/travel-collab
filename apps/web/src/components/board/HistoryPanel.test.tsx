@@ -1,6 +1,9 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { http, HttpResponse } from "msw";
+import { setupServer } from "msw/node";
 import type { TripHistory } from "@tc/contracts";
+import { PeopleProvider } from "@/components/pages/people";
 import { HistoryPanel } from "./HistoryPanel";
 
 const TRIP = "7d9a1f8e-0000-4000-8000-00000000000a";
@@ -70,5 +73,63 @@ describe("HistoryPanel", () => {
     expect(screen.getByRole("button", { name: "Revert to here" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
     expect(onExitPreview).toHaveBeenCalledOnce();
+  });
+});
+
+// W11, W15: an accepted suggestion names who asked for it, from the trip's
+// member profiles — the access read `PeopleProvider` shares — never from the
+// history DTO, which carries no names.
+describe("HistoryPanel — accepted suggestions", () => {
+  const server = setupServer(
+    http.get("/api/trips/:tripId/access", () =>
+      HttpResponse.json({
+        access: {
+          tripId: TRIP,
+          myRole: "owner",
+          members: [
+            { userId: "u1", role: "owner", name: "Alice", email: null, image: null },
+            { userId: "u-sam", role: "suggester", name: "Sam", email: null, image: null },
+          ],
+          invites: [],
+          collaboratorsEntitled: true,
+        },
+      }),
+    ),
+  );
+  beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
+  afterEach(() => {
+    server.resetHandlers();
+    cleanup();
+  });
+  afterAll(() => server.close());
+
+  const accepted = (authorId: string, description: string, seq: number): TripHistory["entries"][number] => ({
+    batchId: `7d9a1f8e-0000-4000-8000-0000000000c${seq}`,
+    fromSeq: seq, toSeq: seq, actorId: "u1", occurredAt: "2026-10-03T00:00:00.000Z",
+    origin: {
+      kind: "suggestion",
+      suggestionId: "7d9a1f8e-0000-4000-8000-0000000000d1",
+      changeId: `7d9a1f8e-0000-4000-8000-0000000000e${seq}`,
+      authorId,
+    },
+    description, undone: false,
+  });
+
+  it("says Suggested by the author, and a former traveler once they have left", async () => {
+    render(
+      <PeopleProvider tripId={TRIP}>
+        <HistoryPanel
+          history={{ ...history, entries: [accepted("u-gone", "Added Gelato", 4), accepted("u-sam", "Moved Ramen to Day 2", 3), ...history.entries] }}
+          previewSeq={null}
+          onPreview={() => {}}
+          onExitPreview={() => {}}
+          onRevert={() => {}}
+        />
+      </PeopleProvider>,
+    );
+    expect(await screen.findByRole("button", { name: /Moved Ramen to Day 2.*Suggested by Sam/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Added Gelato.*Suggested by a former traveler/ })).toBeTruthy();
+    // An ordinary edit is not attributed to anyone.
+    expect(screen.getByRole("button", { name: /Added Day 1/ }).textContent).not.toContain("Suggested");
   });
 });

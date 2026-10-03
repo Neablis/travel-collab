@@ -607,7 +607,19 @@ describe("SettingsSheet share", () => {
 
   // W8, default closed: a suggester may suggest board edits but writes
   // nothing directly, so every control this sheet gates on `readOnly` stays
-  // withheld until a surface opts in to suggest mode. Share never does.
+  // withheld unless it opts in to suggest mode. The trip fields do (their
+  // command joins the draft); Share never does.
+  it("leaves a suggester the trip fields, whose edits go to the provider", async () => {
+    const onCommand = vi.fn();
+    renderSheet({ myRole: "suggester", onCommand });
+
+    expect(screen.getByRole("button", { name: "Dates" }).hasAttribute("disabled")).toBe(false);
+    const name = screen.getByLabelText("Trip name");
+    await userEvent.clear(name);
+    await userEvent.type(name, "Japan in spring{Enter}");
+    expect(onCommand).toHaveBeenCalledWith({ type: "SetTripName", tripId, name: "Japan in spring" });
+  });
+
   it("withholds Share from a suggester", () => {
     renderSheet({ myRole: "suggester" });
     // The sheet rendered, so an absent Share is the gate and not an empty tree.
