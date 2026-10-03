@@ -41,14 +41,22 @@ unpublished or hidden day shown to a stranger is the one failure ADR-061 exists 
    `public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800`: a day at the edge,
    and an hour in a browser or an unfurler, as before.
 3. **What clears it.** `invalidatePublicDay(savedDayId, ownerId)` expires the three tags in the
-   data cache (`revalidateTag(tag, { expire: 0 })`: gone now, not served stale while it
+   data cache (`revalidateTag(tag, { expire: 0 })`: expired, not served stale while it
    refreshes). It also deletes them from the CDN (`dangerouslyDeleteByTag`, not
    `invalidateByTag`, which would serve the old card once more). The CDN half runs only on Vercel
-   (`VERCEL` set). It is awaited, so a 200 to "unpublish" means the day is gone, and it is
-   bounded at 2 s (`PURGE_TIMEOUT_MS`), so a purge that never answers cannot hang the write. It
-   never throws: the write has committed, and a 500 would tell the author it had not. A failure
-   or a timeout is one `console.error`. Its callers are the writes that move a day into or out
-   of the library, after their commit:
+   (`VERCEL` set).
+   - **The two halves land at different moments.** `revalidateTag` only records the tags; on
+     Vercel, Next flushes them after the response, through `waitUntil` (the app-route
+     template). So the data cache expires just after the 200, not before it. The CDN purge is
+     the half that is awaited, so a 200 to "unpublish" means the day's card is gone.
+   - **One narrow race is left.** A read that queried before the commit and stores its entry
+     after the flush re-caches the old answer. For a day that is bounded by `readAt`
+     (decision 5); for a list, by its day.
+   - The purge is bounded at 2 s (`PURGE_TIMEOUT_MS`), so one that never answers cannot hang the
+     write. It never throws: the write has committed, and a 500 would tell the author it had
+     not. A failure or a timeout is one `console.error`.
+
+   Its callers are the writes that move a day into or out of the library, after their commit:
    - `setSavedDayVisibility`: publish and unpublish, from `/api/saved-days/:id/publish` and
      `/v1/library`.
    - `updatePlaybookContent`: a visibility change, or a **rename of a published day**, from
@@ -58,15 +66,24 @@ unpublished or hidden day shown to a stranger is the one failure ADR-061 exists 
    - `deleteSavedDay`: from `/api/saved-days/:id` and `/v1/library`. Only a private day can be
      deleted, but its adds leave its author's numbers.
    - `actOnReport`: an operator's hide and restore.
-   - The two dev seed routes (`/api/dev/saved-days`, `/api/dev/content/playbooks`), for every
-     day they rewrite.
+   - The two dev seed routes (`/api/dev/saved-days`, `/api/dev/content/playbooks`): one batched
+     clear of every day they rewrite, each tag once (`invalidatePublicDays`).
+
+   **A name clears its author and every list.** The library names people (ADR-061 decision 4),
+   and someone who changes the name it shows, perhaps to take their real one out, should not
+   see the old one on the next page. `invalidateAuthor(userId)` clears `author:<id>` and
+   `library`, awaited like an unpublish. That takes the name out of the day reads' author, the
+   Discover, place and related lists' `ownerDisplayName`, and the day and profile cards. It is
+   called only when the value changed: by `writePreferences` when `displayName` moved, and by
+   `upsertUser` when a returning sign-in's `name` did.
 
    **An add clears less.** `invalidateDayRead(savedDayId, ownerId)` clears `day:<id>` and
-   `author:<ownerId>` only, the same way and on the same bound, when an add counted:
-   `insertSavedDay` (the add dialog, a new trip from a day, `/v1` playbook applications) and the
-   assistant's approved insert (`ai/writeTools.ts`). A reader who just added a day sees its
-   count move when they go back to it (M11b's "1 trip"). Lists do not need to show it within
-   the day, so `library` stays.
+   `author:<ownerId>` only, when an add counted: `insertSavedDay` (the add dialog, a new trip
+   from a day, `/v1` playbook applications) and the assistant's approved insert
+   (`ai/writeTools.ts`). A reader who just added a day sees its count move when they go back to
+   it (M11b's "1 trip"). Lists do not need to show it within the day, so `library` stays. Adds
+   are frequent, so the CDN half is not awaited: it is handed to `waitUntil` and runs after the
+   response, on the same 2 s bound.
 4. **Only a stranger's view is cached; a miss never is; an author always reads live.**
    - The day page tries the cached public read first. A day the library does not hold is read
      live for a signed-in reader, because it may be their own private or hidden day. For anyone
@@ -76,6 +93,10 @@ unpublished or hidden day shown to a stranger is the one failure ADR-061 exists 
      `unstable_cache` keeps no throw. Random ids cannot fill it, and a private day and an
      unknown one stay the same answer (ADR-061 decision 2).
    - The per-reader side effect, a signed-in reader's pin backfill, runs outside the cache.
+     Pins written by it clear nothing, so a cached day can show stops unpinned for up to a day.
+     Meanwhile each signed-in stranger who opens it schedules a pass that finds nothing to do:
+     one row read, no geocode spent (`backfillSavedDayStops` re-reads the live stops). Left so
+     on purpose.
    - Discover is cached only for a reader with no account, keyed by the search. *Yours* and
      *Saved* are a signed-in reader's own, and stay live.
    - The JSON API (`/api/saved-days/:id`, `/api/playbooks`) stays live. The screens' own
@@ -87,9 +108,14 @@ unpublished or hidden day shown to a stranger is the one failure ADR-061 exists 
    its day is read live.
 6. **Production builds only.** `next dev` and the test lanes read live, so a reseed is seen at
    once. The behaviour is proven where it runs: `e2e/seo.spec.ts` on the CI-like lane's
-   `next start`. Entries are keyed by a hash of `DATABASE_URL` as well. CI restores
-   `apps/web/.next/cache`, the data cache lives inside it, and every test run reads a database
-   of its own.
+   `next start`.
+7. **Every entry is keyed by its database and its deployment.** The database part is a hash of
+   `DATABASE_URL`: CI restores `apps/web/.next/cache`, the data cache lives inside it, and every
+   test run reads a database of its own. The deployment part is `VERCEL_DEPLOYMENT_ID`, else
+   `VERCEL_GIT_COMMIT_SHA`, else `local`. `unstable_cache` keys on the callback's source and
+   these parts, and Vercel's data cache outlives a deploy. Without it, a release that changed
+   the shape of `SavedDay`, `DiscoverDay` or `PublicAuthor` would read the last release's JSON
+   for a day.
 
 ## What is stale for up to a day
 
@@ -101,18 +127,23 @@ To a reader with no account, and to a signed-in reader of somebody else's day:
 - Discover's order and counts (most-added included), a place page's list and count, related
   days, and the sitemap's `lastModified`.
 
-An add is the exception: it clears the day it added and its author's entries (decision 3), so a
-day's add count and its author's are live, and only the lists lag. **Nothing about whether a day
-is in the library is ever stale**, except through the paths below.
+Two writes are exceptions (decision 3):
+
+- An add clears the day it added and its author's entries, so a day's add count and its
+  author's are live, and only the lists lag.
+- A name change clears its author and every list.
+
+**Nothing about whether a day is in the library is ever stale**, except through the paths
+below.
 
 ## What does not clear it
 
 - **`apps/web/scripts/import-content-production.ts`** writes from outside Next, so it cannot call
   `revalidateTag`. A day it withdraws leaves the day page within a day (decision 5). Lists and
   cards keep it until their tag is cleared or the day is up. After an import that withdraws or
-  hides a day, purge the `library` tag in the Vercel dashboard (*CDN → Caches → Purge*). A
-  purge by tag clears the data cache as well as the CDN. Or run
-  `vercel cache dangerously-delete --tag library`.
+  hides a day, purge the `library` tag in the Vercel dashboard (*CDN → Caches → Purge*), or run
+  `vercel cache dangerously-delete --tag library`. Vercel's docs say a purge by tag clears the
+  data cache as well as the CDN; that is *unverified here* (see the last consequence).
 - A hand-run `UPDATE`, for the same reason and with the same remedy.
 
 ## Why not Redis
@@ -141,6 +172,9 @@ found a per-instance store could not do.
   changes. Left as it is; if it ever matters, drop `fetch-cache` before saving the cache.
 - Previews and production share the tag names, but Vercel scopes tags per project and
   environment, so a preview's purge does not touch production.
+- Every deploy starts with a cold library cache (decision 7): the first view of each day, list
+  and search after a release reads Postgres, as every view did before this ADR.
 - *Not verified locally:* the CDN purge. It runs only inside a Vercel function. On a preview,
   open a day's card URL twice (the second response's `x-vercel-cache` is `HIT`), unpublish the
-  day, and fetch the card again: it must be the generic card, and `MISS`.
+  day, and fetch the card again: it must be the generic card, and `MISS`. Also unverified: that
+  a purge by tag from the dashboard or CLI clears Next's data cache on Vercel, as its docs say.
