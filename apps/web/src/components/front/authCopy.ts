@@ -30,14 +30,18 @@ export type AuthCopy = {
  * to get one. Drafted 2026-08-30 in the handoff's voice (second person, plain,
  * no exclamation), for Mitchell to accept or replace before merge.
  *
+ * Since ADR-063 the code is optional — signup is open, and the code only
+ * records who invited whom — so the copy says so rather than reading as a
+ * requirement. Reworded 2026-10-03, still awaiting design sign-off.
+ *
  * @see docs/milestones/M11a-invite-gate.md — link 6, the refusal is a designed
  * screen and so is the thing that asks for the code.
  */
 export const ADMISSION_FIELD_COPY = {
   /** Sits above the field, explaining why it is there at all. */
-  note: "Caesura is invite-only while it is small.",
+  note: "Got an invite code? Add it so whoever invited you gets the credit.",
   /** The field's own hint — says when it may be left empty. */
-  hint: "Paste the code you were sent. Arriving from a trip invite link? Leave this empty.",
+  hint: "Optional. Paste the code you were sent, or leave this empty.",
 } as const;
 
 export const AUTH_COPY: Record<AuthMode, AuthCopy> = {
@@ -89,6 +93,11 @@ const ERROR_MESSAGES: Record<string, string> = {
 
 // M11a link 6 — the invite gate's three refusals, kept in their own map and
 // deliberately NOT merged into `ERROR_MESSAGES` above.
+//
+// Since ADR-063 (open signup) nothing redirects here with these codes any
+// more; the copy stays only so a stale `/signup?error=…` link still renders a
+// sentence rather than FALLBACK. Removing the contract enum and this map is a
+// separate contract change.
 //
 // Two properties come from the separation, and both are the point:
 //

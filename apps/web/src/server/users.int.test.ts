@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
-import { AdmissionRefusal } from "@tc/contracts";
 import type { PendingAdmission } from "./admission";
 import { executeTripCommand } from "./commands";
 import { db } from "./db/client";
@@ -80,6 +79,11 @@ async function mintCode(createdBy: string): Promise<string> {
   const code = `code-${randomUUID()}`;
   await db.insert(inviteCodes).values({ code, createdBy, createdAt: new Date() });
   return code;
+}
+
+async function redeemerOf(code: string): Promise<string | null> {
+  const [row] = await db.select().from(inviteCodes).where(eq(inviteCodes.code, code));
+  return row?.redeemedBy ?? null;
 }
 
 describe("users repository", () => {
@@ -335,7 +339,7 @@ describe("recordSignIn (the Auth.js signIn callback)", () => {
 });
 
 // M11a: the gate itself, at the seam where it actually runs.
-describe("recordSignIn is the invite gate (M11a)", () => {
+describe("recordSignIn admits everyone and records who invited whom (M11a, ADR-063)", () => {
   // The exit-gate box: nobody already here gets locked out, Mitchell included.
   // Admission is "has no users row" (ADR-025), so an existing row is admission
   // — and the read has to happen BEFORE `upsertUser`, which is a bare
@@ -389,46 +393,48 @@ describe("recordSignIn is the invite gate (M11a)", () => {
       expect(row?.redeemedBy).toBeNull();
     });
 
-    it("does NOT admit a dev-shaped id presented by another provider", async () => {
+    // Signup is open, so every path admits; what tells the dev-login bypass
+    // from the gate is whether the presented code gets CLAIMED. The bypass
+    // never claims one (above); the gate does.
+    it("does NOT treat a dev-shaped id from another provider as dev login", async () => {
       const id = `dev-${signInId()}`;
+      const code = await mintCode(signInId());
 
       await expect(
         recordSignIn(
           { user: { name: "Impostor" }, account: { providerAccountId: id, provider: "google" } },
-          fakeJar(null),
+          fakeJar(code),
         ),
-      ).resolves.toBe(`/signup?error=${AdmissionRefusal.enum.MISSING_INVITE_CODE}`);
-      expect(await readUser(id)).toBeNull();
+      ).resolves.toBe(true);
+      expect(await redeemerOf(code)).toBe(id);
     });
 
     // The e2e opt-out. Without this the bypass would silently delete
-    // `m11a-invite-gate.spec.ts`'s entire subject — it proves the gate THROUGH
-    // dev login, because that is the only way a browser test mints a brand-new
-    // identity. `playwright.config.ts` sets this; nothing else does.
-    it("honours the invite gate when DEV_LOGIN_HONOURS_INVITE_GATE is set", async () => {
+    // `m11a-invite-gate.spec.ts`'s subject — it proves a code is claimed
+    // THROUGH dev login, because that is the only way a browser test mints a
+    // brand-new identity. `playwright.config.ts` sets this; nothing else does.
+    it("claims the presented code when DEV_LOGIN_HONOURS_INVITE_GATE is set", async () => {
       const id = `dev-${signInId()}`;
+      const code = await mintCode(signInId());
       const previous = process.env.DEV_LOGIN_HONOURS_INVITE_GATE;
       process.env.DEV_LOGIN_HONOURS_INVITE_GATE = "true";
       try {
-        await expect(recordSignIn(devSignIn(id), fakeJar(null))).resolves.toBe(
-          `/signup?error=${AdmissionRefusal.enum.MISSING_INVITE_CODE}`,
-        );
-        expect(await readUser(id)).toBeNull();
+        await expect(recordSignIn(devSignIn(id), fakeJar(code))).resolves.toBe(true);
+        expect(await redeemerOf(code)).toBe(id);
       } finally {
         if (previous === undefined) delete process.env.DEV_LOGIN_HONOURS_INVITE_GATE;
         else process.env.DEV_LOGIN_HONOURS_INVITE_GATE = previous;
       }
     });
 
-    it("does NOT admit dev-login when the environment has it switched off", async () => {
+    it("does NOT take the dev-login bypass when the environment has it switched off", async () => {
       const id = `dev-${signInId()}`;
+      const code = await mintCode(signInId());
       const previous = process.env.AUTH_DEV_LOGIN;
       process.env.AUTH_DEV_LOGIN = "false";
       try {
-        await expect(recordSignIn(devSignIn(id), fakeJar(null))).resolves.toBe(
-          `/signup?error=${AdmissionRefusal.enum.MISSING_INVITE_CODE}`,
-        );
-        expect(await readUser(id)).toBeNull();
+        await expect(recordSignIn(devSignIn(id), fakeJar(code))).resolves.toBe(true);
+        expect(await redeemerOf(code)).toBe(id);
       } finally {
         if (previous === undefined) delete process.env.AUTH_DEV_LOGIN;
         else process.env.AUTH_DEV_LOGIN = previous;
@@ -436,37 +442,36 @@ describe("recordSignIn is the invite gate (M11a)", () => {
     });
   });
 
-  // The headline refusal: a brand-new account with no admission is refused and
-  // LEAVES NO USERS ROW BEHIND.
-  it("refuses a newcomer who presents nothing, and creates no row", async () => {
+  // The headline change (ADR-063): no code no longer means no account. Each
+  // of the three ways a code used to refuse someone now admits them, creates
+  // their row, and claims nothing.
+  it("admits a newcomer who presents nothing, and creates their row", async () => {
     const id = signInId();
 
-    await expect(recordSignIn(signInAs(id, { name: "Nobody" }), fakeJar(null))).resolves.toBe(
-      `/signup?error=${AdmissionRefusal.enum.MISSING_INVITE_CODE}`,
-    );
-    expect(await readUser(id)).toBeNull();
+    await expect(recordSignIn(signInAs(id, { name: "Nobody" }), fakeJar(null))).resolves.toBe(true);
+    expect(await readUser(id)).not.toBeNull();
   });
 
-  it("refuses a newcomer who presents an unrecognised code, and creates no row", async () => {
+  it("admits a newcomer who presents an unrecognised code, and creates their row", async () => {
     const id = signInId();
 
     await expect(
       recordSignIn(signInAs(id, { name: "Nobody" }), fakeJar(`code-${randomUUID()}`)),
-    ).resolves.toBe(`/signup?error=${AdmissionRefusal.enum.INVALID_INVITE_CODE}`);
-    expect(await readUser(id)).toBeNull();
+    ).resolves.toBe(true);
+    expect(await readUser(id)).not.toBeNull();
   });
 
-  it("refuses a newcomer who presents a spent code, and creates no row", async () => {
+  it("admits a newcomer who presents a spent code, without taking it from its first redeemer", async () => {
     const first = signInId();
     const second = signInId();
-    const code = await mintCode(first);
+    const code = await mintCode(signInId());
     await recordSignIn(signInAs(first, { name: "First" }), fakeJar(code));
 
     await expect(recordSignIn(signInAs(second, { name: "Second" }), fakeJar(code))).resolves.toBe(
-      `/signup?error=${AdmissionRefusal.enum.SPENT_INVITE_CODE}`,
+      true,
     );
-    expect(await readUser(second)).toBeNull();
-    expect(await readUser(first)).not.toBeNull();
+    expect(await readUser(second)).not.toBeNull();
+    expect(await redeemerOf(code)).toBe(first);
   });
 
   it("admits a newcomer holding a single-use code, and burns it in the same sign-in", async () => {
@@ -483,41 +488,20 @@ describe("recordSignIn is the invite gate (M11a)", () => {
   // The exit-gate box: no admission credential outlives the sign-in that used
   // it. All three outcomes clear it, including the returning user who never
   // needed it.
-  it("clears the pending credential on success, on refusal, and for a returning user", async () => {
+  it("clears the pending credential on a claim, on an unclaimable code, and for a returning user", async () => {
     const admittedJar = fakeJar(SUPER_CODE);
     await expect(recordSignIn(signInAs(signInId()), admittedJar)).resolves.toBe(true);
     expect(admittedJar.cleared).toBe(true);
 
-    const refusedJar = fakeJar(`code-${randomUUID()}`);
-    const refused = await recordSignIn(signInAs(signInId()), refusedJar);
-    expect(refused).not.toBe(true);
-    expect(refusedJar.cleared).toBe(true);
+    const unclaimedJar = fakeJar(`code-${randomUUID()}`);
+    await expect(recordSignIn(signInAs(signInId()), unclaimedJar)).resolves.toBe(true);
+    expect(unclaimedJar.cleared).toBe(true);
 
     const returning = signInId();
     await upsertUser({ id: returning, email: null, name: null, image: null });
     const returningJar = fakeJar(SUPER_CODE);
     await expect(recordSignIn(signInAs(returning), returningJar)).resolves.toBe(true);
     expect(returningJar.cleared).toBe(true);
-  });
-
-  // Every refusal is a member of the closed contract enum — never a free
-  // string that happens to look like one.
-  it("returns only refusals the AdmissionRefusal contract recognises", async () => {
-    const spent = await mintCode(signInId());
-    await recordSignIn(signInAs(signInId()), fakeJar(spent));
-
-    const refusals = await Promise.all([
-      recordSignIn(signInAs(signInId()), fakeJar(null)),
-      recordSignIn(signInAs(signInId()), fakeJar(`code-${randomUUID()}`)),
-      recordSignIn(signInAs(signInId()), fakeJar(spent)),
-    ]);
-
-    for (const refusal of refusals) {
-      expect(typeof refusal).toBe("string");
-      const code = new URL(refusal as string, "https://x.test").searchParams.get("error");
-      expect(AdmissionRefusal.safeParse(code).success).toBe(true);
-    }
-    expect(new Set(refusals).size).toBe(3);
   });
 });
 
@@ -571,8 +555,8 @@ describe("recordSignIn sends the welcome email", () => {
     expect(sendEmail).toHaveBeenCalledTimes(1);
   });
 
-  it("sends nothing to a newcomer the gate refused", async () => {
+  it("welcomes a newcomer who came in without any code", async () => {
     await recordSignIn(signInAs(signInId(), { email: "stranger@gmail.com" }), fakeJar(null));
-    expect(sendEmail).not.toHaveBeenCalled();
+    expect(sendEmail).toHaveBeenCalledTimes(1);
   });
 });

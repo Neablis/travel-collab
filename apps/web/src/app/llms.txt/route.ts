@@ -38,8 +38,7 @@ function llmsTxt(origin: string): string {
     "",
     "Caesura is collaborative trip planning for a group going somewhere together: one shared trip " +
       "of days and stops, with costs, a notebook and the whole change history, and playbooks — days " +
-      "worth repeating, saved by the people who lived them — to borrow from. Signup is invite-only " +
-      "while it is small.",
+      "worth repeating, saved by the people who lived them — to borrow from. Anyone can sign up.",
     "",
     "It has a public REST API under `/api/v1`. A token acts as the person who minted it, holds only " +
       "the scopes it was given, and can never do more than that person can. Send it on every request " +

@@ -23,7 +23,7 @@ describe("DevelopersScreen", () => {
   it("names the path to a token in the app's own words", () => {
     render(<DevelopersScreen />);
     expect(screen.getByText("Account → Profile → API tokens → New token.")).toBeDefined();
-    expect(screen.getByRole("heading", { name: "Get invited" })).toBeDefined();
+    expect(screen.getByRole("heading", { name: "Create your account" })).toBeDefined();
     expect(screen.getByRole("link", { name: "Create an account" }).getAttribute("href")).toBe("/signup");
   });
 
