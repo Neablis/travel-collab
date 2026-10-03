@@ -73,7 +73,7 @@ describe("dependsOn", () => {
       { commands: [{ type: "SetTripName", tripId, name: "Kyoto" }], effect: nothing },
       { commands: [range], effect: nothing },
       { commands: [startOnly], effect: nothing },
-    ];
+    ] satisfies { commands: BatchableCommand[]; effect: UnitEffect }[];
     expect(dependsOn(units)).toEqual([[], [], [], [0], []]);
   });
 });
