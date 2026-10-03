@@ -1,6 +1,13 @@
 "use client";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import type { BatchableCommand, TripDetail, TripHistory, TripRole } from "@tc/contracts";
+import {
+  SUGGESTION_UNIT_COMMANDS_MAX,
+  SUGGESTION_UNITS_MAX,
+  type BatchableCommand,
+  type TripDetail,
+  type TripHistory,
+  type TripRole,
+} from "@tc/contracts";
 import { usePublishSaveState } from "@/components/SaveLight";
 import {
   createTripSuggestion,
@@ -445,6 +452,21 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
     // to the path that was still breaking it.
     const base = optimisticRef.current;
     if (!base) return { ok: false, message: "This trip hasn't finished loading. Try again in a moment." };
+    // W50: the suggestions route takes no more than this, and refuses a draft
+    // past it whole. Refused at the edit instead, which the author can act on;
+    // the draft already made is untouched.
+    const overCap =
+      mode !== "suggest"
+        ? null
+        : base.pending.length >= SUGGESTION_UNITS_MAX
+          ? `A suggestion holds up to ${SUGGESTION_UNITS_MAX} changes. Send these first.`
+          : commands.length > SUGGESTION_UNIT_COMMANDS_MAX
+            ? `One suggested change holds up to ${SUGGESTION_UNIT_COMMANDS_MAX} edits. Make it in smaller steps.`
+            : null;
+    if (overCap !== null) {
+      setError(overCap);
+      return { ok: false, message: overCap };
+    }
     const result = enqueue(base, `c${++seq.current}`, commands);
     if (!result.ok) {
       // A no-op changed nothing, which is not worth alarming anyone about —

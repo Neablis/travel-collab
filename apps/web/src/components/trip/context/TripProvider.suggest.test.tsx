@@ -2,7 +2,8 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
-import type { CreateSuggestionInput, TripCommand } from "@tc/contracts";
+import { useState } from "react";
+import { SUGGESTION_UNIT_COMMANDS_MAX, SUGGESTION_UNITS_MAX, type CreateSuggestionInput, type TripCommand } from "@tc/contracts";
 import { tripDetailFixture } from "@tc/factories";
 import { makeTripHandlers } from "@/mocks/handlers";
 import { TripProvider, useTrip } from "./TripProvider";
@@ -153,5 +154,84 @@ describe("TripProvider — a suggester's edits are a draft", () => {
       `“${second}” no longer applies to the trip as it is now. Nothing was sent.`,
     );
     expect(screen.getByTestId("count").textContent).toBe("2");
+  });
+});
+
+// W50: the route takes at most SUGGESTION_UNITS_MAX units of
+// SUGGESTION_UNIT_COMMANDS_MAX commands. A draft past either would be refused
+// whole at Send, so it is refused at the edit instead, and nothing already
+// drafted is touched.
+describe("TripProvider — a draft stays inside what the route accepts", () => {
+  const dayId = (n: number) => `d0000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+
+  function CapProbe() {
+    const { activeTrip, dispatch, dispatchBatch, draft, error } = useTrip();
+    const tripId = activeTrip?.tripId ?? "";
+    const [refusal, setRefusal] = useState("none");
+    const add = (n: number) => dispatch({ type: "AddDay", tripId, dayId: dayId(n) });
+    return (
+      <div>
+        <span data-testid="count">{draft?.count ?? "none"}</span>
+        <span data-testid="error">{error ?? "none"}</span>
+        <span data-testid="refusal">{refusal}</span>
+        <button
+          onClick={async () => {
+            for (let n = 1; n <= SUGGESTION_UNITS_MAX; n++) await add(n);
+          }}
+        >
+          fill
+        </button>
+        <button
+          onClick={async () => {
+            const result = await add(SUGGESTION_UNITS_MAX + 1);
+            setRefusal(result.ok ? "accepted" : result.message);
+          }}
+        >
+          one-more
+        </button>
+        <button
+          onClick={() =>
+            void dispatchBatch(
+              Array.from({ length: SUGGESTION_UNIT_COMMANDS_MAX + 1 }, (_, i) => ({ type: "AddDay" as const, tripId, dayId: dayId(500 + i) })),
+            )
+          }
+        >
+          big-unit
+        </button>
+      </div>
+    );
+  }
+
+  async function mount() {
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture, { myRole: "suggester" }));
+    render(
+      <TripProvider tripId={fixture.tripId}>
+        <CapProbe />
+      </TripProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId("count").textContent).toBe("0"));
+  }
+
+  it("refuses a change past the hundredth, says why, and keeps the hundred", async () => {
+    await mount();
+    fireEvent.click(screen.getByRole("button", { name: "fill" }));
+    await waitFor(() => expect(screen.getByTestId("count").textContent).toBe(String(SUGGESTION_UNITS_MAX)));
+
+    fireEvent.click(screen.getByRole("button", { name: "one-more" }));
+
+    await waitFor(() => expect(screen.getByTestId("refusal").textContent).not.toBe("none"));
+    expect(screen.getByTestId("refusal").textContent).toBe("A suggestion holds up to 100 changes. Send these first.");
+    expect(screen.getByTestId("error").textContent).toBe("A suggestion holds up to 100 changes. Send these first.");
+    expect(screen.getByTestId("count").textContent).toBe(String(SUGGESTION_UNITS_MAX));
+  });
+
+  it("refuses one change of more than fifty edits, and keeps the draft", async () => {
+    await mount();
+    fireEvent.click(screen.getByRole("button", { name: "big-unit" }));
+
+    await waitFor(() => expect(screen.getByTestId("error").textContent).not.toBe("none"));
+    expect(screen.getByTestId("error").textContent).toBe("One suggested change holds up to 50 edits. Make it in smaller steps.");
+    expect(screen.getByTestId("count").textContent).toBe("0");
   });
 });
