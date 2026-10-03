@@ -2,18 +2,7 @@ import { ResolveSuggestionChangeInput, SuggestionChange } from "@tc/contracts";
 import { auth } from "@/server/auth";
 import { readBody } from "@/server/readBody";
 import { resolveSuggestionChange } from "@/server/suggestions/resolve";
-import type { SuggestionErrorCode } from "@/server/suggestions/shared";
-
-// The collection route's table, for the same reasons (spec W26).
-const STATUS: Record<SuggestionErrorCode, number> = {
-  "not-found": 404,
-  forbidden: 403,
-  invalid: 400,
-  "does-not-apply": 422,
-  "dependency-pending": 409,
-  "already-resolved": 409,
-  "no-longer-applies": 409,
-};
+import { refused } from "@/server/suggestions/http";
 
 /**
  * Accept, dismiss or withdraw one change (spec W14). Answers every change the
@@ -32,9 +21,6 @@ export async function POST(
   const body = await readBody(request, ResolveSuggestionChangeInput, "invalid-action");
   if ("error" in body) return body.error;
   const result = await resolveSuggestionChange(tripId, changeId, session.user.id, body.data.action);
-  if (!result.ok) {
-    const { code, message } = result.error;
-    return Response.json({ error: message, code }, { status: STATUS[code] });
-  }
+  if (!result.ok) return refused(result.error);
   return Response.json({ changes: SuggestionChange.array().parse(result.value) });
 }
