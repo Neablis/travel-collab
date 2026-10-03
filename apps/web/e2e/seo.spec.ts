@@ -86,7 +86,7 @@ test("sitemap.xml lists the static routes and published days, never a private on
     const response = await visitor.request.get("/sitemap.xml");
     expect(response.status()).toBe(200);
     const xml = await response.text();
-    for (const path of ["/playbooks", "/demo", "/developers", "/developers/reference"]) {
+    for (const path of ["/", "/playbooks", "/demo", "/developers", "/developers/reference"]) {
       expect(xml).toMatch(new RegExp(`<loc>[^<]*${path}</loc>`));
     }
     expect(xml).toMatch(new RegExp(`<loc>[^<]*/playbooks/day/${publishedId}</loc>`));
