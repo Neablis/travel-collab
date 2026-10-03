@@ -58,4 +58,54 @@ describe("predictBatch", () => {
     if (r.ok) return;
     expect(r.rejection.code).toBe("day-not-found");
   });
+
+  it("is refused whole by a no-op sub-command unless asked to skip it", () => {
+    const unit = [
+      { type: "SetTripName", tripId, name: "Rome" } as const,
+      { type: "AddDay", tripId, dayId: "d2" } as const,
+    ];
+    const strict = predictBatch(detail(), unit);
+    expect(strict.ok).toBe(false);
+    if (strict.ok) return;
+    expect(strict.rejection.code).toBe("no-op");
+  });
+
+  // The server's batch (`decideInOrder`) skips a no-op sub-command, so the
+  // suggestion overlay and create's dry run must too, or they would call a
+  // change broken that accepting it would apply.
+  it("with skipNoOps, skips a no-op sub-command as the server's batch does, and describes only what applied", () => {
+    const r = predictBatch(
+      detail(),
+      [
+        { type: "SetTripName", tripId, name: "Rome" },
+        { type: "AddDay", tripId, dayId: "d2" },
+      ],
+      { skipNoOps: true },
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.detail.days.map((d) => d.dayId)).toEqual(["d1", "d2"]);
+    expect(r.description).toBe("Added Day 2");
+  });
+
+  it("with skipNoOps, still refuses a unit that is a no-op throughout, as the batch does", () => {
+    const r = predictBatch(detail(), [{ type: "SetTripName", tripId, name: "Rome" }], { skipNoOps: true });
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.rejection.code).toBe("no-op");
+  });
+
+  it("with skipNoOps, still aborts on a real rejection", () => {
+    const r = predictBatch(
+      detail(),
+      [
+        { type: "SetTripName", tripId, name: "Rome" },
+        { type: "RemoveDay", tripId, dayId: "ghost" },
+      ],
+      { skipNoOps: true },
+    );
+    expect(r.ok).toBe(false);
+    if (r.ok) return;
+    expect(r.rejection.code).toBe("day-not-found");
+  });
 });
