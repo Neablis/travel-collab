@@ -40,6 +40,7 @@ import { insertCommands, readableSavedDay } from "@/server/savedDays";
 import { addCounts, recordAdd } from "@/server/savedDayAdds";
 import { resolveBatch, type RawToolIntent } from "@/server/assistant/batchResolver";
 import { executeTripCommandBatch } from "@/server/commands";
+import { invalidateDayRead } from "@/server/libraryCache";
 import {
   enrichCommandLocations,
   hasCityLevelLocations,
@@ -665,6 +666,7 @@ export async function commitProposal(
   // Straight to the executor: this used to go through `flushPlanningBatch`, a
   // one-line pass-through with an unused `tripId` (KI-2026-09-05-w item 2).
   // The executor's third argument is its existing transaction seam.
+  const counted: { savedDayId: string; ownerId: string }[] = [];
   const batch = await executeTripCommandBatch(
     [...enriched, ...inserted],
     actorId,
@@ -676,15 +678,18 @@ export async function commitProposal(
             // dialog's cannot disagree about who gets credited, which is the
             // whole reason the rule is one function and not two.
             if (!addCounts({ authorId: day.ownerId, actorId })) continue;
-            await recordAdd(tx, {
+            const added = await recordAdd(tx, {
               savedDayId: day.savedDayId,
               tripId,
               addedBy: actorId,
               createdAt: new Date(),
             });
+            if (added) counted.push(day);
           }
         },
   );
+  // Committed: the cached day shows the add, as `insertSavedDay`'s does (ADR-063).
+  if (batch.ok) for (const day of counted) await invalidateDayRead(day.savedDayId, day.ownerId);
   // **The report reaches the user on BOTH paths, not just the happy one.**
   // It used to be read only after a successful commit, so an approval that the
   // enrichment step had quietly hollowed out answered with the domain's bare

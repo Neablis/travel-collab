@@ -17,7 +17,7 @@ import { forgetCitySearches } from "./cities";
 import { db } from "./db/client";
 import { savedDays } from "./db/schema";
 import { isUuid } from "./ids";
-import { invalidatePublicDay } from "./libraryCache";
+import { invalidateDayRead, invalidatePublicDay } from "./libraryCache";
 import { parseSavedDayColumns } from "./savedDayRow";
 import { executeTripCommandBatch, type CommandResult } from "./commands";
 import { readStream } from "./eventStore";
@@ -1261,12 +1261,13 @@ export async function insertSavedDay(
   }
 
   const commands = insertCommands(saved, tripId, onto);
+  let counted = false;
   const result = await executeTripCommandBatch(
     commands,
     actorId,
     async (tx) => {
       if (!addCounts({ authorId: saved.ownerId, actorId })) return;
-      await recordAdd(tx, {
+      counted = await recordAdd(tx, {
         savedDayId: saved.savedDayId,
         tripId,
         addedBy: actorId,
@@ -1276,6 +1277,8 @@ export async function insertSavedDay(
     { expectedSeq },
   );
   if (!result.ok) return result;
+  // Committed: whoever just added it sees the count move (ADR-063).
+  if (counted) await invalidateDayRead(saved.savedDayId, saved.ownerId);
   // Read back out of the batch rather than minted a second time, so these are
   // by construction the ids that landed. `insertCommands` emits every AddDay
   // in sequence order and then one AddActivity per stop in `stops[]` order;

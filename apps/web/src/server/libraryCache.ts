@@ -51,18 +51,36 @@ export function libraryCached<T>(key: readonly string[], tags: readonly string[]
   })();
 }
 
-// Awaited rather than handed to `waitUntil`: a 200 to "unpublish" should mean
-// the day is gone, not that it will be shortly. It is one call, on a rare and
-// author-initiated write. `dangerouslyDeleteByTag` and not `invalidateByTag`:
-// invalidating serves the stale entry once more while it refreshes, and an
-// unpublished or hidden day must not be shown again to anyone.
 /**
  * Take one day, its author's numbers and every list out of both caches, after
  * a write that changed whether the day is in the library. Never throws: the
  * write has already committed, and a 500 now would tell its author it had not.
  */
-export async function invalidatePublicDay(savedDayId: string, ownerId: string): Promise<void> {
-  const tags = [dayTag(savedDayId), authorTag(ownerId), LIBRARY_TAG];
+export function invalidatePublicDay(savedDayId: string, ownerId: string): Promise<void> {
+  return clear([dayTag(savedDayId), authorTag(ownerId), LIBRARY_TAG]);
+}
+
+// Not `library`: an add moves the day's count and its author's, and no list
+// needs to show it within the day. What it buys is a reader seeing their own
+// add when they go back to the day (M11b's "1 trip").
+/**
+ * Take one day's read and its author's numbers out of both caches, after an
+ * add of that day counted. Never throws, for `invalidatePublicDay`'s reason.
+ */
+export function invalidateDayRead(savedDayId: string, ownerId: string): Promise<void> {
+  return clear([dayTag(savedDayId), authorTag(ownerId)]);
+}
+
+/** How long a CDN purge may hold up the write it follows. */
+export const PURGE_TIMEOUT_MS = 2_000;
+
+// Awaited rather than handed to `waitUntil`: a 200 to "unpublish" should mean
+// the day is gone, not that it will be shortly. It is one call, on a rare and
+// author-initiated write, and bounded by PURGE_TIMEOUT_MS so a purge that never
+// answers cannot hang it. `dangerouslyDeleteByTag` and not `invalidateByTag`:
+// invalidating serves the stale entry once more while it refreshes, and an
+// unpublished or hidden day must not be shown again to anyone.
+async function clear(tags: string[]): Promise<void> {
   if (process.env.NODE_ENV === "production") {
     try {
       // `{ expire: 0 }`: gone now. A profile such as "max" would serve the old
@@ -75,10 +93,16 @@ export async function invalidatePublicDay(savedDayId: string, ownerId: string): 
   }
   // The purge API exists only inside a Vercel function.
   if (!process.env.VERCEL) return;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`no answer in ${PURGE_TIMEOUT_MS}ms`)), PURGE_TIMEOUT_MS);
+  });
   try {
-    await dangerouslyDeleteByTag(tags);
+    await Promise.race([dangerouslyDeleteByTag(tags), timeout]);
   } catch (error) {
     console.error("library cache: CDN purge failed", { tags, error: String(error) });
+  } finally {
+    clearTimeout(timer);
   }
 }
 

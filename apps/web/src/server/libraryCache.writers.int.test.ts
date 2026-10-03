@@ -4,7 +4,14 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "./db/client";
 import { savedDays } from "./db/schema";
 import { createReport, actOnReport } from "./reports";
-import { deleteSavedDay, newSavedDayRow, setSavedDayVisibility, updatePlaybookContent } from "./savedDays";
+import { executeTripCommand } from "./commands";
+import {
+  deleteSavedDay,
+  insertSavedDay,
+  newSavedDayRow,
+  setSavedDayVisibility,
+  updatePlaybookContent,
+} from "./savedDays";
 
 // Every write that can put a day in the library or take one out clears the
 // cached library after it commits (ADR-063). Asserted on the write functions
@@ -13,8 +20,9 @@ import { deleteSavedDay, newSavedDayRow, setSavedDayVisibility, updatePlaybookCo
 vi.mock("./libraryCache", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./libraryCache")>()),
   invalidatePublicDay: vi.fn(async () => {}),
+  invalidateDayRead: vi.fn(async () => {}),
 }));
-const { invalidatePublicDay } = await import("./libraryCache");
+const { invalidateDayRead, invalidatePublicDay } = await import("./libraryCache");
 
 const RUN = randomUUID().slice(0, 8);
 const AUTHOR = `writer-author-${RUN}`;
@@ -37,6 +45,7 @@ async function day(visibility: "public" | "private" = "private"): Promise<string
 
 beforeEach(() => {
   vi.mocked(invalidatePublicDay).mockClear();
+  vi.mocked(invalidateDayRead).mockClear();
 });
 
 afterAll(async () => {
@@ -78,6 +87,20 @@ describe("what clears the cached library", () => {
 
     expect(await deleteSavedDay(id, AUTHOR)).toBe("deleted");
     expect(invalidatePublicDay).toHaveBeenCalledExactlyOnceWith(id, AUTHOR);
+  });
+
+  it("an add that counts clears that day's read and its author's, and never the library", async () => {
+    const id = await day("public");
+    const tripId = randomUUID();
+    const created = await executeTripCommand({ type: "CreateTrip", tripId, name: "Somebody's" }, STRANGER);
+    expect(created.ok).toBe(true);
+
+    expect((await insertSavedDay(id, tripId, STRANGER)).ok).toBe(true);
+    // The same day into the same trip again counts once (the ledger's key).
+    expect((await insertSavedDay(id, tripId, STRANGER)).ok).toBe(true);
+
+    expect(vi.mocked(invalidateDayRead).mock.calls).toEqual([[id, AUTHOR]]);
+    expect(invalidatePublicDay).not.toHaveBeenCalled();
   });
 
   it("an operator's hide and restore, naming the day's author; a dismissal clears nothing", async () => {

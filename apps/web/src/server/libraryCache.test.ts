@@ -5,7 +5,7 @@ const dangerouslyDeleteByTag = vi.fn(async (..._a: unknown[]) => {});
 vi.mock("next/cache", () => ({ revalidateTag, unstable_cache: vi.fn() }));
 vi.mock("@vercel/functions", () => ({ dangerouslyDeleteByTag }));
 
-const { cacheTagHeader, invalidatePublicDay } = await import("./libraryCache");
+const { PURGE_TIMEOUT_MS, cacheTagHeader, invalidateDayRead, invalidatePublicDay } = await import("./libraryCache");
 
 const DAY = "aa000000-0000-4000-8000-000000000001";
 const OWNER = "dev-alice";
@@ -50,11 +50,48 @@ describe("invalidatePublicDay", () => {
     expect(JSON.stringify(log.mock.calls[0])).toContain("purge api down");
   });
 
+  it("gives up on a purge that never answers, so the write it follows still returns", async () => {
+    vi.stubEnv("VERCEL", "1");
+    vi.useFakeTimers();
+    dangerouslyDeleteByTag.mockImplementationOnce(() => new Promise(() => {}));
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    let settled = false;
+
+    const done = invalidatePublicDay(DAY, OWNER).then(() => (settled = true));
+    await vi.advanceTimersByTimeAsync(PURGE_TIMEOUT_MS - 1);
+    expect(settled).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    await done;
+
+    expect(settled).toBe(true);
+    expect(JSON.stringify(log.mock.calls[0])).toContain(`no answer in ${PURGE_TIMEOUT_MS}ms`);
+    vi.useRealTimers();
+  });
+
   it("touches nothing outside a production build, where nothing was cached", async () => {
     vi.stubEnv("NODE_ENV", "test");
     await invalidatePublicDay(DAY, OWNER);
 
     expect(revalidateTag).not.toHaveBeenCalled();
+  });
+});
+
+describe("invalidateDayRead", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    revalidateTag.mockReset();
+    dangerouslyDeleteByTag.mockReset();
+  });
+
+  // An add: the day's count and its author's, and no list.
+  it("clears the day and its author, never the library", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("VERCEL", "1");
+    await invalidateDayRead(DAY, OWNER);
+
+    const twoTags = [`day:${DAY}`, `author:${OWNER}`];
+    expect(revalidateTag.mock.calls).toEqual(twoTags.map((tag) => [tag, { expire: 0 }]));
+    expect(dangerouslyDeleteByTag).toHaveBeenCalledExactlyOnceWith(twoTags);
   });
 });
 
