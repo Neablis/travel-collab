@@ -18,6 +18,7 @@ import {
 } from "drizzle-orm/pg-core";
 import type {
   ApiScope,
+  BatchableCommand,
   DistanceUnit,
   GrantSource,
   PlanId,
@@ -451,6 +452,55 @@ export const tripShares = pgTable(
     revokedAt: timestamp("revoked_at", { withTimezone: true, mode: "date" }),
   },
   (t) => [uniqueIndex("trip_shares_token").on(t.token), index("trip_shares_trip").on(t.tripId)],
+);
+
+// Suggestions (ADR-063): a `suggester`'s board edits, held for an editor or the
+// owner to accept or dismiss one change at a time. CRUD with audit fields, and
+// **never planning state** — nothing here is on the trip's stream, and the only
+// way a row reaches the trip is `executeTripCommandBatch` replaying its
+// `commands` as the reviewer. `server/suggestions/` is the sole writer.
+//
+// `author_id` / `resolved_by` are `users.id`s on ADR-025's no-foreign-key terms.
+// The one foreign key is within the module: a change cannot outlive the
+// suggestion it was sent in. `base_seq` is the head the units were dry-run
+// against (spec W4) — a record, not a precondition; accepting sets no
+// `expectedSeq` (W10).
+export const tripSuggestions = pgTable(
+  "trip_suggestions",
+  {
+    id: uuid("id").primaryKey(),
+    tripId: uuid("trip_id").notNull(),
+    authorId: text("author_id").notNull(),
+    note: text("note"),
+    baseSeq: integer("base_seq").notNull(),
+    // `mode: "date"` — see the note above `savedDays` (KI-53).
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  // No index on `trip_id`: every read goes through the changes table below.
+);
+
+// One change = one optimistic-queue unit (spec W1). `trip_id` is repeated from
+// the suggestion so the list and the poll's revision read one table on the
+// `(trip_id, status)` index. `depends_on` holds the ids of earlier changes of
+// the same suggestion (W9); `position` is the unit's index in the draft.
+export const tripSuggestionChanges = pgTable(
+  "trip_suggestion_changes",
+  {
+    id: uuid("id").primaryKey(),
+    suggestionId: uuid("suggestion_id")
+      .notNull()
+      .references(() => tripSuggestions.id, { onDelete: "cascade" }),
+    tripId: uuid("trip_id").notNull(),
+    position: integer("position").notNull(),
+    commands: jsonb("commands").$type<BatchableCommand[]>().notNull(),
+    description: text("description").notNull(),
+    dependsOn: jsonb("depends_on").$type<string[]>().notNull(),
+    status: text("status").notNull().default("pending"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+    resolvedBy: text("resolved_by"),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true, mode: "date" }),
+  },
+  (t) => [index("trip_suggestion_changes_trip_status").on(t.tripId, t.status)],
 );
 
 // Saved parts (M11 link 6, ADR-029). A personal library of reusable day
