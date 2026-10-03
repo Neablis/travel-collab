@@ -58,6 +58,16 @@ here two days later.
   - structured data for a day;
   - whether profile and board pages earn a place in the index.
 
+  **Built 2026-10-03 as five stacked PRs, #295 (crawl plumbing), #296
+  (sitemap), #297 (server-rendered days, real 404s, slugs), #298 (structured
+  data) and #299 (city and country pages), merged in that order.** Plan:
+  `docs/plans/2026-10-02-seo-pass.md`. What spec §7 left out, still candidates:
+  indexing profiles or the board; paginating Discover; public notebook
+  templates (a contract change); public pages for the sample trips under
+  `content/trips/`. Still Mitchell's, outside the code: the firewall bypass
+  for `/`, `/welcome`, `/playbooks/**`, `/robots.txt` and `/sitemap.xml`;
+  submitting the sitemap; the production canonical check.
+
   **Audited and designed 2026-10-02; Mitchell: *"Lets start the SEO work"*.**
   The design, with its nine decisions and five stacked PRs, is
   `docs/specs/2026-10-02-seo-pass-design.md`; it has no plan yet. What the audit
