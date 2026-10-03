@@ -666,6 +666,21 @@ export async function discoverDays(query: DiscoverQuery): Promise<DiscoverRespon
   };
 }
 
+/** What a Discover request asks for, before the reader is known. */
+export type DiscoverInput = Pick<DiscoverQuery, "cities" | "countries" | "scope" | "sort" | "budget" | "length" | "rating">;
+
+/**
+ * Discover for one reader — what `GET /api/playbooks` and the Discover page
+ * both call, so the page's first paint and the screen's next search are one
+ * implementation.
+ *
+ * *Yours* and *Saved* mean nothing without an account, so a signed-out
+ * reader's scope is `everyone` whatever was asked.
+ */
+export async function discoverFor(input: DiscoverInput, readerId: string | null): Promise<DiscoverResponse> {
+  return discoverDays({ ...input, scope: readerId === null ? "everyone" : input.scope, readerId });
+}
+
 /**
  * **`orderBy`'s ranking, spelled as keys that all ascend** — so "after this
  * row" is one row comparison, `(keys) > (the cursor row's keys)`, which is what

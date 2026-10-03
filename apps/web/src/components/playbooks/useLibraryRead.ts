@@ -52,6 +52,12 @@ import type { ApiResult } from "@/lib/apiClient";
  * would quietly receive a `MouseEvent`. It still MOVES the baseline forward to
  * what it read, so the very next genuine external change is still caught — a
  * silent refresh suppresses one comparison, never the feature.
+ *
+ * **A page the server already read passes that read as `initial`.** It renders
+ * on the first pass with no loading state and no first fetch, so the HTML a
+ * crawler receives holds the content rather than a skeleton. The value answers
+ * the FIRST question only: a new `read` fetches as ever, and `reload()` compares
+ * its answer against the server's, which is the baseline.
  */
 export type LibraryRead<T> = {
   data: T | null;
@@ -74,9 +80,15 @@ export type LibraryRead<T> = {
 export function useLibraryRead<T>(
   read: () => Promise<ApiResult<T>>,
   signature: (value: T) => string,
+  /**
+   * What the server already read for this page. Rendered at once, with no
+   * first fetch: the page's HTML holds the content, which is what a crawler
+   * reads. It answers the FIRST question only; a new `read` fetches as ever.
+   */
+  initial?: T,
 ): LibraryRead<T> {
-  const [data, setData] = useState<T | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<T | null>(initial ?? null);
+  const [loading, setLoading] = useState(initial === undefined);
   const [error, setError] = useState<string | null>(null);
   const [changed, setChanged] = useState(false);
 
@@ -118,13 +130,27 @@ export function useLibraryRead<T>(
     setData(result.value);
   }, [read, signature]);
 
+  // The `run` the initial value answers. A ref to the first render's callback,
+  // so the effect can tell "this is still the question the server answered"
+  // from "the question changed" — and so StrictMode's second effect pass, which
+  // sees the same `run`, skips too.
+  const answeredByServer = useRef(initial === undefined ? null : run);
+
   useEffect(() => {
+    if (answeredByServer.current === run && initial !== undefined) {
+      // The baseline a later `reload()` is compared against.
+      onScreen.current = signature(initial);
+      return;
+    }
     // Not inside `run`: `reload()` calls it too, and that is exactly the call
     // whose baseline must survive. This effect fires only when `read` (or
     // `signature`) changes identity — a new question.
     onScreen.current = null;
     setChanged(false);
     void run(true);
+    // `initial` is read on the first pass only; a new object each render must
+    // not restart the read.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [run]);
 
   return {

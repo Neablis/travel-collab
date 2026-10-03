@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
-import type { SavedDay, SavedDayModeration, TimeFormat } from "@tc/contracts";
+import type { SavedDay, TimeFormat } from "@tc/contracts";
 import { Badge } from "@/components/ui/badge";
 import { SharedDayMap } from "./SharedDayMap";
 import { mapPanel } from "./sharedDayFacts";
@@ -30,8 +30,9 @@ import {
   unpublishSavedDay,
   type ApiResult,
 } from "@/lib/apiClient";
-import { type PublicAuthor } from "@/lib/playbooks";
+import type { SharedDayView } from "@/lib/sharedDayView";
 import { takePlaybookAdd } from "@/lib/pendingPlaybookAdd";
+import { dayPath, daySegment } from "@/lib/playbookUrls";
 import { dayLength, savedDayFacts, DAY_LENGTH_LABELS } from "@/lib/savedDayFacts";
 import { toClockLabel, toClockRange } from "@/lib/time";
 import { useTimeFormat } from "@/components/account/PreferencesProvider";
@@ -146,16 +147,6 @@ export function dayDividerLine(group: PlaybookDay, clock: TimeFormat): string {
     : `${toClockRange(group.window.start, group.window.end, clock)} · ${count}`;
 }
 
-type DayView = {
-  day: SavedDay;
-  isAuthor: boolean;
-  author: PublicAuthor;
-  pinning: boolean;
-  publishedAt?: string | null;
-  /** An operator hid it (KI-2026-09-23-i). Only ever non-null on the author's own read. */
-  moderation: SavedDayModeration | null;
-};
-
 /**
  * How often, and how many times, the page reads again while the server is
  * placing the day's stops on its map (M27 link 10). One server pass is at most
@@ -175,7 +166,7 @@ const MAX_PIN_REREADS = 8;
  * shared / how often their days were added" say the same thing beside a day as
  * it does on the profile that day links to.
  */
-async function readDay(savedDayId: string): Promise<ApiResult<DayView>> {
+async function readDay(savedDayId: string): Promise<ApiResult<SharedDayView>> {
   const dayResult = await fetchSavedDay(savedDayId);
   if (!dayResult.ok) return dayResult;
   const authorResult = await fetchPublicProfile(dayResult.value.savedDay.ownerId);
@@ -193,16 +184,28 @@ async function readDay(savedDayId: string): Promise<ApiResult<DayView>> {
   };
 }
 
-export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayId: string; backHref: string; backLabel: string }) {
+// Visibility and the adds count are what somebody else can move under a
+// reader — the day's stops are a snapshot and never change after it is saved.
+// At module level, not in a `useCallback`: `useLibraryRead` tells "the question
+// the server already answered" from a new one by this function's identity.
+const signature = (value: SharedDayView) => `${value.day.visibility}:${value.day.adds}`;
+
+/** The shared-day screen: the title block, the stops, the author strip, the map and the rail. */
+export function SharedDayScreen({
+  savedDayId,
+  backHref,
+  backLabel,
+  initial,
+}: {
+  savedDayId: string;
+  backHref: string;
+  backLabel: string;
+  /** The server's read of this day. With it the first paint is the day, not a skeleton. */
+  initial?: SharedDayView;
+}) {
   const clock = useTimeFormat();
   const read = useCallback(() => readDay(savedDayId), [savedDayId]);
-  // Visibility and the adds count are what somebody else can move under a
-  // reader — the day's stops are a snapshot and never change after it is saved.
-  const signature = useCallback(
-    (value: DayView) => `${value.day.visibility}:${value.day.adds}`,
-    [],
-  );
-  const feed = useLibraryRead(read, signature);
+  const feed = useLibraryRead(read, signature, initial);
   const user = useSessionUser();
   const signedOut = user === null;
 
@@ -428,7 +431,7 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
                   are deciding on, not three paragraphs down beside the
                   leaderboard numbers. */}
               <AuthorKindBadge authorKind={day.authorKind} />
-              <ShareDayButton savedDayId={day.savedDayId} title={day.name} />
+              <ShareDayButton path={dayPath(day)} title={day.name} />
             </div>
             {/* §33.1: **the title block always speaks for the whole Playbook**,
                 so no number below it is stated twice. This line is why the rail
@@ -453,6 +456,15 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
                 .filter((part) => part !== null)
                 .join(" · ")}
             </DataText>
+            {/* The author's own paragraph (`saved_days.summary`). It is also
+                the page's meta description, so what a search result prints is
+                on the page it leads to. A blank one is no paragraph at all,
+                as it is no description (`dayDescription`). */}
+            {day.summary !== null && day.summary.trim() !== "" && (
+              <Text className="mt-2 max-w-prose" data-testid="playbook-summary">
+                {day.summary.trim()}
+              </Text>
+            )}
           </div>
 
           {/* §33.1: **`All days · Day 1 · Day 2 …`, under the title block.**
@@ -521,7 +533,7 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
                   the id. This branch is the better answer for the one reader
                   who does not need to be told their own name. */}
               <Link
-                href={`/playbooks/profile/${encodeURIComponent(author.userId)}${backQuery({ from: "day", day: day.savedDayId })}`}
+                href={`/playbooks/profile/${encodeURIComponent(author.userId)}${backQuery({ from: "day", day: daySegment(day) })}`}
                 className="font-semibold text-ink hover:underline"
               >
                 {isAuthor ? "You" : author.displayName}
@@ -920,14 +932,14 @@ function BackLink({ href, label }: { href: string; label: string }) {
  * *Share* (ADR-061, spec 2026-10-02 decision 6) — for every reader, because a
  * reader with no account can pass a link on too.
  *
- * The clean `/playbooks/day/<id>`, never the address bar: that carries `?from=`
+ * The clean `/playbooks/day/<slug>-<id>`, never the address bar: that carries `?from=`
  * (`backLink.ts`), which would hand the next reader a back link to wherever
  * THIS reader came from. The system share sheet where there is one (phones,
  * mostly), else a copy with a moment of "Link copied" on the button. Dismissing
  * the share sheet rejects with `AbortError`, which is the reader saying no and
  * gets no answer; any other refusal falls through to copying.
  */
-function ShareDayButton({ savedDayId, title }: { savedDayId: string; title: string }) {
+function ShareDayButton({ path, title }: { path: string; title: string }) {
   const [outcome, setOutcome] = useState<"idle" | "copied" | "failed">("idle");
 
   // The label goes back after a moment; the cleanup is what keeps a timer from
@@ -939,7 +951,7 @@ function ShareDayButton({ savedDayId, title }: { savedDayId: string; title: stri
   }, [outcome]);
 
   async function share() {
-    const url = `${window.location.origin}/playbooks/day/${encodeURIComponent(savedDayId)}`;
+    const url = `${window.location.origin}${path}`;
     if (typeof navigator.share === "function") {
       try {
         await navigator.share({ title, url });

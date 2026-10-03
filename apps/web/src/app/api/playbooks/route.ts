@@ -3,12 +3,13 @@ import { withDeprecatedDiscoverAlias } from "@/server/playbookWireAliases";
 import {
   BudgetBand,
   LengthBand,
+  normalizeCities,
   DiscoverResponse,
   DiscoverScope,
   DiscoverSort,
   RatingFloor,
 } from "@/lib/playbooks";
-import { discoverDays } from "@/server/playbooks";
+import { discoverFor } from "@/server/playbooks";
 
 export const runtime = "nodejs";
 
@@ -40,7 +41,7 @@ export async function GET(request: Request) {
 
   // Repeated `?city=` rather than one comma-joined value: a city name may
   // contain a comma and splitting on one would invent a city called " Japan".
-  const cities = [...new Set(params.getAll("city").map((c) => c.trim()).filter((c) => c !== ""))];
+  const cities = normalizeCities(params.getAll("city"));
   // Repeated `?country=` beside it (M12 link 7), as ISO alpha-2 codes —
   // uppercased, because the column stores them uppercase and containment is
   // exact. A value that is not two letters is DROPPED rather than 400'd, the
@@ -55,20 +56,20 @@ export async function GET(request: Request) {
     ),
   ];
 
-  const result = await discoverDays({
-    cities,
-    countries,
-    // *Yours* and *Saved* mean nothing without an account, so a signed-out
-    // reader's `?scope=` is ignored rather than answered with an empty page.
-    scope: readerId === null ? "everyone" : DiscoverScope.catch("everyone").parse(params.get("scope")),
-    sort: DiscoverSort.catch("most-added").parse(params.get("sort")),
-    budget: BudgetBand.catch("any").parse(params.get("budget")),
-    // `.catch("any")` for the reason every parameter here falls back rather
-    // than 400ing: an unrecognised or stale `?length=` stops narrowing instead
-    // of breaking the page.
-    length: LengthBand.catch("any").parse(params.get("length")),
-    rating: RatingFloor.catch("any").parse(params.get("rating")),
+  const result = await discoverFor(
+    {
+      cities,
+      countries,
+      scope: DiscoverScope.catch("everyone").parse(params.get("scope")),
+      sort: DiscoverSort.catch("most-added").parse(params.get("sort")),
+      budget: BudgetBand.catch("any").parse(params.get("budget")),
+      // `.catch("any")` for the reason every parameter here falls back rather
+      // than 400ing: an unrecognised or stale `?length=` stops narrowing instead
+      // of breaking the page.
+      length: LengthBand.catch("any").parse(params.get("length")),
+      rating: RatingFloor.catch("any").parse(params.get("rating")),
+    },
     readerId,
-  });
+  );
   return Response.json(withDeprecatedDiscoverAlias(DiscoverResponse.parse(result)));
 }

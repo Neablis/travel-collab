@@ -1,6 +1,6 @@
 import { addDaysIso } from "@/lib/dates";
 import { formatTripDateWithYear } from "@/lib/formatDate";
-import { PLAYBOOKS_BOARD, PLAYBOOKS_GENERIC } from "@/lib/playbooksPreview";
+import { PLAYBOOKS_BOARD, PLAYBOOKS_GENERIC, dayFactsLine, plural } from "@/lib/playbooksPreview";
 import type { InviteCard } from "./invite";
 import type { PlaybookCityCard, PlaybookDayCard, PlaybookProfileCard } from "./playbooks";
 
@@ -49,26 +49,12 @@ export { PLAYBOOKS_BOARD, PLAYBOOKS_GENERIC };
  * A shared day's words: its name over "Kyoto, Osaka · 3 days · 12 stops · by
  * Dana R. · rated 4.6 from 12 reviews", or the generic Playbooks card. Pure.
  *
- * The facts line is the page's own (`SharedDayScreen`'s meta line): a day
- * count only past one, and the stops counted over the whole sequence.
+ * The facts line is `dayFactsLine`, in `lib/` because the day page's meta
+ * description is the same line.
  */
 export function playbookDayCopy(card: PlaybookDayCard): CardCopy {
   if (card.kind === "generic") return PLAYBOOKS_GENERIC;
-  const parts: string[] = [];
-  if (card.cities.length > 0) parts.push(card.cities.join(", "));
-  if (card.dayCount > 1) parts.push(`${card.dayCount} days`);
-  parts.push(plural(card.stopCount, "stop"));
-  parts.push(`by ${card.author}`);
-  // `DiscoverCard`'s `ratingLine` rule: keyed on the count, so a day nobody
-  // has rated says nothing rather than "rated 0.0".
-  //
-  // **Words, not "★ 4.6 (12)"** (Mitchell, 2026-10-02, from a meta-tag
-  // inspector): none of the card's bundled fonts carries U+2605, so satori drew
-  // the star as a box, and a bare "(12)" did not say it counted reviews.
-  if (card.reviewCount > 0 && card.rating !== null) {
-    parts.push(`rated ${card.rating.toFixed(1)} from ${plural(card.reviewCount, "review")}`);
-  }
-  return { label: "Caesura · playbook", title: card.name, description: parts.join(" · ") };
+  return { label: "Caesura · playbook", title: card.name, description: dayFactsLine(card) };
 }
 
 /** A public profile's words: "Dana R.'s playbooks", over its numbers and the cities it knows. Pure. */
@@ -91,10 +77,6 @@ export function playbookCityCopy(card: PlaybookCityCard): CardCopy {
         ? `1 day a traveler planned in ${card.city}`
         : `${card.days} days other travelers planned in ${card.city}`,
   };
-}
-
-function plural(n: number, noun: string): string {
-  return `${n} ${noun}${n === 1 ? "" : "s"}`;
 }
 
 // "Jun 1, 2027 – Jun 3, 2027 · 3 days · 2 cities · with Dana, Mei, Priya +1".

@@ -429,6 +429,43 @@ describe("a shared day", () => {
     expect(within(list).getAllByText("Kyoto")).toHaveLength(2);
   });
 
+  it("shows the author's summary under the title block when the day has one", async () => {
+    fetchSavedDayMock.mockResolvedValue(
+      ok({ savedDay: savedDay({ summary: "Temples before the crowds, then the river." }), isAuthor: false }),
+    );
+    renderDay();
+    const summary = await screen.findByTestId("playbook-summary");
+    expect(summary.tagName).toBe("P");
+    expect(summary.textContent).toBe("Temples before the crowds, then the river.");
+  });
+
+  it.each([
+    ["no summary", null],
+    ["an empty one", ""],
+    ["a blank one", "  \n "],
+  ])("renders no summary paragraph at all for %s", async (_case, summary) => {
+    fetchSavedDayMock.mockResolvedValue(ok({ savedDay: savedDay({ summary }), isAuthor: false }));
+    renderDay();
+    await screen.findByTestId("playbook-meta");
+    expect(screen.queryByTestId("playbook-summary")).toBeNull();
+  });
+
+  // The server page's path: the day arrives as a prop, so the first render is
+  // the day itself and nothing is fetched to draw it.
+  it("renders the server's read at once, with no skeleton and no first fetch", () => {
+    render(
+      <SharedDayScreen
+        savedDayId={DAY_ID}
+        backHref="/playbooks"
+        backLabel="Discover"
+        initial={{ day: savedDay(), isAuthor: false, author: profile().author, pinning: false, publishedAt: null, moderation: null }}
+      />,
+    );
+    expect(screen.getByRole("heading", { level: 1, name: "Kyoto temples on foot" })).toBeTruthy();
+    expect(within(screen.getByTestId("stop-list")).getAllByRole("listitem")).toHaveLength(2);
+    expect(fetchSavedDayMock).not.toHaveBeenCalled();
+  });
+
   // Mitchell, PR #269 preview: "Just drop this text line, i dont even know what
   // its from". It was the "Kept out of {trip}. Order and gaps kept, no dates"
   // sentence under the meta line; the trip it names is not on this page
@@ -618,8 +655,10 @@ describe("a shared day", () => {
     // the server), not one re-derived here from the id ("Alice") — and never
     // the raw identifier. The link still CARRIES the id: the name decides what
     // the link says, not where it goes.
-    expect(within(strip).getByRole("link", { name: "Alice C." }).getAttribute("href")).toContain(
-      "/playbooks/profile/dev-alice",
+    // And the day's own segment, slug and all, so the profile's way back is
+    // the day's current URL rather than a redirect to it.
+    expect(within(strip).getByRole("link", { name: "Alice C." }).getAttribute("href")).toBe(
+      `/playbooks/profile/dev-alice?from=day&day=kyoto-temples-on-foot-${DAY_ID}`,
     );
     expect(within(strip).queryByText("dev-alice")).toBeNull();
     expect(fetchPublicProfileMock).toHaveBeenCalledWith("dev-alice");
@@ -1175,7 +1214,8 @@ describe("back from signing in to add", () => {
 // Decision 6: for every reader, signed in or not, and always the clean link —
 // never `?from=`, which would hand the next reader this one's way back.
 describe("sharing a day", () => {
-  const cleanUrl = `${window.location.origin}/playbooks/day/${DAY_ID}`;
+  // The slugged path: the one URL the day page answers 200 on.
+  const cleanUrl = `${window.location.origin}/playbooks/day/kyoto-temples-on-foot-${DAY_ID}`;
 
   function stubNavigator(key: "share" | "clipboard", value: unknown) {
     const before = Object.getOwnPropertyDescriptor(navigator, key);

@@ -1,6 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Metadata } from "next";
+import type { SavedDay } from "@tc/contracts";
+import type { SharedDayView } from "@/lib/sharedDayView";
 import { NOINDEX_FOLLOW } from "@/lib/siteMetadata";
+
+const sharedDayViewMock = vi.fn();
+vi.mock("@/server/sharedDayView", () => ({ sharedDayView: (...a: unknown[]) => sharedDayViewMock(...a) }));
+vi.mock("@/server/auth", () => ({ auth: async () => ({ user: { id: "dev-reader" } }) }));
+
 import { metadata as boardMetadata } from "./board/page";
 import { generateMetadata as dayMetadata } from "./day/[savedDayId]/page";
 import { generateMetadata as discoverMetadata } from "./page";
@@ -8,7 +15,26 @@ import { generateMetadata as profileMetadata } from "./profile/[userId]/page";
 
 // Spec 2026-10-02 §2.7, "Link previews": which card each Playbooks page points
 // og:image at. The `meta` routes are stubbed — what they answer is
-// `app/api/og/playbooks/routes.int.test.ts`.
+// `app/api/og/playbooks/routes.int.test.ts`. The day page asks no route: it
+// reads the day itself, and that read is stubbed instead.
+
+const DAY_ID = "aa000000-0000-4000-8000-000000000001";
+const DAY: SavedDay = {
+  savedDayId: DAY_ID,
+  ownerId: "dev-alice",
+  name: "Castle and canals",
+  stops: [],
+  dayCount: 2,
+  cities: ["Osaka", "Kyoto"],
+  visibility: "public",
+  authorKind: "human",
+  adds: 0,
+  sourceTripId: "00000000-0000-4000-8000-00000000f000",
+  sourceTripName: "Japan",
+  createdAt: "2026-08-04T00:00:00.000Z",
+  version: 1,
+  summary: null,
+};
 
 const SITE_IMAGE = "/opengraph-image.png";
 const PLAYBOOKS_IMAGE = "/api/og/playbooks";
@@ -33,6 +59,7 @@ const discover = (params: Record<string, string | string[]>) =>
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  sharedDayViewMock.mockReset();
 });
 
 describe("/playbooks metadata", () => {
@@ -77,26 +104,65 @@ describe("/playbooks metadata", () => {
   });
 });
 
-describe("/playbooks/day/<id> metadata", () => {
-  it("points og:image at the day's card, and names the tab for the day", async () => {
-    stubMeta(Response.json({ title: "Castle and canals", description: "Osaka · 1 stop" }));
+describe("/playbooks/day/<slug>-<id> metadata", () => {
+  // The day page reads in-process (SEO pass, D5); the read itself is covered
+  // through `api/saved-days/[savedDayId]/route.int.test.ts` and
+  // `server/sharedDayView.test.ts`. Here: what the <head> says about each answer.
+  const view = (over: { day?: Partial<SavedDay>; moderation?: SharedDayView["moderation"] } = {}): SharedDayView => ({
+    day: { ...DAY, ...over.day },
+    isAuthor: false,
+    author: { userId: "dev-alice", displayName: "Alice C.", playbooksShared: 1, adds: 0, reviewsReceived: 0, averageRating: null },
+    pinning: false,
+    publishedAt: null,
+    moderation: over.moderation ?? null,
+  });
+  const head = (segment: string = DAY_ID) => dayMetadata({ params: Promise.resolve({ savedDayId: segment }) });
 
-    const metadata = await dayMetadata({ params: Promise.resolve({ savedDayId: "d-1" }) });
+  it("names the tab for the day and its first city, the card for the day alone", async () => {
+    sharedDayViewMock.mockResolvedValue(view());
 
-    expect(ogImageUrls(metadata)).toEqual(["/api/og/playbooks/day/d-1", SITE_IMAGE]);
+    const metadata = await head(`an-old-name-${DAY_ID}`);
+
+    expect(sharedDayViewMock).toHaveBeenCalledWith(DAY_ID, "dev-reader");
+    expect(metadata.title).toBe("Castle and canals · Osaka");
     expect(metadata.openGraph?.title).toBe("Castle and canals");
-    expect(metadata.title).toBe("Castle and canals");
-    // The clean path: `?from=` and friends are never part of it (Copilot, PR #295).
-    expect(metadata.alternates?.canonical).toBe("/playbooks/day/d-1");
+    expect(ogImageUrls(metadata)).toEqual([`/api/og/playbooks/day/${DAY_ID}`, SITE_IMAGE]);
+    // The canonical is built from the day, not from the segment asked for.
+    expect(metadata.alternates?.canonical).toBe(`/playbooks/day/castle-and-canals-${DAY_ID}`);
+    expect(metadata.robots).toBeUndefined();
   });
 
-  it("keeps the generic tab title and Playbooks card when the lookup fails", async () => {
-    stubMeta(new Error("connection refused"));
+  it("describes it with the facts line, or the author's summary when there is one", async () => {
+    sharedDayViewMock.mockResolvedValue(view());
+    expect((await head()).description).toBe("Osaka, Kyoto · 2 days · 0 stops · by Alice C.");
 
-    const metadata = await dayMetadata({ params: Promise.resolve({ savedDayId: "d-1" }) });
+    sharedDayViewMock.mockResolvedValue(view({ day: { summary: "Moats, then boats." } }));
+    expect((await head()).description).toBe("Moats, then boats.");
+  });
 
-    expect(ogImageUrls(metadata)).toEqual([PLAYBOOKS_IMAGE, SITE_IMAGE]);
-    expect(metadata.title).toBe("A playbook");
+  it("leaves the city out of the tab for a day that names none", async () => {
+    sharedDayViewMock.mockResolvedValue(view({ day: { cities: [] } }));
+    expect((await head()).title).toBe("Castle and canals");
+  });
+
+  it.each([
+    ["the author's own private day", { day: { visibility: "private" as const } }],
+    ["a published day an operator hid, on its author's read", { moderation: { moderatedAt: "2026-09-23T00:00:00.000Z", moderationNote: null } }],
+  ])("keeps %s out of the index", async (_case, over) => {
+    sharedDayViewMock.mockResolvedValue(view(over));
+    expect((await head()).robots).toEqual({ index: false, follow: false });
+  });
+
+  it("gives every miss the one generic card, and reads nothing for a segment with no id", async () => {
+    sharedDayViewMock.mockResolvedValue(null);
+
+    const unreadable = await head(`castle-and-canals-${DAY_ID}`);
+    const junk = await head("not-a-day");
+
+    expect(unreadable).toEqual(junk);
+    expect(ogImageUrls(junk)).toEqual([PLAYBOOKS_IMAGE, SITE_IMAGE]);
+    expect(junk.title).toBe("A playbook");
+    expect(sharedDayViewMock).toHaveBeenCalledTimes(1);
   });
 });
 

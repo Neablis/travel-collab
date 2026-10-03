@@ -23,7 +23,7 @@ describe("sitemap.xml", () => {
       { savedDayId: "d-2", name: "Two", publishedAt: null },
     ]);
     const entries = await sitemap();
-    expect(entries.find((e) => e.url.endsWith("/d-1"))?.lastModified).toBe("2026-09-08T15:47:40.864Z");
-    expect(entries.find((e) => e.url.endsWith("/d-2"))).not.toHaveProperty("lastModified");
+    expect(entries.find((e) => e.url.endsWith("d-1"))?.lastModified).toBe("2026-09-08T15:47:40.864Z");
+    expect(entries.find((e) => e.url.endsWith("d-2"))).not.toHaveProperty("lastModified");
   });
 });

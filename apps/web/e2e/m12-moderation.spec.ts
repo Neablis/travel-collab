@@ -141,7 +141,8 @@ test("a reported day is hidden from the console, leaves the library, and the aut
   await discoverIn(reporter, city);
   await expect(reporter.getByTestId("discover-card").filter({ hasText: dayName })).toHaveCount(0);
   await reporter.goto(`/playbooks/day/${savedDayId}`);
-  await expect(reporter.getByText("This day is not in the library")).toBeVisible();
+  // The site's one 404 page (SEO pass): the day page answers a real 404 now.
+  await expect(reporter.getByRole("heading", { name: "This page is not here", level: 1 })).toBeVisible();
   await reporter.goto("/playbooks/profile/dev-alice");
   await expect(reporter.getByRole("heading", { name: "Alice", level: 1 })).toBeVisible();
   await expect(reporter.getByTestId("profile-days").getByText(dayName)).toHaveCount(0);

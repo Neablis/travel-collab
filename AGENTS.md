@@ -149,6 +149,11 @@ rate limit and a timeout in a file a crawler reads. Same terms as the console:
 `src/server` internals yes, `packages/domain` and an Auth.js instance no.
 `scripts/check-lint-wall.mjs` holds it to those two files with five fixtures.
 
+And **`src/app/(app)/playbooks/**/page.tsx`** (SEO pass, D5): the public
+library's pages render on the server so a crawler receives the day and a
+missing one answers 404. Page files only, on the console's terms; the screens
+they render still call the API. Seven fixtures hold it there.
+
 The UI/server lint wall is CI-enforced and is our escape hatch: if serverless
 stops fitting (likely at Phase 2 realtime), `src/server` extracts into a
 standalone service without touching domain or contracts (ADR-002).

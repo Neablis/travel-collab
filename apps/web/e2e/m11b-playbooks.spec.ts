@@ -273,7 +273,8 @@ test("publish, discover and add — two actors, and unpublish takes it back", as
   // And the day itself is now the same 404 a private day has always been — a
   // withdrawn day and one that never existed are deliberately indistinguishable.
   await bob.goto(`/playbooks/day/${savedDayId}`);
-  await expect(bob.getByText("This day is not in the library")).toBeVisible();
+  // The site's one 404 page (SEO pass): the day page answers a real 404 now.
+  await expect(bob.getByRole("heading", { name: "This page is not here", level: 1 })).toBeVisible();
 
   await forgetDay(page, savedDayId);
   await bob.context().close();

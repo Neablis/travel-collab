@@ -258,6 +258,55 @@ expectRejectedBy(
   "a neighbouring metadata file (manifest.ts) gets no exemption",
 );
 
+// THE PLAYBOOKS PAGE EXEMPTION (SEO pass, D5), proven to be exactly the page
+// files under `(app)/playbooks`. Open for a page; shut for the domain and
+// authConfig; shut for a non-page file beside it, a layout above it, and a
+// page in any other route group.
+const PAGE_BODY = "\nexport default function Fixture() { return null; }\n";
+const DAY_PAGE = "src/app/(app)/playbooks/day/[savedDayId]/page.tsx";
+
+expectClean(
+  lintFixture("playbooks_page_server", `import "@/server/playbooks";${PAGE_BODY}`, { file: DAY_PAGE }),
+  "a playbooks page may import @/server/* (the exemption is open)",
+);
+expectClean(
+  lintFixture("playbooks_root_page_server", `import "@/server/playbooks";${PAGE_BODY}`, {
+    file: "src/app/(app)/playbooks/page.tsx",
+  }),
+  "the Discover page may import @/server/*",
+);
+expectRejectedBy(
+  lintFixture("playbooks_page_domain", `import "@tc/domain";${PAGE_BODY}`, { file: DAY_PAGE }),
+  "no-restricted-imports",
+  "a playbooks page still may not import @tc/domain",
+);
+expectRejectedBy(
+  lintFixture("playbooks_page_authconfig", `import "@/lib/authConfig";${PAGE_BODY}`, { file: DAY_PAGE }),
+  "no-restricted-imports",
+  "a playbooks page still may not build an Auth.js instance",
+);
+expectRejectedBy(
+  lintFixture("playbooks_helper_server", `import "@/server/playbooks";${PAGE_BODY}`, {
+    file: "src/app/(app)/playbooks/day/[savedDayId]/helper.tsx",
+  }),
+  "no-restricted-imports",
+  "a non-page file beside a playbooks page gets no exemption",
+);
+expectRejectedBy(
+  lintFixture("playbooks_layout_server", `import "@/server/playbooks";${PAGE_BODY}`, {
+    file: "src/app/(app)/playbooks/layout.tsx",
+  }),
+  "no-restricted-imports",
+  "a layout under playbooks gets no exemption",
+);
+expectRejectedBy(
+  lintFixture("trips_page_server", `import "@/server/playbooks";${PAGE_BODY}`, {
+    file: "src/app/(app)/trips/[tripId]/page.tsx",
+  }),
+  "no-restricted-imports",
+  "a page outside playbooks gets no exemption",
+);
+
 // THE GATEWAY CHOKEPOINT WALL (ADR-019's 2026-08-25 amendment): only
 // src/server/ai/modelSelection.ts may import @/server/ai/gateway. Fixtured
 // under src/server/ai/ itself — a NEW file there, not modelSelection.ts —

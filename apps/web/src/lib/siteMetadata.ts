@@ -55,6 +55,7 @@ export function siteRobots(): typeof NOINDEX | undefined {
 /** The `Metadata` for one page: title, description, share card, and optionally canonical and robots. */
 export function pageMetadata({
   title,
+  cardTitle,
   description,
   image,
   canonical,
@@ -63,6 +64,10 @@ export function pageMetadata({
   // A plain string composes with the layout's `%s — Caesura` template; pass
   // `{ absolute }` for a page that owns its whole <title>.
   title: string | { absolute: string };
+  // og:title and twitter:title, for a page whose <title> says more than its
+  // card should: a day's tab is "name · city", its card the bare name, over a
+  // facts line that already names the city. Defaults to the title.
+  cardTitle?: string;
   description: string;
   // A card drawn for this one link (spec 2026-09-27 §2.2, `/api/og/**`). It
   // goes FIRST, and the site card stays after it as the fallback for an
@@ -73,7 +78,7 @@ export function pageMetadata({
   canonical?: string;
   robots?: Metadata["robots"];
 }): Metadata {
-  const ogTitle = typeof title === "string" ? title : title.absolute;
+  const ogTitle = cardTitle ?? (typeof title === "string" ? title : title.absolute);
   return {
     title,
     description,

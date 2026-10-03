@@ -22,7 +22,7 @@ const DISCOVER: BackTarget = { href: "/playbooks", label: "Discover" };
 
 export function backTarget(params: {
   from?: string | null;
-  /** The day to return to, when `from` is `day`. */
+  /** The day to return to, when `from` is `day`: its route segment (`daySegment`), so the way back is its current URL. */
   day?: string | null;
   /** The person whose profile to return to, when `from` is `profile`. */
   profile?: string | null;
