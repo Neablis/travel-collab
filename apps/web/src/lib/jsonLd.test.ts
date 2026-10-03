@@ -10,8 +10,6 @@ const DAY = {
   description: "Temples, then the river.",
   author: "Dana R.",
   stops: ["Kiyomizu-dera", "Nishiki Market"],
-  rating: null,
-  reviewCount: 0,
 };
 
 describe("landing structured data", () => {
@@ -36,18 +34,8 @@ describe("dayJsonLd", () => {
     ]);
   });
 
-  it("says nothing about a rating nobody gave", () => {
+  it("carries no aggregateRating, which schema.org does not allow on a Trip", () => {
     expect(dayJsonLd(DAY)[0]).not.toHaveProperty("aggregateRating");
-    // Each half of the guard on its own: an average left over with no reviews behind it is not shown either.
-    expect(dayJsonLd({ ...DAY, rating: 4, reviewCount: 0 })[0]).not.toHaveProperty("aggregateRating");
-    expect(dayJsonLd({ ...DAY, rating: null, reviewCount: 3 })[0]).not.toHaveProperty("aggregateRating");
-  });
-
-  it("carries the rating once there are reviews", () => {
-    const [trip] = dayJsonLd({ ...DAY, rating: 4.6, reviewCount: 12 });
-    expect(trip).toMatchObject({
-      aggregateRating: { "@type": "AggregateRating", ratingValue: 4.6, reviewCount: 12, bestRating: 5, worstRating: 1 },
-    });
   });
 
   it("carries the description it is given, so an empty city list never leaves a dangling 'in '", () => {

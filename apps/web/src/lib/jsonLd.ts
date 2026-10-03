@@ -21,8 +21,6 @@ export type DayJsonLdInput = {
   author: string;
   /** Stop titles, in order. */
   stops: readonly string[];
-  rating: number | null;
-  reviewCount: number;
   /** The breadcrumb's middle crumb, when the day's first city has a page. */
   city?: { name: string; path: string };
 };
@@ -41,9 +39,10 @@ export function webSiteJsonLd(origin: string): JsonLdNode {
  * A shared day as a `TouristTrip` whose itinerary lists its stops, and the
  * `BreadcrumbList` above it.
  *
- * The author is `provider`: schema.org's `Trip` has no `author`. The rating is
- * left out entirely until somebody has reviewed the day, so a search engine is
- * never told "0 stars".
+ * The author is `provider`: schema.org's `Trip` has no `author`. There is no
+ * `aggregateRating` either: its domain is CreativeWork, Event, Organization,
+ * Place, Product and Service, so a validator rejects it on a `Trip`, and Google
+ * shows no review stars for one.
  */
 export function dayJsonLd(input: DayJsonLdInput): JsonLdNode[] {
   const url = `${input.origin}${input.path}`;
@@ -62,17 +61,6 @@ export function dayJsonLd(input: DayJsonLdInput): JsonLdNode[] {
         item: { "@type": "TouristAttraction", name },
       })),
     },
-    ...(input.reviewCount > 0 && input.rating !== null
-      ? {
-          aggregateRating: {
-            "@type": "AggregateRating",
-            ratingValue: input.rating,
-            reviewCount: input.reviewCount,
-            bestRating: 5,
-            worstRating: 1,
-          },
-        }
-      : {}),
   };
   const crumbs = [
     { name: "Playbooks", path: "/playbooks" },

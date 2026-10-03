@@ -10,7 +10,6 @@ import { dayPath, daySegment, parseDaySegment } from "@/lib/playbookUrls";
 import { NOINDEX, pageMetadata } from "@/lib/siteMetadata";
 import { auth } from "@/server/auth";
 import { CITIES_SHOWN } from "@/server/og/playbooks";
-import { ratingOf } from "@/server/savedDays";
 import { sharedDayView } from "@/server/sharedDayView";
 
 type Params = { params: Promise<{ savedDayId: string }> };
@@ -102,7 +101,6 @@ export default async function SharedDayPage({
         description: describe(view),
         author: view.author.displayName,
         stops: view.day.stops.map((stop) => stop.title),
-        ...(await ratingOf(view.day.savedDayId)),
       })
     : null;
   return (
