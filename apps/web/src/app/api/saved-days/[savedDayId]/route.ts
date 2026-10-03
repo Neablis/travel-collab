@@ -2,7 +2,7 @@ import { SavedDay, SavedDayModeration } from "@tc/contracts";
 import { auth } from "@/server/auth";
 import { publicLibraryReader } from "@/server/publicLibraryLimit";
 import { deleteSavedDay } from "@/server/savedDays";
-import { sharedDayView } from "@/server/sharedDayView";
+import { sharedDayRead } from "@/server/sharedDayView";
 
 // Read one saved day: your own, or anybody's published one (M11b link 3).
 // The rule and its reasoning live in the seam, not here — see
@@ -39,7 +39,7 @@ export async function GET(
   const { savedDayId } = await params;
   const reader = await publicLibraryReader(request);
   if ("refused" in reader) return reader.refused;
-  const view = await sharedDayView(savedDayId, reader.readerId);
+  const view = await sharedDayRead(savedDayId, reader.readerId);
   if (view === null) return Response.json({ error: "not-found" }, { status: 404 });
   return Response.json({
     savedDay: SavedDay.parse(view.day),

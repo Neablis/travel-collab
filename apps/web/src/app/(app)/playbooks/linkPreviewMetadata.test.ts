@@ -164,8 +164,9 @@ describe("/playbooks canonical", () => {
 });
 
 describe("/playbooks/day/<slug>-<id> metadata", () => {
-  // The day page reads in-process (SEO pass, D5); the read itself is
-  // `sharedDayView`'s own test. Here: what the <head> says about each answer.
+  // The day page reads in-process (SEO pass, D5); the read itself is covered
+  // through `api/saved-days/[savedDayId]/route.int.test.ts` and
+  // `server/sharedDayView.test.ts`. Here: what the <head> says about each answer.
   const view = (over: { day?: Partial<SavedDay>; moderation?: SharedDayView["moderation"] } = {}): SharedDayView => ({
     day: { ...DAY, ...over.day },
     isAuthor: false,
