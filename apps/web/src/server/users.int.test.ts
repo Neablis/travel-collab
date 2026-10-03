@@ -9,6 +9,8 @@ import { events } from "./db/schema";
 import { readPreferences, recordSignIn, upsertUser, writePreferences } from "./users";
 import { getTripDetail } from "./projections";
 import { sendEmail } from "./email/send";
+import { allGrantsFor } from "./entitlements/grants";
+import { mintReferralCode } from "./entitlements/referrals";
 
 // Mail is the one thing here that leaves the process. Replaced for the whole
 // file — `recordSignIn` sends a welcome on every first sign-in — and asserted
@@ -472,6 +474,27 @@ describe("recordSignIn admits everyone and records who invited whom (M11a, ADR-0
     );
     expect(await readUser(second)).not.toBeNull();
     expect(await redeemerOf(code)).toBe(first);
+  });
+
+  // Who-invited-whom is still worth something: a claimed code pays its minter,
+  // and a spent one presented again must not pay twice. The referrer holds a
+  // paid plan, because a free referrer earns nothing either way and would let
+  // a double payout pass unseen. `rewardReferrer` does not check who redeemed
+  // the code — `via === "invite-code"` in `recordSignIn` is the only guard.
+  it("rewards the referrer once for a claimed code, and not again when the spent code is reused", async () => {
+    const referrer = signInId();
+    await upsertUser({ id: referrer, email: null, name: "Ref", image: null });
+    await db.update(users).set({ planId: "premium", planVersion: 1 }).where(eq(users.id, referrer));
+    const minted = await mintReferralCode(referrer);
+    if (!minted.ok) throw new Error(`could not mint: ${minted.reason}`);
+    const referrals = async () =>
+      (await allGrantsFor(referrer)).filter((grant) => grant.source === "referral");
+
+    await expect(recordSignIn(signInAs(signInId()), fakeJar(minted.code))).resolves.toBe(true);
+    expect(await referrals()).toHaveLength(1);
+
+    await expect(recordSignIn(signInAs(signInId()), fakeJar(minted.code))).resolves.toBe(true);
+    expect(await referrals()).toHaveLength(1);
   });
 
   it("admits a newcomer holding a single-use code, and burns it in the same sign-in", async () => {

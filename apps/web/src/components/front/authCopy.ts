@@ -42,6 +42,9 @@ export const ADMISSION_FIELD_COPY = {
   note: "Got an invite code? Add it so whoever invited you gets the credit.",
   /** The field's own hint — says when it may be left empty. */
   hint: "Optional. Paste the code you were sent, or leave this empty.",
+  /** The code could not be saved before leaving for the provider; nothing was signed in. */
+  saveFailed:
+    "We couldn't save your invite code, so we haven't signed you in yet. Try again, or clear the code to continue without it.",
 } as const;
 
 export const AUTH_COPY: Record<AuthMode, AuthCopy> = {
