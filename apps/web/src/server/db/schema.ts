@@ -483,6 +483,8 @@ export const tripSuggestions = pgTable(
 // the suggestion so the list and the poll's revision read one table on the
 // `(trip_id, status)` index. `depends_on` holds the ids of earlier changes of
 // the same suggestion (W9); `position` is the unit's index in the draft.
+// `suggestion_id` is indexed for the cascade walk, which reads a suggestion's
+// changes by it, and for the foreign key's own cascade on delete.
 export const tripSuggestionChanges = pgTable(
   "trip_suggestion_changes",
   {
@@ -500,7 +502,10 @@ export const tripSuggestionChanges = pgTable(
     resolvedBy: text("resolved_by"),
     resolvedAt: timestamp("resolved_at", { withTimezone: true, mode: "date" }),
   },
-  (t) => [index("trip_suggestion_changes_trip_status").on(t.tripId, t.status)],
+  (t) => [
+    index("trip_suggestion_changes_trip_status").on(t.tripId, t.status),
+    index("trip_suggestion_changes_suggestion").on(t.suggestionId),
+  ],
 );
 
 // Saved parts (M11 link 6, ADR-029). A personal library of reusable day

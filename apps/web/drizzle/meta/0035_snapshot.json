@@ -1,5 +1,5 @@
 {
-  "id": "3bdad535-a126-46f1-bd51-b0e6a1c0a28b",
+  "id": "6ba17224-c74e-4dff-92d2-6a9ed9b7e0a7",
   "prevId": "b0d918c6-b193-4f5e-82f5-919d3cda12fd",
   "version": "7",
   "dialect": "postgresql",
@@ -1916,6 +1916,21 @@
             },
             {
               "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "trip_suggestion_changes_suggestion": {
+          "name": "trip_suggestion_changes_suggestion",
+          "columns": [
+            {
+              "expression": "suggestion_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"

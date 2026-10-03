@@ -22,4 +22,5 @@ CREATE TABLE "trip_suggestions" (
 );
 --> statement-breakpoint
 ALTER TABLE "trip_suggestion_changes" ADD CONSTRAINT "trip_suggestion_changes_suggestion_id_trip_suggestions_id_fk" FOREIGN KEY ("suggestion_id") REFERENCES "public"."trip_suggestions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX "trip_suggestion_changes_trip_status" ON "trip_suggestion_changes" USING btree ("trip_id","status");
+CREATE INDEX "trip_suggestion_changes_trip_status" ON "trip_suggestion_changes" USING btree ("trip_id","status");--> statement-breakpoint
+CREATE INDEX "trip_suggestion_changes_suggestion" ON "trip_suggestion_changes" USING btree ("suggestion_id");

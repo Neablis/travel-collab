@@ -148,7 +148,7 @@ authorId }`. `TripEventsPage` gains an optional `suggestionsRev: string`. `TripR
   against), `created_at`.
 - `trip_suggestion_changes`: `id`, `suggestion_id` (FK, cascade), `trip_id`, `position`,
   `commands` jsonb, `description`, `depends_on` jsonb, `status`, `created_at`, `resolved_by`,
-  `resolved_at`. Indexed on `(trip_id, status)`.
+  `resolved_at`. Indexed on `(trip_id, status)` and on `suggestion_id`.
 
 ### Server (`apps/web/src/server/suggestions/`, new module)
 
