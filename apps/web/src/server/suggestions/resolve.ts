@@ -5,7 +5,7 @@ import { executeTripCommandBatch } from "../commands";
 import { db } from "../db/client";
 import { tripSuggestionChanges, tripSuggestions } from "../db/schema";
 import { isUuid } from "../ids";
-import { refuse, roleOn, toChanges, type ChangeRow, type SuggestionResult, type SuggestionRow } from "./shared";
+import { expireStale, isExpired, refuse, roleOn, SUGGESTION_TTL_DAYS, toChanges, type ChangeRow, type SuggestionResult, type SuggestionRow } from "./shared";
 
 /**
  * Thrown from inside the accept batch's transaction when the change is no
@@ -67,6 +67,11 @@ export async function resolveSuggestionChange(
       ? refuse("forbidden", "Only the person who suggested this can withdraw it.")
       : refuse("not-found", "This suggestion does not exist.");
   }
+  if (isExpired(change, new Date(now))) {
+    // Refusing is the write that records it, if nothing has yet.
+    if (change.status === "pending") await expireStale(db, tripId, new Date(now));
+    return refuse("expired", `This suggestion expired: nobody decided it within ${SUGGESTION_TTL_DAYS} days.`);
+  }
   if (change.status !== "pending") return refuse("already-resolved", "This suggestion was already resolved.");
 
   return action === "accept"
@@ -97,6 +102,7 @@ async function accept(
   // throws, which takes the batch down with it.
   const resolution = { status: "accepted", resolvedBy: reviewerId, resolvedAt: new Date(now) };
   const mark = async (tx: Pick<typeof db, "update">) => {
+    await expireStale(tx, suggestion.tripId, new Date(now));
     const marked = await tx
       .update(tripSuggestionChanges)
       .set(resolution)
@@ -140,6 +146,7 @@ async function cascade(
 ): Promise<SuggestionResult<SuggestionChange[]>> {
   const resolution = { status, resolvedBy: actorId, resolvedAt: new Date(now) };
   return db.transaction(async (tx): Promise<SuggestionResult<SuggestionChange[]>> => {
+    await expireStale(tx, suggestion.tripId, new Date(now));
     // The named change first, conditional on `pending` as accept's is. Losing
     // that race is a refusal, and since nothing has been written yet,
     // returning it commits nothing.

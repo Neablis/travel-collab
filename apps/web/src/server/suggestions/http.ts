@@ -15,6 +15,11 @@ export const SUGGESTION_STATUS: Record<SuggestionErrorCode, number> = {
   "no-longer-applies": 409,
   // A row this server wrote is broken; no retry by the caller fixes it.
   "malformed-trip": 500,
+  // The trip's state, not the request's rate: it clears when changes are
+  // decided, not after a wait, so not 429.
+  "too-many-pending": 409,
+  // The change existed and is gone for good.
+  expired: 410,
 };
 
 /**

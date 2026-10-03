@@ -24,8 +24,9 @@ export async function suggestionsRevForRole(
   tripId: string,
   userId: string,
   role: TripRole | null,
+  now: string = new Date().toISOString(),
 ): Promise<string | undefined> {
-  const scope = visibleTo(userId, role);
+  const scope = visibleTo(userId, role, new Date(now));
   if (scope === null) return undefined;
   const changes = db
     .select({ id: tripSuggestionChanges.id, status: tripSuggestionChanges.status })

@@ -153,6 +153,12 @@ describe("POST /api/trips/:id/suggestions/changes/:changeId", () => {
     expect(row?.status).toBe("dismissed");
   });
 
+  it("maps expired to 410", async () => {
+    const createdAt = new Date(Date.now() - 91 * 86_400_000);
+    const [changeId] = await insertStoredSuggestion({ tripId, authorId: SUGGESTER, createdAt });
+    await expectRefusal(await resolve(changeId!, { action: "dismiss" }), 410, "expired");
+  });
+
   it("maps no-longer-applies to 409", async () => {
     const [change] = await suggest([{ type: "RemoveActivity", tripId, activityId: stopId }]);
     expect((await executeTripCommand({ type: "RemoveActivity", tripId, activityId: stopId }, OWNER)).ok).toBe(true);

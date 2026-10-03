@@ -14,7 +14,7 @@ import { createSuggestion } from "./create";
 import { listSuggestionChanges } from "./list";
 import { resolveSuggestionChange } from "./resolve";
 import { suggestionsRevForRole } from "./rev";
-import { roleOn } from "./shared";
+import { roleOn, SUGGESTION_AUTHOR_PENDING_MAX, SUGGESTION_TRIP_PENDING_MAX, SUGGESTION_TTL_DAYS } from "./shared";
 
 // `roleOn` asks the access seam, whose module also holds the session-reading
 // wrapper. Nothing here reads a session; this keeps next-auth out of the run.
@@ -96,6 +96,9 @@ async function revFor(userId: string): Promise<string | undefined> {
   const role = await roleOn(tripId, userId);
   return suggestionsRevForRole(tripId, userId, role.ok ? role.value : null);
 }
+
+/** `days` days and `minutes` minutes before now; a negative `minutes` is that much younger. */
+const daysAgo = (days: number, minutes = 0) => new Date(Date.now() - days * 86_400_000 - minutes * 60_000);
 
 async function statusOf(changeId: string): Promise<string | undefined> {
   const rows = await db.select().from(tripSuggestionChanges).where(eq(tripSuggestionChanges.id, changeId));
@@ -342,6 +345,92 @@ describe("a stored change whose commands no longer parse", () => {
     expect((await resolveSuggestionChange(tripId, withdrawn, SUGGESTER, "withdraw")).ok).toBe(true);
     expect(await statusOf(withdrawn)).toBe("withdrawn");
     errors.mockRestore();
+  });
+});
+
+// Mitchell, 2026-10-03: at most 50 open changes per author and 200 per trip,
+// counting the draft being sent.
+describe("createSuggestion — caps", () => {
+  const units = (n: number) => draft(...Array.from({ length: n }, (_, i) => [rename(`Kyoto ${i}`)]));
+
+  it("refuses an author past 50 open changes, counting the draft, and stores nothing", async () => {
+    await insertStoredSuggestion({ tripId, authorId: SUGGESTER, changes: SUGGESTION_AUTHOR_PENDING_MAX - 1 });
+    expect(await createSuggestion(tripId, SUGGESTER, units(2))).toMatchObject({
+      ok: false,
+      error: { code: "too-many-pending" },
+    });
+    expect(await storedChanges()).toBe(SUGGESTION_AUTHOR_PENDING_MAX - 1);
+    expect((await createSuggestion(tripId, SUGGESTER, units(1))).ok).toBe(true);
+    // Another author's own count is their own.
+    expect((await createSuggestion(tripId, OTHER_SUGGESTER, units(2))).ok).toBe(true);
+  });
+
+  it("refuses anyone past 200 open changes on the trip, counting the draft", async () => {
+    // Inserted directly, so no author cap stood in the way of one author holding them.
+    await insertStoredSuggestion({ tripId, authorId: OTHER_SUGGESTER, changes: SUGGESTION_TRIP_PENDING_MAX - 1 });
+    expect(await createSuggestion(tripId, SUGGESTER, units(2))).toMatchObject({
+      ok: false,
+      error: { code: "too-many-pending" },
+    });
+    expect((await createSuggestion(tripId, SUGGESTER, units(1))).ok).toBe(true);
+    expect(await createSuggestion(tripId, SUGGESTER, units(1))).toMatchObject({
+      ok: false,
+      error: { code: "too-many-pending" },
+    });
+  });
+
+  it("does not count a resolved or an expired change", async () => {
+    const [dismissed] = await insertStoredSuggestion({ tripId, authorId: SUGGESTER, changes: SUGGESTION_AUTHOR_PENDING_MAX });
+    expect((await resolveSuggestionChange(tripId, dismissed!, OWNER, "dismiss")).ok).toBe(true);
+    await insertStoredSuggestion({ tripId, authorId: SUGGESTER, changes: SUGGESTION_AUTHOR_PENDING_MAX, createdAt: daysAgo(91) });
+    // 49 open: the dismissed one's 49 siblings. One more fits; two do not.
+    expect((await createSuggestion(tripId, SUGGESTER, units(1))).ok).toBe(true);
+    expect(await createSuggestion(tripId, SUGGESTER, units(1))).toMatchObject({ ok: false, error: { code: "too-many-pending" } });
+  });
+});
+
+// Mitchell, 2026-10-03: a change nobody decides in 90 days stops being open.
+describe("expiry", () => {
+  it("leaves a change older than the TTL out of the list and the revision, and keeps one just younger", async () => {
+    const [old] = await insertStoredSuggestion({ tripId, authorId: SUGGESTER, createdAt: daysAgo(SUGGESTION_TTL_DAYS, 1) });
+    const [young] = await insertStoredSuggestion({ tripId, authorId: SUGGESTER, createdAt: daysAgo(SUGGESTION_TTL_DAYS, -1) });
+    for (const reader of [OWNER, SUGGESTER]) {
+      const listed = await listSuggestionChanges(tripId, reader);
+      expect(listed.ok && listed.value.changes.map((c) => c.id)).toEqual([young]);
+      expect(listed.ok && listed.value.rev).toBe(await revFor(reader));
+    }
+    expect(await statusOf(old!)).toBe("pending");
+  });
+
+  it("refuses accept, dismiss and withdraw on an expired change, and records it expired", async () => {
+    for (const [actor, action] of [[OWNER, "accept"], [OWNER, "dismiss"], [SUGGESTER, "withdraw"]] as const) {
+      const [aged] = await insertStoredSuggestion({ tripId, authorId: SUGGESTER, createdAt: daysAgo(91) });
+      const before = (await readStream(db, tripId)).length;
+      expect(await resolveSuggestionChange(tripId, aged!, actor, action)).toMatchObject({
+        ok: false,
+        error: { code: "expired" },
+      });
+      expect(await statusOf(aged!)).toBe("expired");
+      expect((await readStream(db, tripId)).length).toBe(before);
+      // And again, now that the row says so.
+      expect(await resolveSuggestionChange(tripId, aged!, actor, action)).toMatchObject({ ok: false, error: { code: "expired" } });
+    }
+  });
+
+  // Persisted lazily, inside whichever write on the trip's suggestions comes
+  // next: there is no cron to sweep them (vercel.json declares none).
+  it("records every aged change on the trip expired inside the next create, dismiss and accept", async () => {
+    const [agedBeforeCreate] = await insertStoredSuggestion({ tripId, authorId: OTHER_SUGGESTER, createdAt: daysAgo(91) });
+    const [toDismiss, toAccept] = await suggest(draft([rename("Sam's Kyoto")], [{ type: "AddDay", tripId, dayId: randomUUID() }]));
+    expect(await statusOf(agedBeforeCreate!)).toBe("expired");
+
+    const [agedBeforeDismiss] = await insertStoredSuggestion({ tripId, authorId: OTHER_SUGGESTER, createdAt: daysAgo(91) });
+    expect((await resolveSuggestionChange(tripId, toDismiss!.id, OWNER, "dismiss")).ok).toBe(true);
+    expect(await statusOf(agedBeforeDismiss!)).toBe("expired");
+
+    const [agedBeforeAccept] = await insertStoredSuggestion({ tripId, authorId: OTHER_SUGGESTER, createdAt: daysAgo(91) });
+    expect((await resolveSuggestionChange(tripId, toAccept!.id, OWNER, "accept")).ok).toBe(true);
+    expect(await statusOf(agedBeforeAccept!)).toBe("expired");
   });
 });
 

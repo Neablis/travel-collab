@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
+import { and, eq, gte, lt, type SQL } from "drizzle-orm";
 import { SuggestionChange, type TripRole } from "@tc/contracts";
 import { tripAccessFor } from "../access/trip-access";
+import type { db } from "../db/client";
 import { tripSuggestionChanges, tripSuggestions } from "../db/schema";
 
 // The Suggestions module's refusals (ADR-064). Expected outcomes, so they are
@@ -19,7 +21,11 @@ export type SuggestionErrorCode =
   | "no-longer-applies"
   // The trip's stored document does not parse: the access seam's own denial,
   // answered by this module rather than thrown through it.
-  | "malformed-trip";
+  | "malformed-trip"
+  // A draft that would take its author or the trip past the open-change caps.
+  | "too-many-pending"
+  // Resolving a change left pending past `SUGGESTION_TTL_DAYS`.
+  | "expired";
 
 export type SuggestionError = {
   code: SuggestionErrorCode;
@@ -33,6 +39,62 @@ export type SuggestionResult<T> = { ok: true; value: T } | { ok: false; error: S
 /** A refused {@link SuggestionResult} carrying `code` and `message`, for the module's expected refusals. */
 export function refuse(code: SuggestionErrorCode, message: string): { ok: false; error: SuggestionError } {
   return { ok: false, error: { code, message } };
+}
+
+/**
+ * How many changes may be open at once (Mitchell, 2026-10-03): per author on
+ * a trip, and on the trip in all. A draft counts in full, so it is taken or
+ * refused whole. The list a reviewer reads, and every resolve's dependency
+ * walk, stay bounded by these rather than by how long nobody looked.
+ *
+ * A bound, not a lock: two drafts sent at the same moment are each counted
+ * without the other, so a race can pass a cap by at most one draft.
+ */
+export const SUGGESTION_AUTHOR_PENDING_MAX = 50;
+export const SUGGESTION_TRIP_PENDING_MAX = 200;
+
+/**
+ * A pending change older than this is expired (Mitchell, 2026-10-03): left out
+ * of the list, the revision and the caps at once, refused on resolve, and
+ * recorded `expired` by the next write on the trip's suggestions.
+ */
+export const SUGGESTION_TTL_DAYS = 90;
+
+const DAY_MS = 86_400_000;
+
+/** The oldest `created_at` a change may have and still be open at `now`. */
+function openSince(now: Date): Date {
+  return new Date(now.getTime() - SUGGESTION_TTL_DAYS * DAY_MS);
+}
+
+/** Pending and within the TTL: what the list, the revision and the caps count. */
+export function openAt(now: Date): SQL {
+  return and(eq(tripSuggestionChanges.status, "pending"), gte(tripSuggestionChanges.createdAt, openSince(now)))!;
+}
+
+/** Whether a change is expired at `now`, recorded or not yet. */
+export function isExpired(row: Pick<ChangeRow, "status" | "createdAt">, now: Date): boolean {
+  return row.status === "expired" || (row.status === "pending" && row.createdAt < openSince(now));
+}
+
+/**
+ * Record every change on the trip that has aged out as `expired`. There is no
+ * cron to do it (vercel.json declares none, and `og/limit.ts`'s sweep belongs
+ * to its own route), so it runs inside each write on the trip's suggestions,
+ * in that write's transaction. Until then the reads above already treat the
+ * row as expired, so nothing waits on it.
+ */
+export async function expireStale(tx: Pick<typeof db, "update">, tripId: string, now: Date): Promise<void> {
+  await tx
+    .update(tripSuggestionChanges)
+    .set({ status: "expired", resolvedAt: now })
+    .where(
+      and(
+        eq(tripSuggestionChanges.tripId, tripId),
+        eq(tripSuggestionChanges.status, "pending"),
+        lt(tripSuggestionChanges.createdAt, openSince(now)),
+      ),
+    );
 }
 
 /**

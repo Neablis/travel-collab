@@ -90,11 +90,12 @@ describe("SuggestionChange / TripSuggestionsResponse", () => {
     expect(TripSuggestionsResponse.parse(response)).toEqual(response);
   });
 
-  it("knows the four statuses", () => {
-    for (const status of ["pending", "accepted", "dismissed", "withdrawn"]) {
+  // `expired`: pending for longer than the server keeps a change (Mitchell, 2026-10-03).
+  it("knows the five statuses", () => {
+    for (const status of ["pending", "accepted", "dismissed", "withdrawn", "expired"]) {
       expect(SuggestionChange.safeParse({ ...change, status }).success).toBe(true);
     }
-    expect(SuggestionChange.safeParse({ ...change, status: "expired" }).success).toBe(false);
+    expect(SuggestionChange.safeParse({ ...change, status: "stale" }).success).toBe(false);
   });
 });
 

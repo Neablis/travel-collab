@@ -7,6 +7,7 @@ import { grantMembership } from "@/server/access/members";
 import { db } from "@/server/db/client";
 import { tripSuggestionChanges, users } from "@/server/db/schema";
 import { MAX_SUGGESTION_BODY_BYTES } from "@/server/suggestions/http";
+import { SUGGESTION_AUTHOR_PENDING_MAX } from "@/server/suggestions/shared";
 import { entitleAccounts } from "@/server/test-support/entitledAccount";
 import { insertStoredSuggestion, unparseableCommands } from "@/server/test-support/storedSuggestion";
 
@@ -106,6 +107,15 @@ describe("POST /api/trips/:id/suggestions", () => {
 // legitimate draft at the contract's count limits fits under the ceiling is
 // `http.test.ts`'s: it is a claim about bytes, and dry-running 5,000 stops here
 // takes 10-27 s of every int run.
+describe("POST /api/trips/:id/suggestions — caps", () => {
+  it("maps too-many-pending to 409", async () => {
+    await insertStoredSuggestion({ tripId, authorId: SUGGESTER, changes: SUGGESTION_AUTHOR_PENDING_MAX });
+    const res = await send({ units: [{ commands: [rename("One too many")] }] });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ code: "too-many-pending" });
+  });
+});
+
 describe("POST /api/trips/:id/suggestions — body ceiling", () => {
   const storedChanges = async () =>
     (await db.select().from(tripSuggestionChanges).where(eq(tripSuggestionChanges.tripId, tripId))).length;
