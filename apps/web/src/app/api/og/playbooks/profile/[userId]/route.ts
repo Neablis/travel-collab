@@ -1,3 +1,4 @@
+import { authorTag, cacheTagHeader } from "@/server/libraryCache";
 import { PLAYBOOK_CACHE_CONTROL, renderCard } from "@/server/og/card";
 import { playbookProfileCopy } from "@/server/og/copy";
 import { limitLinkPreview } from "@/server/og/limit";
@@ -10,6 +11,10 @@ import { profileCardFor, segment } from "@/server/og/playbooks";
 export async function GET(request: Request, { params }: { params: Promise<{ userId: string }> }) {
   const refused = await limitLinkPreview(request);
   if (refused !== null) return refused;
-  const { userId } = await params;
-  return renderCard(playbookProfileCopy(await profileCardFor(segment(userId))), PLAYBOOK_CACHE_CONTROL);
+  const userId = segment((await params).userId);
+  return renderCard(
+    playbookProfileCopy(await profileCardFor(userId)),
+    PLAYBOOK_CACHE_CONTROL,
+    cacheTagHeader(authorTag(userId)),
+  );
 }

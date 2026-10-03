@@ -1,4 +1,5 @@
 import { LinkPreviewMeta } from "@tc/contracts";
+import { authorTag, cacheTagHeader } from "@/server/libraryCache";
 import { PLAYBOOK_CACHE_CONTROL } from "@/server/og/card";
 import { playbookProfileCopy } from "@/server/og/copy";
 import { limitLinkPreview } from "@/server/og/limit";
@@ -9,9 +10,9 @@ import { profileCardFor, segment } from "@/server/og/playbooks";
 export async function GET(request: Request, { params }: { params: Promise<{ userId: string }> }) {
   const refused = await limitLinkPreview(request);
   if (refused !== null) return refused;
-  const { userId } = await params;
-  const { title, description } = playbookProfileCopy(await profileCardFor(segment(userId)));
+  const userId = segment((await params).userId);
+  const { title, description } = playbookProfileCopy(await profileCardFor(userId));
   return Response.json(LinkPreviewMeta.parse({ title, description }), {
-    headers: { "Cache-Control": PLAYBOOK_CACHE_CONTROL },
+    headers: { "Cache-Control": PLAYBOOK_CACHE_CONTROL, ...cacheTagHeader(authorTag(userId)) },
   });
 }
