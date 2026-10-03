@@ -166,7 +166,8 @@ merges; they redirect afterwards.
 - Landing: `Organization` and `WebSite`.
 - Day: `TouristTrip` with an `ItemList` of its stops, and a `BreadcrumbList` (Playbooks, city,
   day). The author is the handle.
-- `aggregateRating` is emitted only when the day has reviews.
+- No `aggregateRating`. Its schema.org domain does not include `Trip`, so validators flag it,
+  and Google shows no review stars for a trip. (Amended 2026-10-03, from a review of #298.)
 
 Google has no rich-result type for an itinerary; breadcrumbs are the part likely to show. The
 module stays small for that reason.

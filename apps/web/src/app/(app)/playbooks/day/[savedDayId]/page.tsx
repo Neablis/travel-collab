@@ -1,8 +1,11 @@
 import { cache } from "react";
 import { notFound, permanentRedirect } from "next/navigation";
+import { JsonLd } from "@/components/JsonLd";
 import { SharedDayScreen } from "@/components/playbooks/SharedDayScreen";
 import { backTarget } from "@/components/playbooks/backLink";
 import { DAY_FALLBACK_TITLE, dayDescription, dayIndexable, playbooksPageMetadata } from "@/lib/playbooksPreview";
+import { deploymentOrigin } from "@/lib/deploymentOrigin";
+import { dayJsonLd } from "@/lib/jsonLd";
 import { dayPath, daySegment, parseDaySegment } from "@/lib/playbookUrls";
 import { NOINDEX, pageMetadata } from "@/lib/siteMetadata";
 import { auth } from "@/server/auth";
@@ -22,26 +25,33 @@ const loadDay = cache(async (segment: string) => {
   return sharedDayView(id, session?.user?.id ?? null);
 });
 
+type View = NonNullable<Awaited<ReturnType<typeof loadDay>>>;
+
+// One sentence for the meta description and the structured data's, so a
+// search engine is never told two things about the same day.
+const describe = ({ day, author }: View) =>
+  dayDescription(day.summary, {
+    cities: day.cities.slice(0, CITIES_SHOWN),
+    dayCount: day.dayCount,
+    stopCount: day.stops.length,
+    author: author.displayName,
+    rating: null,
+    reviewCount: 0,
+  });
+
 /** Metadata for a shared day: its name and first city, its summary or facts line, its own card. */
 export async function generateMetadata({ params }: Params) {
   const view = await loadDay((await params).savedDayId);
   // The page below answers 404 for this; the fallback only fills the <head>,
   // with the one generic card every miss gets.
   if (view === null) return playbooksPageMetadata(DAY_FALLBACK_TITLE);
-  const { day, author } = view;
+  const { day } = view;
   return pageMetadata({
     // D3: the tab says the day and where. The card keeps the bare name
     // (spec §1): its facts line already names the cities.
     title: day.cities[0] === undefined ? day.name : `${day.name} · ${day.cities[0]}`,
     cardTitle: day.name,
-    description: dayDescription(day.summary, {
-      cities: day.cities.slice(0, CITIES_SHOWN),
-      dayCount: day.dayCount,
-      stopCount: day.stops.length,
-      author: author.displayName,
-      rating: null,
-      reviewCount: 0,
-    }),
+    description: describe(view),
     image: { url: `/api/og/playbooks/day/${day.savedDayId}`, alt: day.name },
     canonical: dayPath(day),
     // An author's private day, or one an operator hid, renders for them and
@@ -81,8 +91,21 @@ export default async function SharedDayPage({
 
   const first = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value);
   const back = backTarget({ from: first(query.from), profile: first(query.profile) });
+  // Only a day the library shows describes itself: an author's private day,
+  // or one an operator hid, is noindex and says nothing to a crawler.
+  const structured = dayIndexable(view)
+    ? dayJsonLd({
+        origin: deploymentOrigin(),
+        path: dayPath(view.day),
+        name: view.day.name,
+        description: describe(view),
+        author: view.author.displayName,
+        stops: view.day.stops.map((stop) => stop.title),
+      })
+    : null;
   return (
     <main className="mx-auto max-w-6xl px-6 py-8">
+      {structured !== null && <JsonLd data={structured} />}
       <SharedDayScreen savedDayId={view.day.savedDayId} backHref={back.href} backLabel={back.label} initial={view} />
     </main>
   );

@@ -3,7 +3,7 @@ import { SavedDayVisibility } from "@tc/contracts";
 import { db } from "../db/client";
 import { savedDays } from "../db/schema";
 import { citiesKnownBy, publicAuthor, publicNamesOf } from "../playbooks";
-import { readableSavedDay } from "../savedDays";
+import { ratingOf, readableSavedDay } from "../savedDays";
 
 // The Playbooks link-preview lookups (spec 2026-10-02 §2.7). An unfurler has
 // no session, so each one reads as a reader who owns nothing, and returns only
@@ -62,15 +62,9 @@ export async function dayCardFor(savedDayId: string): Promise<PlaybookDayCard> {
   // a signed-out reader could open the page.
   const day = await readableSavedDay(savedDayId, null);
   if (day === null) return { kind: "generic" };
-  // Rating rides the row, not the `SavedDay` contract. `readableSavedDay`
-  // already proved the id is a readable uuid.
-  const [[row], nameOf] = await Promise.all([
-    db
-      .select({ rating: savedDays.rating, reviewCount: savedDays.reviewCount })
-      .from(savedDays)
-      .where(eq(savedDays.id, day.savedDayId)),
-    publicNamesOf([day.ownerId]),
-  ]);
+  // Rating rides the row, not the `SavedDay` contract: the same read the day
+  // page's structured data uses.
+  const [{ rating, reviewCount }, nameOf] = await Promise.all([ratingOf(day.savedDayId), publicNamesOf([day.ownerId])]);
   return {
     kind: "day",
     name: day.name,
@@ -78,8 +72,8 @@ export async function dayCardFor(savedDayId: string): Promise<PlaybookDayCard> {
     dayCount: day.dayCount,
     stopCount: day.stops.length,
     author: nameOf(day.ownerId),
-    rating: row?.rating ?? null,
-    reviewCount: row?.reviewCount ?? 0,
+    rating,
+    reviewCount,
   };
 }
 

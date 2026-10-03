@@ -25,6 +25,7 @@ test("a signed-out / serves the landing in place, uncached, with one h1", async 
   // The root's canonical is the bare origin: Next drops the trailing slash.
   const canonical = /<link rel="canonical" href="([^"]*)"/.exec(html)?.[1] ?? "";
   expect(new URL(canonical).pathname).toBe("/");
+  expect(html).toContain('"@type":"Organization"');
   await visitor.context().close();
 });
 
@@ -103,6 +104,21 @@ test("sitemap.xml lists the static routes and published days, never a private on
   }
 });
 
+// Every `application/ld+json` block in a page, parsed and flattened.
+const ldJson = (html: string): unknown[] =>
+  [...html.matchAll(/<script type="application\/ld\+json">(.*?)<\/script>/gs)].flatMap((m) => JSON.parse(m[1]!) as unknown);
+
+// The page's meta description as text: React escapes `&`, `"`, `'`, `<` and `>`
+// in an attribute, and the JSON-LD copy of the same sentence is not escaped.
+const metaDescription = (html: string): string | undefined =>
+  /<meta name="description" content="([^"]*)"/
+    .exec(html)?.[1]
+    ?.replace(/&#x27;|&#39;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&");
+
 // A day's canonical path as the page builds it (`lib/playbookUrls.ts`), spelled
 // again here so a change to the slug rule fails a test rather than moving it.
 const sluggedPath = (name: string, savedDayId: string) =>
@@ -153,6 +169,15 @@ test("a day's HTML holds its name and its stops without JavaScript", async ({ pa
     expect(html).toMatch(new RegExp(`<h1[^>]*>${name}</h1>`));
     // In an element, not only in the serialized props React hydrates from.
     expect(html).toContain(`>Stop in ${city}<`);
+    // Structured data: the trip and its breadcrumb, describing the day in the
+    // words its meta description already uses.
+    const nodes = ldJson(html) as { "@type": string; name?: string; description?: string }[];
+    expect(nodes.map((n) => n["@type"])).toEqual(expect.arrayContaining(["TouristTrip", "BreadcrumbList"]));
+    const trip = nodes.find((n) => n["@type"] === "TouristTrip");
+    expect(trip?.name).toBe(name);
+    const description = metaDescription(html);
+    expect(description).toBeTruthy();
+    expect(trip?.description).toBe(description);
     await visitor.context().close();
   } finally {
     await forget(page, savedDayId);
@@ -235,7 +260,10 @@ test("a private day and an unknown one are the same 404 with the same body", asy
     // Its author still opens it.
     const mine = await page.request.get(`/playbooks/day/${savedDayId}`);
     expect(mine.status()).toBe(200);
-    expect(await mine.text()).toMatch(new RegExp(`<h1[^>]*>${name}</h1>`));
+    const own = await mine.text();
+    expect(own).toMatch(new RegExp(`<h1[^>]*>${name}</h1>`));
+    // A private day describes itself to nobody, its author's page included.
+    expect(ldJson(own)).toEqual([]);
     await visitor.context().close();
   } finally {
     await forget(page, savedDayId);
