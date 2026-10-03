@@ -4,7 +4,7 @@ import type { SharedDayView } from "@/lib/sharedDayView";
 import { LIBRARY_CACHE_SECONDS, LIBRARY_TAG, authorTag, dayTag, libraryCached } from "./libraryCache";
 import * as live from "./playbooks";
 import { schedulePinBackfill } from "./savedDayPinBackfill";
-import { publishedAtOf, ratingOf, readableSavedDay } from "./savedDays";
+import { publishedAtOf, readableSavedDay } from "./savedDays";
 import { sharedDayView } from "./sharedDayView";
 
 // The public library's reads, cached for a day (ADR-063). What the server
@@ -21,10 +21,8 @@ import { sharedDayView } from "./sharedDayView";
 // A list is tagged `library` and cleared by any change to which days are in
 // it. A day is tagged by its id, and its author's numbers by the author.
 
-type Rating = Awaited<ReturnType<typeof ratingOf>>;
-
 /** One published day as a stranger reads it, and when it was read. */
-type PublicDay = { day: SavedDay; publishedAt: string | null; rating: Rating; readAt: number };
+type PublicDay = { day: SavedDay; publishedAt: string | null; readAt: number };
 
 /** Thrown inside the cache for a day not in the library: `unstable_cache` keeps no throw. */
 class NotInLibrary extends Error {}
@@ -32,8 +30,7 @@ class NotInLibrary extends Error {}
 async function readPublicDay(savedDayId: string): Promise<PublicDay> {
   const day = await readableSavedDay(savedDayId, null);
   if (day === null) throw new NotInLibrary();
-  const [publishedAt, rating] = await Promise.all([publishedAtOf(savedDayId), ratingOf(savedDayId)]);
-  return { day, publishedAt, rating, readAt: Date.now() };
+  return { day, publishedAt: await publishedAtOf(savedDayId), readAt: Date.now() };
 }
 
 // A day past its lifetime is read live, not served. Next answers an expired
@@ -59,7 +56,7 @@ function publicAuthor(userId: string): Promise<PublicAuthor> {
 
 /**
  * The day page's read: the view `sharedDayView` would build for `readerId`,
- * the day's rating, or null for a 404.
+ * or null for a 404.
  *
  * Cached unless the reader is its author. A day the library does not hold is
  * read live for a signed-in reader, since it may be their own private or
@@ -69,14 +66,14 @@ function publicAuthor(userId: string): Promise<PublicAuthor> {
 export async function dayPageView(
   savedDayId: string,
   readerId: string | null,
-): Promise<{ view: SharedDayView; rating: Rating } | null> {
+): Promise<{ view: SharedDayView } | null> {
   const published = await publicDay(savedDayId);
   if (published === null || published.day.ownerId === readerId) {
     if (readerId === null) return null;
-    const [view, rating] = await Promise.all([sharedDayView(savedDayId, readerId), ratingOf(savedDayId)]);
-    return view === null ? null : { view, rating };
+    const view = await sharedDayView(savedDayId, readerId);
+    return view === null ? null : { view };
   }
-  const { day, publishedAt, rating } = published;
+  const { day, publishedAt } = published;
   return {
     view: {
       day,
@@ -87,7 +84,6 @@ export async function dayPageView(
       publishedAt,
       moderation: null,
     },
-    rating,
   };
 }
 
