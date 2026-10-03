@@ -1,4 +1,4 @@
-import type { TripMember } from "@tc/contracts";
+import type { TripMember, TripRole } from "@tc/contracts";
 
 /**
  * **Does the reader own this trip?** — M26 link 6b.
@@ -30,4 +30,44 @@ export function viewerOwnsTrip(
 ): boolean {
   if (userId === null || userId === undefined || userId === "") return false;
   return members.some((m) => m.userId === userId && m.role === "owner");
+}
+
+/**
+ * **What a role may do on the board** — W8 of the suggester spec
+ * (docs/specs/2026-10-03-suggester-role-design.md).
+ *
+ * Every client gate used to be a literal `role === "viewer"`, which was right
+ * while there were three roles and silently wrong once a middle rank arrived:
+ * a suggester passed every one of those comparisons as a writer. One place
+ * answers now, so the next role is one edit and a table row, not an audit.
+ *
+ * - `"read"`: no change to the trip at all.
+ * - `"suggest"`: edits are held as a suggestion, never sent as commands — the
+ *   server refuses a suggester's commands exactly as a viewer's.
+ * - `"write"`: commands go straight to the trip.
+ *
+ * No role reads. A caller that keeps the board live through a FAILED access
+ * read (TripProvider, SettingsSheet) says so itself before asking — that is a
+ * judgement about the read, not about a role. Display only, as
+ * `viewerOwnsTrip` is: the server decides.
+ */
+export function boardMode(role: TripRole | null | undefined): "read" | "suggest" | "write" {
+  switch (role) {
+    case "owner":
+    case "editor":
+      return "write";
+    case "suggester":
+      return "suggest";
+    default:
+      return "read";
+  }
+}
+
+/**
+ * Whether a role may edit the trip's notebooks. Spec §2.2 keeps the notebook
+ * read-only for a suggester exactly as for a viewer — suggesting is the
+ * board's alone — so this is not `boardMode !== "read"`.
+ */
+export function canEditNotebook(role: TripRole | null | undefined): boolean {
+  return role === "editor" || role === "owner";
 }
