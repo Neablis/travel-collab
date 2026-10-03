@@ -212,8 +212,11 @@ const BatchBody = z.array(BatchableCommand).min(1);
 // unwinds the batch as a unit). Any rejection appends nothing.
 //
 // `alsoInSameTransaction` is a seam for a NON-PLANNING write that has to be the
-// same fact as the batch — today, exactly one caller: `insertSavedDay` writing
-// the adds ledger row and its denormalised counter (M11b link 4). It runs after
+// same fact as the batch — today, exactly two callers: `insertSavedDay` writing
+// the adds ledger row and its denormalised counter (M11b link 4), and accepting
+// a suggestion marking its change row accepted (`suggestions/resolve.ts`,
+// ADR-063), whose conditional update throws when another accept got there
+// first, so a double accept appends one batch, not two. It runs after
 // the events are appended and the projections written, still inside the
 // pipeline's transaction, and only when the batch succeeded; throwing out of it
 // rolls the whole batch back with it.
@@ -227,9 +230,14 @@ const BatchBody = z.array(BatchableCommand).min(1);
 //
 // It is NOT a general "run anything here" extension point. It may not append
 // events, write a planning projection, or decide a command — invariant 1 says
-// planning state is only ever written by the sequence above it. A second
-// caller wanting anything of that shape is a signal the seam is wrong, not an
-// invitation to widen it.
+// planning state is only ever written by the sequence above it. Both callers
+// write only their own module's row, append nothing and decide nothing — the
+// shape this allows (ADR-063 re-read it for the second). A caller wanting
+// anything more is a signal the seam is wrong, not an invitation to widen it.
+//
+// `options.origin` is who the batch says asked for it; absent, `{ kind: "user" }`.
+// Only accepting a suggestion passes one: the reviewer is still `actorId`, and
+// the origin names the suggester (ADR-063 decision 3).
 //
 // `options.expectedSeq` is a CALLER's precondition on the same check step 5
 // already makes (ADR-050, Pass B): "only if the trip still stands at revision
@@ -247,8 +255,9 @@ export async function executeTripCommandBatch(
     tx: Parameters<typeof upsertTripDetail>[0],
     committed: { tripId: string; detail: TripDetail },
   ) => Promise<void>,
-  options: { expectedSeq?: number } = {},
+  options: { expectedSeq?: number; origin?: Origin } = {},
 ): Promise<CommandResult> {
+  const origin: Origin = options.origin ?? { kind: "user" };
   // 1. validate the batch shape against the contract
   const parsed = BatchBody.safeParse(input);
   if (!parsed.success) {
@@ -301,7 +310,7 @@ export async function executeTripCommandBatch(
       }
 
       // 5-7. append every event from every command under ONE batchId, and project
-      const projected = await appendAndProject(tx, { tripId, history, events, actorId, origin: { kind: "user" } });
+      const projected = await appendAndProject(tx, { tripId, history, events, actorId, origin });
       if (!projected.ok) {
         lostAppendRace = true;
         return projected;
