@@ -22,7 +22,11 @@ export type SuggestionChangeStatus = z.infer<typeof SuggestionChangeStatus>;
 
 /** Spec §4. Repeated by nothing yet; the storage task owns any CHECK. */
 export const SUGGESTION_NOTE_MAX = 500;
-export const SUGGESTION_UNITS_MAX = 100;
+// A draft holds at most as many changes as its author may have open at once
+// (`SUGGESTION_AUTHOR_PENDING_MAX` in the web app, 50; Mitchell, 2026-10-03).
+// At 100 a draft of 51-100 changes passed this schema and was then always
+// refused by the author cap (review of #308).
+export const SUGGESTION_UNITS_MAX = 50;
 export const SUGGESTION_UNIT_COMMANDS_MAX = 50;
 
 /** One change as served to its author or a reviewer. */

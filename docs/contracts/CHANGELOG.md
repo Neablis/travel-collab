@@ -30,7 +30,7 @@ Format:
   - `SuggestionChange.dependsOn` also names the earlier changes that target a day or stop this
     one removes (W59), not only those that created what it references.
   - `TripSuggestionsResponse.changes` holds pending changes only (W53).
-  - `CreateSuggestionInput` allows 1..100 units of 1..50 `BatchableCommand`s each.
+  - `CreateSuggestionInput` allows 1..50 units of 1..50 `BatchableCommand`s each.
   - It refuses any `DismissConflict`, at that command's path (W3).
   - Its optional note is trimmed and capped at 500 characters with `review.ts`'s `boundedNote`,
     so a blank note parses to `null`.

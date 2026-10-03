@@ -35,12 +35,12 @@ describe("CreateSuggestionInput", () => {
     expect(result.error.issues[0]!.message).toMatch(/cannot dismiss a conflict/);
   });
 
-  it("is bounded: 1..100 units, 1..50 commands per unit", () => {
+  it("is bounded: 1..50 units, 1..50 commands per unit", () => {
     const units = (n: number) => Array.from({ length: n }, (_, i) => unit(addDay(i)));
     const commands = (n: number) => unit(...Array.from({ length: n }, (_, i) => addDay(i)));
     expect(CreateSuggestionInput.safeParse({ units: [] }).success).toBe(false);
-    expect(CreateSuggestionInput.safeParse({ units: units(100) }).success).toBe(true);
-    expect(CreateSuggestionInput.safeParse({ units: units(101) }).success).toBe(false);
+    expect(CreateSuggestionInput.safeParse({ units: units(50) }).success).toBe(true);
+    expect(CreateSuggestionInput.safeParse({ units: units(51) }).success).toBe(false);
     expect(CreateSuggestionInput.safeParse({ units: [commands(0)] }).success).toBe(false);
     expect(CreateSuggestionInput.safeParse({ units: [commands(50)] }).success).toBe(true);
     expect(CreateSuggestionInput.safeParse({ units: [commands(51)] }).success).toBe(false);
