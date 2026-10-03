@@ -259,6 +259,36 @@ test("a private day and an unknown one are the same 404 with the same body", asy
   }
 });
 
+// ADR-063: a stranger's read of a day is cached for a day, on this production
+// build as on Vercel. Unpublishing has to take it out at once, and
+// republishing has to put it back, or the cache is a way to see a withdrawn day.
+test("a day a stranger has read leaves the moment it is unpublished, and returns when republished", async ({
+  page,
+  browser,
+}) => {
+  test.slow();
+  const name = `Cached day ${randomUUID().slice(0, 8)}`;
+  const savedDayId = await publishedDay(page, `Seoe2e${randomUUID().slice(0, 6)}`, name);
+  try {
+    const visitor = await stranger(browser);
+    const path = sluggedPath(name, savedDayId);
+    // Twice: the second answer is the cached one.
+    expect((await visitor.request.get(path)).status()).toBe(200);
+    expect((await visitor.request.get(path)).status()).toBe(200);
+
+    expect((await page.request.delete(`/api/saved-days/${savedDayId}/publish`)).ok()).toBe(true);
+    const withdrawn = await visitor.request.get(path, { maxRedirects: 0 });
+    expect(withdrawn.status()).toBe(404);
+    expect(await withdrawn.text()).not.toContain(name);
+
+    expect((await page.request.post(`/api/saved-days/${savedDayId}/publish`)).ok()).toBe(true);
+    expect((await visitor.request.get(path)).status()).toBe(200);
+    await visitor.context().close();
+  } finally {
+    await forget(page, savedDayId);
+  }
+});
+
 test("Discover's HTML lists a published day without JavaScript", async ({ page, browser }) => {
   test.slow();
   const city = `Seoe2e${randomUUID().slice(0, 6)}`;

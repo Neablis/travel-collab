@@ -17,6 +17,7 @@ import { forgetCitySearches } from "./cities";
 import { db } from "./db/client";
 import { savedDays } from "./db/schema";
 import { isUuid } from "./ids";
+import { invalidatePublicDay } from "./libraryCache";
 import { parseSavedDayColumns } from "./savedDayRow";
 import { executeTripCommandBatch, type CommandResult } from "./commands";
 import { readStream } from "./eventStore";
@@ -692,8 +693,10 @@ export async function setSavedDayVisibility(
     )
     .returning();
   if (updated[0] === undefined) return null;
-  // Committed (no transaction here): the city index just gained or lost a day.
+  // Committed (no transaction here): the city index just gained or lost a day,
+  // and so did the cached library (ADR-063).
   forgetCitySearches();
+  await invalidatePublicDay(savedDayId, ownerId);
   const day = fromRow(updated[0]);
   if (day === null) {
     // `null` from here means "no such row of yours", and the route turns it
@@ -825,6 +828,12 @@ export async function updatePlaybookContent(
   if (updated[0] !== undefined) {
     // Only visibility can move the city index: `days` is refused on a public day.
     if (edit.visibility !== undefined) forgetCitySearches();
+    // The cached library (ADR-063) lets a summary go stale for a day, but not
+    // whether the day is in it, and not its name: the name is the slug, and a
+    // reader served the old one is 308'd from the new URL to the old, which a
+    // browser keeps and loops on once the cache catches up.
+    const renamedInPublic = edit.name !== undefined && updated[0].visibility === SavedDayVisibility.enum.public;
+    if (edit.visibility !== undefined || renamedInPublic) await invalidatePublicDay(savedDayId, ownerId);
     const day = fromRow(updated[0]);
     // `setSavedDayVisibility`'s reason: the UPDATE has committed, so "not
     // found" would be a lie about a row that is there.
@@ -943,7 +952,12 @@ export async function deleteSavedDay(
       ),
     )
     .returning({ id: savedDays.id });
-  if (deleted.length > 0) return "deleted";
+  if (deleted.length > 0) {
+    // Only a private day gets here, so no cached read holds it; its author's
+    // numbers do (the adds it had now count for nothing), and those are cached.
+    await invalidatePublicDay(savedDayId, ownerId);
+    return "deleted";
+  }
 
   // Nothing moved. Two reasons are possible and the caller needs to tell them
   // apart, so the row is re-read under the SAME owner scope — a day that is not

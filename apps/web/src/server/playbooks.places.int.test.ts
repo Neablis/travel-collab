@@ -4,7 +4,9 @@ import { inArray } from "drizzle-orm";
 import { slugify } from "@/lib/playbookUrls";
 import { db } from "./db/client";
 import { savedDays } from "./db/schema";
-import { placeFor, publishedDaysPage, publishedPlaces } from "./playbooks";
+import { publishedDaysPage, publishedPlaces } from "./playbooks";
+// Read live under test (`libraryCache.ts`); here for its slug match.
+import { placeFor } from "./publicLibrary";
 import { newSavedDayRow } from "./savedDays";
 
 // Cities minted per run: the published library is global, so a shared name

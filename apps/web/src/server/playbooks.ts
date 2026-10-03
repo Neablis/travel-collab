@@ -1026,11 +1026,6 @@ export async function publishedPlaces(): Promise<PlacePage[]> {
   });
 }
 
-/** The page for one slug, or null when no published day touches it — which the route answers with a 404. */
-export async function placeFor(kind: PlacePage["kind"], slug: string): Promise<PlacePage | null> {
-  return (await publishedPlaces()).find((place) => place.kind === kind && place.slug === slug) ?? null;
-}
-
 /**
  * Published days for a place or an author, most-added first, one offset page.
  *
