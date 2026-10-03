@@ -22,9 +22,10 @@ export async function register() {
 // Matched on the whole message, not a substring, and nothing else is dropped:
 // "The destination stream errored while writing data." is React's other cancel
 // message and still reported, because a write error is not known to be a
-// client leaving. `instrumentation.test.ts` makes React produce the real
-// error, so a reworded message in a React upgrade turns that test red instead
-// of quietly reopening the noise.
+// client leaving. `instrumentation.test.ts` makes both renderers produce the
+// real error (react-dom's Fizz, and the Flight server Next bundles), so a
+// reworded message in a React or Next upgrade turns that test red instead of
+// quietly reopening the noise.
 const CLIENT_CLOSED_STREAM = "The destination stream closed early.";
 
 function isClientClosedStream(err: unknown): boolean {
