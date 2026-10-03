@@ -7,6 +7,7 @@ import { grantMembership } from "../access/members";
 import { db } from "../db/client";
 import { tripSuggestionChanges, tripSuggestions, users } from "../db/schema";
 import { readStream } from "../eventStore";
+import { getTripDetail } from "../projections";
 import { entitleAccounts } from "../test-support/entitledAccount";
 import { createSuggestion } from "./create";
 import { listSuggestionChanges } from "./list";
@@ -164,6 +165,48 @@ describe("createSuggestion", () => {
     const [stored] = await db.select().from(tripSuggestions).where(eq(tripSuggestions.id, addDay!.suggestionId));
     // The head both units were checked against: TripCreated, DayAdded, ActivityAdded.
     expect(stored).toMatchObject({ authorId: SUGGESTER, baseSeq: 3 });
+  });
+});
+
+// W56. What a unit creates is what its dry run created, not what its commands
+// name: `SetTripDates.newDayIds` is a pool the decider takes only the prefix it
+// needs from. And a range edit is decided against the day count, so it waits
+// for every earlier unit that changed it.
+describe("createSuggestion — dependencies", () => {
+  const range = (endDate: string, newDayIds: string[]): BatchableCommand => ({
+    type: "SetTripDates",
+    tripId,
+    startDate: "2027-05-01",
+    endDate,
+    newDayIds,
+  });
+
+  it("makes a range edit wait for the edit that set the day count it builds on", async () => {
+    const [oneToTwo, twoToThree] = await suggest(
+      draft([range("2027-05-02", [randomUUID()])], [range("2027-05-03", [randomUUID()])]),
+    );
+    expect(twoToThree!.dependsOn).toEqual([oneToTwo!.id]);
+    // First, on a one-day trip, it would need two new days and has one id.
+    expect(await resolveSuggestionChange(tripId, twoToThree!.id, OWNER, "accept")).toMatchObject({
+      ok: false,
+      error: { code: "dependency-pending" },
+    });
+    const dismissed = await resolveSuggestionChange(tripId, oneToTwo!.id, OWNER, "dismiss");
+    expect(dismissed.ok && dismissed.value.map((c) => c.id)).toEqual([oneToTwo!.id, twoToThree!.id]);
+  });
+
+  it("does not make an id the dry run never used into something a later unit builds on", async () => {
+    // A start-only change takes no day from its pool, so naming an existing
+    // day there creates nothing — and a stop added to that day needs nothing.
+    const [startOnly, addStop] = await suggest(
+      draft(
+        [{ type: "SetTripDates", tripId, startDate: "2027-05-01", endDate: null, newDayIds: [dayId] }],
+        [{ type: "AddActivity", tripId, activityId: randomUUID(), dayId, title: "Tea ceremony" }],
+      ),
+    );
+    expect(addStop!.dependsOn).toEqual([]);
+    expect((await resolveSuggestionChange(tripId, startOnly!.id, OWNER, "dismiss")).ok).toBe(true);
+    expect(await statusOf(addStop!.id)).toBe("pending");
   });
 });
 
@@ -326,6 +369,40 @@ describe("resolveSuggestionChange — accept", () => {
     });
     expect(await statusOf(second!.id)).toBe("accepted");
     expect((await readStream(db, tripId)).length).toBe(before + 1);
+  });
+
+  // W55. "Already true" and "accepted" must be one fact. Here a trip write lands
+  // after the accept decided the change was a no-op and before it marked it:
+  // the change's row is held, so the accept parks at its mark, and the rename
+  // commits meanwhile. Accepting it now would record a change the trip does not
+  // say; what is left is to decide it again against the head that moved.
+  it("decides a no-op change again when the trip moves before it is marked accepted", async () => {
+    const [first] = await suggest(draft([rename("Kyoto in spring")]));
+    const [second] = await suggest(draft([rename("Kyoto in spring")]), OTHER_SUGGESTER);
+    expect((await resolveSuggestionChange(tripId, first!.id, EDITOR, "accept")).ok).toBe(true);
+
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    let locked!: () => void;
+    const isLocked = new Promise<void>((resolve) => (locked = resolve));
+    const holder = db.transaction(async (tx) => {
+      await tx.select().from(tripSuggestionChanges).where(eq(tripSuggestionChanges.id, second!.id)).for("update");
+      locked();
+      await gate;
+    });
+    await isLocked;
+
+    const accepting = resolveSuggestionChange(tripId, second!.id, EDITOR, "accept");
+    await waitForABlockedBackend("trip_suggestion_changes");
+    expect((await executeTripCommand(rename("Osaka"), OWNER)).ok).toBe(true);
+    release();
+    await holder;
+
+    expect(await accepting).toMatchObject({ ok: true, value: [{ id: second!.id, status: "accepted" }] });
+    // Accepted on top of the rename, so the trip says what was accepted — and
+    // the batch that made it so is the suggestion's.
+    expect((await getTripDetail(tripId))?.name).toBe("Kyoto in spring");
+    expect((await readStream(db, tripId)).at(-1)!.origin).toMatchObject({ kind: "suggestion", changeId: second!.id });
   });
 
   it("leaves a change pending when the trip no longer takes it (W10)", async () => {

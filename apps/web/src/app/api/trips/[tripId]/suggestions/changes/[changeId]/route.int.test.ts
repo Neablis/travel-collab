@@ -7,6 +7,7 @@ import { grantMembership } from "@/server/access/members";
 import { db } from "@/server/db/client";
 import { users } from "@/server/db/schema";
 import { createSuggestion } from "@/server/suggestions/create";
+import { MAX_RESOLVE_BODY_BYTES } from "@/server/suggestions/http";
 import { entitleAccounts } from "@/server/test-support/entitledAccount";
 
 let currentUserId = "";
@@ -106,6 +107,15 @@ describe("POST /api/trips/:id/suggestions/changes/:changeId", () => {
   it("400s an action the contract does not name", async () => {
     const [change] = await suggest([{ type: "SetTripName", tripId, name: "x" }]);
     expect((await resolve(change!.id, { action: "approve" })).status).toBe(400);
+  });
+
+  // Spec W54. Padding the body past the ceiling with a field the contract
+  // would strip: without the cap this is an ordinary dismiss.
+  it("413s a body over its byte ceiling and resolves nothing", async () => {
+    const [change] = await suggest([{ type: "SetTripName", tripId, name: "x" }]);
+    const res = await resolve(change!.id, { action: "dismiss", pad: "x".repeat(MAX_RESOLVE_BODY_BYTES) });
+    expect(res.status).toBe(413);
+    expect((await resolve(change!.id, { action: "dismiss" })).status).toBe(200);
   });
 
   it("maps not-found to 404", async () => {
