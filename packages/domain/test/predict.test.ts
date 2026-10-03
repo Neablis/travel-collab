@@ -86,6 +86,7 @@ describe("predictBatch", () => {
     if (!r.ok) return;
     expect(r.detail.days.map((d) => d.dayId)).toEqual(["d1", "d2"]);
     expect(r.description).toBe("Added Day 2");
+    expect(r.events.map((e) => e.type)).toEqual(["DayAdded"]);
   });
 
   it("with skipNoOps, still refuses a unit that is a no-op throughout, as the batch does", () => {

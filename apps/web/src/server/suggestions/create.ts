@@ -8,7 +8,7 @@ import { serverConflictContext } from "../conflictContext";
 import { db } from "../db/client";
 import { tripSuggestionChanges, tripSuggestions } from "../db/schema";
 import { readStream } from "../eventStore";
-import { dependsOn } from "./dependencies";
+import { dependsOn, effectOf, type UnitEffect } from "./dependencies";
 import { refuse, toChange, type SuggestionResult } from "./shared";
 
 /**
@@ -25,7 +25,8 @@ import { refuse, toChange, type SuggestionResult } from "./shared";
  * does on accept (W51) — so this is the check the reviewer's accept repeats for
  * real, and a draft that is already broken never reaches a reviewer. The same
  * prediction writes each change's sentence (W2), so the reviewer reads what
- * the history panel will say once it is accepted.
+ * the history panel will say once it is accepted. And the events it decided are
+ * what each change is recorded as creating, for its dependencies (W56).
  *
  * One transaction: the stream read, the role, the dry run and the inserts
  * agree on one head, which is the `base_seq` recorded.
@@ -55,6 +56,7 @@ export async function createSuggestion(
 
     let detail: TripDetail = tripDetailFromState(state, first.occurredAt, serverConflictContext());
     const descriptions: string[] = [];
+    const effects: UnitEffect[] = [];
     for (const [index, commands] of units.entries()) {
       const predicted = predictBatch(detail, commands, { skipNoOps: true });
       if (!predicted.ok) {
@@ -65,6 +67,7 @@ export async function createSuggestion(
       }
       detail = predicted.detail;
       descriptions.push(predicted.description);
+      effects.push(effectOf(predicted.events));
     }
 
     const suggestion = {
@@ -76,7 +79,7 @@ export async function createSuggestion(
       createdAt: new Date(now),
     };
     const ids = units.map(() => randomUUID());
-    const rows = dependsOn(units).map((deps, position) => ({
+    const rows = dependsOn(units.map((commands, i) => ({ commands, effect: effects[i]! }))).map((deps, position) => ({
       id: ids[position]!,
       suggestionId: suggestion.id,
       tripId,

@@ -168,6 +168,48 @@ describe("createSuggestion", () => {
   });
 });
 
+// W56. What a unit creates is what its dry run created, not what its commands
+// name: `SetTripDates.newDayIds` is a pool the decider takes only the prefix it
+// needs from. And a range edit is decided against the day count, so it waits
+// for every earlier unit that changed it.
+describe("createSuggestion — dependencies", () => {
+  const range = (endDate: string, newDayIds: string[]): BatchableCommand => ({
+    type: "SetTripDates",
+    tripId,
+    startDate: "2027-05-01",
+    endDate,
+    newDayIds,
+  });
+
+  it("makes a range edit wait for the edit that set the day count it builds on", async () => {
+    const [oneToTwo, twoToThree] = await suggest(
+      draft([range("2027-05-02", [randomUUID()])], [range("2027-05-03", [randomUUID()])]),
+    );
+    expect(twoToThree!.dependsOn).toEqual([oneToTwo!.id]);
+    // First, on a one-day trip, it would need two new days and has one id.
+    expect(await resolveSuggestionChange(tripId, twoToThree!.id, OWNER, "accept")).toMatchObject({
+      ok: false,
+      error: { code: "dependency-pending" },
+    });
+    const dismissed = await resolveSuggestionChange(tripId, oneToTwo!.id, OWNER, "dismiss");
+    expect(dismissed.ok && dismissed.value.map((c) => c.id)).toEqual([oneToTwo!.id, twoToThree!.id]);
+  });
+
+  it("does not make an id the dry run never used into something a later unit builds on", async () => {
+    // A start-only change takes no day from its pool, so naming an existing
+    // day there creates nothing — and a stop added to that day needs nothing.
+    const [startOnly, addStop] = await suggest(
+      draft(
+        [{ type: "SetTripDates", tripId, startDate: "2027-05-01", endDate: null, newDayIds: [dayId] }],
+        [{ type: "AddActivity", tripId, activityId: randomUUID(), dayId, title: "Tea ceremony" }],
+      ),
+    );
+    expect(addStop!.dependsOn).toEqual([]);
+    expect((await resolveSuggestionChange(tripId, startOnly!.id, OWNER, "dismiss")).ok).toBe(true);
+    expect(await statusOf(addStop!.id)).toBe("pending");
+  });
+});
+
 describe("listSuggestionChanges", () => {
   it("shows a suggester their own changes, a reviewer everyone's, and a viewer or stranger nothing", async () => {
     const [mine] = await suggest(draft([rename("Sam's Kyoto")]));

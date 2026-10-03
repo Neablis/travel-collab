@@ -8,7 +8,9 @@ import { hydrate } from "./trip/hydrate";
 import { DEFAULT_CONFLICT_CONTEXT } from "./trip/conflicts";
 
 export type PredictResult =
-  | { ok: true; detail: TripDetail; description: string }
+  // `events` are what the batch would append, a skipped no-op contributing
+  // none: what a suggestion's unit actually creates is read from them.
+  | { ok: true; detail: TripDetail; description: string; events: TripEvent[] }
   | { ok: false; rejection: Rejection };
 
 // actorId is unused by every batchable command's events (only TripCreated reads
@@ -49,6 +51,7 @@ export function predictBatch(
     ok: true,
     detail: tripDetailFromState(state, detail.createdAt, DEFAULT_CONFLICT_CONTEXT),
     description: describeUserBatch(before, events),
+    events,
   };
 }
 
