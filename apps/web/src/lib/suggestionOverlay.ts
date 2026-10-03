@@ -3,7 +3,9 @@ import { predictBatch } from "@tc/predict";
 
 // Spec W5: ghosts are a pure client overlay. Each pending change is predicted
 // with the optimistic queue's own `predictBatch` on the confirmed trip, plus
-// the pending changes it depends on, then diffed against that base. Nothing
+// the pending changes it depends on, then diffed against that base. It skips a
+// no-op sub-command as accepting will (W51), so a change is stale only when
+// accepting it would be refused, a change already true throughout included. Nothing
 // here is planning state — the server holds no projection of an unaccepted
 // change (ADR-063), and neither does this.
 
@@ -45,6 +47,8 @@ export type SuggestionOverlay = {
   /** One ghost per change that no longer predicts: "no longer applies" (§2.7). */
   stale: Ghost[];
 };
+
+const ACCEPT_LIKE = { skipNoOps: true };
 
 // Commands that change the trip rather than a stop. AddDay is not here: a new
 // day with stops in it shows as those stops, and an empty one falls to
@@ -92,14 +96,14 @@ export function suggestionOverlay(confirmed: TripDetail, changes: SuggestionChan
     // resolved away with its dependents (so not here either).
     let base: TripDetail | null = confirmed;
     for (const id of [...ancestors(change, byId)].sort((a, b) => order.get(a)! - order.get(b)!)) {
-      const step = predictBatch(base, byId.get(id)!.commands);
+      const step = predictBatch(base, byId.get(id)!.commands, ACCEPT_LIKE);
       if (!step.ok) {
         base = null;
         break;
       }
       base = step.detail;
     }
-    const predicted = base === null ? null : predictBatch(base, change.commands);
+    const predicted = base === null ? null : predictBatch(base, change.commands, ACCEPT_LIKE);
     if (base === null || predicted === null || !predicted.ok) {
       overlay.stale.push({ ...common, kind: guessKind(change.commands) });
       continue;

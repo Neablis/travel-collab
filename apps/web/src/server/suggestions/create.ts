@@ -20,10 +20,12 @@ import { refuse, toChange, type SuggestionResult } from "./shared";
  * not ask at all (spec §2.7).
  *
  * Every unit is dry-run in order with the domain's own `predictBatch`, each on
- * the detail the one before it left (W4). That is the check the reviewer's
- * accept will repeat for real, so a draft that is already broken never reaches
- * a reviewer. The same prediction writes each change's sentence (W2), so the
- * reviewer reads what the history panel will say once it is accepted.
+ * the detail the one before it left (W4). It skips a no-op sub-command and
+ * refuses a unit with nothing left, which is what `executeTripCommandBatch`
+ * does on accept (W51) — so this is the check the reviewer's accept repeats for
+ * real, and a draft that is already broken never reaches a reviewer. The same
+ * prediction writes each change's sentence (W2), so the reviewer reads what
+ * the history panel will say once it is accepted.
  *
  * One transaction: the stream read, the role, the dry run and the inserts
  * agree on one head, which is the `base_seq` recorded.
@@ -54,7 +56,7 @@ export async function createSuggestion(
     let detail: TripDetail = tripDetailFromState(state, first.occurredAt, serverConflictContext());
     const descriptions: string[] = [];
     for (const [index, commands] of units.entries()) {
-      const predicted = predictBatch(detail, commands);
+      const predicted = predictBatch(detail, commands, { skipNoOps: true });
       if (!predicted.ok) {
         return {
           ok: false,

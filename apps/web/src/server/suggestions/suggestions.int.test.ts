@@ -111,6 +111,28 @@ describe("createSuggestion", () => {
     expect(await storedChanges()).toBe(0);
   });
 
+  // W51: the dry run skips a sub-command that is already true, as accepting
+  // it will, so a gesture that includes one is not refused for it.
+  it("takes a unit with a no-op sub-command, which accepting then applies", async () => {
+    const unit: BatchableCommand[] = [
+      { type: "MoveActivity", tripId, activityId: stopId, toDayId: dayId, position: 0 },
+      { type: "UpdateActivity", tripId, activityId: stopId, timeWindow: { start: "07:00", end: "08:00" } },
+    ];
+    const created = await createSuggestion(tripId, SUGGESTER, draft(unit));
+    expect(created).toMatchObject({ ok: true, value: [{ status: "pending" }] });
+    if (!created.ok) return;
+    expect(await resolveSuggestionChange(tripId, created.value[0]!.id, OWNER, "accept")).toMatchObject({
+      ok: true,
+      value: [{ status: "accepted" }],
+    });
+  });
+
+  it("refuses a unit that is a no-op throughout, and stores nothing", async () => {
+    const result = await createSuggestion(tripId, SUGGESTER, draft([rename("Kyoto")]));
+    expect(result).toMatchObject({ ok: false, error: { code: "does-not-apply", index: 0 } });
+    expect(await storedChanges()).toBe(0);
+  });
+
   it("refuses a command aimed at another trip, which accepting would run with the reviewer's rights", async () => {
     const elsewhere = randomUUID();
     const result = await createSuggestion(tripId, SUGGESTER, draft([{ type: "SetTripName", tripId: elsewhere, name: "Mine" }]));

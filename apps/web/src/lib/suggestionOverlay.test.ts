@@ -131,6 +131,33 @@ describe("suggestionOverlay", () => {
     expect(overlay.byActivity.size + overlay.byDay.size + overlay.tripLevel.length).toBe(0);
   });
 
+  // Accepting skips a sub-command that is already true (`decideInOrder`), so
+  // the overlay must not call such a change broken (W51).
+  it("a change whose move is already done still applies, as its retime", () => {
+    const trip = confirmedTrip();
+    const day = trip.days[0]!;
+    const target = day.activityIds[0]!;
+    const c = change(trip, [
+      { type: "MoveActivity", tripId: trip.tripId, activityId: target, toDayId: day.dayId, position: 0 },
+      { type: "UpdateActivity", tripId: trip.tripId, activityId: target, timeWindow: { start: "07:00", end: "08:00" } },
+    ]);
+
+    const overlay = suggestionOverlay(trip, [c]);
+
+    expect(overlay.stale).toEqual([]);
+    expect(overlay.byActivity.get(target)).toMatchObject([{ kind: "update", activity: { timeWindow: { start: "07:00" } } }]);
+  });
+
+  it("a change that is already true throughout no longer applies", () => {
+    const trip = confirmedTrip();
+    const day = trip.days[0]!;
+    const c = change(trip, [
+      { type: "MoveActivity", tripId: trip.tripId, activityId: day.activityIds[0]!, toDayId: day.dayId, position: 0 },
+    ]);
+
+    expect(suggestionOverlay(trip, [c]).stale.map((g) => g.changeId)).toEqual([c.id]);
+  });
+
   it("only pending changes are drawn", () => {
     const trip = confirmedTrip();
     const target = trip.days[0]!.activityIds[0]!;
