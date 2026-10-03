@@ -47,8 +47,9 @@ export function refuse(code: SuggestionErrorCode, message: string): { ok: false;
  * refused whole. The list a reviewer reads, and every resolve's dependency
  * walk, stay bounded by these rather than by how long nobody looked.
  *
- * A bound, not a lock: two drafts sent at the same moment are each counted
- * without the other, so a race can pass a cap by at most one draft.
+ * A bound, not a lock: drafts sent at the same moment are each counted
+ * without the others, so a race passes a cap by whatever the racing drafts
+ * hold. Nothing takes a lock on the trip for it (W55 declined one too).
  */
 export const SUGGESTION_AUTHOR_PENDING_MAX = 50;
 export const SUGGESTION_TRIP_PENDING_MAX = 200;
