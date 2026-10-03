@@ -13,6 +13,43 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-03 — The `suggester` role, and suggestions as a contract (ADR-063); Public API 1.4.0
+
+- **Added:** `suggester` to `TripRole` (now `viewer, suggester, editor, owner`, least-privileged
+  first) and to `InviteRole` (now `viewer, suggester, editor`).
+- **Added:** an `Origin` member, `{ kind: "suggestion", suggestionId, changeId, authorId }`. It
+  marks an accepted suggestion: the envelope's actor is the reviewer, and the author survives
+  only here.
+- **Added:** `TripEventsPage.suggestionsRev`, an optional opaque string. It is the role-scoped
+  revision of the suggestions this caller may see (spec W6).
+- **New file `suggestion.ts`:** `SuggestionChangeStatus`, `SuggestionChange`,
+  `TripSuggestionsResponse`, `CreateSuggestionInput` and `ResolveSuggestionChangeInput`.
+  - `CreateSuggestionInput` allows 1..100 units of 1..50 `BatchableCommand`s each.
+  - It refuses any `DismissConflict`, at that command's path (W3).
+  - Its optional note is trimmed and capped at 500 characters with `review.ts`'s `boundedNote`,
+    so a blank note parses to `null`.
+- Why: Mitchell asked for a role that can propose changes for an editor to approve. See
+  `docs/specs/2026-10-03-suggester-role-design.md` and ADR-063.
+- Consumers updated:
+  - `packages/domain/src/trip/history.ts`: `suggestion` is treated as `user` in the undo stack
+    and in the history sentence (W11).
+  - `apps/web/src/server/accessPolicy.ts`: `RANK` is now viewer 0, suggester 1, editor 2,
+    owner 3, and it is exported.
+  - `apps/web/src/server/access/members.ts`: its duplicate `RANK` is deleted, and it imports the
+    one in `accessPolicy.ts` (W8).
+  - `apps/web/src/server/email/templates.ts`: `tripInviteEmail`'s `role` is typed `InviteRole`.
+    A suggester gets the viewer's wording until plan T3.
+  - The public API is affected because its trip documents embed `TripMember.role` and event
+    `origin`. `openapi.json` was regenerated, `API_VERSION` moved to `1.4.0` (minor, additive)
+    and `API_FINGERPRINT` is new. No `/v1` endpoint was added (spec §2.7).
+  - No gate changed. `MINIMUM_ROLE` still requires `editor` for every batchable command, so a
+    suggester cannot write.
+- Breaking? no. The enum values and the union member are additive, and the new field is optional.
+  Every stored `members` row, `origin` and invite still parses. A client running an old bundle
+  meets an unknown role only when someone is invited as a suggester, and an unknown origin only
+  after a suggestion is accepted. The invite route accepts `suggester` from this change on, but no
+  screen offers it until T3. Nothing can accept a suggestion until T4.
+
 ## 2026-10-02 — The library names people "Dana R.": `DiscoverDay.ownerDisplayName`, and what the names mean (ADR-061 decision 4, amended)
 
 - **Added (web-local wire shape, not `packages/contracts`):** `DiscoverDay.ownerDisplayName`

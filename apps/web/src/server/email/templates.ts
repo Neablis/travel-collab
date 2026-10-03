@@ -1,5 +1,6 @@
 import { ogColors } from "@/server/og/ogTokens.generated";
 import type { Email } from "./send";
+import type { InviteRole } from "@tc/contracts";
 
 // The words of every email the product sends, and nothing else: each builder
 // takes plain strings and returns an `Email` for `sendEmail`. Pure, so the
@@ -79,7 +80,9 @@ export function tripInviteEmail(input: {
   inviterName: string | null;
   inviterEmail: string | null;
   tripName: string;
-  role: "editor" | "viewer";
+  // A suggester reads the viewer's wording until the suggester line lands
+  // (plan 2026-10-03 T3).
+  role: InviteRole;
   inviteUrl: string;
 }): Email {
   const who = input.inviterName ?? "Someone";

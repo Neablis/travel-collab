@@ -11,8 +11,9 @@ import { TripRole } from "./trip.ts";
 // `owner` is deliberately absent: an invite hands out participation, never
 // ownership. Transferring a trip is a different operation with different
 // consequences (the owner is the only role that can delete a trip) and no
-// milestone has asked for it.
-export const InviteRole = z.enum(["viewer", "editor"]);
+// milestone has asked for it. `suggester` is invitable (ADR-063): it is the
+// whole point of the role that an owner can hand it out.
+export const InviteRole = z.enum(["viewer", "suggester", "editor"]);
 export type InviteRole = z.infer<typeof InviteRole>;
 
 // `pending` → `accepted` (single use) or `revoked`. There is no expiry today:

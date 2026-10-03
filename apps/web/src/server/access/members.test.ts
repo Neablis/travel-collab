@@ -65,7 +65,7 @@ describe("mergeMembers", () => {
 
 const arbMember = fc.record({
   userId: fc.constantFrom("a", "b", "c", "d"),
-  role: fc.constantFrom("viewer" as const, "editor" as const, "owner" as const),
+  role: fc.constantFrom("viewer" as const, "suggester" as const, "editor" as const, "owner" as const),
 });
 
 describe("mergeMembers — properties", () => {
@@ -90,7 +90,7 @@ describe("mergeMembers — properties", () => {
   });
 
   it("nobody ends up ranked below their best claim on either side", () => {
-    const rank = { viewer: 0, editor: 1, owner: 2 } as const;
+    const rank = { viewer: 0, suggester: 1, editor: 2, owner: 3 } as const;
     let witness = 0;
     fc.assert(
       fc.property(fc.array(arbMember), fc.array(arbMember), (projected, granted) => {

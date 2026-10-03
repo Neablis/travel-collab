@@ -326,8 +326,10 @@ export type BatchableCommand = z.infer<typeof BatchableCommand>;
 // a member — so editor/viewer are unreachable at runtime until invites (M11
 // link 3). Widening a literal to an enum that contains it is backwards
 // compatible: every `members` row already persisted in `trip_summaries` /
-// `trip_details` jsonb still parses.
-export const TripRole = z.enum(["viewer", "editor", "owner"]);
+// `trip_details` jsonb still parses. `suggester` (ADR-063) sits between viewer
+// and editor: it reads like a viewer and proposes board edits an editor
+// accepts; it never writes the log itself.
+export const TripRole = z.enum(["viewer", "suggester", "editor", "owner"]);
 export type TripRole = z.infer<typeof TripRole>;
 
 export const TripMember = z.object({

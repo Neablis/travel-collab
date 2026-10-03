@@ -102,7 +102,7 @@ export type UndoRedoTargets = {
 };
 
 // Standard editor stack semantics, derived purely from provenance:
-// user/revert batches push onto the done stack and clear the redo stack;
+// user/suggestion/revert batches push onto the done stack and clear the redo stack;
 // an undo moves the top of done onto the redo stack; a redo moves it back.
 // Every batch is state-changing (decide's no-op guard), so this bookkeeping
 // mirrors state exactly. The creation batch is never undoable.
@@ -126,6 +126,9 @@ export function deriveUndoRedo(batches: Batch[]): UndoRedoTargets {
     if (batch.events.length === 0) continue;
     switch (batch.origin.kind) {
       case "user":
+      // An accepted suggestion is the reviewer's edit like any other (ADR-063,
+      // spec W11); its origin only remembers who asked for it.
+      case "suggestion":
       case "revert":
         done.push(batch);
         undone.length = 0;
@@ -330,6 +333,7 @@ function describeBatch(
     case "revert":
       return `Reverted to version ${batch.origin.toSeq}`;
     case "user":
+    case "suggestion":
       // **A batch is one aggregate's or the other's, never both**, because a
       // command targets one of them. The trip's events win the tie only so
       // that a future batched command carrying both still reads as a trip
