@@ -28,6 +28,8 @@ const RESOLVED_AS = { accept: "accepted", dismiss: "dismissed", withdraw: "withd
  *   replays its commands through the ordinary pipeline as the reviewer, with
  *   `Origin` `suggestion` (ADR-063). A refusal there leaves the row pending:
  *   the reviewer decides, and accepting must not quietly become dismissing.
+ *   A change the trip already reflects throughout is accepted with nothing
+ *   appended (W52).
  * - **Dismiss and withdraw** take every pending change that depends on this
  *   one with it, transitively, in one transaction (spec §2.7).
  *
@@ -93,18 +95,23 @@ async function accept(
     }
   }
 
+  // Conditional on `pending`, so exactly one resolution wins (W10).
+  const markAccepted = async (executor: Pick<typeof db, "update">) => {
+    const marked = await executor
+      .update(tripSuggestionChanges)
+      .set({ status: "accepted", resolvedBy: reviewerId, resolvedAt: new Date(now) })
+      .where(and(eq(tripSuggestionChanges.id, change.id), eq(tripSuggestionChanges.status, "pending")))
+      .returning();
+    return marked[0];
+  };
+
   let accepted: ChangeRow | undefined;
   try {
     const result = await executeTripCommandBatch(
       change.commands,
       reviewerId,
       async (tx) => {
-        const marked = await tx
-          .update(tripSuggestionChanges)
-          .set({ status: "accepted", resolvedBy: reviewerId, resolvedAt: new Date(now) })
-          .where(and(eq(tripSuggestionChanges.id, change.id), eq(tripSuggestionChanges.status, "pending")))
-          .returning();
-        accepted = marked[0];
+        accepted = await markAccepted(tx);
         if (accepted === undefined) throw new SuggestionAlreadyResolved(change.id);
       },
       {
@@ -114,7 +121,16 @@ async function accept(
     if (!result.ok) {
       // A lapse between the role read above and the pipeline's own check.
       if (result.error.code === "forbidden") return refuse("forbidden", result.error.message);
-      return refuse("no-longer-applies", result.error.message);
+      // Authorized, and every command is already true — another change asked
+      // for the same thing and was accepted first. What it asks for is done, so
+      // it is accepted with nothing appended (W52); refusing would leave the
+      // reviewer a change that can only be dismissed.
+      if (result.error.code === "no-op") {
+        accepted = await markAccepted(db);
+        if (accepted === undefined) throw new SuggestionAlreadyResolved(change.id);
+      } else {
+        return refuse("no-longer-applies", result.error.message);
+      }
     }
   } catch (error) {
     if (error instanceof SuggestionAlreadyResolved) {

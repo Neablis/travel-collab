@@ -292,6 +292,22 @@ describe("resolveSuggestionChange — accept", () => {
     expect(await statusOf(change!.id)).toBe("pending");
   });
 
+  // W52: the trip already says what the change asks for, so there is nothing
+  // to append — and nothing to refuse either.
+  it("accepts a change the trip already reflects, and appends nothing for it", async () => {
+    const [first] = await suggest(draft([rename("Kyoto in spring")]));
+    const [second] = await suggest(draft([rename("Kyoto in spring")]), OTHER_SUGGESTER);
+    const before = (await readStream(db, tripId)).length;
+
+    expect((await resolveSuggestionChange(tripId, first!.id, EDITOR, "accept")).ok).toBe(true);
+    expect(await resolveSuggestionChange(tripId, second!.id, EDITOR, "accept")).toMatchObject({
+      ok: true,
+      value: [{ id: second!.id, status: "accepted", resolvedBy: EDITOR }],
+    });
+    expect(await statusOf(second!.id)).toBe("accepted");
+    expect((await readStream(db, tripId)).length).toBe(before + 1);
+  });
+
   it("leaves a change pending when the trip no longer takes it (W10)", async () => {
     const [change] = await suggest(draft([{ type: "UpdateActivity", tripId, activityId: stopId, title: "Inari at dawn" }]));
     expect((await executeTripCommand({ type: "RemoveActivity", tripId, activityId: stopId }, OWNER)).ok).toBe(true);
