@@ -159,12 +159,13 @@ describe("cityCardFor", () => {
 
 describe("countryCardFor", () => {
   // Tuvalu, so no other file's day is counted: the count is library-wide.
-  // "XX" rides the published day too, so a code with no name is refused for
-  // being one, not for being on no day.
+  // "XX" and "ZZ" ride the published day too, so a code with no name, and a
+  // region `Intl` names that is no country, are refused for being one, not for
+  // being on no day.
   it("names a country by its English name and counts only the days a stranger could open", async () => {
     await db
       .update(savedDays)
-      .set({ countries: ["TV", "XX"] })
+      .set({ countries: ["TV", "XX", "ZZ"] })
       .where(inArray(savedDays.id, [published, privateDay, moderated, deleted]));
 
     expect(await countryCardFor("TV")).toEqual({ kind: "country", country: "Tuvalu", days: 1 });
@@ -173,6 +174,7 @@ describe("countryCardFor", () => {
   it.each([
     ["a country no day touches", "AQ"],
     ["a code that names no country", "XX"],
+    ["a region Intl names that is not a country", "ZZ"],
   ])("gives %s the generic card", async (_state, code) => {
     expect(await countryCardFor(code)).toEqual({ kind: "generic" });
   });

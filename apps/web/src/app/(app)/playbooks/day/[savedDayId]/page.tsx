@@ -12,7 +12,7 @@ import { NOINDEX, pageMetadata } from "@/lib/siteMetadata";
 import type { SharedDayView } from "@/lib/sharedDayView";
 import { auth } from "@/server/auth";
 import { CITIES_SHOWN } from "@/server/og/playbooks";
-import { dayPageView, publishedDaysPage } from "@/server/publicLibrary";
+import { dayPageView, publishedDaysInCity, publishedDaysPage } from "@/server/publicLibrary";
 
 type Params = { params: Promise<{ savedDayId: string }> };
 
@@ -118,7 +118,7 @@ export default async function SharedDayPage({
     ? await Promise.all([
         firstCity === null
           ? Promise.resolve([])
-          : publishedDaysPage({ cities: [firstCity] }, page).then(({ days }) => days),
+          : publishedDaysInCity(firstCity, page).then(({ days }) => days),
         publishedDaysPage({ authorId: view.day.ownerId }, page).then(({ days }) => days),
       ])
     : [[], []];

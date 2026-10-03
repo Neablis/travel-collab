@@ -1,5 +1,6 @@
 import type { SavedDay } from "@tc/contracts";
 import type { DiscoverResponse, PublicAuthor } from "@/lib/playbooks";
+import { slugify } from "@/lib/playbookUrls";
 import type { SharedDayView } from "@/lib/sharedDayView";
 import { LIBRARY_CACHE_SECONDS, LIBRARY_TAG, authorTag, dayTag, libraryCached } from "./libraryCache";
 import * as live from "./playbooks";
@@ -119,6 +120,15 @@ export function publishedDaysPage(
   return libraryCached(["days", JSON.stringify(filter), JSON.stringify(page)], tags, () =>
     live.publishedDaysPage(filter, page),
   );
+}
+
+/** Published days in a city under every spelling its page merges ("São Paulo", "Sao Paulo"), or the one spelling when it has no page. */
+export async function publishedDaysInCity(
+  city: string,
+  page: Parameters<typeof live.publishedDaysPage>[1],
+): ReturnType<typeof live.publishedDaysPage> {
+  const place = await placeFor("city", slugify(city));
+  return publishedDaysPage({ cities: place?.cities ?? [city] }, page);
 }
 
 /** Every day a stranger can open, for the sitemap: `playbooks.ts`'s `sitemapDays`, cached. */

@@ -2,6 +2,7 @@
 // Depends on @tc/contracts only. No I/O, no clock, no randomness (Invariant 4).
 
 export * from "./result";
+export { countryFacts } from "./data/countries";
 export * from "./registry-types";
 export * from "./external";
 export * from "./chartPayloads";

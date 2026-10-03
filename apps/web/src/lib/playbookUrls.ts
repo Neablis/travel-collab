@@ -6,6 +6,7 @@
 // day. A link whose slug is missing or stale still opens: the page redirects
 // it to the current URL.
 
+import { countryFacts } from "@tc/pages";
 import { countryName } from "./place";
 import { DISCOVER_PAGE_SIZE } from "./playbooks";
 
@@ -84,10 +85,13 @@ export function cityPath(city: string): string | null {
 
 /**
  * A country's slug, from the English name of its ISO alpha-2 code; null when
- * the code has no name. `countryName` hands an unmappable code back unchanged
- * ("??", "XX"), and a code is not a name.
+ * the code is not a country. `countryName` hands an unmappable code back
+ * unchanged ("??", "XX"), and `Intl` also names regions that are not countries
+ * ("ZZ" is "Unknown Region", "EU", "UN"), so a code must be in the country
+ * table first — which keeps "XK", Kosovo.
  */
 export function countrySlug(code: string): string | null {
+  if (countryFacts(code) === undefined) return null;
   const name = countryName(code);
   if (name === null || name === code) return null;
   const slug = slugify(name);
