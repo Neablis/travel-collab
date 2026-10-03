@@ -40,6 +40,7 @@ describe("dayJsonLd", () => {
     expect(dayJsonLd(DAY)[0]).not.toHaveProperty("aggregateRating");
     // Each half of the guard on its own: an average left over with no reviews behind it is not shown either.
     expect(dayJsonLd({ ...DAY, rating: 4, reviewCount: 0 })[0]).not.toHaveProperty("aggregateRating");
+    expect(dayJsonLd({ ...DAY, rating: null, reviewCount: 3 })[0]).not.toHaveProperty("aggregateRating");
   });
 
   it("carries the rating once there are reviews", () => {
