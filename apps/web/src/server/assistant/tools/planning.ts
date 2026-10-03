@@ -19,7 +19,8 @@
 //
 // The loop is a pass-through, deliberately: wrapping these definitions in
 // anything that alters a schema or a `run` would be the reimplementation
-// ADR-022 §4 rules out.
+// ADR-022 §4 rules out. `hiddenFromModel` below is not that: the command schema
+// and its validation are untouched, and only the model's view of it is shorter.
 import { z } from "zod";
 import { BatchableCommand, type BatchableCommand as BatchableCommandType } from "@tc/contracts";
 import { ID_FIELDS, refParamName, type IdRole } from "@/server/assistant/idFields";
@@ -47,6 +48,25 @@ const DESCRIPTIONS: Record<BatchableCommandType["type"], string> = {
     "Dismiss an active conflict by its number in the context's `conflicts` list (conflictRef: e.g. 1). Only conflicts shown there can be dismissed.",
   SetTripCurrency: "Set the trip's currency (ISO 4217 code).",
   SetTripBudget: `Set (or clear, with null) the trip's budget.`,
+};
+
+/**
+ * **What the model is not shown of a stop's place** (ADR-022 amendment
+ * 2026-10-03). A coordinate the model writes is a guess — `groundCitedPlaces`
+ * strips any `precision` it claims and enrichment geocodes `address` then
+ * `name` — and a confirmed one arrives through `placeRef`, which the server
+ * turns into `{ lat, lng, precision: "venue" }` itself. So `lat`, `lng` and
+ * `precision` cost every step ~500 tokens across the two tools to invite the
+ * one input the pipeline is built to replace. Still accepted if sent.
+ *
+ * `address` stays: it is how a place search cannot find reaches the stop at
+ * all (the first live session's brewery). So does `endLocation` as a whole —
+ * a transit leg's end has no `placeRef` of its own.
+ */
+const PLACE_GUESSES = ["lat", "lng", "precision"] as const;
+const HIDDEN_FROM_MODEL: Partial<Record<BatchableCommandType["type"], readonly string[]>> = {
+  AddActivity: ["location", "endLocation"].flatMap((field) => PLACE_GUESSES.map((key) => `${field}.${key}`)),
+  UpdateActivity: ["location", "endLocation"].flatMap((field) => PLACE_GUESSES.map((key) => `${field}.${key}`)),
 };
 
 /**
@@ -180,6 +200,7 @@ function planningToolFor(optionSchema: z.ZodObject<{ type: z.ZodLiteral<string> 
     needs: ["proposalBuffer"] as const,
     minimumRole: "editor",
     taskClasses: TASK_CLASSES_FOR[type],
+    hiddenFromModel: HIDDEN_FROM_MODEL[type],
     run: (args: Record<string, unknown>, deps) => {
       deps.proposalBuffer.collect({ type, args });
       return { queued: true as const, type };

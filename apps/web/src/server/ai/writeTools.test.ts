@@ -1158,3 +1158,18 @@ describe("the money rule", () => {
     expect(count(readOnly)).toBe(0);
   });
 });
+
+// A coordinate the model writes is a guess the pipeline replaces (placeRef
+// grounding, geocoding), so the model is not shown lat/lng/precision on either
+// place of a stop — but `address`, the one way an unfindable place reaches a
+// stop, and `placeRef` itself stay.
+describe("what the model is shown of a stop's place", () => {
+  const { tools } = buildWriteTools();
+  it.each(["AddActivity", "UpdateActivity"] as const)("%s hides model-written coordinates and keeps address and placeRef", async (name) => {
+    const json = JSON.stringify(await asSchema(tools[name]!.inputSchema).jsonSchema);
+    for (const hidden of ['"lat"', '"lng"', '"precision"']) expect(json).not.toContain(hidden);
+    for (const kept of ['"address"', '"placeRef"', '"endLocation"']) expect(json).toContain(kept);
+    const withCoordinates = { title: "Lunch", activityRef: "Lunch", location: { name: "Off Leash", lat: 42.5, lng: -76.9 } };
+    expect((await asSchema(tools[name]!.inputSchema).validate!(withCoordinates)).success).toBe(true);
+  });
+});

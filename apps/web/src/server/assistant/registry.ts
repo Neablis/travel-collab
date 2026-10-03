@@ -136,7 +136,7 @@ export function contextTool(
   const supplied = turnDepsFor(definition, turn);
   return tool({
     description: definition.description,
-    inputSchema: modelFacingSchema(definition.input),
+    inputSchema: modelFacingSchema(definition.input, definition.hiddenFromModel),
     contextSchema: AssistantContextSchema,
     execute: async (input: unknown, { context, toolCallId }) =>
       measured(definition, meter, toolCallId, input, () =>
@@ -150,7 +150,7 @@ function plainTool(definition: AnyAssistantTool, turn: Partial<TurnDeps>, meter:
   const supplied = turnDepsFor(definition, turn);
   return tool({
     description: definition.description,
-    inputSchema: modelFacingSchema(definition.input),
+    inputSchema: modelFacingSchema(definition.input, definition.hiddenFromModel),
     execute: async (input: unknown, { toolCallId }) =>
       measured(definition, meter, toolCallId, input, () => definition.invoke(input, asDeps(supplied))),
   });

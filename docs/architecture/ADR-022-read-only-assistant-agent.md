@@ -228,3 +228,36 @@ If `SearchPlaces` grounding (KI-81) or a future turn ever needs the model to
 *continue* after an approval — "approve this, then keep planning" — that is the
 case `toolApproval` is genuinely for, and this amendment is the note to
 re-read.
+
+## Amendment (2026-10-03) — the model's view of a command may be narrower than the command
+
+§4 keeps the command path untouched: the write tools' input schemas are the
+contract's `BatchableCommand` schemas, passed through, and nothing in the agent
+reimplements them. That still holds. What changed is **what the model is shown**
+of those schemas, which §4 never addressed because, until the context budget
+was measured, the two were assumed to be the same thing.
+
+They are not the same thing, and the difference is now explicit:
+
+- **The command schema** is what a call is validated against. It is unchanged:
+  the zod schema each tool was built from is still its `validate`, so a hidden
+  field is still accepted, checked and refused exactly as before.
+- **The model-facing schema** is what the SDK serializes into every step. It is
+  derived from the command schema by `assistant/modelFacingSchema.ts`: bounds
+  no model acts on are dropped for every tool (PR #310), and a tool may name
+  properties the model is not shown at all (`defineTool`'s `hiddenFromModel`).
+
+The first use is a stop's model-written coordinates. `AddActivity` and
+`UpdateActivity` no longer show `lat`, `lng` or `precision` on `location` or
+`endLocation`: `precision` from the model was already stripped by
+`groundCitedPlaces`, a confirmed coordinate arrives through `placeRef`, and an
+unconfirmed one is what geocoding replaces. That was ~540 tokens per step on an
+edit turn spent inviting the one input the pipeline is built to override.
+
+**The rule for hiding a field:** only one the server fills or overrides itself,
+never one the model is the sole source of. `address` therefore stays (it is how
+a place that search cannot find reaches a stop at all), and so does
+`endLocation` (a transit leg's end has no `placeRef`). A hidden field may not be
+required, and a path that names nothing is an error; both are enforced, not
+asked for. `ai/contextBudget.test.ts` holds what the model reads per turn shape,
+so any hiding, or anything added back, is a visible diff.
