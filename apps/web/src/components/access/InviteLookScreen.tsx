@@ -130,6 +130,14 @@ function InviteLookScope({ tripId, token, children }: { tripId: string; token: s
   return ready ? <>{children}</> : null;
 }
 
+// What joining gives, by the role on offer. A `Record`, so a new invite role
+// does not compile until the banner says what it may do.
+const LOOK_LINE: Record<ValidLanding["role"], string> = {
+  editor: "You're having a look first. Join and you can add stops, vote and comment alongside everyone else.",
+  suggester: "You're having a look first. Join and you can suggest changes for the planners to approve.",
+  viewer: "You're having a look first. Join and this trip stays in your list as it takes shape.",
+};
+
 /** SPEC §35.6's variant of the §27 read-only banner: why you are here, and Join. */
 function LookBanner({
   landing,
@@ -154,9 +162,7 @@ function LookBanner({
           {landing.inviterName} invited you to plan this trip
         </Text>
         <Text as="span" className="text-pretty text-xs text-info-ink opacity-85">
-          {landing.role === "editor"
-            ? "You're having a look first. Join and you can add stops, vote and comment alongside everyone else."
-            : "You're having a look first. Join and this trip stays in your list as it takes shape."}
+          {LOOK_LINE[landing.role]}
         </Text>
         {error !== null && (
           <Text as="span" role="alert" className="text-xs text-danger-ink">

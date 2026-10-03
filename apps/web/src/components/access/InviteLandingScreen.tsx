@@ -378,9 +378,13 @@ function crewLine(landing: ValidLanding): string {
         ? shown[0]!
         : `${shown.slice(0, -1).join(", ")} and ${shown[shown.length - 1]}`;
   const verb = names.length === 1 ? "is" : "are";
-  const can =
-    landing.role === "editor"
-      ? "You can add stops, vote and comment."
-      : "You'll be able to look, but not change anything.";
-  return `${list} ${verb} planning. ${can}`;
+  return `${list} ${verb} planning. ${CREW_CAN[landing.role]}`;
 }
+
+// A `Record`, so a new invite role does not compile until the landing says
+// what it may do.
+const CREW_CAN: Record<ValidLanding["role"], string> = {
+  editor: "You can add stops, vote and comment.",
+  suggester: "You can suggest stops and changes for the planners to approve.",
+  viewer: "You'll be able to look, but not change anything.",
+};
