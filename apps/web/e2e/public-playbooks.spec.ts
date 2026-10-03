@@ -1,9 +1,7 @@
 import { randomUUID } from "node:crypto";
-import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures/test";
 import { E2E_SUPER_CODE } from "./admission";
-import { stranger } from "./helpers";
-import { e2eTripName } from "./tripNames";
+import { forget, publishedDay, stranger } from "./helpers";
 
 // ADR-061: the playbook library is readable without an account. alice
 // publishes a day, a stranger with no cookies opens its link, browses, and
@@ -15,39 +13,6 @@ import { e2eTripName } from "./tripNames";
 
 function mint(stem: string): string {
   return `${stem}${randomUUID().replace(/-/g, "").slice(0, 8)}`;
-}
-
-/** alice keeps a one-stop day in `city` and publishes it. Returns its id. */
-async function publishedDay(page: Page, city: string, name: string): Promise<string> {
-  const post = async (path: string, data?: unknown) => {
-    const res = await page.request.post(path, data === undefined ? undefined : { data });
-    expect(res.ok(), `${path} -> ${res.status()}`).toBe(true);
-    return res;
-  };
-  const created = await post("/api/trips", { name: e2eTripName("Public playbook") });
-  const { tripId } = (await created.json()) as { tripId: string };
-  const dayId = randomUUID();
-  await post(`/api/trips/${tripId}/commands`, { type: "AddDay", tripId, dayId });
-  await post(`/api/trips/${tripId}/commands`, {
-    type: "AddActivity",
-    tripId,
-    activityId: randomUUID(),
-    dayId,
-    title: `Stop in ${city}`,
-    timeWindow: { start: "09:00", end: "10:00" },
-    location: { name: `Somewhere in ${city}`, city },
-  });
-  const kept = await post("/api/saved-days", { name, tripId, dayIds: [dayId] });
-  const { savedDayId } = ((await kept.json()) as { savedDay: { savedDayId: string } }).savedDay;
-  await post(`/api/saved-days/${savedDayId}/publish`);
-  return savedDayId;
-}
-
-/** Unpublish, then delete — the same two steps `m11b-playbooks.spec.ts`'s `forgetDay` walks. */
-async function forget(page: Page, savedDayId: string): Promise<void> {
-  await page.request.delete(`/api/saved-days/${savedDayId}/publish`);
-  const res = await page.request.delete(`/api/saved-days/${savedDayId}`);
-  expect(res.ok(), `forget -> ${res.status()}`).toBe(true);
 }
 
 test("a stranger opens a shared playbook, browses, and is asked to sign in to add it", async ({ page, browser }) => {

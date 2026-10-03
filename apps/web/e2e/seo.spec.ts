@@ -1,5 +1,6 @@
+import { randomUUID } from "node:crypto";
 import { expect, test } from "./fixtures/test";
-import { stranger } from "./helpers";
+import { forget, publishedDay, stranger } from "./helpers";
 
 // The SEO pass's one script (spec 2026-10-02-seo-pass §6). What a crawler
 // receives is the server's HTML, so most of this reads responses rather than
@@ -71,4 +72,31 @@ test("page metadata: canonical, description, title and twitter image", async ({ 
   // /signin sets for itself, so an assertion on the tag could not fail in
   // this lane, and none is written.
   await visitor.context().close();
+});
+
+test("sitemap.xml lists the static routes and published days, never a private one", async ({ page, browser }) => {
+  test.slow();
+  const city = `Sitemape2e${randomUUID().replace(/-/g, "").slice(0, 8)}`;
+  const publishedId = await publishedDay(page, city, `Listed ${city}`);
+  const privateId = await publishedDay(page, city, `Withdrawn ${city}`);
+  const visitor = await stranger(browser);
+  try {
+    // Unpublished again: private, and so absent, like a deleted or moderated day.
+    await page.request.delete(`/api/saved-days/${privateId}/publish`);
+    const response = await visitor.request.get("/sitemap.xml");
+    expect(response.status()).toBe(200);
+    const xml = await response.text();
+    for (const path of ["/", "/playbooks", "/demo", "/developers", "/developers/reference"]) {
+      expect(xml).toMatch(new RegExp(`<loc>[^<]*${path}</loc>`));
+    }
+    expect(xml).toMatch(new RegExp(`<loc>[^<]*/playbooks/day/${publishedId}</loc>`));
+    expect(xml).not.toContain(privateId);
+    expect(xml).not.toContain("/playbooks/board");
+    expect(xml).not.toContain("/playbooks/profile/");
+  } finally {
+    // A failed assertion still closes the stranger and removes both days,
+    // and the private one goes even if `forget` throws (CodeRabbit, PR #296).
+    await visitor.context().close();
+    await forget(page, publishedId).finally(() => page.request.delete(`/api/saved-days/${privateId}`));
+  }
 });
