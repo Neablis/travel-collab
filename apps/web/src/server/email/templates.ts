@@ -1,5 +1,6 @@
 import { ogColors } from "@/server/og/ogTokens.generated";
 import type { Email } from "./send";
+import type { InviteRole } from "@tc/contracts";
 
 // The words of every email the product sends, and nothing else: each builder
 // takes plain strings and returns an `Email` for `sendEmail`. Pure, so the
@@ -73,23 +74,31 @@ export function welcomeEmail(input: { to: string; name: string | null; appUrl: s
   };
 }
 
+// A `Record`, so an invite role added to the contract does not compile until
+// its email says what it offers. Each wording promises only what that role
+// can do.
+const INVITE_WORDING: Record<InviteRole, { action: string; body: string }> = {
+  editor: { action: "plan", body: "You'll be able to add days and activities and shape the plan together." },
+  suggester: {
+    action: "suggest changes to",
+    body: "You'll be able to suggest changes, and the trip's editors decide what goes in.",
+  },
+  viewer: { action: "see", body: "You'll be able to follow the plan as it comes together." },
+};
+
 /** Sent when a trip owner invites someone by email address. */
 export function tripInviteEmail(input: {
   to: string;
   inviterName: string | null;
   inviterEmail: string | null;
   tripName: string;
-  role: "editor" | "viewer";
+  role: InviteRole;
   inviteUrl: string;
 }): Email {
   const who = input.inviterName ?? "Someone";
-  const action = input.role === "editor" ? "plan" : "see";
+  const { action, body } = INVITE_WORDING[input.role];
   const lead = `${who} invited you to ${action} ${input.tripName} on Caesura.`;
   const ignoreLine = "If you weren't expecting this, you can ignore it — nothing happens unless you open the link.";
-  const body =
-    input.role === "editor"
-      ? "You'll be able to add days and activities and shape the plan together."
-      : "You'll be able to follow the plan as it comes together.";
   return {
     to: input.to,
     tag: "trip-invite",
