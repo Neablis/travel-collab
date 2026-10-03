@@ -52,7 +52,7 @@ which the templates, their tests and three e2e walks all pinned.
    notebooks, they dont automatically now show up where those links are, forcing you to go
    back and reset that overview … Links to a default notebook use the default, not the
    notebook id so they can find them if they get added later"*): **a link to a default
-   notebook names it by seed key.** `LinkTarget` gains `{seed, seedKey}`, which
+   notebook names it by seed key.** `LinkTarget` gains `{ kind: "seed", seedKey }`, which
    `link.internal` resolves against the notebook list (`NotebookRef.seedKey`) to whichever
    page is the trip's seed of that template today. The seeded Overview's three cards are
    seed links, so its document is the same on every trip: `buildContent`, `SiblingIds` and
