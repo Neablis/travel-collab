@@ -116,7 +116,13 @@ test("passes against the checked-in config, and every rejection names the rule t
   // may not import `@tc/domain` or build an Auth.js instance, and a neighbouring
   // metadata file (`manifest.ts`) gets no exemption. The fifth victim of the
   // trap above: the wall was run by hand, this file was not.
-  assert.equal(stdout.trim().split("\n").length, 44,`the wall's assertion count changed:\n${stdout}`);
+  //
+  // **44 → 51 on 2026-10-03**: `src/app/(app)/playbooks/**/page.tsx` joined it
+  // (SEO pass, part 3) — a playbooks page and the Discover page may import
+  // `@/server/*`, still may not import `@tc/domain` or build an Auth.js
+  // instance, and a non-page file beside them, a layout under them and a page
+  // outside `playbooks` get no exemption. The sixth victim, the same way.
+  assert.equal(stdout.trim().split("\n").length, 51,`the wall's assertion count changed:\n${stdout}`);
 });
 
 // THE REGRESSION THIS ENTRY EXISTS FOR. Both fixtures below trip a second, unrelated rule
