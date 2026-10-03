@@ -10,7 +10,6 @@ import { mapPanel } from "./sharedDayFacts";
 import { scopedGeometry } from "./sharedDayGeometry";
 import { useDistanceUnit } from "@/components/account/PreferencesProvider";
 import { useSessionUser } from "@/components/account/useSessionUser";
-import { AuthorKindBadge } from "./AuthorKindBadge";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -425,12 +424,6 @@ export function SharedDayScreen({
             <div className="flex flex-wrap items-center gap-2">
               <Heading level={1}>{day.name}</Heading>
               {day.visibility === "private" && <Badge variant="neutral">Private</Badge>}
-              {/* Beside "Private" rather than in the author strip below: this is
-                  the screen somebody reads before deciding to take the day into
-                  their own trip, and "who wrote it" belongs with the title they
-                  are deciding on, not three paragraphs down beside the
-                  leaderboard numbers. */}
-              <AuthorKindBadge authorKind={day.authorKind} />
               <ShareDayButton path={dayPath(day)} title={day.name} />
             </div>
             {/* Where, under the title, each city a way to that city's page
