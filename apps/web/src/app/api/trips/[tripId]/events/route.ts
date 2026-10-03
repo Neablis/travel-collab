@@ -2,6 +2,7 @@ import { z } from "zod";
 import { TripEventsPage } from "@tc/contracts";
 import { inviteTokenOf, requireTripAccess } from "@/server/access/trip-access";
 import { getTripEventsAfter } from "@/server/broadcast";
+import { suggestionsRevForRole } from "@/server/suggestions/rev";
 
 /**
  * `GET /api/trips/:tripId/events?after=<seq>` — what happened on this trip
@@ -36,6 +37,13 @@ export async function GET(request: Request, { params }: { params: Promise<{ trip
     );
   }
 
-  const page = await getTripEventsAfter(tripId, after.data);
-  return Response.json(TripEventsPage.parse(page));
+  // Spec W6. The role is the one `requireTripAccess` already resolved, so the
+  // poll pays one more query, not the trip and membership reads again. The demo
+  // and an invite-token read are answered as `viewer` by that seam, whatever
+  // session is present, and a viewer is given no revision.
+  const [page, suggestionsRev] = await Promise.all([
+    getTripEventsAfter(tripId, after.data),
+    suggestionsRevForRole(tripId, access.userId, access.role),
+  ]);
+  return Response.json(TripEventsPage.parse({ ...page, suggestionsRev }));
 }

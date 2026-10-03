@@ -6,8 +6,11 @@ import { appendToStream } from "@/server/eventStore";
 import { db } from "@/server/db/client";
 import { MAX_EVENTS_PER_POLL } from "@/server/broadcast";
 import { createInvite, acceptInvite } from "@/server/access/invites";
+import { grantMembership } from "@/server/access/members";
+import { createSuggestion } from "@/server/suggestions/create";
 import { entitleAccounts } from "@/server/test-support/entitledAccount";
 import { DEMO_TRIP_ID } from "@/lib/demoTrip";
+import { INVITE_TOKEN_HEADER } from "@/lib/inviteLook";
 
 const OWNER = "events-owner";
 const GUEST = "events-guest";
@@ -120,7 +123,7 @@ describe("GET /api/trips/:id/events — the cursor", () => {
     expect(created.events).toHaveLength(1);
 
     const caughtUp = await pollBody(tripId, created.headSeq);
-    expect(caughtUp).toEqual({ headSeq: 1, events: [], resync: false });
+    expect(caughtUp).toEqual({ headSeq: 1, events: [], resync: false, suggestionsRev: expect.any(String) });
   });
 
   it("hands back only what committed after the cursor, in seq order", async () => {
@@ -157,7 +160,7 @@ describe("GET /api/trips/:id/events — the cursor", () => {
   it("answers a cursor ahead of the head with the head, not an error", async () => {
     const tripId = await seedTrip();
     const page = await pollBody(tripId, 999);
-    expect(page).toEqual({ headSeq: 1, events: [], resync: false });
+    expect(page).toEqual({ headSeq: 1, events: [], resync: false, suggestionsRev: expect.any(String) });
   });
 
   it("tells a caller further behind than one poll to resync, and sends no events", async () => {
@@ -209,6 +212,49 @@ describe("GET /api/trips/:id/events — the `after` parameter", () => {
   it("accepts 0 — a trip whose caller holds no cursor yet", async () => {
     const tripId = await seedTrip();
     expect((await poll(tripId, 0)).status).toBe(200);
+  });
+});
+
+// Spec W6: the poll announces suggestion changes to those who may review or
+// wrote them, and its mere presence tells nobody else anything.
+describe("GET /api/trips/:id/events — suggestionsRev", () => {
+  it("is absent from a viewer's page", async () => {
+    const tripId = await seedTrip();
+    await join(tripId, "viewer");
+    currentUserId = GUEST;
+    expect(await pollBody(tripId, 0)).not.toHaveProperty("suggestionsRev");
+  });
+
+  it("moves on the owner's page when a suggestion is created", async () => {
+    const tripId = await seedTrip();
+    const suggester = `events-sam-${randomUUID()}`;
+    await grantMembership(db, { tripId, userId: suggester, role: "suggester", invitedBy: OWNER, now: new Date().toISOString() });
+    const before = (await pollBody(tripId, 0)).suggestionsRev;
+    expect(before).toEqual(expect.any(String));
+
+    const created = await createSuggestion(tripId, suggester, {
+      units: [{ commands: [{ type: "SetTripName", tripId, name: "Events, renamed" }] }],
+    });
+    expect(created.ok).toBe(true);
+
+    const after = (await pollBody(tripId, 0)).suggestionsRev;
+    expect(after).toEqual(expect.any(String));
+    expect(after).not.toBe(before);
+  });
+
+  // The token is the only thing that seam consults when it is sent, so even the
+  // trip's own owner reading through one is a viewer here.
+  it("is absent from an invite-token read, even with the owner signed in", async () => {
+    const tripId = await seedTrip();
+    const invite = await createInvite(tripId, OWNER, { email: null, role: "editor" });
+    const res = await GET(
+      new Request(`http://test/api/trips/${tripId}/events?after=0`, {
+        headers: { [INVITE_TOKEN_HEADER]: invite.token },
+      }),
+      params(tripId),
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).not.toHaveProperty("suggestionsRev");
   });
 });
 
