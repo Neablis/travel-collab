@@ -110,7 +110,13 @@ test("passes against the checked-in config, and every rejection names the rule t
   // **36 → 39 on 2026-09-25**: the packages' lint lane (KI-2026-09-02-c) — a
   // `toHaveClass` and a `screen.debug()` in a package test, linted through the
   // root `eslint.config.mjs`, and every package having a `lint` script.
-  assert.equal(stdout.trim().split("\n").length, 39,`the wall's assertion count changed:\n${stdout}`);
+  //
+  // **39 → 44 on 2026-10-03**: `sitemap.ts` and `robots.ts` joined the exempt
+  // shell (SEO pass, part 2) — both may import `@/server/*`, the sitemap still
+  // may not import `@tc/domain` or build an Auth.js instance, and a neighbouring
+  // metadata file (`manifest.ts`) gets no exemption. The fifth victim of the
+  // trap above: the wall was run by hand, this file was not.
+  assert.equal(stdout.trim().split("\n").length, 44,`the wall's assertion count changed:\n${stdout}`);
 });
 
 // THE REGRESSION THIS ENTRY EXISTS FOR. Both fixtures below trip a second, unrelated rule
