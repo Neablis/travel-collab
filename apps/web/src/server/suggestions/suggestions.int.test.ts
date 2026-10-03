@@ -208,6 +208,26 @@ describe("createSuggestion — dependencies", () => {
     expect((await resolveSuggestionChange(tripId, startOnly!.id, OWNER, "dismiss")).ok).toBe(true);
     expect(await statusOf(addStop!.id)).toBe("pending");
   });
+
+  // Review of #308: the draft moved a stop into a day, then removed the day.
+  // Removing it first would leave the move nowhere to go.
+  it("makes removing a day wait for the move into it", async () => {
+    const second = randomUUID();
+    expect((await executeTripCommand({ type: "AddDay", tripId, dayId: second }, OWNER)).ok).toBe(true);
+    const [move, removeDay] = await suggest(
+      draft(
+        [{ type: "MoveActivity", tripId, activityId: stopId, toDayId: second, position: 0 }],
+        [{ type: "RemoveDay", tripId, dayId: second }],
+      ),
+    );
+    expect(removeDay!.dependsOn).toEqual([move!.id]);
+    expect(await resolveSuggestionChange(tripId, removeDay!.id, OWNER, "accept")).toMatchObject({
+      ok: false,
+      error: { code: "dependency-pending" },
+    });
+    expect((await resolveSuggestionChange(tripId, move!.id, OWNER, "accept")).ok).toBe(true);
+    expect((await resolveSuggestionChange(tripId, removeDay!.id, OWNER, "accept")).ok).toBe(true);
+  });
 });
 
 describe("listSuggestionChanges", () => {
