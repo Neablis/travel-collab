@@ -521,8 +521,8 @@ export async function createTripSuggestion(
 }
 
 /**
- * The trip's suggestion changes this reader may see, with the revision the
- * events poll compares against (`suggestionsRev`). A viewer is answered 404.
+ * The trip's pending suggestion changes this reader may see, with the revision
+ * the events poll compares against (`suggestionsRev`). A viewer is answered 404.
  */
 export async function fetchTripSuggestions(tripId: string): Promise<ApiResult<TripSuggestionsResponse>> {
   try {

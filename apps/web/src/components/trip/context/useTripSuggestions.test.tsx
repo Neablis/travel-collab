@@ -121,7 +121,8 @@ describe("useTripSuggestions, through TripProvider", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "accept" }));
 
-    await waitFor(() => expect(screen.getByTestId("suggestions").textContent).toBe("accepted"));
+    // The list holds pending changes only (W53), so the accepted one leaves it.
+    await waitFor(() => expect(screen.getByTestId("suggestions").textContent).toBe("empty"));
     expect(seen).toEqual([
       "GET suggestions",
       `POST suggestions/changes/${pendingAddDay(fixture.tripId).id}`,

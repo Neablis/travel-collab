@@ -11,7 +11,8 @@ import { entitleAccounts } from "../test-support/entitledAccount";
 import { createSuggestion } from "./create";
 import { listSuggestionChanges } from "./list";
 import { resolveSuggestionChange } from "./resolve";
-import { suggestionsRevFor } from "./rev";
+import { suggestionsRevForRole } from "./rev";
+import { roleOn } from "./shared";
 
 // Fresh identities and a fresh trip per test (KI-69): every assertion is about
 // rows keyed to this test's trip, so nothing here truncates a shared table.
@@ -81,6 +82,12 @@ async function suggest(input: CreateSuggestionInput, author = SUGGESTER) {
   const created = await createSuggestion(tripId, author, input);
   if (!created.ok) throw new Error(`seeding a suggestion failed: ${JSON.stringify(created.error)}`);
   return created.value;
+}
+
+// The poll's revision as the events route asks for it: with the role
+// `requireTripAccess` resolved, which is `roleOn`'s effective role.
+async function revFor(userId: string): Promise<string | undefined> {
+  return suggestionsRevForRole(tripId, userId, await roleOn(tripId, userId));
 }
 
 async function statusOf(changeId: string): Promise<string | undefined> {
@@ -182,19 +189,32 @@ describe("listSuggestionChanges", () => {
     const own = await listSuggestionChanges(tripId, SUGGESTER);
     const all = await listSuggestionChanges(tripId, OWNER);
     if (!own.ok || !all.ok) throw new Error("list refused");
-    expect(await suggestionsRevFor(tripId, SUGGESTER)).toBe(own.value.rev);
-    expect(await suggestionsRevFor(tripId, OWNER)).toBe(all.value.rev);
+    expect(await revFor(SUGGESTER)).toBe(own.value.rev);
+    expect(await revFor(OWNER)).toBe(all.value.rev);
     expect(own.value.rev).not.toBe(all.value.rev);
-    expect(await suggestionsRevFor(tripId, VIEWER)).toBeUndefined();
-    expect(await suggestionsRevFor(tripId, STRANGER)).toBeUndefined();
-    expect(await suggestionsRevFor(tripId, null)).toBeUndefined();
+    expect(await revFor(VIEWER)).toBeUndefined();
+    expect(await revFor(STRANGER)).toBeUndefined();
+  });
+
+  // W53: the list is read every time the poll's revision moves, so it carries
+  // only what can still be decided, and a trip's resolved history never grows it.
+  it("lists pending changes only, and a resolution still moves the revision", async () => {
+    const [kept, accepted] = await suggest(draft([rename("Sam's Kyoto")], [{ type: "AddDay", tripId, dayId: randomUUID() }]));
+    const before = await listSuggestionChanges(tripId, OWNER);
+    expect((await resolveSuggestionChange(tripId, accepted!.id, OWNER, "accept")).ok).toBe(true);
+
+    const after = await listSuggestionChanges(tripId, OWNER);
+    if (!before.ok || !after.ok) throw new Error("list refused");
+    expect(after.value.changes.map((c) => c.id)).toEqual([kept!.id]);
+    expect(after.value.rev).not.toBe(before.value.rev);
+    expect(await revFor(OWNER)).toBe(after.value.rev);
   });
 
   it("moves the revision when a change is resolved", async () => {
     const [change] = await suggest(draft([rename("Sam's Kyoto")]));
-    const before = await suggestionsRevFor(tripId, SUGGESTER);
+    const before = await revFor(SUGGESTER);
     await resolveSuggestionChange(tripId, change!.id, OWNER, "dismiss");
-    expect(await suggestionsRevFor(tripId, SUGGESTER)).not.toBe(before);
+    expect(await revFor(SUGGESTER)).not.toBe(before);
   });
 });
 

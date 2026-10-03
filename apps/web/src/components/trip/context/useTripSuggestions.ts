@@ -5,7 +5,7 @@ import { fetchTripSuggestions, resolveSuggestionChange, type ApiResult } from "@
 
 /** The trip's suggestion changes as the context exposes them (spec §2.4). */
 export type TripSuggestions = {
-  /** Every change this reader may see, in creation order — pending or not. */
+  /** Every pending change this reader may see, in creation order (W53: the list holds nothing resolved). */
   changes: SuggestionChange[];
   /** The list's revision, as the events poll reports it; null before the first read. */
   rev: string | null;

@@ -48,8 +48,8 @@ export type SuggestionChange = z.infer<typeof SuggestionChange>;
 
 /**
  * `GET /api/trips/:id/suggestions` — role-scoped: a suggester gets their own
- * changes, an editor or the owner gets everyone's. `rev` is the same value the
- * events poll carries as `suggestionsRev`.
+ * changes, an editor or the owner gets everyone's, and pending ones only (spec
+ * W53). `rev` is the same value the events poll carries as `suggestionsRev`.
  */
 export const TripSuggestionsResponse = z.object({
   changes: z.array(SuggestionChange),

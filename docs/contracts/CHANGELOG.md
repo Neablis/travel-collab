@@ -24,6 +24,7 @@ Format:
   revision of the suggestions this caller may see (spec W6).
 - **New file `suggestion.ts`:** `SuggestionChangeStatus`, `SuggestionChange`,
   `TripSuggestionsResponse`, `CreateSuggestionInput` and `ResolveSuggestionChangeInput`.
+  - `TripSuggestionsResponse.changes` holds pending changes only (W53).
   - `CreateSuggestionInput` allows 1..100 units of 1..50 `BatchableCommand`s each.
   - It refuses any `DismissConflict`, at that command's path (W3).
   - Its optional note is trimmed and capped at 500 characters with `review.ts`'s `boundedNote`,

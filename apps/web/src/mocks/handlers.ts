@@ -199,10 +199,12 @@ export function makeTripHandlers(
   // narrower list seeds only that suggester's changes.
   const suggestions: SuggestionChange[] = structuredClone(options?.suggestions ?? []);
   const role = options?.myRole ?? "owner";
+  // The route serves pending changes only, and hashes those (W53).
+  const pendingSuggestions = () => suggestions.filter((c) => c.status === "pending");
   // Any stable string over (id, status) does here; the route's is a hash (W31).
   const suggestionsRev = () => {
     let hash = 5381;
-    for (const ch of suggestions.map((c) => `${c.id}:${c.status}`).sort().join(",")) {
+    for (const ch of pendingSuggestions().map((c) => `${c.id}:${c.status}`).sort().join(",")) {
       hash = (hash * 33 + ch.charCodeAt(0)) >>> 0;
     }
     return `r${hash.toString(36)}`;
@@ -270,7 +272,7 @@ export function makeTripHandlers(
     }),
     http.get("/api/trips/:tripId/suggestions", () =>
       rankAtLeastSuggester
-        ? HttpResponse.json({ changes: suggestions, rev: suggestionsRev() })
+        ? HttpResponse.json({ changes: pendingSuggestions(), rev: suggestionsRev() })
         : HttpResponse.json({ error: "Not found", code: "not-found" }, { status: 404 }),
     ),
     // The resolve route's rules that a board test can reach (spec §2.7, W28,

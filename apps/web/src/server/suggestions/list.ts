@@ -8,18 +8,21 @@ import { refuse, revOf, roleOn, toChange, type SuggestionResult } from "./shared
 /**
  * Which changes a member may see (spec §4): a suggester their own, an editor
  * or the owner everyone's, a viewer none — null, so the caller answers as if
- * there were no trip. Shared by the list and the poll's revision so the two can
- * never disagree about scope.
+ * there were no trip. Pending ones only (W53): the list is re-read whenever the
+ * revision moves, and a trip's resolved history would grow every read of it
+ * for nothing anyone can still decide. Shared by the list and the poll's
+ * revision so the two can never disagree about scope.
  */
 export function visibleTo(userId: string, role: TripRole | null): SQL | undefined | null {
   if (role === null || !roleAtLeast(role, "suggester")) return null;
-  return roleAtLeast(role, "editor") ? undefined : eq(tripSuggestions.authorId, userId);
+  const pending = eq(tripSuggestionChanges.status, "pending");
+  return roleAtLeast(role, "editor") ? pending : and(pending, eq(tripSuggestions.authorId, userId));
 }
 
 /**
- * Every change this reader may see, every status, oldest first — in the order
- * they were sent, then their order in the draft. `rev` is the value the events
- * poll carries for the same reader (`rev.ts`).
+ * Every pending change this reader may see, oldest first — in the order they
+ * were sent, then their order in the draft. `rev` is the value the events poll
+ * carries for the same reader (`rev.ts`).
  */
 export async function listSuggestionChanges(
   tripId: string,
