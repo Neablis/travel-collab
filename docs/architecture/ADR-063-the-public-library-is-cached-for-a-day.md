@@ -119,6 +119,10 @@ found a per-instance store could not do.
   since publish clears `library`.
 - A publish clears every list. At the library's size (155 published days, 2026-10-02) that is
   some re-reads, not a stampede.
+- Discover for a signed-out reader is keyed by its search, and a search is text anyone can type,
+  so junk searches each leave an entry for a day. Nothing in the app meters that. The rendered
+  pages are the Vercel firewall's to protect (ADR-061 decision 3, as amended 2026-10-03). A
+  miss on a day is never stored, so the day page has no such cost.
 - The preview routes' lookups (`dayCardFor` and the rest) are not cached in the data cache: they
   run only on a CDN miss, which is now once a day per card.
 - Previews and production share the tag names, but Vercel scopes tags per project and
