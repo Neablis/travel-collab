@@ -30,6 +30,7 @@ export type SuggestionError = {
 
 export type SuggestionResult<T> = { ok: true; value: T } | { ok: false; error: SuggestionError };
 
+/** A refused {@link SuggestionResult} carrying `code` and `message`, for the module's expected refusals. */
 export function refuse(code: SuggestionErrorCode, message: string): { ok: false; error: SuggestionError } {
   return { ok: false, error: { code, message } };
 }
