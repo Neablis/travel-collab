@@ -10,6 +10,7 @@ import {
 import { db } from "./db/client";
 import { users } from "./db/schema";
 import { livePlanVersion } from "./entitlements/planVersions";
+import { invalidateAuthor } from "./libraryCache";
 import { offerTrial } from "./entitlements/grants";
 import { rewardReferrer } from "./entitlements/referrals";
 import { isDevLoginEnabled } from "@/lib/devLogin";
@@ -145,6 +146,10 @@ export async function upsertUser(
   // absence would mean a deploy that forgot the variable locking every operator
   // out of the console.
   const bootstrapAdmin = isBootstrapAdmin(identity.id);
+  // The sign-in name is what the library shows when no display name is set
+  // (ADR-061 decision 4), so a change to it clears the cached library; read
+  // first, because the upsert cannot say what it replaced.
+  const before = await db.select({ name: users.name }).from(users).where(eq(users.id, identity.id)).limit(1);
   await db
     .insert(users)
     .values({
@@ -165,6 +170,8 @@ export async function upsertUser(
         ...(bootstrapAdmin ? { isAdmin: true } : {}),
       },
     });
+  // A new account has nothing in the library to rename.
+  if (before[0] !== undefined && before[0].name !== identity.name) await invalidateAuthor(identity.id);
 }
 
 /**
@@ -260,6 +267,12 @@ export async function writePreferences(
   patch: UpdateUserPreferences,
   now: string = new Date().toISOString(),
 ): Promise<UserPreferences | null> {
+  // The display name is the library's name for this person (ADR-061 decision
+  // 4); only a real change clears the cached library.
+  const before =
+    "displayName" in patch
+      ? await db.select({ displayName: users.displayName }).from(users).where(eq(users.id, userId)).limit(1)
+      : [];
   const updated = await db
     .update(users)
     .set({
@@ -271,7 +284,9 @@ export async function writePreferences(
     })
     .where(eq(users.id, userId))
     .returning();
-  return updated[0] === undefined ? null : toPreferences(updated[0]);
+  if (updated[0] === undefined) return null;
+  if (before[0] !== undefined && before[0].displayName !== updated[0].displayName) await invalidateAuthor(userId);
+  return toPreferences(updated[0]);
 }
 
 /**

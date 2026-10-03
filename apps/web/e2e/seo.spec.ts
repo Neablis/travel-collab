@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto";
+import { Client } from "pg";
+import { DATABASE_URL } from "../src/server/config";
 import { expect, test } from "./fixtures/test";
 import { forget, publishedDay, stranger } from "./helpers";
 
@@ -259,6 +261,19 @@ test("a private day and an unknown one are the same 404 with the same body", asy
   }
 });
 
+// A `Client` per call, `m11a-invite-gate.spec.ts`'s construction: the app's
+// pooled `db` would hold the worker's event loop open. `saved_days` is CRUD,
+// not the planning log, so this is fixture setup rather than a second write path.
+async function renameBehindTheCache(savedDayId: string, name: string): Promise<void> {
+  const client = new Client({ connectionString: DATABASE_URL });
+  await client.connect();
+  try {
+    await client.query("update saved_days set name = $1 where id = $2", [name, savedDayId]);
+  } finally {
+    await client.end();
+  }
+}
+
 // ADR-063: a stranger's read of a day is cached for a day, on this production
 // build as on Vercel. Unpublishing has to take it out at once, and
 // republishing has to put it back, or the cache is a way to see a withdrawn day.
@@ -272,9 +287,13 @@ test("a day a stranger has read leaves the moment it is unpublished, and returns
   try {
     const visitor = await stranger(browser);
     const path = sluggedPath(name, savedDayId);
-    // Twice: the second answer is the cached one.
     expect((await visitor.request.get(path)).status()).toBe(200);
-    expect((await visitor.request.get(path)).status()).toBe(200);
+    // Renamed behind the app's back, which clears nothing: the visitor still
+    // reading the old name is what proves the next answer is the cached one.
+    await renameBehindTheCache(savedDayId, `Renamed ${name}`);
+    const cached = await visitor.request.get(path, { maxRedirects: 0 });
+    expect(cached.status()).toBe(200);
+    expect(await cached.text()).toMatch(new RegExp(`<h1[^>]*>${name}</h1>`));
 
     expect((await page.request.delete(`/api/saved-days/${savedDayId}/publish`)).ok()).toBe(true);
     const withdrawn = await visitor.request.get(path, { maxRedirects: 0 });

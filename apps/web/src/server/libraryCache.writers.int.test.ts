@@ -1,10 +1,13 @@
 import { randomUUID } from "node:crypto";
-import { inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { commitProposal } from "./ai/writeTools";
 import { db } from "./db/client";
-import { savedDays } from "./db/schema";
+import { savedDays, users } from "./db/schema";
+import { getTripDetail } from "./projections";
 import { createReport, actOnReport } from "./reports";
 import { executeTripCommand } from "./commands";
+import { upsertUser, writePreferences } from "./users";
 import {
   deleteSavedDay,
   insertSavedDay,
@@ -21,8 +24,9 @@ vi.mock("./libraryCache", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./libraryCache")>()),
   invalidatePublicDay: vi.fn(async () => {}),
   invalidateDayRead: vi.fn(async () => {}),
+  invalidateAuthor: vi.fn(async () => {}),
 }));
-const { invalidateDayRead, invalidatePublicDay } = await import("./libraryCache");
+const { invalidateAuthor, invalidateDayRead, invalidatePublicDay } = await import("./libraryCache");
 
 const RUN = randomUUID().slice(0, 8);
 const AUTHOR = `writer-author-${RUN}`;
@@ -46,6 +50,7 @@ async function day(visibility: "public" | "private" = "private"): Promise<string
 beforeEach(() => {
   vi.mocked(invalidatePublicDay).mockClear();
   vi.mocked(invalidateDayRead).mockClear();
+  vi.mocked(invalidateAuthor).mockClear();
 });
 
 afterAll(async () => {
@@ -101,6 +106,48 @@ describe("what clears the cached library", () => {
 
     expect(vi.mocked(invalidateDayRead).mock.calls).toEqual([[id, AUTHOR]]);
     expect(invalidatePublicDay).not.toHaveBeenCalled();
+  });
+
+  it("the assistant's approved insert, for a day whose add counted", async () => {
+    const id = await day("public");
+    const tripId = randomUUID();
+    expect((await executeTripCommand({ type: "CreateTrip", tripId, name: "Asked for" }, STRANGER)).ok).toBe(true);
+    const detail = await getTripDetail(tripId);
+    if (detail === null) throw new Error("no trip");
+
+    const committed = await commitProposal(tripId, [], STRANGER, detail, undefined, [{ savedDayId: id }], async () => true);
+
+    expect(committed.ok).toBe(true);
+    expect(vi.mocked(invalidateDayRead).mock.calls).toEqual([[id, AUTHOR]]);
+    expect(invalidatePublicDay).not.toHaveBeenCalled();
+  });
+
+  // The library names people (ADR-061 decision 4): a name change reaches the
+  // author's numbers and every list, and nothing else touches them.
+  it("a sign-in whose name changed, and not a first sign-in or the same name again", async () => {
+    const id = `writer-signin-${RUN}`;
+    const identity = { id, email: `${id}@example.com`, name: "Dana Reyes", image: null };
+
+    await upsertUser(identity);
+    await upsertUser(identity);
+    expect(invalidateAuthor).not.toHaveBeenCalled();
+
+    await upsertUser({ ...identity, name: "Dana Smith" });
+    expect(invalidateAuthor).toHaveBeenCalledExactlyOnceWith(id);
+    await db.delete(users).where(eq(users.id, id));
+  });
+
+  it("a display name that changed, and not the same one or another preference", async () => {
+    const id = `writer-prefs-${RUN}`;
+    await upsertUser({ id, email: `${id}@example.com`, name: "Dana Reyes", image: null });
+
+    await writePreferences(id, { displayName: "Dana" });
+    await writePreferences(id, { displayName: "Dana" });
+    await writePreferences(id, { homeAirport: "SFO" });
+    await writePreferences(id, { displayName: null });
+
+    expect(vi.mocked(invalidateAuthor).mock.calls).toEqual([[id], [id]]);
+    await db.delete(users).where(eq(users.id, id));
   });
 
   it("an operator's hide and restore, naming the day's author; a dismissal clears nothing", async () => {
