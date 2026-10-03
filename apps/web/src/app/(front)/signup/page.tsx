@@ -24,12 +24,7 @@ const SIGNUP_METADATA = pageMetadata({
 // `?code=` is the referral link (Account → "Bring someone in"), and it gets
 // its own card, "Dana invited you to Caesura" (spec 2026-09-27 §2). Without a
 // code, or when the code names nobody, the page keeps the site card.
-/**
- * Metadata for `/signup` with `noindex, nofollow`: the referral card when
- * `?code=` names a referrer, or the site card for absent or invalid codes and
- * failed lookups.
- * @throws {URIError} If a code accepted for lookup contains an unpaired UTF-16 surrogate.
- */
+/** Metadata for `/signup`: the referral card when `?code=` names a referrer, the site card otherwise. */
 export async function generateMetadata({
   searchParams,
 }: {

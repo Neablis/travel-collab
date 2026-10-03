@@ -13,7 +13,6 @@
   "apps/web/src/app/(front)/demo/page.tsx::DemoPage",
   "apps/web/src/app/(front)/s/[token]/page.tsx::SharedTripPage",
   "apps/web/src/app/(front)/signin/page.tsx::SignInPage",
-  "apps/web/src/app/(front)/signin/page.tsx::generateMetadata",
   "apps/web/src/app/(front)/signup/page.tsx::SignUpPage",
   "apps/web/src/app/(front)/welcome/page.tsx::WelcomePage",
   "apps/web/src/app/admin/layout.tsx::AdminLayout",
