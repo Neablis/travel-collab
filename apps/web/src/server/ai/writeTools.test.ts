@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { Tool } from "ai";
+import { asSchema, type Tool } from "ai";
 import fc from "fast-check";
 import { BatchableCommand, type TripDetail } from "@tc/contracts";
 import { costedTripDetailFixture } from "@tc/factories";
@@ -128,16 +128,23 @@ describe("the write tool set", () => {
     );
   });
 
-  it("declares no tripId on any write tool, exactly as the read tools do not", () => {
+  it("declares no tripId on any write tool, exactly as the read tools do not", async () => {
     // ADR-022 §3 / plan Constraint 3, asserted structurally so a new command
-    // whose schema carries an id-shaped key cannot slip past.
+    // whose schema carries an id-shaped key cannot slip past. Read off the JSON
+    // Schema the model is sent: what matters is what a model can express.
     const { tools } = buildWriteTools();
+    let seen = 0;
     for (const [name, tool] of Object.entries(tools)) {
-      const schema = tool.inputSchema as unknown as { shape?: Record<string, unknown> };
-      const keys = Object.keys(schema.shape ?? {});
+      const schema = await asSchema(tool.inputSchema).jsonSchema;
+      const keys = Object.keys(schema.properties ?? {});
+      seen += keys.length;
       expect(keys, `${name} must not take a tripId`).not.toContain("tripId");
       expect(keys.filter((k) => /^(tripId|dayId|activityId|conflictId)$/.test(k))).toEqual([]);
     }
+    // Not vacuous: an empty key list for every tool would pass the loop above.
+    // It did, once — when `inputSchema` stopped being a zod object and
+    // `.shape ?? {}` read nothing at all.
+    expect(seen).toBeGreaterThan(Object.keys(tools).length);
   });
 });
 
