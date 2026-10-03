@@ -29,7 +29,7 @@ const RESOLVED_AS = { accept: "accepted", dismiss: "dismissed", withdraw: "withd
  *   `Origin` `suggestion` (ADR-064). A refusal there leaves the row pending:
  *   the reviewer decides, and accepting must not quietly become dismissing.
  *   A change the trip already reflects throughout is accepted with nothing
- *   appended (W52).
+ *   appended (W52), in the transaction that decided so (W55).
  * - **Dismiss and withdraw** take every pending change that depends on this
  *   one with it, transitively, in one transaction (spec §2.7).
  *
@@ -106,31 +106,27 @@ async function accept(
   };
 
   let accepted: ChangeRow | undefined;
+  const mark = async (tx: Pick<typeof db, "update">) => {
+    accepted = await markAccepted(tx);
+    if (accepted === undefined) throw new SuggestionAlreadyResolved(change.id);
+  };
   try {
-    const result = await executeTripCommandBatch(
-      change.commands,
-      reviewerId,
-      async (tx) => {
-        accepted = await markAccepted(tx);
-        if (accepted === undefined) throw new SuggestionAlreadyResolved(change.id);
-      },
-      {
-        origin: { kind: "suggestion", suggestionId: suggestion.id, changeId: change.id, authorId: suggestion.authorId },
-      },
-    );
-    if (!result.ok) {
-      // A lapse between the role read above and the pipeline's own check.
-      if (result.error.code === "forbidden") return refuse("forbidden", result.error.message);
+    const result = await executeTripCommandBatch(change.commands, reviewerId, mark, {
+      origin: { kind: "suggestion", suggestionId: suggestion.id, changeId: change.id, authorId: suggestion.authorId },
       // Authorized, and every command is already true — another change asked
       // for the same thing and was accepted first. What it asks for is done, so
       // it is accepted with nothing appended (W52); refusing would leave the
-      // reviewer a change that can only be dismissed.
-      if (result.error.code === "no-op") {
-        accepted = await markAccepted(db);
-        if (accepted === undefined) throw new SuggestionAlreadyResolved(change.id);
-      } else {
-        return refuse("no-longer-applies", result.error.message);
-      }
+      // reviewer a change that can only be dismissed. Marked inside the
+      // pipeline's transaction, which confirms the head did not move under the
+      // decision (W55): marked afterwards, a trip write in between would leave a
+      // change accepted that the trip no longer says.
+      alsoWhenNoOp: mark,
+    });
+    // `no-op` committed the mark above, so it is the accept's success.
+    if (!result.ok && result.error.code !== "no-op") {
+      // A lapse between the role read above and the pipeline's own check.
+      if (result.error.code === "forbidden") return refuse("forbidden", result.error.message);
+      return refuse("no-longer-applies", result.error.message);
     }
   } catch (error) {
     if (error instanceof SuggestionAlreadyResolved) {

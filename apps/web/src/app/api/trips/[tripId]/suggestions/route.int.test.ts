@@ -1,11 +1,12 @@
 import { randomUUID } from "node:crypto";
-import { inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { BatchableCommand, TripSuggestionsResponse } from "@tc/contracts";
 import { executeTripCommand } from "@/server/commands";
 import { grantMembership } from "@/server/access/members";
 import { db } from "@/server/db/client";
-import { users } from "@/server/db/schema";
+import { tripSuggestionChanges, users } from "@/server/db/schema";
+import { MAX_SUGGESTION_BODY_BYTES } from "@/server/suggestions/http";
 import { entitleAccounts } from "@/server/test-support/entitledAccount";
 
 let currentUserId = "";
@@ -96,6 +97,36 @@ describe("POST /api/trips/:id/suggestions", () => {
     });
     expect(res.status).toBe(422);
     expect(await res.json()).toMatchObject({ code: "does-not-apply", index: 1 });
+  });
+});
+
+// Spec W54. A draft is stored verbatim — including a sub-command the dry run
+// skipped as a no-op — so its size is the size of what arrives. That a
+// legitimate draft at the contract's count limits fits under the ceiling is
+// `http.test.ts`'s: it is a claim about bytes, and dry-running 5,000 stops here
+// takes 10-27 s of every int run.
+describe("POST /api/trips/:id/suggestions — body ceiling", () => {
+  const storedChanges = async () =>
+    (await db.select().from(tripSuggestionChanges).where(eq(tripSuggestionChanges.tripId, tripId))).length;
+
+  it("413s a draft over the ceiling before parsing it, and stores nothing", async () => {
+    // The shape the review found: a start-only SetTripDates is a no-op on a
+    // trip with no dates, so it is skipped by the dry run and its id pool —
+    // which the contract does not bound — would be stored whole.
+    const pool = Array.from({ length: Math.ceil(MAX_SUGGESTION_BODY_BYTES / 38) }, () => randomUUID());
+    const res = await send({
+      units: [
+        {
+          commands: [
+            { type: "SetTripDates", tripId, startDate: null, endDate: null, newDayIds: pool },
+            rename("Kyoto in spring"),
+          ],
+        },
+      ],
+    });
+    expect(res.status).toBe(413);
+    expect(await res.json()).toEqual({ error: expect.stringContaining(MAX_SUGGESTION_BODY_BYTES.toLocaleString("en-US")) });
+    expect(await storedChanges()).toBe(0);
   });
 });
 

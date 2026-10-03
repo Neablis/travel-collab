@@ -38,8 +38,10 @@ export const SuggestionChange = z.object({
   // (spec W2), so the reviewer reads the sentence the log will carry.
   description: z.string(),
   status: SuggestionChangeStatus,
-  // Earlier changes of the same suggestion whose created ids this one
-  // references (spec W9). It cannot be accepted before they are.
+  // Earlier changes of the same suggestion this one needs: those whose
+  // dry run created a day or stop this one references (spec W9), and, for a
+  // date-range edit, those that changed the day count (W56). It cannot be
+  // accepted before they are.
   dependsOn: z.array(z.string().uuid()),
   resolvedBy: z.string().min(1).nullable(),
   resolvedAt: z.string().nullable(), // ISO 8601
