@@ -12,6 +12,7 @@ import {
   SavedDay,
   SavedDayModeration,
   SharedTripView,
+  SuggestionChange,
   TripAccess,
   TripDetail,
   TripGlobals,
@@ -29,9 +30,11 @@ import {
   type CreateInviteInput,
   type CreateReportInput,
   type CreateSavedDayInput,
+  type CreateSuggestionInput,
   type PutReviewInput,
   type TripCommand,
 } from "@tc/contracts";
+import { z } from "zod";
 import { BASE_URL } from "@/config";
 import { ALL_KEYS, beginWrite, clearQueryCache, endWrite } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
@@ -467,6 +470,51 @@ export async function acceptInvite(token: string): Promise<ApiResult<{ tripId: s
 /** The link an owner hands out. Absolute, because it is meant to be pasted. */
 export function inviteLink(token: string): string {
   return apiUrl(`/invite/${encodeURIComponent(token)}`);
+}
+
+// ── Suggestions (spec 2026-10-03, ADR-063) ───────────────────────────────────
+
+// The create route's 201 body. Contracts names the list read's shape
+// (`TripSuggestionsResponse`) but not this one, which is only ever read here.
+const CreatedSuggestion = z.object({ changes: z.array(SuggestionChange) });
+
+/**
+ * A refused draft. `index` comes with `does-not-apply` (spec W4): the unit,
+ * in the order sent, that no longer predicts against the trip's head. Nothing
+ * was stored, so the caller keeps the draft.
+ */
+export type SuggestionRefusal = ApiError & { index?: number };
+
+/**
+ * Send a suggester's draft. Not a trip write — a suggestion is not planning
+ * state (ADR-063) — so it does not invalidate the trip's cached reads.
+ */
+export async function createTripSuggestion(
+  tripId: string,
+  input: CreateSuggestionInput,
+): Promise<{ ok: true; value: SuggestionChange[] } | { ok: false; error: SuggestionRefusal }> {
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/suggestions`), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { error?: string; code?: string; index?: unknown };
+      return {
+        ok: false,
+        error: {
+          status: res.status,
+          message: data.error ?? res.statusText,
+          code: data.code,
+          ...(typeof data.index === "number" ? { index: data.index } : {}),
+        },
+      };
+    }
+    return { ok: true, value: CreatedSuggestion.parse(await res.json()).changes };
+  } catch (err) {
+    return networkError(err);
+  }
 }
 
 // ── Pinned read-only shares (M11 link 4) ─────────────────────────────────────

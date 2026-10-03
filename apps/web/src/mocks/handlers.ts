@@ -9,6 +9,7 @@ import {
   CreatePageInput,
   CreateReportInput,
   CreateSavedNotebookInput,
+  CreateSuggestionInput,
   PAGE_CHANGED_CODE,
   PutReviewInput,
   RestorePageInput,
@@ -24,6 +25,7 @@ import {
   type SavedDayReviewsResponse,
   type SavedNotebook,
   type SavedNotebookSummary,
+  type SuggestionChange,
   type TripDetail,
   type TripEventsPage,
   type TripHistory,
@@ -184,9 +186,14 @@ export function makeTripHandlers(
     myRole?: TripRole;
     /** M20 link 6 — whether the trip's OWNER holds `trip.collaborators`. */
     collaboratorsEntitled?: boolean;
+    /** Every suggestion draft POSTed, as parsed — what a suggester sent. */
+    onSuggestion?: (input: CreateSuggestionInput) => void;
   },
 ) {
   let detail = structuredClone(initial);
+  // The suggester spec's changes, stored as the route would answer them. Only
+  // the create half for now; the list read and resolve arrive with T5.
+  const suggestions: SuggestionChange[] = [];
   return [
     http.get("/api/trips/:tripId", ({ params }) =>
       params.tripId === detail.tripId
@@ -219,6 +226,33 @@ export function makeTripHandlers(
         history:
           options?.history ?? { tripId: detail.tripId, entries: [], canUndo: false, canRedo: false },
       });
+    }),
+    // Accepts any well-formed draft: the real route's dry run (spec W4) needs
+    // the domain, which a mock may not import. A test that wants the 422
+    // overrides this with `server.use`.
+    http.post("/api/trips/:tripId/suggestions", async ({ request }) => {
+      const input = CreateSuggestionInput.parse(await request.json());
+      options?.onSuggestion?.(input);
+      const suggestionId = crypto.randomUUID();
+      const createdAt = new Date().toISOString();
+      const changes = input.units.map(
+        (unit): SuggestionChange => ({
+          id: crypto.randomUUID(),
+          suggestionId,
+          tripId: detail.tripId,
+          authorId: "dev-alice",
+          note: input.note ?? null,
+          createdAt,
+          commands: unit.commands,
+          description: unit.commands.map((c) => c.type).join(", "),
+          status: "pending",
+          dependsOn: [],
+          resolvedBy: null,
+          resolvedAt: null,
+        }),
+      );
+      suggestions.push(...changes);
+      return HttpResponse.json({ changes }, { status: 201 });
     }),
     http.get("/api/trips/:tripId/history", () =>
       HttpResponse.json({

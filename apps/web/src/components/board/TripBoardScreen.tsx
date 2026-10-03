@@ -23,6 +23,7 @@ import { TagFocusLine } from "@/components/trip/TagFocusLine";
 import { PageContainer } from "@/components/ui/page-container";
 import { TripHeader } from "@/components/trip/TripHeader";
 import { AddSavedDayButton } from "@/components/trip/AddSavedDayButton";
+import { SuggestionTray } from "./SuggestionTray";
 import { ActivityEditorSheet } from "@/components/trip/editor/ActivityEditorSheet";
 import { PeopleProvider } from "@/components/pages/people";
 import { type RackItem, UnscheduledRack } from "@/components/trip/UnscheduledRack";
@@ -97,7 +98,7 @@ function useAssistantVisibility() {
 }
 
 export function TripBoardScreen({ tripId }: { tripId: string }) {
-  const { trip, activeTrip, history, status, error, dispatch, dispatchBatch, applyOutcome, preview, pending, readOnly, remoteRevision, confirmedSeq } = useTrip();
+  const { trip, activeTrip, history, status, error, dispatch, dispatchBatch, applyOutcome, preview, pending, readOnly, canEditBoard, boardMode, draft, remoteRevision, confirmedSeq } = useTrip();
   const { view } = useLens();
   const { openEdit } = useEditor();
   // Task 4's FocusProvider is mounted around this whole tree (trips/[tripId]/
@@ -1026,6 +1027,13 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
               <p role="alert">{error}</p>
             </PageContainer>
           )}
+          {/* A suggester's unsent edits, under the header the save light
+              would otherwise have spoken from (it counts a draft as nothing). */}
+          {draft !== null && (
+            <PageContainer width="full">
+              <SuggestionTray draft={draft} />
+            </PageContainer>
+          )}
           <div inert={preview.seq !== null ? true : undefined}>
             {isFullLens ? (
               // px-0: Task 2.3 makes the Map lens genuinely full-bleed
@@ -1041,8 +1049,8 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                 {view === "Map" && (
                   <MapLens
                     detail={activeTrip}
-                    onSelectActivity={readOnly ? undefined : openEdit}
-                    readOnly={readOnly}
+                    onSelectActivity={canEditBoard ? openEdit : undefined}
+                    readOnly={!canEditBoard}
                   />
                 )}
               </PageContainer>
@@ -1070,7 +1078,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                       // than handed to it — which is what lets its own scroll spy
                       // be held off a pick it cannot centre. See `jumpTo`.
                       onSelect={(index) => setFocusedDay(index, "chips")}
-                      readOnly={readOnly}
+                      readOnly={!canEditBoard}
                       sync={chipsSync}
                     />
                   </div>
@@ -1098,7 +1106,11 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                     // (docs/reviews/2026-08-28-m11-pr71-review.md §5): the point
                     // is the difference between an inert board and one whose
                     // cards move and snap back.
-                    readOnly={readOnly}
+                    //
+                    // A suggester's board is live: its edits are held as a
+                    // draft by that same provider (W8).
+                    readOnly={!canEditBoard}
+                    suggesting={boardMode === "suggest"}
                     // Focus is a view state, not a command, so it is threaded
                     // past the read-only gate deliberately: a viewer's board
                     // and `/demo`'s signed-out reader both get the whole
@@ -1153,7 +1165,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                   />
                 )}
                 {view === "Calendar" && (
-                  <CalendarLens detail={activeTrip} onSelectActivity={readOnly ? undefined : openEdit} />
+                  <CalendarLens detail={activeTrip} onSelectActivity={canEditBoard ? openEdit : undefined} />
                 )}
               </PageContainer>
             )}
@@ -1325,9 +1337,9 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             dayOptions={rackDayOptions}
             open={rack.open}
             onToggle={() => onRackEvent({ type: "toggle" })}
-            onAssign={readOnly ? undefined : assignFromRack}
-            onEdit={readOnly ? undefined : openEdit}
-            onRemove={readOnly ? undefined : (activityId) => void dispatch({ type: "RemoveActivity", tripId, activityId })}
+            onAssign={canEditBoard ? assignFromRack : undefined}
+            onEdit={canEditBoard ? openEdit : undefined}
+            onRemove={canEditBoard ? (activityId) => void dispatch({ type: "RemoveActivity", tripId, activityId }) : undefined}
             reveal={rackReveal}
           />
         </div>

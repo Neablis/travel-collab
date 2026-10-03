@@ -10,6 +10,7 @@ import {
   createSavedDay,
   createTrip,
   createTripInvite,
+  createTripSuggestion,
   createTripShare,
   deleteSavedDay,
   duplicateTrip,
@@ -209,6 +210,8 @@ const FETCHING_HELPERS: Record<string, () => Promise<ApiResult<unknown>>> = {
   fetchTripAccess: () => fetchTripAccess(TRIP_ID),
   createTripInvite: () => createTripInvite(TRIP_ID, { email: "a@b.com", role: "editor" }),
   revokeTripInvite: () => revokeTripInvite(TRIP_ID, UUID),
+  createTripSuggestion: () =>
+    createTripSuggestion(TRIP_ID, { units: [{ commands: [{ type: "AddDay", tripId: TRIP_ID, dayId: UUID }] }] }),
   fetchInviteLanding: () => fetchInviteLanding("tok"),
   acceptInvite: () => acceptInvite("tok"),
   fetchTripShares: () => fetchTripShares(TRIP_ID),
