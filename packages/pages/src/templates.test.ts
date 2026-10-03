@@ -79,19 +79,15 @@ describe("templates", () => {
     expect(widgetsIn(money.content).map((w) => w.attrs?.name)).toContain("cost.balances");
   });
 
-  // ADR-056: the Overview names its siblings by the ids the SEEDER minted —
-  // not the placeholders `content` carries, and not titles, which a reader may
-  // change. Seen red with `instantiateDefaults` passing `t.content` instead of
-  // `buildContent(ids)`: the links then named `…f001`–`…f003`.
-  it("links the seeded Overview to the other three seeded notebooks, by their minted ids", () => {
-    let n = 0;
-    const inputs = instantiateDefaults(crypto.randomUUID(), () => `00000000-0000-4000-8000-${String(++n).padStart(12, "0")}`);
-    const [overview, ...siblings] = inputs;
+  // ADR-056, amended 2026-10-03: the Overview names its siblings by SEED KEY,
+  // so a trip that gains one later finds it with no edit to the Overview.
+  // Every key must be a seeded template's, or the card can never resolve.
+  it("links the seeded Overview to the other three seeded notebooks, by their seed keys", () => {
+    const [overview, ...siblings] = instantiateDefaults(crypto.randomUUID(), () => crypto.randomUUID());
     const targets = widgetsIn(overview!.content)
       .filter((node) => node.attrs?.name === "link.internal")
-      .map((node) => (node.attrs?.params as { to: { pageId: string } }).to.pageId);
-    expect(targets).toEqual(siblings.map((s) => s.id));
-    // The siblings do not link anywhere; only the Overview is built per trip.
+      .map((node) => (node.attrs?.params as { to: unknown }).to);
+    expect(targets).toEqual(siblings.map((s) => ({ kind: "seed", seedKey: s.seedKey })));
     for (const s of siblings) expect(widgetsIn(s.content).some((node) => node.attrs?.name === "link.internal")).toBe(false);
   });
 
@@ -242,15 +238,13 @@ describe("templates", () => {
     // What `GET /api/trips/:id/weather` answers for a trip with no located stop:
     // zero points, and no upstream call behind them (`weatherPointsOf`).
     // And what `GET /pages` answers once the seeder has run: the four seeded
-    // notebooks, each described by its own first line (ADR-056). Seeded through
-    // `instantiateDefaults` itself, so the Overview's links carry the ids the
-    // list carries — a placeholder id would pass as "this notebook was
-    // deleted", which is `empty` with words and would hide a broken seed.
+    // notebooks, each described by its own first line (ADR-056) and carrying
+    // its seed key, which is what the Overview's links find them by.
     let n = 0;
     const seeded = instantiateDefaults(bare.tripId, () => `00000000-0000-4000-8000-${String(++n).padStart(12, "0")}`);
     const notebooks = {
       state: "ready" as const,
-      value: { pages: seeded.map((p) => ({ id: p.id, title: p.title, ...notebookPreviewOf(p.content) })) },
+      value: { pages: seeded.map((p) => ({ id: p.id, seedKey: p.seedKey, title: p.title, ...notebookPreviewOf(p.content) })) },
     };
     const fetched = { weather: { state: "ready" as const, value: { points: [] } }, notebooks };
 
@@ -322,11 +316,14 @@ describe("templates", () => {
             continue;
           }
           expect(["ok", "empty"], `${t.key} seeds ${name}, which failed to resolve (${moment})`).toContain(outcome.status);
-          // A seeded link must FIND its notebook once the list has landed: a
-          // "this notebook was deleted" on a trip created a minute ago is a
+          // A seeded link must FIND its notebook once the list has landed: an
+          // offer to add a notebook the trip was seeded with a minute ago is a
           // broken seed, however well it is worded.
           if (name === "link.internal" && !firstPaint) {
-            expect(outcome.status, `${t.key} links to a notebook the seed did not make (${moment})`).toBe("ok");
+            expect(outcome, `${t.key} links to a notebook the seed did not make (${moment})`).toMatchObject({
+              status: "ok",
+              rendered: { block: { kind: "link-card" } },
+            });
             linksFound++;
           }
           if (outcome.status === "empty") {

@@ -1,4 +1,5 @@
 import {
+  AddDefaultPagesInput,
   CreatePageInput,
   Page,
   PageListEntry,
@@ -164,9 +165,9 @@ export async function deletePage(tripId: string, pageId: string): Promise<ApiRes
 // writes, under the same two invariants as the helpers above: they resolve,
 // and they open a write scope.
 
-/** "Add missing default notebooks": seeds what the trip lacks, and answers with the list as it now is. */
-export async function addMissingDefaultNotebooks(tripId: string): Promise<ApiResult<NotebookList>> {
-  return pageWrite(tripId, `/api/trips/${tripId}/pages/defaults`, {}, (data) => {
+/** "Add missing default notebooks": seeds what the trip lacks — or only `seedKey`'s — and answers with the list as it now is. */
+export async function addMissingDefaultNotebooks(tripId: string, seedKey?: string): Promise<ApiResult<NotebookList>> {
+  return pageWrite(tripId, `/api/trips/${tripId}/pages/defaults`, AddDefaultPagesInput.parse({ seedKey }), (data) => {
     const body = data as { pages: unknown[]; viewerId?: unknown };
     return {
       pages: body.pages.map((p) => PageListEntry.parse(p)),

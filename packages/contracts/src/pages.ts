@@ -452,6 +452,17 @@ export const ResetPageInput = z.object({
 export type ResetPageInput = z.infer<typeof ResetPageInput>;
 
 /**
+ * `POST /api/trips/:tripId/pages/defaults`'s body. No `seedKey` adds every
+ * default notebook the trip lacks (the index's button); with one, only that
+ * template's seed — what a link card to a missing default offers. A key the
+ * trip already has a seed for, or that no default template has, adds nothing.
+ */
+export const AddDefaultPagesInput = z.object({
+  seedKey: SeedKey.optional(),
+});
+export type AddDefaultPagesInput = z.infer<typeof AddDefaultPagesInput>;
+
+/**
  * What a reset answers: the page as it now is, and `restoreSeq` — the version
  * of the trip's history just before the reset, which `RestorePageInput` takes
  * to undo it. `null` when the notebook already matched its template and

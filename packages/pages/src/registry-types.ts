@@ -6,7 +6,7 @@ import type { ExternalInputs, ExternalNeed } from "./external";
 import type { SpendBreakdownPayload, SpendByDayPayload } from "./chartPayloads";
 import type { WeatherPayload } from "./weatherPayload";
 import type { SunPayload } from "./sunPayload";
-import type { LinkCardPayload } from "./linkTarget";
+import type { LinkCardPayload, MissingNotebookPayload } from "./linkTarget";
 import type { ItineraryPayload } from "./itineraryPayload";
 import { VALUE_KIND_FORMATS } from "./kinds";
 
@@ -126,6 +126,7 @@ export type BlockPayload =
   | WeatherPayload
   | SunPayload
   | LinkCardPayload
+  | MissingNotebookPayload
   | ItineraryPayload;
 
 // What a REPEAT widget resolves to: one entry per item, each a lead phrase and

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { DayRef } from "@tc/contracts";
+import { DayRef, SeedKey } from "@tc/contracts";
 
 // Where an internal link goes, and what its card says (M30, ADR-056).
 //
@@ -8,6 +8,13 @@ import { DayRef } from "@tc/contracts";
 // changing a route changes nothing stored. `apps/web` turns a target into an
 // href at render time (`linkHref`), which is the one place the app's routes are
 // known — this package decides what a link MEANS, not where the router keeps it.
+//
+// **A default notebook is named by its seed key, not its id** (Mitchell,
+// 2026-10-03: *"Links to a default notebook use the default, not the notebook
+// id so they can find them if they get added later"*). `{ kind: "seed" }` is
+// "this trip's Money", whichever page that is today: a trip that gains the
+// notebook after the link was written resolves it with no edit to the page
+// holding the link, and one that lacks it gets a card offering to add it.
 
 /** The trip tabs a link may open. Overview is not one: it is a notebook, and links as one. */
 export const LINK_VIEWS = ["Plan", "Calendar", "Map"] as const;
@@ -15,12 +22,17 @@ export type LinkView = (typeof LINK_VIEWS)[number];
 
 export const LinkTarget = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("notebook"), pageId: z.string().uuid() }),
+  // The trip's seed of a default template (`Page.seedKey`), whatever its id.
+  z.object({ kind: z.literal("seed"), seedKey: SeedKey }),
   // `DayRef`, the same reference every day filter stores. A picker writes the
   // `dayId` form so a link keeps pointing at its day when days are reordered.
   z.object({ kind: z.literal("day"), day: DayRef }),
   z.object({ kind: z.literal("view"), view: z.enum(LINK_VIEWS) }),
 ]);
 export type LinkTarget = z.infer<typeof LinkTarget>;
+
+/** A target a card can be sent to: the resolver has already turned a seed key into the page it names. */
+export type ResolvedLinkTarget = Exclude<LinkTarget, { kind: "seed" }>;
 
 /**
  * What an internal link card shows. Display-ready, like every block payload.
@@ -31,10 +43,21 @@ export type LinkTarget = z.infer<typeof LinkTarget>;
  */
 export interface LinkCardPayload {
   kind: "link-card";
-  to: LinkTarget;
+  to: ResolvedLinkTarget;
   eyebrow: string;
   title: string;
   summary: string;
+}
+
+/**
+ * What a link to a default notebook the trip does not have shows: which one it
+ * is, in the template's own words, so the card can offer to add it.
+ */
+export interface MissingNotebookPayload {
+  kind: "link-missing";
+  seedKey: string;
+  title: string;
+  description: string;
 }
 
 /** A notebook's preview line, from its own words: at most this many characters. */

@@ -5,6 +5,7 @@ import type { WidgetContext } from "../../registry-types";
 import type { NotebookIndex, Slot } from "../../external";
 import { notebookPreviewOf } from "../../linkTarget";
 import { selectionTrip } from "../../test-support/selectionTrip";
+import { getTemplate } from "../../templates";
 
 // The two link widgets (M30, ADR-056). What each says, from what the trip and
 // the notebook list hold — the card's words are the resolver's, so they are
@@ -14,7 +15,7 @@ const MONEY = "0f0f0f0f-0000-4000-8000-000000000001";
 const GONE = "0f0f0f0f-0000-4000-8000-000000000002";
 
 const list = (): NotebookIndex => ({
-  pages: [{ id: MONEY, title: "Money", firstLine: "What the trip costs, day by day.", widgetCount: 2 }],
+  pages: [{ id: MONEY, seedKey: "money", title: "Money", firstLine: "What the trip costs, day by day.", widgetCount: 2 }],
 });
 
 function ctx(notebooks?: Slot<NotebookIndex>): WidgetContext {
@@ -49,7 +50,7 @@ describe("link.internal", () => {
   });
 
   it("counts widgets when a notebook opens on no words", () => {
-    const value = { pages: [{ id: MONEY, title: "Money", firstLine: null, widgetCount: 2 }] };
+    const value = { pages: [{ id: MONEY, seedKey: null, title: "Money", firstLine: null, widgetCount: 2 }] };
     expect(card(ctx({ state: "ready", value }), { to: { kind: "notebook", pageId: MONEY } }).summary).toBe("2 widgets, no words yet");
   });
 
@@ -59,6 +60,54 @@ describe("link.internal", () => {
     expect(renderMacro(ctx({ state: "ready", value: list() }), "link.internal", { to: { kind: "notebook", pageId: GONE } })).toEqual({
       status: "empty",
       because: "this notebook was deleted",
+    });
+  });
+
+  // Mitchell, 2026-10-03: *"Links to a default notebook use the default, not
+  // the notebook id so they can find them if they get added later."* The card
+  // is handed over by id, so the renderer's href is the page's own.
+  it("finds a default notebook by its seed key, whatever its id or its name is now", () => {
+    const renamed = { pages: [{ id: MONEY, seedKey: "money", title: "Budget", firstLine: null, widgetCount: 0 }] };
+    expect(card(ctx({ state: "ready", value: renamed }), { to: { kind: "seed", seedKey: "money" } })).toEqual({
+      kind: "link-card",
+      to: { kind: "notebook", pageId: MONEY },
+      eyebrow: "Notebook",
+      title: "Budget",
+      summary: "Nothing in it yet",
+    });
+  });
+
+  it("offers a default notebook the trip does not have, by the template's own name and line", () => {
+    const outcome = renderMacro(ctx({ state: "ready", value: { pages: [] } }), "link.internal", { to: { kind: "seed", seedKey: "money" } });
+    expect(outcome).toMatchObject({
+      status: "ok",
+      rendered: { kind: "block", block: { kind: "link-missing", seedKey: "money", title: "Money", description: getTemplate("money")!.description } },
+    });
+  });
+
+  // A notebook somebody made and happened to call Money is not the trip's
+  // Money: only the seed key says so (KI-2026-09-27-e).
+  it("does not take a same-named notebook for the default", () => {
+    const lookalike = { pages: [{ id: MONEY, seedKey: null, title: "Money", firstLine: null, widgetCount: 0 }] };
+    const outcome = renderMacro(ctx({ state: "ready", value: lookalike }), "link.internal", { to: { kind: "seed", seedKey: "money" } });
+    expect(outcome).toMatchObject({ rendered: { block: { kind: "link-missing" } } });
+  });
+
+  it("says a seed key no default template has was deleted: there is nothing to add back", () => {
+    expect(renderMacro(ctx({ state: "ready", value: list() }), "link.internal", { to: { kind: "seed", seedKey: "retired" } })).toEqual({
+      status: "empty",
+      because: "this notebook was deleted",
+    });
+  });
+
+  // An Overview reset on a trip without Money, before links were seed keys,
+  // stored this placeholder id. It reads as the seed link it stood for, so
+  // that trip's Overview finds a Money added later without a second reset.
+  it("reads a stored placeholder id as the default it stood for", () => {
+    const placeholder = { to: { kind: "notebook", pageId: "00000000-0000-4000-8000-00000000f003" } };
+    expect(card(ctx({ state: "ready", value: list() }), placeholder).to).toEqual({ kind: "notebook", pageId: MONEY });
+    expect(renderMacro(ctx({ state: "ready", value: { pages: [] } }), "link.internal", placeholder)).toMatchObject({
+      rendered: { block: { kind: "link-missing", seedKey: "money" } },
     });
   });
 

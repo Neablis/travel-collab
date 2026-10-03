@@ -95,6 +95,36 @@ test("the owner resets an edited Overview to its default, and adds back a missin
   await expect(page.getByText("this notebook was deleted")).toHaveCount(0);
 });
 
+// Mitchell, 2026-10-03: *"A missing default notebook widget should have a call
+// to action to click and generate that missing notebook."* The Overview names
+// Money by its seed key, so with Money gone its card is the offer to add it;
+// the owner's click adds that one notebook and the same card becomes the link.
+test("the Overview's card for a missing default adds it, and then leads to it", async ({ page }) => {
+  const tripName = e2eTripName("Viseu");
+  await page.goto("/");
+  await createEmptyTripViaWizard(page, tripName);
+  await page.getByRole("link", { name: tripName }).click();
+  await openNotebookIndex(page);
+  const mine = page.getByRole("region", { name: "Your notebooks" });
+  await mine.getByRole("button", { name: "Delete Money" }).click();
+  await expect(mine.getByRole("link", { name: /^Money/ })).toHaveCount(0);
+
+  await mine.getByRole("link", { name: /^Overview/ }).click();
+  await expect(page.getByRole("heading", { name: "Overview", level: 1 })).toBeVisible();
+  const offer = page.getByTestId("link-missing");
+  await expect(offer).toHaveText(/Money/);
+  // The other two are there, so only Money is offered.
+  await expect(page.getByTestId("link-card")).toHaveText([/Before you go/, /Bookings/]);
+
+  await offer.getByRole("button", { name: "Add Money" }).click();
+  // In place, with no reload: the offer is gone and Money is the third card.
+  await expect(offer).toHaveCount(0);
+  await expect(page.getByTestId("link-card")).toHaveText([/Before you go/, /Bookings/, /Money/]);
+
+  await page.getByTestId("link-card").filter({ hasText: "Money" }).click();
+  await expect(page.getByRole("heading", { name: "Money", level: 1 })).toBeVisible();
+});
+
 test("the reset can be undone straight afterwards", async ({ page }) => {
   const tripName = e2eTripName("Braga");
   await page.goto("/");
