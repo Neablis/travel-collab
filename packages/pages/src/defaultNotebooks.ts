@@ -1,5 +1,5 @@
 import type { PageDoc } from "@tc/contracts";
-import { DEFAULT_TEMPLATES, PLACEHOLDER_IDS, type SeededPage, type TemplateSeed } from "./templates";
+import { DEFAULT_TEMPLATES, type SeededPage, type TemplateSeed } from "./templates";
 
 // Resetting a trip's default notebooks, and adding the ones it is missing
 // (Mitchell, 2026-09-27). Pure, so the server that writes and the screen that
@@ -51,43 +51,41 @@ export function missingDefaultTemplates(pages: readonly SeedCandidate[]): Templa
 /**
  * The notebooks "Add missing default notebooks" writes: one per missing
  * template, built exactly as `instantiateDefaults` builds a new trip's, and
- * empty when nothing is missing.
+ * empty when nothing is missing. `only` narrows it to one template's seed, for
+ * a link card's "Add notebook" — still nothing if the trip already has it.
  *
  * **A seed the trip once had comes back under the id it had.** `former` is
  * every notebook the trip has had and no longer does, as each was created,
- * oldest first; the latest one of a missing template lends its id. So every
- * link to it, anywhere, resolves again: an existing Overview's card for a
- * re-added Money named the deleted id and said "this notebook was deleted",
- * and re-pointing it would have been an edit to a notebook the owner never
- * asked to change. The page aggregate allows it: a delete removes the id from
- * the fold, so creating it again is an ordinary create.
+ * oldest first; the latest one of a missing template lends its id. So a link
+ * that names it BY ID resolves again — a card somebody pointed at Money before
+ * links to a default were seed keys (2026-10-03), or an Overview seeded before
+ * then. The page aggregate allows it: a delete removes the id from the fold,
+ * so creating it again is an ordinary create.
  *
- * A template the trip never had gets an id minted here, and a missing Overview
- * links to the siblings the trip ALREADY has, by their existing ids (ADR-056).
- * `mintId` is the caller's, as it is for `instantiateDefaults`: this package
- * has no randomness (Invariant 4).
+ * A template the trip never had gets an id minted here. `mintId` is the
+ * caller's, as it is for `instantiateDefaults`: this package has no randomness
+ * (Invariant 4).
  */
 export function instantiateMissingDefaults(
   tripId: string,
   pages: readonly SeedCandidate[],
   mintId: () => string,
   former: readonly SeedCandidate[] = [],
+  only?: string,
 ): SeededPage[] {
-  const missing = missingDefaultTemplates(pages);
-  const ids = { ...seededIds(pages) };
+  const missing = missingDefaultTemplates(pages).filter((t) => only === undefined || t.key === only);
   const live = new Set(pages.map((p) => p.id));
   const previous: Record<string, string> = {};
   for (const page of former) {
     const template = seedTemplateOf(page);
     if (template !== undefined && !live.has(page.id)) previous[template.key] = page.id;
   }
-  for (const t of missing) ids[t.key] = previous[t.key] ?? mintId();
   return missing.map((t) => ({
-    id: ids[t.key]!,
+    id: previous[t.key] ?? mintId(),
     seedKey: t.key,
     title: t.title,
     context: t.buildContext(tripId),
-    content: t.buildContent ? t.buildContent(ids) : t.content,
+    content: t.content,
   }));
 }
 
@@ -95,18 +93,11 @@ export function instantiateMissingDefaults(
  * What "Reset to default" puts back for `page`: its template's title and
  * document, or `null` for a notebook that is not a recognised seed.
  *
- * The Overview's links are built against the trip's seeded siblings as they
- * are now, so a reset Overview names the notebooks that exist rather than the
- * placeholders. A sibling the trip no longer has keeps its placeholder, whose
- * card says the notebook was deleted — which is true.
+ * The same document on every trip: the Overview links to its siblings by seed
+ * key, so there is nothing about this trip's other notebooks to build it from.
  */
-export function defaultDocumentFor(
-  page: SeedCandidate,
-  pages: readonly SeedCandidate[],
-): { title: string; content: PageDoc } | null {
+export function defaultDocumentFor(page: SeedCandidate): { title: string; content: PageDoc } | null {
   const template = seedTemplateOf(page);
   if (template === undefined) return null;
-  if (template.buildContent === undefined) return { title: template.title, content: template.content };
-  const ids = { ...PLACEHOLDER_IDS, ...seededIds(pages), [template.key]: page.id };
-  return { title: template.title, content: template.buildContent(ids) };
+  return { title: template.title, content: template.content };
 }

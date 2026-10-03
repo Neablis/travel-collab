@@ -1862,10 +1862,22 @@ html[data-look="ledger"] .shadow-raised {
      scales with the viewport. */
   .tc-overview-letter {
     @apply mx-auto w-full border border-hairline bg-surface;
-    max-width: 720px;
+    /* Three quarters of the window on a desktop (Mitchell, 2026-10-03:
+       *"doesnt take up enough of the horizontal space. Increase it to be
+       closer to 75%"*), and never narrower than the 720px sheet it was: so a
+       tablet keeps that sheet and a phone, through `w-full`, fills its width.
+       The lens's own column (`--container-content`) still bounds it, which is
+       what a window wider than about 1440px meets first. */
+    max-width: max(720px, 75vw);
     border-radius: 4px;
     box-shadow: var(--shadow-letter);
     padding: clamp(28px, 6vw, 60px) clamp(22px, 7vw, 72px) clamp(36px, 7vw, 72px);
+  }
+  /* The sheet is the measure here, not the notebook's 640px prose tier: with
+     that cap left on, a sheet this wide is half blank paper to the right of
+     its own schedule. */
+  .tc-overview-letter .tc-page-editor {
+    max-width: none;
   }
   /* After the `:has([data-widget-value])` rules above on purpose: equal
      specificity, so source order decides, and 1.75 is looser than their 1.7 —
