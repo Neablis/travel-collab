@@ -14,10 +14,9 @@ import { cn } from "@/lib/cn";
 //
 // **Every sentence here is a fact somebody else's code owns**, and each one
 // cites it, so a change there knows to change this:
-// - invite-only, and the two ways in: `server/admission.ts` `redeemAdmission`
-//   (a trip-invite token, or a code), and the screen's own words in
-//   `front/authCopy.ts` (`hint`, `MISSING_INVITE_CODE`). The shared super code
-//   is deliberately not named — it is Mitchell's to hand out, not a door.
+// - open signup, with an optional invite code: `server/users.ts`
+//   `recordSignIn` (ADR-063) and the screen's own words in `front/authCopy.ts`
+//   (`ADMISSION_FIELD_COPY`). The shared super code is deliberately not named.
 // - Premium: `api.tokens` is granted by `premium` and by no other plan
 //   (`packages/contracts/src/entitlement.ts`, `planVersions.test.ts`).
 // - the form: `account/TokensSection.tsx` — Name, What it may do, Which
@@ -116,30 +115,22 @@ export function DevelopersScreen() {
             From nothing to a first call
           </Heading>
           <ol className="flex flex-col gap-6">
-            <Step n={1} title="Get invited">
+            <Step n={1} title="Create your account">
               <Text className="text-pretty">
-                Caesura is invite-only while it is small. There are two ways in: an{" "}
-                <strong>invite code</strong> somebody already on Caesura sent you, or a{" "}
-                <strong>trip invite link</strong> to their trip, which admits you on its own — no code
-                needed.
+                Go to <InlineLink href="/signup">Create an account</InlineLink> and continue with Google —
+                anyone can sign up. If somebody sent you an invite code, paste it into{" "}
+                <em>Invite code</em> so they get the credit; otherwise leave it empty. Already have an
+                account? <InlineLink href="/signin">Sign in</InlineLink>.
               </Text>
             </Step>
-            <Step n={2} title="Create your account">
-              <Text className="text-pretty">
-                Go to <InlineLink href="/signup">Create an account</InlineLink>, paste your code into{" "}
-                <em>Invite code</em>, and continue with Google. Arriving from a trip invite link? Open the
-                link first and leave the code empty. Already have an account?{" "}
-                <InlineLink href="/signin">Sign in</InlineLink>.
-              </Text>
-            </Step>
-            <Step n={3} title="Be on the Premium plan">
+            <Step n={2} title="Be on the Premium plan">
               <Text className="text-pretty">
                 API tokens are on the Premium plan. On any other plan the API tokens section shows an
                 upgrade prompt instead of the form, and a token stops working if its owner&rsquo;s plan
                 no longer includes the API — restarting the subscription turns it back on.
               </Text>
             </Step>
-            <Step n={4} title="Make a token">
+            <Step n={3} title="Make a token">
               <Text className="text-pretty">
                 <strong>Account → Profile → API tokens → New token.</strong> Name it, tick what it may
                 do (the scopes below), choose all your trips or only some, and pick how long it lives:
@@ -150,7 +141,7 @@ export function DevelopersScreen() {
                 it and you revoke it and make another. Tokens start with <Code>{API_TOKEN_PREFIX}</Code>.
               </Text>
             </Step>
-            <Step n={5} title="Discover, then call">
+            <Step n={4} title="Discover, then call">
               <Text className="text-pretty">
                 Start from <InlineLink href="/.well-known/api-catalog">/.well-known/api-catalog</InlineLink>:
                 its <Code>service-desc</Code> is <InlineLink href="/api/v1/openapi">/api/v1/openapi</InlineLink>,

@@ -146,7 +146,7 @@ There are three more changes. `Origin` gains `{ kind: "suggestion", suggestionId
 authorId }`. `TripEventsPage` gains an optional `suggestionsRev: string`. `TripRole` and
 `InviteRole` gain `suggester`.
 
-### Storage (`apps/web/drizzle/0035_trip_suggestions.sql`)
+### Storage (`apps/web/drizzle/0036_trip_suggestions.sql`; renumbered from 0035 when main took 0035 for ai-usage)
 
 - `trip_suggestions`: `id`, `trip_id`, `author_id`, `note`, `base_seq` (the head it was checked
   against), `created_at`.

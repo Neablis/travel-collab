@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { beforeAll, describe, expect, it } from "vitest";
 import { SavedDayVisibility } from "@tc/contracts";
 import { db } from "@/server/db/client";
@@ -9,7 +9,7 @@ import { getTripDetail } from "@/server/projections";
 import { saveDay, setSavedDayVisibility } from "@/server/savedDays";
 import { entitleAccounts } from "@/server/test-support/entitledAccount";
 import { playbookCityCopy, playbookDayCopy, playbookProfileCopy } from "./copy";
-import { cityCardFor, dayCardFor, profileCardFor } from "./playbooks";
+import { cityCardFor, countryCardFor, dayCardFor, profileCardFor } from "./playbooks";
 
 // The Playbooks link-preview lookups (spec 2026-10-02 §2.7). Under test is
 // what a stranger holding a link learns: a published day's name and its
@@ -154,5 +154,28 @@ describe("cityCardFor", () => {
     ["an empty city", () => ""],
   ])("gives %s the generic card", async (_state, city) => {
     expect(await cityCardFor(city())).toEqual({ kind: "generic" });
+  });
+});
+
+describe("countryCardFor", () => {
+  // Tuvalu, so no other file's day is counted: the count is library-wide.
+  // "XX" and "ZZ" ride the published day too, so a code with no name, and a
+  // region `Intl` names that is no country, are refused for being one, not for
+  // being on no day.
+  it("names a country by its English name and counts only the days a stranger could open", async () => {
+    await db
+      .update(savedDays)
+      .set({ countries: ["TV", "XX", "ZZ"] })
+      .where(inArray(savedDays.id, [published, privateDay, moderated, deleted]));
+
+    expect(await countryCardFor("TV")).toEqual({ kind: "country", country: "Tuvalu", days: 1 });
+  });
+
+  it.each([
+    ["a country no day touches", "AQ"],
+    ["a code that names no country", "XX"],
+    ["a region Intl names that is not a country", "ZZ"],
+  ])("gives %s the generic card", async (_state, code) => {
+    expect(await countryCardFor(code)).toEqual({ kind: "generic" });
   });
 });

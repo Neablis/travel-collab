@@ -7,6 +7,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { ImageResponse } from "next/og";
+import { LIBRARY_CACHE_SECONDS } from "../libraryCache";
 import type { CardCopy } from "./copy";
 import { ogColors as c } from "./ogTokens.generated";
 
@@ -38,17 +39,13 @@ export const REFERRAL_CACHE_CONTROL = "public, max-age=3600, s-maxage=86400, sta
 export const INVITE_CACHE_CONTROL = "public, max-age=3600, s-maxage=3600, stale-while-revalidate=604800";
 
 /**
- * A playbook day or profile card: the invite card's hour, for the invite's
- * reason (spec 2026-10-02 §2.7). An unpublished or moderated day keeps its
- * card at our edge for up to that hour; then it is the generic card.
+ * Every Playbooks card — day, profile, city, country and the generic one — and
+ * its `meta` sibling: a day at the edge, as the library's own reads are
+ * (ADR-063). Not the invite card's hour, which a day card used to share: each
+ * response carries `Vercel-Cache-Tag` (`cacheTagHeader`), and a publish, an
+ * unpublish or an operator's hide deletes those tags from the CDN at once.
  */
-export const PLAYBOOK_CACHE_CONTROL = INVITE_CACHE_CONTROL;
-
-/**
- * The city and the generic Playbooks cards: a day. Neither names a person, and
- * a city's count going stale by a day misleads nobody.
- */
-export const PLAYBOOKS_GENERIC_CACHE_CONTROL = REFERRAL_CACHE_CONTROL;
+export const PLAYBOOK_CACHE_CONTROL = `public, max-age=3600, s-maxage=${LIBRARY_CACHE_SECONDS}, stale-while-revalidate=604800`;
 
 // Bundled, never fetched: KI-2026-09-27-a is a production deploy that failed
 // because Google Fonts did not answer, and a card that fetched at request time
@@ -77,8 +74,12 @@ function loadFonts() {
 // The static site card's language (`scripts/generate-og-assets.mjs`): moss
 // ground, the contour grid and its river, the ◎ mark on a brand square, and
 // the display face for the headline.
-/** Draw one preview card as a 1200×630 PNG response carrying `cacheControl`. */
-export async function renderCard(copy: CardCopy, cacheControl: string): Promise<ImageResponse> {
+/** Draw one preview card as a 1200×630 PNG response carrying `cacheControl`, and the CDN tags it is purged by. */
+export async function renderCard(
+  copy: CardCopy,
+  cacheControl: string,
+  cacheTags: Record<string, string> = {},
+): Promise<ImageResponse> {
   // A trip name is the user's, and can be long; the headline steps down a size
   // rather than being cut, and clamps at three lines past that.
   const headlineSize = copy.title.length > 70 ? 52 : 64;
@@ -154,6 +155,6 @@ export async function renderCard(copy: CardCopy, cacheControl: string): Promise<
         </div>
       </div>
     ),
-    { ...CARD_SIZE, fonts: await loadFonts(), headers: { "Cache-Control": cacheControl } },
+    { ...CARD_SIZE, fonts: await loadFonts(), headers: { "Cache-Control": cacheControl, ...cacheTags } },
   );
 }

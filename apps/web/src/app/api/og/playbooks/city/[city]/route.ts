@@ -1,4 +1,5 @@
-import { PLAYBOOKS_GENERIC_CACHE_CONTROL, renderCard } from "@/server/og/card";
+import { LIBRARY_TAG, cacheTagHeader } from "@/server/libraryCache";
+import { PLAYBOOK_CACHE_CONTROL, renderCard } from "@/server/og/card";
 import { playbookCityCopy } from "@/server/og/copy";
 import { limitLinkPreview } from "@/server/og/limit";
 import { cityCardFor, segment } from "@/server/og/playbooks";
@@ -11,5 +12,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ city
   const refused = await limitLinkPreview(request);
   if (refused !== null) return refused;
   const { city } = await params;
-  return renderCard(playbookCityCopy(await cityCardFor(segment(city))), PLAYBOOKS_GENERIC_CACHE_CONTROL);
+  return renderCard(
+    playbookCityCopy(await cityCardFor(segment(city))),
+    PLAYBOOK_CACHE_CONTROL,
+    cacheTagHeader(LIBRARY_TAG),
+  );
 }

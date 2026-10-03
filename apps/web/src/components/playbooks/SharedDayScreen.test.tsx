@@ -156,6 +156,37 @@ afterEach(() => {
 const renderDay = () =>
   render(<SharedDayScreen savedDayId={DAY_ID} backHref="/playbooks" backLabel="Discover" />);
 
+// SEO pass, D6: the title block's cities are the way from a day to its city's
+// page — for a day that page lists. A private day is in no city's list, so
+// its author's own view names the city without sending them to a page that
+// does not have the day (or a 404, when it is the only day there).
+describe("the title block's cities", () => {
+  it("link to each city's page on a published day", async () => {
+    renderDay();
+    expect((await screen.findByRole("link", { name: "Kyoto" })).getAttribute("href")).toBe("/playbooks/city/kyoto");
+  });
+
+  it("are plain text on a published day an operator hid", async () => {
+    fetchSavedDayMock.mockResolvedValue(
+      ok({
+        savedDay: savedDay(),
+        isAuthor: true,
+        moderation: { moderatedAt: "2026-09-23T10:00:00.000Z", moderationNote: null },
+      }),
+    );
+    renderDay();
+    await screen.findByRole("heading", { level: 1, name: "Kyoto temples on foot" });
+    expect(screen.queryByRole("link", { name: "Kyoto" })).toBeNull();
+  });
+
+  it("are plain text on a private day", async () => {
+    fetchSavedDayMock.mockResolvedValue(ok({ savedDay: savedDay({ visibility: "private" }), isAuthor: true }));
+    renderDay();
+    await screen.findByRole("heading", { level: 1, name: "Kyoto temples on foot" });
+    expect(screen.queryByRole("link", { name: "Kyoto" })).toBeNull();
+  });
+});
+
 // M23 / ADR-048 decision 2. A sequence's days have to be legible on the one
 // screen somebody reads before deciding to take it — and the EMPTY day is the
 // case that decides whether the reader sees intent or a hole in the data.

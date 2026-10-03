@@ -267,6 +267,9 @@ export function inBudgetBand(band: BudgetBand, amountMinor: number | null): bool
 /** How many stop rows a Discover card shows — `dc.html:5795`'s `slice(0, 3)`. */
 export const DISCOVER_PREVIEW_STOPS = 3;
 
+/** How many cards one Discover page shows — and a city or country page, which is `PLACE_PAGE_SIZE`. */
+export const DISCOVER_PAGE_SIZE = 24;
+
 /**
  * One Discover card. Deliberately NOT a `SavedDay`.
  *

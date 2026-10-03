@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const sitemapDays = vi.fn();
-vi.mock("@/server/playbooks", () => ({ sitemapDays: () => sitemapDays() }));
+vi.mock("@/server/playbooks", () => ({ sitemapDays: () => sitemapDays(), publishedPlaces: async () => [] }));
 
 import { deploymentOrigin } from "@/lib/deploymentOrigin";
 import sitemap from "./sitemap";

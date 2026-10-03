@@ -72,8 +72,11 @@ saw only the site card.
 
 ## Consequences
 
-- An unpublish or a moderation takes up to an hour to leave our edge cache. This is the same
-  trade-off the invite card made. Chat apps keep their first unfurl longer than that anyway.
+- ~~An unpublish or a moderation takes up to an hour to leave our edge cache. This is the same
+  trade-off the invite card made. Chat apps keep their first unfurl longer than that anyway.~~
+  **Superseded 2026-10-03 by ADR-063:** the library's reads and cards are cached for a day, and
+  an unpublish, a delete or an operator's hide clears them at once. Chat apps still keep their
+  first unfurl as long as they like.
 - The library is crawlable. Whether it should be indexed is an open candidate in
   `docs/candidates.md`, not decided here.
 - A new public endpoint means new load from people who are not customers. The per-IP ceiling

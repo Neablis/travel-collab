@@ -28,12 +28,29 @@ M19 was **scoped on 2026-10-02** (ADR-060: a price is per person, committed vs e
 derives from kind, and Booked by pays). It is built as three stacked parts:
 `docs/plans/2026-10-02-M19-cost-model.md`.
 
+**M31 — We can see what the assistant costs — was minted and built 2026-10-03, beside M19,
+not current.** It is ADR-062's Phase 1: per-step and per-tool rows next to `ai_usage`, cached
+tokens, per-step pricing, the `ai-usage` skill's SQL and the live set. It closed
+KI-2026-09-14-b and KI-2026-09-17-c. **It adds migration `0035`, which must be dispatched to
+production right after merge.** Until it is applied, production's ledger writes fail, the
+`ai_usage` row included (`docs/milestones/M31-assistant-ledger.md`, *Prerequisites*). Gate 5
+of 7. The two boxes left are Mitchell's: the Gateway spend budget, and the baseline run on a
+preview. **The eve port is deferred until there are users** (ADR-062 § *Deferred: the port*).
+
 **Two more milestones are built beside the current one, not current, and not in
 `TODO.md`'s order** (placing them is Mitchell's call). **M29 — The time river**: all parts
 merged by 2026-09-26 (#242-#245, #251). Gate 18 of 20. Mitchell attested the Overview read
 on 2026-10-02. What is left is the whole-suite box and the retro. **M30 — Notebooks with one
 job each**: merged as #247, then #248-#253. Gate 8 of 9. The same Overview read ticked it,
 and only the retro is left.
+
+**Built beside M19, not a milestone: the SEO pass** (five stacked draft PRs, #295-#299,
+to merge 1 → 5 with merge commits; plan `docs/plans/2026-10-02-seo-pass.md`). It adds robots
+and canonicals, a sitemap, server-rendered day and Discover pages with real 404s and
+slugged URLs, JSON-LD, and city and country pages. **Three steps are Mitchell's:** the
+Vercel firewall bypass for `/`, `/welcome`, `/playbooks/**`, `/robots.txt` and
+`/sitemap.xml` (crawlers get the Security Checkpoint today); submitting the sitemap once
+part 2 is live; and checking production's canonical on `caesura.today/playbooks`.
 
 **M28 — Three kinds — closed 2026-09-26** (#238, #239): a stop's kind is
 `planned`, `pending` or `transit`, and the retired `idea`/`hold`/`booked` are

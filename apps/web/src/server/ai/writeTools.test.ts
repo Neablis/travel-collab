@@ -11,6 +11,7 @@ import {
   commitProposal,
   describeProposedChange,
   droppedWriteCalls,
+  droppedWrites,
   INSERT_PLAYBOOK_DAY,
   parseApprovedCommands,
   withDefaultKind,
@@ -390,6 +391,17 @@ describe("droppedWriteCalls", () => {
       actorId: ACTOR,
     });
     expect(dropped).toEqual([]);
+  });
+
+  // The ledger's `reachedProposal` needs the no-op's index even though the
+  // diagnostic list leaves it out: a no-op never reaches the proposal either
+  // (Copilot on #301).
+  it("keeps a no-op's index for the ledger, flagged, while the diagnostic list omits it", () => {
+    const all = droppedWrites([{ type: "SetTripCurrency", args: { currency: "USD" } }], detail, {
+      tripId: TRIP_ID,
+      actorId: ACTOR,
+    });
+    expect(all.map(({ index, noOp }) => ({ index, noOp }))).toEqual([{ index: 0, noOp: true }]);
   });
 
   it("distinguishes the two in the same batch, rather than lumping them", () => {

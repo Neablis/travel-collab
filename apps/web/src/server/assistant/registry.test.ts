@@ -216,7 +216,26 @@ describe("the AI SDK adapter", () => {
       const built = aiToolsFor([throwingTool], {}, meter);
 
       await expect(execute(built.meter_throws)).rejects.toThrow("tool exploded");
-      expect(meter.toolCalls()).toEqual([{ name: "meter_throws", ms: expect.any(Number), ok: false }]);
+      expect(meter.toolCalls()).toEqual([
+        expect.objectContaining({ name: "meter_throws", ms: expect.any(Number), ok: false, outcome: "failed" }),
+      ]);
+    });
+
+    // M31 Phase 1: the SDK's `toolCallId` and the sizes of what went in and
+    // came out — never the content — are what the per-tool row is keyed and
+    // measured by.
+    it("records the call's SDK id and the byte sizes of its input and result", async () => {
+      const meter = newTurnMeter();
+      const built = aiToolsFor([okTool], {}, meter);
+      await (built.meter_ok as unknown as { execute: (i: unknown, o: unknown) => Promise<unknown> }).execute(
+        {},
+        { toolCallId: "call-7" },
+      );
+      expect(meter.toolCalls()[0]).toMatchObject({
+        callId: "call-7",
+        inputBytes: Buffer.byteLength("{}"),
+        outputBytes: Buffer.byteLength(JSON.stringify({ ok: true })),
+      });
     });
 
     // A caller that is not measuring a turn — every test that builds a tool set

@@ -47,20 +47,30 @@ here two days later.
   long-press drag on the board is unverified (the `phone` e2e project is desktop
   Chrome at 411px with no touch).
 
-- **The assistant on eve, with a per-tool ledger first (asked 2026-10-02).**
-  ADR-062 (Proposed) records the decision. Mitchell chose a full port onto Vercel's
-  eve framework over a spike or Vercel-only changes. He set two terms: measurement
-  stays first-class, so a per-step and per-tool ledger ships on the current stack
-  *before* any eve code; and user memory is designed for now and built later. The
-  milestone is placed **after M19** and is minted by the planning session, whose
-  first job is ADR-062's Phase 0 questions.
+- **The assistant on eve: the port, deferred until there are users (asked 2026-10-02,
+  deferred 2026-10-03).** ADR-062 records the decision and the Phase 0 spike's evidence.
+  Mitchell chose a full port onto Vercel's eve framework, with the ledger first. On
+  2026-10-03 he built the ledger (**M31**, which is ADR-062's Phase 1) and parked the rest:
+  *"I want to get some users before i increase the cost of my AI usage by moving to eve and
+  workflow"*.
+  - **Cost.** Phase 0 measured Workflow at roughly 20–70% on top of a turn's model cost.
+  - **Benefit.** It protects real traffic, and there is none yet: `ai-live` is still
+    Simulated in production.
+  - **What is left.** ADR-062 Phases 2–5: the adapter, `apply_proposal`, the client, and the
+    parity gate.
+  - **What reopens it.** One of the four triggers in ADR-062 § *Deferred: the port*: turns
+    lost at the deadline, a feature needing background work, eve 1.0, or paying traffic.
+    That section also keeps the steps for reopening it and the proposed, never-approved
+    parity thresholds.
+  - **Scoped, not placed.** No gate deletes this entry.
 
 - **User memory: the assistant knows who you are and what trips you like
   (asked 2026-10-02).** Deferred out of ADR-062 by agreement. The expected shape is
   a per-user profile derived from the command and event log, recalled through
   eve's memory slot, rather than embeddings. It opens with two decisions ADR-062
   §6 leaves open: whether conversation text is stored at all, and how memory
-  behaves on a shared trip. It depends on the eve milestone.
+  behaves on a shared trip. It depends on the eve port (the entry above), which is
+  deferred.
 
 - **An SEO pass over the public library (asked 2026-10-02).** ADR-061 made
   `/playbooks`, its days, profiles and board readable without an account.
@@ -72,6 +82,16 @@ here two days later.
   - per-page `description`s, which today come from the og `meta` lookup;
   - structured data for a day;
   - whether profile and board pages earn a place in the index.
+
+  **Built 2026-10-03 as five stacked PRs, #295 (crawl plumbing), #296
+  (sitemap), #297 (server-rendered days, real 404s, slugs), #298 (structured
+  data) and #299 (city and country pages), to merge in that order.** Plan:
+  `docs/plans/2026-10-02-seo-pass.md`. What spec §7 left out, still candidates:
+  indexing profiles or the board; paginating Discover; public notebook
+  templates (a contract change); public pages for the sample trips under
+  `content/trips/`. Still Mitchell's, outside the code: the firewall bypass
+  for `/`, `/welcome`, `/playbooks/**`, `/robots.txt` and `/sitemap.xml`;
+  submitting the sitemap; the production canonical check.
 
   **Audited and designed 2026-10-02; Mitchell: *"Lets start the SEO work"*.**
   The design, with its nine decisions and five stacked PRs, is

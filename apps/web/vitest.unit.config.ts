@@ -104,6 +104,7 @@ export default defineConfig({
             "scripts/geocode-japan-seed.test.ts",
             "scripts/with-test-db.test.ts",
             "scripts/landing-demo.test.ts",
+            "scripts/assistant-live-set.test.ts",
           ],
           exclude: [...ALWAYS_EXCLUDE, ...JSDOM_TS_FILES],
           setupFiles,

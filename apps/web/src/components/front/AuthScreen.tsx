@@ -186,6 +186,9 @@ export function AuthScreen({
   // which `proxy.ts` has already banked in the same cookie — neither has a
   // code to type, and a field asking for one would read as a requirement.
   const [admissionCode, setAdmissionCode] = useState(initialAdmissionCode);
+  // A code the server could not bank. Set by `startSignIn` instead of leaving
+  // for the provider; cleared by the next attempt or by editing the code.
+  const [codeSaveFailed, setCodeSaveFailed] = useState(false);
   const showAdmissionCode = mode === "signup";
 
   // The swap link has to carry `?callbackUrl=` across, and this is not a
@@ -223,17 +226,19 @@ export function AuthScreen({
     // someone who opened `/invite/<token>` and then walked to `/signup`.
     const code = showAdmissionCode ? normalizePendingAdmission(admissionCode) : null;
     if (code && storeAdmissionCode) {
+      setCodeSaveFailed(false);
       try {
         await storeAdmissionCode(code);
       } catch {
-        // Sign in anyway. The two outcomes of a failed cookie write are a
-        // button that visibly does nothing, or a refusal on the designed
-        // `?error=` screen that says to try the code again — and this screen
-        // has no surface for the first one (its banner is `?error=`-driven,
-        // and there is no handoff copy for "your browser and our server
-        // disagreed"). The refusal names a slightly wrong cause but it is a
-        // designed screen with a next action, which is the whole point of
-        // link 6; a dead button is the blank state the gate says can't happen.
+        // Do NOT sign in. This used to continue to the provider and rely on
+        // the gate refusing the code-less sign-in, which sent the person back
+        // here to try again. Signup is open now (ADR-063), so continuing would
+        // create the account without the code — and the code can never be
+        // redeemed after that, because a returning account skips the gate. The
+        // inviter would silently lose their referral. Stop here and say so: the
+        // person can retry, or clear the field to sign up without it.
+        setCodeSaveFailed(true);
+        return;
       }
     }
     dispatch();
@@ -278,6 +283,7 @@ export function AuthScreen({
               // the field is genuinely optional and nothing else says so.
               <>
                 <Text variant="muted">{ADMISSION_FIELD_COPY.note}</Text>
+                {codeSaveFailed && <Banner variant="danger">{ADMISSION_FIELD_COPY.saveFailed}</Banner>}
                 <FormField
                   id="admission-code"
                   label="Invite code"
@@ -297,7 +303,10 @@ export function AuthScreen({
                     autoComplete="off"
                     spellCheck={false}
                     maxLength={PENDING_ADMISSION_MAX_LENGTH}
-                    onChange={(event) => setAdmissionCode(event.target.value)}
+                    onChange={(event) => {
+                      setAdmissionCode(event.target.value);
+                      setCodeSaveFailed(false);
+                    }}
                     onKeyDown={submitOnEnter(continueWithGoogle)}
                   />
                 </FormField>

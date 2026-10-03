@@ -1,5 +1,9 @@
 # M11a — An invite gate on the front door
 
+> **Amended 2026-10-03 — ADR-063: signup is open.** The gate no longer refuses anyone. A
+> valid single-use code is still claimed, so who-invited-whom and the M20 referral reward
+> still work. Everything below describes the gate as it was built.
+
 **Status:** Scoped and placed **2026-08-30** by Mitchell, in the same session
 that scoped M11b. Phase 2, running **after M17 and before M11b**.
 

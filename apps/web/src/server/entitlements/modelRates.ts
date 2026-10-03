@@ -43,6 +43,21 @@ export interface ModelRate {
   inputMicroUsdPerMTok: number;
   /** Micro-dollars per million output tokens. */
   outputMicroUsdPerMTok: number;
+  /**
+   * Micro-dollars per million input tokens read from the prompt cache
+   * (M31 Phase 1). Absent means the catalogue lists no cached-read price, and
+   * cached reads are then priced as fresh input, which overstates. Prompt
+   * caching (`caching: "auto"`) makes most of a long turn's input a cached
+   * read, so without this a turn's price is several times what was billed.
+   */
+  cacheReadInputMicroUsdPerMTok?: number;
+  /**
+   * Micro-dollars per million input tokens WRITTEN to the prompt cache. Some
+   * providers charge a premium for these (Anthropic: 1.25x input). Absent,
+   * cache writes are priced as fresh input — which UNDERSTATES for such a
+   * provider, so a model that charges a premium needs this on its entry.
+   */
+  cacheWriteInputMicroUsdPerMTok?: number;
 }
 
 /**
@@ -74,6 +89,21 @@ export const MODEL_RATES: readonly ModelRate[] = [
     effectiveFrom: "2026-08-16",
     inputMicroUsdPerMTok: 1_000_000,
     outputMicroUsdPerMTok: 5_000_000,
+  },
+  {
+    // **The same rates, with the cached-read price now on the record**
+    // (M31 Phase 1). Read from the live catalogue on 2026-10-03: US regional
+    // input $0.13, output $0.26 and `input_cache_read` $0.028 per MTok. The
+    // first two are unchanged since 2026-08-16. A new dated entry rather than
+    // an edit, so a month priced before today is still priced as it was.
+    // `zai/glm-4.7-flash` lists no cached-read price, so it gets no entry.
+    // The catalogue lists Haiku 4.5 under `anthropic/claude-haiku-4.5` at a
+    // different US rate; re-pricing the compiled default is its own change.
+    model: "deepseek/deepseek-v4-flash-0731",
+    effectiveFrom: "2026-10-03",
+    inputMicroUsdPerMTok: 130_000,
+    outputMicroUsdPerMTok: 260_000,
+    cacheReadInputMicroUsdPerMTok: 28_000,
   },
 ];
 
@@ -128,6 +158,14 @@ export function microUsdFor(
   tokensOut: number | null,
   at: Date,
   history: readonly ModelRate[] = MODEL_RATES,
+  // How many of `tokensIn` were read from the prompt cache. `tokensIn` is the
+  // AI SDK's TOTAL input, cached reads included, so these are a part of it
+  // priced at the cached rate rather than an addition to it. Null — every
+  // row written before M31 Phase 1 — prices all input as fresh, as before.
+  cacheReadTokens: number | null = null,
+  // How many of `tokensIn` were written to the prompt cache; also a part of
+  // `tokensIn`, priced at the cache-write rate where one is on record.
+  cacheWriteTokens: number | null = null,
 ): number | null {
   const rate = rateAt(model, at, history);
   // **`null` is unmeasured, and unmeasured is not free.** This read
@@ -139,7 +177,15 @@ export function microUsdFor(
   // the same "a number that understates and looks precise" failure the whole
   // no-`Money` rule exists to prevent. Found by CodeRabbit on PR #174.
   if (rate === null || tokensIn === null || tokensOut === null) return null;
-  const input = (tokensIn * rate.inputMicroUsdPerMTok) / 1_000_000;
+  // Clamped to the total, so a provider reporting more cached than total
+  // input cannot price the fresh part below zero.
+  const cached = Math.min(Math.max(cacheReadTokens ?? 0, 0), tokensIn);
+  const written = Math.min(Math.max(cacheWriteTokens ?? 0, 0), tokensIn - cached);
+  const fresh = tokensIn - cached - written;
+  const cachedRate = rate.cacheReadInputMicroUsdPerMTok ?? rate.inputMicroUsdPerMTok;
+  const writtenRate = rate.cacheWriteInputMicroUsdPerMTok ?? rate.inputMicroUsdPerMTok;
+  const input =
+    (fresh * rate.inputMicroUsdPerMTok + cached * cachedRate + written * writtenRate) / 1_000_000;
   const output = (tokensOut * rate.outputMicroUsdPerMTok) / 1_000_000;
   return Math.round(input + output);
 }

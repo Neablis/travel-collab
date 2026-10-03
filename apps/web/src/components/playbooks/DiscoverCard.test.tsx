@@ -138,6 +138,16 @@ describe("a Discover card's city chips", () => {
     );
     expect(chipTexts()).toEqual(["Nara", "Tokyo", "Hakone", "+2 more"]);
   });
+
+  // SEO pass, D6: a chip is a way to its city's page, and a crawler's way from
+  // a list of days to the places they are in.
+  it("opens each city's page, and leaves a city whose name has no slug as text", () => {
+    render(<DiscoverCard day={day({ cities: ["Kyoto", "京都"] })} origin={{ from: "playbooks" }} />);
+    const chips = screen.getByTestId("city-chips");
+    expect(within(chips).getByRole("link", { name: "Kyoto" }).getAttribute("href")).toBe("/playbooks/city/kyoto");
+    expect(within(chips).queryByRole("link", { name: "京都" })).toBeNull();
+    expect(chipTexts()).toEqual(["Kyoto", "京都"]);
+  });
 });
 
 // Mitchell, 2026-10-02: the library names a person "Alice C." — first name and

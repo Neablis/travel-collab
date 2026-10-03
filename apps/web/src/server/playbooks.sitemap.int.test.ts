@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, describe, expect, it } from "vitest";
 import { inArray } from "drizzle-orm";
+import sitemap from "@/app/sitemap";
+import { MIN_INDEXED_PLACE_DAYS, slugify } from "@/lib/playbookUrls";
 import { db } from "./db/client";
 import { savedDays } from "./db/schema";
 import { sitemapDays } from "./playbooks";
@@ -44,5 +46,22 @@ describe("sitemapDays", () => {
 
     expect(mine).toEqual([{ savedDayId: shown, name: "Shown", publishedAt: publishedAt.toISOString() }]);
     for (const id of hidden) expect(listed.map((d) => d.savedDayId)).not.toContain(id);
+  });
+});
+
+describe("sitemap.xml's places", () => {
+  // Cities minted per run: the published library is global, so a shared name
+  // would count other tests' days.
+  it("lists a city with enough days for a page of its own, and leaves out a thinner one", async () => {
+    const run = randomUUID().slice(0, 6);
+    const [listed, thin] = [`Sitemapfull${run}`, `Sitemapthin${run}`];
+    const publishedAt = new Date();
+    for (let i = 0; i < MIN_INDEXED_PLACE_DAYS; i++) await day(`Full ${i}`, { visibility: "public", publishedAt, cities: [listed] });
+    for (let i = 1; i < MIN_INDEXED_PLACE_DAYS; i++) await day(`Thin ${i}`, { visibility: "public", publishedAt, cities: [thin] });
+
+    const paths = (await sitemap()).map((entry) => new URL(entry.url).pathname);
+
+    expect(paths).toContain(`/playbooks/city/${slugify(listed)}`);
+    expect(paths).not.toContain(`/playbooks/city/${slugify(thin)}`);
   });
 });
