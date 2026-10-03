@@ -527,19 +527,13 @@ describe("a shared day", () => {
   });
 
   // The facts §15 names, minus the ones M12 owns.
-  // The screen somebody reads before deciding to take a day into their own
-  // trip, so "who wrote it" belongs beside the title (ADR-041 decision 5).
-  // Only "ai" renders: "human" is the absence of a claim.
-  it("marks a generated day as an AI starter beside its title, and says nothing about a human one", async () => {
+  // ADR-041 decision 5, as amended 2026-10-03: `authorKind` stays in the
+  // database and is not advertised on the screen.
+  it("says nothing about whether a day was generated", async () => {
     fetchSavedDayMock.mockResolvedValue(ok({ savedDay: savedDay({ authorKind: "ai" }), isAuthor: false }));
     renderDay();
-    expect(await screen.findByText("AI starter")).toBeTruthy();
-
-    cleanup();
-    fetchSavedDayMock.mockResolvedValue(ok({ savedDay: savedDay({ authorKind: "human" }), isAuthor: false }));
-    renderDay();
     expect(await screen.findByRole("heading", { name: savedDay().name })).toBeTruthy();
-    expect(screen.queryByText("AI starter")).toBeNull();
+    expect(screen.queryByText(/\bAI\b/)).toBeNull();
   });
 
   it("states the facts in the rail, derived from the stops", async () => {

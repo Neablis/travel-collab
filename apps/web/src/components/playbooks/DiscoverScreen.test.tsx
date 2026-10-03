@@ -94,12 +94,10 @@ describe("Discover", () => {
     expect(screen.getByText("Kyoto temples on foot")).toBeTruthy();
   });
 
-  // ADR-041 decision 5: the library mixes days people kept out of their own
-  // trips with generated starter content, and the card is where somebody
-  // chooses between thirty of them. **Only "ai" renders** — "human" is the
-  // absence of a claim, not a claim, and a mark on almost every card marks
-  // nothing.
-  it("marks a generated day as an AI starter, and says nothing about a human one", async () => {
+  // ADR-041 decision 5, as amended 2026-10-03: `authorKind` is a fact the
+  // database keeps, not one a card advertises. A generated day and a kept one
+  // read the same on Discover.
+  it("says nothing on a card about whether a day was generated", async () => {
     searchPlaybooksMock.mockResolvedValue(
       ok(
         response({
@@ -112,8 +110,7 @@ describe("Discover", () => {
     );
     render(<DiscoverScreen />);
     expect(await screen.findByText("Railay at first light")).toBeTruthy();
-    // One badge for two cards: the human day carries none.
-    expect(screen.getAllByText("AI starter")).toHaveLength(1);
+    expect(screen.queryByText(/\bAI\b/)).toBeNull();
   });
 
   it("shows a skeleton grid before the first answer arrives, and never after", async () => {

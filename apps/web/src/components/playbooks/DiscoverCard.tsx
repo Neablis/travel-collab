@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
-import { AuthorKindBadge } from "./AuthorKindBadge";
 import { Card } from "@/components/ui/card";
 import { DataText } from "@/components/ui/data-text";
 import { Heading } from "@/components/ui/heading";
@@ -151,7 +150,6 @@ export function DiscoverCard({ day, origin }: { day: DiscoverDay; origin: BackOr
         <span className="flex flex-1 flex-wrap items-center justify-end gap-1.5">
           {day.isMine && <Badge variant="brand">Yours</Badge>}
           {day.visibility === "private" && <Badge variant="neutral">Private</Badge>}
-          <AuthorKindBadge authorKind={day.authorKind} />
         </span>
       </div>
 

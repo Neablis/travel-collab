@@ -123,11 +123,15 @@ Not called `origin` — `events.origin` already means the provenance of a batch 
 events (user/undo/redo/revert), and two columns called `origin` meaning two
 unrelated things is ambiguity to pay down rather than add to.
 
-**Only `"ai"` renders** (`AuthorKindBadge`, on the Discover card and the
-shared-day screen). "human" is the absence of a claim, not a claim — which is
-also what lets the read path fall back to it on an unparseable value and log,
-rather than dropping the row the way an unreadable `stops` or `visibility` does.
-Those decide what a reader may *see*; this decides a label.
+**Nothing renders it** (amended 2026-10-03). It originally drove an "AI
+starter" badge on the Discover card and the shared-day screen; Mitchell removed
+it — the badge advertised generated days as lower quality, and that is not
+something the library needs to say about its own content. The column, the
+contract field and the public API's `authorKind` stay: it is a fact the
+database keeps, not one the UI announces. "human" is still the absence of a
+claim, not a claim — which is what lets the read path fall back to it on an
+unparseable value and log, rather than dropping the row the way an unreadable
+`stops` or `visibility` does.
 
 ### 6. Content is checked by a test, not by a script somebody remembers to run
 
@@ -201,7 +205,8 @@ say so.** The first eleven bundles were built against live pages; the later ones
 ran after the session's search budget was spent and outbound fetches were
 blocked, so their venue names and prices are model knowledge. They are kept —
 seed content's bar is "plausible, well-shaped and labelled as generated", and
-`authorKind: "ai"` plus the badge already tell a reader that — but each affected
+`authorKind: "ai"` records that (the badge that once showed it to a reader was
+removed 2026-10-03, see decision 5) — but each affected
 file now opens `bundle.sources` with a `PROVENANCE:` line, and
 `KI-2026-09-06-d` owns the verification pass. **If provenance turns out to
 matter more than once, it wants a field rather than a convention inside a free

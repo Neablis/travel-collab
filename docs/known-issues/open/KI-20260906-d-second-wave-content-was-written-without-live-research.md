@@ -1,6 +1,6 @@
 ### KI-2026-09-06-d — prices in eight content bundles are still unverified model estimates, though their gating facts are now checked
 
-- **Severity:** content accuracy, and **materially narrower than when this was filed.** The half that made days *unusable* is fixed; what remains is that a ticket price may be stale. Every one of these days is `authorKind: "ai"` in the database and carries the "AI starter" badge, so no reader is told a person checked it.
+- **Severity:** content accuracy, and **materially narrower than when this was filed.** The half that made days *unusable* is fixed; what remains is that a ticket price may be stale. Every one of these days is `authorKind: "ai"` in the database. **The "AI starter" badge that used to show that to a reader was removed on 2026-10-03** (ADR-041 decision 5), so these days now read the same as a day somebody kept — which makes a stale price here a little more costly than when this was filed.
 - **Area:** `content/playbooks/` — `australia-newzealand`, `britain-ireland`, `california-coast-and-wine`, `finger-lakes-upstate-ny`, `france-cities`, `italy-cities`, `korea-taiwan-hongkong`, `turkey-balkans`. Each file's `bundle.sources` opens with a `PARTIALLY VERIFIED 2026-09-06` line naming exactly what was and was not checked.
 
 #### What was fixed (2026-09-06)
