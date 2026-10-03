@@ -6,7 +6,11 @@ import { NOINDEX } from "@/lib/siteMetadata";
 // The link's own preview card (spec 2026-09-27 §2): the inviter's first name
 // and the trip for a pending invite, the generic invitation for anything else.
 // The route decides which; this only points at it.
-/** Metadata for `/invite/<token>`: the invite card, or the plain title if its lookup fails. */
+/**
+ * Metadata for `/invite/<token>`: the invite card, or the plain title if its
+ * lookup fails, always with `noindex, nofollow`.
+ * @throws {URIError} If the token contains an unpaired UTF-16 surrogate.
+ */
 export async function generateMetadata({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
   const meta = await linkPreviewMetadata(`/api/og/invite/${encodeURIComponent(token)}`, { title: "You're invited" });

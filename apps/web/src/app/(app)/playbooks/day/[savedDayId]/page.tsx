@@ -7,7 +7,12 @@ import { DAY_FALLBACK_TITLE, dayTabTitle, playbooksPageMetadata } from "@/lib/pl
 // author's public name ("Dana R.") when it is published, the Playbooks card
 // otherwise. The route decides which. The link is the clean one; `?from=`
 // changes nothing.
-/** Metadata for `/playbooks/day/<id>`: the day's card, or the Playbooks card if its lookup fails. */
+/**
+ * Metadata for `/playbooks/day/<id>` with a query-free canonical and the day's
+ * name as the tab title, or "A playbook" for a generic or failed card lookup.
+ * Failed lookups use the Playbooks card.
+ * @throws {URIError} If the ID contains an unpaired UTF-16 surrogate.
+ */
 export async function generateMetadata({ params }: { params: Promise<{ savedDayId: string }> }) {
   const { savedDayId } = await params;
   const id = encodeURIComponent(savedDayId);
