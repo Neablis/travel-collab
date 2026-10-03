@@ -12,12 +12,21 @@ import { DISCOVER_PAGE_SIZE } from "./playbooks";
 const MAX_SLUG_LENGTH = 60;
 const UUID_AT_END = /(?:^|-)([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
 
+// Latin letters NFKD does not decompose, spelled the way the place spells
+// them in ASCII. Without this "Wrocław" slugged to "wroc-aw", and a city's
+// URL has no redirect behind it to survive a later fix (review of #299).
+const LATIN_LETTERS: Record<string, string> = {
+  ł: "l", ø: "o", đ: "d", ð: "d", ß: "ss", þ: "th", æ: "ae", œ: "oe", ı: "i", ħ: "h", ŧ: "t", ŋ: "ng",
+};
+const LATIN_LETTER = new RegExp(`[${Object.keys(LATIN_LETTERS).join("")}]`, "g");
+
 /** Lowercase ASCII words joined by hyphens, at most 60 characters; empty when the text has none. */
 export function slugify(text: string): string {
   return text
+    .toLowerCase()
     .normalize("NFKD")
     .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
+    .replace(LATIN_LETTER, (letter) => LATIN_LETTERS[letter]!)
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, MAX_SLUG_LENGTH)
