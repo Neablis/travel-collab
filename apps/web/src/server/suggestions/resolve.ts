@@ -93,20 +93,16 @@ async function accept(
     }
   }
 
-  // Conditional on `pending`, so exactly one resolution wins (W10).
-  const markAccepted = async (executor: Pick<typeof db, "update">) => {
-    const marked = await executor
-      .update(tripSuggestionChanges)
-      .set({ status: "accepted", resolvedBy: reviewerId, resolvedAt: new Date(now) })
-      .where(and(eq(tripSuggestionChanges.id, change.id), eq(tripSuggestionChanges.status, "pending")))
-      .returning();
-    return marked[0];
-  };
-
-  let accepted: ChangeRow | undefined;
+  // Conditional on `pending`, so exactly one resolution wins (W10): losing it
+  // throws, which takes the batch down with it.
+  const resolution = { status: "accepted", resolvedBy: reviewerId, resolvedAt: new Date(now) };
   const mark = async (tx: Pick<typeof db, "update">) => {
-    accepted = await markAccepted(tx);
-    if (accepted === undefined) throw new SuggestionAlreadyResolved(change.id);
+    const marked = await tx
+      .update(tripSuggestionChanges)
+      .set(resolution)
+      .where(and(eq(tripSuggestionChanges.id, change.id), eq(tripSuggestionChanges.status, "pending")))
+      .returning({ id: tripSuggestionChanges.id });
+    if (marked.length === 0) throw new SuggestionAlreadyResolved(change.id);
   };
   try {
     const result = await executeTripCommandBatch(change.commands, reviewerId, mark, {
@@ -118,7 +114,7 @@ async function accept(
       // pipeline's transaction, which confirms the head did not move under the
       // decision (W55): marked afterwards, a trip write in between would leave a
       // change accepted that the trip no longer says.
-      alsoWhenNoOp: mark,
+      runOnNoOp: true,
     });
     // `no-op` committed the mark above, so it is the accept's success.
     if (!result.ok && result.error.code !== "no-op") {
@@ -132,7 +128,7 @@ async function accept(
     }
     throw error;
   }
-  return { ok: true, value: [toChange(accepted!, suggestion)] };
+  return { ok: true, value: [toChange({ ...change, ...resolution }, suggestion)] };
 }
 
 async function cascade(
