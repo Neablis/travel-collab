@@ -1,7 +1,7 @@
 # A member who can suggest: the `suggester` role
 
 **Status:** Design approved by Mitchell, 2026-10-03. Plan:
-`docs/plans/2026-10-03-suggester-role.md`. Decision recorded in **ADR-063**. Not on a milestone:
+`docs/plans/2026-10-03-suggester-role.md`. Decision recorded in **ADR-064**. Not on a milestone:
 Mitchell asked for it directly while M19 is current.
 
 Mitchell's ask: a trip-member role between viewer and editor whose holder can propose changes
@@ -50,7 +50,7 @@ Facts below were checked against `main` at `cffddee`.
    ones that no longer apply.
 5. **Storage is a separate CRUD module, not events.** Pending suggestions live in their own
    tables (a migration). They are not on the trip's stream, because a pending suggestion is not
-   planning state until it is accepted (**ADR-063**). `AGENTS.md`'s module map gets a row.
+   planning state until it is accepted (**ADR-064**). `AGENTS.md`'s module map gets a row.
 6. **Accepting replays the commands** through `executeTripCommandBatch` with the reviewer as the
    actor and a new `Origin` kind, `suggestion`, carrying the suggestion, the change and the
    author. The change row is marked accepted in the same transaction, through the existing
@@ -88,7 +88,7 @@ cheaply.
 | W13 | **A suggester has no undo/redo and no partial discard in v1.** Discard drops the whole draft. | Undo and redo are history commands, which need `"editor"`. A per-unit "remove" is a follow-up if Mitchell wants it. | Pop the last unit: cheap, but it is a new interaction nobody asked for. |
 | W14 | **One route per collection.** `GET`/`POST /api/trips/:id/suggestions` lists and creates. `POST /api/trips/:id/suggestions/changes/:changeId` takes `{ action: "accept" \| "dismiss" \| "withdraw" }`. | That is two `exposure.ts` lines, not four. | A route per verb. |
 | W15 | **"Suggested by" names come from the trip's member profiles** (`TripMemberProfile`, which the Travelers panel already fetches). An author who is no longer a member reads "Suggested by a former traveler". No name is stored on the event or the row. *(PR #304 review: the history DTO carries no names.)* | It uses data the reader is already authorized to see, and adds no new name-resolution route. A former member's name is not something the trip still owes its readers. | Store the display name on the change row or the origin: it goes stale when the person renames, and it copies personal data into the log. |
-| W16 | **The poll reports a revision change on its own callback.** `useTripBroadcast` gains `onSuggestionsChanged(rev)`. It fires when `suggestionsRev` differs from the last value it saw, whether or not `headSeq` moved. *(PR #304 review: today's poll only calls back when `headSeq` advances, so a revision-only change would be dropped.)* | A suggestion changes no planning event, so `headSeq` stays still for exactly the changes W6 exists to announce. | Bump `headSeq`: suggestions are not events (ADR-063). |
+| W16 | **The poll reports a revision change on its own callback.** `useTripBroadcast` gains `onSuggestionsChanged(rev)`. It fires when `suggestionsRev` differs from the last value it saw, whether or not `headSeq` moved. *(PR #304 review: today's poll only calls back when `headSeq` advances, so a revision-only change would be dropped.)* | A suggestion changes no planning event, so `headSeq` stays still for exactly the changes W6 exists to announce. | Bump `headSeq`: suggestions are not events (ADR-064). |
 | W17 | **The note reuses `review.ts`'s `boundedNote(500)`**: it trims, counts code points, and turns a blank note into `null`. *(T1)* | It is one rule for a free-text note, already tested. | A new bound: the same rule written twice. |
 | W18 | **The DismissConflict refusal sits on each unit, not on the whole input.** Its error path is `["units", i, "commands", j]`. *(T1)* | The error names the exact command. | A whole-input refine: the error points at nothing. |
 | W19 | **Public API document → 1.4.0.** The v1 trip schemas carry the role and origin enums, so `openapi.json` was regenerated with a minor bump under `openapi.ts`'s procedure. No `/v1` endpoint is added (§2.7 holds). A strict client that rejects unknown enum values could notice; the repo's rule calls this additive. *(T1)* | `openapi.test.ts` fails on a stale document, correctly. | Keep the v1 enums narrower than the contracts: two definitions of a role. |
@@ -111,7 +111,7 @@ cheaply.
 | W36 | **A send removes only the units it sent, then re-predicts what is left onto the confirmed trip.** An edit made while the request was out survives. Discard takes the same path. *(T6)* | A send in flight must not swallow the next gesture. | Clear everything on success: it loses an edit made during the request. |
 | W37 | **A refused draft is kept.** On 422 the tray names the failing change: "“…” no longer applies to the trip as it is now. Nothing was sent." Any other refusal shows the server's message. *(T6)* | The author decides what to drop. Nothing is lost silently. | Drop the failing unit automatically: it silently edits someone's draft. |
 | W38 | **The save light reads 0 unsent in suggest mode.** The tray counts the draft instead. *(T6)* | Otherwise it would say "Saving N changes" forever. | Count the draft: it reads as broken saving. |
-| W39 | **`createTripSuggestion` does not invalidate the trip cache and is not one of the trip writers.** *(T6)* | A suggestion is not planning state (ADR-063). | Treat it as a write: refetches for nothing. |
+| W39 | **`createTripSuggestion` does not invalidate the trip cache and is not one of the trip writers.** *(T6)* | A suggestion is not planning state (ADR-064). | Treat it as a write: refetches for nothing. |
 | W40 | **The overlay's maps.** `byActivity` holds every ghost about a stop, including a stop a change adds, so a dependent's edit is found under its parent's new stop. `byDay` holds adds only, keyed `string \| null`, where null is the unscheduled rack, as in `MoveActivity.toDayId`. *(T7)* | It follows the board's own keys and conventions. | A plain dayId key: the rack would have nowhere to go. |
 | W41 | **A position-only change counts as a move only for a stop the change itself moved** with `MoveActivity`. *(T7)* | "Its index changed" would mark every neighbour that shifted. | Diff positions: ghost markers on stops nobody touched. |
 | W42 | **`tripLevel` lists every change that has a trip-level command, or has no ghost on anything visible now.** One example is an edit to a stop that is itself only suggested. *(T7)* | Every pending change is reachable from the chip, even when it has nowhere to sit on the board. | Only trip-level commands: some changes could not be reviewed at all. |

@@ -215,7 +215,7 @@ const BatchBody = z.array(BatchableCommand).min(1);
 // same fact as the batch — today, exactly two callers: `insertSavedDay` writing
 // the adds ledger row and its denormalised counter (M11b link 4), and accepting
 // a suggestion marking its change row accepted (`suggestions/resolve.ts`,
-// ADR-063), whose conditional update throws when another accept got there
+// ADR-064), whose conditional update throws when another accept got there
 // first, so a double accept appends one batch, not two. It runs after
 // the events are appended and the projections written, still inside the
 // pipeline's transaction, and only when the batch succeeded; throwing out of it
@@ -232,12 +232,12 @@ const BatchBody = z.array(BatchableCommand).min(1);
 // events, write a planning projection, or decide a command — invariant 1 says
 // planning state is only ever written by the sequence above it. Both callers
 // write only their own module's row, append nothing and decide nothing — the
-// shape this allows (ADR-063 re-read it for the second). A caller wanting
+// shape this allows (ADR-064 re-read it for the second). A caller wanting
 // anything more is a signal the seam is wrong, not an invitation to widen it.
 //
 // `options.origin` is who the batch says asked for it; absent, `{ kind: "user" }`.
 // Only accepting a suggestion passes one: the reviewer is still `actorId`, and
-// the origin names the suggester (ADR-063 decision 3).
+// the origin names the suggester (ADR-064 decision 3).
 //
 // `options.expectedSeq` is a CALLER's precondition on the same check step 5
 // already makes (ADR-050, Pass B): "only if the trip still stands at revision

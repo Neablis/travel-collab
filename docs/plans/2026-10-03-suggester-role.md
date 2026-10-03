@@ -1,7 +1,7 @@
 # Plan: the `suggester` role
 
 Spec: `docs/specs/2026-10-03-suggester-role-design.md` (decisions §2, working decisions W1–W14).
-ADR-063. Branch `claude/trip-propose-role-e917e7-hbqyx9`. Checked against `main` at `cffddee`.
+ADR-064. Branch `claude/trip-propose-role-e917e7-hbqyx9`. Checked against `main` at `cffddee`.
 
 **How it runs.**
 - Each task goes to one `phase-implementer` subagent and stays inside the files it lists.
@@ -120,7 +120,7 @@ and the tests prove it:
   never hand-written)
 - `apps/web/src/server/suggestions/**` (new)
 - `apps/web/src/server/commands.ts` (`options.origin`, and the hook comment naming the second
-  caller per ADR-063)
+  caller per ADR-064)
 - integration tests under `server/suggestions/`
 
 **Content** (spec §4 Server):
@@ -301,7 +301,7 @@ test:int -- suggestions commands`.
 
 **Scope:**
 - `AGENTS.md`: a module-map row for Suggestions, after Access & Membership:
-  `Suggestions | pending suggested changes and their review state | CRUD with audit fields; reaches the trip only by replaying commands through the pipeline (ADR-063) | planning state — a pending change is not on the stream`
+  `Suggestions | pending suggested changes and their review state | CRUD with audit fields; reaches the trip only by replaying commands through the pipeline (ADR-064) | planning state — a pending change is not on the stream`
 - `docs/STATUS.md`: one line, if the file carries in-flight work off-milestone
 - the spec's §3, for any W15+ decisions
 

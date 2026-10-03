@@ -13,7 +13,7 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
-## 2026-10-03 — The `suggester` role, and suggestions as a contract (ADR-063); Public API 1.4.0
+## 2026-10-03 — The `suggester` role, and suggestions as a contract (ADR-064); Public API 1.4.0
 
 - **Added:** `suggester` to `TripRole` (now `viewer, suggester, editor, owner`, least-privileged
   first).
@@ -30,7 +30,7 @@ Format:
   - Its optional note is trimmed and capped at 500 characters with `review.ts`'s `boundedNote`,
     so a blank note parses to `null`.
 - Why: Mitchell asked for a role that can propose changes for an editor to approve. See
-  `docs/specs/2026-10-03-suggester-role-design.md` and ADR-063.
+  `docs/specs/2026-10-03-suggester-role-design.md` and ADR-064.
 - Consumers updated:
   - `packages/domain/src/trip/history.ts`: `suggestion` is treated as `user` in the undo stack
     and in the history sentence (W11).

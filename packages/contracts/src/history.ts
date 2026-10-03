@@ -8,7 +8,7 @@ export const Origin = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("undo"), undoesBatchId: z.string().uuid() }),
   z.object({ kind: z.literal("redo"), redoesBatchId: z.string().uuid() }),
   z.object({ kind: z.literal("revert"), toSeq: z.number().int().positive() }),
-  // An accepted suggestion (ADR-063). The envelope's actor is the reviewer who
+  // An accepted suggestion (ADR-064). The envelope's actor is the reviewer who
   // accepted it; the person who asked for it survives only here, so history
   // can say "Suggested by …". The domain treats it exactly like `user`.
   z.object({
