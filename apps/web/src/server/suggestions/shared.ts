@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { SuggestionChange, SuggestionChangeStatus, TripRole } from "@tc/contracts";
+import { SuggestionChange, type TripRole } from "@tc/contracts";
 import { tripAccessFor } from "../access/trip-access";
 import { tripSuggestionChanges, tripSuggestions } from "../db/schema";
 
@@ -57,9 +57,22 @@ export type ChangeRow = typeof tripSuggestionChanges.$inferSelect;
 /** A stored suggestion, the group its changes were sent in. */
 export type SuggestionRow = typeof tripSuggestions.$inferSelect;
 
-/** A stored change as the contract serves it. `mode: "date"` columns, so one ISO rendering (KI-53). */
-export function toChange(row: ChangeRow, suggestion: Pick<SuggestionRow, "authorId" | "note">): SuggestionChange {
-  return {
+/**
+ * A stored change as the contract serves it, or null — logged — when the row
+ * no longer parses. `mode: "date"` columns, so one ISO rendering (KI-53).
+ *
+ * **Lenient per row, never per list** (review of #308). `commands` is stored
+ * verbatim and kept for up to `SUGGESTION_TTL_DAYS`, so a row can outlive the
+ * release whose `BatchableCommand` it was checked against. The contract still
+ * promises today's commands, so such a row is not served at all: it is left
+ * out of what it would have been part of, and the rest is served. Dismiss and
+ * withdraw never read `commands`, so it can still be cleared by id; accept
+ * replays them through the pipeline, which refuses them as `invalid-command`
+ * and so `no-longer-applies`. The revision is taken over the rows, not over
+ * what was served, so the list and the poll still agree.
+ */
+export function toChange(row: ChangeRow, suggestion: Pick<SuggestionRow, "authorId" | "note">): SuggestionChange | null {
+  const parsed = SuggestionChange.safeParse({
     id: row.id,
     suggestionId: row.suggestionId,
     tripId: row.tripId,
@@ -68,11 +81,24 @@ export function toChange(row: ChangeRow, suggestion: Pick<SuggestionRow, "author
     createdAt: row.createdAt.toISOString(),
     commands: row.commands,
     description: row.description,
-    status: row.status as SuggestionChangeStatus,
+    status: row.status,
     dependsOn: row.dependsOn,
     resolvedBy: row.resolvedBy,
     resolvedAt: row.resolvedAt === null ? null : row.resolvedAt.toISOString(),
-  };
+  });
+  if (parsed.success) return parsed.data;
+  // The issues, not the row: the trip and change ids are what make it findable.
+  console.error("trip_suggestion_changes row failed SuggestionChange parse", {
+    tripId: row.tripId,
+    changeId: row.id,
+    issues: parsed.error.issues,
+  });
+  return null;
+}
+
+/** {@link toChange} over rows of one suggestion, leaving out any that do not parse. */
+export function toChanges(rows: readonly ChangeRow[], suggestion: Pick<SuggestionRow, "authorId" | "note">): SuggestionChange[] {
+  return rows.flatMap((row) => toChange(row, suggestion) ?? []);
 }
 
 /**

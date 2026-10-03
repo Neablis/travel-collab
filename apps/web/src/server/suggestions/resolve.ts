@@ -5,7 +5,7 @@ import { executeTripCommandBatch } from "../commands";
 import { db } from "../db/client";
 import { tripSuggestionChanges, tripSuggestions } from "../db/schema";
 import { isUuid } from "../ids";
-import { refuse, roleOn, toChange, type ChangeRow, type SuggestionResult, type SuggestionRow } from "./shared";
+import { refuse, roleOn, toChanges, type ChangeRow, type SuggestionResult, type SuggestionRow } from "./shared";
 
 /**
  * Thrown from inside the accept batch's transaction when the change is no
@@ -128,7 +128,7 @@ async function accept(
     }
     throw error;
   }
-  return { ok: true, value: [toChange({ ...change, ...resolution }, suggestion)] };
+  return { ok: true, value: toChanges([{ ...change, ...resolution }], suggestion) };
 }
 
 async function cascade(
@@ -177,6 +177,6 @@ async function cascade(
             .set(resolution)
             .where(and(inArray(tripSuggestionChanges.id, [...closure]), eq(tripSuggestionChanges.status, "pending")))
             .returning();
-    return { ok: true, value: [...named, ...dependents].map((r) => toChange(r, suggestion)) };
+    return { ok: true, value: toChanges([...named, ...dependents], suggestion) };
   });
 }

@@ -8,6 +8,7 @@ import { db } from "@/server/db/client";
 import { tripSuggestionChanges, users } from "@/server/db/schema";
 import { MAX_SUGGESTION_BODY_BYTES } from "@/server/suggestions/http";
 import { entitleAccounts } from "@/server/test-support/entitledAccount";
+import { insertStoredSuggestion, unparseableCommands } from "@/server/test-support/storedSuggestion";
 
 let currentUserId = "";
 
@@ -143,6 +144,17 @@ describe("GET /api/trips/:id/suggestions", () => {
   it("401s without a session", async () => {
     currentUserId = "";
     expect((await list()).status).toBe(401);
+  });
+
+  // Review of #308: one stored row a past release wrote is not the whole list's 500.
+  it("serves the list without a stored change whose commands no longer parse", async () => {
+    await send({ units: [{ commands: [rename("Kyoto in spring")] }] });
+    await insertStoredSuggestion({ tripId, authorId: SUGGESTER, commands: unparseableCommands(tripId) });
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    const res = await list();
+    errors.mockRestore();
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as TripSuggestionsResponse).changes).toHaveLength(1);
   });
 
   // Plan T5: a viewer is answered as if there were nothing here.

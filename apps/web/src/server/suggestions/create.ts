@@ -9,7 +9,7 @@ import { db } from "../db/client";
 import { tripSuggestionChanges, tripSuggestions } from "../db/schema";
 import { readStream } from "../eventStore";
 import { dependsOn, effectOf, type UnitEffect } from "./dependencies";
-import { refuse, toChange, type SuggestionResult } from "./shared";
+import { refuse, toChanges, type SuggestionResult } from "./shared";
 
 /**
  * Store a suggester's draft as one suggestion of N changes, one per unit
@@ -94,6 +94,6 @@ export async function createSuggestion(
     }));
     await tx.insert(tripSuggestions).values(suggestion);
     await tx.insert(tripSuggestionChanges).values(rows);
-    return { ok: true, value: rows.map((row) => toChange(row, suggestion)) };
+    return { ok: true, value: toChanges(rows, suggestion) };
   });
 }

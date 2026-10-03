@@ -9,6 +9,7 @@ import { tripDetails, tripSuggestionChanges, tripSuggestions, users } from "../d
 import { readStream } from "../eventStore";
 import { getTripDetail } from "../projections";
 import { entitleAccounts } from "../test-support/entitledAccount";
+import { insertStoredSuggestion, unparseableCommands } from "../test-support/storedSuggestion";
 import { createSuggestion } from "./create";
 import { listSuggestionChanges } from "./list";
 import { resolveSuggestionChange } from "./resolve";
@@ -304,6 +305,43 @@ describe("listSuggestionChanges", () => {
     const before = await revFor(SUGGESTER);
     await resolveSuggestionChange(tripId, change!.id, OWNER, "dismiss");
     expect(await revFor(SUGGESTER)).not.toBe(before);
+  });
+});
+
+// Review of #308. A stored row is whatever a past release wrote; a command
+// that has since left `BatchableCommand` must not take the whole list down
+// with it, and the one thing a reviewer can still do with it is be rid of it.
+describe("a stored change whose commands no longer parse", () => {
+  const insertUnparseable = async (): Promise<string> =>
+    (await insertStoredSuggestion({ tripId, authorId: SUGGESTER, commands: unparseableCommands(tripId) }))[0]!;
+
+  it("is left out of the list and logged, while the revision still agrees with the poll's", async () => {
+    const [good] = await suggest(draft([rename("Sam's Kyoto")]));
+    const bad = await insertUnparseable();
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const listed = await listSuggestionChanges(tripId, OWNER);
+    expect(listed.ok && listed.value.changes.map((c) => c.id)).toEqual([good!.id]);
+    expect(errors).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ changeId: bad }));
+    errors.mockRestore();
+    expect(listed.ok && listed.value.rev).toBe(await revFor(OWNER));
+  });
+
+  it("can still be dismissed or withdrawn by id, and an accept is refused with the row left pending", async () => {
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    const accepted = await insertUnparseable();
+    expect(await resolveSuggestionChange(tripId, accepted, OWNER, "accept")).toMatchObject({
+      ok: false,
+      error: { code: "no-longer-applies" },
+    });
+    expect(await statusOf(accepted)).toBe("pending");
+
+    expect((await resolveSuggestionChange(tripId, accepted, OWNER, "dismiss")).ok).toBe(true);
+    expect(await statusOf(accepted)).toBe("dismissed");
+    const withdrawn = await insertUnparseable();
+    expect((await resolveSuggestionChange(tripId, withdrawn, SUGGESTER, "withdraw")).ok).toBe(true);
+    expect(await statusOf(withdrawn)).toBe("withdrawn");
+    errors.mockRestore();
   });
 });
 

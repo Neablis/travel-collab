@@ -48,6 +48,6 @@ export async function listSuggestionChanges(
       asc(tripSuggestionChanges.suggestionId),
       asc(tripSuggestionChanges.position),
     );
-  const changes = rows.map((r) => toChange(r.change, r.suggestion));
-  return { ok: true, value: { changes, rev: revOf(changes) } };
+  const changes = rows.flatMap((r) => toChange(r.change, r.suggestion) ?? []);
+  return { ok: true, value: { changes, rev: revOf(rows.map((r) => r.change)) } };
 }
