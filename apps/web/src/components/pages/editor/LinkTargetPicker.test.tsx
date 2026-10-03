@@ -13,6 +13,7 @@ import { LinkTargetPicker } from "./LinkTargetPicker";
 
 const MONEY = "44444444-4444-4444-8444-444444444444";
 const OVERVIEW = "55555555-5555-4555-8555-555555555555";
+const PACKING = "77777777-7777-4777-8777-777777777777";
 
 function trip(): TripDetail {
   const t = tripDetailFactory.build({}, { transient: { dayCount: 2, activitiesPerDay: 1, startDate: "2026-10-12" } });
@@ -27,12 +28,20 @@ const server = setupServer(
         {
           id: OVERVIEW, tripId: params.tripId, title: "Overview", context: { tripId: params.tripId, kind: "overview" },
           createdAt: "2026-09-26T00:00:00.000Z", updatedAt: "2026-09-26T00:00:00.000Z", actorId: "system",
+          seedKey: "overview",
           preview: { firstLine: "Here is your itinerary.", widgetCount: 6 },
         },
         {
           id: MONEY, tripId: params.tripId, title: "Money", context: { tripId: params.tripId },
           createdAt: "2026-09-26T00:00:00.001Z", updatedAt: "2026-09-26T00:00:00.001Z", actorId: "system",
+          seedKey: "money",
           preview: { firstLine: "What the trip costs, day by day, against the budget.", widgetCount: 2 },
+        },
+        // One a person made: it did not come with the trip, so it has no seed key.
+        {
+          id: PACKING, tripId: params.tripId, title: "Packing", context: { tripId: params.tripId },
+          createdAt: "2026-09-27T00:00:00.000Z", updatedAt: "2026-09-27T00:00:00.000Z", actorId: "dev-alice",
+          preview: { firstLine: "What goes in the bag.", widgetCount: 0 },
         },
       ],
     }),
@@ -59,10 +68,11 @@ describe("LinkTargetPicker", () => {
     expect(screen.getByRole("option", { name: /^Map/ })).toBeTruthy();
   });
 
-  // Autocomplete, and what is WRITTEN: the notebook's id in a `LinkTarget`,
-  // never its title or a URL. Seen red by writing the combobox's encoded
-  // string through instead of decoding it.
-  it("narrows as you type and stores the chosen notebook by id", async () => {
+  // Autocomplete, and what is WRITTEN: a `LinkTarget`, never a title or a URL.
+  // Seen red by writing the combobox's encoded string through instead of
+  // decoding it. A default notebook is written by its seed key (Mitchell,
+  // 2026-10-03), so the link finds the trip's Money whichever page that is.
+  it("narrows as you type and stores a default notebook by its seed key", async () => {
     const onChange = vi.fn();
     render(<LinkTargetPicker id="to" label="Links to" value={undefined} detail={trip()} globals={null} onChange={onChange} layout="stacked" />);
     await screen.findByRole("option", { name: /Money/ });
@@ -72,7 +82,34 @@ describe("LinkTargetPicker", () => {
       "MoneyWhat the trip costs, day by day, against the budget.",
     ]);
     fireEvent.keyDown(box, { key: "Enter" });
-    expect(onChange).toHaveBeenCalledWith({ kind: "notebook", pageId: MONEY });
+    expect(onChange).toHaveBeenCalledWith({ kind: "seed", seedKey: "money" });
+  });
+
+  it("stores a notebook somebody made by its id", async () => {
+    const onChange = vi.fn();
+    render(<LinkTargetPicker id="to" label="Links to" value={undefined} detail={trip()} globals={null} onChange={onChange} layout="stacked" />);
+    await screen.findByRole("option", { name: /Packing/ });
+    const box = screen.getByRole("combobox", { name: "Links to" });
+    fireEvent.change(box, { target: { value: "bag" } });
+    fireEvent.keyDown(box, { key: "Enter" });
+    expect(onChange).toHaveBeenCalledWith({ kind: "notebook", pageId: PACKING });
+  });
+
+  // A link written before seed keys names Money by its id. It is still Money,
+  // and must show as it rather than as a deleted notebook.
+  it("shows a default notebook as itself whether the link names it by id or by seed key", async () => {
+    for (const value of [{ kind: "notebook" as const, pageId: MONEY }, { kind: "seed" as const, seedKey: "money" }]) {
+      render(<LinkTargetPicker id="to" label="Links to" value={value} detail={trip()} globals={null} onChange={() => {}} layout="stacked" />);
+      await waitFor(() => expect((screen.getByRole("combobox", { name: "Links to" }) as HTMLInputElement).value).toBe("Money"));
+      cleanup();
+    }
+  });
+
+  it("shows a link to a default the trip does not have by the template's name", async () => {
+    render(
+      <LinkTargetPicker id="to" label="Links to" value={{ kind: "seed", seedKey: "before-you-go" }} detail={trip()} globals={null} onChange={() => {}} layout="stacked" />,
+    );
+    expect((screen.getByRole("combobox", { name: "Links to" }) as HTMLInputElement).value).toBe("Before you go (not in this trip yet)");
   });
 
   it("stores a day by its id, and a tab by its name", async () => {

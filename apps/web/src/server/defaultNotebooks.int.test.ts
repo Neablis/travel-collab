@@ -84,6 +84,26 @@ describe("addMissingDefaultPages", () => {
   });
 });
 
+// A link card to a missing default adds that one notebook (Mitchell,
+// 2026-10-03). The others stay missing: the card asked for Money, not for
+// everything the index's button would add.
+describe("addMissingDefaultPages, asked for one default", () => {
+  it("adds that notebook and leaves the other missing ones missing", async () => {
+    const ownerId = owner();
+    const tripId = await tripOwnedBy(ownerId);
+    for (const page of (await listPages(tripId)).filter((p) => p.context.kind !== "overview")) {
+      expect((await executePageCommand({ type: "DeletePage", tripId, pageId: page.id }, ownerId)).ok).toBe(true);
+    }
+
+    expect((await addMissingDefaultPages(tripId, ownerId, "money")).ok).toBe(true);
+    expect((await listPages(tripId)).map((p) => p.seedKey).sort()).toEqual(["money", "overview"]);
+
+    // Asked again for the one it now has: nothing written.
+    const again = await addMissingDefaultPages(tripId, ownerId, "money");
+    expect(again.ok && again.seq).toBe(null);
+  });
+});
+
 // Mitchell, 2026-09-27: *"You should be allowed to rename a default notebook,
 // or delete one."* A default is known by its seed key, so a renamed one is
 // still that default: "Add missing" has nothing to add, and Reset still works.
@@ -143,20 +163,11 @@ describe("resetPageToDefault", () => {
     expect(reset.ok).toBe(true);
     if (!reset.ok) return;
 
-    // Same id, the template's title, and the template's document built against
-    // this trip's own siblings (what the Overview's links resolve through).
+    // Same id, the template's title, and the template's document, whose links
+    // name this trip's siblings by seed key and so need nothing built per trip.
     expect(reset.page?.id).toBe(overview.id);
     expect(reset.page?.title).toBe(OVERVIEW_TEMPLATE.title);
-    // Built here from the rows, NOT through `defaultDocumentFor` — asking the
-    // function under test for the expected value passed with its sibling ids
-    // thrown away (seen, red-first).
-    const idsByKey = Object.fromEntries(
-      DEFAULT_TEMPLATES.map((t) => [
-        t.key,
-        seeded.find((p) => (t === OVERVIEW_TEMPLATE ? p.context.kind === "overview" : p.title === t.title))!.id,
-      ]),
-    );
-    expect(PageDoc.parse(reset.page?.content)).toEqual(PageDoc.parse(OVERVIEW_TEMPLATE.buildContent!(idsByKey)));
+    expect(PageDoc.parse(reset.page?.content)).toEqual(PageDoc.parse(OVERVIEW_TEMPLATE.content));
 
     // One more edit in the trip's log, not a delete and recreate.
     const stream = await readStream(db, tripId);

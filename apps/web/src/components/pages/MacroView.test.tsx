@@ -504,7 +504,7 @@ pendingReason: null,
   const richExternal: ExternalInputs = {
     notebooks: {
       state: "ready",
-      value: { pages: [{ id: LINKED_NOTEBOOK, title: "Money", firstLine: "What it costs.", widgetCount: 2 }] },
+      value: { pages: [{ id: LINKED_NOTEBOOK, seedKey: null, title: "Money", firstLine: "What it costs.", widgetCount: 2 }] },
     },
     weather: {
       state: "ready",

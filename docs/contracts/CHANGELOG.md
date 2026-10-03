@@ -48,6 +48,21 @@ Format:
   meets an unknown role only when someone is a suggester, and an unknown origin only after a
   suggestion is accepted. `InviteRole` is unchanged here, so nobody can be made a suggester yet.
 
+## 2026-10-03 — Adding one default notebook: `AddDefaultPagesInput` (ADR-056, amended)
+
+- **Added:** `AddDefaultPagesInput` (`packages/contracts/src/pages.ts`), `{ seedKey?: SeedKey }`:
+  the body of `POST /api/trips/:tripId/pages/defaults`. Without `seedKey` the route adds every
+  default notebook the trip lacks, as before. With one it adds that template's seed only.
+- **Changed, not in `packages/contracts`:** `@tc/pages`' `LinkTarget` gains
+  `{ kind: "seed", seedKey }`, and `link.internal` may now resolve to a `link-missing` block
+  payload. Both are stored-page and render shapes owned by `@tc/pages`.
+- Why: Mitchell, 2026-10-03. A link to a default notebook should find it when it is added
+  later, and a card for a missing one should offer to add it.
+- Consumers updated: `apps/web` (the route, `pagesClient.addMissingDefaultNotebooks`, the MSW
+  handler, `MissingNotebookBlock`), `@tc/pages` (templates, `link.internal`, the picker's
+  encoding) — in this same change.
+- Breaking? no — the body was `{}` and still may be; a stored page with id links reads as it did.
+
 ## 2026-10-02 — The library names people "Dana R.": `DiscoverDay.ownerDisplayName`, and what the names mean (ADR-061 decision 4, amended)
 
 - **Added (web-local wire shape, not `packages/contracts`):** `DiscoverDay.ownerDisplayName`

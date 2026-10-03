@@ -4,6 +4,7 @@ import type { AccountPlanView } from "@/lib/accountPlan";
 import type { AdminReportQueueItem } from "@/lib/reports";
 import type { PlaceMatch, PlaceSearchResponse } from "@/lib/cities";
 import {
+  AddDefaultPagesInput,
   AdminReportAction,
   BatchableCommand,
   CreatePageInput,
@@ -381,10 +382,11 @@ export function makePagesHandlers(
     // functions the server uses, so a mocked reset puts back what a real one
     // would. The reset's Undo reads a version kept here, where the server folds
     // the log to `toSeq`.
-    http.post("/api/trips/:tripId/pages/defaults", ({ params }) => {
+    http.post("/api/trips/:tripId/pages/defaults", async ({ params, request }) => {
       const tripId = params.tripId as string;
+      const { seedKey } = AddDefaultPagesInput.parse(await request.json());
       const now = new Date().toISOString();
-      for (const seed of instantiateMissingDefaults(tripId, pages.filter((p) => p.tripId === tripId), () => crypto.randomUUID())) {
+      for (const seed of instantiateMissingDefaults(tripId, pages.filter((p) => p.tripId === tripId), () => crypto.randomUUID(), [], seedKey)) {
         pages.push({ ...seed, tripId, createdAt: now, updatedAt: now, actorId: SYSTEM_ACTOR_ID });
       }
       return HttpResponse.json({
@@ -396,7 +398,7 @@ export function makePagesHandlers(
       const idx = pages.findIndex((p) => p.id === params.pageId && p.tripId === params.tripId);
       if (idx === -1) return HttpResponse.json({ error: "not-found" }, { status: 404 });
       const existing = pages[idx]!;
-      const seed = defaultDocumentFor(existing, pages.filter((p) => p.tripId === params.tripId));
+      const seed = defaultDocumentFor(existing);
       if (seed === null) return HttpResponse.json({ error: "not a default", code: "not-a-default" }, { status: 409 });
       versions.set(++versionSeq, existing);
       const reset: Page = { ...existing, ...seed, updatedAt: new Date().toISOString() };
