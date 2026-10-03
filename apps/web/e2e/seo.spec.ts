@@ -82,11 +82,10 @@ test("sitemap.xml lists the static routes and published days, never a private on
   const city = `Sitemape2e${randomUUID().replace(/-/g, "").slice(0, 8)}`;
   const publishedId = await publishedDay(page, city, `Listed ${city}`);
   const privateId = await publishedDay(page, city, `Withdrawn ${city}`);
-  // Unpublished again: private, and so absent, like a deleted or moderated day.
-  await page.request.delete(`/api/saved-days/${privateId}/publish`);
-
+  const visitor = await stranger(browser);
   try {
-    const visitor = await stranger(browser);
+    // Unpublished again: private, and so absent, like a deleted or moderated day.
+    await page.request.delete(`/api/saved-days/${privateId}/publish`);
     const response = await visitor.request.get("/sitemap.xml");
     expect(response.status()).toBe(200);
     const xml = await response.text();
@@ -99,10 +98,11 @@ test("sitemap.xml lists the static routes and published days, never a private on
     expect(xml).not.toContain(privateId);
     expect(xml).not.toContain("/playbooks/board");
     expect(xml).not.toContain("/playbooks/profile/");
-    await visitor.context().close();
   } finally {
-    await forget(page, publishedId);
-    await page.request.delete(`/api/saved-days/${privateId}`);
+    // A failed assertion still closes the stranger and removes both days,
+    // and the private one goes even if `forget` throws (CodeRabbit, PR #296).
+    await visitor.context().close();
+    await forget(page, publishedId).finally(() => page.request.delete(`/api/saved-days/${privateId}`));
   }
 });
 
