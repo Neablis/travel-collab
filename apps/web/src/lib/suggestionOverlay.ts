@@ -7,7 +7,7 @@ import { predictBatch } from "@tc/predict";
 // no-op sub-command as accepting will (W51), so a change is stale only when
 // accepting it would be refused, a change already true throughout included. Nothing
 // here is planning state — the server holds no projection of an unaccepted
-// change (ADR-063), and neither does this.
+// change (ADR-064), and neither does this.
 
 export type GhostKind = "add" | "update" | "move" | "remove";
 

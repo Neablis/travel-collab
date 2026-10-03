@@ -11,7 +11,7 @@ export interface AccessPolicy {
 /**
  * Each role's rank, least-privileged first. The only ranking of roles in the
  * app: `access/members.ts` reads this one rather than keeping its own, so
- * inserting a role (ADR-063's `suggester`) is one edit, not an audit.
+ * inserting a role (ADR-064's `suggester`) is one edit, not an audit.
  */
 export const RANK: Record<TripRole, number> = { viewer: 0, suggester: 1, editor: 2, owner: 3 };
 

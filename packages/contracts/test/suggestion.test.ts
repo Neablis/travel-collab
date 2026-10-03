@@ -98,7 +98,7 @@ describe("SuggestionChange / TripSuggestionsResponse", () => {
   });
 });
 
-// ADR-063: an accepted change is replayed by the reviewer, and the envelope's
+// ADR-064: an accepted change is replayed by the reviewer, and the envelope's
 // origin is the only place the author survives.
 describe("Origin: suggestion", () => {
   const origin = { kind: "suggestion", suggestionId, changeId, authorId: "dev-bob" };

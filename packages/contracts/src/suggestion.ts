@@ -3,7 +3,7 @@ import { boundedNote } from "./review.ts";
 import { BatchableCommand } from "./trip.ts";
 
 // Suggestions: a `suggester`'s board edits, held for an editor or the owner to
-// accept or dismiss one change at a time (ADR-063, spec 2026-10-03).
+// accept or dismiss one change at a time (ADR-064, spec 2026-10-03).
 //
 // **Not events.** A pending suggestion is not planning state until someone
 // accepts it, so it lives in its own CRUD tables and never on the trip's

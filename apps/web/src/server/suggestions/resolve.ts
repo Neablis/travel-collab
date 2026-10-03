@@ -26,7 +26,7 @@ const RESOLVED_AS = { accept: "accepted", dismiss: "dismissed", withdraw: "withd
  *   and only while they can still see it (at least `suggester`).
  * - **Accept** refuses while any change it depends on is not yet accepted, then
  *   replays its commands through the ordinary pipeline as the reviewer, with
- *   `Origin` `suggestion` (ADR-063). A refusal there leaves the row pending:
+ *   `Origin` `suggestion` (ADR-064). A refusal there leaves the row pending:
  *   the reviewer decides, and accepting must not quietly become dismissing.
  *   A change the trip already reflects throughout is accepted with nothing
  *   appended (W52).

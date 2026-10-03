@@ -1,4 +1,4 @@
-# ADR-063: A suggestion is not planning state until it is accepted
+# ADR-064: A suggestion is not planning state until it is accepted
 
 **Status:** **Accepted — 2026-10-03.** Mitchell approved the design. This ADR records the boundary.
 **Deciders:** Mitchell (product); Claude — drafted

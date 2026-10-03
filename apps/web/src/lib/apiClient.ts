@@ -474,7 +474,7 @@ export function inviteLink(token: string): string {
   return apiUrl(`/invite/${encodeURIComponent(token)}`);
 }
 
-// ── Suggestions (spec 2026-10-03, ADR-063) ───────────────────────────────────
+// ── Suggestions (spec 2026-10-03, ADR-064) ───────────────────────────────────
 
 // The create route's 201 body, and the resolve route's 200 (W33). Contracts
 // names the list read's shape (`TripSuggestionsResponse`) but not this one,
@@ -490,7 +490,7 @@ export type SuggestionRefusal = ApiError & { index?: number };
 
 /**
  * Send a suggester's draft. Not a trip write — a suggestion is not planning
- * state (ADR-063) — so it does not invalidate the trip's cached reads.
+ * state (ADR-064) — so it does not invalidate the trip's cached reads.
  */
 export async function createTripSuggestion(
   tripId: string,

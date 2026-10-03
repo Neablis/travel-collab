@@ -6,7 +6,7 @@ import { db } from "../db/client";
 import { tripSuggestionChanges, tripSuggestions } from "../db/schema";
 import { getTripDetail } from "../projections";
 
-// The Suggestions module's refusals (ADR-063). Expected outcomes, so they are
+// The Suggestions module's refusals (ADR-064). Expected outcomes, so they are
 // returned rather than thrown — `access/invites.ts`'s `AccessResult` shape. The
 // routes (T5) turn a code into a status; nothing here knows HTTP.
 export type SuggestionErrorCode =

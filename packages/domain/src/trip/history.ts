@@ -126,7 +126,7 @@ export function deriveUndoRedo(batches: Batch[]): UndoRedoTargets {
     if (batch.events.length === 0) continue;
     switch (batch.origin.kind) {
       case "user":
-      // An accepted suggestion is the reviewer's edit like any other (ADR-063,
+      // An accepted suggestion is the reviewer's edit like any other (ADR-064,
       // spec W11); its origin only remembers who asked for it.
       case "suggestion":
       case "revert":

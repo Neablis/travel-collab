@@ -10,7 +10,7 @@ export const EventEnvelope = z.object({
   actorId: z.string().min(1),
   occurredAt: z.string(), // ISO 8601
   batchId: z.string().uuid(), // one per command execution (M2)
-  origin: Origin, // provenance: user | undo | redo | revert | suggestion (M2, ADR-005, ADR-063)
+  origin: Origin, // provenance: user | undo | redo | revert | suggestion (M2, ADR-005, ADR-064)
 });
 export type EventEnvelope = z.infer<typeof EventEnvelope>;
 
@@ -32,7 +32,7 @@ export type EventEnvelope = z.infer<typeof EventEnvelope>;
  * answer plus a warning.
  *
  * `suggestionsRev` is an opaque revision of the pending suggestions this
- * caller may see (ADR-063, spec W6): it changes when one is sent or resolved,
+ * caller may see (ADR-064, spec W6): it changes when one is sent or resolved,
  * and the client refetches the list when it does. It rides this poll so the
  * tray does not need a second one. Absent for a caller who sees no
  * suggestions — a viewer, an invite-token or a demo read — and from every

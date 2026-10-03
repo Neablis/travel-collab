@@ -20,7 +20,7 @@
   unsent work — the same `pending` reading `dispatch`'s history-command branch
   keeps as an undecided product rule (its comment, after KI-090).
 - **Cross-reference:** spec `docs/specs/2026-10-03-suggester-role-design.md`
-  §2.3, W7, W13; ADR-063; `resolved/KI-090-…` (resolved; it left the silent
+  §2.3, W7, W13; ADR-064; `resolved/KI-090-…` (resolved; it left the silent
   `return` on the history-command path, the same shape, as a product rule).
 - **First noted:** 2026-10-03, while building the suggester role; moved here
   from the spec's §6 in that branch's review.

@@ -17,7 +17,7 @@
   sites in `TripBoardScreen.tsx` should then branch on `boardMode` rather than
   `readOnly` alone, so a viewer keeps today's sentence.
 - **Cross-reference:** spec `docs/specs/2026-10-03-suggester-role-design.md`
-  §2.2, W8, W35; ADR-063; AGENTS.md invariant 7 (the assistant takes only
+  §2.2, W8, W35; ADR-064; AGENTS.md invariant 7 (the assistant takes only
   paths the user could take — why it stays read-only here).
 - **First noted:** 2026-10-03, while building the suggester role; moved here
   from the spec's §6 in that branch's review.

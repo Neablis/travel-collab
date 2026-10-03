@@ -454,7 +454,7 @@ export const tripShares = pgTable(
   (t) => [uniqueIndex("trip_shares_token").on(t.token), index("trip_shares_trip").on(t.tripId)],
 );
 
-// Suggestions (ADR-063): a `suggester`'s board edits, held for an editor or the
+// Suggestions (ADR-064): a `suggester`'s board edits, held for an editor or the
 // owner to accept or dismiss one change at a time. CRUD with audit fields, and
 // **never planning state** — nothing here is on the trip's stream, and the only
 // way a row reaches the trip is `executeTripCommandBatch` replaying its

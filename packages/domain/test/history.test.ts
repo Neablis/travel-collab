@@ -190,7 +190,7 @@ describe("buildHistoryEntries", () => {
     expect(entries[3]!.origin.kind).toBe("undo");
   });
 
-  // ADR-063 / spec W11: an accepted suggestion is the reviewer replaying the
+  // ADR-064 / spec W11: an accepted suggestion is the reviewer replaying the
   // author's commands, so it is an ordinary edit — undoable, and worded the
   // way the same commands would be. The UI adds "Suggested by …"; the domain
   // knows ids, never names.

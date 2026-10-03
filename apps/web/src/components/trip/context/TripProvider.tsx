@@ -709,7 +709,7 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
   // Discarding and a stored draft leave the queue the same way: the units go,
   // and whatever is left is re-predicted onto the confirmed trip it no longer
   // sits on top of. Confirmed itself never moves — a suggestion applies
-  // nothing (ADR-063).
+  // nothing (ADR-064).
   const dropUnits = useCallback((ids: ReadonlySet<string>) => {
     setOptimistic((prev) =>
       prev ? adoptOutcome({ ...prev, pending: prev.pending.filter((u) => !ids.has(u.id)) }, prev.confirmed) : prev,

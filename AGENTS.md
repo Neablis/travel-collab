@@ -69,7 +69,7 @@ Modules own their data and commands; they reference other modules by ID only.
 | **Identity** | accounts, OAuth, sessions, profiles | CRUD + audit fields | trips, invites, anything travel |
 | **Trip Planning** | trips, days, activities, itinerary structure | **event-sourced** | who's invited, sharing, votes |
 | **Access & Membership** | invites, roles, revocation, share grants | CRUD + audit fields | what a trip contains |
-| **Suggestions** | pending suggested changes and their review state | CRUD with audit fields; reaches the trip **only** by replaying its commands through the pipeline as the reviewer (**ADR-063**) | planning state — a pending change is not on the stream |
+| **Suggestions** | pending suggested changes and their review state | CRUD with audit fields; reaches the trip **only** by replaying its commands through the pipeline as the reviewer (**ADR-064**) | planning state — a pending change is not on the stream |
 | **History** | event log, replay, undo/revert, fork lineage | the substrate itself | domain semantics (stores/replays, never interprets) |
 | **Conflict Engine** | validation rules, Conflict objects | pure functions | UI, storage |
 | **Community** (Phase 3) | gallery, votes, reports | CRUD + audit fields | planning internals (consumes published snapshots) |
