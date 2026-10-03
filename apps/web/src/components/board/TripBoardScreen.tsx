@@ -23,6 +23,7 @@ import { TagFocusLine } from "@/components/trip/TagFocusLine";
 import { PageContainer } from "@/components/ui/page-container";
 import { TripHeader } from "@/components/trip/TripHeader";
 import { AddSavedDayButton } from "@/components/trip/AddSavedDayButton";
+import { useBoardSuggestions } from "./SuggestionActions";
 import { SuggestionTray } from "./SuggestionTray";
 import { ActivityEditorSheet } from "@/components/trip/editor/ActivityEditorSheet";
 import { PeopleProvider } from "@/components/pages/people";
@@ -101,6 +102,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   const { trip, activeTrip, history, status, error, dispatch, dispatchBatch, applyOutcome, preview, pending, readOnly, canEditBoard, boardMode, draft, remoteRevision, confirmedSeq } = useTrip();
   const { view } = useLens();
   const { openEdit } = useEditor();
+  const suggestions = useBoardSuggestions();
   // Task 4's FocusProvider is mounted around this whole tree (trips/[tripId]/
   // page.tsx), so this hook must run unconditionally before the early
   // returns below — the day chips (Task 8) above Plan's columns both read and
@@ -1129,6 +1131,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                     // `Board` because it reads `useTrip()` and `Board` is
                     // props-only; this screen is inside the provider.
                     addSavedDay={<AddSavedDayButton />}
+                    suggestions={suggestions}
                     callbacks={{
                       // "columns", for the same reason the chips row names
                       // itself above: at any width where more than about two
