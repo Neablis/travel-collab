@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import type { InviteRole, TripAccess, TripInvite } from "@tc/contracts";
+import type { InviteRole, TripAccess, TripInvite, TripRole } from "@tc/contracts";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +16,7 @@ import {
   inviteLink,
   revokeTripInvite,
 } from "@/lib/apiClient";
+import { roleLabel } from "@/lib/tripRole";
 
 // SPEC §8 lists "Travelers UI" as DELIBERATELY NOT DESIGNED, and M11 parks
 // travelers inside Trip settings until it exists. So this invents as little as
@@ -31,6 +32,14 @@ import {
 // `lib/displayName.ts`.
 function displayName(member: TripAccess["members"][number]): string {
   return displayNameFor(member);
+}
+
+// A suggester's badge says "Can suggest" (spec 2026-10-03 §2.1), because the
+// enum word reads as a job title. The other roles keep the word they have
+// always shown, and m11-invites.spec asserts that word, so relabelling them is
+// a separate copy change.
+function badgeLabel(role: TripRole): string {
+  return role === "suggester" ? roleLabel(role) : role;
 }
 
 function statusLabel(invite: TripInvite): string {
@@ -211,7 +220,7 @@ export function TravelersPanel({ tripId }: { tripId: string }) {
             <Text as="span" className="text-xs text-ink">
               {displayName(member)}
             </Text>
-            <Badge variant={member.role === "owner" ? "brand" : "neutral"}>{member.role}</Badge>
+            <Badge variant={member.role === "owner" ? "brand" : "neutral"}>{badgeLabel(member.role)}</Badge>
           </div>
         ))}
       </div>
@@ -307,8 +316,11 @@ export function TravelersPanel({ tripId }: { tripId: string }) {
               onChange={(e) => setRole(e.target.value as InviteRole)}
               disabled={inviteGated}
             >
-              <option value="editor">Can edit</option>
-              <option value="viewer">Can view</option>
+              {(["editor", "suggester", "viewer"] as const).map((r) => (
+                <option key={r} value={r}>
+                  {roleLabel(r)}
+                </option>
+              ))}
             </NativeSelect>
           </div>
           <Button type="submit" variant="secondary" size="sm" disabled={busy || inviteGated}>
@@ -328,7 +340,7 @@ export function TravelersPanel({ tripId }: { tripId: string }) {
               <Text as="span" className="min-w-0 flex-1 truncate text-xs text-ink">
                 {invite.email ?? "Anyone with the link"}
               </Text>
-              <Badge variant="neutral">{invite.role}</Badge>
+              <Badge variant="neutral">{badgeLabel(invite.role)}</Badge>
               <Text as="span" className="text-xs text-slate">
                 {statusLabel(invite)}
               </Text>

@@ -1,4 +1,4 @@
-import type { TripMember, TripRole } from "@tc/contracts";
+import type { InviteRole, TripMember, TripRole } from "@tc/contracts";
 
 /**
  * **Does the reader own this trip?** — M26 link 6b.
@@ -70,4 +70,19 @@ export function boardMode(role: TripRole | null | undefined): "read" | "suggest"
  */
 export function canEditNotebook(role: TripRole | null | undefined): boolean {
   return role === "editor" || role === "owner";
+}
+
+const ROLE_LABEL: Record<InviteRole, string> = {
+  editor: "Can edit",
+  suggester: "Can suggest",
+  viewer: "Can view",
+};
+
+/**
+ * What a role on offer is called on screen. Spec §2.1 names the suggester
+ * "Can suggest" rather than by its enum word. A `Record`, so a new invite role
+ * does not compile until it has a name.
+ */
+export function roleLabel(role: InviteRole): string {
+  return ROLE_LABEL[role];
 }
