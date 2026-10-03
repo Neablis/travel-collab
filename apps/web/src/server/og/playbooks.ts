@@ -1,6 +1,7 @@
 import { and, arrayContains, count, eq, isNull } from "drizzle-orm";
 import { SavedDayVisibility } from "@tc/contracts";
 import { countryName } from "@/lib/place";
+import { countrySlug } from "@/lib/playbookUrls";
 import { db } from "../db/client";
 import { savedDays } from "../db/schema";
 import { citiesKnownBy, publicAuthor, publicNamesOf } from "../playbooks";
@@ -124,9 +125,9 @@ export async function cityCardFor(city: string): Promise<PlaybookCityCard> {
  */
 export async function countryCardFor(code: string): Promise<PlaybookCountryCard> {
   const upper = code.toUpperCase();
-  // `countryName` hands an unmappable code back unchanged, and a code is not a name.
-  const name = /^[A-Z]{2}$/.test(upper) ? countryName(upper) : null;
-  if (name === null || name === upper) return { kind: "generic" };
+  // The place pages' own test, so a card never names a country that has no page.
+  if (!/^[A-Z]{2}$/.test(upper) || countrySlug(upper) === null) return { kind: "generic" };
+  const name = countryName(upper)!;
   const days = await publishedDaysCarrying(savedDays.countries, upper);
   return days === 0 ? { kind: "generic" } : { kind: "country", country: name, days };
 }

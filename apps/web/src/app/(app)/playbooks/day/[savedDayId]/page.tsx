@@ -11,7 +11,7 @@ import { cityPath, dayPath, daySegment, parseDaySegment } from "@/lib/playbookUr
 import { NOINDEX, pageMetadata } from "@/lib/siteMetadata";
 import { auth } from "@/server/auth";
 import { CITIES_SHOWN } from "@/server/og/playbooks";
-import { publishedDaysPage } from "@/server/playbooks";
+import { publishedDaysInCity, publishedDaysPage } from "@/server/playbooks";
 import { sharedDayView } from "@/server/sharedDayView";
 
 type Params = { params: Promise<{ savedDayId: string }> };
@@ -117,7 +117,7 @@ export default async function SharedDayPage({
     ? await Promise.all([
         firstCity === null
           ? Promise.resolve([])
-          : publishedDaysPage({ cities: [firstCity] }, page).then(({ days }) => days),
+          : publishedDaysInCity(firstCity, page).then(({ days }) => days),
         publishedDaysPage({ authorId: view.day.ownerId }, page).then(({ days }) => days),
       ])
     : [[], []];

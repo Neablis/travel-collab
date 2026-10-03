@@ -4,7 +4,7 @@ import { inArray } from "drizzle-orm";
 import { slugify } from "@/lib/playbookUrls";
 import { db } from "./db/client";
 import { savedDays } from "./db/schema";
-import { placeFor, publishedDaysPage, publishedPlaces } from "./playbooks";
+import { placeFor, publishedDaysInCity, publishedDaysPage, publishedPlaces } from "./playbooks";
 import { newSavedDayRow } from "./savedDays";
 
 // Cities minted per run: the published library is global, so a shared name
@@ -72,6 +72,17 @@ describe("place pages", () => {
     expect(place?.days).toBe(2);
     const listed = await publishedDaysPage({ cities: place!.cities }, { limit: 24, offset: 0 });
     expect(listed.total).toBe(place!.days);
+  });
+
+  // A day's "More in <city>" asks by its own spelling; the other spelling's
+  // days are the same place and belong in the list too.
+  it("lists a city's days under every spelling its page merges", async () => {
+    const [one, other] = spellings();
+    const a = await day("Spelled one way", { cities: [one] });
+    const b = await day("Spelled the other", { cities: [other] });
+
+    const listed = await publishedDaysInCity(one, { limit: 24, offset: 0 });
+    expect(new Set(listed.days.map((d) => d.savedDayId))).toEqual(new Set([a, b]));
   });
 
   it("pages by offset", async () => {

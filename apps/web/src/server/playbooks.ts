@@ -1031,6 +1031,15 @@ export async function placeFor(kind: PlacePage["kind"], slug: string): Promise<P
   return (await publishedPlaces()).find((place) => place.kind === kind && place.slug === slug) ?? null;
 }
 
+/** Published days in a city under every spelling its page merges ("São Paulo", "Sao Paulo"), or the one spelling when it has no page. */
+export async function publishedDaysInCity(
+  city: string,
+  page: { limit: number; offset: number },
+): Promise<{ days: DiscoverDay[]; total: number }> {
+  const place = await placeFor("city", slugify(city));
+  return publishedDaysPage({ cities: place?.cities ?? [city] }, page);
+}
+
 /**
  * Published days for a place or an author, most-added first, one offset page.
  *

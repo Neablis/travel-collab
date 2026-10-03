@@ -110,6 +110,13 @@ describe("place URLs", () => {
     expect(countrySlug("??")).toBeNull();
   });
 
+  // `Intl` names these, but they are not countries: "ZZ" would mint
+  // `/playbooks/country/unknown-region`. Kosovo has a user-assigned code and is one.
+  it("has no country page for a region Intl names that is not a country, and keeps Kosovo", () => {
+    for (const code of ["ZZ", "EU", "UN"]) expect(countrySlug(code)).toBeNull();
+    expect(countrySlug("XK")).toBe("kosovo");
+  });
+
   it("puts a city or country page under its kind", () => {
     expect(placePath({ kind: "city", slug: "kyoto" })).toBe("/playbooks/city/kyoto");
     expect(placePath({ kind: "country", slug: "japan" })).toBe("/playbooks/country/japan");
