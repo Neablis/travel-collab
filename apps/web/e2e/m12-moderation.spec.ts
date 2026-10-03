@@ -97,6 +97,13 @@ test("a reported day is hidden from the console, leaves the library, and the aut
 
   // ── alice publishes ───────────────────────────────────────────────────────
   const savedDayId = await publishedDay(page, city, dayName);
+  // A second day nobody reports, so alice still has something public after the
+  // hide. A profile with nothing public is named "A traveler" on purpose
+  // (`publicAuthor`'s anti-enumeration rule), so without this the "Alice"
+  // heading below held only while some other spec had a day of hers published —
+  // red alone, and red under --repeat-each once another copy cleaned up.
+  const keptDayName = `Lantern walk ${randomUUID().slice(0, 8)}`;
+  const keptDayId = await publishedDay(page, city, keptDayName);
 
   // ── a stranger finds it, and reports it ───────────────────────────────────
   const reporter = await signedInAs(browser, newcomer("m12reporter"));
@@ -145,6 +152,8 @@ test("a reported day is hidden from the console, leaves the library, and the aut
   await expect(reporter.getByRole("heading", { name: "This page is not here", level: 1 })).toBeVisible();
   await reporter.goto("/playbooks/profile/dev-alice");
   await expect(reporter.getByRole("heading", { name: "Alice", level: 1 })).toBeVisible();
+  // The hide took the one day, not the author: her other day is still listed.
+  await expect(reporter.getByTestId("profile-days").getByText(keptDayName)).toBeVisible();
   await expect(reporter.getByTestId("profile-days").getByText(dayName)).toHaveCount(0);
 
   // ── …and alice still has her copy ─────────────────────────────────────────
@@ -156,9 +165,11 @@ test("a reported day is hidden from the console, leaves the library, and the aut
 
   // Cleanup, m11b's two steps: unpublish, then delete. A saved day is not a
   // trip, so `global.teardown.ts` will not sweep it.
-  await page.request.delete(`/api/saved-days/${savedDayId}/publish`);
-  const forgot = await page.request.delete(`/api/saved-days/${savedDayId}`);
-  expect(forgot.ok(), `forget -> ${forgot.status()}`).toBe(true);
+  for (const id of [savedDayId, keptDayId]) {
+    await page.request.delete(`/api/saved-days/${id}/publish`);
+    const forgot = await page.request.delete(`/api/saved-days/${id}`);
+    expect(forgot.ok(), `forget ${id} -> ${forgot.status()}`).toBe(true);
+  }
   await reporter.context().close();
   await operator.context().close();
 });
