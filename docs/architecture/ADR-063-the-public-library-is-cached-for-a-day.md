@@ -44,10 +44,11 @@ unpublished or hidden day shown to a stranger is the one failure ADR-061 exists 
    data cache (`revalidateTag(tag, { expire: 0 })`: gone now, not served stale while it
    refreshes). It also deletes them from the CDN (`dangerouslyDeleteByTag`, not
    `invalidateByTag`, which would serve the old card once more). The CDN half runs only on Vercel
-   (`VERCEL` set). It is awaited, so a 200 to "unpublish" means the day is gone. It never
-   throws: the write has committed, and a 500 would tell the author it had not. A failure is
-   one `console.error`. Its callers are the writes that move a day into or out of the library,
-   after their commit:
+   (`VERCEL` set). It is awaited, so a 200 to "unpublish" means the day is gone, and it is
+   bounded at 2 s (`PURGE_TIMEOUT_MS`), so a purge that never answers cannot hang the write. It
+   never throws: the write has committed, and a 500 would tell the author it had not. A failure
+   or a timeout is one `console.error`. Its callers are the writes that move a day into or out
+   of the library, after their commit:
    - `setSavedDayVisibility`: publish and unpublish, from `/api/saved-days/:id/publish` and
      `/v1/library`.
    - `updatePlaybookContent`: a visibility change, or a **rename of a published day**, from
@@ -59,6 +60,13 @@ unpublished or hidden day shown to a stranger is the one failure ADR-061 exists 
    - `actOnReport`: an operator's hide and restore.
    - The two dev seed routes (`/api/dev/saved-days`, `/api/dev/content/playbooks`), for every
      day they rewrite.
+
+   **An add clears less.** `invalidateDayRead(savedDayId, ownerId)` clears `day:<id>` and
+   `author:<ownerId>` only, the same way and on the same bound, when an add counted:
+   `insertSavedDay` (the add dialog, a new trip from a day, `/v1` playbook applications) and the
+   assistant's approved insert (`ai/writeTools.ts`). A reader who just added a day sees its
+   count move when they go back to it (M11b's "1 trip"). Lists do not need to show it within
+   the day, so `library` stays.
 4. **Only a stranger's view is cached; a miss never is; an author always reads live.**
    - The day page tries the cached public read first. A day the library does not hold is read
      live for a signed-in reader, because it may be their own private or hidden day. For anyone
@@ -87,12 +95,14 @@ unpublished or hidden day shown to a stranger is the one failure ADR-061 exists 
 
 To a reader with no account, and to a signed-in reader of somebody else's day:
 
-- a published day's summary, rating and review count, and its stops' pins;
-- an author's numbers (adds, reviews) on their days and their profile card;
-- Discover's order and counts, a place page's list and count, related days, and the sitemap's
-  `lastModified`.
+- a published day's summary, rating and review count, and its stops' pins: reviews, ratings,
+  pins and a summary edit clear nothing;
+- an author's review numbers on their days and their profile card;
+- Discover's order and counts (most-added included), a place page's list and count, related
+  days, and the sitemap's `lastModified`.
 
-None of these is cleared by reviews, adds, pins or a summary edit. **Nothing about whether a day
+An add is the exception: it clears the day it added and its author's entries (decision 3), so a
+day's add count and its author's are live, and only the lists lag. **Nothing about whether a day
 is in the library is ever stale**, except through the paths below.
 
 ## What does not clear it
@@ -125,6 +135,10 @@ found a per-instance store could not do.
   miss on a day is never stored, so the day page has no such cost.
 - The preview routes' lookups (`dayCardFor` and the rest) are not cached in the data cache: they
   run only on a CDN miss, which is now once a day per card.
+- CI restores `apps/web/.next/cache` between runs (`.github/workflows/ci.yml`), and the data
+  cache lives in it (`fetch-cache`). Each e2e run reads its own database, and so writes entries
+  under its own key, so that cached directory grows by a few KB per run until its cache key
+  changes. Left as it is; if it ever matters, drop `fetch-cache` before saving the cache.
 - Previews and production share the tag names, but Vercel scopes tags per project and
   environment, so a preview's purge does not touch production.
 - *Not verified locally:* the CDN purge. It runs only inside a Vercel function. On a preview,
