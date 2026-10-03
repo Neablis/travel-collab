@@ -30,7 +30,7 @@
 import { describe, expect, it } from "vitest";
 import { asSchema } from "ai";
 import { readFileSync, writeFileSync } from "node:fs";
-import { instructionsFor } from "@/server/ai/handleAskRequest";
+import { instructionsFor, type PageBrief } from "@/server/ai/handleAskRequest";
 import type { TaskClass } from "@/server/assistant/taskClass";
 import { TURN_DEP_KEYS, type TurnDeps } from "@/server/assistant/deps";
 import { grantFor, postureFor, toolsFor, type EffectCaps } from "@/server/assistant/grants";
@@ -53,9 +53,19 @@ interface Shape {
   caps: EffectCaps;
   /** `undefined` = not narrowed (a viewer, or a class resolved upward). */
   narrowBy: TaskClass | undefined;
-  /** Board shapes are measured with their instruction; a page's needs a page. */
+  /** A page turn's instruction is the page one, built from `PAGE_BRIEF`. */
   board: boolean;
 }
+
+// A fixed page and trip shape, so a page shape's instruction is measured like a
+// board shape's and its growth fails the same way (Copilot on #310: page totals
+// had left the instruction out). A real brief carries the page's title and the
+// trip's vocabulary; these are typical sizes, held constant so the baseline
+// moves only when the instruction's own text does.
+const PAGE_BRIEF: Omit<PageBrief, "intent"> = {
+  title: "Kyoto, day by day",
+  shape: { days: 10, startDate: "2026-11-03", cities: ["Kyoto", "Osaka", "Nara"], tags: ["meal", "museum", "temple"], kinds: ["planned", "pending", "transit"] },
+};
 
 const editor = { role: "propose", plan: "propose" } as const;
 
@@ -94,7 +104,7 @@ const approxTokens = (chars: number) => Math.round(chars / CHARS_PER_TOKEN);
 
 async function measure() {
   const toolChars = await wireCharsOf(ASSISTANT_TOOLS.map((tool) => tool.name));
-  const shapes: Record<string, { tools: string[]; toolChars: number; instructionChars: number | null; totalChars: number; approxTokens: number }> = {};
+  const shapes: Record<string, { tools: string[]; toolChars: number; instructionChars: number; totalChars: number; approxTokens: number }> = {};
   for (const [label, shape] of Object.entries(SHAPES)) {
     const grants = grantFor(shape.caps);
     const posture = postureFor(shape.caps);
@@ -107,8 +117,8 @@ async function measure() {
     const toolsTotal = tools.reduce((sum, name) => sum + toolChars[name]!, 0);
     const instructionChars = shape.board
       ? instructionsFor({ kind: "trip" }, 10, posture, null, tools.length < offerable.length).length
-      : null;
-    const totalChars = toolsTotal + (instructionChars ?? 0);
+      : instructionsFor({ kind: "page", pageId: "page-1" }, 10, posture, { ...PAGE_BRIEF, intent: shape.narrowBy }).length;
+    const totalChars = toolsTotal + instructionChars;
     shapes[label] = { tools, toolChars: toolsTotal, instructionChars, totalChars, approxTokens: approxTokens(totalChars) };
   }
   const perTool = Object.fromEntries(

@@ -110,9 +110,9 @@
         "switch_intent"
       ],
       "toolChars": 4437,
-      "instructionChars": null,
-      "totalChars": 4437,
-      "approxTokens": 1340
+      "instructionChars": 3277,
+      "totalChars": 7714,
+      "approxTokens": 2331
     },
     "page · question": {
       "tools": [
@@ -123,9 +123,9 @@
         "switch_intent"
       ],
       "toolChars": 3832,
-      "instructionChars": null,
-      "totalChars": 3832,
-      "approxTokens": 1158
+      "instructionChars": 1425,
+      "totalChars": 5257,
+      "approxTokens": 1588
     }
   },
   "tools": {
