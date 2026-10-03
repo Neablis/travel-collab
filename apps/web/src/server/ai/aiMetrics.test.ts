@@ -92,6 +92,7 @@ function ledgerOf(record: AskAnalyticsRecord, toolCalls: TurnLedger["toolCalls"]
   const called = classification !== null && classification.source === "model" && classification.model !== null;
   return {
     cost: {
+      turnId: null,
       userId: record.userId,
       endpoint: "ask",
       outcome: record.outcome,
@@ -106,9 +107,11 @@ function ledgerOf(record: AskAnalyticsRecord, toolCalls: TurnLedger["toolCalls"]
         : null,
       steps: record.steps,
       planVersionRef: null,
+      latencyMs: record.latencyMs,
     },
     capacity: [],
     toolCalls,
+    stepSpend: [],
   };
 }
 

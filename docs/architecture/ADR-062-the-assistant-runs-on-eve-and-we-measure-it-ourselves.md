@@ -4,8 +4,11 @@
 set two terms in the same conversation: measurement and visibility are kept as a first-class
 goal, and user memory is designed for but built later. Nothing here is built. Acceptance is
 the planning session that turns this into a milestone. **2026-10-03:** that session minted
-M31 and ran Phase 0 (*Phase 0 findings*, below; (a) holds). The status stays Proposed until
-Mitchell approves M31's parity thresholds.
+M31 and ran Phase 0 (*Phase 0 findings*, below; (a) holds). **The same day Mitchell built
+Phase 1 and deferred the port**: *"I want to get some users before i increase the cost of my
+AI usage by moving to eve and workflow"*. Decision 5's ledger is built (M31). Decisions 1–4,
+6, 7 and 8 stay Proposed, parked under *Deferred: the port* below with the triggers that
+reopen them.
 **Deciders:** Mitchell (product/eng); Claude — drafted
 Supersedes:
 - **ADR-033 Decision 1** — the one AI route is no longer `/api/trips/[tripId]/ask`.
@@ -30,7 +33,8 @@ Related:
 - KI-2026-09-17-c (escalated turns bill the wrong model).
 - The `ai-usage` skill.
 
-Milestone: none yet. The milestone is placed **after M19** and minted by the planning session.
+Milestone: **M31** (`docs/milestones/M31-assistant-ledger.md`) is Phase 1, the ledger, built
+2026-10-03. The port has no milestone; it is a candidate (`docs/candidates.md`).
 
 ## Context
 
@@ -322,8 +326,8 @@ on the ledger:
 4. **Client.** `useEveAgent`, resume, the contract change, and `localStorage` removed.
 5. **Evals and the parity gate**, then the old route is deleted.
 
-The milestone is **M31** (`docs/milestones/M31-assistant-on-eve.md`); Phase 1's plan is
-`docs/plans/2026-10-03-M31-p1-ledger.md`.
+Phase 1 is **M31** (`docs/milestones/M31-assistant-ledger.md`), built 2026-10-03; its plan is
+`docs/plans/2026-10-03-M31-p1-ledger.md`. Phases 2–5 are deferred: see *Deferred: the port*.
 
 ## Phase 0 findings (2026-10-03)
 
@@ -442,7 +446,7 @@ Three details for the ledger:
   when the call went through the Gateway.
 
 Correction to Decision 5's "dollars come from our rate table": **no dollar is stored at all.**
-`ledger.ts` rule 2 and `aiUsage.noMoney.test.ts` forbid it. Price is a join, performed
+`ledger.ts` rule 2 and `usage.noMoney.test.ts` forbid it. Price is a join, performed
 downstream against the dated rate record, and the new ledger tables obey the same rule.
 
 ### (d) Workflow store across preview and production: separate, with one trap
@@ -491,7 +495,7 @@ adds **roughly 20 to 70 percent** to a turn's spend. That is not negligible. The
 payloads were tiny, so data written will be larger with real tool results, but events
 dominate the price.
 
-This is why the parity gate (M31) has a cost row, not just a token row.
+This is why the port's proposed parity thresholds (*Deferred: the port*) have a cost row, not just a token row.
 
 **Limit that shapes Phase 2:** one eve session is one Workflow run. Vercel caps a run at
 **25,000 events** and warns that replay slows past **2,000**. At 11 to 35 events a turn, that
@@ -501,6 +505,64 @@ is about 60 to 180 turns before replay slows. So a session has to be bounded:
 - **and** a turn ceiling after which the client starts a fresh session.
 
 Phase 2 sets both, and records them in the session contract.
+
+## Deferred: the port (2026-10-03)
+
+**Phases 2–5 are parked, with everything learned kept.** Mitchell, 2026-10-03, after Phase 0
+priced Workflow at roughly 20–70% of a turn's model cost: get users first, then decide.
+
+Three facts made deferring cheap:
+
+- **Nothing to protect yet.** `ai-live` is still Simulated in production, so no real user
+  traffic exists for durability to protect.
+- **The ledger works on either stack.** Phase 1 does not depend on eve. The eve
+  instrumentation would feed the same tables later (Phase 0 finding (c)).
+- **The design keeps the port an adapter.** Decision 1 keeps the kernel framework-free. A
+  later port is still an adapter around unchanged tools, admission and commit, not a rewrite.
+
+### What reopens it
+
+Any one of these, read from the ledger where it is a number:
+
+1. **Turns are being lost.** `ledger.sql` query 7 shows real (non-simulated) turns ending
+   `abort` with the server's deadline as the cause, at a rate worth fixing. Durable turns are
+   the port's first benefit.
+2. **A feature needs work nobody is waiting on.** For example a pre-trip check, a scheduled
+   agent, or an approval that has to wait for days. The current shape cannot do these at all
+   (*Context*, limit 3).
+3. **eve reaches 1.0**, or stops breaking its API between minors.
+4. **Paying users make the cost legible.** Paid traffic exists and the ledger shows what a
+   turn costs, so the Workflow overhead from finding (e) is a decision about a known amount.
+
+Cross-device threads, by themselves, are **not** a trigger. They need a conversations table,
+not eve.
+
+### What reopening starts with
+
+1. Re-run the Phase 0 checks against the eve version current at that time. Findings (a) and
+   (b) were proven on `eve@0.70.1` and are worth one afternoon to re-prove.
+2. Mint the port's milestone from Phases 2–5 above, including the two findings that added
+   work: the `assistant_sessions` ownership check and a per-session turn ceiling.
+3. Approve the parity thresholds below. They were proposed on 2026-10-03 and never approved.
+4. Run the live set on the eve stack against the baseline M31 records.
+
+### Parity thresholds, as proposed (not approved)
+
+Each row compares the eve stack (E) with the current-stack baseline (B). Both are measured
+from the ledger, on the live set (`apps/web/src/server/ai/eval/live-set.json`: 15 prompts ×
+3 runs), with the same model configuration.
+
+| Metric | Threshold (E must be…) | Why this number |
+|---|---|---|
+| Tool failure rate (`failed` + `repaired` over all calls) | ≤ B + 2 percentage points | The tools and their schemas are unchanged. Failures can rise only from the adapter's wrapping, so a large rise means a wrapping bug, not noise. |
+| Median tokens per turn | ≤ 1.10 × B | eve's own harness prompt adds some overhead. More than 10% means the prompt grew. |
+| p75 tokens per turn | ≤ 1.15 × B | The tail is where escalations and long threads live. A little more slack is given because a model switch at escalation re-ingests the conversation uncached. |
+| p75 turn latency | ≤ 1.25 × B **and** ≤ B + 3 s | Workflow adds a checkpoint at every step. Both bounds apply, so a fast baseline is not allowed a large absolute slowdown. |
+| Proposal-reached rate (change prompts) | ≥ B − 5 percentage points | This is the product outcome. Five points is about one prompt in twenty on a set this size. |
+| Cost per turn (model tokens priced per step, plus Workflow events and data written) | ≤ 1.75 × B | Phase 0 measured Workflow at about 20–70% of a turn's model cost. This row says out loud how much of that is acceptable. |
+
+A p75 on 45 turns is coarse. If a row lands within 5% of its bound, the set is re-run once
+before the result is read either way.
 
 ## Alternatives rejected
 

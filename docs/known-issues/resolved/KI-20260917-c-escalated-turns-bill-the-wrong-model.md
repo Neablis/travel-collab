@@ -1,4 +1,4 @@
-### KI-2026-09-17-c — an escalated turn records all of its usage against the model it started on
+### KI-2026-09-17-c — an escalated turn records all of its usage against the model it started on — RESOLVED
 
 - **Severity:** accounting (cost per turn is understated for escalated turns; no user-visible behaviour changes)
 - **Milestone:** **M9, carried (assigned 2026-09-24, KI pass)** — owned by M9, not a gate box. Parked under Mitchell's 2026-09-01 rule that every open AI known issue belongs to M9; filed after that audit, so it had no owner until now. Listed in `docs/milestones/M9-ai-planning-partner.md` § *Parked 2026-09-24*.
@@ -11,3 +11,15 @@
 - **Cross-reference:** KI-2026-09-12-a (resolved — escalation itself), `docs/guidelines/ai-cost-and-quality.md`, the `ai-usage` skill, which reports cost per turn from exactly these records.
 - **First noted:** 2026-09-17, working CodeRabbit's review of PR #188.
 - **Re-verified 2026-09-25 (overnight sweep):** STILL TRUE. The recorder is built with `model: grant.modelId` once (`handleAskRequest.ts:323`), while `prepareStep` swaps to `grant.escalation.model` after escalation (:530-533). The recorder now also receives `escalation: () => escalation.escalated()` (:332), so the record says a turn escalated, but nothing re-attributes tokens per step or per model; `assistant/ledger.ts` still carries one `model` per contribution.
+- **Resolved 2026-10-03 (M31 Phase 1), by the fix path above.** `cost.turn.model` stays a
+  single value and keeps its meaning: the model the turn was admitted on. The truth moved to
+  a new grain. `prepareStep` records the model and tier it chose for every step, and the
+  recorder writes one `ai_usage_steps` row per step on that model, with its cached reads.
+  `costPerAccount` (and through it the margin and revenue views) prices a turn that has step
+  rows **per step, at each step's model**, through `microUsdForSteps`. Rows written before
+  this have no steps and are priced as before.
+  - Seen failing: `usage.int.test.ts`'s escalated-turn test, with the step pricing switched
+    off, read `expected 312 to be 1656`. The old single-model price understated that turn
+    by more than five times. Restored, it is green.
+  - The `ai.ask` log line still carries the single `model`. The database is now the record
+    for what each step ran on.

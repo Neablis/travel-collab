@@ -4,12 +4,13 @@
 // dollars stored, re-pricing history at two rates, and no content on the row.
 import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { eq } from "drizzle-orm";
+import { eq, getTableColumns } from "drizzle-orm";
 import { db } from "@/server/db/client";
-import { aiUsage } from "@/server/db/schema";
+import { aiUsage, aiUsageSteps, aiUsageToolCalls } from "@/server/db/schema";
 import type { TurnLedger } from "@/server/assistant/ledger";
 import { microUsdFor, rateAt, type ModelRate } from "./modelRates";
-import { costPerAccount, microUsdForRow, recordAiUsage, topSpenders, usageFor } from "./usage";
+import { costPerAccount, microUsdForRow, recordTurnLedger, topSpenders, usageFor } from "./usage";
+import { microUsdFor as priceOf } from "./modelRates";
 
 const TURN_MODEL = "deepseek/deepseek-v4-flash-0731";
 const CLASSIFIER_MODEL = "zai/glm-4.7-flash";
@@ -25,10 +26,13 @@ function ledger(overrides: Partial<TurnLedger["cost"]> = {}): TurnLedger {
       classifier: { model: CLASSIFIER_MODEL, tokensIn: 198, tokensOut: 49 },
       steps: 2,
       planVersionRef: "plus@v1",
+      turnId: null,
+      latencyMs: null,
       ...overrides,
     },
     capacity: [],
     toolCalls: [],
+    stepSpend: [],
   };
 }
 
@@ -36,10 +40,126 @@ async function rowsFor(userId: string) {
   return db.select().from(aiUsage).where(eq(aiUsage.userId, userId));
 }
 
+describe("a turn's step and tool-call rows (M31 Phase 1)", () => {
+  function withRows(turnId: string): TurnLedger {
+    const base = ledger({ turnId });
+    return {
+      ...base,
+      stepSpend: [0, 1].map((index) => ({
+        index,
+        model: index === 0 ? TURN_MODEL : "zai/glm-4.7-flash",
+        tier: index === 0 ? "low" : "mid",
+        tokensIn: 4000,
+        cacheReadTokens: 3000,
+        cacheWriteTokens: 0,
+        tokensOut: 50,
+        finishReason: index === 0 ? "tool-calls" : "stop",
+        escalated: index === 1,
+        pivoted: false,
+      })),
+      toolCalls: [
+        {
+          callId: "c1",
+          name: "add_activity",
+          ms: 12,
+          ok: true,
+          outcome: "repaired",
+          stepIndex: 0,
+          inputBytes: 120,
+          outputBytes: 40,
+          reachedProposal: true,
+        },
+        {
+          callId: "c2",
+          name: "set_trip_name",
+          ms: null,
+          ok: false,
+          outcome: "refused-by-grant",
+          stepIndex: 0,
+          inputBytes: null,
+          outputBytes: null,
+          reachedProposal: null,
+        },
+      ],
+    };
+  }
+
+  // A durable runtime replays a step and re-emits its events; the ledger must
+  // upsert rather than append, or every replay double-counts a turn's spend.
+  it("writes one turn, its steps and its calls, however many times it is written", async () => {
+    const turnId = randomUUID();
+    expect(await recordTurnLedger(withRows(turnId))).toBe(true);
+    expect(await recordTurnLedger(withRows(turnId))).toBe(true);
+
+    expect(await db.select().from(aiUsage).where(eq(aiUsage.id, turnId))).toHaveLength(1);
+    const steps = await db.select().from(aiUsageSteps).where(eq(aiUsageSteps.turnId, turnId));
+    expect(steps.map((step) => [step.stepIndex, step.model, step.cacheReadTokens, step.escalated]).sort()).toEqual([
+      [0, TURN_MODEL, 3000, false],
+      [1, "zai/glm-4.7-flash", 3000, true],
+    ]);
+    const calls = await db.select().from(aiUsageToolCalls).where(eq(aiUsageToolCalls.turnId, turnId));
+    expect(calls.map((call) => [call.callId, call.outcome, call.durationMs, call.reachedProposal]).sort()).toEqual([
+      ["c1", "repaired", 12, true],
+      ["c2", "refused-by-grant", null, null],
+    ]);
+  });
+
+  // A replay carries the latest measurement, so the second write's values win
+  // for every measured column — each row updated to ITS OWN new values, which
+  // a multi-row upsert only does if it reads `excluded`.
+  it("updates each row to the values of the latest write", async () => {
+    const turnId = randomUUID();
+    await recordTurnLedger(withRows(turnId));
+    const again = withRows(turnId);
+    await recordTurnLedger({
+      ...again,
+      stepSpend: again.stepSpend.map((step) => ({ ...step, tokensOut: step.index === 0 ? 7 : 9 })),
+      toolCalls: again.toolCalls.map((call) => (call.callId === "c1" ? { ...call, ms: 99 } : call)),
+    });
+    const steps = await db.select().from(aiUsageSteps).where(eq(aiUsageSteps.turnId, turnId));
+    expect(steps.map((step) => [step.stepIndex, step.tokensOut]).sort()).toEqual([
+      [0, 7],
+      [1, 9],
+    ]);
+    const calls = await db.select().from(aiUsageToolCalls).where(eq(aiUsageToolCalls.turnId, turnId));
+    expect(calls.map((call) => [call.callId, call.durationMs]).sort()).toEqual([
+      ["c1", 99],
+      ["c2", null],
+    ]);
+  });
+});
+
+// KI-2026-09-17-c: a turn admitted on the cheap tier that escalates runs its
+// later steps on the escalation model. Priced at `turn_model`, every step is
+// billed at the cheap rate; priced from its step rows, each step is billed at
+// the model that ran it.
+describe("an escalated turn is priced at the models that ran it", () => {
+  it("prices from the step rows when the turn has them", async () => {
+    const userId = `dev-${randomUUID()}`;
+    const at = new Date("2026-10-04T00:00:00Z");
+    const turnId = randomUUID();
+    const entry: TurnLedger = {
+      ...ledger({ userId, turnId, classifier: null, steps: 2, turn: { model: TURN_MODEL, tokensIn: 2000, tokensOut: 200 } }),
+      stepSpend: [
+        { index: 0, model: TURN_MODEL, tier: "low", tokensIn: 1000, cacheReadTokens: 0, cacheWriteTokens: 0, tokensOut: 100, finishReason: "tool-calls", escalated: false, pivoted: false },
+        { index: 1, model: "anthropic/claude-haiku-4-5", tier: "mid", tokensIn: 1000, cacheReadTokens: 0, cacheWriteTokens: 0, tokensOut: 100, finishReason: "stop", escalated: true, pivoted: false },
+      ],
+    };
+    await recordTurnLedger(entry, at);
+
+    const mine = (await costPerAccount(new Date(at.getTime() - 1000))).find((c) => c.userId === userId)!;
+    const perStep = priceOf(TURN_MODEL, 1000, 100, at)! + priceOf("anthropic/claude-haiku-4-5", 1000, 100, at)!;
+    const asAdmitted = priceOf(TURN_MODEL, 2000, 200, at)!;
+    expect(mine.microUsd).toBe(perStep);
+    // And it is not what the old single-model pricing said.
+    expect(mine.microUsd).toBeGreaterThan(asAdmitted);
+  });
+});
+
 describe("every AI request writes one row", () => {
   it("writes the turn and the classifier as separate spends", async () => {
     const entry = ledger();
-    expect(await recordAiUsage(entry)).toBe(true);
+    expect(await recordTurnLedger(entry)).toBe(true);
     const [row] = await rowsFor(entry.cost.userId);
     expect(row).toMatchObject({
       endpoint: "ask",
@@ -63,7 +183,7 @@ describe("every AI request writes one row", () => {
   it("writes a row for a turn that failed and for one that was aborted", async () => {
     for (const outcome of ["error", "abort"] as const) {
       const entry = ledger({ outcome, turn: { model: TURN_MODEL, tokensIn: 1332, tokensOut: 0 } });
-      expect(await recordAiUsage(entry)).toBe(true);
+      expect(await recordTurnLedger(entry)).toBe(true);
       const [row] = await rowsFor(entry.cost.userId);
       expect(row!.outcome).toBe(outcome);
       // And it is priced, not skipped: those input tokens were spent.
@@ -76,7 +196,7 @@ describe("every AI request writes one row", () => {
   // apart — a turn nobody measured is not a free turn.
   it("stores an unmeasured turn as null rather than as zero", async () => {
     const entry = ledger({ turn: { model: TURN_MODEL, tokensIn: null, tokensOut: null } });
-    await recordAiUsage(entry);
+    await recordTurnLedger(entry);
     const [row] = await rowsFor(entry.cost.userId);
     expect(row!.turnTokensIn).toBeNull();
     expect(row!.turnTokensOut).toBeNull();
@@ -87,7 +207,7 @@ describe("every AI request writes one row", () => {
   // are null together, so nothing prices a call that did not happen.
   it("leaves the classifier columns null when no classification ran", async () => {
     const entry = ledger({ classifier: null });
-    await recordAiUsage(entry);
+    await recordTurnLedger(entry);
     const [row] = await rowsFor(entry.cost.userId);
     expect(row!.classifierModel).toBeNull();
     expect(row!.classifierTokensIn).toBeNull();
@@ -101,7 +221,7 @@ describe("every AI request writes one row", () => {
     // one with an oversized value for a column that does have a bound.
     const entry = ledger({ userId: "x".repeat(20) });
     entry.cost.steps = Number.MAX_SAFE_INTEGER; // out of int4 range
-    await expect(recordAiUsage(entry)).resolves.toBe(false);
+    await expect(recordTurnLedger(entry)).resolves.toBe(false);
   });
 });
 
@@ -111,7 +231,7 @@ describe("the row carries no content", () => {
   // true for a row nobody wrote in this test.
   it("has no column a question or a trip could be written to", async () => {
     const entry = ledger();
-    await recordAiUsage(entry);
+    await recordTurnLedger(entry);
     const [row] = await rowsFor(entry.cost.userId);
     expect(Object.keys(row!).sort()).toEqual(
       [
@@ -121,6 +241,7 @@ describe("the row carries no content", () => {
         "createdAt",
         "endpoint",
         "id",
+        "latencyMs",
         "outcome",
         "planVersionRef",
         "steps",
@@ -133,6 +254,45 @@ describe("the row carries no content", () => {
     );
     for (const key of Object.keys(row!)) {
       expect(key).not.toMatch(/question|prompt|message|text|content|trip|answer|day|activity/i);
+    }
+  });
+
+  // The same gate, on the per-step and per-tool rows M31 Phase 1 added. A
+  // tool call's arguments and result are exactly the content this table must
+  // not hold, so the row carries their sizes and nothing else.
+  it("has no content column on the step or tool-call rows either", () => {
+    expect(Object.keys(getTableColumns(aiUsageSteps)).sort()).toEqual(
+      [
+        "cacheReadTokens",
+        "cacheWriteTokens",
+        "createdAt",
+        "escalated",
+        "finishReason",
+        "model",
+        "pivoted",
+        "stepIndex",
+        "tier",
+        "tokensIn",
+        "tokensOut",
+        "turnId",
+      ].sort(),
+    );
+    expect(Object.keys(getTableColumns(aiUsageToolCalls)).sort()).toEqual(
+      [
+        "callId",
+        "createdAt",
+        "durationMs",
+        "inputBytes",
+        "outcome",
+        "outputBytes",
+        "reachedProposal",
+        "stepIndex",
+        "tool",
+        "turnId",
+      ].sort(),
+    );
+    for (const key of [...Object.keys(getTableColumns(aiUsageSteps)), ...Object.keys(getTableColumns(aiUsageToolCalls))]) {
+      expect(key).not.toMatch(/question|prompt|message|text|content|trip|answer|activity|args|result/i);
     }
   });
 });
@@ -174,7 +334,7 @@ describe("re-pricing history", () => {
 
   it("changes what past usage cost without touching a stored row", async () => {
     const entry = ledger();
-    await recordAiUsage(entry, new Date("2026-08-20T00:00:00Z"));
+    await recordTurnLedger(entry, new Date("2026-08-20T00:00:00Z"));
     const [row] = await rowsFor(entry.cost.userId);
     const before = { ...row! };
 
@@ -229,7 +389,7 @@ describe("re-pricing history", () => {
   // on PR #174.
   it("prices an unmeasured turn as null rather than as free", async () => {
     const entry = ledger({ turn: { model: TURN_MODEL, tokensIn: null, tokensOut: null } });
-    await recordAiUsage(entry);
+    await recordTurnLedger(entry);
     const [row] = await rowsFor(entry.cost.userId);
     expect(microUsdForRow(row!)).toBeNull();
 
@@ -238,7 +398,7 @@ describe("re-pricing history", () => {
       turn: { model: TURN_MODEL, tokensIn: 0, tokensOut: 0 },
       classifier: null,
     });
-    await recordAiUsage(measured);
+    await recordTurnLedger(measured);
     const [zeroRow] = await rowsFor(measured.cost.userId);
     expect(microUsdForRow(zeroRow!)).toBe(0);
   });
@@ -248,8 +408,8 @@ describe("re-pricing history", () => {
   // column, arriving by a different door.
   it("reports an unpriced row rather than counting it as free", async () => {
     const userId = `dev-${randomUUID()}`;
-    await recordAiUsage(ledger({ userId, turn: { model: "vendor/unknown-9", tokensIn: 900, tokensOut: 100 } }));
-    await recordAiUsage(ledger({ userId }));
+    await recordTurnLedger(ledger({ userId, turn: { model: "vendor/unknown-9", tokensIn: 900, tokensOut: 100 } }));
+    await recordTurnLedger(ledger({ userId }));
     const since = new Date(Date.now() - 60 * 60 * 1000);
     const [account] = (await costPerAccount(since)).filter((a) => a.userId === userId);
     expect(account!.requests).toBe(2);
@@ -268,8 +428,8 @@ describe("what the console reads", () => {
   it("ranks accounts by what they cost over a window", async () => {
     const heavy = `dev-${randomUUID()}`;
     const light = `dev-${randomUUID()}`;
-    for (let i = 0; i < 3; i += 1) await recordAiUsage(ledger({ userId: heavy }));
-    await recordAiUsage(ledger({ userId: light }));
+    for (let i = 0; i < 3; i += 1) await recordTurnLedger(ledger({ userId: heavy }));
+    await recordTurnLedger(ledger({ userId: light }));
 
     const since = new Date(Date.now() - 60 * 60 * 1000);
     const ranked = await costPerAccount(since);

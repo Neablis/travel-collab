@@ -472,6 +472,23 @@ export function droppedWriteCalls(
   detail: TripDetail,
   opts: { tripId: string; actorId: string; placeCache?: PlaceCache },
 ): AskDroppedCall[] {
+  return droppedWrites(intents, detail, opts).map((dropped) => dropped.call);
+}
+
+/**
+ * `droppedWriteCalls`, with each drop's position in `intents` kept.
+ *
+ * The position is what joins a drop back to the tool call that collected it
+ * (`ProposalBuffer.collectedBy()`), which the ledger's `reachedProposal` needs
+ * (M31 Phase 1). A separate function rather than a field on `AskDroppedCall`,
+ * because that type is the `ai.ask` line's and a buffer index means nothing
+ * to anyone reading a log.
+ */
+export function droppedWrites(
+  intents: RawToolIntent[],
+  detail: TripDetail,
+  opts: { tripId: string; actorId: string; placeCache?: PlaceCache },
+): { index: number; call: AskDroppedCall }[] {
   // **The same grounding pass `buildProposal` runs, and for the same reason it
   // runs there: without it the two disagree.** A `placeRef`-only
   // `UpdateActivity` is a domain `no-op` until the citation becomes a location,
@@ -483,10 +500,13 @@ export function droppedWriteCalls(
   return errors
     .filter((e) => e.code !== "no-op")
     .map((e) => ({
-      type: e.type,
-      code: e.code,
-      refs: refsOf(intents[e.index]),
-      message: e.message,
+      index: e.index,
+      call: {
+        type: e.type,
+        code: e.code,
+        refs: refsOf(intents[e.index]),
+        message: e.message,
+      },
     }));
 }
 

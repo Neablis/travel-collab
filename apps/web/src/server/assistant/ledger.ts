@@ -63,6 +63,14 @@ export interface ModelSpend {
  * for it.
  */
 export interface TurnCost {
+  /**
+   * **The turn's own id, minted once on the server** (M31 Phase 1). It is the
+   * `ai_usage` row's primary key and the parent key of every step and tool-call
+   * row, so writing the same ledger twice leaves one turn rather than two — the
+   * property a replayed durable step will need (ADR-062 §5). Null only for a
+   * ledger nobody minted an id for, which `recordTurnLedger` then mints.
+   */
+  turnId: string | null;
   userId: string;
   endpoint: "ask" | "ask.apply";
   outcome: TurnOutcome;
@@ -92,6 +100,8 @@ export interface TurnCost {
    * versions to pin.
    */
   planVersionRef: string | null;
+  /** Wall-clock milliseconds from the request arriving to the latch firing. Null when nobody timed it. */
+  latencyMs: number | null;
 }
 
 /**
@@ -114,11 +124,69 @@ export interface CapacityLine {
   calls: number;
 }
 
-/** One tool execution: what it was, how long it took, and whether it worked. */
+/**
+ * How one tool call ended, from the ledger's point of view (ADR-062 §5).
+ *
+ *   * `ok`               — it ran and returned.
+ *   * `failed`           — it threw, or its input was malformed past repair and
+ *                          it never ran at all.
+ *   * `repaired`         — its input was malformed, `repairToolInput` fixed it,
+ *                          and it then ran. Counted with `failed` by the
+ *                          failure rate: the model got it wrong.
+ *   * `refused-by-grant` — the model called a tool this step did not hold. The
+ *                          SDK refuses it before any code runs.
+ *
+ * A tool that RETURNS a refusal value (escalate's "already escalated") is
+ * `ok`: this describes execution, and refusal values are on the `ai.ask` line.
+ */
+export type ToolCallOutcome = "ok" | "failed" | "repaired" | "refused-by-grant";
+
+/** One tool call: what it was, how long it took, and whether it worked. */
 export interface LedgerToolCall {
+  /** The SDK's `toolCallId`. Null only from a caller that did not pass one. */
+  callId: string | null;
   name: string;
-  ms: number;
+  /** Null for a call that never executed (refused, or invalid past repair). */
+  ms: number | null;
+  /** Whether it executed and returned. Kept beside `outcome` for the existing metric. */
   ok: boolean;
+  outcome: ToolCallOutcome;
+  /** Which agent step emitted it, joined at the latch; null when no step reported it. */
+  stepIndex: number | null;
+  /** Sizes of its input and result as JSON, in bytes — never the content itself. */
+  inputBytes: number | null;
+  outputBytes: number | null;
+  /**
+   * Whether something this call collected reached the proposal the user saw.
+   * Null for a tool that cannot propose (every read tool); false for a write
+   * call on a turn that never produced a proposal.
+   */
+  reachedProposal: boolean | null;
+}
+
+/**
+ * **One agent step's spend** — the per-step row (ADR-062 §5).
+ *
+ * A turn that escalates runs its later steps on a different model, and one
+ * `turn.model` for the whole turn bills all of them at the first model's rate
+ * (KI-2026-09-17-c). The step is the grain a price can be right at.
+ */
+export interface StepSpend {
+  /** 0-based, in the order the agent ran them. */
+  index: number;
+  /** The RESOLVED id of the model this step ran on, as `prepareStep` chose it. */
+  model: string;
+  tier: string | null;
+  /** Null means unreported, never zero — the `ModelSpend` rule. */
+  tokensIn: number | null;
+  cacheReadTokens: number | null;
+  cacheWriteTokens: number | null;
+  tokensOut: number | null;
+  finishReason: string | null;
+  /** This step ran on the escalation model. */
+  escalated: boolean;
+  /** This step ran on a page pivot's model (ADR-058). */
+  pivoted: boolean;
 }
 
 /**
@@ -142,6 +210,8 @@ export interface TurnLedger {
   cost: TurnCost;
   capacity: readonly CapacityLine[];
   toolCalls: readonly LedgerToolCall[];
+  /** One entry per agent step the recorder observed, in order. */
+  stepSpend: readonly StepSpend[];
 }
 
 /**
@@ -176,9 +246,27 @@ export function billableRoundTrips(ledger: TurnLedger): number {
  * user, and a telemetry fault must never be the reason an answer stops
  * mid-sentence.
  */
+/** What `measured()` knows about one execution beyond its name and timing. */
+export interface ToolCallDetail {
+  callId?: string | null;
+  inputBytes?: number | null;
+  outputBytes?: number | null;
+  /** The tool collects into the proposal buffer, so `reachedProposal` applies to it. */
+  proposes?: boolean;
+}
+
+/** What the SDK's repair hook saw about a call before it could run. */
+export type ToolCallIssue = "repaired" | "refused-by-grant" | "invalid";
+
 export interface TurnMeter {
   /** One tool execution, recorded whether it returned or threw. */
-  toolCall(name: string, ms: number, ok: boolean): void;
+  toolCall(name: string, ms: number, ok: boolean, detail?: ToolCallDetail): void;
+  /**
+   * The repair hook's verdict on a call, keyed by `callId`. A `repaired` call
+   * then executes and its outcome becomes `repaired`; a `refused-by-grant` or
+   * `invalid` one never executes, so it is reported here or not at all.
+   */
+  callIssue(callId: string, name: string, issue: ToolCallIssue): void;
   /** One vendor lookup — capacity, never cost. */
   vendorCall(vendor: CapacityLine["vendor"], calls?: number): void;
   /**
@@ -187,8 +275,14 @@ export interface TurnMeter {
    * the same guarantee `ProposalBuffer.collected()` (deps.ts) states and
    * preserves: a caller that mutates what it reads must not be able to
    * rewrite what the turn collected.
+   *
+   * Executed calls first, in order, then calls that never executed. Nothing
+   * here is joined to steps or to the proposal; the recorder does that at the
+   * latch, because only it knows both.
    */
   toolCalls(): readonly LedgerToolCall[];
+  /** Whether a call collected into the proposal buffer, by `callId`. */
+  proposes(callId: string): boolean;
   /** Collapsed to one line per vendor, so a reader never has to group. */
   capacity(): readonly CapacityLine[];
 }
@@ -201,15 +295,50 @@ export interface TurnMeter {
  */
 export function newTurnMeter(): TurnMeter {
   const tools: LedgerToolCall[] = [];
+  const proposing = new Set<string>();
+  const issues = new Map<string, { name: string; issue: ToolCallIssue }>();
   const vendors = new Map<CapacityLine["vendor"], number>();
   return {
-    toolCall(name, ms, ok) {
-      tools.push({ name, ms, ok });
+    toolCall(name, ms, ok, detail = {}) {
+      const callId = detail.callId ?? null;
+      const repaired = callId !== null && issues.get(callId)?.issue === "repaired";
+      if (callId !== null && detail.proposes === true) proposing.add(callId);
+      tools.push({
+        callId,
+        name,
+        ms,
+        ok,
+        outcome: !ok ? "failed" : repaired ? "repaired" : "ok",
+        stepIndex: null,
+        inputBytes: detail.inputBytes ?? null,
+        outputBytes: detail.outputBytes ?? null,
+        reachedProposal: null,
+      });
+    },
+    callIssue(callId, name, issue) {
+      issues.set(callId, { name, issue });
     },
     vendorCall(vendor, calls = 1) {
       vendors.set(vendor, (vendors.get(vendor) ?? 0) + calls);
     },
-    toolCalls: () => tools.map((tool) => ({ ...tool })),
+    toolCalls: () => {
+      const executed = new Set(tools.map((tool) => tool.callId));
+      const neverRan: LedgerToolCall[] = [...issues]
+        .filter(([callId, entry]) => entry.issue !== "repaired" && !executed.has(callId))
+        .map(([callId, entry]) => ({
+          callId,
+          name: entry.name,
+          ms: null,
+          ok: false,
+          outcome: entry.issue === "refused-by-grant" ? "refused-by-grant" : "failed",
+          stepIndex: null,
+          inputBytes: null,
+          outputBytes: null,
+          reachedProposal: null,
+        }));
+      return [...tools.map((tool) => ({ ...tool })), ...neverRan];
+    },
+    proposes: (callId) => proposing.has(callId),
     capacity: () => [...vendors].map(([vendor, calls]) => ({ vendor, calls })),
   };
 }
@@ -217,7 +346,9 @@ export function newTurnMeter(): TurnMeter {
 /** A meter for a turn nobody is measuring — the default, so a caller may omit one. */
 export const NO_METER: TurnMeter = {
   toolCall: () => {},
+  callIssue: () => {},
   vendorCall: () => {},
   toolCalls: () => [],
+  proposes: () => false,
   capacity: () => [],
 };

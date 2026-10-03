@@ -36,6 +36,7 @@ import {
   type TurnDeps,
 } from "./deps";
 import type { AnyAssistantTool } from "./defineTool";
+import { runInCall } from "./callScope";
 import { NO_METER, type TurnMeter } from "./ledger";
 import { READ_TOOLS } from "./tools/read";
 import { PLANNING_TOOLS } from "./tools/planning";
@@ -136,8 +137,8 @@ export function contextTool(
     description: definition.description,
     inputSchema: definition.input,
     contextSchema: AssistantContextSchema,
-    execute: async (input: unknown, { context }) =>
-      measured(definition, meter, () =>
+    execute: async (input: unknown, { context, toolCallId }) =>
+      measured(definition, meter, toolCallId, input, () =>
         definition.invoke(input, asDeps({ ...ambientDepsFrom(context), ...supplied })),
       ),
   });
@@ -149,8 +150,8 @@ function plainTool(definition: AnyAssistantTool, turn: Partial<TurnDeps>, meter:
   return tool({
     description: definition.description,
     inputSchema: definition.input,
-    execute: async (input: unknown) =>
-      measured(definition, meter, () => definition.invoke(input, asDeps(supplied))),
+    execute: async (input: unknown, { toolCallId }) =>
+      measured(definition, meter, toolCallId, input, () => definition.invoke(input, asDeps(supplied))),
   });
 }
 
@@ -172,16 +173,40 @@ function plainTool(definition: AnyAssistantTool, turn: Partial<TurnDeps>, meter:
 async function measured<T>(
   definition: AnyAssistantTool,
   meter: TurnMeter,
+  callId: string | undefined,
+  input: unknown,
   run: () => Promise<T>,
 ): Promise<T> {
   const startedAt = Date.now();
+  // Whether this tool collects into the proposal buffer — the only tools for
+  // which `reachedProposal` is a question at all. Read off `needs`, the same
+  // declaration that decides whether the buffer is handed to it.
+  const proposes = (definition.needs as readonly string[]).includes("proposalBuffer");
+  const detail = { callId: callId ?? null, inputBytes: byteSize(input), proposes };
   try {
-    const result = await run();
-    meter.toolCall(definition.name, Date.now() - startedAt, true);
+    // Inside the call's scope, so the buffer can tag what this call collects
+    // (callScope.ts). Outside it, nothing changes: the scope is read-only.
+    const result = await runInCall(callId ?? null, run);
+    meter.toolCall(definition.name, Date.now() - startedAt, true, { ...detail, outputBytes: byteSize(result) });
     return result;
   } catch (err) {
-    meter.toolCall(definition.name, Date.now() - startedAt, false);
+    meter.toolCall(definition.name, Date.now() - startedAt, false, detail);
     throw err;
+  }
+}
+
+/**
+ * A value's size as JSON, in bytes — or null when it cannot be serialized.
+ *
+ * Total, because it runs inside a tool call the user is waiting on: a value
+ * that will not stringify is a missing measurement, never a failed call.
+ */
+function byteSize(value: unknown): number | null {
+  try {
+    const json = JSON.stringify(value);
+    return json === undefined ? null : Buffer.byteLength(json, "utf8");
+  } catch {
+    return null;
   }
 }
 

@@ -19,7 +19,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { stripComments } from "@/test-support/stripComments";
 import { MODEL_RATES, microUsdFor } from "./modelRates";
-import { aiUsage } from "@/server/db/schema";
+import { aiUsage, aiUsageSteps, aiUsageToolCalls } from "@/server/db/schema";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const WEB = path.resolve(HERE, "../../..");
@@ -51,18 +51,21 @@ describe("no currency type reaches the cost ledger", () => {
 
   // The stored row is the thing that would be permanently wrong, so it is
   // asserted against the TABLE rather than against a file.
-  it("has no dollar column on the row", () => {
-    for (const column of Object.keys(aiUsage)) {
-      expect(column).not.toMatch(/money|amount|minor|usd|dollar|cost|price|currency/i);
+  // M31 Phase 1 added the per-step and per-tool rows beside it, under the
+  // same rule: tokens and ids, priced downstream.
+  it("has no dollar column on the row, or on its step and tool-call rows", () => {
+    for (const table of [aiUsage, aiUsageSteps, aiUsageToolCalls]) {
+      for (const column of Object.keys(table)) {
+        expect(column).not.toMatch(/money|amount|minor|usd|dollar|cost|price|currency/i);
+      }
     }
   });
 
-  it("has no dollar column in the migration that created it", () => {
-    const sql = readFileSync(path.join(WEB, "drizzle/0020_ai_usage_ledger.sql"), "utf8").replace(
-      /^--.*$/gm,
-      "",
-    );
-    expect(sql).not.toMatch(/money|numeric|decimal|amount_minor|usd|price|cost/i);
+  it("has no dollar column in the migrations that shaped them", () => {
+    for (const file of ["0020_ai_usage_ledger.sql", "0035_ai_usage_steps_and_tool_calls.sql"]) {
+      const sql = readFileSync(path.join(WEB, "drizzle", file), "utf8").replace(/^--.*$/gm, "");
+      expect(sql, file).not.toMatch(/money|numeric|decimal|amount_minor|usd|price|cost/i);
+    }
   });
 });
 
@@ -74,6 +77,9 @@ describe("the rate record is integer micro-dollars", () => {
     for (const rate of MODEL_RATES) {
       expect(Number.isSafeInteger(rate.inputMicroUsdPerMTok)).toBe(true);
       expect(Number.isSafeInteger(rate.outputMicroUsdPerMTok)).toBe(true);
+      if (rate.cacheReadInputMicroUsdPerMTok !== undefined) {
+        expect(Number.isSafeInteger(rate.cacheReadInputMicroUsdPerMTok)).toBe(true);
+      }
     }
   });
 
@@ -100,5 +106,31 @@ describe("the rate record is integer micro-dollars", () => {
     expect(microUsd).toBeLessThan(1_000);
     // What `Money` would have stored: whole cents.
     expect(Math.round(microUsd / 10_000)).toBe(0);
+  });
+});
+
+describe("cached reads are priced at the cached rate (M31 Phase 1)", () => {
+  const MODEL = "deepseek/deepseek-v4-flash-0731";
+  const at = new Date("2026-10-04T00:00:00Z");
+
+  // `tokensIn` is the SDK's total input, cached reads included. Pricing the
+  // cached part at $0.028 instead of $0.13 per MTok is the difference between
+  // what a cached turn cost and five times that.
+  it("prices the cached part of the input at the cached rate, not as an addition to it", () => {
+    // 10,000 in, of which 8,000 cached; 0 out.
+    // 2,000 × 0.13 + 8,000 × 0.028 = 260 + 224 = 484 micro-dollars.
+    expect(microUsdFor(MODEL, 10_000, 0, at, undefined, 8_000)).toBe(484);
+    expect(microUsdFor(MODEL, 10_000, 0, at)).toBe(1_300);
+  });
+
+  // A month priced before the cached rate was on the record is priced as it
+  // was: append-only means a new entry never re-prices history.
+  it("prices cached reads as fresh input before the dated entry that carries a cached rate", () => {
+    const before = new Date("2026-09-20T00:00:00Z");
+    expect(microUsdFor(MODEL, 10_000, 0, before, undefined, 8_000)).toBe(1_300);
+  });
+
+  it("clamps a cached count above the total, rather than pricing input below zero", () => {
+    expect(microUsdFor(MODEL, 1_000, 0, at, undefined, 5_000)).toBe(28);
   });
 });

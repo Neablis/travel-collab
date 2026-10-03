@@ -14,6 +14,7 @@
 // `scope` (the day-scope fallback that a model must not be able to omit its way
 // out of), the three per-turn collectors, and the three library ports. A key
 // nothing needs is a key nothing can audit.
+import { currentCallId } from "./callScope";
 import { z } from "zod";
 import type { PageNode, SavedDay, TripDetail } from "@tc/contracts";
 import type { DiscoverDay } from "@/lib/playbooks";
@@ -98,6 +99,15 @@ export interface ProposalBuffer {
   collected(): RawToolIntent[];
   addInsert(insert: CollectedInsert): void;
   inserts(): CollectedInsert[];
+  /**
+   * The tool call that collected each intent, index for index with
+   * `collected()` — null for one collected outside any call. Read by the
+   * ledger's `reachedProposal` (M31 Phase 1); see `callScope.ts` for why the
+   * buffer, and not the tool, knows it.
+   */
+  collectedBy(): (string | null)[];
+  /** The same, for `inserts()`. */
+  insertsBy(): (string | null)[];
 }
 
 /**
@@ -159,11 +169,21 @@ export function widgetNameOf(node: PageNode): string | null {
 export function newProposalBuffer(): ProposalBuffer {
   const intents: RawToolIntent[] = [];
   const inserts: CollectedInsert[] = [];
+  const intentCalls: (string | null)[] = [];
+  const insertCalls: (string | null)[] = [];
   return {
-    collect: (intent) => void intents.push(intent),
+    collect: (intent) => {
+      intents.push(intent);
+      intentCalls.push(currentCallId());
+    },
     collected: () => [...intents],
-    addInsert: (insert) => void inserts.push(insert),
+    addInsert: (insert) => {
+      inserts.push(insert);
+      insertCalls.push(currentCallId());
+    },
     inserts: () => [...inserts],
+    collectedBy: () => [...intentCalls],
+    insertsBy: () => [...insertCalls],
   };
 }
 

@@ -25,6 +25,7 @@ import {
   type CapacityLine,
   type LedgerToolCall,
   type ModelSpend,
+  type StepSpend,
   type TurnCost,
   type TurnLedger,
 } from "./ledger";
@@ -48,16 +49,45 @@ import {
 type Exact<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
 type Assert<T extends true> = T;
 
-export type _LedgerKeys = Assert<Exact<keyof TurnLedger, "cost" | "capacity" | "toolCalls">>;
+export type _LedgerKeys = Assert<Exact<keyof TurnLedger, "cost" | "capacity" | "toolCalls" | "stepSpend">>;
 export type _CostKeys = Assert<
   Exact<
     keyof TurnCost,
-    "userId" | "endpoint" | "outcome" | "taskClass" | "turn" | "classifier" | "steps" | "planVersionRef"
+    | "turnId"
+    | "userId"
+    | "endpoint"
+    | "outcome"
+    | "taskClass"
+    | "turn"
+    | "classifier"
+    | "steps"
+    | "planVersionRef"
+    | "latencyMs"
   >
 >;
 export type _SpendKeys = Assert<Exact<keyof ModelSpend, "model" | "tokensIn" | "tokensOut">>;
 export type _CapacityKeys = Assert<Exact<keyof CapacityLine, "vendor" | "calls">>;
-export type _ToolCallKeys = Assert<Exact<keyof LedgerToolCall, "name" | "ms" | "ok">>;
+export type _ToolCallKeys = Assert<
+  Exact<
+    keyof LedgerToolCall,
+    "callId" | "name" | "ms" | "ok" | "outcome" | "stepIndex" | "inputBytes" | "outputBytes" | "reachedProposal"
+  >
+>;
+export type _StepKeys = Assert<
+  Exact<
+    keyof StepSpend,
+    | "index"
+    | "model"
+    | "tier"
+    | "tokensIn"
+    | "cacheReadTokens"
+    | "cacheWriteTokens"
+    | "tokensOut"
+    | "finishReason"
+    | "escalated"
+    | "pivoted"
+  >
+>;
 
 const LEDGER_SOURCE = readFileSync(fileURLToPath(new URL("./ledger.ts", import.meta.url)), "utf8");
 
@@ -93,6 +123,8 @@ const arbSpend: fc.Arbitrary<ModelSpend> = fc.record({
 });
 
 const arbCost: fc.Arbitrary<TurnCost> = fc.record({
+  turnId: fc.option(fc.uuid(), { nil: null }),
+  latencyMs: fc.option(fc.integer({ min: 0, max: 300_000 }), { nil: null }),
   userId: fc.constantFrom("alice", "bob"),
   endpoint: fc.constantFrom("ask" as const, "ask.apply" as const),
   outcome: fc.constantFrom("completed" as const, "error" as const, "abort" as const),
@@ -114,9 +146,15 @@ const arbCapacity: fc.Arbitrary<CapacityLine[]> = fc.array(
 
 const arbToolCalls: fc.Arbitrary<LedgerToolCall[]> = fc.array(
   fc.record({
+    callId: fc.option(fc.uuid(), { nil: null }),
     name: fc.constantFrom("read_trip", "read_day", "search_playbooks"),
-    ms: fc.integer({ min: 0, max: 10_000 }),
+    ms: fc.option(fc.integer({ min: 0, max: 10_000 }), { nil: null }),
     ok: fc.boolean(),
+    outcome: fc.constantFrom("ok" as const, "failed" as const, "repaired" as const, "refused-by-grant" as const),
+    stepIndex: fc.option(fc.integer({ min: 0, max: 8 }), { nil: null }),
+    inputBytes: fc.option(fc.integer({ min: 0, max: 10_000 }), { nil: null }),
+    outputBytes: fc.option(fc.integer({ min: 0, max: 10_000 }), { nil: null }),
+    reachedProposal: fc.option(fc.boolean(), { nil: null }),
   }),
   { maxLength: 4 },
 );
@@ -142,8 +180,8 @@ describe("cost and capacity are two ledgers, not two fields of one", () => {
 
     fc.assert(
       fc.property(arbCost, arbCapacity, arbCapacity, arbToolCalls, arbToolCalls, (cost, capA, capB, toolsA, toolsB) => {
-        const a: TurnLedger = { cost, capacity: capA, toolCalls: toolsA };
-        const b: TurnLedger = { cost, capacity: capB, toolCalls: toolsB };
+        const a: TurnLedger = { cost, capacity: capA, toolCalls: toolsA, stepSpend: [] };
+        const b: TurnLedger = { cost, capacity: capB, toolCalls: toolsB, stepSpend: [] };
 
         expect(billableRoundTrips(a)).toBe(billableRoundTrips(b));
         // And what it IS: the agent's steps plus the classifier's one round-trip
@@ -179,13 +217,16 @@ describe("cost and capacity are two ledgers, not two fields of one", () => {
       classifier: null,
       steps: 3,
       planVersionRef: null,
+      turnId: null,
+      latencyMs: null,
     };
-    expect(billableRoundTrips({ cost, capacity: [], toolCalls: [] })).toBe(3);
+    expect(billableRoundTrips({ cost, capacity: [], toolCalls: [], stepSpend: [] })).toBe(3);
     expect(
       billableRoundTrips({
         cost: { ...cost, classifier: { model: "c", tokensIn: 150, tokensOut: 10 } },
         capacity: [],
         toolCalls: [],
+        stepSpend: [],
       }),
     ).toBe(4);
   });
@@ -195,15 +236,62 @@ describe("cost and capacity are two ledgers, not two fields of one", () => {
 // The meter
 // ---------------------------------------------------------------------------
 
+/** A meter record with only the fields a test cares about spelled out. */
+function call(overrides: Partial<LedgerToolCall> & { name: string }): LedgerToolCall {
+  return {
+    callId: null,
+    ms: 0,
+    ok: true,
+    outcome: "ok",
+    stepIndex: null,
+    inputBytes: null,
+    outputBytes: null,
+    reachedProposal: null,
+    ...overrides,
+  };
+}
+
 describe("the turn meter", () => {
   it("records each tool call once, in order, with its outcome", () => {
     const meter = newTurnMeter();
     meter.toolCall("read_trip", 12, true);
     meter.toolCall("read_day", 40, false);
     expect(meter.toolCalls()).toEqual([
-      { name: "read_trip", ms: 12, ok: true },
-      { name: "read_day", ms: 40, ok: false },
+      call({ name: "read_trip", ms: 12 }),
+      call({ name: "read_day", ms: 40, ok: false, outcome: "failed" }),
     ]);
+  });
+
+  it("keeps a call's id and sizes, and never its content", () => {
+    const meter = newTurnMeter();
+    meter.toolCall("read_day", 7, true, { callId: "c1", inputBytes: 18, outputBytes: 2048, proposes: false });
+    expect(meter.toolCalls()).toEqual([
+      call({ name: "read_day", ms: 7, callId: "c1", inputBytes: 18, outputBytes: 2048 }),
+    ]);
+  });
+
+  // ADR-062 §5's four outcomes. A repaired call ran, so it keeps its timing;
+  // a refused or invalid one never ran, so it is only known from the repair
+  // hook and has no duration at all.
+  it("records repaired, refused and invalid calls as their own outcomes", () => {
+    const meter = newTurnMeter();
+    meter.callIssue("c1", "add_activity", "repaired");
+    meter.toolCall("add_activity", 5, true, { callId: "c1" });
+    meter.callIssue("c2", "set_trip_name", "refused-by-grant");
+    meter.callIssue("c3", "move_activity", "invalid");
+    expect(meter.toolCalls()).toEqual([
+      call({ name: "add_activity", ms: 5, callId: "c1", outcome: "repaired" }),
+      call({ name: "set_trip_name", ms: null, ok: false, callId: "c2", outcome: "refused-by-grant" }),
+      call({ name: "move_activity", ms: null, ok: false, callId: "c3", outcome: "failed" }),
+    ]);
+  });
+
+  it("knows which calls can propose", () => {
+    const meter = newTurnMeter();
+    meter.toolCall("add_activity", 5, true, { callId: "w", proposes: true });
+    meter.toolCall("read_day", 5, true, { callId: "r", proposes: false });
+    expect(meter.proposes("w")).toBe(true);
+    expect(meter.proposes("r")).toBe(false);
   });
 
   // Collapsed per vendor, so a reader of `capacity` never has to group before
@@ -218,6 +306,7 @@ describe("the turn meter", () => {
 
   it("measures nothing, and refuses nothing, when no meter was minted", () => {
     NO_METER.toolCall("read_trip", 12, true);
+    NO_METER.callIssue("c", "read_trip", "refused-by-grant");
     NO_METER.vendorCall("locationiq", 3);
     expect(NO_METER.toolCalls()).toEqual([]);
     expect(NO_METER.capacity()).toEqual([]);
@@ -232,9 +321,9 @@ describe("the turn meter", () => {
     meter.toolCall("read_trip", 12, true);
 
     const snapshot = meter.toolCalls() as LedgerToolCall[];
-    snapshot.push({ name: "evil", ms: 0, ok: true });
+    snapshot.push(call({ name: "evil" }));
 
-    expect(meter.toolCalls()).toEqual([{ name: "read_trip", ms: 12, ok: true }]);
+    expect(meter.toolCalls()).toEqual([call({ name: "read_trip", ms: 12 })]);
   });
 
   // CodeRabbit on PR #165: the first version of the fix above copied the array
@@ -252,6 +341,6 @@ describe("the turn meter", () => {
     record.name = "rewritten";
     record.ms = 9999;
 
-    expect(meter.toolCalls()).toEqual([{ name: "read_trip", ms: 12, ok: true }]);
+    expect(meter.toolCalls()).toEqual([call({ name: "read_trip", ms: 12 })]);
   });
 });
