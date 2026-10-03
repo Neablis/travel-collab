@@ -110,6 +110,17 @@ test("sitemap.xml lists the static routes and published days, never a private on
 const ldJson = (html: string): unknown[] =>
   [...html.matchAll(/<script type="application\/ld\+json">(.*?)<\/script>/gs)].flatMap((m) => JSON.parse(m[1]!) as unknown);
 
+// The page's meta description as text: React escapes `&`, `"`, `'`, `<` and `>`
+// in an attribute, and the JSON-LD copy of the same sentence is not escaped.
+const metaDescription = (html: string): string | undefined =>
+  /<meta name="description" content="([^"]*)"/
+    .exec(html)?.[1]
+    ?.replace(/&#x27;|&#39;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&");
+
 // A day's canonical path as the page builds it (`lib/playbookUrls.ts`), spelled
 // again here so a change to the slug rule fails a test rather than moving it.
 const sluggedPath = (name: string, savedDayId: string) =>
@@ -166,7 +177,9 @@ test("a day's HTML holds its name and its stops without JavaScript", async ({ pa
     expect(nodes.map((n) => n["@type"])).toEqual(expect.arrayContaining(["TouristTrip", "BreadcrumbList"]));
     const trip = nodes.find((n) => n["@type"] === "TouristTrip");
     expect(trip?.name).toBe(name);
-    expect(trip?.description).toBe(/<meta name="description" content="([^"]*)"/.exec(html)?.[1]);
+    const description = metaDescription(html);
+    expect(description).toBeTruthy();
+    expect(trip?.description).toBe(description);
     await visitor.context().close();
   } finally {
     await forget(page, savedDayId);
