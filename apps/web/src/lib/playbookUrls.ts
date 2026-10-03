@@ -62,6 +62,11 @@ export function placeIndexable(place: { days: number }): boolean {
 /** Days per city or country page — Discover's own page size, not a second 24. */
 export const PLACE_PAGE_SIZE = DISCOVER_PAGE_SIZE;
 
+/** A city or country page's path, page one: `/playbooks/<kind>/<slug>`. */
+export function placePath(place: { kind: "city" | "country"; slug: string }): string {
+  return `/playbooks/${place.kind}/${place.slug}`;
+}
+
 /** `/playbooks/city/<slug>`, or null for a city whose name has no slug (link to Discover's `?city=` instead). */
 export function cityPath(city: string): string | null {
   const slug = slugify(city);

@@ -11,7 +11,7 @@ import { toClockLabel, toClockRange } from "@/lib/time";
 import { useTimeFormat } from "@/components/account/PreferencesProvider";
 import { cn } from "@/lib/cn";
 import { PHONE_TOUCH } from "@/components/ui/button";
-import { dayPath } from "@/lib/playbookUrls";
+import { cityPath, dayPath } from "@/lib/playbookUrls";
 import { backQuery, type BackOrigin } from "./backLink";
 
 // One day in the public library, as Discover and a public profile both render
@@ -102,19 +102,39 @@ export function DiscoverCard({ day, origin }: { day: DiscoverDay; origin: BackOr
         <ul className="flex flex-wrap gap-1.5" data-testid="city-chips">
           {chips.shown.map((city) => {
             const matched = day.matchedCities.includes(city);
-            return (
-              <li
-                key={city}
+            const href = cityPath(city);
+            const chip = (
+              <span
                 data-city={city}
                 data-matched={matched}
                 className={cn(
-                  "rounded-full px-2.5 py-0.5 text-2xs font-semibold tracking-wide uppercase",
+                  "relative rounded-full px-2.5 py-0.5 text-2xs font-semibold tracking-wide uppercase group-hover/chip:underline",
                   matched
                     ? "bg-brand-tint text-brand-pressed"
                     : "border border-hairline bg-surface text-slate",
                 )}
               >
                 {city}
+              </span>
+            );
+            // The chip opens its city's page (SEO pass, D6); a city whose name
+            // has no slug has no page and stays a label. A 44px target and a
+            // 20px chip on a phone, as `StopTagChips` draws its tags
+            // (KI-2026-09-24-m): the link is the hit area, `-my-3` hands back
+            // the 24px `min-h-11` adds, and `md:` releases it. A named group,
+            // because the hover belongs to the chip, not to the card.
+            return (
+              <li key={city} className="flex">
+                {href === null ? (
+                  chip
+                ) : (
+                  <Link
+                    href={href}
+                    className="group/chip inline-flex min-h-11 -my-3 items-center md:my-0 md:min-h-0"
+                  >
+                    {chip}
+                  </Link>
+                )}
               </li>
             );
           })}

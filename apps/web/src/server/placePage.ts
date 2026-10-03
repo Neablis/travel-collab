@@ -2,7 +2,7 @@ import { cache, type ComponentProps } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import type { PlaceDaysList } from "@/components/playbooks/PlaceDaysList";
-import { PLACE_PAGE_SIZE, placeIndexable, placePagePath } from "@/lib/playbookUrls";
+import { PLACE_PAGE_SIZE, placeIndexable, placePagePath, placePath } from "@/lib/playbookUrls";
 import { NOINDEX_FOLLOW, pageMetadata } from "@/lib/siteMetadata";
 import { placeFor, publishedDaysPage, type PlacePage } from "./playbooks";
 
@@ -42,8 +42,6 @@ async function resolve(kind: PlacePage["kind"], { params, searchParams }: PlaceR
   return { page, data: await load(kind, slug, page) };
 }
 
-const pathOf = (place: PlacePage) => `/playbooks/${place.kind}/${place.slug}`;
-
 /** Metadata for a city or country page: its name and count, its card, self-canonical per page. */
 export async function placeMetadata(kind: PlacePage["kind"], props: PlaceRouteProps): Promise<Metadata> {
   const { page, data } = await resolve(kind, props);
@@ -64,7 +62,7 @@ export async function placeMetadata(kind: PlacePage["kind"], props: PlaceRoutePr
           : `/api/og/playbooks/country/${place.countries[0]}`,
       alt: `${place.name} playbooks`,
     },
-    canonical: placePagePath(pathOf(place), page),
+    canonical: placePagePath(placePath(place), page),
     // `placeIndexable` over `place.days`, the count the sitemap asks it about:
     // a thin page opens and passes its links on, and stays out of the index.
     ...(placeIndexable(place) ? {} : { robots: NOINDEX_FOLLOW }),
@@ -78,5 +76,5 @@ export async function placeListing(
 ): Promise<ComponentProps<typeof PlaceDaysList>> {
   const { page, data } = await resolve(kind, props);
   if (data === null) notFound();
-  return { name: data.place.name, path: pathOf(data.place), days: data.days, total: data.place.days, page };
+  return { name: data.place.name, path: placePath(data.place), days: data.days, total: data.place.days, page };
 }

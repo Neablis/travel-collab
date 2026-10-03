@@ -11,6 +11,7 @@ import {
   parseDaySegment,
   placeIndexable,
   placePagePath,
+  placePath,
   slugify,
 } from "./playbookUrls";
 
@@ -94,6 +95,11 @@ describe("place URLs", () => {
     expect(countrySlug("??")).toBeNull();
     expect(countrySlug("XX")).toBeNull();
     expect(countryPath("??")).toBeNull();
+  });
+
+  it("puts a city or country page under its kind", () => {
+    expect(placePath({ kind: "city", slug: "kyoto" })).toBe("/playbooks/city/kyoto");
+    expect(placePath({ kind: "country", slug: "japan" })).toBe("/playbooks/country/japan");
   });
 
   it("leaves page one bare and numbers the rest", () => {

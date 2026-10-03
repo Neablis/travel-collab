@@ -2,10 +2,17 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Metadata } from "next";
 import type { SavedDay } from "@tc/contracts";
 import type { SharedDayView } from "@/lib/sharedDayView";
+import { MIN_INDEXED_PLACE_DAYS } from "@/lib/playbookUrls";
 
 const sharedDayViewMock = vi.fn();
 vi.mock("@/server/sharedDayView", () => ({ sharedDayView: (...a: unknown[]) => sharedDayViewMock(...a) }));
 vi.mock("@/server/auth", () => ({ auth: async () => ({ user: { id: "dev-reader" } }) }));
+// A place nobody published in, unless a test says otherwise.
+const placeForMock = vi.fn(async (..._a: unknown[]): Promise<unknown> => null);
+vi.mock("@/server/playbooks", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/server/playbooks")>()),
+  placeFor: (...a: unknown[]) => placeForMock(...a),
+}));
 
 import { metadata as boardMetadata } from "./board/page";
 import { generateMetadata as dayMetadata } from "./day/[savedDayId]/page";
@@ -59,6 +66,7 @@ const discover = (params: Record<string, string | string[]>) =>
 afterEach(() => {
   vi.unstubAllGlobals();
   sharedDayViewMock.mockReset();
+  placeForMock.mockReset();
 });
 
 describe("/playbooks metadata", () => {
@@ -100,6 +108,57 @@ describe("/playbooks metadata", () => {
     stubMeta(new Error("connection refused"));
 
     expect(ogImageUrls(await discover({ city: "Kyoto" }))).toEqual([PLAYBOOKS_IMAGE, SITE_IMAGE]);
+  });
+});
+
+describe("/playbooks canonical", () => {
+  // The place each search would be canonical to, when it is that place alone.
+  const place = (kind: "city" | "country", slug: string, days: number) => ({
+    kind,
+    slug,
+    name: slug,
+    cities: [],
+    countries: [],
+    days,
+  });
+
+  it.each([
+    ["one city", { city: "Kyoto" }, place("city", "kyoto", MIN_INDEXED_PLACE_DAYS), "/playbooks/city/kyoto"],
+    ["one country", { country: "jp" }, place("country", "japan", MIN_INDEXED_PLACE_DAYS), "/playbooks/country/japan"],
+  ])("is the place's page for %s, when that page is indexed", async (_case, params, found, canonical) => {
+    stubMeta(new Error("no card needed"));
+    placeForMock.mockResolvedValue(found);
+
+    const metadata = await discover(params);
+
+    expect(placeForMock).toHaveBeenCalledWith(found.kind, found.slug);
+    expect(metadata.alternates?.canonical).toBe(canonical);
+  });
+
+  // A canonical naming a `noindex` page, or a 404, would hand a crawler
+  // nothing to index for either URL.
+  it.each([
+    ["a city below the threshold", place("city", "kyoto", MIN_INDEXED_PLACE_DAYS - 1)],
+    ["a city with no page", null],
+  ])("is Discover for %s", async (_case, found) => {
+    stubMeta(new Error("no card needed"));
+    placeForMock.mockResolvedValue(found);
+
+    expect((await discover({ city: "Kyoto" })).alternates?.canonical).toBe("/playbooks");
+  });
+
+  it.each([
+    ["no place", {}],
+    ["two cities", { city: ["Kyoto", "Osaka"] }],
+    ["a city and a country", { city: "Kyoto", country: "JP" }],
+    ["a city and a sort", { city: "Kyoto", sort: "newest" }],
+    ["a country and a rating", { country: "JP", rating: "4" }],
+  ])("is Discover, and asks for no place, for %s", async (_case, params) => {
+    stubMeta(new Error("no card needed"));
+    placeForMock.mockResolvedValue(place("city", "kyoto", MIN_INDEXED_PLACE_DAYS));
+
+    expect((await discover(params)).alternates?.canonical).toBe("/playbooks");
+    expect(placeForMock).not.toHaveBeenCalled();
   });
 });
 

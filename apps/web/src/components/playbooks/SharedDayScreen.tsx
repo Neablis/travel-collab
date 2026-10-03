@@ -32,7 +32,7 @@ import {
 } from "@/lib/apiClient";
 import type { SharedDayView } from "@/lib/sharedDayView";
 import { takePlaybookAdd } from "@/lib/pendingPlaybookAdd";
-import { dayPath, daySegment } from "@/lib/playbookUrls";
+import { cityPath, dayPath, daySegment } from "@/lib/playbookUrls";
 import { dayLength, savedDayFacts, DAY_LENGTH_LABELS } from "@/lib/savedDayFacts";
 import { toClockLabel, toClockRange } from "@/lib/time";
 import { useTimeFormat } from "@/components/account/PreferencesProvider";
@@ -433,6 +433,19 @@ export function SharedDayScreen({
               <AuthorKindBadge authorKind={day.authorKind} />
               <ShareDayButton path={dayPath(day)} title={day.name} />
             </div>
+            {/* Where, under the title, each city a way to that city's page
+                (SEO pass, D6) — and so the link a crawler follows from a day
+                to the place it belongs to. */}
+            {day.cities.length > 0 && (
+              <Text variant="secondary" className="mt-1">
+                {day.cities.map((city, i) => (
+                  <Fragment key={city}>
+                    {i > 0 && ", "}
+                    <CityLink city={city} />
+                  </Fragment>
+                ))}
+              </Text>
+            )}
             {/* §33.1: **the title block always speaks for the whole Playbook**,
                 so no number below it is stated twice. This line is why the rail
                 no longer carries Days, Stops or Kept in — it owned three facts
@@ -911,6 +924,18 @@ function Fact({ label, value }: { label: string; value: string }) {
       </Text>
       <DataText size="xs">{value}</DataText>
     </div>
+  );
+}
+
+/** A city's name as a link to its page, or as text when its name has no slug. */
+function CityLink({ city }: { city: string }) {
+  const href = cityPath(city);
+  return href === null ? (
+    <>{city}</>
+  ) : (
+    <Link href={href} className="hover:underline">
+      {city}
+    </Link>
   );
 }
 

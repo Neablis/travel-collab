@@ -1,15 +1,17 @@
 import { cache } from "react";
 import { notFound, permanentRedirect } from "next/navigation";
 import { JsonLd } from "@/components/JsonLd";
+import { RELATED_DAYS, RelatedDays } from "@/components/playbooks/RelatedDays";
 import { SharedDayScreen } from "@/components/playbooks/SharedDayScreen";
 import { backTarget } from "@/components/playbooks/backLink";
 import { DAY_FALLBACK_TITLE, dayDescription, dayIndexable, playbooksPageMetadata } from "@/lib/playbooksPreview";
 import { deploymentOrigin } from "@/lib/deploymentOrigin";
 import { dayJsonLd } from "@/lib/jsonLd";
-import { dayPath, daySegment, parseDaySegment } from "@/lib/playbookUrls";
+import { cityPath, dayPath, daySegment, parseDaySegment } from "@/lib/playbookUrls";
 import { NOINDEX, pageMetadata } from "@/lib/siteMetadata";
 import { auth } from "@/server/auth";
 import { CITIES_SHOWN } from "@/server/og/playbooks";
+import { publishedDaysPage } from "@/server/playbooks";
 import { ratingOf } from "@/server/savedDays";
 import { sharedDayView } from "@/server/sharedDayView";
 
@@ -92,23 +94,44 @@ export default async function SharedDayPage({
 
   const first = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value);
   const back = backTarget({ from: first(query.from), profile: first(query.profile) });
-  // Only a day the library shows describes itself: an author's private day,
-  // or one an operator hid, is noindex and says nothing to a crawler.
-  const structured = dayIndexable(view)
-    ? dayJsonLd({
-        origin: deploymentOrigin(),
-        path: dayPath(view.day),
-        name: view.day.name,
-        description: describe(view),
-        author: view.author.displayName,
-        stops: view.day.stops.map((stop) => stop.title),
-        ...(await ratingOf(view.day.savedDayId)),
-      })
-    : null;
+  // Only a day the library shows describes itself, or points on to others: an
+  // author's private day, or one an operator hid, is noindex and says nothing
+  // to a crawler.
+  const indexable = dayIndexable(view);
+  const firstCity = view.day.cities[0] ?? null;
+  const cityHref = firstCity === null ? null : cityPath(firstCity);
+  // One more than is shown: either list may hold this day, which is dropped.
+  const page = { limit: RELATED_DAYS + 1, offset: 0 };
+  const [structured, sameCity, sameAuthor] = indexable
+    ? await Promise.all([
+        ratingOf(view.day.savedDayId).then((rating) =>
+          dayJsonLd({
+            origin: deploymentOrigin(),
+            path: dayPath(view.day),
+            name: view.day.name,
+            description: describe(view),
+            author: view.author.displayName,
+            stops: view.day.stops.map((stop) => stop.title),
+            // The breadcrumb runs through the city when the city has a page.
+            ...(firstCity !== null && cityHref !== null ? { city: { name: firstCity, path: cityHref } } : {}),
+            ...rating,
+          }),
+        ),
+        firstCity === null ? [] : publishedDaysPage({ cities: [firstCity] }, page).then(({ days }) => days),
+        publishedDaysPage({ authorId: view.day.ownerId }, page).then(({ days }) => days),
+      ])
+    : [null, [], []];
   return (
     <main className="mx-auto max-w-6xl px-6 py-8">
       {structured !== null && <JsonLd data={structured} />}
       <SharedDayScreen savedDayId={view.day.savedDayId} backHref={back.href} backLabel={back.label} initial={view} />
+      <RelatedDays
+        savedDayId={view.day.savedDayId}
+        cityName={firstCity}
+        authorName={view.author.displayName}
+        sameCity={sameCity}
+        sameAuthor={sameAuthor}
+      />
     </main>
   );
 }

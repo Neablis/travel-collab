@@ -158,13 +158,16 @@ describe("a public profile", () => {
     expect(screen.queryByRole("img")).toBeNull();
   });
 
-  // A way INTO the library rather than a dead end: the chip is a real Discover
-  // search scoped to that city, not a filter on this page's own list.
-  it("turns a Knows chip into a scoped Discover search", async () => {
+  // A way INTO the library rather than a dead end: the chip opens the city's
+  // page, or a Discover search for a city whose name has no slug — never a
+  // filter on this page's own list.
+  it("turns a Knows chip into the city's page, or a Discover search when it has none", async () => {
+    fetchPublicProfileMock.mockResolvedValue(ok({ ...profile, knows: [...profile.knows, { city: "京都", days: 1 }] }));
     renderProfile();
     const knows = await screen.findByTestId("knows-cities");
-    expect(within(knows).getByRole("link", { name: "Kyoto · 2" }).getAttribute("href")).toBe(
-      "/playbooks?city=Kyoto",
+    expect(within(knows).getByRole("link", { name: "Kyoto · 2" }).getAttribute("href")).toBe("/playbooks/city/kyoto");
+    expect(within(knows).getByRole("link", { name: "京都 · 1" }).getAttribute("href")).toBe(
+      `/playbooks?city=${encodeURIComponent("京都")}`,
     );
   });
 
