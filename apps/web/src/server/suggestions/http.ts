@@ -13,6 +13,8 @@ export const SUGGESTION_STATUS: Record<SuggestionErrorCode, number> = {
   "dependency-pending": 409,
   "already-resolved": 409,
   "no-longer-applies": 409,
+  // A row this server wrote is broken; no retry by the caller fixes it.
+  "malformed-trip": 500,
 };
 
 /**

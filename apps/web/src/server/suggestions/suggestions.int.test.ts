@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { eq, inArray, sql } from "drizzle-orm";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { BatchableCommand, CreateSuggestionInput } from "@tc/contracts";
 import { executeTripCommand, executeTripCommandBatch } from "../commands";
 import { grantMembership } from "../access/members";
 import { db } from "../db/client";
-import { tripSuggestionChanges, tripSuggestions, users } from "../db/schema";
+import { tripDetails, tripSuggestionChanges, tripSuggestions, users } from "../db/schema";
 import { readStream } from "../eventStore";
 import { getTripDetail } from "../projections";
 import { entitleAccounts } from "../test-support/entitledAccount";
@@ -14,6 +14,10 @@ import { listSuggestionChanges } from "./list";
 import { resolveSuggestionChange } from "./resolve";
 import { suggestionsRevForRole } from "./rev";
 import { roleOn } from "./shared";
+
+// `roleOn` asks the access seam, whose module also holds the session-reading
+// wrapper. Nothing here reads a session; this keeps next-auth out of the run.
+vi.mock("@/server/auth", () => ({ auth: vi.fn(async () => null) }));
 
 // Fresh identities and a fresh trip per test (KI-69): every assertion is about
 // rows keyed to this test's trip, so nothing here truncates a shared table.
@@ -88,7 +92,8 @@ async function suggest(input: CreateSuggestionInput, author = SUGGESTER) {
 // The poll's revision as the events route asks for it: with the role
 // `requireTripAccess` resolved, which is `roleOn`'s effective role.
 async function revFor(userId: string): Promise<string | undefined> {
-  return suggestionsRevForRole(tripId, userId, await roleOn(tripId, userId));
+  const role = await roleOn(tripId, userId);
+  return suggestionsRevForRole(tripId, userId, role.ok ? role.value : null);
 }
 
 async function statusOf(changeId: string): Promise<string | undefined> {
@@ -244,6 +249,27 @@ describe("listSuggestionChanges", () => {
     for (const outsider of [VIEWER, STRANGER]) {
       expect(await listSuggestionChanges(tripId, outsider)).toMatchObject({ ok: false, error: { code: "not-found" } });
     }
+  });
+
+  // The role comes through the access seam, which answers a stored trip it
+  // cannot parse as a denial. Here that denial is a refusal, not a throw.
+  it("refuses, rather than throws, on a trip whose stored document does not parse", async () => {
+    const [change] = await suggest(draft([rename("Sam's Kyoto")]));
+    await db
+      .update(tripDetails)
+      .set({ doc: { tripId, name: 7 } as unknown as never })
+      .where(eq(tripDetails.tripId, tripId));
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    await expect(listSuggestionChanges(tripId, OWNER)).resolves.toMatchObject({
+      ok: false,
+      error: { code: "malformed-trip" },
+    });
+    await expect(resolveSuggestionChange(tripId, change!.id, OWNER, "dismiss")).resolves.toMatchObject({
+      ok: false,
+      error: { code: "malformed-trip" },
+    });
+    errors.mockRestore();
+    expect(await statusOf(change!.id)).toBe("pending");
   });
 
   it("reports the same revision the events poll does, scoped the same way, and none to a viewer", async () => {

@@ -28,7 +28,9 @@ export async function listSuggestionChanges(
   tripId: string,
   userId: string,
 ): Promise<SuggestionResult<TripSuggestionsResponse>> {
-  const scope = visibleTo(userId, await roleOn(tripId, userId));
+  const role = await roleOn(tripId, userId);
+  if (!role.ok) return role;
+  const scope = visibleTo(userId, role.value);
   if (scope === null) return refuse("not-found", "This trip does not exist.");
   const rows = await db
     .select({ change: tripSuggestionChanges, suggestion: tripSuggestions })

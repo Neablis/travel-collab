@@ -5,7 +5,7 @@ import { executeTripCommandBatch } from "../commands";
 import { db } from "../db/client";
 import { tripSuggestionChanges, tripSuggestions } from "../db/schema";
 import { isUuid } from "../ids";
-import { refuse, roleOn, toChange, type SuggestionResult } from "./shared";
+import { refuse, roleOn, toChange, type ChangeRow, type SuggestionResult, type SuggestionRow } from "./shared";
 
 /**
  * Thrown from inside the accept batch's transaction when the change is no
@@ -44,8 +44,9 @@ export async function resolveSuggestionChange(
 ): Promise<SuggestionResult<SuggestionChange[]>> {
   // A uuid column: an id that is not one names nothing (KI-2026-09-05-x).
   if (!isUuid(changeId)) return refuse("not-found", "This suggestion does not exist.");
-  const role = await roleOn(tripId, actorId);
-  if (role === null) return refuse("not-found", "This trip does not exist.");
+  const access = await roleOn(tripId, actorId);
+  if (!access.ok) return access;
+  const role = access.value;
   const reviewing = action !== "withdraw";
   if (!roleAtLeast(role, reviewing ? "editor" : "suggester")) {
     return refuse("forbidden", reviewing ? "Only an editor can review a suggestion." : "You cannot withdraw this.");
@@ -72,9 +73,6 @@ export async function resolveSuggestionChange(
     ? accept(change, suggestion, actorId, now)
     : cascade(change.id, suggestion, RESOLVED_AS[action], actorId, now);
 }
-
-type ChangeRow = typeof tripSuggestionChanges.$inferSelect;
-type SuggestionRow = typeof tripSuggestions.$inferSelect;
 
 async function accept(
   change: ChangeRow,

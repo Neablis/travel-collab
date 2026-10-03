@@ -1,10 +1,7 @@
 import { createHash } from "node:crypto";
 import type { SuggestionChange, SuggestionChangeStatus, TripRole } from "@tc/contracts";
-import { memberRole } from "../accessPolicy";
-import { effectiveMembers } from "../access/members";
-import { db } from "../db/client";
+import { tripAccessFor } from "../access/trip-access";
 import { tripSuggestionChanges, tripSuggestions } from "../db/schema";
-import { getTripDetail } from "../projections";
 
 // The Suggestions module's refusals (ADR-064). Expected outcomes, so they are
 // returned rather than thrown — `access/invites.ts`'s `AccessResult` shape. The
@@ -19,7 +16,10 @@ export type SuggestionErrorCode =
   | "dependency-pending"
   | "already-resolved"
   // Accepting a change whose commands the pipeline now refuses (spec W10).
-  | "no-longer-applies";
+  | "no-longer-applies"
+  // The trip's stored document does not parse: the access seam's own denial,
+  // answered by this module rather than thrown through it.
+  | "malformed-trip";
 
 export type SuggestionError = {
   code: SuggestionErrorCode;
@@ -36,19 +36,26 @@ export function refuse(code: SuggestionErrorCode, message: string): { ok: false;
 }
 
 /**
- * The reader's role on this trip, through the AccessPolicy seam on the
- * EFFECTIVE member list — so a lapse that caps a suggester or an editor to
- * viewer caps them here too (spec §2.7). Null for a non-member and for a trip
- * that does not exist.
+ * The reader's role on this trip, from `tripAccessFor` — the one place that
+ * decides who may read a trip, on the EFFECTIVE member list, so a lapse that
+ * caps a suggester or an editor to viewer caps them here too (spec §2.7).
+ *
+ * Asked at `viewer`, so the seam's `forbidden` means "not a member", which is
+ * `not-found` here (W26). Its `malformed-trip` comes back as a refusal; the
+ * seam has already logged why (review of #308).
  */
-export async function roleOn(tripId: string, userId: string): Promise<TripRole | null> {
-  const detail = await getTripDetail(tripId);
-  if (detail === null) return null;
-  return memberRole(userId, await effectiveMembers(db, tripId, detail.members));
+export async function roleOn(tripId: string, userId: string): Promise<SuggestionResult<TripRole>> {
+  const access = await tripAccessFor(userId, tripId, "viewer");
+  if (access.ok) return { ok: true, value: access.role };
+  return access.denial === "malformed-trip"
+    ? refuse("malformed-trip", "This trip could not be read.")
+    : refuse("not-found", "This trip does not exist.");
 }
 
-type ChangeRow = typeof tripSuggestionChanges.$inferSelect;
-type SuggestionRow = typeof tripSuggestions.$inferSelect;
+/** A stored change, as `trip_suggestion_changes` holds it. */
+export type ChangeRow = typeof tripSuggestionChanges.$inferSelect;
+/** A stored suggestion, the group its changes were sent in. */
+export type SuggestionRow = typeof tripSuggestions.$inferSelect;
 
 /** A stored change as the contract serves it. `mode: "date"` columns, so one ISO rendering (KI-53). */
 export function toChange(row: ChangeRow, suggestion: Pick<SuggestionRow, "authorId" | "note">): SuggestionChange {
