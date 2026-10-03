@@ -76,8 +76,8 @@ control that does nothing"*, on a shipped filter. Eighty-eight days can, and
 the same `key` without colliding. `bundle.origin` is `"human"` or `"ai"` and is
 inherited by every playbook that does not override it — it becomes
 `saved_days.author_kind`, which is how the database says whether a day was kept
-by a person or generated, and what the "AI starter" mark on a Discover card
-reads.
+by a person or generated. Nothing in the UI shows it (ADR-041 decision 5,
+amended 2026-10-03).
 
 **Ids are derived from keys, never authored.** `bundleId(namespace, key)` hashes
 the slug to a uuid, so re-importing the same file updates the same rows instead

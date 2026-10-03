@@ -357,11 +357,8 @@ export const DiscoverDay = z.object({
   reviewCount: z.number().int().nonnegative(),
   visibility: z.enum(["private", "public"]),
   /**
-   * Who wrote the day — what the card's "AI starter" mark reads (see
-   * `SavedDayAuthorKind` in `@tc/contracts`). On the CARD and not only on the
-   * shared-day screen because Discover is where somebody decides which of
-   * thirty days to open, and "a person kept this out of their own trip" is part
-   * of that decision.
+   * Who wrote the day (see `SavedDayAuthorKind` in `@tc/contracts`). Carried
+   * as data; no screen renders it (ADR-041 decision 5, amended 2026-10-03).
    */
   authorKind: SavedDayAuthorKind,
   sourceTripName: z.string().min(1),
