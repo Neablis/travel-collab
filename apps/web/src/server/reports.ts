@@ -13,6 +13,7 @@ import { forgetCitySearches } from "./cities";
 import { db, type Queryable } from "./db/client";
 import { contentReports, savedDayReviews, savedDays } from "./db/schema";
 import { isUuid } from "./ids";
+import { invalidatePublicDay } from "./libraryCache";
 import { lockSavedDayForReviewWrite, recomputeReviewCounters } from "./reviews";
 import { readableSavedDay } from "./savedDays";
 
@@ -248,6 +249,8 @@ export async function actOnReport(
 ): Promise<ReportResult<ContentReport>> {
   if (!isUuid(reportId)) return { ok: false, error: { code: "not-found", message: "No such report." } };
   const at = new Date(now);
+  // Whose day a hide or a restore moved, for the cache it clears after commit.
+  let dayOwner: string | undefined;
 
   const result = await db.transaction(async (tx): Promise<ReportResult<ContentReport>> => {
     const found = await tx.select().from(contentReports).where(eq(contentReports.id, reportId)).for("update");
@@ -266,24 +269,20 @@ export async function actOnReport(
     let touched: number;
     switch (action.action) {
       case "hide-day":
-        touched = await tx
+      case "restore-day": {
+        const moved = await tx
           .update(savedDays)
-          .set({
-            moderatedAt: sql`coalesce(${savedDays.moderatedAt}, ${at})`,
-            moderationNote: action.note ?? null,
-          })
+          .set(
+            action.action === "hide-day"
+              ? { moderatedAt: sql`coalesce(${savedDays.moderatedAt}, ${at})`, moderationNote: action.note ?? null }
+              : { moderatedAt: null, moderationNote: null },
+          )
           .where(eq(savedDays.id, row.savedDayId))
-          .returning({ id: savedDays.id })
-          .then((r) => r.length);
+          .returning({ ownerId: savedDays.ownerId });
+        touched = moved.length;
+        dayOwner = moved[0]?.ownerId;
         break;
-      case "restore-day":
-        touched = await tx
-          .update(savedDays)
-          .set({ moderatedAt: null, moderationNote: null })
-          .where(eq(savedDays.id, row.savedDayId))
-          .returning({ id: savedDays.id })
-          .then((r) => r.length);
-        break;
+      }
       case "hide-review":
       case "restore-review":
         // Lock BEFORE the flag write, not just before the recompute: under READ
@@ -337,8 +336,12 @@ export async function actOnReport(
     return { ok: true, value: toDto(after[0]!) };
   });
   // After the commit, not inside it: a search in between would re-memoise the
-  // index as it was before the hide or restore (`forgetCitySearches`).
-  if (result.ok && (action.action === "hide-day" || action.action === "restore-day")) forgetCitySearches();
+  // index as it was before the hide or restore (`forgetCitySearches`), and a
+  // read in between would re-cache the library the same way (ADR-063).
+  if (result.ok && dayOwner !== undefined) {
+    forgetCitySearches();
+    await invalidatePublicDay(result.value.target.savedDayId, dayOwner);
+  }
   return result;
 }
 

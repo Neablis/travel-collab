@@ -1,11 +1,12 @@
 import type { MetadataRoute } from "next";
 import { deploymentOrigin } from "@/lib/deploymentOrigin";
 import { dayPath, placeIndexable, placePath } from "@/lib/playbookUrls";
-import { publishedPlaces, sitemapDays } from "@/server/playbooks";
+import { publishedPlaces, sitemapDays } from "@/server/publicLibrary";
 
-// Read per request, not at build: the build has no database in CI, and a day
-// published an hour ago should be in the next fetch. A crawler asks for this
-// file a few times a day.
+// Read per request, not at build: the build has no database in CI. The reads
+// are cached for a day and cleared by a publish or an unpublish (ADR-063), so
+// a day published an hour ago is still in the next fetch. A crawler asks for
+// this file a few times a day.
 export const dynamic = "force-dynamic";
 
 /** The public routes with no data behind their URL. Profiles and the board are `noindex` (D4) and stay out. */

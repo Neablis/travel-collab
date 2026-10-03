@@ -4,7 +4,9 @@ import { notFound } from "next/navigation";
 import type { PlaceDaysList } from "@/components/playbooks/PlaceDaysList";
 import { PLACE_PAGE_SIZE, placeIndexable, placePagePath, placePath } from "@/lib/playbookUrls";
 import { NOINDEX_FOLLOW, pageMetadata } from "@/lib/siteMetadata";
-import { placeFor, publishedDaysPage, type PlacePage } from "./playbooks";
+import type { PlacePage } from "./playbooks";
+// Cached for a day, and cleared on publish (ADR-063).
+import { placeFor, publishedDaysPage } from "./publicLibrary";
 
 // The city and country pages (SEO pass, D6): one page over two kinds of place.
 // Here rather than in either page file because a page file is not a module

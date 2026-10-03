@@ -5,13 +5,13 @@ import type { SharedDayView } from "@/lib/sharedDayView";
 import { MIN_INDEXED_PLACE_DAYS } from "@/lib/playbookUrls";
 import { NOINDEX_FOLLOW } from "@/lib/siteMetadata";
 
-const sharedDayViewMock = vi.fn();
-vi.mock("@/server/sharedDayView", () => ({ sharedDayView: (...a: unknown[]) => sharedDayViewMock(...a) }));
+const dayPageViewMock = vi.fn();
 vi.mock("@/server/auth", () => ({ auth: async () => ({ user: { id: "dev-reader" } }) }));
 // A place nobody published in, unless a test says otherwise.
 const placeForMock = vi.fn(async (..._a: unknown[]): Promise<unknown> => null);
-vi.mock("@/server/playbooks", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/server/playbooks")>()),
+vi.mock("@/server/publicLibrary", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/server/publicLibrary")>()),
+  dayPageView: (...a: unknown[]) => dayPageViewMock(...a),
   placeFor: (...a: unknown[]) => placeForMock(...a),
 }));
 
@@ -66,7 +66,7 @@ const discover = (params: Record<string, string | string[]>) =>
 
 afterEach(() => {
   vi.unstubAllGlobals();
-  sharedDayViewMock.mockReset();
+  dayPageViewMock.mockReset();
   placeForMock.mockReset();
 });
 
@@ -165,24 +165,28 @@ describe("/playbooks canonical", () => {
 
 describe("/playbooks/day/<slug>-<id> metadata", () => {
   // The day page reads in-process (SEO pass, D5); the read itself is covered
-  // through `api/saved-days/[savedDayId]/route.int.test.ts` and
-  // `server/sharedDayView.test.ts`. Here: what the <head> says about each answer.
-  const view = (over: { day?: Partial<SavedDay>; moderation?: SharedDayView["moderation"] } = {}): SharedDayView => ({
-    day: { ...DAY, ...over.day },
-    isAuthor: false,
-    author: { userId: "dev-alice", displayName: "Alice C.", playbooksShared: 1, adds: 0, reviewsReceived: 0, averageRating: null },
-    pinning: false,
-    publishedAt: null,
-    moderation: over.moderation ?? null,
+  // through `api/saved-days/[savedDayId]/route.int.test.ts`,
+  // `server/sharedDayView.test.ts` and `server/publicLibrary.int.test.ts`.
+  // Here: what the <head> says about each answer.
+  const view = (over: { day?: Partial<SavedDay>; moderation?: SharedDayView["moderation"] } = {}) => ({
+    view: {
+      day: { ...DAY, ...over.day },
+      isAuthor: false,
+      author: { userId: "dev-alice", displayName: "Alice C.", playbooksShared: 1, adds: 0, reviewsReceived: 0, averageRating: null },
+      pinning: false,
+      publishedAt: null,
+      moderation: over.moderation ?? null,
+    } satisfies SharedDayView,
+    rating: { rating: null, reviewCount: 0 },
   });
   const head = (segment: string = DAY_ID) => dayMetadata({ params: Promise.resolve({ savedDayId: segment }) });
 
   it("names the tab for the day and its first city, the card for the day alone", async () => {
-    sharedDayViewMock.mockResolvedValue(view());
+    dayPageViewMock.mockResolvedValue(view());
 
     const metadata = await head(`an-old-name-${DAY_ID}`);
 
-    expect(sharedDayViewMock).toHaveBeenCalledWith(DAY_ID, "dev-reader");
+    expect(dayPageViewMock).toHaveBeenCalledWith(DAY_ID, "dev-reader");
     expect(metadata.title).toBe("Castle and canals · Osaka");
     expect(metadata.openGraph?.title).toBe("Castle and canals");
     expect(ogImageUrls(metadata)).toEqual([`/api/og/playbooks/day/${DAY_ID}`, SITE_IMAGE]);
@@ -192,15 +196,15 @@ describe("/playbooks/day/<slug>-<id> metadata", () => {
   });
 
   it("describes it with the facts line, or the author's summary when there is one", async () => {
-    sharedDayViewMock.mockResolvedValue(view());
+    dayPageViewMock.mockResolvedValue(view());
     expect((await head()).description).toBe("Osaka, Kyoto · 2 days · 0 stops · by Alice C.");
 
-    sharedDayViewMock.mockResolvedValue(view({ day: { summary: "Moats, then boats." } }));
+    dayPageViewMock.mockResolvedValue(view({ day: { summary: "Moats, then boats." } }));
     expect((await head()).description).toBe("Moats, then boats.");
   });
 
   it("leaves the city out of the tab for a day that names none", async () => {
-    sharedDayViewMock.mockResolvedValue(view({ day: { cities: [] } }));
+    dayPageViewMock.mockResolvedValue(view({ day: { cities: [] } }));
     expect((await head()).title).toBe("Castle and canals");
   });
 
@@ -208,12 +212,12 @@ describe("/playbooks/day/<slug>-<id> metadata", () => {
     ["the author's own private day", { day: { visibility: "private" as const } }],
     ["a published day an operator hid, on its author's read", { moderation: { moderatedAt: "2026-09-23T00:00:00.000Z", moderationNote: null } }],
   ])("keeps %s out of the index", async (_case, over) => {
-    sharedDayViewMock.mockResolvedValue(view(over));
+    dayPageViewMock.mockResolvedValue(view(over));
     expect((await head()).robots).toEqual({ index: false, follow: false });
   });
 
   it("gives every miss the one generic card, and reads nothing for a segment with no id", async () => {
-    sharedDayViewMock.mockResolvedValue(null);
+    dayPageViewMock.mockResolvedValue(null);
 
     const unreadable = await head(`castle-and-canals-${DAY_ID}`);
     const junk = await head("not-a-day");
@@ -221,7 +225,7 @@ describe("/playbooks/day/<slug>-<id> metadata", () => {
     expect(unreadable).toEqual(junk);
     expect(ogImageUrls(junk)).toEqual([PLAYBOOKS_IMAGE, SITE_IMAGE]);
     expect(junk.title).toBe("A playbook");
-    expect(sharedDayViewMock).toHaveBeenCalledTimes(1);
+    expect(dayPageViewMock).toHaveBeenCalledTimes(1);
   });
 });
 

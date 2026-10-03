@@ -15,6 +15,7 @@ import { GET as profileImage } from "./profile/[userId]/route";
 import { GET as profileMeta } from "./profile/[userId]/meta/route";
 import { GET as cityImage } from "./city/[city]/route";
 import { GET as cityMeta } from "./city/[city]/meta/route";
+import { GET as countryImage } from "./country/[code]/route";
 
 // The Playbooks preview routes (spec 2026-10-02 §2.7): every input answers a
 // real 1200×630 PNG, and the `meta` sibling carries the words beside it. What
@@ -31,7 +32,7 @@ const GENERIC = {
   title: "Playbooks on Caesura",
   description: "Days other people planned and rated. Find one for your city and drop it into your trip.",
 };
-const HOUR = "public, max-age=3600, s-maxage=3600, stale-while-revalidate=604800";
+// A day at the edge for every card (ADR-063), each purged by the tags it carries.
 const DAY = "public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800";
 
 let published = "";
@@ -86,20 +87,25 @@ beforeAll(async () => {
 });
 
 describe("the Playbooks preview images", () => {
+  // What `invalidatePublicDay` deletes from the CDN: a day's card goes with
+  // the day (a private day's generic card too, so publishing it shows), a
+  // profile's with its author, a place's with any change to the library.
   it.each([
-    ["a published day", () => dayImage(request, withDay(published)), HOUR],
-    ["a private day", () => dayImage(request, withDay(privateDay)), HOUR],
-    ["a profile", () => profileImage(request, withUser(OWNER)), HOUR],
-    ["a city with days", () => cityImage(request, withCity(CITY)), DAY],
-    ["a city with none", () => cityImage(request, withCity(`Nowhere${run}`)), DAY],
-    ["the generic card", () => genericImage(request), DAY],
-    ["the board", () => genericImage(new Request("http://test/api/og/playbooks?board=1")), DAY],
-  ])("draws %s as a 1200×630 PNG with its cache header", async (_state, call, cacheControl) => {
+    ["a published day", () => dayImage(request, withDay(published)), () => `day:${published},library`],
+    ["a private day", () => dayImage(request, withDay(privateDay)), () => `day:${privateDay},library`],
+    ["a profile", () => profileImage(request, withUser(OWNER)), () => `author:${OWNER}`],
+    ["a city with days", () => cityImage(request, withCity(CITY)), () => "library"],
+    ["a city with none", () => cityImage(request, withCity(`Nowhere${run}`)), () => "library"],
+    ["a country", () => countryImage(request, { params: Promise.resolve({ code: "JP" }) }), () => "library"],
+    ["the generic card", () => genericImage(request), () => null],
+    ["the board", () => genericImage(new Request("http://test/api/og/playbooks?board=1")), () => null],
+  ])("draws %s as a 1200×630 PNG, kept a day at the edge under its tags", async (_state, call, tags) => {
     const response = await call();
 
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("image/png");
-    expect(response.headers.get("cache-control")).toBe(cacheControl);
+    expect(response.headers.get("cache-control")).toBe(DAY);
+    expect(response.headers.get("vercel-cache-tag")).toBe(tags());
     expect(await pngSize(response)).toEqual({ width: 1200, height: 630 });
   });
 });
@@ -109,7 +115,9 @@ describe("GET /api/og/playbooks/day/:savedDayId/meta", () => {
     const response = await dayMeta(request, withDay(published));
 
     expect(response.status).toBe(200);
-    expect(response.headers.get("cache-control")).toBe(HOUR);
+    // The image's lifetime and tags, so the words and the picture leave together.
+    expect(response.headers.get("cache-control")).toBe(DAY);
+    expect(response.headers.get("vercel-cache-tag")).toBe(`day:${published},library`);
     expect(await response.json()).toEqual({ title: "Castle and canals", description: `${CITY} · 1 stop · by ${PUBLIC_NAME}` });
   });
 
@@ -127,6 +135,7 @@ describe("GET /api/og/playbooks/profile/:userId/meta", () => {
   it("titles a profile by public name, never by the surname or address", async () => {
     const response = await profileMeta(request, withUser(OWNER));
 
+    expect(response.headers.get("vercel-cache-tag")).toBe(`author:${OWNER}`);
     const body = (await response.json()) as typeof GENERIC;
     expect(body).toEqual({ title: `${PUBLIC_NAME}'s playbooks`, description: `1 playbook · knows ${CITY}` });
     for (const leak of ["Reyes", "dana@"]) expect(JSON.stringify(body)).not.toContain(leak);
@@ -138,6 +147,7 @@ describe("GET /api/og/playbooks/city/:city/meta", () => {
     const response = await cityMeta(request, withCity(encodeURIComponent(CITY)));
 
     expect(response.headers.get("cache-control")).toBe(DAY);
+    expect(response.headers.get("vercel-cache-tag")).toBe("library");
     expect(await response.json()).toEqual({
       title: `${CITY} playbooks`,
       description: `1 day a traveler planned in ${CITY}`,

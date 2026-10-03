@@ -1,5 +1,6 @@
 import { LinkPreviewMeta } from "@tc/contracts";
-import { PLAYBOOKS_GENERIC_CACHE_CONTROL } from "@/server/og/card";
+import { LIBRARY_TAG, cacheTagHeader } from "@/server/libraryCache";
+import { PLAYBOOK_CACHE_CONTROL } from "@/server/og/card";
 import { playbookCityCopy } from "@/server/og/copy";
 import { limitLinkPreview } from "@/server/og/limit";
 import { cityCardFor, segment } from "@/server/og/playbooks";
@@ -12,6 +13,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ city
   const { city } = await params;
   const { title, description } = playbookCityCopy(await cityCardFor(segment(city)));
   return Response.json(LinkPreviewMeta.parse({ title, description }), {
-    headers: { "Cache-Control": PLAYBOOKS_GENERIC_CACHE_CONTROL },
+    headers: { "Cache-Control": PLAYBOOK_CACHE_CONTROL, ...cacheTagHeader(LIBRARY_TAG) },
   });
 }

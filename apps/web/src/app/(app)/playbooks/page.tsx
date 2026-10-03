@@ -4,7 +4,7 @@ import { linkPreviewMetadata } from "@/lib/linkPreview";
 import { countrySlug, placeIndexable, placePath, slugify } from "@/lib/playbookUrls";
 import { playbooksPageMetadata } from "@/lib/playbooksPreview";
 import { auth } from "@/server/auth";
-import { discoverFor, placeFor } from "@/server/playbooks";
+import { discoverFor, placeFor } from "@/server/publicLibrary";
 
 // One city or one country and nothing else is the list that place's page
 // shows, so the page is the canonical (SEO pass, D6). Only an indexed one: a
@@ -79,7 +79,8 @@ export default async function PlaybooksPage({
   // The call `GET /api/playbooks` makes, with the URL's own filters and the
   // budget band off (it is not in the URL), so this is exactly the answer the
   // screen's first search would have fetched. A signed-out reader's scope is
-  // forced to Everyone inside `discoverFor`, as the screen does for itself.
+  // forced to Everyone inside `discoverFor`, as the screen does for itself,
+  // and their answer is cached for a day (ADR-063); a signed-in one is live.
   const initialData = await discoverFor({ ...initial, budget: "any" }, session?.user?.id ?? null);
   return (
     <main className="mx-auto max-w-6xl px-6 py-8">

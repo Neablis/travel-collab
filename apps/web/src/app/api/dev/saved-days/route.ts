@@ -15,6 +15,7 @@ import { recordAdd } from "@/server/savedDayAdds";
 import { recomputeReviewCounters } from "@/server/reviews";
 import { carryModeration, restoreModeration } from "@/server/reports";
 import { forgetCitySearches } from "@/server/cities";
+import { invalidatePublicDays } from "@/server/libraryCache";
 
 export const runtime = "nodejs";
 
@@ -137,8 +138,9 @@ export async function POST() {
     await restoreModeration(tx, moderation);
   });
   // Rewrote published days: the city index moved, and this process may be
-  // holding the old answer (`forgetCitySearches`).
+  // holding the old answer (`forgetCitySearches`), as may the cached library.
   forgetCitySearches();
+  await invalidatePublicDays(seeded);
 
   return Response.json({
     savedDays: ids.length,

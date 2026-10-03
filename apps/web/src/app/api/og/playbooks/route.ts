@@ -1,4 +1,4 @@
-import { PLAYBOOKS_GENERIC_CACHE_CONTROL, renderCard } from "@/server/og/card";
+import { PLAYBOOK_CACHE_CONTROL, renderCard } from "@/server/og/card";
 import { PLAYBOOKS_BOARD, PLAYBOOKS_GENERIC } from "@/server/og/copy";
 import { limitLinkPreview } from "@/server/og/limit";
 
@@ -12,5 +12,6 @@ export async function GET(request: Request) {
   const refused = await limitLinkPreview(request);
   if (refused !== null) return refused;
   const board = new URL(request.url).searchParams.get("board") === "1";
-  return renderCard(board ? PLAYBOOKS_BOARD : PLAYBOOKS_GENERIC, PLAYBOOKS_GENERIC_CACHE_CONTROL);
+  // No tag: the words are static, so no write can make this card wrong.
+  return renderCard(board ? PLAYBOOKS_BOARD : PLAYBOOKS_GENERIC, PLAYBOOK_CACHE_CONTROL);
 }

@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto";
+import { Client } from "pg";
+import { DATABASE_URL } from "../src/server/config";
 import { expect, test } from "./fixtures/test";
 import { forget, publishedDay, stranger } from "./helpers";
 
@@ -266,6 +268,53 @@ test("a private day and an unknown one are the same 404 with the same body", asy
     expect(own).toMatch(new RegExp(`<h1[^>]*>${name}</h1>`));
     // A private day describes itself to nobody, its author's page included.
     expect(ldJson(own)).toEqual([]);
+    await visitor.context().close();
+  } finally {
+    await forget(page, savedDayId);
+  }
+});
+
+// A `Client` per call, `m11a-invite-gate.spec.ts`'s construction: the app's
+// pooled `db` would hold the worker's event loop open. `saved_days` is CRUD,
+// not the planning log, so this is fixture setup rather than a second write path.
+async function renameBehindTheCache(savedDayId: string, name: string): Promise<void> {
+  const client = new Client({ connectionString: DATABASE_URL });
+  await client.connect();
+  try {
+    await client.query("update saved_days set name = $1 where id = $2", [name, savedDayId]);
+  } finally {
+    await client.end();
+  }
+}
+
+// ADR-063: a stranger's read of a day is cached for a day, on this production
+// build as on Vercel. Unpublishing has to take it out at once, and
+// republishing has to put it back, or the cache is a way to see a withdrawn day.
+test("a day a stranger has read leaves the moment it is unpublished, and returns when republished", async ({
+  page,
+  browser,
+}) => {
+  test.slow();
+  const name = `Cached day ${randomUUID().slice(0, 8)}`;
+  const savedDayId = await publishedDay(page, `Seoe2e${randomUUID().slice(0, 6)}`, name);
+  try {
+    const visitor = await stranger(browser);
+    const path = sluggedPath(name, savedDayId);
+    expect((await visitor.request.get(path)).status()).toBe(200);
+    // Renamed behind the app's back, which clears nothing: the visitor still
+    // reading the old name is what proves the next answer is the cached one.
+    await renameBehindTheCache(savedDayId, `Renamed ${name}`);
+    const cached = await visitor.request.get(path, { maxRedirects: 0 });
+    expect(cached.status()).toBe(200);
+    expect(await cached.text()).toMatch(new RegExp(`<h1[^>]*>${name}</h1>`));
+
+    expect((await page.request.delete(`/api/saved-days/${savedDayId}/publish`)).ok()).toBe(true);
+    const withdrawn = await visitor.request.get(path, { maxRedirects: 0 });
+    expect(withdrawn.status()).toBe(404);
+    expect(await withdrawn.text()).not.toContain(name);
+
+    expect((await page.request.post(`/api/saved-days/${savedDayId}/publish`)).ok()).toBe(true);
+    expect((await visitor.request.get(path)).status()).toBe(200);
     await visitor.context().close();
   } finally {
     await forget(page, savedDayId);

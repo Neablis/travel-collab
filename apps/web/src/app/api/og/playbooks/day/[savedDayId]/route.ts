@@ -1,3 +1,4 @@
+import { LIBRARY_TAG, cacheTagHeader, dayTag } from "@/server/libraryCache";
 import { PLAYBOOK_CACHE_CONTROL, renderCard } from "@/server/og/card";
 import { playbookDayCopy } from "@/server/og/copy";
 import { limitLinkPreview } from "@/server/og/limit";
@@ -12,5 +13,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ save
   const refused = await limitLinkPreview(request);
   if (refused !== null) return refused;
   const { savedDayId } = await params;
-  return renderCard(playbookDayCopy(await dayCardFor(savedDayId)), PLAYBOOK_CACHE_CONTROL);
+  // Tagged whatever it drew: a private day's generic card has to go when the
+  // day is published, as much as its own card when it is withdrawn.
+  return renderCard(
+    playbookDayCopy(await dayCardFor(savedDayId)),
+    PLAYBOOK_CACHE_CONTROL,
+    cacheTagHeader(dayTag(savedDayId), LIBRARY_TAG),
+  );
 }

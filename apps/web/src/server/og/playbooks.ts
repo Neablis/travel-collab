@@ -23,8 +23,9 @@ import { ratingOf, readableSavedDay } from "../savedDays";
 // private days, and keeps a crafted `?city=` from printing arbitrary text on a
 // Caesura-branded card.
 //
-// Not cached in Redis, unlike the invite and referral cards: these are a
-// couple of indexed reads, and the CDN's hour (`card.tsx`) is what repeats.
+// Not cached in Redis, unlike the invite and referral cards, nor in Next's
+// data cache: these are a couple of indexed reads, run only on a CDN miss, and
+// the CDN's day (`card.tsx`, purged by tag on publish; ADR-063) is what repeats.
 
 /** How many cities a card names before it stops. */
 export const CITIES_SHOWN = 3;
