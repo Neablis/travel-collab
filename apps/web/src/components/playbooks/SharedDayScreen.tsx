@@ -435,14 +435,15 @@ export function SharedDayScreen({
             </div>
             {/* Where, under the title, each city a way to that city's page
                 (SEO pass, D6) — and so the link a crawler follows from a day
-                to the place it belongs to. A private day is in no city's
-                list, so its author sees the names without the links. */}
+                to the place it belongs to. A private day, or one an operator
+                hid, is in no city's list, so its author sees the names without
+                the links. */}
             {day.cities.length > 0 && (
               <Text variant="secondary" className="mt-1">
                 {day.cities.map((city, i) => (
                   <Fragment key={city}>
                     {i > 0 && ", "}
-                    {day.visibility === "public" ? <CityLink city={city} /> : city}
+                    {day.visibility === "public" && moderation === null ? <CityLink city={city} /> : city}
                   </Fragment>
                 ))}
               </Text>

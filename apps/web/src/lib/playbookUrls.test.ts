@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import { witness } from "../test-support/witness";
 import {
   cityPath,
-  countryPath,
   countrySlug,
   dayPath,
   daySegment,
@@ -22,6 +21,20 @@ describe("slugify", () => {
     expect(slugify("A Slow Day in Gion")).toBe("a-slow-day-in-gion");
     expect(slugify("São Paulo — café crawl!")).toBe("sao-paulo-cafe-crawl");
     expect(slugify("  --Kyoto--  ")).toBe("kyoto");
+  });
+
+  it("spells out the Latin letters that have no decomposition, rather than dropping them", () => {
+    // A city's URL has no redirect behind it, so a letter dropped now is a 404
+    // the day the rule is corrected (review of #299).
+    expect(slugify("Wrocław")).toBe("wroclaw");
+    expect(slugify("Łódź")).toBe("lodz");
+    expect(slugify("Tromsø")).toBe("tromso");
+    expect(slugify("Đà Nẵng")).toBe("da-nang");
+    expect(slugify("Straße")).toBe("strasse");
+    expect(slugify("Þórsmörk")).toBe("thorsmork");
+    expect(slugify("Ærø")).toBe("aero");
+    expect(slugify("Œuvre")).toBe("oeuvre");
+    expect(slugify("Kırklareli")).toBe("kirklareli");
   });
 
   it("is empty for a name with no Latin letters or digits", () => {
@@ -84,7 +97,7 @@ describe("day URLs", () => {
 describe("place URLs", () => {
   it("slugs a city and a country's English name", () => {
     expect(cityPath("São Paulo")).toBe("/playbooks/city/sao-paulo");
-    expect(countryPath("JP")).toBe("/playbooks/country/japan");
+    expect(countrySlug("JP")).toBe("japan");
   });
 
   // `countryName` hands back the code itself for one it cannot map ("??"
@@ -94,7 +107,7 @@ describe("place URLs", () => {
     expect(cityPath("京都")).toBeNull();
     expect(countrySlug("??")).toBeNull();
     expect(countrySlug("XX")).toBeNull();
-    expect(countryPath("??")).toBeNull();
+    expect(countrySlug("??")).toBeNull();
   });
 
   it("puts a city or country page under its kind", () => {

@@ -99,7 +99,7 @@ export function DiscoverCard({ day, origin }: { day: DiscoverDay; origin: BackOr
           that the Kyoto you asked for is one of three cities this day covers,
           or the extra cities look like a mistake rather than the offer. */}
       <div className="flex flex-wrap items-start gap-2">
-        <ul className="flex flex-wrap gap-1.5" data-testid="city-chips">
+        <ul className="flex flex-wrap gap-x-1.5 gap-y-6 md:gap-y-1.5" data-testid="city-chips">
           {chips.shown.map((city) => {
             const matched = day.matchedCities.includes(city);
             const href = cityPath(city);

@@ -34,6 +34,16 @@ saw only the site card.
    another account, so nothing new can be enumerated. Every write still answers 401.
 3. **Anonymous reads are rate-limited per IP** (`publicLibraryQuota`), in Postgres like every
    other limiter (ADR-059 decision 1). Signed-in reads are not charged.
+
+   > **Amended 2026-10-03 (Mitchell: *"Let vercel handle abuse"*).** The per-IP limit is the
+   > JSON API's, and stays. **The server-rendered HTML is not metered by the app**: the day
+   > page, Discover, the city and country pages, and `/sitemap.xml` read in-process (SEO pass,
+   > spec 2026-10-02 D5), with no app-level limiter in the render path. Abuse of those routes
+   > is the Vercel firewall's to stop, at the edge. Fetching the HTML can therefore read what
+   > the API would have refused on quota; that is accepted. If abuse ever shows up in the
+   > database, the answer is an edge rule first, and a render-path limiter only after that.
+   > Such a limiter would answer with a 429 page, never a 404, so it cannot become an oracle
+   > for a private day.
 4. ~~**The library stays pseudonymous.** Authors are shown as the `displayNameFor({ userId })`
    handle, and the preview cards print that same handle.~~ A card never reveals more than the
    page does.
@@ -70,4 +80,6 @@ saw only the site card.
 - The library is crawlable. Whether it should be indexed is an open candidate in
   `docs/candidates.md`, not decided here.
 - A new public endpoint means new load from people who are not customers. The per-IP ceiling
-  bounds it, and the CDN does not cache these JSON reads, because they vary by session.
+  bounds it, and the CDN does not cache these JSON reads, because they vary by session. The
+  server-rendered pages and the sitemap are bounded by the Vercel firewall instead (decision
+  3, amended 2026-10-03).
