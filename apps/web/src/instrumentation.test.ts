@@ -104,6 +104,8 @@ describe("onRequestError (KI-2026-10-03-a)", () => {
 
   it("drops a prefetch's RSC payload the client abandoned, as Next's Flight server words it", async () => {
     const { close, error } = errorsFromNextFlight();
+    expect(close).toBe("The destination stream closed early.");
+    expect(error).toBe("The destination stream errored while writing data.");
 
     await onRequestError(new Error(close), request, context);
     expect(Sentry.captureRequestError).not.toHaveBeenCalled();
