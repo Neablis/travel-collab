@@ -73,6 +73,7 @@ import { MAX_READ_DAYS } from "@/server/assistant/tools/read";
 import {
   buildProposal,
   commitProposal,
+  diagnosticDrops,
   droppedWrites,
   parseApprovedCommands,
 } from "@/server/ai/writeTools";
@@ -95,7 +96,7 @@ import {
   untrustedAll,
   type PromptBlock,
 } from "@/server/assistant/prompt";
-import { aiToolsFor, ambientContextFor } from "@/server/assistant/registry";
+import { ASSISTANT_TOOLS, aiToolsFor, ambientContextFor } from "@/server/assistant/registry";
 import type { AskToolPosture } from "@/server/assistant/grants";
 import {
   APPLY_MINIMUM_ROLE,
@@ -600,11 +601,19 @@ export async function handleAskRequest(
     // repair makes of it, since a re-parse against the same set refuses again.
     // A name that is not a tool at all also arrives as `NoSuchToolError`; that
     // is the model inventing a tool, a broken call rather than a refusal, so it
-    // is recorded `invalid` and counts as failed (Copilot on #301).
+    // is recorded `invalid` and counts as failed (Copilot on #301). "A tool"
+    // means any in the registry, not only the ones this turn built: a viewer's
+    // turn never builds the write tools, and calling one is still a refusal.
     repairToolCall: async ({ toolCall, error }) => {
+      const definition = ASSISTANT_TOOLS.find((tool) => tool.name === toolCall.toolName);
+      const proposes = definition !== undefined && (definition.needs as readonly string[]).includes("proposalBuffer");
       if (NoSuchToolError.isInstance(error)) {
-        const granted = Object.hasOwn(tools, toolCall.toolName);
-        meter.callIssue(toolCall.toolCallId, toolCall.toolName, granted ? "refused-by-grant" : "invalid");
+        meter.callIssue(
+          toolCall.toolCallId,
+          toolCall.toolName,
+          definition === undefined ? "invalid" : "refused-by-grant",
+          proposes,
+        );
         return null;
       }
       let parsed: unknown;
@@ -612,11 +621,11 @@ export async function handleAskRequest(
         parsed = typeof toolCall.input === "string" ? JSON.parse(toolCall.input) : toolCall.input;
       } catch {
         // Not even JSON. Nothing downstream can read it either.
-        meter.callIssue(toolCall.toolCallId, toolCall.toolName, "invalid");
+        meter.callIssue(toolCall.toolCallId, toolCall.toolName, "invalid", proposes);
         return null;
       }
       const repaired = repairToolInput(toolCall.toolName, parsed);
-      meter.callIssue(toolCall.toolCallId, toolCall.toolName, repaired === null ? "invalid" : "repaired");
+      meter.callIssue(toolCall.toolCallId, toolCall.toolName, repaired === null ? "invalid" : "repaired", proposes);
       return repaired === null ? null : { ...toolCall, input: JSON.stringify(repaired) };
     },
     // Three-way, not `offerWrites` alone: the instruction has to describe the
@@ -730,10 +739,7 @@ export async function handleAskRequest(
         ? droppedWrites(proposalBuffer.collected(), detail, { tripId, actorId: userId, placeCache })
         : [];
       droppedIndices = new Set(dropped.map((entry) => entry.index));
-      recorder.finish(
-        end,
-        dropped.filter((entry) => !entry.noOp).map((entry) => entry.call),
-      );
+      recorder.finish(end, diagnosticDrops(dropped));
       // `finish` ran the sink, which started the settlement. See `settled`.
       await settled;
     },

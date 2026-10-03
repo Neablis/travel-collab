@@ -43,7 +43,9 @@ All on branch `claude/eve-milestone-planning-desces`.
     cached-write and output tokens, the finish reason, and whether the step escalated or
     pivoted.
   - `ai_usage_tool_calls`, one row per tool call, keyed `(turn_id, call_id)`. It records:
-    - the outcome, one of `ok | failed | repaired | refused-by-grant`;
+    - the outcome, one of `ok | failed | repaired | refused-by-grant | unfinished` (the
+      last is a call still running when the turn ended, added after the 2026-10-03
+      review: a user leaving is not the tool's failure);
     - the duration;
     - the input and output **sizes**, never their content;
     - which step emitted the call;
@@ -56,8 +58,11 @@ All on branch `claude/eve-milestone-planning-desces`.
     call. An `AsyncLocalStorage` call scope (`assistant/callScope.ts`) does the tagging, so
     concurrent calls cannot be confused. The tag is then checked against the same dry run
     the proposal is built from.
-- **One transactional, idempotent write** (`recordTurnLedger`). Writing a turn twice leaves
-  one turn, its steps and its calls. That is the property a replaying runtime will need.
+- **An idempotent write** (`recordTurnLedger`). Writing a turn twice leaves one turn, its
+  steps and its calls, which is the property a replaying runtime will need.
+  - The billing row is written first, on its own.
+  - The step and tool-call rows go in a second transaction.
+  - So a failure in the telemetry never loses a turn's cost (2026-10-03 review).
 - **All three end paths, durably.** The route hands the turn's writes to Next's `after()`.
   This closes KI-2026-09-14-b.
 - **Priced per step, at the model that ran** (`microUsdForSteps`), with cached reads at the
@@ -131,8 +136,8 @@ milestone.
   (`gh workflow run migrate-production.yml -f confirm=migrate`). Until then, the step and
   tool rows fail to write in production.
   - `recordTurnLedger` never throws. A failure there logs `ai_usage row was not written`.
-  - **Order matters.** The `ai_usage` row and its child rows share one transaction. Until
-    the migration is applied, a turn's write in production fails as a whole: its
-    `ai_usage` row is lost too.
+  - **Order matters.** The `ai_usage` insert now writes `latency_ms`, which only `0035`
+    adds. Until the migration is applied, the `ai_usage` row itself fails to write in
+    production, as well as the child rows.
   - So dispatch the migration **before** the code deploys to production, or immediately
     after.

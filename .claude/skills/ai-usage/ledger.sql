@@ -22,12 +22,15 @@
 --    failed_rate counts `failed` and `repaired` together: either way the
 --    model got the call wrong. `refused-by-grant` is separate, because it
 --    is a model reaching for a tool the step did not hold, not a broken call.
+--    `unfinished` (still running when the turn ended, usually a user leaving)
+--    is its own column too: not the tool's failure, but a tool users wait on.
 WITH window_ AS (SELECT now() - interval '7 days' AS since)
 SELECT c.tool,
        count(*) AS calls,
        count(*) FILTER (WHERE c.outcome = 'failed') AS failed,
        count(*) FILTER (WHERE c.outcome = 'repaired') AS repaired,
        count(*) FILTER (WHERE c.outcome = 'refused-by-grant') AS refused_by_grant,
+       count(*) FILTER (WHERE c.outcome = 'unfinished') AS unfinished,
        round(count(*) FILTER (WHERE c.outcome IN ('failed', 'repaired'))::numeric / nullif(count(*), 0), 3) AS failed_rate
 FROM ai_usage_tool_calls c
 JOIN ai_usage u ON u.id = c.turn_id

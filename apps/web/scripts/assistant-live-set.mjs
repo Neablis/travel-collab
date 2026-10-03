@@ -46,10 +46,13 @@ function argValue(flag) {
  * let a production deployment URL through. Fails closed: an unreachable or
  * unreadable health route, or any other environment, is a refusal.
  */
-export function targetVerdict(environment) {
-  return environment === "preview" || environment === "development"
-    ? { ok: true }
-    : { ok: false, reason: `the deployment reports environment ${JSON.stringify(environment ?? null)}` };
+export function targetVerdict(environment, hostname) {
+  if (environment === "preview" || environment === "development") return { ok: true };
+  // No environment at all: off Vercel. Only this machine is allowed then — a
+  // deployment that hides `VERCEL_ENV` could be production (review of #301).
+  const local = hostname === "localhost" || hostname === "127.0.0.1";
+  if (environment === null && local) return { ok: true };
+  return { ok: false, reason: `the deployment reports environment ${JSON.stringify(environment ?? null)}` };
 }
 
 function headersFor(cookie) {
@@ -62,11 +65,12 @@ function headersFor(cookie) {
 async function environmentOf(base, cookie) {
   try {
     const res = await fetch(new URL("/api/health/ai-mode", base), { headers: headersFor(cookie) });
-    if (!res.ok) return null;
+    if (!res.ok) return undefined;
     const body = await res.json();
-    return typeof body.environment === "string" ? body.environment : null;
+    if (body.environment === null) return null;
+    return typeof body.environment === "string" ? body.environment : undefined;
   } catch {
-    return null;
+    return undefined;
   }
 }
 
@@ -95,7 +99,7 @@ async function main() {
     process.exit(2);
   }
   const base = new URL(raw);
-  const verdict = targetVerdict(await environmentOf(base, cookie));
+  const verdict = targetVerdict(await environmentOf(base, cookie), base.hostname);
   if (!verdict.ok) {
     console.error(`live-set: refusing ${base.hostname}: ${verdict.reason}. Preview or local development only.`);
     process.exit(2);

@@ -130,6 +130,17 @@ describe("cached reads are priced at the cached rate (M31 Phase 1)", () => {
     expect(microUsdFor(MODEL, 10_000, 0, before, undefined, 8_000)).toBe(1_300);
   });
 
+  // A provider that charges a premium for cache writes is priced at that
+  // premium when its entry carries one (review of #301).
+  it("prices cache writes at the cache-write rate when the entry has one", () => {
+    const history = [
+      { model: "m", effectiveFrom: "2026-01-01", inputMicroUsdPerMTok: 1_000_000, outputMicroUsdPerMTok: 0, cacheWriteInputMicroUsdPerMTok: 1_250_000 },
+    ];
+    // 1,000,000 in, of which 400,000 written: 600,000 × 1 + 400,000 × 1.25 = 1,100,000.
+    expect(microUsdFor("m", 1_000_000, 0, at, history, 0, 400_000)).toBe(1_100_000);
+    expect(microUsdFor("m", 1_000_000, 0, at, history)).toBe(1_000_000);
+  });
+
   it("clamps a cached count above the total, rather than pricing input below zero", () => {
     expect(microUsdFor(MODEL, 1_000, 0, at, undefined, 5_000)).toBe(28);
   });

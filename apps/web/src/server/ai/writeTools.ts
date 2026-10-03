@@ -472,9 +472,17 @@ export function droppedWriteCalls(
   detail: TripDetail,
   opts: { tripId: string; actorId: string; placeCache?: PlaceCache },
 ): AskDroppedCall[] {
-  return droppedWrites(intents, detail, opts)
-    .filter((dropped) => !dropped.noOp)
-    .map((dropped) => dropped.call);
+  return diagnosticDrops(droppedWrites(intents, detail, opts));
+}
+
+/**
+ * The drops worth a line on the `ai.ask` record: every one but a no-op, which
+ * is the domain correctly having nothing to do. The one place that rule
+ * lives, read by `droppedWriteCalls` and by the handler that already holds
+ * `droppedWrites`' result.
+ */
+export function diagnosticDrops(dropped: readonly { noOp: boolean; call: AskDroppedCall }[]): AskDroppedCall[] {
+  return dropped.filter((entry) => !entry.noOp).map((entry) => entry.call);
 }
 
 /**

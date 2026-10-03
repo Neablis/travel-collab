@@ -23,12 +23,22 @@ import { microUsdFor, type ModelRate } from "./modelRates";
 /** One `ai_usage` row, as read back. */
 export type AiUsageRow = typeof aiUsage.$inferSelect;
 
-/** One `ai_usage_steps` row, as read back. */
-export type AiUsageStepRow = typeof aiUsageSteps.$inferSelect;
+/** The part of an `ai_usage_steps` row that pricing reads. */
+export type AiUsageStepRow = Pick<
+  typeof aiUsageSteps.$inferSelect,
+  "turnId" | "model" | "tokensIn" | "cacheReadTokens" | "cacheWriteTokens" | "tokensOut"
+>;
 
 /**
  * Write one turn's ledger: its `ai_usage` row, one row per step, and one per
- * tool call (M31 Phase 1), in one transaction.
+ * tool call (M31 Phase 1).
+ *
+ * **The billing row is written on its own, first.** The step and tool-call
+ * rows go in a second transaction, so a failure there — a provider that reuses
+ * a `toolCallId`, a constraint nobody foresaw — loses the telemetry and never
+ * the turn's cost row, which is what billing and margin read. (The review of
+ * #301 found the first version shared one transaction, so a child failure
+ * silently un-billed the turn.)
  *
  * **Idempotent on the turn.** The row's id is the ledger's `turnId`, inserted
  * `ON CONFLICT DO NOTHING`, and the step and tool-call rows upsert on their
@@ -52,43 +62,65 @@ export async function recordTurnLedger(ledger: TurnLedger, now: Date = new Date(
   const { cost } = ledger;
   const turnId = cost.turnId ?? crypto.randomUUID();
   try {
+    await db
+      .insert(aiUsage)
+      .values({
+        id: turnId,
+        userId: cost.userId,
+        endpoint: cost.endpoint,
+        outcome: cost.outcome,
+        taskClass: cost.taskClass,
+        turnModel: cost.turn.model,
+        // `?? null` and never `?? 0`: the provider reporting no usage and a turn
+        // genuinely using no tokens are different facts, and a rate join has to
+        // be able to tell them apart.
+        turnTokensIn: cost.turn.tokensIn,
+        turnTokensOut: cost.turn.tokensOut,
+        // Null all three together when no classification round-trip was made —
+        // a bare affirmation short-circuits the classifier and a page turn is
+        // never classified. Neither has anything to price.
+        classifierModel: cost.classifier?.model ?? null,
+        classifierTokensIn: cost.classifier?.tokensIn ?? null,
+        classifierTokensOut: cost.classifier?.tokensOut ?? null,
+        steps: cost.steps,
+        planVersionRef: cost.planVersionRef,
+        latencyMs: cost.latencyMs,
+        createdAt: now,
+      })
+      .onConflictDoNothing({ target: aiUsage.id });
+  } catch (error) {
+    console.error("ai_usage row was not written", {
+      userId: cost.userId,
+      outcome: cost.outcome,
+      error,
+    });
+    return false;
+  }
+  // One row per key, last write winning: a provider that reuses a call id
+  // inside one turn would otherwise make a multi-row upsert touch the same row
+  // twice, which Postgres refuses outright.
+  const steps = [...new Map(ledger.stepSpend.map((step) => [step.index, step])).values()];
+  const calls = [
+    ...new Map(
+      ledger.toolCalls
+        // A call with no SDK id cannot be keyed, so it cannot be written
+        // idempotently — and every caller that measures a real turn passes one.
+        .filter((call): call is typeof call & { callId: string } => call.callId !== null)
+        .map((call) => [call.callId, call]),
+    ).values(),
+  ];
+  try {
     await db.transaction(async (tx) => {
-      await tx
-        .insert(aiUsage)
-        .values({
-          id: turnId,
-          userId: cost.userId,
-          endpoint: cost.endpoint,
-          outcome: cost.outcome,
-          taskClass: cost.taskClass,
-          turnModel: cost.turn.model,
-          // `?? null` and never `?? 0`: the provider reporting no usage and a turn
-          // genuinely using no tokens are different facts, and a rate join has to
-          // be able to tell them apart.
-          turnTokensIn: cost.turn.tokensIn,
-          turnTokensOut: cost.turn.tokensOut,
-          // Null all three together when no classification round-trip was made —
-          // a bare affirmation short-circuits the classifier and a page turn is
-          // never classified. Neither has anything to price.
-          classifierModel: cost.classifier?.model ?? null,
-          classifierTokensIn: cost.classifier?.tokensIn ?? null,
-          classifierTokensOut: cost.classifier?.tokensOut ?? null,
-          steps: cost.steps,
-          planVersionRef: cost.planVersionRef,
-          latencyMs: cost.latencyMs,
-          createdAt: now,
-        })
-        .onConflictDoNothing({ target: aiUsage.id });
       // **One statement per table**, not one per row: the completed path
       // awaits this inside `onEnd`, so a turn of nine steps and twenty calls
       // must not cost thirty round-trips before the stream can finish. On a
       // conflict every measured column takes the new value (`excluded`); the
       // key and the first-seen time do not move.
-      if (ledger.stepSpend.length > 0) {
+      if (steps.length > 0) {
         await tx
           .insert(aiUsageSteps)
           .values(
-            ledger.stepSpend.map((step) => ({
+            steps.map((step) => ({
               turnId,
               stepIndex: step.index,
               model: step.model,
@@ -118,16 +150,13 @@ export async function recordTurnLedger(ledger: TurnLedger, now: Date = new Date(
             ]),
           });
       }
-      // A call with no SDK id cannot be keyed, so it cannot be written
-      // idempotently — and every caller that measures a real turn passes one.
-      const calls = ledger.toolCalls.filter((call) => call.callId !== null);
       if (calls.length > 0) {
         await tx
           .insert(aiUsageToolCalls)
           .values(
             calls.map((call) => ({
               turnId,
-              callId: call.callId!,
+              callId: call.callId,
               stepIndex: call.stepIndex,
               tool: call.name,
               outcome: call.outcome,
@@ -154,9 +183,9 @@ export async function recordTurnLedger(ledger: TurnLedger, now: Date = new Date(
     });
     return true;
   } catch (error) {
-    console.error("ai_usage row was not written", {
+    console.error("ai_usage step and tool-call rows were not written", {
       userId: cost.userId,
-      outcome: cost.outcome,
+      turnId,
       error,
     });
     return false;
@@ -200,10 +229,12 @@ export function microUsdForRow(
   // step by step at the model each step ran on — see `microUsdForSteps`.
   steps: readonly AiUsageStepRow[] = [],
 ): number | null {
-  const turn =
-    steps.length > 0
-      ? microUsdForSteps(steps, at, history)
-      : microUsdFor(row.turnModel, row.turnTokensIn, row.turnTokensOut, at, history);
+  // Per step when the steps can all be priced; otherwise the turn-level price
+  // the row always had. A step whose usage the provider never reported (a
+  // wrap-up step, say) must not turn a priceable turn into an unpriced one —
+  // the turn's own token totals still came from the provider's summary.
+  const perStep = steps.length > 0 ? microUsdForSteps(steps, at, history) : null;
+  const turn = perStep ?? microUsdFor(row.turnModel, row.turnTokensIn, row.turnTokensOut, at, history);
   if (turn === null) return null;
   if (row.classifierModel === null) return turn;
   const classifier = microUsdFor(
@@ -235,7 +266,15 @@ export function microUsdForSteps(
 ): number | null {
   let total = 0;
   for (const step of steps) {
-    const cost = microUsdFor(step.model, step.tokensIn, step.tokensOut, at, history, step.cacheReadTokens);
+    const cost = microUsdFor(
+      step.model,
+      step.tokensIn,
+      step.tokensOut,
+      at,
+      history,
+      step.cacheReadTokens,
+      step.cacheWriteTokens,
+    );
     if (cost === null) return null;
     total += cost;
   }
@@ -286,7 +325,20 @@ export async function costPerAccount(since: Date): Promise<AccountCost[]> {
   // transaction as its turn with the same timestamp, so the window that
   // selects a turn selects its steps.
   const stepsByTurn = new Map<string, AiUsageStepRow[]>();
-  for (const step of await db.select().from(aiUsageSteps).where(gte(aiUsageSteps.createdAt, since))) {
+  // Only the columns pricing reads: this runs on every console load, over
+  // every step of every account in the window.
+  const stepRows = await db
+    .select({
+      turnId: aiUsageSteps.turnId,
+      model: aiUsageSteps.model,
+      tokensIn: aiUsageSteps.tokensIn,
+      cacheReadTokens: aiUsageSteps.cacheReadTokens,
+      cacheWriteTokens: aiUsageSteps.cacheWriteTokens,
+      tokensOut: aiUsageSteps.tokensOut,
+    })
+    .from(aiUsageSteps)
+    .where(gte(aiUsageSteps.createdAt, since));
+  for (const step of stepRows) {
     const list = stepsByTurn.get(step.turnId) ?? [];
     list.push(step);
     stepsByTurn.set(step.turnId, list);

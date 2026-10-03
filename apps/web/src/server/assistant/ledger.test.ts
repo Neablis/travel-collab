@@ -288,16 +288,38 @@ describe("the turn meter", () => {
 
   // A turn abandoned mid-call fires its latch while the call is still
   // awaiting; the call must still have a row (Copilot on #301).
-  it("reports a call that started and never finished as failed, with no duration", () => {
+  // Not `failed`: a user leaving mid-call is not the tool breaking, and the
+  // failure rate must not count it (review of #301).
+  it("reports a call that started and never finished as unfinished, with no duration", () => {
     const meter = newTurnMeter();
     meter.callStarted("c1", "add_activity", true);
     meter.callStarted("c2", "read_day");
     meter.toolCall("read_day", 4, true, { callId: "c2" });
     expect(meter.toolCalls()).toEqual([
       call({ name: "read_day", ms: 4, callId: "c2" }),
-      call({ name: "add_activity", ms: null, ok: false, callId: "c1", outcome: "failed" }),
+      call({ name: "add_activity", ms: null, ok: false, callId: "c1", outcome: "unfinished" }),
     ]);
     expect(meter.proposes("c1")).toBe(true);
+  });
+
+  // Repair can fix the JSON and the SDK's re-parse can still reject it; that
+  // call never ran, and used to get no row at all (review of #301).
+  it("records a repaired call that still never ran as failed", () => {
+    const meter = newTurnMeter();
+    meter.callIssue("c1", "add_activity", "repaired");
+    expect(meter.toolCalls()).toEqual([
+      call({ name: "add_activity", ms: null, ok: false, callId: "c1", outcome: "failed" }),
+    ]);
+  });
+
+  // A refused WRITE call is still a write call: reach false, not the null
+  // that means "cannot propose" (review of #301).
+  it("marks a refused write call as proposing", () => {
+    const meter = newTurnMeter();
+    meter.callIssue("w", "add_activity", "refused-by-grant", true);
+    meter.callIssue("r", "read_day", "refused-by-grant", false);
+    expect(meter.proposes("w")).toBe(true);
+    expect(meter.proposes("r")).toBe(false);
   });
 
   it("knows which calls can propose", () => {

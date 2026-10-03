@@ -1018,8 +1018,9 @@ export const aiUsageSteps = pgTable(
 // **One row per tool call** (M31 Phase 1, ADR-062 §5) — which tools work, and
 // which earn the schema they cost on every step.
 //
-// `outcome` is `ok | failed | repaired | refused-by-grant` (`ToolCallOutcome`,
-// ledger.ts). A refused call never ran, so it has no duration. Sizes are bytes
+// `outcome` is `ok | failed | repaired | refused-by-grant | unfinished`
+// (`ToolCallOutcome`, ledger.ts). A refused call never ran, and an unfinished
+// one was still running when the turn ended, so neither has a duration. Sizes are bytes
 // of JSON, never the JSON: the input is the model's arguments and the output
 // is trip content, and neither belongs in a durable table.
 //

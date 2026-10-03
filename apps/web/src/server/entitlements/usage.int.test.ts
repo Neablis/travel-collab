@@ -3,7 +3,7 @@
 // Four gate boxes live here: one row per request including a failure, no
 // dollars stored, re-pricing history at two rates, and no content on the row.
 import { randomUUID } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { eq, getTableColumns } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { aiUsage, aiUsageSteps, aiUsageToolCalls } from "@/server/db/schema";
@@ -129,6 +129,53 @@ describe("a turn's step and tool-call rows (M31 Phase 1)", () => {
   });
 });
 
+// The review of #301: the billing row must survive anything the telemetry
+// rows do, and a provider that reuses a call id inside one turn is one thing
+// they can do.
+describe("the billing row is independent of the step and tool-call rows", () => {
+  it("writes the turn, and one row for a call id the provider reused", async () => {
+    const turnId = randomUUID();
+    const entry: TurnLedger = {
+      ...ledger({ turnId }),
+      toolCalls: ["first", "second"].map((label, index) => ({
+        callId: "call_0",
+        name: "read_day",
+        ms: index + 1,
+        ok: true,
+        outcome: "ok" as const,
+        stepIndex: index,
+        inputBytes: null,
+        outputBytes: label.length,
+        reachedProposal: null,
+      })),
+    };
+    expect(await recordTurnLedger(entry)).toBe(true);
+    expect(await db.select().from(aiUsage).where(eq(aiUsage.id, turnId))).toHaveLength(1);
+    const calls = await db.select().from(aiUsageToolCalls).where(eq(aiUsageToolCalls.turnId, turnId));
+    expect(calls.map((call) => call.durationMs)).toEqual([2]);
+  });
+
+  it("keeps the billing row when the child rows cannot be written", async () => {
+    const turnId = randomUUID();
+    const entry: TurnLedger = {
+      ...ledger({ turnId }),
+      // A model id longer than nothing Postgres refuses is hard to find, so
+      // the child write is made to fail on a step index no integer column
+      // can hold.
+      stepSpend: [
+        { index: 2 ** 40, model: TURN_MODEL, tier: null, tokensIn: 1, cacheReadTokens: 0, cacheWriteTokens: 0, tokensOut: 1, finishReason: "stop", escalated: false, pivoted: false },
+      ],
+    };
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      expect(await recordTurnLedger(entry)).toBe(false);
+    } finally {
+      error.mockRestore();
+    }
+    expect(await db.select().from(aiUsage).where(eq(aiUsage.id, turnId))).toHaveLength(1);
+  });
+});
+
 // KI-2026-09-17-c: a turn admitted on the cheap tier that escalates runs its
 // later steps on the escalation model. Priced at `turn_model`, every step is
 // billed at the cheap rate; priced from its step rows, each step is billed at
@@ -153,6 +200,24 @@ describe("an escalated turn is priced at the models that ran it", () => {
     expect(mine.microUsd).toBe(perStep);
     // And it is not what the old single-model pricing said.
     expect(mine.microUsd).toBeGreaterThan(asAdmitted);
+  });
+
+  // A step the provider reported no usage for must not turn a priceable turn
+  // into an unpriced one; the turn's own totals still price it (review of #301).
+  it("falls back to the turn's own totals when a step has no usage", async () => {
+    const userId = `dev-${randomUUID()}`;
+    const at = new Date("2026-10-05T00:00:00Z");
+    const entry: TurnLedger = {
+      ...ledger({ userId, turnId: randomUUID(), classifier: null, turn: { model: TURN_MODEL, tokensIn: 2000, tokensOut: 200 } }),
+      stepSpend: [
+        { index: 0, model: TURN_MODEL, tier: "low", tokensIn: 2000, cacheReadTokens: 0, cacheWriteTokens: 0, tokensOut: 200, finishReason: "tool-calls", escalated: false, pivoted: false },
+        { index: 1, model: TURN_MODEL, tier: "low", tokensIn: null, cacheReadTokens: null, cacheWriteTokens: null, tokensOut: null, finishReason: "stop", escalated: false, pivoted: false },
+      ],
+    };
+    await recordTurnLedger(entry, at);
+    const mine = (await costPerAccount(new Date(at.getTime() - 1000))).find((c) => c.userId === userId)!;
+    expect(mine.unpriced).toBe(0);
+    expect(mine.microUsd).toBe(priceOf(TURN_MODEL, 2000, 200, at)!);
   });
 });
 

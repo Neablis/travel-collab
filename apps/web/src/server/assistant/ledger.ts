@@ -136,10 +136,15 @@ export interface CapacityLine {
  *   * `refused-by-grant` — the model called a tool this step did not hold. The
  *                          SDK refuses it before any code runs.
  *
+ *   * `unfinished`       — it was still running when the turn ended (a user
+ *                          leaving, the deadline, an error elsewhere). Not a
+ *                          failure of the tool, so the failure rate leaves it
+ *                          out; a tool with many is a tool users wait on.
+ *
  * A tool that RETURNS a refusal value (escalate's "already escalated") is
  * `ok`: this describes execution, and refusal values are on the `ai.ask` line.
  */
-export type ToolCallOutcome = "ok" | "failed" | "repaired" | "refused-by-grant";
+export type ToolCallOutcome = "ok" | "failed" | "repaired" | "refused-by-grant" | "unfinished";
 
 /** One tool call: what it was, how long it took, and whether it worked. */
 export interface LedgerToolCall {
@@ -272,7 +277,7 @@ export interface TurnMeter {
    * then executes and its outcome becomes `repaired`; a `refused-by-grant` or
    * `invalid` one never executes, so it is reported here or not at all.
    */
-  callIssue(callId: string, name: string, issue: ToolCallIssue): void;
+  callIssue(callId: string, name: string, issue: ToolCallIssue, proposes?: boolean): void;
   /** One vendor lookup — capacity, never cost. */
   vendorCall(vendor: CapacityLine["vendor"], calls?: number): void;
   /**
@@ -327,16 +332,22 @@ export function newTurnMeter(): TurnMeter {
         reachedProposal: null,
       });
     },
-    callIssue(callId, name, issue) {
+    callIssue(callId, name, issue, proposes = false) {
       issues.set(callId, { name, issue });
+      // A refused or invalid WRITE call is still a write call: its reach is
+      // `false`, never the `null` that means "cannot propose".
+      if (proposes) proposing.add(callId);
     },
     vendorCall(vendor, calls = 1) {
       vendors.set(vendor, (vendors.get(vendor) ?? 0) + calls);
     },
     toolCalls: () => {
       const executed = new Set(tools.map((tool) => tool.callId));
+      // Every call the repair hook saw that never executed and is not still
+      // running — a `repaired` one included: repair can fix the JSON and the
+      // re-parse can still reject it, and that call never ran either.
       const neverRan: LedgerToolCall[] = [...issues]
-        .filter(([callId, entry]) => entry.issue !== "repaired" && !executed.has(callId))
+        .filter(([callId]) => !executed.has(callId) && !running.has(callId))
         .map(([callId, entry]) => ({
           callId,
           name: entry.name,
@@ -348,14 +359,14 @@ export function newTurnMeter(): TurnMeter {
           outputBytes: null,
           reachedProposal: null,
         }));
-      // Started and not finished: the turn ended around it. It did not
-      // return, so it is `failed`, with no duration to report.
+      // Started and not finished: the turn ended around it. No duration to
+      // report, and not the tool's failure — `unfinished` (see its outcome).
       const unfinished: LedgerToolCall[] = [...running].map(([callId, name]) => ({
         callId,
         name,
         ms: null,
         ok: false,
-        outcome: "failed",
+        outcome: "unfinished",
         stepIndex: null,
         inputBytes: null,
         outputBytes: null,

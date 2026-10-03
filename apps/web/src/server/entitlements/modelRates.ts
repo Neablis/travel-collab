@@ -46,12 +46,18 @@ export interface ModelRate {
   /**
    * Micro-dollars per million input tokens read from the prompt cache
    * (M31 Phase 1). Absent means the catalogue lists no cached-read price, and
-   * cached reads are then priced as fresh input — which overstates, never
-   * understates. Prompt caching (`caching: "auto"`) makes most of a long
-   * turn's input a cached read, so without this a turn's price is several
-   * times what was billed.
+   * cached reads are then priced as fresh input, which overstates. Prompt
+   * caching (`caching: "auto"`) makes most of a long turn's input a cached
+   * read, so without this a turn's price is several times what was billed.
    */
   cacheReadInputMicroUsdPerMTok?: number;
+  /**
+   * Micro-dollars per million input tokens WRITTEN to the prompt cache. Some
+   * providers charge a premium for these (Anthropic: 1.25x input). Absent,
+   * cache writes are priced as fresh input — which UNDERSTATES for such a
+   * provider, so a model that charges a premium needs this on its entry.
+   */
+  cacheWriteInputMicroUsdPerMTok?: number;
 }
 
 /**
@@ -157,6 +163,9 @@ export function microUsdFor(
   // priced at the cached rate rather than an addition to it. Null — every
   // row written before M31 Phase 1 — prices all input as fresh, as before.
   cacheReadTokens: number | null = null,
+  // How many of `tokensIn` were written to the prompt cache; also a part of
+  // `tokensIn`, priced at the cache-write rate where one is on record.
+  cacheWriteTokens: number | null = null,
 ): number | null {
   const rate = rateAt(model, at, history);
   // **`null` is unmeasured, and unmeasured is not free.** This read
@@ -171,8 +180,12 @@ export function microUsdFor(
   // Clamped to the total, so a provider reporting more cached than total
   // input cannot price the fresh part below zero.
   const cached = Math.min(Math.max(cacheReadTokens ?? 0, 0), tokensIn);
+  const written = Math.min(Math.max(cacheWriteTokens ?? 0, 0), tokensIn - cached);
+  const fresh = tokensIn - cached - written;
   const cachedRate = rate.cacheReadInputMicroUsdPerMTok ?? rate.inputMicroUsdPerMTok;
-  const input = ((tokensIn - cached) * rate.inputMicroUsdPerMTok + cached * cachedRate) / 1_000_000;
+  const writtenRate = rate.cacheWriteInputMicroUsdPerMTok ?? rate.inputMicroUsdPerMTok;
+  const input =
+    (fresh * rate.inputMicroUsdPerMTok + cached * cachedRate + written * writtenRate) / 1_000_000;
   const output = (tokensOut * rate.outputMicroUsdPerMTok) / 1_000_000;
   return Math.round(input + output);
 }
