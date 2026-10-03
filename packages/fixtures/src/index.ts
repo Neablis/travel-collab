@@ -22,6 +22,7 @@ export {
   JAPAN_TRIP_NAME,
   JAPAN_TRIP_TRAVELLERS,
   JAPAN_TRAVELLERS,
+  JAPAN_TRAVELLER_ROLES,
   type JapanBacklogItem,
   type JapanStop,
   type JapanTraveller,

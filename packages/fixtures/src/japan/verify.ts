@@ -15,6 +15,7 @@
 // same thing `db:seed` would hit at runtime, found earlier.
 
 import type { ActivityKind, ActivityMode, ActivityTag, PendingReason, TripEvent } from "@tc/contracts";
+import { TripRole } from "@tc/contracts";
 import {
   ActivityKind as ActivityKindEnum,
   ActivityMode as ActivityModeEnum,
@@ -36,7 +37,14 @@ import { COORDINATE_GAPS } from "./coordinateGaps.ts";
 import coordinatesOverlay from "./coordinates.json" with { type: "json" };
 import { PARTICIPANT_PICKS } from "./participants.ts";
 import { JAPAN_SAVED_DAYS } from "./savedDays.ts";
-import { JAPAN_BACKLOG, JAPAN_STOPS, JAPAN_TRIP_NAME, JAPAN_TRIP_TRAVELLERS, REFERENCE_START_DATE } from "./trip.ts";
+import {
+  JAPAN_BACKLOG,
+  JAPAN_STOPS,
+  JAPAN_TRAVELLER_ROLES,
+  JAPAN_TRIP_NAME,
+  JAPAN_TRIP_TRAVELLERS,
+  REFERENCE_START_DATE,
+} from "./trip.ts";
 
 export { REFERENCE_START_DATE };
 
@@ -61,6 +69,8 @@ export type JapanTripReport = {
   withEndLocation: number;
   /** ADR-055: every PendingReason, zeros included, over the pending stops. */
   pendingReasons: Record<PendingReason, number>;
+  /** ADR-064: every TripRole, zeros included, over `/demo`'s roster. */
+  travellerRoles: Record<TripRole, number>;
   untaggedCount: number;
   withCoordinates: number;
   withCost: number;
@@ -408,6 +418,11 @@ export function verifyJapanTrip(startDate: string = REFERENCE_START_DATE): Japan
     }
   }
 
+  // Not folded: roles are Access's, never the log's. Counted from the roster
+  // `/demo` overlays, so a role nobody on it holds reads 0.
+  const travellerRoles = Object.fromEntries(TripRole.options.map((r) => [r, 0])) as Record<TripRole, number>;
+  for (const role of Object.values(JAPAN_TRAVELLER_ROLES)) travellerRoles[role] += 1;
+
   return {
     dayCount: state.days.length,
     scheduledCount: state.days.reduce((n, d) => n + d.activityIds.length, 0),
@@ -418,6 +433,7 @@ export function verifyJapanTrip(startDate: string = REFERENCE_START_DATE): Japan
     modes,
     withEndLocation,
     pendingReasons,
+    travellerRoles,
     untaggedCount,
     withCoordinates,
     withCost,
@@ -470,6 +486,7 @@ export function formatReport(report: JapanTripReport, findings: readonly string[
   row("tags", `${histogram(report.tags)} / untagged ${report.untaggedCount}`);
   row("travel modes", `${histogram(report.modes)} / with a destination ${report.withEndLocation}`);
   row("pending reasons", histogram(report.pendingReasons));
+  row("traveller roles", histogram(report.travellerRoles));
   row("with coordinates", `${report.withCoordinates}/${report.activityCount}`);
   row("with a cost", `${report.withCost}/${report.activityCount}`);
   row("cities", report.cities.join(", "));
