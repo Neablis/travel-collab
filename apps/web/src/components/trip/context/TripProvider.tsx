@@ -32,6 +32,7 @@ import { boardMode } from "@/lib/tripRole";
 import { headSeqOf, useTripBroadcast } from "./broadcast";
 import { drainAfter, sendUnit } from "./queueDrain";
 import { unloadFlush } from "./unloadFlush";
+import { useTripSuggestions, type TripSuggestions } from "./useTripSuggestions";
 
 type Status = "loading" | "ready" | "unauthenticated" | "error";
 /**
@@ -103,6 +104,10 @@ type TripCtx = {
   canEditBoard: boolean;
   // Present in suggest mode only.
   draft: SuggestionDraft | null;
+  // The trip's suggestion changes: a suggester's own, or everyone's for an
+  // editor or the owner. Null for a reader who sees none — a viewer, or a role
+  // not yet known (the list is 404 to a viewer, so it is not asked for).
+  suggestions: TripSuggestions | null;
   // True once the access read has completed and FAILED — not while it is still
   // in flight. See `load()` for why the failure stays non-fatal, and TripHeader
   // for where it is said out loud.
@@ -495,6 +500,15 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
   }, [tripId]);
   onRemoteChangeRef.current = onRemoteChange;
 
+  // `boardMode(myRole)`, not `mode`: an unknown role leaves the board live
+  // (W21), but a list we may not be allowed to read is not worth asking for
+  // until the role is known.
+  const { suggestions, onRevision: onSuggestionsChanged } = useTripSuggestions({
+    tripId,
+    enabled: status === "ready" && boardMode(myRole) !== "read",
+    onAccepted: onRemoteChange,
+  });
+
   const dispatch = useCallback(
     async (command: BoardCommand): Promise<DispatchResult> => {
       // History commands need "editor" (W13), so a suggester is refused them
@@ -675,9 +689,12 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
     );
   }, []);
 
-  // T7's seam: re-read the trip's suggestions once a draft is stored, so its
-  // author sees the changes as ghosts. A no-op until `useTripSuggestions`.
-  const onSuggestionsSent = useCallback(() => {}, []);
+  // Re-read the trip's suggestions once a draft is stored, so its author sees
+  // the changes as ghosts without waiting for the poll.
+  const refreshSuggestions = suggestions?.refresh;
+  const onSuggestionsSent = useCallback(() => {
+    void refreshSuggestions?.();
+  }, [refreshSuggestions]);
 
   // A ref, like `inFlight`: a double click lands before the re-render that
   // would disable the button.
@@ -755,6 +772,7 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
     // remote news on every tick.
     cursor: () => (optimisticRef.current ? headSeqOf(optimisticRef.current.confirmed.history) : 0),
     onChanged: onRemoteChange,
+    onSuggestionsChanged,
   });
 
   // Kept in step with the state on every render, so a change made anywhere
@@ -803,6 +821,7 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
         boardMode: mode,
         canEditBoard,
         draft,
+        suggestions,
         accessUnknown,
         sync,
         preview: { seq: previewSeq, enter, exit },
