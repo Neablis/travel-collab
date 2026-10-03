@@ -107,6 +107,11 @@ cheaply.
 | W32 | **The suggestion routes call `auth()` themselves, not `requireTripAccess`.** *(T5)* | That seam answers a stranger with 403, which contradicts W26, and it would read the trip twice. | Reuse it: it leaks membership through the status code. |
 | W33 | **Resolve answers `{ changes }`, the named change first, then the dependents it took with it.** Create answers the same shape, one change per unit. *(T5)* | The client learns about a cascade without refetching. | Only the named change: a refetch after every dismiss. |
 | W34 | **Each route has an exhaustive code → status table.** A new refusal code does not compile until it has a status. The events poll uses `suggestionsRevForRole` with the role `requireTripAccess` already resolved, so it adds one query. An owner with no suggestions still gets a revision (the empty set's), equal to the list's `rev`. Withdrawing someone else's change answers 404, not the plan's 403, per W26. *(T5)* | A poll every 2 seconds cannot afford a second role lookup. | Look the role up again inside the rev helper: three extra reads per poll. |
+| W35 | **What a suggester can and cannot touch on the board.** *(T6)*<br>Open, through `canEditBoard`: the Board, DayChips, the Map and Calendar edit paths, the rack, the activity editor, Settings' name, dates and money fields, and the header's Add stop.<br>Hidden, behind `readOnly`: undo/redo, both conflict Dismiss controls, KeepDayFlag (it writes to the reader's account), the header date pill, Share, notebooks, and the assistant.<br>The header badge reads "Suggester". | It is the default-closed rule (W8), applied control by control and each one tested. | Open the whole board: two Dismiss controls and an account write would slip through. |
+| W36 | **A send removes only the units it sent, then re-predicts what is left onto the confirmed trip.** An edit made while the request was out survives. Discard takes the same path. *(T6)* | A send in flight must not swallow the next gesture. | Clear everything on success: it loses an edit made during the request. |
+| W37 | **A refused draft is kept.** On 422 the tray names the failing change: "“…” no longer applies to the trip as it is now. Nothing was sent." Any other refusal shows the server's message. *(T6)* | The author decides what to drop. Nothing is lost silently. | Drop the failing unit automatically: it silently edits someone's draft. |
+| W38 | **The save light reads 0 unsent in suggest mode.** The tray counts the draft instead. *(T6)* | Otherwise it would say "Saving N changes" forever. | Count the draft: it reads as broken saving. |
+| W39 | **`createTripSuggestion` does not invalidate the trip cache and is not one of the trip writers.** *(T6)* | A suggestion is not planning state (ADR-063). | Treat it as a write: refetches for nothing. |
 
 ## 4. Shape
 
@@ -181,6 +186,13 @@ On the preview:
 This is the e2e flow beside `e2e/m11-invites.spec.ts`.
 
 ## 6. Out of scope (v1)
+
+Known rough edges, found during the build and left for a follow-up:
+- History preview is refused while a draft exists, with no message (`preview.enter` returns early when anything is pending).
+- The assistant refuses a suggester's ask with the viewer's wording ("You have view-only access"). The refusal is right (§2.2); the words are not.
+- Draft units show in the history panel as pending rows.
+
+Not built in v1:
 
 - Persisting the draft (W7).
 - Notifications beyond the count.
