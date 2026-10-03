@@ -52,9 +52,15 @@ export function parseDiscoverUrl(params: RawParams): DiscoverUrlState {
     cities: normalizeCities(all(params.city)),
     // Upper-cased because the stored codes are (`countriesOfStops`), and a
     // lower-case `?country=jp` typed by hand should mean Japan, not nothing.
-    countries: all(params.country)
-      .map((c) => c.toUpperCase())
-      .filter((c) => /^[A-Z]{2}$/.test(c)),
+    // Trimmed and deduped as `GET /api/playbooks` does, so the page's first
+    // paint is the list the API would give.
+    countries: [
+      ...new Set(
+        all(params.country)
+          .map((c) => c.trim().toUpperCase())
+          .filter((c) => /^[A-Z]{2}$/.test(c)),
+      ),
+    ],
     scope: pick(DiscoverScope, first(params.scope), DISCOVER_URL_DEFAULTS.scope),
     sort: pick(DiscoverSort, first(params.sort), DISCOVER_URL_DEFAULTS.sort),
     length: pick(LengthBand, first(params.length), DISCOVER_URL_DEFAULTS.length),
