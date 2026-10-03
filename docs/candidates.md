@@ -16,6 +16,26 @@ not by anybody remembering. That automation exists because the rule was being
 skipped: M23's entry survived its own gate closing on 2026-09-19 and was still
 here two days later.
 
+- **The assistant proposes through suggestions, so a big change is reviewed on the board (asked
+  2026-10-03).** Mitchell: *"the proposed changes functionality could also be a good way to
+  preview large amount of changes from the AI assistant, for instance if I ask it to add a day,
+  have it add a day and fill it with proposed changes, then we can accept or deny them after
+  seeing them in the trip"*. He was explicit that it is not part of the suggester stack
+  (#308 → #309 → #311). Most of it would be reuse:
+  - **What exists once the stack merges.** "Add a day and fill it" is one suggestion: an `AddDay`
+    change plus stop changes that depend on it (W9, W56). The parent-first rule refuses a stop
+    accepted before its day, dismissing the day dismisses its stops, and the ghost overlay
+    already draws stops inside a suggested day (W46).
+  - **What it replaces.** Today's assistant proposals are client-side and ephemeral by decision
+    (ADR-022). Stored suggestions survive a reload, are reviewed change by change, and are
+    visible to the trip's other editors.
+  - **Decisions it needs, not code.**
+    - Today only a `suggester` may create a suggestion (spec W25 and §2). An editor's assistant
+      proposing needs that relaxed. Invariant 7 says the assistant takes only paths its user
+      could take, so the choice is "editors can suggest too", or a distinct assistant author.
+    - "Suggested by" needs a name for an assistant author.
+    - It is undecided whether assistant changes count against the 50-per-author pending cap.
+    - Whether it supersedes ADR-022's ephemeral proposals or sits beside them is an ADR question.
 - **Caesura installable as a phone app, as a PWA and not a store release (asked
   2026-10-02).** Mitchell: *"what would be the lift to get Caesura working as a
   mobile app? Not like a full on app store"*, then *"add the PWA to potential
