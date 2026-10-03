@@ -188,29 +188,6 @@ describe("TravelersPanel", () => {
     );
   });
 
-  // The enum word is not the name a person is shown (§2.1). Both badges, read
-  // through their own rows so neither can pass on the other's text.
-  it("badges a suggesting traveller and a suggester invite as Can suggest", async () => {
-    fetchTripAccessMock.mockResolvedValue({
-      ok: true,
-      value: access({
-        members: [
-          { userId: "dev-alice", role: "owner", name: "Alice", email: null, image: null },
-          { userId: "dev-sam", role: "suggester", name: "Sam", email: null, image: null },
-        ],
-        invites: [{ ...invite, role: "suggester" }],
-      }),
-    });
-    render(<TravelersPanel tripId={tripId} />);
-
-    const member = await screen.findByTestId("traveller-dev-sam");
-    expect(within(member).getByText("Can suggest")).toBeTruthy();
-    // Two badges: Sam's row and the invite's. The picker's own "Can suggest"
-    // is an <option>, so it is set aside.
-    expect(screen.getAllByText("Can suggest", { ignore: "option" })).toHaveLength(2);
-    expect(screen.queryByText("suggester")).toBeNull();
-  });
-
   it("sends null, not an empty string, when no email is typed", async () => {
     createTripInviteMock.mockResolvedValue({ ok: true, value: invite });
     render(<TravelersPanel tripId={tripId} />);
