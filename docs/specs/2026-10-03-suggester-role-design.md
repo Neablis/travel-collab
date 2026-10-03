@@ -122,6 +122,10 @@ cheaply.
 | W47 | **A move shows a marker on the stop where it is now, and a ghost block where it would land.** The ghost is drawn only if the stop is timed and the target day exists. A same-day retime is an update, so it gets a marker only. *(T8)* | Both ends of a move are visible. | Marker only: the reviewer cannot see where it goes. |
 | W48 | **Ghosts are hidden while previewing a past version**, but the chip still counts. *(T8)* | A preview is a past state, and a suggestion is about the present. | Draw ghosts on a past version: they would be predicted against the wrong trip. |
 | W49 | **Names come from `PeopleProvider` (the cached access read), mounted around the chip and History.** History reads "Suggested" until the names load, so it never calls a current member "a former traveler". Board popovers show no author name in v1. *(T8)* | It reuses the read the Travelers panel already makes (W15). | Mount the provider around the whole board: a wider change than the names justify. |
+| W50 | **A draft is capped at the route's limits when it is made, not when it is sent.** In suggest mode `runDispatch` refuses the 101st change ("A suggestion holds up to 100 changes. Send these first.") and one change of more than 50 edits ("One suggested change holds up to 50 edits. Make it in smaller steps."), through the provider's ordinary refusal. The draft already made is untouched. *(review)* | `CreateSuggestionInput` caps 100 units of 50 commands, and the route refuses a draft past either whole. Refusing at Send would tell the author after they had built it. | Let Send fail with the schema error: the author learns late, in words written for a developer. |
+| W51 | **The overlay and create's dry run skip a no-op sub-command, as accepting does.** `predictBatch(…, { skipNoOps: true })` mirrors `decideInOrder`: a no-op sub-command is skipped, and a unit with nothing left is refused as `no-op`. Create calls that `does-not-apply`; the overlay calls it stale. The optimistic queue keeps refusing the whole unit. *(review)* | Accepting replays the change through `executeTripCommandBatch`, which skips them. A gesture that includes an already-true move would otherwise be stale on the board and refused at create, though accepting it would apply. | Predict strictly everywhere: create and the board disagree with the accept they exist to anticipate. |
+| W52 | **A change the trip already reflects throughout is accepted, and nothing is appended.** When the pipeline answers `no-op`, the change is marked accepted by the same conditional update on `pending`, with the reviewer and time set. This replaces W29's `no-op` → `no-longer-applies`. *(review)* | Two suggesters asking for the same rename: once one is accepted, the other is already true. Refusing it would leave the reviewer a change that can only be dismissed. | Keep W29: a change that is done reads "no longer applies". |
+| W53 | **The list and its revision cover pending changes only.** `visibleTo`, the scope both share, requires `pending`. A resolution takes a change out of the hashed set, so the revision still moves. No schema change: `TripSuggestionsResponse` keeps its shape. *(review)* | The list is re-read on every revision move, and returning every change ever made would grow it with the trip's history for rows nobody can still decide. The client only ever drew pending ones. | Serve every status: a list that grows without bound, read every time anything changes. |
 
 ## 4. Shape
 
@@ -156,13 +160,13 @@ authorId }`. `TripEventsPage` gains an optional `suggestionsRev: string`. `TripR
   - Requires the role to be exactly `suggester`. An editor writes directly.
   - Refuses `DismissConflict` (W3).
   - Dry-runs each unit (W4), computes `dependsOn` (W9), and writes the sentence (W2).
-- **`listSuggestionChanges`**: a suggester gets their own changes. An editor or the owner gets
-  all of them. A viewer gets 404.
+- **`listSuggestionChanges`**: a suggester gets their own pending changes. An editor or the owner
+  gets all of them (W53). A viewer gets 404.
 - **`resolveSuggestionChange`**:
   - Accept and dismiss need `editor`. Withdraw needs the author.
   - Dependency checks: an accept refuses while any `dependsOn` change is not accepted. A dismiss
     or withdraw cascades to pending dependents.
-- **`suggestionsRevFor(tripId, viewer)`**: returns the hash for the events poll (W6).
+- **`suggestionsRevForRole(tripId, userId, role)`**: returns the hash for the events poll (W6, W34).
 - **The pipeline change**: `executeTripCommandBatch` gains `options.origin`, defaulting to
   `{ kind: "user" }`. Invariant 1 is untouched, because suggestions never write a projection.
 
@@ -197,10 +201,11 @@ This is the e2e flow beside `e2e/m11-invites.spec.ts`.
 
 ## 6. Out of scope (v1)
 
-Known rough edges, found during the build and left for a follow-up:
-- History preview is refused while a draft exists, with no message (`preview.enter` returns early when anything is pending).
-- The assistant refuses a suggester's ask with the viewer's wording ("You have view-only access"). The refusal is right (§2.2); the words are not.
-- Draft units show in the history panel as pending rows.
+Known rough edges, found during the build and left for a follow-up, are filed in
+`docs/known-issues/open/`:
+- `KI-2026-10-03-b`: history preview does nothing, and says nothing, while a draft exists.
+- `KI-2026-10-03-c`: the assistant refuses a suggester in the viewer's words.
+- `KI-2026-10-03-d`: draft units show in History as pending rows.
 
 Not built in v1:
 
