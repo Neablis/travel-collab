@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import { witness } from "../test-support/witness";
 import {
   cityPath,
-  countryPath,
   countrySlug,
   dayPath,
   daySegment,
@@ -98,7 +97,7 @@ describe("day URLs", () => {
 describe("place URLs", () => {
   it("slugs a city and a country's English name", () => {
     expect(cityPath("São Paulo")).toBe("/playbooks/city/sao-paulo");
-    expect(countryPath("JP")).toBe("/playbooks/country/japan");
+    expect(countrySlug("JP")).toBe("japan");
   });
 
   // `countryName` hands back the code itself for one it cannot map ("??"
@@ -108,7 +107,7 @@ describe("place URLs", () => {
     expect(cityPath("京都")).toBeNull();
     expect(countrySlug("??")).toBeNull();
     expect(countrySlug("XX")).toBeNull();
-    expect(countryPath("??")).toBeNull();
+    expect(countrySlug("??")).toBeNull();
   });
 
   it("puts a city or country page under its kind", () => {

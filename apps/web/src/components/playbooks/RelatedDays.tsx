@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { useId } from "react";
 import { Heading } from "@/components/ui/heading";
 import type { DiscoverDay } from "@/lib/playbooks";
 import { dayPath } from "@/lib/playbookUrls";
@@ -10,12 +11,15 @@ type Related = Pick<DiscoverDay, "savedDayId" | "name">;
 
 /** One titled list of links to other days. Renders nothing when empty. */
 function DayLinks({ title, days }: { title: string; days: Related[] }) {
+  const headingId = useId();
   if (days.length === 0) return null;
   return (
-    <section aria-label={title} className="flex flex-col gap-2">
+    <section aria-labelledby={headingId} className="flex flex-col gap-2">
       {/* One string, not `More in {name}`: two text nodes reach the HTML split
           by a comment, and the heading is what a crawler reads. */}
-      <Heading level={2}>{title}</Heading>
+      <Heading level={2} id={headingId}>
+        {title}
+      </Heading>
       <ul className="flex flex-col gap-1">
         {days.map((day) => (
           <li key={day.savedDayId}>

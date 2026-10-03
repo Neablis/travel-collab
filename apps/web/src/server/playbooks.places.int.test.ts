@@ -75,7 +75,12 @@ describe("place pages", () => {
   });
 
   it("pages by offset", async () => {
-    const place = await placeFor("city", slugify(SPELLING_A));
+    // Its own city, so it runs alone (`-t`) as it runs after the others.
+    const city = `Pagetest${randomUUID().slice(0, 6)}`;
+    await day("First", { cities: [city] });
+    await day("Second", { cities: [city] });
+    const place = await placeFor("city", slugify(city));
+    expect(place?.days).toBe(2);
     const first = await publishedDaysPage({ cities: place!.cities }, { limit: 1, offset: 0 });
     const second = await publishedDaysPage({ cities: place!.cities }, { limit: 1, offset: 1 });
     expect(first.days).toHaveLength(1);

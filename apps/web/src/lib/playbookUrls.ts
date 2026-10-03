@@ -94,12 +94,6 @@ export function countrySlug(code: string): string | null {
   return slug === "" ? null : slug;
 }
 
-/** `/playbooks/country/<slug>` from an ISO alpha-2 code, or null when it has no slug. */
-export function countryPath(code: string): string | null {
-  const slug = countrySlug(code);
-  return slug === null ? null : `/playbooks/country/${slug}`;
-}
-
 /** A place page's URL for page `page`; page one is the bare path, so it is self-canonical. */
 export function placePagePath(path: string, page: number): string {
   return page <= 1 ? path : `${path}?page=${page}`;

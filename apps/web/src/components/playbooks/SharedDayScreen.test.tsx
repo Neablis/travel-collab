@@ -166,6 +166,19 @@ describe("the title block's cities", () => {
     expect((await screen.findByRole("link", { name: "Kyoto" })).getAttribute("href")).toBe("/playbooks/city/kyoto");
   });
 
+  it("are plain text on a published day an operator hid", async () => {
+    fetchSavedDayMock.mockResolvedValue(
+      ok({
+        savedDay: savedDay(),
+        isAuthor: true,
+        moderation: { moderatedAt: "2026-09-23T10:00:00.000Z", moderationNote: null },
+      }),
+    );
+    renderDay();
+    await screen.findByRole("heading", { level: 1, name: "Kyoto temples on foot" });
+    expect(screen.queryByRole("link", { name: "Kyoto" })).toBeNull();
+  });
+
   it("are plain text on a private day", async () => {
     fetchSavedDayMock.mockResolvedValue(ok({ savedDay: savedDay({ visibility: "private" }), isAuthor: true }));
     renderDay();
