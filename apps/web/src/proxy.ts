@@ -57,6 +57,12 @@ const { auth } = NextAuth(authConfig);
 // database read happens here (this project uses JWT sessions with no
 // adapter — see server/auth.ts), which is the configuration Auth.js v5's
 // docs call out as the one that works reliably in the Edge runtime.
+/**
+ * Pass signed-in requests through. For signed-out requests matched below, serve
+ * `/welcome` at `/` with `private, no-store`, or pass invite pages through while
+ * storing their token in the pending-admission cookie. Redirect other matched
+ * requests to sign-in with their path and query preserved as the callback.
+ */
 export default auth((req) => {
   if (!req.auth) {
     const { pathname } = req.nextUrl;

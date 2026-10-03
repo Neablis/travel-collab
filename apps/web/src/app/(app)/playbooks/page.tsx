@@ -8,7 +8,12 @@ import { playbooksPageMetadata } from "@/lib/playbooksPreview";
 // place a card can name, and gets the static Playbooks card. Parsed by the
 // same function the page seeds its search from, so the card names the city
 // the page searches for.
-/** Metadata for `/playbooks`: one city's card for `?city=<one>`, the Playbooks card otherwise. */
+/**
+ * Metadata canonical to `/playbooks`: a city's card for exactly one nonempty
+ * city and no valid country filters, or the Playbooks card otherwise or on a
+ * failed lookup.
+ * @throws {URIError} If a city selected for lookup contains an unpaired UTF-16 surrogate.
+ */
 export async function generateMetadata({
   searchParams,
 }: {

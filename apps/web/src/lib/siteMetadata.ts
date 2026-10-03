@@ -44,8 +44,9 @@ export const NOINDEX = { index: false, follow: false } as const;
 export const NOINDEX_FOLLOW = { index: false, follow: true } as const;
 
 /**
- * The root layout's robots value: nothing in production, `noindex` everywhere
- * else. A preview is kept out of the index here rather than by `robots.txt`,
+ * The root layout's robots value: undefined when `VERCEL_ENV` is "production",
+ * otherwise `noindex, nofollow`. A preview is kept out of the index here rather
+ * than by `robots.txt`,
  * because a disallowed URL is never crawled and so its `noindex` is never read.
  */
 export function siteRobots(): typeof NOINDEX | undefined {
