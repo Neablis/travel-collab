@@ -12,7 +12,6 @@ import { NOINDEX, pageMetadata } from "@/lib/siteMetadata";
 import { auth } from "@/server/auth";
 import { CITIES_SHOWN } from "@/server/og/playbooks";
 import { publishedDaysPage } from "@/server/playbooks";
-import { ratingOf } from "@/server/savedDays";
 import { sharedDayView } from "@/server/sharedDayView";
 
 type Params = { params: Promise<{ savedDayId: string }> };
@@ -102,25 +101,26 @@ export default async function SharedDayPage({
   const cityHref = firstCity === null ? null : cityPath(firstCity);
   // One more than is shown: either list may hold this day, which is dropped.
   const page = { limit: RELATED_DAYS + 1, offset: 0 };
-  const [structured, sameCity, sameAuthor] = indexable
+  const structured = indexable
+    ? dayJsonLd({
+        origin: deploymentOrigin(),
+        path: dayPath(view.day),
+        name: view.day.name,
+        description: describe(view),
+        author: view.author.displayName,
+        stops: view.day.stops.map((stop) => stop.title),
+        // The breadcrumb runs through the city when the city has a page.
+        ...(firstCity !== null && cityHref !== null ? { city: { name: firstCity, path: cityHref } } : {}),
+      })
+    : null;
+  const [sameCity, sameAuthor] = indexable
     ? await Promise.all([
-        ratingOf(view.day.savedDayId).then((rating) =>
-          dayJsonLd({
-            origin: deploymentOrigin(),
-            path: dayPath(view.day),
-            name: view.day.name,
-            description: describe(view),
-            author: view.author.displayName,
-            stops: view.day.stops.map((stop) => stop.title),
-            // The breadcrumb runs through the city when the city has a page.
-            ...(firstCity !== null && cityHref !== null ? { city: { name: firstCity, path: cityHref } } : {}),
-            ...rating,
-          }),
-        ),
-        firstCity === null ? [] : publishedDaysPage({ cities: [firstCity] }, page).then(({ days }) => days),
+        firstCity === null
+          ? Promise.resolve([])
+          : publishedDaysPage({ cities: [firstCity] }, page).then(({ days }) => days),
         publishedDaysPage({ authorId: view.day.ownerId }, page).then(({ days }) => days),
       ])
-    : [null, [], []];
+    : [[], []];
   return (
     <main className="mx-auto max-w-6xl px-6 py-8">
       {structured !== null && <JsonLd data={structured} />}
