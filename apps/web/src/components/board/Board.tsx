@@ -25,7 +25,7 @@ import { dayAccents } from "@/lib/dayAccent";
 import { stopsForDay } from "@/lib/savedStops";
 import { KeepDayFlag } from "@/components/trip/KeepDayFlag";
 import { Column, DAY_COLUMN_WIDTH_PX } from "./Column";
-import type { RiverGestures } from "./DayRiver";
+import type { BoardSuggestions, RiverGestures } from "./DayRiver";
 import { ConflictBanner } from "./ConflictBanner";
 import { type AnyTimeOutcome, type PlaceOutcome, resolveDrop } from "./resolveDrop";
 import { riverAxis } from "./riverLayout";
@@ -166,6 +166,7 @@ export type BoardCallbacks = {
  * @param sync - Optional handle for synchronizing scrolling with day selection
  * @param keepFlag - Optional "keep this day" pennant, rendered in each day's header
  * @param addSavedDay - Optional control for inserting a saved day, after the last column
+ * @param suggestions - Optional pending suggestions, drawn as ghosts
  */
 export function Board({
   trip,
@@ -178,8 +179,14 @@ export function Board({
   sync,
   addSavedDay,
   oneDay = false,
+  suggestions,
 }: {
   trip: TripDetail;
+  /**
+   * Pending suggestions to draw as ghosts (spec §2.4) — `useBoardSuggestions`,
+   * passed in because it reads `useTrip()`. Absent for a viewer, who sees none.
+   */
+  suggestions?: BoardSuggestions;
   callbacks: BoardCallbacks;
   /**
    * **One day at a time, at full width** — M26 link 13, SPEC §13.4: *"The day
@@ -501,9 +508,15 @@ export function Board({
   // **One axis for the whole trip** (SPEC §36.9b): every column is drawn on
   // it, so a 09:00 stop on Day 1 and on Day 5 sit at the same height. Taken
   // over the scheduled days only — an unscheduled stop is not on any river.
+  // A suggested stop's time is on the axis too, or a ghost at 23:00 would hang
+  // off the bottom of every river.
   const axis = useMemo(
-    () => riverAxis(trip.days.flatMap((day) => day.activityIds.map((id) => trip.activities[id]?.timeWindow ?? null))),
-    [trip],
+    () =>
+      riverAxis([
+        ...trip.days.flatMap((day) => day.activityIds.map((id) => trip.activities[id]?.timeWindow ?? null)),
+        ...[...(suggestions?.days.values() ?? [])].flat().map((ghost) => ghost.activity?.timeWindow ?? null),
+      ]),
+    [trip, suggestions],
   );
 
   // Badge-worthy conflict subjects: a `time-overlap` the board actually draws
@@ -769,6 +782,7 @@ export function Board({
               focusedTag={focusedTag}
               onToggleTag={onToggleTag}
               readOnly={readOnly}
+              suggestions={suggestions}
               // SPEC §24's "keep this day" pennant, which lived in the day
               // header of a lens this milestone DELETED. Timeline going was the
               // handoff's own instruction ("deleted, not hidden ... do not port
