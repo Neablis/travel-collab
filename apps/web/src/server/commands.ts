@@ -23,7 +23,7 @@ import {
 } from "@tc/domain";
 import { serverConflictContext } from "./conflictContext";
 import { db } from "./db/client";
-import { appendToStream, readStream } from "./eventStore";
+import { appendToStream, readStream, readStreamHeadSeq } from "./eventStore";
 import { applyTripEvents, upsertTripDetail } from "./projections";
 import { memberRolePolicy } from "./accessPolicy";
 import { effectiveMembers } from "./access/members";
@@ -248,6 +248,16 @@ const BatchBody = z.array(BatchableCommand).min(1);
 // stream commits between that read and this append, the whole transaction is
 // run again (see BATCH_APPEND_ATTEMPTS), because a batch with no precondition
 // asked for nothing more than "on top of whatever is there when you get to it".
+//
+// `options.alsoWhenNoOp` is the same seam for a batch that is a no-op
+// throughout: the answer is still `no-op` and nothing is appended, but the hook
+// commits with the decision that said so. Its one caller is accepting a
+// suggestion the trip already reflects (spec W52, W55), and the limits above
+// bind it exactly as they bind `alsoInSameTransaction`. With no append there is
+// no unique index to lose at, so the head is read again after the hook, and a
+// stream that moved since the decision is a lost race like an append's — rolled
+// back and run again against the new head. A write committing after that
+// re-read is ordered after this one; a write committing before it is seen.
 export async function executeTripCommandBatch(
   input: unknown,
   actorId: string,
@@ -255,7 +265,11 @@ export async function executeTripCommandBatch(
     tx: Parameters<typeof upsertTripDetail>[0],
     committed: { tripId: string; detail: TripDetail },
   ) => Promise<void>,
-  options: { expectedSeq?: number; origin?: Origin } = {},
+  options: {
+    expectedSeq?: number;
+    origin?: Origin;
+    alsoWhenNoOp?: (tx: Parameters<typeof upsertTripDetail>[0]) => Promise<void>;
+  } = {},
 ): Promise<CommandResult> {
   const origin: Origin = options.origin ?? { kind: "user" };
   // 1. validate the batch shape against the contract
@@ -276,7 +290,8 @@ export async function executeTripCommandBatch(
   // fresh attempt can change: step 5's append losing `events_stream_seq` to a
   // write that committed after step 2's read. Nothing of that attempt survives:
   // Postgres aborts the transaction at the failed insert, and step 8's hook has
-  // not run yet — so a re-run starts from nothing.
+  // not run yet — so a re-run starts from nothing. The no-op hook's lost race
+  // has run its hook, so it throws to take that write back with it.
   const attempt = async () => {
     let lostAppendRace = false;
     const result = await db.transaction(async (tx): Promise<CommandResult> => {
@@ -306,6 +321,16 @@ export async function executeTripCommandBatch(
       // same way a single no-op command does, rather than appending an empty batch
       // (appendToStream requires ≥1 event and one batch = one history entry).
       if (events.length === 0) {
+        if (options.alsoWhenNoOp) {
+          await options.alsoWhenNoOp(tx);
+          if ((await readStreamHeadSeq(tx, tripId)) !== history.length) {
+            lostAppendRace = true;
+            throw new RolledBack({
+              ok: false,
+              error: { code: "concurrency-conflict", message: "Someone else changed this trip. Retry." },
+            });
+          }
+        }
         return { ok: false, error: { code: "no-op", message: "This change would have no effect." } };
       }
 
@@ -322,6 +347,9 @@ export async function executeTripCommandBatch(
       if (alsoInSameTransaction) await alsoInSameTransaction(tx, { tripId, detail: answer });
 
       return { ok: true, tripId, detail: answer, history: projected.history };
+    }).catch((error: unknown) => {
+      if (error instanceof RolledBack) return error.failure;
+      throw error;
     });
     return { result, lostAppendRace };
   };
@@ -361,8 +389,9 @@ function decideInOrder(
 // A failure raised INSIDE a transaction that has already written, so that
 // throwing it rolls those writes back. Returning a failure from a
 // `db.transaction` callback commits whatever came before it — harmless for the
-// two entry points above, which refuse before their only append, and exactly the
-// window `executeTripCreation` exists to close.
+// two entry points above, which refuse before their only append (bar the batch's
+// no-op hook losing its race), and exactly the window `executeTripCreation`
+// exists to close.
 class RolledBack extends Error {
   readonly failure: CommandFailure;
   constructor(failure: CommandFailure) {

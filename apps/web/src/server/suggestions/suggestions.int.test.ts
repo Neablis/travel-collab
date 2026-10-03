@@ -7,6 +7,7 @@ import { grantMembership } from "../access/members";
 import { db } from "../db/client";
 import { tripSuggestionChanges, tripSuggestions, users } from "../db/schema";
 import { readStream } from "../eventStore";
+import { getTripDetail } from "../projections";
 import { entitleAccounts } from "../test-support/entitledAccount";
 import { createSuggestion } from "./create";
 import { listSuggestionChanges } from "./list";
@@ -326,6 +327,40 @@ describe("resolveSuggestionChange — accept", () => {
     });
     expect(await statusOf(second!.id)).toBe("accepted");
     expect((await readStream(db, tripId)).length).toBe(before + 1);
+  });
+
+  // W55. "Already true" and "accepted" must be one fact. Here a trip write lands
+  // after the accept decided the change was a no-op and before it marked it:
+  // the change's row is held, so the accept parks at its mark, and the rename
+  // commits meanwhile. Accepting it now would record a change the trip does not
+  // say; what is left is to decide it again against the head that moved.
+  it("decides a no-op change again when the trip moves before it is marked accepted", async () => {
+    const [first] = await suggest(draft([rename("Kyoto in spring")]));
+    const [second] = await suggest(draft([rename("Kyoto in spring")]), OTHER_SUGGESTER);
+    expect((await resolveSuggestionChange(tripId, first!.id, EDITOR, "accept")).ok).toBe(true);
+
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    let locked!: () => void;
+    const isLocked = new Promise<void>((resolve) => (locked = resolve));
+    const holder = db.transaction(async (tx) => {
+      await tx.select().from(tripSuggestionChanges).where(eq(tripSuggestionChanges.id, second!.id)).for("update");
+      locked();
+      await gate;
+    });
+    await isLocked;
+
+    const accepting = resolveSuggestionChange(tripId, second!.id, EDITOR, "accept");
+    await waitForABlockedBackend("trip_suggestion_changes");
+    expect((await executeTripCommand(rename("Osaka"), OWNER)).ok).toBe(true);
+    release();
+    await holder;
+
+    expect(await accepting).toMatchObject({ ok: true, value: [{ id: second!.id, status: "accepted" }] });
+    // Accepted on top of the rename, so the trip says what was accepted — and
+    // the batch that made it so is the suggestion's.
+    expect((await getTripDetail(tripId))?.name).toBe("Kyoto in spring");
+    expect((await readStream(db, tripId)).at(-1)!.origin).toMatchObject({ kind: "suggestion", changeId: second!.id });
   });
 
   it("leaves a change pending when the trip no longer takes it (W10)", async () => {
