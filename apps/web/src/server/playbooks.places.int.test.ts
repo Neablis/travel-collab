@@ -59,9 +59,10 @@ describe("place pages", () => {
     expect(new Set(listed.days.map((d) => d.savedDayId))).toEqual(new Set([a, b]));
   });
 
-  // The sitemap reads `days` and the page reads `total`, and the threshold is
-  // applied to both: a day carrying two spellings of one city summed per
-  // spelling would be three, and the place listed in the sitemap but `noindex`.
+  // The sitemap and the page both apply the threshold to `days`, which must be
+  // the number of days the page lists (`total`): a day carrying two spellings
+  // of one city, summed per spelling, would be three, and the place listed in
+  // the sitemap but `noindex`.
   it("counts a day carrying two spellings of one city once, as the page does", async () => {
     const [one, other] = spellings();
     await day("Both", { cities: [one, other] });

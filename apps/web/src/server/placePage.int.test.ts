@@ -45,7 +45,17 @@ afterAll(async () => {
   await db.delete(savedDays).where(inArray(savedDays.id, ids));
 });
 
-describe("place pages", () => {
+describe("placeMetadata and placeListing", () => {
+  it("answers a page number past any offset Postgres can hold as missing, not as an error", async () => {
+    const city = `Pagedtest${randomUUID().slice(0, 6)}`;
+    await day("Paged", { cities: [city] });
+    // 1e21 and 4e17 are whole numbers to `Number`, and their offsets are
+    // beyond a bigint: asked of the database, either is a 500.
+    for (const page of ["1e21", "400000000000000000"]) {
+      expect(await placeMetadata("city", props(slugify(city), page)), page).toEqual({});
+    }
+  });
+
   it("keeps a page under the threshold out of the index, and lets it in at the threshold", async () => {
     for (let i = 1; i < MIN_INDEXED_PLACE_DAYS; i++) await day(`Day ${i}`, { cities: [CITY] });
     const thin = await placeMetadata("city", props(slugify(CITY)));

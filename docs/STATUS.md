@@ -35,8 +35,8 @@ on 2026-10-02. What is left is the whole-suite box and the retro. **M30 — Note
 job each**: merged as #247, then #248-#253. Gate 8 of 9. The same Overview read ticked it,
 and only the retro is left.
 
-**Shipped beside M19, not a milestone: the SEO pass** (five stacked PRs, #295-#299,
-merged 1 → 5 with merge commits; plan `docs/plans/2026-10-02-seo-pass.md`). It adds robots
+**Built beside M19, not a milestone: the SEO pass** (five stacked draft PRs, #295-#299,
+to merge 1 → 5 with merge commits; plan `docs/plans/2026-10-02-seo-pass.md`). It adds robots
 and canonicals, a sitemap, server-rendered day and Discover pages with real 404s and
 slugged URLs, JSON-LD, and city and country pages. **Three steps are Mitchell's:** the
 Vercel firewall bypass for `/`, `/welcome`, `/playbooks/**`, `/robots.txt` and

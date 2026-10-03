@@ -25,10 +25,11 @@ function pageOf(raw: string | string[] | undefined): number {
 }
 
 // Read once per request for the metadata and the page. A page past the end is
-// as missing as a place nobody published in.
+// as missing as a place nobody published in, and is answered without asking
+// the database: `?page=1e21` is a whole number whose offset no bigint holds.
 const load = cache(async (kind: PlacePage["kind"], slug: string, page: number) => {
   const place = await placeFor(kind, slug);
-  if (place === null) return null;
+  if (place === null || (page - 1) * PLACE_PAGE_SIZE >= place.days) return null;
   const { days } = await publishedDaysPage(kind === "city" ? { cities: place.cities } : { countries: place.countries }, {
     limit: PLACE_PAGE_SIZE,
     offset: (page - 1) * PLACE_PAGE_SIZE,

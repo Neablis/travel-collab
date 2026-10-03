@@ -60,7 +60,7 @@ here two days later.
 
   **Built 2026-10-03 as five stacked PRs, #295 (crawl plumbing), #296
   (sitemap), #297 (server-rendered days, real 404s, slugs), #298 (structured
-  data) and #299 (city and country pages), merged in that order.** Plan:
+  data) and #299 (city and country pages), to merge in that order.** Plan:
   `docs/plans/2026-10-02-seo-pass.md`. What spec §7 left out, still candidates:
   indexing profiles or the board; paginating Discover; public notebook
   templates (a contract change); public pages for the sample trips under
