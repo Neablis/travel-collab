@@ -174,6 +174,7 @@ export function Board({
   focusedTag = null,
   onToggleTag,
   readOnly = false,
+  suggesting = false,
   sync,
   addSavedDay,
   oneDay = false,
@@ -221,6 +222,14 @@ export function Board({
    * buttons would have left that one path live.
    */
   readOnly?: boolean;
+  /**
+   * A suggester's board (spec §2.3): every edit above stays live and lands in
+   * their draft, but the two controls that are not planning edits stay hidden
+   * as they are for a viewer — dismissing a conflict, which cannot be
+   * suggested (W3), and keeping a day, which writes to the reader's own
+   * account rather than the trip. Meaningless with `readOnly`.
+   */
+  suggesting?: boolean;
   /** Index of the focused day, or null. Owned by TripBoardScreen's useFocus,
       the same value the day chips read — passed in rather than read from
       context here so Board stays renderable on its own in tests. */
@@ -457,15 +466,17 @@ export function Board({
   // of more than one crossing pair and has room for one dismiss, so the first
   // wins; the other pair is still drawn (see `overlapPartners` below) and
   // dismissable from the banner.
+  // Empty for a suggester: this map is only the dismiss control's (W3).
   const overlapsByActivity = useMemo(() => {
     const byActivity = new Map<string, Overlap>();
+    if (suggesting) return byActivity;
     for (const day of trip.days) {
       for (const overlap of overlapsForDay(trip, day.dayId)) {
         if (!byActivity.has(overlap.laterActivityId)) byActivity.set(overlap.laterActivityId, overlap);
       }
     }
     return byActivity;
-  }, [trip]);
+  }, [trip, suggesting]);
 
   // Both halves of every undismissed overlap, each with the titles it
   // overlaps. `overlapsByActivity` above is the dismissable half — the later
@@ -661,7 +672,7 @@ export function Board({
         activities={trip.activities}
         onDismiss={callbacks.onDismissConflict}
         onSelectActivity={readOnly ? undefined : openEdit}
-        readOnly={readOnly}
+        readOnly={readOnly || suggesting}
       />
       {/* The unscheduled pool is no longer a full-width Backlog column above
           the grid — it is the Unscheduled drawer (UnscheduledRack), mounted
@@ -783,7 +794,7 @@ export function Board({
               // every day, and rebuilding it N times would be N passes over every
               // activity in the trip.
               keepFlag={
-                readOnly ? undefined : (
+                readOnly || suggesting ? undefined : (
                   <KeepDayFlag
                     dayIndex={index}
                     accent={accents[index]?.ink ?? "neutral"}

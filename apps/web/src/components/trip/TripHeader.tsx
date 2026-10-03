@@ -64,7 +64,7 @@ export function TripHeader({
   // render from). Reading `trip` here meant a rename/date/budget edit sat in
   // the optimistic queue correctly but never became visible until the server
   // round-trip confirmed it. `trip` is kept only for the existence/loading gate.
-  const { trip, activeTrip, history, status, pending, dispatch, preview, readOnly, myRole, accessUnknown } =
+  const { trip, activeTrip, history, status, pending, dispatch, preview, readOnly, canEditBoard, boardMode, myRole, accessUnknown } =
     useTrip();
   // Task 9: "Add stop" is a real trigger for the same portable activity
   // editor Board's own "+ Add activity" button opens (Board.tsx) — no
@@ -258,7 +258,9 @@ export function TripHeader({
                 one will do, word wraps cause issues"). It also names the
                 role, which is what the badge stands in for, in the same word
                 the invite flow and TravelersPanel already use. */}
-            {readOnly && <Badge variant="info">Viewer</Badge>}
+            {/* A suggester is `readOnly` too (W8) but not a viewer: their
+                badge is their role word, as the Travelers list says it (W24). */}
+            {readOnly && <Badge variant="info">{boardMode === "suggest" ? "Suggester" : "Viewer"}</Badge>}
             {/* The access read failed, so this board is live on an assumption
                 rather than on an answer (TripProvider's `load` explains why
                 that is the deliberate choice). Said out loud here, beside the
@@ -363,7 +365,8 @@ export function TripHeader({
                   names. Consistency now, per the rule already written down; the
                   split stays available if the Travelers UI (SPEC §8) wants it.
                   The "Viewer" badge is what still explains the quiet page. */}
-              {!readOnly && (
+              {/* `canEditBoard`: a suggester's new stop joins their draft. */}
+              {canEditBoard && (
                 <Button variant="primary" onClick={() => openCreate()}>
                   Add stop
                 </Button>

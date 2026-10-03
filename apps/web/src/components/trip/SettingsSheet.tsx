@@ -123,6 +123,9 @@ export function SettingsSheet({
   // a suggester (W8, default closed). TripProvider's own rule, unknown role
   // included, so the sheet and the header cannot disagree.
   const readOnly = myRole !== null && boardMode(myRole) !== "write";
+  // The trip fields — name, dates, currency, budget — opt in to suggest mode
+  // (W8): a suggester's change joins their draft. Share does not.
+  const canEditBoard = myRole === null || boardMode(myRole) !== "read";
   // Dispatch is severed at the SOURCE, not at each control. The individual
   // controls are disabled below so a viewer is not offered something that
   // silently does nothing — but a future control added to this sheet would
@@ -130,7 +133,7 @@ export function SettingsSheet({
   // one line that cannot be forgotten (CodeRabbit, PR #70, on the same class
   // as the delete handler). The server refuses these regardless; this is
   // about not offering them.
-  const dispatch = readOnly ? () => undefined : onCommand;
+  const dispatch = canEditBoard ? onCommand : () => undefined;
   const [datesOpen, setDatesOpen] = useState(false);
 
   // Null only for an unparseable timestamp, which is a projection bug rather
@@ -162,7 +165,7 @@ export function SettingsSheet({
           <Input
             id="trip-name-setting"
             defaultValue={tripName}
-            disabled={readOnly}
+            disabled={!canEditBoard}
             onKeyDown={(e) => {
               if (e.key === "Enter") e.currentTarget.blur();
               // Escape restores the last committed name and drops focus, so
@@ -209,7 +212,7 @@ export function SettingsSheet({
             <Button
               variant="ghost"
               aria-label="Dates"
-              disabled={readOnly}
+              disabled={!canEditBoard}
               className="w-full justify-between rounded-lg border border-hairline px-3 py-2.5 text-left"
             >
               <Text as="span" className="text-xs text-slate">
@@ -279,7 +282,7 @@ export function SettingsSheet({
             tripId={tripId}
             currency={currency}
             budget={budget}
-            disabled={readOnly}
+            disabled={!canEditBoard}
             onCommand={dispatch}
           />
 
