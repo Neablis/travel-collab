@@ -83,15 +83,21 @@ export function cityPath(city: string): string | null {
   return slug === "" ? null : `/playbooks/city/${slug}`;
 }
 
+// The assigned ISO codes `@tc/pages`' country table leaves out on purpose: it
+// holds travel facts, and these have no one to state them for. They are still
+// countries a day can stop in, so they still get a page.
+const UNINHABITED_ISO_CODES: ReadonlySet<string> = new Set(["AQ", "BV", "GS", "HM", "IO", "TF"]);
+
 /**
  * A country's slug, from the English name of its ISO alpha-2 code; null when
  * the code is not a country. `countryName` hands an unmappable code back
  * unchanged ("??", "XX"), and `Intl` also names regions that are not countries
- * ("ZZ" is "Unknown Region", "EU", "UN"), so a code must be in the country
- * table first — which keeps "XK", Kosovo.
+ * ("ZZ" is "Unknown Region", "EU", "UN") and retired codes ("UK", "SU"), so a
+ * code must be an assigned one: the country table, which keeps "XK" (Kosovo),
+ * or one of the uninhabited codes it omits.
  */
 export function countrySlug(code: string): string | null {
-  if (countryFacts(code) === undefined) return null;
+  if (countryFacts(code) === undefined && !UNINHABITED_ISO_CODES.has(code.toUpperCase())) return null;
   const name = countryName(code);
   if (name === null || name === code) return null;
   const slug = slugify(name);

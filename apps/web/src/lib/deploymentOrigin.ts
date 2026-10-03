@@ -15,8 +15,8 @@
 // module directly now — `src/app/admin/**` is on the lint wall's exempt shell —
 // so there is no cookie, no second request and no origin to get wrong on that
 // path at all. This stayed because `metadataBase` still needs the answer, and
-// so since have invite links, `robots.ts`, the sitemap and the pages' JSON-LD;
-// the precedence below is worth stating once.
+// invite links, `robots.ts`, the sitemap and the pages' JSON-LD have needed it
+// since; the precedence below is worth stating once.
 //
 // **The branch alias comes before the deployment URL, and getting that backwards
 // took the console down.** `VERCEL_URL` is the per-deployment host

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it, vi } from "vitest";
 import { inArray } from "drizzle-orm";
 import { slugify } from "@/lib/playbookUrls";
 import { db } from "./db/client";
@@ -85,6 +85,28 @@ describe("place pages", () => {
 
     const listed = await publishedDaysInCity(one, { limit: 24, offset: 0 });
     expect(new Set(listed.days.map((d) => d.savedDayId))).toEqual(new Set([a, b]));
+  });
+
+  // A stored day this server cannot parse is no card, so it is in no count:
+  // counted, it would short a page, or keep a place in the sitemap whose page
+  // shows fewer days than the threshold it was listed for.
+  it("counts and pages only the days it can read", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const city = `Readtest${randomUUID().slice(0, 6)}`;
+    const a = await day("Readable one", { cities: [city] });
+    const b = await day("Readable two", { cities: [city] });
+    await day("Unreadable", { cities: [city], stops: [{ title: "no kind" }] as never });
+
+    const place = await placeFor("city", slugify(city));
+    expect(place?.days).toBe(2);
+    const listed = await publishedDaysPage({ cities: place!.cities }, { limit: 24, offset: 0 });
+    expect(listed.total).toBe(2);
+    expect(new Set(listed.days.map((d) => d.savedDayId))).toEqual(new Set([a, b]));
+    // Paging is over the readable days: the second page of one holds the other readable day.
+    const second = await publishedDaysPage({ cities: place!.cities }, { limit: 1, offset: 1 });
+    expect(second.days).toHaveLength(1);
+    expect(error).toHaveBeenCalled();
+    error.mockRestore();
   });
 
   it("pages by offset", async () => {
