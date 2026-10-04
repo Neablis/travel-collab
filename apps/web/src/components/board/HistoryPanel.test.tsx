@@ -1,9 +1,10 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import type { TripHistory } from "@tc/contracts";
 import { PeopleProvider } from "@/components/pages/people";
+import { clearQueryCache } from "@/lib/queryCache";
 import { HistoryPanel } from "./HistoryPanel";
 
 const TRIP = "7d9a1f8e-0000-4000-8000-00000000000a";
@@ -128,8 +129,50 @@ describe("HistoryPanel — accepted suggestions", () => {
       </PeopleProvider>,
     );
     expect(await screen.findByRole("button", { name: /Moved Ramen to Day 2.*Suggested by Sam/ })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Added Gelato.*Suggested by a former traveler/ })).toBeTruthy();
+    // Only once the members have been read again without them (3.1, below).
+    expect(await screen.findByRole("button", { name: /Added Gelato.*Suggested by a former traveler/ })).toBeTruthy();
     // An ordinary edit is not attributed to anyone.
     expect(screen.getByRole("button", { name: /Added Day 1/ }).textContent).not.toContain("Suggested");
+  });
+
+  // Review of #311, finding 3.1: the names are read once, so a suggester who
+  // joined after that read was called "a former traveler". An author the
+  // names do not hold is now asked about once, with a fresh read, and only an
+  // author still missing from it has left.
+  it("reads the members again for an author who joined after the first read, once", async () => {
+    clearQueryCache();
+    let reads = 0;
+    const member = (userId: string, name: string) => ({ userId, role: "suggester", name, email: null, image: null });
+    server.use(
+      http.get("/api/trips/:tripId/access", () => {
+        reads += 1;
+        const members = [member("u1", "Alice"), ...(reads > 1 ? [member("u-nia", "Nia")] : [])];
+        return HttpResponse.json({ access: { tripId: TRIP, myRole: "owner", members, invites: [], collaboratorsEntitled: true } });
+      }),
+    );
+    const panel = (entries: TripHistory["entries"]) => (
+      <PeopleProvider tripId={TRIP}>
+        <HistoryPanel
+          history={{ ...history, entries: [...entries, ...history.entries] }}
+          previewSeq={null}
+          onPreview={() => {}}
+          onExitPreview={() => {}}
+          onRevert={() => {}}
+        />
+      </PeopleProvider>
+    );
+    const { rerender } = render(panel([accepted("u-nia", "Added Gelato", 4)]));
+
+    expect(await screen.findByRole("button", { name: /Added Gelato.*Suggested by Nia/ })).toBeTruthy();
+    // A second entry by the same author asks nothing more. One by an author no
+    // read will find is asked about once, then said to have left — though the
+    // fresh names that read brings would otherwise ask again, and again.
+    rerender(
+      panel([accepted("u-gone", "Added Pasta", 6), accepted("u-nia", "Moved Ramen to Day 2", 5), accepted("u-nia", "Added Gelato", 4)]),
+    );
+    expect(await screen.findByRole("button", { name: /Moved Ramen to Day 2.*Suggested by Nia/ })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: /Added Pasta.*Suggested by a former traveler/ })).toBeTruthy();
+    await act(async () => {});
+    expect(reads).toBe(3);
   });
 });

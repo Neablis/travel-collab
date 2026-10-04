@@ -1,8 +1,8 @@
 "use client";
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { TripMemberProfile } from "@tc/contracts";
 import { fetchTripAccess } from "@/lib/apiClient";
-import { cachedRead } from "@/lib/queryCache";
+import { cachedRead, invalidate } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
 import { displayNameFor } from "@/lib/displayName";
 
@@ -26,7 +26,16 @@ export function peopleNamesOf(members: readonly TripMemberProfile[]): Readonly<R
   );
 }
 
-const PeopleContext = createContext<Readonly<Record<string, string>> | null>(null);
+type People = {
+  names: Readonly<Record<string, string>> | null;
+  /** Ids a fresh read was made for, and answered: one still missing has left. */
+  rechecked: ReadonlySet<string>;
+  /** Read the members again, once per id, for one the names do not hold. */
+  recheck: (userId: string) => void;
+};
+
+const NO_ONE: ReadonlySet<string> = new Set();
+const PeopleContext = createContext<People>({ names: null, rechecked: NO_ONE, recheck: () => {} });
 
 /**
  * Hands every widget under it the trip's member names. `null` until the access
@@ -34,20 +43,48 @@ const PeopleContext = createContext<Readonly<Record<string, string>> | null>(nul
  * notebook that will not open over a name.
  */
 export function PeopleProvider({ tripId, children }: { tripId: string; children: ReactNode }) {
-  const [people, setPeople] = useState<Readonly<Record<string, string>> | null>(null);
+  const [names, setNames] = useState<Readonly<Record<string, string>> | null>(null);
+  const [rechecked, setRechecked] = useState<ReadonlySet<string>>(NO_ONE);
+  const asked = useRef(new Set<string>());
   useEffect(() => {
     let cancelled = false;
     void cachedRead(tripKeys.access(tripId), () => fetchTripAccess(tripId)).then((access) => {
-      if (!cancelled && access.ok) setPeople(peopleNamesOf(access.value.members));
+      if (!cancelled && access.ok) setNames(peopleNamesOf(access.value.members));
     });
     return () => {
       cancelled = true;
     };
   }, [tripId]);
-  return <PeopleContext.Provider value={people}>{children}</PeopleContext.Provider>;
+
+  // The read above is the cached one, so a member who joined after it is not
+  // in it (review of #311, 3.1: a new suggester's change said "a former
+  // traveler"). Asked about by id, it is read again past the cache — once per
+  // id, however often it renders. A failed read marks nothing, so a member is
+  // never called gone on a network error.
+  const recheck = useCallback(
+    (userId: string) => {
+      if (asked.current.has(userId)) return;
+      asked.current.add(userId);
+      invalidate(tripKeys.access(tripId));
+      void cachedRead(tripKeys.access(tripId), () => fetchTripAccess(tripId)).then((access) => {
+        if (!access.ok) return;
+        setNames(peopleNamesOf(access.value.members));
+        setRechecked((prev) => new Set(prev).add(userId));
+      });
+    },
+    [tripId],
+  );
+
+  const value = useMemo(() => ({ names, rechecked, recheck }), [names, rechecked, recheck]);
+  return <PeopleContext.Provider value={value}>{children}</PeopleContext.Provider>;
 }
 
 /** The member names `PeopleProvider` handed down; `null` outside one or before they land. */
 export function usePeople(): Readonly<Record<string, string>> | null {
+  return useContext(PeopleContext).names;
+}
+
+/** The names, plus the means to ask about a member they do not hold yet. */
+export function usePeopleRecheck(): People {
   return useContext(PeopleContext);
 }

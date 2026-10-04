@@ -1,8 +1,9 @@
 "use client";
 
-import { type ReactElement, useId, useMemo, useState } from "react";
+import { type ReactElement, useCallback, useEffect, useId, useMemo, useState } from "react";
 import type { ResolveSuggestionChangeInput } from "@tc/contracts";
 import { useSessionUser } from "@/components/account/useSessionUser";
+import { usePeopleRecheck } from "@/components/pages/people";
 import { useTrip } from "@/components/trip/context/TripProvider";
 import { Button } from "@/components/ui/button";
 import { Popover } from "@/components/ui/popover";
@@ -90,12 +91,33 @@ export function SuggestionActions({ ghost, stale = false }: { ghost: Ghost; stal
 
 /**
  * What to call a suggestion's author (W15): their name from the trip's member
- * profiles, "a former traveler" once they are not a member, and `null` while
- * the profiles have not landed — a guess either way would be wrong for someone.
+ * profiles, "a former traveler" once a fresh read (`rechecked`) has not found
+ * them, and `null` until then — a guess either way would be wrong for someone.
  */
-export function authorName(people: Readonly<Record<string, string>> | null, authorId: string): string | null {
+function authorName(
+  people: Readonly<Record<string, string>> | null,
+  rechecked: ReadonlySet<string>,
+  authorId: string,
+): string | null {
   if (people === null) return null;
-  return people[authorId] ?? "a former traveler";
+  return people[authorId] ?? (rechecked.has(authorId) ? "a former traveler" : null);
+}
+
+/**
+ * `authorName` for these authors, asking `PeopleProvider` to read the members
+ * again for any the names do not hold — someone who joined after the names
+ * were read is not a former traveler (review of #311, 3.1).
+ */
+export function useAuthorNames(authorIds: readonly string[]): (authorId: string) => string | null {
+  const { names, rechecked, recheck } = usePeopleRecheck();
+  // A string, so the effect runs when the set of authors changes, not on
+  // every render's new array.
+  const ids = [...new Set(authorIds)].sort().join(" ");
+  useEffect(() => {
+    if (names === null) return;
+    for (const id of ids.split(" ")) if (id !== "" && !(id in names)) recheck(id);
+  }, [names, ids, recheck]);
+  return useCallback((authorId: string) => authorName(names, rechecked, authorId), [names, rechecked]);
 }
 
 /**

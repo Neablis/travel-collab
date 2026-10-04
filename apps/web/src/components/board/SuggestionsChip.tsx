@@ -1,13 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { usePeople } from "@/components/pages/people";
 import { Button } from "@/components/ui/button";
 import { Popover } from "@/components/ui/popover";
 import { Text } from "@/components/ui/text";
 import type { Ghost } from "@/lib/suggestionOverlay";
 import { useTrip } from "@/components/trip/context/TripProvider";
-import { authorName, SuggestionActions } from "./SuggestionActions";
+import { SuggestionActions, useAuthorNames } from "./SuggestionActions";
 
 /**
  * The header's pending-suggestion count (spec §2.4) — the only notification
@@ -19,7 +18,7 @@ import { authorName, SuggestionActions } from "./SuggestionActions";
  */
 export function SuggestionsChip() {
   const { suggestionGhosts: ghosts } = useTrip();
-  const people = usePeople();
+  const nameOf = useAuthorNames(ghosts?.pending.map((c) => c.authorId) ?? []);
   const [open, setOpen] = useState(false);
   if (ghosts === null || ghosts.pending.length === 0) return null;
 
@@ -31,7 +30,7 @@ export function SuggestionsChip() {
     ...ghosts.stale.map((ghost) => ({ ghost, stale: true })),
   ];
   const byLine = (authorId: string) => {
-    const name = authorName(people, authorId);
+    const name = nameOf(authorId);
     return name === null ? null : `Suggested by ${name}`;
   };
 
