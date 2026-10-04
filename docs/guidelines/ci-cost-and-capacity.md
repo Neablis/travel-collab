@@ -264,6 +264,13 @@ next quarter:
   majors ignored, three PRs a month maximum (~30 billed min, ~1.5% of the cap),
   and `rebase-strategy: disabled` so a moving `main` does not force-push a
   re-run per merge. The file's header comment carries the full accounting.
+  **Loosened 2026-10-04: weekly, and rebasing back on.** Both throttles were
+  priced in billed minutes, which stopped being a budget on 2026-08-31, and
+  `rebase-strategy: disabled` had a cost nobody had counted: the two npm groups
+  both rewrite `pnpm-lock.yaml`, so the second PR of every cycle conflicted
+  when the first merged and waited for a hand-typed `@dependabot rebase`
+  (#316, two hours behind #315). Grouping, the PR limits and the majors ignore
+  are unchanged.
 - **CircleCI / GitLab → unpriced switching cost.** The `ci-triage` skill,
   `docs/known-issues/` KI-27, and `CLAUDE.md`'s `test:e2e:ci-like` rule are all
   built on `gh run` semantics. Migrating CI means rewriting the repo's triage
