@@ -4,6 +4,7 @@ import { expect, test } from "./fixtures/test";
 import { grantCollaborators } from "./adminBootstrap";
 import { createMappedTrip, dragCardTo, openHistory, openPlan } from "./helpers";
 import { e2eTripName } from "./tripNames";
+import { SUGGESTER_APPROVAL } from "../src/lib/tripRole";
 
 // The suggester spec's §5 walk (docs/specs/2026-10-03-suggester-role-design.md):
 // the owner invites someone as "Can suggest", they move a stop and send it,
@@ -70,7 +71,9 @@ test("a suggester's move waits for the owner, and Accept makes it", async ({ pag
   const sam = await signedInAs(browser, suggesterName, link);
   try {
     await sam.goto(link);
-    await expect(sam.getByText(/You can suggest stops and changes for the planners to approve\./)).toBeVisible();
+    // The one clause every invite surface reads (W64), so copy edits to it
+    // are the clause's business, not this walk's.
+    await expect(sam.getByText(`You can suggest stops and changes ${SUGGESTER_APPROVAL}.`)).toBeVisible();
     await sam.getByRole("button", { name: "Join the trip" }).click();
     await expect(sam.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
     await expect(sam.getByText("Suggester", { exact: true })).toBeVisible();
