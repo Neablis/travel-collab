@@ -38,7 +38,7 @@ import { isDemoTripId } from "@/lib/demoTrip";
 import { placeGhosts, type SuggestionGhosts } from "@/lib/suggestionOverlay";
 import { boardMode } from "@/lib/tripRole";
 import { headSeqOf, useTripBroadcast } from "./broadcast";
-import { enqueueDraft } from "./draftQueue";
+import { draftStops, enqueueDraft, type DraftStops } from "./draftQueue";
 import { drainAfter, sendUnit } from "./queueDrain";
 import { unloadFlush } from "./unloadFlush";
 import { useTripSuggestions, type TripSuggestions } from "./useTripSuggestions";
@@ -62,6 +62,8 @@ const DRAFT_BUSY = "Your suggestion is still sending. Make this change once it h
  */
 export type SuggestionDraft = {
   count: number;
+  /** The stops the draft adds or changes, which the board marks "Not sent" (W76). */
+  stops: DraftStops;
   sending: boolean;
   /** Why the last send was refused, naming the change when the server said which. */
   error: string | null;
@@ -882,13 +884,20 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
   const failure = optimistic?.failure ?? null;
   const sync = useMemo(() => ({ unsent, failure, retry }), [unsent, failure, retry]);
 
-  const draftCount = optimistic?.pending.length ?? 0;
+  const draftUnits = optimistic?.pending;
   const draft = useMemo<SuggestionDraft | null>(
     () =>
       mode === "suggest"
-        ? { count: draftCount, sending: draftSending, error: draftError, discard: discardDraft, send: sendDraft }
+        ? {
+            count: draftUnits?.length ?? 0,
+            stops: draftStops(draftUnits ?? []),
+            sending: draftSending,
+            error: draftError,
+            discard: discardDraft,
+            send: sendDraft,
+          }
         : null,
-    [mode, draftCount, draftSending, draftError, discardDraft, sendDraft],
+    [mode, draftUnits, draftSending, draftError, discardDraft, sendDraft],
   );
 
   return (

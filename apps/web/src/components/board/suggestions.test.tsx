@@ -164,6 +164,61 @@ describe("suggestions on the board", () => {
   });
 });
 
+// Mitchell's preview comment, 2026-10-04 (W76): "A suggested activity should
+// stand out more and look more obviously placeholder till approved." Anything
+// not yet on the confirmed trip says so in words, on the block, and in its
+// name — never by colour alone.
+describe("what is not on the trip yet reads as a placeholder", () => {
+  const cardFor = (title: RegExp) =>
+    screen.getAllByTestId(/^activity-card-/).find((card) => within(card).queryByRole("button", { name: title }) !== null)!;
+
+  it("marks a suggestion Suggested, as a ghost and on the stop it would change", async () => {
+    mount("owner", (tripId) => [
+      addGelato(tripId),
+      change(tripId, "Renamed Colosseum tour", [{ type: "UpdateActivity", tripId, activityId: COLOSSEUM, title: "Colosseum at dawn" }]),
+    ]);
+
+    const ghost = await screen.findByRole("button", { name: "Suggested: Added Gelato to Day 2" });
+    expect(ghost.getAttribute("data-provisional")).toBe("suggested");
+    expect(within(ghost).getByText("Suggested")).toBeTruthy();
+
+    expect(await screen.findByRole("button", { name: "Suggested change to Colosseum tour" })).toBeTruthy();
+    const colosseum = cardFor(/^Edit Colosseum tour,.*, has a suggested change$/);
+    expect(colosseum.getAttribute("data-provisional")).toBe("suggested");
+    expect(within(colosseum).getByText("Suggested")).toBeTruthy();
+  });
+
+  it("marks a suggester's unsent stop Not sent, and an unsent edit to an existing stop too", async () => {
+    sessionUserId = "dev-sam";
+    mount("suggester", () => []);
+    expect(await screen.findByText("Suggester")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Add stop" }));
+    const sheet = await screen.findByRole("dialog");
+    fireEvent.change(within(sheet).getByLabelText("What or where"), { target: { value: "Gelato" } });
+    fireEvent.change(within(sheet).getByLabelText("Start", { exact: true }), { target: { value: "14:00" } });
+    fireEvent.click(within(sheet).getByRole("button", { name: "Add stop" }));
+
+    await screen.findByRole("button", { name: /^Edit Gelato,.*, not sent$/ });
+    const gelato = cardFor(/^Edit Gelato/);
+    expect(gelato.getAttribute("data-provisional")).toBe("draft");
+    expect(within(gelato).getByText("Not sent")).toBeTruthy();
+
+    // An existing stop the draft changes keeps its look, and carries the pill.
+    const colosseum = cardFor(/^Edit Colosseum tour/);
+    expect(colosseum.getAttribute("data-provisional")).toBeNull();
+    fireEvent.click(within(colosseum).getByRole("button", { name: /^Edit Colosseum tour/ }));
+    const editor = await screen.findByRole("dialog");
+    fireEvent.change(within(editor).getByLabelText("What or where"), { target: { value: "Colosseum at dawn" } });
+    fireEvent.click(within(editor).getByRole("button", { name: "Save" }));
+
+    await screen.findByRole("button", { name: /^Edit Colosseum at dawn,.*, not sent$/ });
+    const edited = cardFor(/^Edit Colosseum at dawn/);
+    expect(edited.getAttribute("data-provisional")).toBe("draft-change");
+    expect(within(edited).getByText("Not sent")).toBeTruthy();
+  });
+});
+
 describe("the suggestions chip", () => {
   it("counts every pending change and lists the ones the board cannot draw", async () => {
     mount("owner", (tripId) => {

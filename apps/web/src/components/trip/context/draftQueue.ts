@@ -64,6 +64,20 @@ function folded(pending: readonly PendingUnit[], commands: BatchableCommand[]): 
   return pending.map((u, i) => (i === owner ? { ...u, commands: [...u.commands, ...commands] } : u));
 }
 
+/** The stops a draft adds, and the stops already on the trip it changes (W76). */
+export type DraftStops = { added: ReadonlySet<string>; changed: ReadonlySet<string> };
+
+/**
+ * The stops `pending` adds, and the other stops it names, which the board
+ * marks "Not sent". Read off the commands rather than predicted, so a stop the
+ * draft both adds and later edits is added, not changed.
+ */
+export function draftStops(pending: readonly PendingUnit[]): DraftStops {
+  const added = new Set(pending.flatMap((u) => u.commands.flatMap((c) => (c.type === "AddActivity" ? [c.activityId] : []))));
+  const changed = new Set(pending.flatMap((u) => activityTargets(u.commands)).filter((id) => !added.has(id)));
+  return { added, changed };
+}
+
 /**
  * The trip the whole draft ends at, as the client predicts it, or null when
  * some unit no longer predicts (KI-42). An emptied draft ends at the confirmed

@@ -15,6 +15,8 @@ import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element
 import { type ActivityTag, type ActivityView, TimeWindow } from "@tc/contracts";
 import { useTimeFormat } from "@/components/account/PreferencesProvider";
 import type { Overlap } from "@/components/lenses/overlapData";
+import type { DraftStops } from "@/components/trip/context/draftQueue";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataText } from "@/components/ui/data-text";
 import { cn } from "@/lib/cn";
@@ -66,12 +68,14 @@ export type RiverGestures = {
  * The pending suggestions the board draws (spec §2.4): ghost stops by the day
  * they land in, and the stops a change would alter. `review` wraps a trigger in
  * the popover holding Accept / Dismiss / Withdraw — a slot, as `addSavedDay` is,
- * because those read `useTrip()` and the board is props-only.
+ * because those read `useTrip()` and the board is props-only. `draft` is a
+ * suggester's unsent edits, whose stops are marked "Not sent" (W76).
  */
 export type BoardSuggestions = {
   days: ReadonlyMap<string, readonly SuggestionGhost[]>;
   stops: ReadonlyMap<string, readonly SuggestionGhost[]>;
   review: (ghosts: readonly SuggestionGhost[], trigger: ReactElement) => ReactNode;
+  draft?: DraftStops;
 };
 
 /**
@@ -703,6 +707,7 @@ export function DayRiver({
               onTouchPress={live ? (e) => startLift(id, e) : undefined}
               lifted={lifted === id}
               suggestion={stopSuggestion(suggestions, id)}
+              draft={suggestions?.draft?.added.has(id) ? "added" : suggestions?.draft?.changed.has(id) ? "changed" : undefined}
             />
           );
         })}
@@ -719,14 +724,21 @@ export function DayRiver({
               >
                 {suggestions.review(
                   [ghost],
+                  // A placeholder until it is accepted (W76): dashed, hatched,
+                  // and saying "Suggested" in words, so it never reads as a
+                  // planned stop by its colour alone.
                   <Button
                     variant="ghost"
                     aria-label={`Suggested: ${ghost.description}`}
-                    className="h-full w-full min-w-0 items-start justify-start overflow-hidden rounded-md border-2 border-dashed border-brand bg-surface px-2 py-0.5 text-left md:min-h-0"
+                    data-provisional="suggested"
+                    className="tc-river-hatch h-full w-full min-w-0 items-start justify-between gap-1.5 overflow-hidden rounded-md border-2 border-dashed border-brand bg-surface px-2 py-0.5 text-left md:min-h-0"
                   >
-                    <span aria-hidden className="truncate text-xs font-semibold text-brand-pressed">
+                    <span aria-hidden className="min-w-0 truncate text-xs font-semibold text-brand-pressed">
                       {ghost.activity?.title}
                     </span>
+                    <Badge aria-hidden variant="brand" className="shrink-0 px-1.5 py-0">
+                      Suggested
+                    </Badge>
                   </Button>,
                 )}
               </li>

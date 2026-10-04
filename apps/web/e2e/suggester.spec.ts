@@ -139,6 +139,9 @@ test("a suggester's move waits for the owner, and Accept makes it", async ({ pag
     await sam.getByRole("button", { name: "Add stop" }).last().click();
     const gelato = (day: Locator) => day.getByTestId(/activity-card-/).filter({ hasText: "Gelato" });
     await expect(gelato(day1)).toBeVisible();
+    // A placeholder until it is sent and accepted (W76; Mitchell's preview
+    // comment, 2026-10-04), and it says so in words.
+    await expect(gelato(day1).getByText("Not sent", { exact: true })).toBeVisible();
     await expect(tray).toContainText("1 change not sent");
     await dragCardTo(gelato(day1), day2);
     await expect(gelato(day2)).toBeVisible();
@@ -166,6 +169,7 @@ test("a suggester's move waits for the owner, and Accept makes it", async ({ pag
   await expect(day2.getByTestId(/activity-card-/).filter({ hasText: stop })).toHaveCount(0);
   const ghost = day2.getByRole("button", { name: /^Suggested: / });
   await expect(ghost).toBeVisible();
+  await expect(ghost.getByText("Suggested", { exact: true })).toBeVisible();
 
   await ghost.click();
   await page.getByRole("button", { name: /^Accept: / }).click();

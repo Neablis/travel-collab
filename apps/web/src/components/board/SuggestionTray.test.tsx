@@ -7,6 +7,7 @@ afterEach(cleanup);
 
 const draftOf = (overrides: Partial<SuggestionDraft> = {}): SuggestionDraft => ({
   count: 1,
+  stops: { added: new Set(), changed: new Set() },
   sending: false,
   error: null,
   discard: vi.fn(),
