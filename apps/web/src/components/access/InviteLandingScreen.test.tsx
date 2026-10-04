@@ -80,10 +80,10 @@ describe("InviteLandingScreen — a pending invite", () => {
     expect(screen.queryByText(/You can add stops/)).toBeNull();
   });
 
-  it("tells a suggester their changes go to the planners for approval", async () => {
+  it("tells a suggester their changes go to the trip's planners for approval", async () => {
     fetchInviteLandingMock.mockResolvedValue(answer(valid({ role: "suggester" })));
     render(<InviteLandingScreen token="tok" googleAvailable />);
-    expect(await screen.findByText(/You can suggest stops and changes for the planners to approve\./)).toBeTruthy();
+    expect(await screen.findByText(/You can suggest stops and changes for the trip's planners to approve\./)).toBeTruthy();
     expect(screen.queryByText(/You can add stops/)).toBeNull();
   });
 

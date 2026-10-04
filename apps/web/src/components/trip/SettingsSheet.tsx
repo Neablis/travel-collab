@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useState } from "react";
-import type { Money, TripCommand, TripDetail, TripRole } from "@tc/contracts";
+import type { Money, TripCommand, TripDetail } from "@tc/contracts";
 import { Sheet } from "@/components/ui/sheet";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
@@ -18,7 +18,6 @@ import { TripMoneySettings } from "@/components/board/TripMoneySettings";
 import { TripDateControl } from "@/components/lenses/TripDateControl";
 import { formatInstantLong, formatTripDate } from "@/lib/formatDate";
 import { isDemoTripId } from "@/lib/demoTrip";
-import { boardMode } from "@/lib/tripRole";
 import { formatMoney } from "@/lib/formatMoney";
 import { committedLine, type TripSpend } from "@/lib/cost";
 
@@ -77,7 +76,8 @@ export function SettingsSheet({
   spend,
   forkedFrom,
   createdAt,
-  myRole,
+  readOnly,
+  canEditBoard,
   onCommand,
 }: {
   tripId: string;
@@ -109,23 +109,19 @@ export function SettingsSheet({
    * needed to date the copy.
    */
   createdAt: string;
-  // The signed-in user's role on this trip, or null while it is still loading
-  // or the read failed (M11 link 3). ADVISORY: the server refuses every write
-  // a role does not permit regardless. It is here so this sheet does not OFFER
-  // an action it knows will be refused — `handleDelete` and `handleDuplicate`
-  // call the API directly rather than through TripProvider's queue (see A15
-  // below), so TripProvider's read-only gate never sees them and cannot help.
-  myRole: TripRole | null;
+  // TripProvider's `readOnly`, passed down by TripHeader: true for a viewer
+  // and a suggester (W8, default closed), false while the role is unknown
+  // (W21). ADVISORY: the server refuses every write a role does not permit
+  // regardless; this is so the sheet does not OFFER one. Taken from the
+  // provider rather than recomputed from the role (review of #309), so the
+  // sheet and the header are one rule and cannot disagree.
+  readOnly: boolean;
+  // TripProvider's `canEditBoard`, from the same place for the same reason:
+  // the trip fields — name, dates, currency, budget — opt in to suggest mode
+  // (W8), so a suggester's change joins their draft. Share does not.
+  canEditBoard: boolean;
   onCommand: (command: TripCommand) => void;
 }) {
-  // A viewer holds read access and executes no planning command at all —
-  // accessPolicy.ts's MINIMUM_ROLE table has no `viewer` entry — and nor does
-  // a suggester (W8, default closed). TripProvider's own rule, unknown role
-  // included, so the sheet and the header cannot disagree.
-  const readOnly = myRole !== null && boardMode(myRole) !== "write";
-  // The trip fields — name, dates, currency, budget — opt in to suggest mode
-  // (W8): a suggester's change joins their draft. Share does not.
-  const canEditBoard = myRole === null || boardMode(myRole) !== "read";
   // Dispatch is severed at the SOURCE, not at each control. The individual
   // controls are disabled below so a viewer is not offered something that
   // silently does nothing — but a future control added to this sheet would
@@ -336,10 +332,9 @@ export function SettingsSheet({
               child — the slot the design left for a control on the right, now
               filled.
 
-              `!readOnly`, which is this file's existing role gate and NOT a
-              second rule: TripProvider derives the header's own `readOnly`
-              from the identical `boardMode` comparison, so the gate here and
-              the gate in the header cannot disagree. It also keeps ADR-031's
+              `!readOnly`, which is TripProvider's own `readOnly` handed down
+              by the header, so the gate here and the gate in the header are
+              one value and cannot disagree. It also keeps ADR-031's
               /demo behaviour intact for free — `requireTripAccess` resolves a
               demo visitor as a `viewer` (server/access/trip-access.ts), so a
               signed-out reader loses Share in this sheet exactly as they

@@ -240,18 +240,33 @@ describe("NotebooksMenu", () => {
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith(expect.stringContaining(`/trips/${TRIP_ID}/pages/`)));
   });
 
-  it("withholds New notebook from a viewer, who can still read the list", async () => {
-    const notebook = pageFixture({ tripId: TRIP_ID, title: "Trip Overview" });
-    server.use(...makePagesHandlers([notebook]));
+  // A suggester as much as a viewer: notebook rights are `canEditNotebook`'s,
+  // not the board's (W22), so a role that may suggest on the board still may
+  // not add a notebook. The gate is the role, not the board's `readOnly`.
+  it.each(["viewer", "suggester"] as const)(
+    "withholds New notebook from a %s, who can still read the list",
+    async (myRole) => {
+      const notebook = pageFixture({ tripId: TRIP_ID, title: "Trip Overview" });
+      server.use(...makePagesHandlers([notebook]));
 
-    render(<NotebooksMenu tripId={TRIP_ID} readOnly />);
+      render(<NotebooksMenu tripId={TRIP_ID} myRole={myRole} />);
+      fireEvent.click(screen.getByRole("button", { name: "Notebooks" }));
+
+      // Reading is theirs — the GET is viewer-gated.
+      expect(await screen.findByRole("link", { name: /Trip Overview/ })).toBeTruthy();
+      // Creating is not: the POST is editor-gated, so an offered control is a
+      // guaranteed 403. Withheld rather than disabled (ADR-031).
+      expect(screen.queryByRole("button", { name: "New notebook" })).toBeNull();
+    },
+  );
+
+  // An unknown role (the access read in flight or failed) offers it, as the
+  // board stays live (W21): the server decides.
+  it("offers New notebook while the role is unknown", async () => {
+    server.use(...makePagesHandlers([]));
+    render(<NotebooksMenu tripId={TRIP_ID} myRole={null} />);
     fireEvent.click(screen.getByRole("button", { name: "Notebooks" }));
-
-    // Reading is theirs — the GET is viewer-gated.
-    expect(await screen.findByRole("link", { name: /Trip Overview/ })).toBeTruthy();
-    // Creating is not: the POST is editor-gated, so an offered control is a
-    // guaranteed 403. Withheld rather than disabled (ADR-031).
-    expect(screen.queryByRole("button", { name: "New notebook" })).toBeNull();
+    expect(await screen.findByRole("button", { name: "New notebook" })).toBeTruthy();
   });
 
   it("blames the create, not the list, when creating fails — and keeps the notebooks on screen", async () => {

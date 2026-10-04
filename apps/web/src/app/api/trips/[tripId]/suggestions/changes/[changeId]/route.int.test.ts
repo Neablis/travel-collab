@@ -1,14 +1,15 @@
 import { randomUUID } from "node:crypto";
-import { inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { BatchableCommand, SuggestionChange } from "@tc/contracts";
 import { executeTripCommand, executeTripCommandBatch } from "@/server/commands";
 import { grantMembership } from "@/server/access/members";
 import { db } from "@/server/db/client";
-import { users } from "@/server/db/schema";
+import { tripSuggestionChanges, users } from "@/server/db/schema";
 import { createSuggestion } from "@/server/suggestions/create";
 import { MAX_RESOLVE_BODY_BYTES } from "@/server/suggestions/http";
 import { entitleAccounts } from "@/server/test-support/entitledAccount";
+import { insertStoredSuggestion, unparseableCommands } from "@/server/test-support/storedSuggestion";
 
 let currentUserId = "";
 
@@ -137,6 +138,25 @@ describe("POST /api/trips/:id/suggestions/changes/:changeId", () => {
     const [change] = await suggest([{ type: "SetTripName", tripId, name: "x" }]);
     expect((await resolve(change!.id, { action: "dismiss" })).status).toBe(200);
     await expectRefusal(await resolve(change!.id, { action: "dismiss" }), 409, "already-resolved");
+  });
+
+  // Review of #308: a stored change whose commands no longer parse can still
+  // be dismissed, and the answer does not carry what it cannot describe.
+  it("200s a dismiss of a stored change whose commands no longer parse", async () => {
+    const [changeId] = await insertStoredSuggestion({ tripId, authorId: SUGGESTER, commands: unparseableCommands(tripId) });
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    const res = await resolve(changeId!, { action: "dismiss" });
+    errors.mockRestore();
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ changes: [] });
+    const [row] = await db.select().from(tripSuggestionChanges).where(eq(tripSuggestionChanges.id, changeId!));
+    expect(row?.status).toBe("dismissed");
+  });
+
+  it("maps expired to 410", async () => {
+    const createdAt = new Date(Date.now() - 91 * 86_400_000);
+    const [changeId] = await insertStoredSuggestion({ tripId, authorId: SUGGESTER, createdAt });
+    await expectRefusal(await resolve(changeId!, { action: "dismiss" }), 410, "expired");
   });
 
   it("maps no-longer-applies to 409", async () => {

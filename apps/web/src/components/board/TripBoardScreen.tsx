@@ -99,7 +99,7 @@ function useAssistantVisibility() {
 }
 
 export function TripBoardScreen({ tripId }: { tripId: string }) {
-  const { trip, activeTrip, history, status, error, dispatch, dispatchBatch, applyOutcome, preview, pending, readOnly, canEditBoard, boardMode, draft, remoteRevision, confirmedSeq } = useTrip();
+  const { trip, activeTrip, history, status, error, dispatch, dispatchBatch, applyOutcome, preview, pending, readOnly, myRole, canEditBoard, boardMode, draft, remoteRevision, confirmedSeq } = useTrip();
   const { view } = useLens();
   const { openEdit } = useEditor();
   const suggestions = useBoardSuggestions();
@@ -1013,7 +1013,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                   only route to the Notebook was one nobody could see. */}
               {!isDemo && (
                 <div className="hidden shrink-0 md:block">
-                  <NotebooksMenu tripId={tripId} readOnly={readOnly} />
+                  <NotebooksMenu tripId={tripId} myRole={myRole} />
                 </div>
               )}
             </div>

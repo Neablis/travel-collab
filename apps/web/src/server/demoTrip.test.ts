@@ -123,6 +123,8 @@ describe("the demo trip's travellers", () => {
     const members = demoTripMembers();
     expect(members).toHaveLength(JAPAN_TRIP_TRAVELLERS);
     expect(members[0]!.role).toBe("owner");
+    // ADR-064: the roster is the fixture's, so the suggester role has a demo.
+    expect(members.map((m) => m.role)).toContain("suggester");
     // Invented people: no email on a public page, ever.
     for (const member of members) {
       expect(member.name).toBeTruthy();

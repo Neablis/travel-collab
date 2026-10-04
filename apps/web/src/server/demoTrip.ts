@@ -11,6 +11,7 @@ import {
 import {
   deterministicMintId,
   JAPAN_TRAVELLERS,
+  JAPAN_TRAVELLER_ROLES,
   JAPAN_TRIP_NAME,
   japanTripCommandGroups,
 } from "@tc/fixtures";
@@ -64,9 +65,9 @@ const DEMO_ACTOR_ID = "00000000-0000-4000-8000-00000000a000";
  * No email addresses: an invented address on a public page is the kind of
  * thing that eventually gets mailed.
  */
-const DEMO_TRAVELLERS: TripMemberProfile[] = JAPAN_TRAVELLERS.map((name, i) => ({
+const DEMO_TRAVELLERS: TripMemberProfile[] = JAPAN_TRAVELLERS.map((name) => ({
   userId: name,
-  role: i === 0 ? "owner" : "editor",
+  role: JAPAN_TRAVELLER_ROLES[name],
   name,
   email: null,
   image: null,

@@ -1767,7 +1767,9 @@ describe("TripBoardScreen — a viewer's board", () => {
 // W8 as amended (docs/specs/2026-10-03-suggester-role-design.md): `readOnly`
 // means "may not write directly", so it is true for a suggester, and every
 // control nobody has opted in to suggest mode stays hidden — never offered and
-// then refused with a 403. Creating a notebook never opts in (spec §2.2).
+// then refused with a 403. Creating a notebook never opts in (spec §2.2), and
+// its gate is `canEditNotebook`, not `readOnly` (W22): the notebook test below
+// goes red if that rule lets a suggester in, even with `readOnly` still true.
 describe("TripBoardScreen — a suggester's board", () => {
   // The surfaces that opt in through `canEditBoard`, against the one that
   // must not (W13): undo and redo are history commands, which need "editor".
@@ -1808,7 +1810,6 @@ describe("TripBoardScreen — a suggester's board", () => {
     expect(screen.getAllByTestId("day-column")).toHaveLength(1);
     expect(onCommand).not.toHaveBeenCalled();
   });
-
 
   it("offers no way to create a notebook", async () => {
     const fixture = tripDetailFixture();

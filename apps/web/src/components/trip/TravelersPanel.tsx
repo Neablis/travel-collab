@@ -16,7 +16,7 @@ import {
   inviteLink,
   revokeTripInvite,
 } from "@/lib/apiClient";
-import { roleLabel } from "@/lib/tripRole";
+import { INVITE_ROLES_OFFERED, roleLabel } from "@/lib/tripRole";
 
 // SPEC §8 lists "Travelers UI" as DELIBERATELY NOT DESIGNED, and M11 parks
 // travelers inside Trip settings until it exists. So this invents as little as
@@ -308,7 +308,7 @@ export function TravelersPanel({ tripId }: { tripId: string }) {
               onChange={(e) => setRole(e.target.value as InviteRole)}
               disabled={inviteGated}
             >
-              {(["editor", "suggester", "viewer"] as const).map((r) => (
+              {INVITE_ROLES_OFFERED.map((r) => (
                 <option key={r} value={r}>
                   {roleLabel(r)}
                 </option>

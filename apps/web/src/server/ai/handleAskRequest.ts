@@ -1454,7 +1454,14 @@ export function instructionBlocks(
         ]
       : []),
     `Day numbers are 1-based everywhere, and this trip has ${dayCount} day${dayCount === 1 ? "" : "s"}.`,
-    "Every money amount is an integer in the currency's minor units (cents), never a decimal.",
+    // The one place a turn that can write is told HOW to write an amount (the
+    // planning tools' descriptions used to repeat it, three times on an edit
+    // turn). Not only on `propose`: a `withheld` turn escalates to the change
+    // tools mid-turn without its instruction being rebuilt, so it needs the
+    // example before it knows it will write.
+    posture === "read-only"
+      ? "Every money amount is an integer in the currency's minor units (cents), never a decimal."
+      : "Every money amount is an integer in the currency's minor units (cents), never a decimal: amountMinor 500 = 5.00, so multiply a decimal amount by 100 (e.g. 500 EUR → amountMinor 50000).",
     // The asker's own clock (`clockTimesLine`). Not on a page turn above: what
     // that turn writes is a shared document every member reads in their own
     // clock, and its widgets already print each reader's.
