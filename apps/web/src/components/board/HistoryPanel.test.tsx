@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
@@ -173,5 +173,42 @@ describe("HistoryPanel — accepted suggestions", () => {
     expect(await screen.findByRole("button", { name: /Moved Ramen to Day 2.*Suggested by Nia/ })).toBeTruthy();
     expect(await screen.findByRole("button", { name: /Added Pasta.*Suggested by a former traveler/ })).toBeTruthy();
     expect(reads).toBe(3);
+  });
+
+  // Review of #311 (CodeRabbit): a re-read that failed left its author marked
+  // as asked, so they were never asked about again and stayed "Suggested" for
+  // good. A failed read now leaves them to be asked again the next time the
+  // authors change.
+  it("asks again about an author whose re-read failed", async () => {
+    clearQueryCache();
+    let reads = 0;
+    const member = (userId: string, name: string) => ({ userId, role: "suggester", name, email: null, image: null });
+    server.use(
+      http.get("/api/trips/:tripId/access", () => {
+        reads += 1;
+        if (reads === 2) return HttpResponse.json({ error: "unavailable" }, { status: 503 });
+        const members = [member("u1", "Alice"), ...(reads > 2 ? [member("u-nia", "Nia")] : [])];
+        return HttpResponse.json({ access: { tripId: TRIP, myRole: "owner", members, invites: [], collaboratorsEntitled: true } });
+      }),
+    );
+    const panel = (entries: TripHistory["entries"]) => (
+      <PeopleProvider tripId={TRIP}>
+        <HistoryPanel
+          history={{ ...history, entries: [...entries, ...history.entries] }}
+          previewSeq={null}
+          onPreview={() => {}}
+          onExitPreview={() => {}}
+          onRevert={() => {}}
+        />
+      </PeopleProvider>
+    );
+    const { rerender } = render(panel([accepted("u-nia", "Added Gelato", 4)]));
+    await waitFor(() => expect(reads).toBe(2));
+    expect(screen.getByRole("button", { name: /Added Gelato/ }).textContent).toContain("Suggested");
+
+    // An entry by Alice, whom the names already hold, changes the authors but
+    // asks about no one new, so only Nia being asked again can name her.
+    rerender(panel([accepted("u1", "Added Pasta", 5), accepted("u-nia", "Added Gelato", 4)]));
+    expect(await screen.findByRole("button", { name: /Added Gelato.*Suggested by Nia/ })).toBeTruthy();
   });
 });

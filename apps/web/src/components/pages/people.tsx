@@ -59,15 +59,19 @@ export function PeopleProvider({ tripId, children }: { tripId: string; children:
   // The read above is the cached one, so a member who joined after it is not
   // in it (review of #311, 3.1: a new suggester's change said "a former
   // traveler"). Asked about by id, it is read again past the cache — once per
-  // id, however often it renders. A failed read marks nothing, so a member is
-  // never called gone on a network error.
+  // id, however often it renders. A failed read marks nothing: the member is
+  // not called gone on a network error, and is no longer counted as asked, so
+  // the next change of authors asks again (review of #311, CodeRabbit).
   const recheck = useCallback(
     (userId: string) => {
       if (asked.current.has(userId)) return;
       asked.current.add(userId);
       invalidate(tripKeys.access(tripId));
       void cachedRead(tripKeys.access(tripId), () => fetchTripAccess(tripId)).then((access) => {
-        if (!access.ok) return;
+        if (!access.ok) {
+          asked.current.delete(userId);
+          return;
+        }
         setNames(peopleNamesOf(access.value.members));
         setRechecked((prev) => new Set(prev).add(userId));
       });
