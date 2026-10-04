@@ -1,9 +1,7 @@
 # M19 — A cost knows who and what it is for
 
-**Gate closed 2026-10-02, 13 of 13.** The retro is at the end of this file.
-
-**Status:** **Closed 2026-10-02.** Current from 2026-10-01, by M14's gate closing. **Scoped
-2026-10-02** (ADR-060). Built as three stacked parts, then closed the same day.
+**Status:** **Current milestone from 2026-10-01**, by M14's gate closing. **Scoped
+2026-10-02** (ADR-060). The exit gate is written, and the build is three stacked parts.
 Approved and placed 2026-08-31 by Mitchell, originally to run last, after M9
 (`M11a → M11b → M17 → M12 → M13 → M14 → M9 → M19`). That order is superseded:
 M9 is paused, and M19 became current when M14 closed.
@@ -159,7 +157,7 @@ them.
 
 **Written 2026-10-02 at kickoff**, from Mitchell's four answers (ADR-060). Link 1 shipped
 on 2026-09-26. Link 3 was landed by M13 link 5 (`bookedBy`, `participants`, 2026-09-22),
-so it is not rebuilt here. Built as three stacked parts from a plan that was deleted at gate close (in git history as `docs/plans/2026-10-02-M19-cost-model.md`).
+so it is not rebuilt here. Built as three stacked parts: `docs/plans/2026-10-02-M19-cost-model.md`.
 
 Part 1 — a price is per person:
 
