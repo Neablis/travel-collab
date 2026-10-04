@@ -1,9 +1,10 @@
 "use client";
 
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Popover } from "@/components/ui/popover";
 import { Text } from "@/components/ui/text";
+import { acceptAllOrder } from "@/lib/acceptAll";
 import { dayLabel } from "@/lib/dates";
 import type { Ghost } from "@/lib/suggestionOverlay";
 import { useTrip } from "@/components/trip/context/TripProvider";
@@ -19,10 +20,33 @@ import { SuggestionActions, useAuthorNames } from "./SuggestionActions";
  * Author names come from `PeopleProvider` (W15), which `TripHeader` mounts.
  */
 export function SuggestionsChip() {
-  const { suggestionGhosts: ghosts, trip } = useTrip();
+  const { suggestionGhosts: ghosts, trip, boardMode, suggestions } = useTrip();
   const nameOf = useAuthorNames(ghosts?.pending.map((c) => c.authorId) ?? []);
   const [open, setOpen] = useState(false);
+  const [progress, setProgress] = useState<{ at: number; of: number } | null>(null);
+  const [refusal, setRefusal] = useState<string | null>(null);
+  const noteId = useId();
   if (ghosts === null || ghosts.pending.length === 0) return null;
+
+  // W77: every change that still applies, parents first, one at a time
+  // through the same accept as each change's own button. The first refusal
+  // stops it: what follows may build on the change that was refused, and the
+  // reviewer should see why before anything else lands.
+  const acceptable = acceptAllOrder(ghosts.pending, new Set(ghosts.stale.map((g) => g.changeId)));
+  const acceptAll = async () => {
+    if (suggestions === null) return;
+    setRefusal(null);
+    for (const [at, change] of acceptable.entries()) {
+      setProgress({ at: at + 1, of: acceptable.length });
+      const result = await suggestions.resolve(change.id, "accept");
+      if (!result.ok) {
+        const rest = at + 1 < acceptable.length ? " The rest are still pending." : "";
+        setRefusal(`“${change.description}” was not accepted: ${result.error.message}${rest}`);
+        break;
+      }
+    }
+    setProgress(null);
+  };
 
   const count = ghosts.pending.length;
   // One note per suggestion, which every change sent with it carries.
@@ -53,20 +77,44 @@ export function SuggestionsChip() {
   return (
     <Popover
       open={open}
-      onOpenChange={setOpen}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) setRefusal(null);
+      }}
       align="end"
       trigger={
-        <Button variant="secondary" size="sm">
-          {count === 1 ? "1 suggestion" : `${count} suggestions`}
-        </Button>
+        // Add stop's size, beside it in the header (Mitchell's preview
+        // comment, 2026-10-04).
+        <Button variant="secondary">{count === 1 ? "1 suggestion" : `${count} suggestions`}</Button>
       }
     >
       <div className="flex flex-col gap-3">
-        {notes.map((c) => (
-          <Text key={c.suggestionId} as="p" variant="secondary">
-            “{c.note}”{byLine(c.authorId) !== null && ` — ${byLine(c.authorId)}`}
+        {/* Two or more: with one, its own Accept below is the same button. */}
+        {boardMode === "write" && acceptable.length > 1 && (
+          <Button variant="primary" size="sm" className="self-start" disabled={progress !== null} onClick={() => void acceptAll()}>
+            {progress === null ? "Accept all" : `Accepting ${progress.at} of ${progress.of}…`}
+          </Button>
+        )}
+        {refusal !== null && (
+          <Text as="p" role="alert" className="text-xs text-danger-ink">
+            {refusal}
           </Text>
-        ))}
+        )}
+        {/* A message from a person, not the app's own copy (W77; Mitchell's
+            preview comment, 2026-10-04): set apart in a card, quoted, and
+            named for who wrote it. */}
+        {notes.map((c) => {
+          const name = nameOf(c.authorId);
+          const captionId = `${noteId}-${c.suggestionId}`;
+          return (
+            <figure key={c.suggestionId} aria-labelledby={captionId} className="m-0 rounded-md border border-hairline bg-moss p-3">
+              <figcaption id={captionId} className="text-xs font-semibold text-slate">
+                {name === null ? "Note" : `Note from ${name}`}
+              </figcaption>
+              <blockquote className="m-0 mt-1 border-l-2 border-brand pl-2 text-sm whitespace-pre-wrap text-ink">{c.note}</blockquote>
+            </figure>
+          );
+        })}
         {onBoard.length > 0 && (
           <Group label="On the board">
             {onBoard.map((ghost) => (

@@ -286,4 +286,83 @@ describe("the suggestions chip", () => {
     fireEvent.click(await within(onBoard).findByRole("button", { name: "Withdraw: Added Gelato to Day 2" }));
     await waitFor(() => expect(resolved).toEqual([{ changeId: seeded[0]!.id, action: "withdraw" }]));
   });
+
+  // Mitchell's preview comment, 2026-10-04 (W77): "the note from the
+  // suggester ... looks like text from the website atm".
+  it("shows a suggester's note as a message from them", async () => {
+    mount("owner", (tripId) => [change(tripId, 'Renamed the trip to "Roma"', [{ type: "SetTripName", tripId, name: "Roma" }], { note: "Shorter, please" })]);
+    fireEvent.click(await screen.findByRole("button", { name: "1 suggestion" }));
+
+    const note = await screen.findByRole("figure", { name: /^Note from / });
+    expect(within(note).getByText("Shorter, please")).toBeTruthy();
+  });
+});
+
+// Mitchell's preview comment, 2026-10-04 (W77): a bulk accept at the top of the
+// chip. One change at a time through the same accept as the per-change button,
+// parents first; the first refusal stops it and leaves the rest pending.
+describe("Accept all", () => {
+  it("accepts every change that applies, parents first, and skips one that no longer applies", async () => {
+    const { resolved, seeded } = mount("owner", (tripId) => {
+      // In creation order, as the list always is; that a parent goes first
+      // whatever the order is `acceptAll.test.ts`'s.
+      const add = addGelato(tripId);
+      const rename = change(tripId, "Renamed Gelato to Gelateria", [{ type: "UpdateActivity", tripId, activityId: GELATO, title: "Gelateria" }], {
+        dependsOn: [add.id],
+      });
+      return [
+        add,
+        rename,
+        change(tripId, "Removed Pantheon", [{ type: "RemoveActivity", tripId, activityId: uuidFrom(9999, 7) }]),
+        change(tripId, 'Renamed the trip to "Roma"', [{ type: "SetTripName", tripId, name: "Roma" }]),
+      ];
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "4 suggestions" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Accept all" }));
+
+    const [add, rename, , roma] = seeded;
+    await waitFor(() => expect(resolved).toHaveLength(3));
+    expect(resolved).toEqual([
+      { changeId: add!.id, action: "accept" },
+      { changeId: rename!.id, action: "accept" },
+      { changeId: roma!.id, action: "accept" },
+    ]);
+    // The stale one is still there for the reviewer to dismiss.
+    expect(await screen.findByRole("button", { name: "1 suggestion" })).toBeTruthy();
+  });
+
+  it("is a reviewer's: the author is not offered it", async () => {
+    sessionUserId = "dev-sam";
+    mount("suggester", (tripId) => [
+      addGelato(tripId),
+      change(tripId, 'Renamed the trip to "Roma"', [{ type: "SetTripName", tripId, name: "Roma" }]),
+    ]);
+    fireEvent.click(await screen.findByRole("button", { name: "2 suggestions" }));
+    expect(await screen.findByRole("button", { name: "Withdraw: Added Gelato to Day 2" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Accept all" })).toBeNull();
+  });
+
+  it("stops at the first refusal, says which and why, and leaves the rest pending", async () => {
+    const { resolved, seeded } = mount("owner", (tripId) => [
+      change(tripId, 'Renamed the trip to "Roma"', [{ type: "SetTripName", tripId, name: "Roma" }]),
+      change(tripId, "Set the currency to EUR", [{ type: "SetTripCurrency", tripId, currency: "EUR" }]),
+      change(tripId, "Set the start date", [{ type: "SetTripStartDate", tripId, startDate: "2027-05-01" }]),
+    ]);
+    const refused = seeded[1]!.id;
+    server.use(
+      http.post("/api/trips/:tripId/suggestions/changes/:changeId", ({ params }) =>
+        params.changeId === refused
+          ? HttpResponse.json({ error: "This change no longer applies to the trip.", code: "does-not-apply" }, { status: 422 })
+          : undefined,
+      ),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "3 suggestions" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Accept all" }));
+
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "“Set the currency to EUR” was not accepted: This change no longer applies to the trip. The rest are still pending.",
+    );
+    expect(resolved.map((r) => r.changeId)).toEqual([seeded[0]!.id, refused]);
+    expect(screen.getByRole("button", { name: "2 suggestions" })).toBeTruthy();
+  });
 });
