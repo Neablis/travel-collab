@@ -35,7 +35,7 @@ function commandRequests() {
 }
 
 function Probe() {
-  const { activeTrip, history, dispatch, draft } = useTrip();
+  const { activeTrip, history, dispatch, draft, error } = useTrip();
   const tripId = activeTrip?.tripId ?? "";
   const pending = history?.entries.filter((e) => "pending" in e && e.pending).reverse() ?? [];
   return (
@@ -43,6 +43,7 @@ function Probe() {
       <span data-testid="days">{activeTrip?.days.length ?? 0}</span>
       <span data-testid="count">{draft?.count ?? "none"}</span>
       <span data-testid="draft-error">{draft?.error ?? "none"}</span>
+      <span data-testid="error">{error ?? "none"}</span>
       <ol aria-label="Unsent">
         {pending.map((e) => (
           <li key={e.batchId}>{e.description}</li>
@@ -136,6 +137,35 @@ describe("TripProvider — a suggester's edits are a draft", () => {
     expect(seen).toEqual([]);
   });
 
+  // Review of #311, finding 3.3 (W66, which revises W36): an edit made while a
+  // send is out would be drafted on top of units that are leaving, so it is
+  // refused until the send settles, and the draft holds only what is in flight.
+  it("takes no edit while a send is out, and takes one again once it settles", async () => {
+    await mountAsSuggester();
+    let release!: () => void;
+    const held = new Promise<void>((r) => (release = r));
+    server.use(
+      http.post("/api/trips/:tripId/suggestions", async () => {
+        await held;
+        return HttpResponse.json({ changes: [] }, { status: 201 });
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "add-a" }));
+    fireEvent.click(screen.getByRole("button", { name: "send" }));
+    fireEvent.click(screen.getByRole("button", { name: "add-b" }));
+    expect(screen.getByTestId("count").textContent).toBe("1");
+    expect(screen.getByTestId("error").textContent).toBe(
+      "Your suggestion is still sending. Make this change once it has gone.",
+    );
+
+    await act(async () => release());
+    await waitFor(() => expect(screen.getByTestId("count").textContent).toBe("0"));
+    expect(screen.getByTestId("error").textContent).toBe("none");
+    fireEvent.click(screen.getByRole("button", { name: "add-b" }));
+    expect(screen.getByTestId("count").textContent).toBe("1");
+  });
+
   it("keeps the draft when a change no longer applies, and names it", async () => {
     await mountAsSuggester();
     server.use(
@@ -213,7 +243,9 @@ describe("TripProvider — a draft stays inside what the route accepts", () => {
     await waitFor(() => expect(screen.getByTestId("count").textContent).toBe("0"));
   }
 
-  it("refuses a change past the hundredth, says why, and keeps the hundred", async () => {
+  // At the boundary: the contract's last change is taken, the next is not.
+  // The cap is the contract's constant (W63), read here as the provider reads it.
+  it("takes changes up to the contract's cap, refuses the next, says why, and keeps the draft", async () => {
     await mount();
     fireEvent.click(screen.getByRole("button", { name: "fill" }));
     await waitFor(() => expect(screen.getByTestId("count").textContent).toBe(String(SUGGESTION_UNITS_MAX)));
@@ -221,17 +253,20 @@ describe("TripProvider — a draft stays inside what the route accepts", () => {
     fireEvent.click(screen.getByRole("button", { name: "one-more" }));
 
     await waitFor(() => expect(screen.getByTestId("refusal").textContent).not.toBe("none"));
-    expect(screen.getByTestId("refusal").textContent).toBe("A suggestion holds up to 100 changes. Send these first.");
-    expect(screen.getByTestId("error").textContent).toBe("A suggestion holds up to 100 changes. Send these first.");
+    const why = `A suggestion holds up to ${SUGGESTION_UNITS_MAX} changes. Send these first.`;
+    expect(screen.getByTestId("refusal").textContent).toBe(why);
+    expect(screen.getByTestId("error").textContent).toBe(why);
     expect(screen.getByTestId("count").textContent).toBe(String(SUGGESTION_UNITS_MAX));
   });
 
-  it("refuses one change of more than fifty edits, and keeps the draft", async () => {
+  it("refuses one change of more edits than the contract allows, and keeps the draft", async () => {
     await mount();
     fireEvent.click(screen.getByRole("button", { name: "big-unit" }));
 
     await waitFor(() => expect(screen.getByTestId("error").textContent).not.toBe("none"));
-    expect(screen.getByTestId("error").textContent).toBe("One suggested change holds up to 50 edits. Make it in smaller steps.");
+    expect(screen.getByTestId("error").textContent).toBe(
+      `One suggested change holds up to ${SUGGESTION_UNIT_COMMANDS_MAX} edits. Make it in smaller steps.`,
+    );
     expect(screen.getByTestId("count").textContent).toBe("0");
   });
 });

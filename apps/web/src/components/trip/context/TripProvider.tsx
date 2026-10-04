@@ -51,6 +51,8 @@ type Status = "loading" | "ready" | "unauthenticated" | "error";
  * under the header that a scrolled board had hidden.
  */
 export type DispatchResult = { ok: true } | { ok: false; message: string };
+// W66: why a suggester's edit is refused while their draft is being sent.
+const DRAFT_BUSY = "Your suggestion is still sending. Make this change once it has gone.";
 /**
  * A suggester's unsent edits (spec §2.3). They sit in the ordinary optimistic
  * queue, so the board shows them as it shows an editor's — they are just never
@@ -184,6 +186,9 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
   const [previewTrip, setPreviewTrip] = useState<TripDetail | null>(null);
   const [draftSending, setDraftSending] = useState(false);
   const [draftError, setDraftError] = useState<string | null>(null);
+  // A ref, like `inFlight`: a double click, or an edit, lands before the
+  // re-render that would show the send is out. `runDispatch` reads it (W66).
+  const sendingDraft = useRef(false);
   const seq = useRef(0);
   // Mirrors `optimistic` so `runDispatch` can predict against the CURRENT queue
   // without taking it as a dependency. Two things depend on that: the callback
@@ -467,6 +472,14 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
       setError(overCap);
       return { ok: false, message: overCap };
     }
+    // W66: the draft is paused while it is being sent. An edit now would be
+    // predicted on top of units that are leaving it, and could name a stop
+    // only they create — a dependency on another suggestion (W9 rules those
+    // out). Refused before it is queued, so nothing moves and jumps back.
+    if (mode === "suggest" && sendingDraft.current) {
+      setError(DRAFT_BUSY);
+      return { ok: false, message: DRAFT_BUSY };
+    }
     const result = enqueue(base, `c${++seq.current}`, commands);
     if (!result.ok) {
       // A no-op changed nothing, which is not worth alarming anyone about —
@@ -723,9 +736,6 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
     void refreshSuggestions?.();
   }, [refreshSuggestions]);
 
-  // A ref, like `inFlight`: a double click lands before the re-render that
-  // would disable the button.
-  const sendingDraft = useRef(false);
   const sendDraft = useCallback(
     async (note?: string): Promise<boolean> => {
       const units = optimisticRef.current?.pending ?? [];
@@ -740,6 +750,8 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
       });
       sendingDraft.current = false;
       setDraftSending(false);
+      // True only while the send was out, so it goes when the send does.
+      setError((e) => (e === DRAFT_BUSY ? null : e));
       if (!result.ok) {
         // Kept whole: nothing was stored (W4), and what to change is the
         // author's call. When the server named the unit, so does the message.
