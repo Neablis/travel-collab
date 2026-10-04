@@ -1768,9 +1768,49 @@ describe("TripBoardScreen — a viewer's board", () => {
 // means "may not write directly", so it is true for a suggester, and every
 // control nobody has opted in to suggest mode stays hidden — never offered and
 // then refused with a 403. Creating a notebook never opts in (spec §2.2), and
-// its gate is `canEditNotebook`, not `readOnly` (W22): this goes red if that
-// rule lets a suggester in, even with `readOnly` still true.
-describe("TripBoardScreen — a suggester's board, before suggest mode", () => {
+// its gate is `canEditNotebook`, not `readOnly` (W22): the notebook test below
+// goes red if that rule lets a suggester in, even with `readOnly` still true.
+describe("TripBoardScreen — a suggester's board", () => {
+  // The surfaces that opt in through `canEditBoard`, against the one that
+  // must not (W13): undo and redo are history commands, which need "editor".
+  it("says Suggester, offers Add stop and the stop editor, and no undo or redo", async () => {
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture, { myRole: "suggester" }));
+    renderScreen(fixture.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+    expect(screen.getByText("Suggester")).toBeTruthy();
+    expect(screen.queryByText("Viewer")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Add stop" }));
+    const sheet = await screen.findByRole("dialog");
+    expect(within(sheet).getByRole("heading", { name: "Add a stop" })).toBeTruthy();
+    expect(within(sheet).getByLabelText("What or where")).toBeTruthy();
+    fireEvent.click(within(sheet).getByRole("button", { name: "Cancel" }));
+
+    // Open, so an absent Undo is the gate and not a closed popover.
+    const history = screen.getByRole("button", { name: "History" });
+    fireEvent.click(history);
+    await waitFor(() => expect(history.getAttribute("aria-expanded")).toBe("true"));
+    expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Redo" })).toBeNull();
+  });
+
+  it("holds an edit in the tray instead of sending it", async () => {
+    const fixture = tripDetailFixture();
+    const onCommand = vi.fn<(command: TripCommand) => void>();
+    server.use(...makeTripHandlers(fixture, { myRole: "suggester", onCommand }));
+    renderScreen(fixture.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+    expect(screen.queryByRole("region", { name: "Suggestion draft" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Add a day" }));
+
+    const tray = await screen.findByRole("region", { name: "Suggestion draft" });
+    expect(within(tray).getByText("1 change not sent")).toBeTruthy();
+    expect(screen.getAllByTestId("day-column")).toHaveLength(1);
+    expect(onCommand).not.toHaveBeenCalled();
+  });
+
   it("offers no way to create a notebook", async () => {
     const fixture = tripDetailFixture();
     server.use(...makeTripHandlers(fixture, { myRole: "suggester" }), ...makePagesHandlers([]));
@@ -2227,6 +2267,22 @@ describe("TripBoardScreen — a viewer's Schedule lens", () => {
     // gates itself off the same context read — asserted here because it is the
     // fourth command-raising control on this surface.
     expect(screen.queryByTestId("one-more-day-column")).toBeNull();
+  });
+
+  // W3: dismissing a warning cannot be suggested, so a suggester gets the
+  // edits and not the dismissals — in the river or in the banner.
+  it("offers a suggester the edits, and no way to dismiss a warning", async () => {
+    const fixture = overlappingFixture();
+    server.use(...makeTripHandlers(fixture, { myRole: "suggester" }));
+    renderScreen(fixture.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+    navigateToView("Plan");
+
+    const day = await screen.findByTestId("day-column");
+    expect(within(day).getAllByRole("button", { name: /^Remove / }).length).toBeGreaterThan(0);
+    expect(screen.getByTestId("one-more-day-column")).toBeTruthy();
+    expect(within(day).queryByRole("button", { name: "Dismiss overlap warning" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Dismiss: / })).toBeNull();
   });
 
   it("offers every one of them to an owner", async () => {

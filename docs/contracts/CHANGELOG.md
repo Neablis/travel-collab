@@ -58,9 +58,8 @@ Format:
   Every stored `members` row, `origin` and invite still parses. A client running an old bundle
   meets an unknown role only when someone is invited as a suggester, and an unknown origin only
   after a suggestion is accepted. The invite route accepts `suggester` from `InviteRole`'s change
-  on, and the Travelers picker offers it as "Can suggest". Until suggest mode ships, the app shows
-  a suggester the trip read-only, exactly as a viewer. Nothing can accept a suggestion until the
-  suggestion routes have a screen.
+  on, and the Travelers picker offers it as "Can suggest". A suggester's board edits are held as a
+  draft and sent through the suggestion routes, never as commands (spec §2.3).
 
 ## 2026-10-03 — Adding one default notebook: `AddDefaultPagesInput` (ADR-056, amended)
 

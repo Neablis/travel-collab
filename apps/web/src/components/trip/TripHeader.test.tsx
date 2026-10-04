@@ -338,16 +338,18 @@ describe("TripHeader — the access read failed", () => {
 // `readOnly` from this header now, so these go through the real provider: the
 // two ends of that rule, as the sheet sees them.
 describe("TripHeader — Trip settings is gated by the provider's readOnly", () => {
-  it("locks the sheet for a suggester, who writes nothing directly (W8)", async () => {
+  // A suggester is `readOnly` and may edit the board (W8, W35): the sheet
+  // withholds Share and leaves the trip fields, whose edits join the draft.
+  it("withholds Share from a suggester and leaves them the trip fields (W8)", async () => {
     myRole = "suggester";
     await renderHeader();
-    await waitFor(() => expect(screen.queryByRole("button", { name: "Add stop" })).toBeNull());
+    expect(await screen.findByText("Suggester")).toBeTruthy();
 
     await userEvent.click(screen.getByRole("button", { name: /trip settings/i }));
     // The sheet rendered, so an absent Share is the gate and not an empty tree.
     expect(screen.getByRole("link", { name: "Download Trip" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Share" })).toBeNull();
-    expect(screen.getByLabelText("Trip name").hasAttribute("disabled")).toBe(true);
+    expect(screen.getByLabelText("Trip name").hasAttribute("disabled")).toBe(false);
   });
 
   it("leaves the sheet live when the access read failed (W21)", async () => {

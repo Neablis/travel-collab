@@ -99,6 +99,19 @@ type BroadcastArgs = {
    * notebook) keeps this as its cursor; one with history ignores it.
    */
   onChanged: (headSeq: number) => void;
+  /**
+   * The page's `suggestionsRev` (W16), on every poll that carries one. Called
+   * on its own, whether or not `headSeq` moved: a suggestion changes no
+   * planning event, so the head stays still for exactly the news this exists
+   * to carry. A page without a revision (a viewer's, a demo or invite-token
+   * read) calls nothing.
+   *
+   * Not de-duplicated here (W68): only the caller knows whether the read it
+   * made for a revision landed. Remembering the last one reported meant a read
+   * that failed was never retried, because the poll had already marked the
+   * revision seen.
+   */
+  onSuggestionsChanged?: (rev: string) => void;
 };
 
 /**
@@ -120,14 +133,23 @@ type BroadcastArgs = {
  *   the head"; the caller's answer to either is to refetch the trip, which is
  *   the one cheap request that fixes an arbitrarily large gap.
  */
-export function useTripBroadcast({ tripId, enabled, interval, cursor, onChanged }: BroadcastArgs): void {
+export function useTripBroadcast({
+  tripId,
+  enabled,
+  interval,
+  cursor,
+  onChanged,
+  onSuggestionsChanged,
+}: BroadcastArgs): void {
   // Held in refs so the effect below depends only on `tripId` and the gates.
   // Otherwise every render would tear down the interval and start a new one,
   // and a 5s interval that restarts every keystroke never fires.
   const cursorRef = useRef(cursor);
   const onChangedRef = useRef(onChanged);
+  const onSuggestionsChangedRef = useRef(onSuggestionsChanged);
   cursorRef.current = cursor;
   onChangedRef.current = onChanged;
+  onSuggestionsChangedRef.current = onSuggestionsChanged;
 
   useEffect(() => {
     if (!enabled || isDemoTripId(tripId)) return;
@@ -152,6 +174,8 @@ export function useTripBroadcast({ tripId, enabled, interval, cursor, onChanged 
         // unmounted tree.
         if (cancelled || !result.ok) return;
         if (result.value.resync || result.value.headSeq > before) onChangedRef.current(result.value.headSeq);
+        const rev = result.value.suggestionsRev;
+        if (rev !== undefined) onSuggestionsChangedRef.current?.(rev);
       } finally {
         inFlight = false;
       }

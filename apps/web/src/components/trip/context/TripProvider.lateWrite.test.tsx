@@ -22,6 +22,9 @@ vi.mock("@/lib/apiClient", async (orig) => {
     fetchTripHistory: (...args: unknown[]) => fetchTripHistoryMock(...args),
     fetchTripEvents: (...args: unknown[]) => fetchTripEventsMock(...args),
     fetchTripAccess: (...args: unknown[]) => fetchTripAccessMock(...args),
+    // An owner's board reads its suggestions too; a read like the rest, and
+    // not one of the writes `held` counts.
+    fetchTripSuggestions: async () => ({ ok: true, value: { changes: [], rev: "r" } }),
   };
 });
 

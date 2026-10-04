@@ -71,6 +71,9 @@ function renderSheet(
     // viewer and a suggester. Which role maps to which is the provider's rule,
     // asserted through it in TripHeader.test.tsx, not restated here.
     readOnly?: boolean;
+    // TripProvider's `canEditBoard`. Defaults to `!readOnly` — a viewer or a
+    // writer; a suggester is the one pair that differs (readOnly and may edit).
+    canEditBoard?: boolean;
     // Defaults to null. The money controls that only exist once a trip HAS a
     // budget — the clear-X, and a currency select worth changing — cannot be
     // exercised without this.
@@ -101,6 +104,7 @@ function renderSheet(
       forkedFrom={overrides.forkedFrom ?? null}
       createdAt={overrides.createdAt ?? "2026-08-31T14:20:00.000Z"}
       readOnly={overrides.readOnly ?? false}
+      canEditBoard={overrides.canEditBoard ?? !(overrides.readOnly ?? false)}
       onCommand={onCommand}
     />,
   );
@@ -606,6 +610,26 @@ describe("SettingsSheet share", () => {
     expect(screen.getByRole("button", { name: "Share" })).toBeTruthy();
   });
 
-  // A suggester is withheld Share too (W8, default closed): the provider makes
-  // them `readOnly`, asserted through it in TripHeader.test.tsx.
+  // W8, default closed: a suggester may suggest board edits but writes
+  // nothing directly, so every control this sheet gates on `readOnly` stays
+  // withheld unless it opts in to suggest mode. The provider hands a suggester
+  // `readOnly` and `canEditBoard` both (asserted in TripHeader.test.tsx). The trip fields do (their
+  // command joins the draft); Share never does.
+  it("leaves a suggester the trip fields, whose edits go to the provider", async () => {
+    const onCommand = vi.fn();
+    renderSheet({ readOnly: true, canEditBoard: true, onCommand });
+
+    expect(screen.getByRole("button", { name: "Dates" }).hasAttribute("disabled")).toBe(false);
+    const name = screen.getByLabelText("Trip name");
+    await userEvent.clear(name);
+    await userEvent.type(name, "Japan in spring{Enter}");
+    expect(onCommand).toHaveBeenCalledWith({ type: "SetTripName", tripId, name: "Japan in spring" });
+  });
+
+  it("withholds Share from a suggester", () => {
+    renderSheet({ readOnly: true, canEditBoard: true });
+    // The sheet rendered, so an absent Share is the gate and not an empty tree.
+    expect(screen.getByRole("link", { name: "Download Trip" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Share" })).toBeNull();
+  });
 });
