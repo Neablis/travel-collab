@@ -44,7 +44,8 @@ Format:
   - `apps/web/src/server/access/members.ts`: its duplicate `RANK` is deleted, and it imports the
     one in `accessPolicy.ts` (W8).
   - `apps/web/src/server/email/templates.ts`: `tripInviteEmail`'s `role` is typed `InviteRole`,
-    and a suggester's invite says they can suggest changes for the editors to decide.
+    and a suggester's invite says they can suggest changes for the trip's planners to approve
+    (W64).
   - The public API is affected because its trip documents embed `TripMember.role` and event
     `origin`. `openapi.json` was regenerated, `API_VERSION` moved to `1.4.0` (minor, additive)
     and `API_FINGERPRINT` is new. No `/v1` endpoint was added (spec §2.7).

@@ -88,13 +88,6 @@ export function roleLabel(role: InviteRole): string {
 }
 
 /**
- * The roles an owner may invite, in the order the picker offers them: most
- * capable first, so "Can edit" leads and the suggester sits between the two it
- * is between. Read off the contract rather than listed (review of #309), so a
- * role `InviteRole` gains is offered without this file being found — the
- * contract lists its roles least capable first, as `TripRole` does.
- */
-/**
  * Who decides a suggester's changes, said the same way wherever a suggester
  * is told (spec W64): the invite landing, the look-first banner and the invite
  * email. They disagreed ("the planners" here, "the trip's editors" in the
@@ -105,4 +98,12 @@ export function roleLabel(role: InviteRole): string {
  */
 export const SUGGESTER_APPROVAL = "for the trip's planners to approve";
 
+/**
+ * The roles an owner may invite, in the order the picker offers them: most
+ * capable first, so "Can edit" leads and the suggester sits between the two it
+ * is between. Read off the contract rather than listed (review of #309), so a
+ * role `InviteRole` gains is offered without this file being found. The
+ * `reverse()` relies on `InviteRole.options` listing its roles least capable
+ * first, as `TripRole` does — `tripRole.test.ts` pins the resulting order.
+ */
 export const INVITE_ROLES_OFFERED: readonly InviteRole[] = [...InviteRole.options].reverse();
