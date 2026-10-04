@@ -97,7 +97,7 @@ function useAssistantVisibility() {
 }
 
 export function TripBoardScreen({ tripId }: { tripId: string }) {
-  const { trip, activeTrip, history, status, error, dispatch, dispatchBatch, applyOutcome, preview, pending, readOnly, remoteRevision, confirmedSeq } = useTrip();
+  const { trip, activeTrip, history, status, error, dispatch, dispatchBatch, applyOutcome, preview, pending, readOnly, myRole, remoteRevision, confirmedSeq } = useTrip();
   const { view } = useLens();
   const { openEdit } = useEditor();
   // Task 4's FocusProvider is mounted around this whole tree (trips/[tripId]/
@@ -1010,7 +1010,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                   only route to the Notebook was one nobody could see. */}
               {!isDemo && (
                 <div className="hidden shrink-0 md:block">
-                  <NotebooksMenu tripId={tripId} readOnly={readOnly} />
+                  <NotebooksMenu tripId={tripId} myRole={myRole} />
                 </div>
               )}
             </div>
