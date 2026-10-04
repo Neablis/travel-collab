@@ -726,14 +726,17 @@ export function DayRiver({
                   [ghost],
                   // A placeholder until it is accepted (W76): dashed, hatched,
                   // and saying "Suggested" in words, so it never reads as a
-                  // planned stop by its colour alone.
+                  // planned stop by its colour alone. The pill goes under the
+                  // title, not beside it: in a shared lane it left the title
+                  // one letter. A 30-minute ghost has no second line, and its
+                  // name and its edge still say it.
                   <Button
                     variant="ghost"
                     aria-label={`Suggested: ${ghost.description}`}
                     data-provisional="suggested"
-                    className="tc-river-hatch h-full w-full min-w-0 items-start justify-between gap-1.5 overflow-hidden rounded-md border-2 border-dashed border-brand bg-surface px-2 py-0.5 text-left md:min-h-0"
+                    className="tc-river-hatch h-full w-full min-w-0 flex-col items-start justify-start gap-0.5 overflow-hidden rounded-md border-2 border-dashed border-brand bg-surface px-2 py-0.5 text-left md:min-h-0"
                   >
-                    <span aria-hidden className="min-w-0 truncate text-xs font-semibold text-brand-pressed">
+                    <span aria-hidden className="w-full min-w-0 truncate text-xs font-semibold text-brand-pressed">
                       {ghost.activity?.title}
                     </span>
                     <Badge aria-hidden variant="brand" className="shrink-0 px-1.5 py-0">

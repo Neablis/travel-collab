@@ -286,6 +286,13 @@ export function RiverBlock({
       ? { hook: "suggested", word: "Suggested" }
       : null;
   const placeholder = draft === "added";
+  // Beside the title, or — in a shared lane, where it would leave the title no
+  // room — on the time line, as the tag mark is (below).
+  const provisionalPill = provisional && (
+    <Badge aria-hidden variant={draft ? "warning" : "brand"} className="shrink-0 px-1.5 py-0">
+      {provisional.word}
+    </Badge>
+  );
   const tag = overlapping ? "Overlap" : look.tag;
   const tagInk = overlapping ? "text-warning-ink" : TAG_INK[look.tone];
   // **A lane is narrow.** Half of a 268px column leaves ~100px, and a title
@@ -388,11 +395,7 @@ export function RiverBlock({
           {(hasConflict || (narrow && !roomy && overlapping)) && (
             <AlertTriangle aria-hidden className="size-3 shrink-0 text-warning-ink" />
           )}
-          {provisional && (
-            <Badge aria-hidden variant={draft ? "warning" : "brand"} className="shrink-0 px-1.5 py-0">
-              {provisional.word}
-            </Badge>
-          )}
+          {!narrow && provisionalPill}
           {!narrow && tagMark}
           {/* In a narrow lane the two controls would leave the title no room at
               all, so under a mouse they float over its end only while the
@@ -446,6 +449,7 @@ export function RiverBlock({
               look.tone === "transit" ? "text-info-ink" : "text-slate",
             )}
           >
+            {narrow && provisionalPill}
             {narrow && tagMark}
             <span className="truncate">{where && !narrow ? `${range} · ${where}` : range}</span>
           </span>
