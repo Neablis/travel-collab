@@ -28,6 +28,8 @@ vi.mock("@/lib/apiClient", () => ({
   inviteLink: (token: string) => `http://test/invite/${token}`,
 }));
 
+// After `zod`: importing the mocked module runs the factory above, which needs `z`.
+import { InviteRole } from "@tc/contracts";
 import { TravelersPanel } from "./TravelersPanel";
 
 afterEach(cleanup);
@@ -40,6 +42,8 @@ it("offers every role the contract makes invitable, a new one included", async (
   const offered = within(picker)
     .getAllByRole("option")
     .map((o) => (o as HTMLOptionElement).value);
+  // `InviteRole` here is the mocked one, so the expectation follows the real
+  // contract as it grows; `co-pilot` is named to prove the mock took effect.
   expect(offered).toContain("co-pilot");
-  expect(offered).toHaveLength(4);
+  expect([...offered].sort()).toEqual([...InviteRole.options].sort());
 });
