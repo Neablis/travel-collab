@@ -44,6 +44,20 @@ describe("SuggestionTray", () => {
     expect(draft.discard).toHaveBeenCalledTimes(1);
   });
 
+  // Review of #311, finding 3.2: the tray renders nothing at a count of 0
+  // but stays mounted, so a discarded draft's note came back with the next edit.
+  it("discarding the draft discards its note too", () => {
+    const draft = draftOf();
+    const { rerender } = render(<SuggestionTray draft={draft} />);
+    fireEvent.change(within(tray()).getByLabelText("Note for the planners"), { target: { value: "Swap these two?" } });
+
+    fireEvent.click(within(tray()).getByRole("button", { name: "Discard" }));
+    rerender(<SuggestionTray draft={{ ...draft, count: 0 }} />);
+    rerender(<SuggestionTray draft={{ ...draft, count: 1 }} />);
+
+    expect((within(tray()).getByLabelText("Note for the planners") as HTMLTextAreaElement).value).toBe("");
+  });
+
   it("keeps the note when the send is refused, and says why", async () => {
     const draft = draftOf({ send: vi.fn(async () => false) });
     const { rerender } = render(<SuggestionTray draft={draft} />);

@@ -25,6 +25,12 @@ export function SuggestionTray({ draft }: { draft: SuggestionDraft }) {
     // Cleared only once stored: a refused draft keeps the note with it.
     if (await draft.send(note)) setNote("");
   };
+  // The note goes with the draft it described. This tray stays mounted at a
+  // count of 0, so without this it would come back with the next edit.
+  const discard = () => {
+    setNote("");
+    draft.discard();
+  };
 
   return (
     <section aria-label="Suggestion draft" className="mt-3 flex flex-col gap-3 rounded-lg border border-hairline bg-surface p-3">
@@ -33,7 +39,7 @@ export function SuggestionTray({ draft }: { draft: SuggestionDraft }) {
           {draft.count === 1 ? "1 change not sent" : `${draft.count} changes not sent`}
         </Text>
         <div className="flex gap-2">
-          <Button variant="secondary" size="sm" onClick={draft.discard} disabled={draft.sending}>
+          <Button variant="secondary" size="sm" onClick={discard} disabled={draft.sending}>
             Discard
           </Button>
           <Button variant="primary" size="sm" onClick={() => void send()} disabled={draft.sending}>
