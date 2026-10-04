@@ -78,7 +78,7 @@ export function SettingsSheet({
   createdAt,
   readOnly,
   canEditBoard,
-  onInvited,
+  onInvitesChanged,
   onCommand,
 }: {
   tripId: string;
@@ -121,8 +121,8 @@ export function SettingsSheet({
   // the trip fields — name, dates, currency, budget — opt in to suggest mode
   // (W8), so a suggester's change joins their draft. Share does not.
   canEditBoard: boolean;
-  // TripProvider's `noteInvite`, handed to the Travelers panel (W73).
-  onInvited?: () => void;
+  // TripProvider's `noteInvites`, handed to the Travelers panel (W73).
+  onInvitesChanged?: (pending: boolean) => void;
   onCommand: (command: TripCommand) => void;
 }) {
   // Dispatch is severed at the SOURCE, not at each control. The individual
@@ -362,7 +362,7 @@ export function SettingsSheet({
               also carries names, emails and the invite list — none of which
               live on TripDetail, and none of which should (they are Identity
               and Access data — packages/contracts/src/access.ts). */}
-          <TravelersPanel tripId={tripId} onInvited={onInvited} />
+          <TravelersPanel tripId={tripId} onInvitesChanged={onInvitesChanged} />
           {/* **Share goes UNDER the invite controls, not beside the heading.**
               Mitchell, 2026-09-06: *"Put share in the trip settings under
               invite someone, both here and in mobile"*.

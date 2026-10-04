@@ -118,11 +118,13 @@ type TripCtx = {
   // Present in suggest mode only.
   draft: SuggestionDraft | null;
   /**
-   * An invite was just made from this page (Trip settings → Travelers). Someone
-   * can now join at any moment, so the poll's timer starts (W73) — the invites
-   * this provider read at load were read before this one existed.
+   * Whether an invite is out, as Trip settings → Travelers last read or made
+   * it. Someone can join at any moment while one is, so the poll's timer runs
+   * (W73); once the last is revoked it stops, unless the trip already has a
+   * second member. The invites this provider read at load go stale the moment
+   * that panel creates or revokes one.
    */
-  noteInvite: () => void;
+  noteInvites: (pending: boolean) => void;
   // The trip's suggestion changes: a suggester's own, or everyone's for an
   // editor or the owner. Null for a reader who sees none — a viewer, or a role
   // not yet known (the list is 404 to a viewer, so it is not asked for).
@@ -813,7 +815,7 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
     return () => window.removeEventListener("beforeunload", ask);
   }, [draftHeld]);
 
-  const noteInvite = useCallback(() => setInviteOut(true), []);
+  const noteInvites = useCallback((pending: boolean) => setInviteOut(pending), []);
 
   const applyOutcome = useCallback((outcome: CommandOutcome) => {
     // `outcome` is `{ detail, history }` — exactly the `confirmed` shape.
@@ -850,7 +852,8 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
     // so nothing here re-reads it: an owner whose board was open when the
     // invite was accepted ran no timer, and never saw the newcomer's
     // suggestion without a reload (Mitchell's production test, 2026-10-04).
-    // A solo trip with no invite out still runs none.
+    // A solo trip with no invite out still runs none, including once the last
+    // invite is revoked from this page (`noteInvites`; CodeRabbit on #314).
     interval: (optimistic?.confirmed.detail.members.length ?? 0) > 1 || inviteOut,
     // Read at poll time, not captured: the confirmed head advances every time
     // the user's own work lands, and a stale cursor would re-report those as
@@ -918,7 +921,7 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
         boardMode: mode,
         canEditBoard,
         draft,
-        noteInvite,
+        noteInvites,
         suggestions,
         suggestionGhosts,
         accessUnknown,

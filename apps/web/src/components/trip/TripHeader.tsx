@@ -66,7 +66,7 @@ export function TripHeader({
   // render from). Reading `trip` here meant a rename/date/budget edit sat in
   // the optimistic queue correctly but never became visible until the server
   // round-trip confirmed it. `trip` is kept only for the existence/loading gate.
-  const { trip, activeTrip, history, status, pending, dispatch, preview, readOnly, canEditBoard, boardMode, accessUnknown, draft, noteInvite } =
+  const { trip, activeTrip, history, status, pending, dispatch, preview, readOnly, canEditBoard, boardMode, accessUnknown, draft, noteInvites } =
     useTrip();
   // Task 9: "Add stop" is a real trigger for the same portable activity
   // editor Board's own "+ Add activity" button opens (Board.tsx) — no
@@ -523,7 +523,7 @@ export function TripHeader({
         createdAt={activeTrip.createdAt}
         readOnly={readOnly}
         canEditBoard={canEditBoard}
-        onInvited={noteInvite}
+        onInvitesChanged={noteInvites}
         onCommand={(command) => {
           if (command.type !== "CreateTrip") void dispatch(command);
         }}

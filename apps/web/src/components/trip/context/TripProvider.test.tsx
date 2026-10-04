@@ -1222,19 +1222,30 @@ describe("TripProvider broadcast (M13 link 2)", () => {
   // An invite out is someone who can arrive at any moment, so it counts.
   describe("the timer, and who counts as a second person", () => {
     let setIntervalSpy: MockInstance<typeof setInterval>;
+    let clearIntervalSpy: MockInstance<typeof clearInterval>;
     beforeEach(() => {
       setIntervalSpy = vi.spyOn(globalThis, "setInterval");
+      clearIntervalSpy = vi.spyOn(globalThis, "clearInterval");
     });
-    afterEach(() => setIntervalSpy.mockRestore());
+    afterEach(() => {
+      setIntervalSpy.mockRestore();
+      clearIntervalSpy.mockRestore();
+    });
     const pollTimers = () => setIntervalSpy.mock.calls.filter(([, ms]) => ms === POLL_INTERVAL_MS).length;
+    // Started and not yet cleared.
+    const runningPollTimers = () => {
+      const cleared = new Set(clearIntervalSpy.mock.calls.map(([id]) => id));
+      return setIntervalSpy.mock.calls.filter(([, ms], i) => ms === POLL_INTERVAL_MS && !cleared.has(setIntervalSpy.mock.results[i]!.value)).length;
+    };
     const pendingInvite = { inviteId: "i1", tripId: "x", role: "suggester", status: "pending" };
 
     function InviteProbe() {
-      const { activeTrip, noteInvite } = useTrip();
+      const { activeTrip, noteInvites } = useTrip();
       return (
         <div>
           <span data-testid="dayCount">{activeTrip?.days.length ?? 0}</span>
-          <button onClick={noteInvite}>invited</button>
+          <button onClick={() => noteInvites(true)}>invited</button>
+          <button onClick={() => noteInvites(false)}>none-out</button>
         </div>
       );
     }
@@ -1276,6 +1287,27 @@ describe("TripProvider broadcast (M13 link 2)", () => {
       expect(pollTimers()).toBe(0);
       fireEvent.click(screen.getByRole("button", { name: "invited" }));
       await waitFor(() => expect(pollTimers()).toBe(1));
+    });
+
+    // CodeRabbit on #314: `inviteOut` only ever went true, so a solo trip whose
+    // last invite was revoked from this page polled until it was closed.
+    it("stops it once the last invite out is revoked from this page", async () => {
+      fetchTripAccessMock.mockResolvedValue({ ok: true, value: { ...accessAs("owner").value, invites: [pendingInvite] } });
+      await mountSolo();
+      await waitFor(() => expect(runningPollTimers()).toBe(1));
+
+      fireEvent.click(screen.getByRole("button", { name: "none-out" }));
+      await waitFor(() => expect(runningPollTimers()).toBe(0));
+    });
+
+    it("keeps it on a trip with a second member, whatever the invites", async () => {
+      fetchTripDetailMock.mockResolvedValue({ ok: true, value: twoMemberDetail(1) });
+      await mountSolo();
+      await waitFor(() => expect(runningPollTimers()).toBe(1));
+
+      fireEvent.click(screen.getByRole("button", { name: "none-out" }));
+      await act(() => new Promise((r) => setTimeout(r, 20)));
+      expect(runningPollTimers()).toBe(1);
     });
   });
 

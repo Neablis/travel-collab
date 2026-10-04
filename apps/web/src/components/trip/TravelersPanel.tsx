@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { InviteRole, TripAccess, TripInvite } from "@tc/contracts";
 import { Badge } from "@/components/ui/badge";
@@ -42,16 +42,20 @@ function statusLabel(invite: TripInvite): string {
 
 export function TravelersPanel({
   tripId,
-  onInvited,
+  onInvitesChanged,
 }: {
   tripId: string;
   /**
-   * An invite was made. The board starts polling on a timer from here (W73):
-   * the person invited can join and suggest while it is open, and it read its
-   * invites before this one existed.
+   * Whether an invite is out: on every read of the list, and as soon as one is
+   * made. The board polls on a timer while one is (W73) — the person invited
+   * can join and suggest while it is open — and stops once the last is
+   * revoked. It read its invites at load, before any made or revoked here.
    */
-  onInvited?: () => void;
+  onInvitesChanged?: (pending: boolean) => void;
 }) {
+  // A ref, so `load` keeps its identity and its effect runs once per trip.
+  const reportInvites = useRef(onInvitesChanged);
+  reportInvites.current = onInvitesChanged;
   const [access, setAccess] = useState<TripAccess | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -69,6 +73,7 @@ export function TravelersPanel({
     const result = await fetchTripAccess(tripId);
     if (result.ok) {
       setAccess(result.value);
+      reportInvites.current?.(result.value.invites.some((i) => i.status === "pending"));
       // Cleared on success: a retry that worked must not leave the previous
       // failure sitting next to fresh, correct data.
       setError(null);
@@ -106,7 +111,8 @@ export function TravelersPanel({
         return;
       }
       setEmail("");
-      onInvited?.();
+      // Before the reload below, which a failed read would skip.
+      reportInvites.current?.(true);
       // The link is the invite. An address also gets it by email, but a send
       // can fail or be unconfigured, so the freshly minted link still goes
       // straight onto the clipboard rather than making the owner hunt for it
