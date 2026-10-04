@@ -83,7 +83,11 @@
       "Read(./docs/**)",
       "Grep(./docs/**)",
       "Bash(pnpm surface:*)",
-      "Bash(node scripts/surface-size.mjs:*)"
+      "Bash(node scripts/surface-size.mjs:*)",
+      "mcp__Vercel__list_toolbar_threads",
+      "mcp__Vercel__get_toolbar_thread",
+      "mcp__Vercel__reply_to_toolbar_thread",
+      "mcp__Vercel__change_toolbar_thread_resolve_status"
     ]
   }
 }
