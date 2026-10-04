@@ -253,6 +253,13 @@
       "when": 1791002706184,
       "tag": "0035_ai_usage_steps_and_tool_calls",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1791048547998,
+      "tag": "0036_trip_suggestions",
+      "breakpoints": true
     }
   ]
 }

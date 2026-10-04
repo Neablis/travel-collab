@@ -221,11 +221,20 @@ function readProductionMigrations(root, { skip }) {
     return null;
   }
   if (!Array.isArray(entries) || entries.length === 0) return null;
-  const added = (tag) =>
-    run("git", ["log", "--diff-filter=A", "--format=%H", "-1", "--", `${MIGRATIONS_DIR}/${tag}.sql`], {
+  // A migration can arrive only in a merge commit: renumbered while resolving
+  // a collision with main (0035 → 0036, 2026-10-03). Plain `--diff-filter=A`
+  // never reports a merge, so it answered nothing and the digest said "added
+  // in ?". Falling back to the first-parent line, merges diffed against their
+  // first parent, names the commit where the file landed on this line, which
+  // is the commit a migrate-production head has to contain. The plain query
+  // stays first because on a branch it names the commit that wrote the file,
+  // where the fallback would name the branch's merge of main.
+  const addedBy = (extra, tag) =>
+    run("git", ["log", ...extra, "--diff-filter=A", "--format=%H", "-1", "--", `${MIGRATIONS_DIR}/${tag}.sql`], {
       cwd: root,
       timeout: GIT_TIMEOUT_MS,
     }) || null;
+  const added = (tag) => addedBy([], tag) ?? addedBy(["-m", "--first-parent"], tag);
   const newest = { tag: entries[entries.length - 1].tag, sha: added(entries[entries.length - 1].tag) };
   const base = { total: entries.length, newest };
   if (skip) return { ...base, unverified: "--no-gh" };
