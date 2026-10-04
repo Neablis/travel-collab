@@ -199,11 +199,17 @@ describe("useTripBroadcast", () => {
     fetchTripEventsMock.mockResolvedValue(page({ headSeq: 3, suggestionsRev: "b" }));
     await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
     expect(onSuggestionsChanged.mock.calls).toEqual([["a"], ["b"]]);
-
-    // The same revision again is not news.
-    await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS * 2);
-    expect(onSuggestionsChanged).toHaveBeenCalledTimes(2);
     expect(onChanged).not.toHaveBeenCalled();
+  });
+
+  // W68. The caller compares against the revision it holds: only it knows
+  // whether the read it made for one landed, so a repeat must still reach it.
+  it("reports the same revision again on the next poll", async () => {
+    const onSuggestionsChanged = vi.fn();
+    fetchTripEventsMock.mockResolvedValue(page({ headSeq: 3, suggestionsRev: "a" }));
+    mount({ cursor: () => 3, onSuggestionsChanged });
+    await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS * 2);
+    expect(onSuggestionsChanged.mock.calls).toEqual([["a"], ["a"]]);
   });
 
   it("calls nothing for a page with no suggestions revision", async () => {

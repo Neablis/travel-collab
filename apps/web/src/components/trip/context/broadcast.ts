@@ -100,11 +100,16 @@ type BroadcastArgs = {
    */
   onChanged: (headSeq: number) => void;
   /**
-   * The page's `suggestionsRev` differs from the last one this hook saw (W16),
-   * including the first one it sees. Called on its own, whether or not
-   * `headSeq` moved: a suggestion changes no planning event, so the head stays
-   * still for exactly the news this exists to carry. A page without a revision
-   * (a viewer's, a demo or invite-token read) calls nothing.
+   * The page's `suggestionsRev` (W16), on every poll that carries one. Called
+   * on its own, whether or not `headSeq` moved: a suggestion changes no
+   * planning event, so the head stays still for exactly the news this exists
+   * to carry. A page without a revision (a viewer's, a demo or invite-token
+   * read) calls nothing.
+   *
+   * Not de-duplicated here (W68): only the caller knows whether the read it
+   * made for a revision landed. Remembering the last one reported meant a read
+   * that failed was never retried, because the poll had already marked the
+   * revision seen.
    */
   onSuggestionsChanged?: (rev: string) => void;
 };
@@ -156,8 +161,6 @@ export function useTripBroadcast({
     // tick; either way the second request would ask the question the first is
     // still asking, and report the same news twice.
     let inFlight = false;
-    // Per effect, so a different trip starts from nothing seen.
-    let lastRev: string | undefined;
 
     const poll = async () => {
       if (inFlight) return;
@@ -172,10 +175,7 @@ export function useTripBroadcast({
         if (cancelled || !result.ok) return;
         if (result.value.resync || result.value.headSeq > before) onChangedRef.current(result.value.headSeq);
         const rev = result.value.suggestionsRev;
-        if (rev !== undefined && rev !== lastRev) {
-          lastRev = rev;
-          onSuggestionsChangedRef.current?.(rev);
-        }
+        if (rev !== undefined) onSuggestionsChangedRef.current?.(rev);
       } finally {
         inFlight = false;
       }

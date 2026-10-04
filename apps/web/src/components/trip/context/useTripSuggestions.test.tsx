@@ -115,6 +115,39 @@ describe("useTripSuggestions, through TripProvider", () => {
     await waitFor(() => expect(seen).toEqual(["GET suggestions", "GET suggestions"]));
   });
 
+  // W68. The poll used to drop a revision it had reported once, so a read it
+  // triggered that failed left the list stale until the revision moved again.
+  it("retries a failed read on the next poll that reports the same revision", async () => {
+    const { fixture, seen } = await mount("owner");
+    await waitFor(() => expect(screen.getByTestId("suggestions").textContent).toBe("empty"));
+
+    server.use(
+      http.get("/api/trips/:tripId/events", () =>
+        HttpResponse.json({ headSeq: 0, events: [], resync: false, suggestionsRev: "moved" }),
+      ),
+      http.get("/api/trips/:tripId/suggestions", () => HttpResponse.json({ error: "boom" }, { status: 500 }), {
+        once: true,
+      }),
+    );
+    act(() => void window.dispatchEvent(new Event("focus")));
+    await waitFor(() => expect(seen).toEqual(["GET suggestions", "GET suggestions"]));
+    await settle();
+    expect(screen.getByTestId("suggestions").textContent).toBe("empty");
+
+    server.use(
+      http.get("/api/trips/:tripId/suggestions", () =>
+        HttpResponse.json({ changes: [pendingAddDay(fixture.tripId)], rev: "moved" }),
+      ),
+    );
+    act(() => void window.dispatchEvent(new Event("focus")));
+    await waitFor(() => expect(screen.getByTestId("suggestions").textContent).toBe("pending"));
+
+    // Held now, so the same revision again reads nothing.
+    act(() => void window.dispatchEvent(new Event("focus")));
+    await settle();
+    expect(seen).toEqual(["GET suggestions", "GET suggestions", "GET suggestions"]);
+  });
+
   it("accept calls the route, then re-reads the list and the trip", async () => {
     const { fixture, seen } = await mount("owner", (tripId) => [pendingAddDay(tripId)]);
     await waitFor(() => expect(screen.getByTestId("suggestions").textContent).toBe("pending"));

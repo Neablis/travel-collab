@@ -33,7 +33,7 @@ type Args = {
 
 /**
  * The suggestion list for `TripProvider`: read on mount, and again whenever
- * the poll's revision differs from the one held (W6, W16), or on request.
+ * the poll's revision differs from the one held (W6, W16, W68), or on request.
  * `suggestions` is null while disabled. `onRevision` is for the poll's
  * `onSuggestionsChanged`.
  */
@@ -88,8 +88,9 @@ export function useTripSuggestions({ tripId, enabled, onAccepted }: Args): {
 
   const onRevision = useCallback(
     (next: string) => {
-      // The poll reports the first revision it sees, which is usually the one
-      // the mount read already holds.
+      // The poll reports its revision on every tick (W68), usually the one
+      // already held. A read that failed leaves `revRef` behind, so the next
+      // tick asks again: one retry per poll, not a loop.
       if (next !== revRef.current) void refresh();
     },
     [refresh],
