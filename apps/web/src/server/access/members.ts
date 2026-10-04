@@ -298,9 +298,10 @@ export type RemoveMemberOutcome = "removed" | "not-a-member" | "owner";
  * owner, which includes a granted `trip_memberships` row carrying `role:
  * "owner"`. Such a row is not the trip's owner — it is a stray row, which is
  * the exact thing this endpoint exists to clear, and it was the one row it
- * refused to. Nothing mints one today (`InviteRole` is `viewer | editor`), but
- * `grantMembership` takes a full `TripRole`, and "a bad migration or an
- * operator's hand-written row" is KI-65's own list of causes.
+ * refused to. Nothing mints one today (`InviteRole` is `viewer | suggester |
+ * editor`, never `owner`), but `grantMembership` takes a full `TripRole`, and
+ * "a bad migration or an operator's hand-written row" is KI-65's own list of
+ * causes.
  *
  * Removing such a row cannot cost the real owner anything: their ownership
  * comes from `TripCreated`, and `mergeMembers` gives the higher rank to

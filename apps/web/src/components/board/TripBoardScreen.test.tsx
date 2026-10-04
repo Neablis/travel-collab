@@ -12,7 +12,7 @@ import { EditorHost, useEditor } from "@/components/trip/context/EditorHost";
 import { FocusProvider } from "@/components/trip/context/FocusProvider";
 import { LensRouter } from "@/components/trip/context/LensRouter";
 import { activityFactory, costedTripDetailFixture, historyFixture, locationFactory, tripDetailFixture } from "@tc/factories";
-import { makeTripHandlers, makeAccountPlanHandler } from "@/mocks/handlers";
+import { makeTripHandlers, makeAccountPlanHandler, makePagesHandlers } from "@/mocks/handlers";
 import { setViewportMatches, triggerResize } from "../../../vitest.setup";
 
 // Scoped to the panel rather than reached for by bare role+name, still —
@@ -1761,6 +1761,26 @@ describe("TripBoardScreen — a viewer's board", () => {
       expect(screen.getByRole("alert").textContent).toBe("You have view-only access to this trip."),
     );
     expect(askAssistantMock).not.toHaveBeenCalled();
+  });
+});
+
+// W8 as amended (docs/specs/2026-10-03-suggester-role-design.md): `readOnly`
+// means "may not write directly", so it is true for a suggester, and every
+// control nobody has opted in to suggest mode stays hidden — never offered and
+// then refused with a 403. Creating a notebook never opts in (spec §2.2), and
+// its gate is `canEditNotebook`, not `readOnly` (W22): this goes red if that
+// rule lets a suggester in, even with `readOnly` still true.
+describe("TripBoardScreen — a suggester's board, before suggest mode", () => {
+  it("offers no way to create a notebook", async () => {
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture, { myRole: "suggester" }), ...makePagesHandlers([]));
+    renderScreen(fixture.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Notebooks" }));
+    // The menu is open and has answered, so an absent create row is the gate.
+    expect(await screen.findByText("No notebooks yet.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "New notebook" })).toBeNull();
   });
 });
 
