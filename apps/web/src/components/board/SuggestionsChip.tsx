@@ -90,7 +90,9 @@ export function SuggestionsChip() {
     >
       <div className="flex flex-col gap-3">
         {/* Two or more: with one, its own Accept below is the same button. */}
-        {boardMode === "write" && acceptable.length > 1 && (
+        {/* Kept while a run is going: each accept shrinks `acceptable`, and the
+            button would vanish before its "N of M" reached the last change. */}
+        {boardMode === "write" && (acceptable.length > 1 || progress !== null) && (
           <Button variant="primary" size="sm" className="self-start" disabled={progress !== null} onClick={() => void acceptAll()}>
             {progress === null ? "Accept all" : `Accepting ${progress.at} of ${progress.of}…`}
           </Button>
