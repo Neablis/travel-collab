@@ -16,6 +16,17 @@ not by anybody remembering. That automation exists because the rule was being
 skipped: M23's entry survived its own gate closing on 2026-09-19 and was still
 here two days later.
 
+- **Choose who on a trip is actually travelling (asked 2026-10-04).** Every member today counts
+  as a traveller: a suggester who joined to advise doubled a trip's per-person total ($9,130 →
+  $18,260 on #314's preview) and appears in "Who is in" and "Booked by". Mitchell: *"Add a idea
+  for the future to be able to select who in the trip is actually going on the trip. we can keep
+  that issue for now"*. So for now any member, of any role, is a traveller.
+  - **The idea.** A per-member "travelling" flag the owner sets, independent of role: an editor
+    may plan without going, a suggester may be going. Per-person costs, "Who is in" and "Booked
+    by" count only travellers.
+  - **Decisions it needs.** Its default for a new member (travelling, or not, or by role).
+    Whether it lives on the membership (access) or as a trip fact (an event, so History shows
+    it). What happens to stops already split across someone later marked as not travelling.
 - **The assistant proposes through suggestions, so a big change is reviewed on the board (asked
   2026-10-03).** Mitchell: *"the proposed changes functionality could also be a good way to
   preview large amount of changes from the AI assistant, for instance if I ask it to add a day,
