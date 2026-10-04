@@ -5,10 +5,11 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ChevronDown, NotebookText } from "lucide-react";
 import { newPageDoc } from "@tc/contracts";
-import type { PageSummary } from "@tc/contracts";
+import type { PageSummary, TripRole } from "@tc/contracts";
 import { createPage, fetchPages } from "@/lib/pagesClient";
 import { provenanceLabel } from "@/lib/pageScope";
 import { cn } from "@/lib/cn";
+import { canEditNotebook } from "@/lib/tripRole";
 import { formatRelativeInstant } from "@/lib/formatDate";
 import { Button } from "@/components/ui/button";
 import { Popover } from "@/components/ui/popover";
@@ -37,7 +38,11 @@ const TITLE_WIDTHS = ["w-2/5", "w-1/2", "w-1/3"];
  * calls its rows pages internally, and the contract type is `PageSummary`, but
  * nothing a person reads says "page".
  */
-export function NotebooksMenu({ tripId, readOnly = false }: { tripId: string; readOnly?: boolean }) {
+export function NotebooksMenu({ tripId, myRole = null }: { tripId: string; myRole?: TripRole | null }) {
+  // Notebook rights, not board rights (W22): the board's `readOnly` is true
+  // for a suggester for a reason that says nothing about notebooks. An unknown
+  // role offers it, as it leaves the board live (W21); the server decides.
+  const canCreate = myRole === null || canEditNotebook(myRole);
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [notebooks, setNotebooks] = useState<PageSummary[]>([]);
@@ -164,7 +169,7 @@ export function NotebooksMenu({ tripId, readOnly = false }: { tripId: string; re
             (the POST is editor-gated), so an exposed "New notebook" is a
             guaranteed 403 — and it surfaced as "Could not load your notebooks",
             which is not even what went wrong (Copilot, PR #126). */}
-        {!readOnly && (
+        {canCreate && (
           <div className="flex flex-none flex-col gap-1">
             {/* Borderless, matching the design: a bordered Button read as a
                 second class of thing from the notebook rows under it, when it
@@ -202,7 +207,7 @@ export function NotebooksMenu({ tripId, readOnly = false }: { tripId: string; re
 
         {/* Inside the same gate as the create row: a divider with nothing above
             it is a rule across the top of a viewer's popover. */}
-        {!readOnly && <div className="my-1 h-px flex-none bg-hairline" />}
+        {canCreate && <div className="my-1 h-px flex-none bg-hairline" />}
 
         {/* An explicit `min-height` is what makes the max-height above actually
             bite: a flex child's default `min-height: auto` refuses to shrink

@@ -1947,7 +1947,7 @@ describe("PageScreen — a draft kept in the browser", () => {
 // SPEC §35.3 / M27 D6: *"Editing a notebook page always has a way back to the
 // trip."* It was "← Notebooks", one level up, with the trip two clicks away.
 describe("PageScreen — the breadcrumb", () => {
-  function accessAs(myRole: "owner" | "editor" | "viewer") {
+  function accessAs(myRole: "owner" | "editor" | "viewer" | "suggester") {
     return http.get("/api/trips/:tripId/access", ({ params }) =>
       HttpResponse.json({
         access: {
@@ -1967,7 +1967,7 @@ describe("PageScreen — the breadcrumb", () => {
   async function open(
     tripId: string,
     from: "overview" | null,
-    role?: "owner" | "editor" | "viewer" | "unanswered" | "failed",
+    role?: "owner" | "editor" | "viewer" | "suggester" | "unanswered" | "failed",
   ) {
     const trip = tripDetailFixture({ tripId, name: "Japan: Tokyo → Kyoto" });
     const page = pageFixture({ tripId, title: "Packing" });
@@ -2094,6 +2094,21 @@ describe("PageScreen — the breadcrumb", () => {
     expect(screen.queryByRole("button", { name: "Insert a widget" })).toBeNull();
     expect(screen.getByRole("heading", { level: 1, name: "Packing" }).getAttribute("contenteditable")).toBe("false");
     // And the above was asserted with the role KNOWN, not merely pending.
+    expect(roleAnswered.answered).toHaveBeenCalled();
+  });
+
+  // Spec §2.2: the notebook stays read-only for a suggester, exactly as for a
+  // viewer — they suggest on the board and nowhere else. Arriving from
+  // Overview's Edit is the path that would otherwise open Editing unasked.
+  it("gives a suggester the page exactly as a viewer gets it", async () => {
+    const tripId = "e3f4a5b6-c7d8-4e9f-8a1b-2c3d4e5f6071";
+    const roleAnswered = watchRole();
+    await open(tripId, "overview", "suggester");
+    await roleAnswered();
+
+    expect(screen.queryByRole("button", { name: "Edit page" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Done editing" })).toBeNull();
+    expect(screen.getByRole("heading", { level: 1, name: "Packing" }).getAttribute("contenteditable")).toBe("false");
     expect(roleAnswered.answered).toHaveBeenCalled();
   });
 

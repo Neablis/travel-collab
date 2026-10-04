@@ -27,6 +27,7 @@ import {
   type SendFailure,
 } from "./optimistic";
 import { isDemoTripId } from "@/lib/demoTrip";
+import { boardMode } from "@/lib/tripRole";
 import { headSeqOf, useTripBroadcast } from "./broadcast";
 import { drainAfter, sendUnit } from "./queueDrain";
 import { unloadFlush } from "./unloadFlush";
@@ -74,7 +75,16 @@ type TripCtx = {
   // this exists so the board can say "Viewer" instead of letting someone
   // drag a card and watch it snap back with a 403.
   myRole: TripRole | null;
+  // "May not write directly": true for a viewer AND a suggester (W8). Every
+  // control that cannot be suggested stays behind this.
   readOnly: boolean;
+  // What this reader may do on the board (`lib/tripRole.ts`), with an unknown
+  // role answering "write" for the reason `readOnly` does.
+  boardMode: ReturnType<typeof boardMode>;
+  // `boardMode !== "read"`: the gate a surface opts in to once it can hold a
+  // suggester's edit as a suggestion. Nothing reads it yet — suggest mode is
+  // the plan's T6.
+  canEditBoard: boolean;
   // True once the access read has completed and FAILED — not while it is still
   // in flight. See `load()` for why the failure stays non-fatal, and TripHeader
   // for where it is said out loud.
@@ -349,11 +359,21 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
   }, [optimistic, tripId]);
 
   // A viewer holds read access and executes no planning command at all
-  // (accessPolicy.ts's MINIMUM_ROLE table has no "viewer" entry). Stopping
-  // here rather than at the network means the optimistic queue never predicts
-  // a change that is going to be refused — which is what would otherwise make
-  // a card visibly move and then jump back.
-  const readOnly = myRole === "viewer";
+  // (accessPolicy.ts's MINIMUM_ROLE table has no "viewer" entry), and nor
+  // does a suggester. Stopping here rather than at the network means the
+  // optimistic queue never predicts a change that is going to be refused —
+  // which is what would otherwise make a card visibly move and then jump back.
+  //
+  // `myRole === null` writes: an unknown role leaves the board as it was
+  // before roles existed — see `load()` for why, which `boardMode` alone would
+  // reverse (it answers "read" for no role).
+  //
+  // W8, default closed: `readOnly` is "may not write directly", so it is true
+  // for a suggester and every consumer keeps hiding its control until it opts
+  // in to suggest mode through `canEditBoard`.
+  const mode = myRole === null ? "write" : boardMode(myRole);
+  const readOnly = mode !== "write";
+  const canEditBoard = mode !== "read";
 
   // Both refusals below say the same thing, but not in the same words: on the
   // demo board (`/demo`, ADR-031) the reader is a stranger who was invited to
@@ -678,6 +698,8 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
         applyOutcome,
         myRole,
         readOnly,
+        boardMode: mode,
+        canEditBoard,
         accessUnknown,
         sync,
         preview: { seq: previewSeq, enter, exit },

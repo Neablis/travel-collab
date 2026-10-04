@@ -13,10 +13,10 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
-## 2026-10-03 — The `suggester` role, and suggestions as a contract (ADR-064); Public API 1.4.0
+## 2026-10-03 — The `suggester` role, and suggestions as a contract (ADR-064); Public API 1.4.0, then 1.5.0
 
 - **Added:** `suggester` to `TripRole` (now `viewer, suggester, editor, owner`, least-privileged
-  first).
+  first) and to `InviteRole` (now `viewer, suggester, editor`).
 - **Added:** an `Origin` member, `{ kind: "suggestion", suggestionId, changeId, authorId }`. It
   marks an accepted suggestion: the envelope's actor is the reviewer, and the author survives
   only here.
@@ -43,15 +43,24 @@ Format:
     owner 3, and it is exported.
   - `apps/web/src/server/access/members.ts`: its duplicate `RANK` is deleted, and it imports the
     one in `accessPolicy.ts` (W8).
+  - `apps/web/src/server/email/templates.ts`: `tripInviteEmail`'s `role` is typed `InviteRole`,
+    and a suggester's invite says they can suggest changes for the trip's planners to approve
+    (W64).
   - The public API is affected because its trip documents embed `TripMember.role` and event
     `origin`. `openapi.json` was regenerated, `API_VERSION` moved to `1.4.0` (minor, additive)
     and `API_FINGERPRINT` is new. No `/v1` endpoint was added (spec §2.7).
+  - `InviteRole` gaining `suggester` widens the `/v1` invite endpoints' `role` enum, so
+    `openapi.json` was regenerated again and `API_VERSION` moved to `1.5.0` (minor, additive).
+    `1.4.0` stays the version of the role and origin enums above.
   - No gate changed. `MINIMUM_ROLE` still requires `editor` for every batchable command, so a
     suggester cannot write.
 - Breaking? no. The enum values and the union member are additive, and the new field is optional.
   Every stored `members` row, `origin` and invite still parses. A client running an old bundle
-  meets an unknown role only when someone is a suggester, and an unknown origin only after a
-  suggestion is accepted. `InviteRole` is unchanged here, so nobody can be made a suggester yet.
+  meets an unknown role only when someone is invited as a suggester, and an unknown origin only
+  after a suggestion is accepted. The invite route accepts `suggester` from `InviteRole`'s change
+  on, and the Travelers picker offers it as "Can suggest". Until suggest mode ships, the app shows
+  a suggester the trip read-only, exactly as a viewer. Nothing can accept a suggestion until the
+  suggestion routes have a screen.
 
 ## 2026-10-03 — Adding one default notebook: `AddDefaultPagesInput` (ADR-056, amended)
 

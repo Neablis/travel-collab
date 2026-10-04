@@ -30,8 +30,8 @@ describe("InviteRole", () => {
   // An invite hands out participation, never ownership: transferring a trip is
   // a different operation (the owner is the only role that can delete it) and
   // nothing has asked for it.
-  it("offers viewer and editor, never owner", () => {
-    expect(InviteRole.options).toEqual(["viewer", "editor"]);
+  it("offers viewer, suggester and editor, never owner", () => {
+    expect(InviteRole.options).toEqual(["viewer", "suggester", "editor"]);
     expect(InviteRole.safeParse("owner").success).toBe(false);
   });
 
