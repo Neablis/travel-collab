@@ -596,7 +596,7 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
             title={error ?? "Something went wrong"}
             note={
               reader
-                ?"Only this list failed, and nothing was lost."
+                ? "Only this list failed, and nothing was lost."
                 : "Only this list failed — the templates below still work, and nothing was lost."
             }
             onRetry={() => {
@@ -611,7 +611,7 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
             title="No notebooks yet"
             body={
               reader
-                ?"Nobody has written one for this trip yet."
+                ? "Nobody has written one for this trip yet."
                 : "Start from a template below, or create a blank one and write your own."
             }
           />
