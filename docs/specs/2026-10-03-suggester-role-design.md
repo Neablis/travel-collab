@@ -221,6 +221,7 @@ Known rough edges, found during the build and left for a follow-up, are filed in
 - `KI-2026-10-03-g`: history preview does nothing, and says nothing, while a draft exists.
 - `KI-2026-10-03-c`: the assistant refuses a suggester in the viewer's words.
 - `KI-2026-10-03-d`: draft units show in History as pending rows.
+- `KI-2026-10-04-a`: a ghost sits where the confirmed trip has its stop while the reader's own edit to it is unconfirmed (review of #311, 3.4).
 
 Not built in v1:
 
