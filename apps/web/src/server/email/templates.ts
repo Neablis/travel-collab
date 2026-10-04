@@ -1,6 +1,7 @@
 import { ogColors } from "@/server/og/ogTokens.generated";
 import type { Email } from "./send";
 import type { InviteRole } from "@tc/contracts";
+import { SUGGESTER_APPROVAL } from "@/lib/tripRole";
 
 // The words of every email the product sends, and nothing else: each builder
 // takes plain strings and returns an `Email` for `sendEmail`. Pure, so the
@@ -81,7 +82,7 @@ const INVITE_WORDING: Record<InviteRole, { action: string; body: string }> = {
   editor: { action: "plan", body: "You'll be able to add days and activities and shape the plan together." },
   suggester: {
     action: "suggest changes to",
-    body: "You'll be able to suggest changes, and the trip's editors decide what goes in.",
+    body: `You'll be able to suggest changes ${SUGGESTER_APPROVAL}.`,
   },
   viewer: { action: "see", body: "You'll be able to follow the plan as it comes together." },
 };

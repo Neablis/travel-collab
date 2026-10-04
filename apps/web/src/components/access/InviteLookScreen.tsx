@@ -19,6 +19,7 @@ import { firstNameOf } from "@/lib/displayName";
 import { beginInviteLook } from "@/lib/inviteLook";
 import { invalidate } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
+import { SUGGESTER_APPROVAL } from "@/lib/tripRole";
 import { useInviteJoin } from "./useInviteJoin";
 
 // *Have a look first* (M27 D12, SPEC §35.6 and §27): the real trip, read-only,
@@ -134,7 +135,7 @@ function InviteLookScope({ tripId, token, children }: { tripId: string; token: s
 // does not compile until the banner says what it may do.
 const LOOK_LINE: Record<ValidLanding["role"], string> = {
   editor: "You're having a look first. Join and you can add stops, vote and comment alongside everyone else.",
-  suggester: "You're having a look first. Join and you can suggest changes for the planners to approve.",
+  suggester: `You're having a look first. Join and you can suggest changes ${SUGGESTER_APPROVAL}.`,
   viewer: "You're having a look first. Join and this trip stays in your list as it takes shape.",
 };
 

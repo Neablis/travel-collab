@@ -94,4 +94,15 @@ export function roleLabel(role: InviteRole): string {
  * role `InviteRole` gains is offered without this file being found — the
  * contract lists its roles least capable first, as `TripRole` does.
  */
+/**
+ * Who decides a suggester's changes, said the same way wherever a suggester
+ * is told (spec W64): the invite landing, the look-first banner and the invite
+ * email. They disagreed ("the planners" here, "the trip's editors" in the
+ * email), and the owner, who also decides, is not an editor. "Planners" is the
+ * word the invite copy already used for the people running a trip. Here, not
+ * in either surface, because `lib/` is the one place both the UI and
+ * `server/email` may import.
+ */
+export const SUGGESTER_APPROVAL = "for the trip's planners to approve";
+
 export const INVITE_ROLES_OFFERED: readonly InviteRole[] = [...InviteRole.options].reverse();

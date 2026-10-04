@@ -15,6 +15,7 @@ import { firstNameOf } from "@/lib/displayName";
 import { addDaysIso } from "@/lib/dates";
 import { formatRelativeInstant, formatTripDateWithYear } from "@/lib/formatDate";
 import { takeInviteJoin } from "@/lib/pendingInviteJoin";
+import { SUGGESTER_APPROVAL } from "@/lib/tripRole";
 import { useInviteJoin } from "./useInviteJoin";
 
 // The screen an invite link opens (M27 link 6, SPEC §35.6). It answers, before
@@ -385,6 +386,6 @@ function crewLine(landing: ValidLanding): string {
 // what it may do.
 const CREW_CAN: Record<ValidLanding["role"], string> = {
   editor: "You can add stops, vote and comment.",
-  suggester: "You can suggest stops and changes for the planners to approve.",
+  suggester: `You can suggest stops and changes ${SUGGESTER_APPROVAL}.`,
   viewer: "You'll be able to look, but not change anything.",
 };

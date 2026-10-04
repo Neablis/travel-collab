@@ -48,7 +48,7 @@ describe("InviteLookScreen", () => {
     render(<InviteLookScreen token="tok" googleAvailable />);
     expect(
       await screen.findByText(
-        "You're having a look first. Join and you can suggest changes for the planners to approve.",
+        "You're having a look first. Join and you can suggest changes for the trip's planners to approve.",
       ),
     ).toBeTruthy();
   });
