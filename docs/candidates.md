@@ -16,6 +16,21 @@ not by anybody remembering. That automation exists because the rule was being
 skipped: M23's entry survived its own gate closing on 2026-09-19 and was still
 here two days later.
 
+- **"Accept all" lands as one History entry, not one per change (asked 2026-10-04).** #314's
+  "Accept all" accepts each pending change in turn through the single-accept route, so a
+  ten-change suggestion becomes ten History rows and ten undos. Mitchell: *"\"Accept all\" should
+  be one history change, not N different ones, we can use the bulk change history feature"*.
+  - **What exists.** Atomic batches (ADR-013): commands executed together share one `batchId`
+    and read as one History entry with one undo (`groupBatches`). Accept already replays a
+    change's commands through `executeTripCommandBatch` with `Origin` `suggestion` (ADR-064).
+  - **The idea.** A server "accept these changes" action that replays every selected change's
+    commands, in dependency order, as ONE batch under one `batchId`, marking all of them
+    accepted in the same transaction. History then shows one "Accepted N suggestions" entry,
+    and one undo takes them all back.
+  - **Decisions it needs.** All-or-nothing versus accept-what-applies (today's per-change loop
+    stops at the first refusal and keeps what landed). How the entry is worded and attributed
+    when the changes come from several suggesters (`Origin` carries one author today). Whether
+    undoing it returns the changes to pending or leaves them accepted-then-undone.
 - **Choose who on a trip is actually travelling (asked 2026-10-04).** Every member today counts
   as a traveller: a suggester who joined to advise doubled a trip's per-person total ($9,130 →
   $18,260 on #314's preview) and appears in "Who is in" and "Booked by". Mitchell: *"Add a idea
