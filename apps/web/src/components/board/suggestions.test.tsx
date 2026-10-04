@@ -197,17 +197,38 @@ describe("the suggestions chip", () => {
     expect(within(stale).queryByRole("button", { name: /^Accept/ })).toBeNull();
     expect(within(stale).getByRole("button", { name: "Dismiss: Removed Pantheon" })).toBeTruthy();
 
-    // The suggested stop itself is on the board, not in the list.
+    // The suggested stop is on the board, so it is not in this list, but the
+    // chip still lists it (W74), under the day it is drawn on.
     expect(within(list).queryByText("Added Gelato to Day 2")).toBeNull();
+    const onBoard = screen.getByRole("list", { name: "Suggestions on the board" });
+    const gelato = within(onBoard).getByRole("listitem");
+    expect(within(gelato).getByText("Added Gelato to Day 2")).toBeTruthy();
+    expect(within(gelato).getByText(/^Day 2/)).toBeTruthy();
+    expect(within(gelato).getByRole("button", { name: "Accept: Added Gelato to Day 2" })).toHaveProperty("disabled", false);
   });
 
-  it("reads 1 suggestion, singular, and is gone once nothing is pending", async () => {
-    mount("owner", (tripId) => [addGelato(tripId)]);
+  // Mitchell's production test, 2026-10-04 (W74): with every change on the
+  // board the chip said "Every suggestion is on the board." and offered
+  // nothing, so an owner who opened it never found Accept or Dismiss.
+  it("reads 1 suggestion, singular, accepts it from the list, and is gone once nothing is pending", async () => {
+    const { resolved, seeded } = mount("owner", (tripId) => [addGelato(tripId)]);
     fireEvent.click(await screen.findByRole("button", { name: "1 suggestion" }));
-    expect(await screen.findByText("Every suggestion is on the board.")).toBeTruthy();
+    const onBoard = await screen.findByRole("list", { name: "Suggestions on the board" });
+    expect(screen.queryByRole("list", { name: "Suggestions not on the board" })).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "Suggested: Added Gelato to Day 2" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Dismiss: Added Gelato to Day 2" }));
+    fireEvent.click(within(onBoard).getByRole("button", { name: "Accept: Added Gelato to Day 2" }));
     await waitFor(() => expect(screen.queryByRole("button", { name: /suggestion/ })).toBeNull());
+    expect(resolved).toEqual([{ changeId: seeded[0]!.id, action: "accept" }]);
+  });
+
+  it("lets the author withdraw an on-board change from the list", async () => {
+    sessionUserId = "dev-sam";
+    const { resolved, seeded } = mount("suggester", (tripId) => [addGelato(tripId)]);
+    fireEvent.click(await screen.findByRole("button", { name: "1 suggestion" }));
+    const onBoard = await screen.findByRole("list", { name: "Suggestions on the board" });
+    expect(within(onBoard).queryByRole("button", { name: /^Accept/ })).toBeNull();
+
+    fireEvent.click(await within(onBoard).findByRole("button", { name: "Withdraw: Added Gelato to Day 2" }));
+    await waitFor(() => expect(resolved).toEqual([{ changeId: seeded[0]!.id, action: "withdraw" }]));
   });
 });

@@ -243,6 +243,12 @@ function deepEqual(a: unknown, b: unknown): boolean {
 export type SuggestionGhosts = {
   /** Ghosts by the day they land on and by the stop they mark — `Board`'s `suggestions`, less its review slot. */
   board: { days: Map<string, Ghost[]>; stops: Map<string, Ghost[]> };
+  /**
+   * One ghost per change the board does draw, in creation order — the first it
+   * was drawn by, so `dayId` is a day on the board. The header chip lists these
+   * too (W74): a ghost is where a change is seen, not the only place it is decided.
+   */
+  onBoard: Ghost[];
   /** One ghost per change the board cannot draw — trip fields, days, the rack, untimed stops. */
   offBoard: Ghost[];
   /** One ghost per change that no longer applies. */
@@ -268,6 +274,9 @@ export function placeGhosts(trip: TripDetail, changes: SuggestionChange[]): Sugg
   const dayIds = new Set(trip.days.map((d) => d.dayId));
   const onRiver = new Set(trip.days.flatMap((d) => d.activityIds.filter((id) => trip.activities[id]?.timeWindow)));
   const first = new Map<string, Ghost>();
+  // The ghost each drawn change was first drawn by: a move is a marker where
+  // the stop is and a block where it lands, and the chip lists it once.
+  const drawnBy = new Map<string, Ghost>();
 
   for (const [activityId, ghosts] of overlay.byActivity) {
     for (const ghost of ghosts) {
@@ -280,11 +289,13 @@ export function placeGhosts(trip: TripDetail, changes: SuggestionChange[]): Sugg
       if (lands && typeof ghost.dayId === "string" && dayIds.has(ghost.dayId)) {
         push(days, ghost.dayId, ghost);
         drawn.add(ghost.changeId);
+        if (!drawnBy.has(ghost.changeId)) drawnBy.set(ghost.changeId, ghost);
       }
       // A timed stop that is there now: a marker on it.
       if (ghost.kind !== "add" && onRiver.has(activityId)) {
         push(stops, activityId, ghost);
         drawn.add(ghost.changeId);
+        if (!drawnBy.has(ghost.changeId)) drawnBy.set(ghost.changeId, ghost);
       }
     }
   }
@@ -295,8 +306,10 @@ export function placeGhosts(trip: TripDetail, changes: SuggestionChange[]): Sugg
     ...overlay.tripLevel,
     ...[...first.values()].filter((g) => !drawn.has(g.changeId) && !tripLevel.has(g.changeId)),
   ];
+  const order = new Map(changes.map((c, i) => [c.id, i]));
   return {
     board: { days, stops },
+    onBoard: [...drawnBy.values()].sort((a, b) => (order.get(a.changeId) ?? 0) - (order.get(b.changeId) ?? 0)),
     offBoard,
     stale: overlay.stale,
     pending: changes.filter((c) => c.status === "pending"),
