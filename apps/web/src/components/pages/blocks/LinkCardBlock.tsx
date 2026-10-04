@@ -1,10 +1,17 @@
 "use client";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ArrowRight } from "lucide-react";
-import type { LinkCardPayload } from "@tc/pages";
+import type { LinkCardPayload, MissingNotebookPayload } from "@tc/pages";
+import { fetchTripAccess } from "@/lib/apiClient";
 import { cn } from "@/lib/cn";
+import { addMissingDefaultNotebooks } from "@/lib/pagesClient";
+import { cachedRead } from "@/lib/queryCache";
+import { tripKeys } from "@/lib/queryKeys";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { notebooksChanged } from "../useExternalInputs";
 import { linkHref } from "./linkHref";
 
 // An internal link, as a small preview card (M30, ADR-056): what KIND of place
@@ -80,5 +87,74 @@ export function LinkCardBlock({
     >
       {body}
     </Link>
+  );
+}
+
+/**
+ * A link to a default notebook this trip does not have (Mitchell, 2026-10-03:
+ * *"A missing default notebook widget should have a call to action to click
+ * and generate that missing notebook"*). The card's own box, dashed where a
+ * live card is solid, naming the notebook and what it is for.
+ *
+ * **The button is the owner's, in Reading.** Adding a default is owner only on
+ * the server (Mitchell, 2026-09-27), so an editor or a viewer gets the card
+ * without a control the server would refuse; and in Editing a click on a
+ * widget selects it, as it does on a live card. It adds THIS notebook and no
+ * other missing one, then tells the page, whose cards re-read the list and
+ * this one becomes a link.
+ */
+export function MissingNotebookBlock({
+  payload,
+  tripId,
+  interactive = true,
+}: {
+  payload: MissingNotebookPayload;
+  tripId: string;
+  interactive?: boolean;
+}) {
+  const [isOwner, setIsOwner] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    void cachedRead(tripKeys.access(tripId), () => fetchTripAccess(tripId)).then((access) => {
+      if (live) setIsOwner(access.ok && access.value.myRole === "owner");
+    });
+    return () => {
+      live = false;
+    };
+  }, [tripId]);
+
+  const add = () => {
+    setAdding(true);
+    void addMissingDefaultNotebooks(tripId, payload.seedKey).then((result) => {
+      setAdding(false);
+      if (!result.ok) return setError(result.error.message);
+      setError(null);
+      notebooksChanged();
+    });
+  };
+
+  return (
+    <span
+      className="my-1 flex items-center gap-3 rounded-md border border-dashed border-border-strong bg-surface px-3.5 py-3"
+      data-testid="link-missing"
+    >
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className="text-xs font-medium text-slate">Notebook · not in this trip yet</span>
+        <span className="text-base font-semibold text-ink">{payload.title}</span>
+        <span className="text-sm text-slate">{payload.description}</span>
+        {error === null ? null : (
+          <span role="alert" className="text-sm text-ink">
+            {error}
+          </span>
+        )}
+      </span>
+      {interactive && isOwner ? (
+        <Button variant="secondary" size="sm" className="shrink-0" onClick={add} disabled={adding}>
+          {`Add ${payload.title}`}
+        </Button>
+      ) : null}
+    </span>
   );
 }

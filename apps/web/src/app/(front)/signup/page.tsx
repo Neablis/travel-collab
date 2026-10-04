@@ -4,7 +4,7 @@ import { isGoogleSignInAvailable } from "@/lib/googleAuth";
 import { AuthScreen } from "@/components/front/AuthScreen";
 import { AUTH_COPY } from "@/components/front/authCopy";
 import { linkPreviewMetadata } from "@/lib/linkPreview";
-import { pageMetadata } from "@/lib/siteMetadata";
+import { NOINDEX, pageMetadata } from "@/lib/siteMetadata";
 import { safeCallbackUrl } from "@/lib/safeCallbackUrl";
 import {
   PENDING_ADMISSION_COOKIE,
@@ -18,6 +18,7 @@ import {
 const SIGNUP_METADATA = pageMetadata({
   title: "Start planning",
   description: AUTH_COPY.signup.sub,
+  robots: NOINDEX,
 });
 
 // `?code=` is the referral link (Account → "Bring someone in"), and it gets
@@ -32,7 +33,7 @@ export async function generateMetadata({
   const { code } = await searchParams;
   const referral = normalizePendingAdmission(typeof code === "string" ? code : null);
   if (referral === null) return SIGNUP_METADATA;
-  return linkPreviewMetadata(`/api/og/referral/${encodeURIComponent(referral)}`, SIGNUP_METADATA);
+  return { ...(await linkPreviewMetadata(`/api/og/referral/${encodeURIComponent(referral)}`, SIGNUP_METADATA)), robots: NOINDEX };
 }
 
 // M11a link 5, and the one genuinely fiddly part of this milestone: the

@@ -2,6 +2,7 @@
 
 import type { ActivityView } from "@tc/contracts";
 import { useState } from "react";
+import { personNames } from "@tc/pages";
 import { Banner } from "@/components/ui/banner";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -12,10 +13,12 @@ import { addActivityCommand, updateActivityCommand } from "@/components/board/ac
 import { ActivityConflicts } from "@/components/trip/editor/ActivityConflicts";
 import { useEditor } from "@/components/trip/context/EditorHost";
 import { useTrip, type DispatchResult } from "@/components/trip/context/TripProvider";
+import { usePeople } from "@/components/pages/people";
 import { dayLabel } from "@/lib/dates";
 import { toClockRange } from "@/lib/time";
 import { useTimeFormat } from "@/components/account/PreferencesProvider";
 import { formatMoney } from "@/lib/formatMoney";
+import { stopTotalLine } from "@/lib/cost";
 import { displayPlace, legEnd } from "@/lib/place";
 
 // Behavior change #2 (M5 wave 2, resolves PR #11 comment #9): the activity
@@ -32,7 +35,11 @@ import { displayPlace, legEnd } from "@/lib/place";
 // needs, and wiring dayId correctly into AddActivity/UpdateActivity.
 export function ActivityEditorSheet() {
   const { state, close } = useEditor();
-  const { activeTrip, dispatch, readOnly } = useTrip();
+  const { activeTrip, dispatch, canEditBoard } = useTrip();
+  // Opted in to suggest mode (W8): a suggester's save joins their draft, so
+  // only a reader gets the read-only sheet.
+  const readOnly = !canEditBoard;
+  const people = usePeople();
 
   const open = state.mode !== null;
   // A viewer never gets the form. This is the backstop for every caller of
@@ -100,6 +107,10 @@ export function ActivityEditorSheet() {
         ? activeTrip?.days.find((d) => d.activityIds.includes(editingActivityId))?.dayId
         : undefined;
 
+  const memberIds = activeTrip?.members.map((m) => m.userId) ?? [];
+  const names = activeTrip === null ? new Map<string, string>() : personNames(activeTrip, people, memberIds);
+  const namedMembers = memberIds.map((userId) => ({ userId, name: names.get(userId)! }));
+
   const dayOptions: ActivityDayOption[] =
     activeTrip?.days.map((day, index) => ({
       dayId: day.dayId,
@@ -162,6 +173,7 @@ export function ActivityEditorSheet() {
         <ReadOnlyActivity
           activity={editingActivity}
           currency={activeTrip?.currency ?? "USD"}
+          memberCount={activeTrip?.members.length ?? 1}
           onClose={close}
         />
       )}
@@ -193,7 +205,9 @@ export function ActivityEditorSheet() {
           // M13 link 5. The trip's own member list is the only vocabulary the
           // attribution controls offer, so an id from nowhere is not reachable
           // through the product — which is why the domain does not validate it.
-          members={activeTrip?.members ?? []}
+          // Named by `personNames` over `PeopleProvider`'s names (mounted by
+          // TripBoardScreen): "Traveler 2" until they land, never the id.
+          members={namedMembers}
           onSave={handleSave}
           onCancel={close}
         />
@@ -209,10 +223,12 @@ export function ActivityEditorSheet() {
 function ReadOnlyActivity({
   activity,
   currency,
+  memberCount,
   onClose,
 }: {
   activity: ActivityView | null;
   currency: string;
+  memberCount: number;
   onClose: () => void;
 }) {
   const clock = useTimeFormat();
@@ -240,8 +256,14 @@ function ReadOnlyActivity({
             <Text as="p" variant="secondary">Going to {displayPlace(destination)}</Text>
           )}
           <DataText size="xs" className="block">
-            {activity.cost === null ? "No cost yet" : formatMoney(activity.cost.amountMinor, currency)}
+            {activity.cost === null ? "No cost yet" : `${formatMoney(activity.cost.amountMinor, currency)} per person`}
           </DataText>
+          {/* The same line the editor shows under its Cost field (ADR-060). */}
+          {activity.cost !== null && (
+            <Text variant="muted" data-testid="activity-cost-total">
+              {stopTotalLine(activity, memberCount, currency)}
+            </Text>
+          )}
           {activity.notes !== null && activity.notes !== "" && (
             <Text as="p" variant="secondary">{activity.notes}</Text>
           )}

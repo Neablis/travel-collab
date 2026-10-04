@@ -13,6 +13,192 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-03 — The `suggester` role, and suggestions as a contract (ADR-064); Public API 1.4.0, then 1.5.0
+
+- **Added:** `suggester` to `TripRole` (now `viewer, suggester, editor, owner`, least-privileged
+  first) and to `InviteRole` (now `viewer, suggester, editor`).
+- **Added:** an `Origin` member, `{ kind: "suggestion", suggestionId, changeId, authorId }`. It
+  marks an accepted suggestion: the envelope's actor is the reviewer, and the author survives
+  only here.
+- **Added:** `TripEventsPage.suggestionsRev`, an optional opaque string. It is the role-scoped
+  revision of the suggestions this caller may see (spec W6).
+- **New file `suggestion.ts`:** `SuggestionChangeStatus`, `SuggestionChange`,
+  `TripSuggestionsResponse`, `CreateSuggestionInput` and `ResolveSuggestionChangeInput`.
+  - `SuggestionChangeStatus` is `pending, accepted, dismissed, withdrawn, expired`. `expired`
+    is a change left pending past the server's 90 days (`SUGGESTION_TTL_DAYS`; Mitchell,
+    2026-10-03, spec W61). Nobody decided it.
+  - `SuggestionChange.dependsOn` also names the earlier changes that target a day or stop this
+    one removes (W59), not only those that created what it references.
+  - `TripSuggestionsResponse.changes` holds pending changes only (W53).
+  - `CreateSuggestionInput` allows 1..50 units of 1..50 `BatchableCommand`s each.
+  - It refuses any `DismissConflict`, at that command's path (W3).
+  - Its optional note is trimmed and capped at 500 characters with `review.ts`'s `boundedNote`,
+    so a blank note parses to `null`.
+- Why: Mitchell asked for a role that can propose changes for an editor to approve. See
+  `docs/specs/2026-10-03-suggester-role-design.md` and ADR-064.
+- Consumers updated:
+  - `packages/domain/src/trip/history.ts`: `suggestion` is treated as `user` in the undo stack
+    and in the history sentence (W11).
+  - `apps/web/src/server/accessPolicy.ts`: `RANK` is now viewer 0, suggester 1, editor 2,
+    owner 3, and it is exported.
+  - `apps/web/src/server/access/members.ts`: its duplicate `RANK` is deleted, and it imports the
+    one in `accessPolicy.ts` (W8).
+  - `apps/web/src/server/email/templates.ts`: `tripInviteEmail`'s `role` is typed `InviteRole`,
+    and a suggester's invite says they can suggest changes for the trip's planners to approve
+    (W64).
+  - The public API is affected because its trip documents embed `TripMember.role` and event
+    `origin`. `openapi.json` was regenerated, `API_VERSION` moved to `1.4.0` (minor, additive)
+    and `API_FINGERPRINT` is new. No `/v1` endpoint was added (spec §2.7).
+  - `InviteRole` gaining `suggester` widens the `/v1` invite endpoints' `role` enum, so
+    `openapi.json` was regenerated again and `API_VERSION` moved to `1.5.0` (minor, additive).
+    `1.4.0` stays the version of the role and origin enums above.
+  - No gate changed. `MINIMUM_ROLE` still requires `editor` for every batchable command, so a
+    suggester cannot write.
+- Breaking? no. The enum values and the union member are additive, and the new field is optional.
+  Every stored `members` row, `origin` and invite still parses. A client running an old bundle
+  meets an unknown role only when someone is invited as a suggester, and an unknown origin only
+  after a suggestion is accepted. The invite route accepts `suggester` from `InviteRole`'s change
+  on, and the Travelers picker offers it as "Can suggest". A suggester's board edits are held as a
+  draft and sent through the suggestion routes, never as commands (spec §2.3).
+
+## 2026-10-03 — Adding one default notebook: `AddDefaultPagesInput` (ADR-056, amended)
+
+- **Added:** `AddDefaultPagesInput` (`packages/contracts/src/pages.ts`), `{ seedKey?: SeedKey }`:
+  the body of `POST /api/trips/:tripId/pages/defaults`. Without `seedKey` the route adds every
+  default notebook the trip lacks, as before. With one it adds that template's seed only.
+- **Changed, not in `packages/contracts`:** `@tc/pages`' `LinkTarget` gains
+  `{ kind: "seed", seedKey }`, and `link.internal` may now resolve to a `link-missing` block
+  payload. Both are stored-page and render shapes owned by `@tc/pages`.
+- Why: Mitchell, 2026-10-03. A link to a default notebook should find it when it is added
+  later, and a card for a missing one should offer to add it.
+- Consumers updated: `apps/web` (the route, `pagesClient.addMissingDefaultNotebooks`, the MSW
+  handler, `MissingNotebookBlock`), `@tc/pages` (templates, `link.internal`, the picker's
+  encoding) — in this same change.
+- Breaking? no — the body was `{}` and still may be; a stored page with id links reads as it did.
+
+## 2026-10-02 — The library names people "Dana R.": `DiscoverDay.ownerDisplayName`, and what the names mean (ADR-061 decision 4, amended)
+
+- **Added (web-local wire shape, not `packages/contracts`):** `DiscoverDay.ownerDisplayName`
+  (`apps/web/src/lib/playbooks.ts`), `z.string().min(1)`. It is the owner's public name, resolved
+  by the server from `users`.
+- **Changed meaning, no shape:** `PublicAuthor.displayName` (board, profile, the shared day's
+  author strip), `Review.reviewerDisplayName` and `ReviewDayChanged.authorDisplayName`
+  (`packages/contracts/src/review.ts`; the schema is untouched). Before, these held the
+  `displayNameFor({ userId })` handle ("Traveler a1b2c3"). Now each holds `publicNameFor`'s answer:
+  first name and last initial from the chosen display name, else the sign-in name, and never the
+  email. An account with no usable name still gets the handle. A profile with nothing on it is
+  still "A traveler".
+- Why: Mitchell, 2026-10-02 — the public library should name people, safely. This reverses the
+  handle-only rule recorded in `lib/displayName.ts` and ADR-061 decision 4.
+- Consumers updated: `server/playbooks.ts` (`leaderboard`, `publicAuthor`, `discoverDays`,
+  `discoverPage`, new `publicNamesOf`); `server/reviews.ts`; `server/og/playbooks.ts`;
+  `DiscoverCard`, `LeaderboardScreen`, `SharedDayScreen` and the new-trip wizard's popular days
+  (`pickPopularDays`), which now print the server's name instead of deriving one from the id.
+  **`GET /v1/discover/playbooks` is unchanged:** its item schema omits `ownerDisplayName` and its
+  handler drops it, so the public API names nobody. No `openapi.json` change.
+- Breaking? no — the field is additive and the changed fields keep their shape. A tab running the
+  previous bundle derived names itself and ignores the new field until it reloads.
+
+## 2026-10-02 — `LeaderboardResponse.meUserId` is nullable (public playbooks, ADR-061)
+
+- **Changed (web-local wire shape, not `packages/contracts`):** `LeaderboardResponse.meUserId` in
+  `apps/web/src/lib/playbooks.ts` is `string | null`. `null` is a reader with no account, who has
+  no row on the board; `GET /api/playbooks/board` now serves them (ADR-061).
+- Why: spec 2026-10-02 (public playbooks) — the library's reads open to signed-out readers, so the
+  board has a reader who is nobody.
+- Consumers updated: `GET /api/playbooks/board` (sends `null` for an anonymous reader);
+  `LeaderboardScreen`, which only compares each row's `userId` to it, so a `null` tints no row.
+- Breaking? no for a reader that compares ids — no row's `userId` is ever `null`. A client that
+  assumed a string and called a string method on it would break; there is none.
+
+## 2026-10-02 — Who owes what: `balances` and `stopPeople` (M19 part 2, ADR-060 decision 6)
+
+- **Added (functions, no schema):** `packages/contracts/src/costs.ts` — `stopPeople(activity,
+  memberIds)` (who is in a stop: its participants, each once as `stopHeadcount` counts them, or every member when nobody is picked) and
+  `balances(activities, memberIds)` → `{ perMember: { userId, share, paid, net, former }[], unpaid }`.
+  Every person in a priced stop owes `cost` to its `bookedBy`, who is credited the stop's
+  `stopTotal`; a stop with no `bookedBy` adds its total to `unpaid`. `net = paid − share`, and
+  Σ net = −unpaid for every input (property-tested). An id that is no longer a member — a
+  `bookedBy` or participant `ActivityView` keeps on purpose — is still counted, listed after the
+  members with `former: true`, so the balances keep adding up.
+- Why: M19 gate, part 2 — "Who owes what" and "What one person is in for" are both built on it.
+- Consumers updated: `@tc/pages` (`cost.balances`, `person.share`). Nothing else changes.
+- Breaking? no — additive.
+
+## 2026-10-02 — A stop's `cost` is per person (M19 part 1, ADR-060); Public API 1.3.0
+
+- **No schema changed shape.** `Money` is still `{ amountMinor, currency }` and every stored payload
+  and `trip_details.doc` parses as before; no migration. **What changed is what `cost` means:** the
+  price for ONE person. A stop's total is `cost × headcount`, where the headcount is the number of
+  distinct ids in `participants`, or the trip's member count when `participants` is empty.
+  `participants` stays an unconstrained `string[]` (a uniqueness refinement would refuse events
+  already in the log); a repeated id counts once.
+- **Added:** `packages/contracts/src/costs.ts` — `stopHeadcount`, `stopTotal` and `isCommittedCost`
+  (a `pending` stop's cost is an estimate; `planned` and `transit` are committed). The one statement
+  of the rule; the domain, the web and `@tc/pages` call it.
+- **Added:** `COST_DOC`, the `.describe()` text on `cost` in `AddActivity`, `UpdateActivity`,
+  `ActivitySnapshot` (via `described()`'s description argument; the picker label stays "Cost") and
+  `ActivityView`. It is the OpenAPI description of every activity `cost` and of the assistant's
+  derived planning tools. `openapi.json` regenerated; `API_VERSION` `1.3.0`, new `API_FINGERPRINT`.
+  The document changed in descriptions only, which the rule calls a patch. It is a **minor** bump
+  because what `cost` and the totals *mean* changed (Mitchell, on #289's review). No shape broke, so
+  it is not a major one.
+- **Changed (values, not shapes):** `TripDetail.days[].costSubtotal`, `unscheduledCostSubtotal`,
+  `tripCostTotal` and `budgetRemaining` sum stop totals. The stored projection computes them for the
+  log's own members (rebuild equals stored); every read that overlays the effective member list
+  recomputes them for those members through the domain's `recostDetail` — trip GET, command
+  responses, history-at-seq on `/api/trips`, the demo trip, and a share's `SharedTripView`. A member
+  joining changes a trip's totals with no event. The same overlay recomputes the `over-budget`
+  `Conflict` from the recosted total (its id, `over-budget:<tripId>`, does not change), so
+  `conflicts` agrees with `budgetRemaining`.
+- Why: Mitchell, 2026-10-02 — ADR-060's four answers ("always per person", "derive from kind").
+- Consumers updated: `packages/domain` (`rollupCosts(state, memberCount)`, `recostDetail`),
+  `packages/factories`, `packages/fixtures` (the Japan demo names its four travellers and picks who
+  goes on six stops; the verifier recosts through `recostDetail` for those four, as `/demo` reads it,
+  so `plannedTotalMinor` moves 908,500 → 3,119,500 and the budget 1,640,000 → 3,400,000), `@tc/pages` (`costOfStops(stops, memberCount)`; `cost` reads "… committed · …
+  estimated" when a pending stop is in it), `apps/web` (`server/access/overlay.ts`, `lib/cost.ts`,
+  Settings sheet, stop editor, calendar city cards, MSW mocks, assistant instructions),
+  `docs/guidelines/using-the-api.md`.
+- **Breaking?** No for any shape or stored data. **Yes for meaning:** on a trip with more than one
+  member, every total that includes a stop nobody picked is now multiplied, and a reader that summed
+  `cost` itself to reproduce a total gets a different number. A solo trip reads exactly as before.
+
+## 2026-10-02 — public API discovery: `/llms.txt`, `/developers`, the reference, and two new links — outside `openapi.json`
+
+- **Nothing in `packages/contracts` changed, and `openapi.json` did not either** — so no
+  `API_VERSION` or `API_FINGERPRINT` change. `info.version` versions the OpenAPI document only
+  (`docs/guidelines/using-the-api.md`, *`info.version` moves whenever the document does*); these
+  are the discovery surfaces around it, logged here because a caller can read them.
+- Added: `GET /api/v1` gains `docs: "/developers/reference"`, and its `auth` string now names the
+  Premium plan and points at `/developers` (`apps/web/src/app/api/v1/route.ts`). The existing keys
+  `name`, `version` and `openapi` are unchanged.
+- Added: `GET /.well-known/api-catalog` gains a `service-doc` link (`/developers/reference`,
+  `text/html`) beside its `service-desc` (`apps/web/src/app/.well-known/api-catalog/route.ts`).
+- Added: `GET /llms.txt` — plain text, no token; scopes rendered from `SCOPE_CATALOGUE`
+  (`apps/web/src/app/llms.txt/route.ts`).
+- Added: two public pages — `/developers` (getting a token, the scope table) and
+  `/developers/reference` (Scalar rendering `/api/v1/openapi`).
+- Why: an agent handed only the host had to guess paths to learn what Caesura is and how a person
+  gets a token; these answer it from the standard places.
+- Consumers updated: `discovery.test.ts` follows every link to a route or page that exists;
+  `m22-api-tokens.spec.ts` renders the reference under the CSP.
+- Breaking? No — additive keys and links, and a changed human-readable `auth` string.
+
+## 2026-10-02 — Public API 1.2.1: no tuple-form `items` in `openapi.json` — no schema change
+
+- **Nothing in `packages/contracts` changed, and nothing on the wire did.** The generator
+  (`apps/web/src/server/public-api/openapi.ts`, `withoutTupleItems`) now rewrites the tuple form
+  zod-to-json-schema emits for a `z.tuple`, which OpenAPI 3.0 does not have. Six `items: []` — the
+  always-empty `trips`/`playbooks`/`notebooks`/`activities` of `GET /v1/trips/{tripId}/export` and
+  `GET /v1/playbooks/{playbookId}/export` — are now `items: {}` beside the `maxItems: 0` they
+  already carried. `info.version` `1.2.1` (patch: the same responses, described validly), new
+  `API_FINGERPRINT`.
+- Why: the document was invalid OpenAPI 3.0. The Scalar reference at `/developers/reference`
+  threw on it (`structuredClone` after a validation failure on both export paths), and a caller
+  that validates the document before trusting it would refuse it.
+- Consumers updated: `openapi.json` regenerated; `openapi.test.ts` fails on an array-valued `items`.
+- Breaking? No.
+
 ## 2026-10-01 — widget registry: `day.weather` and `day.sun` gain a `view`, and `day.sun` becomes a block — no schema change
 
 - **Nothing in `packages/contracts` changed shape.** A page stores a widget as a name and opaque

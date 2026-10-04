@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Caesura API",
-    "version": "1.2.0",
+    "version": "1.5.0",
     "description": "The public REST API. Every endpoint takes an account API token as\n`Authorization: Bearer tc_...`, minted in Account settings.\n\nScopes:\n- `trips:read` — See your trips, their days and stops, costs, history, and existing share links.\n- `trips:write` — Create, change and delete trips, days and stops; undo, redo and revert.\n- `notebook:read` — Read the Notebook pages on a trip.\n- `notebook:write` — Create, change and delete the Notebook pages on a trip.\n- `library:read` — Read your saved-days library and your Playbooks (a Playbook is a view over saved days), and browse published Playbooks.\n- `library:write` — Create, edit, import and delete saved days and Playbooks, and publish or unpublish them to Discover.\n- `sharing:write` — Invite people to a trip and revoke invites, and create or revoke share links.\n- `account:read` — See who you are and what plan you hold.\n- `places:read` — Look up real places by name, outside any trip. Every search counts against your daily geocoding allowance (the one the app's own place search uses) and a daily budget shared by every account; one token may make at most 100 a day."
   },
   "paths": {
@@ -2971,7 +2971,7 @@
                       "type": "array",
                       "minItems": 0,
                       "maxItems": 0,
-                      "items": [],
+                      "items": {},
                       "default": []
                     },
                     "playbooks": {
@@ -3918,14 +3918,14 @@
                       "type": "array",
                       "minItems": 0,
                       "maxItems": 0,
-                      "items": [],
+                      "items": {},
                       "default": []
                     },
                     "activities": {
                       "type": "array",
                       "minItems": 0,
                       "maxItems": 0,
-                      "items": [],
+                      "items": {},
                       "default": []
                     }
                   },
@@ -9357,7 +9357,8 @@
                       "currency"
                     ],
                     "additionalProperties": false,
-                    "nullable": true
+                    "nullable": true,
+                    "description": "Price for one person, in the trip's currency. A stop's total is this times its headcount: the people in `participants`, or every member of the trip when `participants` is empty. A `pending` stop's cost is an estimate; a `planned` or `transit` stop's is committed. Omitted = unchanged; null = cleared."
                   },
                   "mode": {
                     "type": "string",
@@ -9573,6 +9574,7 @@
                             "type": "string",
                             "enum": [
                               "viewer",
+                              "suggester",
                               "editor",
                               "owner"
                             ]
@@ -9944,7 +9946,8 @@
                               "currency"
                             ],
                             "additionalProperties": false,
-                            "nullable": true
+                            "nullable": true,
+                            "description": "Price for one person, in the trip's currency. A stop's total is this times its headcount: the people in `participants`, or every member of the trip when `participants` is empty. A `pending` stop's cost is an estimate; a `planned` or `transit` stop's is committed."
                           },
                           "bookedBy": {
                             "type": "string",
@@ -10278,6 +10281,7 @@
                             "type": "string",
                             "enum": [
                               "viewer",
+                              "suggester",
                               "editor",
                               "owner"
                             ]
@@ -10649,7 +10653,8 @@
                               "currency"
                             ],
                             "additionalProperties": false,
-                            "nullable": true
+                            "nullable": true,
+                            "description": "Price for one person, in the trip's currency. A stop's total is this times its headcount: the people in `participants`, or every member of the trip when `participants` is empty. A `pending` stop's cost is an estimate; a `planned` or `transit` stop's is committed."
                           },
                           "bookedBy": {
                             "type": "string",
@@ -11218,7 +11223,8 @@
                       "amountMinor",
                       "currency"
                     ],
-                    "additionalProperties": false
+                    "additionalProperties": false,
+                    "description": "Price for one person, in the trip's currency. A stop's total is this times its headcount: the people in `participants`, or every member of the trip when `participants` is empty. A `pending` stop's cost is an estimate; a `planned` or `transit` stop's is committed. Omitted = no cost."
                   },
                   "mode": {
                     "type": "string",
@@ -11425,6 +11431,7 @@
                             "type": "string",
                             "enum": [
                               "viewer",
+                              "suggester",
                               "editor",
                               "owner"
                             ]
@@ -11796,7 +11803,8 @@
                               "currency"
                             ],
                             "additionalProperties": false,
-                            "nullable": true
+                            "nullable": true,
+                            "description": "Price for one person, in the trip's currency. A stop's total is this times its headcount: the people in `participants`, or every member of the trip when `participants` is empty. A `pending` stop's cost is an estimate; a `planned` or `transit` stop's is committed."
                           },
                           "bookedBy": {
                             "type": "string",
@@ -12132,6 +12140,7 @@
                             "type": "string",
                             "enum": [
                               "viewer",
+                              "suggester",
                               "editor",
                               "owner"
                             ]
@@ -12503,7 +12512,8 @@
                               "currency"
                             ],
                             "additionalProperties": false,
-                            "nullable": true
+                            "nullable": true,
+                            "description": "Price for one person, in the trip's currency. A stop's total is this times its headcount: the people in `participants`, or every member of the trip when `participants` is empty. A `pending` stop's cost is an estimate; a `planned` or `transit` stop's is committed."
                           },
                           "bookedBy": {
                             "type": "string",
@@ -12839,6 +12849,7 @@
                             "type": "string",
                             "enum": [
                               "viewer",
+                              "suggester",
                               "editor",
                               "owner"
                             ]
@@ -13210,7 +13221,8 @@
                               "currency"
                             ],
                             "additionalProperties": false,
-                            "nullable": true
+                            "nullable": true,
+                            "description": "Price for one person, in the trip's currency. A stop's total is this times its headcount: the people in `participants`, or every member of the trip when `participants` is empty. A `pending` stop's cost is an estimate; a `planned` or `transit` stop's is committed."
                           },
                           "bookedBy": {
                             "type": "string",
@@ -13538,6 +13550,7 @@
                             "type": "string",
                             "enum": [
                               "viewer",
+                              "suggester",
                               "editor",
                               "owner"
                             ]
@@ -13909,7 +13922,8 @@
                               "currency"
                             ],
                             "additionalProperties": false,
-                            "nullable": true
+                            "nullable": true,
+                            "description": "Price for one person, in the trip's currency. A stop's total is this times its headcount: the people in `participants`, or every member of the trip when `participants` is empty. A `pending` stop's cost is an estimate; a `planned` or `transit` stop's is committed."
                           },
                           "bookedBy": {
                             "type": "string",
@@ -15149,21 +15163,21 @@
                       "type": "array",
                       "minItems": 0,
                       "maxItems": 0,
-                      "items": [],
+                      "items": {},
                       "default": []
                     },
                     "notebooks": {
                       "type": "array",
                       "minItems": 0,
                       "maxItems": 0,
-                      "items": [],
+                      "items": {},
                       "default": []
                     },
                     "activities": {
                       "type": "array",
                       "minItems": 0,
                       "maxItems": 0,
-                      "items": [],
+                      "items": {},
                       "default": []
                     }
                   },
@@ -15639,6 +15653,7 @@
                             "type": "string",
                             "enum": [
                               "viewer",
+                              "suggester",
                               "editor",
                               "owner"
                             ]
@@ -16010,7 +16025,8 @@
                               "currency"
                             ],
                             "additionalProperties": false,
-                            "nullable": true
+                            "nullable": true,
+                            "description": "Price for one person, in the trip's currency. A stop's total is this times its headcount: the people in `participants`, or every member of the trip when `participants` is empty. A `pending` stop's cost is an estimate; a `planned` or `transit` stop's is committed."
                           },
                           "bookedBy": {
                             "type": "string",
@@ -16338,6 +16354,7 @@
                             "type": "string",
                             "enum": [
                               "viewer",
+                              "suggester",
                               "editor",
                               "owner"
                             ]
@@ -16709,7 +16726,8 @@
                               "currency"
                             ],
                             "additionalProperties": false,
-                            "nullable": true
+                            "nullable": true,
+                            "description": "Price for one person, in the trip's currency. A stop's total is this times its headcount: the people in `participants`, or every member of the trip when `participants` is empty. A `pending` stop's cost is an estimate; a `planned` or `transit` stop's is committed."
                           },
                           "bookedBy": {
                             "type": "string",
@@ -17058,6 +17076,7 @@
                             "type": "string",
                             "enum": [
                               "viewer",
+                              "suggester",
                               "editor",
                               "owner"
                             ]
@@ -17429,7 +17448,8 @@
                               "currency"
                             ],
                             "additionalProperties": false,
-                            "nullable": true
+                            "nullable": true,
+                            "description": "Price for one person, in the trip's currency. A stop's total is this times its headcount: the people in `participants`, or every member of the trip when `participants` is empty. A `pending` stop's cost is an estimate; a `planned` or `transit` stop's is committed."
                           },
                           "bookedBy": {
                             "type": "string",
@@ -17811,6 +17831,36 @@
                                   "toSeq"
                                 ],
                                 "additionalProperties": false
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "kind": {
+                                    "type": "string",
+                                    "enum": [
+                                      "suggestion"
+                                    ]
+                                  },
+                                  "suggestionId": {
+                                    "type": "string",
+                                    "format": "uuid"
+                                  },
+                                  "changeId": {
+                                    "type": "string",
+                                    "format": "uuid"
+                                  },
+                                  "authorId": {
+                                    "type": "string",
+                                    "minLength": 1
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "suggestionId",
+                                  "changeId",
+                                  "authorId"
+                                ],
+                                "additionalProperties": false
                               }
                             ]
                           },
@@ -17944,6 +17994,7 @@
                             "type": "string",
                             "enum": [
                               "viewer",
+                              "suggester",
                               "editor",
                               "owner"
                             ]
@@ -18315,7 +18366,8 @@
                               "currency"
                             ],
                             "additionalProperties": false,
-                            "nullable": true
+                            "nullable": true,
+                            "description": "Price for one person, in the trip's currency. A stop's total is this times its headcount: the people in `participants`, or every member of the trip when `participants` is empty. A `pending` stop's cost is an estimate; a `planned` or `transit` stop's is committed."
                           },
                           "bookedBy": {
                             "type": "string",
@@ -18615,6 +18667,7 @@
                       "type": "string",
                       "enum": [
                         "viewer",
+                        "suggester",
                         "editor"
                       ]
                     },
@@ -18750,6 +18803,7 @@
                             "type": "string",
                             "enum": [
                               "viewer",
+                              "suggester",
                               "editor"
                             ]
                           },
@@ -18853,6 +18907,7 @@
                     "type": "string",
                     "enum": [
                       "viewer",
+                      "suggester",
                       "editor"
                     ]
                   }
@@ -18891,6 +18946,7 @@
                       "type": "string",
                       "enum": [
                         "viewer",
+                        "suggester",
                         "editor"
                       ]
                     },
@@ -19017,6 +19073,7 @@
                             "type": "string",
                             "enum": [
                               "viewer",
+                              "suggester",
                               "editor",
                               "owner"
                             ]
@@ -21562,6 +21619,7 @@
                             "type": "string",
                             "enum": [
                               "viewer",
+                              "suggester",
                               "editor",
                               "owner"
                             ]
@@ -21933,7 +21991,8 @@
                               "currency"
                             ],
                             "additionalProperties": false,
-                            "nullable": true
+                            "nullable": true,
+                            "description": "Price for one person, in the trip's currency. A stop's total is this times its headcount: the people in `participants`, or every member of the trip when `participants` is empty. A `pending` stop's cost is an estimate; a `planned` or `transit` stop's is committed."
                           },
                           "bookedBy": {
                             "type": "string",
@@ -22261,6 +22320,7 @@
                             "type": "string",
                             "enum": [
                               "viewer",
+                              "suggester",
                               "editor",
                               "owner"
                             ]
@@ -22632,7 +22692,8 @@
                               "currency"
                             ],
                             "additionalProperties": false,
-                            "nullable": true
+                            "nullable": true,
+                            "description": "Price for one person, in the trip's currency. A stop's total is this times its headcount: the people in `participants`, or every member of the trip when `participants` is empty. A `pending` stop's cost is an estimate; a `planned` or `transit` stop's is committed."
                           },
                           "bookedBy": {
                             "type": "string",
@@ -23007,6 +23068,7 @@
                             "type": "string",
                             "enum": [
                               "viewer",
+                              "suggester",
                               "editor",
                               "owner"
                             ]
@@ -23378,7 +23440,8 @@
                               "currency"
                             ],
                             "additionalProperties": false,
-                            "nullable": true
+                            "nullable": true,
+                            "description": "Price for one person, in the trip's currency. A stop's total is this times its headcount: the people in `participants`, or every member of the trip when `participants` is empty. A `pending` stop's cost is an estimate; a `planned` or `transit` stop's is committed."
                           },
                           "bookedBy": {
                             "type": "string",
@@ -23704,6 +23767,7 @@
                             "type": "string",
                             "enum": [
                               "viewer",
+                              "suggester",
                               "editor",
                               "owner"
                             ]
@@ -24075,7 +24139,8 @@
                               "currency"
                             ],
                             "additionalProperties": false,
-                            "nullable": true
+                            "nullable": true,
+                            "description": "Price for one person, in the trip's currency. A stop's total is this times its headcount: the people in `participants`, or every member of the trip when `participants` is empty. A `pending` stop's cost is an estimate; a `planned` or `transit` stop's is committed."
                           },
                           "bookedBy": {
                             "type": "string",
@@ -25635,6 +25700,7 @@
                             "type": "string",
                             "enum": [
                               "viewer",
+                              "suggester",
                               "editor",
                               "owner"
                             ]
@@ -26006,7 +26072,8 @@
                               "currency"
                             ],
                             "additionalProperties": false,
-                            "nullable": true
+                            "nullable": true,
+                            "description": "Price for one person, in the trip's currency. A stop's total is this times its headcount: the people in `participants`, or every member of the trip when `participants` is empty. A `pending` stop's cost is an estimate; a `planned` or `transit` stop's is committed."
                           },
                           "bookedBy": {
                             "type": "string",
@@ -26329,6 +26396,7 @@
                                   "type": "string",
                                   "enum": [
                                     "viewer",
+                                    "suggester",
                                     "editor",
                                     "owner"
                                   ]
@@ -26480,6 +26548,7 @@
                             "type": "string",
                             "enum": [
                               "viewer",
+                              "suggester",
                               "editor",
                               "owner"
                             ]
@@ -26851,7 +26920,8 @@
                               "currency"
                             ],
                             "additionalProperties": false,
-                            "nullable": true
+                            "nullable": true,
+                            "description": "Price for one person, in the trip's currency. A stop's total is this times its headcount: the people in `participants`, or every member of the trip when `participants` is empty. A `pending` stop's cost is an estimate; a `planned` or `transit` stop's is committed."
                           },
                           "bookedBy": {
                             "type": "string",

@@ -239,6 +239,27 @@
       "when": 1790559153128,
       "tag": "0033_link_preview_sweep_index",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1790968290391,
+      "tag": "0034_public_library_sweep_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1791002706184,
+      "tag": "0035_ai_usage_steps_and_tool_calls",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1791048547998,
+      "tag": "0036_trip_suggestions",
+      "breakpoints": true
     }
   ]
 }

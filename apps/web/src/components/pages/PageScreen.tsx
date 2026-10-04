@@ -6,6 +6,7 @@ import { fetchPage, restorePageVersion, updatePage } from "@/lib/pagesClient";
 import { fetchTripAccess, fetchTripDetail, fetchTripGlobals, fetchTripHistory } from "@/lib/apiClient";
 import { cachedRead, invalidate } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
+import { PeopleProvider } from "./people";
 import { headSeqOf, useTripBroadcast } from "@/components/trip/context/broadcast";
 import { usePreferences } from "@/components/account/PreferencesProvider";
 import { PageContainer } from "@/components/ui/page-container";
@@ -43,6 +44,7 @@ import { useEditSession } from "./useEditSession";
 import { forgetPageDraft, readPageDraft, rememberPageDraft, type PageDraft } from "./pageDraft";
 import type { ApiError } from "@/lib/apiClient";
 import { usePublishSaveState } from "@/components/SaveLight";
+import { canEditNotebook } from "@/lib/tripRole";
 import type { DroppedInsert, PageNode } from "@tc/contracts";
 import type { AskEventHandler } from "@/components/assistant/useAskThread";
 import { getMacro } from "@tc/pages";
@@ -277,22 +279,23 @@ export function PageScreen({
   //   page" and then withdrawing it is a flash of a control a viewer may not
   //   use, and an editor's toggle appearing a beat late (usually with the page
   //   itself, the reads run together) is the less jarring of the two.
-  // - `viewer`: no toggle, and Editing can never be entered — the assistant's
-  //   switch below asks the same question.
+  // - `reader`: a viewer, or a suggester (spec §2.2: they suggest on the board
+  //   only). No toggle, and Editing can never be entered — the assistant's
+  //   switch below asks the same question (`canEditNotebook`).
   // - `unknown`: the read failed. Not an answer that says viewer, so the toggle
   //   is offered, exactly as the board stays live when TripProvider's read
   //   fails; the server refuses whatever a real viewer then tries.
   // - `writer`: owner or editor.
   const [editing, setEditing] = useState(false);
-  const [editRole, setEditRole] = useState<"pending" | "viewer" | "unknown" | "writer">("pending");
+  const [editRole, setEditRole] = useState<"pending" | "reader" | "unknown" | "writer">("pending");
   useEffect(() => {
     let cancelled = false;
     setEditRole("pending");
     void cachedRead(tripKeys.access(tripId), () => fetchTripAccess(tripId)).then((access) => {
       if (cancelled) return;
-      const role = !access.ok ? "unknown" : access.value.myRole === "viewer" ? "viewer" : "writer";
+      const role = !access.ok ? "unknown" : canEditNotebook(access.value.myRole) ? "writer" : "reader";
       setEditRole(role);
-      if (role === "viewer") setEditing(false);
+      if (role === "reader") setEditing(false);
       if (role === "writer" && from === "overview") setEditing(true);
     });
     return () => {
@@ -670,7 +673,7 @@ export function PageScreen({
   // was shown words the page does not hold.
   //
   // Held until `editRole` lands, then:
-  // - `viewer`: neither applied nor offered, and LEFT in storage. A draft is
+  // - `reader`: neither applied nor offered, and LEFT in storage. A draft is
   //   left by an editing session, so its holder was an editor when they typed
   //   it; the role can be given back, and deleting unsaved words on a role
   //   read is the one step here that cannot be undone.
@@ -683,7 +686,7 @@ export function PageScreen({
     if (status !== "ready" || editRole === "pending" || heldDraft.current === null) return;
     const draft = heldDraft.current;
     heldDraft.current = null;
-    if (editRole === "viewer") return;
+    if (editRole === "reader") return;
     if (draft.base === baseRef.current) restoreDraft(draft);
     else setOfferedDraft(draft);
     // `restoreDraft` is recreated every render and reads only refs and setters.
@@ -779,7 +782,7 @@ export function PageScreen({
   // Whether this reader may edit: the role read Overview's Edit path uses.
   const mayEdit = async (): Promise<boolean> => {
     const access = await cachedRead(tripKeys.access(tripId), () => fetchTripAccess(tripId));
-    return access.ok && access.value.myRole !== "viewer";
+    return access.ok && canEditNotebook(access.value.myRole);
   };
   /**
    * Put a turn's nodes into the live editor, and say in the chat what that did.
@@ -1181,6 +1184,9 @@ export function PageScreen({
   }
 
   return (
+    // Member names for every widget on the page, its settings and its insert
+    // sheet alike — from the access read the effect above already makes.
+    <PeopleProvider tripId={tripId}>
     <PageContainer>
       {/* The row above the container: where you came from on the left, the one
           mode toggle on the right (dc.html:2326). Everything that acts on the
@@ -1639,6 +1645,7 @@ export function PageScreen({
         />
       ) : null}
     </PageContainer>
+    </PeopleProvider>
   );
 }
 

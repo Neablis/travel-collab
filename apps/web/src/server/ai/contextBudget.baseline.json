@@ -1,0 +1,229 @@
+{
+  "charsPerToken": 3.31,
+  "shapes": {
+    "trip · viewer": {
+      "tools": [
+        "read_trip",
+        "read_day"
+      ],
+      "toolChars": 1479,
+      "instructionChars": 1740,
+      "totalChars": 3219,
+      "approxTokens": 973
+    },
+    "trip · question": {
+      "tools": [
+        "read_trip",
+        "read_day",
+        "find_free_time",
+        "search_playbooks",
+        "search_places",
+        "request_change_tools"
+      ],
+      "toolChars": 4838,
+      "instructionChars": 2337,
+      "totalChars": 7175,
+      "approxTokens": 2168
+    },
+    "trip · edit": {
+      "tools": [
+        "read_trip",
+        "read_day",
+        "find_free_time",
+        "search_playbooks",
+        "search_places",
+        "AddDay",
+        "RemoveDay",
+        "SetTripStartDate",
+        "SetTripName",
+        "SetTripDates",
+        "AddActivity",
+        "UpdateActivity",
+        "MoveActivity",
+        "RemoveActivity",
+        "DismissConflict",
+        "SetTripCurrency",
+        "SetTripBudget",
+        "insert_playbook_day"
+      ],
+      "toolChars": 19804,
+      "instructionChars": 3650,
+      "totalChars": 23454,
+      "approxTokens": 7086
+    },
+    "trip · plan": {
+      "tools": [
+        "read_trip",
+        "read_day",
+        "find_free_time",
+        "search_playbooks",
+        "search_places",
+        "AddDay",
+        "RemoveDay",
+        "SetTripStartDate",
+        "SetTripName",
+        "SetTripDates",
+        "AddActivity",
+        "UpdateActivity",
+        "MoveActivity",
+        "RemoveActivity",
+        "insert_playbook_day"
+      ],
+      "toolChars": 18745,
+      "instructionChars": 3957,
+      "totalChars": 22702,
+      "approxTokens": 6859
+    },
+    "trip · unsure": {
+      "tools": [
+        "read_trip",
+        "read_day",
+        "find_free_time",
+        "search_playbooks",
+        "search_places",
+        "AddDay",
+        "RemoveDay",
+        "SetTripStartDate",
+        "SetTripName",
+        "SetTripDates",
+        "AddActivity",
+        "UpdateActivity",
+        "MoveActivity",
+        "RemoveActivity",
+        "DismissConflict",
+        "SetTripCurrency",
+        "SetTripBudget",
+        "insert_playbook_day"
+      ],
+      "toolChars": 19804,
+      "instructionChars": 3650,
+      "totalChars": 23454,
+      "approxTokens": 7086
+    },
+    "page · compose": {
+      "tools": [
+        "read_trip",
+        "search_widgets",
+        "get_widget",
+        "insert_text",
+        "insert_widget",
+        "switch_intent"
+      ],
+      "toolChars": 4437,
+      "instructionChars": 3277,
+      "totalChars": 7714,
+      "approxTokens": 2331
+    },
+    "page · question": {
+      "tools": [
+        "read_trip",
+        "read_day",
+        "find_free_time",
+        "search_playbooks",
+        "switch_intent"
+      ],
+      "toolChars": 3832,
+      "instructionChars": 1425,
+      "totalChars": 5257,
+      "approxTokens": 1588
+    }
+  },
+  "tools": {
+    "UpdateActivity": {
+      "chars": 6189,
+      "approxTokens": 1870
+    },
+    "AddActivity": {
+      "chars": 5532,
+      "approxTokens": 1671
+    },
+    "search_widgets": {
+      "chars": 1288,
+      "approxTokens": 389
+    },
+    "insert_widget": {
+      "chars": 1106,
+      "approxTokens": 334
+    },
+    "read_day": {
+      "chars": 1019,
+      "approxTokens": 308
+    },
+    "search_places": {
+      "chars": 950,
+      "approxTokens": 287
+    },
+    "search_playbooks": {
+      "chars": 877,
+      "approxTokens": 265
+    },
+    "find_free_time": {
+      "chars": 807,
+      "approxTokens": 244
+    },
+    "request_change_tools": {
+      "chars": 725,
+      "approxTokens": 219
+    },
+    "switch_intent": {
+      "chars": 669,
+      "approxTokens": 202
+    },
+    "MoveActivity": {
+      "chars": 605,
+      "approxTokens": 183
+    },
+    "insert_playbook_day": {
+      "chars": 586,
+      "approxTokens": 177
+    },
+    "get_widget": {
+      "chars": 529,
+      "approxTokens": 160
+    },
+    "DismissConflict": {
+      "chars": 470,
+      "approxTokens": 142
+    },
+    "read_trip": {
+      "chars": 460,
+      "approxTokens": 139
+    },
+    "RemoveDay": {
+      "chars": 412,
+      "approxTokens": 124
+    },
+    "SetTripDates": {
+      "chars": 395,
+      "approxTokens": 119
+    },
+    "insert_text": {
+      "chars": 385,
+      "approxTokens": 116
+    },
+    "SetTripBudget": {
+      "chars": 365,
+      "approxTokens": 110
+    },
+    "RemoveActivity": {
+      "chars": 319,
+      "approxTokens": 96
+    },
+    "SetTripStartDate": {
+      "chars": 275,
+      "approxTokens": 83
+    },
+    "SetTripCurrency": {
+      "chars": 224,
+      "approxTokens": 68
+    },
+    "SetTripName": {
+      "chars": 165,
+      "approxTokens": 50
+    },
+    "AddDay": {
+      "chars": 154,
+      "approxTokens": 47
+    }
+  }
+}

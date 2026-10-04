@@ -20,6 +20,7 @@ import type { TaskClass } from "@/server/assistant/taskClass";
 import type { AskPivot } from "@/server/assistant/intents";
 import {
   NO_METER,
+  type StepSpend,
   type TurnLedger,
   type TurnMeter,
   type TurnOutcome,
@@ -325,7 +326,18 @@ export interface AskAnalyticsRecord {
    * reader counts them.
    */
   pivots: AskPivot[];
+  /**
+   * Request arrival to the end of the turn, admission and the classifier's
+   * round-trip included — the same number `ai_usage.latency_ms` stores.
+   */
   latencyMs: number;
+  /**
+   * The turn's id (M31 Phase 1): `ai_usage.id`, and the key of the turn's step
+   * and tool-call rows. It is what joins this line — the only place the
+   * question and the tool arguments are kept — to the durable ledger. Null
+   * only from a caller that minted none.
+   */
+  turnId: string | null;
 }
 
 /**
@@ -509,10 +521,25 @@ export const logAskAnalytics = (record: AskAnalyticsRecord): void => {
 // nothing and makes the tests construct a fake step they cannot write. The
 // command endpoint's `AiResultLike` was the same trick, for the same reason.
 export interface AskStepLike {
-  toolCalls?: readonly { toolName: string; input: unknown }[];
+  toolCalls?: readonly { toolName: string; input: unknown; toolCallId?: string }[];
   text?: string;
   finishReason?: string;
-  usage?: { inputTokens?: number; outputTokens?: number; totalTokens?: number };
+  usage?: {
+    inputTokens?: number;
+    outputTokens?: number;
+    totalTokens?: number;
+    // AI SDK 7's breakdown, which eve's instrumentation carries in the same
+    // shape (ADR-062 Phase 0 finding (c)). Read for the per-step row only.
+    inputTokenDetails?: { cacheReadTokens?: number; cacheWriteTokens?: number };
+  };
+}
+
+/** What `prepareStep` chose for one step — read by the recorder for the per-step row. */
+export interface AskStepPlan {
+  model: string;
+  tier: string | null;
+  escalated: boolean;
+  pivoted: boolean;
 }
 
 export interface AskRecorderParams {
@@ -578,6 +605,33 @@ export interface AskRecorderParams {
   droppedInserts?: () => readonly DroppedInsert[];
   /** The turn's pivots, read at write time for the reason `escalation` is. */
   pivots?: () => readonly AskPivot[];
+  /**
+   * The turn's id, minted by the handler (M31 Phase 1) and carried on the
+   * ledger, so the `ai.ask` line, the `ai_usage` row and its step and tool-call
+   * rows all share one key.
+   */
+  turnId?: string;
+  /**
+   * What `prepareStep` chose for step `index`: model, tier, and whether that
+   * was an escalation or a pivot. Absent, every step is recorded on `model`
+   * and the turn's admitted tier is unknown.
+   */
+  stepPlan?: (index: number) => AskStepPlan | undefined;
+  /** The admitted tier, recorded on any step `stepPlan` says nothing about. */
+  tier?: string | null;
+  /**
+   * The tool calls whose collected writes reached the proposal, read at the
+   * latch of a COMPLETED turn. A turn that ended any other way produced no
+   * proposal, so it is never asked.
+   */
+  reachedCalls?: () => ReadonlySet<string>;
+  /**
+   * When the REQUEST arrived, on `now`'s clock. The handler passes its own
+   * start, read before admission, so latency counts admission and the
+   * classifier's round-trip too. Omitted, the recorder's construction is the
+   * start, which is how a test fixture without a request reads it.
+   */
+  startedAt?: number;
   /** Injected so a test can read the record instead of the console, and so a clock is never read in a pure path. */
   sink?: AskAnalyticsSink;
   now?: () => number;
@@ -639,19 +693,26 @@ export function createAskRecorder(params: AskRecorderParams): AskRecorder {
   const sink = params.sink ?? logAskAnalytics;
   const meter = params.meter ?? NO_METER;
   const now = params.now ?? Date.now;
-  const startedAt = now();
+  const startedAt = params.startedAt ?? now();
   const toolCalls: AskToolCallRecord[] = [];
   const usageByStep: AskUsage[] = [];
+  const stepSpend: StepSpend[] = [];
+  // Which step emitted each tool call, by the SDK's `toolCallId` — the join
+  // the per-tool row's `stepIndex` is read from at the latch.
+  const stepOfCall = new Map<string, number>();
   let steps = 0;
   let text = "";
   let written = false;
 
   return {
     observeStep(step) {
+      const index = steps;
       steps += 1;
       for (const call of step.toolCalls ?? []) {
         toolCalls.push({ name: call.toolName, input: call.input });
+        if (call.toolCallId !== undefined) stepOfCall.set(call.toolCallId, index);
       }
+      stepSpend.push(stepSpendOf(index, step, params.stepPlan?.(index)));
       if (step.text) text += step.text;
       // Collected even when the model gave nothing (all-null entry) so this
       // array's length always equals `steps` — a reader can zip it against
@@ -733,7 +794,9 @@ export function createAskRecorder(params: AskRecorderParams): AskRecorder {
     // fields the ledger owns — what the run spent and how many round-trips it
     // took — are taken from here rather than assembled twice, so the log line
     // and the settlement cannot disagree about the same turn.
-    const ledger = ledgerFor(final, outcome);
+    // Read once, so the `ai.ask` line and the `ai_usage` row agree on it.
+    const latencyMs = now() - startedAt;
+    const ledger = ledgerFor(final, outcome, latencyMs);
     sink({
       event: "ai.ask",
       tripId: params.tripId,
@@ -772,7 +835,8 @@ export function createAskRecorder(params: AskRecorderParams): AskRecorder {
       droppedCalls: [...dropped],
       droppedInserts: [...(params.droppedInserts?.() ?? [])],
       pivots: [...(params.pivots?.() ?? [])],
-      latencyMs: now() - startedAt,
+      latencyMs,
+      turnId: params.turnId ?? null,
     }, ledger);
   }
 
@@ -788,11 +852,15 @@ export function createAskRecorder(params: AskRecorderParams): AskRecorder {
    * replaces — a term a later edit could drop, which would under-meter every
    * classified turn by exactly one.
    */
-  function ledgerFor(final: AskStepLike, outcome: TurnOutcome): TurnLedger {
+  function ledgerFor(final: AskStepLike, outcome: TurnOutcome, latencyMs: number): TurnLedger {
     const classification = params.classification ?? null;
     const classifierCalled = classification !== null && classification.source === "model";
+    // Only a completed turn produced a proposal; any other end path reached
+    // nothing, so its write calls record `false` rather than asking.
+    const reached = outcome === "completed" ? (params.reachedCalls?.() ?? new Set<string>()) : new Set<string>();
     return {
       cost: {
+        turnId: params.turnId ?? null,
         userId: params.userId,
         endpoint: "ask",
         outcome,
@@ -814,9 +882,32 @@ export function createAskRecorder(params: AskRecorderParams): AskRecorder {
             : null,
         steps,
         planVersionRef: params.planVersionRef ?? null,
+        latencyMs,
       },
       capacity: meter.capacity(),
-      toolCalls: meter.toolCalls(),
+      toolCalls: meter.toolCalls().map((call) => ({
+        ...call,
+        stepIndex: call.callId === null ? null : (stepOfCall.get(call.callId) ?? null),
+        reachedProposal:
+          call.callId !== null && meter.proposes(call.callId) ? reached.has(call.callId) : null,
+      })),
+      stepSpend: stepSpend.map((entry) => ({ ...entry })),
+    };
+  }
+
+  /** One observed step as the per-step row, on the model `prepareStep` chose for it. */
+  function stepSpendOf(index: number, step: AskStepLike, plan: AskStepPlan | undefined): StepSpend {
+    return {
+      index,
+      model: plan?.model ?? params.model,
+      tier: plan?.tier ?? params.tier ?? null,
+      tokensIn: step.usage?.inputTokens ?? null,
+      cacheReadTokens: step.usage?.inputTokenDetails?.cacheReadTokens ?? null,
+      cacheWriteTokens: step.usage?.inputTokenDetails?.cacheWriteTokens ?? null,
+      tokensOut: step.usage?.outputTokens ?? null,
+      finishReason: step.finishReason ?? null,
+      escalated: plan?.escalated ?? false,
+      pivoted: plan?.pivoted ?? false,
     };
   }
 

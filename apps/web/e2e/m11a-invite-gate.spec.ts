@@ -4,8 +4,6 @@ import { expect, test } from "./fixtures/test";
 import { eq } from "drizzle-orm";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Client } from "pg";
-import { AdmissionRefusal } from "@tc/contracts";
-import { errorMessage } from "../src/components/front/authCopy";
 import {
   PENDING_ADMISSION_COOKIE,
   PENDING_ADMISSION_MAX_AGE_SECONDS,
@@ -14,18 +12,11 @@ import { DATABASE_URL } from "../src/server/config";
 import { inviteCodes, users } from "../src/server/db/schema";
 
 // M11a's own e2e script (AGENTS.md: one happy-path script per milestone, kept
-// green forever after its gate). The three admission paths and the single-use
-// race are proven against the row in `server/admission.int.test.ts`; what only
-// a browser can prove is the part that leaves the site and comes back — the
-// credential surviving a sign-in round trip in a cookie, the refusal landing
-// on a designed screen, and the cookie not outliving either answer.
-//
-// **Refusal codes are never spelled as literals here.** They come from
-// `AdmissionRefusal.enum`, and the copy each one must produce comes from
-// `errorMessage()` — the same function the screen calls. So this spec asserts
-// that the enum member reaches its designed sentence, and stays true when that
-// sentence is reworded (`ADMISSION_FIELD_COPY` is still awaiting design
-// sign-off), while failing loudly if a refusal silently degrades to FALLBACK.
+// green forever after its gate), rewritten when signup opened (ADR-063). The
+// code no longer keeps anyone out; what only a browser can prove is the part
+// that leaves the site and comes back — the credential surviving a sign-in
+// round trip in a cookie, being CLAIMED on the far side so who-invited-whom is
+// recorded, and the cookie not outliving the sign-in either way.
 //
 // Signed out by default: the "desktop" project pins alice's saved session, and
 // every person in this file except the returning-user test is meant to be
@@ -43,42 +34,6 @@ test.use({ storageState: { cookies: [], origins: [] } });
  */
 function freshUsername(): string {
   return `e2e${randomUUID().replace(/-/g, "").slice(0, 20)}`;
-}
-
-/**
- * Where a refusal lands. Built from the enum, never from a string, so a code
- * renamed in `packages/contracts` fails typecheck here rather than leaving a
- * spec that waits for a URL nothing produces any more.
- */
-function refusalUrl(reason: AdmissionRefusal): RegExp {
-  return new RegExp(`/signup\\?error=${reason}$`);
-}
-
-/**
- * The exact sentences the screen owes this refusal — from the copy map itself.
- *
- * Paragraphs, not one string: a refusal may be more than one (2026-09-06
- * preview feedback, finding 2 split MISSING_INVITE_CODE in two), and the banner
- * renders each in its own `<p>`. No single element then holds the whole text,
- * so `getByText(wholeString)` finds nothing — assert paragraph by paragraph.
- */
-function refusalCopy(reason: AdmissionRefusal): string[] {
-  const copy = errorMessage(reason);
-  // `errorMessage` returns `string | null`, and a null here would mean a
-  // refusal with no copy at all — the blank state link 6 exists to prevent.
-  expect(copy, `no copy is registered for ${reason}`).not.toBeNull();
-  return copy!.split("\n\n");
-}
-
-/** Every paragraph of a refusal's copy is on the screen. */
-async function expectRefusalCopy(page: Page, reason: AdmissionRefusal): Promise<void> {
-  for (const paragraph of refusalCopy(reason)) {
-    // `exact`, because the default is substring: if the split ever regressed
-    // and both paragraphs rendered inside one element, every lookup here would
-    // still match that element and this helper would pass while asserting the
-    // opposite of what it documents. CodeRabbit's finding on PR 149.
-    await expect(page.getByText(paragraph, { exact: true })).toBeVisible();
-  }
 }
 
 // The suite has no way to mint a single-use code through the app — the
@@ -132,9 +87,8 @@ async function pendingAdmissionCookie(context: BrowserContext): Promise<Cookie |
  * The front door as a new person meets it: `/signup`, a code (or not), a
  * username, and whatever the gate decides.
  *
- * Waits only for the screen to change, because both outcomes are legitimate
- * results of this walk — Home if admitted, `/signup?error=` if not. Asserting
- * which one is each test's job.
+ * Waits for the sign-in round trip to leave `/signup`; since ADR-063 every
+ * walk is admitted, so where it lands is each test's job to assert.
  */
 async function signUp(page: Page, username: string, code?: string): Promise<void> {
   await page.goto("/signup");
@@ -142,46 +96,27 @@ async function signUp(page: Page, username: string, code?: string): Promise<void
   // eslint-disable-next-line playwright/prefer-locator -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
   await page.fill('input[name="username"]', username);
   await Promise.all([
-    // Wait for the sign-in ATTEMPT to settle, which is not the same as leaving
-    // `/signup`. Since refusals redirect back to `/signup?error=` — so the
-    // person lands on the one screen with a code box to correct — "the
-    // pathname changed" is true for an admission and false for a refusal, and
-    // waiting on it hangs the refusal walk for 30s. Wait for either outcome:
-    // somewhere else entirely (admitted), or the same screen now carrying an
-    // error (refused).
+    // `?error=` too, so a regression back to a refusal fails on the assertion
+    // that follows rather than hanging here for the full timeout.
     page.waitForURL((url) => url.pathname !== "/signup" || url.searchParams.has("error")),
     page.getByRole("button", { name: /sign in with dev login/i }).click(),
   ]);
 }
 
-test("a brand-new account with no invite is refused, and leaves no users row behind", async ({
+test("a brand-new account with no invite code is admitted, and gets a users row", async ({
   page,
+  context,
 }) => {
   const username = freshUsername();
 
   await signUp(page, username);
 
-  await expect(page).toHaveURL(refusalUrl(AdmissionRefusal.enum.MISSING_INVITE_CODE));
-  await expectRefusalCopy(page, AdmissionRefusal.enum.MISSING_INVITE_CODE);
-  // The raw code is never shown to the person — it is a routing token, and the
-  // screen owes them a sentence instead.
-  await expect(page.getByText(AdmissionRefusal.enum.MISSING_INVITE_CODE)).toHaveCount(0);
-  // The refusal has to be ACTIONABLE, not merely correct. Everything above
-  // passes just as well on a screen with no way to try again — which is what
-  // shipped: refusals landed on `/signin`, whose form has no invite-code box,
-  // so the message told you what was wrong on a page that could not take the
-  // answer. Mitchell found it walking the preview on 2026-08-31; no assertion
-  // here could, because they all read text rather than asking whether the
-  // person can act.
-  await expect(page.getByLabel("Invite code")).toBeVisible();
-  await expect(page.getByLabel("Invite code")).toBeEditable();
-
-  // "…and leaves no `users` row behind": the gate runs before `upsertUser`, so
-  // a refused sign-in must create nothing at all.
-  expect(await hasUserRow(`dev-${username}`)).toBe(false);
+  await expect(page.getByRole("heading", { name: "Your trips" })).toBeVisible();
+  expect(await hasUserRow(`dev-${username}`)).toBe(true);
+  expect(await pendingAdmissionCookie(context)).toBeUndefined();
 });
 
-test("a single-use code admits exactly one person, and is refused the second time", async ({
+test("a single-use code records exactly one redeemer, and a second holder still gets in", async ({
   browser,
 }) => {
   // Two full sign-in walks in two contexts, like m11-invites.spec.ts — CI's
@@ -191,33 +126,31 @@ test("a single-use code admits exactly one person, and is refused the second tim
   const first = freshUsername();
   const second = freshUsername();
 
-  const admitted = await browser.newContext();
+  const claimed = await browser.newContext();
   try {
-    const page = await admitted.newPage();
+    const page = await claimed.newPage();
     await signUp(page, first, code);
     await expect(page.getByRole("heading", { name: "Your trips" })).toBeVisible();
-    // Proven against the row, not the UI (the exit gate's own words).
+    // Who-invited-whom, proven against the row: alice minted it, `first` spent it.
     expect(await redeemerOf(code)).toBe(`dev-${first}`);
-    // "No admission credential outlives the sign-in that used it" — cleared on
-    // the success path, not only the refusal one.
-    expect(await pendingAdmissionCookie(admitted)).toBeUndefined();
+    // "No admission credential outlives the sign-in that used it."
+    expect(await pendingAdmissionCookie(claimed)).toBeUndefined();
   } finally {
-    await admitted.close();
+    await claimed.close();
   }
 
-  const refused = await browser.newContext();
+  const spent = await browser.newContext();
   try {
-    const page = await refused.newPage();
+    const page = await spent.newPage();
     await signUp(page, second, code);
-    await expect(page).toHaveURL(refusalUrl(AdmissionRefusal.enum.SPENT_INVITE_CODE));
-    await expectRefusalCopy(page, AdmissionRefusal.enum.SPENT_INVITE_CODE);
-    // Still exactly one redeemer: the second attempt neither admitted anyone
-    // nor rewrote the row it lost.
+    // A spent code no longer blocks anyone (ADR-063)…
+    await expect(page.getByRole("heading", { name: "Your trips" })).toBeVisible();
+    expect(await hasUserRow(`dev-${second}`)).toBe(true);
+    // …and does not rewrite who the code's referral belongs to.
     expect(await redeemerOf(code)).toBe(`dev-${first}`);
-    expect(await hasUserRow(`dev-${second}`)).toBe(false);
-    expect(await pendingAdmissionCookie(refused)).toBeUndefined();
+    expect(await pendingAdmissionCookie(spent)).toBeUndefined();
   } finally {
-    await refused.close();
+    await spent.close();
   }
 });
 
@@ -245,7 +178,7 @@ test("someone who already has a users row signs in with no code at all", async (
   await expect(page.getByRole("heading", { name: "Your trips" })).toBeVisible();
 });
 
-test("the proxy banks an invite token in a short-lived httpOnly cookie, and a refusal clears it", async ({
+test("the proxy banks an invite token in a short-lived httpOnly cookie, and the sign-in clears it", async ({
   page,
   context,
 }) => {
@@ -286,15 +219,17 @@ test("the proxy banks an invite token in a short-lived httpOnly cookie, and a re
   // eslint-disable-next-line playwright/prefer-locator -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
   await page.fill('input[name="username"]', username);
   await Promise.all([
-    page.waitForURL(refusalUrl(AdmissionRefusal.enum.INVALID_INVITE_CODE)),
+    page.waitForURL((url) => url.pathname !== "/signin" || url.searchParams.has("error")),
     page.getByRole("button", { name: /sign in with dev login/i }).click(),
   ]);
-  await expectRefusalCopy(page, AdmissionRefusal.enum.INVALID_INVITE_CODE);
+  // An unknown token admits nobody to the trip, but no longer keeps the person
+  // out of Caesura (ADR-063): back on the invite's landing, now signed in.
+  await expect(page).toHaveURL(new RegExp(`/invite/${token}$`));
 
-  // Cleared on the refusal path too, so the rejected credential cannot be
-  // replayed by the next attempt from this browser.
+  // Cleared even though the token was useless, so it cannot be replayed by
+  // the next attempt from this browser.
   expect(await pendingAdmissionCookie(context)).toBeUndefined();
-  expect(await hasUserRow(`dev-${username}`)).toBe(false);
+  expect(await hasUserRow(`dev-${username}`)).toBe(true);
 
   // The other half of this path — a *pending* token admitting a brand-new
   // person with no code — is walked in m11-invites.spec.ts, where there is a

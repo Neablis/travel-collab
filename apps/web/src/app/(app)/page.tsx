@@ -29,6 +29,7 @@ import { viewerOwnsTrip } from "@/lib/tripRole";
 import { useSessionUser } from "@/components/account/useSessionUser";
 import { DEMO_TRIP_ID } from "@/lib/demoTrip";
 import { takeDemoClone } from "@/lib/pendingDemoClone";
+import { pendingPlaybookAddDay } from "@/lib/pendingPlaybookAdd";
 import { tripSpend, plannedOfBudgetLine } from "@/lib/cost";
 import { orderHomeTrips } from "@/lib/homeTripOrder";
 
@@ -271,6 +272,22 @@ export default function Home() {
     });
   }, [trips, unauthenticated, router]);
 
+  // Back to the Playbook somebody pressed *Add* on before they had an account
+  // (ADR-061). Same reason as the demo copy above: this is where a sign-up
+  // that lost its `callbackUrl` lands. The day page spends the marker and
+  // opens its add dialog; this only takes them there. After the demo copy,
+  // which wins if both were somehow banked.
+  const playbookReturnAttempted = useRef(false);
+  useEffect(() => {
+    // `demoCloneAttempted` too: it is set in the same commit, before
+    // `cloningDemo`'s state lands.
+    if (playbookReturnAttempted.current || trips === null || unauthenticated) return;
+    if (cloningDemo || demoCloneAttempted.current) return;
+    playbookReturnAttempted.current = true;
+    const savedDayId = pendingPlaybookAddDay();
+    if (savedDayId !== null) router.replace(`/playbooks/day/${encodeURIComponent(savedDayId)}`);
+  }, [trips, unauthenticated, cloningDemo, router]);
+
   // **SPEC §27: the card goes on the CLICK, and there is no confirm dialog.**
   //
   // > Delete is optimistic. The card goes on the click; the toast carries a
@@ -420,17 +437,18 @@ export default function Home() {
     };
   }, [gridTripIds]);
 
-  // M15 (ADR-023): `src/proxy.ts` now handles *arrival* — a signed-out
-  // visitor hitting `/` is redirected to `/welcome` before this page ever
-  // renders, so this branch no longer fires on first load. What it still
-  // covers is *expiry-in-place*: a session that lapses while this page is
-  // already open produces a 401 the next time `load()` fetches /api/trips
-  // (a manual refresh, a background poll, etc.), and that visitor should
-  // still be sent to the front door rather than left looking at a stuck or
-  // broken authenticated view. The landing page lives at /welcome, outside
-  // this route group's AppHeader shell. `replace`, not `push`, so the back
-  // button doesn't bounce them straight back into a page that will only
-  // redirect them again.
+  // M15 (ADR-023): `src/proxy.ts` handles *arrival* — a signed-out visitor
+  // hitting `/` is served the landing by a rewrite (the URL stays `/`, no
+  // redirect; `/welcome` is canonical to `/`) before this page ever renders,
+  // so this branch no longer fires on first load. What it still covers is
+  // *expiry-in-place*: a session that lapses while this page is already open
+  // produces a 401 the next time `load()` fetches /api/trips (a manual
+  // refresh, a background poll, etc.), and that visitor should still be sent
+  // to the front door rather than left looking at a stuck or broken
+  // authenticated view. The landing page lives at /welcome, outside this
+  // route group's AppHeader shell. `replace`, not `push`, so the back button
+  // doesn't bounce them straight back into a page that will only redirect
+  // them again.
   useEffect(() => {
     if (unauthenticated) router.replace("/welcome");
   }, [unauthenticated, router]);

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { asSchema } from "ai";
 import { JAPAN_TRIP_DAY_COUNT, JAPAN_TRIP_NAME } from "@tc/fixtures";
 import { tripDetailFactory } from "@tc/factories";
 import type { TripDetail } from "@tc/contracts";
@@ -217,7 +218,7 @@ describe("read_day, batched", () => {
     expect(readout.days[1]).toHaveProperty("error");
   });
 
-  it("keeps the single-day shape a bare DayReadout, not a batch of one", () => {
+  it("keeps the single-day shape a bare DayReadout, not a batch of one", async () => {
     const tools = readToolSet();
     // Structural: the SCHEMA accepts both a bare number and a list under the
     // same `days` field, which is what "batch every day into one call rather
@@ -225,7 +226,11 @@ describe("read_day, batched", () => {
     // (ADR-022 §1) or a second field.
     expect(ReadDayInput.safeParse({ days: 8 }).success).toBe(true);
     expect(ReadDayInput.safeParse({ days: [8] }).success).toBe(true);
-    expect(tools.read_day!.inputSchema).toBe(ReadDayInput);
+    // And through the TOOL, which is what the SDK validates a call with — the
+    // schema the model reads is slimmed (modelFacingSchema.ts), the check is not.
+    const viaTool = asSchema(tools.read_day!.inputSchema);
+    expect((await viaTool.validate!({ days: 8 })).success).toBe(true);
+    expect((await viaTool.validate!({ days: [8] })).success).toBe(true);
   });
 
   it(`bounds a batch to ${MAX_READ_DAYS} days, as a schema failure rather than a silent truncation`, () => {
@@ -349,10 +354,12 @@ describe("the tool schemas", () => {
   // manifest, which is what this used to read: the manifest needed a second
   // test to assert it covered every offered tool, and the pair could only ever
   // agree with each other. Every offered tool is now covered by construction.
-  it("declares no tripId — nor any other id — in any tool's input schema", () => {
+  // Read off the JSON Schema the model is actually sent, so the assertion is
+  // about what a model can EXPRESS rather than about the zod object behind it.
+  it("declares no tripId — nor any other id — in any tool's input schema", async () => {
     for (const [name, tool] of Object.entries(tools)) {
-      const schema = tool.inputSchema as unknown as { shape: Record<string, unknown> };
-      const keys = Object.keys(schema.shape);
+      const schema = await asSchema(tool.inputSchema).jsonSchema;
+      const keys = Object.keys(schema.properties ?? {});
       expect(keys, `${name} input keys`).not.toContain("tripId");
       // ADR-042 Decision 2's second half, spelled out rather than left to the
       // `/id$/i` sweep below: `search_playbooks` reads a corpus that belongs to

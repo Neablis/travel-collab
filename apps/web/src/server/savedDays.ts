@@ -17,6 +17,7 @@ import { forgetCitySearches } from "./cities";
 import { db } from "./db/client";
 import { savedDays } from "./db/schema";
 import { isUuid } from "./ids";
+import { invalidateDayRead, invalidatePublicDay } from "./libraryCache";
 import { parseSavedDayColumns } from "./savedDayRow";
 import { executeTripCommandBatch, type CommandResult } from "./commands";
 import { readStream } from "./eventStore";
@@ -485,7 +486,8 @@ export async function getSavedDay(savedDayId: string, ownerId: string): Promise<
 
 /**
  * The read rule the public library rests on: **your own day, or anybody's
- * published one.** The access seam over it, and the reasoning for why it is a
+ * published one.** A `null` reader is somebody with no account (ADR-061), who
+ * gets the published half only. The access seam over it, and the reasoning for why it is a
  * seam of its own rather than a role on `requireTripAccess`, is
  * `access/saved-day-access.ts`.
  *
@@ -498,7 +500,7 @@ export async function getSavedDay(savedDayId: string, ownerId: string): Promise<
  */
 export async function readableSavedDay(
   savedDayId: string,
-  readerId: string,
+  readerId: string | null,
 ): Promise<SavedDay | null> {
   // `getSavedDay`'s reason. This one also covers `insertSavedDay`, which reads
   // through here — so `POST /api/trips/:id/saved-days/not-a-uuid` answers 404
@@ -515,8 +517,11 @@ export async function readableSavedDay(
         // route's 404 cannot tell the two apart. `saved-day-access.ts` records
         // why that indistinguishability is load-bearing.
         isNull(savedDays.deletedAt),
+        // `readerId` null is a reader with no account (ADR-061): they own
+        // nothing, so only the published branch is left. Spelled as a branch
+        // rather than `owner_id = NULL`, whose NULL only works by accident.
         or(
-          eq(savedDays.ownerId, readerId),
+          readerId === null ? undefined : eq(savedDays.ownerId, readerId),
           // Published AND not moderated (M12 link 6). The author keeps their
           // moderated day — this is also their direct read and the insert path
           // into their own trips — while everyone else gets the same no-row a
@@ -545,6 +550,21 @@ export async function publishedAtOf(savedDayId: string): Promise<string | null> 
     .from(savedDays)
     .where(eq(savedDays.id, savedDayId));
   return rows[0]?.publishedAt?.toISOString() ?? null;
+}
+
+/**
+ * A day's average rating and review count, off the row's denormalised
+ * counters. Beside `publishedAtOf` and on its terms: the caller has already
+ * passed the read seam, and this answers nothing about access. `rating` is
+ * null exactly when nobody has rated it.
+ */
+export async function ratingOf(savedDayId: string): Promise<{ rating: number | null; reviewCount: number }> {
+  if (!isUuid(savedDayId)) return { rating: null, reviewCount: 0 };
+  const rows = await db
+    .select({ rating: savedDays.rating, reviewCount: savedDays.reviewCount })
+    .from(savedDays)
+    .where(eq(savedDays.id, savedDayId));
+  return { rating: rows[0]?.rating ?? null, reviewCount: rows[0]?.reviewCount ?? 0 };
 }
 
 /**
@@ -673,8 +693,10 @@ export async function setSavedDayVisibility(
     )
     .returning();
   if (updated[0] === undefined) return null;
-  // Committed (no transaction here): the city index just gained or lost a day.
+  // Committed (no transaction here): the city index just gained or lost a day,
+  // and so did the cached library (ADR-063).
   forgetCitySearches();
+  await invalidatePublicDay(savedDayId, ownerId);
   const day = fromRow(updated[0]);
   if (day === null) {
     // `null` from here means "no such row of yours", and the route turns it
@@ -806,6 +828,12 @@ export async function updatePlaybookContent(
   if (updated[0] !== undefined) {
     // Only visibility can move the city index: `days` is refused on a public day.
     if (edit.visibility !== undefined) forgetCitySearches();
+    // The cached library (ADR-063) lets a summary go stale for a day, but not
+    // whether the day is in it, and not its name: the name is the slug, and a
+    // reader served the old one is 308'd from the new URL to the old, which a
+    // browser keeps and loops on once the cache catches up.
+    const renamedInPublic = edit.name !== undefined && updated[0].visibility === SavedDayVisibility.enum.public;
+    if (edit.visibility !== undefined || renamedInPublic) await invalidatePublicDay(savedDayId, ownerId);
     const day = fromRow(updated[0]);
     // `setSavedDayVisibility`'s reason: the UPDATE has committed, so "not
     // found" would be a lie about a row that is there.
@@ -924,7 +952,12 @@ export async function deleteSavedDay(
       ),
     )
     .returning({ id: savedDays.id });
-  if (deleted.length > 0) return "deleted";
+  if (deleted.length > 0) {
+    // Only a private day gets here, so no cached read holds it; its author's
+    // numbers do (the adds it had now count for nothing), and those are cached.
+    await invalidatePublicDay(savedDayId, ownerId);
+    return "deleted";
+  }
 
   // Nothing moved. Two reasons are possible and the caller needs to tell them
   // apart, so the row is re-read under the SAME owner scope — a day that is not
@@ -1228,12 +1261,13 @@ export async function insertSavedDay(
   }
 
   const commands = insertCommands(saved, tripId, onto);
+  let counted = false;
   const result = await executeTripCommandBatch(
     commands,
     actorId,
     async (tx) => {
       if (!addCounts({ authorId: saved.ownerId, actorId })) return;
-      await recordAdd(tx, {
+      counted = await recordAdd(tx, {
         savedDayId: saved.savedDayId,
         tripId,
         addedBy: actorId,
@@ -1243,6 +1277,8 @@ export async function insertSavedDay(
     { expectedSeq },
   );
   if (!result.ok) return result;
+  // Committed: whoever just added it sees the count move (ADR-063).
+  if (counted) await invalidateDayRead(saved.savedDayId, saved.ownerId);
   // Read back out of the batch rather than minted a second time, so these are
   // by construction the ids that landed. `insertCommands` emits every AddDay
   // in sequence order and then one AddActivity per stop in `stops[]` order;

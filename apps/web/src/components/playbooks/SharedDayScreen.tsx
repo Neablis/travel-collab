@@ -2,14 +2,14 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Fragment, useCallback, useEffect, useState } from "react";
-import type { SavedDay, SavedDayModeration, TimeFormat } from "@tc/contracts";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import type { SavedDay, TimeFormat } from "@tc/contracts";
 import { Badge } from "@/components/ui/badge";
 import { SharedDayMap } from "./SharedDayMap";
 import { mapPanel } from "./sharedDayFacts";
 import { scopedGeometry } from "./sharedDayGeometry";
 import { useDistanceUnit } from "@/components/account/PreferencesProvider";
-import { AuthorKindBadge } from "./AuthorKindBadge";
+import { useSessionUser } from "@/components/account/useSessionUser";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -29,8 +29,9 @@ import {
   unpublishSavedDay,
   type ApiResult,
 } from "@/lib/apiClient";
-import { displayNameFor } from "@/lib/displayName";
-import { type PublicAuthor } from "@/lib/playbooks";
+import type { SharedDayView } from "@/lib/sharedDayView";
+import { takePlaybookAdd } from "@/lib/pendingPlaybookAdd";
+import { cityPath, dayPath, daySegment } from "@/lib/playbookUrls";
 import { dayLength, savedDayFacts, DAY_LENGTH_LABELS } from "@/lib/savedDayFacts";
 import { toClockLabel, toClockRange } from "@/lib/time";
 import { useTimeFormat } from "@/components/account/PreferencesProvider";
@@ -41,6 +42,7 @@ import { AddToTripDialog } from "./AddToTripDialog";
 import { ReportAction } from "./ReportDialog";
 import { ReviewRail } from "./ReviewRail";
 import { ReviewConflictBanner, ReviewsSection } from "./ReviewsSection";
+import { SignInToAddDialog } from "./SignInToAddDialog";
 import { useDayReviews } from "./useDayReviews";
 
 // A shared day (M11b link 6). The full stop list with per-stop notes and city
@@ -52,6 +54,12 @@ import { useDayReviews } from "./useDayReviews";
 // `ReviewConflictBanner` sits with the other banners, and `ReportAction` is the
 // quiet "Report" on the day and on each review. They read the reviews endpoint,
 // never the day's own read, so posting a review does not re-read the day.
+//
+// **Readable without an account** (ADR-061). A reader with no account sees
+// everything a reader sees, and none of what only an account can do: no Report
+// on the day or on a review, no review form. *Add to a trip* stays and asks them
+// to sign in. All of it keys on a CONFIRMED signed-out session (`null`), never
+// on `undefined`, so a signed-in reader never watches their controls arrive.
 
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
@@ -138,16 +146,6 @@ export function dayDividerLine(group: PlaybookDay, clock: TimeFormat): string {
     : `${toClockRange(group.window.start, group.window.end, clock)} · ${count}`;
 }
 
-type DayView = {
-  day: SavedDay;
-  isAuthor: boolean;
-  author: PublicAuthor;
-  pinning: boolean;
-  publishedAt?: string | null;
-  /** An operator hid it (KI-2026-09-23-i). Only ever non-null on the author's own read. */
-  moderation: SavedDayModeration | null;
-};
-
 /**
  * How often, and how many times, the page reads again while the server is
  * placing the day's stops on its map (M27 link 10). One server pass is at most
@@ -167,7 +165,7 @@ const MAX_PIN_REREADS = 8;
  * shared / how often their days were added" say the same thing beside a day as
  * it does on the profile that day links to.
  */
-async function readDay(savedDayId: string): Promise<ApiResult<DayView>> {
+async function readDay(savedDayId: string): Promise<ApiResult<SharedDayView>> {
   const dayResult = await fetchSavedDay(savedDayId);
   if (!dayResult.ok) return dayResult;
   const authorResult = await fetchPublicProfile(dayResult.value.savedDay.ownerId);
@@ -185,18 +183,33 @@ async function readDay(savedDayId: string): Promise<ApiResult<DayView>> {
   };
 }
 
-export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayId: string; backHref: string; backLabel: string }) {
+// Visibility and the adds count are what somebody else can move under a
+// reader — the day's stops are a snapshot and never change after it is saved.
+// At module level, not in a `useCallback`: `useLibraryRead` tells "the question
+// the server already answered" from a new one by this function's identity.
+const signature = (value: SharedDayView) => `${value.day.visibility}:${value.day.adds}`;
+
+/** The shared-day screen: the title block, the stops, the author strip, the map and the rail. */
+export function SharedDayScreen({
+  savedDayId,
+  backHref,
+  backLabel,
+  initial,
+}: {
+  savedDayId: string;
+  backHref: string;
+  backLabel: string;
+  /** The server's read of this day. With it the first paint is the day, not a skeleton. */
+  initial?: SharedDayView;
+}) {
   const clock = useTimeFormat();
   const read = useCallback(() => readDay(savedDayId), [savedDayId]);
-  // Visibility and the adds count are what somebody else can move under a
-  // reader — the day's stops are a snapshot and never change after it is saved.
-  const signature = useCallback(
-    (value: DayView) => `${value.day.visibility}:${value.day.adds}`,
-    [],
-  );
-  const feed = useLibraryRead(read, signature);
+  const feed = useLibraryRead(read, signature, initial);
+  const user = useSessionUser();
+  const signedOut = user === null;
 
   const [adding, setAdding] = useState(false);
+  const [signingIn, setSigningIn] = useState(false);
   const [withdrawn, setWithdrawn] = useState(false);
   // §33.1: **`All days` is the default and opening any Playbook resets to it.**
   // Keyed on `savedDayId` rather than reset in an effect: a key change
@@ -220,7 +233,31 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
   // The day's `publishedAt` as this page read it: a review held offline sends
   // it back as `seenPublishedAt`, so a republish in between becomes §15's
   // conflict banner. `undefined` until the day has been read ("do not check").
-  const reviews = useDayReviews(savedDayId, feed.data?.publishedAt);
+  // A review held on this device is loaded and sent only for a CONFIRMED
+  // reader, not merely one not yet known to be signed out: an expired cookie
+  // reads `undefined` first, and flushing then would be a PUT that can only
+  // 401 (Copilot, PR #293).
+  const reviews = useDayReviews(savedDayId, feed.data?.publishedAt, Boolean(user));
+
+  // **Back from signing in, having pressed Add while signed out**
+  // (`SignInToAddDialog` banked it). Opens the add dialog and adds nothing:
+  // which trip it goes into is still the reader's click, so a marker that
+  // somehow is not theirs can do no more than open a dialog.
+  //
+  // Once per day per mount — a ref, like `DemoBanner`'s. StrictMode runs this
+  // twice; read-and-clear already makes the second pass find nothing, and the
+  // ref is the cheaper guard. Waits for the day (an add dialog over a skeleton
+  // has nothing to name) and for a signed-in reader; the author is left out,
+  // since a day of their own is not what they went to sign in for.
+  const redeemedFor = useRef<string | null>(null);
+  const dayLoaded = feed.data !== null;
+  const readerIsAuthor = feed.data?.isAuthor === true;
+  useEffect(() => {
+    if (!dayLoaded || !user || redeemedFor.current === savedDayId) return;
+    redeemedFor.current = savedDayId;
+    // Taken (and so cleared) for the author too — it is spent either way.
+    if (takePlaybookAdd(savedDayId) && !readerIsAuthor) setAdding(true);
+  }, [dayLoaded, user, readerIsAuthor, savedDayId]);
 
   // Read again while the server is still pinning — silently, because the
   // stops gaining coordinates is not "the library moved" (the signature above
@@ -387,13 +424,23 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
             <div className="flex flex-wrap items-center gap-2">
               <Heading level={1}>{day.name}</Heading>
               {day.visibility === "private" && <Badge variant="neutral">Private</Badge>}
-              {/* Beside "Private" rather than in the author strip below: this is
-                  the screen somebody reads before deciding to take the day into
-                  their own trip, and "who wrote it" belongs with the title they
-                  are deciding on, not three paragraphs down beside the
-                  leaderboard numbers. */}
-              <AuthorKindBadge authorKind={day.authorKind} />
+              <ShareDayButton path={dayPath(day)} title={day.name} />
             </div>
+            {/* Where, under the title, each city a way to that city's page
+                (SEO pass, D6) — and so the link a crawler follows from a day
+                to the place it belongs to. A private day, or one an operator
+                hid, is in no city's list, so its author sees the names without
+                the links. */}
+            {day.cities.length > 0 && (
+              <Text variant="secondary" className="mt-1">
+                {day.cities.map((city, i) => (
+                  <Fragment key={city}>
+                    {i > 0 && ", "}
+                    {day.visibility === "public" && moderation === null ? <CityLink city={city} /> : city}
+                  </Fragment>
+                ))}
+              </Text>
+            )}
             {/* §33.1: **the title block always speaks for the whole Playbook**,
                 so no number below it is stated twice. This line is why the rail
                 no longer carries Days, Stops or Kept in — it owned three facts
@@ -417,6 +464,15 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
                 .filter((part) => part !== null)
                 .join(" · ")}
             </DataText>
+            {/* The author's own paragraph (`saved_days.summary`). It is also
+                the page's meta description, so what a search result prints is
+                on the page it leads to. A blank one is no paragraph at all,
+                as it is no description (`dayDescription`). */}
+            {day.summary !== null && day.summary.trim() !== "" && (
+              <Text className="mt-2 max-w-prose" data-testid="playbook-summary">
+                {day.summary.trim()}
+              </Text>
+            )}
           </div>
 
           {/* §33.1: **`All days · Day 1 · Day 2 …`, under the title block.**
@@ -472,23 +528,23 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
               below it moves when the map arrives. */}
           <SharedDayMap savedDayId={savedDayId} days={groups} scope={dayScope} pinning={pinning} />
 
-          {/* The author strip. One resolver for the name (M17's seam), and the
-              two numbers beside it are the profile's own. */}
+          {/* The author strip. The name and the two numbers beside it are the
+              profile endpoint's own, so the strip cannot disagree with the
+              profile it links to. */}
           <Card className="flex flex-wrap items-center justify-between gap-3 p-3" data-testid="author-strip">
             <div className="min-w-0">
               {/* "You" on your own day, rather than your own account id sitting
                   next to the Publish button (Mitchell, 2026-09-01: "Dont show
                   the UUID in the header bar where publish button is"). Somebody
-                  ELSE's name still goes through `displayNameFor`, which is the
-                  M17 seam — and which no longer hands back a raw identifier
-                  either. This branch is not that fix; it is the better answer
-                  for the one reader who does not need to be told their own
-                  name. */}
+                  ELSE's name is the server's — `publicNameFor`, "Dana R." or
+                  their handle (Mitchell, 2026-10-02) — never derived here from
+                  the id. This branch is the better answer for the one reader
+                  who does not need to be told their own name. */}
               <Link
-                href={`/playbooks/profile/${encodeURIComponent(author.userId)}${backQuery({ from: "day", day: day.savedDayId })}`}
+                href={`/playbooks/profile/${encodeURIComponent(author.userId)}${backQuery({ from: "day", day: daySegment(day) })}`}
                 className="font-semibold text-ink hover:underline"
               >
-                {isAuthor ? "You" : displayNameFor({ userId: author.userId })}
+                {isAuthor ? "You" : author.displayName}
               </Link>
               <Text variant="secondary">
                 {author.playbooksShared} playbook{author.playbooksShared === 1 ? "" : "s"} shared · added to{" "}
@@ -621,7 +677,12 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
             </div>
           )}
 
-          <ReviewsSection reviews={reviews} savedDayId={day.savedDayId} canReview={!isAuthor} />
+          <ReviewsSection
+            reviews={reviews}
+            savedDayId={day.savedDayId}
+            canReview={!isAuthor && !signedOut}
+            canReport={!signedOut}
+          />
         </div>
 
         {/* The sticky rail: the facts, and the one action. */}
@@ -657,28 +718,21 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
                 day that says nothing about when it runs must not be labelled
                 "Short". That is a fact about the data, not a day-count branch. */}
             {length !== null && <Fact label="Length" value={DAY_LENGTH_LABELS[length]} />}
-            {/* "Budget", not "Budget each" (Mitchell, 2026-09-01) — this rail
-                is the only place that string was actually VISIBLE, since
-                Discover's matching label is an aria-label over a select that
-                shows its option instead.
-
-                The word stays "Budget" on purpose. That was Mitchell's own
-                wording in this same review (*"Budget each → Should just say
-                Budget"*), so it is not up for a tidy-up into "Cost" or
-                "Total" here. What went is the per-person READING that the
-                first pass left standing on the number: `facts.totalCost` is a
-                plain sum of the day's priced stops, dividing by nothing, so
-                every surface now shows it as the day's total and none of them
-                says "each" (Mitchell, same day: *"just show total cost there,
-                any per person logic and math should go into the future
-                milestone around cost"*). Real per-head math is M19's —
-                `docs/milestones/M19-cost-model.md`. */}
+            {/* SPEC §15's "budget each". A saved stop's price is per person
+                and a saved day carries no people, so `facts.totalCost`, the
+                plain sum of its priced stops, is what the day costs one
+                person (ADR-060 decision 7). The "each" goes on the value, as
+                it does on the Discover card, and the label stays "Budget":
+                that was Mitchell's own wording (2026-09-01, *"Budget each →
+                Should just say Budget"*), so it is not up for a tidy-up into
+                "Cost" or "Total". The word "each" came off the number that day
+                because nothing yet said what a price meant. M19 settled it. */}
             <Fact
               label="Budget"
               value={
                 facts.totalCost === null
                   ? "Not priced"
-                  : formatMoney(facts.totalCost.amountMinor, facts.totalCost.currency)
+                  : `${formatMoney(facts.totalCost.amountMinor, facts.totalCost.currency)} each`
               }
             />
             {/* **Kept in left this rail too** — it is the third part of the
@@ -692,6 +746,12 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
               variant="primary"
               className="mt-1 w-full justify-center"
               onClick={() => {
+                // Shown to a reader with no account too, and it asks them to
+                // sign in rather than vanishing (ADR-061, the share page's shape).
+                if (signedOut) {
+                  setSigningIn(true);
+                  return;
+                }
                 setWithdrawn(false);
                 setAdding(true);
               }}
@@ -758,8 +818,9 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
               </>
             )}
             {/* Not for the author: reporting your own day is refused (403
-                `own-content`), so the control could only fail. */}
-            {!isAuthor && (
+                `own-content`), so the control could only fail. Not for a reader
+                with no account either — the report answers 401 (ADR-061). */}
+            {!isAuthor && !signedOut && (
               <div className="flex justify-end">
                 <ReportAction target={{ kind: "saved_day", savedDayId: day.savedDayId }} name="this day" />
               </div>
@@ -788,6 +849,8 @@ export function SharedDayScreen({ savedDayId, backHref, backLabel }: { savedDayI
           </Button>
         </DialogFooter>
       </Dialog>
+
+      <SignInToAddDialog open={signingIn} onOpenChange={setSigningIn} savedDayId={day.savedDayId} />
 
       <AddToTripDialog
         open={adding}
@@ -859,6 +922,18 @@ function Fact({ label, value }: { label: string; value: string }) {
   );
 }
 
+/** A city's name as a link to its page, or as text when its name has no slug. */
+function CityLink({ city }: { city: string }) {
+  const href = cityPath(city);
+  return href === null ? (
+    <>{city}</>
+  ) : (
+    <Link href={href} className="hover:underline">
+      {city}
+    </Link>
+  );
+}
+
 /**
  * The contextual back link (§15: "the profile returns to day, board or Discover
  * depending on where you came from, because the same page is reachable three
@@ -870,5 +945,52 @@ function BackLink({ href, label }: { href: string; label: string }) {
     <Link href={href} className="w-fit text-sm text-slate hover:underline">
       ← {label}
     </Link>
+  );
+}
+
+/**
+ * *Share* (ADR-061, spec 2026-10-02 decision 6) — for every reader, because a
+ * reader with no account can pass a link on too.
+ *
+ * The clean `/playbooks/day/<slug>-<id>`, never the address bar: that carries `?from=`
+ * (`backLink.ts`), which would hand the next reader a back link to wherever
+ * THIS reader came from. The system share sheet where there is one (phones,
+ * mostly), else a copy with a moment of "Link copied" on the button. Dismissing
+ * the share sheet rejects with `AbortError`, which is the reader saying no and
+ * gets no answer; any other refusal falls through to copying.
+ */
+function ShareDayButton({ path, title }: { path: string; title: string }) {
+  const [outcome, setOutcome] = useState<"idle" | "copied" | "failed">("idle");
+
+  // The label goes back after a moment; the cleanup is what keeps a timer from
+  // setting state on a page somebody has already left.
+  useEffect(() => {
+    if (outcome === "idle") return;
+    const timer = setTimeout(() => setOutcome("idle"), 2_000);
+    return () => clearTimeout(timer);
+  }, [outcome]);
+
+  async function share() {
+    const url = `${window.location.origin}${path}`;
+    if (typeof navigator.share === "function") {
+      try {
+        await navigator.share({ title, url });
+        return;
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      setOutcome("copied");
+    } catch {
+      setOutcome("failed");
+    }
+  }
+
+  return (
+    <Button variant="secondary" size="sm" className="ml-auto" onClick={() => void share()} data-testid="share-day">
+      {outcome === "copied" ? "Link copied" : outcome === "failed" ? "Could not copy" : "Share"}
+    </Button>
   );
 }

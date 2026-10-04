@@ -16,6 +16,7 @@ import { countryFactsWidget } from "./macros/primitives/countryFacts";
 import { tripStripWidget } from "./macros/primitives/tripStrip";
 import { costChart } from "./macros/primitives/spendByDay";
 import { costBreakdown } from "./macros/primitives/spendBreakdown";
+import { costBalances, personShare } from "./macros/primitives/balances";
 import { field } from "./macros/primitives/field";
 import { daySun, dayFromHome } from "./macros/primitives/time";
 import { dayWeather } from "./macros/primitives/weather";
@@ -55,6 +56,9 @@ const DEFS: AnyMacroDef[] = [
   // as a pie per kind or per tag — its own primitive, not a `view` of the
   // bars, because its filters differ. See `spendBreakdown.ts`.
   costBreakdown,
+  // "Who owes what" and "What one person is in for" (M19 part 2, ADR-060
+  // decision 6): stop primitives over `balances`. See `balances.ts`.
+  costBalances, personShare,
   // The field widget (M14 build step 6): `stop` + filters + a reader-chosen
   // manifest field. The first registered widget with a `field` input.
   field,

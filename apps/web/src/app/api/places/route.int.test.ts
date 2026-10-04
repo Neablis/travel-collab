@@ -93,10 +93,20 @@ beforeEach(() => {
 });
 
 describe("GET /api/places", () => {
-  it("401s when unauthenticated", async () => {
+  // ADR-061: Discover's search box works for a reader with no account. Their
+  // own IP, for `publicLibraryLimit.ts`'s per-IP count.
+  it("answers a reader with no account exactly as it answers a signed-in one", async () => {
+    const city = `Anoncity${RUN}`;
+    await publish(await saveDayAt([{ city, countryCode: "PT" }]));
+    const signedIn = await search(city);
+    expect(signedIn.places).toEqual([{ kind: "city", city, days: 1 }]);
+
     currentUserId = "";
-    const res = await GET(new Request("http://test/api/places?q=Mex"));
-    expect(res.status).toBe(401);
+    const res = await GET(
+      new Request(`http://test/api/places?q=${city}`, { headers: { "x-forwarded-for": `anon-${RUN}` } }),
+    );
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { places: PlaceMatch[] }).places).toEqual(signedIn.places);
   });
 
   it("answers an empty or blank query with an empty list, not everything", async () => {

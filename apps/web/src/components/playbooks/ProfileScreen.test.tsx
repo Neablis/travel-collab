@@ -14,6 +14,7 @@ function day(over: Partial<DiscoverDay> = {}): DiscoverDay {
   return {
     savedDayId: "aa000000-0000-4000-8000-000000000001",
     ownerId: "dev-alice",
+    ownerDisplayName: "Alice",
     name: "Kyoto temples on foot",
     cities: ["Kyoto"],
     matchedCities: [],
@@ -36,8 +37,8 @@ function day(over: Partial<DiscoverDay> = {}): DiscoverDay {
 }
 
 const profile: PublicProfileResponse = {
-  // `displayName` is what the ENDPOINT resolved (`displayNameFor` on the
-  // server), which for `dev-alice` is "Alice" — not the raw id this fixture
+  // `displayName` is what the ENDPOINT resolved (`publicNameFor` on the
+  // server), which for a `dev-alice` with no name is "Alice" — not the raw id this fixture
   // used to carry, which the endpoint has never returned and which the page
   // now renders verbatim because it stopped re-deriving the name itself.
   author: { userId: "dev-alice", displayName: "Alice", playbooksShared: 2, adds: 3, reviewsReceived: 0, averageRating: null },
@@ -157,13 +158,16 @@ describe("a public profile", () => {
     expect(screen.queryByRole("img")).toBeNull();
   });
 
-  // A way INTO the library rather than a dead end: the chip is a real Discover
-  // search scoped to that city, not a filter on this page's own list.
-  it("turns a Knows chip into a scoped Discover search", async () => {
+  // A way INTO the library rather than a dead end: the chip opens the city's
+  // page, or a Discover search for a city whose name has no slug — never a
+  // filter on this page's own list.
+  it("turns a Knows chip into the city's page, or a Discover search when it has none", async () => {
+    fetchPublicProfileMock.mockResolvedValue(ok({ ...profile, knows: [...profile.knows, { city: "京都", days: 1 }] }));
     renderProfile();
     const knows = await screen.findByTestId("knows-cities");
-    expect(within(knows).getByRole("link", { name: "Kyoto · 2" }).getAttribute("href")).toBe(
-      "/playbooks?city=Kyoto",
+    expect(within(knows).getByRole("link", { name: "Kyoto · 2" }).getAttribute("href")).toBe("/playbooks/city/kyoto");
+    expect(within(knows).getByRole("link", { name: "京都 · 1" }).getAttribute("href")).toBe(
+      `/playbooks?city=${encodeURIComponent("京都")}`,
     );
   });
 
@@ -246,7 +250,7 @@ describe("the contextual back link", () => {
     const days = await screen.findByTestId("profile-days");
     const link = within(days).getByRole("link", { name: "Kyoto temples on foot" });
     expect(link.getAttribute("href")).toBe(
-      "/playbooks/day/aa000000-0000-4000-8000-000000000001?from=profile&profile=dev-alice",
+      "/playbooks/day/kyoto-temples-on-foot-aa000000-0000-4000-8000-000000000001?from=profile&profile=dev-alice",
     );
   });
 });

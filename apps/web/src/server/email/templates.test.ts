@@ -24,6 +24,12 @@ describe("tripInviteEmail", () => {
     expect(tripInviteEmail({ ...base, role: "viewer" }).text).toContain("invited you to see Kyoto in April");
   });
 
+  it("tells a suggester they can suggest changes, for the trip's planners to approve", () => {
+    const mail = tripInviteEmail({ ...base, role: "suggester" });
+    expect(mail.text).toContain("invited you to suggest changes to Kyoto in April");
+    expect(mail.text).toContain("You'll be able to suggest changes for the trip's planners to approve.");
+  });
+
   it("escapes a user-typed trip name and inviter name, so neither can inject markup", () => {
     const mail = tripInviteEmail({ ...base, tripName: '<a href="https://evil">Win</a>', inviterName: "<b>Eve</b>" });
     expect(mail.html).not.toContain('<a href="https://evil">');

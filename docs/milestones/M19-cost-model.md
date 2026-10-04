@@ -1,9 +1,12 @@
 # M19 — A cost knows who and what it is for
 
-**Status:** Approved and placed 2026-08-31 by Mitchell. **Runs last**, after
-M9: `M11a → M11b → M17 → M12 → M13 → M14 → M9 → M19`.
+**Status:** **Current milestone from 2026-10-01**, by M14's gate closing. **Scoped
+2026-10-02** (ADR-060). The exit gate is written, and the build is three stacked parts.
+Approved and placed 2026-08-31 by Mitchell, originally to run last, after M9
+(`M11a → M11b → M17 → M12 → M13 → M14 → M9 → M19`). That order is superseded:
+M9 is paused, and M19 became current when M14 closed.
 
-Last is a real position rather than a shrug. Link 3 (who an activity is for)
+*(The original reasoning for running last:)* Last is a real position rather than a shrug. Link 3 (who an activity is for)
 overlaps **M13**'s `add-stop-who`, and running after M13 lets M13 land that
 field while M19 builds splits on top of it — instead of two milestones each
 adding a per-stop person field, which is the drift `AGENTS.md` invariant 5
@@ -152,19 +155,60 @@ them.
 
 ## Exit gate
 
-Not written — this milestone is **placed but not scoped**, and those are
-different things. Placing it fixed when it runs; the gate needs the shape of
-link 1 decided first (does a cost inherit its category from `ActivityKind` or
-carry its own), which is a design question nobody has answered yet.
+**Written 2026-10-02 at kickoff**, from Mitchell's four answers (ADR-060). Link 1 shipped
+on 2026-09-26. Link 3 was landed by M13 link 5 (`bookedBy`, `participants`, 2026-09-22),
+so it is not rebuilt here. Built as three stacked parts: `docs/plans/2026-10-02-M19-cost-model.md`.
 
-**Two boxes are already known**, because they are why it exists:
+Part 1 — a price is per person:
 
-- [ ] `cost-estimate-state` and `budget-breakdown` are wired up or deleted — no
-      M19-tagged entry remains in `preview-registry.ts`. *(Both are deleted as
-      of 2026-09-26 and no M19 entry remains; left unticked because closing a
-      gate is Mitchell's call.)*
-- [ ] `budgetPerPerson` either divides by a real person count or no longer
-      claims to, and a test fails if that stops being true.
+- [x] **ADR-060 accepted**, `docs/contracts/CHANGELOG.md` carries the meaning change, and
+      the OpenAPI description of `cost` says *per person*.
+      *(Ticked 2026-10-02, #289: CHANGELOG entry; `openapi.json` 1.2.1 says "Price for one person"; `planning.test.ts` seen red with the wording changed.)*
+- [x] **One pure function prices a stop** (`stopHeadcount`, `stopTotal` in
+      `packages/contracts/src/costs.ts`). The domain's `rollupCosts`, `apps/web/src/lib/cost.ts`
+      and every `@tc/pages` cost widget call it, and a test of each fails if it sums the raw
+      price.
+      *(Ticked 2026-10-02, #289: `costs.test.ts`, `costs.property.test.ts`, `pages perPerson.test.ts`, `lib/cost.test.ts`, each seen red with the raw price summed. Headcount counts distinct ids.)*
+- [x] **A trip's totals follow its members at read time.** An integration test adds a member
+      to a trip whose stop has nobody picked and sees the trip total rise, with no new event.
+      *(Ticked 2026-10-02, #289: `trip-access.int.test.ts`, 3000 → 6000 on a second member with no event, and the over-budget conflict follows too. Both seen red.)*
+- [x] **Committed vs estimate derives from kind.** A pending stop's cost reads as an estimate
+      in the Settings sheet's budget line and the `cost` widget. A test fails if a planned
+      stop's cost counts as an estimate.
+      *(Ticked 2026-10-02, #289: pages `cost` test and the Settings sheet test, seen red with planned counted as an estimate. Preview: "$29,275.00 committed · $1,920.00 estimated" on /demo.)*
+- [x] **[walk]** The stop editor says *per person* beside Cost and shows the stop total for
+      its headcount.
+      *(Ticked 2026-10-02, agent's walk on #289's preview (`4RubLfuZfHcUiESsX2VuS7CJEAP8`): "Cost per person"; "× 1 person = $120.00" after Tab; Add stop's box unmoved; first click saves; picking two in Who is in reads "× 2 people = $710.00" and the header drops by $355.)*
+- [x] The assistant's write tools describe `cost` as per person.
+      *(Ticked 2026-10-02, #289: planning tools are derived from the contract and carry COST_DOC; `planning.test.ts` seen red.)*
+
+Part 2 — who owes what:
+
+- [x] **A "Who owes what" widget** lists each member's share, what they paid (as Booked by)
+      and their balance, plus a *not paid yet* line for stops nobody booked. Unit tests on the
+      pure balance function are seen to fail.
+      *(Ticked 2026-10-02, #290: `balances` in `packages/contracts/src/costs.ts`, property-tested Σ net = −unpaid, seen red with the payer credited one share instead of the stop total (`expected -1 to be +0`). Preview walk on #290: the demo's four travellers by name, shares summing to the $31,195 total; setting Booked by moved $60 to the payer and left the other owing $30.)*
+- [x] **"What one person is in for"** (`w-person`, parked out of M14 on 2026-09-03) is built
+      on the same function.
+      *(Ticked 2026-10-02, #290: `person.share` calls the same `balances`; a test checks each member's sentence matches their row, seen red with the stop count bypassing `stopPeople`. Preview walk: "choose a person" until chosen, then the sentence matches that person's Share row.)*
+- [x] The Money notebook seeded into a new trip carries the balances widget.
+      *(Ticked 2026-10-02, #290: `templates.test.ts` "seeds Money with Who owes what", seen red before the template change (`expected [ Array(4) ] to include 'cost.balances'`); the preview walk's fresh trip shows the section.)*
+
+Part 3 — the shared day says *each*:
+
+- [x] `cost-estimate-state` and `budget-breakdown` are wired up or deleted — no
+      M19-tagged entry remains in `preview-registry.ts`. *(Both deleted as of 2026-09-26.)*
+      *(Ticked 2026-10-02, part 3: `grep -c 'milestone: "M19"' apps/web/src/lib/preview-registry.ts` prints 0. The registry's two entries are both M9 (`add-stop-suggestions`, `wizard-assistant-draft`); both names survive only in its comments.)*
+- [x] `budgetPerPerson` either divides by a real person count or no longer
+      claims to, and a test fails if that stops being true. *(The shared-day rail and
+      Discover's band read a saved day's sum as the price each, per ADR-060 decision 7.)*
+      *(Ticked 2026-10-02, part 3: the sum stays `totalCost`, a wire field on `DiscoverDay` and the assistant's readout, so no rename. Its doc now says per person. The rail reads "Budget · $23.00 each", the card "· $27.00 each", the bands "Under $200.00 each" and so on. `SharedDayScreen.test`, `DiscoverScreen.test` and `discoverFilters.test` were seen red before the change (`expected '4 stops · 7:30 am – 6:30 pm · $27.00' to match / · \$27\.00 each$/`, 7 failures). `savedDayFacts.test`'s property test was seen red with a headcount of 2 slipped into the sum (`Counterexample: ["USD",[{"amountMinor":1}]]`, `expected { amountMinor: 2 … } to deeply equal { amountMinor: 1 … }`).)*
+
+Whole milestone:
+
+- [ ] `pnpm check`, `pnpm --filter web test:int` and `pnpm --filter web test:e2e:ci-like`
+      green on the last part.
+- [ ] A retro is appended at gate close.
 
 ## Prerequisites
 

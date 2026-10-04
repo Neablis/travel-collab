@@ -10,6 +10,9 @@ vi.mock("next-auth/react", () => ({
   signOut: vi.fn(async () => {}),
 }));
 
+// Where the signed-out header's two doors come back to.
+vi.mock("next/navigation", () => ({ usePathname: () => "/playbooks/day/d1" }));
+
 // **`useSessionUser` reads `/api/auth/session` directly** rather than through
 // next-auth's `getSession()`, which returns `null` for a FAILED request and a
 // confirmed signed-out session alike (CodeRabbit, PR #196). The mock above is
@@ -223,7 +226,7 @@ describe("AccountMenu", () => {
 // the session and wires the menu. (These used to render a second, test-only
 // entry point, `AccountMenuFromSession`, removed as dead in KI-2026-09-05-w.)
 describe("HeaderSessionChrome's account menu", () => {
-  it("renders nothing while signed out", async () => {
+  it("offers no account menu while signed out", async () => {
     const { getSession } = await import("next-auth/react");
     vi.mocked(getSession).mockResolvedValueOnce(null);
 
@@ -231,6 +234,39 @@ describe("HeaderSessionChrome's account menu", () => {
 
     await waitFor(() => expect(vi.mocked(getSession)).toHaveBeenCalled());
     expect(screen.queryByRole("button", { name: "Account menu" })).toBeNull();
+  });
+
+  // ADR-061: the playbooks are readable without an account, so a signed-out
+  // header is the way in — and both doors bring the reader back to this page.
+  it("offers Sign in and Create an account while signed out, each returning to this page", async () => {
+    const { getSession } = await import("next-auth/react");
+    vi.mocked(getSession).mockResolvedValueOnce(null);
+
+    render(<HeaderSessionChrome />);
+
+    const back = encodeURIComponent("/playbooks/day/d1");
+    expect((await screen.findByRole("link", { name: "Sign in" })).getAttribute("href")).toBe(
+      `/signin?callbackUrl=${back}`,
+    );
+    expect(screen.getByRole("link", { name: "Create an account" }).getAttribute("href")).toBe(
+      `/signup?callbackUrl=${back}`,
+    );
+    expect(screen.queryByRole("link", { name: "Trips" })).toBeNull();
+  });
+
+  // Only on a CONFIRMED signed-out session. A failed read is "not known", and a
+  // signed-in reader must never be offered *Sign in* for the length of a fetch.
+  it("offers no way in while the session is not known", async () => {
+    const sessionRead = vi.fn(async () => new Response("nope", { status: 500 }));
+    vi.stubGlobal("fetch", sessionRead);
+
+    render(<HeaderSessionChrome />);
+
+    await waitFor(() => expect(sessionRead).toHaveBeenCalled());
+    // Let the failed read settle on whatever it is going to render.
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.queryByRole("link", { name: "Sign in" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Create an account" })).toBeNull();
   });
 
   it("resolves the session client-side and dispatches the real signOut on click", async () => {

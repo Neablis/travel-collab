@@ -1,7 +1,7 @@
 import { and, eq, exists, inArray, sql, type Column, type SQL } from "drizzle-orm";
 import type { TripMember, TripMemberProfile, TripRole } from "@tc/contracts";
 import { db, type Queryable } from "../db/client";
-import { memberRole } from "../accessPolicy";
+import { memberRole, RANK } from "../accessPolicy";
 import { tripMemberships, users } from "../db/schema";
 // **Access & Membership reads a boolean out of Entitlements, never the other
 // way round** (ADR-045 rule 5). This import is the direction the module map
@@ -13,8 +13,6 @@ import { accountCan } from "../entitlements/resolver";
 // Declared in `db/client.ts` since a second module needed it (the referral
 // loop). Re-exported here so this file's own callers are unaffected.
 export type { Queryable };
-
-const RANK: Record<TripRole, number> = { viewer: 0, editor: 1, owner: 2 };
 
 /**
  * The one place the two halves of a trip's member list meet.
@@ -300,9 +298,10 @@ export type RemoveMemberOutcome = "removed" | "not-a-member" | "owner";
  * owner, which includes a granted `trip_memberships` row carrying `role:
  * "owner"`. Such a row is not the trip's owner — it is a stray row, which is
  * the exact thing this endpoint exists to clear, and it was the one row it
- * refused to. Nothing mints one today (`InviteRole` is `viewer | editor`), but
- * `grantMembership` takes a full `TripRole`, and "a bad migration or an
- * operator's hand-written row" is KI-65's own list of causes.
+ * refused to. Nothing mints one today (`InviteRole` is `viewer | suggester |
+ * editor`, never `owner`), but `grantMembership` takes a full `TripRole`, and
+ * "a bad migration or an operator's hand-written row" is KI-65's own list of
+ * causes.
  *
  * Removing such a row cannot cost the real owner anything: their ownership
  * comes from `TripCreated`, and `mergeMembers` gives the higher rank to

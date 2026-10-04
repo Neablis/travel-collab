@@ -359,6 +359,29 @@ export function linkPreviewQuota(): QuotaPolicy[] {
 }
 
 /**
+ * Public-library quota (ADR-061): the playbook GETs a reader with no account
+ * may make, keyed by client IP because there is no account to key by.
+ * Signed-in reads are not charged; they were never limited before the library
+ * opened, and the account is already the bound on them.
+ *
+ * Discover is the most expensive read in the library, and anonymous it is a
+ * query anyone can loop. A person browsing opens a page, a day and its reviews
+ * — a handful of requests a minute — so 120 a minute per IP leaves room for a
+ * shared NAT and a quick reader, and stops a scraper well short of a load
+ * problem. The global ceiling bounds the many-IPs version of the same loop.
+ */
+export function publicLibraryQuota(): QuotaPolicy[] {
+  return [
+    {
+      name: "public-library-minute",
+      windowMs: 60 * 1000,
+      perUser: envCeiling("PUBLIC_LIBRARY_RATE_LIMIT_PER_IP_MINUTE", 120),
+      global: envCeiling("PUBLIC_LIBRARY_RATE_LIMIT_GLOBAL_MINUTE", 6000),
+    },
+  ];
+}
+
+/**
  * Charge one request against every policy, in order. Returns the first refusal.
  *
  * FAILS CLOSED. A counter-store error refuses the request rather than waving it

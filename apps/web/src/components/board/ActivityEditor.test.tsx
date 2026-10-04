@@ -317,9 +317,10 @@ describe("ActivityEditor tag picker", () => {
 // BOOKED it (bookedBy). A single "who" would read fine and be wrong for every
 // cost split M19 later derives from the participants.
 describe("ActivityEditor attribution (M13 link 5)", () => {
+  // Ids that are not the names, so a control labelled with the id is caught.
   const MEMBERS = [
-    { userId: "alice", role: "owner" as const },
-    { userId: "bob", role: "editor" as const },
+    { userId: "u-alice", name: "Alice" },
+    { userId: "u-bob", name: "Bob" },
   ];
   const stop = (over: Partial<ActivityView> = {}): ActivityView => ({
     activityId: "11111111-1111-1111-1111-111111111111",
@@ -355,45 +356,131 @@ describe("ActivityEditor attribution (M13 link 5)", () => {
   };
   const save = () => fireEvent.click(screen.getByRole("button", { name: /save/i }));
 
+  // ADR-060: the price typed here is for one person, and the line under it
+  // multiplies by who is going — everyone when nobody is picked — live.
+  it("labels Cost per person and shows the stop's total for its headcount", () => {
+    mount(stop({ cost: { amountMinor: 30_00, currency: "USD" } }));
+    expect(screen.getByLabelText("Cost per person")).toBeTruthy();
+    expect(screen.getByTestId("activity-cost-total").textContent).toBe("× 2 people = $60.00");
+    fireEvent.click(screen.getByRole("button", { name: "Bob" }));
+    expect(screen.getByTestId("activity-cost-total").textContent).toBe("× 1 person = $30.00");
+  });
+
+  // The line's room is kept with no cost to show. MoneyInput commits on blur,
+  // so the line used to APPEAR on the mousedown that blurs the field — on
+  // "Add stop" — and push the buttons below it out from under the pointer: the
+  // mouseup landed elsewhere and the first click saved nothing (found by
+  // m4-money-and-lenses, 4 of 4 runs). jsdom has no layout, so what is pinned
+  // is that the element is there, holding one line, and says nothing.
+  it("shows no total for a stop with no cost, but keeps the line's room", () => {
+    mount(stop());
+    const line = screen.getByTestId("activity-cost-total");
+    expect(line.textContent).toBe("\u00a0");
+    expect(line.getAttribute("aria-hidden")).toBe("true");
+  });
+
   it("offers one toggle per member and sends who is going", () => {
     const onSave = mount(stop());
-    fireEvent.click(screen.getByRole("button", { name: "bob" }));
+    fireEvent.click(screen.getByRole("button", { name: "Bob" }));
     save();
-    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ participants: ["bob"] }));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ participants: ["u-bob"] }));
+  });
+
+  // Booked by decides who is owed money (ADR-060 decision 6), so both
+  // controls read as people. The id is the value, never the label.
+  it("labels both controls with the members' names, not their ids", () => {
+    mount(stop());
+    const group = screen.getByRole("group", { name: "Who is going" });
+    expect(within(group).getAllByRole("button").map((b) => b.textContent)).toEqual(["Alice", "Bob"]);
+    const options = [...(screen.getByLabelText("Booked by") as HTMLSelectElement).options];
+    expect(options.map((o) => [o.value, o.text])).toEqual([
+      ["", "Nobody yet"],
+      ["u-alice", "Alice"],
+      ["u-bob", "Bob"],
+    ]);
   });
 
   it("sends who booked it, separately from who is going", () => {
     const onSave = mount(stop());
-    fireEvent.click(screen.getByRole("button", { name: "bob" }));
-    fireEvent.change(screen.getByLabelText("Booked by"), { target: { value: "alice" } });
+    fireEvent.click(screen.getByRole("button", { name: "Bob" }));
+    fireEvent.change(screen.getByLabelText("Booked by"), { target: { value: "u-alice" } });
     save();
     expect(onSave).toHaveBeenCalledWith(
-      expect.objectContaining({ bookedBy: "alice", participants: ["bob"] }),
+      expect.objectContaining({ bookedBy: "u-alice", participants: ["u-bob"] }),
     );
   });
 
   it("seeds both from the stop being edited", () => {
-    mount(stop({ bookedBy: "alice", participants: ["bob"] }));
-    expect(screen.getByRole("button", { name: "bob" }).getAttribute("aria-pressed")).toBe("true");
-    expect((screen.getByLabelText("Booked by") as HTMLSelectElement).value).toBe("alice");
+    mount(stop({ bookedBy: "u-alice", participants: ["u-bob"] }));
+    expect(screen.getByRole("button", { name: "Bob" }).getAttribute("aria-pressed")).toBe("true");
+    expect((screen.getByLabelText("Booked by") as HTMLSelectElement).value).toBe("u-alice");
   });
 
   // The drop this milestone's preflight exists to prevent: an edit that never
   // touches attribution must not clear it.
   it("round-trips attribution through an unrelated edit", () => {
-    const onSave = mount(stop({ bookedBy: "alice", participants: ["bob"] }));
+    const onSave = mount(stop({ bookedBy: "u-alice", participants: ["u-bob"] }));
     fireEvent.change(screen.getByLabelText("What or where"), { target: { value: "Colosseum tour" } });
     save();
     expect(onSave).toHaveBeenCalledWith(
-      expect.objectContaining({ bookedBy: "alice", participants: ["bob"] }),
+      expect.objectContaining({ bookedBy: "u-alice", participants: ["u-bob"] }),
     );
   });
 
   it("clears who booked it back to nobody", () => {
-    const onSave = mount(stop({ bookedBy: "alice" }));
+    const onSave = mount(stop({ bookedBy: "u-alice" }));
     fireEvent.change(screen.getByLabelText("Booked by"), { target: { value: "" } });
     save();
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ bookedBy: null }));
+  });
+
+  // A participant who has since left the trip is still on the stop and still
+  // priced (`stopHeadcount` counts every distinct id). Listing members only
+  // hid them: nothing to untick, and the line charged for somebody unseen.
+  describe("someone who has left the trip", () => {
+    const DEPARTED = "carol-left";
+
+    it("shows them picked, by a fallback name, and unticking them drops them from the save and the headcount", () => {
+      const onSave = mount(stop({ cost: { amountMinor: 30_00, currency: "USD" }, participants: ["u-bob", DEPARTED] }));
+      expect(screen.getByTestId("activity-cost-total").textContent).toBe("× 2 people = $60.00");
+      const chip = screen.getByRole("button", { name: "Former member (left the trip)" });
+      expect(chip.getAttribute("aria-pressed")).toBe("true");
+      expect(screen.queryByText(DEPARTED)).toBeNull();
+
+      fireEvent.click(chip);
+      expect(screen.getByTestId("activity-cost-total").textContent).toBe("× 1 person = $30.00");
+      // Removed for good: nothing offers them back.
+      expect(screen.queryByRole("button", { name: /former member/i })).toBeNull();
+      save();
+      expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ participants: ["u-bob"] }));
+    });
+
+    it("numbers them when more than one has left", () => {
+      mount(stop({ participants: [DEPARTED, "dave-left"] }));
+      expect(screen.getByRole("button", { name: "Former member 1 (left the trip)" })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Former member 2 (left the trip)" })).toBeTruthy();
+    });
+
+    it("shows who booked it as a former member, and lets it be replaced", () => {
+      const onSave = mount(stop({ bookedBy: DEPARTED }));
+      const select = screen.getByLabelText("Booked by") as HTMLSelectElement;
+      expect(select.value).toBe(DEPARTED);
+      expect(select.selectedOptions[0]?.textContent).toBe("Former member (left the trip)");
+
+      fireEvent.change(select, { target: { value: "u-alice" } });
+      expect(within(select).queryByText(/former member/i)).toBeNull();
+      save();
+      expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ bookedBy: "u-alice" }));
+    });
+
+    it("lets who booked it go back to nobody", () => {
+      const onSave = mount(stop({ bookedBy: DEPARTED }));
+      const select = screen.getByLabelText("Booked by") as HTMLSelectElement;
+      expect(select.value).toBe(DEPARTED);
+      fireEvent.change(select, { target: { value: "" } });
+      save();
+      expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ bookedBy: null }));
+    });
   });
 
   // A solo trip has nobody to attribute to, so the controls would be an empty

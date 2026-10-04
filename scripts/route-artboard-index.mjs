@@ -57,8 +57,15 @@ export const ROUTES = [
 // A route that is deliberately outside the design. Anything not here and not
 // above fails the test, so a new route forces the question "what draws this?"
 // to be answered once rather than rediscovered per builder.
-// Empty since KI-2026-09-05-f deleted its only entry, `/sentry-example-page`.
-export const NOT_DRAWN = new Map([]);
+// Each entry is `[route, reason]`; the reason is shown when the route is gone.
+// The two M22 developer pages are drawn from the OpenAPI document and the
+// shared front-door chrome, not from an artboard — the design has none.
+export const NOT_DRAWN = new Map([
+  ["/developers", "M22 getting-started page for the public API — the design has no artboard for it"],
+  ["/developers/reference", "M22 API reference rendered by Scalar from /api/v1/openapi.json — no artboard"],
+  ["/playbooks/city/[slug]", "SEO pass, part 5: a city's published days for crawlers — Discover's cards and grid under a heading, no artboard"],
+  ["/playbooks/country/[slug]", "SEO pass, part 5: the city page over a country's days — no artboard"],
+]);
 
 /** Every route in the app, as a Next.js path with its groups stripped. */
 export function appRoutes(dir = APP_DIR, prefix = "") {

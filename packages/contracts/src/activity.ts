@@ -355,6 +355,14 @@ const KIND_DOC =
   "retired in M28 — `idea`, `hold`, `booked` — are refused on write: send `pending` for the first two " +
   "and `planned` for `booked`.";
 
+// What `cost` MEANS, published the same way (ADR-060). The shape never changed
+// — `Money` is still `{ amountMinor, currency }` — so this text is the only
+// place an integrator can learn that every total multiplies it.
+export const COST_DOC =
+  "Price for one person, in the trip's currency. A stop's total is this times its headcount: the " +
+  "people in `participants`, or every member of the trip when `participants` is empty. A `pending` " +
+  "stop's cost is an estimate; a `planned` or `transit` stop's is committed.";
+
 export const AddActivity = z.object({
   type: z.literal("AddActivity"),
   tripId: z.string().uuid(),
@@ -390,7 +398,7 @@ export const AddActivity = z.object({
   anchors: z.array(Anchor).optional(),
   kind: ActivityKind.optional().describe(KIND_DOC + " Omitted = `planned`."),
   tags: z.array(ActivityTag).optional(), // omitted = none
-  cost: Money.optional(), // omitted = no cost
+  cost: Money.optional().describe(COST_DOC + " Omitted = no cost."),
   // M24. Legal only with `kind: "transit"` — refused on the command unions in
   // trip.ts and again by the decider (see `kindDetailFieldsOffKind`).
   mode: ActivityMode.optional().describe(
@@ -434,7 +442,7 @@ export const UpdateActivity = z.object({
       "patch names them.",
   ),
   tags: z.array(ActivityTag).optional(), // omitted = unchanged; whole-array replace, like anchors
-  cost: Money.nullable().optional(), // omitted = unchanged, null = cleared
+  cost: Money.nullable().optional().describe(COST_DOC + " Omitted = unchanged; null = cleared."),
   // M24. Omitted = unchanged, null = cleared. Whether the RESULT is legal
   // depends on the stored `kind`, so the decider checks it, not this schema.
   // The decider refuses a stray one rather than clearing it; the caller edges
@@ -543,7 +551,7 @@ export const ActivitySnapshot = z.object({
   // written before M28 must still replay (ADR-054).
   kind: described("enum", "Status", StoredActivityKind).default("planned"), // never null — "planned" is the zero value
   tags: described("enum", "Tags", z.array(ActivityTag)).default([]), // never null — [] is the zero value
-  cost: described("money", "Cost", Money).nullable().default(null),
+  cost: described("money", "Cost", Money, COST_DOC).nullable().default(null),
   // ---- Per-stop attribution (M13 link 5) ----
   //
   // **Two relations, not one.** Mitchell, 2026-09-03 (recorded in

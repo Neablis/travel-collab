@@ -292,7 +292,7 @@ reorder and the one place a reorder updates.
       enforced rather than remembered.)*
 - [x] **M28 Three kinds** — gate closed 2026-09-26 (9 of 9; #238, #239) — a stop's kind is `planned`, `pending` or `transit`; `idea`/`hold`/`booked` are retired and read back as their replacement (ADR-054).
       → `docs/milestones/M28-three-kinds.md`
-- [ ] **M14 Rich layer** ← **current milestone** (from 2026-09-26, by M28's gate closing; first current 2026-09-25, by M24's) — the macro vocabulary deferred out of M8 returns here.
+- [x] **M14 Rich layer** — gate closed 2026-10-01 (22 of 22; #222, #223, #226, #221; the weather walk on Mitchell's attestation) — the macro vocabulary deferred out of M8 returns here.
       → `docs/milestones/M14-rich-layer.md`
       *(**M29 The time river is in flight beside it** — minted 2026-09-26, not
       current; all four parts merged 2026-09-26 (#242-#245, and the phone part as #251), gate 17/20, what is left
@@ -362,7 +362,7 @@ reorder and the one place a reorder updates.
       last Consequence and in the milestone's gate. Note §18 reached `main`
       **after** #126 merged, so part of that PR — the Trip-wide / Day 6 badge —
       is un-shipped on purpose by link 2 rather than regressed.)*
-- [ ] **M19 A cost knows who and what it is for** →
+- [ ] **M19 A cost knows who and what it is for** ← **current milestone** (from 2026-10-01, by M14's gate closing; **scoped 2026-10-02** by ADR-060, with a 13-box gate, built as three stacked parts) →
       `docs/milestones/M19-cost-model.md`
       *(**Added to this file 2026-09-01. It was missing entirely** — minted and
       placed last on 2026-08-31, recorded in `docs/milestones/README.md` and in
@@ -379,6 +379,10 @@ reorder and the one place a reorder updates.
       lets M13 land the field and M19 build on it rather than both adding one.
       Its anchor finding is live in shipped code: `savedDayFacts.budgetPerPerson`
       is a plain sum of stop costs with nothing to divide by.)*
+- [ ] **M31 We can see what the assistant costs, step by step and tool by tool** (minted 2026-10-03 and placed after M19; **built 2026-10-03 beside M19** by Mitchell's call; gate 5 of 7, the two left are operator steps: the Gateway budget and the baseline run) →
+      `docs/milestones/M31-assistant-ledger.md`
+      *(ADR-062's Phase 1. The eve port it was minted for, Phases 2–5, is deferred until there
+      are users: ADR-062 § *Deferred: the port*, and a candidate entry.)*
 - [x] **M15 Front door** — gate closed → `docs/milestones/M15-front-door.md`
 - [ ] **M9 The assistant cites what it plans** — **PAUSED 2026-09-13**, not cancelled: Phase 0 complete, and it keeps its place immediately after M21. **Built since, 2026-09-16:** grounding (`search_places` → `placeRef`), conversation durability (`localStorage`, by decision) and the replay harness all landed (`docs/plans/2026-09-16-M9-remainder.md`); what is left of the gate is a live model call and the browser walks that rest on it (Mitchell's reorder — `docs/milestones/README.md`, 2026-09-13) →
       `docs/milestones/M9-ai-planning-partner.md`

@@ -1,9 +1,10 @@
 import { useEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { activityFactory, historyFixture, locationFactory, tripDetailFixture } from "@tc/factories";
 import { ActivityEditorSheet } from "./ActivityEditorSheet";
+import { formatMoney } from "@/lib/formatMoney";
 
 // Same mocking pattern TripHeader.test.tsx uses for a component that reads
 // everything through useTrip()/useEditor(): a real TripProvider/EditorHost
@@ -38,6 +39,7 @@ const fetchTripAccessMock = vi.fn();
 import { fetchTripDetail, fetchTripHistory } from "@/lib/apiClient";
 import { TripProvider } from "@/components/trip/context/TripProvider";
 import { EditorHost, useEditor } from "@/components/trip/context/EditorHost";
+import { PeopleProvider } from "@/components/pages/people";
 
 const TRIP_ID = "10000000-0000-4000-8000-000000000000";
 const DAY_1 = "day-1";
@@ -111,12 +113,16 @@ function Opener({ mode, activityId }: { mode: "create" | "edit"; activityId?: st
   return null;
 }
 
+// Under a `PeopleProvider`, as TripBoardScreen mounts it: the attribution
+// controls name members from the access read the mock above answers.
 function renderEditorSheet({ mode, activityId }: { mode: "create" | "edit"; activityId?: string }) {
   render(
     <TripProvider tripId={TRIP_ID}>
       <EditorHost>
         <Opener mode={mode} activityId={activityId} />
-        <ActivityEditorSheet />
+        <PeopleProvider tripId={TRIP_ID}>
+          <ActivityEditorSheet />
+        </PeopleProvider>
       </EditorHost>
     </TripProvider>,
   );
@@ -228,6 +234,33 @@ describe("ActivityEditorSheet", () => {
     expect(dispatch).toHaveBeenCalledWith(
       expect.objectContaining({ type: "UpdateActivity", kind: "pending", tags: ["lodging"] }),
     );
+  });
+
+  // Somebody who left the trip is still in the stop's participants, and still
+  // priced for. Through the real sheet and dispatch: the one way to stop paying
+  // for them is to untick them here, and the command must carry that.
+  it("lets a participant who has left the trip be removed, and saves without them", async () => {
+    const trip = fixture();
+    trip.members = [
+      { userId: "u1", role: "owner" },
+      { userId: "u2", role: "editor" },
+    ];
+    trip.activities[SCHEDULED_ACTIVITY_ID] = activityFactory.build({
+      activityId: SCHEDULED_ACTIVITY_ID,
+      title: "Existing stop",
+      cost: { amountMinor: 15_00, currency: trip.currency },
+      participants: ["u1", "departed-user"],
+    });
+    vi.mocked(fetchTripDetail).mockResolvedValue({ ok: true, value: trip });
+    const dispatch = renderEditorSheet({ mode: "edit", activityId: SCHEDULED_ACTIVITY_ID });
+    await screen.findByDisplayValue("Existing stop");
+
+    expect(screen.getByTestId("activity-cost-total").textContent).toBe(`× 2 people = ${formatMoney(30_00, trip.currency)}`);
+    await userEvent.click(screen.getByRole("button", { name: "Former member (left the trip)" }));
+    expect(screen.getByTestId("activity-cost-total").textContent).toBe(`× 1 person = ${formatMoney(15_00, trip.currency)}`);
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: "UpdateActivity", participants: ["u1"] }));
   });
 
   it("treats Half day as four hours", async () => {
@@ -403,6 +436,30 @@ describe("ActivityEditorSheet — a viewer gets no form", () => {
     expect(dispatch).not.toHaveBeenCalled();
   });
 
+  // ADR-060: a viewer reads the same per-person price and stop total the
+  // editor shows. Three members and nobody picked, so the stop is for all three.
+  it("reads the price as per person, with the stop's total for its headcount", async () => {
+    asViewer();
+    const trip = fixture();
+    trip.members = [
+      { userId: "u1", role: "owner" },
+      { userId: "u2", role: "editor" },
+      { userId: "u3", role: "viewer" },
+    ];
+    trip.activities[SCHEDULED_ACTIVITY_ID] = activityFactory.build({
+      activityId: SCHEDULED_ACTIVITY_ID,
+      cost: { amountMinor: 15_00, currency: trip.currency },
+      participants: [],
+    });
+    vi.mocked(fetchTripDetail).mockResolvedValue({ ok: true, value: trip });
+    renderEditorSheet({ mode: "edit", activityId: SCHEDULED_ACTIVITY_ID });
+    // By text, not by test id: the editor's own line is always rendered (it
+    // holds its room so a committed cost never moves the buttons), so the id
+    // can resolve to an empty line before the viewer's sheet is up.
+    expect(await screen.findByText(`× 3 people = ${formatMoney(45_00, trip.currency)}`)).toBeTruthy();
+    expect(screen.getByText(`${formatMoney(15_00, trip.currency)} per person`)).toBeTruthy();
+  });
+
   // Mitchell, 2026-09-30 (option "B"): a leg's destination shows wherever the
   // stop does, and this is the only place a viewer reads a stop in full.
   it("names a leg's destination as well as its origin", async () => {
@@ -440,5 +497,61 @@ describe("ActivityEditorSheet — a viewer gets no form", () => {
     expect(screen.queryByLabelText("What or where")).toBeNull();
     expect(screen.queryByRole("button", { name: "Add stop" })).toBeNull();
     expect(dispatch).not.toHaveBeenCalled();
+  });
+});
+
+// Booked by decides who is owed money (ADR-060 decision 6), so the editor's
+// attribution controls must read as people: the Travelers list's names, then
+// "Traveler N" by place in the trip while they are missing — never an id, and
+// never an email (a co-traveller's address is not this surface's to show).
+describe("ActivityEditorSheet — who a stop is for, by name", () => {
+  const U1 = "8f1c2d3e-0000-4000-8000-000000000001";
+  const U2 = "8f1c2d3e-0000-4000-8000-000000000002";
+  const withTwoMembers = () => {
+    const trip = fixture();
+    trip.members = [
+      { userId: U1, role: "owner" },
+      { userId: U2, role: "editor" },
+    ];
+    vi.mocked(fetchTripDetail).mockResolvedValue({ ok: true, value: trip });
+  };
+  const labels = () => {
+    const toggles = within(screen.getByRole("group", { name: "Who is going" })).getAllByRole("button");
+    const options = [...(screen.getByLabelText("Booked by") as HTMLSelectElement).options].slice(1);
+    return { toggles: toggles.map((b) => b.textContent), bookedBy: options.map((o) => o.text) };
+  };
+
+  it("names members from the trip's access list", async () => {
+    withTwoMembers();
+    fetchTripAccessMock.mockResolvedValue({
+      ok: true,
+      value: {
+        tripId: TRIP_ID,
+        myRole: "owner",
+        members: [
+          { userId: U1, role: "owner", name: "Dana Reyes", email: "dana@example.com", image: null },
+          { userId: U2, role: "editor", name: null, email: "sam@example.com", image: null },
+        ],
+        invites: [],
+      },
+    });
+    renderEditorSheet({ mode: "edit", activityId: SCHEDULED_ACTIVITY_ID });
+
+    expect(await screen.findByRole("button", { name: "Dana Reyes" })).toBeTruthy();
+    // Sam has no name: the handle `displayNameFor` gives, not the address.
+    const { toggles, bookedBy } = labels();
+    expect(toggles).toEqual(["Dana Reyes", "Traveler 000002"]);
+    expect(bookedBy).toEqual(toggles);
+  });
+
+  it("says Traveler N while names are unavailable, never the raw id", async () => {
+    withTwoMembers();
+    fetchTripAccessMock.mockResolvedValue({ ok: false, error: { status: 500, message: "down" } });
+    renderEditorSheet({ mode: "edit", activityId: SCHEDULED_ACTIVITY_ID });
+
+    expect(await screen.findByRole("button", { name: "Traveler 1" })).toBeTruthy();
+    const { toggles, bookedBy } = labels();
+    expect(toggles).toEqual(["Traveler 1", "Traveler 2"]);
+    expect(bookedBy).toEqual(toggles);
   });
 });

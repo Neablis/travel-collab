@@ -6,7 +6,8 @@ import {
   type TripCommand,
   type TripEvent,
 } from "@tc/contracts";
-import { detectConflicts } from "./conflicts";
+import { detectConflicts, overBudgetConflicts } from "./conflicts";
+import { rollupCosts } from "./costs";
 import { daySpan, isCalendarDate } from "./dates";
 import { tripStatesEqual } from "./equality";
 import { evolveTrip } from "./evolve";
@@ -17,7 +18,13 @@ export type Decision =
   | { ok: true; events: TripEvent[] }
   | { ok: false; rejection: Rejection };
 
-export type DecideContext = { actorId: string };
+/**
+ * `memberCount` is the EFFECTIVE member count the server's read overlay costs
+ * the trip for (ADR-060) — the log holds only its own members, so the decider
+ * cannot know it. Absent, the log's members decide, which is what replay and a
+ * caller with no Access data (the demo trip, `predict`) want.
+ */
+export type DecideContext = { actorId: string; memberCount?: number };
 
 function ok(events: TripEvent[]): Decision {
   return { ok: true, events };
@@ -104,13 +111,13 @@ export function decideCreateTrip(
 // inside the reducer would make every projection rebuild O(events × activities²).
 // The `length === 0` early-out means the overwhelmingly common case — no
 // dismissals at all — costs nothing.
-function lapsedDismissals(state: TripState, events: TripEvent[]): TripEvent[] {
+function lapsedDismissals(state: TripState, events: TripEvent[], ctx: DecideContext): TripEvent[] {
   if (state.dismissedConflictIds.length === 0) return [];
   let next = state;
   for (const event of events) next = evolveTrip(next, event);
   if (next.dismissedConflictIds.length === 0) return [];
 
-  const live = new Set(detectConflicts(next).map((c) => c.id));
+  const live = new Set(liveConflictIds(next, ctx));
   return next.dismissedConflictIds
     .filter((id) => !live.has(id))
     .map((conflictId) => ({
@@ -118,6 +125,20 @@ function lapsedDismissals(state: TripState, events: TripEvent[]): TripEvent[] {
       version: 1 as const,
       payload: { tripId: next.tripId, conflictId },
     }));
+}
+
+// The conflicts a reader is shown, which is what a dismissal is about. The
+// over-budget one is recosted for `ctx.memberCount` exactly as `recostDetail`
+// recosts it at read time; judged on the log's members instead, a conflict the
+// reader could see was refused as `conflict-not-found`, and a dismissed one
+// lapsed on the next unrelated command (PR #289 review).
+function liveConflictIds(state: TripState, ctx: DecideContext): string[] {
+  const conflicts = detectConflicts(state);
+  if (ctx.memberCount === undefined) return conflicts.map((c) => c.id);
+  return [
+    ...conflicts.filter((c) => c.kind !== "over-budget"),
+    ...overBudgetConflicts(state, rollupCosts(state, ctx.memberCount).tripCostTotal),
+  ].map((c) => c.id);
 }
 
 export function decideTripCommand(
@@ -130,7 +151,7 @@ export function decideTripCommand(
   // dismissals to lapse.
   if (!decision.ok || state === null) return decision;
 
-  const lapsed = lapsedDismissals(state, decision.events);
+  const lapsed = lapsedDismissals(state, decision.events, ctx);
   return lapsed.length === 0 ? decision : ok([...decision.events, ...lapsed]);
 }
 
@@ -348,7 +369,7 @@ function decideCommand(
         },
       ]);
     case "DismissConflict": {
-      if (!detectConflicts(state).some((c) => c.id === command.conflictId)) {
+      if (!liveConflictIds(state, ctx).includes(command.conflictId)) {
         return reject("conflict-not-found", "This conflict is not currently active.");
       }
       if (state.dismissedConflictIds.includes(command.conflictId)) {

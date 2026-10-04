@@ -133,6 +133,7 @@ const HERO_PLOTS = [
 // one. It IS a test problem, because jsdom applies no media queries and sees
 // both — so the tests below scope themselves to one tree by testid rather than
 // querying the screen.
+/** The signed-out landing page at `/welcome`: the desktop tree and the phone front door, one shown per breakpoint. */
 export function LandingScreen() {
   return (
     <>
@@ -141,6 +142,13 @@ export function LandingScreen() {
       <FrontDoorHeader
         actions={
           <>
+            {/* The playbook library is open without an account (ADR-061), so
+                the front door links it: a visitor can browse real days before
+                deciding to sign up. A plain link, so SPEC §14's "this page
+                fetches nothing" still holds. */}
+            <Link href="/playbooks" className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "no-underline")}>
+              Playbooks
+            </Link>
             <Link href="/signin" className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "no-underline")}>
               Sign in
             </Link>
@@ -293,7 +301,8 @@ export function LandingScreen() {
 
       {/* Minimal and boring on purpose. Privacy and Terms are plain text, not
           links, until those pages exist — a footer link that 404s is worse
-          than no link. */}
+          than no link. Developers is a link because `/developers` exists: it
+          is where a person setting up an agent learns how to get a token. */}
       <footer className="border-t border-hairline">
         <div className="mx-auto flex w-full max-w-285 flex-wrap items-center gap-x-2 gap-y-1 px-7 py-6">
           <Text as="span" variant="muted">&copy; 2026 Caesura</Text>
@@ -301,6 +310,10 @@ export function LandingScreen() {
           <Text as="span" variant="muted">Privacy</Text>
           <Text as="span" variant="muted" aria-hidden>&middot;</Text>
           <Text as="span" variant="muted">Terms</Text>
+          <Text as="span" variant="muted" aria-hidden>&middot;</Text>
+          <Link href="/developers" className="text-xs text-slate">
+            Developers
+          </Link>
           <Text as="span" variant="muted" aria-hidden>&middot;</Text>
           <a href="mailto:mitchell@demarcosoftware.com" className="text-xs text-slate">
             mitchell@demarcosoftware.com

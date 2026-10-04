@@ -248,12 +248,20 @@ describe("cost.breakdown properties", () => {
     return trip;
   }
 
-  /** What the inline `cost` widget prints for these filters; `null` when it is empty. */
+  /**
+   * The total the inline `cost` widget prints for these filters; `null` when it
+   * is empty. With a pending stop in the selection it prints "$… committed ·
+   * $… estimated" (ADR-060), and the parts add up to the total — so this reads
+   * every amount it printed and adds them, which is the same number either way.
+   */
   function single(trip: TripDetail, params: Record<string, unknown>): string | null {
     const outcome = renderMacro(contextOf(trip), "cost", params);
     if (outcome.status === "empty") return null;
     if (outcome.status !== "ok" || outcome.rendered.kind !== "inline") throw new Error(`cost said ${outcome.status}`);
-    return outcome.rendered.segs.map((seg) => seg.text).join("");
+    const text = outcome.rendered.segs.map((seg) => seg.text).join("");
+    const cents = [...text.matchAll(/\$([\d,]+)\.(\d\d)/g)].map(([, whole, part]) => Number(whole!.replaceAll(",", "")) * 100 + Number(part));
+    expect(cents.length, `cost printed no amount: ${text}`).toBeGreaterThan(0);
+    return formatMoney(cents.reduce((a, b) => a + b, 0), "USD");
   }
 
   // Any date range inside the three-day trip, from <= through.

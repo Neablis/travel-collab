@@ -9,7 +9,7 @@ import type { Overlap } from "@/components/lenses/overlapData";
 import { Button } from "@/components/ui/button";
 import { type AccentFamily } from "@/lib/dayAccent";
 import { cn } from "@/lib/cn";
-import { DayRiver, type RiverGestures } from "./DayRiver";
+import { type BoardSuggestions, DayRiver, type RiverGestures } from "./DayRiver";
 import type { RiverAxis } from "./riverLayout";
 
 // Same static-map pattern as TimelineLens.tsx's TINT_BG / DayChips.tsx's
@@ -70,6 +70,7 @@ export function Column({
   keepFlag,
   gestures,
   onRevealAnyTime,
+  suggestions,
 }: {
   title: string;
   /**
@@ -151,6 +152,8 @@ export function Column({
    * `onRemoveDay`, and then the river offers none.
    */
   gestures?: RiverGestures;
+  /** Pending suggestions, handed to the river; absent for a reader who sees none. */
+  suggestions?: BoardSuggestions;
 }) {
   // **The whole column is the drop target** (M29 part 2). It was the card
   // list, which filled the column below the header; now the column is a
@@ -354,6 +357,7 @@ export function Column({
         onToggleTag={onToggleTag}
         readOnly={readOnly}
         gestures={gestures}
+        suggestions={suggestions}
       />
     </section>
   );

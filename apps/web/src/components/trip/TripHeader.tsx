@@ -15,6 +15,8 @@ import { isDemoTripId } from "@/lib/demoTrip";
 import { isInviteLook } from "@/lib/inviteLook";
 import { cn } from "@/lib/cn";
 import { HistoryPanel } from "@/components/board/HistoryPanel";
+import { SuggestionsChip } from "@/components/board/SuggestionsChip";
+import { PeopleProvider } from "@/components/pages/people";
 import { UndoRedoControls, useUndoRedoShortcuts } from "@/components/board/UndoRedoControls";
 import { AskPill } from "@/components/assistant/AskPill";
 import { SettingsSheet } from "./SettingsSheet";
@@ -64,7 +66,7 @@ export function TripHeader({
   // render from). Reading `trip` here meant a rename/date/budget edit sat in
   // the optimistic queue correctly but never became visible until the server
   // round-trip confirmed it. `trip` is kept only for the existence/loading gate.
-  const { trip, activeTrip, history, status, pending, dispatch, preview, readOnly, myRole, accessUnknown } =
+  const { trip, activeTrip, history, status, pending, dispatch, preview, readOnly, canEditBoard, boardMode, accessUnknown } =
     useTrip();
   // Task 9: "Add stop" is a real trigger for the same portable activity
   // editor Board's own "+ Add activity" button opens (Board.tsx) — no
@@ -258,7 +260,9 @@ export function TripHeader({
                 one will do, word wraps cause issues"). It also names the
                 role, which is what the badge stands in for, in the same word
                 the invite flow and TravelersPanel already use. */}
-            {readOnly && <Badge variant="info">Viewer</Badge>}
+            {/* A suggester is `readOnly` too (W8) but not a viewer: their
+                badge is their role word, as the Travelers list says it (W24). */}
+            {readOnly && <Badge variant="info">{boardMode === "suggest" ? "Suggester" : "Viewer"}</Badge>}
             {/* The access read failed, so this board is live on an assumption
                 rather than on an answer (TripProvider's `load` explains why
                 that is the deliberate choice). Said out loud here, beside the
@@ -363,68 +367,75 @@ export function TripHeader({
                   names. Consistency now, per the rule already written down; the
                   split stays available if the Travelers UI (SPEC §8) wants it.
                   The "Viewer" badge is what still explains the quiet page. */}
-              {!readOnly && (
+              {/* `canEditBoard`: a suggester's new stop joins their draft. */}
+              {canEditBoard && (
                 <Button variant="primary" onClick={() => openCreate()}>
                   Add stop
                 </Button>
               )}
             </div>
 
-            <div className="flex items-center gap-0.5">
-              {/* The Popover stays mounted during preview (not gated on
-                  preview.seq === null like undo/redo/settings) — HistoryPanel's
-                  "Viewing version N (read-only)" banner and its Revert/Back-to-now
-                  controls must remain reachable while previewing a past state. */}
-              <Popover
-                open={historyOpen || preview.seq !== null}
-                // #18: dismissing the popover (outside-click or Escape) while
-                // previewing a past state also exits the preview ("back to now"),
-                // so you never end up with a closed popover still pinned to an old
-                // version. The wider content gives the entries + preview controls
-                // room (#16/#17).
-                onOpenChange={(open) => {
-                  setHistoryOpen(open);
-                  if (!open && preview.seq !== null) preview.exit();
-                }}
-                align="end"
-                contentClassName="w-96"
-                trigger={
-                  <Button variant="ghost" aria-label="History">
-                    <Clock className="size-3.5" aria-hidden />
-                    History
-                  </Button>
-                }
-              >
-                {/* Undo/redo live here now, not out in the header row —
-                    Mitchell, preview feedback on PR #55: "In the designs, the
-                    next/previous history button was moved into the history
-                    dropdown at the top". Hidden while previewing a past
-                    version, same gate they had in the header: the panel's own
-                    Revert / back-to-now controls are what act then. The ⌘Z
-                    shortcut does NOT live with them (see
-                    useUndoRedoShortcuts, called above) — popover content
-                    unmounts when closed, and undo must keep working. */}
-                {preview.seq === null && !readOnly && (
-                  <div className="mb-2 flex justify-end border-b border-hairline pb-2">
-                    <UndoRedoControls
-                      canUndo={history?.canUndo ?? false}
-                      canRedo={history?.canRedo ?? false}
-                      onUndo={() => void dispatch({ type: "UndoLastChange", tripId })}
-                      onRedo={() => void dispatch({ type: "RedoChange", tripId })}
-                      isBusy={pending}
-                    />
-                  </div>
-                )}
-                <HistoryPanel
-                  history={history}
-                  previewSeq={preview.seq}
-                  readOnly={readOnly}
-                  onPreview={(seq) => void preview.enter(seq)}
-                  onExitPreview={preview.exit}
-                  onRevert={(toSeq) => void dispatch({ type: "RevertToState", tripId, toSeq })}
-                />
-              </Popover>
-            </div>
+            {/* The trip's member names, for "Suggested by …" in the chip and
+                in History (W15). Not a new read: the access response
+                `TripProvider` already cached. */}
+            <PeopleProvider tripId={tripId}>
+              <div className="flex items-center gap-0.5">
+                <SuggestionsChip />
+                {/* The Popover stays mounted during preview (not gated on
+                    preview.seq === null like undo/redo/settings) — HistoryPanel's
+                    "Viewing version N (read-only)" banner and its Revert/Back-to-now
+                    controls must remain reachable while previewing a past state. */}
+                <Popover
+                  open={historyOpen || preview.seq !== null}
+                  // #18: dismissing the popover (outside-click or Escape) while
+                  // previewing a past state also exits the preview ("back to now"),
+                  // so you never end up with a closed popover still pinned to an old
+                  // version. The wider content gives the entries + preview controls
+                  // room (#16/#17).
+                  onOpenChange={(open) => {
+                    setHistoryOpen(open);
+                    if (!open && preview.seq !== null) preview.exit();
+                  }}
+                  align="end"
+                  contentClassName="w-96"
+                  trigger={
+                    <Button variant="ghost" aria-label="History">
+                      <Clock className="size-3.5" aria-hidden />
+                      History
+                    </Button>
+                  }
+                >
+                  {/* Undo/redo live here now, not out in the header row —
+                      Mitchell, preview feedback on PR #55: "In the designs, the
+                      next/previous history button was moved into the history
+                      dropdown at the top". Hidden while previewing a past
+                      version, same gate they had in the header: the panel's own
+                      Revert / back-to-now controls are what act then. The ⌘Z
+                      shortcut does NOT live with them (see
+                      useUndoRedoShortcuts, called above) — popover content
+                      unmounts when closed, and undo must keep working. */}
+                  {preview.seq === null && !readOnly && (
+                    <div className="mb-2 flex justify-end border-b border-hairline pb-2">
+                      <UndoRedoControls
+                        canUndo={history?.canUndo ?? false}
+                        canRedo={history?.canRedo ?? false}
+                        onUndo={() => void dispatch({ type: "UndoLastChange", tripId })}
+                        onRedo={() => void dispatch({ type: "RedoChange", tripId })}
+                        isBusy={pending}
+                      />
+                    </div>
+                  )}
+                  <HistoryPanel
+                    history={history}
+                    previewSeq={preview.seq}
+                    readOnly={readOnly}
+                    onPreview={(seq) => void preview.enter(seq)}
+                    onExitPreview={preview.exit}
+                    onRevert={(toSeq) => void dispatch({ type: "RevertToState", tripId, toSeq })}
+                  />
+                </Popover>
+              </div>
+            </PeopleProvider>
           </div>
         </div>
       </div>
@@ -500,7 +511,8 @@ export function TripHeader({
         spend={tripSpend(activeTrip)}
         forkedFrom={activeTrip.forkedFrom}
         createdAt={activeTrip.createdAt}
-        myRole={myRole}
+        readOnly={readOnly}
+        canEditBoard={canEditBoard}
         onCommand={(command) => {
           if (command.type !== "CreateTrip") void dispatch(command);
         }}

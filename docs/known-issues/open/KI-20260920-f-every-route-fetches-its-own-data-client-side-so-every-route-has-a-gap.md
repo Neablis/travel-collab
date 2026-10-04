@@ -69,3 +69,12 @@
   is an architecture change across 14 routes with its own test surface.
 
 - **Re-verified 2026-09-25 (overnight sweep):** still true, and it is now 17 route pages (`find 'app/(app)' 'app/(front)' -name page.tsx`), not 16. None of them reads data server-side. The only server-side `await`s are `params`/`searchParams`, and `signup`'s `headers()`/`cookies()` for a Server Action write. `trips/[tripId]/page.tsx` is still an `async` component that awaits `params` and mounts `TripProvider`, fetching nothing. The Home claim above was wrong when it was written and is struck. **A constraint the fix sketch does not mention:** `apps/web/eslint.config.mjs:121-129` (`domainAndServerWallPatterns`, applied to `src/**` except `src/server/**` and `src/app/api/**`) forbids page files from importing `@/server/*`. Three page files say so in comments (`trips/[tripId]/page.tsx:10`, `signin/page.tsx:13`, `signup/page.tsx:36`). "Move the first read into the server component" therefore needs that wall changed, or a sanctioned read seam, first. That is an AGENTS.md lint-wall decision, not a local edit.
+
+- **Partly moved by the SEO pass, 2026-10-03 (#295-#299, once merged).** Part 3 opened the wall
+  for `src/app/(app)/playbooks/**/page.tsx` only (spec D5, fixture-proven), and
+  these routes now read on the server and hand the screen its first data:
+  the shared day (`/playbooks/day/<slug>-<id>`, through `server/sharedDayView.ts`),
+  Discover (`/playbooks`, through `discoverFor`, hydrating with no first
+  `/api/playbooks` fetch), and the new city and country pages (part 5). Still
+  client-side, so the entry stays open: public profiles, the board, home, the
+  trip routes, plans and every `(front)` page.

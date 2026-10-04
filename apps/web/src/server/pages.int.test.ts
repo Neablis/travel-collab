@@ -46,22 +46,23 @@ describe("pages repository", () => {
     expect(second).toHaveLength(DEFAULT_TEMPLATES.length);
   });
 
-  // M30 (ADR-056): four notebooks, in order, and the Overview's cards name the
-  // other three by the ids the seeder wrote — read back from the database, so
-  // a seeder that minted one set of ids for the rows and another for the links
-  // fails here. Only the Overview refuses to go.
-  it("seeds four notebooks, links the Overview to the other three by id, and lets those three be deleted", async () => {
+  // M30 (ADR-056, amended 2026-10-03): four notebooks, in order, and the
+  // Overview's cards name the other three by the seed key each row was written
+  // with — read back from the database, so a seeder whose links name a key no
+  // row carries fails here. Only the Overview refuses to go.
+  it("seeds four notebooks, links the Overview to the other three by seed key, and lets those three be deleted", async () => {
     const { tripId } = await seedTrip();
     const entries = await listPageEntries(tripId);
     expect(entries.map((p) => p.title)).toEqual(SEEDED_TITLES);
     const [overview, ...siblings] = entries;
     const doc = (await getPage(overview!.id))!.content;
-    const linked = JSON.stringify(doc).match(/"pageId":"([0-9a-f-]{36})"/g)?.map((m) => m.slice(10, -1));
-    expect(linked).toEqual(siblings.map((s) => s.id));
+    const linked = [...JSON.stringify(doc).matchAll(/"kind":"seed","seedKey":"([^"]+)"/g)].map((m) => m[1]);
+    expect(linked).toEqual(siblings.map((s) => s.seedKey));
     // What a link card and the index print, from the stored document.
     expect(entries.find((p) => p.title === "Money")!.preview).toEqual({
       firstLine: "What the trip costs, day by day, against the budget.",
-      widgetCount: 4,
+      // The chart, the two pies, the breakdown and "Who owes what" (M19 part 2).
+      widgetCount: 5,
     });
     // The public list stays `PageSummary`, with no preview on it.
     expect(Object.keys((await listPages(tripId))[0]!)).not.toContain("preview");

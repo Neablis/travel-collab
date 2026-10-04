@@ -1,7 +1,7 @@
 // AI page tools derived from the @tc/pages macro registry (ADR-015,
 // Invariant 5: tool schemas must be DERIVED, never hand-written duplicates).
 import { describe, expect, it } from "vitest";
-import type { ZodTypeAny } from "zod";
+import { asSchema, type FlexibleSchema } from "ai";
 
 import { pageInsertsMetadata, validateComposedPage, validatePageInserts } from "./pageTools";
 import { CURRENT_PAGE_DOC_VERSION } from "@tc/contracts";
@@ -33,13 +33,12 @@ function buildPageTools(said = "") {
   return { tools, call, notebooks, getInserts: () => pageBuffer.inserted(), buffer: pageBuffer };
 }
 
-// `Tool.inputSchema` is typed as AI SDK's `FlexibleSchema<INPUT>` (a union
-// covering Standard Schema, Zod, and other schema shapes it accepts), which
-// doesn't statically expose `.safeParse`. We know the concrete value is a
-// Zod schema (built with `z.object(...)` in pageTools.ts), so cast it back
-// to exercise it directly in tests.
-function asZodSchema(schema: unknown): ZodTypeAny {
-  return schema as ZodTypeAny;
+// What the SDK does with a call's arguments: `asSchema(tool.inputSchema)` and
+// its `validate`. The schema the model READS is slimmed (modelFacingSchema.ts),
+// so checking a refusal through the tool rather than through the zod object is
+// what proves the server still enforces it.
+async function accepts(schema: FlexibleSchema<unknown> | undefined, value: unknown): Promise<boolean> {
+  return (await asSchema(schema).validate!(value)).success;
 }
 
 describe("insert_text", () => {
@@ -77,9 +76,9 @@ describe("insert_text", () => {
     ]);
   });
 
-  it("rejects empty markdown at the schema, before execute", () => {
+  it("rejects empty markdown at the schema, before execute", async () => {
     const { tools } = buildPageTools();
-    expect(asZodSchema(tools.insert_text!.inputSchema).safeParse({ markdown: "" }).success).toBe(false);
+    expect(await accepts(tools.insert_text!.inputSchema, { markdown: "" })).toBe(false);
   });
 });
 
@@ -100,12 +99,12 @@ describe("insert_widget", () => {
     // what stops a model that learned them from writing a page this build would
     // have to migrate on its very first read.
     const { tools } = buildPageTools();
-    expect(asZodSchema(tools.insert_widget!.inputSchema).safeParse({ name: "cost.day" }).success).toBe(false);
+    expect(await accepts(tools.insert_widget!.inputSchema, { name: "cost.day" })).toBe(false);
   });
 
-  it("rejects a widget name not in the registry, at the schema", () => {
+  it("rejects a widget name not in the registry, at the schema", async () => {
     const { tools } = buildPageTools();
-    expect(asZodSchema(tools.insert_widget!.inputSchema).safeParse({ name: "nope.nope" }).success).toBe(false);
+    expect(await accepts(tools.insert_widget!.inputSchema, { name: "nope.nope" })).toBe(false);
   });
 
   // The delegation is the point: `insertWidget` is the one path a widget may

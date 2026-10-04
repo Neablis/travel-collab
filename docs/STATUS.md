@@ -21,20 +21,36 @@ general setup.
 
 ## Where the work is right now
 
-**M14 — RICH LAYER — IS THE CURRENT MILESTONE AS OF 2026-09-26**, by **M28's
-gate closing at 9 of 9**. Order:
-`M17 ✓ → M9 [built 2026-09-16, paused — gate needs a live model call] → M20 ✓ → M21 ✓ → M22 ✓ → M25 ✓ → M23 ✓ → M26 ✓ → M13 ✓ → M27 ✓ → M12 ✓ → M24 ✓ → M28 ✓ → M14 → M19`.
-M14's code is already merged (built ahead of M24 on 2026-09-24). Its gate is
-at 20 of 22, and the two open boxes need a person, not code (next section).
+**M19 — A COST KNOWS WHO AND WHAT IT IS FOR — IS THE CURRENT MILESTONE AS OF
+2026-10-01**, by **M14's gate closing at 22 of 22**. Order:
+`M17 ✓ → M9 [built 2026-09-16, paused — gate needs a live model call] → M20 ✓ → M21 ✓ → M22 ✓ → M25 ✓ → M23 ✓ → M26 ✓ → M13 ✓ → M27 ✓ → M12 ✓ → M24 ✓ → M28 ✓ → M14 ✓ → M19`.
+M19 was **scoped on 2026-10-02** (ADR-060: a price is per person, committed vs estimate
+derives from kind, and Booked by pays). It is built as three stacked parts:
+`docs/plans/2026-10-02-M19-cost-model.md`.
 
-**Two more milestones are built beside M14, not current, and not in `TODO.md`'s
-order** (placing them is Mitchell's call). **M29 — The time river**: all four
-parts merged by 2026-09-26 (#242, #244, #245, #243). Its gate is 17 of 20 (five boxes came with #251's phone part) after
-the 2026-09-27 reconciliation and the `m29-kind-control.spec.ts` walks. What is
-left is part 4's Overview read and the gate-close items. **M30 — Notebooks with one job each**: merged as #247, then #248-#253. Its
-gate is 7 of 9; the preview walk was done 2026-09-27 on #256's preview. Mitchell reading the
-Overview, and the retro, are what is left. Part 4 of M29 was superseded by M30's
-itinerary Overview, so its read and M30's are the same read.
+**M31 — We can see what the assistant costs — was minted and built 2026-10-03, beside M19,
+not current.** It is ADR-062's Phase 1: per-step and per-tool rows next to `ai_usage`, cached
+tokens, per-step pricing, the `ai-usage` skill's SQL and the live set. It closed
+KI-2026-09-14-b and KI-2026-09-17-c. **It adds migration `0035`, which must be dispatched to
+production right after merge.** Until it is applied, production's ledger writes fail, the
+`ai_usage` row included (`docs/milestones/M31-assistant-ledger.md`, *Prerequisites*). Gate 5
+of 7. The two boxes left are Mitchell's: the Gateway spend budget, and the baseline run on a
+preview. **The eve port is deferred until there are users** (ADR-062 § *Deferred: the port*).
+
+**Two more milestones are built beside the current one, not current, and not in
+`TODO.md`'s order** (placing them is Mitchell's call). **M29 — The time river**: all parts
+merged by 2026-09-26 (#242-#245, #251). Gate 18 of 20. Mitchell attested the Overview read
+on 2026-10-02. What is left is the whole-suite box and the retro. **M30 — Notebooks with one
+job each**: merged as #247, then #248-#253. Gate 8 of 9. The same Overview read ticked it,
+and only the retro is left.
+
+**Built beside M19, not a milestone: the SEO pass** (five stacked draft PRs, #295-#299,
+to merge 1 → 5 with merge commits; plan `docs/plans/2026-10-02-seo-pass.md`). It adds robots
+and canonicals, a sitemap, server-rendered day and Discover pages with real 404s and
+slugged URLs, JSON-LD, and city and country pages. **Three steps are Mitchell's:** the
+Vercel firewall bypass for `/`, `/welcome`, `/playbooks/**`, `/robots.txt` and
+`/sitemap.xml` (crawlers get the Security Checkpoint today); submitting the sitemap once
+part 2 is live; and checking production's canonical on `caesura.today/playbooks`.
 
 **M28 — Three kinds — closed 2026-09-26** (#238, #239): a stop's kind is
 `planned`, `pending` or `transit`, and the retired `idea`/`hold`/`booked` are
@@ -46,18 +62,16 @@ M24 shipped as #229, #230, #232 and #233. Its retro is at the end of
 `KI-2026-09-25-q` (surfaces that read a stop's city directly, first a shared
 helper and then a start-vs-end decision per surface).
 
-## MERGED 2026-09-24 — M14 Rich layer, pulled ahead of M24; gate 20 of 22
+## CLOSED 2026-10-01 — M14 Rich layer, pulled ahead of M24; gate 22 of 22
 
 Mitchell's call, 2026-09-24: build all of M14 ahead of M24. It shipped as four
-stacked PRs: #222 → #223 → #226 → #221. **The gate is not closed.** On
+stacked PRs: #222 → #223 → #226 → #221. **The gate closed 2026-10-01.** On
 2026-09-27 Mitchell settled the insert Sheet box (a fixed sample preview, as
-ADR-037 says) and accepted the six widgets on their e2e and ADR-052 as built. What is left:
-
-1. **The real-service weather walk.** Partly walked 2026-09-27 (the box says
-   what). KI-2026-09-27-b (NASA extremes read as averages) is fixed; walk step 3
-   again.
-2. **The milestone retro, appended at gate close.**
-   `docs/retros/2026-09-24-m14-stacked-prs-retro.md` is the *process* retro.
+ADR-037 says) and accepted the six widgets on their e2e and ADR-052 as built. On
+2026-10-01 he attested the real-service weather walk. The retro is at the end of
+`docs/milestones/M14-rich-layer.md`. `docs/retros/2026-09-24-m14-stacked-prs-retro.md`
+is the *process* retro. The route map block is unblocked by M24 but unbuilt and
+unowned.
 
 **Operator items: both done** (verified 2026-09-27, three days after this file
 last called them outstanding). Production has `0000`-`0031` (runs #29/#30), and
@@ -174,13 +188,11 @@ half, the model guessing a coordinate rather than citing one, is M9 scope.
 
 ## Next action
 
-**Close M14's gate** — 20 of 22. The two open boxes are under *MERGED
-2026-09-24* above: the real-service weather walk (step 3 again;
-`KI-2026-09-27-b` is fixed) and the retro. After M14, `TODO.md`'s next row is
-M19. M29 and M30 are built beside it and wait on Mitchell's Overview read and
-a place in the order.
+**Build M19 part 1** (`claude/m19-p1-per-person`): a price is per person, following the plan
+in `docs/plans/2026-10-02-M19-cost-model.md`. M29 and M30 are built beside it. They wait on
+M29's whole-suite box, both retros, and a place in the order.
 
-**Carried out of M24, not gating M14:** `KI-2026-09-25-q`. About a dozen
+**Carried out of M24, not gating:** `KI-2026-09-25-q`. About a dozen
 surfaces read `activity.location.city` directly, including the M14 ones this
 section used to list (`placeOfDay`, weather, `select.ts`). Each still reads a
 travel leg's origin by default. The KI's first step adds one activity-level

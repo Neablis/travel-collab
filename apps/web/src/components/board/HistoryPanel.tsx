@@ -9,6 +9,13 @@ import { coalesceHistory } from "./coalesceHistory";
 import { DataText } from "@/components/ui/data-text";
 import { Text } from "@/components/ui/text";
 import { formatTripDate } from "@/lib/formatDate";
+import { useAuthorNames } from "./SuggestionActions";
+
+// "Suggested" alone until the names land: a name guessed wrong, or "a former
+// traveler" said of a member, is worse than none.
+function suggestedBy(name: string | null): string {
+  return name === null ? "Suggested" : `Suggested by ${name}`;
+}
 
 // Bounded page size for the History popover's entries list (#1): only the
 // most recent PAGE_SIZE entries render up front, with a "Show older"
@@ -41,6 +48,11 @@ export function HistoryPanel({
   onRevert: (toSeq: number) => void;
 }) {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  // Null names outside a `PeopleProvider` (TripHeader mounts one) or before
+  // it lands.
+  const nameOf = useAuthorNames(
+    history?.entries.flatMap((e) => (e.origin.kind === "suggestion" ? [e.origin.authorId] : [])) ?? [],
+  );
 
   if (history === null) return null;
 
@@ -65,9 +77,30 @@ export function HistoryPanel({
             <Button
               variant="ghost"
               onClick={() => (previewSeq === entry.toSeq ? onExitPreview() : onPreview(entry.toSeq))}
-              className={cn("min-w-0 flex-1 justify-start", entry.undone && "opacity-50", previewSeq === entry.toSeq && "font-bold")}
+              className={cn(
+                "min-w-0 flex-1 justify-start",
+                // `h-auto` because a suggestion row is two lines and `md`'s
+                // fixed `h-9` would clip the second; the base's phone floor
+                // still holds, being `min-h`.
+                entry.origin.kind === "suggestion" && "h-auto py-1",
+                entry.undone && "opacity-50",
+                previewSeq === entry.toSeq && "font-bold",
+              )}
             >
-              <span className="truncate">{entry.undone ? <s>{entry.description}</s> : entry.description}</span>
+              {/* W11: an accepted suggestion's actor is the reviewer, so the
+                  person who asked for it is said here, from `origin` — on a
+                  line of its own. Beside the description it took the width,
+                  and the row read `Moved "St…` (PR #311's preview walk). */}
+              <span className="flex min-w-0 flex-col items-start text-left">
+                <span data-testid="history-entry-description" className="max-w-full truncate">
+                  {entry.undone ? <s>{entry.description}</s> : entry.description}
+                </span>
+                {entry.origin.kind === "suggestion" && (
+                  <span className="max-w-full truncate text-xs text-slate">
+                    {suggestedBy(nameOf(entry.origin.authorId))}
+                  </span>
+                )}
+              </span>
               {/* The count is shown rather than implied, because one undo
                   undoes one BATCH and this row stands for `count` of them —
                   see `coalesceHistory`. A reader who cannot see the number

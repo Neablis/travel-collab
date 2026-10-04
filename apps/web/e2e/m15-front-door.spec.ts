@@ -9,9 +9,9 @@ test.use({ storageState: { cookies: [], origins: [] } });
 test("landing → sign in → first trip → sign out", async ({ page }) => {
   const tripName = e2eTripName("Kyoto");
 
-  // `/` bounces a signed-out visitor to the landing page.
+  // `/` serves the landing in place for a signed-out visitor: no redirect.
   await page.goto("/");
-  await expect(page).toHaveURL(/\/welcome$/);
+  await expect(page).toHaveURL(/\/$/);
   await expect(
     page.getByRole("heading", { name: "Put the best day on repeat." }),
   ).toBeVisible();

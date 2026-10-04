@@ -33,6 +33,11 @@ vi.mock("@/lib/apiClient", () => ({
   createReport: (...a: unknown[]) => createReportMock(...a),
 }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: pushMock }) }));
+// Who is reading. `undefined` (not known yet) unless a test says otherwise —
+// the state in which the screen renders exactly as it did before ADR-061, so
+// every test written before it still describes the page it was written for.
+let session: { id: string } | null | undefined = undefined;
+vi.mock("@/components/account/useSessionUser", () => ({ useSessionUser: () => session }));
 // jsdom has no WebGL, so the real MapLibre cannot run. This screen's tests only
 // ask whether the map is MOUNTED — what it draws is `SharedDayMap.test.tsx`'s —
 // so the fake's style never finishes loading and nothing is ever drawn.
@@ -51,6 +56,8 @@ vi.mock("maplibre-gl", () => {
 });
 
 import { SharedDayScreen, ledgerLabel } from "./SharedDayScreen";
+import { rememberPlaybookAdd } from "@/lib/pendingPlaybookAdd";
+import { holdReview } from "./reviewQueue";
 
 const DAY_ID = "aa000000-0000-4000-8000-000000000001";
 const TRIP_ID = "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f";
@@ -96,7 +103,7 @@ function savedDay(over: Partial<SavedDay> = {}): SavedDay {
 
 function profile(over: Partial<PublicProfileResponse["author"]> = {}): PublicProfileResponse {
   return {
-    author: { userId: "dev-alice", displayName: "dev-alice", playbooksShared: 2, adds: 3, reviewsReceived: 0, averageRating: null, ...over },
+    author: { userId: "dev-alice", displayName: "Alice C.", playbooksShared: 2, adds: 3, reviewsReceived: 0, averageRating: null, ...over },
     knows: [],
     days: [],
   };
@@ -142,10 +149,43 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  session = undefined;
+  window.localStorage.clear();
 });
 
 const renderDay = () =>
   render(<SharedDayScreen savedDayId={DAY_ID} backHref="/playbooks" backLabel="Discover" />);
+
+// SEO pass, D6: the title block's cities are the way from a day to its city's
+// page — for a day that page lists. A private day is in no city's list, so
+// its author's own view names the city without sending them to a page that
+// does not have the day (or a 404, when it is the only day there).
+describe("the title block's cities", () => {
+  it("link to each city's page on a published day", async () => {
+    renderDay();
+    expect((await screen.findByRole("link", { name: "Kyoto" })).getAttribute("href")).toBe("/playbooks/city/kyoto");
+  });
+
+  it("are plain text on a published day an operator hid", async () => {
+    fetchSavedDayMock.mockResolvedValue(
+      ok({
+        savedDay: savedDay(),
+        isAuthor: true,
+        moderation: { moderatedAt: "2026-09-23T10:00:00.000Z", moderationNote: null },
+      }),
+    );
+    renderDay();
+    await screen.findByRole("heading", { level: 1, name: "Kyoto temples on foot" });
+    expect(screen.queryByRole("link", { name: "Kyoto" })).toBeNull();
+  });
+
+  it("are plain text on a private day", async () => {
+    fetchSavedDayMock.mockResolvedValue(ok({ savedDay: savedDay({ visibility: "private" }), isAuthor: true }));
+    renderDay();
+    await screen.findByRole("heading", { level: 1, name: "Kyoto temples on foot" });
+    expect(screen.queryByRole("link", { name: "Kyoto" })).toBeNull();
+  });
+});
 
 // M23 / ADR-048 decision 2. A sequence's days have to be legible on the one
 // screen somebody reads before deciding to take it — and the EMPTY day is the
@@ -420,6 +460,43 @@ describe("a shared day", () => {
     expect(within(list).getAllByText("Kyoto")).toHaveLength(2);
   });
 
+  it("shows the author's summary under the title block when the day has one", async () => {
+    fetchSavedDayMock.mockResolvedValue(
+      ok({ savedDay: savedDay({ summary: "Temples before the crowds, then the river." }), isAuthor: false }),
+    );
+    renderDay();
+    const summary = await screen.findByTestId("playbook-summary");
+    expect(summary.tagName).toBe("P");
+    expect(summary.textContent).toBe("Temples before the crowds, then the river.");
+  });
+
+  it.each([
+    ["no summary", null],
+    ["an empty one", ""],
+    ["a blank one", "  \n "],
+  ])("renders no summary paragraph at all for %s", async (_case, summary) => {
+    fetchSavedDayMock.mockResolvedValue(ok({ savedDay: savedDay({ summary }), isAuthor: false }));
+    renderDay();
+    await screen.findByTestId("playbook-meta");
+    expect(screen.queryByTestId("playbook-summary")).toBeNull();
+  });
+
+  // The server page's path: the day arrives as a prop, so the first render is
+  // the day itself and nothing is fetched to draw it.
+  it("renders the server's read at once, with no skeleton and no first fetch", () => {
+    render(
+      <SharedDayScreen
+        savedDayId={DAY_ID}
+        backHref="/playbooks"
+        backLabel="Discover"
+        initial={{ day: savedDay(), isAuthor: false, author: profile().author, pinning: false, publishedAt: null, moderation: null }}
+      />,
+    );
+    expect(screen.getByRole("heading", { level: 1, name: "Kyoto temples on foot" })).toBeTruthy();
+    expect(within(screen.getByTestId("stop-list")).getAllByRole("listitem")).toHaveLength(2);
+    expect(fetchSavedDayMock).not.toHaveBeenCalled();
+  });
+
   // Mitchell, PR #269 preview: "Just drop this text line, i dont even know what
   // its from". It was the "Kept out of {trip}. Order and gaps kept, no dates"
   // sentence under the meta line; the trip it names is not on this page
@@ -450,19 +527,13 @@ describe("a shared day", () => {
   });
 
   // The facts §15 names, minus the ones M12 owns.
-  // The screen somebody reads before deciding to take a day into their own
-  // trip, so "who wrote it" belongs beside the title (ADR-041 decision 5).
-  // Only "ai" renders: "human" is the absence of a claim.
-  it("marks a generated day as an AI starter beside its title, and says nothing about a human one", async () => {
+  // ADR-041 decision 5, as amended 2026-10-03: `authorKind` stays in the
+  // database and is not advertised on the screen.
+  it("says nothing about whether a day was generated", async () => {
     fetchSavedDayMock.mockResolvedValue(ok({ savedDay: savedDay({ authorKind: "ai" }), isAuthor: false }));
     renderDay();
-    expect(await screen.findByText("AI starter")).toBeTruthy();
-
-    cleanup();
-    fetchSavedDayMock.mockResolvedValue(ok({ savedDay: savedDay({ authorKind: "human" }), isAuthor: false }));
-    renderDay();
     expect(await screen.findByRole("heading", { name: savedDay().name })).toBeTruthy();
-    expect(screen.queryByText("AI starter")).toBeNull();
+    expect(screen.queryByText(/\bAI\b/)).toBeNull();
   });
 
   it("states the facts in the rail, derived from the stops", async () => {
@@ -472,7 +543,10 @@ describe("a shared day", () => {
     // so the bare "2" this asserted here is now there instead.
     expect(within(rail).queryByText("Stops")).toBeNull();
     expect(screen.getByTestId("playbook-meta").textContent).toContain("2 stops");
-    expect(within(rail).getByText("$23.00")).toBeTruthy();
+    // A saved day's sum is what it costs EACH (ADR-060 decision 7): its stops
+    // carry per-person prices and no people. The value says "each" and the
+    // label stays Mitchell's "Budget", so the word is not said twice.
+    expect(within(rail).getByText("$23.00 each")).toBeTruthy();
     expect(within(rail).getByText("Budget")).toBeTruthy();
     expect(within(rail).queryByText("Budget each")).toBeNull();
     expect(within(rail).getByText("2 trips")).toBeTruthy();
@@ -602,11 +676,14 @@ describe("a shared day", () => {
     renderDay();
     const strip = await screen.findByTestId("author-strip");
     expect(within(strip).getByText("2 playbooks shared · added to 3 trips")).toBeTruthy();
-    // A readable handle, never the raw identifier — the link still CARRIES the
-    // id, which is the distinction: `displayNameFor` decides what the link
-    // says, not where it goes.
-    expect(within(strip).getByRole("link", { name: "Alice" }).getAttribute("href")).toContain(
-      "/playbooks/profile/dev-alice",
+    // The name the profile endpoint resolved ("Alice C.", `publicNameFor` on
+    // the server), not one re-derived here from the id ("Alice") — and never
+    // the raw identifier. The link still CARRIES the id: the name decides what
+    // the link says, not where it goes.
+    // And the day's own segment, slug and all, so the profile's way back is
+    // the day's current URL rather than a redirect to it.
+    expect(within(strip).getByRole("link", { name: "Alice C." }).getAttribute("href")).toBe(
+      `/playbooks/profile/dev-alice?from=day&day=kyoto-temples-on-foot-${DAY_ID}`,
     );
     expect(within(strip).queryByText("dev-alice")).toBeNull();
     expect(fetchPublicProfileMock).toHaveBeenCalledWith("dev-alice");
@@ -1028,5 +1105,181 @@ describe("deleting your own day", () => {
     const banner = await screen.findByTestId("delete-failed");
     expect(banner.textContent).toContain("Unpublish it first");
     expect(pushMock).not.toHaveBeenCalled();
+  });
+});
+
+// ADR-061: the library is readable without an account. Everything a reader
+// sees, none of what only an account can do, and Add asks them to sign in.
+describe("a shared day, read with no account", () => {
+  const MARKER = "pending_playbook_add";
+
+  it("asks them to sign in from Add, both ways back to this day, and banks the add first", async () => {
+    session = null;
+    renderDay();
+    await userEvent.click(await screen.findByRole("button", { name: "Add to a trip" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Sign in to add this day" });
+    const back = encodeURIComponent(`/playbooks/day/${DAY_ID}`);
+    const signIn = within(dialog).getByRole("link", { name: "Sign in" });
+    expect(signIn.getAttribute("href")).toBe(`/signin?callbackUrl=${back}`);
+    expect(within(dialog).getByRole("link", { name: "Create an account" }).getAttribute("href")).toBe(
+      `/signup?callbackUrl=${back}`,
+    );
+    // Never the trip picker: there are no trips to pick from.
+    expect(screen.queryByLabelText("Which trip")).toBeNull();
+    expect(fetchTripsMock).not.toHaveBeenCalled();
+
+    // Opening the dialog is not a request; the click on the way out is.
+    expect(window.localStorage.getItem(MARKER)).toBeNull();
+    fireEvent.click(signIn);
+    expect(JSON.parse(window.localStorage.getItem(MARKER) ?? "null")).toMatchObject({ savedDayId: DAY_ID });
+  });
+
+  it("offers no Report and no review form, and still lists what people said", async () => {
+    session = null;
+    fetchReviewsMock.mockResolvedValue(
+      ok({
+        summary: { average: 5, count: 1, histogram: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 1 } },
+        reviews: [
+          {
+            savedDayId: DAY_ID,
+            reviewerId: "dev-mei",
+            reviewerDisplayName: "Mei Tanaka",
+            stars: 5,
+            note: "Go early.",
+            createdAt: "2026-09-10T00:00:00.000Z",
+            updatedAt: "2026-09-10T00:00:00.000Z",
+            isMine: false,
+          },
+        ],
+        mine: null,
+      }),
+    );
+    renderDay();
+
+    expect(await screen.findByText("Mei Tanaka")).toBeTruthy();
+    expect(screen.queryByTestId("review-form")).toBeNull();
+    expect(screen.queryByRole("button", { name: "1 star" })).toBeNull();
+    expect(screen.queryAllByRole("button", { name: /^Report / })).toHaveLength(0);
+  });
+
+  // A review held on this device was written by whoever was signed in here
+  // before. Shown, it would be a "You · Queued" row that is not theirs; sent,
+  // it could only be refused. It waits in storage for a session.
+  it("neither shows nor sends a review held on this device", async () => {
+    session = null;
+    holdReview(DAY_ID, { stars: 4, note: null, heldAt: "2026-09-10T00:00:00.000Z" });
+    renderDay();
+
+    expect(await screen.findByTestId("reviews-empty")).toBeTruthy();
+    expect(screen.queryByText("Queued")).toBeNull();
+    expect(putReviewMock).not.toHaveBeenCalled();
+  });
+
+  // Copilot, PR #293: an expired cookie reads `undefined` before `null`, and a
+  // review held from an earlier session must not be sent in that window — the
+  // PUT could only 401. It waits for a CONFIRMED reader.
+  it("does not send a held review while the session is not known yet", async () => {
+    session = undefined;
+    holdReview(DAY_ID, { stars: 4, note: null, heldAt: "2026-09-10T00:00:00.000Z" });
+    try {
+      renderDay();
+      expect(await screen.findByRole("heading", { level: 1 })).toBeTruthy();
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      expect(putReviewMock).not.toHaveBeenCalled();
+    } finally {
+      window.localStorage.clear();
+    }
+  });
+
+  // Signed-in-only controls hide on a CONFIRMED `null` only.
+  it("keeps Report while the session is not known yet", async () => {
+    session = undefined;
+    renderDay();
+    expect(await screen.findByRole("button", { name: "Report this day" })).toBeTruthy();
+  });
+});
+
+describe("back from signing in to add", () => {
+  it("opens the add dialog for a live marker on this day, and adds nothing by itself", async () => {
+    session = { id: "dev-bob" };
+    rememberPlaybookAdd(DAY_ID);
+    renderDay();
+
+    expect(await screen.findByLabelText("Which trip")).toBeTruthy();
+    expect(insertSavedDayMock).not.toHaveBeenCalled();
+    // Spent: a reload must not open it again.
+    expect(window.localStorage.getItem("pending_playbook_add")).toBeNull();
+  });
+
+  it("does not open for a marker banked on another day", async () => {
+    session = { id: "dev-bob" };
+    rememberPlaybookAdd("aa000000-0000-4000-8000-0000000000ff");
+    renderDay();
+
+    expect(await screen.findByRole("button", { name: "Add to a trip" })).toBeTruthy();
+    // The marker is read once the day has loaded; wait for that to have happened.
+    await waitFor(() => expect(window.localStorage.getItem("pending_playbook_add")).toBeNull());
+    expect(screen.queryByLabelText("Which trip")).toBeNull();
+  });
+
+  it("waits for a signed-in reader before it reads the marker", async () => {
+    session = null;
+    rememberPlaybookAdd(DAY_ID);
+    renderDay();
+
+    expect(await screen.findByRole("button", { name: "Add to a trip" })).toBeTruthy();
+    expect(screen.queryByLabelText("Which trip")).toBeNull();
+    expect(window.localStorage.getItem("pending_playbook_add")).not.toBeNull();
+  });
+});
+
+// Decision 6: for every reader, signed in or not, and always the clean link —
+// never `?from=`, which would hand the next reader this one's way back.
+describe("sharing a day", () => {
+  // The slugged path: the one URL the day page answers 200 on.
+  const cleanUrl = `${window.location.origin}/playbooks/day/kyoto-temples-on-foot-${DAY_ID}`;
+
+  function stubNavigator(key: "share" | "clipboard", value: unknown) {
+    const before = Object.getOwnPropertyDescriptor(navigator, key);
+    Object.defineProperty(navigator, key, { value, configurable: true });
+    return () => {
+      if (before) Object.defineProperty(navigator, key, before);
+      else delete (navigator as unknown as Record<string, unknown>)[key];
+    };
+  }
+
+  it("copies the clean link where there is no share sheet, and says so", async () => {
+    session = null;
+    const writeText = vi.fn(async () => {});
+    const restore = [stubNavigator("share", undefined), stubNavigator("clipboard", { writeText })];
+    try {
+      renderDay();
+      fireEvent.click(await screen.findByRole("button", { name: "Share" }));
+      expect(await screen.findByRole("button", { name: "Link copied" })).toBeTruthy();
+      expect(writeText).toHaveBeenCalledWith(cleanUrl);
+    } finally {
+      restore.forEach((undo) => undo());
+    }
+  });
+
+  it("hands the day to the share sheet where there is one, and says nothing when it is dismissed", async () => {
+    const share = vi.fn(async () => {
+      throw new DOMException("dismissed", "AbortError");
+    });
+    const writeText = vi.fn(async () => {});
+    const restore = [stubNavigator("share", share), stubNavigator("clipboard", { writeText })];
+    try {
+      renderDay();
+      fireEvent.click(await screen.findByRole("button", { name: "Share" }));
+      await waitFor(() => expect(share).toHaveBeenCalledWith({ title: "Kyoto temples on foot", url: cleanUrl }));
+      // Dismissing is the reader saying no: no copy behind their back.
+      expect(writeText).not.toHaveBeenCalled();
+      expect(screen.getByRole("button", { name: "Share" })).toBeTruthy();
+    } finally {
+      restore.forEach((undo) => undo());
+    }
   });
 });

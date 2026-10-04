@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import { DiscoverScope, DiscoverSort, LengthBand, RatingFloor } from "@/lib/playbooks";
+import { DiscoverScope, DiscoverSort, LengthBand, normalizeCities, RatingFloor } from "@/lib/playbooks";
 
 // Discover's state as a URL, both directions, in one place — so the page that
 // READS `?rating=4` and the screen that WRITES it cannot spell it two ways.
@@ -49,12 +49,18 @@ function pick<T>(schema: z.ZodType<T>, raw: string | undefined, fallback: T): T 
 /** Discover's state from a page's `searchParams`; anything absent or unreadable is its default. */
 export function parseDiscoverUrl(params: RawParams): DiscoverUrlState {
   return {
-    cities: all(params.city).filter((c) => c !== ""),
+    cities: normalizeCities(all(params.city)),
     // Upper-cased because the stored codes are (`countriesOfStops`), and a
     // lower-case `?country=jp` typed by hand should mean Japan, not nothing.
-    countries: all(params.country)
-      .map((c) => c.toUpperCase())
-      .filter((c) => /^[A-Z]{2}$/.test(c)),
+    // Trimmed and deduped as `GET /api/playbooks` does, so the page's first
+    // paint is the list the API would give.
+    countries: [
+      ...new Set(
+        all(params.country)
+          .map((c) => c.trim().toUpperCase())
+          .filter((c) => /^[A-Z]{2}$/.test(c)),
+      ),
+    ],
     scope: pick(DiscoverScope, first(params.scope), DISCOVER_URL_DEFAULTS.scope),
     sort: pick(DiscoverSort, first(params.sort), DISCOVER_URL_DEFAULTS.sort),
     length: pick(LengthBand, first(params.length), DISCOVER_URL_DEFAULTS.length),

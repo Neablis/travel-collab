@@ -1,0 +1,21 @@
+{
+  "about": "The live set (M31's parity gate, ADR-062 §7). Fifteen prompts run against a deployment with a real model: the five replay transcripts' openers, five more change-intent prompts and five question-only prompts. Each is run three times. The same file is the baseline on the current stack (M31 Phase 1) and the comparison on any later stack, so a prompt is never edited, only added under a new id. Written for a Kyoto trip with a Fushimi Inari stop and at least two days, like the seeded Japan trip's Kyoto days; run it against an editable copy, never the demo trip.",
+  "repeat": 3,
+  "prompts": [
+    { "id": "t-fabricated-cost", "intent": "change", "source": "transcripts/fabricated-cost.json", "text": "add a cheap lunch stop to day 1" },
+    { "id": "t-grounded-plan", "intent": "change", "source": "transcripts/grounded-plan.json", "text": "add lunch and dinner near the falls to day 1" },
+    { "id": "t-mangled-tool-input", "intent": "change", "source": "transcripts/mangled-tool-input.json", "text": "add a coffee stop to day 1" },
+    { "id": "t-reads-and-says-nothing", "intent": "change", "source": "transcripts/reads-and-says-nothing.json", "text": "plan me a six day trip to Kyoto" },
+    { "id": "t-verbatim-uuid", "intent": "change", "source": "transcripts/verbatim-uuid.json", "text": "move the Fushimi Inari stop to day 2" },
+    { "id": "c-rename", "intent": "change", "text": "rename this trip to Kyoto in the spring" },
+    { "id": "c-remove", "intent": "change", "text": "remove the last stop on day 2" },
+    { "id": "c-retime", "intent": "change", "text": "start day 1 an hour later" },
+    { "id": "c-add-evening", "intent": "change", "text": "add an evening walk in Gion on day 2" },
+    { "id": "c-swap-days", "intent": "change", "text": "swap days 1 and 2" },
+    { "id": "q-length", "intent": "question", "text": "how long is this trip?" },
+    { "id": "q-busiest", "intent": "question", "text": "which day is the busiest?" },
+    { "id": "q-free-evening", "intent": "question", "text": "do I have a free evening anywhere?" },
+    { "id": "q-cost", "intent": "question", "text": "what does day 1 cost per person?" },
+    { "id": "q-first-stop", "intent": "question", "text": "what is the first thing I do on day 2?" }
+  ]
+}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { tripSpend, daySpend, plannedOfBudgetLine } from "./cost";
-import { costedTripDetailFixture } from "@tc/factories";
+import { tripSpend, daySpend, plannedOfBudgetLine, committedLine } from "./cost";
+import { costedTripDetailFixture, withCostRollups } from "@tc/factories";
 
 describe("tripSpend", () => {
   it("reads the server-computed total rather than re-summing", () => {
@@ -61,5 +61,43 @@ describe("daySpend", () => {
 
   it("returns zeroes for an unknown day", () => {
     expect(daySpend(costedTripDetailFixture(), "no-such-day")).toEqual({ total: 0, unpriced: 0 });
+  });
+});
+
+// ADR-060: a price is per person, and committed vs estimate is the stop's kind.
+// Three members; the Colosseum is pending with one person picked, the Forum is
+// pending with nobody picked, the flight is planned. Hand-worked:
+//   estimated = 2500 × 1 + 1600 × 3 = 7300   (raw prices would give 4100)
+//   total     = 7300 + 45000 × 3   = 142300
+function threeTravellers() {
+  const base = costedTripDetailFixture();
+  const [colosseum, forum, flight] = Object.values(base.activities);
+  return withCostRollups({
+    ...base,
+    members: [
+      { userId: "u1", role: "owner" },
+      { userId: "u2", role: "editor" },
+      { userId: "u3", role: "viewer" },
+    ],
+    activities: {
+      ...base.activities,
+      [colosseum!.activityId]: { ...colosseum!, kind: "pending", participants: ["u1"] },
+      [forum!.activityId]: { ...forum!, kind: "pending", participants: [] },
+      [flight!.activityId]: { ...flight!, kind: "planned", participants: [] },
+    },
+  });
+}
+
+describe("committed vs estimate", () => {
+  it("prices the estimate per person and counts only pending stops in it", () => {
+    const spend = tripSpend(threeTravellers());
+    expect(spend.total).toBe(142_300);
+    expect(spend.estimated).toBe(7_300);
+  });
+
+  it("reads 'committed · estimated' when part of the total is a guess, and nothing when none is", () => {
+    expect(committedLine(tripSpend(threeTravellers()), "USD")).toBe("$1,350.00 committed · $73.00 estimated");
+    // The fixture as shipped has no pending stop, so there is nothing to split.
+    expect(committedLine(tripSpend(costedTripDetailFixture()), "USD")).toBeNull();
   });
 });

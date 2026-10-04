@@ -236,10 +236,11 @@ test("publish, discover and add — two actors, and unpublish takes it back", as
   // The dropped clause (2026-09-08) must not survive in copy: §15's whole point
   // is that the board is credible because it states the rule it enforces.
   await expect(bob.getByText(/after the trip has dates/)).toHaveCount(0);
-  // "Alice", not "dev-alice": since 2026-09-01 `displayNameFor` never hands a
-  // raw identifier to a reader, and a dev-login id carries the username inside
-  // it. The id is still what the ROW links to, which is the distinction — see
-  // the profile URL two lines below, which is unchanged.
+  // Alice's name, never "dev-alice": the library names a person by their
+  // `users` name cut to first name and last initial (`publicNameFor`, Mitchell
+  // 2026-10-02), and dev login stores the bare username ("alice") there. Both
+  // matchers below are case-insensitive. The id is still what the ROW links
+  // to, which is the distinction — see the profile URL two lines below.
   await expect(bob.getByTestId("board-row").filter({ hasText: "Alice" })).toBeVisible();
   await expect(bob.getByText("dev-alice")).toHaveCount(0);
 
@@ -272,7 +273,8 @@ test("publish, discover and add — two actors, and unpublish takes it back", as
   // And the day itself is now the same 404 a private day has always been — a
   // withdrawn day and one that never existed are deliberately indistinguishable.
   await bob.goto(`/playbooks/day/${savedDayId}`);
-  await expect(bob.getByText("This day is not in the library")).toBeVisible();
+  // The site's one 404 page (SEO pass): the day page answers a real 404 now.
+  await expect(bob.getByRole("heading", { name: "This page is not here", level: 1 })).toBeVisible();
 
   await forgetDay(page, savedDayId);
   await bob.context().close();

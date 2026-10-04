@@ -10,7 +10,6 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
 import { fetchLeaderboard } from "@/lib/apiClient";
-import { displayNameFor } from "@/lib/displayName";
 import type { LeaderboardResponse } from "@/lib/playbooks";
 import { cn } from "@/lib/cn";
 import { backQuery } from "./backLink";
@@ -108,7 +107,7 @@ export function LeaderboardScreen() {
                     href={`/playbooks/profile/${encodeURIComponent(author.userId)}${backQuery({ from: "board" })}`}
                     className="font-semibold text-ink hover:underline"
                   >
-                    {displayNameFor({ userId: author.userId })}
+                    {author.displayName}
                   </Link>
                   <Text variant="secondary">
                     {/* "Playbooks", not "days": this counts published rows, and

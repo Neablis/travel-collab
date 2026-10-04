@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { type ActivityKind, type ActivityMode, type ActivityTag, type ActivityView, type Anchor, type Location, type Money, type PendingReason, type TimeWindow, type TripMember } from "@tc/contracts";
+import { type ActivityKind, type ActivityMode, type ActivityTag, type ActivityView, type Anchor, type Location, type Money, type PendingReason, type TimeWindow } from "@tc/contracts";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,7 @@ import { Preview } from "@/components/ui/preview";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Text } from "@/components/ui/text";
 import { Textarea } from "@/components/ui/textarea";
+import { stopTotalLine } from "@/lib/cost";
 import { formatDuration, toClockRange, toEndMinutes, toMinutes, toTimeString } from "@/lib/time";
 import { useTimeFormat } from "@/components/account/PreferencesProvider";
 import type { Slot } from "@/components/trip/fitIntoDay";
@@ -62,6 +63,9 @@ const KIND_HELP: Record<ActivityKind, string> = {
   transit: "Moving between the stops either side",
 };
 
+/** A trip member as the attribution controls show them: the id is the value, `name` the label. */
+export type NamedMember = { userId: string; name: string };
+
 export type ActivityDayOption = { dayId: string; label: string; existing: Slot[] };
 
 /** The "How long" value for a length drawn on the river that is none of the five. */
@@ -105,8 +109,13 @@ export function ActivityEditor({
    * working: with no members there is nobody to attribute to, and the section
    * renders a plain "nobody else is on this trip yet" rather than an empty
    * control that looks broken.
+   *
+   * Named by the caller, because `TripMember` carries no name and Booked by
+   * decides who is owed money (ADR-060 decision 6): a toggle reading a UUID
+   * cannot be picked correctly. The sheet names them through `personNames`,
+   * the rule the notebook's balances use, so the two never disagree.
    */
-  members?: TripMember[];
+  members?: NamedMember[];
   onSave: (value: ActivityFormValue) => void | Promise<void>;
   onCancel: () => void;
 }) {
@@ -160,6 +169,21 @@ export function ActivityEditor({
   const [bookedBy, setBookedBy] = useState<string | null>(initial?.bookedBy ?? null);
   const [participants, setParticipants] = useState<string[]>(initial?.participants ?? []);
   const [cost, setCost] = useState<Money | null>(initial?.cost ?? null);
+  // Nobody picked is everyone; with no member list to hand (a caller that
+  // passes none) `stopHeadcount` reads it as the one person who is here.
+  const stopLine = stopTotalLine({ cost, participants }, members.length, tripCurrency);
+  // Ids this stop names for people who have since LEFT the trip. The read path
+  // keeps them (contracts' detail.ts) and `stopHeadcount` still prices them, so
+  // a picker that listed members only hid a person the line was charging for,
+  // with no way to untick them. They are shown, picked, under a fallback name
+  // (never the raw id) and can only be removed: the list is taken from what the
+  // stop arrived with, and each is rendered while it is still picked, so one
+  // removed is never offered back. With no member list there is no telling a
+  // departed id from an unknown one, so nothing is called departed.
+  const memberIds = new Set(members.map((member) => member.userId));
+  const departedIds =
+    members.length === 0 ? [] : [...new Set(initial?.participants ?? [])].filter((id) => !memberIds.has(id));
+  const departedBookedBy = members.length > 0 && bookedBy !== null && !memberIds.has(bookedBy) ? bookedBy : null;
   // Kept while the kind is switched away, so switching back does not lose
   // them; only what is SAVED is cleared (see submit).
   const [travelMode, setTravelMode] = useState<ActivityMode | null>(initial?.mode ?? null);
@@ -248,7 +272,6 @@ export function ActivityEditor({
       <FormField
         id="activity-title"
         label="What or where"
-        description="Type a place and we fill in the address, hours and travel time."
       >
         <Input
           id="activity-title"
@@ -392,13 +415,26 @@ export function ActivityEditor({
         <LocationInput id="end-location-search" label="Going to" value={endLocation} onChange={setEndLocation} />
       )}
 
-      <FormField
-        id="activity-cost"
-        label="Cost"
-        description="Rough is fine. It counts against the trip budget as an estimate until you confirm."
-      >
-        <MoneyInput id="activity-cost" value={cost} currency={tripCurrency} onChange={setCost} placeholder="e.g. 120" />
-      </FormField>
+      {/* ADR-060: a typed price is for ONE person, and the trip multiplies it
+          by who is going. The label says so, and the line under it does the
+          multiplication with the Who-is-in picks below, live, so a shared bill
+          typed here shows up as the wrong number before it is saved. */}
+      <div className="flex flex-col gap-1">
+        <FormField
+          id="activity-cost"
+          label="Cost per person"
+        >
+          <MoneyInput id="activity-cost" value={cost} currency={tripCurrency} onChange={setCost} placeholder="e.g. 120" />
+        </FormField>
+        {/* Always rendered, a no-break space holding its line when there is
+            no cost. MoneyInput commits on blur, so a line that only appeared
+            once a cost existed appeared on the mousedown that blurred the
+            field — usually on "Add stop" — and pushed that button out from
+            under the pointer, so the click saved nothing. */}
+        <Text variant="muted" data-testid="activity-cost-total" aria-hidden={stopLine === null ? true : undefined}>
+          {stopLine ?? "\u00a0"}
+        </Text>
+      </div>
 
       {/* Four toggles, never the handoff's six (KI-52). The design pairs each
           chip with the "power" it grants — "Pins where you sleep that night",
@@ -409,7 +445,6 @@ export function ActivityEditor({
       <div className="flex flex-col gap-1.5">
         <div className="flex items-baseline justify-between gap-2.5">
           <Text variant="muted">Tags</Text>
-          <Text variant="muted">Pick as many as fit</Text>
         </div>
         <div role="group" aria-label="Tags" className="flex flex-wrap gap-1.5">
           {TAG_ORDER.map((tag) => {
@@ -437,7 +472,6 @@ export function ActivityEditor({
       <div className="flex flex-col gap-1.5">
         <div className="flex items-baseline justify-between gap-2.5">
           <Text variant="muted">Who is in</Text>
-          {members.length > 0 && <Text variant="muted">Pick as many as are going</Text>}
         </div>
         {members.length === 0 ? (
           <Text variant="muted">Invite someone to the trip to say who a stop is for.</Text>
@@ -461,15 +495,29 @@ export function ActivityEditor({
                       )
                     }
                   >
-                    {member.userId}
+                    {member.name}
                   </Button>
                 );
               })}
+              {departedIds.map((id, index) =>
+                participants.includes(id) ? (
+                  <Button
+                    key={id}
+                    variant="primary"
+                    size="sm"
+                    aria-pressed
+                    className="rounded-full px-3"
+                    onClick={() => setParticipants((current) => current.filter((p) => p !== id))}
+                  >
+                    {departedIds.length > 1 ? `Former member ${index + 1}` : "Former member"}{" "}
+                    <span className="opacity-80">(left the trip)</span>
+                  </Button>
+                ) : null,
+              )}
             </div>
             <FormField
               id="activity-booked-by"
               label="Booked by"
-              description="Who is handling this one. Not the same as who is going."
             >
               <NativeSelect
                 id="activity-booked-by"
@@ -477,9 +525,12 @@ export function ActivityEditor({
                 onChange={(e) => setBookedBy(e.target.value === "" ? null : e.target.value)}
               >
                 <option value="">Nobody yet</option>
+                {/* Shown only while it is the value, so choosing anything else
+                    drops it for good — same rule as Who is in above. */}
+                {departedBookedBy !== null && <option value={departedBookedBy}>Former member (left the trip)</option>}
                 {members.map((member) => (
                   <option key={member.userId} value={member.userId}>
-                    {member.userId}
+                    {member.name}
                   </option>
                 ))}
               </NativeSelect>
@@ -505,8 +556,7 @@ export function ActivityEditor({
         </Text>
       )}
 
-      <div className="flex items-center justify-between gap-2 border-t border-hairline pt-4">
-        <Text variant="muted">Have a confirmation? Attach it after saving.</Text>
+      <div className="flex items-center justify-end gap-2 border-t border-hairline pt-4">
         <div className="flex gap-2">
           <Button type="button" variant="ghost" onClick={onCancel}>
             Cancel

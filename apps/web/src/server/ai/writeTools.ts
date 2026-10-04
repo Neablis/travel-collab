@@ -40,6 +40,7 @@ import { insertCommands, readableSavedDay } from "@/server/savedDays";
 import { addCounts, recordAdd } from "@/server/savedDayAdds";
 import { resolveBatch, type RawToolIntent } from "@/server/assistant/batchResolver";
 import { executeTripCommandBatch } from "@/server/commands";
+import { invalidateDayRead } from "@/server/libraryCache";
 import {
   enrichCommandLocations,
   hasCityLevelLocations,
@@ -472,6 +473,33 @@ export function droppedWriteCalls(
   detail: TripDetail,
   opts: { tripId: string; actorId: string; placeCache?: PlaceCache },
 ): AskDroppedCall[] {
+  return diagnosticDrops(droppedWrites(intents, detail, opts));
+}
+
+/**
+ * The drops worth a line on the `ai.ask` record: every one but a no-op, which
+ * is the domain correctly having nothing to do. The one place that rule
+ * lives, read by `droppedWriteCalls` and by the handler that already holds
+ * `droppedWrites`' result.
+ */
+export function diagnosticDrops(dropped: readonly { noOp: boolean; call: AskDroppedCall }[]): AskDroppedCall[] {
+  return dropped.filter((entry) => !entry.noOp).map((entry) => entry.call);
+}
+
+/**
+ * `droppedWriteCalls`, with each drop's position in `intents` kept.
+ *
+ * The position is what joins a drop back to the tool call that collected it
+ * (`ProposalBuffer.collectedBy()`), which the ledger's `reachedProposal` needs
+ * (M31 Phase 1). A separate function rather than a field on `AskDroppedCall`,
+ * because that type is the `ai.ask` line's and a buffer index means nothing
+ * to anyone reading a log.
+ */
+export function droppedWrites(
+  intents: RawToolIntent[],
+  detail: TripDetail,
+  opts: { tripId: string; actorId: string; placeCache?: PlaceCache },
+): { index: number; noOp: boolean; call: AskDroppedCall }[] {
   // **The same grounding pass `buildProposal` runs, and for the same reason it
   // runs there: without it the two disagree.** A `placeRef`-only
   // `UpdateActivity` is a domain `no-op` until the citation becomes a location,
@@ -480,13 +508,19 @@ export function droppedWriteCalls(
   // contract is that it is the same dry run.
   const { intents: cited } = groundCitedPlaces(intents, opts.placeCache ?? null);
   const { errors } = resolveBatch(detailIntentsWithKind(cited), detail, opts);
-  return errors
-    .filter((e) => e.code !== "no-op")
-    .map((e) => ({
-      type: e.type,
-      code: e.code,
-      refs: refsOf(intents[e.index]),
-      message: e.message,
+  // **No-ops are kept here and filtered by `droppedWriteCalls`.** A no-op is
+  // not a failure worth a diagnostic line, but it is not in the proposal
+  // either, so the ledger's `reachedProposal` must see its index (Copilot on
+  // #301: setting a USD trip to USD recorded a proposal that never existed).
+  return errors.map((e) => ({
+      index: e.index,
+      noOp: e.code === "no-op",
+      call: {
+        type: e.type,
+        code: e.code,
+        refs: refsOf(intents[e.index]),
+        message: e.message,
+      },
     }));
 }
 
@@ -665,6 +699,7 @@ export async function commitProposal(
   // Straight to the executor: this used to go through `flushPlanningBatch`, a
   // one-line pass-through with an unused `tripId` (KI-2026-09-05-w item 2).
   // The executor's third argument is its existing transaction seam.
+  const counted: { savedDayId: string; ownerId: string }[] = [];
   const batch = await executeTripCommandBatch(
     [...enriched, ...inserted],
     actorId,
@@ -676,15 +711,18 @@ export async function commitProposal(
             // dialog's cannot disagree about who gets credited, which is the
             // whole reason the rule is one function and not two.
             if (!addCounts({ authorId: day.ownerId, actorId })) continue;
-            await recordAdd(tx, {
+            const added = await recordAdd(tx, {
               savedDayId: day.savedDayId,
               tripId,
               addedBy: actorId,
               createdAt: new Date(),
             });
+            if (added) counted.push(day);
           }
         },
   );
+  // Committed: the cached day shows the add, as `insertSavedDay`'s does (ADR-063).
+  if (batch.ok) for (const day of counted) await invalidateDayRead(day.savedDayId, day.ownerId);
   // **The report reaches the user on BOTH paths, not just the happy one.**
   // It used to be read only after a successful commit, so an approval that the
   // enrichment step had quietly hollowed out answered with the domain's bare

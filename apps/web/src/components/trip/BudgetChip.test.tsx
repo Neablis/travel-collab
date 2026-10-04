@@ -13,7 +13,7 @@ describe("BudgetChip", () => {
   it("shows the planned total, the budget and the remaining badge", () => {
     render(
       <BudgetChip
-        spend={{ total: 908_500, unpriced: 0, budget: 1_640_000, remaining: 731_500, over: false }}
+        spend={{ total: 908_500, estimated: 0, unpriced: 0, budget: 1_640_000, remaining: 731_500, over: false }}
         currency="USD"
         onOpenSettings={() => {}}
       />,
@@ -27,7 +27,7 @@ describe("BudgetChip", () => {
   it("reads as over budget with a warning badge", () => {
     render(
       <BudgetChip
-        spend={{ total: 1_722_000, unpriced: 0, budget: 1_640_000, remaining: -82_000, over: true }}
+        spend={{ total: 1_722_000, estimated: 0, unpriced: 0, budget: 1_640_000, remaining: -82_000, over: true }}
         currency="USD"
         onOpenSettings={() => {}}
       />,
@@ -39,7 +39,7 @@ describe("BudgetChip", () => {
   it("invites setting a budget when there is none", () => {
     render(
       <BudgetChip
-        spend={{ total: 0, unpriced: 0, budget: null, remaining: null, over: false }}
+        spend={{ total: 0, estimated: 0, unpriced: 0, budget: null, remaining: null, over: false }}
         currency="USD"
         onOpenSettings={() => {}}
       />,
@@ -53,7 +53,7 @@ describe("BudgetChip", () => {
   it("sizes the moss track to the flex column's own width, not a fixed pixel value", () => {
     const { container } = render(
       <BudgetChip
-        spend={{ total: 908_500, unpriced: 0, budget: 1_640_000, remaining: 731_500, over: false }}
+        spend={{ total: 908_500, estimated: 0, unpriced: 0, budget: 1_640_000, remaining: 731_500, over: false }}
         currency="USD"
         onOpenSettings={() => {}}
       />,
@@ -69,7 +69,7 @@ describe("BudgetChip", () => {
     const onOpenSettings = vi.fn();
     render(
       <BudgetChip
-        spend={{ total: 908_500, unpriced: 0, budget: 1_640_000, remaining: 731_500, over: false }}
+        spend={{ total: 908_500, estimated: 0, unpriced: 0, budget: 1_640_000, remaining: 731_500, over: false }}
         currency="USD"
         onOpenSettings={onOpenSettings}
       />,

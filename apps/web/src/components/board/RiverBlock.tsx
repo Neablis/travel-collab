@@ -1,8 +1,8 @@
 "use client";
 
-import { type PointerEvent as ReactPointerEvent, useEffect, useRef, useState } from "react";
+import { type PointerEvent as ReactPointerEvent, type ReactElement, type ReactNode, useEffect, useRef, useState } from "react";
 import { draggable } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
-import { AlertTriangle, X } from "lucide-react";
+import { AlertTriangle, Lightbulb, X } from "lucide-react";
 import type { ActivityTag, ActivityView, TimeWindow } from "@tc/contracts";
 import { KIND_LABEL } from "@tc/pages";
 import { useTimeFormat } from "@/components/account/PreferencesProvider";
@@ -102,6 +102,17 @@ function riverLook(stop: Pick<ActivityView, "kind" | "mode" | "pendingReason" | 
 }
 
 /**
+ * A block's lane on its river: `(100% + gap) / lanes` per lane, less the gap,
+ * puts the last lane flush with the right edge and every gap the same 4px
+ * however many lanes there are. Shared with the river's suggested stops.
+ */
+export function laneStyle(placement: Pick<RiverPlacement, "lane" | "lanes">): { left: string; width: string } {
+  return placement.lanes === 1
+    ? { left: "0px", width: "100%" }
+    : { left: `calc(${placement.lane} * (100% + 4px) / ${placement.lanes})`, width: `calc((100% + 4px) / ${placement.lanes} - 4px)` };
+}
+
+/**
  * One timed stop, drawn to scale on its day's river (SPEC §36.9b).
  *
  * The whole block is the edit target: a button laid under the block's content
@@ -133,6 +144,7 @@ export function RiverBlock({
   onResizeStart,
   onTouchPress,
   lifted = false,
+  suggestion,
 }: {
   activity: ActivityView;
   /** The stop's own window, already known non-null by the caller. */
@@ -171,6 +183,11 @@ export function RiverBlock({
   onTouchPress?: (event: ReactPointerEvent<HTMLLIElement>) => void;
   /** Held up by a finger and being carried: drawn as a mouse drag draws it. */
   lifted?: boolean;
+  /**
+   * A pending suggestion would change this stop (spec §2.4): wraps the
+   * "Suggested change" marker in its review popover. Absent, no marker.
+   */
+  suggestion?: (trigger: ReactElement) => ReactNode;
 }) {
   const clock = useTimeFormat();
   const ref = useRef<HTMLLIElement>(null);
@@ -285,11 +302,6 @@ export function RiverBlock({
     </DataText>
   );
 
-  // Lanes share the width left of nothing: `(100% + gap) / lanes` per lane,
-  // less the gap, puts the last lane flush with the right edge and every gap
-  // the same 4px however many lanes there are.
-  const laneLeft = placement.lanes === 1 ? "0px" : `calc(${placement.lane} * (100% + 4px) / ${placement.lanes})`;
-  const laneWidth = placement.lanes === 1 ? "100%" : `calc((100% + 4px) / ${placement.lanes} - 4px)`;
 
   return (
     <li
@@ -308,8 +320,7 @@ export function RiverBlock({
       style={{
         top: placement.topPx,
         height: placement.heightPx,
-        left: laneLeft,
-        width: laneWidth,
+        ...laneStyle(placement),
         opacity: dragging || lifted ? 0.5 : dimOpacity,
         transition: "opacity 150ms",
       }}
@@ -424,6 +435,18 @@ export function RiverBlock({
           </div>
         )}
       </div>
+      {/* On the corner, outside the clipped box, so a narrow lane's hidden
+          controls never take it with them: a reviewer has to find it at rest. */}
+      {suggestion?.(
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label={`Suggested change to ${activity.title}`}
+          className="absolute -top-1.5 -left-1.5 z-10 size-5 rounded-full border border-brand bg-brand-tint p-0 text-brand-pressed hover:bg-brand-tint md:min-h-0"
+        >
+          <Lightbulb className="size-3" aria-hidden />
+        </Button>,
+      )}
       {/* The bottom-edge grip (SPEC §36.9b: "a faint grip marks it"), the
           design's 9px band straddling the edge with a 22×3 bar in it. Outside
           the clipped box so it can hang 4px below it. Pointer-only and hidden

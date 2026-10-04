@@ -16,6 +16,124 @@ not by anybody remembering. That automation exists because the rule was being
 skipped: M23's entry survived its own gate closing on 2026-09-19 and was still
 here two days later.
 
+- **The assistant proposes through suggestions, so a big change is reviewed on the board (asked
+  2026-10-03).** Mitchell: *"the proposed changes functionality could also be a good way to
+  preview large amount of changes from the AI assistant, for instance if I ask it to add a day,
+  have it add a day and fill it with proposed changes, then we can accept or deny them after
+  seeing them in the trip"*. He was explicit that it is not part of the suggester stack
+  (#308 → #309 → #311). Most of it would be reuse:
+  - **What exists once the stack merges.** "Add a day and fill it" is one suggestion: an `AddDay`
+    change plus stop changes that depend on it (W9, W56). The parent-first rule refuses a stop
+    accepted before its day, dismissing the day dismisses its stops, and the ghost overlay
+    already draws stops inside a suggested day (W46).
+  - **What it replaces.** Today's assistant proposals are client-side and ephemeral by decision
+    (ADR-022). Stored suggestions survive a reload, are reviewed change by change, and are
+    visible to the trip's other editors.
+  - **Decisions it needs, not code.**
+    - Today only a `suggester` may create a suggestion (spec W25 and §2). An editor's assistant
+      proposing needs that relaxed. Invariant 7 says the assistant takes only paths its user
+      could take, so the choice is "editors can suggest too", or a distinct assistant author.
+    - "Suggested by" needs a name for an assistant author.
+    - It is undecided whether assistant changes count against the 50-per-author pending cap.
+    - Whether it supersedes ADR-022's ephemeral proposals or sits beside them is an ADR question.
+- **Caesura installable as a phone app, as a PWA and not a store release (asked
+  2026-10-02).** Mitchell: *"what would be the lift to get Caesura working as a
+  mobile app? Not like a full on app store"*, then *"add the PWA to potential
+  future work"*. Nothing exists today: no manifest, no service worker, no PNG
+  icons, no `viewport` export (`apps/web/src/app/layout.tsx` exports `metadata`
+  only), and nothing blocks adding them. Sized by reading code on 2026-10-02,
+  not measured, in four tiers:
+  - **Installable, about a day.** `app/manifest.ts`, PNG icons (192, 512,
+    maskable, apple 180) from `scripts/generate-og-assets.mjs`, and a `viewport`
+    export. `viewport-fit=cover` turns on the tab bar's existing bottom inset
+    and exposes the missing top one, so it ships with that fix or waits for the
+    next tier.
+  - **Feels like an app, about a week.** The service worker is the small half:
+    hand-written, because the build is Turbopack (the MapLibre worker in
+    `apps/web/scripts/copy-maplibre-worker.mjs` is the precedent). It caches
+    static assets only and never `/api/**`, `/s/**`, `/invite/**` or
+    `/monitoring`. The large half is the phone layout already recorded in
+    KI-2026-09-24-i, KI-2026-09-24-j and KI-2026-09-25-f.
+  - **Push, one to two weeks; offline trip data, a milestone.** Nothing
+    generates a notification today. Offline reverses ADR-012 and ADR-046 (the
+    client holds no store), so it needs its own ADR; read-only offline is the
+    cheaper middle.
+  - **Store wrapper.** An Android TWA is days. iOS is weeks: Google blocks OAuth
+    in a webview, Apple requires Sign in with Apple, and Stripe subscriptions
+    meet both stores' billing rules.
+
+  Open questions, none walked on a device: an installed iOS app has its own
+  cookie jar, emailed invite links open in Safari and not in the app, and
+  long-press drag on the board is unverified (the `phone` e2e project is desktop
+  Chrome at 411px with no touch).
+
+- **The assistant on eve: the port, deferred until there are users (asked 2026-10-02,
+  deferred 2026-10-03).** ADR-062 records the decision and the Phase 0 spike's evidence.
+  Mitchell chose a full port onto Vercel's eve framework, with the ledger first. On
+  2026-10-03 he built the ledger (**M31**, which is ADR-062's Phase 1) and parked the rest:
+  *"I want to get some users before i increase the cost of my AI usage by moving to eve and
+  workflow"*.
+  - **Cost.** Phase 0 measured Workflow at roughly 20–70% on top of a turn's model cost.
+  - **Benefit.** It protects real traffic, and there is none yet: `ai-live` is still
+    Simulated in production.
+  - **What is left.** ADR-062 Phases 2–5: the adapter, `apply_proposal`, the client, and the
+    parity gate.
+  - **What reopens it.** One of the four triggers in ADR-062 § *Deferred: the port*: turns
+    lost at the deadline, a feature needing background work, eve 1.0, or paying traffic.
+    That section also keeps the steps for reopening it and the proposed, never-approved
+    parity thresholds.
+  - **Scoped, not placed.** No gate deletes this entry.
+
+- **User memory: the assistant knows who you are and what trips you like
+  (asked 2026-10-02).** Deferred out of ADR-062 by agreement. The expected shape is
+  a per-user profile derived from the command and event log, recalled through
+  eve's memory slot, rather than embeddings. It opens with two decisions ADR-062
+  §6 leaves open: whether conversation text is stored at all, and how memory
+  behaves on a shared trip. It depends on the eve port (the entry above), which is
+  deferred.
+
+- **An SEO pass over the public library (asked 2026-10-02).** ADR-061 made
+  `/playbooks`, its days, profiles and board readable without an account.
+  Mitchell, 2026-10-02: *"I have no issue being crawled, we should do a seo pass
+  at some point soon"*. So crawling stays allowed (there is no `robots` file,
+  and none is wanted to block it). The pass would cover:
+  - a `sitemap.ts` of published days;
+  - canonical URLs without `?from=`;
+  - per-page `description`s, which today come from the og `meta` lookup;
+  - structured data for a day;
+  - whether profile and board pages earn a place in the index.
+
+  **Built 2026-10-03 as five stacked PRs, #295 (crawl plumbing), #296
+  (sitemap), #297 (server-rendered days, real 404s, slugs), #298 (structured
+  data) and #299 (city and country pages), to merge in that order.** Plan:
+  `docs/plans/2026-10-02-seo-pass.md`. What spec §7 left out, still candidates:
+  indexing profiles or the board; paginating Discover; public notebook
+  templates (a contract change); public pages for the sample trips under
+  `content/trips/`. Still Mitchell's, outside the code: the firewall bypass
+  for `/`, `/welcome`, `/playbooks/**`, `/robots.txt` and `/sitemap.xml`;
+  submitting the sitemap; the production canonical check.
+
+  **Audited and designed 2026-10-02; Mitchell: *"Lets start the SEO work"*.**
+  The design, with its nine decisions and five stacked PRs, is
+  `docs/specs/2026-10-02-seo-pass-design.md`; it has no plan yet. What the audit
+  added to that list, most valuable first:
+  - **The Vercel firewall challenges crawlers on every page this pass is
+    about.** `/`, `/robots.txt` and `/sitemap.xml` answered `429 Vercel Security
+    Checkpoint` to non-browser clients from two networks; `/llms.txt` and
+    `/api/og/playbooks` answered 200. It is the dashboard rule
+    `docs/guidelines/using-the-api.md` already describes. Whether verified
+    Googlebot passes was not testable from here.
+  - Every day page has one `<title>`, "A playbook — Caesura"
+    (`apps/web/src/lib/linkPreview.ts` keeps the tab title generic on purpose).
+  - The public screens are client-rendered, so the HTML a crawler gets is a
+    skeleton (KI-2026-09-20-f), and a missing day answers 200.
+  - Discover shows 24 days with no pagination, so the sitemap is the only way
+    most days are found.
+  - City pages as paths (`/playbooks/city/kyoto`) and not `?city=`: the city
+    card and copy already exist.
+  - `/welcome` renders two `<h1>`s, and `/s/<token>` and `/invite/<token>`
+    carry no `noindex`.
+
 - **Structured booking fields on a stop — confirmation number, provider, link
   (asked 2026-09-30).** From an external API consumer's feedback: confirmation
   numbers live in `notes` today. A stop has `cost`, `bookedBy` (a member id) and

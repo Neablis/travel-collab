@@ -1,6 +1,11 @@
 import { DemoTripScreen } from "@/components/demo/DemoTripScreen";
+import { pageMetadata } from "@/lib/siteMetadata";
 
-export const metadata = { title: "An example trip — Caesura" };
+export const metadata = pageMetadata({
+  title: "An example trip",
+  description: "Look around a real trip on Caesura: every day, stop, cost and map, read-only and with no account.",
+  canonical: "/demo",
+});
 
 // Under `(front)`, not `(app)`: this is a page for people who have no account,
 // so it draws the front door's chrome rather than the signed-in shell. It is

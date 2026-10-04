@@ -116,3 +116,46 @@ test("api tokens: minted by clicking, opens the API, and revoking closes it", as
   await expect(page.getByTestId("tokens-list")).toContainText("E2E calendar sync");
   await expect(page.getByTestId("token-revoke")).toBeHidden();
 });
+
+// **The two public developer pages, signed out.** `/developers/reference` is
+// Scalar, mounted client-side under a `'self'`-only CSP — so the ways it breaks
+// are all invisible to a server render: the document it fetches is refused
+// (the tuple-form `items` that threw before `withoutTupleItems`), a chunk throws
+// on mount, or it reaches for another origin and the browser blocks it. Each of
+// those leaves the header standing over an empty page. So this asserts content
+// that can only come from `/api/v1/openapi` — an operation's declared summary —
+// and that nothing threw, nothing tripped the CSP, and nothing left the host.
+// The CSP listener goes in before any page script, so zod's `eval` probe (which
+// `ApiReferenceClient` turns off with `jitless`) would be caught if it came back.
+test("developer pages: the getting-started page links the reference, and the reference renders under the CSP", async ({
+  page,
+  network,
+}) => {
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  await page.addInitScript(() => {
+    const host = window as unknown as { __cspViolations: string[] };
+    host.__cspViolations = [];
+    document.addEventListener("securitypolicyviolation", (event) => {
+      host.__cspViolations.push(`${event.violatedDirective} blocked ${event.blockedURI || "(inline/eval)"}`);
+    });
+  });
+
+  await page.goto("/developers");
+  await expect(page.getByRole("heading", { level: 1, name: "The Caesura API" })).toBeVisible();
+  const referenceLink = page.getByRole("link", { name: "API reference" }).first();
+  await expect(referenceLink).toHaveAttribute("href", "/developers/reference");
+  await referenceLink.click();
+  await expect(page).toHaveURL(/\/developers\/reference$/);
+
+  // The summary is declared on `GET /v1/account` and reaches the page only
+  // through the fetched OpenAPI document.
+  await expect(page.getByText("Show who this token acts as").first()).toBeVisible();
+
+  const cspViolations = await page.evaluate(
+    () => (window as unknown as { __cspViolations: string[] }).__cspViolations,
+  );
+  expect(cspViolations, "Content-Security-Policy violations").toEqual([]);
+  expect(pageErrors, "uncaught page errors").toEqual([]);
+  expect(network.offHostRequests(), "requests that left for a third party").toEqual([]);
+});
