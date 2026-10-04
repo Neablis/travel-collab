@@ -8,7 +8,12 @@ export interface AccessPolicy {
   ): boolean;
 }
 
-const RANK: Record<TripRole, number> = { viewer: 0, editor: 1, owner: 2 };
+/**
+ * Each role's rank, least-privileged first. The only ranking of roles in the
+ * app: `access/members.ts` reads this one rather than keeping its own, so
+ * inserting a role (ADR-064's `suggester`) is one edit, not an audit.
+ */
+export const RANK: Record<TripRole, number> = { viewer: 0, suggester: 1, editor: 2, owner: 3 };
 
 /** The actor's role on this trip, or null when they are not a member at all. */
 export function memberRole(actorId: string, members: TripMember[] | null): TripRole | null {

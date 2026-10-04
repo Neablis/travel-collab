@@ -1,7 +1,7 @@
 import { and, eq, exists, inArray, sql, type Column, type SQL } from "drizzle-orm";
 import type { TripMember, TripMemberProfile, TripRole } from "@tc/contracts";
 import { db, type Queryable } from "../db/client";
-import { memberRole } from "../accessPolicy";
+import { memberRole, RANK } from "../accessPolicy";
 import { tripMemberships, users } from "../db/schema";
 // **Access & Membership reads a boolean out of Entitlements, never the other
 // way round** (ADR-045 rule 5). This import is the direction the module map
@@ -13,8 +13,6 @@ import { accountCan } from "../entitlements/resolver";
 // Declared in `db/client.ts` since a second module needed it (the referral
 // loop). Re-exported here so this file's own callers are unaffected.
 export type { Queryable };
-
-const RANK: Record<TripRole, number> = { viewer: 0, editor: 1, owner: 2 };
 
 /**
  * The one place the two halves of a trip's member list meet.

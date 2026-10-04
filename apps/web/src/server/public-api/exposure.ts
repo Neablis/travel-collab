@@ -77,6 +77,9 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
   "admin/reports/[reportId]": PLANNED("Reviewing reports and removing reviews — admin scope"),
   "admin/grants": PLANNED("Undecided — admin scope if ever"),
   "admin/overview": PLANNED("Undecided — admin scope if ever"),
+  // Spec 2026-10-03 W14: one collection, one change resource.
+  "trips/[tripId]/suggestions": PLANNED("Suggestions — not on the public API in v1"),
+  "trips/[tripId]/suggestions/changes/[changeId]": PLANNED("Suggestions — not on the public API in v1"),
   // Undecided (Mitchell, 2026-09-30): these start as planned, not never.
   places: PLANNED("Undecided — place search over the published library"),
   "trips/[tripId]/events": PLANNED("Undecided — the live event stream"),

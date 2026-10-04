@@ -350,3 +350,63 @@ test("PROD MIGRATIONS without gh says unverified, never applied or pending", () 
   const { stdout } = runDigest(["--no-gh", REPO]);
   assert.match(stdout, /PROD MIGRATIONS: unverified \(--no-gh\) — newest is \d{4}_\w+, added in \w{7}/);
 });
+
+/**
+ * A `--no-ff` merge of a feature branch that adds migration 0001 while main
+ * held 0000. With `renumber`, the merge resolves a collision the way #308 did
+ * (0035 → 0036, 2026-10-03): the file is moved to 0002 inside the merge, so
+ * no commit but the merge ever adds that path. Answers the digest's output,
+ * the feature commit and the merge commit.
+ */
+function noFfMergeFixture({ renumber }) {
+  const dir = makeFixture();
+  const git = (...args) => {
+    const r = spawnSync("git", args, { cwd: dir, encoding: "utf8" });
+    assert.equal(r.status, 0, r.stderr);
+    return r.stdout.trim();
+  };
+  const drizzle = join(dir, "apps/web/drizzle");
+  const journal = (...tags) =>
+    writeFileSync(join(drizzle, "meta/_journal.json"), JSON.stringify({ entries: tags.map((tag, idx) => ({ idx, tag })) }));
+  git("init", "-q", "-b", "main");
+  git("config", "user.email", "t@t");
+  git("config", "user.name", "t");
+  mkdirSync(join(drizzle, "meta"), { recursive: true });
+  writeFileSync(join(drizzle, "0000_first.sql"), "select 1;\n");
+  journal("0000_first");
+  git("add", "-A");
+  git("commit", "-q", "-m", "0000");
+
+  git("checkout", "-q", "-b", "feature");
+  writeFileSync(join(drizzle, "0001_feature.sql"), "select 2;\n");
+  journal("0000_first", "0001_feature");
+  git("add", "-A");
+  git("commit", "-q", "-m", "feature adds 0001");
+  const feature = git("rev-parse", "HEAD");
+
+  git("checkout", "-q", "main");
+  writeFileSync(join(dir, "README.md"), "main moved on\n");
+  git("add", "-A");
+  git("commit", "-q", "-m", "main moves");
+  git("merge", "-q", "--no-ff", "--no-commit", "feature");
+  if (renumber) {
+    git("mv", "apps/web/drizzle/0001_feature.sql", "apps/web/drizzle/0002_feature.sql");
+    journal("0000_first", "0002_feature");
+    git("add", "-A");
+  }
+  git("commit", "-q", "-m", "merge feature");
+  const merge = git("rev-parse", "HEAD");
+  return { ...runDigest(["--no-gh", dir]), feature, merge };
+}
+
+test("PROD MIGRATIONS attributes a migration first added in a --no-ff merge to the merge commit", () => {
+  const { status, stdout, merge } = noFfMergeFixture({ renumber: true });
+  assert.equal(status, 0);
+  assert.match(stdout, new RegExp(`newest is 0002_feature, added in ${merge.slice(0, 7)}`));
+});
+
+test("PROD MIGRATIONS attributes a migration a --no-ff merge brought in to the commit that wrote it", () => {
+  // The plain query runs first for this case: the fallback would name the merge.
+  const { stdout, feature } = noFfMergeFixture({ renumber: false });
+  assert.match(stdout, new RegExp(`newest is 0001_feature, added in ${feature.slice(0, 7)}`));
+});

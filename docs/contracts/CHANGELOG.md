@@ -13,6 +13,46 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-03 — The `suggester` role, and suggestions as a contract (ADR-064); Public API 1.4.0
+
+- **Added:** `suggester` to `TripRole` (now `viewer, suggester, editor, owner`, least-privileged
+  first).
+- **Added:** an `Origin` member, `{ kind: "suggestion", suggestionId, changeId, authorId }`. It
+  marks an accepted suggestion: the envelope's actor is the reviewer, and the author survives
+  only here.
+- **Added:** `TripEventsPage.suggestionsRev`, an optional opaque string. It is the role-scoped
+  revision of the suggestions this caller may see (spec W6).
+- **New file `suggestion.ts`:** `SuggestionChangeStatus`, `SuggestionChange`,
+  `TripSuggestionsResponse`, `CreateSuggestionInput` and `ResolveSuggestionChangeInput`.
+  - `SuggestionChangeStatus` is `pending, accepted, dismissed, withdrawn, expired`. `expired`
+    is a change left pending past the server's 90 days (`SUGGESTION_TTL_DAYS`; Mitchell,
+    2026-10-03, spec W61). Nobody decided it.
+  - `SuggestionChange.dependsOn` also names the earlier changes that target a day or stop this
+    one removes (W59), not only those that created what it references.
+  - `TripSuggestionsResponse.changes` holds pending changes only (W53).
+  - `CreateSuggestionInput` allows 1..50 units of 1..50 `BatchableCommand`s each.
+  - It refuses any `DismissConflict`, at that command's path (W3).
+  - Its optional note is trimmed and capped at 500 characters with `review.ts`'s `boundedNote`,
+    so a blank note parses to `null`.
+- Why: Mitchell asked for a role that can propose changes for an editor to approve. See
+  `docs/specs/2026-10-03-suggester-role-design.md` and ADR-064.
+- Consumers updated:
+  - `packages/domain/src/trip/history.ts`: `suggestion` is treated as `user` in the undo stack
+    and in the history sentence (W11).
+  - `apps/web/src/server/accessPolicy.ts`: `RANK` is now viewer 0, suggester 1, editor 2,
+    owner 3, and it is exported.
+  - `apps/web/src/server/access/members.ts`: its duplicate `RANK` is deleted, and it imports the
+    one in `accessPolicy.ts` (W8).
+  - The public API is affected because its trip documents embed `TripMember.role` and event
+    `origin`. `openapi.json` was regenerated, `API_VERSION` moved to `1.4.0` (minor, additive)
+    and `API_FINGERPRINT` is new. No `/v1` endpoint was added (spec §2.7).
+  - No gate changed. `MINIMUM_ROLE` still requires `editor` for every batchable command, so a
+    suggester cannot write.
+- Breaking? no. The enum values and the union member are additive, and the new field is optional.
+  Every stored `members` row, `origin` and invite still parses. A client running an old bundle
+  meets an unknown role only when someone is a suggester, and an unknown origin only after a
+  suggestion is accepted. `InviteRole` is unchanged here, so nobody can be made a suggester yet.
+
 ## 2026-10-03 — Adding one default notebook: `AddDefaultPagesInput` (ADR-056, amended)
 
 - **Added:** `AddDefaultPagesInput` (`packages/contracts/src/pages.ts`), `{ seedKey?: SeedKey }`:

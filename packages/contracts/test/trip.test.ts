@@ -60,8 +60,9 @@ describe("trip contracts", () => {
     ).toThrow();
   });
 
-  it("accepts the three roles and nothing else", () => {
-    expect(TripRole.options).toEqual(["viewer", "editor", "owner"]);
+  it("accepts the four roles, least-privileged first, and nothing else", () => {
+    expect(TripRole.options).toEqual(["viewer", "suggester", "editor", "owner"]);
+    expect(TripMember.safeParse({ userId: "u1", role: "suggester" }).success).toBe(true);
     expect(TripMember.safeParse({ userId: "u1", role: "editor" }).success).toBe(true);
     expect(TripMember.safeParse({ userId: "u1", role: "viewer" }).success).toBe(true);
     expect(TripMember.safeParse({ userId: "u1", role: "admin" }).success).toBe(false);
