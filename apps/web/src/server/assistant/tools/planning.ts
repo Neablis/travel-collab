@@ -52,12 +52,16 @@ const DESCRIPTIONS: Record<BatchableCommandType["type"], string> = {
 
 /**
  * **What the model is not shown of a stop's place** (ADR-022 amendment
- * 2026-10-03). A coordinate the model writes is a guess — `groundCitedPlaces`
- * strips any `precision` it claims and enrichment geocodes `address` then
- * `name` — and a confirmed one arrives through `placeRef`, which the server
- * turns into `{ lat, lng, precision: "venue" }` itself. So `lat`, `lng` and
- * `precision` cost every step ~500 tokens across the two tools to invite the
- * one input the pipeline is built to replace. Still accepted if sent.
+ * 2026-10-03). A confirmed coordinate arrives through `placeRef`, which the
+ * server turns into `{ lat, lng, precision: "venue" }` itself, and a
+ * model-claimed `precision` is stripped by `groundCitedPlaces` regardless. A
+ * coordinate the model writes is NOT simply discarded, though: enrichment uses
+ * it as a search HINT (`resolveOne` centres the geocoder on it when it sits in
+ * the trip's region) and keeps it as the FALLBACK pin, reported `unverified`,
+ * when the lookup finds nothing. Hiding `lat`/`lng` is a measured trade: the
+ * geocoder searches the trip's region rather than near a guess, and a place
+ * neither search nor geocoding can find gets no pin rather than a guessed one.
+ * ~540 tokens per step across the two tools. Still accepted if sent.
  *
  * `address` stays: it is how a place search cannot find reaches the stop at
  * all (the first live session's brewery). So does `endLocation` as a whole —

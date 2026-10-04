@@ -210,9 +210,9 @@ export interface ToolSpec<
    * Input properties the MODEL is not shown, as dot paths (`"location.lat"`).
    * They stay in `input` and are still accepted and validated when sent; the
    * model just does not read them on every step. Only for a field the server
-   * fills itself or overrides anyway — a model-written coordinate, which
-   * `placeRef` grounding and geocoding replace — never one the model is the
-   * only source of. A required property, or a path naming nothing, throws the
+   * fills itself or has another source for — a model-written coordinate, which
+   * `placeRef` grounding and geocoding stand in for — never one the model is
+   * the only source of. A required property, or a path naming nothing, throws the
    * first time the schema is read (`hideFromModel`), which the context budget
    * test does for every tool. Omitted means the model sees the whole input.
    */

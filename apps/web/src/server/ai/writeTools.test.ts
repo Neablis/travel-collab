@@ -1159,10 +1159,11 @@ describe("the money rule", () => {
   });
 });
 
-// A coordinate the model writes is a guess the pipeline replaces (placeRef
-// grounding, geocoding), so the model is not shown lat/lng/precision on either
-// place of a stop — but `address`, the one way an unfindable place reaches a
-// stop, and `placeRef` itself stay.
+// The model is not shown lat/lng/precision on either place of a stop (ADR-022
+// amendment 2026-10-03: placeRef grounding and geocoding stand in for them) —
+// but `address`, the one way an unfindable place reaches a stop, and
+// `placeRef` itself stay. Coordinates a model sends anyway, on either place,
+// are still accepted.
 describe("what the model is shown of a stop's place", () => {
   const { tools } = buildWriteTools();
   it.each(["AddActivity", "UpdateActivity"] as const)("%s hides model-written coordinates and keeps address and placeRef", async (name) => {
@@ -1171,5 +1172,14 @@ describe("what the model is shown of a stop's place", () => {
     for (const kept of ['"address"', '"placeRef"', '"endLocation"']) expect(json).toContain(kept);
     const withCoordinates = { title: "Lunch", activityRef: "Lunch", location: { name: "Off Leash", lat: 42.5, lng: -76.9 } };
     expect((await asSchema(tools[name]!.inputSchema).validate!(withCoordinates)).success).toBe(true);
+    const transitWithCoordinates = {
+      title: "Train to Kyoto",
+      activityRef: "Train to Kyoto",
+      kind: "transit",
+      mode: "train",
+      location: { name: "Tokyo Station", lat: 35.68, lng: 139.77 },
+      endLocation: { name: "Kyoto Station", lat: 34.99, lng: 135.76 },
+    };
+    expect((await asSchema(tools[name]!.inputSchema).validate!(transitWithCoordinates)).success).toBe(true);
   });
 });

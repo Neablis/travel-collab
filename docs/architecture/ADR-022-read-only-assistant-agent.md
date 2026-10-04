@@ -250,11 +250,21 @@ They are not the same thing, and the difference is now explicit:
 The first use is a stop's model-written coordinates. `AddActivity` and
 `UpdateActivity` no longer show `lat`, `lng` or `precision` on `location` or
 `endLocation`: `precision` from the model was already stripped by
-`groundCitedPlaces`, a confirmed coordinate arrives through `placeRef`, and an
-unconfirmed one is what geocoding replaces. That was ~540 tokens per step on an
-edit turn spent inviting the one input the pipeline is built to override.
+`groundCitedPlaces`, and a confirmed coordinate arrives through `placeRef`.
+That was ~540 tokens per step on an edit turn.
 
-**The rule for hiding a field:** only one the server fills or overrides itself,
+**What hiding them costs, stated because the first draft of this amendment got
+it wrong.** A model-written coordinate is not discarded by enrichment: it is
+the geocoder's search HINT (`resolveOne` centres the lookup on it when it sits
+inside the trip's region) and the FALLBACK pin, kept and reported `unverified`,
+when the lookup finds nothing. Without it, the geocoder searches the trip's
+region instead, and a place that neither `search_places` nor geocoding can
+find is stored with no pin rather than a guessed one. That is the trade this
+amendment accepts (CodeRabbit raised it for `endLocation` on #312, where no
+`placeRef` path exists); un-hiding `lat`/`lng` on either field is one line in
+`planning.ts` if production shows stops losing pins they should have had.
+
+**The rule for hiding a field:** only one the server fills itself or has another source for,
 never one the model is the sole source of. `address` therefore stays (it is how
 a place that search cannot find reaches a stop at all), and so does
 `endLocation` (a transit leg's end has no `placeRef`). A hidden field may not be
