@@ -12,6 +12,12 @@ step*. This file only adds what changes when there are several PRs instead of on
 
 - Ask the size question when the scope is agreed, not when the PR is done. Anything bigger than
   about **80 reviewable files** is a stack.
+- **Any change expected to touch more than about 3 areas** (contracts, server, client, storage)
+  **also starts as a stack**, with a **visible task list** in part 1's body, whatever its file
+  count. This is the second time the lesson was paid for. M14 split its PR after the fact, and so
+  did the suggester role: it opened as one PR (#304) with no task list until Mitchell asked (*"no
+  stacked PRs, not task list to follow along with"*), and only then became #308/#309/#311. See
+  `docs/retros/2026-10-04-suggester-role-retro.md` (§8) and the M14 retro above.
 - **Budget ~80 files per part, not 100.** CodeRabbit **skips** a PR over 100 reviewable files; it
   does not review part of it. Review fixes and preview feedback always add files. M14's first cut
   had 5–14 files of headroom per part, and part 3 went over the same afternoon.
@@ -22,6 +28,16 @@ step*. This file only adds what changes when there are several PRs instead of on
 - Each part's body states its position (`Part 2 of 4`), its base, and the merge order.
 
 ## 2. Keep `main` moving into the stack, and check ids when it lands
+
+**Merge `main` into the branch at the start of every session, and pick migration, ADR and
+known-issue numbers only after that merge.** Each of the three is "the next free number" from your
+own view of the tree, and a stale view picks one `main` already took. The suggester role hit all
+three in one stack: migration `0035` became `0036`, its ADR-063 became ADR-064 (main already had
+two), and KI-20261003-b became `-g`. The renamed migration also left stale tables in the shared
+Neon preview branch, and a preview build failed until they were dropped by hand
+(`docs/retros/2026-10-04-suggester-role-retro.md`, §6). `pnpm lint` now catches a shared KI id,
+a shared ADR number and an out-of-order migration — but only once both numbers are in one tree,
+which is after the merge, so merge first.
 
 When something merges to `main` under an open stack, merge `main` into **part 1** and carry it
 upward (see §3). Then, **before anything else, run `pnpm lint` on the merged tree.** What it catches:

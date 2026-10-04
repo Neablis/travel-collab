@@ -321,6 +321,16 @@ work-in-progress; the draft-PR guard above now asks before a non-draft
 
 Classify the change by what it touches, then run **only** that tier.
 
+> **The short version, because it has been misread.** During development, each
+> fix runs **only its own subset** (Tier 1 or Tier 2 below; CLAUDE.md rule 4).
+> The full suite runs **once**, when the branch leaves draft (Tier 3) — and even
+> then running it locally is optional, because CI runs it on push. **Never run
+> it per part of a stack, per fix, or "to be sure."** The suggester role ran
+> `pnpm check` plus the full ci-like e2e (235 tests, ~6 min plus setup) on each
+> of three stacked parts, again after review fixes, and again on the follow-up
+> PR; Mitchell: *"i think you did a full test pass on like every feature which
+> took way too long"* (`docs/retros/2026-10-04-suggester-role-retro.md`, §2).
+
 **Tier 1 — prose only.** Every path changed **by the whole branch**, not just
 by your latest commit, is under `docs/**`, `.claude/**`, `.agents/**`, or is a
 root-level `*.md` (`README`, `AGENTS`, `CLAUDE`, `TODO`).
@@ -386,11 +396,14 @@ is ready.
 
 **Tier 3 — final review.** The branch is finished and about to leave draft.
 
-> Run `pnpm check` **once, here**. Add `pnpm --filter web test:e2e:ci-like` if a
-> user flow changed, and `pnpm seed:verify` if a contract field or fixture
-> changed. This is the single full-suite run a branch pays for. Then
-> `gh pr ready <n>` and let CI be the second opinion — that is what CI is for,
-> and `ready_for_review` is exactly when `ci.yml` starts paying attention.
+> This is the single full-suite run a branch pays for: `pnpm check`, plus
+> `pnpm --filter web test:e2e:ci-like` if a user flow changed, and
+> `pnpm seed:verify` if a contract field or fixture changed. **Running it
+> locally is optional** — `gh pr ready <n>` is exactly when `ci.yml` starts
+> paying attention, and CI runs the same suite on push. Run it locally once,
+> here, when you want the answer before CI gives it; never earlier, and never
+> twice. A stack pays it once for the whole stack, on the top part
+> (`docs/guidelines/stacked-prs.md` §5), not once per part.
 
 A mid-branch full-suite run is a judgment call to justify, not a reflex. If you
 genuinely need one — you are chasing a failure whose blast radius you cannot

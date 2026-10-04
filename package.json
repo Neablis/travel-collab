@@ -19,7 +19,7 @@
     "arch:graph": "depcruise --collapse '^(packages/[^/]+|apps/web/src/server/[^/]+|apps/web/src/components/[^/]+|apps/web/src/[^/]+)' --output-type mermaid apps/web/src packages/*/src",
     "tier3": "node scripts/tier3-stamp.mjs",
     "typecheck": "pnpm -r typecheck",
-    "lint": "pnpm -r lint && node scripts/check-lint-wall.mjs && node scripts/check-color-wall.mjs && node scripts/check-case-collisions.mjs && node scripts/check-loading-wall.mjs && node scripts/check-docstring-wall.mjs && node scripts/check-ki-filenames.mjs && node scripts/check-ki-citations.mjs && node scripts/check-migration-journal.mjs && node scripts/check-singletons.mjs && node scripts/surface-size.mjs --check && pnpm arch",
+    "lint": "pnpm -r lint && node scripts/check-lint-wall.mjs && node scripts/check-color-wall.mjs && node scripts/check-case-collisions.mjs && node scripts/check-loading-wall.mjs && node scripts/check-docstring-wall.mjs && node scripts/check-ki-filenames.mjs && node scripts/check-adr-numbers.mjs && node scripts/check-ki-citations.mjs && node scripts/check-migration-journal.mjs && node scripts/check-singletons.mjs && node scripts/surface-size.mjs --check && pnpm arch",
     "test": "pnpm test:unit && pnpm test:scripts",
     "test:unit": "pnpm -r --if-present test",
     "test:scripts": "node --test \"scripts/**/__tests__/**/*.test.mjs\"",

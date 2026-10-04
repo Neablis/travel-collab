@@ -78,6 +78,30 @@ through it as a user would, then:
   this class of bug twice (KI-16, KI-19).
 - Screenshot the changed surface as evidence.
 
+### Walk the realistic case, not the easy path
+
+A walk that checks the controls exist will pass a feature nobody can use. The
+suggester role shipped four bugs that had passed unit tests, e2e and two browser
+walks, and Mitchell found every one on production
+(`docs/retros/2026-10-04-suggester-role-retro.md`, §1). Each walk took the easy
+path: it never scrolled, it opened the owner's page after the suggester joined,
+and it never edited a stop it had just added. For anything collaborative —
+shared trips, roles, invites, suggestions, realtime — walk all of these:
+
+- **Two contexts open at once.** Open the reviewer's (owner's) page **before**
+  the other person joins or acts, and **never reload it**. The owner had to
+  reload to see a suggestion because polling only started if the trip already
+  had more than one member when the page loaded.
+- **Scroll to a later day before editing.** The draft tray sat in the page flow
+  under the sticky header, so a suggester editing further down never saw it.
+- **Add, then edit, then delete the same item.** Adding a stop and moving it
+  counted as two changes.
+- **Phone width** (`resize_window` to 390px), as well as 1100px.
+- **A first-time user finding the primary action without being told where it
+  is.** Accept and Dismiss lived only on the board, while the chip said
+  "Every suggestion is on the board". Say in the report how you found the
+  action, not only that it worked once found.
+
 If you genuinely cannot reach a browser, say **"browser walk not run"** and why.
 Never let it pass silently.
 
