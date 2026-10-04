@@ -30,8 +30,8 @@ Plan:
 
        Tier 1  prose only (docs/**, .claude/**, root *.md) — run NOTHING.
                Every box below stays unchecked and that is the complete,
-               correct answer. Do not watch checks: CI and CodeRabbit both
-               filter these paths, so none will run.
+               correct answer. CI's real jobs skip and CodeRabbit filters
+               these paths; only `ci-ok` reports, in under a minute.
        Tier 2  scoped code — the minimal-check-subset only. Name the exact
                commands on the "Subset run" line. Not `pnpm check`.
        Tier 3  final review, leaving draft — `pnpm check` once, plus e2e if a
@@ -122,11 +122,11 @@ Closes:
 
        gh run list --commit "$(git rev-parse HEAD)" --limit 1
 
-     And do not watch what cannot run. A Tier 1 PR is skipped by ci.yml's
-     paths-ignore and filtered out by .coderabbit.yaml; a draft PR runs
-     nothing until `gh pr ready <n>`. In both cases there is no terminating
-     event, so watching is an open-ended loop. No run for your HEAD, and none
-     expected, is the finished state — say so and move on. -->
+     And do not watch what cannot run. A draft PR runs nothing until
+     `gh pr ready <n>`, so there is no terminating event and watching is an
+     open-ended loop. A Tier 1 PR skips every real job and is filtered out by
+     .coderabbit.yaml; its one check is `ci-ok`, required, done in under a
+     minute. -->
 
 ## CodeRabbit — Mitchell's step before merging
 

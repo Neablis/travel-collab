@@ -590,8 +590,9 @@ marked "history", so nothing live surfaced it and nobody resumed.
   and `docs/plans/test-overhaul/` are removed in the same commit, per
   `docs/plans/README.md`. Own PR. **Do not delete the directory without writing
   the ADR first** — the rejected levers are the durable half.
-- **Convert `ci.yml`'s `paths-ignore` to a skip-job pattern BEFORE enabling
-  branch protection.** The repo went public 2026-08-31, so branch protection is
+- **DONE 2026-10-04 — `ci.yml` has a `changes` job and `ci-ok` is the one
+  required check on `main`.** What it was: Convert `ci.yml`'s `paths-ignore` to a skip-job pattern BEFORE enabling
+  branch protection. The repo went public 2026-08-31, so branch protection is
   now available (`gh api .../branches/main/protection` returns "Branch not
   protected", not the old "Upgrade to GitHub Pro"). The moment a path-filtered
   job is made a *required* status check, every prose-only PR is unmergeable

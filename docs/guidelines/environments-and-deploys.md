@@ -158,7 +158,7 @@ Rules (ADR-004 + M1 retro):
 so only `main` does. Previews come from `.github/workflows/vercel-preview.yml`,
 which asks Vercel's API for one on every push to an open, non-draft pull
 request, and when a PR is opened, reopened or marked ready. Prose-only PRs get
-none, using the same `paths-ignore` list as `ci.yml`.
+none: its `paths-ignore` lists the same prose set as `ci.yml`'s `changes` job.
 
 Why: every push to every branch used to build a preview. On 2026-09-24 that
 came to about 130 deployments against the Hobby plan's 100 a day, and Vercel

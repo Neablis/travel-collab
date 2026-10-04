@@ -26,6 +26,15 @@
 
 ## The trap that going public just armed
 
+> **Disarmed 2026-10-04.** `ci.yml` no longer has `paths-ignore`: a `changes`
+> job (`scripts/ci-gate.mjs`) decides whether the PR is prose-only, the seven
+> real jobs read its answer and skip, and `ci-ok` rolls them up. `ci-ok` is the
+> one required check on `main`, in the ruleset "Required checks for main", with
+> no bypass — which also ends Tier 1's direct push to `main`. A prose-only PR
+> now costs two jobs of a few seconds instead of none. `vercel-preview.yml`
+> keeps its `paths-ignore`; that check is not required, so it cannot block.
+> What follows is the warning as it stood.
+
 The "Still open" section below ends with a warning, written while it was
 hypothetical:
 
