@@ -16,6 +16,92 @@ not by anybody remembering. That automation exists because the rule was being
 skipped: M23's entry survived its own gate closing on 2026-09-19 and was still
 here two days later.
 
+- **An account-wide assistant that answers about every trip you have taken (asked 2026-10-04).**
+  Mitchell: *"Account wide AI assistant, be able to ask about what kind of trips they have taken
+  overall"*, with examples: *what was the most expensive meal I've eaten, how many countries have
+  I travelled to, what city have I been to the most, suggest the next country I should visit that
+  I haven't been to*.
+  - **What exists.** The assistant is scoped to one trip (ADR-022, ADR-033) and reads through
+    tools derived from the gateway (ADR-015).
+  - **The idea.** An assistant opened from the home page whose tools read across all of the
+    user's trips: costs by category, countries and cities from stop coordinates and places, visit
+    counts. The first three examples are aggregation over data we hold; the fourth also needs a
+    "countries visited" set to subtract from.
+  - **Decisions it needs.** Which trips count (own only, or shared ones the user merely
+    advises on; see "who is actually travelling" above). Whether aggregates are computed by
+    deterministic tools or the model reads trip dumps (cost and accuracy). Country/city
+    derivation where a stop has no geocoded place. Invariant 7 still holds: it reads only what
+    the user could open. Pairs with "User memory", which is deferred with the eve port.
+
+- **A chat for a trip, with the people taking it (asked 2026-10-04).** Mitchell: *"a chat for a
+  trip with the others taking the trip"*. Nothing like it exists; collaborators coordinate
+  outside the app.
+  - **The idea.** One thread per trip, visible to members, optionally linking a message to a
+    day or stop.
+  - **Decisions it needs.** Whether messages are trip events (History, replay, ADR-012) or
+    their own store (they are conversation, not plan state, so the second looks likelier).
+    Which roles may read and post (a suggester?). Realtime versus refresh. Notifications, which
+    nothing generates today. Moderation, report and delete, given the admin reports panel.
+    Retention when a trip is soft-deleted (ADR-016).
+
+- **Free Unsplash photos on activities, trips, playbook days and notebooks (asked
+  2026-10-04).** Mitchell: *"leveraging unsplashed free photos to add photos to activities,
+  trips, playbook days notebooks"*.
+  - **The idea.** A server-side search against Unsplash that attaches a cover or thumbnail to a
+    stop, trip, playbook day or notebook, and used as the empty-state art for the home card below.
+  - **Decisions it needs.** The API key lives server-side only and is rate limited (demo tier),
+    so results are fetched once and the chosen photo's URL and credit are stored, never
+    re-queried per view. Unsplash's terms require attribution and a download-tracking ping.
+    Per-use hotlinking versus copying into our own storage. Whether a photo is a stop fact
+    (an event, so History and undo apply) or a decoration. How the public library (ADR-061) and
+    its OG images treat a photo. Per ADR-052 external data enters as a server-fetched input.
+
+- **The invite-accept page uses notebook widgets to say what the trip is (asked 2026-10-04).**
+  Mitchell: *"leveraging the notebook widgets for the accept joining trip page so it shares code
+  and tells you more about the trip before accepting"*.
+  - **The idea.** The accept page (`app/(front)/invite/[token]`, with a `look` preview) is where an
+    invitee decides, and Mitchell wants it to say more. Render a read-only slice of the
+    trip (dates, route, who is going, cost per person, a map) with the same widgets notebooks use,
+    so there is one implementation, not an invite-only copy. ADR-035 says a widget is a function
+    of declared inputs, which is what makes this feasible.
+  - **Decisions it needs.** What an invitee may see before accepting, since the token holder is
+    not yet a member (ADR-026) and costs are the sensitive part. Which widgets, and whether the
+    owner chooses. How a read-only render with no membership gets its inputs.
+
+- **Avatars and personas: a picture, a colour and a name you choose (asked 2026-10-04).**
+  Mitchell: *"avatars and better personas for your account so you can see who's in a activity or
+  invited easier, they can select a avatar and a color, along with there custom name"*.
+  - **The idea.** A per-account avatar (from a fixed set) and colour, plus a chosen display
+    name, shown wherever a person appears: stop attendees, "Who is in", "Booked by", the
+    Travelers panel, pending invites, suggestion authors, History.
+  - **Decisions it needs.** Display name versus the sign-in name, and what an invitee sees
+    before they have an account. Whether a colour is unique within a trip so people are told
+    apart, or purely personal. A fixed avatar set versus uploads (uploads bring storage and
+    moderation). Public-library profiles (ADR-061) must not leak a private name.
+
+- **Better home-page trip cards, above all for a trip with no days or stops (asked 2026-10-04).**
+  Mitchell: *"better card for trips on your homepage, especially when a trip doesn't have days
+  or activities, it looks very blank atm"*. The card is `components/home/TripCard.tsx`.
+  - **The idea.** A designed empty state (a prompt to add the first day, the dates or
+    destination if known, an invite nudge when the owner is alone), and a fuller populated card
+    (route, stop count, who is going, cost per person). A cover photo from the Unsplash entry
+    above would carry the most visual weight; the card must not depend on it.
+  - **Decisions it needs.** Which facts the card may show without a read per trip. The skeleton
+    in `HomeSkeletons.tsx` has to match. It is a design change, so it goes through the design
+    sync if it touches `.design-sync/**`.
+
+- **The assistant can move around the site (asked 2026-10-04).** Mitchell: *"give the AI agent
+  the ability to move around the website, go to notebooks, change to map view, etc"*.
+  - **The idea.** Navigation tools the assistant calls: open a notebook, switch the trip lens
+    (Plan, Map, Calendar), jump to a day or a stop, open the Travelers panel. The reply carries a
+    navigation instruction the client performs.
+  - **Decisions it needs.** The assistant is read-only (ADR-022) and takes only paths its user
+    could take (invariant 7); navigation changes no trip state, but it should still be a
+    client-side action the user sees, never a silent redirect. Whether it asks before leaving a
+    page with unsaved input. How it learns the available destinations (a typed route list, not
+    free URLs). Cheap to build once the account-wide assistant exists, since that assistant has
+    no page of its own to start on.
+
 - **"Accept all" lands as one History entry, not one per change (asked 2026-10-04).** #314's
   "Accept all" accepts each pending change in turn through the single-accept route, so a
   ten-change suggestion becomes ten History rows and ten undos. Mitchell: *"\"Accept all\" should
