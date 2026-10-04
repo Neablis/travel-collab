@@ -19,7 +19,8 @@
 //
 // The loop is a pass-through, deliberately: wrapping these definitions in
 // anything that alters a schema or a `run` would be the reimplementation
-// ADR-022 §4 rules out.
+// ADR-022 §4 rules out. `hiddenFromModel` below is not that: the command schema
+// and its validation are untouched, and only the model's view of it is shorter.
 import { z } from "zod";
 import { BatchableCommand, type BatchableCommand as BatchableCommandType } from "@tc/contracts";
 import { ID_FIELDS, refParamName, type IdRole } from "@/server/assistant/idFields";
@@ -47,6 +48,34 @@ const DESCRIPTIONS: Record<BatchableCommandType["type"], string> = {
     "Dismiss an active conflict by its number in the context's `conflicts` list (conflictRef: e.g. 1). Only conflicts shown there can be dismissed.",
   SetTripCurrency: "Set the trip's currency (ISO 4217 code).",
   SetTripBudget: `Set (or clear, with null) the trip's budget.`,
+};
+
+/**
+ * **What the model is not shown of a stop's place** (ADR-022 amendment
+ * 2026-10-03). A confirmed coordinate arrives through `placeRef`, which the
+ * server turns into `{ lat, lng, precision: "venue" }` itself, and a
+ * model-claimed `precision` is stripped by `groundCitedPlaces` regardless. A
+ * coordinate the model writes is NOT simply discarded, though: enrichment uses
+ * it as a search HINT (`resolveOne` centres the geocoder on it when it sits in
+ * the trip's region) and keeps it as the FALLBACK pin, reported `unverified`,
+ * when the lookup finds nothing. Hiding them is a measured trade, so it is made
+ * per place (Mitchell, 2026-10-04, on CodeRabbit's #312 finding):
+ *
+ * - **`location` — hidden.** A stop has a verified path (`search_places` →
+ *   `placeRef`), and a place that path cannot find is usually one the model
+ *   does not know either; no pin is more honest than a guessed one there.
+ * - **`endLocation` — `lat`/`lng` shown.** A transit leg's end has no
+ *   `placeRef`, so the model's coordinate is its only fallback, and the ends
+ *   are stations and airports a model mostly does know. ~120 tokens a step.
+ *
+ * `precision` is hidden on both: it is stripped from anything the model sends
+ * regardless. `address` stays on both — it is how a place search cannot find
+ * reaches the stop at all (the first live session's brewery). Everything here
+ * is still accepted if sent.
+ */
+const HIDDEN_FROM_MODEL: Partial<Record<BatchableCommandType["type"], readonly string[]>> = {
+  AddActivity: ["location.lat", "location.lng", "location.precision", "endLocation.precision"],
+  UpdateActivity: ["location.lat", "location.lng", "location.precision", "endLocation.precision"],
 };
 
 /**
@@ -180,6 +209,7 @@ function planningToolFor(optionSchema: z.ZodObject<{ type: z.ZodLiteral<string> 
     needs: ["proposalBuffer"] as const,
     minimumRole: "editor",
     taskClasses: TASK_CLASSES_FOR[type],
+    hiddenFromModel: HIDDEN_FROM_MODEL[type],
     run: (args: Record<string, unknown>, deps) => {
       deps.proposalBuffer.collect({ type, args });
       return { queued: true as const, type };

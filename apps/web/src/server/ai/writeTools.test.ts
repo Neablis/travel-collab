@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { asSchema, type Tool } from "ai";
+import { asSchema, type JSONSchema7, type Tool } from "ai";
 import fc from "fast-check";
 import { BatchableCommand, type TripDetail } from "@tc/contracts";
 import { costedTripDetailFixture } from "@tc/factories";
@@ -1156,5 +1156,41 @@ describe("the money rule", () => {
     const readOnly = instructionsFor({ kind: "trip" }, 3, "read-only");
     expect(readOnly).toContain("minor units (cents), never a decimal");
     expect(count(readOnly)).toBe(0);
+  });
+});
+
+// What the model is shown of a stop's places (ADR-022 amendment 2026-10-03):
+// `location` without lat/lng/precision (placeRef is its verified path), and
+// `endLocation` without precision only — a transit leg's end has no placeRef,
+// so the model's coordinate is its sole fallback. `address` and `placeRef`
+// stay. Coordinates a model sends anyway, on either place, are still accepted.
+describe("what the model is shown of a stop's place", () => {
+  const { tools } = buildWriteTools();
+  // The object branch of a field that may also be null (UpdateActivity's).
+  const placeOf = (schema: JSONSchema7, field: string) => {
+    const node = (schema.properties as Record<string, JSONSchema7>)[field]!;
+    const branch = node.anyOf ? (node.anyOf as JSONSchema7[]).find((b) => b.type === "object")! : node;
+    return Object.keys(branch.properties ?? {});
+  };
+  it.each(["AddActivity", "UpdateActivity"] as const)("%s hides a stop's guessed coordinates, shows a transit end's, keeps address and placeRef", async (name) => {
+    const schema = await asSchema(tools[name]!.inputSchema).jsonSchema;
+    const location = placeOf(schema, "location");
+    const endLocation = placeOf(schema, "endLocation");
+    for (const hidden of ["lat", "lng", "precision"]) expect(location).not.toContain(hidden);
+    expect(endLocation).not.toContain("precision");
+    expect(endLocation).toEqual(expect.arrayContaining(["lat", "lng", "address"]));
+    expect(location).toContain("address");
+    expect(Object.keys(schema.properties ?? {})).toContain("placeRef");
+    const withCoordinates = { title: "Lunch", activityRef: "Lunch", location: { name: "Off Leash", lat: 42.5, lng: -76.9 } };
+    expect((await asSchema(tools[name]!.inputSchema).validate!(withCoordinates)).success).toBe(true);
+    const transitWithCoordinates = {
+      title: "Train to Kyoto",
+      activityRef: "Train to Kyoto",
+      kind: "transit",
+      mode: "train",
+      location: { name: "Tokyo Station", lat: 35.68, lng: 139.77 },
+      endLocation: { name: "Kyoto Station", lat: 34.99, lng: 135.76 },
+    };
+    expect((await asSchema(tools[name]!.inputSchema).validate!(transitWithCoordinates)).success).toBe(true);
   });
 });

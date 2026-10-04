@@ -107,13 +107,51 @@ export function containsStrictObject(schema: ZodTypeAny, seen: Set<unknown> = ne
 }
 
 /**
- * A tool's `inputSchema` for the SDK: the slimmed JSON Schema for the model to
- * read, and the zod schema's own validation for the server to enforce.
+ * The schema without the properties at `paths` (dot paths from the root, e.g.
+ * `"location.lat"`). A step that meets a union (`anyOf`/`oneOf`, as a nullable
+ * object is written) applies to every object branch. Pure.
+ *
+ * **Throws** for a path that names nothing, or a property its object requires:
+ * a hidden required field is a call the model can never get right, and a typo'd
+ * path is a saving that silently never happened. Both throw the first time the
+ * schema is read, and `ai/contextBudget.test.ts` reads every tool's, so either
+ * fails in the unit lane before it can reach a turn.
  */
-export function modelFacingSchema(input: ZodTypeAny): Schema<unknown> {
+export function hideFromModel(schema: JSONSchema7, paths: readonly string[]): JSONSchema7 {
+  const copy = structuredClone(schema) as Node;
+  for (const path of paths) {
+    let hits = 0;
+    const visit = (node: unknown, segments: readonly string[]): void => {
+      if (!isNode(node)) return;
+      for (const key of ["anyOf", "oneOf"] as const) {
+        if (Array.isArray(node[key])) for (const branch of node[key] as unknown[]) visit(branch, segments);
+      }
+      const properties = node.properties;
+      if (!isNode(properties)) return;
+      const [head, ...rest] = segments;
+      if (!(head! in properties)) return;
+      if (rest.length > 0) return visit(properties[head!], rest);
+      if (Array.isArray(node.required) && (node.required as unknown[]).includes(head)) {
+        throw new Error(`hiddenFromModel: "${path}" is required, and a model cannot send what it is not shown.`);
+      }
+      delete properties[head!];
+      hits += 1;
+    };
+    visit(copy, path.split("."));
+    if (hits === 0) throw new Error(`hiddenFromModel: "${path}" names no property of this tool's input.`);
+  }
+  return copy as JSONSchema7;
+}
+
+/**
+ * A tool's `inputSchema` for the SDK: the slimmed JSON Schema for the model to
+ * read — less any `hidden` properties — and the zod schema's own validation for
+ * the server to enforce, which still accepts every hidden property.
+ */
+export function modelFacingSchema(input: ZodTypeAny, hidden: readonly string[] = []): Schema<unknown> {
   const full = zodSchema(input) as Schema<unknown>;
   const keepClosed = containsStrictObject(input);
-  return jsonSchema<unknown>(async () => slimForModel(await full.jsonSchema, keepClosed), {
+  return jsonSchema<unknown>(async () => hideFromModel(slimForModel(await full.jsonSchema, keepClosed), hidden), {
     validate: (value) => full.validate!(value),
   });
 }

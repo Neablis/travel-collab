@@ -61,3 +61,26 @@ describe("what the server checks", () => {
     expect(await schema.validate!({})).toEqual({ success: true, value: { n: 3 } });
   });
 });
+
+describe("fields hidden from the model", () => {
+  const place = z.object({ name: z.string(), lat: z.number().optional(), precision: z.enum(["venue"]).optional() });
+  const input = z.object({ title: z.string(), location: place.nullable().optional() });
+
+  it("removes a nested property, through a nullable union, and keeps its siblings", async () => {
+    const json = JSON.stringify(await modelFacingSchema(input, ["location.lat", "location.precision"]).jsonSchema);
+    expect(json).not.toContain('"lat"');
+    expect(json).not.toContain('"precision"');
+    expect(json).toContain('"name"');
+  });
+
+  it("still accepts and validates a hidden property when one is sent", async () => {
+    const schema = modelFacingSchema(input, ["location.lat"]);
+    expect((await schema.validate!({ title: "t", location: { name: "n", lat: 1 } })).success).toBe(true);
+    expect((await schema.validate!({ title: "t", location: { name: "n", lat: "north" } })).success).toBe(false);
+  });
+
+  it("refuses to hide a required property, and a path that names nothing", async () => {
+    await expect(modelFacingSchema(input, ["location.name"]).jsonSchema).rejects.toThrow(/required/);
+    await expect(modelFacingSchema(input, ["location.latitude"]).jsonSchema).rejects.toThrow(/names no property/);
+  });
+});
