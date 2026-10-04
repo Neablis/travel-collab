@@ -362,7 +362,7 @@ reorder and the one place a reorder updates.
       last Consequence and in the milestone's gate. Note §18 reached `main`
       **after** #126 merged, so part of that PR — the Trip-wide / Day 6 badge —
       is un-shipped on purpose by link 2 rather than regressed.)*
-- [ ] **M19 A cost knows who and what it is for** ← **current milestone** (from 2026-10-01, by M14's gate closing; **scoped 2026-10-02** by ADR-060, with a 13-box gate, built as three stacked parts) →
+- [x] **M19 A cost knows who and what it is for** (from 2026-10-01, by M14's gate closing; **scoped 2026-10-02** by ADR-060, with a 13-box gate, built as three stacked parts) →
       `docs/milestones/M19-cost-model.md`
       *(**Added to this file 2026-09-01. It was missing entirely** — minted and
       placed last on 2026-08-31, recorded in `docs/milestones/README.md` and in
@@ -379,7 +379,7 @@ reorder and the one place a reorder updates.
       lets M13 land the field and M19 build on it rather than both adding one.
       Its anchor finding is live in shipped code: `savedDayFacts.budgetPerPerson`
       is a plain sum of stop costs with nothing to divide by.)*
-- [ ] **M31 We can see what the assistant costs, step by step and tool by tool** (minted 2026-10-03 and placed after M19; **built 2026-10-03 beside M19** by Mitchell's call; gate 5 of 7, the two left are operator steps: the Gateway budget and the baseline run) →
+- [ ] **M31 We can see what the assistant costs, step by step and tool by tool** (minted 2026-10-03 and placed after M19; **built 2026-10-03 beside M19** by Mitchell's call; gate 5 of 7, the two left are operator steps: the Gateway budget and the baseline run) → ← **current milestone**
       `docs/milestones/M31-assistant-ledger.md`
       *(ADR-062's Phase 1. The eve port it was minted for, Phases 2–5, is deferred until there
       are users: ADR-062 § *Deferred: the port*, and a candidate entry.)*
