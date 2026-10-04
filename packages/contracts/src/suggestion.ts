@@ -15,12 +15,18 @@ import { BatchableCommand } from "./trip.ts";
 // be several commands (spec W1). A *suggestion* is the group of changes sent
 // together, with an optional note.
 
-export const SuggestionChangeStatus = z.enum(["pending", "accepted", "dismissed", "withdrawn"]);
+// `expired`: still pending when the server stopped keeping it open
+// (`SUGGESTION_TTL_DAYS` in the web app; Mitchell, 2026-10-03). Nobody decided it.
+export const SuggestionChangeStatus = z.enum(["pending", "accepted", "dismissed", "withdrawn", "expired"]);
 export type SuggestionChangeStatus = z.infer<typeof SuggestionChangeStatus>;
 
 /** Spec §4. Repeated by nothing yet; the storage task owns any CHECK. */
 export const SUGGESTION_NOTE_MAX = 500;
-export const SUGGESTION_UNITS_MAX = 100;
+// A draft holds at most as many changes as its author may have open at once
+// (`SUGGESTION_AUTHOR_PENDING_MAX` in the web app, 50; Mitchell, 2026-10-03).
+// At 100 a draft of 51-100 changes passed this schema and was then always
+// refused by the author cap (review of #308).
+export const SUGGESTION_UNITS_MAX = 50;
 export const SUGGESTION_UNIT_COMMANDS_MAX = 50;
 
 /** One change as served to its author or a reviewer. */
@@ -39,9 +45,9 @@ export const SuggestionChange = z.object({
   description: z.string(),
   status: SuggestionChangeStatus,
   // Earlier changes of the same suggestion this one needs: those whose
-  // dry run created a day or stop this one references (spec W9), and, for a
-  // date-range edit, those that changed the day count (W56). It cannot be
-  // accepted before they are.
+  // dry run created a day or stop this one references (spec W9), those that
+  // target a day or stop this one removes (W59), and, for a date-range edit,
+  // those that changed the day count (W56). It cannot be accepted before they are.
   dependsOn: z.array(z.string().uuid()),
   resolvedBy: z.string().min(1).nullable(),
   resolvedAt: z.string().nullable(), // ISO 8601

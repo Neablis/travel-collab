@@ -218,8 +218,9 @@ const BatchBody = z.array(BatchableCommand).min(1);
 // ADR-064), whose conditional update throws when another accept got there
 // first, so a double accept appends one batch, not two. It runs after
 // the events are appended and the projections written, still inside the
-// pipeline's transaction, and only when the batch succeeded; throwing out of it
-// rolls the whole batch back with it.
+// pipeline's transaction, and only when the batch succeeded — or, with
+// `options.runOnNoOp`, also when it is a no-op throughout (below). Throwing out
+// of it rolls the whole transaction back with it.
 //
 // It is a hook rather than a call after `executeTripCommandBatch` returns
 // because the alternative is two transactions and therefore a window: a ledger
@@ -249,15 +250,16 @@ const BatchBody = z.array(BatchableCommand).min(1);
 // run again (see BATCH_APPEND_ATTEMPTS), because a batch with no precondition
 // asked for nothing more than "on top of whatever is there when you get to it".
 //
-// `options.alsoWhenNoOp` is the same seam for a batch that is a no-op
+// `options.runOnNoOp` runs the same hook for a batch that is a no-op
 // throughout: the answer is still `no-op` and nothing is appended, but the hook
-// commits with the decision that said so. Its one caller is accepting a
-// suggestion the trip already reflects (spec W52, W55), and the limits above
-// bind it exactly as they bind `alsoInSameTransaction`. With no append there is
-// no unique index to lose at, so the head is read again after the hook, and a
-// stream that moved since the decision is a lost race like an append's — rolled
-// back and run again against the new head. A write committing after that
-// re-read is ordered after this one; a write committing before it is seen.
+// commits with the decision that said so, and is handed the trip as it stands.
+// One seam, not two (review of #308): its one user is accepting a suggestion
+// the trip already reflects (spec W52, W55), and the limits above bind it
+// unchanged. With no append there is no unique index to lose at, so the head is
+// read again after the hook, and a stream that moved since the decision is a
+// lost race like an append's — rolled back and run again against the new head.
+// A write committing after that re-read is ordered after this one; a write
+// committing before it is seen.
 export async function executeTripCommandBatch(
   input: unknown,
   actorId: string,
@@ -265,11 +267,7 @@ export async function executeTripCommandBatch(
     tx: Parameters<typeof upsertTripDetail>[0],
     committed: { tripId: string; detail: TripDetail },
   ) => Promise<void>,
-  options: {
-    expectedSeq?: number;
-    origin?: Origin;
-    alsoWhenNoOp?: (tx: Parameters<typeof upsertTripDetail>[0]) => Promise<void>;
-  } = {},
+  options: { expectedSeq?: number; origin?: Origin; runOnNoOp?: boolean } = {},
 ): Promise<CommandResult> {
   const origin: Origin = options.origin ?? { kind: "user" };
   // 1. validate the batch shape against the contract
@@ -321,8 +319,10 @@ export async function executeTripCommandBatch(
       // same way a single no-op command does, rather than appending an empty batch
       // (appendToStream requires ≥1 event and one batch = one history entry).
       if (events.length === 0) {
-        if (options.alsoWhenNoOp) {
-          await options.alsoWhenNoOp(tx);
+        if (alsoInSameTransaction && options.runOnNoOp) {
+          // Authorized and decided, so the stream exists: nothing is null here.
+          const unchanged = tripDetailFromState(loaded.state!, history[0]!.occurredAt, serverConflictContext());
+          await alsoInSameTransaction(tx, { tripId, detail: withMembers(unchanged, members) });
           if ((await readStreamHeadSeq(tx, tripId)) !== history.length) {
             lostAppendRace = true;
             throw new RolledBack({

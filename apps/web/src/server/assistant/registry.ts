@@ -38,6 +38,7 @@ import {
 import type { AnyAssistantTool } from "./defineTool";
 import { runInCall } from "./callScope";
 import { NO_METER, type TurnMeter } from "./ledger";
+import { modelFacingSchema } from "./modelFacingSchema";
 import { READ_TOOLS } from "./tools/read";
 import { PLANNING_TOOLS } from "./tools/planning";
 import { insertPlaybookDayTool } from "./tools/insertPlaybookDay";
@@ -135,7 +136,7 @@ export function contextTool(
   const supplied = turnDepsFor(definition, turn);
   return tool({
     description: definition.description,
-    inputSchema: definition.input,
+    inputSchema: modelFacingSchema(definition.input),
     contextSchema: AssistantContextSchema,
     execute: async (input: unknown, { context, toolCallId }) =>
       measured(definition, meter, toolCallId, input, () =>
@@ -149,7 +150,7 @@ function plainTool(definition: AnyAssistantTool, turn: Partial<TurnDeps>, meter:
   const supplied = turnDepsFor(definition, turn);
   return tool({
     description: definition.description,
-    inputSchema: definition.input,
+    inputSchema: modelFacingSchema(definition.input),
     execute: async (input: unknown, { toolCallId }) =>
       measured(definition, meter, toolCallId, input, () => definition.invoke(input, asDeps(supplied))),
   });

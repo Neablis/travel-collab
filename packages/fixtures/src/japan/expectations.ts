@@ -7,7 +7,7 @@
 //
 // See docs/guidelines/fixtures-and-seed-data.md for the procedure.
 
-import type { ActivityKind, ActivityMode, ActivityTag, PendingReason } from "@tc/contracts";
+import type { ActivityKind, ActivityMode, ActivityTag, PendingReason, TripRole } from "@tc/contracts";
 import type { JapanTripReport, SavedDayOwnerReport } from "./verify.ts";
 
 export type JapanTripExpectations = {
@@ -20,6 +20,7 @@ export type JapanTripExpectations = {
   modes: Record<ActivityMode, number>;
   withEndLocation: number;
   pendingReasons: Record<PendingReason, number>;
+  travellerRoles: Record<TripRole, number>;
   untaggedCount: number;
   withCoordinates: number;
   withCost: number;
@@ -63,6 +64,12 @@ export const JAPAN_TRIP_EXPECTATIONS: JapanTripExpectations = {
   // ADR-055. Every pending stop says why, read off the export: its two `hold`
   // dinners are `book`, its two `idea` stops and four backlog ideas `maybe`.
   pendingReasons: { book: 2, maybe: 6 },
+
+  // ADR-064. `/demo`'s roster holds every role a traveller can be invited
+  // to plan with, so a role added to `TripRole` fails here until the demo
+  // shows it. No viewer: everyone on this trip is planning it, and the visitor
+  // reading the demo is the viewer.
+  travellerRoles: { owner: 1, editor: 2, suggester: 1, viewer: 0 },
 
   // All 72, including the 21 the geocoder could not pin to the right venue
   // (KI-39) and which carry hand-authored coordinates instead. The Map and
@@ -204,6 +211,7 @@ export function diffAgainstExpectations(
   scalar("modes", report.modes, expected.modes);
   scalar("withEndLocation", report.withEndLocation, expected.withEndLocation);
   scalar("pendingReasons", report.pendingReasons, expected.pendingReasons);
+  scalar("travellerRoles", report.travellerRoles, expected.travellerRoles);
   scalar("untaggedCount", report.untaggedCount, expected.untaggedCount);
   scalar("withCoordinates", report.withCoordinates, expected.withCoordinates);
   scalar("withCost", report.withCost, expected.withCost);

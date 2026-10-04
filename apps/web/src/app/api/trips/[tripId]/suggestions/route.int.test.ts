@@ -7,7 +7,9 @@ import { grantMembership } from "@/server/access/members";
 import { db } from "@/server/db/client";
 import { tripSuggestionChanges, users } from "@/server/db/schema";
 import { MAX_SUGGESTION_BODY_BYTES } from "@/server/suggestions/http";
+import { SUGGESTION_AUTHOR_PENDING_MAX } from "@/server/suggestions/shared";
 import { entitleAccounts } from "@/server/test-support/entitledAccount";
+import { insertStoredSuggestion, unparseableCommands } from "@/server/test-support/storedSuggestion";
 
 let currentUserId = "";
 
@@ -105,6 +107,15 @@ describe("POST /api/trips/:id/suggestions", () => {
 // legitimate draft at the contract's count limits fits under the ceiling is
 // `http.test.ts`'s: it is a claim about bytes, and dry-running 5,000 stops here
 // takes 10-27 s of every int run.
+describe("POST /api/trips/:id/suggestions — caps", () => {
+  it("maps too-many-pending to 409", async () => {
+    await insertStoredSuggestion({ tripId, authorId: SUGGESTER, changes: SUGGESTION_AUTHOR_PENDING_MAX });
+    const res = await send({ units: [{ commands: [rename("One too many")] }] });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ code: "too-many-pending" });
+  });
+});
+
 describe("POST /api/trips/:id/suggestions — body ceiling", () => {
   const storedChanges = async () =>
     (await db.select().from(tripSuggestionChanges).where(eq(tripSuggestionChanges.tripId, tripId))).length;
@@ -143,6 +154,17 @@ describe("GET /api/trips/:id/suggestions", () => {
   it("401s without a session", async () => {
     currentUserId = "";
     expect((await list()).status).toBe(401);
+  });
+
+  // Review of #308: one stored row a past release wrote is not the whole list's 500.
+  it("serves the list without a stored change whose commands no longer parse", async () => {
+    await send({ units: [{ commands: [rename("Kyoto in spring")] }] });
+    await insertStoredSuggestion({ tripId, authorId: SUGGESTER, commands: unparseableCommands(tripId) });
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    const res = await list();
+    errors.mockRestore();
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as TripSuggestionsResponse).changes).toHaveLength(1);
   });
 
   // Plan T5: a viewer is answered as if there were nothing here.

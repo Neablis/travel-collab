@@ -22,6 +22,13 @@ vi.mock("@/server/auth", () => ({
   auth: vi.fn(async () => (currentUserId ? { user: { id: currentUserId } } : null)),
 }));
 
+// The real query, wrapped so one test can make it fail.
+vi.mock("@/server/suggestions/rev", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/server/suggestions/rev")>();
+  return { ...real, suggestionsRevForRole: vi.fn(real.suggestionsRevForRole) };
+});
+const { suggestionsRevForRole } = await import("@/server/suggestions/rev");
+
 // Import after the mock so the route picks up the mocked `auth`.
 const { GET } = await import("./route");
 
@@ -255,6 +262,22 @@ describe("GET /api/trips/:id/events — suggestionsRev", () => {
     );
     expect(res.status).toBe(200);
     expect(await res.json()).not.toHaveProperty("suggestionsRev");
+  });
+
+  // Every owner's and editor's poll runs the revision query. Its failure must
+  // cost the reader the revision, never the events.
+  it("still serves the page, without a revision, when the revision query fails", async () => {
+    const tripId = await seedTrip();
+    await addDay(tripId);
+    vi.mocked(suggestionsRevForRole).mockRejectedValueOnce(new Error("connection terminated"));
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const page = await pollBody(tripId, 0);
+    expect(page.headSeq).toBe(2);
+    expect(page.events).toHaveLength(2);
+    expect(page).not.toHaveProperty("suggestionsRev");
+    expect(errors).toHaveBeenCalledWith(expect.stringContaining("suggestionsRev"), expect.objectContaining({ tripId }));
+    errors.mockRestore();
   });
 });
 

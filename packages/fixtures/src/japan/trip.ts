@@ -36,7 +36,7 @@
 // here, extend `expectations.ts` so every value of a new enum is covered, and
 // `pnpm seed:verify` will tell you what you missed.
 
-import type { ActivityKind, ActivityMode, ActivityTag, PendingReason } from "@tc/contracts";
+import type { ActivityKind, ActivityMode, ActivityTag, PendingReason, TripRole } from "@tc/contracts";
 
 /** One scheduled stop, placed on a numbered day. */
 export type JapanStop = {
@@ -157,6 +157,19 @@ export const JAPAN_TRIP_CURRENCY = "USD";
 export const JAPAN_TRAVELLERS = ["Sam", "Priya", "Jonah", "Mei"] as const;
 export type JapanTraveller = (typeof JAPAN_TRAVELLERS)[number];
 export const JAPAN_TRIP_TRAVELLERS = JAPAN_TRAVELLERS.length;
+
+/**
+ * Each traveller's role on `/demo`'s roster — ours, not the export's, which
+ * names no roles. The organizer owns it. Mei can suggest (spec 2026-10-03,
+ * ADR-064), so the role has a demo: the Travelers panel shows it to a visitor
+ * who never signs in. Two editors keep "planned together" true of the rest.
+ */
+export const JAPAN_TRAVELLER_ROLES: Record<JapanTraveller, TripRole> = {
+  Sam: "owner",
+  Priya: "editor",
+  Jonah: "editor",
+  Mei: "suggester",
+};
 /** Every location this trip creates sits in Japan. */
 export const JAPAN_COUNTRY_CODE = "JP";
 

@@ -5,7 +5,7 @@ import { executeTripCommandBatch } from "../commands";
 import { db } from "../db/client";
 import { tripSuggestionChanges, tripSuggestions } from "../db/schema";
 import { isUuid } from "../ids";
-import { refuse, roleOn, toChange, type SuggestionResult } from "./shared";
+import { expireStale, isExpired, refuse, roleOn, SUGGESTION_TTL_DAYS, toChanges, type ChangeRow, type SuggestionResult, type SuggestionRow } from "./shared";
 
 /**
  * Thrown from inside the accept batch's transaction when the change is no
@@ -44,8 +44,9 @@ export async function resolveSuggestionChange(
 ): Promise<SuggestionResult<SuggestionChange[]>> {
   // A uuid column: an id that is not one names nothing (KI-2026-09-05-x).
   if (!isUuid(changeId)) return refuse("not-found", "This suggestion does not exist.");
-  const role = await roleOn(tripId, actorId);
-  if (role === null) return refuse("not-found", "This trip does not exist.");
+  const access = await roleOn(tripId, actorId);
+  if (!access.ok) return access;
+  const role = access.value;
   const reviewing = action !== "withdraw";
   if (!roleAtLeast(role, reviewing ? "editor" : "suggester")) {
     return refuse("forbidden", reviewing ? "Only an editor can review a suggestion." : "You cannot withdraw this.");
@@ -66,15 +67,17 @@ export async function resolveSuggestionChange(
       ? refuse("forbidden", "Only the person who suggested this can withdraw it.")
       : refuse("not-found", "This suggestion does not exist.");
   }
+  if (isExpired(change, new Date(now))) {
+    // Refusing is the write that records it, if nothing has yet.
+    if (change.status === "pending") await expireStale(db, tripId, new Date(now));
+    return refuse("expired", `This suggestion expired: nobody decided it within ${SUGGESTION_TTL_DAYS} days.`);
+  }
   if (change.status !== "pending") return refuse("already-resolved", "This suggestion was already resolved.");
 
   return action === "accept"
     ? accept(change, suggestion, actorId, now)
     : cascade(change.id, suggestion, RESOLVED_AS[action], actorId, now);
 }
-
-type ChangeRow = typeof tripSuggestionChanges.$inferSelect;
-type SuggestionRow = typeof tripSuggestions.$inferSelect;
 
 async function accept(
   change: ChangeRow,
@@ -95,20 +98,17 @@ async function accept(
     }
   }
 
-  // Conditional on `pending`, so exactly one resolution wins (W10).
-  const markAccepted = async (executor: Pick<typeof db, "update">) => {
-    const marked = await executor
-      .update(tripSuggestionChanges)
-      .set({ status: "accepted", resolvedBy: reviewerId, resolvedAt: new Date(now) })
-      .where(and(eq(tripSuggestionChanges.id, change.id), eq(tripSuggestionChanges.status, "pending")))
-      .returning();
-    return marked[0];
-  };
-
-  let accepted: ChangeRow | undefined;
+  // Conditional on `pending`, so exactly one resolution wins (W10): losing it
+  // throws, which takes the batch down with it.
+  const resolution = { status: "accepted", resolvedBy: reviewerId, resolvedAt: new Date(now) };
   const mark = async (tx: Pick<typeof db, "update">) => {
-    accepted = await markAccepted(tx);
-    if (accepted === undefined) throw new SuggestionAlreadyResolved(change.id);
+    await expireStale(tx, suggestion.tripId, new Date(now));
+    const marked = await tx
+      .update(tripSuggestionChanges)
+      .set(resolution)
+      .where(and(eq(tripSuggestionChanges.id, change.id), eq(tripSuggestionChanges.status, "pending")))
+      .returning({ id: tripSuggestionChanges.id });
+    if (marked.length === 0) throw new SuggestionAlreadyResolved(change.id);
   };
   try {
     const result = await executeTripCommandBatch(change.commands, reviewerId, mark, {
@@ -120,7 +120,7 @@ async function accept(
       // pipeline's transaction, which confirms the head did not move under the
       // decision (W55): marked afterwards, a trip write in between would leave a
       // change accepted that the trip no longer says.
-      alsoWhenNoOp: mark,
+      runOnNoOp: true,
     });
     // `no-op` committed the mark above, so it is the accept's success.
     if (!result.ok && result.error.code !== "no-op") {
@@ -134,7 +134,7 @@ async function accept(
     }
     throw error;
   }
-  return { ok: true, value: [toChange(accepted!, suggestion)] };
+  return { ok: true, value: toChanges([{ ...change, ...resolution }], suggestion) };
 }
 
 async function cascade(
@@ -146,6 +146,7 @@ async function cascade(
 ): Promise<SuggestionResult<SuggestionChange[]>> {
   const resolution = { status, resolvedBy: actorId, resolvedAt: new Date(now) };
   return db.transaction(async (tx): Promise<SuggestionResult<SuggestionChange[]>> => {
+    await expireStale(tx, suggestion.tripId, new Date(now));
     // The named change first, conditional on `pending` as accept's is. Losing
     // that race is a refusal, and since nothing has been written yet,
     // returning it commits nothing.
@@ -183,6 +184,6 @@ async function cascade(
             .set(resolution)
             .where(and(inArray(tripSuggestionChanges.id, [...closure]), eq(tripSuggestionChanges.status, "pending")))
             .returning();
-    return { ok: true, value: [...named, ...dependents].map((r) => toChange(r, suggestion)) };
+    return { ok: true, value: toChanges([...named, ...dependents], suggestion) };
   });
 }

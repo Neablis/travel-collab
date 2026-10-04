@@ -1,19 +1,24 @@
 import { randomUUID } from "node:crypto";
 import { eq, inArray, sql } from "drizzle-orm";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { BatchableCommand, CreateSuggestionInput } from "@tc/contracts";
 import { executeTripCommand, executeTripCommandBatch } from "../commands";
 import { grantMembership } from "../access/members";
 import { db } from "../db/client";
-import { tripSuggestionChanges, tripSuggestions, users } from "../db/schema";
+import { tripDetails, tripSuggestionChanges, tripSuggestions, users } from "../db/schema";
 import { readStream } from "../eventStore";
 import { getTripDetail } from "../projections";
 import { entitleAccounts } from "../test-support/entitledAccount";
+import { insertStoredSuggestion, unparseableCommands } from "../test-support/storedSuggestion";
 import { createSuggestion } from "./create";
 import { listSuggestionChanges } from "./list";
 import { resolveSuggestionChange } from "./resolve";
 import { suggestionsRevForRole } from "./rev";
-import { roleOn } from "./shared";
+import { roleOn, SUGGESTION_AUTHOR_PENDING_MAX, SUGGESTION_TRIP_PENDING_MAX, SUGGESTION_TTL_DAYS } from "./shared";
+
+// `roleOn` asks the access seam, whose module also holds the session-reading
+// wrapper. Nothing here reads a session; this keeps next-auth out of the run.
+vi.mock("@/server/auth", () => ({ auth: vi.fn(async () => null) }));
 
 // Fresh identities and a fresh trip per test (KI-69): every assertion is about
 // rows keyed to this test's trip, so nothing here truncates a shared table.
@@ -88,8 +93,12 @@ async function suggest(input: CreateSuggestionInput, author = SUGGESTER) {
 // The poll's revision as the events route asks for it: with the role
 // `requireTripAccess` resolved, which is `roleOn`'s effective role.
 async function revFor(userId: string): Promise<string | undefined> {
-  return suggestionsRevForRole(tripId, userId, await roleOn(tripId, userId));
+  const role = await roleOn(tripId, userId);
+  return suggestionsRevForRole(tripId, userId, role.ok ? role.value : null);
 }
+
+/** `days` days and `minutes` minutes before now; a negative `minutes` is that much younger. */
+const daysAgo = (days: number, minutes = 0) => new Date(Date.now() - days * 86_400_000 - minutes * 60_000);
 
 async function statusOf(changeId: string): Promise<string | undefined> {
   const rows = await db.select().from(tripSuggestionChanges).where(eq(tripSuggestionChanges.id, changeId));
@@ -208,6 +217,26 @@ describe("createSuggestion — dependencies", () => {
     expect((await resolveSuggestionChange(tripId, startOnly!.id, OWNER, "dismiss")).ok).toBe(true);
     expect(await statusOf(addStop!.id)).toBe("pending");
   });
+
+  // Review of #308: the draft moved a stop into a day, then removed the day.
+  // Removing it first would leave the move nowhere to go.
+  it("makes removing a day wait for the move into it", async () => {
+    const second = randomUUID();
+    expect((await executeTripCommand({ type: "AddDay", tripId, dayId: second }, OWNER)).ok).toBe(true);
+    const [move, removeDay] = await suggest(
+      draft(
+        [{ type: "MoveActivity", tripId, activityId: stopId, toDayId: second, position: 0 }],
+        [{ type: "RemoveDay", tripId, dayId: second }],
+      ),
+    );
+    expect(removeDay!.dependsOn).toEqual([move!.id]);
+    expect(await resolveSuggestionChange(tripId, removeDay!.id, OWNER, "accept")).toMatchObject({
+      ok: false,
+      error: { code: "dependency-pending" },
+    });
+    expect((await resolveSuggestionChange(tripId, move!.id, OWNER, "accept")).ok).toBe(true);
+    expect((await resolveSuggestionChange(tripId, removeDay!.id, OWNER, "accept")).ok).toBe(true);
+  });
 });
 
 describe("listSuggestionChanges", () => {
@@ -224,6 +253,27 @@ describe("listSuggestionChanges", () => {
     for (const outsider of [VIEWER, STRANGER]) {
       expect(await listSuggestionChanges(tripId, outsider)).toMatchObject({ ok: false, error: { code: "not-found" } });
     }
+  });
+
+  // The role comes through the access seam, which answers a stored trip it
+  // cannot parse as a denial. Here that denial is a refusal, not a throw.
+  it("refuses, rather than throws, on a trip whose stored document does not parse", async () => {
+    const [change] = await suggest(draft([rename("Sam's Kyoto")]));
+    await db
+      .update(tripDetails)
+      .set({ doc: { tripId, name: 7 } as unknown as never })
+      .where(eq(tripDetails.tripId, tripId));
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    await expect(listSuggestionChanges(tripId, OWNER)).resolves.toMatchObject({
+      ok: false,
+      error: { code: "malformed-trip" },
+    });
+    await expect(resolveSuggestionChange(tripId, change!.id, OWNER, "dismiss")).resolves.toMatchObject({
+      ok: false,
+      error: { code: "malformed-trip" },
+    });
+    errors.mockRestore();
+    expect(await statusOf(change!.id)).toBe("pending");
   });
 
   it("reports the same revision the events poll does, scoped the same way, and none to a viewer", async () => {
@@ -258,6 +308,129 @@ describe("listSuggestionChanges", () => {
     const before = await revFor(SUGGESTER);
     await resolveSuggestionChange(tripId, change!.id, OWNER, "dismiss");
     expect(await revFor(SUGGESTER)).not.toBe(before);
+  });
+});
+
+// Review of #308. A stored row is whatever a past release wrote; a command
+// that has since left `BatchableCommand` must not take the whole list down
+// with it, and the one thing a reviewer can still do with it is be rid of it.
+describe("a stored change whose commands no longer parse", () => {
+  const insertUnparseable = async (): Promise<string> =>
+    (await insertStoredSuggestion({ tripId, authorId: SUGGESTER, commands: unparseableCommands(tripId) }))[0]!;
+
+  it("is left out of the list and logged, while the revision still agrees with the poll's", async () => {
+    const [good] = await suggest(draft([rename("Sam's Kyoto")]));
+    const bad = await insertUnparseable();
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const listed = await listSuggestionChanges(tripId, OWNER);
+    expect(listed.ok && listed.value.changes.map((c) => c.id)).toEqual([good!.id]);
+    expect(errors).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ changeId: bad }));
+    errors.mockRestore();
+    expect(listed.ok && listed.value.rev).toBe(await revFor(OWNER));
+  });
+
+  it("can still be dismissed or withdrawn by id, and an accept is refused with the row left pending", async () => {
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    const accepted = await insertUnparseable();
+    expect(await resolveSuggestionChange(tripId, accepted, OWNER, "accept")).toMatchObject({
+      ok: false,
+      error: { code: "no-longer-applies" },
+    });
+    expect(await statusOf(accepted)).toBe("pending");
+
+    expect((await resolveSuggestionChange(tripId, accepted, OWNER, "dismiss")).ok).toBe(true);
+    expect(await statusOf(accepted)).toBe("dismissed");
+    const withdrawn = await insertUnparseable();
+    expect((await resolveSuggestionChange(tripId, withdrawn, SUGGESTER, "withdraw")).ok).toBe(true);
+    expect(await statusOf(withdrawn)).toBe("withdrawn");
+    errors.mockRestore();
+  });
+});
+
+// Mitchell, 2026-10-03: at most 50 open changes per author and 200 per trip,
+// counting the draft being sent.
+describe("createSuggestion — caps", () => {
+  const units = (n: number) => draft(...Array.from({ length: n }, (_, i) => [rename(`Kyoto ${i}`)]));
+
+  it("refuses an author past 50 open changes, counting the draft, and stores nothing", async () => {
+    await insertStoredSuggestion({ tripId, authorId: SUGGESTER, changes: SUGGESTION_AUTHOR_PENDING_MAX - 1 });
+    expect(await createSuggestion(tripId, SUGGESTER, units(2))).toMatchObject({
+      ok: false,
+      error: { code: "too-many-pending" },
+    });
+    expect(await storedChanges()).toBe(SUGGESTION_AUTHOR_PENDING_MAX - 1);
+    expect((await createSuggestion(tripId, SUGGESTER, units(1))).ok).toBe(true);
+    // Another author's own count is their own.
+    expect((await createSuggestion(tripId, OTHER_SUGGESTER, units(2))).ok).toBe(true);
+  });
+
+  it("refuses anyone past 200 open changes on the trip, counting the draft", async () => {
+    // Inserted directly, so no author cap stood in the way of one author holding them.
+    await insertStoredSuggestion({ tripId, authorId: OTHER_SUGGESTER, changes: SUGGESTION_TRIP_PENDING_MAX - 1 });
+    expect(await createSuggestion(tripId, SUGGESTER, units(2))).toMatchObject({
+      ok: false,
+      error: { code: "too-many-pending" },
+    });
+    expect((await createSuggestion(tripId, SUGGESTER, units(1))).ok).toBe(true);
+    expect(await createSuggestion(tripId, SUGGESTER, units(1))).toMatchObject({
+      ok: false,
+      error: { code: "too-many-pending" },
+    });
+  });
+
+  it("does not count a resolved or an expired change", async () => {
+    const [dismissed] = await insertStoredSuggestion({ tripId, authorId: SUGGESTER, changes: SUGGESTION_AUTHOR_PENDING_MAX });
+    expect((await resolveSuggestionChange(tripId, dismissed!, OWNER, "dismiss")).ok).toBe(true);
+    await insertStoredSuggestion({ tripId, authorId: SUGGESTER, changes: SUGGESTION_AUTHOR_PENDING_MAX, createdAt: daysAgo(91) });
+    // 49 open: the dismissed one's 49 siblings. One more fits; two do not.
+    expect((await createSuggestion(tripId, SUGGESTER, units(1))).ok).toBe(true);
+    expect(await createSuggestion(tripId, SUGGESTER, units(1))).toMatchObject({ ok: false, error: { code: "too-many-pending" } });
+  });
+});
+
+// Mitchell, 2026-10-03: a change nobody decides in 90 days stops being open.
+describe("expiry", () => {
+  it("leaves a change older than the TTL out of the list and the revision, and keeps one just younger", async () => {
+    const [old] = await insertStoredSuggestion({ tripId, authorId: SUGGESTER, createdAt: daysAgo(SUGGESTION_TTL_DAYS, 1) });
+    const [young] = await insertStoredSuggestion({ tripId, authorId: SUGGESTER, createdAt: daysAgo(SUGGESTION_TTL_DAYS, -1) });
+    for (const reader of [OWNER, SUGGESTER]) {
+      const listed = await listSuggestionChanges(tripId, reader);
+      expect(listed.ok && listed.value.changes.map((c) => c.id)).toEqual([young]);
+      expect(listed.ok && listed.value.rev).toBe(await revFor(reader));
+    }
+    expect(await statusOf(old!)).toBe("pending");
+  });
+
+  it("refuses accept, dismiss and withdraw on an expired change, and records it expired", async () => {
+    for (const [actor, action] of [[OWNER, "accept"], [OWNER, "dismiss"], [SUGGESTER, "withdraw"]] as const) {
+      const [aged] = await insertStoredSuggestion({ tripId, authorId: SUGGESTER, createdAt: daysAgo(91) });
+      const before = (await readStream(db, tripId)).length;
+      expect(await resolveSuggestionChange(tripId, aged!, actor, action)).toMatchObject({
+        ok: false,
+        error: { code: "expired" },
+      });
+      expect(await statusOf(aged!)).toBe("expired");
+      expect((await readStream(db, tripId)).length).toBe(before);
+      // And again, now that the row says so.
+      expect(await resolveSuggestionChange(tripId, aged!, actor, action)).toMatchObject({ ok: false, error: { code: "expired" } });
+    }
+  });
+
+  // Persisted lazily, inside whichever write on the trip's suggestions comes
+  // next: there is no cron to sweep them (vercel.json declares none).
+  it("records every aged change on the trip expired inside the next create, dismiss and accept", async () => {
+    const [agedBeforeCreate] = await insertStoredSuggestion({ tripId, authorId: OTHER_SUGGESTER, createdAt: daysAgo(91) });
+    const [toDismiss, toAccept] = await suggest(draft([rename("Sam's Kyoto")], [{ type: "AddDay", tripId, dayId: randomUUID() }]));
+    expect(await statusOf(agedBeforeCreate!)).toBe("expired");
+
+    const [agedBeforeDismiss] = await insertStoredSuggestion({ tripId, authorId: OTHER_SUGGESTER, createdAt: daysAgo(91) });
+    expect((await resolveSuggestionChange(tripId, toDismiss!.id, OWNER, "dismiss")).ok).toBe(true);
+    expect(await statusOf(agedBeforeDismiss!)).toBe("expired");
+
+    const [agedBeforeAccept] = await insertStoredSuggestion({ tripId, authorId: OTHER_SUGGESTER, createdAt: daysAgo(91) });
+    expect((await resolveSuggestionChange(tripId, toAccept!.id, OWNER, "accept")).ok).toBe(true);
+    expect(await statusOf(agedBeforeAccept!)).toBe("expired");
   });
 });
 
