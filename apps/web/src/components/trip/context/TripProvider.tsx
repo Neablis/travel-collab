@@ -38,6 +38,7 @@ import { isDemoTripId } from "@/lib/demoTrip";
 import { placeGhosts, type SuggestionGhosts } from "@/lib/suggestionOverlay";
 import { boardMode } from "@/lib/tripRole";
 import { headSeqOf, useTripBroadcast } from "./broadcast";
+import { enqueueDraft } from "./draftQueue";
 import { drainAfter, sendUnit } from "./queueDrain";
 import { unloadFlush } from "./unloadFlush";
 import { useTripSuggestions, type TripSuggestions } from "./useTripSuggestions";
@@ -472,15 +473,8 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
     // W50: the suggestions route takes no more than this, and refuses a draft
     // past it whole. Refused at the edit instead, which the author can act on;
     // the draft already made is untouched.
-    const overCap =
-      mode !== "suggest"
-        ? null
-        : base.pending.length >= SUGGESTION_UNITS_MAX
-          ? `A suggestion holds up to ${SUGGESTION_UNITS_MAX} changes. Send these first.`
-          : commands.length > SUGGESTION_UNIT_COMMANDS_MAX
-            ? `One suggested change holds up to ${SUGGESTION_UNIT_COMMANDS_MAX} edits. Make it in smaller steps.`
-            : null;
-    if (overCap !== null) {
+    if (mode === "suggest" && commands.length > SUGGESTION_UNIT_COMMANDS_MAX) {
+      const overCap = `One suggested change holds up to ${SUGGESTION_UNIT_COMMANDS_MAX} edits. Make it in smaller steps.`;
       setError(overCap);
       return { ok: false, message: overCap };
     }
@@ -492,12 +486,21 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
       setError(DRAFT_BUSY);
       return { ok: false, message: DRAFT_BUSY };
     }
-    const result = enqueue(base, `c${++seq.current}`, commands);
+    // W75: in a draft, an edit to a stop the draft added joins the change that
+    // added it, so the count is of changes a reviewer will see.
+    const result = (mode === "suggest" ? enqueueDraft : enqueue)(base, `c${++seq.current}`, commands);
     if (!result.ok) {
       // A no-op changed nothing, which is not worth alarming anyone about —
       // the same judgement the send effect makes on the server's own no-op.
       setError(result.code === "no-op" ? null : result.message);
       return result.code === "no-op" ? { ok: true } : { ok: false, message: result.message };
+    }
+    // W50, after the fold: an edit that joins or cancels a change adds none,
+    // so a full draft still takes it.
+    if (mode === "suggest" && result.state.pending.length > SUGGESTION_UNITS_MAX) {
+      const overCap = `A suggestion holds up to ${SUGGESTION_UNITS_MAX} changes. Send these first.`;
+      setError(overCap);
+      return { ok: false, message: overCap };
     }
     // Advanced before `setOptimistic` so anything dispatched later in this same
     // tick predicts against this result rather than the pre-dispatch queue.

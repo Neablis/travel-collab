@@ -129,6 +129,22 @@ test("a suggester's move waits for the owner, and Accept makes it", async ({ pag
       tray.getByRole("button", { name: "Send suggestion" }).click(),
     ]);
     await expect(tray).toContainText("No changes yet");
+
+    // W75 (Mitchell's production test, 2026-10-04): a stop added and then
+    // moved read "2 changes not sent". The move joins the change that added
+    // it. Timed, because a suggester's board draws no untimed stop (W71).
+    await sam.getByRole("button", { name: "Add stop" }).click();
+    await sam.getByLabel("What or where").fill("Gelato");
+    await sam.getByLabel("Start", { exact: true }).fill("13:00");
+    await sam.getByRole("button", { name: "Add stop" }).last().click();
+    const gelato = (day: Locator) => day.getByTestId(/activity-card-/).filter({ hasText: "Gelato" });
+    await expect(gelato(day1)).toBeVisible();
+    await expect(tray).toContainText("1 change not sent");
+    await dragCardTo(gelato(day1), day2);
+    await expect(gelato(day2)).toBeVisible();
+    await expect(tray).toContainText("1 change not sent");
+    await tray.getByRole("button", { name: "Discard" }).click();
+    await expect(tray).toContainText("No changes yet");
     expect(commands).toEqual([]);
   } finally {
     await sam.context().close();
