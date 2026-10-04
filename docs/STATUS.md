@@ -21,28 +21,25 @@ general setup.
 
 ## Where the work is right now
 
-**M19 — A COST KNOWS WHO AND WHAT IT IS FOR — IS THE CURRENT MILESTONE AS OF
-2026-10-01**, by **M14's gate closing at 22 of 22**. Order:
-`M17 ✓ → M9 [built 2026-09-16, paused — gate needs a live model call] → M20 ✓ → M21 ✓ → M22 ✓ → M25 ✓ → M23 ✓ → M26 ✓ → M13 ✓ → M27 ✓ → M12 ✓ → M24 ✓ → M28 ✓ → M14 ✓ → M19`.
-M19 was **scoped on 2026-10-02** (ADR-060: a price is per person, committed vs estimate
-derives from kind, and Booked by pays). It is built as three stacked parts:
-`docs/plans/2026-10-02-M19-cost-model.md`.
+**M31 — WE CAN SEE WHAT THE ASSISTANT COSTS — IS THE CURRENT MILESTONE AS OF 2026-10-04**,
+by **M19's gate closing at 13 of 13**. Order:
+`… M14 ✓ → M19 ✓ → M31` (M9 stays paused: its gate needs a live model call).
+M19 (ADR-060: a price is per person, committed vs estimate derives from kind, Booked by pays)
+shipped as three stacked parts; its retro is at the end of `docs/milestones/M19-cost-model.md`.
+What it left open, none gating: `KI-2026-09-24-p` (totals add across currencies),
+`KI-2026-09-24-q` (a stored `person` filter widens to the whole trip), and free vs unknown (KI-82).
 
-**M31 — We can see what the assistant costs — was minted and built 2026-10-03, beside M19,
-not current.** It is ADR-062's Phase 1: per-step and per-tool rows next to `ai_usage`, cached
-tokens, per-step pricing, the `ai-usage` skill's SQL and the live set. It closed
-KI-2026-09-14-b and KI-2026-09-17-c. **It adds migration `0035`, which must be dispatched to
-production right after merge.** Until it is applied, production's ledger writes fail, the
-`ai_usage` row included (`docs/milestones/M31-assistant-ledger.md`, *Prerequisites*). Gate 5
-of 7. The two boxes left are Mitchell's: the Gateway spend budget, and the baseline run on a
-preview. **The eve port is deferred until there are users** (ADR-062 § *Deferred: the port*).
+**M31 was minted and built 2026-10-03.** It is ADR-062's Phase 1: per-step and per-tool rows
+next to `ai_usage`, cached tokens, per-step pricing, the `ai-usage` skill's SQL and the live set.
+It closed KI-2026-09-14-b and KI-2026-09-17-c. **It adds migration `0035`, which must be
+dispatched to production right after merge.** Until it is applied, production's ledger writes
+fail, the `ai_usage` row included (`docs/milestones/M31-assistant-ledger.md`, *Prerequisites*).
+Gate 5 of 7. **The two boxes left are Mitchell's:** the Gateway spend budget, and the baseline
+run on a preview. **The eve port is deferred until there are users** (ADR-062 § *Deferred: the port*).
 
-**Two more milestones are built beside the current one, not current, and not in
-`TODO.md`'s order** (placing them is Mitchell's call). **M29 — The time river**: all parts
-merged by 2026-09-26 (#242-#245, #251). Gate 18 of 20. Mitchell attested the Overview read
-on 2026-10-02. What is left is the whole-suite box and the retro. **M30 — Notebooks with one
-job each**: merged as #247, then #248-#253. Gate 8 of 9. The same Overview read ticked it,
-and only the retro is left.
+**M29 (the time river) and M30 (notebooks with one job each) closed their gates on
+2026-10-04**, at 20 of 20 and 9 of 9; each retro is at the end of its milestone file. Neither
+has a row in `TODO.md`'s order, and placing them there is Mitchell's call.
 
 **Built beside M19, not a milestone: the SEO pass** (five stacked draft PRs, #295-#299,
 to merge 1 → 5 with merge commits; plan `docs/plans/2026-10-02-seo-pass.md`). It adds robots
@@ -188,9 +185,9 @@ half, the model guessing a coordinate rather than citing one, is M9 scope.
 
 ## Next action
 
-**Build M19 part 1** (`claude/m19-p1-per-person`): a price is per person, following the plan
-in `docs/plans/2026-10-02-M19-cost-model.md`. M29 and M30 are built beside it. They wait on
-M29's whole-suite box, both retros, and a place in the order.
+**M31's two operator boxes** (Gateway spend budget; baseline run on a preview with `ai-live`
+on) are Mitchell's, and nothing code-side is left in it. With M31 closed, the only unchecked
+row is M9, paused.
 
 **Carried out of M24, not gating:** `KI-2026-09-25-q`. About a dozen
 surfaces read `activity.location.city` directly, including the M14 ones this

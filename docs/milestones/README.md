@@ -177,7 +177,7 @@ Placement notes (decided 2026-07-07):
   questions stay open — start-only trip dates, first-run vs. the four-step
   wizard, and whether the landing copy may sell M11/M12 — see the review's §8.
 
-Current milestone: M19 — A cost knows who and what it is for
+Current milestone: M31 — We can see what the assistant costs, step by step and…
 **2026-10-01, BY M14'S GATE CLOSING** at **22 of 22**. M19 was **scoped on
 2026-10-02** by ADR-060: a price is per person, committed vs estimate derives from kind,
 and Booked by pays. Its 13-box gate covers links 2-5 (link 1 shipped on 2026-09-26),
