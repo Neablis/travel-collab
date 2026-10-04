@@ -88,6 +88,19 @@ const DAY_READOUT = {
 const FREE_READOUT = {
   searched: "day 3",
   window: { after: "08:00", before: "22:00" },
+  // The day's ranking row (M32), consistent with the two gaps below.
+  days: [
+    {
+      day: 3,
+      date: "2026-09-10",
+      freeMinutes: 720,
+      morningMinutes: 120,
+      afternoonMinutes: 300,
+      eveningMinutes: 300,
+      longestGap: { start: "12:00", end: "22:00", durationMinutes: 600 },
+      untimedStops: 0,
+    },
+  ],
   gaps: [
     { day: 3, date: "2026-09-10", start: "08:00", end: "10:00", durationMinutes: 120 },
     { day: 3, date: "2026-09-10", start: "12:00", end: "22:00", durationMinutes: 600 },
@@ -447,7 +460,15 @@ describe("simulatedModel — the ask surface", () => {
       await probe().doGenerate(
         askPrompt({ kind: "trip" }, [
           { toolName: "read_trip", value: { ...TRIP_READOUT, conflicts: [] } },
-          { toolName: "find_free_time", value: { ...FREE_READOUT, searched: "the whole trip", gaps: [] } },
+          {
+            toolName: "find_free_time",
+            value: {
+              ...FREE_READOUT,
+              searched: "the whole trip",
+              days: [{ ...FREE_READOUT.days[0]!, freeMinutes: 0, morningMinutes: 0, afternoonMinutes: 0, eveningMinutes: 0, longestGap: null }],
+              gaps: [],
+            },
+          },
         ]),
       ),
     );

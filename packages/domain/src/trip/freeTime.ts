@@ -127,3 +127,92 @@ export function findFreeGaps(detail: TripDetail, options: FindFreeGapsOptions = 
     .filter((gap) => gap.durationMinutes > 0 && gap.durationMinutes >= minMinutes)
     .sort((a, b) => a.dayIndex - b.dayIndex || a.startMinutes - b.startMinutes);
 }
+
+// The hours a "free time" answer is about (M32, Mitchell 2026-10-04: "Hardcode
+// 8-22 for now"). Unbounded, the largest gap on almost any day is the one
+// between the last stop and breakfast, and an empty day scores 24 hours — a
+// true answer nobody asked for. There is no waking-hours preference to read;
+// one can replace these constants without changing a caller.
+export const DAYTIME_START_MINUTES = 8 * 60;
+export const DAYTIME_END_MINUTES = 22 * 60;
+
+/** The three parts a day's free time is reported in, inside `DAYTIME_*`. */
+export const DAY_PARTS = [
+  { part: "morning", startMinutes: 8 * 60, endMinutes: 12 * 60 },
+  { part: "afternoon", startMinutes: 12 * 60, endMinutes: 17 * 60 },
+  { part: "evening", startMinutes: 17 * 60, endMinutes: 22 * 60 },
+] as const;
+
+export type DayPart = (typeof DAY_PARTS)[number]["part"];
+
+export interface DayFreeSummary {
+  dayIndex: number;
+  /** The sum of this day's gaps, exactly as `findFreeGaps` lists them for the same options. */
+  freeMinutes: number;
+  /** Free minutes inside each part of the day. Time outside 08:00-22:00 is in `freeMinutes` only. */
+  parts: Record<DayPart, number>;
+  /** The day's longest gap; the earliest of equals. Null when the day has none. */
+  longestGap: FreeGap | null;
+  /**
+   * Stops on the day with no time. They occupy no time (see `busyIntervalsFor`),
+   * so a day can rank "free" only because nothing on it has been given a time.
+   * The count lets an answer say so.
+   */
+  untimedStops: number;
+}
+
+function overlap(start: number, end: number, from: number, to: number): number {
+  return Math.max(0, Math.min(end, to) - Math.max(start, from));
+}
+
+/**
+ * Which day is most free (M32): every searched day, ranked most free first.
+ *
+ * Built from `findFreeGaps` with the same options rather than beside it, so a
+ * day's total is the sum of the gaps the caller also lists, and the ranking
+ * and the gap list cannot disagree. A searched day with no gap at all is still
+ * a row, with zero: "day 3 is fully booked" is part of the answer.
+ *
+ * Ties: the longer longest gap first (one open afternoon beats three short
+ * breaks), then the earlier day.
+ */
+export function summarizeFreeDays(detail: TripDetail, options: FindFreeGapsOptions = {}): DayFreeSummary[] {
+  const gaps = findFreeGaps(detail, options);
+  const dayIndexes =
+    options.dayIndex === undefined
+      ? detail.days.map((_, dayIndex) => dayIndex)
+      : detail.days[options.dayIndex]
+        ? [options.dayIndex]
+        : [];
+
+  return dayIndexes
+    .map((dayIndex): DayFreeSummary => {
+      const own = gaps.filter((gap) => gap.dayIndex === dayIndex);
+      const parts = Object.fromEntries(
+        DAY_PARTS.map(({ part, startMinutes, endMinutes }) => [
+          part,
+          own.reduce((sum, gap) => sum + overlap(gap.startMinutes, gap.endMinutes, startMinutes, endMinutes), 0),
+        ]),
+      ) as Record<DayPart, number>;
+      const longestGap = own.reduce<FreeGap | null>(
+        (best, gap) => (best === null || gap.durationMinutes > best.durationMinutes ? gap : best),
+        null,
+      );
+      const untimedStops = detail.days[dayIndex]!.activityIds.filter(
+        (id) => detail.activities[id] !== undefined && detail.activities[id]!.timeWindow === null,
+      ).length;
+      return {
+        dayIndex,
+        freeMinutes: own.reduce((sum, gap) => sum + gap.durationMinutes, 0),
+        parts,
+        longestGap,
+        untimedStops,
+      };
+    })
+    .sort(
+      (a, b) =>
+        b.freeMinutes - a.freeMinutes ||
+        (b.longestGap?.durationMinutes ?? 0) - (a.longestGap?.durationMinutes ?? 0) ||
+        a.dayIndex - b.dayIndex,
+    );
+}

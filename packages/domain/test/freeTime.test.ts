@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { TripDetail } from "@tc/contracts";
-import { findFreeGaps } from "../src";
+import { DAYTIME_END_MINUTES, DAYTIME_START_MINUTES, findFreeGaps, summarizeFreeDays } from "../src";
 
 const TRIP = "1c2d3e4f-0000-4000-8000-000000000001";
 const MEMBER = { userId: "u1", role: "owner" as const };
@@ -189,5 +189,75 @@ describe("findFreeGaps", () => {
     const d = detail([day("d1", [])], {});
     expect(findFreeGaps(d, { afterMinutes: 800, beforeMinutes: 800 })).toEqual([]);
     expect(findFreeGaps(d, { afterMinutes: 900, beforeMinutes: 800 })).toEqual([]);
+  });
+});
+
+// M32: "which day has the most free time?" answered in one call. Mitchell's
+// live turn (2026-10-04) called find_free_time once per day and still named
+// the wrong one, because sleep counted as free.
+describe("summarizeFreeDays", () => {
+  const daytime = { afterMinutes: DAYTIME_START_MINUTES, beforeMinutes: DAYTIME_END_MINUTES };
+
+  it("ranks the most free day first, inside 08:00-22:00", () => {
+    const d = detail(
+      [day("d1", ["a1", "a2"]), day("d2", ["b1"]), day("d3", [])],
+      {
+        a1: activity("a1", { start: "09:00", end: "12:00" }),
+        a2: activity("a2", { start: "14:00", end: "18:00" }),
+        b1: activity("b1", { start: "19:00", end: "21:00" }),
+      },
+    );
+    const ranked = summarizeFreeDays(d, daytime);
+    expect(ranked.map((row) => [row.dayIndex, row.freeMinutes])).toEqual([
+      [2, 840], // empty: the whole 14-hour day
+      [1, 720], // 14h less a 2h dinner
+      [0, 420], // 14h less 3h and 4h
+    ]);
+  });
+
+  it("splits a day's free time into morning, afternoon and evening, and names its longest gap", () => {
+    const d = detail([day("d1", ["a1"])], { a1: activity("a1", { start: "11:00", end: "13:00" }) });
+    const [row] = summarizeFreeDays(d, daytime);
+    expect(row!.parts).toEqual({ morning: 180, afternoon: 240, evening: 300 });
+    expect(row!.longestGap).toEqual({ dayIndex: 0, startMinutes: 780, endMinutes: 1320, durationMinutes: 540 });
+  });
+
+  it("breaks a tie on total by the longer longest gap, then the earlier day", () => {
+    const d = detail(
+      [day("d1", ["a1", "a2"]), day("d2", ["b1"]), day("d3", ["c1"])],
+      {
+        // Day 1: two breaks in the middle, 14h - 2h - 2h = 10h, longest 6h.
+        a1: activity("a1", { start: "10:00", end: "12:00" }),
+        a2: activity("a2", { start: "16:00", end: "18:00" }),
+        // Days 2 and 3: one 4h block at the start, 10h free in one stretch.
+        b1: activity("b1", { start: "08:00", end: "12:00" }),
+        c1: activity("c1", { start: "08:00", end: "12:00" }),
+      },
+    );
+    expect(summarizeFreeDays(d, daytime).map((row) => row.dayIndex)).toEqual([1, 2, 0]);
+  });
+
+  it("counts untimed stops, which occupy no time, so a falsely free day can say so", () => {
+    const d = detail([day("d1", ["a1", "a2", "a3"])], {
+      a1: activity("a1", null),
+      a2: activity("a2", null),
+      a3: activity("a3", { start: "09:00", end: "10:00" }),
+    });
+    const [row] = summarizeFreeDays(d, daytime);
+    expect(row!.untimedStops).toBe(2);
+    expect(row!.freeMinutes).toBe(780);
+  });
+
+  it("keeps a fully booked day as a zero row rather than dropping it", () => {
+    const d = detail([day("d1", ["a1"])], { a1: activity("a1", { start: "07:00", end: "23:00" }) });
+    expect(summarizeFreeDays(d, daytime)).toEqual([
+      { dayIndex: 0, freeMinutes: 0, parts: { morning: 0, afternoon: 0, evening: 0 }, longestGap: null, untimedStops: 0 },
+    ]);
+  });
+
+  it("summarizes one day when asked for one", () => {
+    const d = detail([day("d1", []), day("d2", [])], {});
+    expect(summarizeFreeDays(d, { ...daytime, dayIndex: 1 }).map((row) => row.dayIndex)).toEqual([1]);
+    expect(summarizeFreeDays(d, { ...daytime, dayIndex: 5 })).toEqual([]);
   });
 });

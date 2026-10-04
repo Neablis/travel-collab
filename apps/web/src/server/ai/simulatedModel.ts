@@ -239,11 +239,9 @@ function resultFor<T>(results: readonly ToolResultLike[], toolName: string): T |
   return parsed.success ? (parsed.data as T) : undefined;
 }
 
-// The hours a free-time answer is actually about. Unbounded, the largest gap
-// on almost any real day is the one between the last stop and breakfast — a
-// true answer nobody asked for. This is the same judgement a real model would
-// make from the question, made once and deterministically here, and it is why
-// the simulated path exercises `find_free_time`'s after/before translation
+// The hours a free-time answer is actually about. Since M32 they are the
+// tool's own default (`DAYTIME_*` in `@tc/domain`); they are still passed here
+// so the simulated path exercises `find_free_time`'s after/before translation
 // rather than calling it bare.
 const WAKING_HOURS = { after: "08:00", before: "22:00" };
 
