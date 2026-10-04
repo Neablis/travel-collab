@@ -487,7 +487,7 @@ test("the day columns' scrollbar is on screen on load, even when the columns run
  * The bar and the row mirror each other's `scrollLeft`, and Board.tsx ignores
  * the scroll event each mirror write raises. The review worried that the
  * row's event could land a frame late, write the row's old position back into
- * the bar and lose a drag step. Through Chromium 152 it did not; Chromium 153
+ * the bar and lose a drag step. In Chromium 151 it did not; Chromium 153
  * (Playwright 1.63) delivers it late, and this went red — the last drag step
  * was lost (ended at 900, not 960) — until Board.tsx matched echoes by
  * position instead of counting them.
