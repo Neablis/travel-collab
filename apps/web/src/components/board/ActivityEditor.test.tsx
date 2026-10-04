@@ -111,6 +111,15 @@ describe("ActivityEditor kind picker", () => {
     expect(checkedKind()).toBe("Pending");
   });
 
+  // Mitchell's preview comment, 2026-10-04: "Drop Kind, and leave just the
+  // description". The control keeps its name for assistive tech.
+  it("says what the chosen kind means, with no visible Kind label", () => {
+    renderEditor(null, "create");
+    expect(screen.queryByText("Kind", { exact: true })).toBeNull();
+    expect(screen.getByRole("radiogroup", { name: "Kind" })).toBeTruthy();
+    expect(screen.getByText("Not locked in yet")).toBeTruthy();
+  });
+
   it("defaults to the stop's own kind when editing", () => {
     renderEditor(existingStop({ kind: "transit" }), "edit");
     expect(checkedKind()).toBe("Travel");

@@ -59,8 +59,13 @@ export function IconRadioGroup<T extends string>({
             aria-label={label}
             title={label}
             onClick={() => onValueChange(on ? null : option)}
+            // 48px with a 32px icon, twice the `icon` size's 16px glyph
+            // (Mitchell's preview comment, 2026-10-04: "Increase the size of
+            // these by 2x"); the same 8px either side, and over the phone's
+            // 44px floor. Seven wrap on a phone's sheet, which is fine.
+            className="h-12 w-12"
           >
-            <Icon className="size-4" aria-hidden />
+            <Icon className="size-8" aria-hidden />
           </Button>
         );
       })}

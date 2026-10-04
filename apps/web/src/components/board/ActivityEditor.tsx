@@ -395,10 +395,10 @@ export function ActivityEditor({
           (the card badge, the Calendar's split and its `N to book`, the home
           hero's tile) would render on seeded trips only. */}
       <div className="flex flex-col gap-2">
-        <div className="flex items-baseline justify-between gap-2.5">
-          <Text variant="muted">Kind</Text>
-          <Text variant="muted">{KIND_HELP[kind]}</Text>
-        </div>
+        {/* No visible "Kind" over it (Mitchell's preview comment, 2026-10-04:
+            "Drop Kind, and leave just the description"): the control's own
+            options say what it is, and it keeps "Kind" as its name. */}
+        <Text variant="muted">{KIND_HELP[kind]}</Text>
         <SegmentedControl
           aria-label="Kind"
           fullWidth
