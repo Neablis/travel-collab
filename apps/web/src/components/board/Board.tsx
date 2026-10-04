@@ -339,22 +339,28 @@ export function Board({
   // is on screen — one scrollbar, always reachable. The rejected alternatives
   // are recorded in the KI's resolved entry.
   //
-  // The two mirror each other's `scrollLeft`. `echoes` counts the scroll
-  // events the row's own writes into the bar still owe, so the bar ignores
-  // them rather than writing them back: without that, a smooth
-  // `scrollIntoView` on the row (the day-sync follow above) stops dead after
-  // its first frame, because any write to the row's `scrollLeft`, even of the
-  // value it already holds, cancels a smooth scroll in flight (measured
-  // 2026-09-25 with the guard removed: the row stopped at 3px of 2316).
-  // Chromium delivers the scroll event a handler's write raises within the
-  // same dispatch pass, so the counter settles every frame; a bar drag
-  // sampled per frame never stepped back or lost a step (m10-growth's "never
-  // back a frame"). A drag of the bar itself owes nothing, and moves the
-  // row — which then runs the spy above, exactly as a drag of the row's own
-  // scrollbar would.
+  // The two mirror each other's `scrollLeft`. `barEcho` and `rowEcho` hold the
+  // position a mirror write left its target at, so the scroll event that
+  // write raises is recognised and ignored rather than written back: without
+  // that, a smooth `scrollIntoView` on the row (the day-sync follow above)
+  // stops dead after its first frame, because any write to the row's
+  // `scrollLeft`, even of the value it already holds, cancels a smooth scroll
+  // in flight (measured 2026-09-25 with the guard removed: the row stopped at
+  // 3px of 2316).
+  //
+  // The echo is matched by position, not counted, because the event may land
+  // a frame after the write that raised it. A counter was enough while
+  // Chromium delivered it in the same dispatch pass; Chromium 153 does not,
+  // and under a bar drag the row's late event wrote the row's old position
+  // back into the bar and spent the bar's next real event as its echo — the
+  // last drag step was lost (m10-growth's "never back a frame", red on the
+  // Playwright 1.63 bump). A drag of the bar itself owes nothing, and moves
+  // the row — which then runs the spy above, exactly as a drag of the row's
+  // own scrollbar would.
   const barRef = useRef<HTMLDivElement>(null);
   const barSpacerRef = useRef<HTMLDivElement>(null);
-  const echoes = useRef(0);
+  const barEcho = useRef<number | null>(null);
+  const rowEcho = useRef<number | null>(null);
 
   const mirrorRowIntoBar = useCallback(() => {
     const row = scrollRef.current;
@@ -363,23 +369,27 @@ export function Board({
     const before = bar.scrollLeft;
     bar.scrollLeft = row.scrollLeft;
     // Only a write that moved the bar raises a scroll event to wait for.
-    if (bar.scrollLeft !== before) echoes.current += 1;
+    if (bar.scrollLeft !== before) barEcho.current = bar.scrollLeft;
   }, []);
 
   const onRowScroll = useCallback(() => {
     onScroll();
+    const echo = rowEcho.current;
+    rowEcho.current = null;
+    if (echo !== null && scrollRef.current?.scrollLeft === echo) return;
     mirrorRowIntoBar();
   }, [onScroll, mirrorRowIntoBar]);
 
   const onBarScroll = useCallback(() => {
-    if (echoes.current > 0) {
-      echoes.current -= 1;
-      return;
-    }
     const row = scrollRef.current;
     const bar = barRef.current;
     if (row === null || bar === null) return;
+    const echo = barEcho.current;
+    barEcho.current = null;
+    if (echo !== null && bar.scrollLeft === echo) return;
+    const before = row.scrollLeft;
     row.scrollLeft = bar.scrollLeft;
+    if (row.scrollLeft !== before) rowEcho.current = row.scrollLeft;
   }, []);
 
   // The spacer tracks the row's content width: a day added or removed, the
