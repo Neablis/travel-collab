@@ -417,6 +417,75 @@ aggregate — counts and token sums only, never prompt text or file contents —
 which is the piece that has to be captured *before* the container is
 reclaimed. See `docs/reviews/2026-09-21-development-loop-review.md`.
 
+## Running subagents in parallel
+
+A session that coordinates agents is where most of the suggester role's lost
+time went (`docs/retros/2026-10-04-suggester-role-retro.md`, §3–§5 and §7).
+Mitchell left five preview comments and two CodeRabbit findings on #314, mostly
+in different files, and they were sent by message to one running agent, which
+worked through them one at a time for over an hour. His summary: *"you would
+have had a lot more success and efficiency if you had parallelized the fixes
+using subagents, rather than queuing them"*. The rules below are what that
+session, and the M14 retro before it, cost to learn.
+
+- **One scope per agent, and no two agents share a file.** Split the work by
+  file ownership **when the requests arrive**, not after a queue has formed.
+  Two requests that touch the same file go to the same agent; everything else
+  gets its own.
+- **Each agent works in its own worktree, on its own branch** —
+  `fix/<pr>-<topic>`. Never on the PR branch itself, and never on a branch
+  another worktree has checked out (see *One branch, two worktrees* below). The
+  coordinator merges or cherry-picks each branch into the PR branch.
+- **Never widen a running agent's scope by message.** A message reaches an
+  agent between tool calls, which is often after it has already done the work
+  the message was meant to stop. On #314 the "stop" arrived after most of the
+  queue was done, and three new agents duplicated it before they were stopped
+  too. Start a new agent with its own scope instead.
+- **Before pushing to a PR branch, check the PR is still open.**
+  `gh pr view <n> --json state,mergedAt` — `MERGED` means stop. Mitchell merged
+  #314 at 18:40, `8540c46` was pushed at 18:41, and the push recreated the
+  deleted branch, so the fix needed its own PR (#317). The merge event reached
+  the session after the push did. **When more commits are coming, tell Mitchell
+  not to merge yet** — he cannot see that work is still in flight.
+- **Fetch before stating the state of `main`, production, a PR or an agent.**
+  "Production is missing `0036`" was said from a stale `origin/main`;
+  production had all 37 migrations. An agent's work was called unfinished when
+  most of it was committed. `git fetch`, `gh pr view` or the agent's own
+  branch first, then the sentence.
+- **Stay silent on echoes and status-only bot edits, and report real changes in
+  batches.** A bot editing its own status comment, a preview rebuild and a
+  stop-hook nudge are not news. Red CI, a review finding and a question for
+  Mitchell are, and they were buried under the rest.
+
+### One branch, two worktrees: a stale index that looks like uncommitted work
+
+If an agent commits to a branch from its own worktree while the main checkout
+**also** has that branch checked out, the main checkout's `HEAD` moves (the ref
+is shared) but its index and working tree do not. `git status` there then shows
+"uncommitted changes" that are **the agent's commits in reverse**. Committing
+them undoes the agent's work. This happened twice during the suggester role
+(retro §4), and both times the stop hook asked for those "changes" to be
+committed.
+
+Check for it before committing anything you did not knowingly edit:
+
+```sh
+git worktree list --porcelain     # is this branch checked out anywhere else?
+git diff --cached <old-head>      # empty means the index is just the old commit
+```
+
+If the branch appears in more than one worktree and `git diff --cached` against
+the commit you started from is empty, nothing is uncommitted — the index is
+stale. Recover with `git reset --hard HEAD`, which moves the index and tree up
+to the agent's commits (check `git log -1` names the commit you expect first).
+
+The rule in the list above is what prevents this: agents never commit to a
+branch another worktree has checked out. This check lives here rather than in
+a hook because the repo has no stop hook it belongs in — `.claude/hooks/` holds
+only `session-start.sh`, which runs before any agent has committed, and the
+stop hook that asked for the commit is the user's own
+(`~/.claude/stop-hook-git-check.sh`), outside the repo.
+
 ## The rule that matters
 
 **Before attributing a failure to the environment, grep
