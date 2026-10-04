@@ -37,12 +37,9 @@ fail, the `ai_usage` row included (`docs/milestones/M31-assistant-ledger.md`, *P
 Gate 5 of 7. **The two boxes left are Mitchell's:** the Gateway spend budget, and the baseline
 run on a preview. **The eve port is deferred until there are users** (ADR-062 § *Deferred: the port*).
 
-**Two more milestones are built beside the current one, not current, and not in
-`TODO.md`'s order** (placing them is Mitchell's call). **M29 — The time river**: all parts
-merged by 2026-09-26 (#242-#245, #251). Gate 18 of 20. Mitchell attested the Overview read
-on 2026-10-02. What is left is the whole-suite box and the retro. **M30 — Notebooks with one
-job each**: merged as #247, then #248-#253. Gate 8 of 9. The same Overview read ticked it,
-and only the retro is left.
+**M29 (the time river) and M30 (notebooks with one job each) closed their gates on
+2026-10-04**, at 20 of 20 and 9 of 9; each retro is at the end of its milestone file. Neither
+has a row in `TODO.md`'s order, and placing them there is Mitchell's call.
 
 **Built beside M19, not a milestone: the SEO pass** (five stacked draft PRs, #295-#299,
 to merge 1 → 5 with merge commits; plan `docs/plans/2026-10-02-seo-pass.md`). It adds robots
@@ -189,9 +186,8 @@ half, the model guessing a coordinate rather than citing one, is M9 scope.
 ## Next action
 
 **M31's two operator boxes** (Gateway spend budget; baseline run on a preview with `ai-live`
-on) are Mitchell's, and nothing code-side is left in it. M29 and M30 are built beside it. They
-wait on M29's whole-suite box, both retros, and a place in the order. With M31 closed, the
-only unchecked row is M9, paused.
+on) are Mitchell's, and nothing code-side is left in it. With M31 closed, the only unchecked
+row is M9, paused.
 
 **Carried out of M24, not gating:** `KI-2026-09-25-q`. About a dozen
 surfaces read `activity.location.city` directly, including the M14 ones this

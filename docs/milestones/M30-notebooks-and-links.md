@@ -1,6 +1,6 @@
 # M30 — Notebooks with one job each, and links between them
 
-**Status:** Minted and built 2026-09-26 on Mitchell's request, in chat, on the
+**Status:** **Gate closed 2026-10-04, 9 of 9** (retro at the end). Minted and built 2026-09-26 on Mitchell's request, in chat, on the
 `plan-page-ui-redesign` stack, **merged 2026-09-26 as #247** (on top of #243, also
 merged). Decision record: **ADR-056**. Not placed in `TODO.md`'s order yet —
 that is Mitchell's call.

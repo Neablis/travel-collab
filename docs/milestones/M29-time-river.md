@@ -1,6 +1,6 @@
 # M29 — The time river
 
-**Status:** Minted 2026-09-26 from Mitchell's asks in chat; **in flight beside M14, not
+**Status:** **Gate closed 2026-10-04, 20 of 20** (retro at the end). Minted 2026-09-26 from Mitchell's asks in chat; **in flight beside M14, not
 the current milestone** (M14 stays current — its open boxes wait on a person). Built as
 four stacked PRs, plus a fifth for the phone, **all merged** (#242, #244, #245, #243 by
 2026-09-26; the phone's as #251). Decision record for part 1: **ADR-055**. What is left
@@ -312,6 +312,42 @@ Part 5 (the phone, and any touch pointer — see *Part 5* below):
 
 Whole milestone:
 
-- [ ] `pnpm check`, `pnpm --filter web test:int`, `pnpm --filter web test:e2e:ci-like`
+- [x] `pnpm check`, `pnpm --filter web test:int`, `pnpm --filter web test:e2e:ci-like`
       (**never plain `test:e2e`**) and `pnpm seed:verify` green on the last part.
-- [ ] A retro is appended at gate close.
+      *(Ticked 2026-10-04 from CI on the last part, #251's head, run 36305159458 on
+      2026-09-27: `static-and-unit` (typecheck, lint, `test:unit`, which runs the
+      `@tc/fixtures` tests `seed:verify` is, and `test:scripts`) and `integration-e2e`
+      (`test:int`, then the e2e suite against a production build, which is what `ci-like`
+      reproduces locally) both succeeded. No local re-run: the parts merged weeks ago, and a run
+      on today's tree would test 190 later commits, not this milestone.)*
+- [x] A retro is appended at gate close. *(Ticked 2026-10-04; the retro is below.)*
+
+## Retro — gate closed 2026-10-04 (20 of 20)
+
+**What shipped.** `pendingReason` and the Kind control (ADR-055), the Plan as a to-scale time
+river, the four gestures with one drop rule for every source, the rewritten Overview (superseded
+by M30's itinerary Overview), and the river on the phone and on touch tablets. Four stacked parts
+merged by 2026-09-26 (#242, #244, #245, #243), the phone as #251.
+
+**What held.**
+- **Asking Mitchell the open question during the part settled it.** Part 3's first cut left a
+  rack stop keeping the rack's fitted time while the river refused it. His one sentence (*"same
+  functionality … retain length it had … 1h if no start/stop existed before"*) became the single
+  drop rule for every drag source, so the rule lives in one place.
+- **Gestures follow the pointer, not the width.** So a touch tablet at its wide layout gets the
+  touch gestures with no third code path. Each touch path was seen red at the component layer
+  (thirteen mutations under `pnpm redfirst`) and in the e2e.
+
+**What it cost.**
+- **The design's layout changed after the gate's parts merged.** Mitchell's preview review
+  (#269, 2026-09-28) removed *+ Add a stop* and replaced the "Any time" shelf with the
+  Unscheduled rack under each day: the shelf *"push[ed] everything down … making all the other
+  days worse"*. The scope above carries both changes as dated notes rather than a rewrite.
+- **Part 4 was superseded the day it was built.** M30's itinerary Overview replaced it, so its
+  Overview read was ticked once, on Mitchell's 2026-10-02 attestation, for both milestones.
+
+**Left open, not gating.**
+- **Booked styling, implied transit and the co-edit conflict block** stay out of scope (above).
+- **Whether a *Maybe* stop still counts toward `needsBooking`** is recorded in ADR-055 as a
+  possible follow-up, Mitchell's to decide.
+- **Where M29 sits in `TODO.md`'s order** is still Mitchell's call.
