@@ -101,4 +101,36 @@ His answers when asked: seed several notebooks into every new trip (reversing
       walkthrough done"*. He was answering whether his time river walk included the
       Overview read. Part 4 was superseded by M30's itinerary Overview, so this is the
       same read as M29's part 4 box.)*
-- [ ] A retro is appended at gate close.
+- [x] A retro is appended at gate close. *(Ticked 2026-10-04; the retro is below.)*
+
+## Retro — gate closed 2026-10-04 (9 of 9, one box cut)
+
+**What shipped.** Four seeded notebooks in a new trip (Overview undeletable, Before you go,
+Bookings, Money), the printed-itinerary Overview, the two link widgets, notebook previews, and
+ADR-057's `search_widgets` / `get_widget` tools. Merged as #247, then #248-#253. Existing trips
+were left alone by design; #307 later let a link to a missing default notebook offer to add it.
+
+**What held.**
+- **An agent could walk everything except the judgement.**
+  An agent walked #256's preview (four notebooks, Overview as a 14-day itinerary, an internal
+  link followed, `javascript:` refused, an external link opened with `window.opener === null`).
+  Whether it reads as a professional itinerary was Mitchell's, and he ticked it on 2026-10-02 in
+  the same answer as M29's Overview read.
+- **Mitchell reversed two earlier rules in the same conversation, and both were recorded the
+  same day.** *"Only 1 notebook per trip"* (2026-09-12) and `composable: false` for links
+  (ADR-056 decision 6, reversed by ADR-057). The struck-through text stays in this file so the
+  history reads in order.
+
+**What it cost.**
+- **The assistant's prompt carried the whole widget catalogue.** Dropping the trip strip and
+  countdown from the seeds did not remove them from the product, so ADR-057 moved the catalogue
+  behind two tools: 15,804 → 2,684 characters per page turn.
+- **One flaky step, filed rather than retried.** KI-2026-09-26-a: after a link widget is bound,
+  the first click into the page leaves its settings open (3 of 8 repeats). It fails at one step
+  every time, which is a defect and not a timeout.
+
+**Left open, not gating.**
+- **KI-2026-09-26-a**, above.
+- **A website preview for external links** and **playbooks as a link target** stay out of scope
+  (both in *Out of scope*).
+- **Where M30 sits in `TODO.md`'s order** is still Mitchell's call.
