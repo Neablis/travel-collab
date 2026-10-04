@@ -114,6 +114,12 @@ type TripCtx = {
   canEditBoard: boolean;
   // Present in suggest mode only.
   draft: SuggestionDraft | null;
+  /**
+   * An invite was just made from this page (Trip settings → Travelers). Someone
+   * can now join at any moment, so the poll's timer starts (W73) — the invites
+   * this provider read at load were read before this one existed.
+   */
+  noteInvite: () => void;
   // The trip's suggestion changes: a suggester's own, or everyone's for an
   // editor or the owner. Null for a reader who sees none — a viewer, or a role
   // not yet known (the list is 404 to a viewer, so it is not asked for).
@@ -180,6 +186,8 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
   const [error, setError] = useState<string | null>(null);
   const [myRole, setMyRole] = useState<TripRole | null>(null);
   const [accessUnknown, setAccessUnknown] = useState(false);
+  // An invite still out, as of the access read or one made here since (W73).
+  const [inviteOut, setInviteOut] = useState(false);
   // See `remoteRevision` on the context type for why this is a counter.
   const [remoteRevision, setRemoteRevision] = useState(0);
   const [previewSeq, setPreviewSeq] = useState<number | null>(null);
@@ -225,6 +233,10 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
         cachedRead(tripKeys.access(tripId), () => fetchTripAccess(tripId)),
       ]);
       setMyRole(accessResult.ok ? accessResult.value.myRole : null);
+      // Only an owner is shown invites (`TripAccess`), and only an owner can be
+      // alone on a trip someone is about to join: an editor or a suggester is
+      // already a second member.
+      setInviteOut(accessResult.ok && accessResult.value.invites.some((i) => i.status === "pending"));
       // Reviewed and kept non-fatal, deliberately, against the alternative
       // (docs/reviews/2026-08-28-m11-pr71-review.md §5's PLAUSIBLE edge): a
       // failed access read for a real VIEWER leaves the board live, and every
@@ -640,7 +652,8 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
   //
   // Deliberately not a `beforeunload` prompt, and nothing here delays leaving
   // (Mitchell, 2026-07-20). The save light still says "Saving…" for as long
-  // as it is true.
+  // as it is true. The one prompt is a suggester's draft's, below (W72),
+  // because nothing sends a draft on its own.
   //
   // What neither sends, on purpose:
   // - **A unit already sent.** It may already be applied (see `sentIds`).
@@ -648,7 +661,7 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
   //   refused change without the user asking, and leaving is not asking.
   // - **A suggester's draft** (W7). Flushed, it would go as commands, which
   //   the server refuses: lost anyway, and noisily. An unsent draft is lost on
-  //   leaving in v1.
+  //   leaving in v1, once the browser has asked (W72).
   const unsentUnits = useCallback(() => {
     const state = optimisticRef.current;
     if (!state || state.failure || suggesting.current) return [];
@@ -776,6 +789,27 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
     dropUnits(new Set((optimisticRef.current?.pending ?? []).map((u) => u.id)));
   }, [dropUnits]);
 
+  // **A suggester's draft asks before the page goes** (W72; Mitchell's
+  // production test, 2026-10-04: he made an edit, reloaded, and it was gone
+  // with nothing said). The exception to "deliberately not a `beforeunload`
+  // prompt" above, and for the reason that rule exists: the queue is sent on
+  // its own, so leaving loses nothing, but a draft is never sent unless its
+  // author presses Send — leaving is the one way it is lost (W7). Registered
+  // only while there is one, so every other board leaves without asking.
+  const draftHeld = mode === "suggest" && (optimistic?.pending.length ?? 0) > 0;
+  useEffect(() => {
+    if (!draftHeld) return;
+    const ask = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      // Chrome before 119 and Safari read this rather than `preventDefault`.
+      event.returnValue = true;
+    };
+    window.addEventListener("beforeunload", ask);
+    return () => window.removeEventListener("beforeunload", ask);
+  }, [draftHeld]);
+
+  const noteInvite = useCallback(() => setInviteOut(true), []);
+
   const applyOutcome = useCallback((outcome: CommandOutcome) => {
     // `outcome` is `{ detail, history }` — exactly the `confirmed` shape.
     //
@@ -805,7 +839,14 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
     // A solo trip has no second writer, so a TIMER would be pure cost — but the
     // same person in a second tab is a writer, and coming back to this one
     // still asks once (ADR-049 Decision 2).
-    interval: (optimistic?.confirmed.detail.members.length ?? 0) > 1,
+    //
+    // **An invite out counts as a second person** (W73, amending that
+    // decision). `members` is read once, at load, and joining writes no event,
+    // so nothing here re-reads it: an owner whose board was open when the
+    // invite was accepted ran no timer, and never saw the newcomer's
+    // suggestion without a reload (Mitchell's production test, 2026-10-04).
+    // A solo trip with no invite out still runs none.
+    interval: (optimistic?.confirmed.detail.members.length ?? 0) > 1 || inviteOut,
     // Read at poll time, not captured: the confirmed head advances every time
     // the user's own work lands, and a stale cursor would re-report those as
     // remote news on every tick.
@@ -865,6 +906,7 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
         boardMode: mode,
         canEditBoard,
         draft,
+        noteInvite,
         suggestions,
         suggestionGhosts,
         accessUnknown,

@@ -35,6 +35,7 @@ vi.mock("@/lib/apiClient", async (orig) => {
 });
 
 import { TripProvider, useTrip } from "./TripProvider";
+import { POLL_INTERVAL_MS } from "./broadcast";
 
 const accessAs = (myRole: "owner" | "editor" | "viewer") => ({
   ok: true as const,
@@ -1213,6 +1214,69 @@ describe("TripProvider broadcast (M13 link 2)", () => {
     await waitFor(() => expect(screen.getByTestId("dayCount").textContent).toBe("2"));
     // Exactly the one regain poll: a solo trip still runs no timer.
     expect(fetchTripEventsMock).toHaveBeenCalledTimes(1);
+  });
+
+  // Mitchell's production test, 2026-10-04 (W73, amending ADR-049 Decision 2):
+  // the owner's board was open before the suggester accepted the invite, so it
+  // read one member, ran no timer, and showed the suggestion only on a reload.
+  // An invite out is someone who can arrive at any moment, so it counts.
+  describe("the timer, and who counts as a second person", () => {
+    let setIntervalSpy: MockInstance<typeof setInterval>;
+    beforeEach(() => {
+      setIntervalSpy = vi.spyOn(globalThis, "setInterval");
+    });
+    afterEach(() => setIntervalSpy.mockRestore());
+    const pollTimers = () => setIntervalSpy.mock.calls.filter(([, ms]) => ms === POLL_INTERVAL_MS).length;
+    const pendingInvite = { inviteId: "i1", tripId: "x", role: "suggester", status: "pending" };
+
+    function InviteProbe() {
+      const { activeTrip, noteInvite } = useTrip();
+      return (
+        <div>
+          <span data-testid="dayCount">{activeTrip?.days.length ?? 0}</span>
+          <button onClick={noteInvite}>invited</button>
+        </div>
+      );
+    }
+    async function mountSolo() {
+      render(
+        <TripProvider tripId="x">
+          <InviteProbe />
+        </TripProvider>,
+      );
+      await waitFor(() => expect(screen.getByTestId("dayCount").textContent).toBe("1"));
+      await broadcastArmed();
+    }
+
+    it("runs none on a solo trip with no invite out", async () => {
+      await mountSolo();
+      expect(pollTimers()).toBe(0);
+    });
+
+    it("runs one for an owner whose only co-traveller so far is an invite", async () => {
+      fetchTripAccessMock.mockResolvedValue({
+        ok: true,
+        value: { ...accessAs("owner").value, invites: [pendingInvite, { ...pendingInvite, inviteId: "i0", status: "revoked" }] },
+      });
+      await mountSolo();
+      await waitFor(() => expect(pollTimers()).toBe(1));
+    });
+
+    it("runs none for an invite that is no longer out", async () => {
+      fetchTripAccessMock.mockResolvedValue({
+        ok: true,
+        value: { ...accessAs("owner").value, invites: [{ ...pendingInvite, status: "revoked" }] },
+      });
+      await mountSolo();
+      expect(pollTimers()).toBe(0);
+    });
+
+    it("starts one when an invite is made from this page", async () => {
+      await mountSolo();
+      expect(pollTimers()).toBe(0);
+      fireEvent.click(screen.getByRole("button", { name: "invited" }));
+      await waitFor(() => expect(pollTimers()).toBe(1));
+    });
   });
 
   // The whole reason link 3 had to land first. A remote edit arriving while the

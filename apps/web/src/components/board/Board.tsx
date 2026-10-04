@@ -234,7 +234,9 @@ export function Board({
    * their draft, but the two controls that are not planning edits stay hidden
    * as they are for a viewer — dismissing a conflict, which cannot be
    * suggested (W3), and keeping a day, which writes to the reader's own
-   * account rather than the trip. Meaningless with `readOnly`.
+   * account rather than the trip. A day's "Unscheduled" chip only counts, as
+   * a suggester has no rack to open or drop into (W71). Meaningless with
+   * `readOnly`.
    */
   suggesting?: boolean;
   /** Index of the focused day, or null. Owned by TripBoardScreen's useFocus,
@@ -777,7 +779,9 @@ export function Board({
               onSelect={(clear) => callbacks.onSelectDay(clear ? null : index)}
               columnRef={columnRefSetters[index]}
               gestures={gesturesFor(day.dayId)}
-              onRevealAnyTime={() => callbacks.onRevealAnyTime(day.dayId)}
+              // A suggester has no rack (W71), so the chip only counts: it
+              // neither opens one nor takes a stop into it.
+              onRevealAnyTime={suggesting ? undefined : () => callbacks.onRevealAnyTime(day.dayId)}
               onDismissOverlap={callbacks.onDismissConflict}
               focusedTag={focusedTag}
               onToggleTag={onToggleTag}

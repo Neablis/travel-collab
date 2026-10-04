@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { Browser, Page } from "@playwright/test";
+import type { Browser, Locator, Page } from "@playwright/test";
 import { expect, test } from "./fixtures/test";
 import { grantCollaborators } from "./adminBootstrap";
 import { createMappedTrip, dragCardTo, openHistory, openPlan } from "./helpers";
@@ -93,6 +93,34 @@ test("a suggester's move waits for the owner, and Accept makes it", async ({ pag
     await expect(day2.getByTestId(/activity-card-/).filter({ hasText: stop })).toBeVisible();
     const tray = sam.getByRole("region", { name: "Suggestion draft" });
     await expect(tray).toContainText("1 change not sent");
+    await expect(sam.getByText("1 not sent", { exact: true })).toBeVisible();
+
+    // Mitchell's production test, 2026-10-04 (W69): the tray sat in the page
+    // flow under the header, so a suggester working further down the board
+    // never saw it. It is the bottom bar now, on screen wherever they are.
+    // The scroll is witnessed, or "in the viewport" would hold of a page that
+    // never moved — and at the suite's 1280x900 this two-day board fits
+    // without scrolling, so the window is a short laptop's.
+    await sam.setViewportSize({ width: 1280, height: 540 });
+    await sam.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    await expect.poll(() => sam.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+    await expect(tray).toBeInViewport({ ratio: 1 });
+    // ...and on top. `toBeInViewport` ignores what is painted over the box, and
+    // the old tray, scrolled under the sticky header, still passed it.
+    const onTop = (box: Locator) => () =>
+      box.evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        return el.contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2));
+      });
+    await expect.poll(onTop(tray)).toBe(true);
+    // A phone's bar sits on the tab bar, as the rack's does: each on top of
+    // its own box, neither under the other.
+    await sam.setViewportSize({ width: 390, height: 844 });
+    const tabs = sam.getByRole("navigation", { name: "Phone navigation" });
+    await expect(tabs).toBeVisible();
+    await expect.poll(onTop(tray)).toBe(true);
+    await expect.poll(onTop(tabs)).toBe(true);
+    await sam.setViewportSize({ width: 1280, height: 900 });
 
     await Promise.all([
       sam.waitForResponse(
@@ -100,22 +128,26 @@ test("a suggester's move waits for the owner, and Accept makes it", async ({ pag
       ),
       tray.getByRole("button", { name: "Send suggestion" }).click(),
     ]);
-    await expect(tray).toHaveCount(0);
+    await expect(tray).toContainText("No changes yet");
     expect(commands).toEqual([]);
   } finally {
     await sam.context().close();
   }
 
-  // The owner's board, fresh: the stop has NOT moved — a suggestion is not
-  // planning state until it is accepted (spec §2) — and the move is a ghost
-  // where it would land, with the header's count beside it.
-  await page.goto(`/trips/${tripId}?view=Plan`);
+  // The owner's board, NOT reloaded: it was open before the suggester joined,
+  // and it hears about the suggestion on its own (W73; Mitchell's production
+  // test, 2026-10-04, where it showed only after a reload). The stop has NOT
+  // moved — a suggestion is not planning state until it is accepted (spec §2)
+  // — and the move is a ghost where it would land, with the header's count.
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
   const day1 = page.getByTestId("day-column").nth(0);
   const day2 = page.getByTestId("day-column").nth(1);
+  const chip = page.getByRole("button", { name: "1 suggestion", exact: true });
+  // One poll interval and the list read it triggers; a reload would be ~0.
+  await expect(chip).toBeVisible({ timeout: 15_000 });
   await expect(day1.getByTestId(/activity-card-/).filter({ hasText: stop })).toBeVisible();
   await expect(day2.getByTestId(/activity-card-/).filter({ hasText: stop })).toHaveCount(0);
-  const chip = page.getByRole("button", { name: "1 suggestion", exact: true });
-  await expect(chip).toBeVisible();
   const ghost = day2.getByRole("button", { name: /^Suggested: / });
   await expect(ghost).toBeVisible();
 

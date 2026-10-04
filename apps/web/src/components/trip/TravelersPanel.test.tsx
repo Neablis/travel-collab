@@ -236,10 +236,23 @@ describe("TravelersPanel", () => {
       ok: false,
       error: { status: 403, message: "forbidden" },
     });
-    render(<TravelersPanel tripId={tripId} />);
+    const onInvited = vi.fn();
+    render(<TravelersPanel tripId={tripId} onInvited={onInvited} />);
     await screen.findByText("Alice");
     await userEvent.click(screen.getByRole("button", { name: "Invite someone" }));
     expect(await screen.findByText("forbidden")).toBeTruthy();
+    expect(onInvited).not.toHaveBeenCalled();
+  });
+
+  // W73: the board polls once someone can arrive, and an invite made here is
+  // that moment — the board read its invites before this one existed.
+  it("tells the board once an invite is made", async () => {
+    createTripInviteMock.mockResolvedValue({ ok: true, value: invite });
+    const onInvited = vi.fn();
+    render(<TravelersPanel tripId={tripId} onInvited={onInvited} />);
+    await screen.findByText("Alice");
+    await userEvent.click(screen.getByRole("button", { name: "Invite someone" }));
+    await waitFor(() => expect(onInvited).toHaveBeenCalledTimes(1));
   });
 
   // A blocked clipboard permission is not worth a red banner — but it does

@@ -35,7 +35,7 @@ import { displayPlace, legEnd } from "@/lib/place";
 // needs, and wiring dayId correctly into AddActivity/UpdateActivity.
 export function ActivityEditorSheet() {
   const { state, close } = useEditor();
-  const { activeTrip, dispatch, canEditBoard } = useTrip();
+  const { activeTrip, dispatch, canEditBoard, boardMode } = useTrip();
   // Opted in to suggest mode (W8): a suggester's save joins their draft, so
   // only a reader gets the read-only sheet.
   const readOnly = !canEditBoard;
@@ -100,9 +100,12 @@ export function ActivityEditorSheet() {
   // to the first day in create mode, stays unselected in edit mode) rather
   // than this component guessing one.
   const editingActivityId = state.mode === "edit" ? state.activityId : undefined;
+  // A suggester has no rack (W71), so a stop they add with no day named — the
+  // header's bare "Add stop" — starts on the first day rather than in a drawer
+  // they cannot open. The Day select then offers no "Unscheduled" at all.
   const defaultDayId =
     state.mode === "create"
-      ? state.prefill?.dayId
+      ? (state.prefill?.dayId ?? (boardMode === "suggest" ? activeTrip?.days[0]?.dayId : undefined))
       : editingActivityId !== undefined
         ? activeTrip?.days.find((d) => d.activityIds.includes(editingActivityId))?.dayId
         : undefined;

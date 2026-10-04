@@ -40,7 +40,18 @@ function statusLabel(invite: TripInvite): string {
   return "Waiting";
 }
 
-export function TravelersPanel({ tripId }: { tripId: string }) {
+export function TravelersPanel({
+  tripId,
+  onInvited,
+}: {
+  tripId: string;
+  /**
+   * An invite was made. The board starts polling on a timer from here (W73):
+   * the person invited can join and suggest while it is open, and it read its
+   * invites before this one existed.
+   */
+  onInvited?: () => void;
+}) {
   const [access, setAccess] = useState<TripAccess | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -95,6 +106,7 @@ export function TravelersPanel({ tripId }: { tripId: string }) {
         return;
       }
       setEmail("");
+      onInvited?.();
       // The link is the invite. An address also gets it by email, but a send
       // can fail or be unconfigured, so the freshly minted link still goes
       // straight onto the clipboard rather than making the owner hunt for it

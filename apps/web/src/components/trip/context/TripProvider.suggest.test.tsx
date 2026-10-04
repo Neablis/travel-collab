@@ -137,6 +137,30 @@ describe("TripProvider — a suggester's edits are a draft", () => {
     expect(seen).toEqual([]);
   });
 
+  // Mitchell's production test, 2026-10-04 (W72): a reload took an unsent
+  // draft with it, silently. The browser asks first while there is one, and
+  // only then.
+  it("asks before the page goes while the draft holds a change, and not once it is sent or discarded", async () => {
+    await mountAsSuggester();
+    const leaving = () => {
+      const event = new Event("beforeunload", { cancelable: true });
+      window.dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+    expect(leaving()).toBe(false);
+
+    fireEvent.click(screen.getByRole("button", { name: "add-a" }));
+    expect(leaving()).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "discard" }));
+    expect(leaving()).toBe(false);
+
+    fireEvent.click(screen.getByRole("button", { name: "add-a" }));
+    expect(leaving()).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "send" }));
+    await waitFor(() => expect(screen.getByTestId("count").textContent).toBe("0"));
+    expect(leaving()).toBe(false);
+  });
+
   // Review of #311, finding 3.3 (W66, which revises W36): an edit made while a
   // send is out would be drafted on top of units that are leaving, so it is
   // refused until the send settles, and the draft holds only what is in flight.
