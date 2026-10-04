@@ -131,4 +131,15 @@ test("a suggester's move waits for the owner, and Accept makes it", async ({ pag
   // "a former traveler" (W49).
   await openHistory(page);
   await expect(page.getByText(`Suggested by ${suggesterName}`)).toBeVisible();
+
+  // ...and says it beside the description rather than in place of it. On one
+  // line, the attribution took the width and the row read `Moved "St…`
+  // (PR #311's preview walk). jsdom has no layout, so this is measured here:
+  // overflow on a `truncate` span is the ellipsis.
+  const description = page
+    .getByTestId("history-entry")
+    .filter({ hasText: `Suggested by ${suggesterName}` })
+    .getByTestId("history-entry-description");
+  await expect(description).toContainText(stop);
+  await expect.poll(() => description.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(0);
 });
