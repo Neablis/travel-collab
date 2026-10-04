@@ -15,6 +15,7 @@ import { firstNameOf } from "@/lib/displayName";
 import { addDaysIso } from "@/lib/dates";
 import { formatRelativeInstant, formatTripDateWithYear } from "@/lib/formatDate";
 import { takeInviteJoin } from "@/lib/pendingInviteJoin";
+import { SUGGESTER_APPROVAL } from "@/lib/tripRole";
 import { useInviteJoin } from "./useInviteJoin";
 
 // The screen an invite link opens (M27 link 6, SPEC §35.6). It answers, before
@@ -378,9 +379,13 @@ function crewLine(landing: ValidLanding): string {
         ? shown[0]!
         : `${shown.slice(0, -1).join(", ")} and ${shown[shown.length - 1]}`;
   const verb = names.length === 1 ? "is" : "are";
-  const can =
-    landing.role === "editor"
-      ? "You can add stops, vote and comment."
-      : "You'll be able to look, but not change anything.";
-  return `${list} ${verb} planning. ${can}`;
+  return `${list} ${verb} planning. ${CREW_CAN[landing.role]}`;
 }
+
+// A `Record`, so a new invite role does not compile until the landing says
+// what it may do.
+const CREW_CAN: Record<ValidLanding["role"], string> = {
+  editor: "You can add stops, vote and comment.",
+  suggester: `You can suggest stops and changes ${SUGGESTER_APPROVAL}.`,
+  viewer: "You'll be able to look, but not change anything.",
+};

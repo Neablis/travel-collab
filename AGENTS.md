@@ -69,6 +69,7 @@ Modules own their data and commands; they reference other modules by ID only.
 | **Identity** | accounts, OAuth, sessions, profiles | CRUD + audit fields | trips, invites, anything travel |
 | **Trip Planning** | trips, days, activities, itinerary structure | **event-sourced** | who's invited, sharing, votes |
 | **Access & Membership** | invites, roles, revocation, share grants | CRUD + audit fields | what a trip contains |
+| **Suggestions** | pending suggested changes and their review state | CRUD with audit fields; reaches the trip **only** by replaying its commands through the pipeline as the reviewer (**ADR-064**) | planning state — a pending change is not on the stream |
 | **History** | event log, replay, undo/revert, fork lineage | the substrate itself | domain semantics (stores/replays, never interprets) |
 | **Conflict Engine** | validation rules, Conflict objects | pure functions | UI, storage |
 | **Community** (Phase 3) | gallery, votes, reports | CRUD + audit fields | planning internals (consumes published snapshots) |
@@ -141,6 +142,18 @@ it, which kept the wall's letter (UI calls the API) while inverting its reason
 two days. `scripts/check-lint-wall.mjs` lints three fixtures under
 `src/app/admin` — one per pattern, one open and two shut — so the exemption is
 proven to be exactly one hole.
+
+Since 2026-10-02 the shell also holds **`src/app/sitemap.ts` and
+`src/app/robots.ts`** (SEO pass, D2). The sitemap lists every published day,
+which only the database knows, and a self-fetch to the public API would put a
+rate limit and a timeout in a file a crawler reads. Same terms as the console:
+`src/server` internals yes, `packages/domain` and an Auth.js instance no.
+`scripts/check-lint-wall.mjs` holds it to those two files with five fixtures.
+
+And **`src/app/(app)/playbooks/**/page.tsx`** (SEO pass, D5): the public
+library's pages render on the server so a crawler receives the day and a
+missing one answers 404. Page files only, on the console's terms; the screens
+they render still call the API. Seven fixtures hold it there.
 
 The UI/server lint wall is CI-enforced and is our escape hatch: if serverless
 stops fitting (likely at Phase 2 realtime), `src/server` extracts into a

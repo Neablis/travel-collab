@@ -23,6 +23,7 @@ vi.mock("next-auth/react", () => ({
 import Home from "./page";
 import { DEMO_TRIP_ID } from "@/lib/demoTrip";
 import { rememberDemoClone } from "@/lib/pendingDemoClone";
+import { rememberPlaybookAdd } from "@/lib/pendingPlaybookAdd";
 
 const tripId = "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f";
 
@@ -1229,6 +1230,29 @@ describe("Home finishing a demo clone", () => {
     );
     expect((inline as HTMLInputElement).value).toBe("");
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith(`/trips/${clonedTripId}`));
+  });
+
+  // ADR-061: a reader with no account pressed *Add* on a Playbook, and the
+  // sign-up that followed lost its callbackUrl and landed here. The list sends
+  // them back to the day; the day page spends the marker and opens its dialog.
+  it("sends somebody back to the Playbook they pressed Add on, and leaves the marker for it", async () => {
+    const day = "bb000000-0000-4000-8000-000000000001";
+    rememberPlaybookAdd(day);
+    stubEmptyListAndDuplicate();
+
+    render(<Home />);
+
+    await waitFor(() => expect(replaceMock).toHaveBeenCalledWith(`/playbooks/day/${day}`));
+    expect(window.localStorage.getItem("pending_playbook_add")).not.toBeNull();
+  });
+
+  it("stays on the list when no Playbook was waiting", async () => {
+    stubEmptyListAndDuplicate();
+
+    render(<Home />);
+
+    await screen.findByTestId("first-trip-start");
+    expect(replaceMock).not.toHaveBeenCalledWith(expect.stringContaining("/playbooks/day/"));
   });
 });
 

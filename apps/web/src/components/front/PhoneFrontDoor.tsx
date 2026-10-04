@@ -372,12 +372,22 @@ export function PhoneFrontDoor() {
         {/* `size="touch"` is SPEC §13.1's 44px floor. Ghost, because the CTA
             this screen is actually selling is "Start a trip" at the foot — this
             is the door for somebody who already has an account. */}
-        <Link
-          href="/signin"
-          className={cn(buttonVariants({ variant: "ghost", size: "touch" }), "no-underline")}
-        >
-          Sign in
-        </Link>
+        {/* Playbooks beside Sign in, as on the desktop header: the library
+            is browsable without an account (ADR-061). */}
+        <span className="flex items-center">
+          <Link
+            href="/playbooks"
+            className={cn(buttonVariants({ variant: "ghost", size: "touch" }), "no-underline")}
+          >
+            Playbooks
+          </Link>
+          <Link
+            href="/signin"
+            className={cn(buttonVariants({ variant: "ghost", size: "touch" }), "no-underline")}
+          >
+            Sign in
+          </Link>
+        </span>
       </header>
       {/* The pinned block. It is three viewports tall, and the sticky stage
           inside it is one — so scrolling it moves `scrollTop` without moving
@@ -426,7 +436,10 @@ export function PhoneFrontDoor() {
             <Text variant="muted" className="uppercase tracking-widest">
               Days worth reliving
             </Text>
-            <Heading level={1} className="mt-2 text-3xl">
+            {/* An <h2> that announces as level 1. The desktop tree holds this
+                headline as the document's one <h1>; CSS shows one tree per
+                breakpoint, and a crawler reads both. */}
+            <Heading level={2} aria-level={1} className="mt-2 text-3xl">
               Put the best day on repeat.
             </Heading>
           </div>

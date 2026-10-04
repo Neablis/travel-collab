@@ -25,13 +25,14 @@ import {
 // instance is safe to construct in the Edge runtime.
 const { auth } = NextAuth(authConfig);
 
-// `/` sends a signed-out visitor to the landing page at
-// `/welcome`. This used to happen client-side — Home rendered nothing, fetched
+// `/` serves the landing page to a signed-out visitor (a rewrite to
+// `/welcome`, so the URL stays `/`). This used to be a redirect, and before
+// that happened client-side — Home rendered nothing, fetched
 // /api/trips, got a 401, and only then called router.replace("/welcome") —
 // which cost a round trip and briefly flashed the authenticated app chrome
 // (AppHeader, (app)/layout.tsx) above an empty body before bouncing. Doing it
 // here means an unauthenticated request to `/` never reaches that page at
-// all: this runs before rendering starts and redirects at the HTTP layer.
+// all: this runs before rendering starts, at the HTTP layer.
 //
 // CodeRabbit (PR #56, finding 1): the matcher used to be scoped to exactly
 // `/`, so a signed-out visitor hitting `/playbooks`, `/trips/:tripId`, or the
@@ -44,7 +45,7 @@ const { auth } = NextAuth(authConfig);
 // @/server/* outside src/app/api/**), and this file already exists as the
 // right seam.
 //
-// `/` keeps its own distinct behaviour (redirect to `/welcome`, the
+// `/` keeps its own distinct behaviour (serves `/welcome`, the
 // marketing front door — see e2e/m15-front-door.spec.ts). Every other
 // matched route sends a signed-out visitor to `/signin?callbackUrl=<path>`
 // instead: they asked for a specific thing, so sign-in should return them to
@@ -56,11 +57,19 @@ const { auth } = NextAuth(authConfig);
 // database read happens here (this project uses JWT sessions with no
 // adapter — see server/auth.ts), which is the configuration Auth.js v5's
 // docs call out as the one that works reliably in the Edge runtime.
+/** The request seam: a signed-out `/` is the landing, an invite banks its token, anything else matched goes to sign-in. */
 export default auth((req) => {
   if (!req.auth) {
     const { pathname } = req.nextUrl;
     if (pathname === "/") {
-      return NextResponse.redirect(new URL("/welcome", req.nextUrl));
+      // The landing is served AT `/` (SEO pass, D9): the bare domain is the
+      // indexed homepage, so it must answer 200 with the page, not a redirect.
+      // `/` is two different pages depending on the session, so this response
+      // is never stored: not by a CDN, not by the browser. Without that, a
+      // visitor who signs in could be shown the landing again from a cache.
+      const landing = NextResponse.rewrite(new URL("/welcome", req.nextUrl));
+      landing.headers.set("Cache-Control", "private, no-store");
+      return landing;
     }
     // M27 link 6: the invite landing is PUBLIC — it is what an invite link
     // opens for somebody with no account (SPEC §35.6), so it is served, not
@@ -126,14 +135,19 @@ function tripInviteToken(pathname: string): string | null {
 // none of which should ever hit this file. An explicit list matches
 // exactly the `(app)` route group instead:
 //   - `/`                 — Home (apps/web/src/app/(app)/page.tsx)
-//   - `/playbooks/:path*` — matches `/playbooks` itself *and* any nested
-//     path (Next.js treats a `:path*` segment as zero-or-more, so the bare
-//     prefix matches too, not just children)
 //   - `/trips/:path*`     — matches `/trips/:tripId` and the nested notebook
-//     routes under `/trips/:tripId/pages/...` for the same zero-or-more reason
+//     routes under `/trips/:tripId/pages/...` (Next.js treats a `:path*`
+//     segment as zero-or-more, so the bare prefix matches too, not just
+//     children)
 //   - `/invite/:path*`   — the invite landing and its look (M27 link 6).
 //     NOT to send anyone to /signin — both pages are public — but to bank the
 //     token for M11a's gate on the way past (see the handler above).
+//
+// `/playbooks/:path*` was on this list until ADR-061 made the public library
+// readable without an account: a shared playbook link has to open for somebody
+// who has not signed up, so a signed-out visitor must reach those pages rather
+// than be sent to /signin. They stay in `(app)`; what a signed-out reader may
+// DO there is decided by the API routes, which still answer every write 401.
 export const config = {
-  matcher: ["/", "/playbooks/:path*", "/trips/:path*", "/invite/:path*"],
+  matcher: ["/", "/trips/:path*", "/invite/:path*"],
 };

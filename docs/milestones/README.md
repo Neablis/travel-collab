@@ -111,6 +111,7 @@ for collaboration later landing on a product people already want to join.
 | M28 | Three kinds | **Gate closed 2026-09-26, 9 of 9** (#238, #239); placed by Mitchell 2026-09-25. A stop's kind is `planned`, `pending` or `transit`; `idea` and `hold` fold into `pending`, `booked` into `planned`. Retired kinds are never written and read back as their replacement (ADR-054): `M28-three-kinds.md` |
 | M29 | The time river | **Merged, gate open, not current.** SPEC §36.9b, four PRs merged 2026-09-26; ADR-055: `M29-time-river.md` |
 | M30 | Notebooks with one job each, and links between them | **Built 2026-09-26, unplaced.** Four seeded notebooks and two id-based link widgets (ADR-056): `M30-notebooks-and-links.md` |
+| M31 | We can see what the assistant costs, step by step and tool by tool | **Minted 2026-10-03 and placed after M19; built 2026-10-03 beside M19; current since M19's gate closed** (Mitchell: build the ledger now, and defer the eve port until there are users). It is ADR-062's Phase 1: per-step and per-tool rows next to `ai_usage`, cached tokens, per-step pricing, and the `ai-usage` skill's SQL. It closed KI-2026-09-14-b and KI-2026-09-17-c. Gate 5 of 7; the two left are operator steps (Gateway budget, baseline run). The port (Phases 2–5) is a candidate: `M31-assistant-ledger.md` |
 
 - **Restructure (2026-07-28), from the Phase 1 gate review.** The gate had not
   been met and the reason was structural, not cosmetic: a trip cannot be renamed
@@ -176,11 +177,14 @@ Placement notes (decided 2026-07-07):
   questions stay open — start-only trip dates, first-run vs. the four-step
   wizard, and whether the landing copy may sell M11/M12 — see the review's §8.
 
-Current milestone: M9 — The assistant cites what it plans (**paused**)
-**2026-10-02, BY M19'S GATE CLOSING** at **13 of 13**. M9 is the only unchecked row in
-`TODO.md`'s order. It was paused on 2026-09-13 and is still paused: what is left of its gate
-is a live model call and the browser walks that rest on it. Resuming it, or placing
-something ahead of it, is Mitchell's call. Scope: `docs/milestones/M9-ai-planning-partner.md`.
+Current milestone: M31 — We can see what the assistant costs, step by step and tool by tool
+**BY M19'S GATE CLOSING** at **13 of 13** on 2026-10-02. M31 was minted on 2026-10-03 and
+placed after M19, which makes it the next unticked row in `TODO.md`'s order. It was built
+on 2026-10-03, so what is left is its gate: 5 of 7, and both open boxes are Mitchell's
+(the Gateway spend budget, and the baseline run on a preview). Scope:
+`docs/milestones/M31-assistant-ledger.md`. After it, M9 is the only unchecked row. M9 was
+paused on 2026-09-13 and is still paused; resuming it, or placing something ahead of it, is
+Mitchell's call.
 
 **M19 — A cost knows who and what it is for — was current from 2026-10-01 to
 2026-10-02**, by M14's gate closing. It shipped as #288, #289, #290 and #292 (ADR-060). Its

@@ -267,6 +267,9 @@ export function inBudgetBand(band: BudgetBand, amountMinor: number | null): bool
 /** How many stop rows a Discover card shows — `dc.html:5795`'s `slice(0, 3)`. */
 export const DISCOVER_PREVIEW_STOPS = 3;
 
+/** How many cards one Discover page shows — and a city or country page, which is `PLACE_PAGE_SIZE`. */
+export const DISCOVER_PAGE_SIZE = 24;
+
 /**
  * One Discover card. Deliberately NOT a `SavedDay`.
  *
@@ -281,6 +284,13 @@ export const DISCOVER_PREVIEW_STOPS = 3;
 export const DiscoverDay = z.object({
   savedDayId: z.string().uuid(),
   ownerId: z.string().min(1),
+  /**
+   * What the card calls the owner: first name and last initial, or their
+   * handle (`publicNameFor`; Mitchell, 2026-10-02). Resolved by the server,
+   * which reads `users`; the card prints it and never derives one from
+   * `ownerId`. **Not on the public API** — `public-api/discover.ts` drops it.
+   */
+  ownerDisplayName: z.string().min(1),
   name: z.string().min(1),
   /** Every city the day touches, in the day's own time order (`citiesOfStops`). */
   cities: z.array(z.string().min(1)),
@@ -350,11 +360,8 @@ export const DiscoverDay = z.object({
   reviewCount: z.number().int().nonnegative(),
   visibility: z.enum(["private", "public"]),
   /**
-   * Who wrote the day — what the card's "AI starter" mark reads (see
-   * `SavedDayAuthorKind` in `@tc/contracts`). On the CARD and not only on the
-   * shared-day screen because Discover is where somebody decides which of
-   * thirty days to open, and "a person kept this out of their own trip" is part
-   * of that decision.
+   * Who wrote the day (see `SavedDayAuthorKind` in `@tc/contracts`). Carried
+   * as data; no screen renders it (ADR-041 decision 5, amended 2026-10-03).
    */
   authorKind: SavedDayAuthorKind,
   sourceTripName: z.string().min(1),
@@ -443,9 +450,10 @@ export type DiscoverResponse = z.infer<typeof DiscoverResponse>;
 export const PublicAuthor = z.object({
   userId: z.string().min(1),
   /**
-   * What to call them. Today this is the identifier — M17 is what resolves it
-   * to a chosen display name, and it fills this by changing ONE function
-   * (`lib/displayName.ts`), not two routes.
+   * What to call them: first name and last initial from the name they chose or
+   * signed in with, else their handle — never the address (`publicNameFor`;
+   * Mitchell, 2026-10-02, which retired the handle-only rule). "A traveler"
+   * for a profile with nothing on it (`publicAuthor`).
    */
   displayName: z.string().min(1),
   /**
@@ -485,8 +493,11 @@ export type PublicAuthor = z.infer<typeof PublicAuthor>;
 export const LeaderboardResponse = z.object({
   /** Ranked by `adds` descending. Your own row is in place, never lifted. */
   authors: z.array(PublicAuthor),
-  /** Which row is yours, so the page can tint it without knowing your id. */
-  meUserId: z.string().min(1),
+  /**
+   * Which row is yours, so the page can tint it without knowing your id. `null`
+   * for a reader with no account (ADR-061), who has no row.
+   */
+  meUserId: z.string().min(1).nullable(),
 });
 export type LeaderboardResponse = z.infer<typeof LeaderboardResponse>;
 
@@ -498,3 +509,12 @@ export const PublicProfileResponse = z.object({
   days: z.array(DiscoverDay),
 });
 export type PublicProfileResponse = z.infer<typeof PublicProfileResponse>;
+
+/**
+ * The cities a search names: trimmed, blanks dropped, duplicates collapsed.
+ * One rule for `GET /api/playbooks` and the Discover page, so the server's
+ * first paint is the answer the API would give for the same URL.
+ */
+export function normalizeCities(raw: readonly string[]): string[] {
+  return [...new Set(raw.map((c) => c.trim()).filter((c) => c !== ""))];
+}

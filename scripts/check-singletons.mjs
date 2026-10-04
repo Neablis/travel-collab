@@ -30,6 +30,11 @@ export const SINGLETONS = [
   // Must be the same copy as `react` for the same reason, and owns the root
   // (and the event system) the whole tree hangs off.
   "react-dom",
+  // Fragment, Node and Slice are told apart by `instanceof`. A document built
+  // by one copy and handed to another is not a Fragment to it, and every
+  // keystroke in the page editor throws "Can not convert … to a Fragment"
+  // (the tiptap 2.27.3 bump, PR #283: 1.25.11 and 1.25.12 side by side).
+  "prosemirror-model",
 ];
 
 /**

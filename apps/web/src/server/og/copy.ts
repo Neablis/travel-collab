@@ -1,6 +1,8 @@
 import { addDaysIso } from "@/lib/dates";
 import { formatTripDateWithYear } from "@/lib/formatDate";
+import { PLAYBOOKS_BOARD, PLAYBOOKS_GENERIC, dayFactsLine, plural } from "@/lib/playbooksPreview";
 import type { InviteCard } from "./invite";
+import type { PlaybookCityCard, PlaybookCountryCard, PlaybookDayCard, PlaybookProfileCard } from "./playbooks";
 
 // The words on a preview card and in its og:title / og:description, written
 // once. The image route and the `meta` route both read these, so the picture a
@@ -38,6 +40,55 @@ export function referralCopy(referrerFirstName: string | null): CardCopy {
     label: "Caesura",
     title: referrerFirstName === null ? "You're invited to Caesura" : `${referrerFirstName} invited you to Caesura`,
     description: PRODUCT_LINE,
+  };
+}
+
+export { PLAYBOOKS_BOARD, PLAYBOOKS_GENERIC };
+
+/**
+ * A shared day's words: its name over "Kyoto, Osaka · 3 days · 12 stops · by
+ * Dana R. · rated 4.6 from 12 reviews", or the generic Playbooks card. Pure.
+ *
+ * The facts line is `dayFactsLine`, in `lib/` because the day page's meta
+ * description is the same line.
+ */
+export function playbookDayCopy(card: PlaybookDayCard): CardCopy {
+  if (card.kind === "generic") return PLAYBOOKS_GENERIC;
+  return { label: "Caesura · playbook", title: card.name, description: dayFactsLine(card) };
+}
+
+/** A public profile's words: "Dana R.'s playbooks", over its numbers and the cities it knows. Pure. */
+export function playbookProfileCopy(card: PlaybookProfileCard): CardCopy {
+  if (card.kind === "generic") return PLAYBOOKS_GENERIC;
+  const parts = [plural(card.playbooksShared, "playbook")];
+  if (card.adds > 0) parts.push(`added to ${plural(card.adds, "trip")}`);
+  if (card.cities.length > 0) parts.push(`knows ${card.cities.join(", ")}`);
+  return { label: "Caesura · playbooks", title: `${card.author}'s playbooks`, description: parts.join(" · ") };
+}
+
+/** Discover for one city: "Kyoto playbooks", and how many days there are. Pure. */
+export function playbookCityCopy(card: PlaybookCityCard): CardCopy {
+  if (card.kind === "generic") return PLAYBOOKS_GENERIC;
+  return {
+    label: "Caesura · playbooks",
+    title: `${card.city} playbooks`,
+    description:
+      card.days === 1
+        ? `1 day a traveler planned in ${card.city}`
+        : `${card.days} days other travelers planned in ${card.city}`,
+  };
+}
+
+/** A country page's words: "Japan playbooks", and how many days there are. Pure. */
+export function playbookCountryCopy(card: PlaybookCountryCard): CardCopy {
+  if (card.kind === "generic") return PLAYBOOKS_GENERIC;
+  return {
+    label: "Caesura · playbooks",
+    title: `${card.country} playbooks`,
+    description:
+      card.days === 1
+        ? `1 day a traveler planned in ${card.country}`
+        : `${card.days} days other travelers planned in ${card.country}`,
   };
 }
 

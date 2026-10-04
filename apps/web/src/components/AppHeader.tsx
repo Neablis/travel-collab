@@ -29,10 +29,11 @@ export function AppHeader() {
           same thing). It is a client island for the same reason the account
           menu is: the state it reads is client state. */}
       <SaveLightMark />
-      {/* Nav + account together, and only when signed in — see
-          HeaderSessionChrome. A signed-out visitor used to be shown "Trips"
-          and "Playbooks", links into pages they cannot open (Mitchell,
-          preview feedback on PR #55). The logo above stays either way. */}
+      {/* Nav + account together when signed in; Sign in and Create an
+          account when signed out (ADR-061) — see HeaderSessionChrome. A
+          signed-out visitor used to be shown "Trips" and "Playbooks", links
+          into pages they cannot open (Mitchell, preview feedback on PR #55).
+          The logo above stays either way. */}
       <HeaderSessionChrome demoResetEnabled={demoResetEnabled} />
     </header>
   );

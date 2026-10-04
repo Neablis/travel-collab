@@ -1,16 +1,28 @@
 "use client";
 
-import { type PointerEvent as ReactPointerEvent, type MouseEvent as ReactMouseEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type PointerEvent as ReactPointerEvent,
+  type MouseEvent as ReactMouseEvent,
+  type ReactElement,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { type ActivityTag, type ActivityView, TimeWindow } from "@tc/contracts";
 import { useTimeFormat } from "@/components/account/PreferencesProvider";
 import type { Overlap } from "@/components/lenses/overlapData";
+import { Button } from "@/components/ui/button";
 import { DataText } from "@/components/ui/data-text";
 import { cn } from "@/lib/cn";
 import { RACK_LIFT_OVER_EVENT } from "@/lib/touchLift";
 import type { AccentFamily } from "@/lib/dayAccent";
+import type { Ghost as SuggestionGhost } from "@/lib/suggestionOverlay";
 import { toClockRange, toMinutes } from "@/lib/time";
-import { RiverBlock } from "./RiverBlock";
+import { laneStyle, RiverBlock } from "./RiverBlock";
 import {
   doubleClickWindow,
   edgeScrollDelta,
@@ -48,6 +60,18 @@ export type RiverGestures = {
   onDropAt: (activityId: string, dayId: string, window: TimeWindow) => void;
   /** A block lifted by touch was let go over the unscheduled rack: park it, as a mouse drop there does. */
   onUnschedule: (activityId: string) => void;
+};
+
+/**
+ * The pending suggestions the board draws (spec §2.4): ghost stops by the day
+ * they land in, and the stops a change would alter. `review` wraps a trigger in
+ * the popover holding Accept / Dismiss / Withdraw — a slot, as `addSavedDay` is,
+ * because those read `useTrip()` and the board is props-only.
+ */
+export type BoardSuggestions = {
+  days: ReadonlyMap<string, readonly SuggestionGhost[]>;
+  stops: ReadonlyMap<string, readonly SuggestionGhost[]>;
+  review: (ghosts: readonly SuggestionGhost[], trigger: ReactElement) => ReactNode;
 };
 
 /**
@@ -150,6 +174,7 @@ export function DayRiver({
   onToggleTag,
   readOnly,
   gestures,
+  suggestions,
 }: {
   title: string;
   dayId: string;
@@ -169,6 +194,8 @@ export function DayRiver({
   readOnly: boolean;
   /** Absent on a read-only river, and then there are none. */
   gestures?: RiverGestures;
+  /** Pending suggestions to draw; absent for a reader who sees none. */
+  suggestions?: BoardSuggestions;
 }) {
   const clock = useTimeFormat();
   const live = readOnly ? undefined : gestures;
@@ -208,9 +235,25 @@ export function DayRiver({
       }),
     [activityIds, activities, resizing],
   );
+  // A suggested stop takes a lane like a real one, so it never covers the
+  // stop it would sit beside. Not editable, not draggable: a ghost is reviewed,
+  // never edited (spec §6).
+  const suggested = useMemo(
+    () =>
+      (suggestions?.days.get(dayId) ?? []).flatMap((ghost) =>
+        ghost.activity?.timeWindow ? [{ id: `suggested:${ghost.changeId}:${ghost.activityId}`, ghost, window: ghost.activity.timeWindow }] : [],
+      ),
+    [suggestions, dayId],
+  );
   const placements = useMemo(
-    () => new Map(layoutRiver(axis, timed.map(({ activity, window }) => ({ id: activity.activityId, window }))).map((p) => [p.id, p])),
-    [axis, timed],
+    () =>
+      new Map(
+        layoutRiver(axis, [
+          ...timed.map(({ activity, window }) => ({ id: activity.activityId, window })),
+          ...suggested.map(({ id, window }) => ({ id, window })),
+        ]).map((p) => [p.id, p]),
+      ),
+    [axis, timed, suggested],
   );
   // **Drawn by time, so read by time.** `activityIds` is the day's list order,
   // which a drop at a new time does not have to follow; rendered in it, Tab
@@ -659,13 +702,47 @@ export function DayRiver({
               }
               onTouchPress={live ? (e) => startLift(id, e) : undefined}
               lifted={lifted === id}
+              suggestion={stopSuggestion(suggestions, id)}
             />
           );
         })}
+        {suggestions &&
+          suggested.map(({ id, ghost }) => {
+            const placement = placements.get(id);
+            if (placement === undefined) return null;
+            return (
+              <li
+                key={id}
+                className="absolute"
+                // eslint-disable-next-line no-restricted-syntax -- a ghost's top, height and lane are its window on the shared axis, as a block's are (riverLayout.ts)
+                style={{ top: placement.topPx, height: placement.heightPx, ...laneStyle(placement) }}
+              >
+                {suggestions.review(
+                  [ghost],
+                  <Button
+                    variant="ghost"
+                    aria-label={`Suggested: ${ghost.description}`}
+                    className="h-full w-full min-w-0 items-start justify-start overflow-hidden rounded-md border-2 border-dashed border-brand bg-surface px-2 py-0.5 text-left md:min-h-0"
+                  >
+                    <span aria-hidden className="truncate text-xs font-semibold text-brand-pressed">
+                      {ghost.activity?.title}
+                    </span>
+                  </Button>,
+                )}
+              </li>
+            );
+          })}
       </ul>
       {ghost && <RiverGhost ghost={ghost} axis={axis} clock={clock} />}
     </div>
   );
+}
+
+/** A stop's "Suggested change" marker, when a pending change would alter it. */
+function stopSuggestion(suggestions: BoardSuggestions | undefined, activityId: string) {
+  const ghosts = suggestions?.stops.get(activityId);
+  if (suggestions === undefined || ghosts === undefined) return undefined;
+  return (trigger: ReactElement) => suggestions.review(ghosts, trigger);
 }
 
 /**

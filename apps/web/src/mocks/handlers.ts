@@ -4,13 +4,16 @@ import type { AccountPlanView } from "@/lib/accountPlan";
 import type { AdminReportQueueItem } from "@/lib/reports";
 import type { PlaceMatch, PlaceSearchResponse } from "@/lib/cities";
 import {
+  AddDefaultPagesInput,
   AdminReportAction,
   BatchableCommand,
   CreatePageInput,
   CreateReportInput,
   CreateSavedNotebookInput,
+  CreateSuggestionInput,
   PAGE_CHANGED_CODE,
   PutReviewInput,
+  ResolveSuggestionChangeInput,
   RestorePageInput,
   SYSTEM_ACTOR_ID,
   stopTotal,
@@ -24,6 +27,7 @@ import {
   type SavedDayReviewsResponse,
   type SavedNotebook,
   type SavedNotebookSummary,
+  type SuggestionChange,
   type TripDetail,
   type TripEventsPage,
   type TripHistory,
@@ -184,9 +188,29 @@ export function makeTripHandlers(
     myRole?: TripRole;
     /** M20 link 6 — whether the trip's OWNER holds `trip.collaborators`. */
     collaboratorsEntitled?: boolean;
+    /** Every suggestion draft POSTed, as parsed — what a suggester sent. */
+    onSuggestion?: (input: CreateSuggestionInput) => void;
+    /** Changes already stored when the suite starts, oldest first. */
+    suggestions?: SuggestionChange[];
   },
 ) {
   let detail = structuredClone(initial);
+  // The suggester spec's changes, stored as the route would answer them.
+  // Not role-scoped beyond the viewer's 404: a suite that needs a suggester's
+  // narrower list seeds only that suggester's changes.
+  const suggestions: SuggestionChange[] = structuredClone(options?.suggestions ?? []);
+  const role = options?.myRole ?? "owner";
+  // The route serves pending changes only, and hashes those (W53).
+  const pendingSuggestions = () => suggestions.filter((c) => c.status === "pending");
+  // Any stable string over (id, status) does here; the route's is a hash (W31).
+  const suggestionsRev = () => {
+    let hash = 5381;
+    for (const ch of pendingSuggestions().map((c) => `${c.id}:${c.status}`).sort().join(",")) {
+      hash = (hash * 33 + ch.charCodeAt(0)) >>> 0;
+    }
+    return `r${hash.toString(36)}`;
+  };
+  const rankAtLeastSuggester = role !== "viewer";
   return [
     http.get("/api/trips/:tripId", ({ params }) =>
       params.tripId === detail.tripId
@@ -220,6 +244,72 @@ export function makeTripHandlers(
           options?.history ?? { tripId: detail.tripId, entries: [], canUndo: false, canRedo: false },
       });
     }),
+    // Accepts any well-formed draft: the real route's dry run (spec W4) needs
+    // the domain, which a mock may not import. A test that wants the 422
+    // overrides this with `server.use`.
+    http.post("/api/trips/:tripId/suggestions", async ({ request }) => {
+      const input = CreateSuggestionInput.parse(await request.json());
+      options?.onSuggestion?.(input);
+      const suggestionId = crypto.randomUUID();
+      const createdAt = new Date().toISOString();
+      const changes = input.units.map(
+        (unit): SuggestionChange => ({
+          id: crypto.randomUUID(),
+          suggestionId,
+          tripId: detail.tripId,
+          authorId: "dev-alice",
+          note: input.note ?? null,
+          createdAt,
+          commands: unit.commands,
+          description: unit.commands.map((c) => c.type).join(", "),
+          status: "pending",
+          dependsOn: [],
+          resolvedBy: null,
+          resolvedAt: null,
+        }),
+      );
+      suggestions.push(...changes);
+      return HttpResponse.json({ changes }, { status: 201 });
+    }),
+    http.get("/api/trips/:tripId/suggestions", () =>
+      rankAtLeastSuggester
+        ? HttpResponse.json({ changes: pendingSuggestions(), rev: suggestionsRev() })
+        : HttpResponse.json({ error: "Not found", code: "not-found" }, { status: 404 }),
+    ),
+    // The resolve route's rules that a board test can reach (spec §2.7, W28,
+    // W33), without its role checks: accept applies the commands to the mock
+    // trip so a refetch shows them confirmed; dismiss and withdraw take the
+    // change's pending dependents with them.
+    http.post("/api/trips/:tripId/suggestions/changes/:changeId", async ({ params, request }) => {
+      const { action } = ResolveSuggestionChangeInput.parse(await request.json());
+      const target = suggestions.find((c) => c.id === params.changeId);
+      if (!target) return HttpResponse.json({ error: "Not found", code: "not-found" }, { status: 404 });
+      if (target.status !== "pending") {
+        return HttpResponse.json({ error: "Already resolved", code: "already-resolved" }, { status: 409 });
+      }
+      const resolvedAt = new Date().toISOString();
+      if (action === "accept") {
+        const blocked = target.dependsOn.some((id) => suggestions.find((c) => c.id === id)?.status !== "accepted");
+        if (blocked) {
+          return HttpResponse.json({ error: "Accept the change it builds on first", code: "dependency-pending" }, { status: 409 });
+        }
+        for (const command of target.commands) detail = applyMock(detail, command);
+        Object.assign(target, { status: "accepted", resolvedBy: "dev-alice", resolvedAt });
+        return HttpResponse.json({ changes: [target] });
+      }
+      const status = action === "dismiss" ? "dismissed" : "withdrawn";
+      const resolved = [target];
+      for (let i = 0; i < resolved.length; i++) {
+        const parent = resolved[i]!;
+        for (const c of suggestions) {
+          if (c.status === "pending" && c !== target && !resolved.includes(c) && c.dependsOn.includes(parent.id)) {
+            resolved.push(c);
+          }
+        }
+      }
+      for (const c of resolved) Object.assign(c, { status, resolvedBy: "dev-alice", resolvedAt });
+      return HttpResponse.json({ changes: resolved });
+    }),
     http.get("/api/trips/:tripId/history", () =>
       HttpResponse.json({
         history:
@@ -232,12 +322,16 @@ export function makeTripHandlers(
     // "nothing has happened": the head matches whatever history says, so a
     // caller seeded from that history is already caught up and the poll is
     // inert. A test that wants a remote edit overrides `events`.
+    //
+    // `suggestionsRev` rides along for a suggester and up (W6), as the route
+    // sends it; a suite's own `events` may still state one of its own.
     http.get("/api/trips/:tripId/events", () => {
       const history =
         options?.history ?? { tripId: detail.tripId, entries: [], canUndo: false, canRedo: false };
-      return HttpResponse.json(
-        options?.events ?? { headSeq: history.entries[0]?.toSeq ?? 0, events: [], resync: false },
-      );
+      return HttpResponse.json({
+        ...(rankAtLeastSuggester ? { suggestionsRev: suggestionsRev() } : {}),
+        ...(options?.events ?? { headSeq: history.entries[0]?.toSeq ?? 0, events: [], resync: false }),
+      });
     }),
     http.get("/api/trips/:tripId/history/:seq", ({ params }) => {
       const at = options?.detailAt?.[Number(params.seq)];
@@ -381,10 +475,11 @@ export function makePagesHandlers(
     // functions the server uses, so a mocked reset puts back what a real one
     // would. The reset's Undo reads a version kept here, where the server folds
     // the log to `toSeq`.
-    http.post("/api/trips/:tripId/pages/defaults", ({ params }) => {
+    http.post("/api/trips/:tripId/pages/defaults", async ({ params, request }) => {
       const tripId = params.tripId as string;
+      const { seedKey } = AddDefaultPagesInput.parse(await request.json());
       const now = new Date().toISOString();
-      for (const seed of instantiateMissingDefaults(tripId, pages.filter((p) => p.tripId === tripId), () => crypto.randomUUID())) {
+      for (const seed of instantiateMissingDefaults(tripId, pages.filter((p) => p.tripId === tripId), () => crypto.randomUUID(), [], seedKey)) {
         pages.push({ ...seed, tripId, createdAt: now, updatedAt: now, actorId: SYSTEM_ACTOR_ID });
       }
       return HttpResponse.json({
@@ -396,7 +491,7 @@ export function makePagesHandlers(
       const idx = pages.findIndex((p) => p.id === params.pageId && p.tripId === params.tripId);
       if (idx === -1) return HttpResponse.json({ error: "not-found" }, { status: 404 });
       const existing = pages[idx]!;
-      const seed = defaultDocumentFor(existing, pages.filter((p) => p.tripId === params.tripId));
+      const seed = defaultDocumentFor(existing);
       if (seed === null) return HttpResponse.json({ error: "not a default", code: "not-a-default" }, { status: 409 });
       versions.set(++versionSeq, existing);
       const reset: Page = { ...existing, ...seed, updatedAt: new Date().toISOString() };

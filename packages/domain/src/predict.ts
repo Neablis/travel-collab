@@ -8,7 +8,9 @@ import { hydrate } from "./trip/hydrate";
 import { DEFAULT_CONFLICT_CONTEXT } from "./trip/conflicts";
 
 export type PredictResult =
-  | { ok: true; detail: TripDetail; description: string }
+  // `events` are what the batch would append, a skipped no-op contributing
+  // none: what a suggestion's unit actually creates is read from them.
+  | { ok: true; detail: TripDetail; description: string; events: TripEvent[] }
   | { ok: false; rejection: Rejection };
 
 // actorId is unused by every batchable command's events (only TripCreated reads
@@ -18,20 +20,38 @@ const PREDICT_ACTOR = "__optimistic__";
 // Predict the outcome of an atomic batch against a detail, reusing the exact
 // server decider + reducer. Client-side conflicts use the default context;
 // the server response remains authoritative for conflicts on reconcile.
-export function predictBatch(detail: TripDetail, commands: BatchableCommand[]): PredictResult {
+//
+// `skipNoOps` predicts what the server's batch endpoint will do with the same
+// commands: `decideInOrder` (server/commands.ts) skips a no-op sub-command and
+// `executeTripCommandBatch` refuses only a batch with nothing left, as "no-op".
+// A stored suggestion is replayed through exactly that on accept, so its
+// overlay and its dry run at creation pass it. The optimistic queue does not:
+// it refuses the whole unit, as it always has.
+export function predictBatch(
+  detail: TripDetail,
+  commands: BatchableCommand[],
+  options: { skipNoOps?: boolean } = {},
+): PredictResult {
   const before = hydrate(detail);
   let state = before;
   const events: TripEvent[] = [];
   for (const command of commands) {
     const decision = decideTripCommand(state, command, { actorId: PREDICT_ACTOR });
-    if (!decision.ok) return { ok: false, rejection: decision.rejection };
+    if (!decision.ok) {
+      if (options.skipNoOps && decision.rejection.code === "no-op") continue;
+      return { ok: false, rejection: decision.rejection };
+    }
     for (const event of decision.events) state = evolveTrip(state, event);
     events.push(...decision.events);
+  }
+  if (options.skipNoOps && events.length === 0) {
+    return { ok: false, rejection: { code: "no-op", message: "This change would have no effect." } };
   }
   return {
     ok: true,
     detail: tripDetailFromState(state, detail.createdAt, DEFAULT_CONFLICT_CONTEXT),
     description: describeUserBatch(before, events),
+    events,
   };
 }
 

@@ -162,4 +162,46 @@ describe("useLibraryRead's changed signal", () => {
     expect(read).toHaveBeenCalledTimes(3);
     expect(result.current.changed).toBe(false);
   });
+
+  // The first answer arrives with the page, from the server read, so a crawler
+  // finds the day in the HTML; a client fetch on top would be the skeleton flash
+  // this exists to remove.
+  it("renders a server-supplied value without fetching", async () => {
+    const read = vi.fn(async () => ok({ n: 2 }));
+    const bySize = (v: { n: number }) => String(v.n);
+    const { result } = renderHook(() => useLibraryRead(read, bySize, { n: 1 }));
+
+    expect(result.current.data).toEqual({ n: 1 });
+    expect(result.current.loading).toBe(false);
+    await new Promise((resolve) => setTimeout(resolve, 0)); // let a stray effect-fired read land
+    expect(read).not.toHaveBeenCalled();
+  });
+
+  // The server's answer is the baseline: a reload that differs from it IS the
+  // library moving, and must not be swallowed because no client read set one.
+  it("compares a reload against the server-supplied value", async () => {
+    const read = vi.fn(async () => ok({ n: 2 }));
+    const bySize = (v: { n: number }) => String(v.n);
+    const { result } = renderHook(() => useLibraryRead(read, bySize, { n: 1 }));
+
+    act(() => result.current.reload());
+    await waitFor(() => expect(result.current.data).toEqual({ n: 2 }));
+    expect(result.current.changed).toBe(true);
+  });
+
+  // The initial value answers the FIRST question only (Discover rebuilds `read`
+  // on every filter change); a new question fetches, and is not "a change".
+  it("fetches when the question changes after a server-supplied first answer", async () => {
+    const bySize = (v: { n: number }) => String(v.n);
+    const first = vi.fn(async () => ok({ n: 1 }));
+    const second = vi.fn(async () => ok({ n: 5 }));
+    const { result, rerender } = renderHook(({ read }) => useLibraryRead(read, bySize, { n: 1 }), {
+      initialProps: { read: first },
+    });
+
+    rerender({ read: second });
+    await waitFor(() => expect(result.current.data).toEqual({ n: 5 }));
+    expect(first).not.toHaveBeenCalled();
+    expect(result.current.changed).toBe(false);
+  });
 });

@@ -12,11 +12,14 @@
 // HTTP-method exports (+ a small config allowlist) from a route file, so a
 // function the integration tests import directly to inject a model can't live
 // here.
+import { after } from "next/server";
 import { handleAskRequest } from "@/server/ai/handleAskRequest";
 
 export async function POST(request: Request, { params }: { params: Promise<{ tripId: string }> }) {
   const { tripId } = await params;
-  return handleAskRequest(request, tripId);
+  // `after` keeps the turn's ledger writes alive past the response on the
+  // abort and error paths too, which do not await them (KI-2026-09-14-b).
+  return handleAskRequest(request, tripId, undefined, undefined, undefined, (task) => after(task));
 }
 
 // **The wall a turn is measured against, said out loud** (KI-2026-09-26-s).

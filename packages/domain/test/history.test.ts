@@ -190,6 +190,26 @@ describe("buildHistoryEntries", () => {
     expect(entries[3]!.origin.kind).toBe("undo");
   });
 
+  // ADR-064 / spec W11: an accepted suggestion is the reviewer replaying the
+  // author's commands, so it is an ordinary edit — undoable, and worded the
+  // way the same commands would be. The UI adds "Suggested by …"; the domain
+  // knows ids, never names.
+  it("an accepted suggestion is undoable and described like a user batch", () => {
+    let log = run(freshTrip(), { type: "AddDay", tripId: TRIP, dayId: uuid(901) });
+    const batchId = log[log.length - 1]!.batchId;
+    const origin: Origin = { kind: "suggestion", suggestionId: uuid(902), changeId: uuid(903), authorId: "u2" };
+    log = log.map((e) => (e.batchId === batchId ? { ...e, origin } : e));
+
+    expect(deriveUndoRedo(groupBatches(log)).undo?.batchId).toBe(batchId);
+    const last = buildHistoryEntries(log).at(-1)!;
+    expect(last.description).toBe("Added Day 2");
+    expect(last.origin).toEqual(origin);
+
+    log = run(log, { type: "UndoLastChange", tripId: TRIP });
+    expect(state(log).days).toHaveLength(1);
+    expect(buildHistoryEntries(log).at(-1)!.description).toBe("Undid: Added Day 2");
+  });
+
   it("a revert renders as ONE entry, not an event burst", () => {
     let log = freshTrip();
     log = run(log, { type: "RevertToState", tripId: TRIP, toSeq: 1 });

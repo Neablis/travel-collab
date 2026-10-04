@@ -52,13 +52,13 @@ function record(): { method: string; body: unknown }[] {
 }
 
 /** What `SharedDayScreen` wires, minus the day around it. */
-function Harness({ publishedAt }: { publishedAt?: string | null }) {
+function Harness({ publishedAt, canReport = true }: { publishedAt?: string | null; canReport?: boolean }) {
   const reviews = useDayReviews(DAY, publishedAt);
   return (
     <>
       <ReviewConflictBanner reviews={reviews} />
       {reviews.data !== null && <ReviewRail summary={reviews.data.summary} />}
-      <ReviewsSection reviews={reviews} savedDayId={DAY} canReview />
+      <ReviewsSection reviews={reviews} savedDayId={DAY} canReview canReport={canReport} />
     </>
   );
 }
@@ -325,5 +325,17 @@ describe("reporting a review", () => {
     await userEvent.click(screen.getByRole("button", { name: "Send" }));
     expect(await screen.findByText("This is yours, so there is nothing to report.")).toBeTruthy();
     expect(screen.queryByTestId("report-sent")).toBeNull();
+  });
+
+  // ADR-061: a reader with no account reads every review and can report none —
+  // the POST answers 401 without a session.
+  it("offers no Report on any review when the reader cannot report", async () => {
+    server.use(...makeReviewsHandlers(DAY, [review(), review({ reviewerId: "dev-ken", reviewerDisplayName: "Ken" })]));
+    render(<Harness canReport={false} />);
+
+    // Await the list, so the absence below is asserted on rows that are there.
+    expect(await screen.findByText("Mei Tanaka")).toBeTruthy();
+    expect(screen.getByText("Ken")).toBeTruthy();
+    expect(screen.queryAllByRole("button", { name: /^Report / })).toHaveLength(0);
   });
 });

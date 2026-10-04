@@ -24,7 +24,7 @@ const history = (entries: { fromSeq: number; toSeq: number }[]): TripHistory => 
   })),
 });
 
-const page = (over: Partial<{ headSeq: number; resync: boolean }> = {}) => ({
+const page = (over: Partial<{ headSeq: number; resync: boolean; suggestionsRev: string }> = {}) => ({
   ok: true as const,
   value: { headSeq: 0, events: [], resync: false, ...over },
 });
@@ -185,6 +185,38 @@ describe("useTripBroadcast", () => {
     const { onChanged } = mount({ cursor: () => 3 });
     await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
     expect(onChanged).toHaveBeenCalledTimes(1);
+  });
+
+  // W16. A suggestion is not an event, so the head stays still for exactly the
+  // news `suggestionsRev` exists to carry; gating it on `headSeq` would drop it.
+  it("reports a new suggestions revision on its own, with the head unmoved", async () => {
+    const onSuggestionsChanged = vi.fn();
+    fetchTripEventsMock.mockResolvedValue(page({ headSeq: 3, suggestionsRev: "a" }));
+    const { onChanged } = mount({ cursor: () => 3, onSuggestionsChanged });
+    await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
+    expect(onSuggestionsChanged.mock.calls).toEqual([["a"]]);
+
+    fetchTripEventsMock.mockResolvedValue(page({ headSeq: 3, suggestionsRev: "b" }));
+    await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
+    expect(onSuggestionsChanged.mock.calls).toEqual([["a"], ["b"]]);
+    expect(onChanged).not.toHaveBeenCalled();
+  });
+
+  // W68. The caller compares against the revision it holds: only it knows
+  // whether the read it made for one landed, so a repeat must still reach it.
+  it("reports the same revision again on the next poll", async () => {
+    const onSuggestionsChanged = vi.fn();
+    fetchTripEventsMock.mockResolvedValue(page({ headSeq: 3, suggestionsRev: "a" }));
+    mount({ cursor: () => 3, onSuggestionsChanged });
+    await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS * 2);
+    expect(onSuggestionsChanged.mock.calls).toEqual([["a"], ["a"]]);
+  });
+
+  it("calls nothing for a page with no suggestions revision", async () => {
+    const onSuggestionsChanged = vi.fn();
+    mount({ onSuggestionsChanged });
+    await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS * 2);
+    expect(onSuggestionsChanged).not.toHaveBeenCalled();
   });
 
   // A background read the user never asked for must not raise anything: the

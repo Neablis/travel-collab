@@ -424,11 +424,12 @@ describe("AuthScreen", () => {
     );
   });
 
-  // A Server Action is a network round trip and can fail. The comment in
-  // `startSignIn` claims a failed write still signs in, landing the person on
-  // the designed refusal screen rather than on a button that does nothing —
-  // this is what keeps that claim from being a lie with a timer on it.
-  it("still signs in when the cookie write fails, rather than deadening the button", async () => {
+  // A Server Action is a network round trip and can fail. Since signup opened
+  // (ADR-063), continuing to the provider would create the account WITHOUT the
+  // code, and a returning account never redeems one — the inviter's referral
+  // would be lost for good. So a failed write stops, says so, and lets the
+  // person retry or clear the code.
+  it("does not sign in when the cookie write fails, and says why", async () => {
     storeAdmissionCodeMock.mockRejectedValueOnce(new Error("network"));
     render(
       <AuthScreen
@@ -440,7 +441,29 @@ describe("AuthScreen", () => {
     );
     await userEvent.type(screen.getByLabelText("Invite code"), "SPRING-2026");
     await userEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
+
+    expect(await screen.findByText(ADMISSION_FIELD_COPY.saveFailed)).toBeDefined();
+    expect(signInMock).not.toHaveBeenCalled();
+  });
+
+  it("signs in on a retry once the cookie write succeeds, and clears the warning", async () => {
+    storeAdmissionCodeMock.mockRejectedValueOnce(new Error("network"));
+    render(
+      <AuthScreen
+        mode="signup"
+        devLoginEnabled={false}
+        googleAvailable
+        storeAdmissionCode={storeAdmissionCodeMock}
+      />,
+    );
+    await userEvent.type(screen.getByLabelText("Invite code"), "SPRING-2026");
+    const button = screen.getByRole("button", { name: "Continue with Google" });
+    await userEvent.click(button);
+    await screen.findByText(ADMISSION_FIELD_COPY.saveFailed);
+
+    await userEvent.click(button);
     await waitFor(() => expect(signInMock).toHaveBeenCalledWith("google", { callbackUrl: "/" }));
+    expect(screen.queryByText(ADMISSION_FIELD_COPY.saveFailed)).toBeNull();
   });
 
   // `/signin` never renders the field, so it must never call the action even

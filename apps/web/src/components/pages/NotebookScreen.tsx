@@ -15,6 +15,7 @@ import { DEDUPE, cachedRead } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
 import { provenanceLabel } from "@/lib/pageScope";
 import { formatRelativeInstant } from "@/lib/formatDate";
+import { canEditNotebook } from "@/lib/tripRole";
 import { PageContainer } from "@/components/ui/page-container";
 import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
@@ -422,9 +423,11 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
   // is never shown them for the moment before the read lands; a read that
   // FAILS (`unknown`) offers them, as the board stays live when its own read
   // fails (TripProvider), and the server refuses a real viewer regardless.
+  // A suggester is a reader here too (spec §2.2: they suggest on the board).
   const [role, setRole] = useState<TripRole | "pending" | "unknown">("pending");
   const isOwner = role === "owner";
-  const mayWrite = role !== "pending" && role !== "viewer";
+  const reader = role !== "pending" && role !== "unknown" && !canEditNotebook(role);
+  const mayWrite = role !== "pending" && !reader;
   const [adding, setAdding] = useState(false);
   useEffect(() => {
     let cancelled = false;
@@ -592,7 +595,7 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
             className="mt-3"
             title={error ?? "Something went wrong"}
             note={
-              role === "viewer"
+              reader
                 ? "Only this list failed, and nothing was lost."
                 : "Only this list failed — the templates below still work, and nothing was lost."
             }
@@ -607,7 +610,7 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
           <EmptyState
             title="No notebooks yet"
             body={
-              role === "viewer"
+              reader
                 ? "Nobody has written one for this trip yet."
                 : "Start from a template below, or create a blank one and write your own."
             }

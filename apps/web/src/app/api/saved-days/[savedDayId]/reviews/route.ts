@@ -6,24 +6,28 @@ import {
   SavedDayReviewsResponse,
 } from "@tc/contracts";
 import { auth } from "@/server/auth";
-import { requireSavedDayRead } from "@/server/access/saved-day-access";
+import { readSavedDayAsViewer, requireSavedDayRead } from "@/server/access/saved-day-access";
+import { publicLibraryReader } from "@/server/publicLibraryLimit";
 import { deleteReview, putReview, reviewsFor } from "@/server/reviews";
 
 // A published day's reviews (M12 links 1-4): read the rail, post or replace
-// your own review, withdraw it. Signed-in only, for the reason
-// `saved-day-access.ts` gives for every read of somebody else's day.
+// your own review, withdraw it. The GET is open to a reader with no account
+// (ADR-061), charged per IP, with `mine: null`; PUT and DELETE are signed-in
+// only, for the reason `saved-day-access.ts` gives.
 //
-// GET and PUT go through `requireSavedDayRead` first, so a day you cannot read
-// is the same 404 here as on the day itself — this route never becomes a way to
+// GET goes through `readSavedDayAsViewer` and PUT through `requireSavedDayRead`
+// first, so a day you cannot read is the same 404 here as on the day itself — this route never becomes a way to
 // ask whether an id exists. PUT then narrows further inside `putReview`
 // (public and unmoderated, under a row lock); see there.
 
 type Params = { params: Promise<{ savedDayId: string }> };
 
 /** The rating rail: summary, visible reviews newest first, and the reader's own. */
-export async function GET(_request: Request, { params }: Params) {
+export async function GET(request: Request, { params }: Params) {
   const { savedDayId } = await params;
-  const access = await requireSavedDayRead(savedDayId);
+  const reader = await publicLibraryReader(request);
+  if ("refused" in reader) return reader.refused;
+  const access = await readSavedDayAsViewer(savedDayId);
   if ("error" in access) return access.error;
   return Response.json(SavedDayReviewsResponse.parse(await reviewsFor(savedDayId, access.readerId)));
 }

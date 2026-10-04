@@ -46,6 +46,8 @@ vi.mock("@/lib/apiClient", () => ({
   }),
   sendTripCommand: (...a: unknown[]) => dispatchSpy(...a),
   sendTripCommandBatch: vi.fn(),
+  // An owner's board also reads the trip's suggestions; none here.
+  fetchTripSuggestions: vi.fn().mockResolvedValue({ ok: true, value: { changes: [], rev: "r" } }),
 }));
 
 // Mock next/navigation: URL is the store.

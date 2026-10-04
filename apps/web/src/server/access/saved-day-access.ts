@@ -52,11 +52,11 @@ export type SavedDayReadResult =
   | { readerId: string; day: SavedDay; isAuthor: boolean };
 
 export async function requireSavedDayRead(savedDayId: string): Promise<SavedDayReadResult> {
-  // Signed-in only. The exit gate's wording is "findable by another SIGNED-IN
-  // account" — publishing puts a day in the invited population's library, not
-  // on the open internet, and M11a's gate is what bounds that population
-  // (M11b's "moderation waits on the invite gate"). An anonymous public read
-  // would step past the precondition this milestone's scope rests on.
+  // Signed-in only — this is the seam for WRITES now (review, report). The
+  // reads moved to `readSavedDayAsViewer` below when the library opened to
+  // readers with no account (ADR-061). Its original reason: M11b's exit gate
+  // read "findable by another SIGNED-IN account", with M11a's invite gate
+  // bounding who that was.
   const session = await auth();
   if (!session?.user?.id) {
     return { error: Response.json({ error: "unauthenticated" }, { status: 401 }) };
@@ -67,4 +67,41 @@ export async function requireSavedDayRead(savedDayId: string): Promise<SavedDayR
     return { error: Response.json({ error: "not-found" }, { status: 404 }) };
   }
   return { readerId, day, isAuthor: day.ownerId === readerId };
+}
+
+/**
+ * The same read, for a reader who may have no account at all (ADR-061) — what
+ * the public library's GETs go through, so a shared link opens for somebody
+ * who has not signed up.
+ *
+ * **Why the precondition above no longer binds these reads.** M11b kept the
+ * library to signed-in accounts because M11a's invite gate was what bounded the
+ * population that could see a published day. Publishing is now a decision to
+ * show a day to anyone holding the link, so the read is opened — and only the
+ * read. `requireSavedDayRead` stays as it was and still guards every write
+ * (review, report, add to a trip): an anonymous caller gets 401 there, never a
+ * row.
+ *
+ * **The one-answer property is unchanged.** A reader with no account owns
+ * nothing, so `readableSavedDay` keeps only its published-and-unmoderated
+ * branch for them: a private day, a moderated one, a deleted one and an
+ * unknown id are the same 404, exactly as they are for another signed-in
+ * account. `isAuthor` is always false — nobody without an account wrote it.
+ *
+ * Rate limiting is the route's job (`publicLibraryLimit.ts`), not this seam's:
+ * a limiter needs the request, and this answers a question about a day.
+ */
+export type SavedDayViewResult =
+  | { error: Response }
+  | { readerId: string | null; day: SavedDay; isAuthor: boolean };
+
+/** Read `savedDayId` for whoever is asking, signed in or not; 404 unless they may see it. */
+export async function readSavedDayAsViewer(savedDayId: string): Promise<SavedDayViewResult> {
+  const session = await auth();
+  const readerId = session?.user?.id ?? null;
+  const day = await readableSavedDay(savedDayId, readerId);
+  if (day === null) {
+    return { error: Response.json({ error: "not-found" }, { status: 404 }) };
+  }
+  return { readerId, day, isAuthor: readerId !== null && day.ownerId === readerId };
 }

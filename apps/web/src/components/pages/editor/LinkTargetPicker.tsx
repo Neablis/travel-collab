@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import type { PageListEntry, TripDetail, TripGlobals } from "@tc/contracts";
-import { LINK_VIEWS, LinkTarget, formatShortDate, isOverviewPage } from "@tc/pages";
+import { LINK_VIEWS, LinkTarget, formatShortDate, isOverviewPage, seedTemplateOf } from "@tc/pages";
 import { fetchPages } from "@/lib/pagesClient";
 import { DEDUPE, cachedRead } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
@@ -19,13 +19,26 @@ import { FieldPicker, type FieldOption } from "./FieldPicker";
 // What it stores is a `LinkTarget` — ids, never a URL — so the option values
 // below are an encoding for the combobox only, decoded before anything is
 // written.
+//
+// **A default notebook is stored by its seed key** (Mitchell, 2026-10-03), so
+// its option's value is `seed:<key>` and picking "Money" writes "this trip's
+// Money", not the page that is Money today. A link stored by id to that same
+// page (written before then) still shows as it: `encodeTarget` reads both.
 
 /** The combobox value for a target. Only this file reads or writes the encoding. */
-export function encodeTarget(to: LinkTarget | undefined, detail: TripDetail): string {
+export function encodeTarget(
+  to: LinkTarget | undefined,
+  detail: TripDetail,
+  notebooks: readonly PageListEntry[] | null = null,
+): string {
   if (to === undefined) return "";
   switch (to.kind) {
-    case "notebook":
-      return `notebook:${to.pageId}`;
+    case "notebook": {
+      const page = notebooks?.find((p) => p.id === to.pageId);
+      return page === undefined ? `notebook:${to.pageId}` : notebookValue(page);
+    }
+    case "seed":
+      return `seed:${to.seedKey}`;
     case "view":
       return `view:${to.view}`;
     case "day": {
@@ -40,9 +53,15 @@ export function encodeTarget(to: LinkTarget | undefined, detail: TripDetail): st
 export function decodeTarget(value: string): LinkTarget | undefined {
   const [kind, id] = [value.slice(0, value.indexOf(":")), value.slice(value.indexOf(":") + 1)];
   const raw =
-    kind === "notebook" ? { kind, pageId: id } : kind === "view" ? { kind, view: id } : kind === "day" ? { kind, day: { kind: "dayId", dayId: id } } : null;
+    kind === "notebook" ? { kind, pageId: id } : kind === "seed" ? { kind, seedKey: id } : kind === "view" ? { kind, view: id } : kind === "day" ? { kind, day: { kind: "dayId", dayId: id } } : null;
   const parsed = LinkTarget.safeParse(raw);
   return parsed.success ? parsed.data : undefined;
+}
+
+/** A notebook's option value: its seed key when it is one of the trip's defaults, its id otherwise. */
+function notebookValue(page: PageListEntry): string {
+  const template = seedTemplateOf(page);
+  return template === undefined ? `notebook:${page.id}` : `seed:${template.key}`;
 }
 
 const VIEW_DETAIL: Record<(typeof LINK_VIEWS)[number], string> = {
@@ -58,7 +77,7 @@ export function targetOptions(
   globals: TripGlobals | null,
 ): FieldOption[] {
   const notebookOptions: FieldOption[] = (notebooks ?? []).map((page) => ({
-    value: `notebook:${page.id}`,
+    value: notebookValue(page),
     label: page.title,
     group: "Notebooks",
     detail: isOverviewPage(page.context) ? "The trip's itinerary" : (page.preview?.firstLine ?? undefined),
@@ -117,12 +136,20 @@ export function LinkTargetPicker({
   }, [detail.tripId]);
 
   const options = targetOptions(notebooks, detail, globals);
-  const current = encodeTarget(value, detail);
+  const current = encodeTarget(value, detail, notebooks);
   // A notebook that has been deleted still shows what it WAS pointed at,
-  // rather than an empty box that reads as "never set".
+  // rather than an empty box that reads as "never set" — and a default the
+  // trip does not have shows by its template's name.
+  const missingDefault = value?.kind === "seed" ? seedTemplateOf({ id: "", seedKey: value.seedKey }) : undefined;
   const withStale =
     current !== "" && !options.some((o) => o.value === current)
-      ? [...options, { value: current, label: "A notebook that was deleted" }]
+      ? [
+          ...options,
+          {
+            value: current,
+            label: missingDefault === undefined ? "A notebook that was deleted" : `${missingDefault.title} (not in this trip yet)`,
+          },
+        ]
       : options;
 
   return (

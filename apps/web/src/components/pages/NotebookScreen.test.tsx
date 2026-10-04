@@ -96,7 +96,7 @@ const server = setupServer(
     });
   }),
 );
-let accessRole: "owner" | "editor" | "viewer" = "editor";
+let accessRole: "owner" | "editor" | "viewer" | "suggester" = "editor";
 let accessReads = 0;
 let accessHeld: Promise<void> | null = null;
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
@@ -265,6 +265,26 @@ describe("NotebookScreen", () => {
     expect(within(list).getByRole("link", { name: /Day Sheet/ })).toBeTruthy();
     // And all of the above was asserted with the role answered, not pending.
     expect(accessReads).toBe(1);
+  });
+
+  // Spec §2.2: a suggester's notebook is a viewer's — they suggest on the
+  // board and nowhere else.
+  it("offers a suggester no Delete and no templates either", async () => {
+    accessRole = "suggester";
+    const page = pageFixture({ tripId: TRIP_ID, title: "Day Sheet" });
+    server.use(...makePagesHandlers([page]));
+
+    render(<NotebookScreen tripId={TRIP_ID} />);
+    const list = await screen.findByRole("region", { name: "Your notebooks" });
+    expect(await within(list).findByText("Day Sheet")).toBeTruthy();
+    await act(async () => {
+      await cachedRead(tripKeys.access(TRIP_ID), () => fetchTripAccess(TRIP_ID));
+    });
+
+    expect(accessReads).toBe(1);
+    expect(screen.queryByRole("button", { name: "Delete Day Sheet" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Start from a template" })).toBeNull();
+    expect(within(list).getByRole("link", { name: /Day Sheet/ })).toBeTruthy();
   });
 
   it("offers an editor the same index with Delete and the templates", async () => {

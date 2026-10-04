@@ -4,9 +4,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { REVIEW_NOTE_MAX, SavedDayVisibility, type Review, type ReviewSummary, type SavedDayReviewsResponse } from "@tc/contracts";
 import { scenarios } from "@tc/factories";
 import { db } from "@/server/db/client";
-import { savedDayReviews, savedDays } from "@/server/db/schema";
+import { savedDayReviews, savedDays, users } from "@/server/db/schema";
 import { recomputeReviewCounters } from "@/server/reviews";
 import { deleteSavedDay, saveDay, setSavedDayVisibility } from "@/server/savedDays";
+import { entitleAccounts } from "@/server/test-support/entitledAccount";
 
 // The reviews route (M12 links 1-3), walked as the people who use it: an author
 // who publishes, a reader who rates, and nobody signed in. The counters' own
@@ -139,11 +140,91 @@ describe("PUT /api/saved-days/:id/reviews", () => {
     expect((await put(id, { stars: 4, seenPublishedAt: current })).status).toBe(200);
   });
 
-  it("401s when nobody is signed in, on every method", async () => {
+  // The reads opened to a reader with no account (ADR-061); the writes did not.
+  it("401s a write when nobody is signed in", async () => {
     const id = await authorsDay();
     expect((await put(id, { stars: 4 })).status).toBe(401);
-    expect((await GET(new Request("http://test/x"), ctx(id))).status).toBe(401);
     expect((await DELETE(new Request("http://test/x", { method: "DELETE" }), ctx(id))).status).toBe(401);
+  });
+});
+
+describe("GET /api/saved-days/:id/reviews, read by nobody signed in (ADR-061)", () => {
+  /** Nobody signed in, from an IP of its own — anonymous reads are charged per IP. */
+  const anonymousRead = (savedDayId: string) =>
+    GET(new Request("http://test/x", { headers: { "x-forwarded-for": `anon-${randomUUID()}` } }), ctx(savedDayId));
+
+  it("lists a published day's reviews with nothing marked as theirs", async () => {
+    const id = await authorsDay();
+    currentUserId = READER;
+    expect((await put(id, { stars: 4, note: "Go early." })).status).toBe(200);
+    // The witness: to its writer this review IS theirs, so `mine: null` below
+    // is the null reader's answer, not an empty fixture's.
+    expect((await read(id)).mine?.reviewerId).toBe(READER);
+
+    currentUserId = null;
+    const res = await anonymousRead(id);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as SavedDayReviewsResponse;
+    expect(body.mine).toBeNull();
+    expect(body.reviews.map((r) => [r.reviewerId, r.isMine])).toEqual([[READER, false]]);
+    expect(body.summary.count).toBe(1);
+  });
+
+  it("404s a private day and a moderated one, as it does a signed-in stranger", async () => {
+    const privateDay = await authorsDay("private");
+    const moderatedDay = await authorsDay();
+    await db.update(savedDays).set({ moderatedAt: new Date() }).where(eq(savedDays.id, moderatedDay));
+    for (const id of [privateDay, moderatedDay]) {
+      expect((await anonymousRead(id)).status, id).toBe(404);
+    }
+  });
+});
+
+// Mitchell, 2026-10-02 (ADR-061 decision 4, amended): a byline is the
+// reviewer's public name — first name and last initial of what they chose,
+// else their sign-in name — and the day-changed banner names the author the
+// same way. Surnames and addresses are seeded so there is something to leak.
+describe("what a review calls people", () => {
+  const OTHER = () => `m12-other-${AUTHOR.slice(-8)}`;
+
+  beforeEach(async () => {
+    await entitleAccounts([AUTHOR, READER]);
+    await db
+      .update(users)
+      .set({ displayName: "Mei Lin", name: "Mei Lin", email: `${AUTHOR}@example.com` })
+      .where(eq(users.id, AUTHOR));
+    await db
+      .update(users)
+      .set({ displayName: "Dee Ray", name: "Dana Reyes", email: `${READER}@example.com` })
+      .where(eq(users.id, READER));
+  });
+
+  it("bylines each reviewer by public name, and one with no account by handle", async () => {
+    const id = await authorsDay();
+    currentUserId = READER;
+    const res = await put(id, { stars: 5 });
+    expect(((await res.json()) as Saved).review.reviewerDisplayName).toBe("Dee R.");
+    // No `users` row at all: the handle, as before.
+    currentUserId = OTHER();
+    expect((await put(id, { stars: 3 })).status).toBe(200);
+
+    currentUserId = READER;
+    const body = await read(id);
+    expect(Object.fromEntries(body.reviews.map((r) => [r.reviewerId, r.reviewerDisplayName]))).toEqual({
+      [READER]: "Dee R.",
+      [OTHER()]: `Traveler ${OTHER().replace(/[^A-Za-z0-9]/g, "").slice(-6)}`,
+    });
+    expect(body.mine?.reviewerDisplayName).toBe("Dee R.");
+    const wire = JSON.stringify(body);
+    for (const leak of ["Reyes", "Ray", "@example.com"]) expect(wire).not.toContain(leak);
+  });
+
+  it("names the author by public name when the day changed under a review", async () => {
+    const id = await authorsDay();
+    currentUserId = READER;
+    const stale = await put(id, { stars: 4, seenPublishedAt: "2026-01-01T00:00:00.000Z" });
+    expect(stale.status).toBe(409);
+    expect(((await stale.json()) as { authorDisplayName: string }).authorDisplayName).toBe("Mei L.");
   });
 });
 

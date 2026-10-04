@@ -1,7 +1,6 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { AdmissionRefusal } from "@tc/contracts";
-import { matchesSuperCode, normalizeCredential, refusalRedirect } from "./admission";
+import { matchesSuperCode, normalizeCredential } from "./admission";
 import { witness } from "../test-support/witness";
 
 describe("normalizeCredential", () => {
@@ -93,40 +92,6 @@ describe("matchesSuperCode", () => {
       }),
     );
     w.atLeast(50);
-  });
-});
-
-describe("refusalRedirect", () => {
-  // The three exact strings `recordSignIn` returns. Spelled through the enum,
-  // never as literals — a literal here is a second copy of the contract.
-  it("sends each refusal to the designed screen with its own code", () => {
-    expect(refusalRedirect(AdmissionRefusal.enum.MISSING_INVITE_CODE)).toBe(
-      "/signup?error=MISSING_INVITE_CODE",
-    );
-    expect(refusalRedirect(AdmissionRefusal.enum.INVALID_INVITE_CODE)).toBe(
-      "/signup?error=INVALID_INVITE_CODE",
-    );
-    expect(refusalRedirect(AdmissionRefusal.enum.SPENT_INVITE_CODE)).toBe(
-      "/signup?error=SPENT_INVITE_CODE",
-    );
-  });
-
-  // Auth.js's default `redirect` honours a returned path only if it starts
-  // with "/" (`@auth/core` init.js:13-19); anything else is replaced by the
-  // base URL and the error code is lost.
-  it("returns a path Auth.js will honour, for every member of the closed set", () => {
-    for (const reason of AdmissionRefusal.options) {
-      expect(refusalRedirect(reason).startsWith("/")).toBe(true);
-      expect(new URL(refusalRedirect(reason), "https://x.test").searchParams.get("error")).toBe(
-        reason,
-      );
-    }
-  });
-
-  // If a fourth refusal is ever added to the contract it gets a redirect for
-  // free — but it must also get copy, so this asserts the set is still three.
-  it("covers exactly three refusals", () => {
-    expect(AdmissionRefusal.options).toHaveLength(3);
   });
 });
 

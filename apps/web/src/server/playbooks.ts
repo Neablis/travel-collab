@@ -1,7 +1,8 @@
-import { sql, type SQL } from "drizzle-orm";
+import { inArray, sql, type SQL } from "drizzle-orm";
 import { SavedDayVisibility } from "@tc/contracts";
 import type { CityMatch } from "@/lib/cities";
 import {
+  DISCOVER_PAGE_SIZE,
   DISCOVER_PREVIEW_STOPS,
   inBudgetBand,
   LENGTH_BAND_RANGE,
@@ -15,9 +16,12 @@ import {
   type PublicAuthor,
   type RatingFloor,
 } from "@/lib/playbooks";
+import { countryName } from "@/lib/place";
+import { countrySlug, slugify } from "@/lib/playbookUrls";
 import { savedDayFacts } from "@/lib/savedDayFacts";
-import { displayNameFor } from "@/lib/displayName";
-import { db } from "./db/client";
+import { publicNameFor } from "@/lib/displayName";
+import { db, type Queryable } from "./db/client";
+import { users } from "./db/schema";
 import { isUuid } from "./ids";
 import { parseSavedDayColumns } from "./savedDayRow";
 
@@ -48,9 +52,6 @@ import { parseSavedDayColumns } from "./savedDayRow";
  * filtered count that silently means "of the first 200".
  */
 const CANDIDATE_LIMIT = 200;
-
-/** How many cards one Discover page shows. */
-const PAGE_LIMIT = 24;
 
 /** How many sibling / "busy right now" chips a row carries. Matches `cities.ts`. */
 const SIBLING_LIMIT = 12;
@@ -112,7 +113,14 @@ export type DiscoverQuery = {
    * warns about. Caught by the integration suite, not by review.
    */
   publishedOnly?: boolean;
-  readerId: string;
+  /**
+   * Who is reading, or `null` for somebody with no account (ADR-061). A null
+   * reader owns nothing, so every owner clause below has an explicit branch
+   * for it rather than binding `owner_id = NULL` — which matches nothing only
+   * because SQL's NULL compares unknown, an accident a later `is not distinct
+   * from` would quietly undo.
+   */
+  readerId: string | null;
 };
 
 type DiscoverRow = {
@@ -133,7 +141,52 @@ type DiscoverRow = {
   created_at: unknown;
   published_at: unknown;
   matched_count: number;
-};
+} & OwnerNames;
+
+/** The owner's two name columns, as `ownerNames` selects them. Never the email. */
+type OwnerNames = { owner_display_name: string | null; owner_name: string | null };
+
+/**
+ * The columns `publicNameFor` reads, for the person `ownerId` names — the
+ * chosen name and the sign-in name, and deliberately NOT `users.email`, so an
+ * address cannot reach a library row even by a later mistake in the resolver.
+ *
+ * Correlated sub-selects rather than a join, so the queries keep their one
+ * `from saved_days d` and every grouped one stays grouped by `d.owner_id`
+ * alone. Two primary-key lookups a row. An owner with no `users` row reads as
+ * two nulls, which `publicNameFor` answers with the handle.
+ */
+function ownerNames(ownerId: SQL): SQL {
+  return sql`(select u.display_name from users u where u.id = ${ownerId}) as owner_display_name,
+      (select u.name from users u where u.id = ${ownerId}) as owner_name`;
+}
+
+/**
+ * **What the public library calls each of `userIds`** — `publicNameFor` over
+ * one batched `users` read (Mitchell, 2026-10-02; ADR-061 decision 4), for the
+ * surfaces that hold ids rather than a query to add `ownerNames` to: review
+ * bylines and the link-preview cards.
+ *
+ * Returns a lookup rather than a map so an id the caller did not ask about
+ * still gets its handle instead of `undefined`. Takes a transaction for the
+ * review write, which reads inside one.
+ */
+export async function publicNamesOf(
+  userIds: readonly string[],
+  q: Queryable = db,
+): Promise<(userId: string) => string> {
+  const unique = [...new Set(userIds)];
+  const rows =
+    unique.length === 0
+      ? []
+      : await q
+          .select({ id: users.id, displayName: users.displayName, name: users.name })
+          .from(users)
+          .where(inArray(users.id, unique));
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  return (userId) =>
+    publicNameFor({ userId, displayName: byId.get(userId)?.displayName, name: byId.get(userId)?.name });
+}
 
 /**
  * A timestamp column, as an ISO-8601 string.
@@ -195,7 +248,7 @@ const notModerated = sql`and d.moderated_at is null`;
  * reason `publishedOnly` exists at all.
  */
 function notModeratedUnlessMine(query: DiscoverQuery): SQL {
-  if (query.publishedOnly === true) return notModerated;
+  if (query.publishedOnly === true || query.readerId === null) return notModerated;
   return sql`and (d.moderated_at is null or d.owner_id = ${query.readerId})`;
 }
 
@@ -209,8 +262,12 @@ function notModeratedUnlessMine(query: DiscoverQuery): SQL {
  * results."* Having taken a day once does not keep it visible after its author
  * withdraws it — the ledger row is a record of what happened, not a grant.
  */
-function scopePredicate(scope: DiscoverScope, readerId: string): SQL {
+function scopePredicate(scope: DiscoverScope, readerId: string | null): SQL {
   const isPublic = sql`d.visibility = ${SavedDayVisibility.enum.public}`;
+  // A reader with no account (ADR-061) has no days and no ledger rows, so
+  // every scope collapses to the public half. The route already forces
+  // `everyone` for them; this is the query refusing to depend on that.
+  if (readerId === null) return isPublic;
   if (scope === "yours") return sql`d.owner_id = ${readerId}`;
   if (scope === "saved") {
     return sql`exists (
@@ -332,7 +389,7 @@ function orderBy(sort: DiscoverSort): SQL {
  * whole page — one unreadable fragment must not take the other twenty-three
  * with it.
  */
-function toDiscoverDay(row: DiscoverRow, queryCities: string[], readerId: string): DiscoverDay | null {
+function toDiscoverDay(row: DiscoverRow, queryCities: string[], readerId: string | null): DiscoverDay | null {
   // **The same helper `savedDays.ts`'s `fromRow` calls** (F-F05, and ADR-048
   // makes it a prerequisite of M23). This was a hand-copied duplicate of that
   // function's parses, with identical log strings, until the sequence work gave
@@ -353,6 +410,11 @@ function toDiscoverDay(row: DiscoverRow, queryCities: string[], readerId: string
   return {
     savedDayId: row.id,
     ownerId: row.owner_id,
+    ownerDisplayName: publicNameFor({
+      userId: row.owner_id,
+      displayName: row.owner_display_name,
+      name: row.owner_name,
+    }),
     name: row.name,
     cities: row.cities,
     // Derived from the day's OWN cities rather than echoed back from the query
@@ -489,6 +551,31 @@ async function publishedPlaybookCount(): Promise<number> {
   return Number(rows.rows[0]?.days ?? 0);
 }
 
+/** One published day, as the sitemap lists it. */
+export type SitemapDay = { savedDayId: string; name: string; publishedAt: string | null };
+
+/**
+ * Every day a stranger can open, for `sitemap.ts`: published, not moderated,
+ * not deleted. Its own query, and not `discoverDays`: that one answers a
+ * screen and stops at `CANDIDATE_LIMIT`, and a sitemap that stopped at 200
+ * would silently drop the rest of the library.
+ */
+export async function sitemapDays(): Promise<SitemapDay[]> {
+  const rows = await db.execute<{ id: string; name: string; published_at: unknown }>(sql`
+    select d.id, d.name, d.published_at
+    from saved_days d
+    where d.visibility = ${SavedDayVisibility.enum.public}
+      ${notDeleted}
+      ${notModerated}
+    order by d.published_at desc nulls last, d.id asc
+  `);
+  return [...rows.rows].map((row) => ({
+    savedDayId: String(row.id),
+    name: String(row.name),
+    publishedAt: isoOf(row.published_at),
+  }));
+}
+
 /**
  * How many of the asked-for places a day touches — cities plus countries,
  * `orderBy`'s first key. One spelling for the select below and for
@@ -507,7 +594,8 @@ function matchedCount(query: Pick<DiscoverQuery, "cities" | "countries">): SQL {
 /** The columns a `DiscoverRow` is read from. */
 const discoverColumns = sql`
       d.id, d.owner_id, d.name, d.stops, d.cities, d.visibility, d.adds, d.rating, d.review_count,
-      d.author_kind, d.day_count, d.source_trip_name, d.created_at, d.published_at`;
+      d.author_kind, d.day_count, d.source_trip_name, d.created_at, d.published_at,
+      ${ownerNames(sql`d.owner_id`)}`;
 
 export async function discoverDays(query: DiscoverQuery): Promise<DiscoverResponse> {
   const rows = await db.execute<DiscoverRow>(sql`
@@ -543,7 +631,7 @@ export async function discoverDays(query: DiscoverQuery): Promise<DiscoverRespon
   );
 
   return {
-    days: filtered.slice(0, PAGE_LIMIT),
+    days: filtered.slice(0, DISCOVER_PAGE_SIZE),
     // `filtered`, not `candidates` and not the page: the chips describe the set
     // the cards come from, band included. See `siblingCities`.
     siblings: siblingCities(filtered, query.cities),
@@ -560,7 +648,7 @@ export async function discoverDays(query: DiscoverQuery): Promise<DiscoverRespon
     // (CodeRabbit, PR 102). The profile day list is this same function, and
     // it says the same thing there by comparing its card count against
     // `playbooksShared`.
-    truncated: windowFull || filtered.length > PAGE_LIMIT,
+    truncated: windowFull || filtered.length > DISCOVER_PAGE_SIZE,
     // What the results sentence states (KI-2026-09-23-h). Inside the window
     // `filtered` IS the whole match — band applied, unreadable rows dropped —
     // so it is exact and agrees with the page to the day. Past the window the
@@ -576,6 +664,21 @@ export async function discoverDays(query: DiscoverQuery): Promise<DiscoverRespon
           }
         : { matchCount: filtered.length, matchCountExact: false }),
   };
+}
+
+/** What a Discover request asks for, before the reader is known. */
+export type DiscoverInput = Pick<DiscoverQuery, "cities" | "countries" | "scope" | "sort" | "budget" | "length" | "rating">;
+
+/**
+ * Discover for one reader — what `GET /api/playbooks` and the Discover page
+ * both call, so the page's first paint and the screen's next search are one
+ * implementation.
+ *
+ * *Yours* and *Saved* mean nothing without an account, so a signed-out
+ * reader's scope is `everyone` whatever was asked.
+ */
+export async function discoverFor(input: DiscoverInput, readerId: string | null): Promise<DiscoverResponse> {
+  return discoverDays({ ...input, scope: readerId === null ? "everyone" : input.scope, readerId });
 }
 
 /**
@@ -692,7 +795,7 @@ type AuthorRow = {
   playbooks_shared: number;
   reviews_received: number | null;
   average_rating: number | null;
-};
+} & OwnerNames;
 
 /**
  * Everyone who has ever had a day taken, ranked on the ledger.
@@ -724,7 +827,8 @@ export async function leaderboard(): Promise<PublicAuthor[]> {
       count(a.saved_day_id)::int as adds,
       count(distinct d.id) filter (where d.visibility = ${SavedDayVisibility.enum.public})::int as playbooks_shared,
       rt.reviews_received,
-      rt.average_rating
+      rt.average_rating,
+      ${ownerNames(sql`d.owner_id`)}
     from saved_days d
     left join saved_day_adds a on a.saved_day_id = d.id
     left join review_totals rt on rt.owner_id = d.owner_id
@@ -748,9 +852,13 @@ export async function leaderboard(): Promise<PublicAuthor[]> {
 function toAuthor(row: AuthorRow): PublicAuthor {
   return {
     userId: String(row.owner_id),
-    // The M17 seam. One resolver, and today it returns the identifier — see
-    // `lib/displayName.ts` for the recorded decision behind that.
-    displayName: displayNameFor({ userId: String(row.owner_id) }),
+    // First name and last initial, or the handle (`publicNameFor`; Mitchell,
+    // 2026-10-02). `publicAuthor` overrides it for someone with nothing.
+    displayName: publicNameFor({
+      userId: String(row.owner_id),
+      displayName: row.owner_display_name,
+      name: row.owner_name,
+    }),
     playbooksShared: Number(row.playbooks_shared),
     adds: Number(row.adds),
     reviewsReceived: Number(row.reviews_received ?? 0),
@@ -759,7 +867,7 @@ function toAuthor(row: AuthorRow): PublicAuthor {
 }
 
 /**
- * What a profile with nothing on it is called. The same string `displayNameFor`
+ * What a profile with nothing on it is called. The same string `publicNameFor`
  * itself falls back to for an id with no readable characters, so the app has
  * one neutral name for a person it cannot name rather than two.
  */
@@ -784,7 +892,8 @@ export async function publicAuthor(userId: string): Promise<PublicAuthor> {
       count(a.saved_day_id)::int as adds,
       count(distinct d.id) filter (where d.visibility = ${SavedDayVisibility.enum.public})::int as playbooks_shared,
       (select rt.reviews_received from review_totals rt where rt.owner_id = ${userId}) as reviews_received,
-      (select rt.average_rating from review_totals rt where rt.owner_id = ${userId}) as average_rating
+      (select rt.average_rating from review_totals rt where rt.owner_id = ${userId}) as average_rating,
+      ${ownerNames(sql`${userId}`)}
     from saved_days d
     left join saved_day_adds a on a.saved_day_id = d.id
     where d.owner_id = ${userId}
@@ -802,20 +911,26 @@ export async function publicAuthor(userId: string): Promise<PublicAuthor> {
   const row = rows.rows[0]!;
   const author = toAuthor({ ...row, owner_id: userId });
 
-  // A person with nothing gets NO derived handle. `displayNameFor` will turn
-  // any string into something person-shaped — `publicAuthor("someuserxyz")`
-  // returned `"Traveler serxyz"` — and this is the one call site whose
-  // argument is a URL segment a stranger typed, so a mistyped or invented id
-  // rendered as a plausible individual who has simply shared nothing
-  // (KI-2026-09-05-y / F-G05).
+  // A person with nothing gets NO name — neither their real one nor a derived
+  // handle. This is the one call site whose argument is a URL segment a
+  // stranger typed, and either would leak:
   //
-  // Deliberately NOT a `users` lookup and a 404: that answers "does this
-  // account exist" for anyone who asks, which is exactly what the docstring
-  // above refuses to do. Zero days and zero adds is the strongest statement
-  // that can be made without asking that question, and it is true of every
-  // nonexistent id — so the neutral name costs nothing on a page that has
-  // nothing to attribute, while everyone the leaderboard actually ranks (adds
-  // or days > 0) keeps the distinct suffix it needs.
+  //   * The real name (2026-10-02, when the row above began carrying the
+  //     `users` name columns): "Dana R." for a real id and a handle for an
+  //     invented one answers "does this account exist" for anyone who asks,
+  //     and names a person on the strength of a URL alone.
+  //   * The handle: `publicNameFor` turns any string into something
+  //     person-shaped — `publicAuthor("someuserxyz")` returned
+  //     `"Traveler serxyz"` — so a mistyped or invented id rendered as a
+  //     plausible individual who had simply shared nothing (KI-2026-09-05-y /
+  //     F-G05).
+  //
+  // Deliberately NOT a 404 when the `users` lookup misses, for the same
+  // reason. Zero days and zero adds is the strongest statement that can be
+  // made without answering it, and it is true of every nonexistent id — so the
+  // neutral name costs nothing on a page with nothing to attribute, while
+  // everyone the board ranks (adds or days > 0) is named. `board/route.int.test.ts`
+  // holds both halves.
   return author.playbooksShared === 0 && author.adds === 0 ? { ...author, displayName: NO_ONE_IN_PARTICULAR } : author;
 }
 
@@ -838,4 +953,132 @@ export async function citiesKnownBy(userId: string): Promise<CityMatch[]> {
     order by days desc, city asc
   `);
   return [...rows.rows].map((row) => ({ city: String(row.city), days: Number(row.days) }));
+}
+
+/** A city or country page: its slug, its display name, the stored values it gathers, and how many days. */
+export type PlacePage = {
+  kind: "city" | "country";
+  slug: string;
+  /** What the page calls the place: the most-used spelling, or the country's English name. */
+  name: string;
+  /** The stored city spellings this page gathers, most-used first. Empty for a country. */
+  cities: string[];
+  /** The ISO codes this page gathers. Empty for a city. */
+  countries: string[];
+  /**
+   * Distinct published days that touch it — the same number `publishedDaysPage`
+   * totals for `cities` / `countries`, which is what `placeIndexable` needs.
+   */
+  days: number;
+};
+
+// Grouped here rather than in SQL because the key is `slugify`'s, and a second
+// spelling of it in Postgres would agree only until one of them changed. And
+// one row per DAY, not a count per spelling: summing per-spelling counts counts
+// a day carrying "Sao Paulo" and "São Paulo" twice, and the sitemap (which
+// reads `days`) would then disagree with the page's `total` about whether the
+// place clears `MIN_INDEXED_PLACE_DAYS`. Production is 155 published days on
+// 2026-10-02, so reading the columns each one needs is cheap.
+/**
+ * Every place a published day touches, as the pages that list them.
+ *
+ * `cities` is free text, so spellings that slug alike ("São Paulo", "Sao
+ * Paulo") are one page, named by the spelling most days use. Countries are ISO
+ * codes and slug by their English name. A value with no slug has no page.
+ */
+export async function publishedPlaces(): Promise<PlacePage[]> {
+  const rows = await db.execute<{
+    id: string;
+    cities: string[];
+    countries: string[];
+    stops: unknown;
+    visibility: string;
+    author_kind: string;
+    day_count: number;
+  }>(sql`
+    select d.id, d.cities, d.countries, d.stops, d.visibility, d.author_kind, d.day_count
+    from saved_days d
+    where d.visibility = ${SavedDayVisibility.enum.public}
+      ${notDeleted}
+      ${notModerated}
+  `);
+
+  const gathered = new Map<string, { kind: PlacePage["kind"]; slug: string; days: Set<string>; uses: Map<string, number> }>();
+  const touch = (kind: PlacePage["kind"], slug: string, value: string, dayId: string) => {
+    const key = `${kind}:${slug}`;
+    let place = gathered.get(key);
+    if (place === undefined) gathered.set(key, (place = { kind, slug, days: new Set(), uses: new Map() }));
+    place.days.add(dayId);
+    place.uses.set(value, (place.uses.get(value) ?? 0) + 1);
+  };
+  for (const row of rows.rows) {
+    const dayId = String(row.id);
+    // A day `publishedDaysPage` cannot read is no card on the page, so it is no day here either.
+    const readable = parseSavedDayColumns({
+      savedDayId: dayId,
+      stops: row.stops,
+      visibility: row.visibility,
+      authorKind: row.author_kind,
+      dayCount: row.day_count,
+    });
+    if (readable === null) continue;
+    for (const city of new Set(row.cities)) {
+      const slug = slugify(city);
+      if (slug !== "") touch("city", slug, city, dayId);
+    }
+    for (const code of new Set(row.countries)) {
+      const slug = countrySlug(code);
+      if (slug !== null) touch("country", slug, code, dayId);
+    }
+  }
+
+  return [...gathered.values()].map(({ kind, slug, days, uses }) => {
+    // Most-used first, ties by code point, so the name does not change between two builds of one library.
+    const values = [...uses]
+      .sort(([a, aUses], [b, bUses]) => bUses - aUses || (a < b ? -1 : a > b ? 1 : 0))
+      .map(([value]) => value);
+    return kind === "city"
+      ? { kind, slug, name: values[0]!, cities: values, countries: [], days: days.size }
+      : { kind, slug, name: countryName(values[0]!)!, cities: [], countries: values, days: days.size };
+  });
+}
+
+/**
+ * Published days for a place or an author, most-added first, one offset page.
+ *
+ * `matchPredicate` with a reader who owns nothing and `publishedOnly`, so the
+ * rows are exactly what a stranger can open, and `toDiscoverDay`, so each is
+ * the card Discover would show. Offset paging, unlike `discoverPage`'s keyset:
+ * a place page is addressed by `?page=N`, which a crawler follows as a link.
+ * `total` is 0 for a page past the end.
+ */
+export async function publishedDaysPage(
+  filter: { cities?: string[]; countries?: string[]; authorId?: string },
+  page: { limit: number; offset: number },
+): Promise<{ days: DiscoverDay[]; total: number }> {
+  const query: DiscoverQuery = {
+    cities: filter.cities ?? [],
+    countries: filter.countries ?? [],
+    authorId: filter.authorId ?? null,
+    scope: "everyone",
+    sort: "most-added",
+    budget: "any",
+    length: "any",
+    publishedOnly: true,
+    readerId: null,
+  };
+  // Every match is read and paged here, not by `limit`/`offset`: a row
+  // `toDiscoverDay` cannot read is dropped, and counting rows in SQL would
+  // then disagree with the cards and leave a page short. One place's days are
+  // a small slice of a library of a few hundred.
+  const rows = await db.execute<DiscoverRow>(sql`
+    select ${discoverColumns}, ${matchedCount(query)}::int as matched_count
+    from saved_days d
+    where ${matchPredicate(query)}
+    order by ${orderBy(query.sort)}
+  `);
+  const readable = [...rows.rows]
+    .map((row) => toDiscoverDay(row, query.cities, null))
+    .filter((day): day is DiscoverDay => day !== null);
+  return { days: readable.slice(page.offset, page.offset + page.limit), total: readable.length };
 }

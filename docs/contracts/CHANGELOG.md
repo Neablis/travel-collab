@@ -13,6 +13,104 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-03 — The `suggester` role, and suggestions as a contract (ADR-064); Public API 1.4.0, then 1.5.0
+
+- **Added:** `suggester` to `TripRole` (now `viewer, suggester, editor, owner`, least-privileged
+  first) and to `InviteRole` (now `viewer, suggester, editor`).
+- **Added:** an `Origin` member, `{ kind: "suggestion", suggestionId, changeId, authorId }`. It
+  marks an accepted suggestion: the envelope's actor is the reviewer, and the author survives
+  only here.
+- **Added:** `TripEventsPage.suggestionsRev`, an optional opaque string. It is the role-scoped
+  revision of the suggestions this caller may see (spec W6).
+- **New file `suggestion.ts`:** `SuggestionChangeStatus`, `SuggestionChange`,
+  `TripSuggestionsResponse`, `CreateSuggestionInput` and `ResolveSuggestionChangeInput`.
+  - `SuggestionChangeStatus` is `pending, accepted, dismissed, withdrawn, expired`. `expired`
+    is a change left pending past the server's 90 days (`SUGGESTION_TTL_DAYS`; Mitchell,
+    2026-10-03, spec W61). Nobody decided it.
+  - `SuggestionChange.dependsOn` also names the earlier changes that target a day or stop this
+    one removes (W59), not only those that created what it references.
+  - `TripSuggestionsResponse.changes` holds pending changes only (W53).
+  - `CreateSuggestionInput` allows 1..50 units of 1..50 `BatchableCommand`s each.
+  - It refuses any `DismissConflict`, at that command's path (W3).
+  - Its optional note is trimmed and capped at 500 characters with `review.ts`'s `boundedNote`,
+    so a blank note parses to `null`.
+- Why: Mitchell asked for a role that can propose changes for an editor to approve. See
+  `docs/specs/2026-10-03-suggester-role-design.md` and ADR-064.
+- Consumers updated:
+  - `packages/domain/src/trip/history.ts`: `suggestion` is treated as `user` in the undo stack
+    and in the history sentence (W11).
+  - `apps/web/src/server/accessPolicy.ts`: `RANK` is now viewer 0, suggester 1, editor 2,
+    owner 3, and it is exported.
+  - `apps/web/src/server/access/members.ts`: its duplicate `RANK` is deleted, and it imports the
+    one in `accessPolicy.ts` (W8).
+  - `apps/web/src/server/email/templates.ts`: `tripInviteEmail`'s `role` is typed `InviteRole`,
+    and a suggester's invite says they can suggest changes for the trip's planners to approve
+    (W64).
+  - The public API is affected because its trip documents embed `TripMember.role` and event
+    `origin`. `openapi.json` was regenerated, `API_VERSION` moved to `1.4.0` (minor, additive)
+    and `API_FINGERPRINT` is new. No `/v1` endpoint was added (spec §2.7).
+  - `InviteRole` gaining `suggester` widens the `/v1` invite endpoints' `role` enum, so
+    `openapi.json` was regenerated again and `API_VERSION` moved to `1.5.0` (minor, additive).
+    `1.4.0` stays the version of the role and origin enums above.
+  - No gate changed. `MINIMUM_ROLE` still requires `editor` for every batchable command, so a
+    suggester cannot write.
+- Breaking? no. The enum values and the union member are additive, and the new field is optional.
+  Every stored `members` row, `origin` and invite still parses. A client running an old bundle
+  meets an unknown role only when someone is invited as a suggester, and an unknown origin only
+  after a suggestion is accepted. The invite route accepts `suggester` from `InviteRole`'s change
+  on, and the Travelers picker offers it as "Can suggest". A suggester's board edits are held as a
+  draft and sent through the suggestion routes, never as commands (spec §2.3).
+
+## 2026-10-03 — Adding one default notebook: `AddDefaultPagesInput` (ADR-056, amended)
+
+- **Added:** `AddDefaultPagesInput` (`packages/contracts/src/pages.ts`), `{ seedKey?: SeedKey }`:
+  the body of `POST /api/trips/:tripId/pages/defaults`. Without `seedKey` the route adds every
+  default notebook the trip lacks, as before. With one it adds that template's seed only.
+- **Changed, not in `packages/contracts`:** `@tc/pages`' `LinkTarget` gains
+  `{ kind: "seed", seedKey }`, and `link.internal` may now resolve to a `link-missing` block
+  payload. Both are stored-page and render shapes owned by `@tc/pages`.
+- Why: Mitchell, 2026-10-03. A link to a default notebook should find it when it is added
+  later, and a card for a missing one should offer to add it.
+- Consumers updated: `apps/web` (the route, `pagesClient.addMissingDefaultNotebooks`, the MSW
+  handler, `MissingNotebookBlock`), `@tc/pages` (templates, `link.internal`, the picker's
+  encoding) — in this same change.
+- Breaking? no — the body was `{}` and still may be; a stored page with id links reads as it did.
+
+## 2026-10-02 — The library names people "Dana R.": `DiscoverDay.ownerDisplayName`, and what the names mean (ADR-061 decision 4, amended)
+
+- **Added (web-local wire shape, not `packages/contracts`):** `DiscoverDay.ownerDisplayName`
+  (`apps/web/src/lib/playbooks.ts`), `z.string().min(1)`. It is the owner's public name, resolved
+  by the server from `users`.
+- **Changed meaning, no shape:** `PublicAuthor.displayName` (board, profile, the shared day's
+  author strip), `Review.reviewerDisplayName` and `ReviewDayChanged.authorDisplayName`
+  (`packages/contracts/src/review.ts`; the schema is untouched). Before, these held the
+  `displayNameFor({ userId })` handle ("Traveler a1b2c3"). Now each holds `publicNameFor`'s answer:
+  first name and last initial from the chosen display name, else the sign-in name, and never the
+  email. An account with no usable name still gets the handle. A profile with nothing on it is
+  still "A traveler".
+- Why: Mitchell, 2026-10-02 — the public library should name people, safely. This reverses the
+  handle-only rule recorded in `lib/displayName.ts` and ADR-061 decision 4.
+- Consumers updated: `server/playbooks.ts` (`leaderboard`, `publicAuthor`, `discoverDays`,
+  `discoverPage`, new `publicNamesOf`); `server/reviews.ts`; `server/og/playbooks.ts`;
+  `DiscoverCard`, `LeaderboardScreen`, `SharedDayScreen` and the new-trip wizard's popular days
+  (`pickPopularDays`), which now print the server's name instead of deriving one from the id.
+  **`GET /v1/discover/playbooks` is unchanged:** its item schema omits `ownerDisplayName` and its
+  handler drops it, so the public API names nobody. No `openapi.json` change.
+- Breaking? no — the field is additive and the changed fields keep their shape. A tab running the
+  previous bundle derived names itself and ignores the new field until it reloads.
+
+## 2026-10-02 — `LeaderboardResponse.meUserId` is nullable (public playbooks, ADR-061)
+
+- **Changed (web-local wire shape, not `packages/contracts`):** `LeaderboardResponse.meUserId` in
+  `apps/web/src/lib/playbooks.ts` is `string | null`. `null` is a reader with no account, who has
+  no row on the board; `GET /api/playbooks/board` now serves them (ADR-061).
+- Why: spec 2026-10-02 (public playbooks) — the library's reads open to signed-out readers, so the
+  board has a reader who is nobody.
+- Consumers updated: `GET /api/playbooks/board` (sends `null` for an anonymous reader);
+  `LeaderboardScreen`, which only compares each row's `userId` to it, so a `null` tints no row.
+- Breaking? no for a reader that compares ids — no row's `userId` is ever `null`. A client that
+  assumed a string and called a string method on it would break; there is none.
+
 ## 2026-10-02 — Who owes what: `balances` and `stopPeople` (M19 part 2, ADR-060 decision 6)
 
 - **Added (functions, no schema):** `packages/contracts/src/costs.ts` — `stopPeople(activity,

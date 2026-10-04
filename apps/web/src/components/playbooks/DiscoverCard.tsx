@@ -1,17 +1,16 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
-import { AuthorKindBadge } from "./AuthorKindBadge";
 import { Card } from "@/components/ui/card";
 import { DataText } from "@/components/ui/data-text";
 import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
 import { formatMoney } from "@/lib/formatMoney";
-import { displayNameFor } from "@/lib/displayName";
 import type { DiscoverDay } from "@/lib/playbooks";
 import { toClockLabel, toClockRange } from "@/lib/time";
 import { useTimeFormat } from "@/components/account/PreferencesProvider";
 import { cn } from "@/lib/cn";
 import { PHONE_TOUCH } from "@/components/ui/button";
+import { cityPath, dayPath } from "@/lib/playbookUrls";
 import { backQuery, type BackOrigin } from "./backLink";
 
 // One day in the public library, as Discover and a public profile both render
@@ -99,22 +98,42 @@ export function DiscoverCard({ day, origin }: { day: DiscoverDay; origin: BackOr
           that the Kyoto you asked for is one of three cities this day covers,
           or the extra cities look like a mistake rather than the offer. */}
       <div className="flex flex-wrap items-start gap-2">
-        <ul className="flex flex-wrap gap-1.5" data-testid="city-chips">
+        <ul className="flex flex-wrap gap-x-1.5 gap-y-6 md:gap-y-1.5" data-testid="city-chips">
           {chips.shown.map((city) => {
             const matched = day.matchedCities.includes(city);
-            return (
-              <li
-                key={city}
+            const href = cityPath(city);
+            const chip = (
+              <span
                 data-city={city}
                 data-matched={matched}
                 className={cn(
-                  "rounded-full px-2.5 py-0.5 text-2xs font-semibold tracking-wide uppercase",
+                  "relative rounded-full px-2.5 py-0.5 text-2xs font-semibold tracking-wide uppercase group-hover/chip:underline",
                   matched
                     ? "bg-brand-tint text-brand-pressed"
                     : "border border-hairline bg-surface text-slate",
                 )}
               >
                 {city}
+              </span>
+            );
+            // The chip opens its city's page (SEO pass, D6); a city whose name
+            // has no slug has no page and stays a label. A 44px target and a
+            // 20px chip on a phone, as `StopTagChips` draws its tags
+            // (KI-2026-09-24-m): the link is the hit area, `-my-3` hands back
+            // the 24px `min-h-11` adds, and `md:` releases it. A named group,
+            // because the hover belongs to the chip, not to the card.
+            return (
+              <li key={city} className="flex">
+                {href === null ? (
+                  chip
+                ) : (
+                  <Link
+                    href={href}
+                    className="group/chip inline-flex min-h-11 -my-3 items-center md:my-0 md:min-h-0"
+                  >
+                    {chip}
+                  </Link>
+                )}
               </li>
             );
           })}
@@ -131,7 +150,6 @@ export function DiscoverCard({ day, origin }: { day: DiscoverDay; origin: BackOr
         <span className="flex flex-1 flex-wrap items-center justify-end gap-1.5">
           {day.isMine && <Badge variant="brand">Yours</Badge>}
           {day.visibility === "private" && <Badge variant="neutral">Private</Badge>}
-          <AuthorKindBadge authorKind={day.authorKind} />
         </span>
       </div>
 
@@ -150,7 +168,7 @@ export function DiscoverCard({ day, origin }: { day: DiscoverDay; origin: BackOr
               items-center` so the floor makes the link taller rather than
               leaving the text at the top of an empty 44px. */}
           <Link
-            href={`/playbooks/day/${day.savedDayId}${back}`}
+            href={`${dayPath(day)}${back}`}
             className={cn("inline-flex items-center hover:underline", PHONE_TOUCH)}
           >
             {day.name}
@@ -219,12 +237,14 @@ export function DiscoverCard({ day, origin }: { day: DiscoverDay; origin: BackOr
       )}
 
       <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-hairline pt-3">
-        {/* The M17 seam, and the only place this card names a person. */}
+        {/* The only place this card names a person, and the name is the
+            server's (`publicNameFor`, Mitchell 2026-10-02) — never derived
+            from `ownerId` here. */}
         <Link
           href={`/playbooks/profile/${encodeURIComponent(day.ownerId)}${back}`}
           className={cn("inline-flex items-center text-xs text-slate hover:underline", PHONE_TOUCH)}
         >
-          {displayNameFor({ userId: day.ownerId })}
+          {day.ownerDisplayName}
         </Link>
         <Text as="span" variant="muted" className="text-xs">
           Added to {day.adds} trip{day.adds === 1 ? "" : "s"}

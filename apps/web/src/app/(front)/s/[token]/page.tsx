@@ -1,6 +1,7 @@
 import { SharedTripScreen } from "@/components/access/SharedTripScreen";
+import { NOINDEX } from "@/lib/siteMetadata";
 
-export const metadata = { title: "A shared trip — Caesura" };
+export const metadata = { title: "A shared trip", robots: NOINDEX };
 
 // Under `(front)`, not `(app)`: this is the one page in the product a person
 // with no account is meant to reach, so it draws the front door's chrome

@@ -260,7 +260,7 @@ describe("every widget renders (ADR-037 decision 2)", () => {
   const external = {
     notebooks: {
       state: "ready" as const,
-      value: { pages: [{ id: LINKED_NOTEBOOK, title: "Money", firstLine: "What it costs.", widgetCount: 2 }] },
+      value: { pages: [{ id: LINKED_NOTEBOOK, seedKey: "money", title: "Money", firstLine: "What it costs.", widgetCount: 2 }] },
     },
     weather: {
       state: "ready" as const,

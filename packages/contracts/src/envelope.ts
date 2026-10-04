@@ -10,7 +10,7 @@ export const EventEnvelope = z.object({
   actorId: z.string().min(1),
   occurredAt: z.string(), // ISO 8601
   batchId: z.string().uuid(), // one per command execution (M2)
-  origin: Origin, // provenance: user | undo | redo | revert (M2, ADR-005)
+  origin: Origin, // provenance: user | undo | redo | revert | suggestion (M2, ADR-005, ADR-064)
 });
 export type EventEnvelope = z.infer<typeof EventEnvelope>;
 
@@ -30,10 +30,18 @@ export type EventEnvelope = z.infer<typeof EventEnvelope>;
  * and should refetch the trip instead of collecting the gap event by event.
  * `events` is empty when it is set — the two are alternatives, not a partial
  * answer plus a warning.
+ *
+ * `suggestionsRev` is an opaque revision of the pending suggestions this
+ * caller may see (ADR-064, spec W6): it changes when one is sent or resolved,
+ * and the client refetches the list when it does. It rides this poll so the
+ * tray does not need a second one. Absent for a caller who sees no
+ * suggestions — a viewer, an invite-token or a demo read — and from every
+ * server that predates it, which is why it is optional.
  */
 export const TripEventsPage = z.object({
   headSeq: z.number().int().nonnegative(),
   events: z.array(EventEnvelope),
   resync: z.boolean(),
+  suggestionsRev: z.string().min(1).optional(),
 });
 export type TripEventsPage = z.infer<typeof TripEventsPage>;

@@ -130,6 +130,21 @@ const domainAndServerWallPatterns = [
   },
 ];
 
+// What every exempt-shell block (admin, sitemap, playbooks pages) still
+// refuses. Flat config replaces a rule's options for the last matching block,
+// so each block must restate these two; one copy here means a third block
+// cannot drift from the first two. The admin block overrides the domain message.
+const exemptDomainPattern = {
+  group: ["@tc/domain", "@tc/domain/*"],
+  message: "Only src/server and src/app/api may import the domain package (AGENTS.md lint wall).",
+};
+const exemptAuthConfigPattern = {
+  group: ["@/lib/authConfig"],
+  message:
+    "Only src/server/auth.ts and src/proxy.ts may build an Auth.js instance from authConfig (AGENTS.md lint wall, ADR-024).",
+};
+const exemptWallPatterns = [exemptDomainPattern, exemptAuthConfigPattern];
+
 export default [
   ...compat.extends("next/core-web-vitals", "next/typescript"),
   {
@@ -453,18 +468,48 @@ export default [
         {
           patterns: [
             {
-              group: ["@tc/domain", "@tc/domain/*"],
+              ...exemptDomainPattern,
               message:
                 "The operator console reads entitlement state; it does not do planning. Only src/server and src/app/api may import the domain package (AGENTS.md lint wall).",
             },
-            {
-              group: ["@/lib/authConfig"],
-              message:
-                "Only src/server/auth.ts and src/proxy.ts may build an Auth.js instance from authConfig (AGENTS.md lint wall, ADR-024).",
-            },
+            exemptAuthConfigPattern,
           ],
         },
       ],
+    },
+  },
+  {
+    // THE SITEMAP BLOCK (SEO pass, spec 2026-10-02 D2). `sitemap.ts` lists
+    // every published day, which only the database knows; `robots.ts` rides
+    // with it. The alternative was a self-fetch to the public API, which keeps
+    // the wall's letter and puts a rate limit and a timeout in a file a
+    // crawler reads. **This block is the exemption**, the admin block's
+    // mechanism: flat config replaces a rule's options for the last matching
+    // block, so what this list omits is allowed and what it names is refused.
+    // `check-lint-wall.mjs` holds it to exactly these two files.
+    files: ["src/app/sitemap.ts", "src/app/robots.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: exemptWallPatterns,
+        },
+      ],
+    },
+  },
+  {
+    // THE PLAYBOOKS PAGE BLOCK (SEO pass, spec 2026-10-02 D5). The public
+    // library's pages render on the server so a crawler receives the day, not
+    // a skeleton (KI-2026-09-20-f). They read `src/server` in-process for the
+    // console's reason: a server component fetching its own API over HTTP
+    // keeps the wall's letter and inverts its reason, and it puts a rate limit
+    // and a timeout in the render path — which is what `linkPreviewMetadata`
+    // does and why a day's card could silently fall back to the generic one.
+    // **This block is the exemption.** Page files only: the screens they
+    // render are still UI and still call the API.
+    files: ["src/app/(app)/playbooks/**/page.tsx"],
+    rules: {
+      "no-restricted-imports": ["error", { patterns: exemptWallPatterns }],
     },
   },
   {

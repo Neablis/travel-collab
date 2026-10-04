@@ -1,7 +1,7 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Money, TripCommand, TripDetail, TripRole } from "@tc/contracts";
+import type { Money, TripCommand, TripDetail } from "@tc/contracts";
 import type { TripCounts } from "./TripMetaPill";
 import type { TripSpend } from "@/lib/cost";
 
@@ -67,7 +67,13 @@ function renderSheet(
   overrides: {
     spend?: TripSpend;
     forkedFrom?: TripDetail["forkedFrom"];
-    myRole?: TripRole | null;
+    // TripProvider's `readOnly`, which the header hands the sheet: true for a
+    // viewer and a suggester. Which role maps to which is the provider's rule,
+    // asserted through it in TripHeader.test.tsx, not restated here.
+    readOnly?: boolean;
+    // TripProvider's `canEditBoard`. Defaults to `!readOnly` — a viewer or a
+    // writer; a suggester is the one pair that differs (readOnly and may edit).
+    canEditBoard?: boolean;
     // Defaults to null. The money controls that only exist once a trip HAS a
     // budget — the clear-X, and a currency select worth changing — cannot be
     // exercised without this.
@@ -97,7 +103,8 @@ function renderSheet(
       spend={overrides.spend ?? defaultSpend}
       forkedFrom={overrides.forkedFrom ?? null}
       createdAt={overrides.createdAt ?? "2026-08-31T14:20:00.000Z"}
-      {...{ myRole: "myRole" in overrides ? overrides.myRole! : "owner" }}
+      readOnly={overrides.readOnly ?? false}
+      canEditBoard={overrides.canEditBoard ?? !(overrides.readOnly ?? false)}
       onCommand={onCommand}
     />,
   );
@@ -346,9 +353,9 @@ describe("SettingsSheet role gating", () => {
   // both places. This asserts the absence across all three roles so a future
   // reader cannot restore it for one of them without noticing.
   it("offers Delete to nobody, whatever their role", () => {
-    for (const myRole of ["owner", "editor", "viewer"] as const) {
+    for (const readOnly of [false, true]) {
       cleanup();
-      renderSheet({ myRole });
+      renderSheet({ readOnly });
       expect(screen.queryByRole("button", { name: "Delete trip" })).toBeNull();
     }
   });
@@ -358,9 +365,9 @@ describe("SettingsSheet role gating", () => {
   // nothing on it) and still can, from Home's menu, which offers Duplicate to
   // every role.
   it("offers Duplicate to nobody either", () => {
-    for (const myRole of ["owner", "editor", "viewer"] as const) {
+    for (const readOnly of [false, true]) {
       cleanup();
-      renderSheet({ myRole });
+      renderSheet({ readOnly });
       expect(screen.queryByRole("button", { name: "Duplicate trip" })).toBeNull();
     }
   });
@@ -369,9 +376,9 @@ describe("SettingsSheet role gating", () => {
   // caller uses, and a viewer gets it for the same reason they get Duplicate:
   // a copy takes nothing from the source (ADR-028 decision 3).
   it("offers the download to every role, pointed at the v1 export endpoint", () => {
-    for (const myRole of ["owner", "editor", "viewer"] as const) {
+    for (const readOnly of [false, true]) {
       cleanup();
-      renderSheet({ myRole });
+      renderSheet({ readOnly });
       const link = screen.getByRole("link", { name: "Download Trip" });
       expect(link.getAttribute("href")).toBe(`/api/v1/trips/${tripId}/export`);
       expect(link.hasAttribute("download")).toBe(true);
@@ -384,10 +391,10 @@ describe("SettingsSheet role gating", () => {
   // control the demo has no session for is (KI-64). A signed-in viewer keeps
   // it: the demo is decided by the trip, not by the role.
   it("hides the download on the demo trip, and only there", () => {
-    renderSheet({ myRole: "viewer", tripId: DEMO_TRIP_ID });
+    renderSheet({ readOnly: true, tripId: DEMO_TRIP_ID });
     expect(screen.queryByRole("link", { name: "Download Trip" })).toBeNull();
     cleanup();
-    renderSheet({ myRole: "viewer" });
+    renderSheet({ readOnly: true });
     expect(screen.getByRole("link", { name: "Download Trip" })).toBeTruthy();
   });
 
@@ -405,17 +412,17 @@ describe("SettingsSheet role gating", () => {
   // again. The fact itself is still true and still only in that comment —
   // flagged to him on the thread.
   it("says nothing about history beside the download", () => {
-    renderSheet({ myRole: "owner" });
+    renderSheet({ readOnly: false });
     expect(screen.getByRole("link", { name: "Download Trip" })).toBeTruthy();
     expect(screen.queryByText(/history does not travel/i)).toBeNull();
     expect(screen.queryByText(/no undo, redo or revert/i)).toBeNull();
   });
 
   it("disables the rename field for a viewer, and leaves it live for an editor", () => {
-    renderSheet({ myRole: "viewer" });
+    renderSheet({ readOnly: true });
     expect(screen.getByLabelText("Trip name").hasAttribute("disabled")).toBe(true);
     cleanup();
-    renderSheet({ myRole: "editor" });
+    renderSheet({ readOnly: false });
     expect(screen.getByLabelText("Trip name").hasAttribute("disabled")).toBe(false);
   });
 
@@ -426,7 +433,7 @@ describe("SettingsSheet role gating", () => {
   // is covered too.
   it("offers a viewer no live mutating control at all", async () => {
     const onCommand = vi.fn();
-    renderSheet({ myRole: "viewer", onCommand });
+    renderSheet({ readOnly: true, onCommand });
 
     expect(screen.getByLabelText("Trip name").hasAttribute("disabled")).toBe(true);
     expect(screen.getByRole("button", { name: "Dates" }).hasAttribute("disabled")).toBe(true);
@@ -447,7 +454,7 @@ describe("SettingsSheet role gating", () => {
 
   it("leaves every one of those live for an editor", async () => {
     const onCommand = vi.fn();
-    renderSheet({ myRole: "editor", onCommand });
+    renderSheet({ readOnly: false, onCommand });
 
     expect(screen.getByRole("button", { name: "Dates" }).hasAttribute("disabled")).toBe(false);
     // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
@@ -469,7 +476,7 @@ describe("SettingsSheet role gating", () => {
 
   it("offers a viewer with a budget no way to clear or change it", async () => {
     const onCommand = vi.fn();
-    renderSheet({ myRole: "viewer", budget: withBudget, onCommand });
+    renderSheet({ readOnly: true, budget: withBudget, onCommand });
 
     // Not merely disabled — not rendered. A disabled clear-X beside a figure
     // still reads as an offer.
@@ -491,7 +498,7 @@ describe("SettingsSheet role gating", () => {
   // and not about a control that never worked for anyone.
   it("lets an editor clear and re-currency that same budget", async () => {
     const onCommand = vi.fn();
-    renderSheet({ myRole: "editor", budget: withBudget, onCommand });
+    renderSheet({ readOnly: false, budget: withBudget, onCommand });
 
     await userEvent.selectOptions(screen.getByLabelText("Currency"), "EUR");
     expect(onCommand).toHaveBeenCalledWith({ type: "SetTripCurrency", tripId, currency: "EUR" });
@@ -500,14 +507,11 @@ describe("SettingsSheet role gating", () => {
     expect(onCommand).toHaveBeenCalledWith({ type: "SetTripBudget", tripId, budget: null });
   });
 
-  // Null while the role read is still in flight or failed. The client is not
-  // the security boundary, so an unknown role must not lock the board — but it
-  // must not offer a destructive action it cannot vouch for either.
-  it("withholds Delete while the role is unknown", () => {
-    renderSheet({ myRole: null });
-    expect(screen.queryByRole("button", { name: "Delete trip" })).toBeNull();
-    expect(screen.getByLabelText("Trip name").hasAttribute("disabled")).toBe(false);
-  });
+  // An unknown role (the access read in flight or failed) leaves the sheet
+  // live, as it leaves the board (W21). That is the provider's call now, so it
+  // is asserted through the provider: TripHeader.test.tsx, "Trip settings is
+  // gated by the provider's readOnly". Delete is withheld from every reader
+  // above.
 });
 
 // Mitchell, Vercel toolbar comment on `/trips/:id?lens=Map&view=Calendar` at
@@ -525,10 +529,13 @@ describe("SettingsSheet trip overview (the hidden meta pill's counts)", () => {
   // says so — a viewer sees the same three counts as an owner, so "make them
   // editable" (or withhold them) has to be a deliberate change rather than an
   // accident of the gating above.
-  it.each(["owner", "viewer"] as const)(
+  it.each([
+    ["writer", false],
+    ["read-only reader", true],
+  ] as const)(
     "states the day, stop and city counts the header pill states, to a %s",
-    (myRole) => {
-      renderSheet({ myRole, counts: { days: 5, stops: 14, cities: 3 } });
+    (_reader, readOnly) => {
+      renderSheet({ readOnly, counts: { days: 5, stops: 14, cities: 3 } });
 
       expect(screen.getByText("5 days")).toBeTruthy();
       expect(screen.getByText("14 stops")).toBeTruthy();
@@ -588,20 +595,41 @@ describe("SettingsSheet share", () => {
     expect(shareAt).toBeGreaterThan(panelAt);
   });
 
-  // Same rule as the header's `!readOnly`, which is TripProvider's identical
-  // `myRole === "viewer"` — withheld, not disabled, exactly as Delete is for a
+  // The header's own `!readOnly`, the one TripProvider value both read —
+  // withheld, not disabled, exactly as Delete is for a
   // non-owner (a disabled Share still reads as an offer, KI-64). This is also
   // what keeps /demo honest: a demo visitor resolves as a `viewer`
   // server-side (ADR-031, server/access/trip-access.ts), so they lose Share in
   // the sheet — which is now the only place it could have been lost from.
-  it("withholds Share from a viewer and offers it to an editor and an owner", () => {
-    renderSheet({ myRole: "viewer" });
+  it("withholds Share from a read-only reader and offers it to a writer", () => {
+    renderSheet({ readOnly: true });
     expect(screen.queryByRole("button", { name: "Share" })).toBeNull();
 
-    for (const myRole of ["editor", "owner"] as const) {
-      cleanup();
-      renderSheet({ myRole });
-      expect(screen.getByRole("button", { name: "Share" })).toBeTruthy();
-    }
+    cleanup();
+    renderSheet({ readOnly: false });
+    expect(screen.getByRole("button", { name: "Share" })).toBeTruthy();
+  });
+
+  // W8, default closed: a suggester may suggest board edits but writes
+  // nothing directly, so every control this sheet gates on `readOnly` stays
+  // withheld unless it opts in to suggest mode. The provider hands a suggester
+  // `readOnly` and `canEditBoard` both (asserted in TripHeader.test.tsx). The trip fields do (their
+  // command joins the draft); Share never does.
+  it("leaves a suggester the trip fields, whose edits go to the provider", async () => {
+    const onCommand = vi.fn();
+    renderSheet({ readOnly: true, canEditBoard: true, onCommand });
+
+    expect(screen.getByRole("button", { name: "Dates" }).hasAttribute("disabled")).toBe(false);
+    const name = screen.getByLabelText("Trip name");
+    await userEvent.clear(name);
+    await userEvent.type(name, "Japan in spring{Enter}");
+    expect(onCommand).toHaveBeenCalledWith({ type: "SetTripName", tripId, name: "Japan in spring" });
+  });
+
+  it("withholds Share from a suggester", () => {
+    renderSheet({ readOnly: true, canEditBoard: true });
+    // The sheet rendered, so an absent Share is the gate and not an empty tree.
+    expect(screen.getByRole("link", { name: "Download Trip" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Share" })).toBeNull();
   });
 });

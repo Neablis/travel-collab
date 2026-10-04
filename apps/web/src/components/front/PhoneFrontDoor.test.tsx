@@ -193,6 +193,14 @@ describe("the phone front door (SPEC §28)", () => {
 
   // The five things Mitchell reported missing on the 2026-09-12 preview, each
   // pinned by the thing he asked for rather than by a class name.
+  // ADR-061: the playbook library is open without an account, so a phone
+  // visitor can leave the front door for it (Mitchell, 2026-10-02).
+  it("links the playbook library from the header", () => {
+    render(<PhoneFrontDoor />);
+    const playbooks = within(screen.getByTestId("phone-front-door")).getByRole("link", { name: "Playbooks" });
+    expect(playbooks.getAttribute("href")).toBe("/playbooks");
+  });
+
   describe("what the first build of this screen left out", () => {
     // *"Missing the top of page signing CTA"*. There was no header at all, so a
     // returning visitor on a phone had no way into their own account.

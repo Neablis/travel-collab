@@ -11,9 +11,9 @@ import { LeaderboardScreen } from "./LeaderboardScreen";
 
 const board: LeaderboardResponse = {
   authors: [
-    { userId: "dev-bob", displayName: "dev-bob", playbooksShared: 1, adds: 4, reviewsReceived: 0, averageRating: null },
-    { userId: "dev-alice", displayName: "dev-alice", playbooksShared: 2, adds: 3, reviewsReceived: 0, averageRating: null },
-    { userId: "dev-carol", displayName: "dev-carol", playbooksShared: 3, adds: 0, reviewsReceived: 0, averageRating: null },
+    { userId: "dev-bob", displayName: "Bob K.", playbooksShared: 1, adds: 4, reviewsReceived: 0, averageRating: null },
+    { userId: "dev-alice", displayName: "Alice C.", playbooksShared: 2, adds: 3, reviewsReceived: 0, averageRating: null },
+    { userId: "dev-carol", displayName: "Carol M.", playbooksShared: 3, adds: 0, reviewsReceived: 0, averageRating: null },
   ],
   meUserId: "dev-alice",
 };
@@ -51,6 +51,18 @@ describe("the leaderboard", () => {
     // would reverse it rather than agree by coincidence.
   });
 
+  // Each row says what the server resolved ("Alice C.", Mitchell 2026-10-02),
+  // not a handle re-derived here from the id ("Alice").
+  it("names each row as the server resolved it", async () => {
+    render(<LeaderboardScreen />);
+    const rows = await screen.findByTestId("board-rows");
+    expect(within(rows).getAllByRole("link").map((link) => link.textContent)).toEqual([
+      "Bob K.",
+      "Alice C.",
+      "Carol M.",
+    ]);
+  });
+
   // Tinted and badged, never pinned. The exit gate names all three.
   it("tints and badges your own row without lifting it", async () => {
     render(<LeaderboardScreen />);
@@ -62,6 +74,21 @@ describe("the leaderboard", () => {
     expect(within(mine).getByText("You")).toBeTruthy();
     // Second, exactly where the ledger put it.
     expect(within(rows).getAllByTestId("board-row").indexOf(mine)).toBe(1);
+  });
+
+  // ADR-061: a reader with no account has no row, so nothing is tinted or
+  // badged — `meUserId` is null, and every author's id is a non-empty string.
+  it("marks no row as yours for a reader with no account", async () => {
+    fetchLeaderboardMock.mockResolvedValue(ok({ ...board, meUserId: null }));
+    render(<LeaderboardScreen />);
+    const rows = await screen.findByTestId("board-rows");
+    expect(within(rows).getAllByTestId("board-row")).toHaveLength(3);
+    expect(within(rows).getAllByTestId("board-row").map((r) => r.getAttribute("data-me"))).toEqual([
+      "false",
+      "false",
+      "false",
+    ]);
+    expect(within(rows).queryByText("You")).toBeNull();
   });
 
   it("has one way back, to Discover, and no empty state", async () => {

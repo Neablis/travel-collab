@@ -12,6 +12,7 @@ import {
   SavedDay,
   SavedDayModeration,
   SharedTripView,
+  SuggestionChange,
   TripAccess,
   TripDetail,
   TripGlobals,
@@ -21,6 +22,7 @@ import {
   TripHistory,
   TripInvite,
   TripShare,
+  TripSuggestionsResponse,
   TripSummary,
   UpdateUserPreferences,
   UserPreferences,
@@ -29,9 +31,12 @@ import {
   type CreateInviteInput,
   type CreateReportInput,
   type CreateSavedDayInput,
+  type CreateSuggestionInput,
   type PutReviewInput,
+  type ResolveSuggestionChangeInput,
   type TripCommand,
 } from "@tc/contracts";
+import { z } from "zod";
 import { BASE_URL } from "@/config";
 import { ALL_KEYS, beginWrite, clearQueryCache, endWrite } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
@@ -97,12 +102,17 @@ export function networkError(err: unknown): { ok: false; error: ApiError } {
  * A not-ok response: the body's `error` field when there is one, the status
  * text when there is not. `code` when the route sent one: two refusals can
  * share a status and want different handling (a 409 `page-changed` must not be
- * retried, a stream conflict may be).
+ * retried, a stream conflict may be). `extra` reads any field one route adds
+ * from the same body, which can only be read once.
  */
-export async function refusal(res: Response): Promise<{ ok: false; error: ApiError }> {
+export async function refusal<E extends object = object>(
+  res: Response,
+  extra?: (body: Record<string, unknown>) => E,
+): Promise<{ ok: false; error: ApiError & E }> {
   const data = (await res.json().catch(() => ({}))) as { error?: string; code?: unknown };
   const code = typeof data.code === "string" ? { code: data.code } : {};
-  return { ok: false, error: { status: res.status, message: data.error ?? res.statusText, ...code } };
+  const more = extra?.(data as Record<string, unknown>) ?? ({} as E);
+  return { ok: false, error: { status: res.status, message: data.error ?? res.statusText, ...code, ...more } };
 }
 
 // Task 7.2 (M10 Phase 7): the new-trip wizard's real step, factored out of
@@ -467,6 +477,87 @@ export async function acceptInvite(token: string): Promise<ApiResult<{ tripId: s
 /** The link an owner hands out. Absolute, because it is meant to be pasted. */
 export function inviteLink(token: string): string {
   return apiUrl(`/invite/${encodeURIComponent(token)}`);
+}
+
+// ── Suggestions (spec 2026-10-03, ADR-064) ───────────────────────────────────
+
+// The create route's 201 body, and the resolve route's 200 (W33). Contracts
+// names the list read's shape (`TripSuggestionsResponse`) but not this one,
+// which is only ever read here.
+const CreatedSuggestion = z.object({ changes: z.array(SuggestionChange) });
+
+/**
+ * A refused draft. `index` comes with `does-not-apply` (spec W4): the unit,
+ * in the order sent, that no longer predicts against the trip's head. Nothing
+ * was stored, so the caller keeps the draft.
+ */
+export type SuggestionRefusal = ApiError & { index?: number };
+
+/**
+ * Send a suggester's draft. Not a trip write — a suggestion is not planning
+ * state (ADR-064) — so it does not invalidate the trip's cached reads.
+ */
+export async function createTripSuggestion(
+  tripId: string,
+  input: CreateSuggestionInput,
+): Promise<{ ok: true; value: SuggestionChange[] } | { ok: false; error: SuggestionRefusal }> {
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/suggestions`), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    if (!res.ok) return await refusal(res, (body) => (typeof body.index === "number" ? { index: body.index } : {}));
+    return { ok: true, value: CreatedSuggestion.parse(await res.json()).changes };
+  } catch (err) {
+    return networkError(err);
+  }
+}
+
+/**
+ * The trip's pending suggestion changes this reader may see, with the revision
+ * the events poll compares against (`suggestionsRev`). A viewer is answered 404.
+ */
+export async function fetchTripSuggestions(tripId: string): Promise<ApiResult<TripSuggestionsResponse>> {
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/suggestions`), { cache: "no-store" });
+    if (!res.ok) return await refusal(res);
+    return { ok: true, value: TripSuggestionsResponse.parse(await res.json()) };
+  } catch (err) {
+    return networkError(err);
+  }
+}
+
+// A trip write: an accept appends a batch to the log, so the trip's cached
+// reads are cleared whatever the outcome, like every other writer here. A
+// dismiss or withdraw writes no event, but a response that never arrived
+// cannot say which it was, and the cost is one cache miss.
+/**
+ * Accept, dismiss or withdraw one change. Resolves the changes it resolved,
+ * the named one first and then the pending dependents it took with it (W33);
+ * a refusal carries the route's `code` (`already-resolved`,
+ * `dependency-pending`, `no-longer-applies`, …).
+ */
+export async function resolveSuggestionChange(
+  tripId: string,
+  changeId: string,
+  action: ResolveSuggestionChangeInput["action"],
+): Promise<ApiResult<SuggestionChange[]>> {
+  const scope = tripKeys.all(tripId);
+  beginWrite(scope);
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/suggestions/changes/${changeId}`), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action }),
+    });
+    if (!res.ok) return await refusal(res);
+    return { ok: true, value: CreatedSuggestion.parse(await res.json()).changes };
+  } catch (err) {
+    return networkError(err);
+  } finally {
+    endWrite(scope);
+  }
 }
 
 // ── Pinned read-only shares (M11 link 4) ─────────────────────────────────────
