@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, X } from "lucide-react";
 import { SUGGESTION_NOTE_MAX } from "@tc/contracts";
 import type { SuggestionDraft } from "@/components/trip/context/TripProvider";
 import { Banner } from "@/components/ui/banner";
@@ -73,18 +73,28 @@ export function SuggestionTray({ draft }: { draft: SuggestionDraft }) {
           <span className="text-sm font-semibold text-ink">
             {empty ? "No changes yet" : draft.count === 1 ? "1 change not sent" : `${draft.count} changes not sent`}
           </span>
-          <span className="text-xs font-normal text-slate">
+          {/* Off a phone only: at 390px the line and both buttons fit one
+              row only without it, and W69's bar is one row tall there (the
+              #314 preview walk measured two, 115px). The count says the rest. */}
+          <span className="text-xs font-normal text-slate max-md:hidden">
             {empty ? "Your edits are sent as a suggestion" : "Add a note"}
           </span>
         </Button>
         <div className="flex shrink-0 gap-2">
           {!empty && (
             <Button variant="secondary" size="sm" onClick={discard} disabled={draft.sending}>
-              Discard
+              <X aria-hidden className="size-3.5 md:hidden" />
+              <span className="max-md:sr-only">Discard</span>
             </Button>
           )}
-          <Button variant="primary" size="sm" onClick={() => void send()} disabled={draft.sending || empty}>
-            Send suggestion
+          <Button
+            variant="primary"
+            size="sm"
+            aria-label="Send suggestion"
+            onClick={() => void send()}
+            disabled={draft.sending || empty}
+          >
+            Send<span className="max-md:hidden"> suggestion</span>
           </Button>
         </div>
       </div>

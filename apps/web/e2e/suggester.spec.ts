@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { Browser, Locator, Page } from "@playwright/test";
 import { expect, test } from "./fixtures/test";
 import { grantCollaborators } from "./adminBootstrap";
-import { createMappedTrip, dragCardTo, openHistory, openPlan } from "./helpers";
+import { createMappedTrip, dragCardTo, openAssistantRail, openHistory, openPlan } from "./helpers";
 import { e2eTripName } from "./tripNames";
 import { SUGGESTER_APPROVAL } from "../src/lib/tripRole";
 
@@ -137,6 +137,32 @@ test("a suggester's move waits for the owner, and Accept makes it", async ({ pag
     await expect(tabs).toBeVisible();
     await expect.poll(onTop(tray)).toBe(true);
     await expect.poll(onTop(tabs)).toBe(true);
+    // ...one row of it, as W69 has it (the #314 preview walk measured two:
+    // Send wrapped under the count, 115px of a phone's board).
+    const send = tray.getByRole("button", { name: "Send suggestion" });
+    const oneRow = async () => (await tray.boundingBox())!.height < 2 * (await send.boundingBox())!.height;
+    await expect.poll(oneRow).toBe(true);
+
+    // With the assistant docked, the bar stops short of the rail (`.assistant-open`
+    // keeps 356px from 768px up), so at the bar's height its own right end is
+    // the bar and the rail's left edge is the rail: neither paints over the
+    // other (CodeRabbit on #314). Sampled at the bar's height because that is
+    // the only place the two can meet.
+    await sam.setViewportSize({ width: 1100, height: 900 });
+    await openAssistantRail(sam);
+    const rail = sam.getByRole("complementary", { name: "Assistant" });
+    const sideBySide = () =>
+      tray.evaluate((bar) => {
+        const dock = document.querySelector('[aria-label="Assistant"]');
+        if (!dock) return false;
+        const b = bar.getBoundingClientRect();
+        const y = b.top + b.height / 2;
+        const atRail = document.elementFromPoint(dock.getBoundingClientRect().left + 2, y);
+        return bar.contains(document.elementFromPoint(b.right - 2, y)) && dock.contains(atRail);
+      });
+    await expect.poll(sideBySide).toBe(true);
+    await rail.getByRole("button", { name: "Hide" }).click();
+    await expect(rail).toHaveCount(0);
     await sam.setViewportSize({ width: 1280, height: 900 });
 
     await Promise.all([
@@ -147,6 +173,10 @@ test("a suggester's move waits for the owner, and Accept makes it", async ({ pag
     ]);
     await expect(tray).toContainText("No changes yet");
     expect(commands).toEqual([]);
+    // Empty, it is one row on a phone too.
+    await sam.setViewportSize({ width: 390, height: 844 });
+    await expect.poll(oneRow).toBe(true);
+    await sam.setViewportSize({ width: 1280, height: 900 });
   } finally {
     await sam.context().close();
   }
@@ -163,14 +193,19 @@ test("a suggester's move waits for the owner, and Accept makes it", async ({ pag
   const chip = page.getByRole("button", { name: "2 suggestions", exact: true });
   // One poll interval and the list read it triggers; a reload would be ~0.
   await expect(chip).toBeVisible({ timeout: 15_000 });
+  // The chip opens on the first click the moment it appears (the #314
+  // preview walk: aria-expanded stayed false, and it took a second click).
+  await chip.click();
+  await expect(chip).toHaveAttribute("aria-expanded", "true");
+  await page.keyboard.press("Escape");
+  await expect(chip).toHaveAttribute("aria-expanded", "false");
   await expect(day1.getByTestId(/activity-card-/).filter({ hasText: stop })).toBeVisible();
   await expect(day2.getByTestId(/activity-card-/).filter({ hasText: stop })).toHaveCount(0);
   const ghost = day2.getByRole("button", { name: /^Suggested: Moved/ });
   await expect(ghost).toBeVisible();
   await expect(ghost.getByText("Suggested", { exact: true })).toBeVisible();
 
-  // The chip opens on the first click, straight after it appears (the #314
-  // preview walk: it took two), and offers both changes at once (W77).
+  // Both changes at once (W77).
   await chip.click();
   await expect(chip).toHaveAttribute("aria-expanded", "true");
   await page.getByRole("button", { name: "Accept all" }).click();
