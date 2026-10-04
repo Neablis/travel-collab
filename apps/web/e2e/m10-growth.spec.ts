@@ -484,14 +484,13 @@ test("the day columns' scrollbar is on screen on load, even when the columns run
  * Dragging the stand-in scrollbar moves the columns with it, and neither ever
  * steps backwards (PR #234 review, on KI-2026-09-22-b's fix).
  *
- * The bar and the row mirror each other's `scrollLeft`, and Board.tsx's
- * `echoes` counter makes the bar ignore the scroll events the row's writes
- * raise. That is only safe while each echo is spent in the frame it was
- * raised. The review worried that the row's event could land a frame late,
- * write the row's old position back into the bar and use up the bar's next
- * real event as that echo. In Chromium it does not (see the KI's follow-up
- * line), and this pins that. Red-checked by delaying the row-to-bar mirror by
- * one frame: the last drag step was lost (ended at 900, not 960).
+ * The bar and the row mirror each other's `scrollLeft`, and Board.tsx ignores
+ * the scroll event each mirror write raises. The review worried that the
+ * row's event could land a frame late, write the row's old position back into
+ * the bar and lose a drag step. Through Chromium 152 it did not; Chromium 153
+ * (Playwright 1.63) delivers it late, and this went red — the last drag step
+ * was lost (ended at 900, not 960) — until Board.tsx matched echoes by
+ * position instead of counting them.
  *
  * Headless Chromium draws overlay scrollbars (the KI's "NOT CONFIRMED" note),
  * so the thumb cannot be grabbed with `page.mouse`. The drag is the button
