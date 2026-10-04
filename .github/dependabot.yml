@@ -1,21 +1,28 @@
-# Dependency updates, deliberately throttled.
+# Dependency updates: weekly, batched, never a major, and kept mergeable.
 #
-# `docs/guidelines/ci-cost-and-capacity.md` recorded "no dependabot.yml" as an
-# intentional choice, on the reasoning that enabling version updates would add
-# CI spend against a 2,000-minute Free-plan cap. The counter-evidence is that
-# ad-hoc bumps are how Vitest went 2 -> 3 without the migration its own upgrade
-# notes mandate. This file is the compromise: updates arrive on a schedule, in
-# batches, and never as a major.
+# This file began as a throttle. `docs/guidelines/ci-cost-and-capacity.md`
+# recorded "no dependabot.yml" as an intentional choice against a 2,000-minute
+# Free-plan cap, then ad-hoc bumps took Vitest 2 -> 3 without the migration its
+# own upgrade notes mandate, and the compromise was monthly batches with
+# rebasing switched off. The repo went public on 2026-08-31, minutes stopped
+# being a budget, and what was left of the throttle was its cost:
 #
-# Two things worth knowing before changing anything here:
+# - `rebase-strategy: disabled` meant the second npm PR of every cycle
+#   conflicted on `pnpm-lock.yaml` the moment the first merged and then sat
+#   until someone commented `@dependabot rebase`. Measured 2026-10-04: #315
+#   merged itself in six minutes; #316 passed `ci`, failed to merge with
+#   "Pull Request has merge conflicts", and waited two hours for that comment.
+# - Monthly batches were large (#283 carried 16 updates) and one bad package
+#   in a batch holds up all of it.
 #
-# - Security updates do NOT come from this file. They fire on advisory
-#   publication whether it exists or not (8 such runs in the sampled 30 days),
-#   so nothing below turns them down or off.
-# - Dependabot opens PRs ready, not draft, so ci.yml's `draft == false` gate
-#   does not hold them back. Every PR here costs a full run of both jobs
-#   (~9 billed minutes). The knobs below cap that at three PRs a month —
-#   roughly 30 minutes, ~1.5% of the cap — plus a re-run per push to one.
+# So: weekly, and Dependabot rebases its own PRs (the default — there is no
+# `rebase-strategy` line below on purpose). Each rebase is a `synchronize`
+# event and another `ci` run, which is free and is what lets
+# `dependabot-automerge.yml` see a green run on a mergeable head.
+#
+# Security updates do NOT come from this file. They fire on advisory
+# publication whether it exists or not, so nothing below turns them down or
+# off.
 #
 # Merging is automatic for patch and minor bumps once `ci` passes on the PR's
 # head (`.github/workflows/dependabot-automerge.yml`), security fixes included.
@@ -26,8 +33,8 @@ updates:
   - package-ecosystem: npm # covers the whole pnpm workspace from the root lockfile
     directory: "/"
     schedule:
-      interval: monthly
-    # Two batched PRs a month, not one per dependency. Splitting production
+      interval: weekly
+    # Two batched PRs a week, not one per dependency. Splitting production
     # from development keeps a runtime bump reviewable (and revertable) on its
     # own instead of buried in a twenty-package diff.
     groups:
@@ -49,22 +56,17 @@ updates:
       # check-singletons fails (PR #283). Remove this with the core 4 migration.
       - dependency-name: "@atlaskit/pragmatic-drag-and-drop-auto-scroll"
         versions: [">=3.2.1"]
-    # Dependabot otherwise force-pushes every open PR whenever `main` moves,
-    # and each force-push is a `synchronize` event and another billed run. On
-    # a repo that merges several PRs a week that is the single largest cost of
-    # having Dependabot on at all.
-    rebase-strategy: disabled
     commit-message:
       prefix: chore
       include: scope
 
   # Workflow action pins (`actions/checkout@v7` and friends). One grouped PR a
-  # month; this is supply-chain hygiene, and majors are excluded here too
+  # week; this is supply-chain hygiene, and majors are excluded here too
   # because an action major can change a workflow's contract.
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
-      interval: monthly
+      interval: weekly
     groups:
       github-actions:
         patterns: ["*"]
@@ -72,7 +74,6 @@ updates:
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
-    rebase-strategy: disabled
     commit-message:
       prefix: chore
       include: scope
