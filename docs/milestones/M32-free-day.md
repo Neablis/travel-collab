@@ -69,18 +69,35 @@ Then, on the proposal: *"Hardcode 8-22 for now, make it a small milestone."*
 
 ## Exit gate
 
-- [ ] **`summarizeFreeDays` ranks days by free time inside 08:00–22:00**, with the parts of the
+- [x] **`summarizeFreeDays` ranks days by free time inside 08:00–22:00**, with the parts of the
       day, the longest gap and untimed stops. Unit tests, and a property test that a day's
       total equals the sum of its listed gaps and never exceeds the window. Each seen red.
-- [ ] **One whole-trip `find_free_time` call answers "which day is most free"**: `days` is
+      *(Ticked 2026-10-04: `freeTime.test.ts` (6 new), `freeTime.property.test.ts` (2, witness
+      floors 165 and 130, measured 334-364 and 262-323 over 10 runs). Seven mutations, each red
+      for its reason, e.g. ranking reversed → `expected [[0,420],[1,720],[2,840]] to deeply
+      equal [[2,840],[1,720],[0,420]]`; parts ignoring the part's start → `expected 1620 to be
+      840`.)*
+- [x] **One whole-trip `find_free_time` call answers "which day is most free"**: `days` is
       ranked, the default window is 08:00–22:00, and the late-night and early-morning openings
       hold. `readTools.test.ts`, seen red.
-- [ ] **The context budget is re-measured.** `contextBudget.baseline.json` moves by the tool's
+      *(Ticked 2026-10-04: three new tests on the Japan demo, two updated for the window. Red
+      on: days dropped, the clock default (`{ after: '00:00' }`), the late opening (`{ after:
+      '23:00', before: '22:00' }`), the early opening, and the longest gap's start.)*
+- [x] **The context budget is re-measured.** `contextBudget.baseline.json` moves by the tool's
       new description and nothing else, and the commit says by how much.
+      *(Ticked 2026-10-04: +264 characters, about 80 tokens, on each of the five shapes that offer
+      the tool; instruction characters unchanged.)*
 - [ ] **Each step row carries `duration_ms`**, migration `0037`. A unit test of the recorder and
       the ledger integration test, each seen red. The PR names the migration, and
       `migrate-production` is dispatched after merge.
-- [ ] **KI filed** for the 162-second turn; `q-most-free` added to the live set.
+      *(Tests done 2026-10-04: `askAnalytics.test.ts` red with step 0 timed from the request
+      (`[1900, …]`) and with the clock never advancing (`[900, 160900, 161300]`);
+      `usage.int.test.ts` red with the insert dropping it and with the upsert keeping the first
+      value. Two latency tests moved from a per-read ticking clock to a set one, because step
+      durations read the clock too. **Ticks when `0037` is dispatched.**)*
+- [x] **KI filed** for the 162-second turn; `q-most-free` added to the live set.
+      *(Ticked 2026-10-04: `KI-2026-10-04-c`; the live set is sixteen prompts. `ledger.sql` gains
+      query 8, model time per step.)*
 - [ ] **[walk]** On production after the dispatch: *"Which day has the most free time?"* on a
       multi-day trip is answered from **one** `find_free_time` call, names a day by its
       daytime hours, and the turn's step rows carry durations.

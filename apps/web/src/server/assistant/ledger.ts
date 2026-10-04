@@ -192,6 +192,14 @@ export interface StepSpend {
   escalated: boolean;
   /** This step ran on a page pivot's model (ADR-058). */
   pivoted: boolean;
+  /**
+   * Wall-clock milliseconds from the previous step's end (step 0: from the
+   * agent starting, after admission and the classifier) to this step's end,
+   * its tool calls included (M32). Model time is this less the step's tool
+   * durations. Null when nobody timed it. Added because a 162-second turn
+   * (2026-10-04) had three steps and no way to say which was slow.
+   */
+  durationMs: number | null;
 }
 
 /**

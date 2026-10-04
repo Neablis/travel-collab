@@ -700,6 +700,10 @@ export function createAskRecorder(params: AskRecorderParams): AskRecorder {
   // Which step emitted each tool call, by the SDK's `toolCallId` — the join
   // the per-tool row's `stepIndex` is read from at the latch.
   const stepOfCall = new Map<string, number>();
+  // When each step's clock starts (M32): the agent's start for step 0, which
+  // is now — this recorder is built after admission and the classifier — and
+  // the previous step's end after that.
+  let stepClock = now();
   let steps = 0;
   let text = "";
   let written = false;
@@ -712,7 +716,9 @@ export function createAskRecorder(params: AskRecorderParams): AskRecorder {
         toolCalls.push({ name: call.toolName, input: call.input });
         if (call.toolCallId !== undefined) stepOfCall.set(call.toolCallId, index);
       }
-      stepSpend.push(stepSpendOf(index, step, params.stepPlan?.(index)));
+      const endedAt = now();
+      stepSpend.push(stepSpendOf(index, step, params.stepPlan?.(index), endedAt - stepClock));
+      stepClock = endedAt;
       if (step.text) text += step.text;
       // Collected even when the model gave nothing (all-null entry) so this
       // array's length always equals `steps` — a reader can zip it against
@@ -896,7 +902,12 @@ export function createAskRecorder(params: AskRecorderParams): AskRecorder {
   }
 
   /** One observed step as the per-step row, on the model `prepareStep` chose for it. */
-  function stepSpendOf(index: number, step: AskStepLike, plan: AskStepPlan | undefined): StepSpend {
+  function stepSpendOf(
+    index: number,
+    step: AskStepLike,
+    plan: AskStepPlan | undefined,
+    durationMs: number,
+  ): StepSpend {
     return {
       index,
       model: plan?.model ?? params.model,
@@ -908,6 +919,7 @@ export function createAskRecorder(params: AskRecorderParams): AskRecorder {
       finishReason: step.finishReason ?? null,
       escalated: plan?.escalated ?? false,
       pivoted: plan?.pivoted ?? false,
+      durationMs,
     };
   }
 
