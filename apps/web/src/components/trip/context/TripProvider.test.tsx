@@ -1305,6 +1305,8 @@ describe("TripProvider broadcast (M13 link 2)", () => {
       await mountSolo();
       await waitFor(() => expect(runningPollTimers()).toBe(1));
 
+      // An invite out, then none: a real change of invite state (CodeRabbit on #314).
+      fireEvent.click(screen.getByRole("button", { name: "invited" }));
       fireEvent.click(screen.getByRole("button", { name: "none-out" }));
       await act(() => new Promise((r) => setTimeout(r, 20)));
       expect(runningPollTimers()).toBe(1);

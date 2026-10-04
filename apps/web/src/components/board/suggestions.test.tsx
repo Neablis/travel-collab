@@ -366,6 +366,28 @@ describe("Accept all", () => {
     expect(resolved.map((r) => r.changeId)).toEqual([seeded[0]!.id, refused]);
     expect(screen.getByRole("button", { name: "2 suggestions" })).toBeTruthy();
   });
+
+  // The #314 preview walk only ever saw "Accepting 1 of 2…": each accept
+  // shrinks the list, and the button went with it before the last one.
+  it("counts up to the last change while it runs", async () => {
+    const { seeded } = mount("owner", (tripId) => [
+      change(tripId, 'Renamed the trip to "Roma"', [{ type: "SetTripName", tripId, name: "Roma" }]),
+      change(tripId, "Set the currency to EUR", [{ type: "SetTripCurrency", tripId, currency: "EUR" }]),
+    ]);
+    let release!: () => void;
+    const held = new Promise<void>((r) => (release = r));
+    server.use(
+      http.post("/api/trips/:tripId/suggestions/changes/:changeId", async ({ params }) => {
+        if (params.changeId === seeded[1]!.id) await held;
+        return undefined;
+      }),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "2 suggestions" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Accept all" }));
+
+    expect(await screen.findByRole("button", { name: "Accepting 2 of 2…" })).toBeTruthy();
+    release();
+  });
 });
 
 // #314's preview walk: the chip took two clicks to open straight after a
