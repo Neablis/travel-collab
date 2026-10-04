@@ -137,6 +137,30 @@ describe("TripProvider — a suggester's edits are a draft", () => {
     expect(seen).toEqual([]);
   });
 
+  // Mitchell's production test, 2026-10-04 (W72): a reload took an unsent
+  // draft with it, silently. The browser asks first while there is one, and
+  // only then.
+  it("asks before the page goes while the draft holds a change, and not once it is sent or discarded", async () => {
+    await mountAsSuggester();
+    const leaving = () => {
+      const event = new Event("beforeunload", { cancelable: true });
+      window.dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+    expect(leaving()).toBe(false);
+
+    fireEvent.click(screen.getByRole("button", { name: "add-a" }));
+    expect(leaving()).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "discard" }));
+    expect(leaving()).toBe(false);
+
+    fireEvent.click(screen.getByRole("button", { name: "add-a" }));
+    expect(leaving()).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "send" }));
+    await waitFor(() => expect(screen.getByTestId("count").textContent).toBe("0"));
+    expect(leaving()).toBe(false);
+  });
+
   // Review of #311, finding 3.3 (W66, which revises W36): an edit made while a
   // send is out would be drafted on top of units that are leaving, so it is
   // refused until the send settles, and the draft holds only what is in flight.
@@ -187,6 +211,57 @@ describe("TripProvider — a suggester's edits are a draft", () => {
   });
 });
 
+// W75 (Mitchell's production test, 2026-10-04): a stop added and then moved
+// read "2 changes not sent". An edit to a stop the draft added joins the
+// change that added it, so it is sent, reviewed and counted as one.
+describe("TripProvider — a stop added in the draft keeps its edits in one change", () => {
+  const STOP = "c3333333-3333-4333-8333-333333333333";
+  const day = (dayId: string) => ({ dayId, activityIds: [], date: null, costSubtotal: 0 });
+
+  function StopProbe() {
+    const { activeTrip, dispatch, draft } = useTrip();
+    const tripId = activeTrip?.tripId ?? "";
+    const dayOf = activeTrip?.days.find((d) => d.activityIds.includes(STOP))?.dayId;
+    return (
+      <div>
+        <span data-testid="count">{draft?.count ?? "none"}</span>
+        <span data-testid="stop-day">{dayOf === DAY_B ? "B" : dayOf === DAY_A ? "A" : "none"}</span>
+        <button onClick={() => void dispatch({ type: "AddActivity", tripId, activityId: STOP, dayId: DAY_A, title: "Gelato" })}>
+          add-stop
+        </button>
+        <button onClick={() => void dispatch({ type: "MoveActivity", tripId, activityId: STOP, toDayId: DAY_B, position: 0 })}>
+          move-stop
+        </button>
+        <button onClick={() => void draft?.send()}>send</button>
+      </div>
+    );
+  }
+
+  it("counts an add and its move as one change, shows where it ended, and sends one unit", async () => {
+    const onSuggestion = vi.fn<(input: CreateSuggestionInput) => void>();
+    const fixture = tripDetailFixture({ days: [day(DAY_A), day(DAY_B)] });
+    server.use(...makeTripHandlers(fixture, { myRole: "suggester", onSuggestion }));
+    render(
+      <TripProvider tripId={fixture.tripId}>
+        <StopProbe />
+      </TripProvider>,
+    );
+    await waitFor(() => expect(screen.getByTestId("count").textContent).toBe("0"));
+
+    fireEvent.click(screen.getByRole("button", { name: "add-stop" }));
+    fireEvent.click(screen.getByRole("button", { name: "move-stop" }));
+
+    expect(screen.getByTestId("count").textContent).toBe("1");
+    expect(screen.getByTestId("stop-day").textContent).toBe("B");
+
+    fireEvent.click(screen.getByRole("button", { name: "send" }));
+    await waitFor(() => expect(onSuggestion).toHaveBeenCalledTimes(1));
+    expect(onSuggestion.mock.calls[0]![0].units.map((u) => u.commands.map((c) => c.type))).toEqual([
+      ["AddActivity", "MoveActivity"],
+    ]);
+  });
+});
+
 // W50: the route takes at most SUGGESTION_UNITS_MAX units of
 // SUGGESTION_UNIT_COMMANDS_MAX commands. A draft past either would be refused
 // whole at Send, so it is refused at the edit instead, and nothing already
@@ -210,6 +285,22 @@ describe("TripProvider — a draft stays inside what the route accepts", () => {
           }}
         >
           fill
+        </button>
+        <button
+          onClick={async () => {
+            await dispatch({ type: "AddActivity", tripId, activityId: dayId(900), title: "Gelato" });
+            for (let n = 2; n <= SUGGESTION_UNITS_MAX; n++) await add(n);
+          }}
+        >
+          stop-then-fill
+        </button>
+        <button
+          onClick={async () => {
+            const result = await dispatch({ type: "UpdateActivity", tripId, activityId: dayId(900), title: "Gelato, twice" });
+            setRefusal(result.ok ? "accepted" : result.message);
+          }}
+        >
+          rename-the-stop
         </button>
         <button
           onClick={async () => {
@@ -256,6 +347,18 @@ describe("TripProvider — a draft stays inside what the route accepts", () => {
     const why = `A suggestion holds up to ${SUGGESTION_UNITS_MAX} changes. Send these first.`;
     expect(screen.getByTestId("refusal").textContent).toBe(why);
     expect(screen.getByTestId("error").textContent).toBe(why);
+    expect(screen.getByTestId("count").textContent).toBe(String(SUGGESTION_UNITS_MAX));
+  });
+
+  // W75: the cap is on changes, and an edit that joins one adds none.
+  it("still takes an edit that joins a change once the draft is full", async () => {
+    await mount();
+    fireEvent.click(screen.getByRole("button", { name: "stop-then-fill" }));
+    await waitFor(() => expect(screen.getByTestId("count").textContent).toBe(String(SUGGESTION_UNITS_MAX)));
+
+    fireEvent.click(screen.getByRole("button", { name: "rename-the-stop" }));
+
+    await waitFor(() => expect(screen.getByTestId("refusal").textContent).toBe("accepted"));
     expect(screen.getByTestId("count").textContent).toBe(String(SUGGESTION_UNITS_MAX));
   });
 

@@ -1029,13 +1029,6 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
               <p role="alert">{error}</p>
             </PageContainer>
           )}
-          {/* A suggester's unsent edits, under the header the save light
-              would otherwise have spoken from (it counts a draft as nothing). */}
-          {draft !== null && (
-            <PageContainer width="full">
-              <SuggestionTray draft={draft} />
-            </PageContainer>
-          )}
           <div inert={preview.seq !== null ? true : undefined}>
             {isFullLens ? (
               // px-0: Task 2.3 makes the Map lens genuinely full-bleed
@@ -1333,7 +1326,23 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           Its four parked ideas are still part of the plan a reader should see,
           so on a read-only board it renders without the picker rather than
           disappearing (UnscheduledRack drops it when `onAssign` is absent). */}
-      {lensAcceptsDrops(view) && (
+      {/* **A suggester's bar is their draft, not the rack** (W69, W71;
+          Mitchell's production test, 2026-10-04). The tray used to sit in the
+          page flow under the header, so an edit further down the board never
+          saw "N changes not sent", and a reload took the draft silently. Here
+          it is pinned where the rack is, through the same wrapper, so
+          `rackHeight` — and every offset that reads it — clears it too.
+
+          On every view, not only where the rack goes: a suggester can edit
+          from the Map and Calendar too (W35), and the bar is where those edits
+          wait. Outside the `inert` wrapper's reach for the same reason the
+          header's controls are: discarding or sending is not an edit to the
+          version being previewed. */}
+      {draft !== null ? (
+        <div ref={rackWrapperRef}>
+          <SuggestionTray draft={draft} />
+        </div>
+      ) : lensAcceptsDrops(view) && (
         <div ref={rackWrapperRef} inert={preview.seq !== null ? true : undefined}>
           <UnscheduledRack
             items={rackItems}

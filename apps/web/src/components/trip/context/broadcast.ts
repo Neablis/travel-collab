@@ -29,8 +29,9 @@ import { isDemoTripId } from "@/lib/demoTrip";
  * devices on the preview: *"updates can be a bit sluggish … maybe shorten it a
  * bit?"* 5s was chosen on a cost argument rather than a measured one, and the
  * cost it was protecting is bounded by the `interval` gate below: only a
- * VISIBLE, multi-member, non-demo trip polls on a timer, so this is 30 requests a
- * minute per open multi-traveller trip rather than per user.
+ * VISIBLE, multi-member, non-demo trip polls on a timer (or one with an invite
+ * out — suggester spec W73), so this is 30 requests a minute per open
+ * multi-traveller trip rather than per user.
  *
  * Worst-case latency is one interval plus the refetch, so this takes the
  * window a co-traveller's edit can sit invisible from ~5s to ~2s — the

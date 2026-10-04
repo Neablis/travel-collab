@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
-import type { Browser, Page } from "@playwright/test";
+import type { Browser, Locator, Page } from "@playwright/test";
 import { expect, test } from "./fixtures/test";
 import { grantCollaborators } from "./adminBootstrap";
-import { createMappedTrip, dragCardTo, openHistory, openPlan } from "./helpers";
+import { createMappedTrip, dragCardTo, openAssistantRail, openHistory, openPlan } from "./helpers";
 import { e2eTripName } from "./tripNames";
 import { SUGGESTER_APPROVAL } from "../src/lib/tripRole";
 
@@ -63,6 +63,7 @@ test("a suggester's move waits for the owner, and Accept makes it", async ({ pag
   // with no ghost (W47).
   const tripId = await createMappedTrip(page, tripName, 2);
   const stop = "Stop on day 1";
+  const gelato = (day: Locator) => day.getByTestId(/activity-card-/).filter({ hasText: "Gelato" });
   await page.goto(`/trips/${tripId}?view=Plan`);
   await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
   const link = await inviteLinkFor(page, tripName, "Can suggest");
@@ -93,6 +94,76 @@ test("a suggester's move waits for the owner, and Accept makes it", async ({ pag
     await expect(day2.getByTestId(/activity-card-/).filter({ hasText: stop })).toBeVisible();
     const tray = sam.getByRole("region", { name: "Suggestion draft" });
     await expect(tray).toContainText("1 change not sent");
+    await expect(sam.getByText("1 not sent", { exact: true })).toBeVisible();
+
+    // W75 (Mitchell's production test, 2026-10-04): a stop added and then
+    // moved read "2 changes not sent". The move joins the change that added
+    // it. Timed, because a suggester's board draws no untimed stop (W71).
+    await sam.getByRole("button", { name: "Add stop" }).click();
+    await sam.getByLabel("What or where").fill("Gelato");
+    await sam.getByLabel("Start", { exact: true }).fill("13:00");
+    await sam.getByRole("button", { name: "Add stop" }).last().click();
+    await expect(gelato(day1)).toBeVisible();
+    // A placeholder until it is sent and accepted (W76; Mitchell's preview
+    // comment, 2026-10-04), and it says so in words.
+    await expect(gelato(day1).getByText("Not sent", { exact: true })).toBeVisible();
+    await expect(tray).toContainText("2 changes not sent");
+    await dragCardTo(gelato(day1), day2);
+    await expect(gelato(day2)).toBeVisible();
+    await expect(tray).toContainText("2 changes not sent");
+
+    // Mitchell's production test, 2026-10-04 (W69): the tray sat in the page
+    // flow under the header, so a suggester working further down the board
+    // never saw it. It is the bottom bar now, on screen wherever they are.
+    // The scroll is witnessed, or "in the viewport" would hold of a page that
+    // never moved — and at the suite's 1280x900 this two-day board fits
+    // without scrolling, so the window is a short laptop's.
+    await sam.setViewportSize({ width: 1280, height: 540 });
+    await sam.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    await expect.poll(() => sam.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+    await expect(tray).toBeInViewport({ ratio: 1 });
+    // ...and on top. `toBeInViewport` ignores what is painted over the box, and
+    // the old tray, scrolled under the sticky header, still passed it.
+    const onTop = (box: Locator) => () =>
+      box.evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        return el.contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2));
+      });
+    await expect.poll(onTop(tray)).toBe(true);
+    // A phone's bar sits on the tab bar, as the rack's does: each on top of
+    // its own box, neither under the other.
+    await sam.setViewportSize({ width: 390, height: 844 });
+    const tabs = sam.getByRole("navigation", { name: "Phone navigation" });
+    await expect(tabs).toBeVisible();
+    await expect.poll(onTop(tray)).toBe(true);
+    await expect.poll(onTop(tabs)).toBe(true);
+    // ...one row of it, as W69 has it (the #314 preview walk measured two:
+    // Send wrapped under the count, 115px of a phone's board).
+    const send = tray.getByRole("button", { name: "Send suggestion" });
+    const oneRow = async () => (await tray.boundingBox())!.height < 2 * (await send.boundingBox())!.height;
+    await expect.poll(oneRow).toBe(true);
+
+    // With the assistant docked, the bar stops short of the rail (`.assistant-open`
+    // keeps 356px from 768px up), so at the bar's height its own right end is
+    // the bar and the rail's left edge is the rail: neither paints over the
+    // other (CodeRabbit on #314). Sampled at the bar's height because that is
+    // the only place the two can meet.
+    await sam.setViewportSize({ width: 1100, height: 900 });
+    await openAssistantRail(sam);
+    const rail = sam.getByRole("complementary", { name: "Assistant" });
+    const sideBySide = () =>
+      tray.evaluate((bar) => {
+        const dock = document.querySelector('[aria-label="Assistant"]');
+        if (!dock) return false;
+        const b = bar.getBoundingClientRect();
+        const y = b.top + b.height / 2;
+        const atRail = document.elementFromPoint(dock.getBoundingClientRect().left + 2, y);
+        return bar.contains(document.elementFromPoint(b.right - 2, y)) && dock.contains(atRail);
+      });
+    await expect.poll(sideBySide).toBe(true);
+    await rail.getByRole("button", { name: "Hide" }).click();
+    await expect(rail).toHaveCount(0);
+    await sam.setViewportSize({ width: 1280, height: 900 });
 
     await Promise.all([
       sam.waitForResponse(
@@ -100,37 +171,55 @@ test("a suggester's move waits for the owner, and Accept makes it", async ({ pag
       ),
       tray.getByRole("button", { name: "Send suggestion" }).click(),
     ]);
-    await expect(tray).toHaveCount(0);
+    await expect(tray).toContainText("No changes yet");
     expect(commands).toEqual([]);
+    // Empty, it is one row on a phone too.
+    await sam.setViewportSize({ width: 390, height: 844 });
+    await expect.poll(oneRow).toBe(true);
+    await sam.setViewportSize({ width: 1280, height: 900 });
   } finally {
     await sam.context().close();
   }
 
-  // The owner's board, fresh: the stop has NOT moved — a suggestion is not
-  // planning state until it is accepted (spec §2) — and the move is a ghost
-  // where it would land, with the header's count beside it.
-  await page.goto(`/trips/${tripId}?view=Plan`);
+  // The owner's board, NOT reloaded: it was open before the suggester joined,
+  // and it hears about the suggestion on its own (W73; Mitchell's production
+  // test, 2026-10-04, where it showed only after a reload). The stop has NOT
+  // moved — a suggestion is not planning state until it is accepted (spec §2)
+  // — and the move is a ghost where it would land, with the header's count.
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
   const day1 = page.getByTestId("day-column").nth(0);
   const day2 = page.getByTestId("day-column").nth(1);
+  const chip = page.getByRole("button", { name: "2 suggestions", exact: true });
+  // One poll interval and the list read it triggers; a reload would be ~0.
+  await expect(chip).toBeVisible({ timeout: 15_000 });
+  // The chip opens on the first click the moment it appears (the #314
+  // preview walk: aria-expanded stayed false, and it took a second click).
+  await chip.click();
+  await expect(chip).toHaveAttribute("aria-expanded", "true");
+  await page.keyboard.press("Escape");
+  await expect(chip).toHaveAttribute("aria-expanded", "false");
   await expect(day1.getByTestId(/activity-card-/).filter({ hasText: stop })).toBeVisible();
   await expect(day2.getByTestId(/activity-card-/).filter({ hasText: stop })).toHaveCount(0);
-  const chip = page.getByRole("button", { name: "1 suggestion", exact: true });
-  await expect(chip).toBeVisible();
-  const ghost = day2.getByRole("button", { name: /^Suggested: / });
+  const ghost = day2.getByRole("button", { name: /^Suggested: Moved/ });
   await expect(ghost).toBeVisible();
+  await expect(ghost.getByText("Suggested", { exact: true })).toBeVisible();
 
-  await ghost.click();
-  await page.getByRole("button", { name: /^Accept: / }).click();
+  // Both changes at once (W77).
+  await chip.click();
+  await expect(chip).toHaveAttribute("aria-expanded", "true");
+  await page.getByRole("button", { name: "Accept all" }).click();
 
   await expect(day2.getByTestId(/activity-card-/).filter({ hasText: stop })).toBeVisible();
+  await expect(gelato(day2)).toBeVisible();
   await expect(day1.getByTestId(/activity-card-/).filter({ hasText: stop })).toHaveCount(0);
-  await expect(chip).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^\d+ suggestions?$/ })).toHaveCount(0);
   await expect(day2.getByRole("button", { name: /^Suggested: / })).toHaveCount(0);
 
   // History says who asked for it, by name — not "Suggested" alone, and not
   // "a former traveler" (W49).
   await openHistory(page);
-  await expect(page.getByText(`Suggested by ${suggesterName}`)).toBeVisible();
+  await expect(page.getByText(`Suggested by ${suggesterName}`).first()).toBeVisible();
 
   // ...and says it beside the description rather than in place of it. On one
   // line, the attribution took the width and the row read `Moved "St…`
@@ -139,6 +228,7 @@ test("a suggester's move waits for the owner, and Accept makes it", async ({ pag
   const description = page
     .getByTestId("history-entry")
     .filter({ hasText: `Suggested by ${suggesterName}` })
+    .filter({ hasText: stop })
     .getByTestId("history-entry-description");
   await expect(description).toContainText(stop);
   await expect.poll(() => description.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(0);

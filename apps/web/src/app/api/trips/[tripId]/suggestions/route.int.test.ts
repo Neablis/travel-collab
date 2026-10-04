@@ -2,11 +2,13 @@ import { randomUUID } from "node:crypto";
 import { eq, inArray } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { BatchableCommand, TripSuggestionsResponse } from "@tc/contracts";
-import { executeTripCommand } from "@/server/commands";
+import { executeTripCommand, executeTripCommandBatch } from "@/server/commands";
 import { grantMembership } from "@/server/access/members";
 import { db } from "@/server/db/client";
 import { tripSuggestionChanges, users } from "@/server/db/schema";
+import { getTripDetail } from "@/server/projections";
 import { MAX_SUGGESTION_BODY_BYTES } from "@/server/suggestions/http";
+import { resolveSuggestionChange } from "@/server/suggestions/resolve";
 import { SUGGESTION_AUTHOR_PENDING_MAX } from "@/server/suggestions/shared";
 import { entitleAccounts } from "@/server/test-support/entitledAccount";
 import { insertStoredSuggestion, unparseableCommands } from "@/server/test-support/storedSuggestion";
@@ -88,6 +90,41 @@ describe("POST /api/trips/:id/suggestions", () => {
     const res = await send({ units: [{ commands: commands() }] });
     expect(res.status).toBe(status);
     expect(await res.json()).toMatchObject({ code });
+  });
+
+  // W75: the board folds an edit to a stop the draft added into the unit that
+  // added it, so a unit arrives as an add followed by its edits. The dry run
+  // takes it as one change, and accepting it replays the lot as one batch.
+  it("takes a stop added and then moved as one change, and Accept lands it on the day it was moved to", async () => {
+    const [first, second, stop] = [randomUUID(), randomUUID(), randomUUID()];
+    const seeded = await executeTripCommandBatch(
+      [
+        { type: "AddDay", tripId, dayId: first },
+        { type: "AddDay", tripId, dayId: second },
+      ],
+      OWNER,
+    );
+    expect(seeded.ok).toBe(true);
+
+    const res = await send({
+      units: [
+        {
+          commands: [
+            { type: "AddActivity", tripId, activityId: stop, dayId: first, title: "Gelato" },
+            { type: "MoveActivity", tripId, activityId: stop, toDayId: second, position: 0 },
+          ],
+        },
+      ],
+    });
+    expect(res.status).toBe(201);
+    const { changes } = await res.json();
+    expect(changes).toHaveLength(1);
+    expect(changes[0].description).toBe('Added "Gelato" to Day 1; Moved "Gelato" to Day 2');
+
+    expect((await resolveSuggestionChange(tripId, changes[0].id, OWNER, "accept")).ok).toBe(true);
+    const days = (await getTripDetail(tripId))!.days;
+    expect(days.find((d) => d.dayId === second)!.activityIds).toEqual([stop]);
+    expect(days.find((d) => d.dayId === first)!.activityIds).toEqual([]);
   });
 
   it("maps does-not-apply to 422, naming the unit", async () => {

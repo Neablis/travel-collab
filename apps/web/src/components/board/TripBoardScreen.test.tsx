@@ -1795,20 +1795,51 @@ describe("TripBoardScreen — a suggester's board", () => {
     expect(screen.queryByRole("button", { name: "Redo" })).toBeNull();
   });
 
-  it("holds an edit in the tray instead of sending it", async () => {
+  // Mitchell's production test, 2026-10-04: the tray sat in the page flow under
+  // the header, so an edit further down never saw it, and the draft died on a
+  // reload. It is the bottom bar now (W69), there before the first edit, and
+  // the header says the count wherever the reader has scrolled to (W70).
+  it("holds an edit in the bottom bar instead of sending it, and the header counts it", async () => {
     const fixture = tripDetailFixture();
     const onCommand = vi.fn<(command: TripCommand) => void>();
     server.use(...makeTripHandlers(fixture, { myRole: "suggester", onCommand }));
     renderScreen(fixture.tripId);
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
-    expect(screen.queryByRole("region", { name: "Suggestion draft" })).toBeNull();
+    const tray = screen.getByRole("region", { name: "Suggestion draft" });
+    expect(within(tray).getByRole("button", { name: "Send suggestion" })).toHaveProperty("disabled", true);
+    expect(screen.queryByText(/not sent/)).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Add a day" }));
 
-    const tray = await screen.findByRole("region", { name: "Suggestion draft" });
-    expect(within(tray).getByText("1 change not sent")).toBeTruthy();
+    expect(await within(tray).findByText("1 change not sent")).toBeTruthy();
+    expect(within(tray).getByRole("button", { name: "Send suggestion" })).toHaveProperty("disabled", false);
+    expect(screen.getByText("1 not sent", { exact: true })).toBeTruthy();
     expect(screen.getAllByTestId("day-column")).toHaveLength(1);
     expect(onCommand).not.toHaveBeenCalled();
+  });
+
+  // Mitchell, 2026-10-04: a suggester does not use the Unscheduled rack (W71).
+  // The bar is the tray, and nothing else on the board leads into the rack: a
+  // day's "Unscheduled" chip only counts, and a new stop starts on a day.
+  it("has the tray where the rack was, and no way into the rack", async () => {
+    const untimed = activityFactory.build({ title: "Nishiki market", timeWindow: null });
+    const day = { dayId: "71111111-1111-4111-8111-111111111111", activityIds: [untimed.activityId], date: null, costSubtotal: 0 };
+    const fixture = tripDetailFixture({ days: [day], activities: { [untimed.activityId]: untimed } });
+    server.use(...makeTripHandlers(fixture, { myRole: "suggester" }));
+    renderScreen(fixture.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+
+    expect(screen.getByRole("region", { name: "Suggestion draft" })).toBeTruthy();
+    expect(screen.queryByTestId("unscheduled-rack")).toBeNull();
+    const column = screen.getAllByTestId("day-column")[0]!;
+    expect(within(column).getByText("1 Unscheduled")).toBeTruthy();
+    expect(within(column).queryByRole("button", { name: /Unscheduled/ })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Add stop" }));
+    const sheet = await screen.findByRole("dialog");
+    const dayPicker = within(sheet).getByRole("combobox", { name: "Day" }) as HTMLSelectElement;
+    await waitFor(() => expect(dayPicker.value).toBe(day.dayId));
+    expect(within(dayPicker).queryByRole("option", { name: "Unscheduled" })).toBeNull();
   });
 
   it("offers no way to create a notebook", async () => {

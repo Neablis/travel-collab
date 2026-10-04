@@ -127,14 +127,14 @@ export function useAuthorNames(authorIds: readonly string[]): (authorId: string)
  * drafted against.
  */
 export function useBoardSuggestions(): BoardSuggestions | undefined {
-  const { suggestionGhosts: ghosts, preview } = useTrip();
-  return useMemo(
-    () =>
-      ghosts === null || preview.seq !== null
-        ? undefined
-        : { ...ghosts.board, review: (list, trigger) => <SuggestionReview ghosts={list} trigger={trigger} /> },
-    [ghosts, preview.seq],
-  );
+  const { suggestionGhosts: ghosts, preview, draft } = useTrip();
+  const draftStops = draft?.stops;
+  return useMemo(() => {
+    if (preview.seq !== null || (ghosts === null && draftStops === undefined)) return undefined;
+    // A draft is marked even before the suggestions list has been read.
+    const board = ghosts?.board ?? { days: new Map(), stops: new Map() };
+    return { ...board, draft: draftStops, review: (list, trigger) => <SuggestionReview ghosts={list} trigger={trigger} /> };
+  }, [ghosts, preview.seq, draftStops]);
 }
 
 // A popover rather than buttons on the block: a 30-minute block is 22px tall,

@@ -66,7 +66,7 @@ export function TripHeader({
   // render from). Reading `trip` here meant a rename/date/budget edit sat in
   // the optimistic queue correctly but never became visible until the server
   // round-trip confirmed it. `trip` is kept only for the existence/loading gate.
-  const { trip, activeTrip, history, status, pending, dispatch, preview, readOnly, canEditBoard, boardMode, accessUnknown } =
+  const { trip, activeTrip, history, status, pending, dispatch, preview, readOnly, canEditBoard, boardMode, accessUnknown, draft, noteInvites } =
     useTrip();
   // Task 9: "Add stop" is a real trigger for the same portable activity
   // editor Board's own "+ Add activity" button opens (Board.tsx) — no
@@ -263,6 +263,16 @@ export function TripHeader({
             {/* A suggester is `readOnly` too (W8) but not a viewer: their
                 badge is their role word, as the Travelers list says it (W24). */}
             {readOnly && <Badge variant="info">{boardMode === "suggest" ? "Suggester" : "Viewer"}</Badge>}
+            {/* A suggester's unsent draft, said where it is seen from anywhere
+                on the board (W70; Mitchell's production test, 2026-10-04). The
+                save light cannot say it: it counts a draft as nothing (W38),
+                because nothing is trying to send one. The bottom bar holds the
+                Send; this is the reminder that there is something to send. */}
+            {draft !== null && draft.count > 0 && (
+              <Badge variant="warning" title="Your changes wait in the bar at the bottom until you send them">
+                {`${draft.count} not sent`}
+              </Badge>
+            )}
             {/* The access read failed, so this board is live on an assumption
                 rather than on an answer (TripProvider's `load` explains why
                 that is the deliberate choice). Said out loud here, beside the
@@ -513,6 +523,7 @@ export function TripHeader({
         createdAt={activeTrip.createdAt}
         readOnly={readOnly}
         canEditBoard={canEditBoard}
+        onInvitesChanged={noteInvites}
         onCommand={(command) => {
           if (command.type !== "CreateTrip") void dispatch(command);
         }}

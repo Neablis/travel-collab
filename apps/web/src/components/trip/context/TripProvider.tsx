@@ -38,6 +38,7 @@ import { isDemoTripId } from "@/lib/demoTrip";
 import { placeGhosts, type SuggestionGhosts } from "@/lib/suggestionOverlay";
 import { boardMode } from "@/lib/tripRole";
 import { headSeqOf, useTripBroadcast } from "./broadcast";
+import { draftStops, enqueueDraft, type DraftStops } from "./draftQueue";
 import { drainAfter, sendUnit } from "./queueDrain";
 import { unloadFlush } from "./unloadFlush";
 import { useTripSuggestions, type TripSuggestions } from "./useTripSuggestions";
@@ -61,6 +62,8 @@ const DRAFT_BUSY = "Your suggestion is still sending. Make this change once it h
  */
 export type SuggestionDraft = {
   count: number;
+  /** The stops the draft adds or changes, which the board marks "Not sent" (W76). */
+  stops: DraftStops;
   sending: boolean;
   /** Why the last send was refused, naming the change when the server said which. */
   error: string | null;
@@ -114,6 +117,14 @@ type TripCtx = {
   canEditBoard: boolean;
   // Present in suggest mode only.
   draft: SuggestionDraft | null;
+  /**
+   * Whether an invite is out, as Trip settings → Travelers last read or made
+   * it. Someone can join at any moment while one is, so the poll's timer runs
+   * (W73); once the last is revoked it stops, unless the trip already has a
+   * second member. The invites this provider read at load go stale the moment
+   * that panel creates or revokes one.
+   */
+  noteInvites: (pending: boolean) => void;
   // The trip's suggestion changes: a suggester's own, or everyone's for an
   // editor or the owner. Null for a reader who sees none — a viewer, or a role
   // not yet known (the list is 404 to a viewer, so it is not asked for).
@@ -180,6 +191,8 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
   const [error, setError] = useState<string | null>(null);
   const [myRole, setMyRole] = useState<TripRole | null>(null);
   const [accessUnknown, setAccessUnknown] = useState(false);
+  // An invite still out, as of the access read or one made here since (W73).
+  const [inviteOut, setInviteOut] = useState(false);
   // See `remoteRevision` on the context type for why this is a counter.
   const [remoteRevision, setRemoteRevision] = useState(0);
   const [previewSeq, setPreviewSeq] = useState<number | null>(null);
@@ -225,6 +238,10 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
         cachedRead(tripKeys.access(tripId), () => fetchTripAccess(tripId)),
       ]);
       setMyRole(accessResult.ok ? accessResult.value.myRole : null);
+      // Only an owner is shown invites (`TripAccess`), and only an owner can be
+      // alone on a trip someone is about to join: an editor or a suggester is
+      // already a second member.
+      setInviteOut(accessResult.ok && accessResult.value.invites.some((i) => i.status === "pending"));
       // Reviewed and kept non-fatal, deliberately, against the alternative
       // (docs/reviews/2026-08-28-m11-pr71-review.md §5's PLAUSIBLE edge): a
       // failed access read for a real VIEWER leaves the board live, and every
@@ -460,15 +477,8 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
     // W50: the suggestions route takes no more than this, and refuses a draft
     // past it whole. Refused at the edit instead, which the author can act on;
     // the draft already made is untouched.
-    const overCap =
-      mode !== "suggest"
-        ? null
-        : base.pending.length >= SUGGESTION_UNITS_MAX
-          ? `A suggestion holds up to ${SUGGESTION_UNITS_MAX} changes. Send these first.`
-          : commands.length > SUGGESTION_UNIT_COMMANDS_MAX
-            ? `One suggested change holds up to ${SUGGESTION_UNIT_COMMANDS_MAX} edits. Make it in smaller steps.`
-            : null;
-    if (overCap !== null) {
+    if (mode === "suggest" && commands.length > SUGGESTION_UNIT_COMMANDS_MAX) {
+      const overCap = `One suggested change holds up to ${SUGGESTION_UNIT_COMMANDS_MAX} edits. Make it in smaller steps.`;
       setError(overCap);
       return { ok: false, message: overCap };
     }
@@ -480,12 +490,21 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
       setError(DRAFT_BUSY);
       return { ok: false, message: DRAFT_BUSY };
     }
-    const result = enqueue(base, `c${++seq.current}`, commands);
+    // W75: in a draft, an edit to a stop the draft added joins the change that
+    // added it, so the count is of changes a reviewer will see.
+    const result = (mode === "suggest" ? enqueueDraft : enqueue)(base, `c${++seq.current}`, commands);
     if (!result.ok) {
       // A no-op changed nothing, which is not worth alarming anyone about —
       // the same judgement the send effect makes on the server's own no-op.
       setError(result.code === "no-op" ? null : result.message);
       return result.code === "no-op" ? { ok: true } : { ok: false, message: result.message };
+    }
+    // W50, after the fold: an edit that joins or cancels a change adds none,
+    // so a full draft still takes it.
+    if (mode === "suggest" && result.state.pending.length > SUGGESTION_UNITS_MAX) {
+      const overCap = `A suggestion holds up to ${SUGGESTION_UNITS_MAX} changes. Send these first.`;
+      setError(overCap);
+      return { ok: false, message: overCap };
     }
     // Advanced before `setOptimistic` so anything dispatched later in this same
     // tick predicts against this result rather than the pre-dispatch queue.
@@ -640,7 +659,8 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
   //
   // Deliberately not a `beforeunload` prompt, and nothing here delays leaving
   // (Mitchell, 2026-07-20). The save light still says "Saving…" for as long
-  // as it is true.
+  // as it is true. The one prompt is a suggester's draft's, below (W72),
+  // because nothing sends a draft on its own.
   //
   // What neither sends, on purpose:
   // - **A unit already sent.** It may already be applied (see `sentIds`).
@@ -648,7 +668,7 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
   //   refused change without the user asking, and leaving is not asking.
   // - **A suggester's draft** (W7). Flushed, it would go as commands, which
   //   the server refuses: lost anyway, and noisily. An unsent draft is lost on
-  //   leaving in v1.
+  //   leaving in v1, once the browser has asked (W72).
   const unsentUnits = useCallback(() => {
     const state = optimisticRef.current;
     if (!state || state.failure || suggesting.current) return [];
@@ -776,6 +796,27 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
     dropUnits(new Set((optimisticRef.current?.pending ?? []).map((u) => u.id)));
   }, [dropUnits]);
 
+  // **A suggester's draft asks before the page goes** (W72; Mitchell's
+  // production test, 2026-10-04: he made an edit, reloaded, and it was gone
+  // with nothing said). The exception to "deliberately not a `beforeunload`
+  // prompt" above, and for the reason that rule exists: the queue is sent on
+  // its own, so leaving loses nothing, but a draft is never sent unless its
+  // author presses Send — leaving is the one way it is lost (W7). Registered
+  // only while there is one, so every other board leaves without asking.
+  const draftHeld = mode === "suggest" && (optimistic?.pending.length ?? 0) > 0;
+  useEffect(() => {
+    if (!draftHeld) return;
+    const ask = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      // Chrome before 119 and Safari read this rather than `preventDefault`.
+      event.returnValue = true;
+    };
+    window.addEventListener("beforeunload", ask);
+    return () => window.removeEventListener("beforeunload", ask);
+  }, [draftHeld]);
+
+  const noteInvites = useCallback((pending: boolean) => setInviteOut(pending), []);
+
   const applyOutcome = useCallback((outcome: CommandOutcome) => {
     // `outcome` is `{ detail, history }` — exactly the `confirmed` shape.
     //
@@ -805,7 +846,15 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
     // A solo trip has no second writer, so a TIMER would be pure cost — but the
     // same person in a second tab is a writer, and coming back to this one
     // still asks once (ADR-049 Decision 2).
-    interval: (optimistic?.confirmed.detail.members.length ?? 0) > 1,
+    //
+    // **An invite out counts as a second person** (W73, amending that
+    // decision). `members` is read once, at load, and joining writes no event,
+    // so nothing here re-reads it: an owner whose board was open when the
+    // invite was accepted ran no timer, and never saw the newcomer's
+    // suggestion without a reload (Mitchell's production test, 2026-10-04).
+    // A solo trip with no invite out still runs none, including once the last
+    // invite is revoked from this page (`noteInvites`; CodeRabbit on #314).
+    interval: (optimistic?.confirmed.detail.members.length ?? 0) > 1 || inviteOut,
     // Read at poll time, not captured: the confirmed head advances every time
     // the user's own work lands, and a stale cursor would re-report those as
     // remote news on every tick.
@@ -838,13 +887,20 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
   const failure = optimistic?.failure ?? null;
   const sync = useMemo(() => ({ unsent, failure, retry }), [unsent, failure, retry]);
 
-  const draftCount = optimistic?.pending.length ?? 0;
+  const draftUnits = optimistic?.pending;
   const draft = useMemo<SuggestionDraft | null>(
     () =>
       mode === "suggest"
-        ? { count: draftCount, sending: draftSending, error: draftError, discard: discardDraft, send: sendDraft }
+        ? {
+            count: draftUnits?.length ?? 0,
+            stops: draftStops(draftUnits ?? []),
+            sending: draftSending,
+            error: draftError,
+            discard: discardDraft,
+            send: sendDraft,
+          }
         : null,
-    [mode, draftCount, draftSending, draftError, discardDraft, sendDraft],
+    [mode, draftUnits, draftSending, draftError, discardDraft, sendDraft],
   );
 
   return (
@@ -865,6 +921,7 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
         boardMode: mode,
         canEditBoard,
         draft,
+        noteInvites,
         suggestions,
         suggestionGhosts,
         accessUnknown,

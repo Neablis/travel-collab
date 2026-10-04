@@ -76,7 +76,9 @@ export function Column({
   /**
    * Opens the Unscheduled rack on this day's untimed stops — the "N Unscheduled"
    * chip's click. Given on a read-only board too: showing a reader where the
-   * stops are is not a write. Without it the chip is still drawn, as text.
+   * stops are is not a write. Without it the chip is still drawn, as text,
+   * and is no drop target either: a board with no rack to reveal — a
+   * suggester's (W71) — has nowhere for an untimed stop to go.
    */
   onRevealAnyTime?: () => void;
   /**
@@ -304,7 +306,7 @@ export function Column({
               title={title}
               dayId={dayId}
               onReveal={onRevealAnyTime}
-              droppable={gestures !== undefined}
+              droppable={gestures !== undefined && onRevealAnyTime !== undefined}
             />
           </span>
           {/* The day header's own controls, in the order the design draws them:

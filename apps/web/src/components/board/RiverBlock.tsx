@@ -7,6 +7,7 @@ import type { ActivityTag, ActivityView, TimeWindow } from "@tc/contracts";
 import { KIND_LABEL } from "@tc/pages";
 import { useTimeFormat } from "@/components/account/PreferencesProvider";
 import type { Overlap } from "@/components/lenses/overlapData";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataText } from "@/components/ui/data-text";
 import { TAG_LABEL, tagFocusOpacity } from "@/lib/activityTags";
@@ -145,6 +146,7 @@ export function RiverBlock({
   onTouchPress,
   lifted = false,
   suggestion,
+  draft,
 }: {
   activity: ActivityView;
   /** The stop's own window, already known non-null by the caller. */
@@ -188,6 +190,12 @@ export function RiverBlock({
    * "Suggested change" marker in its review popover. Absent, no marker.
    */
   suggestion?: (trigger: ReactElement) => ReactNode;
+  /**
+   * A suggester's unsent draft adds this stop, or changes it (W76). An added
+   * stop is drawn as a placeholder, as a suggestion's ghost is; a changed one
+   * keeps its look, because it IS on the trip, and only carries the pill.
+   */
+  draft?: "added" | "changed";
 }) {
   const clock = useTimeFormat();
   const ref = useRef<HTMLLIElement>(null);
@@ -265,9 +273,26 @@ export function RiverBlock({
     activity.tags.length > 0 ? `tagged ${activity.tags.map((t) => TAG_LABEL[t]).join(" and ")}` : null,
     overlapping ? `overlaps ${overlapPartners.join(" and ")}` : null,
     hasConflict ? "has conflicts" : null,
+    suggestion ? "has a suggested change" : null,
+    draft ? "not sent" : null,
   ]
     .filter((part): part is string => part !== null)
     .join(", ");
+  // W76: what is not on the confirmed trip says so in words. "Not sent" wins
+  // over "Suggested": the author's own unsent edit is the newer fact.
+  const provisional = draft
+    ? { hook: draft === "added" ? "draft" : "draft-change", word: "Not sent" }
+    : suggestion
+      ? { hook: "suggested", word: "Suggested" }
+      : null;
+  const placeholder = draft === "added";
+  // Beside the title, or — in a shared lane, where it would leave the title no
+  // room — on the time line, as the tag mark is (below).
+  const provisionalPill = provisional && (
+    <Badge aria-hidden variant={draft ? "warning" : "brand"} className="shrink-0 px-1.5 py-0">
+      {provisional.word}
+    </Badge>
+  );
   const tag = overlapping ? "Overlap" : look.tag;
   const tagInk = overlapping ? "text-warning-ink" : TAG_INK[look.tone];
   // **A lane is narrow.** Half of a 268px column leaves ~100px, and a title
@@ -311,6 +336,7 @@ export function RiverBlock({
       // `z-10` while hovered or focused: the tag reveal below hangs out of
       // the block, over whichever block comes next in the DOM.
       data-lifted={lifted ? true : undefined}
+      data-provisional={provisional?.hook}
       className={cn("group absolute hover:z-10 focus-within:z-10", !readOnly && "cursor-grab", lifted && "z-10")}
       onPointerDown={(e) => {
         lastPointer.current = e.pointerType;
@@ -330,8 +356,12 @@ export function RiverBlock({
           // `md:` — see CONTROL_CLASS: a phone lets the controls' reach out.
           "relative flex h-full flex-col gap-px rounded-md px-2 py-0.5 group-hover:shadow-raised md:overflow-hidden",
           overlapping
-            ? cn("border-2 border-solid border-warning-ink", look.tone === "transit" ? "bg-info-tint" : "bg-surface", look.tone === "maybe" && "tc-river-hatch")
-            : look.tone === "planned"
+            ? cn("border-2 border-solid border-warning-ink", look.tone === "transit" ? "bg-info-tint" : "bg-surface", (look.tone === "maybe" || placeholder) && "tc-river-hatch")
+            : placeholder
+              ? // A stop only the draft adds is drawn as a suggestion's ghost is
+                // (DayRiver): dashed brand edge, hatched (W76).
+                "tc-river-hatch border-2 border-dashed border-brand bg-surface"
+              : look.tone === "planned"
               ? cn("tc-river-edge border-solid bg-surface", PLANNED_EDGE[accent])
               : TONE_CLASS[look.tone],
         )}
@@ -365,6 +395,7 @@ export function RiverBlock({
           {(hasConflict || (narrow && !roomy && overlapping)) && (
             <AlertTriangle aria-hidden className="size-3 shrink-0 text-warning-ink" />
           )}
+          {!narrow && provisionalPill}
           {!narrow && tagMark}
           {/* In a narrow lane the two controls would leave the title no room at
               all, so under a mouse they float over its end only while the
@@ -418,6 +449,7 @@ export function RiverBlock({
               look.tone === "transit" ? "text-info-ink" : "text-slate",
             )}
           >
+            {narrow && provisionalPill}
             {narrow && tagMark}
             <span className="truncate">{where && !narrow ? `${range} · ${where}` : range}</span>
           </span>

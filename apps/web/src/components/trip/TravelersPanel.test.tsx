@@ -236,10 +236,39 @@ describe("TravelersPanel", () => {
       ok: false,
       error: { status: 403, message: "forbidden" },
     });
-    render(<TravelersPanel tripId={tripId} />);
+    fetchTripAccessMock.mockResolvedValue({ ok: true, value: access({ invites: [] }) });
+    const onInvitesChanged = vi.fn();
+    render(<TravelersPanel tripId={tripId} onInvitesChanged={onInvitesChanged} />);
     await screen.findByText("Alice");
     await userEvent.click(screen.getByRole("button", { name: "Invite someone" }));
     expect(await screen.findByText("forbidden")).toBeTruthy();
+    expect(onInvitesChanged).not.toHaveBeenCalledWith(true);
+  });
+
+  // W73: the board polls once someone can arrive, and an invite made here is
+  // that moment — the board read its invites before this one existed.
+  it("tells the board once an invite is made", async () => {
+    fetchTripAccessMock.mockResolvedValue({ ok: true, value: access({ invites: [] }) });
+    createTripInviteMock.mockResolvedValue({ ok: true, value: invite });
+    const onInvitesChanged = vi.fn();
+    render(<TravelersPanel tripId={tripId} onInvitesChanged={onInvitesChanged} />);
+    await screen.findByText("Alice");
+    expect(onInvitesChanged).toHaveBeenLastCalledWith(false);
+    fetchTripAccessMock.mockResolvedValue({ ok: true, value: access() });
+    await userEvent.click(screen.getByRole("button", { name: "Invite someone" }));
+    await waitFor(() => expect(onInvitesChanged).toHaveBeenCalledWith(true));
+  });
+
+  // ...and once the last one is revoked here, the board can stop (CodeRabbit
+  // on #314: it polled a solo trip until it was closed).
+  it("tells the board once no invite is out", async () => {
+    const onInvitesChanged = vi.fn();
+    render(<TravelersPanel tripId={tripId} onInvitesChanged={onInvitesChanged} />);
+    await screen.findByText("Alice");
+    expect(onInvitesChanged).toHaveBeenLastCalledWith(true);
+    fetchTripAccessMock.mockResolvedValue({ ok: true, value: access({ invites: [{ ...invite, status: "revoked" }] }) });
+    await userEvent.click(await screen.findByRole("button", { name: "Revoke invite" }));
+    await waitFor(() => expect(onInvitesChanged).toHaveBeenLastCalledWith(false));
   });
 
   // A blocked clipboard permission is not worth a red banner — but it does
