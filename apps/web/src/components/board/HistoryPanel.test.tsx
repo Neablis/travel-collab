@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
@@ -172,7 +172,6 @@ describe("HistoryPanel — accepted suggestions", () => {
     );
     expect(await screen.findByRole("button", { name: /Moved Ramen to Day 2.*Suggested by Nia/ })).toBeTruthy();
     expect(await screen.findByRole("button", { name: /Added Pasta.*Suggested by a former traveler/ })).toBeTruthy();
-    await act(async () => {});
     expect(reads).toBe(3);
   });
 });
