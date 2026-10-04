@@ -46,9 +46,11 @@ Four rules that are cheap to state and were expensive to relearn:
    `docs/guidelines/testing.md`, or the `write-a-test` skill.
 4. **Verification scales to the change; it is not one flat list.** A prose-only
    **branch** — every path it changes, not just your latest commit, under
-   `docs/**`, `.claude/**`, root `*.md` — runs **nothing**. **Prose-only is a
-   property of the branch.** For `pull_request` events GitHub evaluates
-   `paths-ignore` against the whole PR diff, so a docs commit pushed onto a
+   `docs/**`, `.claude/**`, root `*.md` — runs **nothing** locally, and in CI
+   only `ci-ok`, the one required check, which passes in under a minute (so it
+   still needs a PR: `main` takes no direct pushes). **Prose-only is a
+   property of the branch.** `ci.yml`'s `changes` job judges the whole PR
+   diff, so a docs commit pushed onto a
    branch that already has code re-runs the full suite; CodeRabbit *does* filter
    per commit, and that asymmetry is what makes this easy to get backwards.
    Measured on #103, then again on #141 — where this line was trusted as it used

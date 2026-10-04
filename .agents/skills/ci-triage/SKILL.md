@@ -7,8 +7,12 @@ description: Fetch and triage failing GitHub Actions checks for travel-collab us
 
 `.github/workflows/ci.yml` runs seven parallel jobs — `typecheck` (plus
 `db:check`), `lint`, `unit`, `script-tests`, `integration` and two `e2e`
-shards (`e2e (1/2)`, `e2e (2/2)`) — each
-with the same setup (`.github/actions/setup-workspace`). It runs on pull requests only — pushes to `main` no longer
+shards — each with the same setup (`.github/actions/setup-workspace`). Those
+are the job ids; the PR's check list shows them as `static / typecheck`,
+`static / lint`, `test / unit`, `test / scripts`, `test / integration` and
+`test / e2e (1/2)`, `(2/2)`. Around them: `changes` decides whether the PR is
+prose-only (then all seven skip), and `ci-ok` is the one required check — it
+is red whenever any of the seven is, so triage the job it names, not it. It runs on pull requests only — pushes to `main` no longer
 trigger CI, and production migrations are a separate, manually dispatched
 workflow (`migrate-production.yml`). Triage only the jobs that failed; don't
 fetch the rest.

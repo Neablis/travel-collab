@@ -1,6 +1,6 @@
 name: ci
 
-# Path filters, draft gating and the concurrency block below were introduced
+# The path filter, draft gating and the concurrency block below were introduced
 # when CI minutes were a hard budget (private repo, GitHub Free, 2,000
 # min/month; a 30-day sample to 2026-08-27 burned 1,956). The repo went public
 # on 2026-08-31, so hosted-runner minutes are now unlimited and the minute
@@ -28,22 +28,12 @@ on:
     # pays for CI once when it's ready, not once per intermediate commit.
     # Measured: PR #55 spent 31 runs / 315 minutes across 37 commits.
     types: [opened, synchronize, reopened, ready_for_review]
-    paths-ignore:
-      - 'docs/**'
-      - '.agents/**'
-      - '.claude/**'
-      # Root-level prose only (README, AGENTS, CLAUDE, TODO). Deliberately NOT
-      # `**/*.md`: that would also match `.design-sync/**`, which is a real
-      # build input — `api/dev/reset-demo-data/route.ts` imports
-      # `.design-sync/handoff/data/japan-trip-seed.json` and
-      # `japanTripImporter.test.ts` reads it — so that tree must keep
-      # triggering CI even when only its prose moves.
-      - '*.md'
-      # `.github`'s own prose — PULL_REQUEST_TEMPLATE.md and any issue
-      # templates. Not covered by `*.md` above, which is root-level only, so
-      # editing the PR template used to cost a full run. Scoped to `*.md` so
-      # `.github/workflows/**` and `.github/dependabot.yml` keep triggering.
-      - '.github/**/*.md'
+    # No `paths-ignore`, and that is deliberate. `ci-ok` below is a required
+    # check on `main`, and a workflow filtered out by path never starts, so
+    # its required check never reports and the PR can never merge. The prose
+    # filter that used to live here is the `changes` job: the workflow always
+    # starts, and on a prose-only PR the real jobs skip and `ci-ok` passes in
+    # seconds. `docs/guidelines/ci-cost-and-capacity.md` has the history.
 
 # Supersede an in-flight run when a newer commit lands on the same PR. Safe to
 # make unconditional now that this workflow only ever runs on pull requests —
@@ -107,13 +97,44 @@ jobs:
   # step from hiding the rest: each check is its own job now, so every one
   # reports independently.
   #
-  # Each job keeps the draft gate: a draft PR is an agent mid-flight. Skipped
-  # here rather than at the `on:` level so the checks still appear (skipped,
-  # not missing) on the PR. Timeouts are runaway caps, ~3x the measured job,
-  # not performance budgets: a false kill costs a whole re-run.
+  # Every one of them `needs: changes` and runs only when it says code moved.
+  # `changes` carries the draft gate — a draft PR is an agent mid-flight — and
+  # a job whose `needs` was skipped is skipped too, so a draft runs nothing.
+  # Skipped rather than filtered at the `on:` level so the checks still appear
+  # (skipped, not missing) on the PR. Timeouts are runaway caps, ~3x the
+  # measured job, not performance budgets: a false kill costs a whole re-run.
+  #
+  # The `name:` prefixes (`static /`, `test /`) are for the PR's check list,
+  # which sorts by name: they keep the two kinds together. Job ids are what
+  # `needs:` and the docs use, and did not change.
+
+  # Does this PR touch anything but prose? `scripts/ci-gate.mjs` has the path
+  # set and the reason this is a job and not `paths-ignore`.
+  changes:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
+    steps:
+      # A `pull_request` run checks out GitHub's merge of the PR into its
+      # base, so the merge commit's first parent is the base and the diff
+      # between them is the whole PR — the same thing `paths-ignore` judged.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+      - id: diff
+        run: |
+          set -euo pipefail
+          git rev-parse --verify HEAD^2 >/dev/null
+          git diff --name-only HEAD^1 HEAD > "$RUNNER_TEMP/paths"
+          echo "$(wc -l < "$RUNNER_TEMP/paths") changed paths"
+          node scripts/ci-gate.mjs changes < "$RUNNER_TEMP/paths" | tee -a "$GITHUB_OUTPUT"
 
   typecheck:
-    if: github.event.pull_request.draft == false
+    name: static / typecheck
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -132,7 +153,9 @@ jobs:
         run: pnpm --filter web db:check
 
   lint:
-    if: github.event.pull_request.draft == false
+    name: static / lint
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -166,7 +189,9 @@ jobs:
 
   # Every workspace package's vitest suite (`pnpm -r test`): ~2 minutes.
   unit:
-    if: github.event.pull_request.draft == false
+    name: test / unit
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -177,7 +202,9 @@ jobs:
   # `scripts/**/__tests__` under node:test: ~90s, most of it
   # check-lint-wall.test.mjs running eslint against sabotaged configs.
   script-tests:
-    if: github.event.pull_request.draft == false
+    name: test / scripts
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -187,7 +214,9 @@ jobs:
 
   # Postgres-backed integration tests: ~2.5 minutes.
   integration:
-    if: github.event.pull_request.draft == false
+    name: test / integration
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     services:
@@ -220,8 +249,9 @@ jobs:
   # Free on a public repo; the one limit is the Free plan's 20 concurrent
   # jobs, which a push (7 ci jobs + 3 CodeQL + 2 others) stays well inside.
   e2e:
-    if: github.event.pull_request.draft == false
-    name: e2e (${{ matrix.shard }}/2)
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    name: test / e2e (${{ matrix.shard }}/2)
     strategy:
       # Both shards report even when one fails, so a red run lists every
       # failing spec, not half of them.
@@ -298,3 +328,23 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
+  # THE ONE REQUIRED CHECK on `main` (ruleset "Required checks for main").
+  # One name, so adding, splitting or renaming a job above never needs a
+  # ruleset edit — add the job to `needs` here and it is required.
+  #
+  # `always()` and not `!cancelled()`: a skipped job satisfies a required
+  # check, so if cancelling the run could skip this one, cancelling would be
+  # a way to merge. A draft cannot merge, so skipping there is safe.
+  ci-ok:
+    if: always() && github.event.pull_request.draft == false
+    needs: [changes, typecheck, lint, unit, script-tests, integration, e2e]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: scripts/ci-gate.mjs
+          sparse-checkout-cone-mode: false
+      - run: node scripts/ci-gate.mjs verdict
+        env:
+          NEEDS: ${{ toJSON(needs) }}

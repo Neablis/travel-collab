@@ -17,8 +17,10 @@ name: vercel-preview
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-    # The same prose-only filter as ci.yml, and for the same reason: a PR that
-    # only moves docs has nothing to preview. Keep the two lists in step.
+    # The same prose-only set as ci.yml's `changes` job (`scripts/ci-gate.mjs`):
+    # a PR that only moves docs has nothing to preview. Keep the two in step.
+    # `paths-ignore` is fine here and not there because this check is not
+    # required: one that never starts blocks nothing.
     paths-ignore:
       - 'docs/**'
       - '.agents/**'

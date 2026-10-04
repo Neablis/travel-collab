@@ -326,9 +326,9 @@ by your latest commit, is under `docs/**`, `.claude/**`, `.agents/**`, or is a
 root-level `*.md` (`README`, `AGENTS`, `CLAUDE`, `TODO`).
 
 > **The "whole branch" is load-bearing, and was got wrong once — here, while
-> writing this.** For `pull_request` events GitHub evaluates `paths-ignore`
-> against the **entire PR diff against base**, never against the push that
-> triggered the run. So a docs-only commit pushed onto a PR that already
+> writing this.** `ci.yml`'s `changes` job judges the **entire PR diff against
+> base**, never the push that triggered the run (as the `paths-ignore` it
+> replaced on 2026-10-04 did). So a docs-only commit pushed onto a PR that already
 > contains code re-runs the full suite, every time. Verified on PR #103:
 > a commit touching seven prose files ran `static-and-unit` **and**
 > `integration-e2e` to completion.
@@ -338,9 +338,10 @@ root-level `*.md` (`README`, `AGENTS`, `CLAUDE`, `TODO`).
 > property of the branch, not of the change in front of you.
 
 > Run nothing. No `pnpm check`, no test lane, no typecheck, no e2e, no browser.
-> `.github/workflows/ci.yml`'s `paths-ignore` and `.coderabbit.yaml`'s
-> `path_filters` already exclude exactly these paths, so there is no check to
-> wait for and no review to collect — see *Do not watch what cannot run* below.
+> `.github/workflows/ci.yml`'s `changes` job (`scripts/ci-gate.mjs`) and
+> `.coderabbit.yaml`'s `path_filters` already exclude exactly these paths: every
+> real job skips, `ci-ok` passes in under a minute, and there is no review to
+> collect — see *Do not watch what cannot run* below.
 >
 > **The trap:** `.design-sync/**` is **not** prose. It is a real build input —
 > `packages/fixtures/src/japan/upstreamDrift.test.ts:30` and
@@ -349,24 +350,21 @@ root-level `*.md` (`README`, `AGENTS`, `CLAUDE`, `TODO`).
 > even when only its markdown moved. `ci.yml` gets this right by
 > listing `*.md` rather than `**/*.md`; classify the same way.
 
-> **A Tier 1 branch may go straight to `main`, without a PR.** Mitchell,
-> 2026-09-16: *"you can merge directly to main when its only readme changes"*,
-> then *"commit to main directly"*. The Workstreams section's PR-promptness rule
-> is about **milestone phase and task branches**, whose PR is what makes finished
-> work visible and puts it in front of GitHub's conflict detection. A prose-only
-> change has no CI to report, no CodeRabbit review to collect (both filter these
-> paths out, per the paragraph above) and no merge risk worth a round trip, so a
-> PR buys nothing and costs a cycle.
+> **A Tier 1 branch needs a PR like any other — it can no longer go straight
+> to `main`.** From 2026-09-16 it could (*"commit to main directly"*). On
+> 2026-10-04 Mitchell made `ci-ok` a required check on `main` with no bypass
+> (*"no exceptions"*), and GitHub rejects a direct push of a commit that check
+> has not passed on. The PR is cheap: nothing real runs, `ci-ok` goes green in
+> under a minute, and it merges.
 >
-> **The tier rule still decides, per the whole branch** — `.design-sync/**`
-> included, per the trap above. Verify before pushing, in one command:
+> **The tier rule still decides what you run, per the whole branch** —
+> `.design-sync/**` included, per the trap above. To classify, in one command:
 >
 > ```
 > git diff --name-only origin/main...HEAD | grep -vE '^(docs/|\.claude/|\.agents/)|^[A-Za-z]+\.md$'
 > ```
 >
-> Nothing printed means Tier 1 and main is fine. Anything printed means open a
-> PR the normal way.
+> Nothing printed means Tier 1. Anything printed means Tier 2.
 
 **Tier 2 — code, mid-branch.** Any change that is not Tier 1, before the branch
 is ready.
@@ -546,8 +544,9 @@ ten minutes on a documentation edit. `--watch` is right **when checks will
 exist**. Two cases where they will not:
 
 - **A Tier 1 PR** — meaning the *whole PR* is prose, per the caveat in Tier 1
-  above. `ci.yml` skips it by path and `.coderabbit.yaml` filters it out, so
-  there is no terminating event to wait for. A prose commit on a PR that also
+  above. `ci.yml`'s real jobs skip and `.coderabbit.yaml` filters it out, so
+  the only thing to wait for is `ci-ok`, which is required and reports in
+  under a minute. A prose commit on a PR that also
   carries code is **not** this case: that run happens, and you wait for it.
 - **A draft PR.** `auto_review.drafts: false` and the `if:` guards in `ci.yml`
   mean nothing runs until `gh pr ready <n>`. Push freely; do not watch.
