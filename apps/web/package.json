@@ -40,7 +40,7 @@
   "dependencies": {
     "@ai-sdk/gateway": "^4.0.100",
     "@atlaskit/pragmatic-drag-and-drop": "^3.1.0",
-    "@atlaskit/pragmatic-drag-and-drop-auto-scroll": "^3.2.1",
+    "@atlaskit/pragmatic-drag-and-drop-auto-scroll": "3.2.0",
     "@flags-sdk/vercel": "^1.4.10",
     "@photostructure/tz-lookup": "^11.7.0",
     "@radix-ui/react-dialog": "^1.1.23",

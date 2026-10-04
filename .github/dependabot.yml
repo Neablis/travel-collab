@@ -44,6 +44,11 @@ updates:
       # trusting review to catch it.
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
+      # auto-scroll 3.2.1 is a patch that depends on core ^4.0.0, a major, so
+      # taking it installs a second drag-and-drop core beside ours and
+      # check-singletons fails (PR #283). Remove this with the core 4 migration.
+      - dependency-name: "@atlaskit/pragmatic-drag-and-drop-auto-scroll"
+        versions: [">=3.2.1"]
     # Dependabot otherwise force-pushes every open PR whenever `main` moves,
     # and each force-push is a `synchronize` event and another billed run. On
     # a repo that merges several PRs a week that is the single largest cost of
