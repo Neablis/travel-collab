@@ -1,5 +1,6 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import type { BatchableCommand, SuggestionChange, TripDetail, TripRole } from "@tc/contracts";
@@ -364,5 +365,47 @@ describe("Accept all", () => {
     );
     expect(resolved.map((r) => r.changeId)).toEqual([seeded[0]!.id, refused]);
     expect(screen.getByRole("button", { name: "2 suggestions" })).toBeTruthy();
+  });
+});
+
+// #314's preview walk: the chip took two clicks to open straight after a
+// suggestion arrived by the poll. Not reproduced here (2026-10-04); this holds
+// the open state across what the arrival sets off — the list read, and the
+// names re-read for an author who joined after they were taken (W67).
+describe("a suggestion arriving by the poll", () => {
+  it("opens the chip on the first click, and it stays open while the author's name is read", async () => {
+    const { fixture } = mount("owner", () => []);
+    const tripId = fixture.tripId;
+    expect(await screen.findByRole("button", { name: /^Edit Colosseum tour/ })).toBeTruthy();
+    const arrived = [
+      change(tripId, "Moved Colosseum tour to Day 2", [{ type: "MoveActivity", tripId, activityId: COLOSSEUM, toDayId: DAY_2, position: 0 }], {
+        authorId: "dev-newcomer",
+      }),
+      { ...addGelato(tripId), authorId: "dev-newcomer" },
+    ];
+    // The names' re-read is held until after the click, so the click lands
+    // while it is still out, as it would on a real network; answered at once,
+    // it landed before the chip could be found.
+    let answerRecheck = () => {};
+    const recheckAnswered = new Promise<void>((resolve) => (answerRecheck = resolve));
+    server.use(
+      http.get("/api/trips/:tripId/suggestions", () => HttpResponse.json({ changes: arrived, rev: "r-arrived" })),
+      http.get("/api/trips/:tripId/events", () => HttpResponse.json({ headSeq: 0, events: [], resync: false, suggestionsRev: "r-arrived" })),
+      http.get("/api/trips/:tripId/access", async () => {
+        await recheckAnswered;
+        return undefined;
+      }),
+    );
+    fireEvent.focus(window);
+
+    const chip = await screen.findByRole("button", { name: "2 suggestions" });
+    await userEvent.setup().click(chip);
+    expect(chip.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.queryByText(/Suggested by a former traveler/)).toBeNull();
+    answerRecheck();
+    // The witness that the re-read landed: the access mock does not list the
+    // newcomer, so their by-line turns to "a former traveler" only then.
+    expect(await screen.findAllByText(/Suggested by a former traveler/)).toHaveLength(2);
+    expect(screen.getByRole("button", { name: "2 suggestions" }).getAttribute("aria-expanded")).toBe("true");
   });
 });
