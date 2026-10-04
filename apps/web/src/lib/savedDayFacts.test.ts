@@ -85,6 +85,9 @@ describe("savedDayFacts", () => {
 
   // "For ALL single-currency days, the budget is the sum of the priced stops
   // and nothing is lost" — a claim over every input, so a property test.
+  // It is also what makes the "each" on the rail, the card and the bands true
+  // (ADR-060 decision 7): per-person prices summed with no headcount applied.
+  // A division or a multiplication slipped in here turns this red.
   it("sums every priced stop, for any single-currency day", () => {
     const w = witness("single-currency budget");
     const money = fc.record({ amountMinor: fc.integer({ min: 0, max: 1_000_000 }) });

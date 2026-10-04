@@ -113,15 +113,13 @@ export function seasonOfInstant(iso: string): Season | null {
 }
 
 /**
- * A day's TOTAL cost, in bands rather than a slider — four ranges over the sum
- * of its priced stops.
+ * What a day costs each person, in bands rather than a slider — four ranges
+ * over the sum of its priced stops (SPEC §15's "budget per person").
  *
- * This docstring opened "Budget per person" until 2026-09-01, and the number it
- * bands never was one: `savedDayFacts` adds up `stop.cost` and divides by
- * nothing. Mitchell: *"why are we calculating per person in a notebook? just
- * show total cost there, any per person logic and math should go into the
- * future milestone around cost."* The control is unchanged — same edges, same
- * `?budget=` values — only the claim about what it compares.
+ * The sum is per person because every price in it is and a saved day carries
+ * no people to multiply by (ADR-060 decision 7). Between 2026-09-01 and M19
+ * this docstring said "TOTAL", because nothing yet said what a price meant.
+ * The control never changed: same edges, same `?budget=` values.
  *
  * Four bands, not three: Mitchell, Vercel toolbar comment on `/playbooks` at
  * 411px with the budget `<select>` selected (2026-09-01): *"the default
@@ -239,8 +237,8 @@ export const BUDGET_BAND_EDGES = { twoHundred: 20_000, fiveHundred: 50_000, oneT
 /**
  * `any` accepts a day with no priced stops at all; the other four do not.
  *
- * `amountMinor` is a day's total (`SavedDayFacts.totalCost`), not a per-head
- * share — see `BudgetBand` above for why that stopped being claimed.
+ * `amountMinor` is what a day costs each (`SavedDayFacts.totalCost`) — see
+ * `BudgetBand` above.
  *
  * Each band's lower edge is inclusive and its upper edge is exclusive, and
  * the top band is open-ended — the ordinary "$X+" reading a price filter
@@ -269,6 +267,9 @@ export function inBudgetBand(band: BudgetBand, amountMinor: number | null): bool
 /** How many stop rows a Discover card shows — `dc.html:5795`'s `slice(0, 3)`. */
 export const DISCOVER_PREVIEW_STOPS = 3;
 
+/** How many cards one Discover page shows — and a city or country page, which is `PLACE_PAGE_SIZE`. */
+export const DISCOVER_PAGE_SIZE = 24;
+
 /**
  * One Discover card. Deliberately NOT a `SavedDay`.
  *
@@ -283,6 +284,13 @@ export const DISCOVER_PREVIEW_STOPS = 3;
 export const DiscoverDay = z.object({
   savedDayId: z.string().uuid(),
   ownerId: z.string().min(1),
+  /**
+   * What the card calls the owner: first name and last initial, or their
+   * handle (`publicNameFor`; Mitchell, 2026-10-02). Resolved by the server,
+   * which reads `users`; the card prints it and never derives one from
+   * `ownerId`. **Not on the public API** — `public-api/discover.ts` drops it.
+   */
+  ownerDisplayName: z.string().min(1),
   name: z.string().min(1),
   /** Every city the day touches, in the day's own time order (`citiesOfStops`). */
   cities: z.array(z.string().min(1)),
@@ -327,8 +335,8 @@ export const DiscoverDay = z.object({
     .max(DISCOVER_PREVIEW_STOPS),
   /**
    * Sum of the day's priced stops; null when nothing is priced or currencies
-   * disagree. The day's TOTAL — nothing divides it by a traveller count,
-   * because there is no traveller count.
+   * disagree. What the day costs EACH: the prices are per person and a saved
+   * day has no people (ADR-060 decision 7), so the card prints it with "each".
    *
    * **This wire field was `budgetPerPerson` and renamed here on pull request
    * 104** (Mitchell, 2026-09-01: *"just show total cost there"*). `DiscoverDay`
@@ -352,11 +360,8 @@ export const DiscoverDay = z.object({
   reviewCount: z.number().int().nonnegative(),
   visibility: z.enum(["private", "public"]),
   /**
-   * Who wrote the day — what the card's "AI starter" mark reads (see
-   * `SavedDayAuthorKind` in `@tc/contracts`). On the CARD and not only on the
-   * shared-day screen because Discover is where somebody decides which of
-   * thirty days to open, and "a person kept this out of their own trip" is part
-   * of that decision.
+   * Who wrote the day (see `SavedDayAuthorKind` in `@tc/contracts`). Carried
+   * as data; no screen renders it (ADR-041 decision 5, amended 2026-10-03).
    */
   authorKind: SavedDayAuthorKind,
   sourceTripName: z.string().min(1),
@@ -445,9 +450,10 @@ export type DiscoverResponse = z.infer<typeof DiscoverResponse>;
 export const PublicAuthor = z.object({
   userId: z.string().min(1),
   /**
-   * What to call them. Today this is the identifier — M17 is what resolves it
-   * to a chosen display name, and it fills this by changing ONE function
-   * (`lib/displayName.ts`), not two routes.
+   * What to call them: first name and last initial from the name they chose or
+   * signed in with, else their handle — never the address (`publicNameFor`;
+   * Mitchell, 2026-10-02, which retired the handle-only rule). "A traveler"
+   * for a profile with nothing on it (`publicAuthor`).
    */
   displayName: z.string().min(1),
   /**
@@ -487,8 +493,11 @@ export type PublicAuthor = z.infer<typeof PublicAuthor>;
 export const LeaderboardResponse = z.object({
   /** Ranked by `adds` descending. Your own row is in place, never lifted. */
   authors: z.array(PublicAuthor),
-  /** Which row is yours, so the page can tint it without knowing your id. */
-  meUserId: z.string().min(1),
+  /**
+   * Which row is yours, so the page can tint it without knowing your id. `null`
+   * for a reader with no account (ADR-061), who has no row.
+   */
+  meUserId: z.string().min(1).nullable(),
 });
 export type LeaderboardResponse = z.infer<typeof LeaderboardResponse>;
 
@@ -500,3 +509,12 @@ export const PublicProfileResponse = z.object({
   days: z.array(DiscoverDay),
 });
 export type PublicProfileResponse = z.infer<typeof PublicProfileResponse>;
+
+/**
+ * The cities a search names: trimmed, blanks dropped, duplicates collapsed.
+ * One rule for `GET /api/playbooks` and the Discover page, so the server's
+ * first paint is the answer the API would give for the same URL.
+ */
+export function normalizeCities(raw: readonly string[]): string[] {
+  return [...new Set(raw.map((c) => c.trim()).filter((c) => c !== ""))];
+}

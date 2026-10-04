@@ -16,7 +16,7 @@ const sendTripCommandBatchMock = vi.fn();
 // Settable so the viewer-gating tests can drive the role the header sees.
 // Defaults to owner in `beforeEach`, which is what every pre-existing test
 // here assumes.
-let myRole: "viewer" | "editor" | "owner" | null = "owner";
+let myRole: "viewer" | "suggester" | "editor" | "owner" | null = "owner";
 // Drives the access READ itself failing, which is a different state from any
 // role: TripProvider keeps the board live and reports `accessUnknown` instead
 // (docs/reviews/2026-08-28-m11-pr71-review.md §5's PLAUSIBLE edge).
@@ -330,6 +330,35 @@ describe("TripHeader — the access read failed", () => {
 
     expect(await screen.findByRole("button", { name: "Add stop" })).toBeTruthy();
     expect(screen.queryByText("Access unknown")).toBeNull();
+  });
+});
+
+// Review of #309, finding 2.5: Trip settings recomputed `readOnly` from
+// `myRole` with its own copy of TripProvider's rule. It takes the provider's
+// `readOnly` from this header now, so these go through the real provider: the
+// two ends of that rule, as the sheet sees them.
+describe("TripHeader — Trip settings is gated by the provider's readOnly", () => {
+  // A suggester is `readOnly` and may edit the board (W8, W35): the sheet
+  // withholds Share and leaves the trip fields, whose edits join the draft.
+  it("withholds Share from a suggester and leaves them the trip fields (W8)", async () => {
+    myRole = "suggester";
+    await renderHeader();
+    expect(await screen.findByText("Suggester")).toBeTruthy();
+
+    await userEvent.click(screen.getByRole("button", { name: /trip settings/i }));
+    // The sheet rendered, so an absent Share is the gate and not an empty tree.
+    expect(screen.getByRole("link", { name: "Download Trip" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Share" })).toBeNull();
+    expect(screen.getByLabelText("Trip name").hasAttribute("disabled")).toBe(false);
+  });
+
+  it("leaves the sheet live when the access read failed (W21)", async () => {
+    accessReadFails = true;
+    await renderHeader();
+    expect(await screen.findByText("Access unknown")).toBeTruthy();
+
+    await userEvent.click(screen.getByRole("button", { name: /trip settings/i }));
+    expect(screen.getByLabelText("Trip name").hasAttribute("disabled")).toBe(false);
   });
 });
 

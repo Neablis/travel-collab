@@ -1,5 +1,6 @@
 import {
   FilterDimension,
+  stopTotal,
   type ActivityView,
   type CityRef,
   type DateRangeRef,
@@ -346,8 +347,8 @@ function scoped(filters: WidgetFilterValues, item: ItemScope | undefined): Widge
 /**
  * What a selection of stops costs, in the trip's minor units.
  *
- * The same sum `rollupCosts` performs in `@tc/domain` — `cost?.amountMinor ?? 0`
- * over the stops of the days plus the backlog — which is what makes ADR-039's
+ * The same sum `rollupCosts` performs in `@tc/domain` — `stopTotal` over the
+ * stops of the days plus the backlog — which is what makes ADR-039's
  * *"one number, one implementation, no second answer that can drift from the
  * board's"* true rather than aspirational: wide, this equals `tripCostTotal`;
  * narrowed to one day, it equals that day's `costSubtotal`. Both are asserted in
@@ -357,9 +358,15 @@ function scoped(filters: WidgetFilterValues, item: ItemScope | undefined): Widge
  * convert it. Mixing currencies on one trip produces a number nobody should
  * trust, and it produces the SAME untrustworthy number the board already shows,
  * which is the property that matters here.
+ *
+ * A price is per person (ADR-060), so each stop counts `stopTotal`: its price
+ * times who is in it, or times `memberCount` when nobody is picked. Callers
+ * pass `trip.members.length` — the detail's own list, which the server has
+ * already overlaid with the effective members — so the widget and the board
+ * multiply by the same people.
  */
-export const costOfStops = (stops: readonly SelectedStop[]): number =>
-  stops.reduce((sum, stop) => sum + (stop.activity.cost?.amountMinor ?? 0), 0);
+export const costOfStops = (stops: readonly SelectedStop[], memberCount: number): number =>
+  stops.reduce((sum, stop) => sum + stopTotal(stop.activity, memberCount), 0);
 
 /**
  * The selected stops attributed to one city — **by the stop's OWN location,

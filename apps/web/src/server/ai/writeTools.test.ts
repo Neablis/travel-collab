@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { Tool } from "ai";
+import { asSchema, type JSONSchema7, type Tool } from "ai";
 import fc from "fast-check";
 import { BatchableCommand, type TripDetail } from "@tc/contracts";
 import { costedTripDetailFixture } from "@tc/factories";
@@ -11,6 +11,7 @@ import {
   commitProposal,
   describeProposedChange,
   droppedWriteCalls,
+  droppedWrites,
   INSERT_PLAYBOOK_DAY,
   parseApprovedCommands,
   withDefaultKind,
@@ -21,6 +22,8 @@ import { savedDayLibrary } from "@/server/ai/assistantPorts";
 import { newPlaceCache, newProposalBuffer, type CollectedInsert } from "@/server/assistant/deps";
 import { aiToolsFor, contextTool, type AssistantToolSet } from "@/server/assistant/registry";
 import { PLANNING_TOOLS } from "@/server/assistant/tools/planning";
+import { grantFor, toolsFor } from "@/server/assistant/grants";
+import { instructionsFor } from "@/server/ai/handleAskRequest";
 import { insertPlaybookDayTool } from "@/server/assistant/tools/insertPlaybookDay";
 
 // `commitProposal` submits through `executeTripCommandBatch`, which reaches
@@ -127,16 +130,23 @@ describe("the write tool set", () => {
     );
   });
 
-  it("declares no tripId on any write tool, exactly as the read tools do not", () => {
+  it("declares no tripId on any write tool, exactly as the read tools do not", async () => {
     // ADR-022 §3 / plan Constraint 3, asserted structurally so a new command
-    // whose schema carries an id-shaped key cannot slip past.
+    // whose schema carries an id-shaped key cannot slip past. Read off the JSON
+    // Schema the model is sent: what matters is what a model can express.
     const { tools } = buildWriteTools();
+    let seen = 0;
     for (const [name, tool] of Object.entries(tools)) {
-      const schema = tool.inputSchema as unknown as { shape?: Record<string, unknown> };
-      const keys = Object.keys(schema.shape ?? {});
+      const schema = await asSchema(tool.inputSchema).jsonSchema;
+      const keys = Object.keys(schema.properties ?? {});
+      seen += keys.length;
       expect(keys, `${name} must not take a tripId`).not.toContain("tripId");
       expect(keys.filter((k) => /^(tripId|dayId|activityId|conflictId)$/.test(k))).toEqual([]);
     }
+    // Not vacuous: an empty key list for every tool would pass the loop above.
+    // It did, once — when `inputSchema` stopped being a zod object and
+    // `.shape ?? {}` read nothing at all.
+    expect(seen).toBeGreaterThan(Object.keys(tools).length);
   });
 });
 
@@ -390,6 +400,17 @@ describe("droppedWriteCalls", () => {
       actorId: ACTOR,
     });
     expect(dropped).toEqual([]);
+  });
+
+  // The ledger's `reachedProposal` needs the no-op's index even though the
+  // diagnostic list leaves it out: a no-op never reaches the proposal either
+  // (Copilot on #301).
+  it("keeps a no-op's index for the ledger, flagged, while the diagnostic list omits it", () => {
+    const all = droppedWrites([{ type: "SetTripCurrency", args: { currency: "USD" } }], detail, {
+      tripId: TRIP_ID,
+      actorId: ACTOR,
+    });
+    expect(all.map(({ index, noOp }) => ({ index, noOp }))).toEqual([{ index: 0, noOp: true }]);
   });
 
   it("distinguishes the two in the same batch, rather than lumping them", () => {
@@ -1113,5 +1134,63 @@ describe("commitProposal", () => {
       ok: false,
       error: { code: "concurrency-conflict", message: "someone else changed this trip" },
     });
+  });
+});
+
+// How to write a money amount is said ONCE per turn that can write. It was
+// appended to three tool descriptions on top of the instruction's own rule, so
+// an edit turn read it four times on every step (contextBudget.test.ts).
+describe("the money rule", () => {
+  const EXAMPLE = "500 EUR → amountMinor 50000";
+  const count = (text: string) => text.split(EXAMPLE).length - 1;
+  const changeTools = toolsFor(grantFor({ surface: "trip", role: "propose", plan: "propose", classifier: "propose" }), "edit", "propose");
+  const descriptions = changeTools.map((tool) => tool.description).join("\n");
+
+  // `withheld` too: that turn escalates to these same tools mid-turn, and its
+  // instruction is not rebuilt when it does.
+  it.each(["propose", "withheld"] as const)("is said exactly once on a %s turn, tools included", (posture) => {
+    expect(count(instructionsFor({ kind: "trip" }, 3, posture) + "\n" + descriptions)).toBe(1);
+  });
+
+  it("is still stated, without the writing example, to a viewer who cannot write", () => {
+    const readOnly = instructionsFor({ kind: "trip" }, 3, "read-only");
+    expect(readOnly).toContain("minor units (cents), never a decimal");
+    expect(count(readOnly)).toBe(0);
+  });
+});
+
+// What the model is shown of a stop's places (ADR-022 amendment 2026-10-03):
+// `location` without lat/lng/precision (placeRef is its verified path), and
+// `endLocation` without precision only — a transit leg's end has no placeRef,
+// so the model's coordinate is its sole fallback. `address` and `placeRef`
+// stay. Coordinates a model sends anyway, on either place, are still accepted.
+describe("what the model is shown of a stop's place", () => {
+  const { tools } = buildWriteTools();
+  // The object branch of a field that may also be null (UpdateActivity's).
+  const placeOf = (schema: JSONSchema7, field: string) => {
+    const node = (schema.properties as Record<string, JSONSchema7>)[field]!;
+    const branch = node.anyOf ? (node.anyOf as JSONSchema7[]).find((b) => b.type === "object")! : node;
+    return Object.keys(branch.properties ?? {});
+  };
+  it.each(["AddActivity", "UpdateActivity"] as const)("%s hides a stop's guessed coordinates, shows a transit end's, keeps address and placeRef", async (name) => {
+    const schema = await asSchema(tools[name]!.inputSchema).jsonSchema;
+    const location = placeOf(schema, "location");
+    const endLocation = placeOf(schema, "endLocation");
+    for (const hidden of ["lat", "lng", "precision"]) expect(location).not.toContain(hidden);
+    expect(endLocation).not.toContain("precision");
+    expect(endLocation).toEqual(expect.arrayContaining(["lat", "lng", "address"]));
+    expect(location).toContain("address");
+    expect(Object.keys(schema.properties ?? {})).toContain("placeRef");
+    const withCoordinates = { title: "Lunch", activityRef: "Lunch", location: { name: "Off Leash", lat: 42.5, lng: -76.9 } };
+    expect((await asSchema(tools[name]!.inputSchema).validate!(withCoordinates)).success).toBe(true);
+    const transitWithCoordinates = {
+      title: "Train to Kyoto",
+      activityRef: "Train to Kyoto",
+      kind: "transit",
+      mode: "train",
+      location: { name: "Tokyo Station", lat: 35.68, lng: 139.77 },
+      endLocation: { name: "Kyoto Station", lat: 34.99, lng: 135.76 },
+    };
+    expect((await asSchema(tools[name]!.inputSchema).validate!(transitWithCoordinates)).success).toBe(true);
   });
 });

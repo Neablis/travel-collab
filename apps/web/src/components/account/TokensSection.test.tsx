@@ -110,6 +110,20 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+describe("the way to the reference", () => {
+  // On every plan, so the locked variant is the one asserted: a free account
+  // deciding whether to upgrade is exactly who wants to read what it buys.
+  it("links the API reference and the getting-started page, even without the plan", async () => {
+    serve({ entitlements: [] });
+    render(<TokensSection />);
+    await screen.findByTestId("tokens-upgrade");
+    expect(screen.getByTestId("tokens-reference-link").getAttribute("href")).toBe(
+      "/developers/reference",
+    );
+    expect(screen.getByTestId("tokens-guide-link").getAttribute("href")).toBe("/developers");
+  });
+});
+
 describe("what mandatory expiry owes the person looking at this", () => {
   // **Obligation 1.** "Expires in 12 days" is the only form of this anyone acts
   // on; a creation date makes them do the arithmetic and they will not.

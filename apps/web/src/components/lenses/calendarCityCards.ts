@@ -1,4 +1,4 @@
-import type { ActivityTag, ActivityView, TripDetail } from "@tc/contracts";
+import { stopTotal, type ActivityTag, type ActivityView, type TripDetail } from "@tc/contracts";
 import { needsBooking } from "@/lib/needsBooking";
 import { toMinutes } from "@/lib/time";
 
@@ -76,6 +76,12 @@ export function calendarCityCards(
   day: TripDetail["days"][number],
   activities: TripDetail["activities"],
   /**
+   * `detail.members.length`. A stop's price is per person (ADR-060), so a
+   * card's cost is each stop's price times who is in it — or times everyone,
+   * when nobody is picked — the same `stopTotal` the board's day total sums.
+   */
+  memberCount: number,
+  /**
    * SPEC §11's focused tag, or null. The Calendar's rule is a COUNT, not a
    * per-stop dim: at this zoom a card is the unit, so it reports how many of
    * its stops match and the lens dims the card that matches none. Passing it
@@ -127,7 +133,7 @@ export function calendarCityCards(
   const groups: { city: string | null; stops: ActivityView[] }[] = [...cityGroups];
   if (unplaced.length > 0) groups.push({ city: null, stops: unplaced });
 
-  return groups.map((g) => summarise(g.city, g.stops, focusedTag));
+  return groups.map((g) => summarise(g.city, g.stops, focusedTag, memberCount));
 }
 
 /** See `needsBooking` — narrower than SPEC §12's literal wording, and why. */
@@ -136,12 +142,12 @@ function unbookedCount(stops: ActivityView[]): number {
 }
 
 /** One group of a day's stops, reduced to the card `CalendarLens` draws. */
-function summarise(city: string | null, stops: ActivityView[], focusedTag: ActivityTag | null): CityCard {
+function summarise(city: string | null, stops: ActivityView[], focusedTag: ActivityTag | null, memberCount: number): CityCard {
   const windows = stops
     .map((s) => s.timeWindow)
     .filter((w): w is { start: string; end: string } => w !== null && w !== undefined);
 
-  const costs = stops.map((s) => s.cost?.amountMinor).filter((c): c is number => c !== undefined);
+  const costs = stops.filter((s) => s.cost).map((s) => stopTotal(s, memberCount));
 
   const window =
     windows.length === 0

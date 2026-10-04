@@ -66,6 +66,11 @@ const detailArb: fc.Arbitrary<TripDetail> = fc
         cost,
         kind,
         tags,
+        // Defaulted on parse like `kind` and `tags`, and read by every cost
+        // widget since a price became per person (ADR-060): a missing list
+        // was a resolver throwing on `.length`.
+        bookedBy: null,
+        participants: [],
       };
     }
     const days = Array.from({ length: nDays }, (_, i) => ({
@@ -190,7 +195,7 @@ const externalArb: fc.Arbitrary<ExternalInputs | undefined> = fc.oneof(
     { weather: { state: "pending" }, notebooks: { state: "failed" } },
     {
       weather: { state: "pending" },
-      notebooks: { state: "ready", value: { pages: [{ id: uuid(900), title: "Money", firstLine: null, widgetCount: 2 }] } },
+      notebooks: { state: "ready", value: { pages: [{ id: uuid(900), seedKey: "money", title: "Money", firstLine: null, widgetCount: 2 }] } },
     },
   ),
   fc
@@ -222,7 +227,7 @@ const DATED_TRIP = {
   unscheduledCostSubtotal: 0, tripCostTotal: 0, budgetRemaining: null,
 } as unknown as TripDetail;
 const READY_WEATHER: ExternalInputs = {
-  notebooks: { state: "ready", value: { pages: [{ id: uuid(900), title: "Money", firstLine: "What it costs.", widgetCount: 1 }] } },
+  notebooks: { state: "ready", value: { pages: [{ id: uuid(900), seedKey: "money", title: "Money", firstLine: "What it costs.", widgetCount: 1 }] } },
   weather: {
     state: "ready",
     value: {

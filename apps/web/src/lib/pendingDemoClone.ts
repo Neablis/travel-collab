@@ -14,9 +14,10 @@
  *
  *   1. The sign-in ⇄ sign-up swap link was a bare `/signup` (fixed alongside
  *      this, so the query survives that hop too).
- *   2. `refusalRedirect` sends a refused sign-in to `/signup?error=<reason>` —
+ *   2. `refusalRedirect` sent a refused sign-in to `/signup?error=<reason>` —
  *      a path built server-side, inside the Auth.js callback, with no access
- *      to where the browser was originally headed.
+ *      to where the browser was originally headed. (Gone since signup opened,
+ *      ADR-063; nothing refuses a sign-in for want of a code any more.)
  *   3. A returning account never sees `/demo` at all — the gate waves them
  *      through and Auth.js lands them wherever the callback said, which after
  *      hop 1 or 2 is `/`.

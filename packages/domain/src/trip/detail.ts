@@ -1,7 +1,7 @@
 import { TripEvent, type EventEnvelope, type TripDetail,
   isPageEventType,
 } from "@tc/contracts";
-import { detectConflicts, DEFAULT_CONFLICT_CONTEXT, type ConflictContext } from "./conflicts";
+import { detectConflicts, DEFAULT_CONFLICT_CONTEXT, overBudgetConflicts, sortConflicts, type ConflictContext } from "./conflicts";
 import { rollupCosts } from "./costs";
 import { deriveDayDates } from "./dates";
 import { evolveTrip } from "./evolve";
@@ -15,7 +15,7 @@ export function tripDetailFromState(
   ctx: ConflictContext = DEFAULT_CONFLICT_CONTEXT,
 ): TripDetail {
   const dayDates = deriveDayDates(state.startDate, state.days.length);
-  const { dayCostSubtotals, unscheduledCostSubtotal, tripCostTotal } = rollupCosts(state);
+  const { dayCostSubtotals, unscheduledCostSubtotal, tripCostTotal } = rollupCosts(state, state.members.length);
   return {
     tripId: state.tripId,
     name: state.name,
@@ -59,6 +59,34 @@ export function tripDetailFromState(
     unscheduledCostSubtotal,
     tripCostTotal,
     budgetRemaining: state.budget ? state.budget.amountMinor - tripCostTotal : null,
+  };
+}
+
+/**
+ * The same detail with every cost rollup recomputed for `memberCount` people:
+ * each day's `costSubtotal`, `unscheduledCostSubtotal`, `tripCostTotal`,
+ * `budgetRemaining`, and the over-budget conflict that reads them.
+ *
+ * For the read boundary (ADR-060 decision 4). Who is on a trip is Access &
+ * Membership data, not planning data, so a stop nobody picked costs more the
+ * moment someone joins — with no event. The stored projection keeps the log's
+ * answer; the server applies this wherever it overlays the effective member
+ * list, so the totals a reader sees match the members they see. Only the
+ * budget rule depends on the member count; every other conflict is kept as
+ * stored.
+ */
+export function recostDetail(detail: TripDetail, memberCount: number): TripDetail {
+  const { dayCostSubtotals, unscheduledCostSubtotal, tripCostTotal } = rollupCosts(detail, memberCount);
+  return {
+    ...detail,
+    days: detail.days.map((day, i) => ({ ...day, costSubtotal: dayCostSubtotals[i]! })),
+    unscheduledCostSubtotal,
+    tripCostTotal,
+    budgetRemaining: detail.budget ? detail.budget.amountMinor - tripCostTotal : null,
+    conflicts: sortConflicts([
+      ...detail.conflicts.filter((c) => c.kind !== "over-budget"),
+      ...overBudgetConflicts(detail, tripCostTotal),
+    ]),
   };
 }
 

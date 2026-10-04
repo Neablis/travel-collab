@@ -19,15 +19,19 @@
 //
 // The loop is a pass-through, deliberately: wrapping these definitions in
 // anything that alters a schema or a `run` would be the reimplementation
-// ADR-022 §4 rules out.
+// ADR-022 §4 rules out. `hiddenFromModel` below is not that: the command schema
+// and its validation are untouched, and only the model's view of it is shorter.
 import { z } from "zod";
 import { BatchableCommand, type BatchableCommand as BatchableCommandType } from "@tc/contracts";
 import { ID_FIELDS, refParamName, type IdRole } from "@/server/assistant/idFields";
 import { defineTool, type AnyAssistantTool } from "@/server/assistant/defineTool";
 import type { TaskClass } from "@/server/assistant/taskClass";
 
-const MONEY_UNITS_NOTE =
-  "Money is integer minor units (cents): amountMinor 500 = 5.00, so multiply a decimal amount by 100 (e.g. 500 EUR → amountMinor 50000).";
+// How to WRITE a money amount is said once per turn, in the instruction
+// (`handleAskRequest.ts`, on every posture that can write or escalate to
+// writing), not here. It used to be appended to AddActivity, UpdateActivity and
+// SetTripBudget, so an edit turn read it three times on top of the
+// instruction's own rule, on every step (contextBudget.test.ts).
 
 const DESCRIPTIONS: Record<BatchableCommandType["type"], string> = {
   AddDay: "Add a new day to the trip (the server assigns its id).",
@@ -35,15 +39,43 @@ const DESCRIPTIONS: Record<BatchableCommandType["type"], string> = {
   SetTripStartDate: "Set (or clear, with null) the trip's start date.",
   SetTripName: "Rename the trip.",
   SetTripDates: "Set the trip's date range; the server reconciles day count to match it.",
-  AddActivity: `Add a new activity; place it on a day via dayRef ("day N") or leave it in the backlog. ${MONEY_UNITS_NOTE}`,
-  UpdateActivity: `Update fields on an existing activity (activityRef — its title or id). Omitted fields are unchanged, except that a new kind clears the details only another kind may carry (pendingReason off pending; mode and endLocation off transit). ${MONEY_UNITS_NOTE}`,
+  AddActivity: `Add a new activity; place it on a day via dayRef ("day N") or leave it in the backlog.`,
+  UpdateActivity: `Update fields on an existing activity (activityRef — its title or id). Omitted fields are unchanged, except that a new kind clears the details only another kind may carry (pendingReason off pending; mode and endLocation off transit).`,
   MoveActivity:
     'Move an activity (activityRef) to a different day (dayRef: "day N", a dayId, or null/backlog) and position.',
   RemoveActivity: "Remove an activity from the trip (activityRef — its title or id).",
   DismissConflict:
     "Dismiss an active conflict by its number in the context's `conflicts` list (conflictRef: e.g. 1). Only conflicts shown there can be dismissed.",
   SetTripCurrency: "Set the trip's currency (ISO 4217 code).",
-  SetTripBudget: `Set (or clear, with null) the trip's budget. ${MONEY_UNITS_NOTE}`,
+  SetTripBudget: `Set (or clear, with null) the trip's budget.`,
+};
+
+/**
+ * **What the model is not shown of a stop's place** (ADR-022 amendment
+ * 2026-10-03). A confirmed coordinate arrives through `placeRef`, which the
+ * server turns into `{ lat, lng, precision: "venue" }` itself, and a
+ * model-claimed `precision` is stripped by `groundCitedPlaces` regardless. A
+ * coordinate the model writes is NOT simply discarded, though: enrichment uses
+ * it as a search HINT (`resolveOne` centres the geocoder on it when it sits in
+ * the trip's region) and keeps it as the FALLBACK pin, reported `unverified`,
+ * when the lookup finds nothing. Hiding them is a measured trade, so it is made
+ * per place (Mitchell, 2026-10-04, on CodeRabbit's #312 finding):
+ *
+ * - **`location` — hidden.** A stop has a verified path (`search_places` →
+ *   `placeRef`), and a place that path cannot find is usually one the model
+ *   does not know either; no pin is more honest than a guessed one there.
+ * - **`endLocation` — `lat`/`lng` shown.** A transit leg's end has no
+ *   `placeRef`, so the model's coordinate is its only fallback, and the ends
+ *   are stations and airports a model mostly does know. ~120 tokens a step.
+ *
+ * `precision` is hidden on both: it is stripped from anything the model sends
+ * regardless. `address` stays on both — it is how a place search cannot find
+ * reaches the stop at all (the first live session's brewery). Everything here
+ * is still accepted if sent.
+ */
+const HIDDEN_FROM_MODEL: Partial<Record<BatchableCommandType["type"], readonly string[]>> = {
+  AddActivity: ["location.lat", "location.lng", "location.precision", "endLocation.precision"],
+  UpdateActivity: ["location.lat", "location.lng", "location.precision", "endLocation.precision"],
 };
 
 /**
@@ -177,6 +209,7 @@ function planningToolFor(optionSchema: z.ZodObject<{ type: z.ZodLiteral<string> 
     needs: ["proposalBuffer"] as const,
     minimumRole: "editor",
     taskClasses: TASK_CLASSES_FOR[type],
+    hiddenFromModel: HIDDEN_FROM_MODEL[type],
     run: (args: Record<string, unknown>, deps) => {
       deps.proposalBuffer.collect({ type, args });
       return { queued: true as const, type };

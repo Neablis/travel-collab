@@ -12,6 +12,8 @@ import { mintToken } from "@/server/api-tokens";
 import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { events } from "@/server/db/schema";
+import { grantMembership } from "@/server/access/members";
+import { readStreamHeadSeq } from "@/server/eventStore";
 import { PAGE_TITLE_MAX } from "@tc/contracts";
 import { MAX_PAGE_BODY_BYTES } from "@/server/pages";
 
@@ -48,6 +50,7 @@ const { PATCH: PATCH_STOP, DELETE: REMOVE_STOP } = await import(
 );
 const { POST: UNDO } = await import("@/app/api/v1/trips/[tripId]/history/undo/route");
 const { GET: HISTORY } = await import("@/app/api/v1/trips/[tripId]/history/route");
+const { GET: HISTORY_AT } = await import("@/app/api/v1/trips/[tripId]/history/[seq]/route");
 const { GET: GLOBALS } = await import("@/app/api/v1/trips/[tripId]/globals/route");
 const { GET: ACCOUNT } = await import("@/app/api/v1/account/route");
 const { GET: LIST_PAGES, POST: ADD_PAGE } = await import("@/app/api/v1/trips/[tripId]/pages/route");
@@ -333,6 +336,36 @@ describe("reads that were nearly free", () => {
     const history = await HISTORY(req(secret), P({ tripId }));
     expect(history.status).toBe(200);
     expect((await history.json()).entries.length).toBeGreaterThan(0);
+  });
+
+  // PR #289 review: the app's own history route overlays the effective members
+  // and recosts for them (ADR-060); this one returned the replay raw, so the
+  // latest revision disagreed with `GET /v1/trips/{id}` about the very same
+  // trip the moment a second person joined.
+  it("reads the latest revision with the same members and totals as the trip itself", async () => {
+    const owner = await entitled();
+    const secret = await tokenFor(owner, ["trips:read", "trips:write"]);
+    const { tripId, dayId } = await seed(secret);
+    const usd = (amountMinor: number) => ({ amountMinor, currency: "USD" });
+    expect((await PATCH_TRIP(req(secret, { budget: usd(50_00) }, "PATCH"), P({ tripId }))).status).toBe(200);
+    const priced = await ADD_STOP(req(secret, { title: "Ramen", dayId, cost: usd(30_00) }, "POST"), P({ tripId }));
+    expect(priced.status).toBe(201);
+    await grantMembership(db, { tripId, userId: `${owner}-guest`, role: "editor", invitedBy: owner, now: new Date().toISOString() });
+
+    const now = await (await GET_TRIP(req(secret), P({ tripId }))).json();
+    const at = await HISTORY_AT(req(secret), P({ tripId, seq: String(await readStreamHeadSeq(db, tripId)) }));
+    expect(at.status).toBe(200);
+    const latest = await at.json();
+
+    const view = (d: Record<string, unknown>) => ({
+      members: d.members,
+      tripCostTotal: d.tripCostTotal,
+      budgetRemaining: d.budgetRemaining,
+      conflicts: d.conflicts,
+    });
+    // Two members, one 30.00 stop nobody picked: 60.00 against 50.00.
+    expect(view(now)).toMatchObject({ tripCostTotal: 60_00, budgetRemaining: -10_00 });
+    expect(view(latest)).toEqual(view(now));
   });
 
   // **`homeTimeZone` is a fact about the token's OWNER, not the trip** — it is

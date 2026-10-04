@@ -10,18 +10,22 @@ import { PENDING_ADMISSION_COOKIE } from "@/lib/pendingAdmission";
 import { db } from "./db/client";
 import { inviteCodes, tripInvites } from "./db/schema";
 
-// The invite gate (M11a link 1): the rule for who may get an account, written
-// once and asked once — by `recordSignIn` on the way back from the provider,
-// through `redeemAdmission`. There is no advisory pre-check: M11a decided
-// against a "is this code valid?" route (a brute-force oracle over
-// `invite_codes`, and TOCTOU besides), so a wrong code is caught here and lands
-// on the `INVALID_INVITE_CODE` screen.
+// The invite gate (M11a link 1), **no longer a gate** (ADR-063, 2026-10-03).
+// Signup is open: a brand-new account is admitted whatever it presents. What
+// survives is the tracking — a single-use code is still claimed here, once, so
+// `invite_codes.redeemed_by` still says who came in on whose code and M20's
+// referral reward still has a code to pay out on. A refusal from
+// `redeemAdmission` now means only "no code was claimed", and `recordSignIn`
+// admits the person anyway as `open-signup`.
+//
+// There is still no advisory pre-check: M11a decided against a "is this code
+// valid?" route (a brute-force oracle over `invite_codes`, and TOCTOU besides).
+// A wrong code is simply not claimed.
 //
 // Admission is evaluated ONLY for someone with no `users` row. "Never been to
-// the app" is exactly "has no `users` row" (ADR-025), so every account that
-// existed before this gate shipped passes without a code and nothing needs a
-// backfill. That check lives in `recordSignIn`, which is the only place that
-// can do it before `upsertUser` creates the row.
+// the app" is exactly "has no `users` row" (ADR-025), so a returning account
+// never spends a code it still holds. That check lives in `recordSignIn`,
+// which is the only place that can do it before `upsertUser` creates the row.
 //
 // This module must never be imported from `src/proxy.ts`. The proxy runs in
 // the Edge runtime with no database (ADR-024); it stores the credential in a
@@ -35,6 +39,10 @@ export type AdmissionGrant =
   | "trip-invite"
   | "super-code"
   | "invite-code"
+  // Nothing presented was claimable — no credential, an unknown one, or a code
+  // someone else already spent. Granted by `recordSignIn` since signup opened
+  // (ADR-063); it credits nobody.
+  | "open-signup"
   // Granted by `recordSignIn`, never by anything in this file: dev login is an
   // ENVIRONMENT fact (AUTH_DEV_LOGIN + a non-production VERCEL_ENV), not a
   // credential, so there is nothing here to check or to spend.
@@ -100,9 +108,10 @@ export function normalizeCredential(raw: string | null | undefined): string | nu
  * Pure: does the presented credential equal the configured super code?
  *
  * **Absent means closed.** An unset or blank `INVITE_SUPER_CODE` returns
- * `false` before any comparison happens, so a deployment that forgot the
- * variable refuses everyone rather than admitting everyone — the failure mode
- * worth being paranoid about, since the other direction is silent.
+ * `false` before any comparison happens, so a blank code presented to a
+ * deployment that forgot the variable never matches. Since signup opened
+ * (ADR-063) a miss costs nobody their account; the super code now only marks
+ * how someone arrived.
  *
  * Constant time, because this is a shared secret compared against attacker-
  * supplied input and `===` on strings short-circuits at the first differing
@@ -117,28 +126,6 @@ export function matchesSuperCode(configured: string | undefined, presented: stri
   const b = Buffer.from(presented, "utf8");
   if (a.length !== b.length) return false;
   return timingSafeEqual(a, b);
-}
-
-/**
- * Pure: where a refusal sends the browser.
- *
- * Auth.js collapses every falsy `signIn` return into one `AccessDenied`
- * (`@auth/core@0.41.3` `lib/actions/callback/index.js:393-409`) but passes a
- * *string* through the `redirect` callback, and the default redirect honours
- * any path starting with `/` (`init.js:13-19`). A returned path is therefore
- * the only way three refusals reach three different sentences.
- */
-export function refusalRedirect(reason: AdmissionRefusal): string {
-  // `/signup`, NOT `/signin` — the invite-code field is on the signup screen
-  // only, so a refusal that lands on `/signin` is a dead end: the message says
-  // what is wrong and the screen has no box to correct it in. Every refusal
-  // here is by definition someone with no `users` row, which is exactly who
-  // `/signup` is for.
-  //
-  // Found by Mitchell walking the preview on 2026-08-31, not by the suite —
-  // the tests assert the error code and its copy, and a test can read the
-  // right sentence on a screen a person cannot act on.
-  return `/signup?error=${reason}`;
 }
 
 /**
@@ -206,15 +193,19 @@ async function claimInviteCode(
 }
 
 /**
- * **Authoritative.** Validate the credential and, if it is a single-use code,
- * burn it — one call, because a check followed by a separate redeem is the
- * race this table exists to close.
+ * Validate the credential and, if it is a single-use code, burn it — one
+ * call, because a check followed by a separate redeem is the race this table
+ * exists to close.
+ *
+ * A refusal here no longer keeps anyone out (ADR-063): `recordSignIn` turns it
+ * into an `open-signup` admission. It is still reported, rather than folded
+ * into a success, so the caller can tell "this code was claimed, credit its
+ * minter" from "nothing was claimed".
  *
  * The three ways through are tried in the order they cost: the trip-invite
  * token and the super code consume nothing, so a person who holds either keeps
  * whatever single-use code they were also given. A database failure propagates
- * rather than being swallowed (ADR-025 §4) — no session may exist for someone
- * the gate never actually cleared.
+ * rather than being swallowed (ADR-025 §4).
  */
 export async function redeemAdmission(
   credential: string | null | undefined,

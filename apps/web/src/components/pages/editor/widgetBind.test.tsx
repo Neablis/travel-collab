@@ -73,6 +73,33 @@ describe("optionsFor a kind or tag input", () => {
   });
 });
 
+// "What one person is in for" (M19 part 2): a member select, by name.
+describe("optionsFor a person input", () => {
+  const PERSON: WidgetInput = { name: "who", type: "person", label: "Person" };
+  const pair = { ...detail, members: [{ userId: "u-ana", role: "owner" as const }, { userId: "u-ben", role: "editor" as const }] };
+
+  it("asks rather than offering 'everyone', then names each member", () => {
+    expect(optionsFor(PERSON, {}, pair, null, { "u-ana": "Ana", "u-ben": "Ben" })).toEqual([
+      { value: "", label: "Choose a person" },
+      { value: "u-ana", label: "Ana" },
+      { value: "u-ben", label: "Ben" },
+    ]);
+  });
+
+  it("keeps a chosen person who has left visible, and never prints an id", () => {
+    const labels = optionsFor(PERSON, { who: "u-gone" }, pair, null, null).map((o) => o.label);
+    expect(labels).toEqual(["Choose a person", "Traveler 1", "Traveler 2", "Former member"]);
+  });
+
+  it("says the chosen person by name in the summary line", () => {
+    expect(bindSummary("person.share", { who: "u-ben" }, pair, null, [PERSON], { "u-ben": "Ben" })).toBe("Ben");
+  });
+
+  it("summarises a person input nobody has chosen as a choice still owed, not everything", () => {
+    expect(bindSummary("person.share", {}, pair, null, [PERSON], { "u-ben": "Ben" })).toBe("choose a person");
+  });
+});
+
 describe("optionsFor a field input", () => {
   it("offers the manifest's fields by label and group, and stores the path", () => {
     const options = optionsFor(FIELD, {}, detail, null);

@@ -1,0 +1,94 @@
+"use client";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import type { TripMemberProfile } from "@tc/contracts";
+import { fetchTripAccess } from "@/lib/apiClient";
+import { cachedRead, invalidate } from "@/lib/queryCache";
+import { tripKeys } from "@/lib/queryKeys";
+import { displayNameFor } from "@/lib/displayName";
+
+// What a notebook widget calls each member (`WidgetContext.people`, M19 part 2).
+//
+// **Not a new read.** The names are the Travelers list's own join —
+// `TripAccess.members`, which `PageScreen` and `TripProvider` already fetch
+// under `tripKeys.access` — so the provider below asks the cache for the
+// response those surfaces share, and `displayNameFor` is the one rule that
+// turns a member into a name.
+//
+// **Never an email.** `displayNameFor` falls back to one, and a notebook is a
+// shared document that a collaborator reads: the invite landing resolves names
+// the same way, with `email: null`, and `attribute`'s `account.name` states the
+// rule for a page. A member with no name reads as their handle instead.
+
+/** userId → what to call them, for every member `TripAccess` lists. */
+export function peopleNamesOf(members: readonly TripMemberProfile[]): Readonly<Record<string, string>> {
+  return Object.fromEntries(
+    members.map((m) => [m.userId, displayNameFor({ userId: m.userId, name: m.name, email: null })]),
+  );
+}
+
+type People = {
+  names: Readonly<Record<string, string>> | null;
+  /** Ids a fresh read was made for, and answered: one still missing has left. */
+  rechecked: ReadonlySet<string>;
+  /** Read the members again, once per id, for one the names do not hold. */
+  recheck: (userId: string) => void;
+};
+
+const NO_ONE: ReadonlySet<string> = new Set();
+const PeopleContext = createContext<People>({ names: null, rechecked: NO_ONE, recheck: () => {} });
+
+/**
+ * Hands every widget under it the trip's member names. `null` until the access
+ * read lands, and if it fails — a widget then says "Traveler 2", which beats a
+ * notebook that will not open over a name.
+ */
+export function PeopleProvider({ tripId, children }: { tripId: string; children: ReactNode }) {
+  const [names, setNames] = useState<Readonly<Record<string, string>> | null>(null);
+  const [rechecked, setRechecked] = useState<ReadonlySet<string>>(NO_ONE);
+  const asked = useRef(new Set<string>());
+  useEffect(() => {
+    let cancelled = false;
+    void cachedRead(tripKeys.access(tripId), () => fetchTripAccess(tripId)).then((access) => {
+      if (!cancelled && access.ok) setNames(peopleNamesOf(access.value.members));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [tripId]);
+
+  // The read above is the cached one, so a member who joined after it is not
+  // in it (review of #311, 3.1: a new suggester's change said "a former
+  // traveler"). Asked about by id, it is read again past the cache — once per
+  // id, however often it renders. A failed read marks nothing: the member is
+  // not called gone on a network error, and is no longer counted as asked, so
+  // the next change of authors asks again (review of #311, CodeRabbit).
+  const recheck = useCallback(
+    (userId: string) => {
+      if (asked.current.has(userId)) return;
+      asked.current.add(userId);
+      invalidate(tripKeys.access(tripId));
+      void cachedRead(tripKeys.access(tripId), () => fetchTripAccess(tripId)).then((access) => {
+        if (!access.ok) {
+          asked.current.delete(userId);
+          return;
+        }
+        setNames(peopleNamesOf(access.value.members));
+        setRechecked((prev) => new Set(prev).add(userId));
+      });
+    },
+    [tripId],
+  );
+
+  const value = useMemo(() => ({ names, rechecked, recheck }), [names, rechecked, recheck]);
+  return <PeopleContext.Provider value={value}>{children}</PeopleContext.Provider>;
+}
+
+/** The member names `PeopleProvider` handed down; `null` outside one or before they land. */
+export function usePeople(): Readonly<Record<string, string>> | null {
+  return useContext(PeopleContext).names;
+}
+
+/** The names, plus the means to ask about a member they do not hold yet. */
+export function usePeopleRecheck(): People {
+  return useContext(PeopleContext);
+}

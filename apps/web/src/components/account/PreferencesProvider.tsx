@@ -69,12 +69,24 @@ type PreferencesValue = {
 
 const Context = createContext<PreferencesValue | null>(null);
 
-export function PreferencesProvider({ children }: { children: React.ReactNode }) {
+export function PreferencesProvider({
+  children,
+  noSessionCookie = false,
+}: {
+  children: React.ReactNode;
+  /**
+   * The layout saw no session cookie (`lib/sessionHint.ts`): a reader with no
+   * account, whose read could only 401 (ADR-061's public playbooks). Defaults,
+   * marked loaded, and no request.
+   */
+  noSessionCookie?: boolean;
+}) {
   const [preferences, setPreferences] = useState<UserPreferences>(DEFAULTS);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [loaded, setLoaded] = useState(false);
+  const [loaded, setLoaded] = useState(noSessionCookie);
 
   useEffect(() => {
+    if (noSessionCookie) return;
     let cancelled = false;
     void fetchPreferences().then((result) => {
       if (cancelled) return;
@@ -92,7 +104,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [noSessionCookie]);
 
   // Monotonic, and the only reason it exists is the race below. A ref rather
   // than state: it must be read and written synchronously within one `save`

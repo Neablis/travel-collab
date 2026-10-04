@@ -29,11 +29,12 @@ describe("registry", () => {
     // `day.fromHome` (the same link) ARE primitives — day entity, day filters —
     // and so is `day.weather`, which also declares `needs` (ADR-052), and
     // `cost.breakdown` ("Spend by kind" / "Spend by tag"), a stop primitive
-    // drawn as a pie.
+    // drawn as a pie. `cost.balances` and `person.share` (M19 part 2) are stop
+    // primitives over `balances`.
     expect([...MACRO_NAMES].sort()).toEqual([
-      "attribute", "city", "city.detail", "city.rows", "cost", "cost.breakdown", "cost.chart", "cost.rows",
+      "attribute", "city", "city.detail", "city.rows", "cost", "cost.balances", "cost.breakdown", "cost.chart", "cost.rows",
       "count", "country.facts", "dates", "day.detail", "day.fromHome", "day.rows", "day.sun", "day.weather", "field", "hours",
-      "link.external", "link.internal", "open", "stop.rows", "trip.strip",
+      "link.external", "link.internal", "open", "person.share", "stop.rows", "trip.strip",
     ]);
     for (const name of MACRO_NAMES) expect(getMacro(name)!.name).toBe(name);
   });
@@ -112,6 +113,8 @@ describe("registry", () => {
     target: { kind: "view", view: "Map" },
     url: "https://example.com/tickets",
     text: "Tickets",
+    // A member's `userId` (`PersonRef`) — `detail`'s one member.
+    person: "u1",
   };
 
   it("every declared input names a key its own macro's params schema accepts", () => {
@@ -193,7 +196,7 @@ describe("every widget renders (ADR-037 decision 2)", () => {
         // whose stops are all merely planned, so with a null kind it never
         // reached `render` and the witness floor refused — the floor working,
         // again, rather than a reason to lower it.
-        notes: null, kind: "pending", tags: [],
+        notes: null, kind: "pending", tags: [], participants: [],
       },
     } as unknown as TripDetail["activities"],
     tripCostTotal: 5000,
@@ -217,11 +220,11 @@ describe("every widget renders (ADR-037 decision 2)", () => {
     ...populated.activities,
     a2: {
       activityId: "a2", tripId: detail.tripId, title: "Ghibli Museum", dayId: null, position: 0,
-      timeWindow: null, location: null, cost: null, notes: null, kind: "idea", tags: [],
+      timeWindow: null, location: null, cost: null, notes: null, kind: "idea", tags: [], participants: [],
     },
     a3: {
       activityId: "a3", tripId: detail.tripId, title: "Tea ceremony", dayId: "d0", position: 1,
-      timeWindow: null, location: null, cost: null, notes: null, kind: "hold", tags: [],
+      timeWindow: null, location: null, cost: null, notes: null, kind: "hold", tags: [], participants: [],
     },
   } as unknown as TripDetail["activities"];
 
@@ -257,7 +260,7 @@ describe("every widget renders (ADR-037 decision 2)", () => {
   const external = {
     notebooks: {
       state: "ready" as const,
-      value: { pages: [{ id: LINKED_NOTEBOOK, title: "Money", firstLine: "What it costs.", widgetCount: 2 }] },
+      value: { pages: [{ id: LINKED_NOTEBOOK, seedKey: "money", title: "Money", firstLine: "What it costs.", widgetCount: 2 }] },
     },
     weather: {
       state: "ready" as const,
@@ -301,6 +304,11 @@ describe("every widget renders (ADR-037 decision 2)", () => {
           entry.inputs.flatMap((i): [string, unknown][] =>
             i.type === "target" ? [[i.name, { kind: "notebook", pageId: LINKED_NOTEBOOK }]] : i.type === "url" ? [[i.name, "https://example.com/tickets"]] : [],
           ),
+        ),
+        // "What one person is in for" lands asking who; the settings panel's
+        // member select answers it, so the sweep picks the trip's one member.
+        ...Object.fromEntries(
+          entry.inputs.flatMap((i): [string, unknown][] => (i.type === "person" ? [[i.name, populated.members[0]!.userId]] : [])),
         ),
       },
     );
@@ -483,16 +491,20 @@ describe("every primitive declares a legal selection (ADR-039 decision 3)", () =
     expect(checked, "every primitive declared every dimension, so nothing was checked").toBeGreaterThan(0);
   });
 
-  it("declares no `person` input anywhere — the M14 gate box", () => {
-    // *"No `w-person` or `w-personline` … nothing in the registry declares a
-    // `person` input."* Mitchell, 2026-09-24: *"person is removed for now"*.
-    // Swept over every registered widget, not the three that used to carry it,
-    // so one added later cannot bring the control back unnoticed. The contract
-    // enum keeps the member; this is about what the registry offers.
+  it("declares a `person` input only on `person.share`, and selects by person nowhere", () => {
+    // M14's gate box was *"nothing in the registry declares a `person` input"*
+    // (Mitchell, 2026-09-24: *"person is removed for now"*), because no stop
+    // carried a person. M13 link 5 gave stops `participants` and `bookedBy`,
+    // and M19 part 2 brings `w-person` back as `person.share` — the ONE widget
+    // with a person input, which names whose money it is about. The `person`
+    // FILTER stays refused (`narrow`): "stops somebody is in" and "stops
+    // somebody booked" are two answers, and no widget may pick one silently.
+    // Swept over every registered widget, so a second one cannot arrive unnoticed.
     let checked = 0;
     for (const name of MACRO_NAMES) {
       const def = getMacro(name)!;
-      expect(def.inputs.map((i) => i.type), `${name} declares a person input`).not.toContain("person");
+      const people = def.inputs.filter((i) => i.type === "person").map((i) => i.name);
+      expect(people, `${name}'s person inputs`).toEqual(name === "person.share" ? ["who"] : []);
       expect(def.selection?.filters ?? [], `${name} selects by person`).not.toContain("person");
       checked += 1;
     }
@@ -512,7 +524,9 @@ describe("every primitive declares a legal selection (ADR-039 decision 3)", () =
     // no filter maps to it (`WidgetInput`'s own comment). Nor are `toggle` and
     // `choice`: they choose how a widget draws (column headings, bars or a
     // burn-down), never which members it reads.
-    const NOT_A_DIMENSION = new Set(["field", "toggle", "choice"]);
+    // Nor is `person`: `person.share`'s `who` says whose money the sentence
+    // is about, and the `person` dimension stays refused (the test above).
+    const NOT_A_DIMENSION = new Set(["field", "toggle", "choice", "person"]);
     for (const name of PRIMITIVE_NAMES) {
       const def = getMacro(name)!;
       const filterControls = def.inputs.filter((i) => !NOT_A_DIMENSION.has(i.type)).map((i) => i.name);

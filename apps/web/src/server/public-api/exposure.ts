@@ -77,6 +77,9 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
   "admin/reports/[reportId]": PLANNED("Reviewing reports and removing reviews — admin scope"),
   "admin/grants": PLANNED("Undecided — admin scope if ever"),
   "admin/overview": PLANNED("Undecided — admin scope if ever"),
+  // Spec 2026-10-03 W14: one collection, one change resource.
+  "trips/[tripId]/suggestions": PLANNED("Suggestions — not on the public API in v1"),
+  "trips/[tripId]/suggestions/changes/[changeId]": PLANNED("Suggestions — not on the public API in v1"),
   // Undecided (Mitchell, 2026-09-30): these start as planned, not never.
   places: PLANNED("Undecided — place search over the published library"),
   "trips/[tripId]/events": PLANNED("Undecided — the live event stream"),
@@ -150,6 +153,14 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
   "og/invite/[token]/meta": { status: "never", why: "Link-preview images for chat apps, not data", reaches: [] },
   "og/referral/[code]": { status: "never", why: "Link-preview images for chat apps, not data", reaches: [] },
   "og/referral/[code]/meta": { status: "never", why: "Link-preview images for chat apps, not data", reaches: [] },
+  "og/playbooks": { status: "never", why: "Link-preview images for chat apps, not data", reaches: [] },
+  "og/playbooks/city/[city]": { status: "never", why: "Link-preview images for chat apps, not data", reaches: [] },
+  "og/playbooks/city/[city]/meta": { status: "never", why: "Link-preview images for chat apps, not data", reaches: [] },
+  "og/playbooks/country/[code]": { status: "never", why: "Link-preview images for chat apps, not data", reaches: [] },
+  "og/playbooks/day/[savedDayId]": { status: "never", why: "Link-preview images for chat apps, not data", reaches: [] },
+  "og/playbooks/day/[savedDayId]/meta": { status: "never", why: "Link-preview images for chat apps, not data", reaches: [] },
+  "og/playbooks/profile/[userId]": { status: "never", why: "Link-preview images for chat apps, not data", reaches: [] },
+  "og/playbooks/profile/[userId]/meta": { status: "never", why: "Link-preview images for chat apps, not data", reaches: [] },
   "trips/[tripId]/commands": {
     status: "never",
     why: "The app's raw command channel; v1 publishes resources (days, stops) over the same domain",

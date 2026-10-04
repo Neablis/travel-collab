@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TripAccess, TripInvite } from "@tc/contracts";
@@ -163,6 +163,29 @@ describe("TravelersPanel", () => {
     );
     // Copying is what actually delivers the invite — nothing emails it.
     expect(writeText).toHaveBeenCalledWith("http://test/invite/fresh");
+  });
+
+  // Spec 2026-10-03 §2.1: the suggester is offered as "Can suggest", between
+  // the two it sits between, and the owner still starts on "Can edit".
+  it("offers Can suggest between edit and view, and invites a suggester with it", async () => {
+    createTripInviteMock.mockResolvedValue({ ok: true, value: { ...invite, role: "suggester" } });
+    render(<TravelersPanel tripId={tripId} />);
+    await screen.findByText("Alice");
+
+    const picker = screen.getByRole("combobox", { name: "Invite role" });
+    expect(within(picker).getAllByRole("option").map((o) => o.textContent)).toEqual([
+      "Can edit",
+      "Can suggest",
+      "Can view",
+    ]);
+    expect((picker as HTMLSelectElement).value).toBe("editor");
+
+    await userEvent.selectOptions(picker, "Can suggest");
+    await userEvent.click(screen.getByRole("button", { name: "Invite someone" }));
+
+    await waitFor(() =>
+      expect(createTripInviteMock).toHaveBeenCalledWith(tripId, { email: null, role: "suggester" }),
+    );
   });
 
   it("sends null, not an empty string, when no email is typed", async () => {

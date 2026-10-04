@@ -2,6 +2,7 @@
 // Depends on @tc/contracts only. No I/O, no clock, no randomness (Invariant 4).
 
 export * from "./result";
+export { countryFacts } from "./data/countries";
 export * from "./registry-types";
 export * from "./external";
 export * from "./chartPayloads";
@@ -27,6 +28,9 @@ export * from "./savedTemplate";
 export * from "./linkTarget";
 export * from "./itineraryPayload";
 export { WebAddress, hostOf } from "./macros/primitives/link";
+// What a widget calls a member when `WidgetContext.people` has no name for them;
+// the person select in `apps/web` labels its options with the same rule.
+export { personNames } from "./macros/primitives/balances";
 // The one reader of an instant in a named zone; the server's weather cuts its
 // local days with it too, rather than a second `Intl` walk (review finding 6).
 export { clockIn } from "./clock";

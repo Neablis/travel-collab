@@ -106,6 +106,7 @@ function discover(days: DiscoverDay[]): ApiResult<DiscoverResponse> {
 function published(overrides: Partial<DiscoverDay> & Pick<DiscoverDay, "savedDayId" | "name" | "adds">): DiscoverDay {
   return {
     ownerId: "dev-mei",
+    ownerDisplayName: "Mei L.",
     cities: ["Lisbon"],
     matchedCities: ["Lisbon"],
     stopCount: 4,
@@ -796,8 +797,8 @@ describe("NewTripWizard — the Playbook-day turn", () => {
     );
     const cards = within(screen.getByRole("group", { name: "Popular days" })).getAllByRole("button");
     expect(cards.map((card) => card.textContent)).toEqual([
-      "Tram 28 morningAdded to 12 trips · 1 day · by MeiAdd",
-      "Alfama at duskAdded to 3 trips · 2 days · by MeiAdd",
+      "Tram 28 morningAdded to 12 trips · 1 day · by Mei L.Add",
+      "Alfama at duskAdded to 3 trips · 2 days · by Mei L.Add",
     ]);
     // Nothing picked is a real answer, and the button says which.
     expect(screen.getByRole("button", { name: "Skip — plan it fresh" })).not.toBeNull();

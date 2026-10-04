@@ -1,4 +1,7 @@
+import { JsonLd } from "@/components/JsonLd";
 import { LandingScreen } from "@/components/front/LandingScreen";
+import { deploymentOrigin } from "@/lib/deploymentOrigin";
+import { organizationJsonLd, webSiteJsonLd } from "@/lib/jsonLd";
 import { SITE_DESCRIPTION, pageMetadata } from "@/lib/siteMetadata";
 
 // `absolute`: the landing page leads with the brand, so the layout's
@@ -6,8 +9,15 @@ import { SITE_DESCRIPTION, pageMetadata } from "@/lib/siteMetadata";
 export const metadata = pageMetadata({
   title: { absolute: "Caesura — plan the trip together" },
   description: SITE_DESCRIPTION,
+  canonical: "/",
 });
 
 export default function WelcomePage() {
-  return <LandingScreen />;
+  const origin = deploymentOrigin();
+  return (
+    <>
+      <JsonLd data={[organizationJsonLd(origin), webSiteJsonLd(origin)]} />
+      <LandingScreen />
+    </>
+  );
 }

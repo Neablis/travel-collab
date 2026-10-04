@@ -132,15 +132,12 @@ const bullets = (...items: string[]): PageNode => ({
   content: items.map((item) => ({ type: "listItem" as const, content: [para(text(item))] })),
 });
 
-/** A link card to a sibling notebook, by the id it was seeded with (ADR-056). */
-const notebookLink = (pageId: string): PageParagraphNode => block("link.internal", { to: { kind: "notebook", pageId } });
-
 /**
- * The ids a seeded notebook's siblings were given, keyed by template key — how
- * the Overview's links can name notebooks that do not exist until the seeder
- * writes them.
+ * A link card to a sibling default notebook, by its seed key (ADR-056, amended
+ * 2026-10-03): the card finds whichever page is the trip's seed of that
+ * template, so it resolves on a trip that gains the notebook later.
  */
-export type SiblingIds = Readonly<Record<string, string>>;
+const notebookLink = (seedKey: string): PageParagraphNode => block("link.internal", { to: { kind: "seed", seedKey } });
 
 export interface TemplateSeed {
   key: string;
@@ -164,16 +161,7 @@ export interface TemplateSeed {
    */
   seedIntoNewTrips: boolean;
   buildContext(tripId: string): PageContext;
-  /**
-   * The document. For a template that links to its seeded siblings (only the
-   * Overview) this is the document with PLACEHOLDER ids — valid, so every test
-   * that parses or inserts `content` still can, and honest if it is ever read:
-   * a placeholder id names no notebook, so its card says the notebook was
-   * deleted. `instantiateDefaults` builds the real one with `buildContent`.
-   */
   content: PageDoc;
-  /** The document built against the ids the seeder minted for the other seeds. */
-  buildContent?(siblings: SiblingIds): PageDoc;
 }
 
 // ---------------------------------------------------------------------------
@@ -181,14 +169,16 @@ export interface TemplateSeed {
 // ---------------------------------------------------------------------------
 
 /**
- * The ids `content` carries where a seeded Overview carries its siblings' real
- * ones. In the `…f` block, beside the demo's `…e` page ids (`server/pages.ts`),
- * so none can collide with a minted page.
+ * The placeholder ids an Overview's sibling links carried before they were
+ * seed keys (until 2026-10-03), each with the seed it stood for. A reset on a
+ * trip without the sibling stored one, and no page ever has these ids — the
+ * `…f` block, beside the demo's `…e` page ids (`server/pages.ts`) — so
+ * `link.internal` reads one as the seed link it should have been.
  */
-export const PLACEHOLDER_IDS: SiblingIds = {
-  "before-you-go": "00000000-0000-4000-8000-00000000f001",
-  "bookings-and-confirmations": "00000000-0000-4000-8000-00000000f002",
-  money: "00000000-0000-4000-8000-00000000f003",
+export const LEGACY_PLACEHOLDER_SEEDS: Readonly<Record<string, string>> = {
+  "00000000-0000-4000-8000-00000000f001": "before-you-go",
+  "00000000-0000-4000-8000-00000000f002": "bookings-and-confirmations",
+  "00000000-0000-4000-8000-00000000f003": "money",
 };
 
 /**
@@ -212,32 +202,30 @@ export const PLACEHOLDER_IDS: SiblingIds = {
  * set", the schedule "no days yet", and each notebook card is "loading
  * notebooks" for one beat and then the notebook's own first line.
  */
-function overviewContent(ids: SiblingIds): PageDoc {
-  return newPageDoc([
-    // ---- The letter ------------------------------------------------------
-    // Two sentences, as an agent's covering note has: what this document is,
-    // and why it can be trusted. The second is also what makes a new trip's
-    // empty schedule read as a promise rather than a fault.
-    para(
-      text(
-        "Here is your itinerary, day by day: where you will be, at what time, and anything still to book, in the order you will live it. It reads straight from the plan, so when a stop moves, this moves with it.",
-      ),
+const overviewContent: PageDoc = newPageDoc([
+  // ---- The letter ------------------------------------------------------
+  // Two sentences, as an agent's covering note has: what this document is,
+  // and why it can be trusted. The second is also what makes a new trip's
+  // empty schedule read as a promise rather than a fault.
+  para(
+    text(
+      "Here is your itinerary, day by day: where you will be, at what time, and anything still to book, in the order you will live it. It reads straight from the plan, so when a stop moves, this moves with it.",
     ),
-    // The facts a printed itinerary heads its first page with, as labels
-    // rather than a sentence around them: "Dates: no dates set" reads on an
-    // empty trip, where "You travel no dates set" would not.
-    para(text("Dates: "), widget("dates"), text(" · Route: "), widget("city")),
-    // ---- The schedule ----------------------------------------------------
-    heading("Day by day"),
-    block("day.detail", { view: "schedule" }),
-    // ---- The rest of the trip ---------------------------------------------
-    heading("Also in this trip"),
-    para(text("Three more notebooks came with the trip, each with one job.")),
-    notebookLink(ids["before-you-go"]!),
-    notebookLink(ids["bookings-and-confirmations"]!),
-    notebookLink(ids.money!),
-  ]);
-}
+  ),
+  // The facts a printed itinerary heads its first page with, as labels
+  // rather than a sentence around them: "Dates: no dates set" reads on an
+  // empty trip, where "You travel no dates set" would not.
+  para(text("Dates: "), widget("dates"), text(" · Route: "), widget("city")),
+  // ---- The schedule ----------------------------------------------------
+  heading("Day by day"),
+  block("day.detail", { view: "schedule" }),
+  // ---- The rest of the trip ---------------------------------------------
+  heading("Also in this trip"),
+  para(text("Three more notebooks came with the trip, each with one job.")),
+  notebookLink("before-you-go"),
+  notebookLink("bookings-and-confirmations"),
+  notebookLink("money"),
+]);
 
 const overviewPage: TemplateSeed = {
   key: "overview",
@@ -246,8 +234,7 @@ const overviewPage: TemplateSeed = {
   description: "Comes with the trip.",
   seedIntoNewTrips: true,
   buildContext: (tripId) => ({ tripId, kind: "overview" }),
-  content: overviewContent(PLACEHOLDER_IDS),
-  buildContent: overviewContent,
+  content: overviewContent,
 };
 
 /**
@@ -346,8 +333,14 @@ const money: TemplateSeed = {
     block("cost.breakdown", { by: "tag" }),
     heading("Costs, broken down"),
     block("cost.rows"),
+    // M19 part 2 (ADR-060 decision 6). New trips only: `listPages` seeds into a
+    // trip with zero pages, so an existing Money notebook is left as it is.
+    // On an empty trip it reads "nothing priced yet".
+    heading("Who owes what"),
+    para(text("A price is per person, and whoever booked a stop paid for everyone in it.")),
+    block("cost.balances"),
     heading("Notes"),
-    para(text("Who is paying for what, what is already deposited, and what you would cut first.")),
+    para(text("What is already deposited, and what you would cut first.")),
   ]),
 };
 
@@ -552,21 +545,17 @@ export type SeededPage = CreatePageInput & { id: string; seedKey: string };
 /**
  * The pages a new trip is seeded with, each with its id.
  *
- * **The ids are minted HERE, before any content is built**, because the
- * Overview links to its siblings by id (ADR-056) and those ids have to exist
- * before the Overview's document can say them. `mintId` is the caller's — this
- * package has no randomness (Invariant 4) — so the server passes `randomUUID`
- * and the demo passes its fixed ids, and one call to this is the whole seed.
+ * `mintId` is the caller's — this package has no randomness (Invariant 4) — so
+ * the server passes `randomUUID` and the demo passes its fixed ids, and one
+ * call to this is the whole seed. Ids are minted in `DEFAULT_TEMPLATES` order.
  */
 export function instantiateDefaults(tripId: string, mintId: () => string): SeededPage[] {
-  const ids: Record<string, string> = {};
-  for (const t of DEFAULT_TEMPLATES) ids[t.key] = mintId();
   return DEFAULT_TEMPLATES.map((t) => ({
-    id: ids[t.key]!,
+    id: mintId(),
     seedKey: t.key,
     title: t.title,
     context: t.buildContext(tripId),
-    content: t.buildContent ? t.buildContent(ids) : t.content,
+    content: t.content,
   }));
 }
 

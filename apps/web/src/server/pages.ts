@@ -188,12 +188,11 @@ async function listPageRows(tripId: string): Promise<(typeof pages.$inferSelect)
   // granularity; the only thing that saves it here is that these rows are the
   // ones whose timestamps we choose.
   //
-  // **The ids are minted before the documents are built** (ADR-056): the
-  // Overview links to the other three seeds by id. Two racers mint different
-  // ids, and the loser's rows are all dropped rather than some of them — one
-  // statement, rows in the same order, so the loser blocks on the winner's
-  // first key and then conflicts on every row — which is what keeps the
-  // winner's Overview pointing at the winner's siblings.
+  // Two racers mint different ids, and the loser's rows are all dropped rather
+  // than some of them — one statement, rows in the same order, so the loser
+  // blocks on the winner's first key and then conflicts on every row. The
+  // Overview's links do not depend on it: they name the other three seeds by
+  // seed key, not by id (ADR-056, amended 2026-10-03).
   const defaults = instantiateDefaults(tripId, randomUUID);
 
   const startedAt = Date.now();

@@ -6,7 +6,7 @@ import {
   type AskDroppedCall,
   type AskIntentRecord,
 } from "@/server/assistant/askAnalytics";
-import type { TurnLedger } from "@/server/assistant/ledger";
+import { newTurnMeter, type TurnLedger } from "@/server/assistant/ledger";
 
 const OFFERED = ["read_trip", "read_day", "find_free_time"];
 
@@ -159,6 +159,7 @@ describe("the per-ask record", () => {
         droppedInserts: [],
         pivots: [],
         latencyMs: 1,
+        turnId: null,
       });
       const [message, payload] = spy.mock.calls[0]!;
       expect(message).toBe("ai.ask");
@@ -211,6 +212,7 @@ describe("the per-ask record", () => {
         droppedInserts: [],
         pivots: [],
         latencyMs: 1,
+        turnId: null,
       });
       const [, payload] = spy.mock.calls[0]!;
       // What actually reaches the log line — not the record object.
@@ -261,6 +263,7 @@ describe("the per-ask record", () => {
           droppedInserts: [],
           pivots: [],
           latencyMs: 1,
+          turnId: null,
         }),
       ).not.toThrow();
 
@@ -651,6 +654,7 @@ function recordWith(overrides: Partial<AskAnalyticsRecord>): AskAnalyticsRecord 
     droppedInserts: [],
     pivots: [],
     latencyMs: 1,
+    turnId: null,
     ...overrides,
   };
 }
@@ -741,5 +745,127 @@ describe("an aborted step's writes are still in the record", () => {
     recorder.observeStep({ toolCalls: [{ toolName: "insert_playbook_day", input: { savedDayId: "good" } }] });
     recorder.finish({ text: "done" });
     expect(records[0]!.toolCalls.filter((c) => c.name === "insert_playbook_day")).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The per-step and per-tool ledger (M31 Phase 1, ADR-062 §5)
+// ---------------------------------------------------------------------------
+
+describe("the per-step and per-tool ledger", () => {
+  // Prompt caching makes most of a long turn's input a cached read, priced at
+  // roughly a tenth of fresh input. A row that drops the split cannot price
+  // the turn, and AskStepLike used to drop it.
+  it("records each step's cached reads and writes beside its fresh tokens", () => {
+    const { recorder, ledgers } = recorderWith();
+    recorder.observeStep({
+      finishReason: "tool-calls",
+      usage: { inputTokens: 9000, outputTokens: 40, inputTokenDetails: { cacheReadTokens: 7600, cacheWriteTokens: 0 } },
+    });
+    recorder.finish({ finishReason: "stop" });
+    expect(ledgers[0]!.stepSpend).toEqual([
+      {
+        index: 0,
+        model: "simulated/no-op",
+        tier: null,
+        tokensIn: 9000,
+        cacheReadTokens: 7600,
+        cacheWriteTokens: 0,
+        tokensOut: 40,
+        finishReason: "tool-calls",
+        escalated: false,
+        pivoted: false,
+      },
+    ]);
+  });
+
+  // KI-2026-09-17-c: an escalated turn's later steps ran on the escalation
+  // model, and one model per turn billed them at the first model's rate.
+  it("records each step on the model prepareStep chose for it", () => {
+    const plans = new Map([
+      [0, { model: "cheap/q", tier: "low", escalated: false, pivoted: false }],
+      [1, { model: "strong/e", tier: "mid", escalated: true, pivoted: false }],
+    ]);
+    const { recorder, ledgers } = recorderWith({ stepPlan: (index) => plans.get(index), tier: "low" });
+    recorder.observeStep({ usage: { inputTokens: 100 } });
+    recorder.observeStep({ usage: { inputTokens: 200 } });
+    recorder.finish({ finishReason: "stop" });
+    expect(ledgers[0]!.stepSpend.map(({ model, tier, escalated }) => ({ model, tier, escalated }))).toEqual([
+      { model: "cheap/q", tier: "low", escalated: false },
+      { model: "strong/e", tier: "mid", escalated: true },
+    ]);
+  });
+
+  it("joins each metered call to the step that emitted it", () => {
+    const meter = newTurnMeter();
+    const { recorder, ledgers } = recorderWith({ meter });
+    recorder.observeStep({ toolCalls: [{ toolName: "read_trip", input: {}, toolCallId: "c0" }] });
+    meter.toolCall("read_trip", 3, true, { callId: "c0" });
+    recorder.observeStep({ toolCalls: [{ toolName: "read_day", input: {}, toolCallId: "c1" }] });
+    meter.toolCall("read_day", 3, true, { callId: "c1" });
+    recorder.finish({ finishReason: "stop" });
+    expect(ledgers[0]!.toolCalls.map((call) => [call.callId, call.stepIndex])).toEqual([
+      ["c0", 0],
+      ["c1", 1],
+    ]);
+  });
+
+  // Only a completed turn produced a proposal. A write call on a turn that
+  // aborted reached nothing, whatever it collected; a read call cannot reach
+  // one at all and records null.
+  it("marks a write call as reaching the proposal only on a completed turn", () => {
+    const run = (end: "finish" | "abandon") => {
+      const meter = newTurnMeter();
+      const { recorder, ledgers } = recorderWith({ meter, reachedCalls: () => new Set(["w1"]) });
+      meter.toolCall("add_activity", 3, true, { callId: "w1", proposes: true });
+      meter.toolCall("add_activity", 3, true, { callId: "w2", proposes: true });
+      meter.toolCall("read_day", 3, true, { callId: "r1", proposes: false });
+      if (end === "finish") recorder.finish({ finishReason: "stop" });
+      else recorder.abandon("abort");
+      return ledgers[0]!.toolCalls.map((call) => [call.callId, call.reachedProposal]);
+    };
+    expect(run("finish")).toEqual([
+      ["w1", true],
+      ["w2", false],
+      ["r1", null],
+    ]);
+    expect(run("abandon")).toEqual([
+      ["w1", false],
+      ["w2", false],
+      ["r1", null],
+    ]);
+  });
+
+  it("carries the turn's id and the same latency the log line reports", () => {
+    const { recorder, records, ledgers } = recorderWith({ turnId: "turn-1" });
+    recorder.observeStep({});
+    recorder.finish({ finishReason: "stop" });
+    expect(ledgers[0]!.cost.turnId).toBe("turn-1");
+    expect(ledgers[0]!.cost.latencyMs).toBe(records[0]!.latencyMs);
+  });
+
+  // The log line is the only place the question and tool arguments are kept,
+  // and the turn id is what joins it to the durable rows (Copilot on #301).
+  it("writes the turn's id onto the serialized ai.ask line", () => {
+    const { recorder, records } = recorderWith({ turnId: "turn-9" });
+    recorder.finish({ finishReason: "stop" });
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    try {
+      logAskAnalytics(records[0]!);
+      const line = String(info.mock.calls[0]![1]);
+      expect(JSON.parse(line).turnId).toBe("turn-9");
+    } finally {
+      info.mockRestore();
+    }
+  });
+
+  // Latency runs from the REQUEST's arrival, so admission and the
+  // classifier's round-trip are inside it (Copilot on #301).
+  it("measures latency from the request's start when the handler passes one", () => {
+    // The fixture clock advances 40 per read; a start 1,000 earlier than the
+    // recorder's own first read is what the handler's pre-admission start is.
+    const { recorder, records } = recorderWith({ startedAt: 0 });
+    recorder.finish({ finishReason: "stop" });
+    expect(records[0]!.latencyMs).toBe(1_040);
   });
 });

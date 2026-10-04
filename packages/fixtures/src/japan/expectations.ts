@@ -7,7 +7,7 @@
 //
 // See docs/guidelines/fixtures-and-seed-data.md for the procedure.
 
-import type { ActivityKind, ActivityMode, ActivityTag, PendingReason } from "@tc/contracts";
+import type { ActivityKind, ActivityMode, ActivityTag, PendingReason, TripRole } from "@tc/contracts";
 import type { JapanTripReport, SavedDayOwnerReport } from "./verify.ts";
 
 export type JapanTripExpectations = {
@@ -20,6 +20,7 @@ export type JapanTripExpectations = {
   modes: Record<ActivityMode, number>;
   withEndLocation: number;
   pendingReasons: Record<PendingReason, number>;
+  travellerRoles: Record<TripRole, number>;
   untaggedCount: number;
   withCoordinates: number;
   withCost: number;
@@ -64,6 +65,12 @@ export const JAPAN_TRIP_EXPECTATIONS: JapanTripExpectations = {
   // dinners are `book`, its two `idea` stops and four backlog ideas `maybe`.
   pendingReasons: { book: 2, maybe: 6 },
 
+  // ADR-064. `/demo`'s roster holds every role a traveller can be invited
+  // to plan with, so a role added to `TripRole` fails here until the demo
+  // shows it. No viewer: everyone on this trip is planning it, and the visitor
+  // reading the demo is the viewer.
+  travellerRoles: { owner: 1, editor: 2, suggester: 1, viewer: 0 },
+
   // All 72, including the 21 the geocoder could not pin to the right venue
   // (KI-39) and which carry hand-authored coordinates instead. The Map and
   // Timeline lenses have nothing to draw for an activity without them.
@@ -84,8 +91,16 @@ export const JAPAN_TRIP_EXPECTATIONS: JapanTripExpectations = {
   // If this drops back to six, suspect the override list went stale before you
   // suspect the content: the drift test will say which entry.
   cities: ["Hakone", "Kyoto", "Naoshima", "Nikkō", "Odawara", "Osaka", "Tamano", "Tokyo"],
-  budgetMinor: 1_640_000,
-  plannedTotalMinor: 908_500,
+  // ADR-060: a price is per person, so these are the totals `/demo` shows its
+  // four travellers, measured through the same read-time recost the server
+  // applies. Before ADR-060 they were 1_640_000 and 908_500 (every price once);
+  // read per person with everyone on every stop, the planned total was
+  // 3_634_000 and the trip sat 90% over. `participants` (./participants.ts) and
+  // the raised budget (`JAPAN_TRIP_BUDGET_USD`) put it about 8% under. If the
+  // planned total passes the budget, `conflictsByKind` below gains an
+  // `over-budget` and says so too.
+  budgetMinor: 3_400_000,
+  plannedTotalMinor: 3_119_500,
   currencies: ["USD"],
 
   // Two, and both are wanted: "Nezu Museum" against "Lunch at Kagari", and
@@ -196,6 +211,7 @@ export function diffAgainstExpectations(
   scalar("modes", report.modes, expected.modes);
   scalar("withEndLocation", report.withEndLocation, expected.withEndLocation);
   scalar("pendingReasons", report.pendingReasons, expected.pendingReasons);
+  scalar("travellerRoles", report.travellerRoles, expected.travellerRoles);
   scalar("untaggedCount", report.untaggedCount, expected.untaggedCount);
   scalar("withCoordinates", report.withCoordinates, expected.withCoordinates);
   scalar("withCost", report.withCost, expected.withCost);

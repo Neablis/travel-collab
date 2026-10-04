@@ -512,7 +512,7 @@ export interface PlaybookDayReadout {
   /** Every city the day touches, in its own time order (`citiesOfStops`). */
   cities: string[];
   stopCount: number;
-  /** The day's total across its priced stops, or null when nothing is priced. */
+  /** The day's sum across its priced stops — for ONE person, since every price is (ADR-060) — or null when nothing is priced. */
   totalCost: { amountMinor: number; currency: string } | null;
   /** How many trips have taken this day — the adds ledger's count (M11b). */
   adds: number;
@@ -774,7 +774,7 @@ export const readTripTool = defineTool({
 
 export const readDayTool = defineTool({
   name: "read_day",
-  description: `Read one or MORE days in full: every stop with its time window, location, notes, kind, tags and cost, plus the active conflicts that touch each day. Pass \`days\` as a single number or a list (up to ${MAX_READ_DAYS}) — if a question needs several days, put them all in ONE call rather than calling this once per day. Use this whenever the question is about what happens on a day, when a stop's time matters, or when the question is about a day's conflicts or what it still needs booked.`,
+  description: `Read one or MORE days in full: every stop with its time window, location, notes, kind, tags and cost (the price for one person — the day and trip totals already multiply it by who is going), plus the active conflicts that touch each day. Pass \`days\` as a single number or a list (up to ${MAX_READ_DAYS}) — if a question needs several days, put them all in ONE call rather than calling this once per day. Use this whenever the question is about what happens on a day, when a stop's time matters, or when the question is about a day's conflicts or what it still needs booked.`,
   domain: "itinerary",
   effect: "read",
   spend: "none",
@@ -825,7 +825,7 @@ export const findFreeTimeTool = defineTool({
 export const searchPlaybooksTool = defineTool({
   name: "search_playbooks",
   description:
-    "Search the playbook library — ready-made days somebody has written and published, plus your own saved ones — by city. Returns each day's savedDayId, name, cities, stop count, total cost and how many trips have taken it. This is the ONLY way to find a day to add with insert_playbook_day, and the savedDayId must come from here: there is no other way to name one.",
+    "Search the playbook library — ready-made days somebody has written and published, plus your own saved ones — by city. Returns each day's savedDayId, name, cities, stop count, what the day costs for one person (the sum of its stops' per-person prices) and how many trips have taken it. This is the ONLY way to find a day to add with insert_playbook_day, and the savedDayId must come from here: there is no other way to name one.",
   // `library`, not `itinerary`: the corpus it reads is outside the trip, which
   // is the capability boundary that earned the tool (ADR-042 Decision 2).
   domain: "library",

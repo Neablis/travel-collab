@@ -83,22 +83,22 @@ export const FILTER_DEFS: readonly FilterDef[] = [
       const twoHundred = formatMoney(BUDGET_BAND_EDGES.twoHundred, budgetCurrency);
       const fiveHundred = formatMoney(BUDGET_BAND_EDGES.fiveHundred, budgetCurrency);
       const oneThousand = formatMoney(BUDGET_BAND_EDGES.oneThousand, budgetCurrency);
-      // "Budget", not "Budget each" — the trailing "each" was on the control's
-      // label AND on every option, saying the same thing twice (Mitchell,
-      // 2026-09-01). **The design still draws "$N each" and must not be
-      // followed back**: the number these bands compare is a day's TOTAL
-      // (`SavedDayFacts.totalCost`, a sum of priced stops with nothing to
-      // divide by). Per-head maths is M19's.
+      // "each" on the options and not on the control's label, which once
+      // carried it too and said the same thing twice (Mitchell, 2026-09-01).
+      // The bands are SPEC §15's "budget per person": a saved stop's price is
+      // per person and a saved day carries no people, so the sum they compare
+      // (`SavedDayFacts.totalCost`) is what the day costs each (ADR-060
+      // decision 7). The design draws the options the same way, "$N each".
       //
       // Four bands over three edges, and mutually exclusive so a Playbook
       // cannot match two at once (Mitchell, 2026-09-01: "sub 200, sub 500,
       // sub 1000 and above 1000").
       return [
         { value: "any", label: "Any budget" },
-        { value: "under200", label: `Under ${twoHundred}` },
-        { value: "200to500", label: `${twoHundred} – ${fiveHundred}` },
-        { value: "500to1000", label: `${fiveHundred} – ${oneThousand}` },
-        { value: "over1000", label: `Over ${oneThousand}` },
+        { value: "under200", label: `Under ${twoHundred} each` },
+        { value: "200to500", label: `${twoHundred} – ${fiveHundred} each` },
+        { value: "500to1000", label: `${fiveHundred} – ${oneThousand} each` },
+        { value: "over1000", label: `Over ${oneThousand} each` },
       ];
     },
     value: (state) => state.budget,

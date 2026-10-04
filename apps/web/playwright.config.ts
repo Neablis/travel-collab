@@ -220,21 +220,21 @@ export default defineConfig({
       // `test:e2e:ci-like` in package.json and the build step in ci.yml set it
       // there too. Set here as well so the dev lane matches.
       NEXT_PUBLIC_SENTRY_DSN: "",
-      // M11a: every dev user this suite signs in is brand new against a fresh
-      // database, and the gate refuses anyone with no `users` row and no
-      // credential — so without this the run dies in `auth.setup.ts` and every
-      // project fails for a reason that looks nothing like the gate. Pinned to
+      // M11a: specs that sign up through `/signup` present this as their
+      // credential (`adminBootstrap.ts`, `helpers.ts`). Since ADR-063 a missing
+      // or wrong code no longer refuses anyone, but the super code still has
+      // to match for those walks to take the path they describe. Pinned to
       // the constant rather than `process.env.INVITE_SUPER_CODE ?? …`: the
       // specs present this exact string, so a developer's own value in
       // `.env.local` must not be what the server ends up trusting.
       INVITE_SUPER_CODE: E2E_SUPER_CODE,
-      // Dev login normally bypasses the invite gate entirely (a fresh dev user
-      // on a new database should not need a code — Mitchell, 2026-09-07). But
-      // `m11a-invite-gate.spec.ts` proves the gate THROUGH dev login, because
-      // that is the only way a browser test can mint an identity the app has
-      // never seen; with the bypass on, its four refusals and its single-use
-      // race all pass vacuously. So the e2e server opts back in and the gate
-      // behaves here exactly as M11a specified it. Nowhere else sets this.
+      // Dev login normally skips the invite code entirely and claims nothing.
+      // But `m11a-invite-gate.spec.ts` proves a code is CLAIMED through dev
+      // login — that is the only way a browser test can mint an identity the
+      // app has never seen — and with the bypass on, its who-invited-whom
+      // assertions would pass vacuously. So the e2e server opts back in and
+      // codes are redeemed here exactly as in production. Signup is open
+      // either way (ADR-063). Nowhere else sets this.
       DEV_LOGIN_HONOURS_INVITE_GATE: "true",
       // M20 link 7: the operator console is gated on `users.is_admin`, and
       // nothing in the product sets that column — granting writes

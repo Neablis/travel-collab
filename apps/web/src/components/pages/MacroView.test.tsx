@@ -102,9 +102,10 @@ describe("MacroView", () => {
     // whole trip is more than its days. $123.45 + $5.00 — and a `cost` that
     // summed only scheduled stops, or read `tripCostTotal` off the projection
     // without summing anything, is told apart from the right answer here and
-    // nowhere else in this file.
+    // nowhere else in this file. The souvenirs are pending, so their $5.00 is
+    // the estimate part of the line (ADR-060) — which is where it shows up.
     render(<MacroView detail={backloggedDetail} context={ctx} name="cost" params={{}} />);
-    expect(screen.getByText("$128.45")).toBeTruthy();
+    expect(screen.getByText("$123.45 committed · $5.00 estimated")).toBeTruthy();
   });
 
   it("shows the 'no costs yet' chip when nothing is priced", () => {
@@ -438,6 +439,9 @@ describe("every widget is legal where widgets actually go", () => {
       // settings would — the notebook `richExternal` lists, and an address.
       if (input.type === "target") params[input.name] = { kind: "notebook", pageId: LINKED_NOTEBOOK };
       if (input.type === "url") params[input.name] = "https://example.com/tickets";
+      // "What one person is in for" lands asking who; its member select
+      // answers with one of the trip's members.
+      if (input.type === "person") params[input.name] = costedDetail.members[0]!.userId;
       // A field the preset leaves to the reader: the picker's first entry.
       if (input.type === "field" && !input.multiple && !(input.name in params)) {
         params[input.name] = fieldChoices(input.of)[0]!.path;
@@ -500,7 +504,7 @@ pendingReason: null,
   const richExternal: ExternalInputs = {
     notebooks: {
       state: "ready",
-      value: { pages: [{ id: LINKED_NOTEBOOK, title: "Money", firstLine: "What it costs.", widgetCount: 2 }] },
+      value: { pages: [{ id: LINKED_NOTEBOOK, seedKey: null, title: "Money", firstLine: "What it costs.", widgetCount: 2 }] },
     },
     weather: {
       state: "ready",

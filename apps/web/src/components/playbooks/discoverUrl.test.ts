@@ -36,4 +36,17 @@ describe("Discover's state as a URL", () => {
       countries: ["JP"],
     });
   });
+
+  // The route trims and dedupes; the page seeds the server's first search from
+  // this parse, so it must agree or the wrong list hydrates and stays.
+  it("trims, drops blanks and dedupes cities as the API does", () => {
+    expect(fromQuery("city=%20Kyoto&city=Kyoto&city=%20&city=Osaka").cities).toEqual(["Kyoto", "Osaka"]);
+  });
+
+  // CodeRabbit, PR #297: a padded `?country=%20jp` was dropped here and kept by
+  // the API, so the server's first paint was unfiltered.
+  it("trims and dedupes countries as the API does", () => {
+    expect(fromQuery("country=%20jp%20").countries).toEqual(["JP"]);
+    expect(fromQuery("country=jp&country=JP&country=pt").countries).toEqual(["JP", "PT"]);
+  });
 });

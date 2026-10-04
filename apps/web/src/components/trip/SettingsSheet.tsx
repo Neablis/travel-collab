@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useState } from "react";
-import type { Money, TripCommand, TripDetail, TripRole } from "@tc/contracts";
+import type { Money, TripCommand, TripDetail } from "@tc/contracts";
 import { Sheet } from "@/components/ui/sheet";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
@@ -19,7 +19,7 @@ import { TripDateControl } from "@/components/lenses/TripDateControl";
 import { formatInstantLong, formatTripDate } from "@/lib/formatDate";
 import { isDemoTripId } from "@/lib/demoTrip";
 import { formatMoney } from "@/lib/formatMoney";
-import type { TripSpend } from "@/lib/cost";
+import { committedLine, type TripSpend } from "@/lib/cost";
 
 function SectionHeading({ children }: { children: React.ReactNode }) {
   return (
@@ -76,7 +76,8 @@ export function SettingsSheet({
   spend,
   forkedFrom,
   createdAt,
-  myRole,
+  readOnly,
+  canEditBoard,
   onCommand,
 }: {
   tripId: string;
@@ -108,18 +109,19 @@ export function SettingsSheet({
    * needed to date the copy.
    */
   createdAt: string;
-  // The signed-in user's role on this trip, or null while it is still loading
-  // or the read failed (M11 link 3). ADVISORY: the server refuses every write
-  // a role does not permit regardless. It is here so this sheet does not OFFER
-  // an action it knows will be refused — `handleDelete` and `handleDuplicate`
-  // call the API directly rather than through TripProvider's queue (see A15
-  // below), so TripProvider's read-only gate never sees them and cannot help.
-  myRole: TripRole | null;
+  // TripProvider's `readOnly`, passed down by TripHeader: true for a viewer
+  // and a suggester (W8, default closed), false while the role is unknown
+  // (W21). ADVISORY: the server refuses every write a role does not permit
+  // regardless; this is so the sheet does not OFFER one. Taken from the
+  // provider rather than recomputed from the role (review of #309), so the
+  // sheet and the header are one rule and cannot disagree.
+  readOnly: boolean;
+  // TripProvider's `canEditBoard`, from the same place for the same reason:
+  // the trip fields — name, dates, currency, budget — opt in to suggest mode
+  // (W8), so a suggester's change joins their draft. Share does not.
+  canEditBoard: boolean;
   onCommand: (command: TripCommand) => void;
 }) {
-  // A viewer holds read access and executes no planning command at all —
-  // accessPolicy.ts's MINIMUM_ROLE table has no `viewer` entry.
-  const readOnly = myRole === "viewer";
   // Dispatch is severed at the SOURCE, not at each control. The individual
   // controls are disabled below so a viewer is not offered something that
   // silently does nothing — but a future control added to this sheet would
@@ -127,7 +129,7 @@ export function SettingsSheet({
   // one line that cannot be forgotten (CodeRabbit, PR #70, on the same class
   // as the delete handler). The server refuses these regardless; this is
   // about not offering them.
-  const dispatch = readOnly ? () => undefined : onCommand;
+  const dispatch = canEditBoard ? onCommand : () => undefined;
   const [datesOpen, setDatesOpen] = useState(false);
 
   // Null only for an unparseable timestamp, which is a projection bug rather
@@ -141,6 +143,9 @@ export function SettingsSheet({
       : spend.over
         ? `${formatMoney(Math.abs(spend.remaining ?? 0), currency)} over budget`
         : `${formatMoney(spend.remaining ?? 0, currency)} left`;
+  // Committed vs estimate is the stop's kind (ADR-060 decision 5): only a
+  // total with a pending stop's guess in it earns the line.
+  const split = committedLine(spend, currency);
 
   return (
     <Sheet title="Trip settings" open={open} onOpenChange={onOpenChange}>
@@ -156,7 +161,7 @@ export function SettingsSheet({
           <Input
             id="trip-name-setting"
             defaultValue={tripName}
-            disabled={readOnly}
+            disabled={!canEditBoard}
             onKeyDown={(e) => {
               if (e.key === "Enter") e.currentTarget.blur();
               // Escape restores the last committed name and drops focus, so
@@ -203,7 +208,7 @@ export function SettingsSheet({
             <Button
               variant="ghost"
               aria-label="Dates"
-              disabled={readOnly}
+              disabled={!canEditBoard}
               className="w-full justify-between rounded-lg border border-hairline px-3 py-2.5 text-left"
             >
               <Text as="span" className="text-xs text-slate">
@@ -273,7 +278,7 @@ export function SettingsSheet({
             tripId={tripId}
             currency={currency}
             budget={budget}
-            disabled={readOnly}
+            disabled={!canEditBoard}
             onCommand={dispatch}
           />
 
@@ -297,6 +302,11 @@ export function SettingsSheet({
                 M19) is gone: Mitchell, 2026-09-26, *"Lets remove it there, and
                 implement it as a PIE chart widget for notebooks"* — it is the
                 "Spend by kind" widget (`cost.breakdown`) now, on real kinds. */}
+            {split !== null && (
+              <Text as="span" className="text-xs text-slate" data-testid="budget-committed">
+                {split}
+              </Text>
+            )}
             <Text as="span" className="text-xs text-slate">
               {spend.unpriced} stop{spend.unpriced === 1 ? "" : "s"} with no cost yet
             </Text>
@@ -322,10 +332,9 @@ export function SettingsSheet({
               child — the slot the design left for a control on the right, now
               filled.
 
-              `!readOnly`, which is this file's existing `myRole === "viewer"`
-              and NOT a second rule: TripProvider derives the header's own
-              `readOnly` from the identical comparison, so the gate here and
-              the gate in the header cannot disagree. It also keeps ADR-031's
+              `!readOnly`, which is TripProvider's own `readOnly` handed down
+              by the header, so the gate here and the gate in the header are
+              one value and cannot disagree. It also keeps ADR-031's
               /demo behaviour intact for free — `requireTripAccess` resolves a
               demo visitor as a `viewer` (server/access/trip-access.ts), so a
               signed-out reader loses Share in this sheet exactly as they

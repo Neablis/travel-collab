@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import type { TripWeather } from "@tc/contracts";
 import type { ExternalInputs, ExternalNeed, NotebookIndex, Slot } from "@tc/pages";
 import { fetchTripWeather } from "@/lib/apiClient";
@@ -9,6 +9,24 @@ import { tripKeys } from "@/lib/queryKeys";
 
 const PENDING: Slot<TripWeather> = { state: "pending" };
 const NOTEBOOKS_PENDING: Slot<NotebookIndex> = { state: "pending" };
+
+// **The notebook list, re-read when this tab changes it.** A link card that
+// adds the notebook it points at (`MissingNotebookBlock`) has moved the list
+// under every other card on the page, and nothing else here would notice: the
+// read below runs once per trip. A counter rather than the new list handed
+// over, so there is still one read and one place that shapes it.
+let notebooksRevision = 0;
+const notebookListeners = new Set<() => void>();
+const subscribeToNotebooks = (listener: () => void) => {
+  notebookListeners.add(listener);
+  return () => void notebookListeners.delete(listener);
+};
+
+/** Tell every mounted page that this trip's notebooks changed, after a write that added or removed one. */
+export function notebooksChanged(): void {
+  notebooksRevision++;
+  for (const listener of notebookListeners) listener();
+}
 
 /**
  * The client half of ADR-052's slot: fetches what the page's widgets declare
@@ -51,6 +69,7 @@ export function useExternalInputs(tripId: string, needs: ReadonlySet<ExternalNee
   // holding a link usually costs no request at all — and asked for only when a
   // widget on the page names it, like the weather.
   const wantsNotebooks = needs.has("notebooks");
+  const revision = useSyncExternalStore(subscribeToNotebooks, () => notebooksRevision, () => 0);
   const [notebookList, setNotebookList] = useState<{ tripId: string; slot: Slot<NotebookIndex> } | null>(null);
   const notebooks = notebookList?.tripId === tripId ? notebookList.slot : NOTEBOOKS_PENDING;
 
@@ -67,6 +86,7 @@ export function useExternalInputs(tripId: string, needs: ReadonlySet<ExternalNee
               value: {
                 pages: r.value.pages.map((p) => ({
                   id: p.id,
+                  seedKey: p.seedKey ?? null,
                   title: p.title,
                   firstLine: p.preview?.firstLine ?? null,
                   widgetCount: p.preview?.widgetCount ?? 0,
@@ -79,7 +99,7 @@ export function useExternalInputs(tripId: string, needs: ReadonlySet<ExternalNee
     return () => {
       live = false;
     };
-  }, [tripId, wantsNotebooks]);
+  }, [tripId, wantsNotebooks, revision]);
 
   return useMemo(() => ({ weather, notebooks }), [weather, notebooks]);
 }

@@ -1,5 +1,5 @@
 import type { TripDetail } from "@tc/contracts";
-import { rollupCosts } from "@tc/domain";
+import { recostDetail } from "@tc/domain";
 
 // Make a hand-built `TripDetail` tell the truth about its own money.
 //
@@ -36,21 +36,10 @@ import { rollupCosts } from "@tc/domain";
  * derived from the total and a stale one is the same class of lie.
  */
 export function withCostRollups(detail: TripDetail): TripDetail {
-  // `rollupCosts` reads `activities`, `days[].activityIds` and `backlog`, all
-  // of which a TripDetail carries with the same meaning. Delegating rather
-  // than re-summing here is the whole point: a second implementation is how a
-  // fixture and the app come to disagree about the same trip.
-  // No cast: a `TripDetail` structurally *is* a `TripState` plus derived
-  // fields, so this compiles only while that stays true — which is the
-  // property worth having a compiler check rather than a comment.
-  const { dayCostSubtotals, unscheduledCostSubtotal, tripCostTotal } = rollupCosts(detail);
-
-  return {
-    ...detail,
-    days: detail.days.map((day, i) => ({ ...day, costSubtotal: dayCostSubtotals[i] ?? 0 })),
-    unscheduledCostSubtotal,
-    tripCostTotal,
-    budgetRemaining:
-      detail.budget === null ? detail.budgetRemaining : detail.budget.amountMinor - tripCostTotal,
-  };
+  // Delegating rather than re-summing here is the whole point: a second
+  // implementation is how a fixture and the app come to disagree about the
+  // same trip. `recostDetail` is what the server applies at the read boundary
+  // (ADR-060), so a fixture recosted here reads exactly as a served detail
+  // with the same members would.
+  return recostDetail(detail, detail.members.length);
 }

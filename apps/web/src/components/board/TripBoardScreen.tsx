@@ -23,7 +23,10 @@ import { TagFocusLine } from "@/components/trip/TagFocusLine";
 import { PageContainer } from "@/components/ui/page-container";
 import { TripHeader } from "@/components/trip/TripHeader";
 import { AddSavedDayButton } from "@/components/trip/AddSavedDayButton";
+import { useBoardSuggestions } from "./SuggestionActions";
+import { SuggestionTray } from "./SuggestionTray";
 import { ActivityEditorSheet } from "@/components/trip/editor/ActivityEditorSheet";
+import { PeopleProvider } from "@/components/pages/people";
 import { type RackItem, UnscheduledRack } from "@/components/trip/UnscheduledRack";
 import { fitIntoDay } from "@/components/trip/fitIntoDay";
 import { rackDropWindow } from "./rackDropWindow";
@@ -96,9 +99,10 @@ function useAssistantVisibility() {
 }
 
 export function TripBoardScreen({ tripId }: { tripId: string }) {
-  const { trip, activeTrip, history, status, error, dispatch, dispatchBatch, applyOutcome, preview, pending, readOnly, remoteRevision, confirmedSeq } = useTrip();
+  const { trip, activeTrip, history, status, error, dispatch, dispatchBatch, applyOutcome, preview, pending, readOnly, myRole, canEditBoard, boardMode, draft, remoteRevision, confirmedSeq } = useTrip();
   const { view } = useLens();
   const { openEdit } = useEditor();
+  const suggestions = useBoardSuggestions();
   // Task 4's FocusProvider is mounted around this whole tree (trips/[tripId]/
   // page.tsx), so this hook must run unconditionally before the early
   // returns below — the day chips (Task 8) above Plan's columns both read and
@@ -1009,7 +1013,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                   only route to the Notebook was one nobody could see. */}
               {!isDemo && (
                 <div className="hidden shrink-0 md:block">
-                  <NotebooksMenu tripId={tripId} readOnly={readOnly} />
+                  <NotebooksMenu tripId={tripId} myRole={myRole} />
                 </div>
               )}
             </div>
@@ -1023,6 +1027,13 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           {error !== null && (
             <PageContainer width="full">
               <p role="alert">{error}</p>
+            </PageContainer>
+          )}
+          {/* A suggester's unsent edits, under the header the save light
+              would otherwise have spoken from (it counts a draft as nothing). */}
+          {draft !== null && (
+            <PageContainer width="full">
+              <SuggestionTray draft={draft} />
             </PageContainer>
           )}
           <div inert={preview.seq !== null ? true : undefined}>
@@ -1040,8 +1051,8 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                 {view === "Map" && (
                   <MapLens
                     detail={activeTrip}
-                    onSelectActivity={readOnly ? undefined : openEdit}
-                    readOnly={readOnly}
+                    onSelectActivity={canEditBoard ? openEdit : undefined}
+                    readOnly={!canEditBoard}
                   />
                 )}
               </PageContainer>
@@ -1069,7 +1080,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                       // than handed to it — which is what lets its own scroll spy
                       // be held off a pick it cannot centre. See `jumpTo`.
                       onSelect={(index) => setFocusedDay(index, "chips")}
-                      readOnly={readOnly}
+                      readOnly={!canEditBoard}
                       sync={chipsSync}
                     />
                   </div>
@@ -1097,7 +1108,11 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                     // (docs/reviews/2026-08-28-m11-pr71-review.md §5): the point
                     // is the difference between an inert board and one whose
                     // cards move and snap back.
-                    readOnly={readOnly}
+                    //
+                    // A suggester's board is live: its edits are held as a
+                    // draft by that same provider (W8).
+                    readOnly={!canEditBoard}
+                    suggesting={boardMode === "suggest"}
                     // Focus is a view state, not a command, so it is threaded
                     // past the read-only gate deliberately: a viewer's board
                     // and `/demo`'s signed-out reader both get the whole
@@ -1116,6 +1131,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                     // `Board` because it reads `useTrip()` and `Board` is
                     // props-only; this screen is inside the provider.
                     addSavedDay={<AddSavedDayButton />}
+                    suggestions={suggestions}
                     callbacks={{
                       // "columns", for the same reason the chips row names
                       // itself above: at any width where more than about two
@@ -1152,7 +1168,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                   />
                 )}
                 {view === "Calendar" && (
-                  <CalendarLens detail={activeTrip} onSelectActivity={readOnly ? undefined : openEdit} />
+                  <CalendarLens detail={activeTrip} onSelectActivity={canEditBoard ? openEdit : undefined} />
                 )}
               </PageContainer>
             )}
@@ -1284,7 +1300,11 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
       {/* Behavior change #2 (M5 wave 2, resolves #9): the activity editor is a
           portable Sheet raised via EditorHost, mounted once here outside the
           lens switch so it's available regardless of which lens is active. */}
-      <ActivityEditorSheet />
+      {/* Names the stop editor's Who is in / Booked by (M19). The same cached
+          access read TripProvider makes, so no second request. */}
+      <PeopleProvider tripId={tripId}>
+        <ActivityEditorSheet />
+      </PeopleProvider>
       {/* The unscheduled rack (Phase 3): mounted here, outside the lens
           switch, because the design has the drawer present in every view.
           It pins itself to the bottom of the viewport via `.unscheduled-rack`
@@ -1320,9 +1340,9 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             dayOptions={rackDayOptions}
             open={rack.open}
             onToggle={() => onRackEvent({ type: "toggle" })}
-            onAssign={readOnly ? undefined : assignFromRack}
-            onEdit={readOnly ? undefined : openEdit}
-            onRemove={readOnly ? undefined : (activityId) => void dispatch({ type: "RemoveActivity", tripId, activityId })}
+            onAssign={canEditBoard ? assignFromRack : undefined}
+            onEdit={canEditBoard ? openEdit : undefined}
+            onRemove={canEditBoard ? (activityId) => void dispatch({ type: "RemoveActivity", tripId, activityId }) : undefined}
             reveal={rackReveal}
           />
         </div>

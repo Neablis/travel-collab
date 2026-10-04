@@ -9,6 +9,7 @@ import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
 import { fetchPublicProfile } from "@/lib/apiClient";
 import type { PublicProfileResponse } from "@/lib/playbooks";
+import { cityPath } from "@/lib/playbookUrls";
 import { DiscoverCard } from "./DiscoverCard";
 import { LibraryMoved, SyncFailure } from "./ReadStates";
 import { useLibraryRead } from "./useLibraryRead";
@@ -112,12 +113,12 @@ export function ProfileScreen({ userId, back }: { userId: string; back: BackTarg
               </Text>
               {feed.data.knows.map((city) => (
                 // A way INTO the library rather than a dead end (§15): the chip
-                // is a Discover search scoped to that city, which is why it is a
-                // link with a real href rather than a filter this page applies
-                // to its own list.
+                // opens the city's page (SEO pass, D6), or a Discover search for
+                // a city whose name has no slug — a link with a real href either
+                // way, rather than a filter this page applies to its own list.
                 <Link
                   key={city.city}
-                  href={`/playbooks?city=${encodeURIComponent(city.city)}`}
+                  href={cityPath(city.city) ?? `/playbooks?city=${encodeURIComponent(city.city)}`}
                   className="rounded-full border border-hairline bg-surface px-2.5 py-0.5 text-xs font-semibold text-slate hover:bg-moss"
                 >
                   {city.city} · {city.days}

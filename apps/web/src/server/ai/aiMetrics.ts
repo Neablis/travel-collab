@@ -273,9 +273,13 @@ export function recordAskMetrics(record: AskAnalyticsRecord, ledger: TurnLedger)
     // which `record.toolCalls` cannot answer because it observes what the model
     // ASKED for rather than what running it cost.
     for (const call of ledger.toolCalls) {
+      // A call that never executed (refused by the grant, or invalid past
+      // repair) has no duration to report; its row in `ai_usage_tool_calls`
+      // is where it is counted.
+      if (call.ms === null) continue;
       Sentry.metrics.distribution("ai.tool.duration", call.ms, {
         unit: MS,
-        attributes: { ...base, tool: call.name, ok: call.ok },
+        attributes: { ...base, tool: call.name, ok: call.ok, outcome: call.outcome },
       });
     }
   } catch {

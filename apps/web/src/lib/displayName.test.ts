@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { displayNameFor, firstNameOf } from "./displayName";
+import { displayNameFor, firstNameOf, publicNameFor } from "./displayName";
 
 // The M17 seam, and — since 2026-09-01 — the guarantee that no raw identifier
 // reaches a reader. Mitchell, on the shared-day screen: "Dont show the UUID in
@@ -102,5 +102,65 @@ describe("firstNameOf", () => {
     expect(firstNameOf("Traveler 4f2a91", "Traveler 4f2a91")).toBeNull();
     expect(firstNameOf("sam@example.com", "Traveler 4f2a91")).toBeNull();
     expect(firstNameOf("   ", "Traveler 4f2a91")).toBeNull();
+  });
+});
+
+// The public library's name (Mitchell, 2026-10-02; ADR-061 decision 4): first
+// name and last initial, from what the person chose or signed in with — never
+// the address. A stranger reading a Playbook learns "Dana R." and no more.
+describe("publicNameFor", () => {
+  const ID = "9f1c2b7e-4a55-4a1e-9b31-8c0d7e6f5a44";
+  const HANDLE = displayNameFor({ userId: ID });
+
+  it("is the first name and the last word's initial", () => {
+    expect(publicNameFor({ userId: ID, name: "Dana Reyes" })).toBe("Dana R.");
+    expect(publicNameFor({ userId: ID, name: "Dana Maria Reyes" })).toBe("Dana R.");
+    expect(publicNameFor({ userId: ID, name: "  Dana   Reyes  " })).toBe("Dana R.");
+    // Already an initial: one full stop, not two and not none.
+    expect(publicNameFor({ userId: ID, name: "Dana R" })).toBe("Dana R.");
+  });
+
+  it("capitalises the first name and the initial", () => {
+    expect(publicNameFor({ userId: ID, name: "dana reyes" })).toBe("Dana R.");
+    // Dev login stores the username lowercased; the handle it replaces said "Alice".
+    expect(publicNameFor({ userId: "dev-alice", name: "alice" })).toBe("Alice");
+  });
+
+  it("keeps a one-word name whole", () => {
+    expect(publicNameFor({ userId: ID, name: "Sunny" })).toBe("Sunny");
+  });
+
+  // `word[0]` is a UTF-16 unit, half of anything outside the BMP — a lone
+  // surrogate renders as a replacement box on every card that prints it.
+  it("takes the initial as a whole character, not half of one", () => {
+    expect(publicNameFor({ userId: ID, name: "Yuki 𠮷田" })).toBe("Yuki 𠮷.");
+    expect(publicNameFor({ userId: ID, name: "Олена Шевченко" })).toBe("Олена Ш.");
+  });
+
+  it("skips punctuation to reach the initial", () => {
+    expect(publicNameFor({ userId: ID, name: "Dana (Reyes)" })).toBe("Dana R.");
+  });
+
+  it("prefers the chosen display name over the sign-in name", () => {
+    expect(publicNameFor({ userId: ID, displayName: "Dee Ray", name: "Dana Reyes" })).toBe("Dee R.");
+  });
+
+  it("falls through an unusable chosen name to the sign-in name", () => {
+    expect(publicNameFor({ userId: ID, displayName: "   ", name: "Dana Reyes" })).toBe("Dana R.");
+    expect(publicNameFor({ userId: ID, displayName: "dana@example.com", name: "Dana Reyes" })).toBe("Dana R.");
+  });
+
+  // An address is never a name here, wherever it sits in the string — the
+  // first word of "dana@example.com" is the whole address.
+  it("never prints anything that looks like an address", () => {
+    for (const name of ["dana@example.com", "Dana dana@example.com", "dana@example.com Reyes"]) {
+      expect(publicNameFor({ userId: ID, name })).toBe(HANDLE);
+    }
+  });
+
+  it("is the handle for an account with no usable name", () => {
+    expect(publicNameFor({ userId: ID })).toBe(HANDLE);
+    expect(publicNameFor({ userId: ID, displayName: null, name: null })).toBe(HANDLE);
+    expect(publicNameFor({ userId: ID, name: "  " })).toBe(HANDLE);
   });
 });

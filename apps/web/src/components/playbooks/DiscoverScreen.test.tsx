@@ -10,6 +10,10 @@ vi.mock("@/lib/apiClient", () => ({
   searchPlaybooks: (...args: unknown[]) => searchPlaybooksMock(...args),
   searchPlaces: (...args: unknown[]) => searchPlacesMock(...args),
 }));
+// Who is reading. `undefined` (not known yet) unless a test says otherwise —
+// the state in which the screen renders as it did before ADR-061.
+let session: { id: string } | null | undefined = undefined;
+vi.mock("@/components/account/useSessionUser", () => ({ useSessionUser: () => session }));
 
 import { DiscoverScreen } from "./DiscoverScreen";
 import { matchLine } from "./DiscoverCard";
@@ -18,6 +22,7 @@ function day(over: Partial<DiscoverDay> = {}): DiscoverDay {
   return {
     savedDayId: "aa000000-0000-4000-8000-000000000001",
     ownerId: "dev-alice",
+    ownerDisplayName: "Alice C.",
     name: "Kyoto temples on foot",
     cities: ["Kyoto"],
     matchedCities: [],
@@ -68,6 +73,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers();
   cleanup();
+  session = undefined;
   // The screen writes its state into the URL; a test that set `?rating=4`
   // must not hand it to the next one.
   window.history.replaceState(null, "", "/");
@@ -88,12 +94,10 @@ describe("Discover", () => {
     expect(screen.getByText("Kyoto temples on foot")).toBeTruthy();
   });
 
-  // ADR-041 decision 5: the library mixes days people kept out of their own
-  // trips with generated starter content, and the card is where somebody
-  // chooses between thirty of them. **Only "ai" renders** — "human" is the
-  // absence of a claim, not a claim, and a mark on almost every card marks
-  // nothing.
-  it("marks a generated day as an AI starter, and says nothing about a human one", async () => {
+  // ADR-041 decision 5, as amended 2026-10-03: `authorKind` is a fact the
+  // database keeps, not one a card advertises. A generated day and a kept one
+  // read the same on Discover.
+  it("says nothing on a card about whether a day was generated", async () => {
     searchPlaybooksMock.mockResolvedValue(
       ok(
         response({
@@ -106,8 +110,7 @@ describe("Discover", () => {
     );
     render(<DiscoverScreen />);
     expect(await screen.findByText("Railay at first light")).toBeTruthy();
-    // One badge for two cards: the human day carries none.
-    expect(screen.getAllByText("AI starter")).toHaveLength(1);
+    expect(screen.queryByText(/\bAI\b/)).toBeNull();
   });
 
   it("shows a skeleton grid before the first answer arrives, and never after", async () => {
@@ -135,21 +138,18 @@ describe("Discover", () => {
     expect(within(chips).getByText("Uji").getAttribute("data-matched")).toBe("false");
   });
 
-  // The card's money line is the day's TOTAL, and must not qualify it "each".
-  // It read "$27.00 each" for a number `savedDayFacts` builds by adding up
-  // `stop.cost` and dividing by nothing — Mitchell, 2026-09-01: *"why are we
-  // calculating per person in a notebook? just show total cost there."*
-  // Pinned by a test because the old string had none: a per-person claim that
-  // lives only in a template literal is exactly the "invariant asserted by a
-  // name with nothing behind it" this repo keeps rediscovering (KI-1, KI-14),
-  // and the rename alone would not stop somebody re-adding the word.
-  it("prints the day's total with no per-person qualifier on it", async () => {
+  // The card's money line is what the day costs EACH (ADR-060 decision 7). A
+  // saved stop's price is per person and a saved day carries no people, so
+  // the sum `savedDayFacts` builds is already one person's, and the card says
+  // so as the design's "$N each" does. The word was removed once (2026-09-01,
+  // when nothing yet said a price was per person); a claim that lives only in
+  // a template literal is the KI-1/KI-14 shape, so it is pinned here.
+  it("prints the day's price as what it costs each", async () => {
     render(<DiscoverScreen />);
     // eslint-disable-next-line testing-library/prefer-find-by -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     await waitFor(() => expect(screen.getByTestId("discover-results")).toBeTruthy());
     const line = screen.getByText(/\$27\.00/);
-    expect(line.textContent).toContain("$27.00");
-    expect(line.textContent).not.toMatch(/each/i);
+    expect(line.textContent).toMatch(/ · \$27\.00 each$/);
   });
 
   it("says nothing about matching on an unfiltered browse", () => {
@@ -173,6 +173,34 @@ describe("Discover", () => {
     // Not a second page: no navigation, and the results list is still the one
     // this component owns.
     expect(screen.queryByRole("link", { name: /yours/i })).toBeNull();
+  });
+
+  // ADR-061: a reader with no account owns nothing, so *Yours* and *Saved* are
+  // not places they can be. Seeded from a pasted `?scope=saved` on purpose — the
+  // link a signed-in reader copies is the link a stranger opens.
+  it("offers a reader with no account no scope tabs, and reads Everyone whatever the URL says", async () => {
+    session = null;
+    searchPlaybooksMock.mockResolvedValue(ok(response({ days: [] })));
+    render(<DiscoverScreen initial={{ scope: "saved" }} />);
+
+    expect(await screen.findByText("No days match")).toBeTruthy();
+    expect(screen.queryByRole("tablist", { name: "Whose days" })).toBeNull();
+    expect(screen.queryByRole("tab", { name: "Saved" })).toBeNull();
+    expect(searchPlaybooksMock).toHaveBeenCalled();
+    for (const [query] of searchPlaybooksMock.mock.calls) expect(query).toMatchObject({ scope: "everyone" });
+    // *Saved*'s empty copy is about the reader's own trips, which they have none of.
+    expect(screen.queryByText(/Days you take into a trip/)).toBeNull();
+  });
+
+  // Only on a CONFIRMED signed-out session: while it is being read, the tabs
+  // and the URL's scope stand, so a signed-in reader never sees either move.
+  it("keeps the tabs and the URL's scope while the session is not known", async () => {
+    session = undefined;
+    render(<DiscoverScreen initial={{ scope: "saved" }} />);
+    await waitFor(() =>
+      expect(searchPlaybooksMock).toHaveBeenLastCalledWith(expect.objectContaining({ scope: "saved" })),
+    );
+    expect(screen.getByRole("tab", { name: "Saved" })).toBeTruthy();
   });
 
   // §15's four sorts, restored by M12 link 5 now that `saved_days` carries a
@@ -241,10 +269,10 @@ describe("Discover", () => {
     );
     for (const label of [
       "Any budget",
-      "Under $200.00",
-      "$200.00 – $500.00",
-      "$500.00 – $1,000.00",
-      "Over $1,000.00",
+      "Under $200.00 each",
+      "$200.00 – $500.00 each",
+      "$500.00 – $1,000.00 each",
+      "Over $1,000.00 each",
     ]) {
       expect(screen.getByText(label)).toBeTruthy();
     }
@@ -268,7 +296,7 @@ describe("Discover", () => {
         expect.objectContaining({ budget: "under200" }),
       ),
     );
-    expect(chipText(screen.getByTestId("filter-chip-budget"))).toBe("Under $200.00");
+    expect(chipText(screen.getByTestId("filter-chip-budget"))).toBe("Under $200.00 each");
 
     await user.keyboard("{Escape}");
     await user.click(screen.getByTestId("filter-chip-budget"));
@@ -933,6 +961,6 @@ describe("the phone's one filter sheet", () => {
   it("shares its state with the desktop chips rather than keeping a second copy", async () => {
     const user = await openSheet();
     await user.click(screen.getByTestId("sheet-budget-under200"));
-    expect(chipText(screen.getByTestId("filter-chip-budget"))).toBe("Under $200.00");
+    expect(chipText(screen.getByTestId("filter-chip-budget"))).toBe("Under $200.00 each");
   });
 });

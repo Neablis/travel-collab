@@ -312,15 +312,12 @@ describe("the Playbook-day turn", () => {
       name: savedDayId,
       adds,
       dayCount: 1,
-      ownerId: `owner-${savedDayId}`,
+      ownerDisplayName: `Owner ${savedDayId.toUpperCase()}.`,
       isMine,
     });
-    const offered = pickPopularDays(
-      [day("a", 2), day("b", 0), day("c", 40, true), day("d", 9), day("e", 5), day("f", 1)],
-      (ownerId) => ownerId.toUpperCase(),
-    );
+    const offered = pickPopularDays([day("a", 2), day("b", 0), day("c", 40, true), day("d", 9), day("e", 5), day("f", 1)]);
     expect(offered.map((each) => each.savedDayId)).toEqual(["d", "e", "a"]);
-    expect(offered[0]!.author).toBe("OWNER-D");
+    expect(offered[0]!.author).toBe("Owner D.");
   });
 });
 

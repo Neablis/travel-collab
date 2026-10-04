@@ -73,7 +73,8 @@ import { MAX_READ_DAYS } from "@/server/assistant/tools/read";
 import {
   buildProposal,
   commitProposal,
-  droppedWriteCalls,
+  diagnosticDrops,
+  droppedWrites,
   parseApprovedCommands,
 } from "@/server/ai/writeTools";
 import { pageInsertsMetadata, pageOutcomeOf } from "@/server/ai/pageTools";
@@ -95,7 +96,7 @@ import {
   untrustedAll,
   type PromptBlock,
 } from "@/server/assistant/prompt";
-import { aiToolsFor, ambientContextFor } from "@/server/assistant/registry";
+import { ASSISTANT_TOOLS, aiToolsFor, ambientContextFor } from "@/server/assistant/registry";
 import type { AskToolPosture } from "@/server/assistant/grants";
 import {
   APPLY_MINIMUM_ROLE,
@@ -103,6 +104,7 @@ import {
   badRequest,
   capRawBody,
   evaluateAiGrant,
+  modelIdOf,
   parseRequest,
 } from "@/server/assistant/admission";
 import { admissionPorts } from "@/server/ai/admissionPorts";
@@ -117,9 +119,14 @@ import {
 } from "@tc/contracts";
 import type { LanguageModel } from "ai";
 import type { Geocoder } from "@/server/geocoding";
-import { createAskRecorder, logAskAnalytics, type AskAnalyticsSink } from "@/server/assistant/askAnalytics";
+import {
+  createAskRecorder,
+  logAskAnalytics,
+  type AskAnalyticsSink,
+  type AskStepPlan,
+} from "@/server/assistant/askAnalytics";
 import { billableRoundTrips, newTurnMeter } from "@/server/assistant/ledger";
-import { recordAiUsage } from "@/server/entitlements/usage";
+import { recordTurnLedger } from "@/server/entitlements/usage";
 import { recordAskMetrics, recordProposalApplyMetrics } from "@/server/ai/aiMetrics";
 import { repairToolInput } from "@/server/assistant/repairToolInput";
 import { INSERT_PLAYBOOK_DAY } from "@/server/assistant/tools/insertPlaybookDay";
@@ -194,6 +201,13 @@ export const CLASSIFIER_ROUND_TRIPS = 1;
  * flag is never consulted, and an injected sink lets a test read the analytics
  * record instead of the console. `handleApplyProposalRequest` below takes a
  * `geocoder` on the same terms.
+ *
+ * `afterResponse` is how the turn's ledger writes outlive the response
+ * (KI-2026-09-14-b). The route passes Next's `after()`; the handler hands it
+ * one task, registered before the stream starts, that awaits whatever writes
+ * the recorder's latch started — on every end path, including the abort and
+ * error paths that used to be best-effort. A test passes a collector and
+ * awaits it. Omitted, the completed path still awaits in `onEnd`, as before.
  */
 export async function handleAskRequest(
   request: Request,
@@ -201,6 +215,7 @@ export async function handleAskRequest(
   model?: LanguageModel,
   sink?: AskAnalyticsSink,
   deadlines: AskDeadlines = { stepMs: ASK_STEP_DEADLINE_MS, hardMs: ASK_HARD_DEADLINE_MS },
+  afterResponse?: (task: () => Promise<void>) => void,
 ): Promise<Response> {
   // The clock the deadlines run on starts HERE, before admission: the
   // classifier's round-trip and every read admission makes are inside the
@@ -291,6 +306,17 @@ export async function handleAskRequest(
   // because "this turn's tool calls" is a fact about the turn and both halves
   // have to agree on which turn that is.
   const meter = newTurnMeter();
+  // **The turn's id** (M31 Phase 1): the `ai_usage` row's key and the parent
+  // of its step and tool-call rows, minted here because no id for a turn
+  // existed anywhere on the server before.
+  const turnId = crypto.randomUUID();
+  // What `prepareStep` chose for each step, read by the recorder for the
+  // per-step row. The admitted model and tier unless a step says otherwise.
+  const admittedPlan: AskStepPlan = { model: grant.modelId, tier: grant.tier, escalated: false, pivoted: false };
+  const stepPlans = new Map<number, AskStepPlan>();
+  // The positions in `proposalBuffer.collected()` that the dry run dropped,
+  // written in `onEnd` and read by the recorder at the latch it fires there.
+  let droppedIndices: ReadonlySet<number> = new Set();
 
   // **Every tool the turn could hold, BUILT — and only the ones it holds NOW,
   // ACTIVE.** The distinction is the whole of how escalation stays cheap.
@@ -353,8 +379,33 @@ export async function handleAskRequest(
   // guarantee there. `settleAiSteps` never throws, so an unawaited one cannot
   // become an unhandled rejection.
   let settled: Promise<void> = Promise.resolve();
+  // **And on every path, once the response has gone** (KI-2026-09-14-b). The
+  // task reads `settled` when it RUNS, after the response closes — by which
+  // point the latch has fired on whichever path the turn ended, and `settled`
+  // is that path's writes. Registered now, inside the request's own scope,
+  // because `after()` throws when called from outside one.
+  afterResponse?.(() => settled);
 
   const recorder = createAskRecorder({
+    turnId,
+    // The request's own start, read before admission, so the turn's latency
+    // includes admission and the classifier's round-trip (Copilot on #301).
+    startedAt,
+    tier: grant.tier,
+    stepPlan: (index) => stepPlans.get(index),
+    // **Which write calls reached the proposal**: a call whose collected
+    // intent survived the dry run, or whose playbook insert was collected.
+    // Read at the latch of a completed turn, which `onEnd` fires after it has
+    // set `droppedIndices` from the same dry run the proposal is built from.
+    reachedCalls: () => {
+      const reached = new Set<string>();
+      if (!proposesPlan()) return reached;
+      proposalBuffer.collectedBy().forEach((callId, index) => {
+        if (callId !== null && !droppedIndices.has(index)) reached.add(callId);
+      });
+      for (const callId of proposalBuffer.insertsBy()) if (callId !== null) reached.add(callId);
+      return reached;
+    },
     tripId,
     userId,
     scope,
@@ -446,13 +497,13 @@ export async function handleAskRequest(
       // round-trips were still paid for.
       //
       // **Tracked on `settled`, not fire-and-forget.** It was
-      // `void recordAiUsage(ledger)`, which reads as harmless beside a
+      // `void recordTurnLedger(ledger)`, which reads as harmless beside a
       // never-throwing writer — but "never throws" is not "finishes", and a
       // Vercel invocation may stop once the streaming response closes. See
       // `settled`'s own comment. Neither writer throws, so the combined promise
       // cannot reject and the abort and error paths, which still do not await,
       // cannot produce an unhandled rejection.
-      const recorded = recordAiUsage(ledger);
+      const recorded = recordTurnLedger(ledger);
       // The other half of KI-94 (KI-67 before it): admission reserved the FULL
       // step budget, and this refunds what the turn did not use. A third
       // consumer of the same single-writer latch, for the same reason the
@@ -542,15 +593,39 @@ export async function handleAskRequest(
     // turns. `repairToolInput` says what it will and will not fix, and returning
     // null here is deliberately still a failure: a call the model meant that the
     // tool does not offer should end the turn rather than be made to look valid.
-    repairToolCall: async ({ toolCall }) => {
+    //
+    // **The ledger reads its verdict here** (M31 Phase 1), because this hook is
+    // the only place a call that never runs is seen at all. The SDK parses a
+    // call against the step's ACTIVE tools, so a tool the model was not handed
+    // this step arrives as `NoSuchToolError` — refused by the grant, whatever
+    // repair makes of it, since a re-parse against the same set refuses again.
+    // A name that is not a tool at all also arrives as `NoSuchToolError`; that
+    // is the model inventing a tool, a broken call rather than a refusal, so it
+    // is recorded `invalid` and counts as failed (Copilot on #301). "A tool"
+    // means any in the registry, not only the ones this turn built: a viewer's
+    // turn never builds the write tools, and calling one is still a refusal.
+    repairToolCall: async ({ toolCall, error }) => {
+      const definition = ASSISTANT_TOOLS.find((tool) => tool.name === toolCall.toolName);
+      const proposes = definition !== undefined && (definition.needs as readonly string[]).includes("proposalBuffer");
+      if (NoSuchToolError.isInstance(error)) {
+        meter.callIssue(
+          toolCall.toolCallId,
+          toolCall.toolName,
+          definition === undefined ? "invalid" : "refused-by-grant",
+          proposes,
+        );
+        return null;
+      }
       let parsed: unknown;
       try {
         parsed = typeof toolCall.input === "string" ? JSON.parse(toolCall.input) : toolCall.input;
       } catch {
         // Not even JSON. Nothing downstream can read it either.
+        meter.callIssue(toolCall.toolCallId, toolCall.toolName, "invalid", proposes);
         return null;
       }
       const repaired = repairToolInput(toolCall.toolName, parsed);
+      meter.callIssue(toolCall.toolCallId, toolCall.toolName, repaired === null ? "invalid" : "repaired", proposes);
       return repaired === null ? null : { ...toolCall, input: JSON.stringify(repaired) };
     },
     // Three-way, not `offerWrites` alone: the instruction has to describe the
@@ -590,6 +665,10 @@ export async function handleAskRequest(
      * call would reimplement it, one frame later and with a second answer.
      */
     prepareStep: ({ stepNumber }) => {
+      // Recorded as the admitted plan first, and overwritten below by a pivot
+      // or an escalation — so every step has an entry and the wrap-up step,
+      // which sets no model and so runs on the admitted one, says so truly.
+      stepPlans.set(stepNumber, admittedPlan);
       // **Past the step deadline, one last step with no tools** — so the
       // model says what it did rather than the turn ending mid-thought, and
       // `stopWhen` below ends the run after it.
@@ -601,6 +680,7 @@ export async function handleAskRequest(
       const current = intent.current();
       const pivoted = grant.intents?.byIntent[current];
       if (current !== grant.taskClass && pivoted !== undefined) {
+        stepPlans.set(stepNumber, { model: modelIdOf(pivoted.model), tier: pivoted.tier, escalated: false, pivoted: true });
         return {
           activeTools: pivoted.tools.map((tool) => tool.name),
           model: pivoted.model,
@@ -615,9 +695,14 @@ export async function handleAskRequest(
           ),
         };
       }
-      return escalation.escalated() === null || grant.escalation === null
-        ? {}
-        : { activeTools: escalatedNames, model: grant.escalation.model };
+      if (escalation.escalated() === null || grant.escalation === null) return {};
+      stepPlans.set(stepNumber, {
+        model: modelIdOf(grant.escalation.model),
+        tier: grant.escalation.tier,
+        escalated: true,
+        pivoted: false,
+      });
+      return { activeTools: escalatedNames, model: grant.escalation.model };
     },
     stopWhen: [
       isStepCount(MAX_ASK_STEPS),
@@ -650,12 +735,11 @@ export async function handleAskRequest(
     // shared with the call below instead.
     onEnd: async (end) => {
       clearTimeout(hardDeadline);
-      recorder.finish(
-        end,
-        proposesPlan()
-          ? droppedWriteCalls(proposalBuffer.collected(), detail, { tripId, actorId: userId, placeCache })
-          : [],
-      );
+      const dropped = proposesPlan()
+        ? droppedWrites(proposalBuffer.collected(), detail, { tripId, actorId: userId, placeCache })
+        : [];
+      droppedIndices = new Set(dropped.map((entry) => entry.index));
+      recorder.finish(end, diagnosticDrops(dropped));
       // `finish` ran the sink, which started the settlement. See `settled`.
       await settled;
     },
@@ -1322,6 +1406,9 @@ export function instructionBlocks(
           // "nobody knows yet". `cost` is optional in the contract precisely so
           // this can be left out.
           "NEVER invent a price. `cost` is optional: if you do not know what something costs, leave `cost` out entirely. A cost of 0 means free — writing 0 for something whose price you do not know is a wrong number, not a blank.",
+          // ADR-060: the trip multiplies a stop's price by who is going, so a
+          // whole-group figure typed as `cost` would be counted once per person.
+          "`cost` is the price for ONE person. The trip multiplies it by who is going, so never enter a whole group's bill as a stop's cost.",
           // **The citation rule** — the same shape as the `savedDayId` rule two
           // lines below, and for the same reason: the server resolves what the
           // model cites, so a number it did not read resolves to nothing.
@@ -1367,7 +1454,14 @@ export function instructionBlocks(
         ]
       : []),
     `Day numbers are 1-based everywhere, and this trip has ${dayCount} day${dayCount === 1 ? "" : "s"}.`,
-    "Every money amount is an integer in the currency's minor units (cents), never a decimal.",
+    // The one place a turn that can write is told HOW to write an amount (the
+    // planning tools' descriptions used to repeat it, three times on an edit
+    // turn). Not only on `propose`: a `withheld` turn escalates to the change
+    // tools mid-turn without its instruction being rebuilt, so it needs the
+    // example before it knows it will write.
+    posture === "read-only"
+      ? "Every money amount is an integer in the currency's minor units (cents), never a decimal."
+      : "Every money amount is an integer in the currency's minor units (cents), never a decimal: amountMinor 500 = 5.00, so multiply a decimal amount by 100 (e.g. 500 EUR → amountMinor 50000).",
     // The asker's own clock (`clockTimesLine`). Not on a page turn above: what
     // that turn writes is a shared document every member reads in their own
     // clock, and its widgets already print each reader's.

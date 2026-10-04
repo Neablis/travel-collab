@@ -34,15 +34,20 @@ type Row = {
  * `canReview` is false for the day's author. The server refuses them (403
  * `own-day`, "the author is not their own audience"), so offering a form that
  * can only fail would be a control that does nothing; they still see the list.
+ * It is false for a reader with no account too (ADR-061), and so is
+ * `canReport`: both writes answer 401 without a session, and the header's
+ * *Sign in* is the honest offer rather than a form that cannot post.
  */
 export function ReviewsSection({
   reviews,
   savedDayId,
   canReview,
+  canReport,
 }: {
   reviews: DayReviews;
   savedDayId: string;
   canReview: boolean;
+  canReport: boolean;
 }) {
   const { data, held, online, busy, error } = reviews;
   const [editing, setEditing] = useState(false);
@@ -219,7 +224,7 @@ export function ReviewsSection({
                   {row.badge !== null && (
                     <Badge variant={row.badge === "Queued" ? "warning" : "brand"}>{row.badge}</Badge>
                   )}
-                  {row.reviewerId !== null && (
+                  {canReport && row.reviewerId !== null && (
                     <span className="ml-auto">
                       <ReportAction
                         target={{ kind: "review", savedDayId, reviewerId: row.reviewerId }}
