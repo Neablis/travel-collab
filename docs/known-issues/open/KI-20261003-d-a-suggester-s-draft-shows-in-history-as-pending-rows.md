@@ -16,7 +16,7 @@
   the tray already counts the draft (W38); it is a display choice that wants a
   decision rather than a quiet change to a shared helper.
 - **Cross-reference:** spec `docs/specs/2026-10-03-suggester-role-design.md`
-  §2.3, W38; ADR-064; KI-2026-10-03-b (the other place a draft reads as
+  §2.3, W38; ADR-064; KI-2026-10-03-g (the other place a draft reads as
   pending work).
 - **First noted:** 2026-10-03, while building the suggester role; moved here
   from the spec's §6 in that branch's review.

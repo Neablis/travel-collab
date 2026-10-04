@@ -216,7 +216,7 @@ This is the e2e flow beside `e2e/m11-invites.spec.ts`.
 
 Known rough edges, found during the build and left for a follow-up, are filed in
 `docs/known-issues/open/`:
-- `KI-2026-10-03-b`: history preview does nothing, and says nothing, while a draft exists.
+- `KI-2026-10-03-g`: history preview does nothing, and says nothing, while a draft exists.
 - `KI-2026-10-03-c`: the assistant refuses a suggester in the viewer's words.
 - `KI-2026-10-03-d`: draft units show in History as pending rows.
 

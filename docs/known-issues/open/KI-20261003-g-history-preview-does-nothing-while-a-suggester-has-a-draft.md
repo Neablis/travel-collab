@@ -1,4 +1,4 @@
-### KI-2026-10-03-b — history preview does nothing, and says nothing, while a suggester has an unsent draft
+### KI-2026-10-03-g — history preview does nothing, and says nothing, while a suggester has an unsent draft
 
 - **Severity:** cosmetic (a silent control). Nothing is lost or wrong: the
   preview is refused for a real reason, but the reader is not told it.
