@@ -248,10 +248,11 @@ They are not the same thing, and the difference is now explicit:
   properties the model is not shown at all (`defineTool`'s `hiddenFromModel`).
 
 The first use is a stop's model-written coordinates. `AddActivity` and
-`UpdateActivity` no longer show `lat`, `lng` or `precision` on `location` or
-`endLocation`: `precision` from the model was already stripped by
-`groundCitedPlaces`, and a confirmed coordinate arrives through `placeRef`.
-That was ~540 tokens per step on an edit turn.
+`UpdateActivity` no longer show `precision` on `location` or `endLocation`
+(`groundCitedPlaces` strips a model-claimed one regardless), nor `lat`/`lng`
+on `location`, whose confirmed coordinate arrives through `placeRef`. About
+420 tokens per step on an edit turn. `endLocation` keeps `lat`/`lng` — see
+below.
 
 **What hiding them costs, stated because the first draft of this amendment got
 it wrong.** A model-written coordinate is not discarded by enrichment: it is
@@ -259,10 +260,18 @@ the geocoder's search HINT (`resolveOne` centres the lookup on it when it sits
 inside the trip's region) and the FALLBACK pin, kept and reported `unverified`,
 when the lookup finds nothing. Without it, the geocoder searches the trip's
 region instead, and a place that neither `search_places` nor geocoding can
-find is stored with no pin rather than a guessed one. That is the trade this
-amendment accepts (CodeRabbit raised it for `endLocation` on #312, where no
-`placeRef` path exists); un-hiding `lat`/`lng` on either field is one line in
-`planning.ts` if production shows stops losing pins they should have had.
+find is stored with no pin rather than a guessed one. CodeRabbit raised it for
+`endLocation` on #312, and the trade is taken per place (decided 2026-10-04):
+
+- **`location`: hidden.** A stop has a verified path (`search_places` →
+  `placeRef`), and a place that path cannot find is usually one the model
+  does not know either, so no pin beats a guessed pin.
+- **`endLocation`: shown.** A transit leg's end has no `placeRef`, so the
+  model's coordinate is its only fallback; the ends are mostly stations and
+  airports a model does know. ~120 tokens per step kept for it.
+
+Showing `location`'s coordinates again is one line in `planning.ts` if
+production shows stops losing pins they should have had.
 
 **The rule for hiding a field:** only one the server fills itself or has another source for,
 never one the model is the sole source of. `address` therefore stays (it is how

@@ -46,10 +46,10 @@
         "SetTripBudget",
         "insert_playbook_day"
       ],
-      "toolChars": 19384,
+      "toolChars": 19804,
       "instructionChars": 3650,
-      "totalChars": 23034,
-      "approxTokens": 6959
+      "totalChars": 23454,
+      "approxTokens": 7086
     },
     "trip · plan": {
       "tools": [
@@ -69,10 +69,10 @@
         "RemoveActivity",
         "insert_playbook_day"
       ],
-      "toolChars": 18325,
+      "toolChars": 18745,
       "instructionChars": 3957,
-      "totalChars": 22282,
-      "approxTokens": 6732
+      "totalChars": 22702,
+      "approxTokens": 6859
     },
     "trip · unsure": {
       "tools": [
@@ -95,10 +95,10 @@
         "SetTripBudget",
         "insert_playbook_day"
       ],
-      "toolChars": 19384,
+      "toolChars": 19804,
       "instructionChars": 3650,
-      "totalChars": 23034,
-      "approxTokens": 6959
+      "totalChars": 23454,
+      "approxTokens": 7086
     },
     "page · compose": {
       "tools": [
@@ -130,12 +130,12 @@
   },
   "tools": {
     "UpdateActivity": {
-      "chars": 5979,
-      "approxTokens": 1806
+      "chars": 6189,
+      "approxTokens": 1870
     },
     "AddActivity": {
-      "chars": 5322,
-      "approxTokens": 1608
+      "chars": 5532,
+      "approxTokens": 1671
     },
     "search_widgets": {
       "chars": 1288,

@@ -58,19 +58,24 @@ const DESCRIPTIONS: Record<BatchableCommandType["type"], string> = {
  * coordinate the model writes is NOT simply discarded, though: enrichment uses
  * it as a search HINT (`resolveOne` centres the geocoder on it when it sits in
  * the trip's region) and keeps it as the FALLBACK pin, reported `unverified`,
- * when the lookup finds nothing. Hiding `lat`/`lng` is a measured trade: the
- * geocoder searches the trip's region rather than near a guess, and a place
- * neither search nor geocoding can find gets no pin rather than a guessed one.
- * ~540 tokens per step across the two tools. Still accepted if sent.
+ * when the lookup finds nothing. Hiding them is a measured trade, so it is made
+ * per place (Mitchell, 2026-10-04, on CodeRabbit's #312 finding):
  *
- * `address` stays: it is how a place search cannot find reaches the stop at
- * all (the first live session's brewery). So does `endLocation` as a whole —
- * a transit leg's end has no `placeRef` of its own.
+ * - **`location` — hidden.** A stop has a verified path (`search_places` →
+ *   `placeRef`), and a place that path cannot find is usually one the model
+ *   does not know either; no pin is more honest than a guessed one there.
+ * - **`endLocation` — `lat`/`lng` shown.** A transit leg's end has no
+ *   `placeRef`, so the model's coordinate is its only fallback, and the ends
+ *   are stations and airports a model mostly does know. ~120 tokens a step.
+ *
+ * `precision` is hidden on both: it is stripped from anything the model sends
+ * regardless. `address` stays on both — it is how a place search cannot find
+ * reaches the stop at all (the first live session's brewery). Everything here
+ * is still accepted if sent.
  */
-const PLACE_GUESSES = ["lat", "lng", "precision"] as const;
 const HIDDEN_FROM_MODEL: Partial<Record<BatchableCommandType["type"], readonly string[]>> = {
-  AddActivity: ["location", "endLocation"].flatMap((field) => PLACE_GUESSES.map((key) => `${field}.${key}`)),
-  UpdateActivity: ["location", "endLocation"].flatMap((field) => PLACE_GUESSES.map((key) => `${field}.${key}`)),
+  AddActivity: ["location.lat", "location.lng", "location.precision", "endLocation.precision"],
+  UpdateActivity: ["location.lat", "location.lng", "location.precision", "endLocation.precision"],
 };
 
 /**
