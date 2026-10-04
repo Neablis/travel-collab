@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { TripRole, type TripMember } from "@tc/contracts";
-import { boardMode, canEditNotebook, viewerOwnsTrip } from "./tripRole";
+import { InviteRole, TripRole, type TripMember } from "@tc/contracts";
+import { INVITE_ROLES_OFFERED, boardMode, canEditNotebook, viewerOwnsTrip } from "./tripRole";
 
 const owner: TripMember = { userId: "alice", role: "owner" };
 const editor: TripMember = { userId: "bob", role: "editor" };
@@ -69,5 +69,15 @@ describe("canEditNotebook", () => {
   it("is false when there is no role", () => {
     expect(canEditNotebook(null)).toBe(false);
     expect(canEditNotebook(undefined)).toBe(false);
+  });
+});
+
+describe("INVITE_ROLES_OFFERED", () => {
+  // Derived by reversing the contract's order, which is only right while the
+  // contract lists roles least capable first. This pins what the picker shows,
+  // so a reordered enum fails here instead of reshuffling the picker.
+  it("offers every invitable role, most capable first", () => {
+    expect(INVITE_ROLES_OFFERED).toEqual(["editor", "suggester", "viewer"]);
+    expect([...INVITE_ROLES_OFFERED].sort()).toEqual([...InviteRole.options].sort());
   });
 });

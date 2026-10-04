@@ -1,4 +1,4 @@
-import type { InviteRole, TripMember, TripRole } from "@tc/contracts";
+import { InviteRole, type TripMember, type TripRole } from "@tc/contracts";
 
 /**
  * **Does the reader own this trip?** — M26 link 6b.
@@ -86,3 +86,12 @@ const ROLE_LABEL: Record<InviteRole, string> = {
 export function roleLabel(role: InviteRole): string {
   return ROLE_LABEL[role];
 }
+
+/**
+ * The roles an owner may invite, in the order the picker offers them: most
+ * capable first, so "Can edit" leads and the suggester sits between the two it
+ * is between. Read off the contract rather than listed (review of #309), so a
+ * role `InviteRole` gains is offered without this file being found — the
+ * contract lists its roles least capable first, as `TripRole` does.
+ */
+export const INVITE_ROLES_OFFERED: readonly InviteRole[] = [...InviteRole.options].reverse();
