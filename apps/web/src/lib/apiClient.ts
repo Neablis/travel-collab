@@ -102,12 +102,17 @@ export function networkError(err: unknown): { ok: false; error: ApiError } {
  * A not-ok response: the body's `error` field when there is one, the status
  * text when there is not. `code` when the route sent one: two refusals can
  * share a status and want different handling (a 409 `page-changed` must not be
- * retried, a stream conflict may be).
+ * retried, a stream conflict may be). `extra` reads any field one route adds
+ * from the same body, which can only be read once.
  */
-export async function refusal(res: Response): Promise<{ ok: false; error: ApiError }> {
+export async function refusal<E extends object = object>(
+  res: Response,
+  extra?: (body: Record<string, unknown>) => E,
+): Promise<{ ok: false; error: ApiError & E }> {
   const data = (await res.json().catch(() => ({}))) as { error?: string; code?: unknown };
   const code = typeof data.code === "string" ? { code: data.code } : {};
-  return { ok: false, error: { status: res.status, message: data.error ?? res.statusText, ...code } };
+  const more = extra?.(data as Record<string, unknown>) ?? ({} as E);
+  return { ok: false, error: { status: res.status, message: data.error ?? res.statusText, ...code, ...more } };
 }
 
 // Task 7.2 (M10 Phase 7): the new-trip wizard's real step, factored out of
@@ -502,18 +507,7 @@ export async function createTripSuggestion(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(input),
     });
-    if (!res.ok) {
-      const data = (await res.json().catch(() => ({}))) as { error?: string; code?: string; index?: unknown };
-      return {
-        ok: false,
-        error: {
-          status: res.status,
-          message: data.error ?? res.statusText,
-          code: data.code,
-          ...(typeof data.index === "number" ? { index: data.index } : {}),
-        },
-      };
-    }
+    if (!res.ok) return await refusal(res, (body) => (typeof body.index === "number" ? { index: body.index } : {}));
     return { ok: true, value: CreatedSuggestion.parse(await res.json()).changes };
   } catch (err) {
     return networkError(err);

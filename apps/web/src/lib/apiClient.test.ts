@@ -1199,3 +1199,31 @@ describe("resolveSuggestionChange", () => {
     expect(result.error).toMatchObject({ status: 409, code: "dependency-pending" });
   });
 });
+
+// Review of #311, finding 3.9: create read its refusal body by hand, a second
+// copy of `refusal` that let any `code` through. It now reads it through
+// `refusal`, plus the `index` only this route sends.
+describe("createTripSuggestion", () => {
+  const draft = { units: [{ commands: [{ type: "AddDay" as const, tripId: TRIP_ID, dayId: UUID }] }] };
+
+  it("passes a refused draft's code and failing index through", async () => {
+    server.use(
+      http.post("*/api/trips/:tripId/suggestions", () =>
+        HttpResponse.json({ error: "Change 3 no longer applies.", code: "does-not-apply", index: 2 }, { status: 422 }),
+      ),
+    );
+    const result = await createTripSuggestion(TRIP_ID, draft);
+    expect(result).toEqual({
+      ok: false,
+      error: { status: 422, message: "Change 3 no longer applies.", code: "does-not-apply", index: 2 },
+    });
+  });
+
+  it("reads a refusal the way every other helper does: a code that is not a string is no code", async () => {
+    server.use(
+      http.post("*/api/trips/:tripId/suggestions", () => HttpResponse.json({ error: "nope", code: 7, index: "2" }, { status: 409 })),
+    );
+    const result = await createTripSuggestion(TRIP_ID, draft);
+    expect(result).toEqual({ ok: false, error: { status: 409, message: "nope" } });
+  });
+});
