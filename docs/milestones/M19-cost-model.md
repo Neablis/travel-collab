@@ -206,9 +206,14 @@ Part 3 — the shared day says *each*:
 
 Whole milestone:
 
-- [ ] `pnpm check`, `pnpm --filter web test:int` and `pnpm --filter web test:e2e:ci-like`
+- [x] `pnpm check`, `pnpm --filter web test:int` and `pnpm --filter web test:e2e:ci-like`
       green on the last part.
-- [ ] A retro is appended at gate close.
+      *(Ticked 2026-10-02 on CI, not a local run: CI run 37048507490 on #292's head `aff1846`
+      passed typecheck, lint, unit, script-tests, integration and both e2e shards. `main`'s merge
+      commit `a49601c` has the same tree as `aff1846`. Part 3's code passed `pnpm check` and
+      `test:e2e:ci-like` (216) locally at `f19ac51`. The later commits change only copy and
+      docs, and Mitchell asked that those not re-run the suite locally.)*
+- [x] A retro is appended at gate close. *(2026-10-02, at the end of this file.)*
 
 ## Prerequisites
 
@@ -303,3 +308,45 @@ fourth category, *Other*, has no kind behind it and is gone.
 settled-vs-estimate (link 2). If `pending` later splits by *why* it is pending
 (ADR-055's `pendingReason`: to book vs maybe), the widget's slices are the
 place that split would show — not built here.
+
+## Retro — 2026-10-02
+
+**Scoped, built and closed in one day.** Mitchell answered the kickoff questions on
+2026-10-02, and ADR-060 recorded them. It shipped as four stacked PRs: #288 (the docs and
+the gate), #289 (a price is per person), #290 (who owes what) and #292 (*each*). All four
+merged the same day.
+
+**What went well.**
+- **The decisions came first.** Per person, committed-vs-estimate from kind, and Booked by
+  pays were all settled before any code. No part was built and then reverted.
+- **One pure function.** `stopHeadcount` and `stopTotal` live in `packages/contracts`. The
+  domain, the web helpers, every cost widget and `balances` call them, so the totals and the
+  balances cannot disagree.
+- **Totals are recosted at read time.** Adding a member changes a total with no event, and
+  rebuild still equals stored (ADR-060 decision 4).
+
+**What it cost.**
+- **The self-review of #289 found three real bugs.** Dismissing or lapsing the over-budget
+  conflict used the log's member count, not the reader's. The v1 history route skipped the
+  member overlay. A departed member could not be removed from *Who is in*. All three were
+  fixed before merge.
+- **The preview walk changed a decision.** A view-only invite raised every unpicked stop.
+  Mitchell decided viewers count (ADR-060 decision 2), and the editor now shows departed
+  members as removable chips. An earlier KI entry about clones was wrong and was withdrawn
+  after the walk.
+- **Mitchell's API work on `main` conflicted with the stack** (`openapi.ts`, `openapi.json`,
+  the contracts CHANGELOG). The fix kept API version 1.3.0 on top of `main`'s 1.2.1,
+  regenerated the spec, and kept both CHANGELOG entries.
+- **The stop editor had too much helper text.** Mitchell's preview comments on #292
+  removed six lines. Copy-only changes are now pushed without a local suite, and CI covers
+  them.
+
+**Left open, not gating.**
+- **KI-2026-09-24-p:** cost totals still add amounts across currencies. ADR-008 keeps one
+  currency per trip, and conversion is out of scope here.
+- **KI-2026-09-24-q:** a stored `person` filter still widens to the whole trip. `person.share`
+  takes a person as a parameter and does not re-declare the filter, so the entry stays open.
+- **Free vs unknown (KI-82)** is not solved. ADR-060 decision 5 says so.
+- **Per-person budgets** and anything that moves money stay out of scope.
+- **Noticed, not filed:** the insert sheet shows assistant-facing descriptions for some
+  older widgets (`stop.field`, weather, sun, time difference).
