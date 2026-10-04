@@ -1,9 +1,16 @@
 import fc from "fast-check";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { BatchableCommand, SuggestionChange, TripDetail } from "@tc/contracts";
 import { tripDetailFactory, uuidFrom } from "@tc/factories";
+import { predictBatch } from "@tc/predict";
 import { witness } from "@/test-support/witness";
 import { suggestionOverlay } from "./suggestionOverlay";
+
+// A pass-through spy, so the overlay's cost can be counted in predictions.
+vi.mock("@tc/predict", async (orig) => {
+  const actual = await orig<typeof import("@tc/predict")>();
+  return { ...actual, predictBatch: vi.fn(actual.predictBatch) };
+});
 
 // Two days of two stops each, and one stop on the rack: enough for a move
 // between days, a move to the rack, and a neighbour whose index shifts.
@@ -203,6 +210,57 @@ describe("suggestionOverlay", () => {
     const child = change(trip, [{ type: "SetTripName", tripId: trip.tripId, name: "x" }], { dependsOn: [parent.id] });
 
     expect(suggestionOverlay(trip, [parent, child]).stale.map((g) => g.changeId)).toEqual([parent.id, child.id]);
+  });
+});
+
+// Review of #311, finding 3.7: each change used to be predicted from the
+// confirmed trip up through every ancestor, so a chain of n cost n(n+1)/2
+// predictions. A change's base is now its latest ancestor's outcome whenever
+// that ancestor's own lineage is everything before it.
+describe("suggestionOverlay reuses what it already predicted", () => {
+  beforeEach(() => {
+    vi.mocked(predictBatch).mockClear();
+  });
+
+  it("predicts a chain of n dependents n times, not n(n+1)/2", () => {
+    const trip = confirmedTrip();
+    const activityId = uuidFrom(8101, 7);
+    const chain: SuggestionChange[] = [
+      change(trip, [{ type: "AddActivity", tripId: trip.tripId, activityId, dayId: trip.days[0]!.dayId, title: "t0" }]),
+    ];
+    for (let i = 1; i < 10; i++) {
+      chain.push(
+        change(trip, [{ type: "UpdateActivity", tripId: trip.tripId, activityId, title: `t${i}` }], {
+          dependsOn: [chain[i - 1]!.id],
+        }),
+      );
+    }
+
+    const overlay = suggestionOverlay(trip, chain);
+
+    expect(overlay.stale).toEqual([]);
+    expect(overlay.byActivity.get(activityId)!.at(-1)!.activity?.title).toBe("t9");
+    expect(vi.mocked(predictBatch)).toHaveBeenCalledTimes(10);
+  });
+
+  // The branch that reuses part of a lineage and replays the rest: D depends
+  // on B and C, which each depend only on A. B's outcome holds A and B but
+  // not C, so C is replayed onto it, and D still sees all three.
+  it("a change with two parents sees both, its base built on the one it can reuse", () => {
+    const trip = confirmedTrip();
+    const activityId = uuidFrom(8102, 7);
+    const a = change(trip, [{ type: "AddActivity", tripId: trip.tripId, activityId, dayId: trip.days[0]!.dayId, title: "Market" }]);
+    const b = change(trip, [{ type: "UpdateActivity", tripId: trip.tripId, activityId, title: "Nishiki" }], { dependsOn: [a.id] });
+    const c = change(trip, [{ type: "UpdateActivity", tripId: trip.tripId, activityId, notes: "cash only" }], { dependsOn: [a.id] });
+    const d = change(trip, [{ type: "UpdateActivity", tripId: trip.tripId, activityId, cost: { amountMinor: 1200, currency: trip.currency } }], {
+      dependsOn: [b.id, c.id],
+    });
+
+    const ghost = suggestionOverlay(trip, [a, b, c, d]).byActivity.get(activityId)!.find((g) => g.changeId === d.id)!;
+
+    expect(ghost.kind).toBe("update");
+    expect(ghost.activity).toMatchObject({ title: "Nishiki", notes: "cash only", cost: { amountMinor: 1200 } });
+    expect(ghost.blockedBy).toEqual([b.id, c.id]);
   });
 });
 

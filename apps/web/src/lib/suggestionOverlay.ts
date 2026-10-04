@@ -79,6 +79,12 @@ export function suggestionOverlay(confirmed: TripDetail, changes: SuggestionChan
   const order = new Map(pending.map((c, i) => [c.id, i]));
   const byId = new Map(pending.map((c) => [c.id, c]));
   const confirmedPlacement = placements(confirmed);
+  // Per change, in creation order: its ancestors sorted oldest first, and the
+  // trip once it and all of them are applied (`null` if any is stale). Every
+  // ancestor is older than its dependent (W9), so both are known by the time a
+  // dependent asks.
+  const lineage = new Map<string, string[]>();
+  const outcome = new Map<string, TripDetail | null>();
 
   for (const change of pending) {
     const common = {
@@ -94,16 +100,28 @@ export function suggestionOverlay(confirmed: TripDetail, changes: SuggestionChan
     // it depends on, transitively, in the order they were made. A dependency
     // that is no longer pending is accepted (so already in confirmed) or was
     // resolved away with its dependents (so not here either).
+    const line = [...ancestors(change, byId)].sort((a, b) => order.get(a)! - order.get(b)!);
+    lineage.set(change.id, line);
+    // Start from the latest ancestor whose own lineage is exactly the ones
+    // before it in `line`: its outcome is this base so far, already predicted.
+    // A chain always reuses its parent, so it costs one prediction per change,
+    // not one per ancestor (review of #311). Only what follows is replayed.
     let base: TripDetail | null = confirmed;
-    for (const id of [...ancestors(change, byId)].sort((a, b) => order.get(a)! - order.get(b)!)) {
-      const step = predictBatch(base, byId.get(id)!.commands, ACCEPT_LIKE);
-      if (!step.ok) {
-        base = null;
+    let from = 0;
+    for (let i = line.length; i > 0; i--) {
+      if (lineage.get(line[i - 1]!)!.length === i - 1) {
+        base = outcome.get(line[i - 1]!)!;
+        from = i;
         break;
       }
-      base = step.detail;
+    }
+    for (const id of line.slice(from)) {
+      if (base === null) break;
+      const step = predictBatch(base, byId.get(id)!.commands, ACCEPT_LIKE);
+      base = step.ok ? step.detail : null;
     }
     const predicted = base === null ? null : predictBatch(base, change.commands, ACCEPT_LIKE);
+    outcome.set(change.id, predicted?.ok ? predicted.detail : null);
     if (base === null || predicted === null || !predicted.ok) {
       overlay.stale.push({ ...common, kind: guessKind(change.commands) });
       continue;
@@ -233,17 +251,14 @@ export type SuggestionGhosts = {
   pending: SuggestionChange[];
 };
 
+// The board draws a change only where it can sit on a river, and everything
+// else goes to the chip, so every pending change is reachable once (W42).
 /**
  * The trip's pending suggestions, placed (spec §2.4). `TripProvider` runs it
  * once per list and trip, on the CONFIRMED trip — a suggester's unsent draft
  * is already their optimistic board, and is not a ghost — and the board and
  * the header chip both read that one result.
  */
-// The board draws a change only where it can sit on a river: a timed stop that
-// is there now, or a timed stop landing on a day that is there now. Everything
-// else goes to the chip, so every pending change is reachable once (W42). A
-// change the overlay files as trip-level — a removed day, whose stops it also
-// moves to the rack — is shown only in the chip, not as markers too.
 export function placeGhosts(trip: TripDetail, changes: SuggestionChange[]): SuggestionGhosts {
   const overlay = suggestionOverlay(trip, changes);
   const tripLevel = new Set(overlay.tripLevel.map((g) => g.changeId));
@@ -257,19 +272,25 @@ export function placeGhosts(trip: TripDetail, changes: SuggestionChange[]): Sugg
   for (const [activityId, ghosts] of overlay.byActivity) {
     for (const ghost of ghosts) {
       if (!first.has(ghost.changeId)) first.set(ghost.changeId, ghost);
+      // A change the overlay files as trip-level — a removed day, whose stops
+      // it also moves to the rack — is shown only in the chip, not as markers too.
       if (tripLevel.has(ghost.changeId)) continue;
+      // A timed stop landing on a day that is there now: a ghost block.
       const lands = (ghost.kind === "add" || ghost.kind === "move") && ghost.activity?.timeWindow;
       if (lands && typeof ghost.dayId === "string" && dayIds.has(ghost.dayId)) {
-        days.set(ghost.dayId, [...(days.get(ghost.dayId) ?? []), ghost]);
+        push(days, ghost.dayId, ghost);
         drawn.add(ghost.changeId);
       }
+      // A timed stop that is there now: a marker on it.
       if (ghost.kind !== "add" && onRiver.has(activityId)) {
-        stops.set(activityId, [...(stops.get(activityId) ?? []), ghost]);
+        push(stops, activityId, ghost);
         drawn.add(ghost.changeId);
       }
     }
   }
 
+  // Everything not drawn above: trip-level changes, then the rest in the
+  // order their first ghost came.
   const offBoard = [
     ...overlay.tripLevel,
     ...[...first.values()].filter((g) => !drawn.has(g.changeId) && !tripLevel.has(g.changeId)),
