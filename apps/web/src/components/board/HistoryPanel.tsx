@@ -9,6 +9,13 @@ import { coalesceHistory } from "./coalesceHistory";
 import { DataText } from "@/components/ui/data-text";
 import { Text } from "@/components/ui/text";
 import { formatTripDate } from "@/lib/formatDate";
+import { useAuthorNames } from "./SuggestionActions";
+
+// "Suggested" alone until the names land: a name guessed wrong, or "a former
+// traveler" said of a member, is worse than none.
+function suggestedBy(name: string | null): string {
+  return name === null ? "Suggested" : `Suggested by ${name}`;
+}
 
 // Bounded page size for the History popover's entries list (#1): only the
 // most recent PAGE_SIZE entries render up front, with a "Show older"
@@ -41,6 +48,11 @@ export function HistoryPanel({
   onRevert: (toSeq: number) => void;
 }) {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  // Null names outside a `PeopleProvider` (TripHeader mounts one) or before
+  // it lands.
+  const nameOf = useAuthorNames(
+    history?.entries.flatMap((e) => (e.origin.kind === "suggestion" ? [e.origin.authorId] : [])) ?? [],
+  );
 
   if (history === null) return null;
 
@@ -68,6 +80,13 @@ export function HistoryPanel({
               className={cn("min-w-0 flex-1 justify-start", entry.undone && "opacity-50", previewSeq === entry.toSeq && "font-bold")}
             >
               <span className="truncate">{entry.undone ? <s>{entry.description}</s> : entry.description}</span>
+              {/* W11: an accepted suggestion's actor is the reviewer, so the
+                  person who asked for it is said here, from `origin`. */}
+              {entry.origin.kind === "suggestion" && (
+                <span className="shrink-0 text-xs text-slate">
+                  {suggestedBy(nameOf(entry.origin.authorId))}
+                </span>
+              )}
               {/* The count is shown rather than implied, because one undo
                   undoes one BATCH and this row stands for `count` of them —
                   see `coalesceHistory`. A reader who cannot see the number

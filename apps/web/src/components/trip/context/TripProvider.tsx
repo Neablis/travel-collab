@@ -1,8 +1,16 @@
 "use client";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import type { BatchableCommand, TripDetail, TripHistory, TripRole } from "@tc/contracts";
+import {
+  SUGGESTION_UNIT_COMMANDS_MAX,
+  SUGGESTION_UNITS_MAX,
+  type BatchableCommand,
+  type TripDetail,
+  type TripHistory,
+  type TripRole,
+} from "@tc/contracts";
 import { usePublishSaveState } from "@/components/SaveLight";
 import {
+  createTripSuggestion,
   fetchTripAccess,
   fetchTripDetail,
   fetchTripDetailAt,
@@ -27,10 +35,12 @@ import {
   type SendFailure,
 } from "./optimistic";
 import { isDemoTripId } from "@/lib/demoTrip";
+import { placeGhosts, type SuggestionGhosts } from "@/lib/suggestionOverlay";
 import { boardMode } from "@/lib/tripRole";
 import { headSeqOf, useTripBroadcast } from "./broadcast";
 import { drainAfter, sendUnit } from "./queueDrain";
 import { unloadFlush } from "./unloadFlush";
+import { useTripSuggestions, type TripSuggestions } from "./useTripSuggestions";
 
 type Status = "loading" | "ready" | "unauthenticated" | "error";
 /**
@@ -41,6 +51,23 @@ type Status = "loading" | "ready" | "unauthenticated" | "error";
  * under the header that a scrolled board had hidden.
  */
 export type DispatchResult = { ok: true } | { ok: false; message: string };
+// W66: why a suggester's edit is refused while their draft is being sent.
+const DRAFT_BUSY = "Your suggestion is still sending. Make this change once it has gone.";
+/**
+ * A suggester's unsent edits (spec §2.3). They sit in the ordinary optimistic
+ * queue, so the board shows them as it shows an editor's — they are just never
+ * sent as commands. `send` posts every unit as one change of one suggestion;
+ * `discard` drops them all (W13: no partial discard in v1).
+ */
+export type SuggestionDraft = {
+  count: number;
+  sending: boolean;
+  /** Why the last send was refused, naming the change when the server said which. */
+  error: string | null;
+  discard: () => void;
+  /** Resolves true once the server has stored the draft. */
+  send: (note?: string) => Promise<boolean>;
+};
 type TripCtx = {
   // The trip this provider is for. Exposed because several controls need it
   // to talk to an endpoint rather than to read state — `trip` is null while
@@ -82,9 +109,19 @@ type TripCtx = {
   // role answering "write" for the reason `readOnly` does.
   boardMode: ReturnType<typeof boardMode>;
   // `boardMode !== "read"`: the gate a surface opts in to once it can hold a
-  // suggester's edit as a suggestion. Nothing reads it yet — suggest mode is
-  // the plan's T6.
+  // suggester's edit as a suggestion (W8) — the board, the activity editor and
+  // the trip fields in Settings.
   canEditBoard: boolean;
+  // Present in suggest mode only.
+  draft: SuggestionDraft | null;
+  // The trip's suggestion changes: a suggester's own, or everyone's for an
+  // editor or the owner. Null for a reader who sees none — a viewer, or a role
+  // not yet known (the list is 404 to a viewer, so it is not asked for).
+  suggestions: TripSuggestions | null;
+  // Those changes placed on the confirmed trip (`placeGhosts`): computed here
+  // once, so the board and the header chip read one overlay. Null when
+  // `suggestions` is, or while the trip loads.
+  suggestionGhosts: SuggestionGhosts | null;
   // True once the access read has completed and FAILED — not while it is still
   // in flight. See `load()` for why the failure stays non-fatal, and TripHeader
   // for where it is said out loud.
@@ -147,6 +184,11 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
   const [remoteRevision, setRemoteRevision] = useState(0);
   const [previewSeq, setPreviewSeq] = useState<number | null>(null);
   const [previewTrip, setPreviewTrip] = useState<TripDetail | null>(null);
+  const [draftSending, setDraftSending] = useState(false);
+  const [draftError, setDraftError] = useState<string | null>(null);
+  // A ref, like `inFlight`: a double click, or an edit, lands before the
+  // re-render that would show the send is out. `runDispatch` reads it (W66).
+  const sendingDraft = useRef(false);
   const seq = useRef(0);
   // Mirrors `optimistic` so `runDispatch` can predict against the CURRENT queue
   // without taking it as a dependency. Two things depend on that: the callback
@@ -267,6 +309,28 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
     [tripId, pending],
   );
 
+  // A viewer holds read access and executes no planning command at all
+  // (accessPolicy.ts's MINIMUM_ROLE table has no "viewer" entry), and nor
+  // does a suggester. Stopping a viewer at dispatch rather than at the network
+  // means the optimistic queue never predicts a change that is going to be
+  // refused — which is what would otherwise make a card visibly move and then
+  // jump back. A suggester's edits are queued and held instead (spec §2.3).
+  //
+  // `myRole === null` writes: an unknown role leaves the board as it was
+  // before roles existed — see `load()` for why, which `boardMode` alone would
+  // reverse (it answers "read" for no role).
+  //
+  // W8, default closed: `readOnly` is "may not write directly", so it is true
+  // for a suggester and every consumer keeps hiding its control until it opts
+  // in to suggest mode through `canEditBoard`.
+  const mode = myRole === null ? "write" : boardMode(myRole);
+  const readOnly = mode !== "write";
+  const canEditBoard = mode !== "read";
+  // Read by the unload paths below, which are registered once and must see the
+  // mode as it is when the page goes, not as it was when they were made.
+  const suggesting = useRef(false);
+  suggesting.current = mode === "suggest";
+
   // Sequential sender: whenever there is a pending head and nothing already in
   // flight, send the head; reconcile or roll back on its result. Only one send
   // is ever in flight — `inFlight` is a ref (not state) so re-renders that fire
@@ -291,6 +355,9 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
     // without this the effect re-fires on the retained head and re-sends the
     // same rejected command without bound. Only `retry()` lifts the gate.
     if (!optimistic || optimistic.pending.length === 0 || optimistic.failure || inFlight.current) return;
+    // A suggester's queue is the draft: it waits for `draft.send`, and the
+    // server would refuse it as commands anyway.
+    if (mode === "suggest") return;
     const head = optimistic.pending[0]!;
     if (handedOff.current.has(head.id)) return;
     inFlight.current = true;
@@ -356,24 +423,7 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
         setError(result.error.message);
       }
     })();
-  }, [optimistic, tripId]);
-
-  // A viewer holds read access and executes no planning command at all
-  // (accessPolicy.ts's MINIMUM_ROLE table has no "viewer" entry), and nor
-  // does a suggester. Stopping here rather than at the network means the
-  // optimistic queue never predicts a change that is going to be refused —
-  // which is what would otherwise make a card visibly move and then jump back.
-  //
-  // `myRole === null` writes: an unknown role leaves the board as it was
-  // before roles existed — see `load()` for why, which `boardMode` alone would
-  // reverse (it answers "read" for no role).
-  //
-  // W8, default closed: `readOnly` is "may not write directly", so it is true
-  // for a suggester and every consumer keeps hiding its control until it opts
-  // in to suggest mode through `canEditBoard`.
-  const mode = myRole === null ? "write" : boardMode(myRole);
-  const readOnly = mode !== "write";
-  const canEditBoard = mode !== "read";
+  }, [optimistic, tripId, mode]);
 
   // Both refusals below say the same thing, but not in the same words: on the
   // demo board (`/demo`, ADR-031) the reader is a stranger who was invited to
@@ -385,8 +435,9 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
     ? "This is an example trip, so nothing here changes. Make it yours and every part of it becomes editable."
     : "You have view-only access to this trip.";
 
+  // Suggest mode enqueues exactly as write mode does; only the sender differs.
   const runDispatch = useCallback((commands: BatchableCommand[]): DispatchResult => {
-    if (readOnly) {
+    if (mode === "read") {
       setError(refusal);
       return { ok: false, message: refusal };
     }
@@ -406,6 +457,29 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
     // to the path that was still breaking it.
     const base = optimisticRef.current;
     if (!base) return { ok: false, message: "This trip hasn't finished loading. Try again in a moment." };
+    // W50: the suggestions route takes no more than this, and refuses a draft
+    // past it whole. Refused at the edit instead, which the author can act on;
+    // the draft already made is untouched.
+    const overCap =
+      mode !== "suggest"
+        ? null
+        : base.pending.length >= SUGGESTION_UNITS_MAX
+          ? `A suggestion holds up to ${SUGGESTION_UNITS_MAX} changes. Send these first.`
+          : commands.length > SUGGESTION_UNIT_COMMANDS_MAX
+            ? `One suggested change holds up to ${SUGGESTION_UNIT_COMMANDS_MAX} edits. Make it in smaller steps.`
+            : null;
+    if (overCap !== null) {
+      setError(overCap);
+      return { ok: false, message: overCap };
+    }
+    // W66: the draft is paused while it is being sent. An edit now would be
+    // predicted on top of units that are leaving it, and could name a stop
+    // only they create — a dependency on another suggestion (W9 rules those
+    // out). Refused before it is queued, so nothing moves and jumps back.
+    if (mode === "suggest" && sendingDraft.current) {
+      setError(DRAFT_BUSY);
+      return { ok: false, message: DRAFT_BUSY };
+    }
     const result = enqueue(base, `c${++seq.current}`, commands);
     if (!result.ok) {
       // A no-op changed nothing, which is not worth alarming anyone about —
@@ -419,7 +493,7 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
     setError(null);
     setOptimistic(result.state);
     return { ok: true };
-  }, [readOnly, refusal]);
+  }, [mode, refusal]);
 
   // ---- M13 link 2: a co-traveller's edits arrive ------------------------
   //
@@ -466,9 +540,20 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
   }, [tripId]);
   onRemoteChangeRef.current = onRemoteChange;
 
+  // `boardMode(myRole)`, not `mode`: an unknown role leaves the board live
+  // (W21), but a list we may not be allowed to read is not worth asking for
+  // until the role is known.
+  const { suggestions, onRevision: onSuggestionsChanged } = useTripSuggestions({
+    tripId,
+    enabled: status === "ready" && boardMode(myRole) !== "read",
+    onAccepted: onRemoteChange,
+  });
+
   const dispatch = useCallback(
     async (command: BoardCommand): Promise<DispatchResult> => {
-      if (readOnly) {
+      // History commands need "editor" (W13), so a suggester is refused them
+      // as a viewer is; anything else is runDispatch's to decide.
+      if (readOnly && (mode === "read" || HISTORY_TYPES.has(command.type))) {
         setError(refusal);
         return { ok: false, message: refusal };
       }
@@ -531,7 +616,7 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
     // this callback no longer has to be rebuilt on every queue change — and
     // one fewer render-time value closed over is one fewer way to read a
     // stale one.
-    [runDispatch, exit, readOnly, refusal, onRemoteChange],
+    [runDispatch, exit, readOnly, mode, refusal, onRemoteChange],
   );
 
   // ---- KI-5: the queue outlives the page ---------------------------------
@@ -561,9 +646,12 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
   // - **A unit already sent.** It may already be applied (see `sentIds`).
   // - **A queue whose head the server refused** (KI-36). Nothing re-sends a
   //   refused change without the user asking, and leaving is not asking.
+  // - **A suggester's draft** (W7). Flushed, it would go as commands, which
+  //   the server refuses: lost anyway, and noisily. An unsent draft is lost on
+  //   leaving in v1.
   const unsentUnits = useCallback(() => {
     const state = optimisticRef.current;
-    if (!state || state.failure) return [];
+    if (!state || state.failure || suggesting.current) return [];
     return state.pending.filter((u) => !sentIds.current.has(u.id) && !handedOff.current.has(u.id));
   }, []);
 
@@ -629,6 +717,65 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
     [runDispatch],
   );
 
+  // ---- Suggest mode: the draft -------------------------------------------
+  //
+  // Discarding and a stored draft leave the queue the same way: the units go,
+  // and whatever is left is re-predicted onto the confirmed trip it no longer
+  // sits on top of. Confirmed itself never moves — a suggestion applies
+  // nothing (ADR-064).
+  const dropUnits = useCallback((ids: ReadonlySet<string>) => {
+    setOptimistic((prev) =>
+      prev ? adoptOutcome({ ...prev, pending: prev.pending.filter((u) => !ids.has(u.id)) }, prev.confirmed) : prev,
+    );
+  }, []);
+
+  // Re-read the trip's suggestions once a draft is stored, so its author sees
+  // the changes as ghosts without waiting for the poll.
+  const refreshSuggestions = suggestions?.refresh;
+  const onSuggestionsSent = useCallback(() => {
+    void refreshSuggestions?.();
+  }, [refreshSuggestions]);
+
+  const sendDraft = useCallback(
+    async (note?: string): Promise<boolean> => {
+      const units = optimisticRef.current?.pending ?? [];
+      if (sendingDraft.current || units.length === 0) return false;
+      sendingDraft.current = true;
+      setDraftSending(true);
+      setDraftError(null);
+      const trimmed = note?.trim() ?? "";
+      const result = await createTripSuggestion(tripId, {
+        units: units.map((u) => ({ commands: u.commands })),
+        ...(trimmed === "" ? {} : { note: trimmed }),
+      });
+      sendingDraft.current = false;
+      setDraftSending(false);
+      // True only while the send was out, so it goes when the send does.
+      setError((e) => (e === DRAFT_BUSY ? null : e));
+      if (!result.ok) {
+        // Kept whole: nothing was stored (W4), and what to change is the
+        // author's call. When the server named the unit, so does the message.
+        const failed = result.error.code === "does-not-apply" ? units[result.error.index ?? -1] : undefined;
+        setDraftError(
+          failed
+            ? `“${failed.description}” no longer applies to the trip as it is now. Nothing was sent.`
+            : result.error.message,
+        );
+        return false;
+      }
+      // Only what was sent: an edit made while the request was out stays.
+      dropUnits(new Set(units.map((u) => u.id)));
+      onSuggestionsSent();
+      return true;
+    },
+    [tripId, dropUnits, onSuggestionsSent],
+  );
+
+  const discardDraft = useCallback(() => {
+    setDraftError(null);
+    dropUnits(new Set((optimisticRef.current?.pending ?? []).map((u) => u.id)));
+  }, [dropUnits]);
+
   const applyOutcome = useCallback((outcome: CommandOutcome) => {
     // `outcome` is `{ detail, history }` — exactly the `confirmed` shape.
     //
@@ -664,6 +811,7 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
     // remote news on every tick.
     cursor: () => (optimisticRef.current ? headSeqOf(optimisticRef.current.confirmed.history) : 0),
     onChanged: onRemoteChange,
+    onSuggestionsChanged,
   });
 
   // Kept in step with the state on every render, so a change made anywhere
@@ -675,12 +823,28 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
   const history: TripHistory | null = optimistic ? activeHistory(optimistic) : null;
   const trip = optimistic?.confirmed.detail ?? null;
   const activeTrip = previewSeq !== null && previewTrip !== null ? previewTrip : confirmedDetail;
+  const suggestionChanges = suggestions?.changes ?? null;
+  const suggestionGhosts = useMemo(
+    () => (trip === null || suggestionChanges === null ? null : placeGhosts(trip, suggestionChanges)),
+    [trip, suggestionChanges],
+  );
 
   // One object for the context and for the header's save light, so the two
   // can never disagree about whether there is unsent work.
-  const sync = useMemo(
-    () => ({ unsent: optimistic ? unsentCount(optimistic) : 0, failure: optimistic?.failure ?? null, retry }),
-    [optimistic, retry],
+  //
+  // A draft is not unsent work in the save light's sense — nothing is trying
+  // to send it — so it counts zero there, and the tray says it instead.
+  const unsent = optimistic && mode !== "suggest" ? unsentCount(optimistic) : 0;
+  const failure = optimistic?.failure ?? null;
+  const sync = useMemo(() => ({ unsent, failure, retry }), [unsent, failure, retry]);
+
+  const draftCount = optimistic?.pending.length ?? 0;
+  const draft = useMemo<SuggestionDraft | null>(
+    () =>
+      mode === "suggest"
+        ? { count: draftCount, sending: draftSending, error: draftError, discard: discardDraft, send: sendDraft }
+        : null,
+    [mode, draftCount, draftSending, draftError, discardDraft, sendDraft],
   );
 
   return (
@@ -700,6 +864,9 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
         readOnly,
         boardMode: mode,
         canEditBoard,
+        draft,
+        suggestions,
+        suggestionGhosts,
         accessUnknown,
         sync,
         preview: { seq: previewSeq, enter, exit },
