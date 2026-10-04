@@ -166,6 +166,13 @@ Two details, so this is a decision and not a direction:
   one person in two tabs is a real case and that single read covers it. This is
   the one tunable in the decision, and it is the one to revisit with real usage.
 
+  **Amended 2026-10-04 (suggester spec W73, Mitchell's production test):** an
+  invite still out counts as a second person, and so does an invite made from
+  the open page. The member count is read once, at page load, and joining
+  writes no event, so an owner whose board was open when the invitee joined
+  never started the timer. They saw the newcomer's suggestion only on a reload.
+  A solo trip with no invite out still runs no timer.
+
 ### 3. The transport sits behind a seam, because the cursor is the durable decision and the transport is the swappable one
 
 Broadcast enters `TripProvider` through one module with one shape — *"here are
