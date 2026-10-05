@@ -1,20 +1,21 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { type ActivityKind, type ActivityMode, type ActivityTag, type ActivityView, type Anchor, type Location, type Money, type PendingReason, type TimeWindow } from "@tc/contracts";
+import { type ActivityKind, type ActivityMode, type ActivityTag, type ActivityView, type Anchor, type DistanceUnit, type Location, type Money, type NearbyStop, type PendingReason, type TimeWindow } from "@tc/contracts";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Banner } from "@/components/ui/banner";
-import { Preview } from "@/components/ui/preview";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Text } from "@/components/ui/text";
 import { Textarea } from "@/components/ui/textarea";
 import { stopTotalLine } from "@/lib/cost";
 import { formatDuration, toClockRange, toEndMinutes, toMinutes, toTimeString } from "@/lib/time";
-import { useTimeFormat } from "@/components/account/PreferencesProvider";
+import { useDistanceUnit, useTimeFormat } from "@/components/account/PreferencesProvider";
+import { displayPlace } from "@/lib/place";
+import { kmLabel } from "@/lib/units";
 import type { Slot } from "@/components/trip/fitIntoDay";
 import {
   closestDurationLabel,
@@ -71,13 +72,34 @@ export type ActivityDayOption = { dayId: string; label: string; existing: Slot[]
 /** The "How long" value for a length drawn on the river that is none of the five. */
 const DRAWN = "drawn";
 
-// Illustrative only (Preview id="add-stop-suggestions", M9 — grounded place
-// search doesn't exist yet, so nothing generates real matches from what the
-// user types into "What or where"). Static shape for the design's
-// list-of-buttons layout, not real data.
-const SUGGESTED_MATCH_SHAPE = [
-  { kind: "Place", name: "Example match", detail: "Appears once M9 grounding is wired up" },
-] as const;
+/** A "How long" option that is none of the five: a length drawn on the river, or a picked stop's (M34 D11). */
+type ExtraDuration = { label: string; minutes: number };
+
+function extraDuration(minutes: number | null): ExtraDuration | null {
+  return minutes !== null && minutes > 0 && !DURATION_OPTIONS.some((o) => o.minutes === minutes)
+    ? { label: formatDuration(minutes, "").trim(), minutes }
+    : null;
+}
+
+// M34 D3: before typing, the closest few; while typing, a few more of those
+// that match, since the text has already done some of the choosing.
+const NEARBY_BEFORE_TYPING = 4;
+const NEARBY_WHILE_TYPING = 6;
+
+// Case- and accent-insensitive, so "kiyomizu" finds "Kiyomizu-dera" and
+// "cafe" finds "Café de Flore": a library written by other people spells
+// names their way, not the reader's.
+function fold(text: string): string {
+  return text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+}
+
+function nearbyStopsFor(stops: readonly NearbyStop[], typed: string): NearbyStop[] {
+  const needle = fold(typed.trim());
+  if (needle === "") return stops.slice(0, NEARBY_BEFORE_TYPING);
+  return stops
+    .filter((stop) => fold(stop.title).includes(needle) || fold(stop.location.name).includes(needle))
+    .slice(0, NEARBY_WHILE_TYPING);
+}
 
 // Illustrative only (Preview id="add-stop-who", M13 — no field records who a
 // stop is for yet, so there is nothing real to list per-stop).
@@ -91,6 +113,7 @@ export function ActivityEditor({
   defaultDayId,
   tripCurrency = "USD",
   members = [],
+  nearbyStops = [],
   onSave,
   onCancel,
 }: {
@@ -116,6 +139,12 @@ export function ActivityEditor({
    * the rule the notebook's balances use, so the two never disagree.
    */
   members?: NamedMember[];
+  /**
+   * Stops from other people's published days, ranked for this day (M34).
+   * Create mode only (D12); defaulted to `[]`, which renders nothing at all,
+   * so a caller that fetches none sees the form exactly as it was.
+   */
+  nearbyStops?: readonly NearbyStop[];
   onSave: (value: ActivityFormValue) => void | Promise<void>;
   onCancel: () => void;
 }) {
@@ -133,12 +162,14 @@ export function ActivityEditor({
   // more, named for its length and chosen, and the other five stay offered.
   // The end is read with `toEndMinutes`: a sketch to midnight is stored ending
   // 23:59, and is the 2 hours that were drawn, not 1 h 59 m.
-  const drawnMinutes =
-    mode === "create" && initial?.timeWindow ? toEndMinutes(initial.timeWindow.end) - toMinutes(initial.timeWindow.start) : null;
-  const drawnOption =
-    drawnMinutes !== null && drawnMinutes > 0 && !DURATION_OPTIONS.some((o) => o.minutes === drawnMinutes)
-      ? { label: formatDuration(drawnMinutes, "").trim(), minutes: drawnMinutes }
-      : null;
+  //
+  // Held in state rather than derived from `initial`, because a picked nearby
+  // stop's length is kept the same way (M34 D11), and replaces it.
+  const [drawnOption, setDrawnOption] = useState<ExtraDuration | null>(() =>
+    extraDuration(
+      mode === "create" && initial?.timeWindow ? toEndMinutes(initial.timeWindow.end) - toMinutes(initial.timeWindow.start) : null,
+    ),
+  );
   const [durationLabel, setDurationLabel] = useState<DurationLabel | typeof DRAWN>(() => {
     if (drawnOption !== null) return DRAWN;
     if (initial?.timeWindow) {
@@ -197,6 +228,27 @@ export function ActivityEditor({
   );
   const [error, setError] = useState<string | null>(null);
   const [selectedDayId, setSelectedDayId] = useState(defaultDayId ?? "");
+  // The title of the nearby stop last picked. The list stays out of the way
+  // while the field still says exactly that, and comes back on the first edit.
+  const [pickedTitle, setPickedTitle] = useState<string | null>(null);
+  const nearby = mode === "create" && title !== pickedTitle ? nearbyStopsFor(nearbyStops, title) : [];
+
+  // What a pick copies is M34 D2: name, place, kind, tags and length. Never the
+  // start (the day decides it) or the cost (stale, or in another currency).
+  // The pending reason needs no handling: it already defaults to "To book" in
+  // create mode and is kept across a kind switch.
+  function pickNearbyStop(stop: NearbyStop) {
+    setTitle(stop.title);
+    setPickedTitle(stop.title);
+    setLocation(stop.location);
+    setKind(stop.kind);
+    setTags(stop.tags);
+    if (stop.lengthMinutes === null) return;
+    const option = DURATION_OPTIONS.find((o) => o.minutes === stop.lengthMinutes);
+    if (option !== undefined) return setDurationLabel(option.label);
+    setDrawnOption(extraDuration(stop.lengthMinutes));
+    setDurationLabel(DRAWN);
+  }
 
   // `days` (and therefore `defaultDayId`) can arrive empty on first render —
   // activeTrip loads asynchronously in ActivityEditorSheet — so the default
@@ -282,27 +334,7 @@ export function ActivityEditor({
         />
       </FormField>
 
-      <Preview id="add-stop-suggestions" size="container">
-        <ul className="m-0 list-none divide-y divide-hairline rounded-lg border border-hairline p-0">
-          {SUGGESTED_MATCH_SHAPE.map((match) => (
-            <li key={match.name}>
-              <Button variant="ghost" className="h-auto w-full justify-start gap-2 px-3 py-2 text-left">
-                <span className="flex size-6 shrink-0 items-center justify-center rounded-sm bg-moss text-xs text-ink">
-                  {match.kind[0]}
-                </span>
-                <span className="flex flex-col">
-                  <Text as="span" className="text-sm text-ink">
-                    {match.name}
-                  </Text>
-                  <Text as="span" variant="muted">
-                    {match.detail}
-                  </Text>
-                </span>
-              </Button>
-            </li>
-          ))}
-        </ul>
-      </Preview>
+      {nearby.length > 0 && <NearbyStopsList stops={nearby} onPick={pickNearbyStop} />}
 
       <LocationInput value={location} onChange={setLocation} />
 
@@ -568,4 +600,49 @@ export function ActivityEditor({
       </div>
     </form>
   );
+}
+
+// The design's list-of-matches markup, from the placeholder it replaces. The
+// badge is the design's own decoration (`m.kind` is a glyph there, not data).
+function NearbyStopsList({ stops, onPick }: { stops: readonly NearbyStop[]; onPick: (stop: NearbyStop) => void }) {
+  const unit = useDistanceUnit();
+  return (
+    <ul
+      aria-label="Nearby stops from the library"
+      className="m-0 list-none divide-y divide-hairline rounded-lg border border-hairline p-0"
+    >
+      {stops.map((stop) => (
+        <li key={`${stop.savedDayId}:${stop.title}:${stop.location.name}`}>
+          <Button
+            variant="ghost"
+            className="h-auto w-full justify-start gap-2 px-3 py-2 text-left"
+            onClick={() => onPick(stop)}
+          >
+            <span aria-hidden className="flex size-6 shrink-0 items-center justify-center rounded-sm bg-moss text-xs text-ink">
+              ◈
+            </span>
+            <span className="flex flex-col">
+              <Text as="span" className="text-sm text-ink">
+                {stop.title}
+              </Text>
+              <Text as="span" variant="muted">
+                {nearbyStopDetail(stop, unit)}
+              </Text>
+            </span>
+          </Button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+// `<place> · <length> · from "<day>"`, then how many playbooks carry it when
+// more than one does (D9), then how far it is when it was ranked by distance (D1).
+function nearbyStopDetail(stop: NearbyStop, unit: DistanceUnit): string {
+  const parts = [displayPlace(stop.location) ?? stop.location.name];
+  if (stop.lengthMinutes !== null) parts.push(formatDuration(stop.lengthMinutes, "").trim());
+  parts.push(`from “${stop.savedDayName}”`);
+  if (stop.playbookCount > 1) parts.push(`in ${stop.playbookCount} playbooks`);
+  if (stop.distanceKm !== null) parts.push(kmLabel(stop.distanceKm, unit));
+  return parts.join(" · ");
 }

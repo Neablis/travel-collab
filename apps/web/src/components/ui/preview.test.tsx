@@ -28,12 +28,12 @@ describe("Preview", () => {
     // can change freely, and the data flow stays load-bearing.
     //
     // `as const` is compile-time only, so the entry is mutable at runtime.
-    const entry = PREVIEW_REGISTRY["add-stop-suggestions"] as { milestone: string };
+    const entry = PREVIEW_REGISTRY["wizard-assistant-draft"] as { milestone: string };
     const original = entry.milestone;
     entry.milestone = SENTINEL_MILESTONE;
     try {
       render(
-        <Preview id="add-stop-suggestions" size="container">
+        <Preview id="wizard-assistant-draft" size="container">
           {<span>rail body</span>}
         </Preview>,
       );
@@ -46,7 +46,7 @@ describe("Preview", () => {
   it("inerts interactive controls inside it", async () => {
     const onClick = vi.fn();
     render(
-      <Preview id="add-stop-suggestions" size="container">
+      <Preview id="wizard-assistant-draft" size="container">
         <button onClick={onClick}>Ask</button>
       </Preview>,
     );
@@ -55,7 +55,7 @@ describe("Preview", () => {
   });
   it("marks the region aria-disabled", () => {
     render(
-      <Preview id="add-stop-suggestions" size="container">
+      <Preview id="wizard-assistant-draft" size="container">
         body
       </Preview>,
     );
@@ -63,7 +63,7 @@ describe("Preview", () => {
   });
   it("renders an icon badge instead of the text pill when compact", () => {
     render(
-      <Preview id="add-stop-suggestions" size="compact">
+      <Preview id="wizard-assistant-draft" size="compact">
         body
       </Preview>,
     );
@@ -72,13 +72,15 @@ describe("Preview", () => {
   it("reserves space for the compact badge instead of overlapping the host", () => {
     render(
       // Any compact shell will do, and this slot has now been handed on
-      // TWICE: "share-button" left the registry when M11 link 4 made Share
-      // real, and `wizard-longer-chip` left it on 2026-09-16 when D-B
-      // confirmed 21 nights and made Longer a real length chip. Recording the
-      // second hand-off the way the first was recorded, because a fixture id
-      // that quietly follows whatever is still unbuilt is how this test ends
-      // up broken by a change in a file it has nothing to do with.
-      <Preview id="add-stop-suggestions" size="compact">
+      // three times: "share-button" left the registry when M11 link 4 made
+      // Share real, `wizard-longer-chip` left it on 2026-09-16 when D-B
+      // confirmed 21 nights and made Longer a real length chip, and the
+      // add-stop sheet's matches left it on 2026-10-05 when M34 made them
+      // nearby stops — moving every test in this file to the one id left.
+      // Recorded each time, because a fixture id that quietly follows whatever
+      // is still unbuilt is how this test ends up broken by a change in a file
+      // it has nothing to do with.
+      <Preview id="wizard-assistant-draft" size="compact">
         <button>Share</button>
       </Preview>,
     );
@@ -89,7 +91,7 @@ describe("Preview", () => {
       // `budget-breakdown` was this fixture until 2026-09-26, when the Settings
       // sheet's breakdown became the "Spend by kind" notebook widget and left
       // the registry. Any still-registered id will do: the size is the prop.
-      <Preview id="add-stop-suggestions" size="container">
+      <Preview id="wizard-assistant-draft" size="container">
         <span>$4,088.25</span>
       </Preview>,
     );
@@ -109,13 +111,13 @@ describe("Preview", () => {
     // when `budget-breakdown` was retagged M11 -> M19 (2026-08-31) — a green
     // suite broken by an edit that changed nothing this test is about.
     expect(
-      screen.getByText(new RegExp(`Preview · ${PREVIEW_REGISTRY["add-stop-suggestions"].milestone}`))
+      screen.getByText(new RegExp(`Preview · ${PREVIEW_REGISTRY["wizard-assistant-draft"].milestone}`))
         .className,
     ).toMatch(/\btop-1\.5\b/);
   });
   it("does not force position:relative when the caller positions itself", () => {
     render(
-      <Preview id="add-stop-suggestions" size="container" className="fixed inset-0">
+      <Preview id="wizard-assistant-draft" size="container" className="fixed inset-0">
         <p>x</p>
       </Preview>,
     );

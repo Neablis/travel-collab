@@ -1,7 +1,8 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import type { ActivityView, Anchor } from "@tc/contracts";
+import { NearbyStop, type ActivityView, type Anchor } from "@tc/contracts";
+import { locationFactory } from "@tc/factories";
 import { ActivityEditor } from "./ActivityEditor";
 
 describe("ActivityEditor", () => {
@@ -498,5 +499,157 @@ describe("ActivityEditor attribution (M13 link 5)", () => {
     mount(stop(), []);
     expect(screen.getByText(/invite someone to the trip/i)).toBeTruthy();
     expect(screen.queryByLabelText("Booked by")).toBeNull();
+  });
+});
+
+// M34 — the add-stop sheet's nearby stops. Seven, ranked as the route would
+// return them, so "the first 4" and "the first 6" are each a real cut.
+const nearbyStop = (title: string, place: string, overrides: Partial<NearbyStop> = {}): NearbyStop =>
+  NearbyStop.parse({
+    title,
+    location: locationFactory.build({ name: `${place}, Kyoto, Japan`, city: "Kyoto", countryCode: "JP" }),
+    kind: "planned",
+    tags: [],
+    lengthMinutes: 60,
+    savedDayId: "33333333-3333-4333-8333-333333333333",
+    savedDayName: "Kyoto in a day",
+    playbookCount: 1,
+    distanceKm: null,
+    ...overrides,
+  });
+
+const NEARBY: NearbyStop[] = [
+  nearbyStop("Kiyomizu-dera", "Kiyomizu-dera", { playbookCount: 3, distanceKm: 2.4, lengthMinutes: 90 }),
+  nearbyStop("Fushimi Inari", "Fushimi Inari Taisha"),
+  nearbyStop("Nishiki Market", "Nishiki Market"),
+  nearbyStop("Philosopher's Path", "Tetsugaku-no-michi"),
+  nearbyStop("Ryōan-ji", "Ryōan-ji"),
+  nearbyStop("Lunch near the river", "Pontochō"),
+  nearbyStop("Gion at dusk", "Gion"),
+];
+
+const nearbyList = () => screen.queryByRole("list", { name: "Nearby stops from the library" });
+// The rows, in order, by their first line: each title must be a row's own
+// whole line of text, which the detail line under it never is.
+function expectNearby(titles: string[]) {
+  const rows = within(screen.getByRole("list", { name: "Nearby stops from the library" })).getAllByRole("button");
+  expect(rows).toHaveLength(titles.length);
+  titles.forEach((title, i) => expect(within(rows[i]!).getByText(title)).toBeTruthy());
+}
+
+function renderWithNearby(initial: ActivityView | null, mode: "create" | "edit" = "create", nearbyStops = NEARBY) {
+  const onSave = vi.fn();
+  render(
+    <ActivityEditor initial={initial} mode={mode} days={[]} nearbyStops={nearbyStops} onSave={onSave} onCancel={vi.fn()} />,
+  );
+  return onSave;
+}
+
+describe("ActivityEditor nearby stops (M34)", () => {
+  it("renders nothing at all when there are none", () => {
+    renderWithNearby(null, "create", []);
+    expect(nearbyList()).toBeNull();
+    // Not even an empty frame: the list and the Preview it replaced are both gone.
+    expect(screen.queryByRole("group", { name: /preview/i })).toBeNull();
+  });
+
+  it("lists the closest four before anything is typed, each saying where it is from", () => {
+    renderWithNearby(null);
+    expectNearby(["Kiyomizu-dera", "Fushimi Inari", "Nishiki Market", "Philosopher's Path"]);
+    const first = within(nearbyList()!).getAllByRole("button")[0]!;
+    expect(first.textContent).toContain("Kiyomizu-dera, Kyoto, Japan · 1 h 30 m · from “Kyoto in a day” · in 3 playbooks · 2.4 km");
+  });
+
+  it("narrows by name or by place as you type, ignoring case and accents", () => {
+    renderWithNearby(null);
+    const field = screen.getByLabelText("What or where");
+
+    fireEvent.change(field, { target: { value: "RYOAN" } });
+    expectNearby(["Ryōan-ji"]);
+
+    // "Tetsugaku" is only in the place, never the title.
+    fireEvent.change(field, { target: { value: "tetsugaku" } });
+    expectNearby(["Philosopher's Path"]);
+
+    // "pontocho" matches "Pontochō" only once the macron is folded away.
+    fireEvent.change(field, { target: { value: "pontocho" } });
+    expectNearby(["Lunch near the river"]);
+
+    fireEvent.change(field, { target: { value: "nothing like this" } });
+    expect(nearbyList()).toBeNull();
+  });
+
+  it("shows six matches while typing, not four", () => {
+    // Every stop's place carries "Kyoto", so all seven match and the cut is the cap.
+    renderWithNearby(null);
+    fireEvent.change(screen.getByLabelText("What or where"), { target: { value: "kyoto" } });
+    expect(within(nearbyList()!).getAllByRole("button")).toHaveLength(6);
+  });
+
+  it("a pick fills name, place, kind, tags and length, leaves start and cost alone, and saves them", () => {
+    const cost = { amountMinor: 12_00, currency: "USD" };
+    const initial = existingStop({ activityId: "", title: "", kind: "pending", timeWindow: { start: "10:00", end: "11:00" }, cost });
+    const picked = nearbyStop("Nishiki Market", "Nishiki Market", { tags: ["meal"], lengthMinutes: 90, kind: "planned" });
+    const onSave = renderWithNearby(initial, "create", [picked]);
+
+    fireEvent.click(within(nearbyList()!).getByRole("button"));
+
+    expect((screen.getByLabelText("What or where") as HTMLInputElement).value).toBe("Nishiki Market");
+    expect(checkedKind()).toBe("Planned");
+    expect(screen.getByRole("button", { name: "Meal" }).getAttribute("aria-pressed")).toBe("true");
+    expect((screen.getByLabelText("How long") as HTMLSelectElement).selectedOptions[0]?.textContent).toBe("1.5 hours");
+    expect((screen.getByLabelText("Start") as HTMLInputElement).value).toBe("10:00");
+    // Picked, so out of the way until the title is edited again.
+    expect(nearbyList()).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Add stop" }));
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Nishiki Market",
+        location: picked.location,
+        kind: "planned",
+        tags: ["meal"],
+        timeWindow: { start: "10:00", end: "11:30" },
+        cost,
+      }),
+    );
+  });
+
+  it("comes back once the picked title is edited", () => {
+    renderWithNearby(null);
+    fireEvent.click(within(nearbyList()!).getAllByRole("button")[0]!);
+    expect(nearbyList()).toBeNull();
+    fireEvent.change(screen.getByLabelText("What or where"), { target: { value: "Kiyomizu" } });
+    expectNearby(["Kiyomizu-dera"]);
+  });
+
+  // D11: a 100-minute temple visit rounded to "1.5 hours" would save a
+  // different stop from the one picked, so it gets M29's extra option.
+  it("keeps a picked length that is none of the five, as its own option, and saves it", () => {
+    const initial = existingStop({ activityId: "", title: "", kind: "pending", timeWindow: { start: "09:00", end: "10:00" } });
+    const onSave = renderWithNearby(initial, "create", [nearbyStop("Ginkaku-ji", "Ginkaku-ji", { lengthMinutes: 100 })]);
+
+    fireEvent.click(within(nearbyList()!).getByRole("button"));
+    expect((screen.getByLabelText("How long") as HTMLSelectElement).selectedOptions[0]?.textContent).toBe("1 h 40 m");
+
+    fireEvent.click(screen.getByRole("button", { name: "Add stop" }));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ timeWindow: { start: "09:00", end: "10:40" } }));
+  });
+
+  // M29's regression guard: the extra option now lives in state, and a length
+  // drawn on the river must still arrive as one.
+  it("still offers a drawn length that is none of the five, chosen", () => {
+    const initial = existingStop({ activityId: "", title: "", kind: "pending", timeWindow: { start: "11:00", end: "13:15" } });
+    const onSave = renderWithNearby(initial, "create", []);
+
+    expect((screen.getByLabelText("How long") as HTMLSelectElement).selectedOptions[0]?.textContent).toBe("2 h 15 m");
+    fireEvent.change(screen.getByLabelText("What or where"), { target: { value: "Gelato" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add stop" }));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ timeWindow: { start: "11:00", end: "13:15" } }));
+  });
+
+  it("lists nothing while editing a stop (D12)", () => {
+    renderWithNearby(existingStop({ title: "" }), "edit");
+    expect(nearbyList()).toBeNull();
   });
 });

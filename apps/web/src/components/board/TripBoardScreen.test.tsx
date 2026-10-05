@@ -12,7 +12,7 @@ import { EditorHost, useEditor } from "@/components/trip/context/EditorHost";
 import { FocusProvider } from "@/components/trip/context/FocusProvider";
 import { LensRouter } from "@/components/trip/context/LensRouter";
 import { activityFactory, costedTripDetailFixture, historyFixture, locationFactory, tripDetailFixture } from "@tc/factories";
-import { makeTripHandlers, makeAccountPlanHandler, makePagesHandlers } from "@/mocks/handlers";
+import { makeTripHandlers, makeAccountPlanHandler, makeNearbyStopsHandler, makePagesHandlers } from "@/mocks/handlers";
 import { setViewportMatches, triggerResize } from "../../../vitest.setup";
 
 // Scoped to the panel rather than reached for by bare role+name, still —
@@ -156,7 +156,9 @@ function renderScreen(tripId: string) {
 // (`useAiEntitled`). Without a default the suite logged 20 unhandled-request
 // errors and the rail sat on "unknown" throughout — a state no signed-in user
 // is in. A test about the refusal overrides it with `server.use`.
-const server = setupServer(makeAccountPlanHandler());
+// The add-stop sheet asks the library for nearby stops (M34); this suite is
+// not about them, so the library is empty.
+const server = setupServer(makeAccountPlanHandler(), makeNearbyStopsHandler([]));
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 beforeEach(() => {
   // **`view=Plan`, not "" — and this is the single change SPEC §24 makes to
