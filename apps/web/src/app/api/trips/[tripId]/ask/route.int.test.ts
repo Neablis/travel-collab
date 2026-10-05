@@ -654,6 +654,35 @@ function failingModel(message: string) {
   } as unknown as Parameters<typeof handleAskRequest>[2];
 }
 
+// The simulated model, with AI Gateway's routing metadata on every finish part,
+// as the Gateway puts it there: which provider served the call, and its id.
+function routedModel(finalProvider: string) {
+  const base = simulatedModel() as unknown as {
+    doStream: (options: unknown) => Promise<{ stream: ReadableStream<Record<string, unknown>> }>;
+  };
+  let calls = 0;
+  return {
+    ...base,
+    doStream: async (options: unknown) => {
+      const { stream } = await base.doStream(options);
+      const generationId = `gen_route_${calls++}`;
+      return {
+        stream: stream.pipeThrough(
+          new TransformStream<Record<string, unknown>, Record<string, unknown>>({
+            transform(part, controller) {
+              controller.enqueue(
+                part.type === "finish"
+                  ? { ...part, providerMetadata: { gateway: { routing: { finalProvider }, generationId } } }
+                  : part,
+              );
+            },
+          }),
+        ),
+      };
+    },
+  } as unknown as Parameters<typeof handleAskRequest>[2];
+}
+
 /** The SSE body as the chunks a browser client parses out of it. */
 async function chunksOf(res: Response): Promise<Record<string, unknown>[]> {
   const body = await res.text();
@@ -2868,6 +2897,33 @@ describe("the cost ledger", () => {
       expect(call.outcome).toBe("ok");
       expect(call.stepIndex).not.toBeNull();
     }
+  });
+
+  // The Gateway sells one model through many providers at different prices,
+  // so each step row says which provider served it, and the generation id the
+  // billed cost is looked up by. Through the real handler, not the recorder
+  // alone: the wiring from `onStepEnd` is what this proves.
+  it("records which Gateway provider served each step, and its generation id", async () => {
+    const tripId = await seedTrip();
+    const ledgers: TurnLedger[] = [];
+    const afterResponse: (() => Promise<void>)[] = [];
+    const res = await handleAskRequest(
+      req(tripId, { messages: [userMessage("how long is this trip?")], scope: { kind: "trip" } }),
+      tripId,
+      routedModel("deepinfra"),
+      (_record, ledger) => ledgers.push(ledger),
+      undefined,
+      (task) => afterResponse.push(task),
+    );
+    await chunksOf(res);
+    await Promise.all(afterResponse.map((task) => task()));
+
+    const turnId = ledgers[0]!.cost.turnId!;
+    const steps = await db.select().from(aiUsageSteps).where(eq(aiUsageSteps.turnId, turnId));
+    expect(steps.length).toBeGreaterThan(1);
+    expect(
+      steps.sort((a, b) => a.stepIndex - b.stepIndex).map((step) => [step.provider, step.gatewayGenerationId]),
+    ).toEqual(steps.map((_, index) => ["deepinfra", `gen_route_${index}`]));
   });
 
   // A tool the step did not hold is a refusal by the grant; a tool that does

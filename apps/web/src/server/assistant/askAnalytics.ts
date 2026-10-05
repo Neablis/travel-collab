@@ -532,6 +532,28 @@ export interface AskStepLike {
     // shape (ADR-062 Phase 0 finding (c)). Read for the per-step row only.
     inputTokenDetails?: { cacheReadTokens?: number; cacheWriteTokens?: number };
   };
+  /** Read for `gateway.routing.finalProvider` and `gateway.generationId` only. */
+  providerMetadata?: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * Which provider served a step, and AI Gateway's id for it, from the step's
+ * provider metadata. The shape is the Gateway's, not the SDK's typed one, so
+ * every field is checked rather than cast: a missing or malformed value is
+ * null, never a guess. Capped in length because it is written to a row.
+ */
+export function gatewayRoutingOf(metadata: AskStepLike["providerMetadata"]): {
+  provider: string | null;
+  gatewayGenerationId: string | null;
+} {
+  const gateway = metadata?.gateway;
+  const record = typeof gateway === "object" && gateway !== null ? (gateway as Record<string, unknown>) : undefined;
+  const routing = record?.routing;
+  const finalProvider =
+    typeof routing === "object" && routing !== null ? (routing as Record<string, unknown>).finalProvider : undefined;
+  const shortString = (value: unknown, max: number) =>
+    typeof value === "string" && value.length > 0 && value.length <= max ? value : null;
+  return { provider: shortString(finalProvider, 64), gatewayGenerationId: shortString(record?.generationId, 128) };
 }
 
 /** What `prepareStep` chose for one step — read by the recorder for the per-step row. */
@@ -920,6 +942,7 @@ export function createAskRecorder(params: AskRecorderParams): AskRecorder {
       escalated: plan?.escalated ?? false,
       pivoted: plan?.pivoted ?? false,
       durationMs,
+      ...gatewayRoutingOf(step.providerMetadata),
     };
   }
 

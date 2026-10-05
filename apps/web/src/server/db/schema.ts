@@ -1068,6 +1068,11 @@ export const aiUsageSteps = pgTable(
     // Wall-clock ms from the previous step's end (or the agent's start) to
     // this one's, tool calls included (M32). Null for rows written before 0037.
     durationMs: integer("duration_ms"),
+    // Which provider AI Gateway routed this step to, and its generation id:
+    // the billed cost is looked up from the Gateway by that id, not stored
+    // (no dollars, above). Null off the Gateway and for rows before 0038.
+    provider: text("provider"),
+    gatewayGenerationId: text("gateway_generation_id"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
   },
   (t) => [primaryKey({ columns: [t.turnId, t.stepIndex] }), index("ai_usage_steps_created").on(t.createdAt)],

@@ -200,6 +200,19 @@ export interface StepSpend {
    * (2026-10-04) had three steps and no way to say which was slow.
    */
   durationMs: number | null;
+  /**
+   * The provider that served this step, as AI Gateway reports it
+   * (`providerMetadata.gateway.routing.finalProvider`, e.g. `"zai"`,
+   * `"deepinfra"`). The Gateway sells one model through many providers at
+   * different prices, so `model` alone does not say what a step was billed at.
+   * Null off the Gateway (the simulated model) or when it did not say.
+   */
+  provider: string | null;
+  /**
+   * AI Gateway's id for this generation (`gen_…`). Not a price: the billed
+   * cost is looked up from the Gateway by this id, never stored here (rule 2).
+   */
+  gatewayGenerationId: string | null;
 }
 
 /**
