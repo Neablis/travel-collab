@@ -1,6 +1,6 @@
 # Who is travelling, and a People panel you can read
 
-**Status:** Proposed, 2026-10-05. **Not yet approved**: §3 lists the decisions that need a yes.
+**Status:** Approved, 2026-10-05: every decision in §3 as recommended.
 Plan: `docs/plans/2026-10-05-travellers-and-people-panel.md`. Would be recorded as **ADR-065**
 (amends ADR-060 decision 2). Source: the candidate *"Choose who on a trip is actually
 travelling"* (`docs/candidates.md:120`), plus the ask to redesign inviting, the member list and
@@ -69,7 +69,7 @@ members. The Travelers panel is replaced by a **People** section with three read
 role line and one control: a `⋯` menu. Inviting moves into a dialog. The owner reads as
 "Owner · created the trip" with a crown mark, and "You" marks your own row.
 
-## 3. Decisions (each needs a yes)
+## 3. Decisions (approved 2026-10-05)
 
 | # | Decision | Recommended | Why / alternatives |
 |---|---|---|---|
@@ -190,3 +190,8 @@ payload. A trip rebuilt from its log is byte-identical (invariant 2).
 - Avatars and colours you choose (the separate 2026-10-04 candidate). The `Avatar` primitive
   built here is where that work would plug in.
 - Notebook widgets on the invite-accept page (separate candidate).
+
+## 7. Working decisions made during the build
+
+| # | Decision | Why |
+|---|---|---|

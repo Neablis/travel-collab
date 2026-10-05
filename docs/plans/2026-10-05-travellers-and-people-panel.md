@@ -1,7 +1,7 @@
 # Plan: who is travelling, and the People panel
 
-Spec: `docs/specs/2026-10-05-travellers-and-people-panel-design.md` (decisions D1–D11, **awaiting
-approval**, and no task starts before that). ADR-065. Checked against `main` at `d64e8c6`.
+Spec: `docs/specs/2026-10-05-travellers-and-people-panel-design.md` (decisions D1–D11, approved
+2026-10-05). ADR-065. Checked against `main` at `d64e8c6`.
 
 **How it runs.**
 - Each task goes to one `phase-implementer` subagent and stays inside the files it lists.
@@ -10,7 +10,7 @@ approval**, and no task starts before that). ADR-065. Checked against `main` at 
 - Tier 2 checks per task use the `minimal-check-subset` output. T1 is a contracts change, so it
   runs `pnpm check`.
 - Tier 3 (full suite and `test:e2e:ci-like`) runs once, at T9.
-- **Shipping:** three stacked PRs (`docs/guidelines/stacked-prs.md`):
+- **Shipping:** built on one branch (`ccr-d8e97d98-xyat7o`), one commit per task. The original split, kept as the review order:
   - **A** = T1–T3 (data and server). This one is behaviour-neutral, because everyone defaults to
     travelling.
   - **B** = T4–T5 (costs count travellers).
