@@ -10,8 +10,7 @@ import {
 } from "@tc/domain";
 import {
   deterministicMintId,
-  JAPAN_TRAVELLERS,
-  JAPAN_TRAVELLER_ROLES,
+  JAPAN_DEMO_ROSTER,
   JAPAN_TRIP_NAME,
   japanTripCommandGroups,
 } from "@tc/fixtures";
@@ -54,10 +53,10 @@ const DEMO_ACTOR_ID = "00000000-0000-4000-8000-00000000a000";
  * `00000000-0000-4000-8000-00000000a000` on all 68 cards. So the ids ARE the
  * names — which is honest, because no account is behind any of them.
  *
- * Four rather than one because the fold produces exactly one member — the
- * actor that "issued" the commands — and a trip planned by one person, on the
- * one page arguing for planning together, undersells the product it is
- * demonstrating. It is part of the fixture's fiction like its name and its 72
+ * Four travellers rather than one because the fold produces exactly one
+ * member — the actor that "issued" the commands — and a trip planned by one
+ * person, on the one page arguing for planning together, undersells the
+ * product it is demonstrating. It is part of the fixture's fiction like its name and its 72
  * stops, and `JAPAN_TRAVELLERS` is where the names are declared — the design
  * export's own crew, organizer first, because each stop's `participants` name
  * them too.
@@ -65,13 +64,14 @@ const DEMO_ACTOR_ID = "00000000-0000-4000-8000-00000000a000";
  * No email addresses: an invented address on a public page is the kind of
  * thing that eventually gets mailed.
  *
- * All four are travelling, said explicitly as `effectiveMembers` says it for a
- * real trip: the fixture's totals are for the crew that is going.
+ * `JAPAN_DEMO_ROSTER` also holds one member who is not travelling, so the
+ * demo's People section and its totals both show what that means. Each says
+ * `travelling` explicitly, as `effectiveMembers` does for a real trip.
  */
-const DEMO_TRAVELLERS: TripMemberProfile[] = JAPAN_TRAVELLERS.map((name) => ({
+const DEMO_MEMBERS: TripMemberProfile[] = JAPAN_DEMO_ROSTER.map(({ name, role, travelling }) => ({
   userId: name,
-  role: JAPAN_TRAVELLER_ROLES[name],
-  travelling: true,
+  role,
+  travelling,
   name,
   email: null,
   image: null,
@@ -119,7 +119,7 @@ function buildDemo(startDate: string): Demo {
   const now = Date.now();
   const envelopes: EventEnvelope[] = [];
 
-  // The member ids ARE the names (`DEMO_TRAVELLERS`), so a stop's
+  // The member ids ARE the names (`DEMO_MEMBERS`), so a stop's
   // `participants` are too, and the per-person totals (ADR-060) count the
   // people the fixture says are going rather than all four on every stop.
   const groups = japanTripCommandGroups(DEMO_TRIP_ID, {
@@ -190,7 +190,7 @@ function buildDemo(startDate: string): Demo {
     // showed "1 travellers" beside a raw uuid on every timeline card.
     detail: overlayMembers(
       tripDetailFromState(state, envelopes[0]!.occurredAt, serverConflictContext()),
-      DEMO_TRAVELLERS.map(({ userId, role, travelling }) => ({ userId, role, travelling })),
+      DEMO_MEMBERS.map(({ userId, role, travelling }) => ({ userId, role, travelling })),
     ),
     history: {
       tripId: DEMO_TRIP_ID,
@@ -202,7 +202,7 @@ function buildDemo(startDate: string): Demo {
       canUndo: false,
       canRedo: false,
     },
-    members: DEMO_TRAVELLERS,
+    members: DEMO_MEMBERS,
   };
 }
 

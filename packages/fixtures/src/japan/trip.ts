@@ -161,7 +161,7 @@ export const JAPAN_TRIP_TRAVELLERS = JAPAN_TRAVELLERS.length;
 /**
  * Each traveller's role on `/demo`'s roster — ours, not the export's, which
  * names no roles. The organizer owns it. Mei can suggest (spec 2026-10-03,
- * ADR-064), so the role has a demo: the Travelers panel shows it to a visitor
+ * ADR-064), so the role has a demo: the People section shows it to a visitor
  * who never signs in. Two editors keep "planned together" true of the rest.
  */
 export const JAPAN_TRAVELLER_ROLES: Record<JapanTraveller, TripRole> = {
@@ -170,6 +170,27 @@ export const JAPAN_TRAVELLER_ROLES: Record<JapanTraveller, TripRole> = {
   Jonah: "editor",
   Mei: "suggester",
 };
+
+/** One person on `/demo`'s roster: a member, travelling or not. */
+export type JapanRosterEntry = { name: string; role: TripRole; travelling: boolean };
+
+/**
+ * Everyone `/demo` overlays as a member: the four travellers, and Kenji, who
+ * is not going.
+ *
+ * Kenji is ours, not the export's, and he exists so the demo has someone not
+ * travelling (travellers spec 2026-10-05). None of the four could be that person:
+ * every one of them is picked by name on stops (`who`, `./participants.ts`),
+ * and a pick of someone not travelling still counts (D6), so marking one of
+ * them would have the People section say "not travelling" about a person the
+ * board sends to a pottery class alone. A friend in Osaka who suggests places
+ * and is on no stop is the case the feature was built for, and he leaves every
+ * total where the four travellers put it.
+ */
+export const JAPAN_DEMO_ROSTER: readonly JapanRosterEntry[] = [
+  ...JAPAN_TRAVELLERS.map((name) => ({ name, role: JAPAN_TRAVELLER_ROLES[name], travelling: true })),
+  { name: "Kenji", role: "suggester", travelling: false },
+];
 /** Every location this trip creates sits in Japan. */
 export const JAPAN_COUNTRY_CODE = "JP";
 

@@ -39,10 +39,9 @@ import { PARTICIPANT_PICKS } from "./participants.ts";
 import { JAPAN_SAVED_DAYS } from "./savedDays.ts";
 import {
   JAPAN_BACKLOG,
+  JAPAN_DEMO_ROSTER,
   JAPAN_STOPS,
-  JAPAN_TRAVELLER_ROLES,
   JAPAN_TRIP_NAME,
-  JAPAN_TRIP_TRAVELLERS,
   REFERENCE_START_DATE,
 } from "./trip.ts";
 
@@ -70,7 +69,9 @@ export type JapanTripReport = {
   /** ADR-055: every PendingReason, zeros included, over the pending stops. */
   pendingReasons: Record<PendingReason, number>;
   /** ADR-064: every TripRole, zeros included, over `/demo`'s roster. */
-  travellerRoles: Record<TripRole, number>;
+  rosterRoles: Record<TripRole, number>;
+  /** Members on `/demo`'s roster who are not travelling, so not in any total. */
+  notTravelling: number;
   untaggedCount: number;
   withCoordinates: number;
   withCost: number;
@@ -300,10 +301,12 @@ export function verifyJapanTrip(startDate: string = REFERENCE_START_DATE): Japan
   });
 
   // Money and conflicts as `/demo` reads them: the fold has one member, the
-  // actor, and the demo overlays four. A price is per person (ADR-060), so
-  // the trip total and the over-budget conflict follow the four, through the
-  // same `recostDetail` the server's overlay calls.
-  const read = recostDetail(tripDetailFromState(state, `${startDate}T00:00:00.000Z`), JAPAN_TRIP_TRAVELLERS);
+  // actor, and the demo overlays its roster. A price is per person (ADR-060),
+  // and only a traveller is a person a price is for, so the trip total and the
+  // over-budget conflict follow the roster's travellers, through the same
+  // `recostDetail` the server's overlay calls.
+  const travellerCount = JAPAN_DEMO_ROSTER.filter((m) => m.travelling).length;
+  const read = recostDetail(tripDetailFromState(state, `${startDate}T00:00:00.000Z`), travellerCount);
   const conflictsByKind: Record<string, number> = {};
   const conflicts = read.conflicts;
   for (const c of conflicts) conflictsByKind[c.kind] = (conflictsByKind[c.kind] ?? 0) + 1;
@@ -420,8 +423,8 @@ export function verifyJapanTrip(startDate: string = REFERENCE_START_DATE): Japan
 
   // Not folded: roles are Access's, never the log's. Counted from the roster
   // `/demo` overlays, so a role nobody on it holds reads 0.
-  const travellerRoles = Object.fromEntries(TripRole.options.map((r) => [r, 0])) as Record<TripRole, number>;
-  for (const role of Object.values(JAPAN_TRAVELLER_ROLES)) travellerRoles[role] += 1;
+  const rosterRoles = Object.fromEntries(TripRole.options.map((r) => [r, 0])) as Record<TripRole, number>;
+  for (const { role } of JAPAN_DEMO_ROSTER) rosterRoles[role] += 1;
 
   return {
     dayCount: state.days.length,
@@ -433,7 +436,8 @@ export function verifyJapanTrip(startDate: string = REFERENCE_START_DATE): Japan
     modes,
     withEndLocation,
     pendingReasons,
-    travellerRoles,
+    rosterRoles,
+    notTravelling: JAPAN_DEMO_ROSTER.length - travellerCount,
     untaggedCount,
     withCoordinates,
     withCost,
@@ -486,7 +490,7 @@ export function formatReport(report: JapanTripReport, findings: readonly string[
   row("tags", `${histogram(report.tags)} / untagged ${report.untaggedCount}`);
   row("travel modes", `${histogram(report.modes)} / with a destination ${report.withEndLocation}`);
   row("pending reasons", histogram(report.pendingReasons));
-  row("traveller roles", histogram(report.travellerRoles));
+  row("roster roles", `${histogram(report.rosterRoles)} / not travelling ${report.notTravelling}`);
   row("with coordinates", `${report.withCoordinates}/${report.activityCount}`);
   row("with a cost", `${report.withCost}/${report.activityCount}`);
   row("cities", report.cities.join(", "));
