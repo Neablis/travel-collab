@@ -338,6 +338,17 @@ describe("find_free_time", () => {
     expect(new Set(named.gaps.map((gap) => gap.day))).toEqual(new Set([5]));
   });
 
+  // "Which day is most free?" asked from day 3's chat is about every day; the
+  // scope default alone would rank day 3 against nothing (CodeRabbit, PR 326).
+  it("searches every day from a day-scoped turn when asked for the whole trip", () => {
+    const scope = { kind: "day", dayIndex: 2 } as const;
+    const readout = findFreeTime(japan, scope, { wholeTrip: true }) as FreeTimeReadout;
+    expect(readout.searched).toBe("the whole trip");
+    expect(readout.days).toHaveLength(JAPAN_TRIP_DAY_COUNT);
+    const named = findFreeTime(japan, scope, { wholeTrip: true, day: 5 }) as FreeTimeReadout;
+    expect(named.searched).toBe("day 5");
+  });
+
   // M32. Mitchell's live turn (2026-10-04) asked "which day has the most free
   // time?", called this tool once per day for nine days, and answered "Day 8,
   // 21 hours" because sleep counted. One call has to carry the whole answer.

@@ -40,7 +40,7 @@
     "openapi:generate": "UPDATE_OPENAPI=1 vitest run -c vitest.unit.config.ts src/server/public-api/openapi.test.ts"
   },
   "dependencies": {
-    "@ai-sdk/gateway": "^4.0.100",
+    "@ai-sdk/gateway": "^4.0.103",
     "@atlaskit/pragmatic-drag-and-drop": "^3.1.0",
     "@atlaskit/pragmatic-drag-and-drop-auto-scroll": "3.2.0",
     "@flags-sdk/vercel": "^1.4.10",
@@ -63,7 +63,7 @@
     "@vercel/analytics": "^2.0.1",
     "@vercel/functions": "3.9.9",
     "@vercel/speed-insights": "^2.0.0",
-    "ai": "^7.0.122",
+    "ai": "^7.0.127",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.3",
@@ -88,7 +88,7 @@
     "@testing-library/dom": "^10.4.2",
     "@testing-library/react": "^16.3.3",
     "@testing-library/user-event": "^14.6.6",
-    "@types/node": "^24.19.0",
+    "@types/node": "^24.19.1",
     "@types/pg": "^8.23.1",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
