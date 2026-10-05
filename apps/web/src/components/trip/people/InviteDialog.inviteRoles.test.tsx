@@ -13,37 +13,22 @@ vi.mock("@tc/contracts", async (orig) => {
 });
 
 vi.mock("@/lib/apiClient", () => ({
-  fetchTripAccess: vi.fn().mockResolvedValue({
-    ok: true,
-    value: {
-      tripId: "t",
-      myRole: "owner",
-      members: [{ userId: "dev-alice", role: "owner", name: "Alice", email: null, image: null }],
-      invites: [],
-      collaboratorsEntitled: true,
-    },
-  }),
   createTripInvite: vi.fn(),
-  revokeTripInvite: vi.fn(),
   inviteLink: (token: string) => `http://test/invite/${token}`,
 }));
 
 // After `zod`: importing the mocked module runs the factory above, which needs `z`.
 import { InviteRole } from "@tc/contracts";
-import { TravelersPanel } from "./TravelersPanel";
+import { InviteDialog } from "./InviteDialog";
 
 afterEach(cleanup);
 
-it("offers every role the contract makes invitable, a new one included", async () => {
-  render(<TravelersPanel tripId="t" />);
-  await screen.findByText("Alice");
+it("offers every role the contract makes invitable, a new one included", () => {
+  render(<InviteDialog tripId="t" open onOpenChange={() => {}} gated={false} onCreated={() => {}} />);
 
-  const picker = screen.getByRole("combobox", { name: "Invite role" });
-  const offered = within(picker)
-    .getAllByRole("option")
-    .map((o) => (o as HTMLOptionElement).value);
-  // `InviteRole` here is the mocked one, so the expectation follows the real
-  // contract as it grows; `co-pilot` is named to prove the mock took effect.
-  expect(offered).toContain("co-pilot");
-  expect([...offered].sort()).toEqual([...InviteRole.options].sort());
+  // A segmented control carries no option values in the DOM, so the count is
+  // the handle: the mocked `InviteRole` has four, the real one three.
+  const offered = within(screen.getByRole("radiogroup", { name: "Role" })).getAllByRole("radio");
+  expect(InviteRole.options).toContain("co-pilot");
+  expect(offered).toHaveLength(InviteRole.options.length);
 });

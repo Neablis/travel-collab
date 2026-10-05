@@ -11,7 +11,7 @@ import { DataText } from "@/components/ui/data-text";
 import { BudgetMeter } from "@/components/ui/budget-meter";
 import { Banner } from "@/components/ui/banner";
 import { Popover } from "@/components/ui/popover";
-import { TravelersPanel } from "@/components/trip/TravelersPanel";
+import { PeopleSection } from "@/components/trip/people/PeopleSection";
 import { ShareButton } from "@/components/trip/ShareButton";
 import type { TripCounts } from "@/components/trip/TripMetaPill";
 import { TripMoneySettings } from "@/components/board/TripMoneySettings";
@@ -79,6 +79,7 @@ export function SettingsSheet({
   readOnly,
   canEditBoard,
   onInvitesChanged,
+  onAccessChanged,
   onCommand,
 }: {
   tripId: string;
@@ -121,8 +122,12 @@ export function SettingsSheet({
   // the trip fields — name, dates, currency, budget — opt in to suggest mode
   // (W8), so a suggester's change joins their draft. Share does not.
   canEditBoard: boolean;
-  // TripProvider's `noteInvites`, handed to the Travelers panel (W73).
+  // TripProvider's `noteInvites`, handed to the People section (W73).
   onInvitesChanged?: (pending: boolean) => void;
+  // A member write moved who is on the trip or who travels, and with it the
+  // trip's per-person totals. Not wired by TripHeader yet: TripProvider has no
+  // re-read to hand it, which is travellers T8's.
+  onAccessChanged?: () => void;
   onCommand: (command: TripCommand) => void;
 }) {
   // Dispatch is severed at the SOURCE, not at each control. The individual
@@ -316,65 +321,44 @@ export function SettingsSheet({
           </div>
         </div>
 
-        <div>
-          {/* Share sits with "Who is invited" because it answers the same
-              question that section does — who can see this trip — and because
-              the alternative homes are worse: under Budget it is a non
-              sequitur, and beside Duplicate/Delete it reads as a destructive
-              trip-level operation, which a read link is not. It is a *second*
-              way in, not a move: the header still shows Share at >=768px.
-              Below that the header's copy is hidden and this is the only one
-              left, which is the whole reason it is here — Mitchell asked
-              whether the header's three columns would still be reachable in
-              settings if hidden, and Share was the flat NO. ShareButton was
-              mounted in exactly two places (this header and the home page's
-              NextTripHero), so hiding it on a phone would have left a phone
-              user no way at all to share the trip they are looking at.
+        {/* **People** (travellers spec §4), its own section with its own
+            heading — which `PeopleSection` draws, because the count in it is
+            that section's to know. `id="people"` is the anchor the trip
+            header's avatar stack opens this sheet at (D10); `scroll-mt-4`
+            keeps the heading off the sheet's top edge when it lands there.
 
-              This heading row was already a `justify-between` flex with one
-              child — the slot the design left for a control on the right, now
-              filled.
-
-              `!readOnly`, which is TripProvider's own `readOnly` handed down
-              by the header, so the gate here and the gate in the header are
-              one value and cannot disagree. It also keeps ADR-031's
-              /demo behaviour intact for free — `requireTripAccess` resolves a
-              demo visitor as a `viewer` (server/access/trip-access.ts), so a
-              signed-out reader loses Share in this sheet exactly as they
-              already lose it in the header, at every width.
-
-              Nested overlays are fine here: the Popover renders through its
-              own Radix portal with `.overlay-layer` (globals.css, KI-17), the
-              same z-index the Sheet carries, and being opened later it is
-              appended later in <body> and paints above. The Dates row above
-              is the same nesting, already proven by e2e
-              (m3-place-and-time.spec.ts opens Trip settings, then Dates, then
-              drives TripDateControl inside the popover). */}
-          <SectionHeading>Who is invited</SectionHeading>
-          {/* Real as of M11 link 3: TravelersPanel lists the effective members
-              (the log's owner plus everyone who accepted an invite), and — for
-              the owner — creates, copies and revokes invite links. The
-              <Preview id="trip-invites"> shell it replaces, and the mocked
-              "Invite someone" button inside it, are gone.
-
-              The `members` prop this sheet used to take went with it: the
-              panel does its own /api/trips/:id/access read, because that read
-              also carries names, emails and the invite list — none of which
-              live on TripDetail, and none of which should (they are Identity
-              and Access data — packages/contracts/src/access.ts). */}
-          <TravelersPanel tripId={tripId} onInvitesChanged={onInvitesChanged} />
-          {/* **Share goes UNDER the invite controls, not beside the heading.**
-              Mitchell, 2026-09-06: *"Put share in the trip settings under
-              invite someone, both here and in mobile"*.
-
-              The two are the same question at different strengths — who can see
-              this trip — and reading down the section now goes: who is already
-              here, invite a named person, or hand out a link that needs no
-              name. On the heading row it read as a control for the heading, and
-              someone looking for "share" found it above the thing it belongs
-              with. */}
-          {!readOnly && <ShareButton tripId={tripId} size="sm" />}
+            The section does its own `/api/trips/:id/access` read, because
+            that read carries names, emails and the invite list — none of
+            which live on TripDetail, and none of which should (they are
+            Identity and Access data — packages/contracts/src/access.ts). */}
+        <div id="people" className="scroll-mt-4">
+          <PeopleSection tripId={tripId} onInvitesChanged={onInvitesChanged} onAccessChanged={onAccessChanged} />
         </div>
+
+        {/* **Read-only snapshots, under People and apart from it** (spec §4).
+            Share used to sit inside "Who is invited", under the invite form
+            (Mitchell, 2026-09-06: *"Put share in the trip settings under
+            invite someone, both here and in mobile"*) — the same question at
+            a different strength. With inviting moved into People's own
+            dialog, a second list of copyable links in the same section read
+            as more invites, so it gets a heading and one line on how the two
+            differ. It is still the only Share for the trip at every width.
+
+            `!readOnly` is TripProvider's own `readOnly` handed down by the
+            header, so the gate here and in the header are one value. It also
+            keeps ADR-031's /demo behaviour: a demo visitor resolves as a
+            `viewer`, so they lose Share here as everywhere. The heading goes
+            with it — a heading over nothing is a promise of a control. */}
+        {!readOnly && (
+          <div>
+            <SectionHeading>Read-only snapshots</SectionHeading>
+            <Text as="span" variant="muted" className="mb-2 block">
+              A snapshot is the plan as it is now, for anyone with the link to read. Unlike an invite, it adds nobody
+              to the trip.
+            </Text>
+            <ShareButton tripId={tripId} size="sm" />
+          </div>
+        )}
 
         {/* The visible half of clone-with-lineage. The ancestor's name is a
             snapshot taken at fork time and stored in the genesis event, so it

@@ -7,6 +7,7 @@ import {
   AddDefaultPagesInput,
   AdminReportAction,
   BatchableCommand,
+  ChangeRoleInput,
   CreatePageInput,
   CreateReportInput,
   CreateSavedNotebookInput,
@@ -15,6 +16,7 @@ import {
   PutReviewInput,
   ResolveSuggestionChangeInput,
   RestorePageInput,
+  SetTravellingInput,
   SYSTEM_ACTOR_ID,
   stopTotal,
   travellerIds,
@@ -356,9 +358,30 @@ export function makeTripHandlers(
           // M20 link 6. Entitled by default so every board test written before
           // the collaboration gate keeps describing the behaviour it was
           // written for; the gate's own surfaces are covered in
-          // `TravelersPanel.test.tsx` and `collaborationGate.int.test.ts`.
+          // `people/PeopleSection.test.tsx` and `collaborationGate.int.test.ts`.
           collaboratorsEntitled: options?.collaboratorsEntitled ?? true,
         },
+      }),
+    ),
+    // The People section's member writes (travellers T3's route, T7's UI).
+    // Each answers with the access the GET above serves, that one member
+    // changed or gone — stateless like the GET, so a suite that needs the
+    // change to stick across a re-read overrides both with `server.use`.
+    ...(["patch", "delete"] as const).map((method) =>
+      http[method]("/api/trips/:tripId/members/:userId", async ({ params, request }) => {
+        const change = method === "patch" ? SetTravellingInput.or(ChangeRoleInput).parse(await request.json()) : null;
+        const members = detail.members
+          .filter((m) => change !== null || m.userId !== params.userId)
+          .map((m) => ({ ...m, ...(m.userId === params.userId ? change : null), name: null, email: null, image: null }));
+        return HttpResponse.json({
+          access: {
+            tripId: detail.tripId,
+            myRole: options?.myRole ?? "owner",
+            members,
+            invites: [],
+            collaboratorsEntitled: options?.collaboratorsEntitled ?? true,
+          },
+        });
       }),
     ),
     // Overview also lists the trip's notebooks. Empty by default and NOT a
