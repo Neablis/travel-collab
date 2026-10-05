@@ -1,6 +1,6 @@
 # M33 — We can see whether an assistant change works before it ships
 
-**Status:** Minted and built 2026-10-05, beside M31 and M32, on Mitchell's ask: *"start adding
+**Status:** **Gate closed 2026-10-05** (6 of 6); the retro is at the end of this file. Minted and built 2026-10-05, beside M31 and M32, on Mitchell's ask: *"start adding
 evals so we can look at how this is working without this whole merge -> read logs of prod flow"*,
 then *"make sure we are using the correct models in the evals to get a real check"*. He added a
 Gateway key kept for evals, `TRAVEL_COLLAB_EVAL_KEY`, the same day.
