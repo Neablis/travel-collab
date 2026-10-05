@@ -105,15 +105,20 @@ describe("the per-ask record", () => {
     expect(records[0]!.scope).toEqual({ kind: "day", dayIndex: 2 });
   });
 
-  // The clock is read exactly twice — once when the recorder is created and
-  // once when the run ends — so latency is the turn's wall time and not a
-  // function of how many steps it took.
+  // Latency is the turn's wall time — creation to end — and not a function of
+  // how many steps it took. A clock the test sets, rather than one that ticks
+  // per read, so the assertion is about time and not about how often the
+  // recorder happens to look at it (step durations read it too, since M32).
   it("measures latency across the whole turn", () => {
-    const { recorder, records } = recorderWith();
+    let t = 5_000;
+    const { recorder, records } = recorderWith({ now: () => t });
+    t = 5_700;
     recorder.observeStep({});
+    t = 9_100;
     recorder.observeStep({});
+    t = 9_150;
     recorder.finish({ finishReason: "stop" });
-    expect(records[0]!.latencyMs).toBe(40);
+    expect(records[0]!.latencyMs).toBe(4_150);
   });
 
   it("writes once, however many times the run claims to have ended", () => {
@@ -775,6 +780,7 @@ describe("the per-step and per-tool ledger", () => {
         finishReason: "tool-calls",
         escalated: false,
         pivoted: false,
+        durationMs: 40,
       },
     ]);
   });
@@ -862,10 +868,30 @@ describe("the per-step and per-tool ledger", () => {
   // Latency runs from the REQUEST's arrival, so admission and the
   // classifier's round-trip are inside it (Copilot on #301).
   it("measures latency from the request's start when the handler passes one", () => {
-    // The fixture clock advances 40 per read; a start 1,000 earlier than the
-    // recorder's own first read is what the handler's pre-admission start is.
-    const { recorder, records } = recorderWith({ startedAt: 0 });
+    // The recorder is built at 1,000, after admission and the classifier; the
+    // handler's pre-admission start is 0.
+    let t = 1_000;
+    const { recorder, records } = recorderWith({ startedAt: 0, now: () => t });
+    t = 1_040;
     recorder.finish({ finishReason: "stop" });
     expect(records[0]!.latencyMs).toBe(1_040);
+  });
+
+  // M32: a 162-second turn (2026-10-04) had three step rows and nothing to say
+  // which one was slow. Each step is timed from the previous step's end; step
+  // 0 from the agent's start (the recorder's creation), NOT the request's, so
+  // admission and the classifier are not charged to the first model call.
+  it("times each step from the previous step's end, and step 0 from the agent's start", () => {
+    let t = 1_000;
+    const { recorder, ledgers } = recorderWith({ startedAt: 0, now: () => t });
+    t = 1_900;
+    recorder.observeStep({ finishReason: "tool-calls" });
+    t = 161_900;
+    recorder.observeStep({ finishReason: "tool-calls" });
+    t = 162_300;
+    recorder.observeStep({ finishReason: "stop" });
+    recorder.finish({ finishReason: "stop" });
+    expect(ledgers[0]!.stepSpend.map((step) => step.durationMs)).toEqual([900, 160_000, 400]);
+    expect(ledgers[0]!.cost.latencyMs).toBe(162_300);
   });
 });

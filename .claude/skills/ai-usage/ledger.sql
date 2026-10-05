@@ -142,3 +142,31 @@ CROSS JOIN window_ w
 WHERE u.created_at >= w.since AND u.latency_ms IS NOT NULL AND u.turn_model NOT LIKE 'simulated/%'
 GROUP BY u.outcome
 ORDER BY turns DESC;
+
+-- 8. Where a slow turn's time went, per step (M32). `duration_ms` runs from
+--    the previous step's end (step 0: the agent's start) to this step's end,
+--    tool calls included, so the model's own time is the step's duration less
+--    its tool calls'. Rows written before migration 0037 have no duration and
+--    are left out.
+WITH window_ AS (SELECT now() - interval '7 days' AS since),
+     tools AS (
+       SELECT c.turn_id, c.step_index, coalesce(sum(c.duration_ms), 0) AS tool_ms
+       FROM ai_usage_tool_calls c
+       GROUP BY c.turn_id, c.step_index
+     ),
+     steps AS (
+       SELECT s.model, s.duration_ms, s.duration_ms - coalesce(t.tool_ms, 0) AS model_ms
+       FROM ai_usage_steps s
+       JOIN ai_usage u ON u.id = s.turn_id
+       LEFT JOIN tools t ON t.turn_id = s.turn_id AND t.step_index = s.step_index
+       CROSS JOIN window_ w
+       WHERE s.created_at >= w.since AND s.duration_ms IS NOT NULL AND u.turn_model NOT LIKE 'simulated/%'
+     )
+SELECT model,
+       count(*) AS steps,
+       percentile_cont(0.5) WITHIN GROUP (ORDER BY model_ms) AS p50_model_ms,
+       percentile_cont(0.95) WITHIN GROUP (ORDER BY model_ms) AS p95_model_ms,
+       max(model_ms) AS max_model_ms
+FROM steps
+GROUP BY model
+ORDER BY p95_model_ms DESC;

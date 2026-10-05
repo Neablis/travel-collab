@@ -245,10 +245,10 @@ describe("read_day, batched", () => {
 describe("find_free_time", () => {
   const wholeTrip = { kind: "trip" } as const;
 
-  it("searches the whole trip when nothing narrows it", () => {
+  it("searches the whole trip, 08:00-22:00, when nothing narrows it", () => {
     const readout = findFreeTime(japan, wholeTrip, {}) as FreeTimeReadout;
     expect(readout.searched).toBe("the whole trip");
-    expect(readout.window).toEqual({ after: "00:00", before: "24:00" });
+    expect(readout.window).toEqual({ after: "08:00", before: "22:00" });
     expect(new Set(readout.gaps.map((gap) => gap.day)).size).toBeGreaterThan(1);
   });
 
@@ -291,7 +291,10 @@ describe("find_free_time", () => {
   // reads like the model's mistake.
   it("accepts back every boundary it emits, 24:00 included", () => {
     const emitted = new Set(
-      (findFreeTime(japan, wholeTrip, {}) as FreeTimeReadout).gaps.flatMap((gap) => [gap.start, gap.end]),
+      [
+        ...(findFreeTime(japan, wholeTrip, {}) as FreeTimeReadout).gaps,
+        ...(findFreeTime(japan, wholeTrip, { after: "22:00" }) as FreeTimeReadout).gaps,
+      ].flatMap((gap) => [gap.start, gap.end]),
     );
     expect(emitted.has("24:00")).toBe(true);
     for (const time of emitted) {
@@ -333,6 +336,63 @@ describe("find_free_time", () => {
     const named = findFreeTime(japan, scope, { day: 5 }) as FreeTimeReadout;
     expect(named.searched).toBe("day 5");
     expect(new Set(named.gaps.map((gap) => gap.day))).toEqual(new Set([5]));
+  });
+
+  // "Which day is most free?" asked from day 3's chat is about every day; the
+  // scope default alone would rank day 3 against nothing (CodeRabbit, PR 326).
+  it("searches every day from a day-scoped turn when asked for the whole trip", () => {
+    const scope = { kind: "day", dayIndex: 2 } as const;
+    const readout = findFreeTime(japan, scope, { wholeTrip: true }) as FreeTimeReadout;
+    expect(readout.searched).toBe("the whole trip");
+    expect(readout.days).toHaveLength(JAPAN_TRIP_DAY_COUNT);
+    const named = findFreeTime(japan, scope, { wholeTrip: true, day: 5 }) as FreeTimeReadout;
+    expect(named.searched).toBe("day 5");
+  });
+
+  // M32. Mitchell's live turn (2026-10-04) asked "which day has the most free
+  // time?", called this tool once per day for nine days, and answered "Day 8,
+  // 21 hours" because sleep counted. One call has to carry the whole answer.
+  it("ranks every day most free first in one whole-trip call, and its totals are its own gaps", () => {
+    const readout = findFreeTime(japan, wholeTrip, {}) as FreeTimeReadout;
+    expect(readout.days.map((row) => row.day).sort((a, b) => a - b)).toEqual(
+      Array.from({ length: JAPAN_TRIP_DAY_COUNT }, (_, i) => i + 1),
+    );
+    for (let i = 1; i < readout.days.length; i += 1) {
+      expect(readout.days[i - 1]!.freeMinutes).toBeGreaterThanOrEqual(readout.days[i]!.freeMinutes);
+    }
+    for (const row of readout.days) {
+      const own = readout.gaps.filter((gap) => gap.day === row.day);
+      expect(row.freeMinutes, `day ${row.day}`).toBe(own.reduce((sum, gap) => sum + gap.durationMinutes, 0));
+      expect(row.freeMinutes).toBeLessThanOrEqual(14 * 60);
+      expect(row.morningMinutes + row.afternoonMinutes + row.eveningMinutes).toBe(row.freeMinutes);
+    }
+    // The Japan demo is not uniformly busy, so the ranking says something.
+    expect(readout.days[0]!.freeMinutes).toBeGreaterThan(readout.days.at(-1)!.freeMinutes);
+  });
+
+  it("names each day's longest gap in the tool's own HH:mm", () => {
+    const readout = findFreeTime(japan, wholeTrip, {}) as FreeTimeReadout;
+    const top = readout.days[0]!;
+    expect(top.longestGap).not.toBeNull();
+    expect(top.longestGap!.start).toMatch(/^\d{2}:\d{2}$/);
+    expect(readout.gaps).toContainEqual(expect.objectContaining({ day: top.day, ...top.longestGap }));
+  });
+
+  // A named bound past one edge of the waking day opens that edge to the
+  // clock, so late and early questions still have answers.
+  it('runs "after 23:00" to 24:00 and "before 07:00" from 00:00', () => {
+    expect((findFreeTime(japan, wholeTrip, { after: "23:00" }) as FreeTimeReadout).window).toEqual({
+      after: "23:00",
+      before: "24:00",
+    });
+    expect((findFreeTime(japan, wholeTrip, { before: "07:00" }) as FreeTimeReadout).window).toEqual({
+      after: "00:00",
+      before: "07:00",
+    });
+    expect((findFreeTime(japan, wholeTrip, { after: "13:00" }) as FreeTimeReadout).window).toEqual({
+      after: "13:00",
+      before: "22:00",
+    });
   });
 
   it("reports an out-of-range day instead of silently widening to the trip", () => {

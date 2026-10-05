@@ -37,6 +37,13 @@ fail, the `ai_usage` row included (`docs/milestones/M31-assistant-ledger.md`, *P
 Gate 5 of 7. **The two boxes left are Mitchell's:** the Gateway spend budget, and the baseline
 run on a preview. **The eve port is deferred until there are users** (ADR-062 § *Deferred: the port*).
 
+**M32 — The assistant can say which day is free, in one call — minted and built 2026-10-04,
+beside M31, not current.** From Mitchell's production turn that called `find_free_time` once per
+day and counted sleep as free: the tool now ranks days inside 08:00-22:00 in one call, and each
+ledger step row carries `duration_ms`. **It adds migration `0037`, to dispatch right after
+merge.** The 162-second turn that prompted it is `KI-2026-10-04-c`.
+(`docs/milestones/M32-free-day.md`)
+
 **M29 (the time river) and M30 (notebooks with one job each) closed their gates on
 2026-10-04**, at 20 of 20 and 9 of 9; each retro is at the end of its milestone file. Neither
 has a row in `TODO.md`'s order, and placing them there is Mitchell's call.

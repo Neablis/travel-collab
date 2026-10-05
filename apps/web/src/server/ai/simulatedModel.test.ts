@@ -88,6 +88,19 @@ const DAY_READOUT = {
 const FREE_READOUT = {
   searched: "day 3",
   window: { after: "08:00", before: "22:00" },
+  // The day's ranking row (M32), consistent with the two gaps below.
+  days: [
+    {
+      day: 3,
+      date: "2026-09-10",
+      freeMinutes: 720,
+      morningMinutes: 120,
+      afternoonMinutes: 300,
+      eveningMinutes: 300,
+      longestGap: { start: "12:00", end: "22:00", durationMinutes: 600 },
+      untimedStops: 0,
+    },
+  ],
   gaps: [
     { day: 3, date: "2026-09-10", start: "08:00", end: "10:00", durationMinutes: 120 },
     { day: 3, date: "2026-09-10", start: "12:00", end: "22:00", durationMinutes: 600 },
@@ -266,6 +279,29 @@ describe("simulatedModel — the ask surface", () => {
     expect(answer).toContain("The biggest open stretch between 08:00 and 22:00 is on day 3, 12:00 to 22:00 — 600 minutes.");
     expect(answer).toContain("1 conflict is still open:");
     expect(answer).toContain("AI is switched off on this deployment");
+  });
+
+  // The ranking's first day has the most free minutes; the longest single gap
+  // can sit on another day, and "which day is most free?" must name the first.
+  it("names the ranked most-free day, not just the day with the longest gap", async () => {
+    const dayTwo = {
+      ...FREE_READOUT.days[0]!,
+      day: 2,
+      date: "2026-09-09",
+      freeMinutes: 780,
+      longestGap: { start: "08:00", end: "14:00", durationMinutes: 360 },
+    };
+    const ranked = { ...FREE_READOUT, searched: "the whole trip", days: [dayTwo, FREE_READOUT.days[0]!] };
+    const answer = textOf(
+      await probe().doGenerate(
+        askPrompt({ kind: "trip" }, [
+          { toolName: "read_trip", value: TRIP_READOUT },
+          { toolName: "find_free_time", value: ranked },
+        ]),
+      ),
+    );
+    expect(answer).toContain("Day 2 has the most free time between 08:00 and 22:00: 780 minutes.");
+    expect(answer).toContain("The biggest open stretch between 08:00 and 22:00 is on day 3");
   });
 
   // KI-2026-09-11-b: `resultFor` used to CAST a tool result to its readout
@@ -447,7 +483,15 @@ describe("simulatedModel — the ask surface", () => {
       await probe().doGenerate(
         askPrompt({ kind: "trip" }, [
           { toolName: "read_trip", value: { ...TRIP_READOUT, conflicts: [] } },
-          { toolName: "find_free_time", value: { ...FREE_READOUT, searched: "the whole trip", gaps: [] } },
+          {
+            toolName: "find_free_time",
+            value: {
+              ...FREE_READOUT,
+              searched: "the whole trip",
+              days: [{ ...FREE_READOUT.days[0]!, freeMinutes: 0, morningMinutes: 0, afternoonMinutes: 0, eveningMinutes: 0, longestGap: null }],
+              gaps: [],
+            },
+          },
         ]),
       ),
     );

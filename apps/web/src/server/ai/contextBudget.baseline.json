@@ -20,10 +20,10 @@
         "search_places",
         "request_change_tools"
       ],
-      "toolChars": 4838,
+      "toolChars": 5270,
       "instructionChars": 2337,
-      "totalChars": 7175,
-      "approxTokens": 2168
+      "totalChars": 7607,
+      "approxTokens": 2298
     },
     "trip · edit": {
       "tools": [
@@ -46,10 +46,10 @@
         "SetTripBudget",
         "insert_playbook_day"
       ],
-      "toolChars": 19804,
+      "toolChars": 20236,
       "instructionChars": 3650,
-      "totalChars": 23454,
-      "approxTokens": 7086
+      "totalChars": 23886,
+      "approxTokens": 7216
     },
     "trip · plan": {
       "tools": [
@@ -69,10 +69,10 @@
         "RemoveActivity",
         "insert_playbook_day"
       ],
-      "toolChars": 18745,
+      "toolChars": 19177,
       "instructionChars": 3957,
-      "totalChars": 22702,
-      "approxTokens": 6859
+      "totalChars": 23134,
+      "approxTokens": 6989
     },
     "trip · unsure": {
       "tools": [
@@ -95,10 +95,10 @@
         "SetTripBudget",
         "insert_playbook_day"
       ],
-      "toolChars": 19804,
+      "toolChars": 20236,
       "instructionChars": 3650,
-      "totalChars": 23454,
-      "approxTokens": 7086
+      "totalChars": 23886,
+      "approxTokens": 7216
     },
     "page · compose": {
       "tools": [
@@ -122,10 +122,10 @@
         "search_playbooks",
         "switch_intent"
       ],
-      "toolChars": 3832,
+      "toolChars": 4264,
       "instructionChars": 1425,
-      "totalChars": 5257,
-      "approxTokens": 1588
+      "totalChars": 5689,
+      "approxTokens": 1719
     }
   },
   "tools": {
@@ -140,6 +140,10 @@
     "search_widgets": {
       "chars": 1288,
       "approxTokens": 389
+    },
+    "find_free_time": {
+      "chars": 1239,
+      "approxTokens": 374
     },
     "insert_widget": {
       "chars": 1106,
@@ -156,10 +160,6 @@
     "search_playbooks": {
       "chars": 877,
       "approxTokens": 265
-    },
-    "find_free_time": {
-      "chars": 807,
-      "approxTokens": 244
     },
     "request_change_tools": {
       "chars": 725,

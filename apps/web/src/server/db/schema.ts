@@ -1065,6 +1065,9 @@ export const aiUsageSteps = pgTable(
     finishReason: text("finish_reason"),
     escalated: boolean("escalated").notNull(),
     pivoted: boolean("pivoted").notNull(),
+    // Wall-clock ms from the previous step's end (or the agent's start) to
+    // this one's, tool calls included (M32). Null for rows written before 0037.
+    durationMs: integer("duration_ms"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
   },
   (t) => [primaryKey({ columns: [t.turnId, t.stepIndex] }), index("ai_usage_steps_created").on(t.createdAt)],

@@ -56,6 +56,7 @@ describe("a turn's step and tool-call rows (M31 Phase 1)", () => {
         finishReason: index === 0 ? "tool-calls" : "stop",
         escalated: index === 1,
         pivoted: false,
+        durationMs: index === 0 ? 161_000 : 1_200,
       })),
       toolCalls: [
         {
@@ -93,9 +94,11 @@ describe("a turn's step and tool-call rows (M31 Phase 1)", () => {
 
     expect(await db.select().from(aiUsage).where(eq(aiUsage.id, turnId))).toHaveLength(1);
     const steps = await db.select().from(aiUsageSteps).where(eq(aiUsageSteps.turnId, turnId));
-    expect(steps.map((step) => [step.stepIndex, step.model, step.cacheReadTokens, step.escalated]).sort()).toEqual([
-      [0, TURN_MODEL, 3000, false],
-      [1, "zai/glm-4.7-flash", 3000, true],
+    expect(
+      steps.map((step) => [step.stepIndex, step.model, step.cacheReadTokens, step.escalated, step.durationMs]).sort(),
+    ).toEqual([
+      [0, TURN_MODEL, 3000, false, 161_000],
+      [1, "zai/glm-4.7-flash", 3000, true, 1_200],
     ]);
     const calls = await db.select().from(aiUsageToolCalls).where(eq(aiUsageToolCalls.turnId, turnId));
     expect(calls.map((call) => [call.callId, call.outcome, call.durationMs, call.reachedProposal]).sort()).toEqual([
@@ -113,13 +116,13 @@ describe("a turn's step and tool-call rows (M31 Phase 1)", () => {
     const again = withRows(turnId);
     await recordTurnLedger({
       ...again,
-      stepSpend: again.stepSpend.map((step) => ({ ...step, tokensOut: step.index === 0 ? 7 : 9 })),
+      stepSpend: again.stepSpend.map((step) => ({ ...step, tokensOut: step.index === 0 ? 7 : 9, durationMs: 5 })),
       toolCalls: again.toolCalls.map((call) => (call.callId === "c1" ? { ...call, ms: 99 } : call)),
     });
     const steps = await db.select().from(aiUsageSteps).where(eq(aiUsageSteps.turnId, turnId));
-    expect(steps.map((step) => [step.stepIndex, step.tokensOut]).sort()).toEqual([
-      [0, 7],
-      [1, 9],
+    expect(steps.map((step) => [step.stepIndex, step.tokensOut, step.durationMs]).sort()).toEqual([
+      [0, 7, 5],
+      [1, 9, 5],
     ]);
     const calls = await db.select().from(aiUsageToolCalls).where(eq(aiUsageToolCalls.turnId, turnId));
     expect(calls.map((call) => [call.callId, call.durationMs]).sort()).toEqual([
@@ -163,7 +166,7 @@ describe("the billing row is independent of the step and tool-call rows", () => 
       // the child write is made to fail on a step index no integer column
       // can hold.
       stepSpend: [
-        { index: 2 ** 40, model: TURN_MODEL, tier: null, tokensIn: 1, cacheReadTokens: 0, cacheWriteTokens: 0, tokensOut: 1, finishReason: "stop", escalated: false, pivoted: false },
+        { index: 2 ** 40, model: TURN_MODEL, tier: null, tokensIn: 1, cacheReadTokens: 0, cacheWriteTokens: 0, tokensOut: 1, finishReason: "stop", escalated: false, pivoted: false, durationMs: null },
       ],
     };
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -188,8 +191,8 @@ describe("an escalated turn is priced at the models that ran it", () => {
     const entry: TurnLedger = {
       ...ledger({ userId, turnId, classifier: null, steps: 2, turn: { model: TURN_MODEL, tokensIn: 2000, tokensOut: 200 } }),
       stepSpend: [
-        { index: 0, model: TURN_MODEL, tier: "low", tokensIn: 1000, cacheReadTokens: 0, cacheWriteTokens: 0, tokensOut: 100, finishReason: "tool-calls", escalated: false, pivoted: false },
-        { index: 1, model: "anthropic/claude-haiku-4-5", tier: "mid", tokensIn: 1000, cacheReadTokens: 0, cacheWriteTokens: 0, tokensOut: 100, finishReason: "stop", escalated: true, pivoted: false },
+        { index: 0, model: TURN_MODEL, tier: "low", tokensIn: 1000, cacheReadTokens: 0, cacheWriteTokens: 0, tokensOut: 100, finishReason: "tool-calls", escalated: false, pivoted: false, durationMs: null },
+        { index: 1, model: "anthropic/claude-haiku-4-5", tier: "mid", tokensIn: 1000, cacheReadTokens: 0, cacheWriteTokens: 0, tokensOut: 100, finishReason: "stop", escalated: true, pivoted: false, durationMs: null },
       ],
     };
     await recordTurnLedger(entry, at);
@@ -210,8 +213,8 @@ describe("an escalated turn is priced at the models that ran it", () => {
     const entry: TurnLedger = {
       ...ledger({ userId, turnId: randomUUID(), classifier: null, turn: { model: TURN_MODEL, tokensIn: 2000, tokensOut: 200 } }),
       stepSpend: [
-        { index: 0, model: TURN_MODEL, tier: "low", tokensIn: 2000, cacheReadTokens: 0, cacheWriteTokens: 0, tokensOut: 200, finishReason: "tool-calls", escalated: false, pivoted: false },
-        { index: 1, model: TURN_MODEL, tier: "low", tokensIn: null, cacheReadTokens: null, cacheWriteTokens: null, tokensOut: null, finishReason: "stop", escalated: false, pivoted: false },
+        { index: 0, model: TURN_MODEL, tier: "low", tokensIn: 2000, cacheReadTokens: 0, cacheWriteTokens: 0, tokensOut: 200, finishReason: "tool-calls", escalated: false, pivoted: false, durationMs: null },
+        { index: 1, model: TURN_MODEL, tier: "low", tokensIn: null, cacheReadTokens: null, cacheWriteTokens: null, tokensOut: null, finishReason: "stop", escalated: false, pivoted: false, durationMs: null },
       ],
     };
     await recordTurnLedger(entry, at);
@@ -331,6 +334,7 @@ describe("the row carries no content", () => {
         "cacheReadTokens",
         "cacheWriteTokens",
         "createdAt",
+        "durationMs",
         "escalated",
         "finishReason",
         "model",

@@ -42,7 +42,7 @@
 // `day` for the same row is how off-by-one answers get written.
 import { z } from "zod";
 import { ActivityKind, ActivityMode, LocationPrecision, Money, PendingReason, TimeWindow, type Location, type TripDetail } from "@tc/contracts";
-import { citiesOfDay, findFreeGaps, minutesOf } from "@tc/domain";
+import { DAYTIME_END_MINUTES, DAYTIME_START_MINUTES, citiesOfDay, findFreeGaps, minutesOf, summarizeFreeDays } from "@tc/domain";
 import { needsBooking } from "@/lib/needsBooking";
 import { activeConflicts, conflictsOnDay, type AiConflictSummary, type AskScope } from "@/server/assistant/context";
 import { defineTool } from "@/server/assistant/defineTool";
@@ -401,16 +401,49 @@ export interface FreeTimeGapReadout {
   durationMinutes: number;
 }
 
+/**
+ * One searched day's free time, as `summarizeFreeDays` ranks it (M32). The
+ * answer to "which day is most free?" is `days[0]`, in one call: Mitchell's
+ * live turn of 2026-10-04 called this tool once per day to add the gaps up
+ * itself, ten calls for nine days, and still named the wrong day.
+ */
+export interface FreeDayReadout {
+  day: number;
+  date: string | null;
+  freeMinutes: number;
+  /** Free minutes 08:00-12:00, 12:00-17:00 and 17:00-22:00, clipped to the window searched. */
+  morningMinutes: number;
+  afternoonMinutes: number;
+  eveningMinutes: number;
+  longestGap: { start: string; end: string; durationMinutes: number } | null;
+  /** Stops with no time on this day. They occupy none, so a day can look free only because of them. */
+  untimedStops: number;
+}
+
 export interface FreeTimeReadout {
   /** Which days were searched — "day N" or "the whole trip" — so the answer can say so. */
   searched: string;
   window: { after: string; before: string };
+  /** Every searched day, most free first. */
+  days: FreeDayReadout[];
   gaps: FreeTimeGapReadout[];
 }
 
 export const FreeTimeReadoutSchema: z.ZodType<FreeTimeReadout> = z.object({
   searched: z.string(),
   window: z.object({ after: z.string(), before: z.string() }),
+  days: z.array(
+    z.object({
+      day: z.number(),
+      date: z.string().nullable(),
+      freeMinutes: z.number(),
+      morningMinutes: z.number(),
+      afternoonMinutes: z.number(),
+      eveningMinutes: z.number(),
+      longestGap: z.object({ start: z.string(), end: z.string(), durationMinutes: z.number() }).nullable(),
+      untimedStops: z.number(),
+    }),
+  ),
   gaps: z.array(
     z.object({
       day: z.number(),
@@ -424,33 +457,43 @@ export const FreeTimeReadoutSchema: z.ZodType<FreeTimeReadout> = z.object({
 
 export interface FindFreeTimeInput {
   day?: number;
+  wholeTrip?: boolean;
   after?: string;
   before?: string;
   minMinutes?: number;
 }
 
-function parseTime(value: string | undefined, fallback: number): number | null {
+function parseTime(value: string | undefined, fallback: number | null): number | null {
   if (value === undefined) return fallback;
   return HHMM.test(value) ? minutesOf(value) : null;
 }
 
 /**
- * A thin wrapper over the domain's `findFreeGaps`. Everything here is
- * translation: 1-based day → 0-based index, "21:00" → 1260, and back again.
+ * A thin wrapper over the domain's `findFreeGaps` and `summarizeFreeDays`.
+ * Everything here is translation: 1-based day → 0-based index, "21:00" → 1260,
+ * and back again.
  * Not one minute of arithmetic — that is the computation ADR-022 §2 puts in
  * `packages/domain` so it is unit-tested with no server, DB or model in the
  * way, and so it survives whether or not a model ever calls it.
  *
  * `day` omitted falls back to the turn's scope, not to "every day": a
  * day-scoped question that forgot to repeat the day number is still about that
- * day. See `scopeNarrowing` in handleAskRequest.ts.
+ * day. See `scopeNarrowing` in handleAskRequest.ts. `wholeTrip` is the way
+ * out of that fallback: "which day is most free?" asked from a day's chat is
+ * a question about every day, and without it `days[0]` could only be the
+ * scoped day.
  */
 export function findFreeTime(
   detail: TripDetail,
   scope: AskScope,
   input: FindFreeTimeInput,
 ): FreeTimeReadout | ReadToolProblem {
-  const dayIndex = input.day !== undefined ? input.day - 1 : scope.kind === "day" ? scope.dayIndex : undefined;
+  const dayIndex =
+    input.day !== undefined
+      ? input.day - 1
+      : input.wholeTrip !== true && scope.kind === "day"
+        ? scope.dayIndex
+        : undefined;
   if (dayIndex !== undefined && !detail.days[dayIndex]) {
     return {
       error: `This trip has ${detail.days.length} day${detail.days.length === 1 ? "" : "s"}, so there is no day ${dayIndex + 1}.`,
@@ -462,21 +505,45 @@ export function findFreeTime(
   // `window: { after: "NaN:NaN" }` and an empty gap list. A confidently
   // well-formed wrong answer is the exact failure class this milestone exists
   // to remove, so a bad time is refused out loud instead.
-  const after = parseTime(input.after, 0);
-  if (after === null) return { error: `"${input.after}" is not a 24-hour time like "09:00" or "21:30".` };
-  const before = parseTime(input.before, 1440);
-  if (before === null) return { error: `"${input.before}" is not a 24-hour time like "09:00" or "21:30".` };
-  const afterMinutes = after;
-  const beforeMinutes = before;
-  const gaps = findFreeGaps(detail, {
-    dayIndex,
-    afterMinutes,
-    beforeMinutes,
-    minMinutes: input.minMinutes,
-  });
+  //
+  // The window defaults to the waking day, 08:00-22:00 (M32), not the clock:
+  // from midnight, sleep is free time and an empty day scores 24 hours. A
+  // bound the model names past one edge opens that edge to the clock, so
+  // "anything after 11pm?" runs to 24:00 rather than to an empty 23:00-22:00.
+  const explicitAfter = parseTime(input.after, null);
+  if (explicitAfter === null && input.after !== undefined) {
+    return { error: `"${input.after}" is not a 24-hour time like "09:00" or "21:30".` };
+  }
+  const explicitBefore = parseTime(input.before, null);
+  if (explicitBefore === null && input.before !== undefined) {
+    return { error: `"${input.before}" is not a 24-hour time like "09:00" or "21:30".` };
+  }
+  const afterMinutes =
+    explicitAfter ?? (explicitBefore !== null && explicitBefore <= DAYTIME_START_MINUTES ? 0 : DAYTIME_START_MINUTES);
+  const beforeMinutes =
+    explicitBefore ?? (explicitAfter !== null && explicitAfter >= DAYTIME_END_MINUTES ? 1440 : DAYTIME_END_MINUTES);
+  const options = { dayIndex, afterMinutes, beforeMinutes, minMinutes: input.minMinutes };
+  const gaps = findFreeGaps(detail, options);
   return {
     searched: dayIndex === undefined ? "the whole trip" : `day ${dayIndex + 1}`,
     window: { after: hhmmOf(afterMinutes), before: hhmmOf(beforeMinutes) },
+    days: summarizeFreeDays(detail, options).map((row) => ({
+      day: row.dayIndex + 1,
+      date: detail.days[row.dayIndex]?.date ?? null,
+      freeMinutes: row.freeMinutes,
+      morningMinutes: row.parts.morning,
+      afternoonMinutes: row.parts.afternoon,
+      eveningMinutes: row.parts.evening,
+      longestGap:
+        row.longestGap === null
+          ? null
+          : {
+              start: hhmmOf(row.longestGap.startMinutes),
+              end: hhmmOf(row.longestGap.endMinutes),
+              durationMinutes: row.longestGap.durationMinutes,
+            },
+      untimedStops: row.untimedStops,
+    })),
     gaps: gaps.map((gap) => ({
       day: gap.dayIndex + 1,
       date: detail.days[gap.dayIndex]?.date ?? null,
@@ -620,8 +687,12 @@ export const FindFreeTimeInputSchema = z.object({
     .min(1)
     .optional()
     .describe("1-based day number. Omit to search the day this question is about, or the whole trip."),
-  after: z.string().regex(HHMM).optional().describe('Earliest time to consider, 24-hour "HH:mm" (e.g. "21:00").'),
-  before: z.string().regex(HHMM).optional().describe('Latest time to consider, 24-hour "HH:mm" (e.g. "23:00").'),
+  wholeTrip: z
+    .boolean()
+    .optional()
+    .describe("true searches every day, even when this question is about one day. Ignored when `day` is set."),
+  after: z.string().regex(HHMM).optional().describe('Earliest time to consider, 24-hour "HH:mm" (e.g. "21:00"). Default 08:00.'),
+  before: z.string().regex(HHMM).optional().describe('Latest time to consider, 24-hour "HH:mm" (e.g. "23:00"). Default 22:00.'),
   minMinutes: z.number().int().min(1).optional().describe("Ignore gaps shorter than this many minutes."),
 });
 
@@ -809,7 +880,7 @@ export const readDayTool = defineTool({
 export const findFreeTimeTool = defineTool({
   name: "find_free_time",
   description:
-    "Find the unscheduled gaps in a day or across the trip, optionally within a time window or above a minimum length. Use this rather than working times out from read_day yourself.",
+    "Find free time in one day or across the whole trip. Omit `day` and pass `wholeTrip: true` to search every day in ONE call: `days` comes back ranked most free first, each with its morning, afternoon and evening free minutes and its longest gap, so `days[0]` answers \"which day is most free?\". Never call this once per day. Searches 08:00-22:00 unless you pass after/before. Use this rather than working times out from read_day yourself.",
   domain: "itinerary",
   effect: "read",
   spend: "none",

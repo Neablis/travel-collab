@@ -86,6 +86,7 @@ export type _StepKeys = Assert<
     | "finishReason"
     | "escalated"
     | "pivoted"
+    | "durationMs"
   >
 >;
 
