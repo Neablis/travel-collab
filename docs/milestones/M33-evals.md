@@ -31,6 +31,11 @@ at its port) and auth (mocked as the integration lane mocks it) are not real.
   edited; the bar is what moves. Every prompt must have one (`grade.test.ts`).
 - **Its own network rule** (`evalNetworkGuard.setup.ts`): this machine, the database and the
   Gateway, nothing else.
+- **Every run says what it will spend, and stops at a cap** (Mitchell, 2026-10-05, after a day of
+  runs spent $0.25 unannounced). Without `EVAL_CONFIRM=1` a run prints its plan (turns, models,
+  cap) and sends nothing. `EVAL_MAX_USD` caps it (default $0.10), priced by `spend.ts` with the
+  cost ledger's own `microUsdForSteps`; turns past the cap are skipped. A model with no rate is
+  refused, since its spend cannot be capped. The summary line reports what the run spent.
 - **Not in CI or `pnpm check`**: every turn is paid. A report lands in `apps/web/eval-results/`
   (git-ignored), and any failed check is a red exit.
 

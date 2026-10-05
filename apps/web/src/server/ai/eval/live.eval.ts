@@ -1,8 +1,9 @@
 // **The eval: the live set, a real model, the real `/ask` pipeline** (M33).
 //
-//   pnpm --filter web eval                         every prompt, once
-//   EVAL_ONLY=q-most-free,q-busiest pnpm --filter web eval
-//   EVAL_REPEAT=3 pnpm --filter web eval           the live set's own repeat
+//   pnpm --filter web eval                         prints the plan and cost cap, sends NOTHING
+//   EVAL_CONFIRM=1 pnpm --filter web eval          every prompt, once (paid; capped at $0.10)
+//   EVAL_CONFIRM=1 EVAL_ONLY=q-most-free,q-busiest pnpm --filter web eval
+//   EVAL_CONFIRM=1 EVAL_REPEAT=3 EVAL_MAX_USD=0.25 pnpm --filter web eval
 //
 // What is real: admission, the intent classifier, tier selection on
 // production's models (`models.json`, see `vitest.eval.config.ts`), every tool,
@@ -30,6 +31,7 @@ import type { AskAnalyticsRecord } from "@/server/assistant/askAnalytics";
 import type { TurnLedger } from "@/server/assistant/ledger";
 import { expectationFor } from "./cases";
 import { grade, type EvalCheck, type EvalTurn } from "./grade";
+import { dollars, turnMicroUsd, unpricedModels } from "./spend";
 
 const ACTOR_ID = "eval-actor";
 
@@ -84,6 +86,27 @@ const only = (process.env.EVAL_ONLY ?? "").split(",").map((id) => id.trim()).fil
 const repeat = Math.max(1, Number(process.env.EVAL_REPEAT ?? "1") || 1);
 const prompts = liveSet.prompts.filter((prompt) => only.length === 0 || only.includes(prompt.id));
 
+// **A run spends money, so it says so before it starts and stops at a cap**
+// (Mitchell, 2026-10-05: "we spent .25$ testing, we should be really clear
+// when we are running eval loops"). Without EVAL_CONFIRM=1 nothing is sent: the
+// run prints its plan and fails. EVAL_MAX_USD caps it (default $0.10): once the
+// turns so far have spent that, the rest are skipped, not run. A configured
+// model with no rate is refused, because a run cannot cap what it cannot price.
+const confirmed = process.env.EVAL_CONFIRM === "1";
+const capMicroUsd = Math.round(Number(process.env.EVAL_MAX_USD ?? "0.10") * 1_000_000);
+const configuredModels = [
+  process.env.AI_MODEL_CHEAP,
+  process.env.AI_MODEL_MID,
+  process.env.AI_MODEL_STRONG,
+  process.env.AI_CLASSIFIER_MODEL,
+].filter((model): model is string => typeof model === "string" && model.length > 0);
+const unpriced = unpricedModels(configuredModels, new Date());
+const plan =
+  `eval plan: ${prompts.length} prompt(s) x ${repeat} = ${prompts.length * repeat} paid turn(s), ` +
+  `cap ${dollars(capMicroUsd)}, models ${[...new Set(configuredModels)].join(", ")}`;
+let spentMicroUsd = 0;
+let unpricedTurns = 0;
+
 /** A fresh copy of the Japan demo trip, through the real command path, as db:seed builds it. */
 async function seedJapanTrip(): Promise<{ tripId: string; detail: TripDetail }> {
   const tripId = randomUUID();
@@ -107,7 +130,10 @@ function chunksOf(body: string): Record<string, unknown>[] {
     });
 }
 
-async function runTurn(prompt: LivePrompt, tripId: string): Promise<EvalTurn & { stepDurationsMs: (number | null)[] }> {
+async function runTurn(
+  prompt: LivePrompt,
+  tripId: string,
+): Promise<EvalTurn & { stepDurationsMs: (number | null)[]; microUsd: number | null }> {
   // Keyed by actor, and every turn here is the same actor (see replay.int.test.ts).
   await db.delete(rateLimitCounters);
   const records: AskAnalyticsRecord[] = [];
@@ -144,6 +170,7 @@ async function runTurn(prompt: LivePrompt, tripId: string): Promise<EvalTurn & {
     text,
     proposalCommands: proposal?.commands?.length ?? 0,
     stepDurationsMs: ledgers[0]?.stepSpend.map((step) => step.durationMs) ?? [],
+    microUsd: ledgers[0] ? turnMicroUsd(ledgers[0], new Date()) : null,
   };
 }
 
@@ -165,6 +192,13 @@ interface RunRow {
 const rows: RunRow[] = [];
 
 beforeAll(async () => {
+  console.log(plan);
+  if (!confirmed) {
+    throw new Error(`${plan}\nNothing was sent. Set EVAL_CONFIRM=1 to spend it (and EVAL_MAX_USD to change the cap).`);
+  }
+  if (unpriced.length > 0 && process.env.EVAL_ALLOW_UNPRICED !== "1") {
+    throw new Error(`No rate in modelRates.ts for ${unpriced.join(", ")}, so this run's spend cannot be capped. Add the rate, or set EVAL_ALLOW_UNPRICED=1.`);
+  }
   await upsertUser({ id: ACTOR_ID, email: null, name: null, image: null });
   await issueGrant({
     userId: ACTOR_ID,
@@ -186,13 +220,14 @@ afterAll(() => {
     strong: process.env.AI_MODEL_STRONG,
     classifier: process.env.AI_CLASSIFIER_MODEL,
   };
-  writeFileSync(file, `${JSON.stringify({ models, repeat, rows }, null, 2)}\n`);
+  writeFileSync(file, `${JSON.stringify({ models, repeat, spentMicroUsd, unpricedTurns, rows }, null, 2)}\n`);
   const failed = rows.flatMap((row) => row.checks.filter((check) => !check.pass).map((check) => `${row.id}#${row.run}: ${check.name}`));
   console.log(
     [
       "",
       `eval: ${rows.length} turns, ${rows.reduce((n, row) => n + row.checks.length, 0)} checks, ${failed.length} failed`,
       `models: ${JSON.stringify(models)}`,
+      `spent: ${dollars(spentMicroUsd)} of a ${dollars(capMicroUsd)} cap${unpricedTurns > 0 ? ` (+ ${unpricedTurns} unpriced turn(s))` : ""}`,
       ...rows.map(
         (row) =>
           `  ${row.checks.every((check) => check.pass) ? "PASS" : "FAIL"} ${row.id}#${row.run}  ${row.model}  ${row.steps} steps  ` +
@@ -207,9 +242,17 @@ afterAll(() => {
 describe("the live set, on production's models", () => {
   for (const prompt of prompts) {
     for (let run = 1; run <= repeat; run += 1) {
-      it(`${prompt.id}#${run}: ${prompt.text}`, async () => {
+      it(`${prompt.id}#${run}: ${prompt.text}`, async (context) => {
+        if (spentMicroUsd >= capMicroUsd) {
+          console.log(`    skipped: the run has spent ${dollars(spentMicroUsd)}, its cap is ${dollars(capMicroUsd)}`);
+          context.skip();
+          return;
+        }
         const { tripId, detail } = await seedJapanTrip();
         const turn = await runTurn(prompt, tripId);
+        if (turn.microUsd === null) unpricedTurns += 1;
+        else spentMicroUsd += turn.microUsd;
+        console.log(`    cost: ${turn.microUsd === null ? "unpriced" : dollars(turn.microUsd)} (run so far ${dollars(spentMicroUsd)})`);
         const checks = grade(turn, expectationFor(prompt.id, detail)!);
         rows.push({
           id: prompt.id,
