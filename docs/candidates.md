@@ -102,6 +102,34 @@ here two days later.
     free URLs). Cheap to build once the account-wide assistant exists, since that assistant has
     no page of its own to start on.
 
+- **Named snapshots in History: save the trip as it is now, jump back without scrolling (asked
+  2026-10-05).** Mitchell: *"Named Snapshots in history. So essentially the ability to 'save' the
+  current trip (the pointer in the history) and jump back to that point without having to scroll
+  through a ton of history"*.
+  - **What exists.** History previews a point by its `seq` (`HistoryPanel` takes `previewSeq`) and
+    reverts to a state as compensating events computed by `diffTripStates(current, target)`
+    (ADR-005). ADR-005 rejected a marker/snapshot event and a movable head pointer, so a named
+    snapshot must not become either.
+  - **The idea.** A snapshot is a label on a position in the log: a name, the `seq` it points at,
+    who saved it and when. "Save" records the trip's current `seq`; the History panel lists
+    snapshots above the scroll (or as a filter), and picking one previews it and offers "Restore",
+    which is today's revert-to-state. The trip's state is untouched by saving, so a snapshot is
+    metadata about the log, not part of it.
+  - **Decisions it needs.**
+    - Where the label lives: a trip event (so it replays and shows in History, but then it
+      occupies a `seq` itself) or a side table keyed by trip and `seq` (simpler, but outside the
+      log's guarantees). It does not alter the fold either way.
+    - Who may save, rename and delete one (an editor? the owner? a suggester, who cannot edit
+      the plan?), and whether deleting is a hard delete.
+    - Whether a snapshot survives whatever prunes or compacts the log, which ADR-003 left
+      scoped to planning events, and what restoring does when the target `seq` predates a
+      day or stop that has since been deleted.
+    - Whether a restore applies to the whole trip or can be limited (one day), and whether
+      it is itself undoable, which compensating events give it for free.
+    - A limit per trip, and suggested names ("Before Sam's changes", "Booked flights").
+    - Whether the assistant can save one before a large proposal and offer a way back (see the
+      assistant-proposals entry above); that pairing is the likeliest first use.
+
 - **"Accept all" lands as one History entry, not one per change (asked 2026-10-04).** #314's
   "Accept all" accepts each pending change in turn through the single-accept route, so a
   ten-change suggestion becomes ten History rows and ten undos. Mitchell: *"\"Accept all\" should
