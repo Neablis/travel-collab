@@ -5,7 +5,7 @@ import { demoTripDetail } from "@/server/demoTrip";
 import { DAYTIME_END_MINUTES, DAYTIME_START_MINUTES, summarizeFreeDays } from "@tc/domain";
 import type { AskAnalyticsRecord } from "@/server/assistant/askAnalytics";
 import { expectationFor, mostFreeDays } from "./cases";
-import { grade, namesDayNumber, type EvalTurn } from "./grade";
+import { grade, namesAmount, namesDayNumber, type EvalTurn } from "./grade";
 
 // The fields `grade` reads, on an otherwise ordinary completed turn.
 function turn(over: Partial<AskAnalyticsRecord> = {}, text = "Day 3 is the most open.", proposalCommands = 0): EvalTurn {
@@ -88,8 +88,34 @@ describe("namesDayNumber", () => {
   });
 });
 
+describe("namesAmount", () => {
+  it("matches the amount in major units, grouped or not, with or without cents", () => {
+    expect(namesAmount("That's $990 each.", 99000)).toBe(true);
+    expect(namesAmount("$990.00 per person", 99000)).toBe(true);
+    expect(namesAmount("about 1,980 USD for the group", 198000)).toBe(true);
+    expect(namesAmount("$9,900 each", 99000)).toBe(false);
+    expect(namesAmount("$792 each", 99000)).toBe(false);
+  });
+
+  it("fails a turn whose answer names none of the amounts", () => {
+    expect(failing(grade(turn({}, "Each of you pays $792."), { namesOneOfAmounts: [99000] }))).toEqual(["names 990.00"]);
+    expect(failing(grade(turn({}, "Each of you pays $990."), { namesOneOfAmounts: [99000] }))).toEqual([]);
+  });
+});
+
 describe("the cases", () => {
   const japan = demoTripDetail();
+
+  // Travellers spec D1: the demo roster has a member who is not travelling, so
+  // the split over travellers ($990) and the split over members ($792) differ,
+  // and only the first is right.
+  it("splits a day over the travellers, not the members", () => {
+    const travellers = japan.members.filter((m) => m.travelling !== false).length;
+    expect(japan.members.length).toBeGreaterThan(travellers);
+    const split = expectationFor("q-split-travellers", japan)!.namesOneOfAmounts!;
+    expect(split).toEqual([japan.days[0]!.costSubtotal / travellers]);
+    expect(split).not.toContain(japan.days[0]!.costSubtotal / japan.members.length);
+  });
 
   it("has an expectation for every prompt in the live set", () => {
     const set = JSON.parse(readFileSync(join(import.meta.dirname, "live-set.json"), "utf8")) as { prompts: { id: string }[] };

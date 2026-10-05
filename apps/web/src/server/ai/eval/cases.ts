@@ -10,7 +10,7 @@
 // reads; a change needs reads, perhaps a place search, and its writes. They are
 // meant to catch the 2026-10-04 shape (ten calls, 162 seconds) without failing
 // a turn that reads one extra day.
-import type { TripDetail } from "@tc/contracts";
+import { travellerIds, type TripDetail } from "@tc/contracts";
 import { DAYTIME_END_MINUTES, DAYTIME_START_MINUTES, summarizeFreeDays } from "@tc/domain";
 import type { EvalExpectation } from "./grade";
 
@@ -35,6 +35,17 @@ export function mostFreeDays(detail: TripDetail): number[] {
     .map((row) => row.dayIndex + 1);
 }
 
+/**
+ * A day's total split evenly over the people going (travellers spec D1): the
+ * answer to "split day N between everyone going". A member who is not
+ * travelling takes no share, and with nobody travelling the total is priced
+ * for one (D5), so it is that one's.
+ */
+export function travellerSplitOfDay(detail: TripDetail, day: number): number {
+  const subtotal = detail.days[day - 1]?.costSubtotal ?? 0;
+  return Math.round(subtotal / Math.max(travellerIds(detail.members).length, 1));
+}
+
 /** Expectations by live-set id. `trip` is the seeded trip the prompt runs against. */
 export function expectationFor(id: string, trip: TripDetail): EvalExpectation | undefined {
   switch (id) {
@@ -47,6 +58,11 @@ export function expectationFor(id: string, trip: TripDetail): EvalExpectation | 
         maxCallsOf: { find_free_time: 1 },
         namesOneOfDays: mostFreeDays(trip),
       };
+    // Travellers spec §5: a total already counts only who is going, so the
+    // share is the day's costSubtotal over the travellers. Dividing by every
+    // member hands a non-traveller a share.
+    case "q-split-travellers":
+      return { ...QUESTION, namesOneOfAmounts: [travellerSplitOfDay(trip, 1)] };
     case "q-free-evening":
       return { ...QUESTION, mustCall: ["find_free_time"], maxCallsOf: { find_free_time: 1 } };
     case "q-length":
