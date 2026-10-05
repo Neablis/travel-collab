@@ -26,8 +26,7 @@ general setup.
 (M9 stays paused: its gate needs a live model call). M32 came from Mitchell's production turn that
 called `find_free_time` once per day and counted sleep as free: the tool now ranks days inside
 08:00-22:00 in one call (and, from a day's chat, `wholeTrip: true` searches every day), and each
-ledger step row carries `duration_ms`. **It is #326; it adds migration `0037`, to dispatch right
-after merge.** Its two remaining boxes are that dispatch and a production walk.
+ledger step row carries `duration_ms`. **It is #326, which adds migration `0037`.** Merged and applied 2026-10-05; what remains is a production walk and the retro.
 (`docs/milestones/M32-free-day.md`)
 
 **M31 closed 2026-10-05** on Mitchell's two answers: a **$20/month** Gateway spend budget, and
@@ -195,8 +194,7 @@ half, the model guessing a coordinate rather than citing one, is M9 scope.
 
 ## Next action
 
-**Merge #326 (M32), then dispatch `migrate-production` for `0037`**, then retarget #327 (M33)
-to `main`. M32's last boxes are a production walk of *"Which day has the most free time?"* and
+**#326 (M32) is merged and `0037` is applied (2026-10-05); #327 (M33) targets `main`.** M32's last boxes are a production walk of *"Which day has the most free time?"* and
 query 8 of `ledger.sql` over the step durations `0037` starts recording, which is also what
 resolves `KI-2026-10-04-c`.
 

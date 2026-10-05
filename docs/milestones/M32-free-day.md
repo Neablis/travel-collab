@@ -87,14 +87,15 @@ Then, on the proposal: *"Hardcode 8-22 for now, make it a small milestone."*
       new description and nothing else, and the commit says by how much.
       *(Ticked 2026-10-04: +264 characters, about 80 tokens, on each of the five shapes that offer
       the tool; instruction characters unchanged.)*
-- [ ] **Each step row carries `duration_ms`**, migration `0037`. A unit test of the recorder and
+- [x] **Each step row carries `duration_ms`**, migration `0037`. A unit test of the recorder and
       the ledger integration test, each seen red. The PR names the migration, and
       `migrate-production` is dispatched after merge.
       *(Tests done 2026-10-04: `askAnalytics.test.ts` red with step 0 timed from the request
       (`[1900, …]`) and with the clock never advancing (`[900, 160900, 161300]`);
       `usage.int.test.ts` red with the insert dropping it and with the upsert keeping the first
       value. Two latency tests moved from a per-read ticking clock to a set one, because step
-      durations read the clock too. **Ticks when `0037` is dispatched.**)*
+      durations read the clock too. **Ticks when `0037` is dispatched.** Ticked 2026-10-05: #326
+      merged and `migrate-production` ran from `c0ae2ef`; `pnpm state` reports all 38 applied.)*
 - [x] **KI filed** for the 162-second turn; `q-most-free` added to the live set.
       *(Ticked 2026-10-04: `KI-2026-10-04-c`; the live set is sixteen prompts. `ledger.sql` gains
       query 8, model time per step.)*
