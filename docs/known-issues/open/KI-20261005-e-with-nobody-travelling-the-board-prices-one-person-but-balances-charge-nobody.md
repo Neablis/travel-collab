@@ -16,5 +16,9 @@
   one share to the owner, which makes `stopPeople` return `[owner]` when there are no
   travellers, or price zero travellers at zero and drop D5's floor. Both change an approved
   decision, so the choice is Mitchell's.
+- **Assistant side: covered.** `read_trip`'s description says a stop nobody is picked for is
+  priced for at least one person when nobody is travelling, and every `read_day` stop carries
+  its `headcount` (1 here, not 0). So `travellers: 0` no longer leaves the model to call the
+  trip free. The balances disagreement above is unchanged.
 - **Cross-reference:** ADR-065 (*Consequences*), ADR-060 decision 6, spec D5 and W4.
 - **First noted:** 2026-10-05, travellers spec T1 (W4), filed at T9.

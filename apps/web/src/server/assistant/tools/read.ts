@@ -41,7 +41,7 @@
 // conversion happens here and only here. Handing a model both an `index` and a
 // `day` for the same row is how off-by-one answers get written.
 import { z } from "zod";
-import { ActivityKind, ActivityMode, LocationPrecision, Money, PendingReason, TimeWindow, travellerIds, type Location, type TripDetail } from "@tc/contracts";
+import { ActivityKind, ActivityMode, LocationPrecision, Money, PendingReason, TimeWindow, stopHeadcount, travellerIds, type Location, type TripDetail } from "@tc/contracts";
 import { DAYTIME_END_MINUTES, DAYTIME_START_MINUTES, citiesOfDay, findFreeGaps, minutesOf, summarizeFreeDays } from "@tc/domain";
 import { needsBooking } from "@/lib/needsBooking";
 import { activeConflicts, conflictsOnDay, type AiConflictSummary, type AskScope } from "@/server/assistant/context";
@@ -213,6 +213,14 @@ export interface StopReadout {
   tags: string[];
   cost: { amountMinor: number; currency: string } | null;
   /**
+   * How many people `cost` is multiplied by in every total: `stopHeadcount`,
+   * the one place that rule lives. Without it the model rebuilt the multiplier
+   * as `cost × travellers`, which is wrong for any stop with picks — including
+   * a picked non-traveller, who counts (travellers spec D6). `null` only on a
+   * result produced before the field existed.
+   */
+  headcount: number | null;
+  /**
    * A transit stop's leg (M24): by what, and where it arrives — `location` is
    * where it leaves. Narrowed like `location`. The model needs both to say what
    * a travel stop IS. Moving one off `transit` clears them: the write edge
@@ -306,6 +314,8 @@ export const DayReadoutSchema: z.ZodType<DayReadout, z.ZodTypeDef, unknown> = z.
       endLocation: PlaceReadoutSchema.nullable().default(null),
       // Defaulted for the same reason, for a result produced before ADR-055.
       pendingReason: PendingReason.nullable().default(null),
+      // And for one produced before the travellers spec.
+      headcount: z.number().nullable().default(null),
     }),
   ),
   conflicts: z.array(ConflictSummarySchema),
@@ -325,6 +335,7 @@ export const DayReadoutSchema: z.ZodType<DayReadout, z.ZodTypeDef, unknown> = z.
  * model has seen is a UUID it can later invent a near-miss of (KI-15's shape).
  */
 export function readDay(detail: TripDetail, day: number): DayReadout | ReadToolProblem {
+  const travellers = travellerIds(detail.members).length;
   const index = day - 1;
   const record = detail.days[index];
   if (!record) {
@@ -353,6 +364,7 @@ export function readDay(detail: TripDetail, day: number): DayReadout | ReadToolP
           kind: activity.kind,
           tags: [...activity.tags],
           cost: activity.cost,
+          headcount: stopHeadcount(activity, travellers),
           mode: activity.mode,
           endLocation: placeReadout(activity.endLocation),
           pendingReason: activity.pendingReason,
@@ -843,7 +855,7 @@ const STOP_LEVEL_CLASSES = ["question", "edit", "plan"] as const satisfies reado
 export const readTripTool = defineTool({
   name: "read_trip",
   description:
-    "Read this trip's shape: name, currency, start date, how many days, how many members and how many of them are travelling (a stop nobody is picked for is priced for the travellers), each day's date, which city (or cities, on a travel day) it touches, stop count, how many of its stops still need booking and cost subtotal, the trip cost total, and any active conflicts. Start here — the `cities` field is how you find which days are near a place without reading every day.",
+    "Read this trip's shape: name, currency, start date, how many days, how many members and how many of them are travelling (a member can be on the trip and not travelling; a stop nobody is picked for is priced for the travellers, and for at least one person when nobody is travelling), each day's date, which city (or cities, on a travel day) it touches, stop count, how many of its stops still need booking and cost subtotal, the trip cost total, and any active conflicts. Start here — the `cities` field is how you find which days are near a place without reading every day.",
   domain: "itinerary",
   effect: "read",
   spend: "none",
@@ -857,7 +869,7 @@ export const readTripTool = defineTool({
 
 export const readDayTool = defineTool({
   name: "read_day",
-  description: `Read one or MORE days in full: every stop with its time window, location, notes, kind, tags and cost (the price for one person — the day and trip totals already multiply it by who is in the stop, or by every traveller when nobody is picked; read_trip says how many travellers there are), plus the active conflicts that touch each day. Pass \`days\` as a single number or a list (up to ${MAX_READ_DAYS}) — if a question needs several days, put them all in ONE call rather than calling this once per day. Use this whenever the question is about what happens on a day, when a stop's time matters, or when the question is about a day's conflicts or what it still needs booked.`,
+  description: `Read one or MORE days in full: every stop with its time window, location, notes, kind, tags, cost (the price for one person) and headcount (how many people that price is multiplied by: the people picked for the stop, or every traveller when nobody is picked). The day's costSubtotal and read_trip's tripCostTotal already apply each stop's headcount — quote them; never recompute a total as cost times the travellers. Plus the active conflicts that touch each day. Pass \`days\` as a single number or a list (up to ${MAX_READ_DAYS}) — if a question needs several days, put them all in ONE call rather than calling this once per day. Use this whenever the question is about what happens on a day, when a stop's time matters, or when the question is about a day's conflicts or what it still needs booked.`,
   domain: "itinerary",
   effect: "read",
   spend: "none",
