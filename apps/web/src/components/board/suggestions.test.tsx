@@ -10,7 +10,7 @@ import { TripProvider } from "@/components/trip/context/TripProvider";
 import { EditorHost } from "@/components/trip/context/EditorHost";
 import { FocusProvider } from "@/components/trip/context/FocusProvider";
 import { LensRouter } from "@/components/trip/context/LensRouter";
-import { makeAccountPlanHandler, makeTripHandlers } from "@/mocks/handlers";
+import { makeAccountPlanHandler, makeNearbyStopsHandler, makeTripHandlers } from "@/mocks/handlers";
 
 // Ghosts, the chip and resolving (spec §2.4), through the whole board screen
 // and MSW: who sees which control is decided by the provider's role and the
@@ -28,6 +28,8 @@ vi.mock("next/navigation", () => ({
 let sessionUserId = "dev-alice";
 const server = setupServer(
   makeAccountPlanHandler(),
+  // A suggester's add-stop sheet asks for nearby stops (M34); none here.
+  makeNearbyStopsHandler([]),
   http.get("/api/auth/session", () => HttpResponse.json({ user: { id: sessionUserId } })),
 );
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));

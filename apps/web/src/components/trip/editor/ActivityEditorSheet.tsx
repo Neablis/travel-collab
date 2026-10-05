@@ -1,7 +1,7 @@
 "use client";
 
-import type { ActivityView } from "@tc/contracts";
-import { useState } from "react";
+import type { ActivityView, NearbyStop } from "@tc/contracts";
+import { useEffect, useState } from "react";
 import { personNames } from "@tc/pages";
 import { Banner } from "@/components/ui/banner";
 import { Sheet } from "@/components/ui/sheet";
@@ -17,6 +17,7 @@ import { usePeople } from "@/components/pages/people";
 import { dayLabel } from "@/lib/dates";
 import { toClockRange } from "@/lib/time";
 import { useTimeFormat } from "@/components/account/PreferencesProvider";
+import { fetchNearbyStops } from "@/lib/apiClient";
 import { formatMoney } from "@/lib/formatMoney";
 import { stopTotalLine } from "@/lib/cost";
 import { displayPlace, legEnd } from "@/lib/place";
@@ -109,6 +110,37 @@ export function ActivityEditorSheet() {
       : editingActivityId !== undefined
         ? activeTrip?.days.find((d) => d.activityIds.includes(editingActivityId))?.dayId
         : undefined;
+
+  // M34: library stops near the day being added to, fetched once per opening
+  // and filtered as the person types (D5). Create mode only (D12). A failed
+  // read is an empty list: suggestions are a convenience, and must never stand
+  // between someone and adding a stop. Results are kept against the request
+  // they answer, so a reply that lands after the sheet closed or moved on to
+  // another day is never shown.
+  //
+  // Not refetched when the Day select changes: that choice lives in the
+  // editor, and the list stays the one for the day the sheet opened on.
+  // A MapLens double-click has a coordinate and no day: the coordinate is the
+  // anchor distance is ranked from. `fetchNearbyStops` sends it only as a pair.
+  const lat = state.mode === "create" ? state.prefill?.location?.lat : undefined;
+  const lng = state.mode === "create" ? state.prefill?.location?.lng : undefined;
+  const tripId = activeTrip?.tripId;
+  const nearbyKey =
+    open && !readOnly && state.mode === "create" && tripId !== undefined
+      ? `${tripId}|${defaultDayId ?? ""}|${lat ?? ""}|${lng ?? ""}`
+      : null;
+  const [nearby, setNearby] = useState<{ key: string; stops: NearbyStop[] } | null>(null);
+  useEffect(() => {
+    if (nearbyKey === null || tripId === undefined) return;
+    let current = true;
+    void fetchNearbyStops(tripId, { dayId: defaultDayId, lat, lng }).then((result) => {
+      if (current && result.ok) setNearby({ key: nearbyKey, stops: result.value.stops });
+    });
+    return () => {
+      current = false;
+    };
+  }, [nearbyKey, tripId, defaultDayId, lat, lng]);
+  const nearbyStops = nearby !== null && nearby.key === nearbyKey ? nearby.stops : [];
 
   const memberIds = activeTrip?.members.map((m) => m.userId) ?? [];
   const names = activeTrip === null ? new Map<string, string>() : personNames(activeTrip, people, memberIds);
@@ -211,6 +243,7 @@ export function ActivityEditorSheet() {
           // Named by `personNames` over `PeopleProvider`'s names (mounted by
           // TripBoardScreen): "Traveler 2" until they land, never the id.
           members={namedMembers}
+          nearbyStops={nearbyStops}
           onSave={handleSave}
           onCancel={close}
         />
