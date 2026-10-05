@@ -16,9 +16,13 @@ const NO_TRIP = { ok: false, error: { code: "not-found", message: "This trip doe
  * Say whether `userId` is travelling on this trip.
  *
  * Authorised against the EFFECTIVE member list, read inside the transaction
- * that writes: the target has to be on the trip now, not when the caller last
- * looked, or a row would be written for someone just removed. A refusal
- * writes nothing and moves no revision.
+ * that writes, so the target was on the trip at that read rather than when the
+ * caller last looked. It is not a lock: under READ COMMITTED a remove that
+ * commits between the read and the upsert still lets the row land, for someone
+ * no longer on the trip. That stale row is harmless — `withTravelling` reads
+ * rows only for current members, and a later accept writes or clears the row
+ * from the invite's own choice (spec W6), so it never reaches a rejoin. A
+ * refusal writes nothing and moves no revision.
  */
 export async function setTravelling(
   tripId: string,
