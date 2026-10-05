@@ -1,4 +1,4 @@
-### KI-2026-10-05-c — the library matches a city by its exact spelling, so "kyoto" never finds "Kyoto"
+### KI-2026-10-05-d — the library matches a city by its exact spelling, so "kyoto" never finds "Kyoto"
 
 - **Severity:** minor (a day that should be offered is not; nothing wrong is shown).
 - **Area:** `apps/web/src/server/nearbyStops.ts` (`nearbyStopsFor`, `d.cities && …`) and
