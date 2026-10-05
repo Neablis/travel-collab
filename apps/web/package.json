@@ -15,6 +15,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run -c vitest.unit.config.ts",
     "test:int": "node scripts/with-test-db.mjs vitest run",
+    "eval": "node scripts/with-test-db.mjs vitest run -c vitest.eval.config.ts",
     "test:e2e": "NODE_OPTIONS=--import=./scripts/preload-dotenv.mjs node scripts/with-test-db.mjs --with-port playwright test",
     "test:e2e:ci-like": "NEXT_PUBLIC_SENTRY_DSN='' pnpm build && pnpm check:build-sentry && CI=true pnpm test:e2e",
     "check:build-sentry": "node scripts/check-build-has-no-sentry-dsn.mjs",

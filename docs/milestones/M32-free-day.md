@@ -98,6 +98,9 @@ Then, on the proposal: *"Hardcode 8-22 for now, make it a small milestone."*
 - [x] **KI filed** for the 162-second turn; `q-most-free` added to the live set.
       *(Ticked 2026-10-04: `KI-2026-10-04-c`; the live set is sixteen prompts. `ledger.sql` gains
       query 8, model time per step.)*
+- *Before merge, by M33's eval (2026-10-05): `q-most-free` ×3 on production's models passed 3 of
+  3 on this branch (one `find_free_time` call each, day 1, 4-5s) and 0 of 3 on `main` (2-18
+  calls, up to 34s, "19 hours"). The walk below still ticks on production.*
 - [ ] **[walk]** On production after the dispatch: *"Which day has the most free time?"* on a
       multi-day trip is answered from **one** `find_free_time` call, names a day by its
       daytime hours, and the turn's step rows carry durations.

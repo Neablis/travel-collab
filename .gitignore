@@ -88,3 +88,6 @@ apps/web/eslint.config.__walltest__*
 # before adding it; if a real source file ever wants this name, rename the file
 # rather than narrowing this line.
 apps/web/**/__*_fixture__.*
+
+# M33: eval run reports (pnpm --filter web eval). Kept local; the committed bar is cases.ts.
+apps/web/eval-results/
