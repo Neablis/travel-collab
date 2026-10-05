@@ -6,15 +6,16 @@ import type { TripState } from "./state";
 // with no cost contributes 0.
 //
 // A stop's `cost` is per person (ADR-060), so what is summed is `stopTotal`,
-// never the raw price. `memberCount` is a parameter rather than
-// `state.members.length` because the two callers disagree on purpose: the
-// projection passes the log's own members, so rebuild equals stored (invariant
-// 2), and the server's read-time overlay passes the effective members, which
-// the log does not hold (`recostDetail` in `detail.ts`) — and so does the
-// decider, when the server tells it that count (`DecideContext.memberCount`).
+// never the raw price. `travellerCount` — who "everyone" is on a stop nobody
+// picked — is a parameter rather than read off `state.members` because the
+// callers disagree on purpose: the projection passes the log's own members,
+// so rebuild equals stored (invariant 2), and the server's read-time overlay
+// passes the effective travellers, which the log does not hold (`recostDetail`
+// in `detail.ts`) — and so does the decider, when the server tells it that
+// count (`DecideContext.travellerCount`).
 export function rollupCosts(
   state: Pick<TripState, "days" | "backlog" | "activities">,
-  memberCount: number,
+  travellerCount: number,
 ): {
   dayCostSubtotals: number[];
   unscheduledCostSubtotal: number;
@@ -22,7 +23,7 @@ export function rollupCosts(
 } {
   const costOf = (id: string): number => {
     const activity = state.activities[id];
-    return activity ? stopTotal(activity, memberCount) : 0;
+    return activity ? stopTotal(activity, travellerCount) : 0;
   };
   const dayCostSubtotals = state.days.map((d) => d.activityIds.reduce((sum, id) => sum + costOf(id), 0));
   const unscheduledCostSubtotal = state.backlog.reduce((sum, id) => sum + costOf(id), 0);

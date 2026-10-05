@@ -7,8 +7,9 @@ const TRIP = "7d9a1f8e-0000-4000-8000-00000000000a";
 
 // N activities, each with an integer minor-unit cost (0 = no cost); onDay[i]
 // puts activity i on the single day, else in the backlog. `picked[i]` is how
-// many people are in activity i (0 = nobody picked, which means everyone).
-function stateOf(costs: number[], onDay: boolean[], picked: number[] = [], members = 1): TripState {
+// many people are in activity i (0 = nobody picked, which means every
+// traveller). `members` travel; `advisers` more are on the trip and do not.
+function stateOf(costs: number[], onDay: boolean[], picked: number[] = [], members = 1, advisers = 0): TripState {
   const activities: TripState["activities"] = {};
   const day = { dayId: "d1", activityIds: [] as string[] };
   const backlog: string[] = [];
@@ -18,7 +19,8 @@ function stateOf(costs: number[], onDay: boolean[], picked: number[] = [], membe
     activities[id] = { title: `A${i}`, timeWindow: null, location: null, notes: null, anchors: [], kind: "planned" as const, tags: [], cost: c === 0 ? null : { amountMinor: c, currency: "USD" } , bookedBy: null, participants, mode: null, endLocation: null, pendingReason: null};
     (onDay[i] ? day.activityIds : backlog).push(id);
   });
-  const memberList = Array.from({ length: members }, (_, m) => ({ userId: `u${m + 1}`, role: m === 0 ? ("owner" as const) : ("editor" as const) }));
+  const memberList: TripState["members"] = Array.from({ length: members }, (_, m) => ({ userId: `u${m + 1}`, role: m === 0 ? ("owner" as const) : ("editor" as const) }));
+  for (let a = 0; a < advisers; a++) memberList.push({ userId: `adviser${a + 1}`, role: "suggester", travelling: false });
   return { tripId: TRIP, name: "Rome", members: memberList, forkedFrom: null, startDate: null, days: [day], backlog, activities, currency: "USD", budget: null, dismissedConflictIds: [], status: "active" };
 }
 
@@ -69,28 +71,35 @@ describe("rollupCosts", () => {
 
 describe("recostDetail", () => {
   // The read-time overlay and the projection are one definition: recosting a
-  // stored detail for N members is exactly what the projection would produce
-  // if the log itself held those N members. That is what lets the server add
-  // members at read time without a second implementation of the rollup.
-  it("equals the projection of the same trip with that many members", () => {
+  // stored detail for N travellers is exactly what the projection would
+  // produce if the log itself held those N travellers — and any number of
+  // members who are not travelling, who are not charged for a stop nobody
+  // picked (travellers spec D1). That is what lets the server add members at
+  // read time without a second implementation of the rollup.
+  it("equals the projection of the same trip with that many travellers, whoever else is on it", () => {
     const w = witness("recost equals projection");
+    const wAdvisers = witness("recost equals projection, advisers on the trip");
     const stop = fc.record({ cost: fc.nat({ max: 100_000 }), picked: fc.nat({ max: 3 }), onDay: fc.boolean() });
     const budget = fc.option(fc.nat({ max: 5_000_000 }), { nil: null });
-    fc.assert(fc.property(fc.array(stop, { maxLength: 8 }), fc.integer({ min: 1, max: 5 }), budget, (stops, members, b) => {
+    fc.assert(fc.property(fc.array(stop, { maxLength: 8 }), fc.integer({ min: 1, max: 5 }), fc.nat({ max: 3 }), budget, (stops, members, advisers, b) => {
       const costs = stops.map((s) => s.cost);
       const onDay = stops.map((s) => s.onDay);
       const picked = stops.map((s) => s.picked);
       const withBudget = (st: TripState): TripState => ({ ...st, budget: b === null ? null : { amountMinor: b, currency: "USD" } });
       const stored = tripDetailFromState(withBudget(stateOf(costs, onDay, picked, 1)), "2026-10-02T00:00:00.000Z");
-      const joined = tripDetailFromState(withBudget(stateOf(costs, onDay, picked, members)), "2026-10-02T00:00:00.000Z");
+      const joined = tripDetailFromState(withBudget(stateOf(costs, onDay, picked, members, advisers)), "2026-10-02T00:00:00.000Z");
       const recosted = recostDetail(stored, members);
-      if (members > 1 && stops.some((s) => s.cost > 0 && s.picked === 0)) w.tick();
+      const nobodyPicked = stops.some((s) => s.cost > 0 && s.picked === 0);
+      if (members > 1 && nobodyPicked) w.tick();
+      // Where charging the advisers would change the answer.
+      if (advisers > 0 && nobodyPicked) wAdvisers.tick();
       expect(recosted.days).toEqual(joined.days);
       expect(recosted.unscheduledCostSubtotal).toBe(joined.unscheduledCostSubtotal);
       expect(recosted.tripCostTotal).toBe(joined.tripCostTotal);
       expect(recosted.budgetRemaining).toBe(joined.budgetRemaining);
     }));
     w.atLeast(17); // observed 34-54 over 10 runs
+    wAdvisers.atLeast(13); // observed 27-47 over 10 runs
   });
 
   // The over-budget conflict reads `tripCostTotal`, so it has to move with it.
@@ -100,21 +109,25 @@ describe("recostDetail", () => {
   it("recomputes the over-budget conflict with the totals, so the banner and the board agree", () => {
     const w = witness("recost moves the over-budget conflict");
     const stop = fc.record({ cost: fc.nat({ max: 100_000 }), picked: fc.nat({ max: 3 }), onDay: fc.boolean() });
-    fc.assert(fc.property(fc.array(stop, { maxLength: 8 }), fc.integer({ min: 1, max: 5 }), fc.nat({ max: 600_000 }), (stops, members, b) => {
+    const wAdvisers = witness("recost moves the over-budget conflict, advisers on the trip");
+    fc.assert(fc.property(fc.array(stop, { maxLength: 8 }), fc.integer({ min: 1, max: 5 }), fc.nat({ max: 3 }), fc.nat({ max: 600_000 }), (stops, members, advisers, b) => {
       const costs = stops.map((s) => s.cost);
       const onDay = stops.map((s) => s.onDay);
       const picked = stops.map((s) => s.picked);
       const withBudget = (st: TripState): TripState => ({ ...st, budget: { amountMinor: b, currency: "USD" } });
       const stored = tripDetailFromState(withBudget(stateOf(costs, onDay, picked, 1)), "2026-10-02T00:00:00.000Z");
-      const joined = tripDetailFromState(withBudget(stateOf(costs, onDay, picked, members)), "2026-10-02T00:00:00.000Z");
+      const joined = tripDetailFromState(withBudget(stateOf(costs, onDay, picked, members, advisers)), "2026-10-02T00:00:00.000Z");
       const recosted = recostDetail(stored, members);
       // Ticks only where the join changes the answer: the log's one member is
       // within budget and the effective members are not.
       const over = (d: typeof stored) => d.conflicts.some((c) => c.kind === "over-budget");
       if (!over(stored) && over(joined)) w.tick();
+      // And where the advisers would tip it over if they were charged.
+      if (!over(joined) && over(recostDetail(stored, members + advisers))) wAdvisers.tick();
       expect(recosted.conflicts).toEqual(joined.conflicts);
       expect(over(recosted)).toBe(recosted.budgetRemaining! < 0);
     }), { numRuns: 400 });
     w.atLeast(9); // observed 18-34 over 10 runs of 400
+    wAdvisers.atLeast(4); // observed 9-16 over 10 runs of 400
   });
 });

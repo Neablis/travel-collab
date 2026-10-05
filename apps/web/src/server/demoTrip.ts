@@ -64,10 +64,14 @@ const DEMO_ACTOR_ID = "00000000-0000-4000-8000-00000000a000";
  *
  * No email addresses: an invented address on a public page is the kind of
  * thing that eventually gets mailed.
+ *
+ * All four are travelling, said explicitly as `effectiveMembers` says it for a
+ * real trip: the fixture's totals are for the crew that is going.
  */
 const DEMO_TRAVELLERS: TripMemberProfile[] = JAPAN_TRAVELLERS.map((name) => ({
   userId: name,
   role: JAPAN_TRAVELLER_ROLES[name],
+  travelling: true,
   name,
   email: null,
   image: null,
@@ -186,7 +190,7 @@ function buildDemo(startDate: string): Demo {
     // showed "1 travellers" beside a raw uuid on every timeline card.
     detail: overlayMembers(
       tripDetailFromState(state, envelopes[0]!.occurredAt, serverConflictContext()),
-      DEMO_TRAVELLERS.map(({ userId, role }) => ({ userId, role })),
+      DEMO_TRAVELLERS.map(({ userId, role, travelling }) => ({ userId, role, travelling })),
     ),
     history: {
       tripId: DEMO_TRIP_ID,

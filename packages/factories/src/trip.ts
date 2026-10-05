@@ -1,6 +1,6 @@
 import { Factory } from "fishery";
 import { rollupCosts } from "@tc/domain";
-import type { ActivityView, Location, Money, TimeWindow, TripDetail, TripMember } from "@tc/contracts";
+import { travellerIds, type ActivityView, type Location, type Money, type TimeWindow, type TripDetail, type TripMember } from "@tc/contracts";
 import { faker } from "./seed";
 import { uuidFrom } from "./ids";
 
@@ -196,7 +196,7 @@ export const tripDetailFactory = Factory.define<TripDetail, TripTransient>(
     });
 
     afterBuild((trip) => {
-      const { dayCostSubtotals, unscheduledCostSubtotal, tripCostTotal } = rollupCosts(trip, trip.members.length);
+      const { dayCostSubtotals, unscheduledCostSubtotal, tripCostTotal } = rollupCosts(trip, travellerIds(trip.members).length);
       trip.days = trip.days.map((day, i) => ({ ...day, costSubtotal: dayCostSubtotals[i] ?? 0 }));
       trip.unscheduledCostSubtotal = unscheduledCostSubtotal;
       trip.tripCostTotal = tripCostTotal;

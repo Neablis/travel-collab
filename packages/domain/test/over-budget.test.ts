@@ -53,9 +53,9 @@ describe("over-budget rule", () => {
 // EFFECTIVE members (`recostDetail`), which the log does not hold; the decider
 // used to judge it for the log's members alone. So a conflict the reader showed
 // could not be dismissed, and one that was dismissed lapsed on the next
-// unrelated command. `ctx.memberCount` is how the server tells the decider the
-// count the reader used.
-describe("the decider judges over-budget for the reader's member count (ADR-060)", () => {
+// unrelated command. `ctx.travellerCount` is how the server tells the decider
+// the count the reader used.
+describe("the decider judges over-budget for the reader's traveller count (ADR-060)", () => {
   const OVER = `over-budget:${TRIP}`;
   // 2,000 per person, nobody picked, budget 5,000: under for the log's one
   // member, over (6,000) once three people are on the trip.
@@ -63,7 +63,7 @@ describe("the decider judges over-budget for the reader's member count (ADR-060)
 
   it("dismisses an over-budget conflict that exists only for the effective members", () => {
     const command = { type: "DismissConflict", tripId: TRIP, conflictId: OVER } as const;
-    expect(decideTripCommand(perPerson(), command, { actorId: "u1", memberCount: 3 })).toEqual({
+    expect(decideTripCommand(perPerson(), command, { actorId: "u1", travellerCount: 3 })).toEqual({
       ok: true,
       events: [{ type: "ConflictDismissed", version: 1, payload: { tripId: TRIP, conflictId: OVER } }],
     });
@@ -78,11 +78,31 @@ describe("the decider judges over-budget for the reader's member count (ADR-060)
     const dismissed = { ...perPerson(), dismissedConflictIds: [OVER] };
     const rename = { type: "SetTripName", tripId: TRIP, name: "Roma" } as const;
 
-    const stillOver = decideTripCommand(dismissed, rename, { actorId: "u1", memberCount: 3 });
+    const stillOver = decideTripCommand(dismissed, rename, { actorId: "u1", travellerCount: 3 });
     expect(stillOver.ok && stillOver.events.map((e) => e.type)).toEqual(["TripNameSet"]);
 
     // Two people: 4,000 against 5,000 — genuinely under, so it lapses (KI-14).
-    const nowUnder = decideTripCommand(dismissed, rename, { actorId: "u1", memberCount: 2 });
+    const nowUnder = decideTripCommand(dismissed, rename, { actorId: "u1", travellerCount: 2 });
     expect(nowUnder.ok && nowUnder.events.map((e) => e.type)).toEqual(["TripNameSet", "ConflictUndismissed"]);
+  });
+});
+
+// Travellers spec D1: a stop nobody picked is priced for the TRAVELLERS, not
+// for everyone on the trip — #314's suggester joined to advise and doubled the
+// total. The log's own members never carry `travelling`, so a projection never
+// meets this; the server's overlay is where it bites. The rule still reads the
+// one count `travellerIds` defines, so the two cannot drift.
+describe("over-budget counts travellers, not members (travellers spec)", () => {
+  // 3,000 per person, nobody picked, budget 5,000: within it for one traveller,
+  // over (6,000) if the non-traveller were charged.
+  const withAdvisor = (travelling: boolean): TripState => ({
+    ...stateWith(5000, 3000),
+    members: [{ userId: "u1", role: "owner" }, { userId: "u2", role: "suggester", travelling }],
+  });
+
+  it("raises no conflict for a share the non-traveller is not charged", () => {
+    expect(detectConflicts(withAdvisor(false))).toEqual([]);
+    // The same trip with u2 travelling is over: the flag is what decides.
+    expect(detectConflicts(withAdvisor(true)).map((c) => c.kind)).toEqual(["over-budget"]);
   });
 });

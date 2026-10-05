@@ -1,4 +1,4 @@
-import type { Anchor, Conflict, TimeWindow } from "@tc/contracts";
+import { travellerIds, type Anchor, type Conflict, type TimeWindow } from "@tc/contracts";
 import type { TripState } from "./state";
 import { deriveDayDates } from "./dates";
 import { anchorKey } from "./equality";
@@ -225,8 +225,12 @@ export function overBudgetConflicts(
   }];
 }
 
+// The log's members carry no `travelling` (it is Access data, travellers spec
+// D1), so this counts every one of them and a rebuild matches what was stored.
+// Through `travellerIds` all the same, so a state that does say who is
+// travelling is costed by the one rule that reads it.
 const budgetRule: Rule = (state, _ctx) =>
-  overBudgetConflicts(state, rollupCosts(state, state.members.length).tripCostTotal);
+  overBudgetConflicts(state, rollupCosts(state, travellerIds(state.members).length).tripCostTotal);
 
 // Rules are registered here; each is pure and individually testable
 // (docs/guidelines/building-the-parts.md). Sorted output keeps the

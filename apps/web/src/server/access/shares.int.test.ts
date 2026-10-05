@@ -259,6 +259,20 @@ describe("what a stranger is served", () => {
     // …but it does say how many people are on it.
     expect(view.value.travellerCount).toBe(2);
   });
+
+  // The count is of who is going (travellers spec D1), and it is the count the
+  // page's totals are priced for, so the two cannot read as different trips.
+  it("counts a member who is not travelling as on the trip but not among its travellers", async () => {
+    const tripId = await seedTrip();
+    const invite = await createInvite(tripId, OWNER, { email: null, role: "editor", travelling: false });
+    await acceptInvite(invite.token, GUEST);
+    const share = await createShare(tripId, OWNER);
+    if (!share.ok) throw new Error("share refused");
+
+    const view = await readShare(share.value.token);
+    if (!view.ok) throw new Error("share unreadable");
+    expect(view.value.travellerCount).toBe(1);
+  });
 });
 
 // The featured share used to be tested here: `readFeaturedShare` resolved

@@ -1,5 +1,5 @@
 import { TripEvent, type EventEnvelope, type TripDetail,
-  isPageEventType,
+  isPageEventType, travellerIds,
 } from "@tc/contracts";
 import { detectConflicts, DEFAULT_CONFLICT_CONTEXT, overBudgetConflicts, sortConflicts, type ConflictContext } from "./conflicts";
 import { rollupCosts } from "./costs";
@@ -15,7 +15,9 @@ export function tripDetailFromState(
   ctx: ConflictContext = DEFAULT_CONFLICT_CONTEXT,
 ): TripDetail {
   const dayDates = deriveDayDates(state.startDate, state.days.length);
-  const { dayCostSubtotals, unscheduledCostSubtotal, tripCostTotal } = rollupCosts(state, state.members.length);
+  // The log's members carry no `travelling`, so this is all of them — see
+  // `budgetRule`, which must read the same count.
+  const { dayCostSubtotals, unscheduledCostSubtotal, tripCostTotal } = rollupCosts(state, travellerIds(state.members).length);
   return {
     tripId: state.tripId,
     name: state.name,
@@ -63,20 +65,21 @@ export function tripDetailFromState(
 }
 
 /**
- * The same detail with every cost rollup recomputed for `memberCount` people:
- * each day's `costSubtotal`, `unscheduledCostSubtotal`, `tripCostTotal`,
- * `budgetRemaining`, and the over-budget conflict that reads them.
+ * The same detail with every cost rollup recomputed for `travellerCount`
+ * people: each day's `costSubtotal`, `unscheduledCostSubtotal`,
+ * `tripCostTotal`, `budgetRemaining`, and the over-budget conflict that reads
+ * them.
  *
- * For the read boundary (ADR-060 decision 4). Who is on a trip is Access &
- * Membership data, not planning data, so a stop nobody picked costs more the
- * moment someone joins — with no event. The stored projection keeps the log's
- * answer; the server applies this wherever it overlays the effective member
- * list, so the totals a reader sees match the members they see. Only the
- * budget rule depends on the member count; every other conflict is kept as
- * stored.
+ * For the read boundary (ADR-060 decision 4). Who is on a trip, and which of
+ * them is travelling, is Access & Membership data, not planning data, so a
+ * stop nobody picked costs more the moment a traveller joins — with no event.
+ * The stored projection keeps the log's answer; the server applies this
+ * wherever it overlays the effective member list, so the totals a reader sees
+ * match the travellers they see. Only the budget rule depends on the count;
+ * every other conflict is kept as stored.
  */
-export function recostDetail(detail: TripDetail, memberCount: number): TripDetail {
-  const { dayCostSubtotals, unscheduledCostSubtotal, tripCostTotal } = rollupCosts(detail, memberCount);
+export function recostDetail(detail: TripDetail, travellerCount: number): TripDetail {
+  const { dayCostSubtotals, unscheduledCostSubtotal, tripCostTotal } = rollupCosts(detail, travellerCount);
   return {
     ...detail,
     days: detail.days.map((day, i) => ({ ...day, costSubtotal: dayCostSubtotals[i]! })),

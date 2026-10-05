@@ -19,12 +19,13 @@ export type Decision =
   | { ok: false; rejection: Rejection };
 
 /**
- * `memberCount` is the EFFECTIVE member count the server's read overlay costs
- * the trip for (ADR-060) — the log holds only its own members, so the decider
- * cannot know it. Absent, the log's members decide, which is what replay and a
- * caller with no Access data (the demo trip, `predict`) want.
+ * `travellerCount` is the EFFECTIVE traveller count the server's read overlay
+ * costs the trip for (ADR-060; travellers spec D1) — the log holds only its own
+ * members, and not who of them is travelling, so the decider cannot know it.
+ * Absent, the log's members decide, which is what replay and a caller with no
+ * Access data (the demo trip, `predict`) want.
  */
-export type DecideContext = { actorId: string; memberCount?: number };
+export type DecideContext = { actorId: string; travellerCount?: number };
 
 function ok(events: TripEvent[]): Decision {
   return { ok: true, events };
@@ -128,16 +129,16 @@ function lapsedDismissals(state: TripState, events: TripEvent[], ctx: DecideCont
 }
 
 // The conflicts a reader is shown, which is what a dismissal is about. The
-// over-budget one is recosted for `ctx.memberCount` exactly as `recostDetail`
+// over-budget one is recosted for `ctx.travellerCount` exactly as `recostDetail`
 // recosts it at read time; judged on the log's members instead, a conflict the
 // reader could see was refused as `conflict-not-found`, and a dismissed one
 // lapsed on the next unrelated command (PR #289 review).
 function liveConflictIds(state: TripState, ctx: DecideContext): string[] {
   const conflicts = detectConflicts(state);
-  if (ctx.memberCount === undefined) return conflicts.map((c) => c.id);
+  if (ctx.travellerCount === undefined) return conflicts.map((c) => c.id);
   return [
     ...conflicts.filter((c) => c.kind !== "over-budget"),
-    ...overBudgetConflicts(state, rollupCosts(state, ctx.memberCount).tripCostTotal),
+    ...overBudgetConflicts(state, rollupCosts(state, ctx.travellerCount).tripCostTotal),
   ].map((c) => c.id);
 }
 
