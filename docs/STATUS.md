@@ -21,10 +21,15 @@ general setup.
 
 ## Where the work is right now
 
-**M33 — WE CAN SEE WHETHER AN ASSISTANT CHANGE WORKS BEFORE IT SHIPS — IS THE CURRENT MILESTONE
-AS OF 2026-10-05**, by **M32's gate closing at 7 of 7**. Order: `… M19 ✓ → M31 ✓ → M32 ✓ → M33`
-(M9 stays paused: its gate needs a live model call). M33 is merged (#327); every box is ticked but
-its retro. (`docs/milestones/M33-evals.md`)
+**M34 — ADDING A STOP SUGGESTS WHAT OTHER TRAVELLERS DID NEARBY — IS THE CURRENT MILESTONE AS OF
+2026-10-05**, by **M33's gate closing at 6 of 6**. Order: `… M31 ✓ → M32 ✓ → M33 ✓ → M34`
+(M9 stays paused). The add-stop sheet lists stops from other people's published days in the same
+city, closest first, and a pick fills name, place, length, kind and tags. It replaces the
+*"Example match"* Preview, which had been filed under M9. A three-part draft stack:
+`docs/plans/2026-10-05-M34-nearby-stops.md`. (`docs/milestones/M34-nearby-stops.md`)
+
+**M33 closed 2026-10-05** on Mitchell's word, with every box but the retro already ticked. Its
+retro is at the end of `docs/milestones/M33-evals.md`.
 
 **M32 closed 2026-10-05** on Mitchell's production walk, same trip as the 162-second turn: one
 `find_free_time {"wholeTrip": true}` call, two steps of 734 and 780 ms, 4.5s end to end, and
@@ -65,7 +70,7 @@ part 2 is live; and checking production's canonical on `caesura.today/playbooks`
 Per-person totals count travellers, not members (ADR-065, amending ADR-060 decision 2). Trip
 settings → People replaces the Travelers panel, and the owner's open panel now sees a join
 (KI-2026-10-04-b, resolved). It carries **migration 0039**, which has to be dispatched after
-merge. Open from it: `KI-2026-10-05-d`, `-e` and `-f`.
+merge. Open from it: `KI-2026-10-05-e`, `-f` and `-g`.
 
 **M28 — Three kinds — closed 2026-09-26** (#238, #239): a stop's kind is
 `planned`, `pending` or `transit`, and the retired `idea`/`hold`/`booked` are
@@ -203,9 +208,9 @@ half, the model guessing a coordinate rather than citing one, is M9 scope.
 
 ## Next action
 
-**M33's retro, then its gate close**: nothing else is open in it. Separately, `KI-2026-10-04-c`
-resolves on query 8 of `ledger.sql` over a few days of cheap-tier step durations (one 4.5s
-production turn on 2026-10-05 is not yet a rate).
+**M34, part 2 then part 3** of the stack in `docs/plans/2026-10-05-M34-nearby-stops.md`. The
+walk box is Mitchell's, on part 3's preview. Separately, `KI-2026-10-04-c` resolves on query 8 of
+`ledger.sql` over a few days of cheap-tier step durations.
 
 **Carried out of M24, not gating:** `KI-2026-09-25-q`. About a dozen
 surfaces read `activity.location.city` directly, including the M14 ones this

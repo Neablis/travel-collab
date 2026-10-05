@@ -1,4 +1,4 @@
-### KI-2026-10-05-d — with nobody travelling, the board prices one person but "who owes what" charges nobody
+### KI-2026-10-05-e — with nobody travelling, the board prices one person but "who owes what" charges nobody
 
 - **Severity:** correctness, low reach. Two money surfaces disagree, but only on a trip where every
   member, owner included, is marked not travelling.

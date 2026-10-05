@@ -235,7 +235,7 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
 
   const adoptAccess = useCallback((value: TripAccess) => {
     setAccess(value);
-    // **The read's own revision is the baseline** (KI-2026-10-05-f, spec W22).
+    // **The read's own revision is the baseline** (KI-2026-10-05-g, spec W22).
     // The server reads it before the members, so it is never newer than the
     // list adopted here: any rev the poll reports after this that differs is a
     // write this list may not show, and is re-read. Seeding from the first
@@ -636,7 +636,7 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
   // happens when the load's access read failed or carried no rev, such as on
   // the demo trip or when the server's rev read failed. Then the first poll
   // is the trip as `load` read it, give or take one interval, and an Access
-  // write inside that window shows only on the next one (KI-2026-10-05-f).
+  // write inside that window shows only on the next one (KI-2026-10-05-g).
   //
   // Marked seen only once the re-read has landed (W68's rule for
   // `suggestionsRev`): a failed one leaves it behind, so the next poll retries.

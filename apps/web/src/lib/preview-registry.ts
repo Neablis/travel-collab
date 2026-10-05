@@ -99,7 +99,9 @@ export const PREVIEW_REGISTRY = {
   // It shipped as "Spend by kind" (`cost.breakdown` in `@tc/pages`, beside
   // "Spend by tag"), a cost inheriting its stop's kind. Removed rather than
   // retagged: nothing is left on the sheet to wire.
-  "add-stop-suggestions": { milestone: "M9", wiredUpBy: "Grounded place search — nothing generates matches yet" },
+  // The add-stop sheet's list of matches under "What or where" was here, tagged
+  // M9 for a place search that was never connected to it. M34 replaced it with
+  // stops from other people's published days, with no model or vendor behind it.
   // **M21 link 5 wired both of the account sheet's plan shells up and removed
   // them**, 2026-09-14 — `account-plan-change` and `account-plan-billing`.
   //

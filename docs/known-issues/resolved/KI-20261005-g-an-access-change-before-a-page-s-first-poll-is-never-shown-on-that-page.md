@@ -1,4 +1,4 @@
-### KI-2026-10-05-f — an Access change made before a page's first poll is never shown on that page — RESOLVED
+### KI-2026-10-05-g — an Access change made before a page's first poll is never shown on that page — RESOLVED
 
 - **Severity:** correctness, narrow window. An owner with the trip open can miss a join, a revoke
   or a travelling toggle until they reload. KI-2026-10-04-b's fix has this hole in it.

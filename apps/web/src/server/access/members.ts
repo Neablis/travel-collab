@@ -228,7 +228,7 @@ export async function accessRevFor(tripId: string): Promise<string> {
 
 /**
  * `TripAccess.accessRev`: the revision to serve beside a member list
- * (KI-2026-10-05-f, spec W22).
+ * (KI-2026-10-05-g, spec W22).
  *
  * **Call it before reading the members and invites, never after.** A rev read
  * first is never newer than the list it is served with. A client that takes it

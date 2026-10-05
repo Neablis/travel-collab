@@ -62,10 +62,10 @@ ADR-060 decision 2 now reads "empty = all *travellers*".
   People section is where to see it.
 - **Zero travellers is priced for one person, but balances charge nobody** (spec W4). The two
   disagree in a state reachable only by marking everyone, owner included, not travelling.
-  KI-2026-10-05-d.
+  KI-2026-10-05-e.
 - **The public API's totals mean something different** (1.6.0, `docs/contracts/CHANGELOG.md`):
   `cost × headcount` now counts travellers, and `GET /v1/trips/:id/members` returns `travelling`.
 - **The first `accessRev` a client sees is a baseline** (spec W19). An Access write made before
-  that first poll is never re-read by that page. KI-2026-10-05-f. **Resolved the same day** (spec
+  that first poll is never re-read by that page. KI-2026-10-05-g. **Resolved the same day** (spec
   W22): `TripAccess` carries `accessRev`, read before its members, and that is now the baseline.
   The first poll is the baseline only when the read carried none.

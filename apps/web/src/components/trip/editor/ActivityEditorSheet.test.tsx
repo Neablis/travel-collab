@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { NearbyStop } from "@tc/contracts";
 import { activityFactory, historyFixture, locationFactory, tripDetailFixture } from "@tc/factories";
 import { ActivityEditorSheet } from "./ActivityEditorSheet";
 import { formatMoney } from "@/lib/formatMoney";
@@ -32,13 +33,15 @@ vi.mock("@/lib/apiClient", async (orig) => {
     fetchTripAccess: (...args: unknown[]) => fetchTripAccessMock(...args),
     sendTripCommand: (...args: unknown[]) => sendTripCommandMock(...args),
     sendTripCommandBatch: (...args: unknown[]) => sendTripCommandBatchMock(...args),
+    fetchNearbyStops: (...args: unknown[]) => fetchNearbyStopsMock(...args),
   };
 });
 const fetchTripAccessMock = vi.fn();
+const fetchNearbyStopsMock = vi.fn();
 
 import { fetchTripDetail, fetchTripHistory } from "@/lib/apiClient";
 import { TripProvider } from "@/components/trip/context/TripProvider";
-import { EditorHost, useEditor } from "@/components/trip/context/EditorHost";
+import { EditorHost, useEditor, type ActivityPrefill } from "@/components/trip/context/EditorHost";
 import { PeopleProvider } from "@/components/pages/people";
 
 const TRIP_ID = "10000000-0000-4000-8000-000000000000";
@@ -102,11 +105,11 @@ function fixture() {
 // Opens the sheet in the given mode as soon as EditorHost mounts — the real
 // app does this via a lens's "Add stop" button / row click (openCreate) or
 // an activity click (openEdit); this stands in for that trigger.
-function Opener({ mode, activityId }: { mode: "create" | "edit"; activityId?: string }) {
+function Opener({ mode, activityId, prefill }: { mode: "create" | "edit"; activityId?: string; prefill?: ActivityPrefill }) {
   const { openCreate, openEdit } = useEditor();
   useEffect(() => {
     if (mode === "edit" && activityId !== undefined) openEdit(activityId);
-    else openCreate();
+    else openCreate(prefill);
     // Fire once on mount only — openCreate/openEdit are stable identities.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -115,11 +118,19 @@ function Opener({ mode, activityId }: { mode: "create" | "edit"; activityId?: st
 
 // Under a `PeopleProvider`, as TripBoardScreen mounts it: the attribution
 // controls name members from the access read the mock above answers.
-function renderEditorSheet({ mode, activityId }: { mode: "create" | "edit"; activityId?: string }) {
+function renderEditorSheet({
+  mode,
+  activityId,
+  prefill,
+}: {
+  mode: "create" | "edit";
+  activityId?: string;
+  prefill?: ActivityPrefill;
+}) {
   render(
     <TripProvider tripId={TRIP_ID}>
       <EditorHost>
-        <Opener mode={mode} activityId={activityId} />
+        <Opener mode={mode} activityId={activityId} prefill={prefill} />
         <PeopleProvider tripId={TRIP_ID}>
           <ActivityEditorSheet />
         </PeopleProvider>
@@ -136,6 +147,8 @@ beforeEach(() => {
     ok: true,
     value: { tripId: TRIP_ID, myRole: "owner", members: [], invites: [] },
   });
+  // An empty library unless a test says otherwise (M34).
+  fetchNearbyStopsMock.mockReset().mockResolvedValue({ ok: true, value: { stops: [] } });
   vi.mocked(fetchTripDetail).mockResolvedValue({ ok: true, value: fixture() });
   vi.mocked(fetchTripHistory).mockResolvedValue({ ok: true, value: historyFixture(TRIP_ID) });
   sendTripCommandMock.mockResolvedValue({
@@ -312,6 +325,87 @@ describe("ActivityEditorSheet", () => {
     );
     const call = dispatch.mock.calls.find((args) => args[0]?.type === "AddActivity");
     expect(call?.[0].dayId).toBeUndefined();
+  });
+});
+
+// M34: the sheet asks the library once per opening, in create mode only, and a
+// failed read must never stand between someone and adding a stop.
+describe("ActivityEditorSheet nearby stops", () => {
+  const NISHIKI = NearbyStop.parse({
+    title: "Nishiki Market",
+    location: locationFactory.build({ name: "Nishiki Market, Kyoto, Japan", city: "Kyoto" }),
+    kind: "planned",
+    tags: ["meal"],
+    lengthMinutes: 60,
+    savedDayId: "33333333-3333-4333-8333-333333333333",
+    savedDayName: "Kyoto in a day",
+    playbookCount: 1,
+    distanceKm: null,
+  });
+
+  it("asks for the day being added to, and lists what comes back", async () => {
+    fetchNearbyStopsMock.mockResolvedValue({ ok: true, value: { stops: [NISHIKI] } });
+    renderEditorSheet({ mode: "create", prefill: { dayId: DAY_2 } });
+
+    const list = await screen.findByRole("list", { name: "Nearby stops from the library" });
+    expect(within(list).getByText("Nishiki Market")).toBeTruthy();
+    expect(fetchNearbyStopsMock).toHaveBeenCalledTimes(1);
+    expect(fetchNearbyStopsMock).toHaveBeenCalledWith(TRIP_ID, expect.objectContaining({ dayId: DAY_2 }));
+  });
+
+  it("does not ask while a stop is being edited", async () => {
+    renderEditorSheet({ mode: "edit", activityId: SCHEDULED_ACTIVITY_ID });
+    await screen.findByDisplayValue("Existing stop");
+
+    expect(fetchNearbyStopsMock).not.toHaveBeenCalled();
+  });
+
+  it("still adds a stop when the library cannot be read", async () => {
+    fetchNearbyStopsMock.mockResolvedValue({ ok: false, error: { status: 500, message: "boom" } });
+    const dispatch = renderEditorSheet({ mode: "create", prefill: { dayId: DAY_1 } });
+    await vi.waitFor(() => expect(fetchNearbyStopsMock).toHaveBeenCalled());
+
+    expect(screen.queryByRole("list", { name: "Nearby stops from the library" })).toBeNull();
+    await userEvent.type(screen.getByLabelText("What or where"), "Gora Kadan");
+    await userEvent.click(screen.getByRole("button", { name: "Add stop" }));
+    expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: "AddActivity", title: "Gora Kadan" }));
+  });
+
+  // CodeRabbit on PR 334: the list is held against the request it answers, and
+  // reopening on the same day is the same request, so a list kept across a
+  // close showed again at once, and stayed there when the new read failed.
+  it("forgets the last opening's list, so a failed read on reopening shows none", async () => {
+    // Outside the sheet, so the open dialog hides it from the accessibility
+    // tree: found with `hidden: true` below.
+    function Reopen() {
+      const { openCreate } = useEditor();
+      return (
+        <button type="button" onClick={() => openCreate({ dayId: DAY_2 })}>
+          test open
+        </button>
+      );
+    }
+    fetchNearbyStopsMock.mockResolvedValueOnce({ ok: true, value: { stops: [NISHIKI] } });
+    render(
+      <TripProvider tripId={TRIP_ID}>
+        <EditorHost>
+          <Reopen />
+          <PeopleProvider tripId={TRIP_ID}>
+            <ActivityEditorSheet />
+          </PeopleProvider>
+        </EditorHost>
+      </TripProvider>,
+    );
+    const reopen = () => fireEvent.click(screen.getByRole("button", { name: "test open", hidden: true }));
+    reopen();
+    await screen.findByRole("list", { name: "Nearby stops from the library" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    fetchNearbyStopsMock.mockResolvedValueOnce({ ok: false, error: { status: 500, message: "boom" } });
+    reopen();
+    await vi.waitFor(() => expect(fetchNearbyStopsMock).toHaveBeenCalledTimes(2));
+
+    expect(screen.queryByRole("list", { name: "Nearby stops from the library" })).toBeNull();
   });
 });
 

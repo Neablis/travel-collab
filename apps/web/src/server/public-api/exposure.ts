@@ -88,6 +88,8 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
   "shares/[token]": PLANNED("Undecided — reading a share link"),
   "shares/[token]/clone": PLANNED("Undecided — cloning from a share link"),
   "trips/[tripId]/membership": PLANNED("Undecided — leaving a trip"),
+  // M34 D15: an internal route first; features ship before their endpoints.
+  "trips/[tripId]/nearby-stops": PLANNED("Undecided — library stops near a trip day (M34)"),
 
   // ── Never ────────────────────────────────────────────────────────────────
   "trips/[tripId]/ask": {

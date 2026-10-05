@@ -80,7 +80,7 @@ describe("GET /api/trips/:id/access", () => {
     expect(body.access.invites.map((i) => i.email)).toEqual(["someone@example.com"]);
   });
 
-  // KI-2026-10-05-f, spec W22. The client takes this rev as its baseline, so it
+  // KI-2026-10-05-g, spec W22. The client takes this rev as its baseline, so it
   // has to be the poll's rev (`accessRevFor`), and it has to move with the list
   // it is served beside.
   it("carries the access revision the poll reports, moving with each Access write", async () => {

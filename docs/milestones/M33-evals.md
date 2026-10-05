@@ -1,6 +1,6 @@
 # M33 — We can see whether an assistant change works before it ships
 
-**Status:** Minted and built 2026-10-05, beside M31 and M32, on Mitchell's ask: *"start adding
+**Status:** **Gate closed 2026-10-05** (6 of 6); the retro is at the end of this file. Minted and built 2026-10-05, beside M31 and M32, on Mitchell's ask: *"start adding
 evals so we can look at how this is working without this whole merge -> read logs of prod flow"*,
 then *"make sure we are using the correct models in the evals to get a real check"*. He added a
 Gateway key kept for evals, `TRAVEL_COLLAB_EVAL_KEY`, the same day.
@@ -89,4 +89,33 @@ by one turn's cost**; a turn cannot be priced until it has run. Spent: $0.0027.
       *(Ticked 2026-10-05: Mitchell gave `zai/glm-5.3`. It ran, and FAILED: steps 2.0s + 104.7s,
       then the 240s deadline stopped the third; three reads, no proposal. One run, so not yet
       a rate; recorded in `KI-2026-10-04-c`.)*
-- [ ] A retro is appended at gate close.
+- [x] A retro is appended at gate close.
+
+## Retro — gate closed 2026-10-05 (6 of 6)
+
+Closed on Mitchell's word, 2026-10-05: *"M33 is totally done"*. The retro was the only open box.
+
+**What shipped.** `pnpm --filter web eval`: the live set through the unmocked `/ask` handler on
+production's per-tier models (`models.json`), graded in code (`grade.ts`, expectations in
+`cases.ts`), behind its own network guard, with a stated plan before any spend and a cap
+(`EVAL_MAX_USD`) checked before each turn. Merged as #327.
+
+**What held.**
+- **It answered a merge question before the merge.** M32's `q-most-free` went 0 of 3 on `main` to
+  3 of 3 on the branch, on the models production runs, so production was not the experiment.
+- **Its first full run found a production defect nobody had seen**: a tool error the model
+  recovered from was recorded as a failed turn (`KI-2026-10-05-a`, and `KI-2026-09-16-a` with it),
+  fixed on #327.
+- **It turned a model choice into a measurement.** The candidate cheap model passed 12 of 12 in
+  1.9–4.1s where production's took 5–137s; Mitchell switched `AI_MODEL_CHEAP` the same day.
+
+**What it cost.**
+- **A day of unannounced spend ($0.25)** before the plan-and-cap rule existed. The cap now stops a
+  run, but it can overshoot by one turn, because a turn cannot be priced until it has run.
+- **Three of the first six failures were the eval's own** (a place stub, an expectation written for
+  another trip, a ceiling that assumed a command that does not exist). An eval needs its own
+  first-run triage before its reds mean anything.
+
+**Left open, not gating.**
+- **`KI-2026-10-04-c`**: the strong tier's one run timed out; one run is not a rate.
+- **The eval is not in CI**, on purpose: every turn is paid.

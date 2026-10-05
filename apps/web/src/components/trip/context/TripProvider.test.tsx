@@ -1357,7 +1357,7 @@ describe("TripProvider broadcast (M13 link 2)", () => {
       expect(fetchTripDetailMock).toHaveBeenCalledTimes(1);
     });
 
-    // KI-2026-10-05-f. The baseline is the rev the load's own access read
+    // KI-2026-10-05-g. The baseline is the rev the load's own access read
     // carried, so an Access write landing between that read and the first
     // poll (an invite accepted inside the first 2s interval) is news, not
     // baseline. The fallback above still holds for a read with no rev.

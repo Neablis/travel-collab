@@ -20,6 +20,7 @@ export * from "./saved.ts";
 export * from "./savedNotebook.ts";
 export * from "./review.ts";
 export * from "./suggestion.ts";
+export * from "./nearbyStops.ts";
 export * from "./report.ts";
 export * from "./admission.ts";
 export * from "./identity.ts";

@@ -1,4 +1,4 @@
-### KI-2026-10-05-e — `GET /api/trips` and `GET /v1/trips` return a lapsed owner's collaborators uncapped
+### KI-2026-10-05-f — `GET /api/trips` and `GET /v1/trips` return a lapsed owner's collaborators uncapped
 
 - **Severity:** correctness, low reach. An API answer carries a role that the trip's own reads do
   not. No screen shows it today, because the Home cards read no role. Nothing becomes writable

@@ -123,7 +123,7 @@ async function accessView(
 ): Promise<TripAccess> {
   // Before the members and invites, as `GET /access` reads it. It is read after
   // this request's own write, so it includes that write, and never a later one
-  // the list below misses (KI-2026-10-05-f, spec W22).
+  // the list below misses (KI-2026-10-05-g, spec W22).
   const accessRev = await accessRevForRead(tripId);
   const members = await effectiveMembers(db, tripId, projected);
   // The same field `GET /access` serves, from the same source: the trip

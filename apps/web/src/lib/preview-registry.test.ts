@@ -231,6 +231,14 @@ describe("preview registry ↔ usage", () => {
     }
   });
 
+  // M34's gate box, the same shape: the add-stop sheet's fake "Example match"
+  // row became real nearby stops. A shell put back under its old name,
+  // registered and rendered, passes both guards above; only naming it sees it.
+  it("has no add-stop matches shell left, in the registry or in the tree", () => {
+    expect(PREVIEW_REGISTRY).not.toHaveProperty("add-stop-suggestions");
+    expect(declared).not.toContain("add-stop-suggestions");
+  });
+
   // The other half of the same gate box: "No `<option>` city list exists
   // anywhere in the tree." The handoff says it twice and the milestone restates
   // it, because the dropdown is what the server-side city search replaces —

@@ -18,7 +18,7 @@ Format:
 - **Added:** `TripAccess.accessRev`, an optional opaque string. It is the same value the events
   poll reports as `TripEventsPage.accessRev`, read **before** the members and invites beside it,
   so it is never newer than they are.
-- Why: KI-2026-10-05-f. `TripProvider` used the first poll's `accessRev` as its baseline, so an
+- Why: KI-2026-10-05-g. `TripProvider` used the first poll's `accessRev` as its baseline, so an
   Access write between the page's load and that poll (an invite accepted inside the first 2s)
   was absorbed and never shown. The provider now seeds the baseline from the access read itself
   (travellers spec W22).
@@ -87,6 +87,24 @@ Format:
 - Breaking? no for parsing: every new field is optional or defaulted, and every stored row still
   parses. `balances`'s new argument breaks a caller at compile time, on purpose. A default of
   "every member" would have silently kept the old split.
+## 2026-10-05 — `NearbyStop` and `NearbyStopsResponse` (M34)
+
+- **New file `nearbyStops.ts`:** `NearbyStop`, `NearbyStopsResponse` and `NEARBY_STOPS_MAX` (40).
+  - `NearbyStop` is a stop from another person's published day, offered in the add-stop sheet:
+    `title`, `location` (required), `kind` (the current `ActivityKind`, not
+    `StoredActivityKind`, because the server has already read the row through `SavedStop`),
+    `tags`, `lengthMinutes` (null with no time window), `savedDayId`, `savedDayName`,
+    `playbookCount` (published days carrying the same stop) and `distanceKm` (null when not
+    ranked by distance).
+  - `NearbyStopsResponse` is `{ stops }`, at most `NEARBY_STOPS_MAX`.
+- Why: M34 replaces the add-stop sheet's `add-stop-suggestions` placeholder with stops from the
+  public library. Named "nearby stops" rather than "suggestions" because a suggestion is
+  already ADR-064's pending change (M34 D14).
+- Consumers updated: `apps/web` only — `server/nearbyStops.ts`, the new internal route
+  `GET /api/trips/[tripId]/nearby-stops` (registered `PLANNED` in `exposure.ts`, so no `/v1`
+  endpoint and no `openapi.json` change), `lib/apiClient.ts`'s `fetchNearbyStops` and
+  `mocks/handlers.ts`' `makeNearbyStopsHandler`. The sheet reads it in M34 part 3.
+- Breaking? no. A new file; nothing existing changed.
 
 ## 2026-10-03 — The `suggester` role, and suggestions as a contract (ADR-064); Public API 1.4.0, then 1.5.0
 

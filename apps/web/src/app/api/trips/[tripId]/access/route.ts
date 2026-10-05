@@ -13,7 +13,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ trip
   // First, before anything that reads the members: `requireTripAccess` reads
   // them, and `listInvites` reads the invites. A rev read first is never newer
   // than the list it is served with, so a client that takes it as its baseline
-  // re-reads on any write the list missed (KI-2026-10-05-f, spec W22). Read
+  // re-reads on any write the list missed (KI-2026-10-05-g, spec W22). Read
   // before the auth check, so a refused caller pays one primary-key read. The
   // rev is served only to a caller who passes the check.
   const accessRev = await accessRevForRead(tripId);
