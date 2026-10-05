@@ -29,10 +29,9 @@ import { PersonMenu, type PersonAction } from "./PersonMenu";
 import { PersonRow } from "./PersonRow";
 import { RoleDialog } from "./RoleDialog";
 
-// The travellers spec §4 replaces `TravelersPanel`, which SPEC §8 had listed as
-// deliberately not designed. One avatar, one name, one plain-words role line
-// and ONE control per row — the `⋯` menu, holding only what the reader may do.
-// Inviting moved into a dialog, so the list is the first thing you read.
+// The travellers spec §4. One avatar, one name, one plain-words role line and
+// ONE control per row — the `⋯` menu, holding only what the reader may do.
+// Inviting lives in a dialog, so the list is the first thing you read.
 
 type Confirming =
   | { kind: "revoke"; invite: TripInvite }

@@ -131,7 +131,7 @@ export function SettingsSheet({
   // the trip fields — name, dates, currency, budget — opt in to suggest mode
   // (W8), so a suggester's change joins their draft. Share does not.
   canEditBoard: boolean;
-  // TripProvider's `noteInvites`, handed to the People section (W73).
+  // TripProvider's `noteInvites`, handed to the People section (suggester spec W73).
   onInvitesChanged?: (pending: boolean) => void;
   // TripProvider's `access`, re-read when the poll's `accessRev` moves, for
   // the People section to adopt while it is open (KI-2026-10-04-b).

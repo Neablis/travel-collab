@@ -364,7 +364,7 @@ export function makeTripHandlers(
         },
       }),
     ),
-    // The People section's member writes (travellers T3's route, T7's UI).
+    // The People section's member writes: `PATCH`/`DELETE …/members/:userId`.
     // Each answers with the access the GET above serves, that one member
     // changed or gone — stateless like the GET, so a suite that needs the
     // change to stick across a re-read overrides both with `server.use`.

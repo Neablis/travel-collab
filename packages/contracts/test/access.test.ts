@@ -114,7 +114,7 @@ describe("SetTravellingInput", () => {
     expect(SetTravellingInput.safeParse({ travelling: "false" }).success).toBe(false);
   });
 
-  // One PATCH carries either body (plan T3). Strict, so a body naming both is
+  // One PATCH carries either body (travellers spec D8). Strict, so a body naming both is
   // refused instead of half-applied by whichever schema the route tries first.
   it("refuses a body that also names a role", () => {
     expect(SetTravellingInput.safeParse({ travelling: true, role: "editor" }).success).toBe(false);

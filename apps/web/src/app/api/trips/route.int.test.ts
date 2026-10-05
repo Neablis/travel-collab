@@ -143,7 +143,7 @@ describe("GET /api/trips visibility", () => {
     ]);
   });
 
-  // Travellers T5's finding: the cards' "N travellers" and their avatars read
+  // Travellers spec W21: the cards' "N travellers" and their avatars read
   // `travelling` off these members, and the list used to leave it off, so
   // every member counted. Two trips, so the overlay is shown to be per trip.
   it("says who is not travelling, trip by trip", async () => {

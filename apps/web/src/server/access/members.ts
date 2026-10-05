@@ -448,7 +448,7 @@ export type ChangeRoleOutcome = "changed" | "not-a-member" | "owner";
 
 /**
  * Change a member's role in place (travellers spec D8) — the owner's
- * operation, which used to be "revoke and re-invite". The caller has already
+ * operation, so a new role needs no revoke and re-invite. The caller has already
  * established that the actor IS the owner; this decides who may be changed.
  *
  * `projected`, not the effective list, for exactly `removeMember`'s reason:

@@ -122,9 +122,9 @@ export const TripAccess = z.object({
    *
    * **Read before the members it describes, never after.** So it is never
    * newer than the list beside it. A client that takes it as its baseline
-   * then treats any later rev from the poll as news. Before this field, the
-   * first poll's rev was the baseline, and an Access write between the load
-   * and that poll was absorbed and never shown (KI-2026-10-05-g).
+   * then treats any later rev from the poll as news. Taking the first poll's
+   * rev as the baseline instead absorbs an Access write made between the load
+   * and that poll, which is then never shown (KI-2026-10-05-g).
    *
    * Optional: absent for the demo trip, which is served without the database,
    * and when the rev read fails. A client without it falls back to taking the

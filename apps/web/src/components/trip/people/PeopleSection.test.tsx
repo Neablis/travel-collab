@@ -96,8 +96,8 @@ beforeEach(() => {
 
 describe("PeopleSection", () => {
   // Mitchell, PR #269 preview: *"Need a skeleton placeholder here, so it
-  // doesnt pop in magically"*. The member list used to be nothing at all until
-  // the access request landed, then appeared whole.
+  // doesnt pop in magically"*. Without the skeleton the member list is nothing
+  // at all until the access request lands, then appears whole.
   it("holds the list's place while it loads, and gives it up when the list lands", async () => {
     let answer: (value: unknown) => void = () => {};
     fetchTripAccessMock.mockReturnValue(new Promise((resolve) => (answer = resolve)));
@@ -666,7 +666,7 @@ describe("PeopleSection", () => {
 
     // The lapse banner states the read boundary in the same words the server
     // uses — nothing removed, no role rewritten, restored by paying again.
-    // **And it is the only banner** (spec §4): the gate note no longer stacks
+    // **And it is the only banner** (spec §4): the gate note does not stack
     // under it.
     it("explains the cap when collaborators are already on the trip, as the one banner", async () => {
       fetchTripAccessMock.mockResolvedValue({ ok: true, value: unentitled() });

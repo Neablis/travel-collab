@@ -14,9 +14,9 @@
  *
  * "A second call site" means a second *implementation* of the fallback. Every
  * surface that needs a name calls THIS; nothing else spells out
- * `name ?? email ?? userId`. `TravelersPanel` had the original copy of that
- * expression and delegated here; the People section that replaced it
- * (`components/trip/people/`) does too, which is what makes this the only one.
+ * `name ?? email ?? userId`. The People section (`components/trip/people/`)
+ * delegates here like every other surface, which is what makes this the only
+ * one.
  *
  * The saved-day surfaces have strictly less to work with than the People
  * section does: a `saved_days` row carries `owner_id` and nothing else — no join to

@@ -7,7 +7,7 @@ import { createMappedTrip } from "./helpers";
 import { e2eTripName } from "./tripNames";
 
 // The travellers spec's journey (docs/specs/2026-10-05-travellers-and-people-
-// panel-design.md, plan T9): the owner invites someone to SUGGEST, they join,
+// panel-design.md): the owner invites someone to SUGGEST, they join,
 // and the per-person totals do not move until the owner says they are coming.
 // That is #314's case — a suggester who joined to advise doubled the trip from
 // $9,130 to $18,260 — and KI-2026-10-04-b's: the owner's open panel did not see

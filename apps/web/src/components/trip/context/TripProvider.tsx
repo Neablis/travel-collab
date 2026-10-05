@@ -638,7 +638,7 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
   // is the trip as `load` read it, give or take one interval, and an Access
   // write inside that window shows only on the next one (KI-2026-10-05-g).
   //
-  // Marked seen only once the re-read has landed (W68's rule for
+  // Marked seen only once the re-read has landed (suggester spec W68's rule for
   // `suggestionsRev`): a failed one leaves it behind, so the next poll retries.
   // A re-read that carried its own rev has already been adopted with it, and
   // that rev is at least as new as this one, so it is not overwritten.
