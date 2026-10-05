@@ -11,6 +11,7 @@ import {
   CreateReportInput,
   CreateSavedNotebookInput,
   CreateSuggestionInput,
+  NearbyStopsResponse,
   PAGE_CHANGED_CODE,
   PutReviewInput,
   ResolveSuggestionChangeInput,
@@ -808,4 +809,17 @@ export function makePlaceSearchHandler(places: PlaceMatch[]) {
     };
     return HttpResponse.json(body);
   });
+}
+
+/**
+ * `GET /api/trips/:tripId/nearby-stops` (M34), answering `stops` as given for
+ * any trip and any query. The ranking is the server's (`server/nearbyStops.ts`)
+ * and is asserted there; parsed through the contract so a mock row cannot
+ * drift from it. Not in any default list: only the add-stop sheet asks, and a
+ * suite that renders it says what the library holds.
+ */
+export function makeNearbyStopsHandler(stops: NearbyStopsResponse["stops"]) {
+  return http.get("/api/trips/:tripId/nearby-stops", () =>
+    HttpResponse.json(NearbyStopsResponse.parse({ stops })),
+  );
 }
