@@ -73,13 +73,25 @@ function travellersLine(count: number): string {
  * as it arrives rather than re-read. `onAccessChanged` fires after one that
  * moved who is on the trip or who travels, because that moves the trip's
  * per-person totals too and this section does not hold the trip.
+ *
+ * A change made somewhere else — an invite accepted in another browser, the
+ * owner marking you not travelling — arrives as `access`, the trip provider's
+ * re-read on the poll's `accessRev` (KI-2026-10-04-b).
  */
 export function PeopleSection({
   tripId,
+  access: provided,
   onInvitesChanged,
   onAccessChanged,
 }: {
   tripId: string;
+  /**
+   * The trip provider's latest `TripAccess`. Adopted each time it changes
+   * after this section mounts; the one already there at mount is not, because
+   * the section's own read is fresher than a provider read that may have
+   * been answered from the cache.
+   */
+  access?: TripAccess | null;
   /**
    * Whether an invite is out: on every read of the list, and as soon as one is
    * made. The board polls on a timer while one is (W73) — the person invited
@@ -128,6 +140,13 @@ export function PeopleSection({
   useEffect(() => {
     void load();
   }, [load]);
+
+  const atMount = useRef(provided);
+  useEffect(() => {
+    if (provided === undefined || provided === null || provided === atMount.current) return;
+    atMount.current = provided;
+    adopt(provided);
+  }, [provided, adopt]);
 
   /** Runs a member write and applies the `TripAccess` it answers with. */
   async function writeMember(write: () => Promise<ApiResult<TripAccess>>): Promise<boolean> {

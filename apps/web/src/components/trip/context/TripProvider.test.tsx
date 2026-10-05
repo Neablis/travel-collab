@@ -1313,6 +1313,97 @@ describe("TripProvider broadcast (M13 link 2)", () => {
     });
   });
 
+  // Travellers D11, and KI-2026-10-04-b. Accepting an invite or toggling who
+  // travels writes no event, so `headSeq` never moves for it; `accessRev` is
+  // the only news there is, and the totals in the detail move with it.
+  describe("who is on the trip moved (accessRev)", () => {
+    function AccessProbe() {
+      const { activeTrip, access, refreshAccess } = useTrip();
+      return (
+        <div>
+          <span data-testid="dayCount">{activeTrip?.days.length ?? 0}</span>
+          <span data-testid="accessRole">{access?.myRole ?? "none"}</span>
+          <button onClick={refreshAccess}>refresh-access</button>
+        </div>
+      );
+    }
+    const poll = (accessRev: string) =>
+      fetchTripEventsMock.mockResolvedValue({ ok: true, value: { headSeq: 1, events: [], resync: false, accessRev } });
+
+    async function mountAt(accessRev: string) {
+      fetchTripDetailMock.mockResolvedValue({ ok: true, value: twoMemberDetail(1) });
+      fetchTripHistoryMock.mockResolvedValue({ ok: true, value: historyAtSeq(1) });
+      poll(accessRev);
+      render(
+        <TripProvider tripId="x">
+          <AccessProbe />
+        </TripProvider>,
+      );
+      await waitFor(() => expect(screen.getByTestId("accessRole").textContent).toBe("owner"));
+      await broadcastArmed();
+      // The first rev seen.
+      becomeVisible();
+      await waitFor(() => expect(fetchTripEventsMock).toHaveBeenCalledTimes(1));
+      // eslint-disable-next-line testing-library/no-unnecessary-act -- settling the microtask queue, same as the KI-70 suite above
+      await act(async () => {});
+    }
+
+    it("takes the first revision it sees as the baseline, and re-reads nothing for it", async () => {
+      await mountAt("7");
+      // Witness: the poll ran and carried a revision, so "nothing re-read" is
+      // about the revision and not about a poll that never happened.
+      expect(fetchTripEventsMock).toHaveBeenCalledTimes(1);
+      expect(fetchTripAccessMock).toHaveBeenCalledTimes(1);
+      expect(fetchTripDetailMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("re-reads access and the trip when the revision moves", async () => {
+      await mountAt("7");
+      fetchTripAccessMock.mockResolvedValue(accessAs("editor"));
+      // The recost: the detail the server serves now is a different trip.
+      fetchTripDetailMock.mockResolvedValue({ ok: true, value: twoMemberDetail(2) });
+      poll("8");
+
+      becomeVisible();
+      await waitFor(() => expect(screen.getByTestId("accessRole").textContent).toBe("editor"));
+      await waitFor(() => expect(screen.getByTestId("dayCount").textContent).toBe("2"));
+      expect(fetchTripAccessMock).toHaveBeenCalledTimes(2);
+      expect(fetchTripDetailMock).toHaveBeenCalledTimes(2);
+
+      // The same revision again is not news.
+      becomeVisible();
+      await waitFor(() => expect(fetchTripEventsMock).toHaveBeenCalledTimes(3));
+      // eslint-disable-next-line testing-library/no-unnecessary-act -- settling the microtask queue, same as the KI-70 suite above
+      await act(async () => {});
+      expect(fetchTripAccessMock).toHaveBeenCalledTimes(2);
+    });
+
+    it("asks again on the next poll when the re-read failed", async () => {
+      await mountAt("7");
+      fetchTripAccessMock.mockResolvedValue({ ok: false, error: { status: 500, message: "boom" } });
+      poll("8");
+      becomeVisible();
+      await waitFor(() => expect(fetchTripAccessMock).toHaveBeenCalledTimes(2));
+
+      fetchTripAccessMock.mockResolvedValue(accessAs("editor"));
+      becomeVisible();
+      await waitFor(() => expect(screen.getByTestId("accessRole").textContent).toBe("editor"));
+    });
+
+    // W15: a member write made on this page. A solo trip runs no interval, so
+    // waiting for the poll would mean waiting for the tab to be refocused.
+    it("re-reads access and the trip on refreshAccess, without a poll", async () => {
+      await mountAt("7");
+      fetchTripAccessMock.mockResolvedValue(accessAs("editor"));
+      fetchTripDetailMock.mockResolvedValue({ ok: true, value: twoMemberDetail(2) });
+
+      fireEvent.click(screen.getByRole("button", { name: "refresh-access" }));
+      await waitFor(() => expect(screen.getByTestId("accessRole").textContent).toBe("editor"));
+      await waitFor(() => expect(screen.getByTestId("dayCount").textContent).toBe("2"));
+      expect(fetchTripEventsMock).toHaveBeenCalledTimes(1);
+    });
+  });
+
   // The whole reason link 3 had to land first. A remote edit arriving while the
   // user has unsent work is the same problem as a local outcome arriving then:
   // adopt the authoritative state, re-predict what is queued. Assigning

@@ -310,8 +310,12 @@ insert sheet plus the chrome row, and neither is a text-macro editor.
 
 ## 8. Deliberately not designed yet
 
-- **Travelers UI** — the traveler avatars were removed from the trip header's meta pill;
-  travelers are reachable only through Trip settings until this exists.
+- ~~**Travelers UI**~~ — **designed, 2026-10-05, as "People"** (travellers spec
+  `docs/specs/2026-10-05-travellers-and-people-panel-design.md` §4). It is a section of Trip
+  settings with the anchor `#people`. It is reachable from the title, as before, and from an
+  avatar stack beside the title. The stack shows up to three of the trip's travellers plus
+  "+N", and opens the sheet at People. The stack is hidden below 640px, where the title is
+  still the door.
 - **History** beyond the popover, and the extra lenses (Itinerary, Schedule, DailyOverview,
   FullTripOverview, MapRail).
 - Everything in `preview-registry.ts` — that registry, not this file, is the authoritative

@@ -117,7 +117,7 @@ export function useLibraryRead<T>(
       setError(result.error.message);
       return;
     }
-    // Cleared on success, for TravelersPanel's reason: a retry that worked must
+    // Cleared on success, for PeopleSection's reason: a retry that worked must
     // not leave the previous failure sitting next to fresh, correct data.
     setError(null);
     const next = signature(result.value);

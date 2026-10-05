@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { tripDetailFixture, historyFixture } from "@tc/factories";
+import type { TripMemberProfile } from "@tc/contracts";
 
 // A15: TripHeader now reads useRouter() (for the delete toast's post-dismiss
 // navigation) — not exercised by the rename tests below, but the component
@@ -21,6 +22,9 @@ let myRole: "viewer" | "suggester" | "editor" | "owner" | null = "owner";
 // role: TripProvider keeps the board live and reports `accessUnknown` instead
 // (docs/reviews/2026-08-28-m11-pr71-review.md §5's PLAUSIBLE edge).
 let accessReadFails = false;
+// Who the access read lists. Empty by default, which draws no avatar stack.
+let accessMembers: TripMemberProfile[] = [];
+const setTravellingMock = vi.fn();
 
 vi.mock("@/lib/apiClient", async (orig) => {
   const actual = await orig<typeof import("@/lib/apiClient")>();
@@ -37,8 +41,9 @@ vi.mock("@/lib/apiClient", async (orig) => {
     fetchTripAccess: vi.fn(async () =>
       accessReadFails
         ? { ok: false as const, error: { status: 500, message: "boom" } }
-        : { ok: true as const, value: { tripId: "x", myRole, members: [], invites: [] } },
+        : { ok: true as const, value: { tripId: "x", myRole, members: accessMembers, invites: [] } },
     ),
+    setTravelling: (...args: unknown[]) => setTravellingMock(...args),
     sendTripCommand: (...args: unknown[]) => sendTripCommandMock(...args),
     sendTripCommandBatch: (...args: unknown[]) => sendTripCommandBatchMock(...args),
   };
@@ -77,6 +82,8 @@ beforeEach(() => {
   sendTripCommandBatchMock.mockReset();
   myRole = "owner";
   accessReadFails = false;
+  accessMembers = [];
+  setTravellingMock.mockReset();
   sendTripCommandMock.mockResolvedValue({
     ok: true,
     value: { detail: tripDetailFixture({ tripId: "x", name: "Japan 2027" }), history: historyFixture("x") },
@@ -532,5 +539,95 @@ describe("TripHeader — the phone date line (SPEC §23)", () => {
     // First day to last day, en dash, and no year — `formatTripDate`'s shape,
     // reached through the pill's function rather than restated here.
     expect(screen.getByTestId("trip-date-line").textContent).toBe("Sat, Oct 9 – Mon, Oct 11");
+  });
+});
+
+const person = (userId: string, name: string, travelling = true): TripMemberProfile => ({
+  userId,
+  role: userId === "dev-alice" ? "owner" : "editor",
+  name,
+  email: null,
+  image: null,
+  travelling,
+});
+
+// Travellers spec D10: the header's door to People. Who is travelling, as
+// faces beside the title, and the sheet opened at the People section.
+describe("TripHeader — the avatar stack (D10)", () => {
+  let scrolled: Element[];
+  beforeEach(() => {
+    scrolled = [];
+    // jsdom has no `scrollIntoView`; recording `this` is the whole assertion.
+    Element.prototype.scrollIntoView = function (this: Element) {
+      scrolled.push(this);
+    };
+  });
+  afterEach(() => {
+    delete (Element.prototype as Partial<Element>).scrollIntoView;
+  });
+
+  it("draws three travellers and a count of the rest, leaving out who is not travelling", async () => {
+    accessMembers = [
+      person("dev-alice", "Alice Ames"),
+      person("dev-bob", "Bob Burns"),
+      person("dev-cy", "Cy Cole"),
+      person("dev-dee", "Dee Dunn"),
+      person("dev-eve", "Eve Ellis", false),
+    ];
+    await renderHeader();
+    const stack = await screen.findByRole("button", { name: "People on this trip" });
+    expect(stack.textContent).toBe("AABBCC+1");
+    // Hidden below `sm` (640px); jsdom loads no stylesheet, so the class is the assertion.
+    // eslint-disable-next-line no-restricted-syntax -- the breakpoint is the claim, as in "TripHeader on a phone" above
+    expect(stack.className).toMatch(/\bhidden\b.*\bsm:inline-flex\b/);
+  });
+
+  it("opens Trip settings scrolled to People", async () => {
+    accessMembers = [person("dev-alice", "Alice Ames"), person("dev-bob", "Bob Burns")];
+    await renderHeader();
+    await userEvent.click(await screen.findByRole("button", { name: "People on this trip" }));
+
+    expect(screen.getByRole("dialog", { name: /trip settings/i })).toBeTruthy();
+    expect(scrolled.map((el) => el.id)).toEqual(["people"]);
+  });
+
+  it("does not scroll when the sheet is opened from the title", async () => {
+    accessMembers = [person("dev-alice", "Alice Ames")];
+    await renderHeader();
+    await screen.findByRole("button", { name: "People on this trip" });
+    await userEvent.click(screen.getByRole("button", { name: /trip settings/i }));
+
+    // Witness: the sheet and its People section are there to be scrolled to.
+    expect(within(screen.getByRole("dialog", { name: /trip settings/i })).getByTestId("people-section")).toBeTruthy();
+    expect(scrolled).toEqual([]);
+  });
+
+  it("draws nothing while nobody is listed", async () => {
+    await renderHeader();
+    // Witness: the access read has answered, and the header rendered.
+    await screen.findByRole("button", { name: "Add stop" });
+    expect(screen.queryByRole("button", { name: "People on this trip" })).toBeNull();
+  });
+});
+
+// Travellers spec W15: a member write in Trip settings recosts the board for
+// the person who made it, without waiting for a poll a solo trip never runs.
+describe("TripHeader — a change in People re-reads the trip", () => {
+  it("re-reads access and the trip after a travelling toggle", async () => {
+    const alice = person("dev-alice", "Alice Ames");
+    const bob = person("dev-bob", "Bob Burns");
+    accessMembers = [alice, bob];
+    setTravellingMock.mockResolvedValue({
+      ok: true,
+      value: { tripId: "x", myRole: "owner", members: [alice, { ...bob, travelling: false }], invites: [] },
+    });
+    await renderHeader();
+    await userEvent.click(screen.getByRole("button", { name: /trip settings/i }));
+    fireEvent.click(await screen.findByRole("button", { name: "Actions for Bob Burns" }));
+    const detailReads = vi.mocked(fetchTripDetail).mock.calls.length;
+    fireEvent.click(screen.getByRole("menuitem", { name: "Mark as not travelling" }));
+
+    await waitFor(() => expect(setTravellingMock).toHaveBeenCalledWith("x", "dev-bob", false));
+    await waitFor(() => expect(vi.mocked(fetchTripDetail).mock.calls.length).toBe(detailReads + 1));
   });
 });

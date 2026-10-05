@@ -3,6 +3,8 @@
 import { useCallback, useState } from "react";
 import Link from "next/link";
 import { Clock } from "lucide-react";
+import { travellerIds, type TripAccess } from "@tc/contracts";
+import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataText } from "@/components/ui/data-text";
@@ -14,6 +16,7 @@ import { tripSpend } from "@/lib/cost";
 import { isDemoTripId } from "@/lib/demoTrip";
 import { isInviteLook } from "@/lib/inviteLook";
 import { cn } from "@/lib/cn";
+import { displayNameFor } from "@/lib/displayName";
 import { HistoryPanel } from "@/components/board/HistoryPanel";
 import { SuggestionsChip } from "@/components/board/SuggestionsChip";
 import { PeopleProvider } from "@/components/pages/people";
@@ -66,8 +69,23 @@ export function TripHeader({
   // render from). Reading `trip` here meant a rename/date/budget edit sat in
   // the optimistic queue correctly but never became visible until the server
   // round-trip confirmed it. `trip` is kept only for the existence/loading gate.
-  const { trip, activeTrip, history, status, pending, dispatch, preview, readOnly, canEditBoard, boardMode, accessUnknown, draft, noteInvites } =
-    useTrip();
+  const {
+    trip,
+    activeTrip,
+    history,
+    status,
+    pending,
+    dispatch,
+    preview,
+    readOnly,
+    canEditBoard,
+    boardMode,
+    accessUnknown,
+    draft,
+    noteInvites,
+    access,
+    refreshAccess,
+  } = useTrip();
   // Task 9: "Add stop" is a real trigger for the same portable activity
   // editor Board's own "+ Add activity" button opens (Board.tsx) — no
   // dayId prefill, identical to that button's own openCreate() call.
@@ -77,6 +95,8 @@ export function TripHeader({
   const { openCreate } = useEditor();
   const [historyOpen, setHistoryOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // Whether the sheet was opened from the avatar stack, which lands on People.
+  const [settingsAtPeople, setSettingsAtPeople] = useState(false);
   // **The delete toast is gone with the verb that raised it** — M26 link 6a,
   // DRIFT D13. A15 built this level's toast because the settings sheet's own
   // subtree unmounts on a successful delete and could not host one; with
@@ -247,6 +267,13 @@ export function TripHeader({
                 {activeTrip.name}
               </Button>
             </Heading>
+            <TravellerStack
+              access={access}
+              onOpen={() => {
+                setSettingsAtPeople(true);
+                setSettingsOpen(true);
+              }}
+            />
             <Badge variant="neutral">{statusLabel}</Badge>
             {/* M11 link 3: a viewer's trip is theirs to read, not to change.
                 The server refuses their writes either way (accessPolicy.ts);
@@ -259,9 +286,9 @@ export function TripHeader({
                 (Mitchell, 2026-08-30 design pass: "dont use two words when
                 one will do, word wraps cause issues"). It also names the
                 role, which is what the badge stands in for, in the same word
-                the invite flow and TravelersPanel already use. */}
+                the invite flow already uses. */}
             {/* A suggester is `readOnly` too (W8) but not a viewer: their
-                badge is their role word, as the Travelers list says it (W24). */}
+                badge is their role word (W24). */}
             {readOnly && <Badge variant="info">{boardMode === "suggest" ? "Suggester" : "Viewer"}</Badge>}
             {/* A suggester's unsent draft, said where it is seen from anywhere
                 on the board (W70; Mitchell's production test, 2026-10-04). The
@@ -375,7 +402,7 @@ export function TripHeader({
                   it is one flag over a member without the rank AND a stranger
                   on /demo — and splitting it is the design decision that entry
                   names. Consistency now, per the rule already written down; the
-                  split stays available if the Travelers UI (SPEC §8) wants it.
+                  split stays available if Trip settings → People wants it.
                   The "Viewer" badge is what still explains the quiet page. */}
               {/* `canEditBoard`: a suggester's new stop joins their draft. */}
               {canEditBoard && (
@@ -508,7 +535,11 @@ export function TripHeader({
         tripId={tripId}
         tripName={activeTrip.name}
         open={settingsOpen}
-        onOpenChange={setSettingsOpen}
+        onOpenChange={(open) => {
+          setSettingsOpen(open);
+          if (!open) setSettingsAtPeople(false);
+        }}
+        scrollToPeople={settingsAtPeople}
         startDate={activeTrip.startDate}
         endDate={activeTrip.days[activeTrip.days.length - 1]?.date ?? null}
         // The pill's own three figures, derived by the pill's own function
@@ -524,11 +555,59 @@ export function TripHeader({
         readOnly={readOnly}
         canEditBoard={canEditBoard}
         onInvitesChanged={noteInvites}
+        access={access}
+        onAccessChanged={refreshAccess}
         onCommand={(command) => {
           if (command.type !== "CreateTrip") void dispatch(command);
         }}
       />
     </header>
+  );
+}
+
+// Three faces, then a count: enough to say "these people", few enough to sit
+// beside a title.
+const STACK_AVATARS = 3;
+
+/**
+ * The trip's travellers beside its title (travellers spec D10), and the door
+ * to Trip settings → People. Travellers rather than everyone, so the faces
+ * agree with the totals and with Home's cards (W17).
+ *
+ * `hidden sm:inline-flex`: below 640px the title row already wraps its badges
+ * onto a second line, and one more item there would add a line to a header
+ * Mitchell has already called crowded on a phone. The title still opens the same sheet.
+ *
+ * Nothing until the access read answers. The names live there, not on the
+ * trip, and a stack of placeholder circles would say nothing.
+ */
+function TravellerStack({ access, onOpen }: { access: TripAccess | null; onOpen: () => void }) {
+  if (access === null) return null;
+  const going = new Set(travellerIds(access.members));
+  const travellers = access.members.filter((m) => going.has(m.userId));
+  if (travellers.length === 0) return null;
+  const more = travellers.length - STACK_AVATARS;
+  return (
+    <Button
+      variant="ghost"
+      onClick={onOpen}
+      aria-label="People on this trip"
+      title="People on this trip"
+      className="hidden h-8 px-1 sm:inline-flex"
+    >
+      {/* Its own row, so the overlap is not undone by the button's gap. */}
+      <span className="flex">
+        {travellers.slice(0, STACK_AVATARS).map((member, index) => (
+          <Avatar
+            key={member.userId}
+            name={displayNameFor(member)}
+            size="md"
+            className={cn("border-2 border-surface", index > 0 && "-ml-2")}
+          />
+        ))}
+      </span>
+      {more > 0 ? <span className="text-xs font-semibold text-slate">+{more}</span> : null}
+    </Button>
   );
 }
 

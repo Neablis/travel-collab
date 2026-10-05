@@ -250,6 +250,22 @@ describe("PeopleSection", () => {
       expect(link!.textContent).toMatch(/Can view · sent /);
       expect(link!.textContent).not.toContain("travel");
     });
+
+    // KI-2026-10-04-b: an invite accepted in another browser while this is
+    // open. The provider re-reads access on the poll's `accessRev`; the
+    // section adopts what it read without a second request of its own.
+    it("adopts a newer TripAccess from the provider while open", async () => {
+      const dana = { userId: "dev-dana", role: "suggester" as const, name: "Dana", email: null, image: null, travelling: false };
+      const atLoad = access();
+      const { rerender } = render(<PeopleSection tripId={tripId} access={atLoad} />);
+      await screen.findByRole("list", { name: "Invited · 1" });
+
+      rerender(<PeopleSection tripId={tripId} access={access({ members: [alice, bob, dana], invites: [] })} />);
+      const not = await screen.findByRole("list", { name: "Not travelling · 1" });
+      expect(within(not).getByText("Dana")).toBeTruthy();
+      expect(screen.queryByRole("list", { name: /^Invited/ })).toBeNull();
+      expect(fetchTripAccessMock).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe("the row menu", () => {

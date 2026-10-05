@@ -144,11 +144,30 @@ export function withTravelling(
 
 /** The trip's `trip_travellers` rows, by user. Keyed by user, not membership: the owner has none. */
 export async function travellingByUser(tx: Queryable, tripId: string): Promise<Map<string, boolean>> {
+  return (await travellingByTrip(tx, [tripId])).get(tripId) ?? new Map();
+}
+
+/**
+ * `travellingByUser` for many trips in ONE round trip, for the home grid
+ * (`grantedMembersByTrip`'s reason). A trip with no rows is absent, and every
+ * member of it is travelling (D2).
+ */
+export async function travellingByTrip(
+  tx: Queryable,
+  tripIds: readonly string[],
+): Promise<Map<string, Map<string, boolean>>> {
+  const byTrip = new Map<string, Map<string, boolean>>();
+  if (tripIds.length === 0) return byTrip;
   const rows = await tx
-    .select({ userId: tripTravellers.userId, travelling: tripTravellers.travelling })
+    .select({ tripId: tripTravellers.tripId, userId: tripTravellers.userId, travelling: tripTravellers.travelling })
     .from(tripTravellers)
-    .where(eq(tripTravellers.tripId, tripId));
-  return new Map(rows.map((r) => [r.userId, r.travelling]));
+    .where(inArray(tripTravellers.tripId, [...tripIds]));
+  for (const r of rows) {
+    const trip = byTrip.get(r.tripId) ?? new Map<string, boolean>();
+    trip.set(r.userId, r.travelling);
+    byTrip.set(r.tripId, trip);
+  }
+  return byTrip;
 }
 
 /** Record whether `userId` is travelling on this trip. The caller authorises and bumps the rev. */
@@ -356,9 +375,10 @@ export type RemoveMemberOutcome = "removed" | "not-a-member" | "owner";
  *    membership is not a `trip_memberships` row at all — it comes from the
  *    planning log's `TripCreated` (see `mergeMembers`) — so a delete here
  *    would silently no-op while reporting success. Refused explicitly instead.
- *    This is also what makes "leave a trip" absent rather than half-built: an
- *    owner-only endpoint cannot express it, and self-removal for a guest is a
- *    product surface, not a permission tweak.
+ *    "Leave a trip" is not this rule bent: an owner-only endpoint cannot
+ *    express it, so it is its own route (`DELETE .../membership`, M26 link
+ *    6b), which calls this function with the caller as `userId` — and this
+ *    rule is what refuses the owner there too.
  * 3. **Removal is not in the trip's history.** Access is CRUD, not
  *    event-sourced (ADR-003, invariant 1) — revoking an invite is not an event
  *    either, and inventing a planning event to carry a membership change is

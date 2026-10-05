@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useState } from "react";
-import type { Money, TripCommand, TripDetail } from "@tc/contracts";
+import type { Money, TripAccess, TripCommand, TripDetail } from "@tc/contracts";
 import { Sheet } from "@/components/ui/sheet";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
@@ -27,6 +27,13 @@ function SectionHeading({ children }: { children: React.ReactNode }) {
       {children}
     </Text>
   );
+}
+
+// A callback ref rather than an effect on `open`: Radix mounts the sheet's
+// content a render after `open` turns true, so an effect would find no anchor.
+// Optional-called because jsdom has no `scrollIntoView`.
+function scrollIntoView(el: HTMLElement | null) {
+  el?.scrollIntoView?.({ block: "start" });
 }
 
 function datesLabel(startDate: string | null, endDate: string | null): string {
@@ -79,7 +86,9 @@ export function SettingsSheet({
   readOnly,
   canEditBoard,
   onInvitesChanged,
+  access,
   onAccessChanged,
+  scrollToPeople = false,
   onCommand,
 }: {
   tripId: string;
@@ -124,10 +133,15 @@ export function SettingsSheet({
   canEditBoard: boolean;
   // TripProvider's `noteInvites`, handed to the People section (W73).
   onInvitesChanged?: (pending: boolean) => void;
+  // TripProvider's `access`, re-read when the poll's `accessRev` moves, for
+  // the People section to adopt while it is open (KI-2026-10-04-b).
+  access?: TripAccess | null;
   // A member write moved who is on the trip or who travels, and with it the
-  // trip's per-person totals. Not wired by TripHeader yet: TripProvider has no
-  // re-read to hand it, which is travellers T8's.
+  // trip's per-person totals: TripProvider's `refreshAccess` (W15).
   onAccessChanged?: () => void;
+  // Opened from the header's avatar stack (D10): land on People, not on the
+  // sheet's top.
+  scrollToPeople?: boolean;
   onCommand: (command: TripCommand) => void;
 }) {
   // Dispatch is severed at the SOURCE, not at each control. The individual
@@ -331,8 +345,13 @@ export function SettingsSheet({
             that read carries names, emails and the invite list — none of
             which live on TripDetail, and none of which should (they are
             Identity and Access data — packages/contracts/src/access.ts). */}
-        <div id="people" className="scroll-mt-4">
-          <PeopleSection tripId={tripId} onInvitesChanged={onInvitesChanged} onAccessChanged={onAccessChanged} />
+        <div id="people" ref={scrollToPeople ? scrollIntoView : undefined} className="scroll-mt-4">
+          <PeopleSection
+            tripId={tripId}
+            access={access}
+            onInvitesChanged={onInvitesChanged}
+            onAccessChanged={onAccessChanged}
+          />
         </div>
 
         {/* **Read-only snapshots, under People and apart from it** (spec §4).

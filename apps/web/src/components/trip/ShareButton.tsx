@@ -36,10 +36,10 @@ export function ShareButton({
 }: {
   tripId: string;
   variant?: VariantProps<typeof buttonVariants>["variant"];
-  // Same reason `variant` is here: the third call site (SettingsSheet's "Who
-  // is invited" heading, where Share moved so a phone still has one — see
+  // Same reason `variant` is here: the third call site (SettingsSheet's
+  // "Read-only snapshots", where Share moved so a phone still has one — see
   // TripHeader) sits in a dense sheet whose every other control is `sm`, and
-  // a default `md` trigger next to TravelersPanel's own buttons reads as a
+  // a default `md` trigger under the People section's own buttons reads as a
   // different class of thing. Undefined leaves Button's own default, so the
   // header and the home hero are untouched.
   size?: VariantProps<typeof buttonVariants>["size"];
@@ -49,7 +49,7 @@ export function ShareButton({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
-  // Same reasoning as TravelersPanel's: a `title` tooltip is not a delivery
+  // Same reasoning as the People section's: a `title` tooltip is not a delivery
   // mechanism, and copying IS how a share link is sent (CodeRabbit, PR #70).
   const [revealed, setRevealed] = useState<string | null>(null);
 

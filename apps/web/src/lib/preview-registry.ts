@@ -1,10 +1,11 @@
 // The single seam listing every not-yet-functional surface. M9/M11 remove their
 // entries as they wire each shell up. A sync test keeps this in lockstep with
 // actual <Preview id> usage.
-// M11 link 3 removed "trip-invites" (SettingsSheet's mocked invite row — now
-// the real TravelersPanel) and "wizard-invite-list" (the wizard's mocked
-// "You / Owner" list — now a sentence pointing at Trip settings, because the
-// wizard runs before the trip an invite would attach to exists).
+// M11 link 3 removed "trip-invites" (SettingsSheet's mocked invite row — then
+// the real TravelersPanel, now the People section) and "wizard-invite-list"
+// (the wizard's mocked "You / Owner" list — now a sentence pointing at Trip
+// settings, because the wizard runs before the trip an invite would attach to
+// exists).
 //
 // M11 link 4 removed "share-button" (now a real popover that mints, copies and
 // turns off pinned links) and both landing shells, "landing-peek-trip" and

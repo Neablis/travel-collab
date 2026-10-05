@@ -15,18 +15,19 @@
  * "A second call site" means a second *implementation* of the fallback. Every
  * surface that needs a name calls THIS; nothing else spells out
  * `name ?? email ?? userId`. `TravelersPanel` had the original copy of that
- * expression and now delegates here, which is what makes this the only one.
+ * expression and delegated here; the People section that replaced it
+ * (`components/trip/people/`) does too, which is what makes this the only one.
  *
- * The saved-day surfaces have strictly less to work with than TravelersPanel
- * does: a `saved_days` row carries `owner_id` and nothing else — no join to
+ * The saved-day surfaces have strictly less to work with than the People
+ * section does: a `saved_days` row carries `owner_id` and nothing else — no join to
  * `users` is made, because §15 is explicit that a public profile needs **no
  * public user record**, and inventing one to hold a name would be building the
  * thing M17 is going to build. So those callers pass `{ userId }` alone and get
  * the identifier back, honestly, until M17 has something better to return.
  *
  * **M17 filled the front of the chain in, and stopped one link short.**
- * `displayName` is now first, and the account menu passes it. `TravelersPanel`
- * does not yet: its members arrive as `TripMemberProfile`, which is a
+ * `displayName` is now first, and the account menu passes it. The People
+ * section does not yet: its members arrive as `TripMemberProfile`, which is a
  * `packages/contracts` schema, so giving it the chosen name means adding a
  * field there — a contract change, which AGENTS.md invariant 5 reserves for its
  * own reviewed PR with a changelog entry and every consumer updated. It is a
