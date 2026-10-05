@@ -10,11 +10,10 @@ import { e2eTripName } from "./tripNames";
 // it." Two real browser contexts, because that is the only way to prove it —
 // alice owns the trip and hands out a link; bob follows it as himself.
 //
-// The link is read off the invite row's `title` attribute rather than the
+// The link is read off the invite dialog's "Invite link" field rather than the
 // clipboard: reading the clipboard needs a permission grant that differs
-// between headed and headless Chromium, and the app puts the same URL in both
-// places precisely so a denied clipboard is never a dead end
-// (TravelersPanel.tsx).
+// between headed and headless Chromium, and the app puts the same URL on screen
+// precisely so a denied clipboard is never a dead end (InviteDialog.tsx).
 //
 // Every test here is `test.slow()`. Not flake insurance: each one drives TWO
 // browser contexts through a full sign-in and a page load apiece, which is
@@ -56,21 +55,26 @@ async function openTripSettings(page: Page, tripName: string): Promise<void> {
 }
 
 async function inviteLinkFor(page: Page, role: "Can edit" | "Can view"): Promise<string> {
-  await page.getByLabel("Invite role").selectOption({ label: role });
+  // Inviting moved into a dialog (travellers spec §4): `+ Invite`, a role, and
+  // Create invite.
+  await page.getByRole("button", { name: "Invite", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Invite someone" });
+  await dialog.getByRole("radiogroup", { name: "Role" }).getByRole("radio", { name: role }).click();
   await Promise.all([
     page.waitForResponse(
       (r) => /\/api\/trips\/[^/]+\/invites$/.test(new URL(r.url()).pathname) && r.request().method() === "POST",
     ),
-    page.getByRole("button", { name: "Invite someone" }).click(),
+    dialog.getByRole("button", { name: "Create invite" }).click(),
   ]);
   // The accessible name is stable ("Copy invite link"); the visible label is
-  // not — creating an invite copies it, so this row already reads "Copied".
-  const copy = page.getByRole("button", { name: "Copy invite link" }).first();
-  await expect(copy).toBeVisible();
-  const link = await copy.getAttribute("title");
-  // eslint-disable-next-line playwright/prefer-web-first-assertions -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
-  expect(link).toBeTruthy();
-  return link!;
+  // not — creating an invite copies it, so the button already reads "Copied".
+  await expect(dialog.getByRole("button", { name: "Copy invite link" })).toBeVisible();
+  const field = dialog.getByRole("textbox", { name: "Invite link" });
+  await expect(field).toHaveValue(/\/invite\//);
+  const link = await field.inputValue();
+  await dialog.getByRole("button", { name: "Done" }).click();
+  await expect(dialog).toHaveCount(0);
+  return link;
 }
 
 /**
@@ -134,8 +138,8 @@ async function signedInAs(
 
 // **M20 link 6 reached this file.** Inviting requires the trip OWNER's
 // `trip.collaborators`, and the suite's shared identity (alice, from
-// `auth.setup.ts`) holds `free` — so the *Invite role* select this spec drives
-// is correctly no longer rendered for her, and all three tests timed out on it.
+// `auth.setup.ts`) holds `free` — so the invite form this spec drives is
+// correctly disabled for her, and all three tests timed out on it.
 // The gate working, not a regression.
 //
 // So the owner is made an account that may collaborate, through the operator
@@ -156,10 +160,10 @@ test("an invited editor opens the trip and changes it; the owner sees them liste
   await createTrip(page, tripName);
   await openTripSettings(page, tripName);
 
-  // Before any invite, the owner is the only traveller. Scoped to her own
-  // row — asserting on the bare text "owner" would also match a pending
-  // invite's role badge, so it could pass with no traveller listed at all.
-  await expect(page.getByTestId("traveller-dev-alice")).toContainText("owner");
+  // Before any invite, the owner is the only person on the trip. Scoped to her
+  // own row — asserting on bare role words would also match a pending invite's
+  // subline, so it could pass with no member listed at all.
+  await expect(page.getByTestId("traveller-dev-alice")).toContainText("Owner · created the trip");
   await expect(page.getByTestId(/^traveller-/)).toHaveCount(1);
 
   const link = await inviteLinkFor(page, "Can edit");
@@ -206,8 +210,8 @@ test("an invited editor opens the trip and changes it; the owner sees them liste
   // membership listing fails here rather than being masked by the invite row.
   await page.reload();
   await openTripSettings(page, tripName);
-  await expect(page.getByTestId(`traveller-dev-${bobName}`)).toContainText("editor");
-  await expect(page.getByTestId("traveller-dev-alice")).toContainText("owner");
+  await expect(page.getByTestId(`traveller-dev-${bobName}`)).toContainText("Can edit");
+  await expect(page.getByTestId("traveller-dev-alice")).toContainText("Owner · created the trip");
   await expect(page.getByTestId(/^traveller-/)).toHaveCount(2);
 });
 
@@ -334,13 +338,16 @@ test("a revoked link stops working", async ({ page, browser }) => {
   await openTripSettings(page, tripName);
   const link = await inviteLinkFor(page, "Can edit");
 
+  // Revoking is behind the row's `⋯` and asks first (travellers spec §4).
+  await page.getByRole("button", { name: "Actions for Link invite" }).click();
+  await page.getByRole("menuitem", { name: "Revoke invite…" }).click();
   await Promise.all([
     page.waitForResponse(
       (r) =>
         /\/api\/trips\/[^/]+\/invites\/[^/]+$/.test(new URL(r.url()).pathname) &&
         r.request().method() === "DELETE",
     ),
-    page.getByRole("button", { name: "Revoke invite" }).first().click(),
+    page.getByRole("dialog", { name: "Revoke this invite?" }).getByRole("button", { name: "Revoke" }).click(),
   ]);
 
   const dan = await signedInAs(browser, newcomer("dan"), { superCode: true });

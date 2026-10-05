@@ -24,8 +24,9 @@ export const E2E_ADMIN_USER_ID = `dev-${E2E_ADMIN_USERNAME}`;
  * OWNER's `trip.collaborators`, and an account created by signing in holds
  * `free`. So `m11-invites.spec.ts`'s owner — alice, from the suite's shared
  * storage state — stopped being able to invite anybody, and its three tests
- * timed out waiting for an *Invite role* select that is correctly no longer
- * rendered. That is the gate working, not a regression, and the honest fix is
+ * timed out on an invite form that was correctly no longer usable (then the
+ * *Invite role* select; the dialog's *Create invite* since travellers spec
+ * §4). That is the gate working, not a regression, and the honest fix is
  * to make the owner an account that may collaborate.
  *
  * Through the shipped endpoint rather than a database write: the whole point of
