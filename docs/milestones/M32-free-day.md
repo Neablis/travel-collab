@@ -1,8 +1,8 @@
 # M32 — The assistant can say which day is free, in one call
 
-**Status:** Minted 2026-10-04 from Mitchell's live turns, placed after M31 and built beside it
-while M31's last two boxes wait on him. Small: one domain function, one tool's output, one
-ledger column.
+**Status:** **Gate closed 2026-10-05** (7 of 7); the retro is at the end of this file. Minted
+2026-10-04 from Mitchell's live turns, placed after M31 and built beside it. Small: one domain
+function, one tool's output, one ledger column.
 
 ## Why this exists
 
@@ -102,7 +102,42 @@ Then, on the proposal: *"Hardcode 8-22 for now, make it a small milestone."*
 - *Before merge, by M33's eval (2026-10-05): `q-most-free` ×3 on production's models passed 3 of
   3 on this branch (one `find_free_time` call each, day 1, 4-5s) and 0 of 3 on `main` (2-18
   calls, up to 34s, "19 hours"). The walk below still ticks on production.*
-- [ ] **[walk]** On production after the dispatch: *"Which day has the most free time?"* on a
+- [x] **[walk]** On production after the dispatch: *"Which day has the most free time?"* on a
       multi-day trip is answered from **one** `find_free_time` call, names a day by its
       daytime hours, and the turn's step rows carry durations.
-- [ ] A retro is appended at gate close.
+      *(Ticked 2026-10-05, Mitchell's turn `0b34629f-…` on the same trip as the 162-second one:
+      one call, `find_free_time {"wholeTrip": true}`; two steps, 734 ms and 780 ms; 4.5s end to
+      end (classifier 1.0s); `zai/glm-5.3-flash`, cheap tier; completed. The answer: *"Day 8
+      (Tuesday, November 10) has the most free time, with 660 minutes open between 8 am and
+      10 pm"*, runners-up day 5 (630) and day 9 (625). The same day the 2026-10-04 turn named,
+      now at 660 minutes instead of "1,260 minutes (21 hours)".)*
+- [x] A retro is appended at gate close.
+
+## Retro — gate closed 2026-10-05 (7 of 7)
+
+**What shipped.** `summarizeFreeDays` in the domain, and `find_free_time` returning every day
+ranked inside 08:00–22:00 with its morning, afternoon and evening minutes and longest gap; from a
+day's chat, `wholeTrip: true` searches every day. Each `ai_usage_steps` row carries
+`duration_ms` (migration `0037`). Merged as #326 and applied the same day.
+
+**What held.**
+- **The same question on the same trip, before and after:** ten calls, 162 seconds and "Day 8,
+  21 hours" on 2026-10-04; one call, 4.5 seconds and "Day 8, 660 minutes between 8 am and 10 pm"
+  on 2026-10-05. Two changes made that: the tool (one call, waking hours), and the cheap-tier
+  model switch the step durations pointed to.
+- **It was checked before it merged, not after.** M33's eval ran `q-most-free` on production's
+  models against `main` (0 of 3) and this branch (3 of 3), so the merge was not the experiment.
+- **Review found a real hole.** CodeRabbit saw that "omit `day` to search every day" was false in
+  a day-scoped chat, where the scope fills `day` in; `wholeTrip` closed it, and the production turn
+  used it.
+
+**What it cost.**
+- **A per-step duration should have been in M31's first schema.** Without it, the 162-second turn
+  could be measured only by an eval, and its cause named a milestone later.
+- **One CI round on a colour-wall false positive** (a PR number in a test comment read as a hex
+  colour), and one on `KI-2026-09-27-a`'s Google Fonts fetch, re-run once and green.
+
+**Left open, not gating.**
+- **`KI-2026-10-04-c`**: one fast production turn is not a rate. It resolves on query 8 over a few
+  days of cheap-tier step durations, and the strong tier's one slow eval run is still unrepeated.
+- **A per-account waking-hours preference** stays out of scope; 08:00–22:00 is hardcoded.

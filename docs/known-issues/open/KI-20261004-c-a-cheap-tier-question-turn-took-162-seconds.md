@@ -44,3 +44,6 @@
   (steps 0.7s + 1.5s). **Still open** until production shows it: after `0037` is dispatched,
   query 8 over a few days of cheap-tier turns with no step in the tens of seconds resolves the
   cheap half. The strong tier's one slow run above stays a question until it is repeated.
+- **First production turn after the switch, 2026-10-05:** turn `0b34629f-…`, the same question
+  on the same trip as the 162-second turn: `zai/glm-5.3-flash`, two steps of 734 ms and 780 ms,
+  4.5s end to end. One turn; the resolution still waits on query 8 over a few days.
