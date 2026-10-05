@@ -1,5 +1,8 @@
 # Plan: who is travelling, and the People panel
 
+Gate: `docs/milestones/M35-travellers-and-people.md` § *Exit gate*. The milestone was minted after
+this plan was built (2026-10-05). Delete this file at M35's gate close (`docs/plans/README.md`).
+
 Spec: `docs/specs/2026-10-05-travellers-and-people-panel-design.md` (decisions D1–D11, approved
 2026-10-05). ADR-065. Checked against `main` at `d64e8c6`.
 

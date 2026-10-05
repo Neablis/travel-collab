@@ -1,7 +1,8 @@
 # Who is travelling, and a People panel you can read
 
-**Status:** Approved, 2026-10-05: every decision in §3 as recommended.
-Plan: `docs/plans/2026-10-05-travellers-and-people-panel.md`. Would be recorded as **ADR-065**
+**Status:** Approved, 2026-10-05: every decision in §3 as recommended. Built, and tracked as
+**M35** (`docs/milestones/M35-travellers-and-people.md`), minted the same day after the build.
+Plan: `docs/plans/2026-10-05-travellers-and-people-panel.md`. Recorded as **ADR-065**
 (amends ADR-060 decision 2). Source: the candidate *"Choose who on a trip is actually
 travelling"* (`docs/candidates.md:120`), plus the ask to redesign inviting, the member list and
 revoking, with a visible owner state.
