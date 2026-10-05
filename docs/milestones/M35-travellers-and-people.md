@@ -141,11 +141,29 @@ All on `ccr-d8e97d98-xyat7o`, one commit per task, in the plan's order:
       because the cost wording it reads changed (plan T5). This needs a live model and a paid run.
 - [ ] **CodeRabbit's review on #335 is worked** (`docs/guidelines/working-a-review.md`).
       This step is Mitchell's.
-- [ ] **[walk]** On #335's preview, as two people: the owner invites a suggester, who accepts
+- [x] **[walk]** On #335's preview, as two people: the owner invites a suggester, who accepts
       with the switch preset off. The owner's per-person total does not move, and the row sits
       under *Not travelling* without a reload. Marking them travelling doubles it. The owner row
-      reads "Owner · created the trip", and the header stack opens People. *(In progress
-      2026-10-05.)*
+      reads "Owner · created the trip", and the header stack opens People.
+      *Walked 2026-10-05 at `edaad30` in headless Chromium, with 2–3 live contexts. All of the
+      above passed:*
+      - *The join showed on the owner's unreloaded page in 2.8–3.9s. The total stayed 12000,
+        then went to 24000 when they were marked travelling.*
+      - *Change role, Remove and Revoke all passed, with the spec's confirm wording.*
+      - *The invitee's own menu showed the toggle and Leave. Their toggle reached the owner in
+        2.8s.*
+      - *At 390px: no overflow, 44px menu buttons, and the header stack hidden.*
+      - *No console errors from the app.*
+
+      *Not walked:*
+      - *The owner was the dev account `alice`: a fresh account cannot get
+        `trip.collaborators` on a preview (KI-2026-09-16-d).*
+      - *The gated invite dialog.*
+      - *The stop editor's "Who is in" grouping and its "not travelling" chip (D6).*
+      - *The home cards' traveller count.*
+      - *Copy link from a row menu.*
+
+      *Found: KI-2026-10-05-h.*
 - [ ] **Migration 0039 is applied to production**: `migrate-production` dispatched after merge,
       and `pnpm state` reports it applied.
 - [ ] A retro is appended at gate close.
@@ -156,3 +174,5 @@ All on `ccr-d8e97d98-xyat7o`, one commit per task, in the plan's order:
   nobody (W4). It is only reachable when every member, owner included, is marked not travelling.
 - `KI-2026-10-05-f`: the trip-list endpoints return a lapsed owner's collaborators uncapped. It
   predates this work and was found during it.
+- `KI-2026-10-05-h`: a removed member's open page never learns they were removed. Found on the
+  preview walk.
