@@ -371,7 +371,7 @@ describe("ActivityEditorSheet nearby stops", () => {
     expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: "AddActivity", title: "Gora Kadan" }));
   });
 
-  // CodeRabbit on #334: the list is held against the request it answers, and
+  // CodeRabbit on PR 334: the list is held against the request it answers, and
   // reopening on the same day is the same request, so a list kept across a
   // close showed again at once, and stayed there when the new read failed.
   it("forgets the last opening's list, so a failed read on reopening shows none", async () => {

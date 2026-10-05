@@ -133,7 +133,7 @@ export function ActivityEditorSheet() {
   useEffect(() => {
     // Closed (or editing): forget the last list. Reopening on the same day is
     // the same key, and a list kept across a close would show again at once,
-    // and stay there if the new read failed (CodeRabbit, #334).
+    // and stay there if the new read failed (CodeRabbit, PR 334).
     if (nearbyKey === null || tripId === undefined) {
       setNearby(null);
       return;
