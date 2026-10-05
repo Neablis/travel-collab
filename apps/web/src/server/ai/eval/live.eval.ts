@@ -134,7 +134,7 @@ function chunksOf(body: string): Record<string, unknown>[] {
 async function runTurn(
   prompt: LivePrompt,
   tripId: string,
-): Promise<EvalTurn & { stepDurationsMs: (number | null)[]; microUsd: number | null }> {
+): Promise<EvalTurn & { stepDurationsMs: (number | null)[]; providers: (string | null)[]; generationIds: (string | null)[]; microUsd: number | null }> {
   // Keyed by actor, and every turn here is the same actor (see replay.int.test.ts).
   await db.delete(rateLimitCounters);
   const records: AskAnalyticsRecord[] = [];
@@ -171,6 +171,8 @@ async function runTurn(
     text,
     proposalCommands: proposal?.commands?.length ?? 0,
     stepDurationsMs: ledgers[0]?.stepSpend.map((step) => step.durationMs) ?? [],
+    providers: ledgers[0]?.stepSpend.map((step) => step.provider) ?? [],
+    generationIds: ledgers[0]?.stepSpend.map((step) => step.gatewayGenerationId) ?? [],
     microUsd: ledgers[0] ? turnMicroUsd(ledgers[0], new Date()) : null,
   };
 }
@@ -184,6 +186,9 @@ interface RunRow {
   latencyMs: number;
   /** Each agent step's wall time (M32): the model's, plus that step's tool calls. */
   stepDurationsMs: (number | null)[];
+  /** Which Gateway provider served each step, and its generation id (the billed cost is looked up by it). */
+  providers: (string | null)[];
+  generationIds: (string | null)[];
   inputTokens: number | null;
   outputTokens: number | null;
   answer: string;
@@ -236,7 +241,7 @@ afterAll(() => {
         (row) =>
           `  ${row.checks.every((check) => check.pass) ? "PASS" : "FAIL"} ${row.id}#${row.run}  ${row.model}  ${row.steps} steps  ` +
           `${row.toolCalls.length} calls  ${(row.latencyMs / 1000).toFixed(1)}s ` +
-          `[${row.stepDurationsMs.map((ms) => (ms === null ? "?" : (ms / 1000).toFixed(1))).join(" + ")}]  ${row.inputTokens ?? "?"} in`,
+          `[${row.stepDurationsMs.map((ms) => (ms === null ? "?" : (ms / 1000).toFixed(1))).join(" + ")}]  ${row.inputTokens ?? "?"} in  via ${[...new Set(row.providers)].join(",") || "?"}`,
       ),
       `report: ${file}`,
     ].join("\n"),
@@ -266,6 +271,8 @@ describe("the live set, on production's models", () => {
           toolCalls: turn.record.toolCalls.map((call) => call.name),
           latencyMs: turn.record.latencyMs,
           stepDurationsMs: turn.stepDurationsMs,
+          providers: turn.providers,
+          generationIds: turn.generationIds,
           inputTokens: turn.record.usage.inputTokens,
           outputTokens: turn.record.usage.outputTokens,
           answer: turn.text,
