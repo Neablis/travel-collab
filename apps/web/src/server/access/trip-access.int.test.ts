@@ -88,7 +88,7 @@ describe("requireTripAccess", () => {
     expect(access.userId).toBe(OWNER);
     expect(access.role).toBe("owner");
     expect(access.detail.tripId).toBe(tripId);
-    expect(access.detail.members).toEqual([{ userId: OWNER, role: "owner" }]);
+    expect(access.detail.members).toEqual([{ userId: OWNER, role: "owner", travelling: true }]);
   });
 
   // KI-2026-09-05-x. `trip_details.trip_id` is a uuid column, so a path segment
@@ -196,8 +196,8 @@ describe("withEffectiveMembers", () => {
 
     const detail = await withEffectiveMembers(raw);
     expect(detail.members).toEqual([
-      { userId: OWNER, role: "owner" },
-      { userId: GUEST, role: "editor" },
+      { userId: OWNER, role: "owner", travelling: true },
+      { userId: GUEST, role: "editor", travelling: true },
     ]);
   });
 });

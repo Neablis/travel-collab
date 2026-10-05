@@ -56,6 +56,25 @@ export function roleAtLeast(role: TripRole, minimum: TripRole): boolean {
   return RANK[role] >= RANK[minimum];
 }
 
+/**
+ * Whether `actorId` may say whether `targetId` is travelling (travellers spec
+ * D4): the owner for anyone, themselves included, and every other member for
+ * themselves only. It is about the person, and the owner pays — so an editor,
+ * who plans the trip, still cannot decide that someone else is not coming.
+ *
+ * Not a rank: "for themselves" is a question about identity, which is why this
+ * is its own rule rather than a `hasAtLeast` minimum. Whether the target is on
+ * the trip at all is the caller's to check — this answers only "may you".
+ */
+export function maySetTravelling(
+  actorId: string,
+  targetId: string,
+  members: TripMember[] | null,
+): boolean {
+  const role = memberRole(actorId, members);
+  return role !== null && (role === "owner" || actorId === targetId);
+}
+
 // The role a member must hold, at minimum, to run each command. Typed as an
 // exhaustive Record so a new TripCommand fails to compile until someone
 // decides who may run it — before roles existed every command was reachable by

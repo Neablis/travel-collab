@@ -426,12 +426,46 @@ export const tripInvites = pgTable(
     acceptedBy: text("accepted_by"),
     acceptedAt: timestamp("accepted_at", { withTimezone: true, mode: "date" }),
     revokedAt: timestamp("revoked_at", { withTimezone: true, mode: "date" }),
+    // Whether the person who accepts will be travelling (travellers spec D3).
+    // Defaults true so every invite written before the column reads as it
+    // always did (D2); `acceptInvite` turns a false into a `trip_travellers` row.
+    travelling: boolean("travelling").notNull().default(true),
   },
   (t) => [
     uniqueIndex("trip_invites_token").on(t.token),
     index("trip_invites_trip").on(t.tripId),
   ],
 );
+
+// Who on a trip is travelling (travellers spec D1). A separate table rather
+// than a column on `trip_memberships`, because the owner has no membership row
+// and can be not travelling too (D5). A MISSING row means travelling (D2): no
+// backfill, so no live total moves on deploy. Keyed by user, not by membership,
+// so `removeMember` and `revokeInvite` delete it explicitly — a re-invite
+// starts from the new invite's choice.
+export const tripTravellers = pgTable(
+  "trip_travellers",
+  {
+    tripId: uuid("trip_id").notNull(),
+    // A `users.id`, on the same no-foreign-key terms as `trip_memberships`.
+    userId: text("user_id").notNull(),
+    travelling: boolean("travelling").notNull(),
+    updatedBy: text("updated_by").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.tripId, t.userId] })],
+);
+
+// The events poll's `accessRev` (travellers spec D11, W5): one counter per
+// trip, bumped inside every transaction that changes who is on the trip, their
+// role, whether they travel, or the pending invites. A counter rather than
+// `max(updated_at)` over the Access tables, because revoking and removing
+// DELETE rows and a max over the survivors cannot see a deletion. One primary
+// key read on a poll that runs every 2s. No row means nothing has changed yet.
+export const tripAccessRevs = pgTable("trip_access_revs", {
+  tripId: uuid("trip_id").primaryKey(),
+  rev: integer("rev").notNull(),
+});
 
 // Pinned read-only shares (M11 link 4, ADR-027). `seq` is the pin: the read
 // replays the trip's first `seq` events instead of serving the materialized

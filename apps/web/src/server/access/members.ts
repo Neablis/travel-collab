@@ -1,8 +1,8 @@
 import { and, eq, exists, inArray, sql, type Column, type SQL } from "drizzle-orm";
-import type { TripMember, TripMemberProfile, TripRole } from "@tc/contracts";
+import type { InviteRole, TripMember, TripMemberProfile, TripRole } from "@tc/contracts";
 import { db, type Queryable } from "../db/client";
 import { memberRole, RANK } from "../accessPolicy";
-import { tripMemberships, users } from "../db/schema";
+import { tripAccessRevs, tripMemberships, tripTravellers, users } from "../db/schema";
 // **Access & Membership reads a boolean out of Entitlements, never the other
 // way round** (ADR-045 rule 5). This import is the direction the module map
 // allows: the gate lives here, because this module is the one that knows an
@@ -125,7 +125,84 @@ export async function effectiveMembers(
   projected: readonly TripMember[],
 ): Promise<TripMember[]> {
   const granted = await grantedMembers(tx, tripId);
-  return mergeMembers(projected, await capGrantedOnLapse(projected, granted));
+  const merged = mergeMembers(projected, await capGrantedOnLapse(projected, granted));
+  return withTravelling(merged, await travellingByUser(tx, tripId));
+}
+
+/**
+ * Every member with `travelling` set EXPLICITLY, the owner included (spec W1):
+ * the contract leaves it optional so the log's `{ userId, role }` members stay
+ * valid, which makes this overlay the one place that must never leave it out.
+ * A member with no `trip_travellers` row is travelling (D2).
+ */
+export function withTravelling(
+  members: readonly TripMember[],
+  travelling: ReadonlyMap<string, boolean>,
+): TripMember[] {
+  return members.map((m) => ({ ...m, travelling: travelling.get(m.userId) ?? true }));
+}
+
+/** The trip's `trip_travellers` rows, by user. Keyed by user, not membership: the owner has none. */
+export async function travellingByUser(tx: Queryable, tripId: string): Promise<Map<string, boolean>> {
+  const rows = await tx
+    .select({ userId: tripTravellers.userId, travelling: tripTravellers.travelling })
+    .from(tripTravellers)
+    .where(eq(tripTravellers.tripId, tripId));
+  return new Map(rows.map((r) => [r.userId, r.travelling]));
+}
+
+/** Record whether `userId` is travelling on this trip. The caller authorises and bumps the rev. */
+export async function writeTravelling(
+  tx: Queryable,
+  input: { tripId: string; userId: string; travelling: boolean; updatedBy: string; now: string },
+): Promise<void> {
+  const { tripId, userId, travelling, updatedBy, now } = input;
+  await tx
+    .insert(tripTravellers)
+    .values({ tripId, userId, travelling, updatedBy, updatedAt: now })
+    .onConflictDoUpdate({
+      target: [tripTravellers.tripId, tripTravellers.userId],
+      set: { travelling, updatedBy, updatedAt: now },
+    });
+}
+
+/**
+ * Forget whether someone who is leaving the trip was travelling, so that if
+ * they are invited again the new invite's choice is what they join with.
+ */
+export async function forgetTravelling(tx: Queryable, tripId: string, userId: string): Promise<void> {
+  await tx
+    .delete(tripTravellers)
+    .where(and(eq(tripTravellers.tripId, tripId), eq(tripTravellers.userId, userId)));
+}
+
+/**
+ * Bump the trip's access revision (spec D11, W5). Called inside the same
+ * transaction as the write it reports, so a rolled-back write never moves it
+ * and a committed one always does. Every Access write calls this; a new one
+ * that forgets is a client that never notices it.
+ */
+export async function bumpAccessRev(tx: Queryable, tripId: string): Promise<void> {
+  await tx
+    .insert(tripAccessRevs)
+    .values({ tripId, rev: 1 })
+    .onConflictDoUpdate({ target: tripAccessRevs.tripId, set: { rev: sql`${tripAccessRevs.rev} + 1` } });
+}
+
+/**
+ * The events poll's `accessRev`: opaque, and only ever compared for equality.
+ * One primary-key read. "0" for a trip no Access write has touched yet.
+ *
+ * Not moved by a billing lapse: the collaboration gate caps roles on read and
+ * writes nothing (`capGranted`), so a lapse shows up on the next full read
+ * rather than through this.
+ */
+export async function accessRevFor(tripId: string): Promise<string> {
+  const rows = await db
+    .select({ rev: tripAccessRevs.rev })
+    .from(tripAccessRevs)
+    .where(eq(tripAccessRevs.tripId, tripId));
+  return String(rows[0]?.rev ?? 0);
 }
 
 /**
@@ -207,7 +284,7 @@ export async function sharedTripIds(userId: string): Promise<string[]> {
  * The primary key on (tripId, userId) is the only real serialization point, so
  * the decision is made HERE: first grant wins, later ones report that they
  * changed nothing, and the caller rolls its transaction back. Changing a role
- * stays the owner's operation — revoke and re-invite.
+ * stays the owner's operation — `changeMemberRole`, never a second grant.
  */
 export async function grantMembership(
   tx: Queryable,
@@ -313,7 +390,45 @@ export async function removeMember(
   projected: readonly TripMember[],
 ): Promise<RemoveMemberOutcome> {
   if (memberRole(userId, [...projected]) === "owner") return "owner";
-  return (await revokeMembership(db, tripId, userId)) ? "removed" : "not-a-member";
+  return db.transaction(async (tx) => {
+    if (!(await revokeMembership(tx, tripId, userId))) return "not-a-member";
+    await forgetTravelling(tx, tripId, userId);
+    await bumpAccessRev(tx, tripId);
+    return "removed";
+  });
+}
+
+/** What `changeRole` did, for the route to turn into a status code. */
+export type ChangeRoleOutcome = "changed" | "not-a-member" | "owner";
+
+/**
+ * Change a member's role in place (travellers spec D8) — the owner's
+ * operation, which used to be "revoke and re-invite". The caller has already
+ * established that the actor IS the owner; this decides who may be changed.
+ *
+ * `projected`, not the effective list, for exactly `removeMember`'s reason:
+ * the owner is the log's, has no row, and is refused explicitly rather than
+ * silently no-op'd. Someone with no `trip_memberships` row (an actor known only
+ * from the log) has nothing to change, and says so. `InviteRole` keeps
+ * `owner` out of reach (D9). No lapse cap here: the cap is applied on read
+ * (`capGranted`), so the stored role is the one resubscribing restores.
+ */
+export async function changeMemberRole(
+  tx: Queryable,
+  tripId: string,
+  userId: string,
+  role: InviteRole,
+  projected: readonly TripMember[],
+): Promise<ChangeRoleOutcome> {
+  if (memberRole(userId, [...projected]) === "owner") return "owner";
+  const updated = await tx
+    .update(tripMemberships)
+    .set({ role })
+    .where(and(eq(tripMemberships.tripId, tripId), eq(tripMemberships.userId, userId)))
+    .returning();
+  if (updated.length === 0) return "not-a-member";
+  await bumpAccessRev(tx, tripId);
+  return "changed";
 }
 
 /**
@@ -357,6 +472,7 @@ export async function withProfiles(
       name: profile?.name ?? null,
       email: mayReadEmail ? (profile?.email ?? null) : null,
       image: profile?.image ?? null,
+      travelling: m.travelling ?? true,
     };
   });
 }

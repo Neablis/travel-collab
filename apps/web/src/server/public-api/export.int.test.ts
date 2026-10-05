@@ -239,7 +239,7 @@ describe("POST /v1/trips/import", () => {
     const imported = await IMPORT(req(strangerSecret, claimed, "POST"), NO_PARAMS);
     expect(imported.status).toBe(201);
     const detail = await imported.json();
-    expect(detail.members).toEqual([{ userId: stranger, role: "owner" }]);
+    expect(detail.members).toEqual([{ userId: stranger, role: "owner", travelling: true }]);
     expect(detail.members.map((m: { userId: string }) => m.userId)).not.toContain(author);
 
     // The author cannot reach the stranger's copy, which is the same statement

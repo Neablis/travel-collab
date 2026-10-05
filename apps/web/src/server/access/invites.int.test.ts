@@ -123,8 +123,8 @@ describe("invites — create, accept, revoke", () => {
     expect(detail.members).toEqual([{ userId: OWNER, role: "owner" }]);
     // The effective list is where the guest shows up.
     expect(await effectiveMembers(db, tripId, detail.members)).toEqual([
-      { userId: OWNER, role: "owner" },
-      { userId: GUEST, role: "editor" },
+      { userId: OWNER, role: "owner", travelling: true },
+      { userId: GUEST, role: "editor", travelling: true },
     ]);
   });
 
@@ -208,7 +208,7 @@ describe("invites — create, accept, revoke", () => {
     });
     // And nothing was re-granted on the way.
     expect(await effectiveMembers(db, tripId, detail.members)).toEqual([
-      { userId: OWNER, role: "owner" },
+      { userId: OWNER, role: "owner", travelling: true },
     ]);
   });
 
@@ -234,8 +234,8 @@ describe("invites — create, accept, revoke", () => {
     // …and the role the OWNER granted is the role that stuck.
     const detail = (await getTripDetail(tripId))!;
     expect(await effectiveMembers(db, tripId, detail.members)).toEqual([
-      { userId: OWNER, role: "owner" },
-      { userId: GUEST, role: "editor" },
+      { userId: OWNER, role: "owner", travelling: true },
+      { userId: GUEST, role: "editor", travelling: true },
     ]);
   });
 
@@ -360,8 +360,8 @@ describe("invites — create, accept, revoke", () => {
     // told nobody about.
     const detail = (await getTripDetail(tripId))!;
     expect(await effectiveMembers(db, tripId, detail.members)).toEqual([
-      { userId: OWNER, role: "owner" },
-      { userId: GUEST, role: "viewer" },
+      { userId: OWNER, role: "owner", travelling: true },
+      { userId: GUEST, role: "viewer", travelling: true },
     ]);
   });
 
@@ -400,7 +400,7 @@ describe("invites — create, accept, revoke", () => {
 
     const detail = (await getTripDetail(tripId))!;
     expect(await effectiveMembers(db, tripId, detail.members)).toEqual([
-      { userId: OWNER, role: "owner" },
+      { userId: OWNER, role: "owner", travelling: true },
     ]);
     expect((await executeTripCommand({ type: "AddDay", tripId, dayId: randomUUID() }, GUEST)).ok).toBe(false);
   });
@@ -497,7 +497,7 @@ describe("invites — create, accept, revoke", () => {
     // leaves a live membership behind.
     const detail = (await getTripDetail(tripId))!;
     expect(await effectiveMembers(db, tripId, detail.members)).toEqual([
-      { userId: OWNER, role: "owner" },
+      { userId: OWNER, role: "owner", travelling: true },
     ]);
     expect(
       (await executeTripCommand({ type: "AddDay", tripId, dayId: randomUUID() }, GUEST)).ok,
@@ -531,7 +531,7 @@ describe("invites — create, accept, revoke", () => {
 
     const detail = (await getTripDetail(tripId))!;
     expect(await effectiveMembers(db, tripId, detail.members)).toEqual([
-      { userId: OWNER, role: "owner" },
+      { userId: OWNER, role: "owner", travelling: true },
     ]);
   });
 
@@ -619,13 +619,15 @@ describe("member profiles", () => {
     const profiles = await withProfiles(
       [
         { userId: OWNER, role: "owner" },
-        { userId: GUEST, role: "editor" },
+        { userId: GUEST, role: "editor", travelling: false },
       ],
       OWNER,
     );
+    // `travelling` explicit on every row: carried through, and travelling
+    // where the member list did not say (travellers spec D2).
     expect(profiles).toEqual([
-      { userId: OWNER, role: "owner", name: null, email: null, image: null },
-      { userId: GUEST, role: "editor", name: "Bob", email: "bob@example.com", image: null },
+      { userId: OWNER, role: "owner", name: null, email: null, image: null, travelling: true },
+      { userId: GUEST, role: "editor", name: "Bob", email: "bob@example.com", image: null, travelling: false },
     ]);
   });
 });
