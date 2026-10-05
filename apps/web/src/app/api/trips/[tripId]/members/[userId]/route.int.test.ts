@@ -5,7 +5,8 @@ import { TripAccess } from "@tc/contracts";
 import { db } from "@/server/db/client";
 import { tripMemberships } from "@/server/db/schema";
 import { executeTripCommand } from "@/server/commands";
-import { effectiveMembers, grantMembership } from "@/server/access/members";
+import { accessRevFor, effectiveMembers, grantMembership } from "@/server/access/members";
+import { createInvite } from "@/server/access/invites";
 import { entitleAccounts } from "@/server/test-support/entitledAccount";
 
 // KI-65. `revokeMembership` had exactly one production caller — `revokeInvite`
@@ -25,7 +26,7 @@ vi.mock("@/server/auth", () => ({
   auth: vi.fn(async () => (currentUserId ? { user: { id: currentUserId } } : null)),
 }));
 
-const { DELETE } = await import("./route");
+const { DELETE, PATCH } = await import("./route");
 
 // No DB truncation: every test seeds its own randomUUID() trip and reads back
 // through it — the convention the sibling route int tests use.
@@ -49,6 +50,16 @@ const remove = (tripId: string, userId: string) =>
   DELETE(new Request(`http://test/x`, { method: "DELETE" }), {
     params: Promise.resolve({ tripId, userId }),
   });
+
+const patch = (tripId: string, userId: string, body: unknown) =>
+  PATCH(new Request(`http://test/x`, { method: "PATCH", body: JSON.stringify(body) }), {
+    params: Promise.resolve({ tripId, userId }),
+  });
+
+async function member(tripId: string, userId: string) {
+  const members = await effectiveMembers(db, tripId, [{ userId: OWNER, role: "owner" }]);
+  return members.find((m) => m.userId === userId);
+}
 
 async function memberIds(tripId: string): Promise<string[]> {
   return (await effectiveMembers(db, tripId, [{ userId: OWNER, role: "owner" }])).map(
@@ -94,6 +105,7 @@ describe("DELETE /api/trips/:tripId/members/:userId", () => {
     expect(access.tripId).toBe(tripId);
     expect(access.myRole).toBe("owner");
     expect(access.members.map((member) => member.userId)).toEqual([OWNER]);
+    expect(access.viewerId).toBe(OWNER);
   });
 
   it("401s when unauthenticated", async () => {
@@ -219,5 +231,85 @@ describe("DELETE /api/trips/:tripId/members/:userId", () => {
     await remove(tripId, GUEST);
 
     expect(await memberIds(tripId)).toEqual([OWNER, EDITOR]);
+  });
+});
+
+// Travellers spec D4 and D8: the two in-place changes to a person. The rules
+// themselves are `setTravelling`'s and `changeRole`'s (travellers.int.test.ts);
+// what is proven here is the wire: which body reaches which, and what each
+// refusal becomes.
+describe("PATCH /api/trips/:tripId/members/:userId", () => {
+  it("lets the owner mark another member as not travelling, and answers with the access view", async () => {
+    const tripId = await seedTrip();
+    await addMember(tripId, GUEST);
+
+    const res = await patch(tripId, GUEST, { travelling: false });
+
+    expect(res.status).toBe(200);
+    const access = TripAccess.parse(((await res.json()) as { access: unknown }).access);
+    expect(access.members.find((m) => m.userId === GUEST)?.travelling).toBe(false);
+    expect((await member(tripId, GUEST))?.travelling).toBe(false);
+    // W22: the rev after this write, which the writer's page adopts as seen.
+    expect(access.accessRev).toBe(await accessRevFor(tripId));
+  });
+
+  // A member's own row. The response must not carry the owner's invites: each
+  // one holds its token (the same rule `GET /access` keeps).
+  it("lets a member say they are not travelling, without handing them the invites", async () => {
+    const tripId = await seedTrip();
+    await addMember(tripId, GUEST, "viewer");
+    await createInvite(tripId, OWNER, { email: null, role: "viewer" });
+    currentUserId = GUEST;
+
+    const res = await patch(tripId, GUEST, { travelling: false });
+
+    expect(res.status).toBe(200);
+    const access = TripAccess.parse(((await res.json()) as { access: unknown }).access);
+    expect(access.myRole).toBe("viewer");
+    expect(access.invites).toEqual([]);
+    // Who "You" is on the People section's re-render from this response.
+    expect(access.viewerId).toBe(GUEST);
+    expect((await member(tripId, GUEST))?.travelling).toBe(false);
+  });
+
+  it("403s a member setting it for someone else, and writes nothing", async () => {
+    const tripId = await seedTrip();
+    await addMember(tripId, EDITOR, "editor");
+    await addMember(tripId, GUEST);
+    currentUserId = EDITOR;
+
+    expect((await patch(tripId, GUEST, { travelling: false })).status).toBe(403);
+    expect((await member(tripId, GUEST))?.travelling).toBe(true);
+  });
+
+  it("lets the owner change a member's role in place", async () => {
+    const tripId = await seedTrip();
+    await addMember(tripId, GUEST, "viewer");
+
+    const res = await patch(tripId, GUEST, { role: "editor" });
+
+    expect(res.status).toBe(200);
+    const access = TripAccess.parse(((await res.json()) as { access: unknown }).access);
+    expect(access.members.find((m) => m.userId === GUEST)?.role).toBe("editor");
+    expect((await member(tripId, GUEST))?.role).toBe("editor");
+  });
+
+  // 409, as DELETE answers the same target: the caller may manage members;
+  // this one comes from the log and has no row to change.
+  it("409s a role change aimed at the owner", async () => {
+    const tripId = await seedTrip();
+
+    expect((await patch(tripId, OWNER, { role: "viewer" })).status).toBe(409);
+    expect((await member(tripId, OWNER))?.role).toBe("owner");
+  });
+
+  // Both bodies are strict, so naming both matches neither — rather than one
+  // half applied by whichever branch the route happened to try first.
+  it("400s a body naming both travelling and a role, and changes neither", async () => {
+    const tripId = await seedTrip();
+    await addMember(tripId, GUEST, "viewer");
+
+    expect((await patch(tripId, GUEST, { travelling: false, role: "editor" })).status).toBe(400);
+    expect(await member(tripId, GUEST)).toMatchObject({ role: "viewer", travelling: true });
   });
 });

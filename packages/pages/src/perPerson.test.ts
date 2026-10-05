@@ -44,14 +44,14 @@ const contextOf = (trip: TripDetail): WidgetContext => ({
 });
 const usd = (amountMinor: number) => formatMoney(amountMinor, "USD");
 
-function rendered(name: string, params: Record<string, unknown> = {}) {
-  const outcome = renderMacro(contextOf(perPersonTrip()), name, params);
+function rendered(name: string, params: Record<string, unknown> = {}, trip = perPersonTrip()) {
+  const outcome = renderMacro(contextOf(trip), name, params);
   if (outcome.status !== "ok") throw new Error(`${name} said ${outcome.status}`);
   return outcome.rendered;
 }
 
-function block<K extends string>(name: string, kind: K, params: Record<string, unknown> = {}) {
-  const r = rendered(name, params);
+function block<K extends string>(name: string, kind: K, params: Record<string, unknown> = {}, trip = perPersonTrip()) {
+  const r = rendered(name, params, trip);
   if (r.kind !== "block" || r.block.kind !== kind) throw new Error(`${name} did not render a ${kind}`);
   return r.block;
 }
@@ -105,5 +105,28 @@ describe("a price is per person, in every cost widget (ADR-060)", () => {
       cost: usd(44_00),
       activities: [{ title: "A", cost: usd(10_00) }, { title: "B", cost: usd(7_00) }],
     });
+  });
+
+  // Travellers spec D1: u3 joined to advise. A, which nobody picked, is now
+  // × 2 = $20.00, so: day $34.00, trip $39.00, committed $25.00. Counting every
+  // member would print the $44 / $49 / $35 above.
+  it("every cost widget prices a stop nobody picked for the travellers, not every member", () => {
+    const base = perPersonTrip();
+    const trip = withCostRollups({
+      ...base,
+      members: base.members.map((m) => (m.userId === "u3" ? { ...m, travelling: false } : m)),
+    });
+    expect([trip.days[0]!.costSubtotal, trip.tripCostTotal]).toEqual([34_00, 39_00]);
+
+    const cost = rendered("cost", {}, trip);
+    expect(cost.kind === "inline" && cost.segs.map((seg) => seg.text).join("")).toBe(`${usd(25_00)} committed · ${usd(14_00)} estimated`);
+    const rows = rendered("cost.rows", {}, trip);
+    expect(rows.kind === "rows" && rows.rows.map((row) => row.cells.flat().map((seg) => seg.text).join(""))).toEqual([
+      usd(34_00), usd(5_00), usd(39_00),
+    ]);
+    const pie = block("cost.breakdown", "spend-breakdown", { by: "kind" }, trip) as SpendBreakdownPayload;
+    expect([pie.total, pie.slices.find((s) => s.key === "planned")?.amount]).toEqual([usd(39_00), usd(25_00)]);
+    expect((block("cost.chart", "spend-by-day", {}, trip) as SpendByDayPayload).days[0]!.total).toBe(usd(34_00));
+    expect(block("day.detail", "itinerary-day", { day: { kind: "index", index: 0 } }, trip)).toMatchObject({ cost: usd(34_00) });
   });
 });

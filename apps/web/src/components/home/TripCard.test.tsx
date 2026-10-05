@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import type { TripSummary } from "@tc/contracts";
 import { TripCard } from "./TripCard";
@@ -81,6 +81,21 @@ describe("TripCard", () => {
 
     // Still shows the state badge next to the avatars, not in place of it.
     expect(screen.getByText(/active/i)).toBeTruthy();
+  });
+
+  // Travellers spec §5: a member who joined to advise is on the trip, not on
+  // the road, so the stack names and shows the travellers only.
+  it("counts and shows the travellers, not every member", () => {
+    const trip = tripSummaryFixture({
+      members: [...twoMemberTrip().members, { userId: "dev-carol", role: "suggester", travelling: false }],
+    });
+    render(<TripCard trip={trip} />);
+
+    // The avatars are aria-hidden, so what a reader sees is their initials.
+    const group = screen.getByRole("group", { name: "2 travelers" });
+    expect(within(group).getByText("AL")).toBeTruthy();
+    expect(within(group).getByText("BO")).toBeTruthy();
+    expect(within(group).queryByText("CA")).toBeNull();
   });
 
   // Task 4.1 (M10 Phase 4): TripSummary carries no cost fields at all, so

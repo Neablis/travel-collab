@@ -5,6 +5,7 @@ import { db } from "@/server/db/client";
 import { tripInvites, tripMemberships } from "@/server/db/schema";
 import { executeTripCommand } from "@/server/commands";
 import { acceptInvite, createInvite } from "@/server/access/invites";
+import { accessRevFor } from "@/server/access/members";
 import { entitleAccounts } from "@/server/test-support/entitledAccount";
 import { upsertUser } from "@/server/users";
 import { INVITE_TOKEN_HEADER } from "@/lib/inviteLook";
@@ -79,6 +80,33 @@ describe("GET /api/trips/:id/access", () => {
     expect(body.access.invites.map((i) => i.email)).toEqual(["someone@example.com"]);
   });
 
+  // KI-2026-10-05-g, spec W22. The client takes this rev as its baseline, so it
+  // has to be the poll's rev (`accessRevFor`), and it has to move with the list
+  // it is served beside.
+  it("carries the access revision the poll reports, moving with each Access write", async () => {
+    const tripId = await seedTrip();
+    const read = async () =>
+      ((await (await GET(new Request("http://test/x"), params(tripId))).json()) as {
+        access: { accessRev?: string; members: { userId: string }[]; invites: unknown[] };
+      }).access;
+
+    const fresh = await read();
+    expect(fresh.accessRev).toBe(await accessRevFor(tripId));
+    expect(fresh.accessRev).toBe("0");
+
+    await createInvite(tripId, OWNER, { email: null, role: "viewer" });
+    const invited = await read();
+    expect(invited.invites).toHaveLength(1);
+    expect(invited.accessRev).toBe(await accessRevFor(tripId));
+    expect(invited.accessRev).not.toBe(fresh.accessRev);
+
+    await join(tripId, "editor");
+    const joined = await read();
+    expect(joined.members.map((m) => m.userId)).toEqual([OWNER, GUEST]);
+    expect(joined.accessRev).toBe(await accessRevFor(tripId));
+    expect(joined.accessRev).not.toBe(invited.accessRev);
+  });
+
   // A TripInvite carries its token, so listing invites IS handing out access.
   it("shows a non-owner member the travellers but never the invite tokens", async () => {
     const tripId = await seedTrip();
@@ -92,6 +120,23 @@ describe("GET /api/trips/:id/access", () => {
     expect(body.access.myRole).toBe("editor");
     expect(body.access.members.map((m) => m.userId)).toEqual([OWNER, GUEST]);
     expect(body.access.invites).toEqual([]);
+  });
+
+  // The People section marks "You" from this, so a failed session probe does
+  // not cost a member the menu on their own row (the Leave trip door).
+  it("names the reader when they are on the trip, and nobody for a look through an invite link", async () => {
+    const tripId = await seedTrip();
+    const invite = await createInvite(tripId, OWNER, { email: null, role: "viewer" });
+    await join(tripId, "editor");
+    const read = async (headers: Record<string, string> = {}) =>
+      ((await (await GET(new Request("http://test/x", { headers }), params(tripId))).json()) as {
+        access: { viewerId?: string };
+      }).access;
+
+    currentUserId = GUEST;
+    expect((await read()).viewerId).toBe(GUEST);
+    currentUserId = STRANGER;
+    expect((await read({ [INVITE_TOKEN_HEADER]: invite.token })).viewerId).toBeUndefined();
   });
 });
 

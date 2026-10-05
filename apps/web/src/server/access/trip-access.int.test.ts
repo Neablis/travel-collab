@@ -88,7 +88,7 @@ describe("requireTripAccess", () => {
     expect(access.userId).toBe(OWNER);
     expect(access.role).toBe("owner");
     expect(access.detail.tripId).toBe(tripId);
-    expect(access.detail.members).toEqual([{ userId: OWNER, role: "owner" }]);
+    expect(access.detail.members).toEqual([{ userId: OWNER, role: "owner", travelling: true }]);
   });
 
   // KI-2026-09-05-x. `trip_details.trip_id` is a uuid column, so a path segment
@@ -196,8 +196,8 @@ describe("withEffectiveMembers", () => {
 
     const detail = await withEffectiveMembers(raw);
     expect(detail.members).toEqual([
-      { userId: OWNER, role: "owner" },
-      { userId: GUEST, role: "editor" },
+      { userId: OWNER, role: "owner", travelling: true },
+      { userId: GUEST, role: "editor", travelling: true },
     ]);
   });
 });
@@ -347,6 +347,56 @@ describe("a trip's totals follow its members at read time", () => {
     );
     expect(write.status).toBe(200);
     expect(TripDetail.parse(((await write.json()) as { detail: unknown }).detail).tripCostTotal).toBe(60_00);
+  });
+
+  // #314: a suggester who joined to advise doubled the per-person total. A
+  // stop nobody picked is priced for the TRAVELLERS (travellers spec D1), so
+  // someone who joins not travelling moves nothing — not the read, not a
+  // command's response, and not the over-budget conflict the decider judges a
+  // dismissal against.
+  it("leaves a nobody-picked stop's total alone when a second member joins not travelling", async () => {
+    const tripId = randomUUID();
+    const dayId = randomUUID();
+    const usd = (amountMinor: number) => ({ amountMinor, currency: "USD" });
+    await executeTripCommand({ type: "CreateTrip", tripId, name: "Advised" }, OWNER);
+    await executeTripCommand({ type: "SetTripBudget", tripId, budget: usd(50_00) }, OWNER);
+    await executeTripCommand({ type: "AddDay", tripId, dayId }, OWNER);
+    await executeTripCommand(
+      { type: "AddActivity", tripId, activityId: randomUUID(), dayId, title: "Ramen", cost: usd(30_00) },
+      OWNER,
+    );
+    const params = { params: Promise.resolve({ tripId }) };
+    const read = async () => {
+      const res = await GET_TRIP(new Request("http://test/x"), params);
+      expect(res.status).toBe(200);
+      return TripDetail.parse(((await res.json()) as { trip: unknown }).trip);
+    };
+    const post = (body: unknown) =>
+      POST_COMMAND(
+        new Request("http://test/x", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(body),
+        }),
+        params,
+      );
+
+    // An editor, so the role's own preset (travelling) is not what decides.
+    const invite = await createInvite(tripId, OWNER, { email: null, role: "editor", travelling: false });
+    expect((await acceptInvite(invite.token, GUEST)).ok).toBe(true);
+
+    const pair = await read();
+    expect(pair.members.find((m) => m.userId === GUEST)).toMatchObject({ travelling: false });
+    expect([pair.tripCostTotal, pair.days[0]!.costSubtotal, pair.budgetRemaining]).toEqual([30_00, 30_00, 20_00]);
+    expect(pair.conflicts.filter((c) => c.kind === "over-budget")).toEqual([]);
+
+    const write = await post({ type: "SetTripName", tripId, name: "Advised, still one" });
+    expect(write.status).toBe(200);
+    expect(TripDetail.parse(((await write.json()) as { detail: unknown }).detail).tripCostTotal).toBe(30_00);
+
+    // Charged for two, the trip would be over (60 > 50) and this would pass.
+    const dismiss = await post({ type: "DismissConflict", tripId, conflictId: `over-budget:${tripId}` });
+    expect([dismiss.status, ((await dismiss.json()) as { code: string }).code]).toEqual([400, "conflict-not-found"]);
   });
 
   // The over-budget conflict reads the same total, so it follows the members

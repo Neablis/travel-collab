@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { InviteLanding } from "@tc/contracts";
 import { FrontDoorHeader } from "@/components/front/FrontDoorHeader";
+import { Avatar } from "@/components/ui/avatar";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Heading } from "@/components/ui/heading";
@@ -191,12 +192,7 @@ function ValidInvite({
     <div className="grid w-full max-w-content grid-cols-1 items-start gap-8 lg:grid-cols-2 lg:gap-16">
       <div className="flex flex-col gap-5.5 pt-2">
         <div className="flex items-center gap-3">
-          <span
-            aria-hidden
-            className="grid size-11 shrink-0 place-items-center rounded-full bg-info-tint text-md font-semibold text-info-ink"
-          >
-            {initials(landing.inviterName)}
-          </span>
+          <Avatar name={landing.inviterName} initials={initials(landing.inviterName)} size="lg" tone="info" />
           <span className="flex min-w-0 flex-col gap-px">
             <Text as="span" className="text-md font-semibold">
               {landing.inviterName} invited you
@@ -219,16 +215,15 @@ function ValidInvite({
         <div className="flex items-center gap-3">
           <span aria-hidden className="flex shrink-0">
             {landing.crew.slice(0, CREW_AVATARS).map((name, index) => (
-              <span
+              <Avatar
                 key={`${name}-${index}`}
+                name={name}
+                initials={initials(name)}
                 title={name}
-                className={cn(
-                  "grid size-7.5 place-items-center rounded-full border-2 border-paper bg-moss text-2xs font-semibold text-ink",
-                  index > 0 && "-ml-2",
-                )}
-              >
-                {initials(name)}
-              </span>
+                size="md"
+                // The handoff's 11px, which only the front door may use.
+                className={cn("border-2 border-paper text-2xs", index > 0 && "-ml-2")}
+              />
             ))}
           </span>
           <Text as="span" className="text-pretty text-slate">

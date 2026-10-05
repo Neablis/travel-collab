@@ -1,6 +1,6 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
-import type { SharedTripView, TripDetail, TripShare } from "@tc/contracts";
+import { travellerIds, type SharedTripView, type TripDetail, type TripShare } from "@tc/contracts";
 import { db } from "../db/client";
 import { tripShares } from "../db/schema";
 import { getTripDetailAtWithHead } from "../history";
@@ -166,9 +166,15 @@ export async function readShare(token: string): Promise<AccessResult<SharedTripV
     ok: true,
     // `toDto(share)`, not the row: `sharedAt` crosses the API boundary, so it
     // takes the same single conversion every other share timestamp takes.
-    // Recosted for today's members: the page says how many are travelling, and
-    // a price is per person (ADR-060), so its totals are for that many.
-    value: toSharedView(overlayMembers(replayed.detail, members), toDto(share), members.length, replayed.headSeq),
+    // Recosted for today's travellers: the page says how many are travelling,
+    // and a price is per person (ADR-060), so its totals are for that many —
+    // the same count `overlayMembers` recosts for.
+    value: toSharedView(
+      overlayMembers(replayed.detail, members),
+      toDto(share),
+      travellerIds(members).length,
+      replayed.headSeq,
+    ),
   };
 }
 

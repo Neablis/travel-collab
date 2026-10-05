@@ -22,17 +22,23 @@ function newcomer(prefix: string): string {
 async function inviteLinkFor(page: Page, tripName: string, role: "Can suggest"): Promise<string> {
   await page.getByRole("button", { name: `${tripName} — Trip settings` }).click();
   await expect(page.getByRole("heading", { name: "Trip settings" })).toBeVisible();
-  await page.getByRole("combobox", { name: "Invite role" }).selectOption({ label: role });
+  await page.getByRole("button", { name: "Invite", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Invite someone" });
+  await dialog.getByRole("radiogroup", { name: "Role" }).getByRole("radio", { name: role }).click();
   await Promise.all([
     page.waitForResponse(
       (r) => /\/api\/trips\/[^/]+\/invites$/.test(new URL(r.url()).pathname) && r.request().method() === "POST",
     ),
-    page.getByRole("button", { name: "Invite someone" }).click(),
+    dialog.getByRole("button", { name: "Create invite" }).click(),
   ]);
-  // Off the row's `title`, not the clipboard — m11-invites says why.
-  const copy = page.getByRole("button", { name: "Copy invite link" }).first();
-  await expect(copy).toHaveAttribute("title", /\/invite\//);
-  return (await copy.getAttribute("title"))!;
+  // Off the dialog's "Invite link" field, not the clipboard — m11-invites says why.
+  await expect(dialog.getByRole("button", { name: "Copy invite link" })).toBeVisible();
+  const field = dialog.getByRole("textbox", { name: "Invite link" });
+  await expect(field).toHaveValue(/\/invite\//);
+  const link = await field.inputValue();
+  await dialog.getByRole("button", { name: "Done" }).click();
+  await expect(dialog).toHaveCount(0);
+  return link;
 }
 
 // Signed out, onto the link, and in on the banked token (m11-invites' M11a note).

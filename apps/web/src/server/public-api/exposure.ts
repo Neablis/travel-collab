@@ -67,7 +67,7 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
   "saved-notebooks/[savedNotebookId]": PLANNED("Saved notebook templates"),
   "trips/[tripId]/saved-notebooks/[savedNotebookId]": PLANNED("Applying a saved notebook template to a trip"),
   "trips/[tripId]/members/[userId]": PLANNED(
-    "Removing a member (and changing a role, which the app cannot do yet) behind a new members scope, owner only",
+    "Removing a member, changing a role and setting who is travelling, behind a new members scope",
   ),
   "trips/[tripId]/duplicate": PLANNED("Duplicating a trip"),
   "playbooks/board": PLANNED("Playbook board"),

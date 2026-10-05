@@ -29,12 +29,14 @@ import {
   UserPreferences,
   type AssistantProposal,
   type AdminReportAction,
+  type ChangeRoleInput,
   type CreateInviteInput,
   type CreateReportInput,
   type CreateSavedDayInput,
   type CreateSuggestionInput,
   type PutReviewInput,
   type ResolveSuggestionChangeInput,
+  type SetTravellingInput,
   type TripCommand,
 } from "@tc/contracts";
 import { z } from "zod";
@@ -440,6 +442,56 @@ export async function revokeTripInvite(
   } finally {
     endWrite(scope);
   }
+}
+
+/**
+ * The three writes to one person on a trip, all answered with the trip's
+ * `TripAccess` so the People panel re-renders from the response. Access CRUD,
+ * not planning commands (ADR-003), but each moves the trip's costed detail —
+ * who is on it and who travels is what totals divide by — so the trip's
+ * cached reads are cleared like any other trip write.
+ */
+async function writeMember(
+  tripId: string,
+  userId: string,
+  init: RequestInit,
+): Promise<ApiResult<TripAccess>> {
+  const scope = tripKeys.all(tripId);
+  beginWrite(scope);
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/members/${encodeURIComponent(userId)}`), init);
+    return await readJson(res, (data) => TripAccess.parse((data as { access: unknown }).access));
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  } finally {
+    endWrite(scope);
+  }
+}
+
+const patchMember = (tripId: string, userId: string, body: SetTravellingInput | ChangeRoleInput) =>
+  writeMember(tripId, userId, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+/** Travellers spec D4: the owner for anyone, a member for themselves. */
+export function setTravelling(tripId: string, userId: string, travelling: boolean): Promise<ApiResult<TripAccess>> {
+  return patchMember(tripId, userId, { travelling });
+}
+
+/** Travellers spec D8: the owner's, and never to or from `owner`. */
+export function changeMemberRole(
+  tripId: string,
+  userId: string,
+  role: ChangeRoleInput["role"],
+): Promise<ApiResult<TripAccess>> {
+  return patchMember(tripId, userId, { role });
+}
+
+/** KI-65's owner-only removal. Leaving a trip yourself is `leaveTrip`. */
+export function removeMember(tripId: string, userId: string): Promise<ApiResult<TripAccess>> {
+  return writeMember(tripId, userId, { method: "DELETE" });
 }
 
 /**

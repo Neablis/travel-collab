@@ -421,7 +421,7 @@ export const PRESETS: readonly WidgetPreset[] = [
     widget: "cost.balances",
     params: {},
     title: "Who owes what",
-    summary: "Lists each traveller's share, what they paid for stops they booked, and what they owe or are owed, plus anything not paid yet.",
+    summary: "Lists each person's share, what they paid for stops they booked, and what they owe or are owed, plus anything not paid yet.",
     keywords: [
       "who owes", "owe", "owes", "owed", "balance", "balances", "split", "settle", "share", "paid", "payer",
       "booked by", "debt", "money", "costs", "people", "travellers", "travelers",
@@ -429,19 +429,19 @@ export const PRESETS: readonly WidgetPreset[] = [
     // The insert sheet prints this above the controls. The macro's own keeps
     // the parameter notes the assistant needs, and stays as it is.
     description:
-      "What each traveller is in for, what they paid for the stops they booked, and who owes whom. Point it at a day, a city or a tag to settle just those stops.",
+      "What each person on the trip is in for, what they paid for the stops they booked, and who owes whom. Point it at a day, a city or a tag to settle just those stops.",
   },
   {
     id: "person-share",
     widget: "person.share",
     params: {},
     title: "What one person is in for",
-    summary: "Says in one line what a traveller is in for, what they have paid and whether they owe or are owed.",
+    summary: "Says in one line what one person is in for, what they have paid and whether they owe or are owed.",
     keywords: [
       "person", "one person", "traveller", "traveler", "member", "share", "my share", "in for", "owe", "owes",
       "owed", "paid", "balance", "money",
     ],
-    description: "What one traveller is in for, what they have paid and whether they owe or are owed. Pick who it is about.",
+    description: "What one person is in for, what they have paid and whether they owe or are owed. Pick who it is about.",
   },
   // Mitchell, 2026-09-26: the Settings sheet's M19 breakdown, rebuilt as a pie
   // in the notebook, then split two ways — one primitive, `cost.breakdown`,

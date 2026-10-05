@@ -170,9 +170,10 @@ test.describe("M25 — a trip is a file you can take with you", () => {
     // asserted as written, which is worth stating rather than quietly
     // weakening.
     //
-    // This sheet also hosts *Invite someone*, which M20 gates on
-    // `trip.collaborators` and M21 renders as a disabled form under a CTA to
-    // `plans` (SPEC §17.3, as M21 reversed it). That prompt predates M25, is
+    // This sheet also hosts People, whose inviting M20 gates on
+    // `trip.collaborators`: a note with a CTA to `plans` (SPEC §17.3, as M21
+    // reversed it), the disabled form itself behind *Invite* since travellers
+    // spec §4. That prompt predates M25, is
     // about a different feature, and is correct. A blanket `toHaveCount(0)`
     // here would therefore have failed — it did, on the first run — and
     // "passing" it would have meant moving the download to a different screen

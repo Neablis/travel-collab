@@ -6,10 +6,10 @@
         "read_trip",
         "read_day"
       ],
-      "toolChars": 1479,
+      "toolChars": 1921,
       "instructionChars": 1740,
-      "totalChars": 3219,
-      "approxTokens": 973
+      "totalChars": 3661,
+      "approxTokens": 1106
     },
     "trip · question": {
       "tools": [
@@ -20,10 +20,10 @@
         "search_places",
         "request_change_tools"
       ],
-      "toolChars": 5270,
+      "toolChars": 5712,
       "instructionChars": 2337,
-      "totalChars": 7607,
-      "approxTokens": 2298
+      "totalChars": 8049,
+      "approxTokens": 2432
     },
     "trip · edit": {
       "tools": [
@@ -46,10 +46,10 @@
         "SetTripBudget",
         "insert_playbook_day"
       ],
-      "toolChars": 20236,
-      "instructionChars": 3650,
-      "totalChars": 23886,
-      "approxTokens": 7216
+      "toolChars": 20684,
+      "instructionChars": 3713,
+      "totalChars": 24397,
+      "approxTokens": 7371
     },
     "trip · plan": {
       "tools": [
@@ -69,10 +69,10 @@
         "RemoveActivity",
         "insert_playbook_day"
       ],
-      "toolChars": 19177,
-      "instructionChars": 3957,
-      "totalChars": 23134,
-      "approxTokens": 6989
+      "toolChars": 19625,
+      "instructionChars": 4020,
+      "totalChars": 23645,
+      "approxTokens": 7144
     },
     "trip · unsure": {
       "tools": [
@@ -95,10 +95,10 @@
         "SetTripBudget",
         "insert_playbook_day"
       ],
-      "toolChars": 20236,
-      "instructionChars": 3650,
-      "totalChars": 23886,
-      "approxTokens": 7216
+      "toolChars": 20684,
+      "instructionChars": 3713,
+      "totalChars": 24397,
+      "approxTokens": 7371
     },
     "page · compose": {
       "tools": [
@@ -109,10 +109,10 @@
         "insert_widget",
         "switch_intent"
       ],
-      "toolChars": 4437,
+      "toolChars": 4708,
       "instructionChars": 3277,
-      "totalChars": 7714,
-      "approxTokens": 2331
+      "totalChars": 7985,
+      "approxTokens": 2412
     },
     "page · question": {
       "tools": [
@@ -122,24 +122,28 @@
         "search_playbooks",
         "switch_intent"
       ],
-      "toolChars": 4264,
+      "toolChars": 4706,
       "instructionChars": 1425,
-      "totalChars": 5689,
-      "approxTokens": 1719
+      "totalChars": 6131,
+      "approxTokens": 1852
     }
   },
   "tools": {
     "UpdateActivity": {
-      "chars": 6189,
-      "approxTokens": 1870
+      "chars": 6192,
+      "approxTokens": 1871
     },
     "AddActivity": {
-      "chars": 5532,
-      "approxTokens": 1671
+      "chars": 5535,
+      "approxTokens": 1672
     },
     "search_widgets": {
       "chars": 1288,
       "approxTokens": 389
+    },
+    "read_day": {
+      "chars": 1245,
+      "approxTokens": 376
     },
     "find_free_time": {
       "chars": 1239,
@@ -148,10 +152,6 @@
     "insert_widget": {
       "chars": 1106,
       "approxTokens": 334
-    },
-    "read_day": {
-      "chars": 1019,
-      "approxTokens": 308
     },
     "search_places": {
       "chars": 950,
@@ -164,6 +164,10 @@
     "request_change_tools": {
       "chars": 725,
       "approxTokens": 219
+    },
+    "read_trip": {
+      "chars": 676,
+      "approxTokens": 204
     },
     "switch_intent": {
       "chars": 669,
@@ -178,16 +182,12 @@
       "approxTokens": 177
     },
     "get_widget": {
-      "chars": 529,
-      "approxTokens": 160
+      "chars": 584,
+      "approxTokens": 176
     },
     "DismissConflict": {
       "chars": 470,
       "approxTokens": 142
-    },
-    "read_trip": {
-      "chars": 460,
-      "approxTokens": 139
     },
     "RemoveDay": {
       "chars": 412,

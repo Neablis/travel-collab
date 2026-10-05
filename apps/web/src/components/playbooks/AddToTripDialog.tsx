@@ -113,7 +113,7 @@ export function AddToTripDialog({
       return;
     }
     // Cleared on success: a retry that worked must not leave the previous
-    // failure sitting next to a fresh, correct list (the fix TravelersPanel,
+    // failure sitting next to a fresh, correct list (the fix PeopleSection,
     // ShareButton and SavedDaysDialog all took).
     setError(null);
     setTrips(result.value);

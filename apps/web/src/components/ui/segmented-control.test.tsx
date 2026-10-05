@@ -33,4 +33,14 @@ describe("SegmentedControl variants", () => {
     fireEvent.click(screen.getByRole("radio", { name: "Calendar" }));
     expect(onValueChange).toHaveBeenCalledWith("Calendar");
   });
+
+  // W8: the gated invite form's role segments looked live inside their
+  // `fieldset disabled`. Each segment is a native button, so `:disabled`
+  // reaches it from the fieldset.
+  it("greys its segments when they are disabled", () => {
+    render(<SegmentedControl value="Timeline" onValueChange={vi.fn()} options={opts} aria-label="Schedule view" />);
+    for (const segment of screen.getAllByRole("radio")) {
+      expect(segment.className).toContain("disabled:opacity-50");
+    }
+  });
 });

@@ -341,7 +341,7 @@ export const costRows: MacroDef<CostRowsParams, RepeatPayload> = {
     const selection = narrow(trip, globals, params, item);
     if (selection.status !== "ok") return selection;
     const { days, stops } = selection.value;
-    const total = costOfStops(stops, trip.members.length);
+    const total = costOfStops(stops, trip.members);
     if (total === 0) return empty();
 
     const byDay = new Map<number | null, SelectedStop[]>();
@@ -353,7 +353,7 @@ export const costRows: MacroDef<CostRowsParams, RepeatPayload> = {
 
     const rows: RepeatRow[] = [];
     for (const index of days) {
-      const subtotal = costOfStops(byDay.get(index) ?? [], trip.members.length);
+      const subtotal = costOfStops(byDay.get(index) ?? [], trip.members);
       if (subtotal === 0) continue;
       const date = trip.days[index]!.date;
       rows.push({
@@ -373,7 +373,7 @@ export const costRows: MacroDef<CostRowsParams, RepeatPayload> = {
         cells: [date ? [rowValue(formatDate(date))] : [], [rowValue(formatMoney(subtotal, trip.currency))]],
       });
     }
-    const unscheduled = costOfStops(byDay.get(null) ?? [], trip.members.length);
+    const unscheduled = costOfStops(byDay.get(null) ?? [], trip.members);
     if (unscheduled !== 0) {
       rows.push({ lead: rowLabel("Unscheduled"), cells: [[], [rowValue(formatMoney(unscheduled, trip.currency))]] });
     }

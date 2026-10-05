@@ -181,7 +181,6 @@
   "apps/web/src/components/trip/Sparkline.tsx::blockMetricsFor",
   "apps/web/src/components/trip/Sparkline.tsx::citySegmentsFor",
   "apps/web/src/components/trip/Sparkline.tsx::shapeOf",
-  "apps/web/src/components/trip/TravelersPanel.tsx::TravelersPanel",
   "apps/web/src/components/trip/TripHeader.tsx::TripHeader",
   "apps/web/src/components/trip/TripMetaPill.tsx::TripMetaPill",
   "apps/web/src/components/trip/TripMetaPill.tsx::tripCounts",

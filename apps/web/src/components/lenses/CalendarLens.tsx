@@ -418,7 +418,7 @@ export function CalendarLens({
     // `day` above is chipModel's ChipDay (city/accent); the stops live on the
     // trip's own day at the same ordinal.
     const tripDay = detail.days[ordinal - 1];
-    const cityCards = tripDay === undefined ? [] : calendarCityCards(tripDay, detail.activities, detail.members.length, focusedTag);
+    const cityCards = tripDay === undefined ? [] : calendarCityCards(tripDay, detail.activities, detail.members, focusedTag);
 
     return (
       // Outer surface cell IS the clickable button (dc.html's own click

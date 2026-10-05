@@ -86,6 +86,14 @@ describe("optionsFor a person input", () => {
     ]);
   });
 
+  // Travellers spec §5: a non-traveller can still be picked for a stop or have
+  // booked one, so they are offered — after the travellers.
+  it("offers every member, the travellers first", () => {
+    const adviserFirst = { ...pair, members: [{ ...pair.members[0]!, travelling: false }, pair.members[1]!] };
+    const values = optionsFor(PERSON, {}, adviserFirst, null, { "u-ana": "Ana", "u-ben": "Ben" }).map((o) => o.label);
+    expect(values).toEqual(["Choose a person", "Ben", "Ana"]);
+  });
+
   it("keeps a chosen person who has left visible, and never prints an id", () => {
     const labels = optionsFor(PERSON, { who: "u-gone" }, pair, null, null).map((o) => o.label);
     expect(labels).toEqual(["Choose a person", "Traveler 1", "Traveler 2", "Former member"]);

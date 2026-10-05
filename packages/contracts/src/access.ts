@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { TripRole } from "./trip.ts";
+import { TripMember, TripRole } from "./trip.ts";
 
 // The Access & Membership module's cross-boundary types (AGENTS.md module map).
 //
@@ -41,6 +41,9 @@ export const TripInvite = z.object({
   acceptedBy: z.string().min(1).nullable(),
   acceptedAt: z.string().nullable(),
   revokedAt: z.string().nullable(),
+  // Whether whoever accepts joins as a traveller (travellers spec D3); the
+  // accept writes it. Defaulted for a row or a server from before the field.
+  travelling: z.boolean().default(true),
 });
 export type TripInvite = z.infer<typeof TripInvite>;
 
@@ -50,18 +53,39 @@ export const CreateInviteInput = z.object({
   // silently stored blank.
   email: z.string().email().max(320).nullable(),
   role: InviteRole,
+  // Optional, and NOT defaulted here: absent means "preset from the role"
+  // (travellers spec D3: Can edit → travelling, the others not), which the
+  // server decides. A default of `true` would override that preset.
+  travelling: z.boolean().optional(),
 });
 export type CreateInviteInput = z.infer<typeof CreateInviteInput>;
 
-// A member with the profile fields the Travelers list needs. `TripMember`
-// (planning) stays `{ userId, role }` — this is the Identity join, done in the
+// The two bodies `PATCH /api/trips/:tripId/members/:userId` takes. Strict, so
+// a body naming both is a 400 rather than half-applied by whichever the route
+// tries first.
+//
+// Travelling is about the person (D4): the owner may set it for anyone, a
+// member for themselves only — the AccessPolicy seam decides, not this shape.
+export const SetTravellingInput = z.object({ travelling: z.boolean() }).strict();
+export type SetTravellingInput = z.infer<typeof SetTravellingInput>;
+
+// A role change in place (D8). `InviteRole`, so it can never grant `owner`:
+// the owner is the log's `TripCreated.createdBy`, and moving it is a transfer
+// (D9, out of scope).
+export const ChangeRoleInput = z.object({ role: InviteRole }).strict();
+export type ChangeRoleInput = z.infer<typeof ChangeRoleInput>;
+
+// A member with the profile fields the People list needs. `TripMember`
+// (planning) carries no profile — this is the Identity join, done in the
 // Access module where it belongs, so no planning read model grows a name.
+// `travelling` is `TripMember`'s, read the same way (`travellerIds`).
 export const TripMemberProfile = z.object({
   userId: z.string().min(1),
   role: TripRole,
   name: z.string().nullable(),
   email: z.string().nullable(),
   image: z.string().nullable(),
+  travelling: TripMember.shape.travelling,
 });
 export type TripMemberProfile = z.infer<typeof TripMemberProfile>;
 
@@ -91,6 +115,34 @@ export const TripAccess = z.object({
    * own DTO; the capability string is opaque on the other side of that call.
    */
   collaboratorsEntitled: z.boolean(),
+  /**
+   * The trip's access revision as of this read (travellers spec D11, W22): the
+   * same string the events poll reports as `accessRev`. It is a per-trip
+   * integer counter (W5). The provider compares it for equality only; the
+   * People section orders by it, to refuse a read older than the one it holds.
+   *
+   * **Read before the members it describes, never after.** So it is never
+   * newer than the list beside it. A client that takes it as its baseline
+   * then treats any later rev from the poll as news. Taking the first poll's
+   * rev as the baseline instead absorbs an Access write made between the load
+   * and that poll, which is then never shown (KI-2026-10-05-g).
+   *
+   * Optional: absent for the demo trip, which is served without the database,
+   * and when the rev read fails. A client without it falls back to taking the
+   * first poll's rev as the baseline.
+   */
+  accessRev: z.string().optional(),
+  /**
+   * The reader's own user id, as the server that authenticated them knows it.
+   * The People section marks "You" and offers the reader's own row its menu
+   * from this, rather than waiting on a separate session probe — which, when
+   * it failed, left the reader no way to leave the trip.
+   *
+   * Optional: absent for a reader who is not on the trip (the demo visitor, an
+   * invite-link look), and from a server that predates it. A client without
+   * it falls back to the session.
+   */
+  viewerId: z.string().min(1).optional(),
 });
 export type TripAccess = z.infer<typeof TripAccess>;
 

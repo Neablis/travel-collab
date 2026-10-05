@@ -93,4 +93,12 @@ describe("ui primitives", () => {
     expect(screen.getByLabelText("Currency").tagName).toBe("SELECT");
     expect(screen.getByLabelText("Trip name").className).toContain("border-border-input");
   });
+
+  // W8: a gated invite form is a `fieldset disabled`, and its field looked
+  // exactly like a live one. `:disabled` matches a field disabled by its
+  // fieldset too, so the variant greys it either way.
+  it("Input looks disabled when it is", () => {
+    render(<Input aria-label="Email" disabled />);
+    expect(screen.getByLabelText("Email").className).toContain("disabled:opacity-50");
+  });
 });

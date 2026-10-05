@@ -1,4 +1,5 @@
 import { FilterDimension } from "@tc/contracts";
+import { withCostRollups } from "@tc/factories";
 import { describe, expect, it } from "vitest";
 import {
   cityDayOrdinals,
@@ -243,7 +244,7 @@ describe("costOfStops — one number, one implementation", () => {
     // `rollupCosts` inside `tripDetailFactory`, so this compares against the
     // board's arithmetic rather than against this file's.
     const { trip, globals } = selectionTrip();
-    expect(costOfStops(selected(trip, globals, {}).stops, trip.members.length)).toBe(trip.tripCostTotal);
+    expect(costOfStops(selected(trip, globals, {}).stops, trip.members)).toBe(trip.tripCostTotal);
     expect(trip.tripCostTotal).toBeGreaterThan(0);
   });
 
@@ -251,15 +252,26 @@ describe("costOfStops — one number, one implementation", () => {
     const { trip, globals } = selectionTrip();
     for (const index of [0, 1, 2]) {
       const day = selected(trip, globals, { day: { kind: "index", index } });
-      expect(costOfStops(day.stops, trip.members.length), `day ${index + 1}`).toBe(trip.days[index]!.costSubtotal);
+      expect(costOfStops(day.stops, trip.members), `day ${index + 1}`).toBe(trip.days[index]!.costSubtotal);
     }
   });
 
   it("leaves the unscheduled subtotal as the difference between the two", () => {
     const { trip, globals } = selectionTrip();
     const scheduled = trip.days.reduce((sum, day) => sum + day.costSubtotal, 0);
-    expect(costOfStops(selected(trip, globals, {}).stops, trip.members.length) - scheduled).toBe(trip.unscheduledCostSubtotal);
+    expect(costOfStops(selected(trip, globals, {}).stops, trip.members) - scheduled).toBe(trip.unscheduledCostSubtotal);
     expect(trip.unscheduledCostSubtotal).toBeGreaterThan(0);
+  });
+
+  // Travellers spec D1: a stop nobody picked is priced for the travellers, the
+  // same count the board's total was recosted for.
+  it("prices a stop nobody picked for the travellers, not every member", () => {
+    const { trip: base, globals } = selectionTrip();
+    const trip = withCostRollups({
+      ...base,
+      members: [base.members[0]!, { userId: "u-adviser", role: "suggester", travelling: false }],
+    });
+    expect(costOfStops(selected(trip, globals, {}).stops, trip.members)).toBe(trip.tripCostTotal);
   });
 });
 

@@ -94,6 +94,18 @@ describe("SharedTripScreen", () => {
     expect(screen.getByText("2 days")).toBeTruthy();
   });
 
+  // Travellers spec D5 and W14: the owner can be not travelling, and the
+  // totals are then priced for one person. "0 travellers" beside a total
+  // would read as a price for nobody.
+  it("says a trip nobody is travelling on is priced for one person", async () => {
+    fetchSharedTripMock.mockResolvedValue({ ok: true, value: view({ travellerCount: 0 }) });
+    render(<SharedTripScreen token="tok" />);
+    expect(
+      await screen.findByText("Nobody is marked as travelling, so costs are priced for one person."),
+    ).toBeTruthy();
+    expect(screen.queryByText("0 travellers")).toBeNull();
+  });
+
   it("says a day with nothing on it has nothing on it", async () => {
     render(<SharedTripScreen token="tok" />);
     expect(await screen.findByText("Nothing planned.")).toBeTruthy();

@@ -42,6 +42,8 @@ export interface EvalExpectation {
    * are equally right answers.
    */
   namesOneOfDays?: readonly number[];
+  /** The answer names one of these minor-unit amounts. Computed from the seeded trip, like the days. */
+  namesOneOfAmounts?: readonly number[];
 }
 
 export interface EvalCheck {
@@ -60,6 +62,18 @@ function countCalls(record: AskAnalyticsRecord): Map<string, number> {
 /** "day 7" as a word, so "day 17" does not pass for day 1 and "today 7" does not pass at all. */
 export function namesDayNumber(text: string, day: number): boolean {
   return new RegExp(`\\bday\\s+${day}\\b`, "i").test(text);
+}
+
+/**
+ * A minor-unit amount, as any number in the text: "$990", "990.00 USD" and
+ * "$1,980" all name theirs. Every currency the app offers is two-decimal
+ * (`formatMoney`), so the major unit is `/ 100`. The symbol is not checked —
+ * the trip has one currency, and the number is what a wrong headcount moves.
+ */
+export function namesAmount(text: string, amountMinor: number): boolean {
+  return (text.match(/\d[\d,]*(?:\.\d+)?/g) ?? []).some(
+    (number) => Math.round(Number(number.replaceAll(",", "")) * 100) === amountMinor,
+  );
 }
 
 /**
@@ -123,6 +137,13 @@ export function grade(turn: EvalTurn, expect: EvalExpectation): EvalCheck[] {
     checks.push({
       name: `names day ${expect.namesOneOfDays.join(" or ")}`,
       pass: expect.namesOneOfDays.some((day) => namesDayNumber(turn.text, day)),
+      detail: turn.text.length > 160 ? `${turn.text.slice(0, 157)}…` : turn.text,
+    });
+  }
+  if (expect.namesOneOfAmounts !== undefined) {
+    checks.push({
+      name: `names ${expect.namesOneOfAmounts.map((amount) => (amount / 100).toFixed(2)).join(" or ")}`,
+      pass: expect.namesOneOfAmounts.some((amount) => namesAmount(turn.text, amount)),
       detail: turn.text.length > 160 ? `${turn.text.slice(0, 157)}…` : turn.text,
     });
   }

@@ -7,7 +7,7 @@ import { MacroView } from "./MacroView";
 import { PeopleProvider, peopleNamesOf } from "./people";
 
 // The names "Who owes what" and "What one person is in for" print (M19 part 2)
-// come from the Travelers list's access read, through `PeopleProvider`, into the
+// come from the People section's access read, through `PeopleProvider`, into the
 // widget's context. Each test takes its own trip id: the read goes through the
 // shared cache, which would otherwise carry one test's members into the next.
 

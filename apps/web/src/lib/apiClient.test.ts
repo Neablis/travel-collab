@@ -17,6 +17,9 @@ import {
   deleteSavedDay,
   duplicateTrip,
   leaveTrip,
+  removeMember,
+  setTravelling,
+  changeMemberRole,
   fetchInviteLanding,
   fetchPreferences,
   fetchSavedDay,
@@ -213,6 +216,9 @@ const FETCHING_HELPERS: Record<string, () => Promise<ApiResult<unknown>>> = {
   fetchTripAccess: () => fetchTripAccess(TRIP_ID),
   createTripInvite: () => createTripInvite(TRIP_ID, { email: "a@b.com", role: "editor" }),
   revokeTripInvite: () => revokeTripInvite(TRIP_ID, UUID),
+  setTravelling: () => setTravelling(TRIP_ID, "u-2", false),
+  changeMemberRole: () => changeMemberRole(TRIP_ID, "u-2", "viewer"),
+  removeMember: () => removeMember(TRIP_ID, "u-2"),
   createTripSuggestion: () =>
     createTripSuggestion(TRIP_ID, { units: [{ commands: [{ type: "AddDay", tripId: TRIP_ID, dayId: UUID }] }] }),
   fetchTripSuggestions: () => fetchTripSuggestions(TRIP_ID),
@@ -465,6 +471,52 @@ describe("an invite look carries its token on that trip's reads only", () => {
   });
 });
 
+// The People panel's three member writes (travellers spec D4, D8; KI-65's
+// DELETE had no client). Each answers with the trip's `TripAccess`, which the
+// panel re-renders from.
+describe("member writes on the wire", () => {
+  const access = {
+    tripId: TRIP_ID,
+    myRole: "owner",
+    members: [{ userId: "u-1", role: "owner", name: null, email: null, image: null, travelling: true }],
+    invites: [],
+    collaboratorsEntitled: true,
+  };
+
+  it.each([
+    ["setTravelling", () => setTravelling(TRIP_ID, "u-2", false), "PATCH", { travelling: false }],
+    ["changeMemberRole", () => changeMemberRole(TRIP_ID, "u-2", "viewer"), "PATCH", { role: "viewer" }],
+    ["removeMember", () => removeMember(TRIP_ID, "u-2"), "DELETE", null],
+  ] as const)("%s sends its body to the member and reads back the access view", async (_name, call, method, body) => {
+    const seen: { method: string; path: string; body: unknown }[] = [];
+    server.use(
+      http.all("*/api/trips/:tripId/members/:userId", async ({ request }) => {
+        const text = await request.text();
+        seen.push({ method: request.method, path: new URL(request.url).pathname, body: text ? JSON.parse(text) : null });
+        return HttpResponse.json({ access });
+      }),
+    );
+
+    const result = await call();
+
+    expect(seen).toEqual([{ method, path: `/api/trips/${TRIP_ID}/members/u-2`, body }]);
+    expect(result).toEqual({ ok: true, value: access });
+  });
+
+  it("passes a refusal's status and message through", async () => {
+    server.use(
+      http.patch("*/api/trips/:tripId/members/:userId", () =>
+        HttpResponse.json({ error: "The trip's owner cannot be given another role.", code: "invalid" }, { status: 409 }),
+      ),
+    );
+    const result = await changeMemberRole(TRIP_ID, "u-1", "viewer");
+    expect(result).toEqual({
+      ok: false,
+      error: { status: 409, message: "The trip's owner cannot be given another role.", code: "invalid" },
+    });
+  });
+});
+
 describe("apiClient totality — no helper ever rejects", () => {
   // The witness for the suite below: it asserts nothing about behaviour, only
   // that the table is the whole module. Without it a helper added tomorrow
@@ -594,6 +646,10 @@ const TRIP_WRITERS: Record<string, () => Promise<ApiResult<unknown>>> = {
   insertSavedDay: () => insertSavedDay(TRIP_ID, UUID),
   createTripInvite: () => createTripInvite(TRIP_ID, { email: "a@b.com", role: "editor" }),
   revokeTripInvite: () => revokeTripInvite(TRIP_ID, UUID),
+  // Who is on the trip and who travels both move its costed detail.
+  setTravelling: () => setTravelling(TRIP_ID, "u-2", false),
+  changeMemberRole: () => changeMemberRole(TRIP_ID, "u-2", "viewer"),
+  removeMember: () => removeMember(TRIP_ID, "u-2"),
   // An accept appends a batch; see the helper for why every action clears.
   resolveSuggestionChange: () => resolveSuggestionChange(TRIP_ID, UUID, "accept"),
   applyAssistantProposal: () =>

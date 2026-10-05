@@ -12,7 +12,7 @@ vi.mock("next/navigation", () => ({
 
 const sendTripCommandMock = vi.fn();
 const duplicateTripMock = vi.fn();
-// The sheet mounts a real ShareButton now (under "Who is invited"), and that
+// The sheet mounts a real ShareButton now (under "Read-only snapshots"), and that
 // component reads four more exports off this module. A factory mock replaces
 // the WHOLE module, so a missing export is a runtime throw the first time the
 // share panel is opened — these are stubbed rather than the component being
@@ -28,11 +28,11 @@ vi.mock("@/lib/apiClient", () => ({
   shareLink: (token: string) => `http://test/s/${token}`,
 }));
 
-// The Travelers section is TravelersPanel's own surface (and its own test
-// file) as of M11 link 3; it fetches /api/trips/:id/access on mount, which
-// this file's tests neither stub nor care about.
-vi.mock("@/components/trip/TravelersPanel", () => ({
-  TravelersPanel: ({ tripId }: { tripId: string }) => <div data-testid="travelers-panel">{tripId}</div>,
+// The People section is its own surface with its own suites
+// (`people/*.test.tsx`); it fetches /api/trips/:id/access on mount, which this
+// file's tests neither stub nor care about.
+vi.mock("@/components/trip/people/PeopleSection", () => ({
+  PeopleSection: ({ tripId }: { tripId: string }) => <div data-testid="people-section">{tripId}</div>,
 }));
 
 import { SettingsSheet } from "./SettingsSheet";
@@ -235,11 +235,15 @@ describe("SettingsSheet redesign (Task 4.2)", () => {
     expect(screen.getByText("No budget set")).toBeTruthy();
   });
 
-  // M11 link 3 moved the member list into TravelersPanel (mocked above), so
-  // what this sheet is still responsible for is mounting it for THIS trip.
-  it("mounts the Travelers panel for this trip", () => {
+  // The member list is PeopleSection's (mocked above), so what this sheet is
+  // still responsible for is mounting it for THIS trip, under the `#people`
+  // anchor the header's avatar stack opens the sheet at (travellers D10).
+  it("mounts the People section for this trip, at the people anchor", () => {
     renderSettings({ open: true });
-    expect(screen.getByTestId("travelers-panel").textContent).toBe(tripId);
+    const section = screen.getByTestId("people-section");
+    expect(section.textContent).toBe(tripId);
+    // eslint-disable-next-line testing-library/no-node-access -- the anchor is an id on the wrapper, which no role or label reaches
+    expect(section.closest("#people")).not.toBeNull();
   });
 });
 
@@ -578,21 +582,27 @@ describe("SettingsSheet share", () => {
   //
   // **Read off the sheet's text, not off `getAllByRole("button")`.** The first
   // cut of this compared the index of "Share" against the index of "Invite
-  // someone" among the sheet's buttons — and `TravelersPanel` is MOCKED in this
+  // someone" among the sheet's buttons — and the member list is MOCKED in this
   // file (top of the file, deliberately: it owns its own suite), so "Invite
   // someone" was never in that list at all. `indexOf` returned -1, every index
   // beat it, and the assertion passed with Share put straight back on the
   // heading row. Text order is document order, and the mock renders the tripId,
   // which is a position in the sheet that actually exists here.
-  it("puts Share below the invite controls, not above them", () => {
+  //
+  // Since the travellers spec (§4) Share sits under its own heading, "Read-only
+  // snapshots", below People rather than inside it, with one line on how a
+  // snapshot differs from an invite.
+  it("puts Share under its own Read-only snapshots heading, below People", () => {
     renderSheet();
 
     const sheet = screen.getByRole("dialog").textContent ?? "";
-    const panelAt = sheet.indexOf(tripId);
-    const shareAt = sheet.indexOf("Share");
-    expect(panelAt).toBeGreaterThan(-1);
-    expect(shareAt).toBeGreaterThan(-1);
-    expect(shareAt).toBeGreaterThan(panelAt);
+    const peopleAt = sheet.indexOf(tripId);
+    const headingAt = sheet.indexOf("Read-only snapshots");
+    const shareAt = sheet.indexOf("Share", headingAt);
+    expect(peopleAt).toBeGreaterThan(-1);
+    expect(headingAt).toBeGreaterThan(peopleAt);
+    expect(shareAt).toBeGreaterThan(headingAt);
+    expect(sheet).toContain("Unlike an invite, it adds nobody to the trip.");
   });
 
   // The header's own `!readOnly`, the one TripProvider value both read —
@@ -604,6 +614,8 @@ describe("SettingsSheet share", () => {
   it("withholds Share from a read-only reader and offers it to a writer", () => {
     renderSheet({ readOnly: true });
     expect(screen.queryByRole("button", { name: "Share" })).toBeNull();
+    // …and its heading with it: a heading over nothing promises a control.
+    expect(screen.queryByText("Read-only snapshots")).toBeNull();
 
     cleanup();
     renderSheet({ readOnly: false });

@@ -67,3 +67,28 @@ describe("POST /api/trips/:tripId/invites — email", () => {
     expect(sendEmail).not.toHaveBeenCalled();
   });
 });
+
+// Travellers spec D3: the invite carries whether its taker joins as a
+// traveller. The preset itself is `createInvite`'s (invites.int.test.ts); this
+// proves the body field reaches it, and that leaving it out is what presets.
+describe("POST /api/trips/:tripId/invites — travelling", () => {
+  it("stores the choice the body names, over the role's preset", async () => {
+    const { ownerId, tripId } = await ownerWithTrip();
+    currentUserId = ownerId;
+
+    const res = await invite(tripId, { email: null, role: "viewer", travelling: true });
+
+    expect(res.status).toBe(201);
+    expect((await res.json()).invite.travelling).toBe(true);
+  });
+
+  it("presets it from the role when the body leaves it out", async () => {
+    const { ownerId, tripId } = await ownerWithTrip();
+    currentUserId = ownerId;
+
+    const res = await invite(tripId, { email: null, role: "viewer" });
+
+    expect(res.status).toBe(201);
+    expect((await res.json()).invite.travelling).toBe(false);
+  });
+});

@@ -1,5 +1,6 @@
-import { TripDetail } from "@tc/contracts";
+import { TripAccess, TripDetail } from "@tc/contracts";
 import { describe, expect, it } from "vitest";
+import { tripAccessFixture } from "./access";
 import { scenarios } from "./scenarios";
 import { tripDetailFactory } from "./trip";
 
@@ -96,5 +97,14 @@ describe("factory-built trips satisfy the TripDetail contract at runtime", () =>
     for (const id of ids) {
       expect(id.split("-").map((g) => g.length), id).toEqual([8, 4, 4, 4, 12]);
     }
+  });
+});
+
+// The access fixture under the schema `GET /access` is parsed with, so a
+// component test fed it is fed something the server could have sent.
+describe("tripAccessFixture", () => {
+  it("parses as the TripAccess the client reads", () => {
+    const parsed = TripAccess.safeParse(tripAccessFixture());
+    expect(parsed.success, parsed.success ? "" : JSON.stringify(parsed.error.issues)).toBe(true);
   });
 });

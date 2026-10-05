@@ -54,7 +54,9 @@ export function SegmentedControl<T extends string>({
             // measured 28px tall at 411px. `PHONE_TOUCH` is the primitive for
             // exactly this: an element styled like a control without being one.
             PHONE_TOUCH,
-            "cursor-pointer text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-brand",
+            // `disabled:` as `Button` draws it, reached from an enclosing
+            // `fieldset disabled` too (the gated invite form, W8).
+            "cursor-pointer text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-50",
             variant === "pill"
               ? cn(
                   "rounded-sm px-2.5 py-1",

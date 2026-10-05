@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { FilterDimension } from "@tc/contracts";
+import type { FilterDimension, TripDetail } from "@tc/contracts";
 import { ActivityKind } from "@tc/contracts";
 import type { MacroDef, WidgetContext, WidgetInput, WidgetSelection } from "../../registry-types";
 import { blockOf } from "../../registry-types";
@@ -109,9 +109,9 @@ function slicesOf<K extends string>(
   belongs: (stop: SelectedStop, key: K) => boolean,
   charted: readonly SelectedStop[],
   currency: string,
-  memberCount: number,
+  members: TripDetail["members"],
 ): SpendBreakdownSlice<K>[] {
-  const amounts = keys.map((key) => costOfStops(charted.filter((s) => belongs(s, key)), memberCount));
+  const amounts = keys.map((key) => costOfStops(charted.filter((s) => belongs(s, key)), members));
   // The caller returns `empty()` before a zero total reaches here.
   const percents = apportionPercents(amounts)!;
   return keys.map((key, i) => {
@@ -170,7 +170,7 @@ export const costBreakdown: MacroDef<CostBreakdownParams, SpendBreakdownPayload>
     );
     const others = collapseKind("money", otherCurrencies, { currency: trip.currency });
 
-    const total = costOfStops(charted, trip.members.length);
+    const total = costOfStops(charted, trip.members);
     if (total === 0) return others === null ? empty() : empty(`only priced in other currencies: ${others}`);
 
     const title = titleOf(by, selection.value);
@@ -187,10 +187,10 @@ export const costBreakdown: MacroDef<CostBreakdownParams, SpendBreakdownPayload>
       slices.filter((s) => s.amount !== null).map((s) => `${s.label} ${s.amount} (${s.share})`).join(", ") + ".";
 
     if (by === "tag") {
-      const slices = slicesOf(SPEND_SERIES, (key) => SPEND_SERIES_LABEL[key], (s, key) => seriesOf(s) === key, charted, trip.currency, trip.members.length);
+      const slices = slicesOf(SPEND_SERIES, (key) => SPEND_SERIES_LABEL[key], (s, key) => seriesOf(s) === key, charted, trip.currency, trip.members);
       return ok({ ...common, by, slices, summary: sentence(slices) });
     }
-    const slices = slicesOf(ActivityKind.options, (key) => KIND_LABEL[key], (s, key) => s.activity.kind === key, charted, trip.currency, trip.members.length);
+    const slices = slicesOf(ActivityKind.options, (key) => KIND_LABEL[key], (s, key) => s.activity.kind === key, charted, trip.currency, trip.members);
     return ok({ ...common, by, slices, summary: sentence(slices) });
   },
   render: blockOf,

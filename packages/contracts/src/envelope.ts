@@ -37,11 +37,18 @@ export type EventEnvelope = z.infer<typeof EventEnvelope>;
  * tray does not need a second one. Absent for a caller who sees no
  * suggestions — a viewer, an invite-token or a demo read — and from every
  * server that predates it, which is why it is optional.
+ *
+ * `accessRev` is the same idea for Access (travellers spec D11): an opaque
+ * revision of who is on the trip, who is travelling and the pending invites.
+ * Accepting, revoking, removing and toggling travelling write no event, so
+ * without it nobody but the actor would see totals recost. Optional for the
+ * same version skew.
  */
 export const TripEventsPage = z.object({
   headSeq: z.number().int().nonnegative(),
   events: z.array(EventEnvelope),
   resync: z.boolean(),
   suggestionsRev: z.string().min(1).optional(),
+  accessRev: z.string().min(1).optional(),
 });
 export type TripEventsPage = z.infer<typeof TripEventsPage>;

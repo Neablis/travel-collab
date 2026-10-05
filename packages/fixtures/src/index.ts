@@ -15,6 +15,7 @@
 export {
   JAPAN_BACKLOG,
   JAPAN_COUNTRY_CODE,
+  JAPAN_DEMO_ROSTER,
   JAPAN_STOPS,
   JAPAN_TRIP_BUDGET_USD,
   JAPAN_TRIP_CURRENCY,
@@ -24,6 +25,7 @@ export {
   JAPAN_TRAVELLERS,
   JAPAN_TRAVELLER_ROLES,
   type JapanBacklogItem,
+  type JapanRosterEntry,
   type JapanStop,
   type JapanTraveller,
 } from "./japan/trip.ts";

@@ -67,7 +67,7 @@ function dayCard(
   // disagreement between two surfaces this repo keeps finding. Each stop line
   // below stays its per-person price; the card's total is what the day costs
   // the people in it (ADR-060), which is what `costOfStops` sums.
-  const costMinor = costOfStops(stops, trip.members.length);
+  const costMinor = costOfStops(stops, trip.members);
   return {
     kind: "itinerary-day",
     dayId: day.dayId,

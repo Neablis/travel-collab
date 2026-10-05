@@ -113,6 +113,13 @@ type BroadcastArgs = {
    * revision seen.
    */
   onSuggestionsChanged?: (rev: string) => void;
+  /**
+   * The page's `accessRev` (travellers spec D11), on every poll that carries
+   * one, and on the same terms as `onSuggestionsChanged`: on its own, because
+   * accepting, revoking or a travelling toggle moves no `headSeq`, and not
+   * de-duplicated, because only the caller knows whether its re-read landed.
+   */
+  onAccessChanged?: (rev: string) => void;
 };
 
 /**
@@ -141,6 +148,7 @@ export function useTripBroadcast({
   cursor,
   onChanged,
   onSuggestionsChanged,
+  onAccessChanged,
 }: BroadcastArgs): void {
   // Held in refs so the effect below depends only on `tripId` and the gates.
   // Otherwise every render would tear down the interval and start a new one,
@@ -148,9 +156,11 @@ export function useTripBroadcast({
   const cursorRef = useRef(cursor);
   const onChangedRef = useRef(onChanged);
   const onSuggestionsChangedRef = useRef(onSuggestionsChanged);
+  const onAccessChangedRef = useRef(onAccessChanged);
   cursorRef.current = cursor;
   onChangedRef.current = onChanged;
   onSuggestionsChangedRef.current = onSuggestionsChanged;
+  onAccessChangedRef.current = onAccessChanged;
 
   useEffect(() => {
     if (!enabled || isDemoTripId(tripId)) return;
@@ -177,6 +187,8 @@ export function useTripBroadcast({
         if (result.value.resync || result.value.headSeq > before) onChangedRef.current(result.value.headSeq);
         const rev = result.value.suggestionsRev;
         if (rev !== undefined) onSuggestionsChangedRef.current?.(rev);
+        const accessRev = result.value.accessRev;
+        if (accessRev !== undefined) onAccessChangedRef.current?.(accessRev);
       } finally {
         inFlight = false;
       }

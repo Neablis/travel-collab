@@ -17,6 +17,7 @@ import {
   TripMember,
   TripRole,
   TripSummary,
+  travellerIds,
 } from "../src";
 
 describe("trip contracts", () => {
@@ -77,6 +78,19 @@ describe("trip contracts", () => {
       userId: "dev-alice",
       role: "owner",
     });
+  });
+
+  // Travellers spec D2: a member with no say on the matter is travelling, so
+  // every member row persisted before the field — and every server one deploy
+  // behind — counts as the trip already did. The parse leaves the field absent
+  // (the test above: a projection must rebuild byte-identical); `travellerIds`
+  // is the one reader that decides what absent means.
+  it("counts a member with no travelling field as travelling, and keeps an explicit choice", () => {
+    const older = TripMember.parse({ userId: "u1", role: "suggester" });
+    const staying = TripMember.parse({ userId: "u2", role: "suggester", travelling: false });
+    expect(staying.travelling).toBe(false);
+    expect(travellerIds([older, staying])).toEqual(["u1"]);
+    expect(TripMember.safeParse({ userId: "u1", role: "editor", travelling: "no" }).success).toBe(false);
   });
 
   it("requires at least one member on TripSummary", () => {

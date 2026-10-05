@@ -24,7 +24,7 @@ const history = (entries: { fromSeq: number; toSeq: number }[]): TripHistory => 
   })),
 });
 
-const page = (over: Partial<{ headSeq: number; resync: boolean; suggestionsRev: string }> = {}) => ({
+const page = (over: Partial<{ headSeq: number; resync: boolean; suggestionsRev: string; accessRev: string }> = {}) => ({
   ok: true as const,
   value: { headSeq: 0, events: [], resync: false, ...over },
 });
@@ -210,6 +210,19 @@ describe("useTripBroadcast", () => {
     mount({ cursor: () => 3, onSuggestionsChanged });
     await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS * 2);
     expect(onSuggestionsChanged.mock.calls).toEqual([["a"], ["a"]]);
+  });
+
+  // Travellers D11: accepting or a travelling toggle moves no `headSeq`
+  // either, and the provider decides what a repeat means (baseline, W68).
+  it("reports the access revision on every poll that carries one, with the head unmoved", async () => {
+    const onAccessChanged = vi.fn();
+    fetchTripEventsMock.mockResolvedValue(page({ headSeq: 3, accessRev: "4" }));
+    const { onChanged } = mount({ cursor: () => 3, onAccessChanged });
+    await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
+    fetchTripEventsMock.mockResolvedValue(page({ headSeq: 3, accessRev: "5" }));
+    await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS * 2);
+    expect(onAccessChanged.mock.calls).toEqual([["4"], ["5"], ["5"]]);
+    expect(onChanged).not.toHaveBeenCalled();
   });
 
   it("calls nothing for a page with no suggestions revision", async () => {

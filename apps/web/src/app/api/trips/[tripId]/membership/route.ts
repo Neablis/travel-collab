@@ -17,7 +17,7 @@ import { getTripDetail } from "@/server/projections";
  * how the looser of two rules eventually leaks onto the stricter path.
  *
  * **And the response cannot be the same.** `.../members/[userId]` answers with
- * the trip's `TripAccess` — who is on it now — because the Travelers panel
+ * the trip's `TripAccess` — who is on it now — because the People section
  * re-renders from the mutation. Serving that to somebody who just left the trip
  * would hand a non-member the trip's member list, one request after taking
  * their access away. `{ ok: true }` is the whole of what the caller needs: its

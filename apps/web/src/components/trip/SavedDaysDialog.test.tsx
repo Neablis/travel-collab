@@ -124,8 +124,8 @@ describe("SavedDaysDialog", () => {
   });
 });
 
-// The same defect TravelersPanel and ShareButton were fixed for in an earlier
-// round. Link 6 was not part of PR #70, so this dialog never got it: the
+// The same defect ShareButton and the trip's member list were fixed for in an
+// earlier round. Link 6 was not part of PR #70, so this dialog never got it: the
 // dialog is reopened rather than remounted, so a failed load left its message
 // sitting above the fresh list (CodeRabbit, PR #71).
 describe("SavedDaysDialog error handling", () => {

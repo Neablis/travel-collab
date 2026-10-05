@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { NearbyStop, type ActivityView, type Anchor } from "@tc/contracts";
 import { locationFactory } from "@tc/factories";
-import { ActivityEditor } from "./ActivityEditor";
+import { ActivityEditor, type NamedMember } from "./ActivityEditor";
 
 describe("ActivityEditor", () => {
   it("offers no anchor affordance", () => {
@@ -328,7 +328,7 @@ describe("ActivityEditor tag picker", () => {
 // cost split M19 later derives from the participants.
 describe("ActivityEditor attribution (M13 link 5)", () => {
   // Ids that are not the names, so a control labelled with the id is caught.
-  const MEMBERS = [
+  const MEMBERS: NamedMember[] = [
     { userId: "u-alice", name: "Alice" },
     { userId: "u-bob", name: "Bob" },
   ];
@@ -442,6 +442,27 @@ describe("ActivityEditor attribution (M13 link 5)", () => {
     fireEvent.change(screen.getByLabelText("Booked by"), { target: { value: "" } });
     save();
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ bookedBy: null }));
+  });
+
+  // Travellers spec D6/D7: nobody picked is the travellers; a non-traveller is
+  // offered after them, counts once picked, and may still have booked it. Carol
+  // is listed first, as an owner who is not going would be (D5).
+  it("prices nobody picked for the travellers and offers a non-traveller apart, tagged once picked", () => {
+    mount(stop({ cost: { amountMinor: 30_00, currency: "USD" } }), [
+      { userId: "u-carol", name: "Carol", travelling: false },
+      ...MEMBERS,
+    ]);
+    expect(screen.getByTestId("activity-cost-total").textContent).toBe("× 2 people = $60.00");
+    const going = screen.getByRole("group", { name: "Who is going" });
+    expect(within(going).getAllByRole("button").map((b) => b.textContent)).toEqual(["Alice", "Bob", "Carol"]);
+    const carol = within(screen.getByRole("group", { name: "Not travelling" })).getByRole("button", { name: "Carol" });
+
+    fireEvent.click(carol);
+    expect(carol.getAttribute("aria-pressed")).toBe("true");
+    expect(carol.textContent).toBe("Carol (not travelling)");
+    expect(screen.getByTestId("activity-cost-total").textContent).toBe("× 1 person = $30.00");
+    const booked = [...(screen.getByLabelText("Booked by") as HTMLSelectElement).options].map((o) => o.value);
+    expect(booked).toEqual(["", "u-carol", "u-alice", "u-bob"]);
   });
 
   // A participant who has since left the trip is still on the stop and still

@@ -389,6 +389,8 @@ reorder and the one place a reorder updates.
       `docs/milestones/M33-evals.md`
 - [ ] **M34 Adding a stop suggests what other travellers did nearby** (minted, scoped and placed 2026-10-05 by Mitchell, after M33; the add-stop sheet lists stops from other people's published days in the same city, closest first, and a pick fills name, place, length, kind and tags; it retires the last add-stop Preview, which had been filed under M9) → ← **current milestone**
       `docs/milestones/M34-nearby-stops.md`
+- [ ] **M35 You can say who on a trip is actually going** (minted 2026-10-05 by Mitchell, **built before minting** on PR #335 while M34 was current, and not restacked, by his call; per-person costs count travellers rather than members (ADR-065), and Trip settings → People replaces the Travelers panel; migration `0039`) →
+      `docs/milestones/M35-travellers-and-people.md`
 - [x] **M15 Front door** — gate closed → `docs/milestones/M15-front-door.md`
 - [ ] **M9 The assistant cites what it plans** — **PAUSED 2026-09-13**, not cancelled: Phase 0 complete, and it keeps its place immediately after M21. **Built since, 2026-09-16:** grounding (`search_places` → `placeRef`), conversation durability (`localStorage`, by decision) and the replay harness all landed (`docs/plans/2026-09-16-M9-remainder.md`); what is left of the gate is a live model call and the browser walks that rest on it (Mitchell's reorder — `docs/milestones/README.md`, 2026-09-13) →
       `docs/milestones/M9-ai-planning-partner.md`

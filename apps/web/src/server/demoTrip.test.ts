@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { TripDetail, TripHistory } from "@tc/contracts";
-import { JAPAN_TRIP_DAY_COUNT, JAPAN_TRIP_NAME, JAPAN_TRIP_TRAVELLERS } from "@tc/fixtures";
+import { recostDetail } from "@tc/domain";
+import { JAPAN_DEMO_ROSTER, JAPAN_TRIP_DAY_COUNT, JAPAN_TRIP_NAME, JAPAN_TRIP_TRAVELLERS } from "@tc/fixtures";
 import { DEMO_TRIP_ID } from "@/lib/demoTrip";
 
 // The claim the whole change rests on: nothing in the demo trip's import graph
@@ -119,9 +120,9 @@ describe("the demo trip's history", () => {
 });
 
 describe("the demo trip's travellers", () => {
-  it("are the fixture's count, so the Travelers row shows a group", () => {
+  it("are the fixture's roster, so the People section shows a group", () => {
     const members = demoTripMembers();
-    expect(members).toHaveLength(JAPAN_TRIP_TRAVELLERS);
+    expect(members).toHaveLength(JAPAN_DEMO_ROSTER.length);
     expect(members[0]!.role).toBe("owner");
     // ADR-064: the roster is the fixture's, so the suggester role has a demo.
     expect(members.map((m) => m.role)).toContain("suggester");
@@ -138,9 +139,18 @@ describe("the demo trip's travellers", () => {
     // own single synthetic member it read "1 travellers" beside a raw uuid on
     // every card.
     const members = demoTripDetail().members;
-    expect(members).toHaveLength(JAPAN_TRIP_TRAVELLERS);
+    expect(members).toHaveLength(JAPAN_DEMO_ROSTER.length);
     // The id IS the label: TripMember carries no display name, and the
     // timeline renders `member.userId` directly.
     expect(members.map((m) => m.userId)).toEqual(demoTripMembers().map((m) => m.name));
+  });
+
+  // The roster's one member not travelling is on no stop, so every total is
+  // the four travellers' (ADR-060's per-person price, counted over travellers).
+  // Counting him would price each everyone-stop for five.
+  it("price the trip for the travellers, not for the member who is not going", () => {
+    const detail = demoTripDetail();
+    expect(detail.members.filter((m) => m.travelling === false)).toHaveLength(1);
+    expect(detail.tripCostTotal).toBe(recostDetail(detail, JAPAN_TRIP_TRAVELLERS).tripCostTotal);
   });
 });

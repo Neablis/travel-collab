@@ -4,6 +4,7 @@ import {
   SUGGESTION_UNIT_COMMANDS_MAX,
   SUGGESTION_UNITS_MAX,
   type BatchableCommand,
+  type TripAccess,
   type TripDetail,
   type TripHistory,
   type TripRole,
@@ -118,13 +119,28 @@ type TripCtx = {
   // Present in suggest mode only.
   draft: SuggestionDraft | null;
   /**
-   * Whether an invite is out, as Trip settings → Travelers last read or made
-   * it. Someone can join at any moment while one is, so the poll's timer runs
+   * Whether an invite is out, as Trip settings → People last read or made it.
+   * Someone can join at any moment while one is, so the poll's timer runs
    * (W73); once the last is revoked it stops, unless the trip already has a
-   * second member. The invites this provider read at load go stale the moment
-   * that panel creates or revokes one.
+   * second member. The invites this provider last read go stale the moment
+   * that section creates or revokes one.
    */
   noteInvites: (pending: boolean) => void;
+  /**
+   * Who is on the trip, as this provider last read it: at load, and again
+   * whenever the poll's `accessRev` moves or `refreshAccess` is called. Null
+   * while loading or when the read failed. Trip settings → People adopts each
+   * new one while it is open (KI-2026-10-04-b), and the header's avatar stack
+   * draws from it.
+   */
+  access: TripAccess | null;
+  /**
+   * Re-read who is on the trip, and the trip itself, whose per-person totals
+   * count travellers (travellers spec W15). For a member write made on this
+   * page: the poll would see it as an `accessRev` change too, but only within
+   * an interval, and a solo trip runs no interval at all.
+   */
+  refreshAccess: () => void;
   // The trip's suggestion changes: a suggester's own, or everyone's for an
   // editor or the owner. Null for a reader who sees none — a viewer, or a role
   // not yet known (the list is 404 to a viewer, so it is not asked for).
@@ -190,6 +206,7 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
   const [status, setStatus] = useState<Status>("loading");
   const [error, setError] = useState<string | null>(null);
   const [myRole, setMyRole] = useState<TripRole | null>(null);
+  const [access, setAccess] = useState<TripAccess | null>(null);
   const [accessUnknown, setAccessUnknown] = useState(false);
   // An invite still out, as of the access read or one made here since (W73).
   const [inviteOut, setInviteOut] = useState(false);
@@ -210,6 +227,33 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
   // instead of re-reading a render-old value. Both broke the unscheduled-rack
   // drag when this was written as a plain dependency.
   const optimisticRef = useRef<OptimisticState | null>(null);
+
+  // The last `accessRev` this provider has acted on, and one being acted on.
+  // Read and written by `onAccessRevision` below; seeded here.
+  const seenAccessRev = useRef<string | null>(null);
+  const readingAccessRev = useRef<string | null>(null);
+
+  const adoptAccess = useCallback((value: TripAccess) => {
+    setAccess(value);
+    // **The read's own revision is the baseline** (KI-2026-10-05-g, spec W22).
+    // The server reads it before the members, so it is never newer than the
+    // list adopted here: any rev the poll reports after this that differs is a
+    // write this list may not show, and is re-read. Seeding from the first
+    // poll instead absorbed a write made between `load` and that poll, such
+    // as an invite accepted inside the first 2s interval.
+    //
+    // This also re-baselines after a local write's re-read. W19 avoided that,
+    // because a rev from the poll could include a concurrent remote change
+    // the list did not. A rev read before its list cannot.
+    if (value.accessRev !== undefined) seenAccessRev.current = value.accessRev;
+    setMyRole(value.myRole);
+    // Only an owner is shown invites (`TripAccess`), and only an owner can be
+    // alone on a trip someone is about to join: an editor or a suggester is
+    // already a second member.
+    setInviteOut(value.invites.some((i) => i.status === "pending"));
+    // A later read that answered means the role is known again.
+    setAccessUnknown(false);
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -237,11 +281,12 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
         // the boundary; this read only decides what the UI *offers*.
         cachedRead(tripKeys.access(tripId), () => fetchTripAccess(tripId)),
       ]);
-      setMyRole(accessResult.ok ? accessResult.value.myRole : null);
-      // Only an owner is shown invites (`TripAccess`), and only an owner can be
-      // alone on a trip someone is about to join: an editor or a suggester is
-      // already a second member.
-      setInviteOut(accessResult.ok && accessResult.value.invites.some((i) => i.status === "pending"));
+      if (accessResult.ok) adoptAccess(accessResult.value);
+      else {
+        setAccess(null);
+        setMyRole(null);
+        setInviteOut(false);
+      }
       // Reviewed and kept non-fatal, deliberately, against the alternative
       // (docs/reviews/2026-08-28-m11-pr71-review.md §5's PLAUSIBLE edge): a
       // failed access read for a real VIEWER leaves the board live, and every
@@ -282,7 +327,7 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
       setStatus("error");
       setError(err instanceof Error ? err.message : "Could not load this trip.");
     }
-  }, [tripId]);
+  }, [tripId, adoptAccess]);
 
   // KI-2026-09-14-e: the read above is correct when taken, but a write to this
   // trip already on the wire when it was taken may be applied after it — the
@@ -558,6 +603,60 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
     })();
   }, [tripId]);
   onRemoteChangeRef.current = onRemoteChange;
+
+  // ---- Travellers D11: who is on the trip moved ---------------------------
+  //
+  // Accepting an invite, revoking one, removing someone, a role change and a
+  // travelling toggle write no planning event, so `headSeq` stays still for
+  // all of them. The trip detail still moves: its per-person totals count
+  // travellers, overlaid on read (`server/access/overlay.ts`). So this is
+  // `onRemoteChange` — which clears the trip's cache and re-reads the detail —
+  // plus the access read it does not make. `onRemoteChange` runs first: its
+  // `invalidate` is what keeps the access read below from being answered out
+  // of the 5s cache.
+  //
+  // Only the newest read lands. A poll's and a local write's can cross.
+  const accessTicket = useRef(0);
+  // Resolves with what was read, or null when the read failed.
+  const reloadAccess = useCallback(async (): Promise<TripAccess | null> => {
+    onRemoteChange();
+    const ticket = ++accessTicket.current;
+    const result = await cachedRead(tripKeys.access(tripId), () => fetchTripAccess(tripId));
+    // Silent on failure, like the detail re-read: the last good answer stays,
+    // and `accessUnknown` is about the load, not about a background read.
+    if (ticket === accessTicket.current && result.ok) adoptAccess(result.value);
+    return result.ok ? result.value : null;
+  }, [tripId, onRemoteChange, adoptAccess]);
+  const refreshAccess = useCallback(() => void reloadAccess(), [reloadAccess]);
+
+  // The poll's `accessRev`, against the baseline `adoptAccess` seeded from the
+  // access read itself (W22).
+  //
+  // **Only a fallback: with no baseline, the first rev seen becomes it.** This
+  // happens when the load's access read failed or carried no rev, such as on
+  // the demo trip or when the server's rev read failed. Then the first poll
+  // is the trip as `load` read it, give or take one interval, and an Access
+  // write inside that window shows only on the next one (KI-2026-10-05-g).
+  //
+  // Marked seen only once the re-read has landed (suggester spec W68's rule for
+  // `suggestionsRev`): a failed one leaves it behind, so the next poll retries.
+  // A re-read that carried its own rev has already been adopted with it, and
+  // that rev is at least as new as this one, so it is not overwritten.
+  const onAccessRevision = useCallback(
+    (rev: string) => {
+      if (seenAccessRev.current === null) {
+        seenAccessRev.current = rev;
+        return;
+      }
+      if (rev === seenAccessRev.current || rev === readingAccessRev.current) return;
+      readingAccessRev.current = rev;
+      void reloadAccess().then((read) => {
+        if (readingAccessRev.current === rev) readingAccessRev.current = null;
+        if (read !== null && read.accessRev === undefined) seenAccessRev.current = rev;
+      });
+    },
+    [reloadAccess],
+  );
 
   // `boardMode(myRole)`, not `mode`: an unknown role leaves the board live
   // (W21), but a list we may not be allowed to read is not worth asking for
@@ -861,6 +960,7 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
     cursor: () => (optimisticRef.current ? headSeqOf(optimisticRef.current.confirmed.history) : 0),
     onChanged: onRemoteChange,
     onSuggestionsChanged,
+    onAccessChanged: onAccessRevision,
   });
 
   // Kept in step with the state on every render, so a change made anywhere
@@ -922,6 +1022,8 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
         canEditBoard,
         draft,
         noteInvites,
+        access,
+        refreshAccess,
         suggestions,
         suggestionGhosts,
         accessUnknown,

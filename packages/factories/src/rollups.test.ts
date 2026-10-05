@@ -80,6 +80,23 @@ describe("withCostRollups", () => {
     expect(detail.budgetRemaining).toBeNull();
   });
 
+  // A stop nobody picked is priced for the travellers (travellers spec D1), so a
+  // fixture with an adviser on it totals what a served detail would.
+  it("prices a nobody-picked stop for the travellers, not every member", () => {
+    const detail = withCostRollups(
+      tripDetailFixture({
+        members: [
+          { userId: "owner", role: "owner" },
+          { userId: "adviser", role: "suggester", travelling: false },
+        ],
+        activities: { a1: { ...stop, activityId: "a1", cost: { amountMinor: 1000, currency: "USD" } } },
+        days: [{ dayId: "d0", activityIds: ["a1"], date: null, costSubtotal: 0 }],
+        backlog: [],
+      }),
+    );
+    expect(detail.tripCostTotal).toBe(1000);
+  });
+
   it("is a no-op on a fixture that was already honest", () => {
     // `costedTripDetailFixture` derives its own totals, so passing it through
     // must change nothing. This is what pins the two against each other: if the

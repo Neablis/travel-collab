@@ -215,7 +215,7 @@ describe("who may clone", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     // …and it is theirs, editable, because it is a new stream they created.
-    expect(result.detail.members).toEqual([{ userId: bob, role: "owner" }]);
+    expect(result.detail.members).toEqual([{ userId: bob, role: "owner", travelling: true }]);
     expect((await executeTripCommand({ type: "AddDay", tripId: result.tripId, dayId: randomUUID() }, bob)).ok).toBe(true);
   });
 
@@ -273,7 +273,7 @@ describe("cloning a share link", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
 
-    expect(result.detail.members).toEqual([{ userId: stranger, role: "owner" }]);
+    expect(result.detail.members).toEqual([{ userId: stranger, role: "owner", travelling: true }]);
     expect((await executeTripCommand({ type: "AddDay", tripId: result.tripId, dayId: randomUUID() }, stranger)).ok).toBe(true);
     // The stranger is still nothing to the source.
     expect((await executeTripCommand({ type: "AddDay", tripId, dayId: randomUUID() }, stranger)).ok).toBe(false);

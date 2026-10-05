@@ -13,7 +13,15 @@ import { db, type Queryable } from "../db/client";
 import { tripInvites } from "../db/schema";
 import { isUuid } from "../ids";
 import { getTripDetail } from "../projections";
-import { grantMembership, grantedMembers, mergeMembers, revokeMembership } from "./members";
+import {
+  bumpAccessRev,
+  forgetTravelling,
+  grantMembership,
+  grantedMembers,
+  mergeMembers,
+  revokeMembership,
+  writeTravelling,
+} from "./members";
 
 /**
  * Thrown inside `acceptInvite`'s transaction when a concurrent accept won the
@@ -60,7 +68,19 @@ function toDto(row: InviteRow): TripInvite {
     acceptedBy: row.acceptedBy,
     acceptedAt: row.acceptedAt === null ? null : row.acceptedAt.toISOString(),
     revokedAt: row.revokedAt === null ? null : row.revokedAt.toISOString(),
+    travelling: row.travelling,
   };
+}
+
+/**
+ * Whether someone joining at `role` is travelling, when the owner did not say
+ * (travellers spec D3): an editor is coming on the trip; a suggester or viewer
+ * most often joined to advise or to follow along. The invite dialog presets
+ * its switch the same way, so this is only the answer for a caller that sent
+ * no choice at all — the public API, or an older client.
+ */
+function presetTravelling(role: InviteRole): boolean {
+  return role === "editor";
 }
 
 export async function createInvite(
@@ -81,8 +101,13 @@ export async function createInvite(
     acceptedBy: null,
     acceptedAt: null,
     revokedAt: null,
+    travelling: input.travelling ?? presetTravelling(input.role),
   };
-  await db.insert(tripInvites).values(row);
+  // A new pending invite is in the People list, so the poll has to see it.
+  await db.transaction(async (tx) => {
+    await tx.insert(tripInvites).values(row);
+    await bumpAccessRev(tx, tripId);
+  });
   return toDto(row);
 }
 
@@ -173,7 +198,13 @@ export async function revokeInvite(
     }
     if (row.acceptedBy !== null) {
       await revokeMembership(tx, tripId, row.acceptedBy);
+      // Keyed by user, not by membership, so it would outlive the membership
+      // and decide a later re-invite's answer for it.
+      await forgetTravelling(tx, tripId, row.acceptedBy);
     }
+    // Unconditional, a second revoke included: a bump nothing changed costs
+    // one client one extra read, and a missed one is a stale People list.
+    await bumpAccessRev(tx, tripId);
     return { ok: true, value: toDto(row) };
   });
   if (result.ok) await forgetInviteCard(result.value.token);
@@ -369,6 +400,20 @@ function acceptInviteTransaction(
       // happened, and the caller would be told a role they do not hold.
       throw new AlreadyAMemberError();
     }
+    // The invite's choice (D3) is what they join with, both ways. Clearing on
+    // `true` rather than leaving whatever is there: a `setTravelling` racing
+    // the remove that preceded this re-invite could have left a row behind.
+    if (row.travelling) await forgetTravelling(tx, row.tripId, userId);
+    else {
+      await writeTravelling(tx, {
+        tripId: row.tripId,
+        userId,
+        travelling: false,
+        updatedBy: row.invitedBy,
+        now,
+      });
+    }
+    await bumpAccessRev(tx, row.tripId);
     return { ok: true, value: { tripId: row.tripId, role: row.role as InviteRole } };
   });
 }

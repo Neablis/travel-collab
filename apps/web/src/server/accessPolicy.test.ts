@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { TripCommand, type TripMember, type TripRole } from "@tc/contracts";
-import { hasAtLeast, memberRole, memberRolePolicy } from "./accessPolicy";
+import { hasAtLeast, maySetTravelling, memberRole, memberRolePolicy } from "./accessPolicy";
 
 const ALL_COMMAND_TYPES = TripCommand.innerType().options.map((o) => o.shape.type.value);
 const NON_CREATE = ALL_COMMAND_TYPES.filter((t) => t !== "CreateTrip");
@@ -120,5 +120,29 @@ describe("memberRole", () => {
     expect(memberRole("u1", as("editor"))).toBe("editor");
     expect(memberRole("stranger", as("editor"))).toBeNull();
     expect(memberRole("u1", null)).toBeNull();
+  });
+});
+
+describe("maySetTravelling (travellers spec D4)", () => {
+  const trip: TripMember[] = [
+    { userId: "owner", role: "owner" },
+    { userId: "ed", role: "editor" },
+    { userId: "sug", role: "suggester" },
+    { userId: "view", role: "viewer" },
+  ];
+
+  it("lets the owner set it for anyone, themselves included", () => {
+    for (const { userId } of trip) expect(maySetTravelling("owner", userId, trip)).toBe(true);
+  });
+
+  it("lets every other member set it for themselves and nobody else, an editor included", () => {
+    for (const actor of ["ed", "sug", "view"]) {
+      for (const { userId } of trip) expect(maySetTravelling(actor, userId, trip)).toBe(actor === userId);
+    }
+  });
+
+  it("refuses a non-member, even for themselves", () => {
+    expect(maySetTravelling("stranger", "stranger", trip)).toBe(false);
+    expect(maySetTravelling("stranger", "stranger", null)).toBe(false);
   });
 });

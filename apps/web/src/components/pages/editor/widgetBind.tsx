@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useLateFocus } from "./useLateFocus";
-import { ActivityKind, type TripDetail, type TripGlobals } from "@tc/contracts";
+import { ActivityKind, travellerIds, type TripDetail, type TripGlobals } from "@tc/contracts";
 import { LinkTarget, WebAddress, distinctApplies, enumLabel, fieldChoices, getMacro, getPreset, inputsFor, personNames, presetParams, withoutWithheld } from "@tc/pages";
 import type { WidgetInput } from "@tc/pages";
 import { CheckboxField } from "@/components/ui/checkbox";
@@ -217,9 +217,14 @@ export function optionsFor(
     // for a sentence about one person, so unset is `unbound("person")` and the
     // empty option asks rather than offering a widest answer. A stored id
     // that is no longer a member stays visible, labelled as the widget labels
-    // it ("Former member") — `personNames` is both labels' one rule.
+    // it ("Former member") — `personNames` is both labels' one rule. Every
+    // member, travellers first: someone not travelling can still be picked for
+    // a stop or have booked one (travellers spec D6, D7), so their share is a
+    // real question.
     case "person": {
-      const ids = withBound(detail.members.map((m) => m.userId), bound);
+      const travelling = travellerIds(detail.members);
+      const others = detail.members.map((m) => m.userId).filter((id) => !travelling.includes(id));
+      const ids = withBound([...travelling, ...others], bound);
       const names = personNames(detail, people, ids);
       return [{ value: "", label: "Choose a person" }, ...ids.map((id) => ({ value: id, label: names.get(id)! }))];
     }

@@ -115,6 +115,7 @@ for collaboration later landing on a product people already want to join.
 | M32 | The assistant can say which day is free, in one call | **Gate closed 2026-10-05, 7 of 7** (current for the same day, from M31's close); minted 2026-10-04 from Mitchell's production turn and built beside M31. `find_free_time` ranks every day inside 08:00-22:00 in one call, and each ledger step carries its duration (migration `0037`): `M32-free-day.md` |
 | M33 | We can see whether an assistant change works before it ships | **Gate closed 2026-10-05, 6 of 6** (current for the same day, from M32's close); minted and built the same day beside M31 and M32, merged as #327. `pnpm --filter web eval` runs the live set through the unmocked `/ask` handler on production's per-tier models, grades it in code, states its cost and stops at a cap: `M33-evals.md` |
 | M34 | Adding a stop suggests what other travellers did nearby | **CURRENT MILESTONE from 2026-10-05**, by M33's gate closing. **Minted, scoped and placed 2026-10-05 by Mitchell, after M33.** The add-stop sheet's *"Example match"* placeholder was filed under M9's grounding, but nothing in it needs the model or a place vendor: it lists stops from other people's published days in the day's city, closest first, filtered as you type, and a pick fills name, place, length, kind and tags (not time or cost). Named `nearbyStops` in code, because *suggestion* is ADR-064's word: `M34-nearby-stops.md` |
+| M35 | You can say who on a trip is actually going | **Minted 2026-10-05 by Mitchell, built before minting, not current.** Built off-milestone on PR #335 while M34 is current, from an approved spec and plan; see the 2026-10-05 note below. Travelling is a per-person Access attribute counted at read time (ADR-065), so per-person costs, balances and "N travellers" count travellers, not members, and a suggester who joins to advise no longer doubles a total. Trip settings → People replaces the Travelers panel, with an owner state, role change in place and realtime access. Migration `0039`: `M35-travellers-and-people.md` |
 
 - **Restructure (2026-07-28), from the Phase 1 gate review.** The gate had not
   been met and the reason was structural, not cosmetic: a trip cannot be renamed
@@ -221,6 +222,19 @@ the argument, not the live instruction, and they were 56% of this file.
 - **2026-09-19** — M25's gate closed, and what it leaves the milestones behind it
 - **2026-09-19 (later)** — minted, scoped and placed: M26, design parity
 - **2026-08-08, 2026-08-14, 2026-08-25, 2026-08-26** — the superseded reorders and M10's reopened gate, and the placement paragraphs for M26 to M28: *Moved out of README.md on 2026-09-30*, at the end
+
+### 2026-10-05 — minted: M35, built before it was minted
+
+**Mitchell's call, 2026-10-05:** *"Create and add a milestone so this work is tracked
+correctly."* The travellers and People work was specced, approved (D1–D11) and built T1–T9 on one
+branch, PR #335, **while M34 was current and with no milestone placing it**. That is building
+ahead of the current milestone, and this note records it rather than back-dating a placement.
+M35 is minted to give the work a gate. Its row goes after M34 in `TODO.md`, so M34 stays current
+and `pnpm milestone close M34` reads M35 as the next milestone from the row order.
+
+**Mitchell also decided not to restack the branch.** The plan's A/B/C split (data and server,
+costs, the People panel) stays as a review order, and #335 is reviewed and merged as one PR.
+Scope and gate: `docs/milestones/M35-travellers-and-people.md`.
 
 ### 2026-09-13 — reorder: M20 and M21 run next, ahead of M9's remaining work
 

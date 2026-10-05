@@ -3,6 +3,7 @@ import {
   BatchableCommand,
   CreateTrip,
   TripCommand,
+  travellerIds,
   type EventEnvelope,
   type Origin,
   type TripDetail,
@@ -195,12 +196,12 @@ function withMembers(detail: TripDetail, members: TripMember[] | null): TripDeta
   return members === null ? detail : overlayMembers(detail, members);
 }
 
-// The decider judges conflicts for the member count the reader is shown, so a
-// dismissal is decided against the same over-budget conflict `withMembers`
+// The decider judges conflicts for the traveller count the reader is shown, so
+// a dismissal is decided against the same over-budget conflict `withMembers`
 // hands back (ADR-060, PR #289 review). `members` is null only before the
 // stream exists, where there is nothing to recost.
 function decideContext(actorId: string, members: TripMember[] | null): DecideContext {
-  return members === null ? { actorId } : { actorId, memberCount: members.length };
+  return members === null ? { actorId } : { actorId, travellerCount: travellerIds(members).length };
 }
 
 const BatchBody = z.array(BatchableCommand).min(1);

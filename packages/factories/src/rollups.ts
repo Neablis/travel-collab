@@ -1,4 +1,4 @@
-import type { TripDetail } from "@tc/contracts";
+import { travellerIds, type TripDetail } from "@tc/contracts";
 import { recostDetail } from "@tc/domain";
 
 // Make a hand-built `TripDetail` tell the truth about its own money.
@@ -40,6 +40,6 @@ export function withCostRollups(detail: TripDetail): TripDetail {
   // implementation is how a fixture and the app come to disagree about the
   // same trip. `recostDetail` is what the server applies at the read boundary
   // (ADR-060), so a fixture recosted here reads exactly as a served detail
-  // with the same members would.
-  return recostDetail(detail, detail.members.length);
+  // with the same members — the same travellers among them — would.
+  return recostDetail(detail, travellerIds(detail.members).length);
 }

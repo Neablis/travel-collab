@@ -65,6 +65,16 @@ Vercel firewall bypass for `/`, `/welcome`, `/playbooks/**`, `/robots.txt` and
 `/sitemap.xml` (crawlers get the Security Checkpoint today); submitting the sitemap once
 part 2 is live; and checking production's canonical on `caesura.today/playbooks`.
 
+**M35 — who is travelling, and the People panel — minted 2026-10-05, after it was built** beside
+M33 and M34 (PR #335, one branch `ccr-d8e97d98-xyat7o`, T1–T9, not restacked by Mitchell's call;
+plan `docs/plans/2026-10-05-travellers-and-people-panel.md`). Gate:
+`docs/milestones/M35-travellers-and-people.md`; open are the preview walk, CodeRabbit, the eval
+re-run, migration 0039 and the retro.
+Per-person totals count travellers, not members (ADR-065, amending ADR-060 decision 2). Trip
+settings → People replaces the Travelers panel, and the owner's open panel now sees a join
+(KI-2026-10-04-b, resolved). It carries **migration 0039**, which has to be dispatched after
+merge. Open from it: `KI-2026-10-05-e`, `-f` and `-g`.
+
 **M28 — Three kinds — closed 2026-09-26** (#238, #239): a stop's kind is
 `planned`, `pending` or `transit`, and the retired `idea`/`hold`/`booked` are
 read back as their replacement (ADR-054). Its retro is at the end of

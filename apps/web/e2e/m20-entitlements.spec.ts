@@ -17,10 +17,10 @@ import { accountPanel, openAccountPage, openAssistantRail } from "./helpers";
 //      planning path is the failure M20 is most likely to cause.
 //   2. A free account is refused `/ask` with **402** and `ai-not-entitled`, and
 //      the refusal names the tier rather than reading as a permission error.
-//   3. A free owner cannot invite: the *Invite someone* form is **disabled
-//      under a named-tier block with a CTA** (M21, 2026-09-15 — it used to be
-//      absent entirely; the reasoning moved when there was somewhere to send
-//      the CTA).
+//   3. A free owner cannot invite: the *Invite someone* dialog's form is
+//      **disabled, with a CTA where its button was, under a named-tier note**
+//      (M21, 2026-09-15 — it used to be absent entirely; the reasoning moved
+//      when there was somewhere to send the CTA).
 //   4. **An admin grants premium and it bites on the next request — no
 //      sign-out, no token refresh.** The session cookie is captured before and
 //      compared after, so "the JWT is unchanged" is a fact rather than a claim.
@@ -138,9 +138,17 @@ test.describe("M20 — an account knows what it may do", () => {
     // work — the CTA beside it is what makes it work — so the shape of what is
     // being bought stays on screen. Both halves are asserted: the form is
     // there, it is inert, and the way out goes to the plans route.
-    await expect(page.getByRole("button", { name: "Invite someone" })).toBeDisabled();
-    await expect(page.getByLabel("Invite by email")).toBeDisabled();
+    //
+    // The form lives in the invite dialog now (travellers spec §4, W8): it
+    // opens, its fields are inert, and *See plans* stands where Create invite
+    // would — so there is no button that could send one.
     await expect(gate.getByTestId("collaborators-gate-cta")).toHaveAttribute("href", "/plans");
+    await page.getByRole("button", { name: "Invite", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Invite someone" });
+    await expect(dialog.getByLabel("Email (optional)")).toBeDisabled();
+    await expect(dialog.getByRole("radio", { name: "Can edit" })).toBeDisabled();
+    await expect(dialog.getByRole("button", { name: "Create invite" })).toHaveCount(0);
+    await expect(dialog.getByRole("link", { name: "See plans" })).toHaveAttribute("href", "/plans");
   });
 
   test("a non-admin reaches neither the console nor its endpoint", async ({ page }) => {
@@ -437,8 +445,13 @@ test.describe("M20 — an account knows what it may do", () => {
     await page.getByRole("button", { name: /trip settings/i }).click();
     // `toBeEnabled`, not just `toBeVisible` (M21): the gated form is visible
     // too now, so visibility alone stopped distinguishing granted from free.
-    await expect(page.getByRole("button", { name: "Invite someone" })).toBeEnabled();
+    // The gate note goes first, then the dialog it lives in since travellers
+    // spec §4 is opened: a live field, and a Create invite to press.
     await expect(page.getByTestId("collaborators-gate")).toHaveCount(0);
+    await page.getByRole("button", { name: "Invite", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Invite someone" });
+    await expect(dialog.getByLabel("Email (optional)")).toBeEnabled();
+    await expect(dialog.getByRole("button", { name: "Create invite" })).toBeEnabled();
     page.off("request", watch);
 
     const frontDoor = seenUrls.filter((url) =>

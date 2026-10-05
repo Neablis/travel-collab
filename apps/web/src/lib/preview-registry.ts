@@ -2,7 +2,7 @@
 // entries as they wire each shell up. A sync test keeps this in lockstep with
 // actual <Preview id> usage.
 // M11 link 3 removed "trip-invites" (SettingsSheet's mocked invite row — now
-// the real TravelersPanel) and "wizard-invite-list" (the wizard's mocked
+// the real People section) and "wizard-invite-list" (the wizard's mocked
 // "You / Owner" list — now a sentence pointing at Trip settings, because the
 // wizard runs before the trip an invite would attach to exists).
 //

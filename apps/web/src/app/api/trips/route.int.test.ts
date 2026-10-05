@@ -9,11 +9,14 @@ import {
   tripDetails,
   tripInvites,
   tripMemberships,
+  tripAccessRevs,
   tripShares,
   tripSummaries,
+  tripTravellers,
 } from "@/server/db/schema";
 import { executeTripCommand } from "@/server/commands";
 import { acceptInvite, createInvite } from "@/server/access/invites";
+import { setTravelling } from "@/server/access/travellers";
 import { createShare } from "@/server/access/shares";
 
 // Every id here is fresh per run, so the grid these tests read is only ever
@@ -54,6 +57,8 @@ afterAll(async () => {
   await db.delete(tripShares).where(inArray(tripShares.tripId, seeded));
   await db.delete(tripInvites).where(inArray(tripInvites.tripId, seeded));
   await db.delete(tripMemberships).where(inArray(tripMemberships.tripId, seeded));
+  await db.delete(tripTravellers).where(inArray(tripTravellers.tripId, seeded));
+  await db.delete(tripAccessRevs).where(inArray(tripAccessRevs.tripId, seeded));
   await db.delete(pages).where(inArray(pages.tripId, seeded));
   await db.delete(tripDetails).where(inArray(tripDetails.tripId, seeded));
   await db.delete(tripSummaries).where(inArray(tripSummaries.tripId, seeded));
@@ -99,7 +104,7 @@ describe("GET /api/trips visibility", () => {
     const mine = (await grid()).find((t) => t.tripId === tripId);
     expect(mine).toBeDefined();
     expect(mine!.name).toBe("Projection only");
-    expect(mine!.members).toEqual([{ userId: OWNER, role: "owner" }]);
+    expect(mine!.members).toEqual([{ userId: OWNER, role: "owner", travelling: true }]);
   });
 
   // M11 exit gate, SPEC R4: shared trips appear in the same grid, and the
@@ -115,8 +120,8 @@ describe("GET /api/trips visibility", () => {
     // The avatar stack counts travellers: the effective list, not the
     // projection's owner-only one, and the owner still heads it.
     expect(shared!.members).toEqual([
-      { userId: OWNER, role: "owner" },
-      { userId: GUEST, role: "editor" },
+      { userId: OWNER, role: "owner", travelling: true },
+      { userId: GUEST, role: "editor", travelling: true },
     ]);
   });
 
@@ -130,10 +135,33 @@ describe("GET /api/trips visibility", () => {
     const a = trips.find((t) => t.tripId === own)!;
     const b = trips.find((t) => t.tripId === shared)!;
     expect(Object.keys(a).sort()).toEqual(Object.keys(b).sort());
-    expect(a.members).toEqual([{ userId: GUEST, role: "owner" }]);
+    expect(a.members).toEqual([{ userId: GUEST, role: "owner", travelling: true }]);
+    // A viewer joins not travelling unless the invite said otherwise (D3).
     expect(b.members).toEqual([
-      { userId: OWNER, role: "owner" },
-      { userId: GUEST, role: "viewer" },
+      { userId: OWNER, role: "owner", travelling: true },
+      { userId: GUEST, role: "viewer", travelling: false },
+    ]);
+  });
+
+  // Travellers spec W21: the cards' "N travellers" and their avatars read
+  // `travelling` off these members, and the list used to leave it off, so
+  // every member counted. Two trips, so the overlay is shown to be per trip.
+  it("says who is not travelling, trip by trip", async () => {
+    const both = await seedTrip("Both going");
+    const ownerStays = await seedTrip("Owner stays home");
+    await join(both, "editor", GUEST);
+    await join(ownerStays, "editor", GUEST);
+    const marked = await setTravelling(ownerStays, OWNER, OWNER, false);
+    expect(marked.ok).toBe(true);
+
+    const trips = await grid();
+    expect(trips.find((t) => t.tripId === both)!.members).toEqual([
+      { userId: OWNER, role: "owner", travelling: true },
+      { userId: GUEST, role: "editor", travelling: true },
+    ]);
+    expect(trips.find((t) => t.tripId === ownerStays)!.members).toEqual([
+      { userId: OWNER, role: "owner", travelling: false },
+      { userId: GUEST, role: "editor", travelling: true },
     ]);
   });
 
@@ -202,7 +230,8 @@ describe("GET /api/trips cost", () => {
 
     expect(sixCards.length).toBe(6); // 1 owned + 5 joined as viewer
     expect(fiveCards.length).toBe(5);
-    expect(forSixTrips).toBe(2); // the summaries query + one batched members read
+    // The summaries query, one batched members read, one batched travellers read.
+    expect(forSixTrips).toBe(3);
     expect(forFiveTrips).toBe(forSixTrips);
   });
 });

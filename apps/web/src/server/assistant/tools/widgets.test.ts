@@ -75,7 +75,19 @@ describe("get_widget", () => {
     const result = await getWidgetTool.invoke({ id: "person-share" }, deps());
     if ("error" in result) throw new Error(result.error);
     expect(result.inputs).toContainEqual({ type: "person", name: "who", label: "Person" });
-    expect(result.people).toEqual(TRIP.members.map((m) => ({ who: m.userId, role: m.role })));
+    expect(result.people).toEqual(TRIP.members.map((m) => ({ who: m.userId, role: m.role, travelling: true })));
+  });
+
+  // Travellers spec D6/D7: anyone may be the subject — a non-traveller can be
+  // picked for a stop or have booked one — so they are listed, and marked.
+  it("says which of those members is not travelling", async () => {
+    const trip = { ...TRIP, members: [TRIP.members[0]!, { userId: "u-adviser", role: "suggester" as const, travelling: false }] };
+    const result = await getWidgetTool.invoke({ id: "person-share" }, { ...deps(), trip });
+    if ("error" in result) throw new Error(result.error);
+    expect(result.people).toEqual([
+      { who: TRIP.members[0]!.userId, role: TRIP.members[0]!.role, travelling: true },
+      { who: "u-adviser", role: "suggester", travelling: false },
+    ]);
   });
 
   it("answers an unknown id with a sentence rather than throwing", async () => {

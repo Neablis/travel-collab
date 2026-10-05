@@ -108,7 +108,7 @@ describe("trip planning is entirely free", () => {
     // And the member list is still just them, uncapped — a solo trip never
     // reaches the gate at all.
     expect(await effectiveMembers(db, tripId, detail!.members)).toEqual([
-      { userId: free, role: "owner" },
+      { userId: free, role: "owner", travelling: true },
     ]);
   });
 });

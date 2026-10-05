@@ -7,6 +7,7 @@ import {
   AddDefaultPagesInput,
   AdminReportAction,
   BatchableCommand,
+  ChangeRoleInput,
   CreatePageInput,
   CreateReportInput,
   CreateSavedNotebookInput,
@@ -16,8 +17,10 @@ import {
   PutReviewInput,
   ResolveSuggestionChangeInput,
   RestorePageInput,
+  SetTravellingInput,
   SYSTEM_ACTOR_ID,
   stopTotal,
+  travellerIds,
   TripCommand,
   TripWeatherResponse,
   UpdatePageInput,
@@ -57,11 +60,13 @@ function rederiveDates(detail: TripDetail): void {
 // Deliberately naive rollup — the mock stands in for the projection
 // (`packages/domain` may not be imported here, per the UI/server lint wall).
 // A stop's price is still `stopTotal`'s, from contracts: per person, times who
-// is in it (ADR-060). Naive about structure, never about what a price means.
+// is in it, or every traveller when nobody is (ADR-060; travellers spec D1).
+// Naive about structure, never about what a price means.
 function rerollup(detail: TripDetail): void {
+  const travellers = travellerIds(detail.members).length;
   const costOf = (id: string): number => {
     const activity = detail.activities[id];
-    return activity ? stopTotal(activity, detail.members.length) : 0;
+    return activity ? stopTotal(activity, travellers) : 0;
   };
   detail.days.forEach((day) => (day.costSubtotal = day.activityIds.reduce((s, id) => s + costOf(id), 0)));
   detail.unscheduledCostSubtotal = detail.backlog.reduce((s, id) => s + costOf(id), 0);
@@ -189,6 +194,12 @@ export function makeTripHandlers(
     myRole?: TripRole;
     /** M20 link 6 — whether the trip's OWNER holds `trip.collaborators`. */
     collaboratorsEntitled?: boolean;
+    /**
+     * Who is reading, as `TripAccess.viewerId`. Defaults to the owner when
+     * `myRole` is `owner`, and to nobody otherwise — a suite reading as a
+     * member names which one.
+     */
+    viewerId?: string;
     /** Every suggestion draft POSTed, as parsed — what a suggester sent. */
     onSuggestion?: (input: CreateSuggestionInput) => void;
     /** Changes already stored when the suite starts, oldest first. */
@@ -212,6 +223,9 @@ export function makeTripHandlers(
     return `r${hash.toString(36)}`;
   };
   const rankAtLeastSuggester = role !== "viewer";
+  const viewerId = options?.viewerId ?? (role === "owner" ? detail.members[0]?.userId : undefined);
+  // The trip's access counter (W5): "0" until a member write here moves it.
+  let accessRev = 0;
   return [
     http.get("/api/trips/:tripId", ({ params }) =>
       params.tripId === detail.tripId
@@ -354,9 +368,62 @@ export function makeTripHandlers(
           // M20 link 6. Entitled by default so every board test written before
           // the collaboration gate keeps describing the behaviour it was
           // written for; the gate's own surfaces are covered in
-          // `TravelersPanel.test.tsx` and `collaborationGate.int.test.ts`.
+          // `people/PeopleSection.test.tsx` and `collaborationGate.int.test.ts`.
           collaboratorsEntitled: options?.collaboratorsEntitled ?? true,
+          accessRev: String(accessRev),
+          viewerId,
         },
+      }),
+    ),
+    // The People section's member writes: `PATCH`/`DELETE …/members/:userId`.
+    // Each answers with the access the GET above serves, that one member
+    // changed or gone — stateless like the GET, so a suite that needs the
+    // change to stick across a re-read overrides both with `server.use`.
+    //
+    // **Refused as the route refuses** (`members/[userId]/route.ts`), in its
+    // order: a UI built against a mock that answers 200 to anything never
+    // meets a 403. Each success moves `accessRev`, as the route's write does.
+    ...(["patch", "delete"] as const).map((method) =>
+      http[method]("/api/trips/:tripId/members/:userId", async ({ params, request }) => {
+        const target = String(params.userId);
+        const owner = detail.members[0]?.userId;
+        const onTrip = detail.members.some((m) => m.userId === target);
+        const refuse = (status: number, error: string) => HttpResponse.json({ error }, { status });
+        let change: SetTravellingInput | ChangeRoleInput | null = null;
+        if (method === "delete") {
+          if (role !== "owner") return refuse(403, "forbidden");
+          if (target === owner) return refuse(409, "The trip's owner cannot be removed.");
+          if (!onTrip) return refuse(404, "That person is not a member of this trip.");
+        } else {
+          const body = SetTravellingInput.or(ChangeRoleInput).safeParse(await request.json().catch(() => null));
+          if (!body.success) return refuse(400, "invalid-member-change");
+          change = body.data;
+          if ("travelling" in change) {
+            if (role !== "owner" && target !== viewerId) {
+              return refuse(403, "Only the trip's owner can change this for someone else.");
+            }
+            if (!onTrip) return refuse(404, "That person is not on this trip.");
+          } else {
+            if (role !== "owner") return refuse(403, "Only the trip's owner can change roles.");
+            if (target === owner) return refuse(409, "The trip's owner cannot be given another role.");
+            if (!onTrip) return refuse(404, "That person is not a member of this trip.");
+          }
+        }
+        accessRev += 1;
+        const members = detail.members
+          .filter((m) => change !== null || m.userId !== target)
+          .map((m) => ({ ...m, ...(m.userId === target ? change : null), name: null, email: null, image: null }));
+        return HttpResponse.json({
+          access: {
+            tripId: detail.tripId,
+            myRole: role,
+            members,
+            invites: [],
+            collaboratorsEntitled: options?.collaboratorsEntitled ?? true,
+            accessRev: String(accessRev),
+            viewerId,
+          },
+        });
       }),
     ),
     // Overview also lists the trip's notebooks. Empty by default and NOT a

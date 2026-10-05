@@ -137,7 +137,6 @@ export const costChart: MacroDef<CostChartParams, SpendByDayPayload> = {
     const selection = narrow(trip, globals, params, item);
     if (selection.status !== "ok") return selection;
     const { days, stops } = selection.value;
-    const members = trip.members.length;
 
     // **The trip's currency only**, which is `kinds.ts`'s money rule: no rates
     // in a pure package (Invariant 4), and a bar made of yen and dollars is a
@@ -146,16 +145,16 @@ export const costChart: MacroDef<CostChartParams, SpendByDayPayload> = {
     const otherCurrencies = stops.flatMap((s) =>
       s.activity.cost && s.activity.cost.currency !== trip.currency ? [s.activity.cost] : [],
     );
-    const unscheduled = costOfStops(stops.filter((s) => s.dayIndex === null && s.activity.cost?.currency === trip.currency), members);
+    const unscheduled = costOfStops(stops.filter((s) => s.dayIndex === null && s.activity.cost?.currency === trip.currency), trip.members);
 
     const bars: SpendByDayBar[] = days.map((index) => {
       const amounts = zeroes();
       for (const stop of charted) {
         if (stop.dayIndex !== index) continue;
         const key = stackOf(stop, params.tag);
-        amounts[key] += costOfStops([stop], members);
+        amounts[key] += costOfStops([stop], trip.members);
       }
-      const total = costOfStops(charted.filter((s) => s.dayIndex === index), members);
+      const total = costOfStops(charted.filter((s) => s.dayIndex === index), trip.members);
       const date = trip.days[index]!.date;
       const parts = SERIES.filter((key) => amounts[key] > 0).map((key) => ({
         key, label: SERIES_LABEL[key], text: formatMoney(amounts[key], trip.currency),
@@ -180,7 +179,7 @@ export const costChart: MacroDef<CostChartParams, SpendByDayPayload> = {
     // Nothing to draw is only "no costs yet" when nothing is priced at all:
     // trip-currency money on no day is still money, and saying otherwise would
     // contradict the `notCharted` line the same stops earn beside a chart.
-    const chartedTotal = costOfStops(charted, members);
+    const chartedTotal = costOfStops(charted, trip.members);
     if (chartedTotal === 0) {
       if (left.length === 0) return empty();
       if (unscheduled === 0) return empty(`only priced in other currencies: ${others}`);
@@ -208,7 +207,7 @@ export const costChart: MacroDef<CostChartParams, SpendByDayPayload> = {
       const onDays = whole.status === "ok"
         ? whole.value.stops.filter((s) => s.dayIndex !== null && s.activity.cost?.currency === trip.currency)
         : [];
-      const tripSpentThrough = (dayIndex: number) => costOfStops(onDays.filter((s) => s.dayIndex! <= dayIndex), members);
+      const tripSpentThrough = (dayIndex: number) => costOfStops(onDays.filter((s) => s.dayIndex! <= dayIndex), trip.members);
       const burnDown = burnDownOf(
         bars, days, budget === null ? null : { amountMinor: budget, text: formatMoney(budget, trip.currency) },
         trip.days.length, tripSpentThrough, trip.currency,

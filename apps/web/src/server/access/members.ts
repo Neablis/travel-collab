@@ -1,8 +1,10 @@
 import { and, eq, exists, inArray, sql, type Column, type SQL } from "drizzle-orm";
-import type { TripMember, TripMemberProfile, TripRole } from "@tc/contracts";
+import type { InviteRole, TripMember, TripMemberProfile, TripRole } from "@tc/contracts";
 import { db, type Queryable } from "../db/client";
 import { memberRole, RANK } from "../accessPolicy";
-import { tripMemberships, users } from "../db/schema";
+import { tripAccessRevs, tripMemberships, tripTravellers, users } from "../db/schema";
+import { isUuid } from "../ids";
+import { isDemoTripId } from "@/lib/demoTrip";
 // **Access & Membership reads a boolean out of Entitlements, never the other
 // way round** (ADR-045 rule 5). This import is the direction the module map
 // allows: the gate lives here, because this module is the one that knows an
@@ -125,7 +127,126 @@ export async function effectiveMembers(
   projected: readonly TripMember[],
 ): Promise<TripMember[]> {
   const granted = await grantedMembers(tx, tripId);
-  return mergeMembers(projected, await capGrantedOnLapse(projected, granted));
+  const merged = mergeMembers(projected, await capGrantedOnLapse(projected, granted));
+  return withTravelling(merged, await travellingByUser(tx, tripId));
+}
+
+/**
+ * Every member with `travelling` set EXPLICITLY, the owner included (spec W1):
+ * the contract leaves it optional so the log's `{ userId, role }` members stay
+ * valid, which makes this overlay the one place that must never leave it out.
+ * A member with no `trip_travellers` row is travelling (D2).
+ */
+export function withTravelling(
+  members: readonly TripMember[],
+  travelling: ReadonlyMap<string, boolean>,
+): TripMember[] {
+  return members.map((m) => ({ ...m, travelling: travelling.get(m.userId) ?? true }));
+}
+
+/** The trip's `trip_travellers` rows, by user. Keyed by user, not membership: the owner has none. */
+export async function travellingByUser(tx: Queryable, tripId: string): Promise<Map<string, boolean>> {
+  return (await travellingByTrip(tx, [tripId])).get(tripId) ?? new Map();
+}
+
+/**
+ * `travellingByUser` for many trips in ONE round trip, for the home grid
+ * (`grantedMembersByTrip`'s reason). A trip with no rows is absent, and every
+ * member of it is travelling (D2).
+ */
+export async function travellingByTrip(
+  tx: Queryable,
+  tripIds: readonly string[],
+): Promise<Map<string, Map<string, boolean>>> {
+  const byTrip = new Map<string, Map<string, boolean>>();
+  if (tripIds.length === 0) return byTrip;
+  const rows = await tx
+    .select({ tripId: tripTravellers.tripId, userId: tripTravellers.userId, travelling: tripTravellers.travelling })
+    .from(tripTravellers)
+    .where(inArray(tripTravellers.tripId, [...tripIds]));
+  for (const r of rows) {
+    const trip = byTrip.get(r.tripId) ?? new Map<string, boolean>();
+    trip.set(r.userId, r.travelling);
+    byTrip.set(r.tripId, trip);
+  }
+  return byTrip;
+}
+
+/** Record whether `userId` is travelling on this trip. The caller authorises and bumps the rev. */
+export async function writeTravelling(
+  tx: Queryable,
+  input: { tripId: string; userId: string; travelling: boolean; updatedBy: string; now: string },
+): Promise<void> {
+  const { tripId, userId, travelling, updatedBy, now } = input;
+  await tx
+    .insert(tripTravellers)
+    .values({ tripId, userId, travelling, updatedBy, updatedAt: now })
+    .onConflictDoUpdate({
+      target: [tripTravellers.tripId, tripTravellers.userId],
+      set: { travelling, updatedBy, updatedAt: now },
+    });
+}
+
+/**
+ * Forget whether someone who is leaving the trip was travelling, so that if
+ * they are invited again the new invite's choice is what they join with.
+ */
+export async function forgetTravelling(tx: Queryable, tripId: string, userId: string): Promise<void> {
+  await tx
+    .delete(tripTravellers)
+    .where(and(eq(tripTravellers.tripId, tripId), eq(tripTravellers.userId, userId)));
+}
+
+/**
+ * Bump the trip's access revision (spec D11, W5). Called inside the same
+ * transaction as the write it reports, so a rolled-back write never moves it
+ * and a committed one always does. Every Access write calls this; a new one
+ * that forgets is a client that never notices it.
+ */
+export async function bumpAccessRev(tx: Queryable, tripId: string): Promise<void> {
+  await tx
+    .insert(tripAccessRevs)
+    .values({ tripId, rev: 1 })
+    .onConflictDoUpdate({ target: tripAccessRevs.tripId, set: { rev: sql`${tripAccessRevs.rev} + 1` } });
+}
+
+/**
+ * The events poll's `accessRev`: opaque, and only ever compared for equality.
+ * One primary-key read. "0" for a trip no Access write has touched yet.
+ *
+ * Not moved by a billing lapse: the collaboration gate caps roles on read and
+ * writes nothing (`capGranted`), so a lapse shows up on the next full read
+ * rather than through this.
+ */
+export async function accessRevFor(tripId: string): Promise<string> {
+  const rows = await db
+    .select({ rev: tripAccessRevs.rev })
+    .from(tripAccessRevs)
+    .where(eq(tripAccessRevs.tripId, tripId));
+  return String(rows[0]?.rev ?? 0);
+}
+
+/**
+ * `TripAccess.accessRev`: the revision to serve beside a member list
+ * (KI-2026-10-05-g, spec W22).
+ *
+ * **Call it before reading the members and invites, never after.** A rev read
+ * first is never newer than the list it is served with. A client that takes it
+ * as its baseline therefore re-reads on any write the list missed. A rev read
+ * after the list could include a write the list does not show, and the client
+ * would treat that write as already seen.
+ *
+ * Undefined, not a throw, for the demo trip (served without the database), for
+ * an id that cannot name a trip, and when the read fails. The field is optional
+ * and the client falls back to its first poll, so a failure here costs the
+ * client its baseline, not the response.
+ */
+export async function accessRevForRead(tripId: string): Promise<string | undefined> {
+  if (isDemoTripId(tripId) || !isUuid(tripId)) return undefined;
+  return accessRevFor(tripId).catch((error: unknown) => {
+    console.error("access read: accessRev query failed", { tripId, error });
+    return undefined;
+  });
 }
 
 /**
@@ -207,7 +328,7 @@ export async function sharedTripIds(userId: string): Promise<string[]> {
  * The primary key on (tripId, userId) is the only real serialization point, so
  * the decision is made HERE: first grant wins, later ones report that they
  * changed nothing, and the caller rolls its transaction back. Changing a role
- * stays the owner's operation — revoke and re-invite.
+ * stays the owner's operation — `changeMemberRole`, never a second grant.
  */
 export async function grantMembership(
   tx: Queryable,
@@ -279,9 +400,10 @@ export type RemoveMemberOutcome = "removed" | "not-a-member" | "owner";
  *    membership is not a `trip_memberships` row at all — it comes from the
  *    planning log's `TripCreated` (see `mergeMembers`) — so a delete here
  *    would silently no-op while reporting success. Refused explicitly instead.
- *    This is also what makes "leave a trip" absent rather than half-built: an
- *    owner-only endpoint cannot express it, and self-removal for a guest is a
- *    product surface, not a permission tweak.
+ *    "Leave a trip" is not this rule bent: an owner-only endpoint cannot
+ *    express it, so it is its own route (`DELETE .../membership`, M26 link
+ *    6b), which calls this function with the caller as `userId` — and this
+ *    rule is what refuses the owner there too.
  * 3. **Removal is not in the trip's history.** Access is CRUD, not
  *    event-sourced (ADR-003, invariant 1) — revoking an invite is not an event
  *    either, and inventing a planning event to carry a membership change is
@@ -313,12 +435,50 @@ export async function removeMember(
   projected: readonly TripMember[],
 ): Promise<RemoveMemberOutcome> {
   if (memberRole(userId, [...projected]) === "owner") return "owner";
-  return (await revokeMembership(db, tripId, userId)) ? "removed" : "not-a-member";
+  return db.transaction(async (tx) => {
+    if (!(await revokeMembership(tx, tripId, userId))) return "not-a-member";
+    await forgetTravelling(tx, tripId, userId);
+    await bumpAccessRev(tx, tripId);
+    return "removed";
+  });
+}
+
+/** What `changeRole` did, for the route to turn into a status code. */
+export type ChangeRoleOutcome = "changed" | "not-a-member" | "owner";
+
+/**
+ * Change a member's role in place (travellers spec D8) — the owner's
+ * operation, so a new role needs no revoke and re-invite. The caller has already
+ * established that the actor IS the owner; this decides who may be changed.
+ *
+ * `projected`, not the effective list, for exactly `removeMember`'s reason:
+ * the owner is the log's, has no row, and is refused explicitly rather than
+ * silently no-op'd. Someone with no `trip_memberships` row (an actor known only
+ * from the log) has nothing to change, and says so. `InviteRole` keeps
+ * `owner` out of reach (D9). No lapse cap here: the cap is applied on read
+ * (`capGranted`), so the stored role is the one resubscribing restores.
+ */
+export async function changeMemberRole(
+  tx: Queryable,
+  tripId: string,
+  userId: string,
+  role: InviteRole,
+  projected: readonly TripMember[],
+): Promise<ChangeRoleOutcome> {
+  if (memberRole(userId, [...projected]) === "owner") return "owner";
+  const updated = await tx
+    .update(tripMemberships)
+    .set({ role })
+    .where(and(eq(tripMemberships.tripId, tripId), eq(tripMemberships.userId, userId)))
+    .returning();
+  if (updated.length === 0) return "not-a-member";
+  await bumpAccessRev(tx, tripId);
+  return "changed";
 }
 
 /**
  * The Identity join, done here rather than in a planning read model: the
- * Travelers list wants names and avatars, and `TripMember` must stay
+ * People section wants names and avatars, and `TripMember` must stay
  * `{ userId, role }` so the planning domain keeps knowing nothing about people.
  *
  * A member with no `users` row (an actor id from before M11 link 1, or the
@@ -357,6 +517,7 @@ export async function withProfiles(
       name: profile?.name ?? null,
       email: mayReadEmail ? (profile?.email ?? null) : null,
       image: profile?.image ?? null,
+      travelling: m.travelling ?? true,
     };
   });
 }

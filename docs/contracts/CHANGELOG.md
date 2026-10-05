@@ -13,6 +13,109 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-05 — `SharedTripView.travellerCount` may be 0
+
+- **Changed:** `SharedTripView.travellerCount` is `.int().nonnegative()`, was `.int().min(1)`.
+- Why: the owner can be not travelling (travellers spec D5), so `readShare` serves 0 once nobody
+  is, and `GET /api/shares/:token` threw on its own `.parse` — a 500 for anyone holding the link.
+- Consumers updated: `SharedTripScreen` shows W14's line ("Nobody is marked as travelling, so costs
+  are priced for one person.") in place of "0 travellers". `fetchSharedTrip` parses the same schema.
+- Not in the public API: `openapi.json`, `API_VERSION` (1.6.0) and `API_FINGERPRINT` are unchanged.
+- Breaking? no. A wider range; every value that parsed before still parses.
+
+## 2026-10-05 — `TripAccess.viewerId`: the access read says who is reading
+
+- **Added:** `TripAccess.viewerId`, an optional non-empty string: the reader's own user id, as
+  the server that authenticated the read knows it.
+- Why: review of PR #335. The People section marked "You", and gave a member the menu on their
+  own row (the only way to leave the trip), from `useSessionUser()`. Until that probe answered
+  the row had no menu, and if the probe failed it never got one.
+- Consumers updated: `GET /api/trips/:tripId/access` fills it when the reader is on the member
+  list, so the demo visitor and an invite-link look get none. The `TripAccess` that
+  `PATCH`/`DELETE …/members/:userId` answer with fills it with the writer. `PeopleSection` uses
+  it for "You", falling back to the session. The MSW `makeTripHandlers` serves it (the owner by
+  default, or `options.viewerId`).
+- Also: `TripAccess.accessRev`'s doc now says what the People section does with it. The section
+  orders reads by it, as the integer counter it is (W5), to refuse one older than it holds; the
+  entry below said the section ignored it.
+- Not in the public API: `TripAccess` is a BFF type, so `openapi.json`, `API_VERSION` and
+  `API_FINGERPRINT` are unchanged.
+- Breaking? no. The field is optional, and a client without it uses the session as before.
+
+## 2026-10-05 — `TripAccess.accessRev`: the access read carries its own revision
+
+- **Added:** `TripAccess.accessRev`, an optional opaque string. It is the same value the events
+  poll reports as `TripEventsPage.accessRev`, read **before** the members and invites beside it,
+  so it is never newer than they are.
+- Why: KI-2026-10-05-g. `TripProvider` used the first poll's `accessRev` as its baseline, so an
+  Access write between the page's load and that poll (an invite accepted inside the first 2s)
+  was absorbed and never shown. The provider now seeds the baseline from the access read itself
+  (travellers spec W22).
+- Consumers updated: `GET /api/trips/:tripId/access` and the `TripAccess` that
+  `PATCH`/`DELETE …/members/:userId` answer with fill it from `accessRevFor`. The demo trip
+  serves none, and a failed rev read leaves it out. `TripProvider` adopts it on every access
+  read it makes. `PeopleSection` ignores it.
+- Not in the public API: `TripAccess` is a BFF type, so `openapi.json`, `API_VERSION` (1.6.0)
+  and `API_FINGERPRINT` are unchanged.
+- Breaking? no. The field is optional, and a client without it keeps the old first-poll
+  baseline.
+
+## 2026-10-05 — Who is travelling: `travelling` on members and invites, `travellerIds`; Public API 1.6.0
+
+- **Added:** `TripMember.travelling`, an optional boolean. Absent means travelling (travellers spec
+  D2). It is `.optional()`, not `.default(true)`: the domain folds members as `{ userId, role }`
+  without parsing, so a parse-time default would make a stored projection differ from its
+  rebuild (invariant 2). The one reader that decides what absent means is `travellerIds`.
+  `TripMemberProfile.travelling` is the same field.
+- **Added:** `TripInvite.travelling`, a boolean defaulted to `true` for a row or server from
+  before it. `CreateInviteInput.travelling` is optional and **not** defaulted: absent means "preset
+  from the role" (D3), which the server decides.
+- **Added:** `SetTravellingInput { travelling }` and `ChangeRoleInput { role: InviteRole }`, both
+  `.strict()`. They are the two bodies of the coming `PATCH …/members/:userId`. `ChangeRoleInput`
+  can never name `owner` (D8, D9).
+- **Added:** `TripEventsPage.accessRev`, an optional opaque string (D11), alongside
+  `suggestionsRev`.
+- **Changed (`costs.ts`):**
+  - New `travellerIds(members)`: the members whose `travelling` is not `false`, in member order.
+  - `stopHeadcount` and `stopTotal` keep their signatures. Their count argument is now documented
+    as the **traveller** count, still floored at 1 (D5).
+  - `stopPeople`'s second argument is the traveller ids: who "everyone" is when nobody is picked.
+  - `balances(activities, memberIds, travellerIds)` gains a **required** third argument. Every
+    member still gets a row and is never `former`, so a non-traveller can be Booked by (D7). An
+    explicit pick of a non-traveller still charges them (D6).
+- Why: a suggester who joined to advise doubled #314's per-person total. See
+  `docs/specs/2026-10-05-travellers-and-people-panel-design.md` (task T1 of its plan).
+- Consumers updated (to compile only; nothing counts travellers yet, so this is behaviour-neutral):
+  - `packages/pages/src/macros/primitives/balances.ts`: both `balances` calls pass the member ids
+    as the traveller ids. T5 switches them.
+  - `apps/web/src/server/access/invites.ts`: `toDto` sets `travelling: true`. No column exists
+    until T2, and a missing choice means travelling.
+  - `apps/web/src/components/trip/TravelersPanel.test.tsx`: its `TripInvite` fixture gains the
+    field.
+  - Public API: `/v1` trip documents, members and invites now carry `travelling`, and the invite
+    body accepts it. `openapi.json` was regenerated and `API_VERSION` moved to `1.6.0` (minor,
+    additive) with a new `API_FINGERPRINT`. Until T2, the server ignores `travelling` on an invite
+    body.
+- Consumers wired (T3, no schema moved and `openapi.json` unchanged):
+  - `PATCH /api/trips/:tripId/members/:userId` takes `SetTravellingInput | ChangeRoleInput` and
+    answers with `TripAccess`, like the DELETE beside it. A body naming both fields is a 400.
+  - The events poll fills `TripEventsPage.accessRev` for every reader except the demo trip.
+  - `apiClient`: `setTravelling`, `changeMemberRole`, `removeMember`. `createTripInvite` already
+    sent the whole `CreateInviteInput`, so `travelling` reaches the server unchanged.
+  - Public v1 has no member mutations, so it gains no PATCH. Its members list and invite body
+    already carried `travelling` from T1, and the server honours both since T2.
+- **Changed (T5, prose only):** `COST_DOC` (`activity.ts`) says a stop nobody is picked for is
+  priced for "every traveller on the trip", not "every member". `openapi.json` was regenerated
+  and `API_FINGERPRINT` updated; `API_VERSION` stays `1.6.0`, the release this whole entry is.
+  Every consumer of the cost rule now counts travellers: `lib/cost.ts`, the stop editor (*Who is
+  in* lists travellers first, then "Not travelling"; Booked by lists every member), the
+  calendar's city cards, the home "N travelers", every `@tc/pages` cost widget (`costOfStops`
+  takes the member list and reads `travellerIds` itself), `cost.balances` and `person.share`
+  (real traveller ids, replacing T1's member ids), and the assistant (`read_trip` reports
+  `members` and `travellers`; `get_widget`'s `people` says who is travelling).
+- Breaking? no for parsing: every new field is optional or defaulted, and every stored row still
+  parses. `balances`'s new argument breaks a caller at compile time, on purpose. A default of
+  "every member" would have silently kept the old split.
 ## 2026-10-05 — `NearbyStop` and `NearbyStopsResponse` (M34)
 
 - **New file `nearbyStops.ts`:** `NearbyStop`, `NearbyStopsResponse` and `NEARBY_STOPS_MAX` (40).

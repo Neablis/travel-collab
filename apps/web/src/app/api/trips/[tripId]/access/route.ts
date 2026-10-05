@@ -1,15 +1,22 @@
 import { TripAccess } from "@tc/contracts";
 import { inviteTokenOf, requireTripAccess } from "@/server/access/trip-access";
-import { withProfiles } from "@/server/access/members";
+import { accessRevForRead, withProfiles } from "@/server/access/members";
 import { listInvites } from "@/server/access/invites";
 import { demoTripMembers } from "@/server/demoTrip";
 import { isDemoTripId } from "@/lib/demoTrip";
 import { accountCan } from "@/server/entitlements/resolver";
 
-// The Travelers panel's one read: who is on this trip, what am I, and (owner
+// The People section's one read: who is on this trip, what am I, and (owner
 // only) which links are outstanding.
 export async function GET(request: Request, { params }: { params: Promise<{ tripId: string }> }) {
   const { tripId } = await params;
+  // First, before anything that reads the members: `requireTripAccess` reads
+  // them, and `listInvites` reads the invites. A rev read first is never newer
+  // than the list it is served with, so a client that takes it as its baseline
+  // re-reads on any write the list missed (KI-2026-10-05-g, spec W22). Read
+  // before the auth check, so a refused caller pays one primary-key read. The
+  // rev is served only to a caller who passes the check.
+  const accessRev = await accessRevForRead(tripId);
   const access = await requireTripAccess(tripId, "viewer", { allowDemo: true, inviteToken: inviteTokenOf(request) });
   if ("error" in access) return access.error;
   // Any member may see who else is here. Only the owner sees invites, because
@@ -42,7 +49,19 @@ export async function GET(request: Request, { params }: { params: Promise<{ trip
     isDemoTripId(tripId) || owner === null
       ? true
       : await accountCan(owner, "trip.collaborators");
+  // Who is reading, so the People section marks "You" without waiting on the
+  // session probe. Only a reader on the list: the demo visitor and an
+  // invite-link look carry stand-in ids that name nobody.
+  const viewerId = members.some((m) => m.userId === access.userId) ? access.userId : undefined;
   return Response.json({
-    access: TripAccess.parse({ tripId, myRole: access.role, members, invites, collaboratorsEntitled }),
+    access: TripAccess.parse({
+      tripId,
+      myRole: access.role,
+      members,
+      invites,
+      collaboratorsEntitled,
+      accessRev,
+      viewerId,
+    }),
   });
 }

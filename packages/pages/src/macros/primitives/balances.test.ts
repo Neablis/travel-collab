@@ -30,6 +30,12 @@ function price(trip: TripDetail, day: number, slot: number, cost: Money | null, 
   trip.activities[id] = { ...trip.activities[id]!, cost, participants, bookedBy };
 }
 
+/** Mark one member as not travelling (travellers spec D1), as the access overlay would. */
+function notTravelling(trip: TripDetail, userId: string): TripDetail {
+  trip.members = trip.members.map((m) => (m.userId === userId ? { ...m, travelling: false } : m));
+  return trip;
+}
+
 const ctx = (trip: TripDetail | undefined, people: WidgetContext["people"] = PEOPLE): WidgetContext => ({
   trip, page: { tripId: trip?.tripId ?? "t" }, user: null, globals: null, today: null, people,
 });
@@ -107,6 +113,18 @@ describe("cost.balances — Who owes what", () => {
     price(trip, 0, 0, usd(10_00), ["u-ana", "u-gone"], "u-ana");
     expect(tableOf(trip).find((r) => r[0] === "Former member")).toEqual(["Former member", "$10.00", "", "owes $10.00"]);
   });
+
+  // Travellers spec D1/D7: a stop nobody picked is split across the
+  // travellers, and Cy — not travelling — still gets a row and can pay.
+  it("splits a stop nobody picked across the travellers, and keeps a non-traveller who paid", () => {
+    const trip = notTravelling(tripOf(), "u-cy");
+    price(trip, 0, 0, usd(30_00), [], "u-cy");
+    expect(tableOf(trip)).toEqual([
+      ["Ana", "$30.00", "", "owes $30.00"],
+      ["Ben", "$30.00", "", "owes $30.00"],
+      ["Cy", "", "$60.00", "is owed $60.00"],
+    ]);
+  });
 });
 
 describe("person.share — What one person is in for", () => {
@@ -143,6 +161,16 @@ describe("person.share — What one person is in for", () => {
     price(trip, 0, 0, usd(10_00), ["u-ana"], "u-ana");
     expect(renderMacro(ctx(trip), "person.share", { who: "u-cy" })).toEqual({ status: "empty" });
     expect(renderMacro(ctx(trip), "person.share", { who: "u-stranger" })).toEqual({ status: "empty", because: "not on this trip" });
+  });
+
+  // Travellers spec D6: Cy is not travelling, so the dinner nobody picked is
+  // not his — the ticket he was picked for is.
+  it("counts a non-traveller only in the stops they were picked for", () => {
+    const trip = notTravelling(tripOf(), "u-cy");
+    price(trip, 0, 0, usd(30_00), [], "u-ana");
+    price(trip, 0, 1, usd(50_00), ["u-cy"], "u-ben");
+    expect(sentenceOf(trip, "u-cy")).toBe("Cy is in for $50.00 across 1 stop and owes $50.00");
+    expect(sentenceOf(trip, "u-ana")).toBe("Ana is in for $30.00 across 1 stop, has paid $60.00 and is owed $30.00");
   });
 });
 

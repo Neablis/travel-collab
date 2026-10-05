@@ -68,6 +68,8 @@ const TRIP_READOUT = {
   currency: "USD",
   startDate: "2026-09-08",
   dayCount: 3,
+  members: 2,
+  travellers: 2,
   tripCostTotal: 1000,
   days: [
     { day: 1, date: "2026-09-08", cities: [], stopCount: 2, toBook: 0, costSubtotal: 500 },

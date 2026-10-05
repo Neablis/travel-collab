@@ -76,8 +76,9 @@ export function SavedDaysDialog({
     const result = await fetchSavedDays();
     // Clearing on success matters because this dialog is reopened: without it
     // a failed load leaves its message sitting above the fresh list forever.
-    // Same fix TravelersPanel and ShareButton took in an earlier round; link 6
-    // was not in PR #70, so it never received it (CodeRabbit, PR #71).
+    // Same fix ShareButton and the trip's member list took in an earlier
+    // round; link 6 was not in PR #70, so it never received it (CodeRabbit,
+    // PR #71).
     if (result.ok) {
       setSavedDays(result.value);
       setError(null);

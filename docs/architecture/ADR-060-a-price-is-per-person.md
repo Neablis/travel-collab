@@ -37,6 +37,8 @@ Mitchell, 2026-10-02, asked four questions at M19's kickoff:
    **Every member counts, viewers included** (Mitchell, 2026-10-02, after #289's preview
    walk showed a view-only invite raising every unpicked stop). A viewer who is not going
    is excluded by picking *Who is in* on the stops they are not part of.
+   **Amended by ADR-065 (2026-10-05): empty = all *travellers*.** Who is travelling is Access
+   data, counted at read time, and a member who is not travelling counts only where picked.
 3. **One pure function computes it, in `packages/contracts`** (`costs.ts`: `stopHeadcount`,
    `stopTotal`, `isCommittedCost`). The domain, the web helpers and every `@tc/pages` cost
    widget call it. A second copy is the drift invariant 5 forbids.

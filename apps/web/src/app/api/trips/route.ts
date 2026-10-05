@@ -3,7 +3,7 @@ import { z } from "zod";
 import { auth } from "@/server/auth";
 import { readBody } from "@/server/readBody";
 import { executeTripCommand } from "@/server/commands";
-import { grantedMembersByTrip, mergeMembers } from "@/server/access/members";
+import { grantedMembersByTrip, mergeMembers, travellingByTrip, withTravelling } from "@/server/access/members";
 import { db } from "@/server/db/client";
 import { listTripSummariesVisibleTo } from "@/server/projections";
 
@@ -22,14 +22,19 @@ export async function GET() {
   // cross-tenant dump (project review L3, PR #71 review §6).
   const rows = await listTripSummariesVisibleTo(userId);
   // The avatar stack on a card counts travellers, so each summary carries the
-  // effective member list rather than the projection's owner-only one. One
-  // batched read for all of them — this was an `effectiveMembers` per trip.
-  // The stored projection is untouched (invariant 2): this is a read overlay,
-  // `mergeMembers` is pure, and nothing here writes back.
-  const granted = await grantedMembersByTrip(db, rows.map((r) => r.tripId));
+  // effective member list rather than the projection's owner-only one, with
+  // who is travelling on it (travellers spec W17). One batched read of each
+  // for all of them — this was an `effectiveMembers` per trip. The stored
+  // projection is untouched (invariant 2): this is a read overlay, both
+  // helpers are pure, and nothing here writes back.
+  const tripIds = rows.map((r) => r.tripId);
+  const [granted, travelling] = await Promise.all([grantedMembersByTrip(db, tripIds), travellingByTrip(db, tripIds)]);
   const trips = rows.map((r) => ({
     ...r,
-    members: mergeMembers(r.members, granted.get(r.tripId) ?? []),
+    members: withTravelling(
+      mergeMembers(r.members, granted.get(r.tripId) ?? []),
+      travelling.get(r.tripId) ?? new Map(),
+    ),
   }));
   return Response.json({ trips });
 }
