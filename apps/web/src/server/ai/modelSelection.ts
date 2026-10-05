@@ -140,8 +140,9 @@ export type { TierModels };
  * so "which models is production actually on?" is answerable only by reading
  * environment variables in a dashboard. That is exactly how a compiled default
  * goes unnoticed: `config.ts` compiles `anthropic/claude-haiku-4-5` while
- * production sets `AI_MODEL` to `deepseek/deepseek-v4-flash-0731`, and M20
- * link 5 records that gap already costing one estimate an order of magnitude.
+ * production ran `deepseek/deepseek-v4-flash-0731` through `AI_MODEL` (and
+ * now sets each tier, plus the classifier, by name), and M20 link 5 records
+ * that gap already costing one estimate an order of magnitude.
  * One field, and the question becomes answerable from outside.
  *
  * The classifier rides along for the same reason it rides along on a

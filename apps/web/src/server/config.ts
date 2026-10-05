@@ -53,7 +53,10 @@ export const serverConfig = {
   // `aiClassifierModel` above already follows, and for the same reason. With
   // none of the three set, all three resolve to exactly the model that answers
   // today, so tiering changes no behaviour until a deployment opts into it.
-  // Setting `AI_MODEL` alone still moves everything.
+  // Setting `AI_MODEL` alone still moves everything — a local convenience.
+  // No Vercel environment sets it since 2026-10-05: all three tiers and
+  // `AI_CLASSIFIER_MODEL` are set by name there, so it was never read, and it
+  // still named `deepseek/deepseek-v4-flash-0731` long after nothing ran that.
   //
   // Open, and deliberately not decided here (spec §5b): whether this should be
   // a Vercel Flag rather than three environment variables, which would allow a

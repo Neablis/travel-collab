@@ -42,8 +42,9 @@ export interface ModelSpend {
   /**
    * The **RESOLVED** id of the model that actually ran, never a compiled
    * default. `config.ts:15` compiles `anthropic/claude-haiku-4-5` while
-   * production sets `AI_MODEL` to `deepseek/deepseek-v4-flash-0731`, and M20
-   * link 5 records the consequence: *"costing the compiled default instead of
+   * production ran `deepseek/deepseek-v4-flash-0731` (and now sets a model per
+   * tier, `AI_MODEL_CHEAP` / `_MID` / `_STRONG`), and M20 link 5 records the
+   * consequence: *"costing the compiled default instead of
    * the configured model overstates the bill by roughly an order of
    * magnitude, and this note exists because that mistake was made once already
    * while scoping this milestone."* Recording the resolved id is what makes

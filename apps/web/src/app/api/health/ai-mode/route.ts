@@ -29,10 +29,10 @@ import { aiLiveMode, resolvedTierMap } from "@/server/ai/modelSelection";
 // is production actually on?" was answerable only by reading environment
 // variables in a dashboard — which is precisely how a compiled default goes
 // unnoticed. `config.ts` compiles `anthropic/claude-haiku-4-5` while production
-// sets `AI_MODEL` to `deepseek/deepseek-v4-flash-0731`, and M20 link 5 records
-// that gap already costing one cost estimate an order of magnitude, with the
-// note that *"this mistake was made once already while scoping this
-// milestone."* One field, and the question is answerable from outside.
+// ran `deepseek/deepseek-v4-flash-0731` (and now names a model per tier), and
+// M20 link 5 records that gap already costing one cost estimate an order of
+// magnitude, with the note that *"this mistake was made once already while
+// scoping this milestone."* One field, and the question is answerable from outside.
 //
 // It reports **resolved ids**, which is the only version of this worth
 // shipping: a map naming the environment variables rather than their values
