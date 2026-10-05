@@ -65,7 +65,13 @@ strong tier, and one is a production defect nobody had seen:
 **Candidate cheap model, 2026-10-05** (`EVAL_MODEL_CHEAP=zai/glm-5.3-flash`, the mid tier's
 model, on the four cheap-tier questions ×3): **12 of 12 passed, 1.9–4.1s each**, against 5–137s on
 production's `zai/glm-4.7-flashx` for the same prompts. Switching `AI_MODEL_CHEAP` is Mitchell's
-call; `glm-4.7-flashx` and `glm-5.3` have no entry in `modelRates.ts`, so their turns are unpriced.
+call. *(Done by Mitchell 2026-10-05; `models.json` follows. Both `glm-4.7-flashx` and `glm-5.3`
+have since been priced in `modelRates.ts`.)*
+
+**The cost cap, live, 2026-10-05** (`EVAL_ONLY=q-most-free EVAL_REPEAT=3 EVAL_MAX_USD=0.0001`):
+turn 1 ran and passed (3.0s, $0.0027), and turns 2 and 3 were skipped, *"the run has spent
+$0.0027, its cap is $0.0001"*. **The cap is checked before each turn, so a run can overshoot it
+by one turn's cost**; a turn cannot be priced until it has run. Spent: $0.0027.
 
 ## Exit gate
 

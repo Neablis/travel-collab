@@ -39,3 +39,8 @@
   cheap-tier and strong-tier turn was counted as unpriced. Fixed on #327 (2026-10-05) from the live
   Gateway catalogue, dated from each model's first production turn, with `modelRates.test.ts`
   holding every model in `models.json` to a rate.
+- **Switched, 2026-10-05:** Mitchell set `AI_MODEL_CHEAP=zai/glm-5.3-flash` in production, and
+  `models.json` follows. The eval's cap test the same day ran `q-most-free` on it in 3.0s
+  (steps 0.7s + 1.5s). **Still open** until production shows it: after `0037` is dispatched,
+  query 8 over a few days of cheap-tier turns with no step in the tens of seconds resolves the
+  cheap half. The strong tier's one slow run above stays a question until it is repeated.

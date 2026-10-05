@@ -379,11 +379,11 @@ reorder and the one place a reorder updates.
       lets M13 land the field and M19 build on it rather than both adding one.
       Its anchor finding is live in shipped code: `savedDayFacts.budgetPerPerson`
       is a plain sum of stop costs with nothing to divide by.)*
-- [ ] **M31 We can see what the assistant costs, step by step and tool by tool** (minted 2026-10-03 and placed after M19; **built 2026-10-03 beside M19** by Mitchell's call; gate 5 of 7, the two left are operator steps: the Gateway budget and the baseline run) → ← **current milestone**
+- [x] **M31 We can see what the assistant costs, step by step and tool by tool** (minted 2026-10-03 and placed after M19; **built 2026-10-03 beside M19** by Mitchell's call; **gate closed 2026-10-05**, 7 of 7: a $20/month Gateway budget, and a baseline of two production turns Mitchell accepted) →
       `docs/milestones/M31-assistant-ledger.md`
       *(ADR-062's Phase 1. The eve port it was minted for, Phases 2–5, is deferred until there
       are users: ADR-062 § *Deferred: the port*, and a candidate entry.)*
-- [ ] **M32 The assistant can say which day is free, in one call** (minted 2026-10-04 from Mitchell's production turn, placed after M31, built beside it; `find_free_time` ranks days inside 08:00-22:00, and each ledger step carries its duration, migration `0037`) →
+- [ ] **M32 The assistant can say which day is free, in one call** (minted 2026-10-04 from Mitchell's production turn, placed after M31, built beside it; `find_free_time` ranks days inside 08:00-22:00, and each ledger step carries its duration, migration `0037`) → ← **current milestone**
       `docs/milestones/M32-free-day.md`
 - [ ] **M33 We can see whether an assistant change works before it ships** (minted 2026-10-05, placed after M32, built beside it; `pnpm --filter web eval` runs the live set on production's models through the real `/ask` handler, scored by code) →
       `docs/milestones/M33-evals.md`

@@ -3,8 +3,8 @@
   "verified": "2026-10-05",
   "tiers": {
     "cheap": {
-      "model": "zai/glm-4.7-flashx",
-      "source": "ai_usage_steps, production, last seen 2026-10-04T23:06Z"
+      "model": "zai/glm-5.3-flash",
+      "source": "Mitchell, 2026-10-05: AI_MODEL_CHEAP switched from zai/glm-4.7-flashx after the M33 eval (12 of 12, 1.9-4.1s)"
     },
     "mid": {
       "model": "zai/glm-5.3-flash",
