@@ -13,6 +13,25 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-05 — `NearbyStop` and `NearbyStopsResponse` (M34)
+
+- **New file `nearbyStops.ts`:** `NearbyStop`, `NearbyStopsResponse` and `NEARBY_STOPS_MAX` (40).
+  - `NearbyStop` is a stop from another person's published day, offered in the add-stop sheet:
+    `title`, `location` (required), `kind` (the current `ActivityKind`, not
+    `StoredActivityKind`, because the server has already read the row through `SavedStop`),
+    `tags`, `lengthMinutes` (null with no time window), `savedDayId`, `savedDayName`,
+    `playbookCount` (published days carrying the same stop) and `distanceKm` (null when not
+    ranked by distance).
+  - `NearbyStopsResponse` is `{ stops }`, at most `NEARBY_STOPS_MAX`.
+- Why: M34 replaces the add-stop sheet's `add-stop-suggestions` placeholder with stops from the
+  public library. Named "nearby stops" rather than "suggestions" because a suggestion is
+  already ADR-064's pending change (M34 D14).
+- Consumers updated: `apps/web` only — `server/nearbyStops.ts`, the new internal route
+  `GET /api/trips/[tripId]/nearby-stops` (registered `PLANNED` in `exposure.ts`, so no `/v1`
+  endpoint and no `openapi.json` change), `lib/apiClient.ts`'s `fetchNearbyStops` and
+  `mocks/handlers.ts`' `makeNearbyStopsHandler`. The sheet reads it in M34 part 3.
+- Breaking? no. A new file; nothing existing changed.
+
 ## 2026-10-03 — The `suggester` role, and suggestions as a contract (ADR-064); Public API 1.4.0, then 1.5.0
 
 - **Added:** `suggester` to `TripRole` (now `viewer, suggester, editor, owner`, least-privileged

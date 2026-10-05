@@ -2,6 +2,7 @@ import {
   AskStreamMetadata,
   BatchableCommand,
   InviteLanding,
+  NearbyStopsResponse,
   PageDoc,
   Review,
   ReviewDayChanged,
@@ -896,6 +897,33 @@ export async function searchPlaces(q: string): Promise<ApiResult<PlaceMatch[]>> 
   try {
     const res = await fetch(apiUrl(`/api/places?q=${encodeURIComponent(q)}`));
     return await readJson(res, (data) => PlaceSearchResponse.parse(data).places);
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+/**
+ * Stops from other people's published days near a day of this trip (M34),
+ * ranked by the server, closest first.
+ *
+ * Asked once per add-stop sheet and filtered on the client as the title is
+ * typed (D5), so there is no debounce to own. `lat`/`lng` are sent only as a
+ * pair: the route refuses half a point.
+ */
+export async function fetchNearbyStops(
+  tripId: string,
+  query: { dayId?: string; lat?: number; lng?: number },
+): Promise<ApiResult<NearbyStopsResponse>> {
+  const params = new URLSearchParams();
+  if (query.dayId) params.set("dayId", query.dayId);
+  if (query.lat !== undefined && query.lng !== undefined) {
+    params.set("lat", String(query.lat));
+    params.set("lng", String(query.lng));
+  }
+  try {
+    // No `inviteLookHeaders`: the route serves members only (see its comment).
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/nearby-stops?${params.toString()}`));
+    return await readJson(res, (data) => NearbyStopsResponse.parse(data));
   } catch (err) {
     return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
   }
