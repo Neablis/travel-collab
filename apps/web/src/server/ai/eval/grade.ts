@@ -62,6 +62,11 @@ export function namesDayNumber(text: string, day: number): boolean {
   return new RegExp(`\\bday\\s+${day}\\b`, "i").test(text);
 }
 
+/**
+ * Every check one prompt's expectation asks for, run against one turn. Returns
+ * one entry per check, passed or not, in a fixed order, so a report reads the
+ * same from run to run; an expectation field left out adds no check.
+ */
 export function grade(turn: EvalTurn, expect: EvalExpectation): EvalCheck[] {
   const { record } = turn;
   const checks: EvalCheck[] = [];
