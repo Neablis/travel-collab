@@ -21,3 +21,10 @@
   model the cheap tier admits. One step in the minutes, with the rest fast, says a provider
   stall, and the question becomes a per-step timeout and a retry.
 - **First noted:** 2026-10-04, by Mitchell, reading his own turn.
+- **Measured per step, 2026-10-05 (M33 eval, step durations from M32's recorder):** the cheap
+  model stalls inside single round-trips. *"How long is this trip?"*, same prompt, same seeded
+  trip, three runs: steps `1.5s + 134.5s` (one `read_trip`, 107 output tokens), `1.7s + 2.4s`,
+  and `11.7s + 37.9s + 15.8s + 2.2s`. The mid tier (`zai/glm-5.3-flash`) on `q-most-free`, three
+  runs: every step 0.6-1.9s. Tool time is milliseconds throughout, so it is the model call: the
+  same prompt is 2.4s one time and 134.5s the next. This is the provider route or the model, not
+  turn size and not our code.

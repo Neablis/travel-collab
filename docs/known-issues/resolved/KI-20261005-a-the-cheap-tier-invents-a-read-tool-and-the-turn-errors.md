@@ -1,4 +1,4 @@
-### KI-2026-10-05-a — the cheap tier invents a `read` tool, and the turn ends in an error
+### KI-2026-10-05-a — the cheap tier invents a `read` tool, and the turn ends in an error — RESOLVED
 
 - **Severity:** major (a plain question fails most of the time on the tier that answers questions).
 - **Milestone:** found by M33's eval on its first full run; the fix is not in M33's scope.
@@ -26,3 +26,17 @@
      measures a candidate on the whole live set before anything is switched.
   3. Both.
 - **First noted:** 2026-10-05, M33's first full eval run.
+- **Resolved 2026-10-05, and the diagnosis above was wrong about what failed.** The invented call
+  was never fatal: AI SDK 7 turns it into a tool error the model reads, and the model answered
+  correctly every time (the client shows only stream `error` frames, so the reader saw the
+  answer). What failed the turn was our `onError`, which the UI stream calls to WORD every tool
+  error: it latched the record as `error` (dropping its steps) and cleared the hard deadline.
+  The failure is now recorded only on the stream's `error` part (`messageMetadata` in
+  `handleAskRequest.ts`); `onError` only words errors. Option 1 above was therefore unnecessary.
+- **Proof:** `transcripts/invented-tool-name.json` (the eval's `read, read_trip` turn) completes
+  with both steps counted; with the old `onError` it fails (`expected 'error' to be
+  'completed'`). `provider-error-mid-turn.json` keeps a genuine failure recorded. On the real
+  cheap model, `EVAL_ONLY=q-length EVAL_REPEAT=3` after the fix: 3 of 3 completed with a correct
+  answer, including a run that invented `read` twice. Two of the three were over the 60s
+  budget; that is `KI-2026-10-04-c`, now measured per step (one step took 134.5s). Same root
+  cause as `KI-2026-09-16-a`, resolved by the same change.

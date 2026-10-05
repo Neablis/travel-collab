@@ -47,8 +47,9 @@ merge.** The 162-second turn that prompted it is `KI-2026-10-04-c`.
 **M33 — evals — minted and built 2026-10-05, beside M31 and M32.** `pnpm --filter web eval` runs the
 live set on production's per-tier models through the real `/ask` handler and scores each turn by
 code (needs `TRAVEL_COLLAB_EVAL_KEY`). It showed M32 working before merge (0/3 → 3/3 on
-`q-most-free`) and found `KI-2026-10-05-a`: the cheap tier fails *"how long is this trip?"* 4 times
-in 5. (`docs/milestones/M33-evals.md`)
+`q-most-free`), and found that a tool error the model recovers from was recorded as a failed turn
+(`KI-2026-10-05-a`, `KI-2026-09-16-a`, both fixed on #327). With the turns recorded honestly, the
+cheap tier's model stalls inside single steps (134.5s in one): `KI-2026-10-04-c`. (`docs/milestones/M33-evals.md`)
 
 **M29 (the time river) and M30 (notebooks with one job each) closed their gates on
 2026-10-04**, at 20 of 20 and 9 of 9; each retro is at the end of its milestone file. Neither
