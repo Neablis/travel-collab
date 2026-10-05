@@ -56,6 +56,22 @@ const CONFIRM_COPY = {
   }),
 };
 
+/**
+ * Whether `next` is older than the access already held, so adopting it would
+ * step back. The section's own read and the provider's re-read race, and a slow
+ * mount read (rev 5) landing after the provider's (rev 6) would otherwise
+ * stick: the provider has seen 6 and never re-reads to correct it.
+ *
+ * `accessRev` is a per-trip integer counter serialized as a string (W5), so it
+ * is compared as a number. A read without one (the demo, a failed rev read)
+ * cannot be placed, and is taken only while nothing held carries a rev.
+ */
+function isOlder(next: TripAccess, held: TripAccess | null): boolean {
+  if (held?.accessRev === undefined) return false;
+  if (next.accessRev === undefined) return true;
+  return Number(next.accessRev) < Number(held.accessRev);
+}
+
 function travellersLine(count: number): string {
   // D5: totals floor at one person, so a trip with nobody travelling is still
   // priced for one — said, rather than "split across 0".
@@ -122,7 +138,12 @@ export function PeopleSection({
   const [revealed, setRevealed] = useState<string | null>(null);
   const ids = useId();
 
+  // The value on screen, read synchronously: two reads in flight can land in
+  // either order, and the one to compare against is the last one adopted.
+  const held = useRef<TripAccess | null>(null);
   const adopt = useCallback((value: TripAccess) => {
+    if (isOlder(value, held.current)) return;
+    held.current = value;
     setAccess(value);
     reportInvites.current?.(value.invites.some((i) => i.status === "pending"));
     // Cleared on success: a retry that worked must not leave the previous

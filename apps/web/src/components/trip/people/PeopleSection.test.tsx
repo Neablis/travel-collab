@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TripAccess, TripMemberProfile } from "@tc/contracts";
@@ -252,6 +252,27 @@ describe("PeopleSection", () => {
       expect(within(not).getByText("Dana")).toBeTruthy();
       expect(screen.queryByRole("list", { name: /^Invited/ })).toBeNull();
       expect(fetchTripAccessMock).toHaveBeenCalledTimes(1);
+    });
+
+    // The section's own mount read and the provider's re-read race. Whichever
+    // lands last used to win, so a slow mount read (rev 5) overwrote the
+    // provider's newer one (rev 6) — and the provider, already at 6, never
+    // re-reads to correct it.
+    it("keeps a newer TripAccess when an older read lands after it", async () => {
+      const dana = tripMemberProfileFactory.build({ userId: "dev-dana", role: "suggester", name: "Dana", travelling: false });
+      let answer: (value: unknown) => void = () => {};
+      fetchTripAccessMock.mockReturnValue(new Promise((resolve) => (answer = resolve)));
+      const { rerender } = render(<PeopleSection tripId={tripId} access={null} />);
+
+      rerender(
+        <PeopleSection tripId={tripId} access={access({ members: [alice, bob, dana], invites: [], accessRev: "6" })} />,
+      );
+      expect(await screen.findByRole("list", { name: "Not travelling · 1" })).toBeTruthy();
+
+      // Inside `act`, so the read has resolved and rendered before the asserts.
+      await act(async () => answer({ ok: true, value: access({ accessRev: "5" }) }));
+      expect(screen.getByRole("list", { name: "Not travelling · 1" })).toBeTruthy();
+      expect(screen.queryByRole("list", { name: /^Invited/ })).toBeNull();
     });
   });
 
