@@ -360,7 +360,7 @@ const KIND_DOC =
 // place an integrator can learn that every total multiplies it.
 export const COST_DOC =
   "Price for one person, in the trip's currency. A stop's total is this times its headcount: the " +
-  "people in `participants`, or every member of the trip when `participants` is empty. A `pending` " +
+  "people in `participants`, or every traveller on the trip when `participants` is empty. A `pending` " +
   "stop's cost is an estimate; a `planned` or `transit` stop's is committed.";
 
 export const AddActivity = z.object({

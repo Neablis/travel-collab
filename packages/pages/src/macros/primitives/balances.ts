@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { PersonRef, balances, stopPeople, type Balances, type FilterDimension, type TripDetail } from "@tc/contracts";
+import { PersonRef, balances, stopPeople, travellerIds, type Balances, type FilterDimension, type TripDetail } from "@tc/contracts";
 import type { MacroDef, RepeatPayload, RepeatRow, Seg, WidgetContext, WidgetInput } from "../../registry-types";
 import { chip, ghost, inlineOf, rowLabel, rowValue, text } from "../../registry-types";
 import { ok, empty, needsTrip, unbound, type MacroResult } from "../../result";
@@ -105,7 +105,7 @@ export const costBalances: MacroDef<BalancesParams, RepeatPayload> = {
   params: BalancesParams, inputs: filterInputs(BALANCE_FILTERS),
   selection: { entity: "stop", filters: BALANCE_FILTERS },
   description:
-    "Who owes what: each member's share of the selected stops (a stop's price per person, for everyone in it — everyone when nobody is picked), what they paid as the stop's Booked by, and their balance, plus a 'not paid yet' line for stops nobody booked. Trip currency only.",
+    "Who owes what: each member's share of the selected stops (a stop's price per person, for everyone in it — every traveller when nobody is picked), what they paid as the stop's Booked by, and their balance, plus a 'not paid yet' line for stops nobody booked. Trip currency only.",
   emptyText: "nothing priced yet",
   // Fixed, never computed (ADR-037 decision 5).
   preview: "each person's share, what they paid, and who owes what",
@@ -115,7 +115,7 @@ export const costBalances: MacroDef<BalancesParams, RepeatPayload> = {
     if (selection.status !== "ok") return selection;
     const { counted, others } = inTripCurrency(trip, selection.value.stops);
 
-    const result = balances(counted.map((s) => s.activity), memberIdsOf(trip), memberIdsOf(trip));
+    const result = balances(counted.map((s) => s.activity), memberIdsOf(trip), travellerIds(trip.members));
     if (nothingPriced(result)) return others === null ? empty() : empty(`only priced in other currencies: ${others}`);
 
     const names = personNames(trip, people, result.perMember.map((m) => m.userId));
@@ -190,8 +190,11 @@ export const personShare: MacroDef<ShareParams, PersonSharePayload> = {
     if (selection.status !== "ok") return selection;
     const { counted, others } = inTripCurrency(trip, selection.value.stops);
 
-    const memberIds = memberIdsOf(trip);
-    const result = balances(counted.map((s) => s.activity), memberIds, memberIds);
+    // A stop nobody picked is the travellers' (travellers spec D1); `who` may
+    // still be any member — a non-traveller is in what they were picked for
+    // and owed what they booked (D6, D7).
+    const travelling = travellerIds(trip.members);
+    const result = balances(counted.map((s) => s.activity), memberIdsOf(trip), travelling);
     const mine = result.perMember.find((m) => m.userId === who);
     // Not a member and in nothing: an id from a page written before they left.
     if (!mine) return empty("not on this trip");
@@ -200,7 +203,7 @@ export const personShare: MacroDef<ShareParams, PersonSharePayload> = {
     }
 
     const priced = counted.filter((s) => s.activity.cost!.amountMinor > 0);
-    const inStops = priced.filter((s) => stopPeople(s.activity, memberIds).includes(who)).length;
+    const inStops = priced.filter((s) => stopPeople(s.activity, travelling).includes(who)).length;
     return ok({
       name: personNames(trip, people, [who]).get(who)!,
       stops: `${inStops} ${inStops === 1 ? "stop" : "stops"}`,

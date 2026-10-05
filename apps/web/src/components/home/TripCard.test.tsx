@@ -83,6 +83,18 @@ describe("TripCard", () => {
     expect(screen.getByText(/active/i)).toBeTruthy();
   });
 
+  // Travellers spec §5: a member who joined to advise is on the trip, not on
+  // the road, so the stack names and shows the travellers only.
+  it("counts and shows the travellers, not every member", () => {
+    const trip = tripSummaryFixture({
+      members: [...twoMemberTrip().members, { userId: "dev-carol", role: "suggester", travelling: false }],
+    });
+    render(<TripCard trip={trip} />);
+
+    const group = screen.getByRole("group", { name: "2 travelers" });
+    expect(group.children.length).toBe(2);
+  });
+
   // Task 4.1 (M10 Phase 4): TripSummary carries no cost fields at all, so
   // TripCard can't derive this line itself — it only ever renders whatever
   // already-formatted string the caller (page.tsx, which fetches each

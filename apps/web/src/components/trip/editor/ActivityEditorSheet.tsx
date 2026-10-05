@@ -1,6 +1,6 @@
 "use client";
 
-import type { ActivityView } from "@tc/contracts";
+import { travellerIds, type ActivityView } from "@tc/contracts";
 import { useState } from "react";
 import { personNames } from "@tc/pages";
 import { Banner } from "@/components/ui/banner";
@@ -112,7 +112,7 @@ export function ActivityEditorSheet() {
 
   const memberIds = activeTrip?.members.map((m) => m.userId) ?? [];
   const names = activeTrip === null ? new Map<string, string>() : personNames(activeTrip, people, memberIds);
-  const namedMembers = memberIds.map((userId) => ({ userId, name: names.get(userId)! }));
+  const namedMembers = (activeTrip?.members ?? []).map(({ userId, travelling }) => ({ userId, name: names.get(userId)!, travelling }));
 
   const dayOptions: ActivityDayOption[] =
     activeTrip?.days.map((day, index) => ({
@@ -176,7 +176,7 @@ export function ActivityEditorSheet() {
         <ReadOnlyActivity
           activity={editingActivity}
           currency={activeTrip?.currency ?? "USD"}
-          memberCount={activeTrip?.members.length ?? 1}
+          travellerCount={travellerIds(activeTrip?.members ?? []).length}
           onClose={close}
         />
       )}
@@ -226,12 +226,12 @@ export function ActivityEditorSheet() {
 function ReadOnlyActivity({
   activity,
   currency,
-  memberCount,
+  travellerCount,
   onClose,
 }: {
   activity: ActivityView | null;
   currency: string;
-  memberCount: number;
+  travellerCount: number;
   onClose: () => void;
 }) {
   const clock = useTimeFormat();
@@ -264,7 +264,7 @@ function ReadOnlyActivity({
           {/* The same line the editor shows under its Cost field (ADR-060). */}
           {activity.cost !== null && (
             <Text variant="muted" data-testid="activity-cost-total">
-              {stopTotalLine(activity, memberCount, currency)}
+              {stopTotalLine(activity, travellerCount, currency)}
             </Text>
           )}
           {activity.notes !== null && activity.notes !== "" && (

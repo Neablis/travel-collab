@@ -1,4 +1,4 @@
-import { stopTotal, type ActivityTag, type ActivityView, type TripDetail } from "@tc/contracts";
+import { stopTotal, travellerIds, type ActivityTag, type ActivityView, type TripDetail } from "@tc/contracts";
 import { needsBooking } from "@/lib/needsBooking";
 import { toMinutes } from "@/lib/time";
 
@@ -76,11 +76,13 @@ export function calendarCityCards(
   day: TripDetail["days"][number],
   activities: TripDetail["activities"],
   /**
-   * `detail.members.length`. A stop's price is per person (ADR-060), so a
-   * card's cost is each stop's price times who is in it — or times everyone,
-   * when nobody is picked — the same `stopTotal` the board's day total sums.
+   * `detail.members`. A stop's price is per person (ADR-060), so a card's cost
+   * is each stop's price times who is in it — or times every traveller, when
+   * nobody is picked (travellers spec D1) — the same `stopTotal` the board's
+   * day total sums. The list rather than a count, so `travellerIds` is read
+   * here and a lens cannot hand over the member count by mistake.
    */
-  memberCount: number,
+  members: TripDetail["members"],
   /**
    * SPEC §11's focused tag, or null. The Calendar's rule is a COUNT, not a
    * per-stop dim: at this zoom a card is the unit, so it reports how many of
@@ -133,7 +135,7 @@ export function calendarCityCards(
   const groups: { city: string | null; stops: ActivityView[] }[] = [...cityGroups];
   if (unplaced.length > 0) groups.push({ city: null, stops: unplaced });
 
-  return groups.map((g) => summarise(g.city, g.stops, focusedTag, memberCount));
+  return groups.map((g) => summarise(g.city, g.stops, focusedTag, travellerIds(members).length));
 }
 
 /** See `needsBooking` — narrower than SPEC §12's literal wording, and why. */
@@ -142,12 +144,12 @@ function unbookedCount(stops: ActivityView[]): number {
 }
 
 /** One group of a day's stops, reduced to the card `CalendarLens` draws. */
-function summarise(city: string | null, stops: ActivityView[], focusedTag: ActivityTag | null, memberCount: number): CityCard {
+function summarise(city: string | null, stops: ActivityView[], focusedTag: ActivityTag | null, travellerCount: number): CityCard {
   const windows = stops
     .map((s) => s.timeWindow)
     .filter((w): w is { start: string; end: string } => w !== null && w !== undefined);
 
-  const costs = stops.filter((s) => s.cost).map((s) => stopTotal(s, memberCount));
+  const costs = stops.filter((s) => s.cost).map((s) => stopTotal(s, travellerCount));
 
   const window =
     windows.length === 0

@@ -100,4 +100,15 @@ describe("committed vs estimate", () => {
     // The fixture as shipped has no pending stop, so there is nothing to split.
     expect(committedLine(tripSpend(costedTripDetailFixture()), "USD")).toBeNull();
   });
+
+  it("prices a stop nobody picked for the travellers, not every member", () => {
+    // u3 joined to advise (travellers spec D1): the Forum is 1600 × 2, and the
+    // server's total — recosted for the same two — splits against it.
+    const base = threeTravellers();
+    const spend = tripSpend(
+      withCostRollups({ ...base, members: base.members.map((m) => (m.userId === "u3" ? { ...m, travelling: false } : m)) }),
+    );
+    expect(spend.estimated).toBe(2_500 + 1_600 * 2);
+    expect(committedLine(spend, "USD")).toBe("$900.00 committed · $57.00 estimated");
+  });
 });

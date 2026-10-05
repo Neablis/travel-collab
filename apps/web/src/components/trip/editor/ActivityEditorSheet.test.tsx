@@ -460,6 +460,26 @@ describe("ActivityEditorSheet — a viewer gets no form", () => {
     expect(screen.getByText(`${formatMoney(15_00, trip.currency)} per person`)).toBeTruthy();
   });
 
+  // Travellers spec D1: nobody picked is the travellers, so an adviser who is
+  // not going is not in the viewer's total either.
+  it("prices a stop nobody picked for the travellers only", async () => {
+    asViewer();
+    const trip = fixture();
+    trip.members = [
+      { userId: "u1", role: "owner" },
+      { userId: "u2", role: "editor" },
+      { userId: "u3", role: "viewer", travelling: false },
+    ];
+    trip.activities[SCHEDULED_ACTIVITY_ID] = activityFactory.build({
+      activityId: SCHEDULED_ACTIVITY_ID,
+      cost: { amountMinor: 15_00, currency: trip.currency },
+      participants: [],
+    });
+    vi.mocked(fetchTripDetail).mockResolvedValue({ ok: true, value: trip });
+    renderEditorSheet({ mode: "edit", activityId: SCHEDULED_ACTIVITY_ID });
+    expect(await screen.findByText(`× 2 people = ${formatMoney(30_00, trip.currency)}`)).toBeTruthy();
+  });
+
   // Mitchell, 2026-09-30 (option "B"): a leg's destination shows wherever the
   // stop does, and this is the only place a viewer reads a stop in full.
   it("names a leg's destination as well as its origin", async () => {
@@ -553,5 +573,28 @@ describe("ActivityEditorSheet — who a stop is for, by name", () => {
     const { toggles, bookedBy } = labels();
     expect(toggles).toEqual(["Traveler 1", "Traveler 2"]);
     expect(bookedBy).toEqual(toggles);
+  });
+
+  // Travellers spec D6: the sheet hands the editor who is travelling, so a
+  // non-traveller is offered apart and the line prices nobody picked for one.
+  it("passes who is travelling to the editor", async () => {
+    const trip = fixture();
+    trip.members = [
+      { userId: U1, role: "owner" },
+      { userId: U2, role: "suggester", travelling: false },
+    ];
+    trip.activities[SCHEDULED_ACTIVITY_ID] = activityFactory.build({
+      activityId: SCHEDULED_ACTIVITY_ID,
+      title: "Existing stop",
+      cost: { amountMinor: 15_00, currency: trip.currency },
+      participants: [],
+    });
+    vi.mocked(fetchTripDetail).mockResolvedValue({ ok: true, value: trip });
+    fetchTripAccessMock.mockResolvedValue({ ok: false, error: { status: 500, message: "down" } });
+    renderEditorSheet({ mode: "edit", activityId: SCHEDULED_ACTIVITY_ID });
+
+    await screen.findByDisplayValue("Existing stop");
+    expect(screen.getByTestId("activity-cost-total").textContent).toBe(`× 1 person = ${formatMoney(15_00, trip.currency)}`);
+    expect(within(screen.getByRole("group", { name: "Not travelling" })).getByRole("button").textContent).toBe("Traveler 2");
   });
 });

@@ -1,4 +1,4 @@
-import { isCommittedCost, stopHeadcount, stopTotal, type ActivityView, type TripDetail } from "@tc/contracts";
+import { isCommittedCost, stopHeadcount, stopTotal, travellerIds, type ActivityView, type TripDetail } from "@tc/contracts";
 import { formatMoney } from "@/lib/formatMoney";
 
 // Currency is trip-level, never per-event (decision, 2026-08-14), so every
@@ -16,8 +16,9 @@ import { formatMoney } from "@/lib/formatMoney";
 // one is legitimately derived here by iterating activities. So is `estimated`
 // (ADR-060 decision 5): the part of the total that is a pending stop's guess.
 // It sums `stopTotal`, the one per-person rule the server's total is built
-// from, over `detail.members` — the effective list the server has already
-// recosted that total for — so the two cannot be priced for different people.
+// from, over the travellers among `detail.members` — the effective list the
+// server has already recosted that total for — so the two cannot be priced for
+// different people.
 export type TripSpend = {
   total: number;
   /** The part of `total` that is still an estimate: pending stops. `total − estimated` is committed. */
@@ -40,9 +41,10 @@ function isUnpriced(cost: { amountMinor: number } | null | undefined): cost is n
 export function tripSpend(detail: TripDetail): TripSpend {
   const activities = Object.values(detail.activities);
   const unpriced = activities.filter((a) => isUnpriced(a.cost)).length;
+  const travellerCount = travellerIds(detail.members).length;
   const estimated = activities
     .filter((a) => !isCommittedCost(a.kind))
-    .reduce((sum, a) => sum + stopTotal(a, detail.members.length), 0);
+    .reduce((sum, a) => sum + stopTotal(a, travellerCount), 0);
   return {
     total: detail.tripCostTotal,
     estimated,
@@ -95,10 +97,10 @@ export function daySpend(detail: TripDetail, dayId: string): { total: number; un
  */
 export function stopTotalLine(
   stop: Pick<ActivityView, "cost" | "participants">,
-  memberCount: number,
+  travellerCount: number,
   currency: string,
 ): string | null {
   if (stop.cost === null) return null;
-  const people = stopHeadcount(stop, memberCount);
-  return `× ${people} ${people === 1 ? "person" : "people"} = ${formatMoney(stopTotal(stop, memberCount), currency)}`;
+  const people = stopHeadcount(stop, travellerCount);
+  return `× ${people} ${people === 1 ? "person" : "people"} = ${formatMoney(stopTotal(stop, travellerCount), currency)}`;
 }

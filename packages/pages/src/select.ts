@@ -1,6 +1,7 @@
 import {
   FilterDimension,
   stopTotal,
+  travellerIds,
   type ActivityView,
   type CityRef,
   type DateRangeRef,
@@ -360,13 +361,17 @@ function scoped(filters: WidgetFilterValues, item: ItemScope | undefined): Widge
  * which is the property that matters here.
  *
  * A price is per person (ADR-060), so each stop counts `stopTotal`: its price
- * times who is in it, or times `memberCount` when nobody is picked. Callers
- * pass `trip.members.length` — the detail's own list, which the server has
- * already overlaid with the effective members — so the widget and the board
- * multiply by the same people.
+ * times who is in it, or times every traveller when nobody is picked
+ * (travellers spec D1). Callers pass `trip.members` — the detail's own list,
+ * which the server has already overlaid with the effective members and recosted
+ * for their travellers — so the widget and the board multiply by the same
+ * people. The list rather than a count, so the traveller rule is read here once
+ * and no widget can hand over the member count instead.
  */
-export const costOfStops = (stops: readonly SelectedStop[], memberCount: number): number =>
-  stops.reduce((sum, stop) => sum + stopTotal(stop.activity, memberCount), 0);
+export const costOfStops = (stops: readonly SelectedStop[], members: TripDetail["members"]): number => {
+  const travellerCount = travellerIds(members).length;
+  return stops.reduce((sum, stop) => sum + stopTotal(stop.activity, travellerCount), 0);
+};
 
 /**
  * The selected stops attributed to one city — **by the stop's OWN location,

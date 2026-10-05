@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import type { TripSummary, TripStatus } from "@tc/contracts";
+import { travellerIds, type TripSummary, type TripStatus } from "@tc/contracts";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Heading } from "@/components/ui/heading";
@@ -68,6 +68,11 @@ function statusLabel(status: TripStatus): string {
  */
 export function TripCard({ trip, menuSlot, plannedOfBudget }: TripCardProps) {
   const accent = dayAccents([trip.tripId])[0]!;
+  // The stack is who is going (travellers spec §5): an adviser who joined to
+  // help plan is not counted, and not drawn — so the label and the avatars it
+  // names agree.
+  const going = new Set(travellerIds(trip.members));
+  const travellers = trip.members.filter((m) => going.has(m.userId));
 
   // The trip's own start date when it has one (KI-034), WITH the year: the
   // grid lists past trips beside future ones, and "Sat, May 1" cannot tell
@@ -198,9 +203,9 @@ export function TripCard({ trip, menuSlot, plannedOfBudget }: TripCardProps) {
         <div
           className="flex flex-wrap items-center"
           role="group"
-          aria-label={`${trip.members.length} traveler${trip.members.length === 1 ? "" : "s"}`}
+          aria-label={`${travellers.length} traveler${travellers.length === 1 ? "" : "s"}`}
         >
-          {trip.members.map((member, i) => (
+          {travellers.map((member, i) => (
             <div
               key={member.userId}
               aria-hidden

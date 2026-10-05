@@ -57,6 +57,15 @@ Format:
     sent the whole `CreateInviteInput`, so `travelling` reaches the server unchanged.
   - Public v1 has no member mutations, so it gains no PATCH. Its members list and invite body
     already carried `travelling` from T1, and the server honours both since T2.
+- **Changed (T5, prose only):** `COST_DOC` (`activity.ts`) says a stop nobody is picked for is
+  priced for "every traveller on the trip", not "every member". `openapi.json` was regenerated
+  and `API_FINGERPRINT` updated; `API_VERSION` stays `1.6.0`, the release this whole entry is.
+  Every consumer of the cost rule now counts travellers: `lib/cost.ts`, the stop editor (*Who is
+  in* lists travellers first, then "Not travelling"; Booked by lists every member), the
+  calendar's city cards, the home "N travelers", every `@tc/pages` cost widget (`costOfStops`
+  takes the member list and reads `travellerIds` itself), `cost.balances` and `person.share`
+  (real traveller ids, replacing T1's member ids), and the assistant (`read_trip` reports
+  `members` and `travellers`; `get_widget`'s `people` says who is travelling).
 - Breaking? no for parsing: every new field is optional or defaulted, and every stored row still
   parses. `balances`'s new argument breaks a caller at compile time, on purpose. A default of
   "every member" would have silently kept the old split.

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { type ActivityKind, type ActivityMode, type ActivityTag, type ActivityView, type Anchor, type Location, type Money, type PendingReason, type TimeWindow } from "@tc/contracts";
+import { travellerIds, type ActivityKind, type ActivityMode, type ActivityTag, type ActivityView, type Anchor, type Location, type Money, type PendingReason, type TimeWindow } from "@tc/contracts";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
@@ -63,8 +63,12 @@ const KIND_HELP: Record<ActivityKind, string> = {
   transit: "Moving between the stops either side",
 };
 
-/** A trip member as the attribution controls show them: the id is the value, `name` the label. */
-export type NamedMember = { userId: string; name: string };
+/**
+ * A trip member as the attribution controls show them: the id is the value,
+ * `name` the label. `travelling` is `TripMember`'s, absent meaning travelling
+ * (travellers spec D2).
+ */
+export type NamedMember = { userId: string; name: string; travelling?: boolean };
 
 export type ActivityDayOption = { dayId: string; label: string; existing: Slot[] };
 
@@ -169,9 +173,41 @@ export function ActivityEditor({
   const [bookedBy, setBookedBy] = useState<string | null>(initial?.bookedBy ?? null);
   const [participants, setParticipants] = useState<string[]>(initial?.participants ?? []);
   const [cost, setCost] = useState<Money | null>(initial?.cost ?? null);
-  // Nobody picked is everyone; with no member list to hand (a caller that
-  // passes none) `stopHeadcount` reads it as the one person who is here.
-  const stopLine = stopTotalLine({ cost, participants }, members.length, tripCurrency);
+  // Nobody picked is every traveller (travellers spec D1); with no member list
+  // to hand (a caller that passes none) `stopHeadcount` reads it as the one
+  // person who is here.
+  const travelling = new Set(travellerIds(members));
+  const stopLine = stopTotalLine({ cost, participants }, travelling.size, tripCurrency);
+  // Who is in offers the travellers first and everyone else after them, under
+  // "Not travelling" (D6): a non-traveller may still join one dinner, and once
+  // picked they count, so the chip says so — the line above just went up.
+  // Booked by offers every member as they come (D7): a non-traveller can pay.
+  const notTravelling = members.filter((member) => !travelling.has(member.userId));
+  const personChip = (member: NamedMember) => {
+    const on = participants.includes(member.userId);
+    return (
+      <Button
+        key={member.userId}
+        variant={on ? "primary" : "secondary"}
+        size="sm"
+        aria-pressed={on}
+        className="rounded-full px-3"
+        onClick={() =>
+          setParticipants((current) =>
+            current.includes(member.userId) ? current.filter((id) => id !== member.userId) : [...current, member.userId],
+          )
+        }
+      >
+        {member.name}
+        {on && !travelling.has(member.userId) && (
+          <>
+            {" "}
+            <span className="opacity-80">(not travelling)</span>
+          </>
+        )}
+      </Button>
+    );
+  };
   // Ids this stop names for people who have since LEFT the trip. The read path
   // keeps them (contracts' detail.ts) and `stopHeadcount` still prices them, so
   // a picker that listed members only hid a person the line was charging for,
@@ -478,27 +514,7 @@ export function ActivityEditor({
         ) : (
           <>
             <div role="group" aria-label="Who is going" className="flex flex-wrap gap-1.5">
-              {members.map((member) => {
-                const on = participants.includes(member.userId);
-                return (
-                  <Button
-                    key={member.userId}
-                    variant={on ? "primary" : "secondary"}
-                    size="sm"
-                    aria-pressed={on}
-                    className="rounded-full px-3"
-                    onClick={() =>
-                      setParticipants((current) =>
-                        current.includes(member.userId)
-                          ? current.filter((id) => id !== member.userId)
-                          : [...current, member.userId],
-                      )
-                    }
-                  >
-                    {member.name}
-                  </Button>
-                );
-              })}
+              {members.filter((member) => travelling.has(member.userId)).map(personChip)}
               {departedIds.map((id, index) =>
                 participants.includes(id) ? (
                   <Button
@@ -513,6 +529,14 @@ export function ActivityEditor({
                     <span className="opacity-80">(left the trip)</span>
                   </Button>
                 ) : null,
+              )}
+              {notTravelling.length > 0 && (
+                <div className="flex basis-full flex-col gap-1.5 pt-1">
+                  <Text variant="muted">Not travelling</Text>
+                  <div role="group" aria-label="Not travelling" className="flex flex-wrap gap-1.5">
+                    {notTravelling.map(personChip)}
+                  </div>
+                </div>
               )}
             </div>
             <FormField

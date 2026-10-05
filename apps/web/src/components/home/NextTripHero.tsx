@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
-import type { TripSummary } from "@tc/contracts";
+import { travellerIds, type TripSummary } from "@tc/contracts";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Heading } from "@/components/ui/heading";
@@ -61,6 +61,9 @@ type SparklineFetchState =
  * @returns The rendered trip overview hero
  */
 export function NextTripHero({ trip, menuSlot }: NextTripHeroProps) {
+  // Who is going, as TripCard counts and draws them (travellers spec §5).
+  const going = new Set(travellerIds(trip.members));
+  const travellers = trip.members.filter((m) => going.has(m.userId));
   const created = new Date(trip.createdAt);
   const createdLabel = Number.isNaN(created.getTime())
     ? null
@@ -242,8 +245,8 @@ export function NextTripHero({ trip, menuSlot }: NextTripHeroProps) {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center" role="group" aria-label={`${trip.members.length} traveler${trip.members.length === 1 ? "" : "s"}`}>
-            {trip.members.map((member, i) => (
+          <div className="flex flex-wrap items-center" role="group" aria-label={`${travellers.length} traveler${travellers.length === 1 ? "" : "s"}`}>
+            {travellers.map((member, i) => (
               <div
                 key={member.userId}
                 aria-hidden

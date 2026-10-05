@@ -505,6 +505,10 @@ export interface WidgetContext {
    * **Optional, and absent is not an error**: the server, the assistant and
    * every test build a context without it, and a widget then calls a member
    * "Traveler 2" by their place in `trip.members` (`personName`).
+   *
+   * Names only. Who is travelling is read from `trip.members` (`travellerIds`),
+   * never from here: that list is the one the server recosted the trip's totals
+   * for, and a second copy from the access fetch could disagree with it.
    */
   people?: Readonly<Record<string, string>> | null;
 }
