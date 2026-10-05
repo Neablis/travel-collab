@@ -35,5 +35,7 @@
   trip): steps 2.0s + 104.7s, then the 240s deadline stopped step 3 with no proposal. A plan
   writes far more than a question, so one run does not separate slow output from a stall; it
   needs repeats before it is a finding of its own.
-- **Neither `zai/glm-4.7-flashx` nor `zai/glm-5.3` has an entry in `modelRates.ts`**, so every
-  cheap-tier and strong-tier turn in production is counted as unpriced by `costPerAccount`.
+- **Neither `zai/glm-4.7-flashx` nor `zai/glm-5.3` had an entry in `modelRates.ts`**, so every
+  cheap-tier and strong-tier turn was counted as unpriced. Fixed on #327 (2026-10-05) from the live
+  Gateway catalogue, dated from each model's first production turn, with `modelRates.test.ts`
+  holding every model in `models.json` to a rate.

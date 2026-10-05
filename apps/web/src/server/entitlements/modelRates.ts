@@ -118,6 +118,30 @@ export const MODEL_RATES: readonly ModelRate[] = [
     outputMicroUsdPerMTok: 500_000,
     cacheReadInputMicroUsdPerMTok: 30_000,
   },
+  {
+    // **The cheap tier production runs** (`AI_MODEL_CHEAP`), from its first live
+    // turn on 2026-10-04; until this entry every cheap-tier row was unpriced
+    // (found by M33, 2026-10-05). Read from the live catalogue on 2026-10-05:
+    // input $0.06, output $0.40 and `input_cache_read` $0.01 per MTok.
+    model: "zai/glm-4.7-flashx",
+    effectiveFrom: "2026-10-04",
+    inputMicroUsdPerMTok: 60_000,
+    outputMicroUsdPerMTok: 400_000,
+    cacheReadInputMicroUsdPerMTok: 10_000,
+  },
+  {
+    // **The strong tier** (`AI_MODEL_STRONG`), from its first live turn on
+    // 2026-09-19 (one turn; plan-class turns are rare). Unpriced until this
+    // entry (M33, 2026-10-05). Read from the live catalogue on 2026-10-05: US
+    // regional input $1.40, output $4.40 and `input_cache_read` $0.14 per MTok.
+    // The catalogue marks it `varies_by_provider` and lists a `fast` route at
+    // $2.10 / $6.60; the gateway's default route is the regional price.
+    model: "zai/glm-5.3",
+    effectiveFrom: "2026-09-19",
+    inputMicroUsdPerMTok: 1_400_000,
+    outputMicroUsdPerMTok: 4_400_000,
+    cacheReadInputMicroUsdPerMTok: 140_000,
+  },
 ];
 
 // Frozen for the same reason the plan versions are: `readonly` is a
