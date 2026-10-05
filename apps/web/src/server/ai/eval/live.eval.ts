@@ -27,6 +27,7 @@ import { executeTripCommand, executeTripCommandBatch } from "@/server/commands";
 import { db } from "@/server/db/client";
 import { rateLimitCounters } from "@/server/db/schema";
 import type { AskAnalyticsRecord } from "@/server/assistant/askAnalytics";
+import type { TurnLedger } from "@/server/assistant/ledger";
 import { expectationFor } from "./cases";
 import { grade, type EvalCheck, type EvalTurn } from "./grade";
 
@@ -106,10 +107,13 @@ function chunksOf(body: string): Record<string, unknown>[] {
     });
 }
 
-async function runTurn(prompt: LivePrompt, tripId: string): Promise<EvalTurn> {
+async function runTurn(prompt: LivePrompt, tripId: string): Promise<EvalTurn & { stepDurationsMs: (number | null)[] }> {
   // Keyed by actor, and every turn here is the same actor (see replay.int.test.ts).
   await db.delete(rateLimitCounters);
   const records: AskAnalyticsRecord[] = [];
+  // The ledger rides beside the record: where a slow turn's time went is its
+  // per-step durations (M32), which the record does not carry.
+  const ledgers: TurnLedger[] = [];
   const request = new Request(`http://eval/api/trips/${tripId}/ask`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -118,7 +122,10 @@ async function runTurn(prompt: LivePrompt, tripId: string): Promise<EvalTurn> {
       scope: { kind: "trip" },
     }),
   });
-  const response = await handleAskRequest(request, tripId, undefined, (record) => records.push(record));
+  const response = await handleAskRequest(request, tripId, undefined, (record, ledger) => {
+    records.push(record);
+    if (ledger) ledgers.push(ledger);
+  });
   const body = await response.text();
   const record = records[0];
   if (record === undefined) {
@@ -132,7 +139,12 @@ async function runTurn(prompt: LivePrompt, tripId: string): Promise<EvalTurn> {
   const proposal = chunks
     .map((chunk) => (chunk as { messageMetadata?: { proposal?: { commands?: unknown[] } } }).messageMetadata?.proposal)
     .find((found) => found !== undefined);
-  return { record, text, proposalCommands: proposal?.commands?.length ?? 0 };
+  return {
+    record,
+    text,
+    proposalCommands: proposal?.commands?.length ?? 0,
+    stepDurationsMs: ledgers[0]?.stepSpend.map((step) => step.durationMs) ?? [],
+  };
 }
 
 interface RunRow {
@@ -142,6 +154,8 @@ interface RunRow {
   steps: number;
   toolCalls: string[];
   latencyMs: number;
+  /** Each agent step's wall time (M32): the model's, plus that step's tool calls. */
+  stepDurationsMs: (number | null)[];
   inputTokens: number | null;
   outputTokens: number | null;
   answer: string;
@@ -182,7 +196,8 @@ afterAll(() => {
       ...rows.map(
         (row) =>
           `  ${row.checks.every((check) => check.pass) ? "PASS" : "FAIL"} ${row.id}#${row.run}  ${row.model}  ${row.steps} steps  ` +
-          `${row.toolCalls.length} calls  ${(row.latencyMs / 1000).toFixed(1)}s  ${row.inputTokens ?? "?"} in`,
+          `${row.toolCalls.length} calls  ${(row.latencyMs / 1000).toFixed(1)}s ` +
+          `[${row.stepDurationsMs.map((ms) => (ms === null ? "?" : (ms / 1000).toFixed(1))).join(" + ")}]  ${row.inputTokens ?? "?"} in`,
       ),
       `report: ${file}`,
     ].join("\n"),
@@ -203,6 +218,7 @@ describe("the live set, on production's models", () => {
           steps: turn.record.steps,
           toolCalls: turn.record.toolCalls.map((call) => call.name),
           latencyMs: turn.record.latencyMs,
+          stepDurationsMs: turn.stepDurationsMs,
           inputTokens: turn.record.usage.inputTokens,
           outputTokens: turn.record.usage.outputTokens,
           answer: turn.text,
