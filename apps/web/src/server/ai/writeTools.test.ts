@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { asSchema, type JSONSchema7, type Tool } from "ai";
 import fc from "fast-check";
-import { BatchableCommand, type TripDetail } from "@tc/contracts";
+import { BatchableCommand, COST_DOC, type TripDetail } from "@tc/contracts";
 import { costedTripDetailFixture } from "@tc/factories";
 import { witness } from "@/test-support/witness";
 import { MAX_PROPOSAL_INSERTS } from "@/server/assistant/limits";
@@ -1156,6 +1156,20 @@ describe("the money rule", () => {
     const readOnly = instructionsFor({ kind: "trip" }, 3, "read-only");
     expect(readOnly).toContain("minor units (cents), never a decimal");
     expect(count(readOnly)).toBe(0);
+  });
+});
+
+// Travellers spec D1: a stop nobody picked is priced for the people travelling,
+// not for every member. A writing turn reads that rule twice — in the change
+// tools' `cost` field and in its instruction — and both said "every member"
+// until the travellers change.
+describe("the cost rule counts travellers", () => {
+  it("COST_DOC prices a stop nobody picked for every traveller", () => {
+    expect(COST_DOC).toMatch(/every traveller/);
+  });
+
+  it("the instruction a writing turn gets says the same", () => {
+    expect(instructionsFor({ kind: "trip" }, 3, "propose")).toMatch(/or by every traveller when nobody is picked/);
   });
 });
 
