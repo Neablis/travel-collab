@@ -5,7 +5,7 @@ import { TripAccess } from "@tc/contracts";
 import { db } from "@/server/db/client";
 import { tripMemberships } from "@/server/db/schema";
 import { executeTripCommand } from "@/server/commands";
-import { effectiveMembers, grantMembership } from "@/server/access/members";
+import { accessRevFor, effectiveMembers, grantMembership } from "@/server/access/members";
 import { createInvite } from "@/server/access/invites";
 import { entitleAccounts } from "@/server/test-support/entitledAccount";
 
@@ -248,6 +248,8 @@ describe("PATCH /api/trips/:tripId/members/:userId", () => {
     const access = TripAccess.parse(((await res.json()) as { access: unknown }).access);
     expect(access.members.find((m) => m.userId === GUEST)?.travelling).toBe(false);
     expect((await member(tripId, GUEST))?.travelling).toBe(false);
+    // W22: the rev after this write, which the writer's page adopts as seen.
+    expect(access.accessRev).toBe(await accessRevFor(tripId));
   });
 
   // A member's own row. The response must not carry the owner's invites: each

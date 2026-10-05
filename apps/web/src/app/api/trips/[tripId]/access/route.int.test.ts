@@ -5,6 +5,7 @@ import { db } from "@/server/db/client";
 import { tripInvites, tripMemberships } from "@/server/db/schema";
 import { executeTripCommand } from "@/server/commands";
 import { acceptInvite, createInvite } from "@/server/access/invites";
+import { accessRevFor } from "@/server/access/members";
 import { entitleAccounts } from "@/server/test-support/entitledAccount";
 import { upsertUser } from "@/server/users";
 import { INVITE_TOKEN_HEADER } from "@/lib/inviteLook";
@@ -77,6 +78,33 @@ describe("GET /api/trips/:id/access", () => {
     expect(body.access.myRole).toBe("owner");
     expect(body.access.members.map((m) => m.userId)).toEqual([OWNER]);
     expect(body.access.invites.map((i) => i.email)).toEqual(["someone@example.com"]);
+  });
+
+  // KI-2026-10-05-f, spec W22. The client takes this rev as its baseline, so it
+  // has to be the poll's rev (`accessRevFor`), and it has to move with the list
+  // it is served beside.
+  it("carries the access revision the poll reports, moving with each Access write", async () => {
+    const tripId = await seedTrip();
+    const read = async () =>
+      ((await (await GET(new Request("http://test/x"), params(tripId))).json()) as {
+        access: { accessRev?: string; members: { userId: string }[]; invites: unknown[] };
+      }).access;
+
+    const fresh = await read();
+    expect(fresh.accessRev).toBe(await accessRevFor(tripId));
+    expect(fresh.accessRev).toBe("0");
+
+    await createInvite(tripId, OWNER, { email: null, role: "viewer" });
+    const invited = await read();
+    expect(invited.invites).toHaveLength(1);
+    expect(invited.accessRev).toBe(await accessRevFor(tripId));
+    expect(invited.accessRev).not.toBe(fresh.accessRev);
+
+    await join(tripId, "editor");
+    const joined = await read();
+    expect(joined.members.map((m) => m.userId)).toEqual([OWNER, GUEST]);
+    expect(joined.accessRev).toBe(await accessRevFor(tripId));
+    expect(joined.accessRev).not.toBe(invited.accessRev);
   });
 
   // A TripInvite carries its token, so listing invites IS handing out access.

@@ -228,8 +228,24 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
   // drag when this was written as a plain dependency.
   const optimisticRef = useRef<OptimisticState | null>(null);
 
+  // The last `accessRev` this provider has acted on, and one being acted on.
+  // Read and written by `onAccessRevision` below; seeded here.
+  const seenAccessRev = useRef<string | null>(null);
+  const readingAccessRev = useRef<string | null>(null);
+
   const adoptAccess = useCallback((value: TripAccess) => {
     setAccess(value);
+    // **The read's own revision is the baseline** (KI-2026-10-05-f, spec W22).
+    // The server reads it before the members, so it is never newer than the
+    // list adopted here: any rev the poll reports after this that differs is a
+    // write this list may not show, and is re-read. Seeding from the first
+    // poll instead absorbed a write made between `load` and that poll, such
+    // as an invite accepted inside the first 2s interval.
+    //
+    // This also re-baselines after a local write's re-read. W19 avoided that,
+    // because a rev from the poll could include a concurrent remote change
+    // the list did not. A rev read before its list cannot.
+    if (value.accessRev !== undefined) seenAccessRev.current = value.accessRev;
     setMyRole(value.myRole);
     // Only an owner is shown invites (`TripAccess`), and only an owner can be
     // alone on a trip someone is about to join: an editor or a suggester is
@@ -601,29 +617,31 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
   //
   // Only the newest read lands. A poll's and a local write's can cross.
   const accessTicket = useRef(0);
-  const reloadAccess = useCallback(async (): Promise<boolean> => {
+  // Resolves with what was read, or null when the read failed.
+  const reloadAccess = useCallback(async (): Promise<TripAccess | null> => {
     onRemoteChange();
     const ticket = ++accessTicket.current;
     const result = await cachedRead(tripKeys.access(tripId), () => fetchTripAccess(tripId));
     // Silent on failure, like the detail re-read: the last good answer stays,
     // and `accessUnknown` is about the load, not about a background read.
     if (ticket === accessTicket.current && result.ok) adoptAccess(result.value);
-    return result.ok;
+    return result.ok ? result.value : null;
   }, [tripId, onRemoteChange, adoptAccess]);
   const refreshAccess = useCallback(() => void reloadAccess(), [reloadAccess]);
 
-  // The last `accessRev` this provider has acted on, and one being acted on.
+  // The poll's `accessRev`, against the baseline `adoptAccess` seeded from the
+  // access read itself (W22).
   //
-  // **The first one seen is the baseline, not news.** The poll reports a
-  // revision on every tick, and the first is the trip as `load` just read it,
-  // give or take one interval; re-reading on it would double every mount's
-  // access and detail reads for nothing. An Access write inside that window is
-  // the cost (it shows on the next one), and the same window `load` itself has.
+  // **Only a fallback: with no baseline, the first rev seen becomes it.** This
+  // happens when the load's access read failed or carried no rev, such as on
+  // the demo trip or when the server's rev read failed. Then the first poll
+  // is the trip as `load` read it, give or take one interval, and an Access
+  // write inside that window shows only on the next one (KI-2026-10-05-f).
   //
   // Marked seen only once the re-read has landed (W68's rule for
   // `suggestionsRev`): a failed one leaves it behind, so the next poll retries.
-  const seenAccessRev = useRef<string | null>(null);
-  const readingAccessRev = useRef<string | null>(null);
+  // A re-read that carried its own rev has already been adopted with it, and
+  // that rev is at least as new as this one, so it is not overwritten.
   const onAccessRevision = useCallback(
     (rev: string) => {
       if (seenAccessRev.current === null) {
@@ -632,9 +650,9 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
       }
       if (rev === seenAccessRev.current || rev === readingAccessRev.current) return;
       readingAccessRev.current = rev;
-      void reloadAccess().then((ok) => {
+      void reloadAccess().then((read) => {
         if (readingAccessRev.current === rev) readingAccessRev.current = null;
-        if (ok) seenAccessRev.current = rev;
+        if (read !== null && read.accessRev === undefined) seenAccessRev.current = rev;
       });
     },
     [reloadAccess],

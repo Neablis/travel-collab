@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { ChangeRoleInput, SetTravellingInput, TripAccess, type TripMember, type TripRole } from "@tc/contracts";
 import { requireTripAccess } from "@/server/access/trip-access";
-import { effectiveMembers, removeMember, withProfiles } from "@/server/access/members";
+import { accessRevForRead, effectiveMembers, removeMember, withProfiles } from "@/server/access/members";
 import { listInvites, type AccessError } from "@/server/access/invites";
 import { changeRole, setTravelling } from "@/server/access/travellers";
 import { getTripDetail } from "@/server/projections";
@@ -121,6 +121,10 @@ async function accessView(
   access: { userId: string; role: TripRole },
   projected: readonly TripMember[],
 ): Promise<TripAccess> {
+  // Before the members and invites, as `GET /access` reads it. It is read after
+  // this request's own write, so it includes that write, and never a later one
+  // the list below misses (KI-2026-10-05-f, spec W22).
+  const accessRev = await accessRevForRead(tripId);
   const members = await effectiveMembers(db, tripId, projected);
   // The same field `GET /access` serves, from the same source: the trip
   // OWNER's `trip.collaborators` (M20 link 6). Neither mutation changes it,
@@ -136,5 +140,6 @@ async function accessView(
     // PATCH answers a member setting their own travelling too.
     invites: access.role === "owner" ? await listInvites(tripId) : [],
     collaboratorsEntitled: owner === null ? true : await accountCan(owner, "trip.collaborators"),
+    accessRev,
   });
 }

@@ -110,16 +110,6 @@ test("a suggester joins without moving the totals, and counts once marked as tra
     ),
     invite.getByRole("button", { name: "Create invite" }).click(),
   ]);
-  // The owner's first poll after this: the invite out is what starts its
-  // timer (W73), and the first `accessRev` it reports is only a baseline
-  // (W19). A join landing before it is folded into that baseline and never
-  // shown — KI-2026-10-05-f. A person takes longer than one 2s interval to
-  // sign in and press Join; this run did not, so it waits as a person would.
-  const madeAt = Date.now();
-  const baseline = page.waitForResponse(
-    (r) =>
-      new URL(r.url()).pathname === `/api/trips/${tripId}/events` && r.request().timing().startTime >= madeAt,
-  );
   // Off the "Invite link" field, not the clipboard — m11-invites says why.
   const field = invite.getByRole("textbox", { name: "Invite link" });
   await expect(field).toHaveValue(/\/invite\//);
@@ -134,7 +124,6 @@ test("a suggester joins without moving the totals, and counts once marked as tra
   const advisor = await signedInAs(browser, name, link);
   try {
     await advisor.goto(link);
-    await baseline;
     await advisor.getByRole("button", { name: "Join the trip" }).click();
     await expect(advisor.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
   } finally {

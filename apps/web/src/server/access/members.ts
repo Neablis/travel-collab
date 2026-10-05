@@ -3,6 +3,8 @@ import type { InviteRole, TripMember, TripMemberProfile, TripRole } from "@tc/co
 import { db, type Queryable } from "../db/client";
 import { memberRole, RANK } from "../accessPolicy";
 import { tripAccessRevs, tripMemberships, tripTravellers, users } from "../db/schema";
+import { isUuid } from "../ids";
+import { isDemoTripId } from "@/lib/demoTrip";
 // **Access & Membership reads a boolean out of Entitlements, never the other
 // way round** (ADR-045 rule 5). This import is the direction the module map
 // allows: the gate lives here, because this module is the one that knows an
@@ -222,6 +224,29 @@ export async function accessRevFor(tripId: string): Promise<string> {
     .from(tripAccessRevs)
     .where(eq(tripAccessRevs.tripId, tripId));
   return String(rows[0]?.rev ?? 0);
+}
+
+/**
+ * `TripAccess.accessRev`: the revision to serve beside a member list
+ * (KI-2026-10-05-f, spec W22).
+ *
+ * **Call it before reading the members and invites, never after.** A rev read
+ * first is never newer than the list it is served with. A client that takes it
+ * as its baseline therefore re-reads on any write the list missed. A rev read
+ * after the list could include a write the list does not show, and the client
+ * would treat that write as already seen.
+ *
+ * Undefined, not a throw, for the demo trip (served without the database), for
+ * an id that cannot name a trip, and when the read fails. The field is optional
+ * and the client falls back to its first poll, so a failure here costs the
+ * client its baseline, not the response.
+ */
+export async function accessRevForRead(tripId: string): Promise<string | undefined> {
+  if (isDemoTripId(tripId) || !isUuid(tripId)) return undefined;
+  return accessRevFor(tripId).catch((error: unknown) => {
+    console.error("access read: accessRev query failed", { tripId, error });
+    return undefined;
+  });
 }
 
 /**

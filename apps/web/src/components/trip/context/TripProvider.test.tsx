@@ -1357,6 +1357,49 @@ describe("TripProvider broadcast (M13 link 2)", () => {
       expect(fetchTripDetailMock).toHaveBeenCalledTimes(1);
     });
 
+    // KI-2026-10-05-f. The baseline is the rev the load's own access read
+    // carried, so an Access write landing between that read and the first
+    // poll (an invite accepted inside the first 2s interval) is news, not
+    // baseline. The fallback above still holds for a read with no rev.
+    it("re-reads when the first poll's revision differs from the one the load read", async () => {
+      // The load reads rev "1"; the invite is accepted; the re-read sees "2".
+      fetchTripAccessMock
+        .mockResolvedValueOnce({ ok: true, value: { ...accessAs("owner").value, accessRev: "1" } })
+        .mockResolvedValue({ ok: true, value: { ...accessAs("editor").value, accessRev: "2" } });
+      fetchTripDetailMock.mockResolvedValue({ ok: true, value: twoMemberDetail(1) });
+      fetchTripHistoryMock.mockResolvedValue({ ok: true, value: historyAtSeq(1) });
+      poll("2");
+      render(
+        <TripProvider tripId="x">
+          <AccessProbe />
+        </TripProvider>,
+      );
+      await waitFor(() => expect(screen.getByTestId("accessRole").textContent).toBe("owner"));
+      await broadcastArmed();
+
+      becomeVisible();
+      await waitFor(() => expect(screen.getByTestId("accessRole").textContent).toBe("editor"));
+      expect(fetchTripEventsMock).toHaveBeenCalledTimes(1);
+      expect(fetchTripAccessMock).toHaveBeenCalledTimes(2);
+    });
+
+    // W22, for a local write: its re-read carries the rev it was read at, so
+    // the poll reporting that same rev afterwards is not news.
+    it("takes a local write's re-read revision as seen, and re-reads nothing for it on the poll", async () => {
+      await mountAt("7");
+      fetchTripAccessMock.mockResolvedValue({ ok: true, value: { ...accessAs("editor").value, accessRev: "8" } });
+      fireEvent.click(screen.getByRole("button", { name: "refresh-access" }));
+      await waitFor(() => expect(screen.getByTestId("accessRole").textContent).toBe("editor"));
+      expect(fetchTripAccessMock).toHaveBeenCalledTimes(2);
+
+      poll("8");
+      becomeVisible();
+      await waitFor(() => expect(fetchTripEventsMock).toHaveBeenCalledTimes(2));
+      // eslint-disable-next-line testing-library/no-unnecessary-act -- settling the microtask queue, same as the KI-70 suite above
+      await act(async () => {});
+      expect(fetchTripAccessMock).toHaveBeenCalledTimes(2);
+    });
+
     it("re-reads access and the trip when the revision moves", async () => {
       await mountAt("7");
       fetchTripAccessMock.mockResolvedValue(accessAs("editor"));

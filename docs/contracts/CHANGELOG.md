@@ -13,6 +13,24 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-05 — `TripAccess.accessRev`: the access read carries its own revision
+
+- **Added:** `TripAccess.accessRev`, an optional opaque string. It is the same value the events
+  poll reports as `TripEventsPage.accessRev`, read **before** the members and invites beside it,
+  so it is never newer than they are.
+- Why: KI-2026-10-05-f. `TripProvider` used the first poll's `accessRev` as its baseline, so an
+  Access write between the page's load and that poll (an invite accepted inside the first 2s)
+  was absorbed and never shown. The provider now seeds the baseline from the access read itself
+  (travellers spec W22).
+- Consumers updated: `GET /api/trips/:tripId/access` and the `TripAccess` that
+  `PATCH`/`DELETE …/members/:userId` answer with fill it from `accessRevFor`. The demo trip
+  serves none, and a failed rev read leaves it out. `TripProvider` adopts it on every access
+  read it makes. `PeopleSection` ignores it.
+- Not in the public API: `TripAccess` is a BFF type, so `openapi.json`, `API_VERSION` (1.6.0)
+  and `API_FINGERPRINT` are unchanged.
+- Breaking? no. The field is optional, and a client without it keeps the old first-poll
+  baseline.
+
 ## 2026-10-05 — Who is travelling: `travelling` on members and invites, `travellerIds`; Public API 1.6.0
 
 - **Added:** `TripMember.travelling`, an optional boolean. Absent means travelling (travellers spec

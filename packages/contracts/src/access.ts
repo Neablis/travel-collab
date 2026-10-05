@@ -115,6 +115,22 @@ export const TripAccess = z.object({
    * own DTO; the capability string is opaque on the other side of that call.
    */
   collaboratorsEntitled: z.boolean(),
+  /**
+   * The trip's access revision as of this read (travellers spec D11, W22): the
+   * same opaque string the events poll reports as `accessRev`, compared only
+   * for equality.
+   *
+   * **Read before the members it describes, never after.** So it is never
+   * newer than the list beside it. A client that takes it as its baseline
+   * then treats any later rev from the poll as news. Before this field, the
+   * first poll's rev was the baseline, and an Access write between the load
+   * and that poll was absorbed and never shown (KI-2026-10-05-f).
+   *
+   * Optional: absent for the demo trip, which is served without the database,
+   * and when the rev read fails. A client without it falls back to taking the
+   * first poll's rev as the baseline.
+   */
+  accessRev: z.string().optional(),
 });
 export type TripAccess = z.infer<typeof TripAccess>;
 

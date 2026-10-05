@@ -66,4 +66,6 @@ ADR-060 decision 2 now reads "empty = all *travellers*".
 - **The public API's totals mean something different** (1.6.0, `docs/contracts/CHANGELOG.md`):
   `cost × headcount` now counts travellers, and `GET /v1/trips/:id/members` returns `travelling`.
 - **The first `accessRev` a client sees is a baseline** (spec W19). An Access write made before
-  that first poll is never re-read by that page. KI-2026-10-05-f.
+  that first poll is never re-read by that page. KI-2026-10-05-f. **Resolved the same day** (spec
+  W22): `TripAccess` carries `accessRev`, read before its members, and that is now the baseline.
+  The first poll is the baseline only when the read carried none.
