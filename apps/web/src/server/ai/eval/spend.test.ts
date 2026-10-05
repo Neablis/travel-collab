@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { TurnLedger } from "@/server/assistant/ledger";
 import { microUsdFor } from "@/server/entitlements/modelRates";
-import { dollars, turnMicroUsd, unpricedModels } from "./spend";
+import { capMicroUsdFrom, DEFAULT_CAP_MICRO_USD, dollars, turnMicroUsd, unpricedModels } from "./spend";
 
 const AT = new Date("2026-10-05T12:00:00Z");
 
@@ -59,5 +59,20 @@ describe("dollars", () => {
   it("reads micro-dollars as dollars", () => {
     expect(dollars(250_000)).toBe("$0.2500");
     expect(dollars(1_234)).toBe("$0.0012");
+  });
+});
+
+// A cap that parses to NaN is no cap: `spent >= NaN` is never true, so every
+// turn would run and be paid (CodeRabbit, PR 327). Refused, never defaulted.
+describe("capMicroUsdFrom", () => {
+  it("reads dollars as micro-dollars, and defaults only when unset", () => {
+    expect(capMicroUsdFrom("0.25")).toBe(250_000);
+    expect(capMicroUsdFrom("0")).toBe(0);
+    expect(capMicroUsdFrom(undefined)).toBe(DEFAULT_CAP_MICRO_USD);
+    expect(capMicroUsdFrom(" ")).toBe(DEFAULT_CAP_MICRO_USD);
+  });
+
+  it("refuses a value that is not a finite, non-negative number", () => {
+    for (const raw of ["abc", "$0.10", "-1", "Infinity", "NaN"]) expect(capMicroUsdFrom(raw), raw).toBeNull();
   });
 });

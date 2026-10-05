@@ -31,7 +31,7 @@ import type { AskAnalyticsRecord } from "@/server/assistant/askAnalytics";
 import type { TurnLedger } from "@/server/assistant/ledger";
 import { expectationFor } from "./cases";
 import { grade, type EvalCheck, type EvalTurn } from "./grade";
-import { dollars, turnMicroUsd, unpricedModels } from "./spend";
+import { capMicroUsdFrom, dollars, turnMicroUsd, unpricedModels } from "./spend";
 
 const ACTOR_ID = "eval-actor";
 
@@ -93,7 +93,8 @@ const prompts = liveSet.prompts.filter((prompt) => only.length === 0 || only.inc
 // turns so far have spent that, the rest are skipped, not run. A configured
 // model with no rate is refused, because a run cannot cap what it cannot price.
 const confirmed = process.env.EVAL_CONFIRM === "1";
-const capMicroUsd = Math.round(Number(process.env.EVAL_MAX_USD ?? "0.10") * 1_000_000);
+// Null when EVAL_MAX_USD is not a number: refused in beforeAll, never read as "no cap".
+const capMicroUsd = capMicroUsdFrom(process.env.EVAL_MAX_USD);
 const configuredModels = [
   process.env.AI_MODEL_CHEAP,
   process.env.AI_MODEL_MID,
@@ -103,7 +104,7 @@ const configuredModels = [
 const unpriced = unpricedModels(configuredModels, new Date());
 const plan =
   `eval plan: ${prompts.length} prompt(s) x ${repeat} = ${prompts.length * repeat} paid turn(s), ` +
-  `cap ${dollars(capMicroUsd)}, models ${[...new Set(configuredModels)].join(", ")}`;
+  `cap ${capMicroUsd === null ? `invalid (EVAL_MAX_USD=${process.env.EVAL_MAX_USD})` : dollars(capMicroUsd)}, models ${[...new Set(configuredModels)].join(", ")}`;
 let spentMicroUsd = 0;
 let unpricedTurns = 0;
 
@@ -193,6 +194,9 @@ const rows: RunRow[] = [];
 
 beforeAll(async () => {
   console.log(plan);
+  if (capMicroUsd === null) {
+    throw new Error(`EVAL_MAX_USD must be a non-negative number of dollars, got "${process.env.EVAL_MAX_USD}". Nothing was sent.`);
+  }
   if (!confirmed) {
     throw new Error(`${plan}\nNothing was sent. Set EVAL_CONFIRM=1 to spend it (and EVAL_MAX_USD to change the cap).`);
   }
@@ -227,7 +231,7 @@ afterAll(() => {
       "",
       `eval: ${rows.length} turns, ${rows.reduce((n, row) => n + row.checks.length, 0)} checks, ${failed.length} failed`,
       `models: ${JSON.stringify(models)}`,
-      `spent: ${dollars(spentMicroUsd)} of a ${dollars(capMicroUsd)} cap${unpricedTurns > 0 ? ` (+ ${unpricedTurns} unpriced turn(s))` : ""}`,
+      `spent: ${dollars(spentMicroUsd)} of a ${capMicroUsd === null ? "invalid" : dollars(capMicroUsd)} cap${unpricedTurns > 0 ? ` (+ ${unpricedTurns} unpriced turn(s))` : ""}`,
       ...rows.map(
         (row) =>
           `  ${row.checks.every((check) => check.pass) ? "PASS" : "FAIL"} ${row.id}#${row.run}  ${row.model}  ${row.steps} steps  ` +
@@ -243,8 +247,8 @@ describe("the live set, on production's models", () => {
   for (const prompt of prompts) {
     for (let run = 1; run <= repeat; run += 1) {
       it(`${prompt.id}#${run}: ${prompt.text}`, async (context) => {
-        if (spentMicroUsd >= capMicroUsd) {
-          console.log(`    skipped: the run has spent ${dollars(spentMicroUsd)}, its cap is ${dollars(capMicroUsd)}`);
+        if (capMicroUsd === null || spentMicroUsd >= capMicroUsd) {
+          console.log(`    skipped: the run has spent ${dollars(spentMicroUsd)}, its cap is ${capMicroUsd === null ? "invalid" : dollars(capMicroUsd)}`);
           context.skip();
           return;
         }

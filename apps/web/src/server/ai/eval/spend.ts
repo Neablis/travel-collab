@@ -39,6 +39,20 @@ export function unpricedModels(models: readonly string[], at: Date): string[] {
   return [...new Set(models)].filter((model) => rateAt(model, at) === null);
 }
 
+/** The cap a run starts with when `EVAL_MAX_USD` is not set: ten cents. */
+export const DEFAULT_CAP_MICRO_USD = 100_000;
+
+/**
+ * `EVAL_MAX_USD` as micro-dollars, or null when it is not a finite, non-negative
+ * number. Null refuses the run: `Number("abc")` is NaN, and `spent >= NaN` is
+ * never true, so a typo would otherwise be a run with no cap at all.
+ */
+export function capMicroUsdFrom(raw: string | undefined): number | null {
+  if (raw === undefined || raw.trim() === "") return DEFAULT_CAP_MICRO_USD;
+  const usd = Number(raw);
+  return Number.isFinite(usd) && usd >= 0 ? Math.round(usd * 1_000_000) : null;
+}
+
 /** Micro-dollars as dollars, to the cent's hundredth, for a person to read. */
 export function dollars(microUsd: number): string {
   return `$${(microUsd / 1_000_000).toFixed(4)}`;
