@@ -235,8 +235,10 @@ describe("accessRevFor (D11)", () => {
   it("does not move on a refused write", async () => {
     const tripId = await seedWithGuest("editor");
     const before = await accessRevFor(tripId);
-    await setTravelling(tripId, GUEST, OWNER, false);
-    await changeRole(tripId, GUEST, OWNER, "viewer");
+    // Asserted refused, or an unchanged rev says nothing: a write that failed
+    // for some other reason would leave it unchanged too.
+    expect(await setTravelling(tripId, GUEST, OWNER, false)).toMatchObject({ ok: false, error: { code: "forbidden" } });
+    expect(await changeRole(tripId, GUEST, OWNER, "viewer")).toMatchObject({ ok: false, error: { code: "forbidden" } });
     expect(await accessRevFor(tripId)).toBe(before);
   });
 
