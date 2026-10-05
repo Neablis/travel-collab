@@ -13,7 +13,7 @@ import { addActivityCommand, updateActivityCommand } from "@/components/board/ac
 import { ActivityConflicts } from "@/components/trip/editor/ActivityConflicts";
 import { useEditor } from "@/components/trip/context/EditorHost";
 import { useTrip, type DispatchResult } from "@/components/trip/context/TripProvider";
-import { usePeople } from "@/components/pages/people";
+import { peopleNamesOf } from "@/components/pages/people";
 import { dayLabel } from "@/lib/dates";
 import { toClockRange } from "@/lib/time";
 import { useTimeFormat } from "@/components/account/PreferencesProvider";
@@ -36,11 +36,14 @@ import { displayPlace, legEnd } from "@/lib/place";
 // needs, and wiring dayId correctly into AddActivity/UpdateActivity.
 export function ActivityEditorSheet() {
   const { state, close } = useEditor();
-  const { activeTrip, dispatch, canEditBoard, boardMode } = useTrip();
+  const { activeTrip, dispatch, canEditBoard, boardMode, access } = useTrip();
   // Opted in to suggest mode (W8): a suggester's save joins their draft, so
   // only a reader gets the read-only sheet.
   const readOnly = !canEditBoard;
-  const people = usePeople();
+  // From the provider's live access (W18), which is re-read on every access
+  // change, so someone who joins while the page is open is named here as in
+  // People. `usePeople()` read it once, and named them "Traveler 2".
+  const people = access === null ? null : peopleNamesOf(access.members);
 
   const open = state.mode !== null;
   // A viewer never gets the form. This is the backstop for every caller of
