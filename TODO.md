@@ -383,9 +383,9 @@ reorder and the one place a reorder updates.
       `docs/milestones/M31-assistant-ledger.md`
       *(ADR-062's Phase 1. The eve port it was minted for, Phases 2–5, is deferred until there
       are users: ADR-062 § *Deferred: the port*, and a candidate entry.)*
-- [ ] **M32 The assistant can say which day is free, in one call** (minted 2026-10-04 from Mitchell's production turn, placed after M31, built beside it; `find_free_time` ranks days inside 08:00-22:00, and each ledger step carries its duration, migration `0037`) → ← **current milestone**
+- [x] **M32 The assistant can say which day is free, in one call** (minted 2026-10-04 from Mitchell's production turn, placed after M31, built beside it; `find_free_time` ranks days inside 08:00-22:00, and each ledger step carries its duration, migration `0037`; **gate closed 2026-10-05**, 7 of 7: one call, 4.5s, "Day 8, 660 minutes" on production) →
       `docs/milestones/M32-free-day.md`
-- [ ] **M33 We can see whether an assistant change works before it ships** (minted 2026-10-05, placed after M32, built beside it; `pnpm --filter web eval` runs the live set on production's models through the real `/ask` handler, scored by code) →
+- [ ] **M33 We can see whether an assistant change works before it ships** (minted 2026-10-05, placed after M32, built beside it; `pnpm --filter web eval` runs the live set on production's models through the real `/ask` handler, scored by code) → ← **current milestone**
       `docs/milestones/M33-evals.md`
 - [x] **M15 Front door** — gate closed → `docs/milestones/M15-front-door.md`
 - [ ] **M9 The assistant cites what it plans** — **PAUSED 2026-09-13**, not cancelled: Phase 0 complete, and it keeps its place immediately after M21. **Built since, 2026-09-16:** grounding (`search_places` → `placeRef`), conversation durability (`localStorage`, by decision) and the replay harness all landed (`docs/plans/2026-09-16-M9-remainder.md`); what is left of the gate is a live model call and the browser walks that rest on it (Mitchell's reorder — `docs/milestones/README.md`, 2026-09-13) →
