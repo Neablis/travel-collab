@@ -13,6 +13,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { events } from "@/server/db/schema";
 import { grantMembership } from "@/server/access/members";
+import { acceptInvite } from "@/server/access/invites";
 import { readStreamHeadSeq } from "@/server/eventStore";
 import { PAGE_TITLE_MAX } from "@tc/contracts";
 import { MAX_PAGE_BODY_BYTES } from "@/server/pages";
@@ -58,6 +59,9 @@ const { PATCH: PATCH_PAGE } = await import("@/app/api/v1/trips/[tripId]/pages/[p
 const { GET: LIST_SHARES, POST: ADD_SHARE } = await import(
   "@/app/api/v1/trips/[tripId]/shares/route"
 );
+
+const { GET: LIST_MEMBERS } = await import("@/app/api/v1/trips/[tripId]/members/route");
+const { POST: ADD_INVITE } = await import("@/app/api/v1/trips/[tripId]/invites/route");
 
 const RUN = randomUUID().slice(0, 8);
 const NO_PARAMS = { params: Promise.resolve({} as Record<string, string>) };
@@ -402,6 +406,30 @@ describe("reads that were nearly free", () => {
 // becomes a command, and a command names every field it sets. Filling the ones
 // the caller left out with a default is how a request to move an end date wipes
 // a start date.
+// Travellers spec §5: the members list says who is travelling, and an invite
+// made through v1 decides it the same way the app's does (D3).
+describe("who is travelling, through v1", () => {
+  it("invites someone as not travelling and lists them that way once they join", async () => {
+    const owner = await entitled();
+    const secret = await tokenFor(owner, ["trips:read", "trips:write", "sharing:write"]);
+    const { tripId } = await seed(secret);
+
+    const made = await ADD_INVITE(req(secret, { email: null, role: "editor", travelling: false }, "POST"), P({ tripId }));
+    expect(made.status).toBe(201);
+    const invite = await made.json();
+    expect(invite.travelling).toBe(false);
+    const guest = `${owner}-guest`;
+    expect((await acceptInvite(invite.token, guest)).ok).toBe(true);
+
+    const listed = await LIST_MEMBERS(req(secret), P({ tripId }));
+    expect(listed.status).toBe(200);
+    expect((await listed.json()).items).toEqual([
+      { userId: owner, role: "owner", travelling: true },
+      { userId: guest, role: "editor", travelling: false },
+    ]);
+  });
+});
+
 describe("a patch changes what it names, and nothing else", () => {
   it("keeps the start date when only the end date is patched", async () => {
     const owner = await entitled();

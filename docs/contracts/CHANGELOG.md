@@ -49,6 +49,14 @@ Format:
     body accepts it. `openapi.json` was regenerated and `API_VERSION` moved to `1.6.0` (minor,
     additive) with a new `API_FINGERPRINT`. Until T2, the server ignores `travelling` on an invite
     body.
+- Consumers wired (T3, no schema moved and `openapi.json` unchanged):
+  - `PATCH /api/trips/:tripId/members/:userId` takes `SetTravellingInput | ChangeRoleInput` and
+    answers with `TripAccess`, like the DELETE beside it. A body naming both fields is a 400.
+  - The events poll fills `TripEventsPage.accessRev` for every reader except the demo trip.
+  - `apiClient`: `setTravelling`, `changeMemberRole`, `removeMember`. `createTripInvite` already
+    sent the whole `CreateInviteInput`, so `travelling` reaches the server unchanged.
+  - Public v1 has no member mutations, so it gains no PATCH. Its members list and invite body
+    already carried `travelling` from T1, and the server honours both since T2.
 - Breaking? no for parsing: every new field is optional or defaulted, and every stored row still
   parses. `balances`'s new argument breaks a caller at compile time, on purpose. A default of
   "every member" would have silently kept the old split.

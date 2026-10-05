@@ -28,6 +28,11 @@ vi.mock("@/server/suggestions/rev", async (importOriginal) => {
   return { ...real, suggestionsRevForRole: vi.fn(real.suggestionsRevForRole) };
 });
 const { suggestionsRevForRole } = await import("@/server/suggestions/rev");
+vi.mock("@/server/access/members", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/server/access/members")>();
+  return { ...real, accessRevFor: vi.fn(real.accessRevFor) };
+});
+const { accessRevFor } = await import("@/server/access/members");
 
 // Import after the mock so the route picks up the mocked `auth`.
 const { GET } = await import("./route");
@@ -130,7 +135,13 @@ describe("GET /api/trips/:id/events — the cursor", () => {
     expect(created.events).toHaveLength(1);
 
     const caughtUp = await pollBody(tripId, created.headSeq);
-    expect(caughtUp).toEqual({ headSeq: 1, events: [], resync: false, suggestionsRev: expect.any(String) });
+    expect(caughtUp).toEqual({
+      headSeq: 1,
+      events: [],
+      resync: false,
+      suggestionsRev: expect.any(String),
+      accessRev: expect.any(String),
+    });
   });
 
   it("hands back only what committed after the cursor, in seq order", async () => {
@@ -167,7 +178,13 @@ describe("GET /api/trips/:id/events — the cursor", () => {
   it("answers a cursor ahead of the head with the head, not an error", async () => {
     const tripId = await seedTrip();
     const page = await pollBody(tripId, 999);
-    expect(page).toEqual({ headSeq: 1, events: [], resync: false, suggestionsRev: expect.any(String) });
+    expect(page).toEqual({
+      headSeq: 1,
+      events: [],
+      resync: false,
+      suggestionsRev: expect.any(String),
+      accessRev: expect.any(String),
+    });
   });
 
   it("tells a caller further behind than one poll to resync, and sends no events", async () => {
@@ -277,6 +294,46 @@ describe("GET /api/trips/:id/events — suggestionsRev", () => {
     expect(page.events).toHaveLength(2);
     expect(page).not.toHaveProperty("suggestionsRev");
     expect(errors).toHaveBeenCalledWith(expect.stringContaining("suggestionsRev"), expect.objectContaining({ tripId }));
+    errors.mockRestore();
+  });
+});
+
+// Travellers spec D11: who is on the trip, and who is travelling, changes the
+// totals everyone sees, and none of it is an event. The revision is how every
+// other open board finds out.
+describe("GET /api/trips/:id/events — accessRev", () => {
+  it("moves when an invite is accepted, on the page of a member who did not accept it", async () => {
+    const tripId = await seedTrip();
+    const invite = await createInvite(tripId, OWNER, { email: null, role: "editor" });
+    const before = (await pollBody(tripId, 0)).accessRev;
+    expect(before).toEqual(expect.any(String));
+
+    const accepted = await acceptInvite(invite.token, GUEST);
+    expect(accepted.ok).toBe(true);
+
+    const after = (await pollBody(tripId, 0)).accessRev;
+    expect(after).toEqual(expect.any(String));
+    expect(after).not.toBe(before);
+  });
+
+  // A viewer's board is costed too, so unlike `suggestionsRev` it is not
+  // role-scoped: everyone who may read the trip may read who is on it.
+  it("is on a viewer's page", async () => {
+    const tripId = await seedTrip();
+    await join(tripId, "viewer");
+    currentUserId = GUEST;
+    expect((await pollBody(tripId, 0)).accessRev).toEqual(expect.any(String));
+  });
+
+  it("still serves the page, without a revision, when the revision query fails", async () => {
+    const tripId = await seedTrip();
+    vi.mocked(accessRevFor).mockRejectedValueOnce(new Error("connection terminated"));
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const page = await pollBody(tripId, 0);
+    expect(page.headSeq).toBe(1);
+    expect(page).not.toHaveProperty("accessRev");
+    expect(errors).toHaveBeenCalledWith(expect.stringContaining("accessRev"), expect.objectContaining({ tripId }));
     errors.mockRestore();
   });
 });

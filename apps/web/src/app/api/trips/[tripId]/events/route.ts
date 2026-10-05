@@ -3,6 +3,8 @@ import { TripEventsPage } from "@tc/contracts";
 import { inviteTokenOf, requireTripAccess } from "@/server/access/trip-access";
 import { getTripEventsAfter } from "@/server/broadcast";
 import { suggestionsRevForRole } from "@/server/suggestions/rev";
+import { accessRevFor } from "@/server/access/members";
+import { isDemoTripId } from "@/lib/demoTrip";
 
 /**
  * `GET /api/trips/:tripId/events?after=<seq>` — what happened on this trip
@@ -46,12 +48,26 @@ export async function GET(request: Request, { params }: { params: Promise<{ trip
   // failure is caught here: the reader loses the revision for one poll (the
   // field is optional in `TripEventsPage`), never the events the poll exists
   // for (review of #308).
-  const [page, suggestionsRev] = await Promise.all([
+  //
+  // `accessRev` (travellers spec D11) is one primary-key read, and it is for
+  // every reader: who is on the trip and who is travelling move the totals any
+  // board shows, and none of it is an event. Not role-scoped, because anyone
+  // this route serves may already read the member list (`GET /access`). The
+  // demo is served without touching the database, and nobody's access to it
+  // ever changes, so it is given none. A failure costs one poll the revision,
+  // as above.
+  const [page, suggestionsRev, accessRev] = await Promise.all([
     getTripEventsAfter(tripId, after.data),
     suggestionsRevForRole(tripId, access.userId, access.role).catch((error: unknown) => {
       console.error("events poll: suggestionsRev query failed", { tripId, error });
       return undefined;
     }),
+    isDemoTripId(tripId)
+      ? undefined
+      : accessRevFor(tripId).catch((error: unknown) => {
+          console.error("events poll: accessRev query failed", { tripId, error });
+          return undefined;
+        }),
   ]);
-  return Response.json(TripEventsPage.parse({ ...page, suggestionsRev }));
+  return Response.json(TripEventsPage.parse({ ...page, suggestionsRev, accessRev }));
 }
