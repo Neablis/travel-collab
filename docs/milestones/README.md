@@ -112,8 +112,8 @@ for collaboration later landing on a product people already want to join.
 | M29 | The time river | **Merged, gate open, not current.** SPEC §36.9b, four PRs merged 2026-09-26; ADR-055: `M29-time-river.md` |
 | M30 | Notebooks with one job each, and links between them | **Built 2026-09-26, unplaced.** Four seeded notebooks and two id-based link widgets (ADR-056): `M30-notebooks-and-links.md` |
 | M31 | We can see what the assistant costs, step by step and tool by tool | **Minted 2026-10-03 and placed after M19; built 2026-10-03 beside M19, not current** (Mitchell: build the ledger now, and defer the eve port until there are users). It is ADR-062's Phase 1: per-step and per-tool rows next to `ai_usage`, cached tokens, per-step pricing, and the `ai-usage` skill's SQL. It closed KI-2026-09-14-b and KI-2026-09-17-c. **Gate closed 2026-10-05, 7 of 7**: a $20/month Gateway budget, and a baseline of two production turns Mitchell accepted in place of a preview live-set run. The port (Phases 2–5) is a candidate: `M31-assistant-ledger.md` |
-| M32 | The assistant can say which day is free, in one call | **CURRENT MILESTONE from 2026-10-05**, by M31's gate closing; minted 2026-10-04 from Mitchell's production turn and built beside M31. `find_free_time` ranks every day inside 08:00-22:00 in one call, and each ledger step carries its duration (migration `0037`): `M32-free-day.md` |
-| M33 | We can see whether an assistant change works before it ships | **Minted and built 2026-10-05, beside M31 and M32, not current.** `pnpm --filter web eval` runs the live set through the unmocked `/ask` handler on production's per-tier models, grades it in code, states its cost and stops at a cap: `M33-evals.md` |
+| M32 | The assistant can say which day is free, in one call | **Gate closed 2026-10-05, 7 of 7** (current for the same day, from M31's close); minted 2026-10-04 from Mitchell's production turn and built beside M31. `find_free_time` ranks every day inside 08:00-22:00 in one call, and each ledger step carries its duration (migration `0037`): `M32-free-day.md` |
+| M33 | We can see whether an assistant change works before it ships | **CURRENT MILESTONE from 2026-10-05**, by M32's gate closing; minted and built the same day beside M31 and M32, merged as #327. `pnpm --filter web eval` runs the live set through the unmocked `/ask` handler on production's per-tier models, grades it in code, states its cost and stops at a cap: `M33-evals.md` |
 
 - **Restructure (2026-07-28), from the Phase 1 gate review.** The gate had not
   been met and the reason was structural, not cosmetic: a trip cannot be renamed
@@ -179,10 +179,12 @@ Placement notes (decided 2026-07-07):
   questions stay open — start-only trip dates, first-run vs. the four-step
   wizard, and whether the landing copy may sell M11/M12 — see the review's §8.
 
-Current milestone: M32 — The assistant can say which day is free, in one call
-**M32 became current 2026-10-05, by M31's gate closing** at **7 of 7**. Scope and gate:
-`docs/milestones/M32-free-day.md`; two boxes wait on migration `0037` being dispatched and a
-production walk.
+Current milestone: M33 — We can see whether an assistant change works before i…
+**M33 became current 2026-10-05, by M32's gate closing** at **7 of 7**. Scope and gate:
+`docs/milestones/M33-evals.md`; every box is ticked but the retro.
+
+**M32 — the free-day tool — was current on 2026-10-05 only**, by M31's gate closing. Its retro is
+at the end of `docs/milestones/M32-free-day.md`.
 
 **M31 — the assistant ledger — was current from 2026-10-04 to 2026-10-05**, by M19's gate
 closing. Its retro is at the end of `docs/milestones/M31-assistant-ledger.md`.

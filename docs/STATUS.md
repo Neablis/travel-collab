@@ -21,13 +21,15 @@ general setup.
 
 ## Where the work is right now
 
-**M32 — THE ASSISTANT CAN SAY WHICH DAY IS FREE, IN ONE CALL — IS THE CURRENT MILESTONE AS OF
-2026-10-05**, by **M31's gate closing at 7 of 7**. Order: `… M14 ✓ → M19 ✓ → M31 ✓ → M32 → M33`
-(M9 stays paused: its gate needs a live model call). M32 came from Mitchell's production turn that
-called `find_free_time` once per day and counted sleep as free: the tool now ranks days inside
-08:00-22:00 in one call (and, from a day's chat, `wholeTrip: true` searches every day), and each
-ledger step row carries `duration_ms`. **It is #326, which adds migration `0037`.** Merged and applied 2026-10-05; what remains is a production walk and the retro.
-(`docs/milestones/M32-free-day.md`)
+**M33 — WE CAN SEE WHETHER AN ASSISTANT CHANGE WORKS BEFORE IT SHIPS — IS THE CURRENT MILESTONE
+AS OF 2026-10-05**, by **M32's gate closing at 7 of 7**. Order: `… M19 ✓ → M31 ✓ → M32 ✓ → M33`
+(M9 stays paused: its gate needs a live model call). M33 is merged (#327); every box is ticked but
+its retro. (`docs/milestones/M33-evals.md`)
+
+**M32 closed 2026-10-05** on Mitchell's production walk, same trip as the 162-second turn: one
+`find_free_time {"wholeTrip": true}` call, two steps of 734 and 780 ms, 4.5s end to end, and
+*"Day 8 … 660 minutes open between 8 am and 10 pm"* where the old turn said *"21 hours"*. Its
+retro is at the end of `docs/milestones/M32-free-day.md`.
 
 **M31 closed 2026-10-05** on Mitchell's two answers: a **$20/month** Gateway spend budget, and
 the baseline accepted as two hand-typed production turns rather than a preview live-set run. Its
@@ -194,9 +196,9 @@ half, the model guessing a coordinate rather than citing one, is M9 scope.
 
 ## Next action
 
-**#326 (M32) is merged and `0037` is applied (2026-10-05); #327 (M33) targets `main`.** M32's last boxes are a production walk of *"Which day has the most free time?"* and
-query 8 of `ledger.sql` over the step durations `0037` starts recording, which is also what
-resolves `KI-2026-10-04-c`.
+**M33's retro, then its gate close**: nothing else is open in it. Separately, `KI-2026-10-04-c`
+resolves on query 8 of `ledger.sql` over a few days of cheap-tier step durations (one 4.5s
+production turn on 2026-10-05 is not yet a rate).
 
 **Carried out of M24, not gating:** `KI-2026-09-25-q`. About a dozen
 surfaces read `activity.location.city` directly, including the M14 ones this
