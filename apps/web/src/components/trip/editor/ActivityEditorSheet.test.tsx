@@ -370,6 +370,43 @@ describe("ActivityEditorSheet nearby stops", () => {
     await userEvent.click(screen.getByRole("button", { name: "Add stop" }));
     expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: "AddActivity", title: "Gora Kadan" }));
   });
+
+  // CodeRabbit on #334: the list is held against the request it answers, and
+  // reopening on the same day is the same request, so a list kept across a
+  // close showed again at once, and stayed there when the new read failed.
+  it("forgets the last opening's list, so a failed read on reopening shows none", async () => {
+    // Outside the sheet, so the open dialog hides it from the accessibility
+    // tree: found with `hidden: true` below.
+    function Reopen() {
+      const { openCreate } = useEditor();
+      return (
+        <button type="button" onClick={() => openCreate({ dayId: DAY_2 })}>
+          test open
+        </button>
+      );
+    }
+    fetchNearbyStopsMock.mockResolvedValueOnce({ ok: true, value: { stops: [NISHIKI] } });
+    render(
+      <TripProvider tripId={TRIP_ID}>
+        <EditorHost>
+          <Reopen />
+          <PeopleProvider tripId={TRIP_ID}>
+            <ActivityEditorSheet />
+          </PeopleProvider>
+        </EditorHost>
+      </TripProvider>,
+    );
+    const reopen = () => fireEvent.click(screen.getByRole("button", { name: "test open", hidden: true }));
+    reopen();
+    await screen.findByRole("list", { name: "Nearby stops from the library" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    fetchNearbyStopsMock.mockResolvedValueOnce({ ok: false, error: { status: 500, message: "boom" } });
+    reopen();
+    await vi.waitFor(() => expect(fetchNearbyStopsMock).toHaveBeenCalledTimes(2));
+
+    expect(screen.queryByRole("list", { name: "Nearby stops from the library" })).toBeNull();
+  });
 });
 
 // KI-43's remaining half. The board-level ConflictBanner list was the only

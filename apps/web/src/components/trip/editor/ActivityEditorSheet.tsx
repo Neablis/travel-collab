@@ -131,7 +131,13 @@ export function ActivityEditorSheet() {
       : null;
   const [nearby, setNearby] = useState<{ key: string; stops: NearbyStop[] } | null>(null);
   useEffect(() => {
-    if (nearbyKey === null || tripId === undefined) return;
+    // Closed (or editing): forget the last list. Reopening on the same day is
+    // the same key, and a list kept across a close would show again at once,
+    // and stay there if the new read failed (CodeRabbit, #334).
+    if (nearbyKey === null || tripId === undefined) {
+      setNearby(null);
+      return;
+    }
     let current = true;
     void fetchNearbyStops(tripId, { dayId: defaultDayId, lat, lng }).then((result) => {
       if (current && result.ok) setNearby({ key: nearbyKey, stops: result.value.stops });
