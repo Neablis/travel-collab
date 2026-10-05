@@ -513,7 +513,9 @@ no field on `CreateTrip` or `TripDetail` for either. **If M9's generation is
 meant to read the five answers, that field is this milestone's to add**, and it
 is not currently in anyone's scope.
 
-**2. `add-stop-suggestions` (`ActivityEditor.tsx:189`).** Still shelled, still
+**2. `add-stop-suggestions` (`ActivityEditor.tsx:189`).** *(2026-10-05: no longer M9's. It
+moved to M34, which fills it from the public library rather than from a place vendor; see
+`M34-nearby-stops.md` § Why this exists. The paragraph below is kept as it was written.)* Still shelled, still
 correctly tagged M9, still waiting on grounded place search — which is this
 milestone's remaining link 1. No change; listed for completeness, because
 `preview-registry.ts` now holds six entries rather than eleven and two of the
