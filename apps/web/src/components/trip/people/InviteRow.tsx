@@ -31,7 +31,7 @@ export function InviteRow({ invite, copied, menu }: { invite: TripInvite; copied
   const name = inviteName(invite);
   const Icon = invite.email === null ? Link2 : Mail;
   return (
-    <li data-testid={`invite-${invite.inviteId}`} className="flex min-h-11 items-center gap-2.5 py-1">
+    <li data-testid="invite-row" data-invite-id={invite.inviteId} className="flex min-h-11 items-center gap-2.5 py-1">
       <Avatar name={name} icon={<Icon className="size-3.5 text-slate" />} />
       <div className="flex min-w-0 flex-1 flex-col">
         <Text as="span" className="truncate text-sm text-ink">

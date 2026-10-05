@@ -1,7 +1,8 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { TripAccess, TripInvite } from "@tc/contracts";
+import type { TripAccess, TripMemberProfile } from "@tc/contracts";
+import { tripAccessFixture, tripInviteFactory, tripMemberProfileFactory } from "@tc/factories";
 
 const fetchTripAccessMock = vi.fn();
 const createTripInviteMock = vi.fn();
@@ -35,38 +36,14 @@ import { PeopleSection } from "./PeopleSection";
 
 const tripId = "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f";
 
-const invite: TripInvite = {
-  inviteId: "1b3d5f70-1111-4222-8333-444455556666",
-  tripId,
-  // Deliberately a different address from any member's below, so an
-  // assertion about the member list cannot accidentally match the invite row.
-  email: "cara@example.com",
-  role: "viewer",
-  status: "pending",
-  token: "tok-123",
-  invitedBy: "dev-alice",
-  createdAt: "2026-08-01T00:00:00.000Z",
-  acceptedBy: null,
-  acceptedAt: null,
-  revokedAt: null,
-  travelling: true,
-};
-
-const alice = { userId: "dev-alice", role: "owner" as const, name: "Alice", email: null, image: null, travelling: true };
-const bob = { userId: "dev-bob", role: "editor" as const, name: null, email: "bob@example.com", image: null, travelling: true };
-
-function access(overrides: Partial<TripAccess> = {}): TripAccess {
-  return {
-    tripId,
-    myRole: "owner",
-    members: [alice, bob],
-    invites: [invite],
-    // M20 link 6. The default is entitled, so every test written before the
-    // collaboration gate keeps describing the behaviour it was written for.
-    collaboratorsEntitled: true,
-    ...overrides,
-  };
-}
+// Alice owns the trip, Bob can edit, and Cara's invite is out. Cara's address
+// differs from any member's, so an assertion about the member list cannot
+// accidentally match the invite row. Built once, so every read a test serves
+// holds the same invite id and token.
+const owners = tripAccessFixture({ tripId });
+const access = (overrides: Partial<TripAccess> = {}): TripAccess => ({ ...owners, ...overrides });
+const [alice, bob] = owners.members as [TripMemberProfile, TripMemberProfile];
+const invite = owners.invites[0]!;
 
 const writeText = vi.fn().mockResolvedValue(undefined);
 
@@ -74,6 +51,15 @@ const writeText = vi.fn().mockResolvedValue(undefined);
 function openMenu(name: string) {
   fireEvent.click(screen.getByRole("button", { name: `Actions for ${name}` }));
 }
+
+/** A row by the id it carries beside its testid (testing.md §5). */
+function rowBy(testId: string, attribute: string, id: string): HTMLElement {
+  const row = screen.queryAllByTestId(testId).find((r) => r.getAttribute(attribute) === id);
+  if (row === undefined) throw new Error(`no ${testId} with ${attribute}="${id}"`);
+  return row;
+}
+const personRow = (userId: string) => rowBy("person-row", "data-user-id", userId);
+const inviteRow = (inviteId: string) => rowBy("invite-row", "data-invite-id", inviteId);
 
 function menuItems(): string[] {
   return screen.getAllByRole("menuitem").map((item) => item.textContent ?? "");
@@ -130,8 +116,8 @@ describe("PeopleSection", () => {
     // Through the row testids, not as bare strings: "Can edit" is on invite
     // rows too, so a loose assertion would pass from an invite row with no
     // member carrying it (CodeRabbit, PR #71).
-    expect(screen.getByTestId("traveller-dev-alice").textContent).toContain("Owner · created the trip");
-    expect(screen.getByTestId("traveller-dev-bob").textContent).toContain("Can edit");
+    expect(personRow("dev-alice").textContent).toContain("Owner · created the trip");
+    expect(personRow("dev-bob").textContent).toContain("Can edit");
     // No raw enum anywhere on the surface (spec §4).
     const section = screen.getByTestId("people-section").textContent ?? "";
     expect(section).not.toMatch(/\b(owner|editor|viewer|suggester)\b/);
@@ -141,10 +127,11 @@ describe("PeopleSection", () => {
 
   it("marks the reader's own row, and crowns the owner's", async () => {
     render(<PeopleSection tripId={tripId} />);
-    const own = await screen.findByTestId("traveller-dev-alice");
+    await screen.findByText("Alice");
+    const own = personRow("dev-alice");
     expect(within(own).getByText("You")).toBeTruthy();
     expect(within(own).getByTestId("owner-crown")).toBeTruthy();
-    const other = screen.getByTestId("traveller-dev-bob");
+    const other = personRow("dev-bob");
     expect(within(other).queryByText("You")).toBeNull();
     expect(within(other).queryByTestId("owner-crown")).toBeNull();
   });
@@ -236,7 +223,7 @@ describe("PeopleSection", () => {
         value: access({
           invites: [
             { ...invite, role: "editor", travelling: true },
-            { ...invite, inviteId: "2b3d5f70-1111-4222-8333-444455556666", email: null, travelling: false },
+            tripInviteFactory.build({ tripId, email: null, role: "viewer", travelling: false }),
           ],
         }),
       });
@@ -255,7 +242,7 @@ describe("PeopleSection", () => {
     // open. The provider re-reads access on the poll's `accessRev`; the
     // section adopts what it read without a second request of its own.
     it("adopts a newer TripAccess from the provider while open", async () => {
-      const dana = { userId: "dev-dana", role: "suggester" as const, name: "Dana", email: null, image: null, travelling: false };
+      const dana = tripMemberProfileFactory.build({ userId: "dev-dana", role: "suggester", name: "Dana", travelling: false });
       const atLoad = access();
       const { rerender } = render(<PeopleSection tripId={tripId} access={atLoad} />);
       await screen.findByRole("list", { name: "Invited · 1" });
@@ -371,7 +358,7 @@ describe("PeopleSection", () => {
       await userEvent.click(within(dialog).getByRole("button", { name: "Change role" }));
 
       await waitFor(() => expect(changeMemberRoleMock).toHaveBeenCalledWith(tripId, "dev-bob", "suggester"));
-      await waitFor(() => expect(screen.getByTestId("traveller-dev-bob").textContent).toContain("Can suggest"));
+      await waitFor(() => expect(personRow("dev-bob").textContent).toContain("Can suggest"));
       expect(screen.queryByRole("dialog")).toBeNull();
     });
   });
@@ -466,8 +453,8 @@ describe("PeopleSection", () => {
       await screen.findByText("cara@example.com");
       openMenu("cara@example.com");
       fireEvent.click(screen.getByRole("menuitem", { name: "Copy invite link" }));
-      await waitFor(() => expect(writeText).toHaveBeenCalledWith("http://test/invite/tok-123"));
-      await waitFor(() => expect(within(screen.getByTestId(`invite-${invite.inviteId}`)).getByText("Copied")).toBeTruthy());
+      await waitFor(() => expect(writeText).toHaveBeenCalledWith(`http://test/invite/${invite.token}`));
+      await waitFor(() => expect(within(inviteRow(invite.inviteId)).getByText("Copied")).toBeTruthy());
     });
 
     // A blocked clipboard permission is not worth a red banner — but it does
@@ -482,9 +469,9 @@ describe("PeopleSection", () => {
 
       const fallback = await screen.findByLabelText("Invite link");
       expect(screen.queryByText("denied")).toBeNull();
-      expect((fallback as HTMLInputElement).value).toBe("http://test/invite/tok-123");
+      expect((fallback as HTMLInputElement).value).toBe(`http://test/invite/${invite.token}`);
       expect(fallback.hasAttribute("readonly")).toBe(true);
-      expect(within(screen.getByTestId(`invite-${invite.inviteId}`)).queryByText("Copied")).toBeNull();
+      expect(within(inviteRow(invite.inviteId)).queryByText("Copied")).toBeNull();
     });
 
     it("hides the fallback again once a copy succeeds", async () => {

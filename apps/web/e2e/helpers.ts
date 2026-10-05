@@ -464,6 +464,14 @@ export function homeTrip(page: Page, tripName: string): Locator {
 }
 
 /**
+ * A member's row in the People section. The testid names the structure and
+ * `data-user-id` the member (testing.md §5), so finding one person takes both.
+ */
+export function personRow(scope: Page | Locator, userId: string): Locator {
+  return scope.getByTestId("person-row").and(scope.locator(`[data-user-id="${userId}"]`));
+}
+
+/**
  * Open `/account` from the header's avatar menu and, optionally, land on a tab.
  *
  * **Through the menu rather than `page.goto("/account")`**, because the menu

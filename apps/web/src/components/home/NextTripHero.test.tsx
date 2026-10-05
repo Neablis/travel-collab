@@ -492,8 +492,10 @@ describe("NextTripHero", () => {
     fetchTripDetailMock.mockResolvedValue({ ok: true, value: tripDetailWithDays(trip.tripId) });
     render(<NextTripHero trip={trip} />);
 
+    // The avatars are aria-hidden, so what a reader sees is their initials.
     const group = await screen.findByRole("group", { name: "1 traveler" });
-    expect(group.children.length).toBe(1);
+    expect(within(group).getByText("AL")).toBeTruthy();
+    expect(within(group).queryByText("BO")).toBeNull();
   });
 
   // Since §35.2 filters the hero out of *Other trips*, this is the only place

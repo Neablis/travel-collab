@@ -3,7 +3,7 @@ import type { Browser, Page } from "@playwright/test";
 import { expect, test } from "./fixtures/test";
 import { E2E_SUPER_CODE } from "./admission";
 import { grantCollaborators } from "./adminBootstrap";
-import { createMappedTrip, openPlan } from "./helpers";
+import { createMappedTrip, openPlan, personRow } from "./helpers";
 import { e2eTripName } from "./tripNames";
 
 // M11 link 3's exit-gate line: "An invited person can open the trip and modify
@@ -163,8 +163,8 @@ test("an invited editor opens the trip and changes it; the owner sees them liste
   // Before any invite, the owner is the only person on the trip. Scoped to her
   // own row — asserting on bare role words would also match a pending invite's
   // subline, so it could pass with no member listed at all.
-  await expect(page.getByTestId("traveller-dev-alice")).toContainText("Owner · created the trip");
-  await expect(page.getByTestId(/^traveller-/)).toHaveCount(1);
+  await expect(personRow(page, "dev-alice")).toContainText("Owner · created the trip");
+  await expect(page.getByTestId("person-row")).toHaveCount(1);
 
   const link = await inviteLinkFor(page, "Can edit");
 
@@ -210,9 +210,9 @@ test("an invited editor opens the trip and changes it; the owner sees them liste
   // membership listing fails here rather than being masked by the invite row.
   await page.reload();
   await openTripSettings(page, tripName);
-  await expect(page.getByTestId(`traveller-dev-${bobName}`)).toContainText("Can edit");
-  await expect(page.getByTestId("traveller-dev-alice")).toContainText("Owner · created the trip");
-  await expect(page.getByTestId(/^traveller-/)).toHaveCount(2);
+  await expect(personRow(page, `dev-${bobName}`)).toContainText("Can edit");
+  await expect(personRow(page, "dev-alice")).toContainText("Owner · created the trip");
+  await expect(page.getByTestId("person-row")).toHaveCount(2);
 });
 
 test("an invited viewer can read the trip but is told, and shown, that it is read-only", async ({

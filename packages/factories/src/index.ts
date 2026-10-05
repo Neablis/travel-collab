@@ -12,3 +12,4 @@ export {
   sampleGeocodeResults,
   tripDetailFixture,
 } from "./legacy";
+export { tripAccessFixture, tripInviteFactory, tripMemberProfileFactory } from "./access";

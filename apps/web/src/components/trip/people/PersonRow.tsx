@@ -33,9 +33,9 @@ export function PersonRow({
   menu: React.ReactNode;
 }) {
   return (
-    // The testid carries the userId so a test can assert identity AND role
-    // together; the role words alone are on invite rows too (CodeRabbit, PR #70).
-    <li data-testid={`traveller-${member.userId}`} className="flex min-h-11 items-center gap-2.5 py-1">
+    // `data-user-id` lets a test assert identity AND role together; the role
+    // words alone are on invite rows too (CodeRabbit, PR #70).
+    <li data-testid="person-row" data-user-id={member.userId} className="flex min-h-11 items-center gap-2.5 py-1">
       <Avatar name={name} />
       <div className="flex min-w-0 flex-1 flex-col">
         <span className="flex min-w-0 items-center gap-1.5">

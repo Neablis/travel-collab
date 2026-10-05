@@ -1,7 +1,7 @@
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { TripInvite } from "@tc/contracts";
+import { tripInviteFactory } from "@tc/factories";
 
 const createTripInviteMock = vi.fn();
 vi.mock("@/lib/apiClient", () => ({
@@ -12,20 +12,7 @@ vi.mock("@/lib/apiClient", () => ({
 import { InviteDialog } from "./InviteDialog";
 
 const tripId = "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f";
-const invite: TripInvite = {
-  inviteId: "1b3d5f70-1111-4222-8333-444455556666",
-  tripId,
-  email: null,
-  role: "editor",
-  status: "pending",
-  token: "tok-new",
-  invitedBy: "dev-alice",
-  createdAt: "2026-10-05T00:00:00.000Z",
-  acceptedBy: null,
-  acceptedAt: null,
-  revokedAt: null,
-  travelling: true,
-};
+const invite = tripInviteFactory.build({ tripId, token: "tok-new" });
 
 const writeText = vi.fn();
 

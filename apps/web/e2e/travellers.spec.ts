@@ -3,7 +3,7 @@ import type { Browser, Page, Response } from "@playwright/test";
 import type { TripDetail } from "@tc/contracts";
 import { expect, test } from "./fixtures/test";
 import { grantCollaborators } from "./adminBootstrap";
-import { createMappedTrip } from "./helpers";
+import { createMappedTrip, personRow } from "./helpers";
 import { e2eTripName } from "./tripNames";
 
 // The travellers spec's journey (docs/specs/2026-10-05-travellers-and-people-
@@ -134,8 +134,8 @@ test("a suggester joins without moving the totals, and counts once marked as tra
   // accepted and hears about it on the poll's `accessRev` (D11). One poll
   // interval and the reads it triggers; a reload would be ~0.
   const notTravelling = people.getByRole("list", { name: "Not travelling · 1" });
-  await expect(notTravelling.getByTestId(`traveller-${userId}`)).toBeVisible({ timeout: 15_000 });
-  await expect(notTravelling.getByTestId(`traveller-${userId}`)).toContainText("Can suggest · helping plan");
+  await expect(personRow(notTravelling, userId)).toBeVisible({ timeout: 15_000 });
+  await expect(personRow(notTravelling, userId)).toContainText("Can suggest · helping plan");
   // The served total is the owner's alone, and so is the one on screen.
   expect(await tripCostTotal(joined)).toBe(913_000);
   await expect(sheet.getByText("$9,130.00 of $50,000.00")).toBeVisible();
@@ -145,12 +145,12 @@ test("a suggester joins without moving the totals, and counts once marked as tra
   const travelling = detailRead(page, tripId, (members) =>
     members.some((m) => m.userId === userId && m.travelling === true),
   );
-  await notTravelling.getByTestId(`traveller-${userId}`).getByRole("button", { name: /^Actions for / }).click();
+  await personRow(notTravelling, userId).getByRole("button", { name: /^Actions for / }).click();
   await page.getByRole("menuitem", { name: "Mark as travelling" }).click();
   expect(await tripCostTotal(travelling)).toBe(1_826_000);
   await expect(sheet.getByText("$18,260.00 of $50,000.00")).toBeVisible();
   await expect(people.getByText("Costs are split across 2 travellers.")).toBeVisible();
-  await expect(people.getByRole("list", { name: "Travelling · 2" }).getByTestId(`traveller-${userId}`)).toBeVisible();
+  await expect(personRow(people.getByRole("list", { name: "Travelling · 2" }), userId)).toBeVisible();
   await expect(people.getByRole("list", { name: /^Not travelling/ })).toHaveCount(0);
 
   await page.keyboard.press("Escape");

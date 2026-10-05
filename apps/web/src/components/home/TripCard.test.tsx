@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import type { TripSummary } from "@tc/contracts";
 import { TripCard } from "./TripCard";
@@ -91,8 +91,11 @@ describe("TripCard", () => {
     });
     render(<TripCard trip={trip} />);
 
+    // The avatars are aria-hidden, so what a reader sees is their initials.
     const group = screen.getByRole("group", { name: "2 travelers" });
-    expect(group.children.length).toBe(2);
+    expect(within(group).getByText("AL")).toBeTruthy();
+    expect(within(group).getByText("BO")).toBeTruthy();
+    expect(within(group).queryByText("CA")).toBeNull();
   });
 
   // Task 4.1 (M10 Phase 4): TripSummary carries no cost fields at all, so
