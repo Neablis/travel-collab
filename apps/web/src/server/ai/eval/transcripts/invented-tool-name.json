@@ -1,0 +1,36 @@
+{
+  "name": "invented-tool-name",
+  "about": "The cheap tier calls `read`, a tool that does not exist, then `read_trip`, then answers. The SDK turns the invented call into a tool error the model reads, and the model recovers. Until 2026-10-05 the turn was RECORDED as failed anyway: the UI stream calls `onError` to word every tool error, and `onError` latched the record as `error` and cleared the hard deadline. M33's eval measured it on production's cheap model: \"how long is this trip?\" recorded as failed 4 times in 5, each with a correct answer (KI-2026-10-05-a). This transcript pins the fixed behaviour: the turn completes, both steps are counted, and the invented call stays in the trace.",
+  "source": {
+    "kind": "synthetic",
+    "from": "M33's eval run of q-length on zai/glm-4.7-flashx, 2026-10-05: tool calls read, read, read_trip"
+  },
+  "question": "how long is this trip?",
+  "scope": {
+    "kind": "trip"
+  },
+  "classification": {
+    "intent": "question",
+    "certainty": "sure"
+  },
+  "steps": [
+    {
+      "content": [
+        { "type": "tool-call", "toolCallId": "c1", "toolName": "read", "input": "{}" },
+        { "type": "tool-call", "toolCallId": "c2", "toolName": "read_trip", "input": "{}" }
+      ],
+      "finishReason": "tool-calls"
+    },
+    {
+      "content": [{ "type": "text", "text": "This trip lasts 3 days, from April 1 to April 3, 2027." }],
+      "finishReason": "stop"
+    }
+  ],
+  "expect": {
+    "steps": 2,
+    "toolCalls": ["read", "read_trip"],
+    "proposalChanges": 0,
+    "answered": true,
+    "outcome": "completed"
+  }
+}

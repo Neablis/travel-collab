@@ -68,7 +68,13 @@ import { askIntentVerdictText, isAskIntentCall } from "@/server/ai/askIntent";
  */
 export type TranscriptPart =
   | { type: "text"; text: string }
-  | { type: "tool-call"; toolCallId: string; toolName: string; input: string };
+  | { type: "tool-call"; toolCallId: string; toolName: string; input: string }
+  /**
+   * The provider's stream failing mid-step: an outage, a dropped connection,
+   * the deadline. The one way a turn genuinely FAILS, as opposed to a tool
+   * error the model reads and recovers from (2026-10-05, KI-2026-10-05-a).
+   */
+  | { type: "error"; error: string };
 
 /** One model round-trip, as it came back. */
 export interface TranscriptStep {
@@ -224,6 +230,9 @@ export function replayTranscript(transcript: AskTranscript): LanguageModel {
     supportedUrls: {},
     async doGenerate(options: CallOptionsLike) {
       const step = isClassifier(options) ? classify() : asStep(stepFor(options));
+      // A non-streaming call has no error part; a failed provider call throws.
+      const failed = step.content.find((part) => part.type === "error");
+      if (failed !== undefined) throw new Error(failed.error);
       return { ...step, usage: NO_USAGE, warnings: [] };
     },
     async doStream(options: CallOptionsLike) {

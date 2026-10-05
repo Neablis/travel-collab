@@ -1,10 +1,22 @@
 {
-  "about": "The models production runs, per tier, so the eval measures what users get (M33). Model ids, never keys. Each entry says where it was read from; refresh by reading the ledger (`ai_usage_steps.tier, model` and `ai_usage.classifier_model` on the production branch). Production's Vercel env holds these encrypted, so they are copied from what production actually ran, not from the dashboard. A null tier is one production has never run and nobody has confirmed: the runner refuses to guess it and names any turn that lands there.",
+  "about": "The models production runs, per tier, so the eval measures what users get (M33). Model ids, never keys. Each entry says where it was read from; refresh by reading the ledger (`ai_usage_steps.tier, model` and `ai_usage.classifier_model` on the production branch). Production's Vercel env holds these encrypted, so they are copied from what production actually ran, not from the dashboard. A tier production has never run is taken from Mitchell, and says so; a null tier is refused, never guessed.",
   "verified": "2026-10-05",
   "tiers": {
-    "cheap": { "model": "zai/glm-4.7-flashx", "source": "ai_usage_steps, production, last seen 2026-10-04T23:06Z" },
-    "mid": { "model": "zai/glm-5.3-flash", "source": "ai_usage_steps, production, last seen 2026-10-04T23:08Z" },
-    "strong": { "model": null, "source": "never run in production; AI_MODEL_STRONG is set there but encrypted" },
-    "classifier": { "model": "zai/glm-4.7-flash", "source": "ai_usage.classifier_model, production, last seen 2026-10-04T23:08Z" }
+    "cheap": {
+      "model": "zai/glm-4.7-flashx",
+      "source": "ai_usage_steps, production, last seen 2026-10-04T23:06Z"
+    },
+    "mid": {
+      "model": "zai/glm-5.3-flash",
+      "source": "ai_usage_steps, production, last seen 2026-10-04T23:08Z"
+    },
+    "strong": {
+      "model": "zai/glm-5.3",
+      "source": "Mitchell, 2026-10-05 (AI_MODEL_STRONG; never yet run in production)"
+    },
+    "classifier": {
+      "model": "zai/glm-4.7-flash",
+      "source": "ai_usage.classifier_model, production, last seen 2026-10-04T23:08Z"
+    }
   }
 }

@@ -51,8 +51,11 @@ were the eval's own (fixed: a place stub that put every place in Kyoto, an expec
 a Niagara trip, a swap ceiling that ignored there is no swap command), one is the unconfigured
 strong tier, and one is a production defect nobody had seen:
 
-- **`KI-2026-10-05-a`**: the cheap tier invents a tool named `read` and the turn errors. *"How long
-  is this trip?"* failed 4 of 5 runs.
+- **`KI-2026-10-05-a`**: *"How long is this trip?"* recorded as failed 4 of 5 runs on the cheap
+  tier. The model invents a tool named `read`, reads the tool error and answers correctly; what
+  failed the turn was our `onError`, which the UI stream calls to word every tool error and which
+  latched the record as `error` and cleared the hard deadline. Fixed 2026-10-05 (the failure is
+  now recorded only on the stream's `error` part); the same fix resolved `KI-2026-09-16-a`.
 
 ## Exit gate
 
@@ -67,4 +70,5 @@ strong tier, and one is a production defect nobody had seen:
 - [x] **Every finding of the first full run is either fixed in the eval or filed** (above).
 - [ ] **The strong tier's production model is in `models.json`** (Mitchell: the id
       `AI_MODEL_STRONG` holds), and `t-reads-and-says-nothing` runs on it.
+      *(2026-10-05: Mitchell gave `zai/glm-5.3`; in `models.json`. Ticks on its run.)*
 - [ ] A retro is appended at gate close.
