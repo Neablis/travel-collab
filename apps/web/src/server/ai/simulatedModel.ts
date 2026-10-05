@@ -374,6 +374,13 @@ function askAnswer(scope: AskScope, results: readonly ToolResultLike[]): string[
   if (free && !("error" in free)) {
     const longest = [...free.gaps].sort((a, b) => b.durationMinutes - a.durationMinutes)[0];
     const window = `between ${free.window.after} and ${free.window.before}`;
+    // "Most free" is the ranking's first day (most free minutes), which need
+    // not be the day holding the single longest gap: say both, so a "which
+    // day is most free?" answer names the ranked day.
+    const mostFree = free.days.length > 1 ? free.days[0] : undefined;
+    if (mostFree && mostFree.freeMinutes > 0) {
+      sentences.push(`Day ${mostFree.day} has the most free time ${window}: ${mostFree.freeMinutes} minutes.`);
+    }
     sentences.push(
       longest
         ? `The biggest open stretch ${window} is on day ${longest.day}, ${longest.start} to ${longest.end} — ${longest.durationMinutes} minutes.`

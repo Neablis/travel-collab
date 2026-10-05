@@ -281,6 +281,29 @@ describe("simulatedModel — the ask surface", () => {
     expect(answer).toContain("AI is switched off on this deployment");
   });
 
+  // The ranking's first day has the most free minutes; the longest single gap
+  // can sit on another day, and "which day is most free?" must name the first.
+  it("names the ranked most-free day, not just the day with the longest gap", async () => {
+    const dayTwo = {
+      ...FREE_READOUT.days[0]!,
+      day: 2,
+      date: "2026-09-09",
+      freeMinutes: 780,
+      longestGap: { start: "08:00", end: "14:00", durationMinutes: 360 },
+    };
+    const ranked = { ...FREE_READOUT, searched: "the whole trip", days: [dayTwo, FREE_READOUT.days[0]!] };
+    const answer = textOf(
+      await probe().doGenerate(
+        askPrompt({ kind: "trip" }, [
+          { toolName: "read_trip", value: TRIP_READOUT },
+          { toolName: "find_free_time", value: ranked },
+        ]),
+      ),
+    );
+    expect(answer).toContain("Day 2 has the most free time between 08:00 and 22:00: 780 minutes.");
+    expect(answer).toContain("The biggest open stretch between 08:00 and 22:00 is on day 3");
+  });
+
   // KI-2026-09-11-b: `resultFor` used to CAST a tool result to its readout
   // type rather than parse it, so a result the message history carried but
   // that did not actually match the tool's `output` schema surfaced as a
