@@ -63,6 +63,7 @@ import { TripProvider, useTrip } from "@/components/trip/context/TripProvider";
 import { EditorHost, useEditor } from "@/components/trip/context/EditorHost";
 import { TripHeader } from "./TripHeader";
 import { tripCounts } from "./TripMetaPill";
+import { clearQueryCache } from "@/lib/queryCache";
 
 // A15-fix regression probe: mounted alongside TripHeader under the same
 // TripProvider so the test can observe trip.status directly (there's no
@@ -602,11 +603,21 @@ describe("TripHeader — the avatar stack (D10)", () => {
     expect(scrolled).toEqual([]);
   });
 
-  it("draws nothing while nobody is listed", async () => {
+  // Absence alone passed with the label misspelt, so the same setup is drawn
+  // again with one person travelling, and the stack must then be found.
+  it("draws nothing while nobody is travelling", async () => {
+    accessMembers = [person("dev-alice", "Alice Ames", false)];
     await renderHeader();
     // Witness: the access read has answered, and the header rendered.
     await screen.findByRole("button", { name: "Add stop" });
     expect(screen.queryByRole("button", { name: "Travellers on this trip" })).toBeNull();
+
+    // As between tests (`vitest.setup.ts`), so the second mount reads afresh.
+    cleanup();
+    clearQueryCache();
+    accessMembers = [person("dev-alice", "Alice Ames")];
+    await renderHeader();
+    expect(await screen.findByRole("button", { name: "Travellers on this trip" })).toBeTruthy();
   });
 });
 
