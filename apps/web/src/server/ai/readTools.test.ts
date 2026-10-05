@@ -339,7 +339,7 @@ describe("find_free_time", () => {
   });
 
   // "Which day is most free?" asked from day 3's chat is about every day; the
-  // scope default alone would rank day 3 against nothing (CodeRabbit, #326).
+  // scope default alone would rank day 3 against nothing (CodeRabbit, PR 326).
   it("searches every day from a day-scoped turn when asked for the whole trip", () => {
     const scope = { kind: "day", dayIndex: 2 } as const;
     const readout = findFreeTime(japan, scope, { wholeTrip: true }) as FreeTimeReadout;
