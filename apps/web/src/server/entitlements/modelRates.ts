@@ -83,8 +83,9 @@ export const MODEL_RATES: readonly ModelRate[] = [
     // The compiled default (`config.ts`). Production does not run it, and the
     // milestone records what assuming otherwise cost: an estimate wrong by an
     // order of magnitude. It is priced here anyway, because a deployment that
-    // has not set `AI_MODEL` really does run it, and a row nobody can price is
-    // worse than a row priced correctly.
+    // sets none of the tier variables (nor `AI_MODEL`, their shared fallback)
+    // really does run it, and a row nobody can price is worse than a row
+    // priced correctly.
     model: "anthropic/claude-haiku-4-5",
     effectiveFrom: "2026-08-16",
     inputMicroUsdPerMTok: 1_000_000,
@@ -106,9 +107,9 @@ export const MODEL_RATES: readonly ModelRate[] = [
     cacheReadInputMicroUsdPerMTok: 28_000,
   },
   {
-    // **The turn model production actually runs** (`AI_MODEL`, tier mid) from
-    // its first live turn on 2026-10-03; until this entry every one of its
-    // rows was unpriced in the cost console. Read from the live catalogue on
+    // **The turn model production runs** (`AI_MODEL_MID`, and `AI_MODEL_CHEAP`
+    // since 2026-10-05) from its first live turn on 2026-10-03; until this
+    // entry every one of its rows was unpriced in the cost console. Read from the live catalogue on
     // 2026-10-03: US regional input $0.15, output $0.50 and `input_cache_read`
     // $0.03 per MTok. The catalogue marks it `varies_by_provider`, and cache
     // hits do too — the first three live turns cached 0%, 0% and ~70% of input.

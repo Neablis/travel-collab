@@ -995,8 +995,9 @@ export const aiUsage = pgTable(
     outcome: text("outcome").notNull(),
     taskClass: text("task_class").notNull(),
     // **The RESOLVED model id, never a compiled default.** `config.ts` compiles
-    // `anthropic/claude-haiku-4-5` while production sets `AI_MODEL` to
-    // `deepseek/deepseek-v4-flash-0731`, and costing the compiled default
+    // `anthropic/claude-haiku-4-5` while production runs whatever its tier
+    // variables name (`deepseek/deepseek-v4-flash-0731` when this was written,
+    // `zai/glm-5.3-flash` since 2026-10-03), and costing the compiled default
     // overstates the bill by roughly an order of magnitude — a mistake made
     // once already while scoping this milestone. Storing what actually ran is
     // what makes it unavailable to any later analysis.
