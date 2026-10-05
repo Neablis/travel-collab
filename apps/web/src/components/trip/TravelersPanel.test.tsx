@@ -32,6 +32,7 @@ const invite: TripInvite = {
   acceptedBy: null,
   acceptedAt: null,
   revokedAt: null,
+  travelling: true,
 };
 
 function access(overrides: Partial<TripAccess> = {}): TripAccess {

@@ -13,6 +13,46 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-05 — Who is travelling: `travelling` on members and invites, `travellerIds`; Public API 1.6.0
+
+- **Added:** `TripMember.travelling`, an optional boolean. Absent means travelling (travellers spec
+  D2). It is `.optional()`, not `.default(true)`: the domain folds members as `{ userId, role }`
+  without parsing, so a parse-time default would make a stored projection differ from its
+  rebuild (invariant 2). The one reader that decides what absent means is `travellerIds`.
+  `TripMemberProfile.travelling` is the same field.
+- **Added:** `TripInvite.travelling`, a boolean defaulted to `true` for a row or server from
+  before it. `CreateInviteInput.travelling` is optional and **not** defaulted: absent means "preset
+  from the role" (D3), which the server decides.
+- **Added:** `SetTravellingInput { travelling }` and `ChangeRoleInput { role: InviteRole }`, both
+  `.strict()`. They are the two bodies of the coming `PATCH …/members/:userId`. `ChangeRoleInput`
+  can never name `owner` (D8, D9).
+- **Added:** `TripEventsPage.accessRev`, an optional opaque string (D11), alongside
+  `suggestionsRev`.
+- **Changed (`costs.ts`):**
+  - New `travellerIds(members)`: the members whose `travelling` is not `false`, in member order.
+  - `stopHeadcount` and `stopTotal` keep their signatures. Their count argument is now documented
+    as the **traveller** count, still floored at 1 (D5).
+  - `stopPeople`'s second argument is the traveller ids: who "everyone" is when nobody is picked.
+  - `balances(activities, memberIds, travellerIds)` gains a **required** third argument. Every
+    member still gets a row and is never `former`, so a non-traveller can be Booked by (D7). An
+    explicit pick of a non-traveller still charges them (D6).
+- Why: a suggester who joined to advise doubled #314's per-person total. See
+  `docs/specs/2026-10-05-travellers-and-people-panel-design.md` (task T1 of its plan).
+- Consumers updated (to compile only; nothing counts travellers yet, so this is behaviour-neutral):
+  - `packages/pages/src/macros/primitives/balances.ts`: both `balances` calls pass the member ids
+    as the traveller ids. T5 switches them.
+  - `apps/web/src/server/access/invites.ts`: `toDto` sets `travelling: true`. No column exists
+    until T2, and a missing choice means travelling.
+  - `apps/web/src/components/trip/TravelersPanel.test.tsx`: its `TripInvite` fixture gains the
+    field.
+  - Public API: `/v1` trip documents, members and invites now carry `travelling`, and the invite
+    body accepts it. `openapi.json` was regenerated and `API_VERSION` moved to `1.6.0` (minor,
+    additive) with a new `API_FINGERPRINT`. Until T2, the server ignores `travelling` on an invite
+    body.
+- Breaking? no for parsing: every new field is optional or defaulted, and every stored row still
+  parses. `balances`'s new argument breaks a caller at compile time, on purpose. A default of
+  "every member" would have silently kept the old split.
+
 ## 2026-10-03 — The `suggester` role, and suggestions as a contract (ADR-064); Public API 1.4.0, then 1.5.0
 
 - **Added:** `suggester` to `TripRole` (now `viewer, suggester, editor, owner`, least-privileged

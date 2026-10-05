@@ -1,6 +1,6 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { balances, isCommittedCost, stopHeadcount, stopPeople, stopTotal, type ActivityKind } from "../src";
+import { balances, isCommittedCost, stopHeadcount, stopPeople, stopTotal, travellerIds, type ActivityKind } from "../src";
 
 // ADR-060: a stop's `cost` is the price for ONE person, and every total is
 // `cost × headcount`. These are the three functions every reader of a cost
@@ -28,6 +28,35 @@ describe("stopHeadcount", () => {
 
   it("is never 0: a trip always has its owner, so a zero member count reads as one", () => {
     expect(stopHeadcount({ participants: [] }, 0)).toBe(1);
+  });
+
+  // Travellers spec D5: the owner may be planning a trip they are not on, so
+  // a trip can have no traveller at all. Its prices must not vanish.
+  it("floors at one person when nobody on the trip is travelling", () => {
+    const members = [
+      { userId: "owner", travelling: false },
+      { userId: "advisor", travelling: false },
+    ];
+    expect(stopHeadcount({ participants: [] }, travellerIds(members).length)).toBe(1);
+    expect(stopTotal({ cost: YEN(3000), participants: [] }, travellerIds(members).length)).toBe(3000);
+  });
+});
+
+describe("travellerIds", () => {
+  it("is the members who are travelling, in member order", () => {
+    const members = [
+      { userId: "ana", travelling: true },
+      { userId: "ben", travelling: false },
+      { userId: "cy", travelling: true },
+    ];
+    expect(travellerIds(members)).toEqual(["ana", "cy"]);
+  });
+
+  // The same reading as `TripMember`'s default (D2): a member with no say on
+  // the matter is travelling, so a caller holding an unparsed row counts the
+  // same people the schema would.
+  it("counts a member with no travelling field as travelling", () => {
+    expect(travellerIds([{ userId: "ana" }, { userId: "ben", travelling: false }])).toEqual(["ana"]);
   });
 });
 
@@ -67,8 +96,8 @@ describe("isCommittedCost", () => {
 // ADR-060 decision 6: every person in a stop owes `cost` to its `bookedBy`, and
 // a stop nobody booked is owed to the trip ("not paid yet").
 describe("stopPeople", () => {
-  it("is who is picked, or every member when nobody is", () => {
-    expect(stopPeople({ participants: ["u2"] }, ["u1", "u2", "u3"])).toEqual(["u2"]);
+  it("is who is picked, or every traveller when nobody is", () => {
+    expect(stopPeople({ participants: ["u2"] }, ["u1", "u3"])).toEqual(["u2"]);
     expect(stopPeople({ participants: [] }, ["u1", "u2"])).toEqual(["u1", "u2"]);
   });
 
@@ -90,7 +119,7 @@ describe("balances", () => {
   it("charges everyone their share and credits the payer with the whole bill, so their own share cancels", () => {
     // A ¥3,000-a-head dinner for all three, booked by Ana: she paid ¥9,000 and
     // is in for ¥3,000 of it, so the other two owe her ¥6,000 between them.
-    const result = balances([stop(3000, [], "ana")], MEMBERS);
+    const result = balances([stop(3000, [], "ana")], MEMBERS, MEMBERS);
     expect(byId(result)).toEqual({
       ana: { share: 3000, paid: 9000, net: 6000, former: false },
       ben: { share: 3000, paid: 0, net: -3000, former: false },
@@ -101,7 +130,7 @@ describe("balances", () => {
 
   it("charges only the people picked, and the payer need not be one of them", () => {
     // Ben books a ¥5,000 ticket for Cy alone: Cy owes Ben all of it.
-    const result = balances([stop(5000, ["cy"], "ben")], MEMBERS);
+    const result = balances([stop(5000, ["cy"], "ben")], MEMBERS, MEMBERS);
     expect(byId(result)).toEqual({
       ana: { share: 0, paid: 0, net: 0, former: false },
       ben: { share: 0, paid: 5000, net: 5000, former: false },
@@ -110,14 +139,14 @@ describe("balances", () => {
   });
 
   it("puts a stop nobody booked on the 'not paid yet' line: its people owe the trip, and nobody has paid", () => {
-    const result = balances([stop(2000, ["ana", "ben"], null)], MEMBERS);
+    const result = balances([stop(2000, ["ana", "ben"], null)], MEMBERS, MEMBERS);
     expect(result.unpaid).toBe(4000);
     expect(byId(result).ana).toEqual({ share: 2000, paid: 0, net: -2000, former: false });
     expect(byId(result).cy).toEqual({ share: 0, paid: 0, net: 0, former: false });
   });
 
   it("lists every member in member order, and skips a stop with no price", () => {
-    const result = balances([stop(null, ["ana"], "ben"), stop(0, [], "cy")], MEMBERS);
+    const result = balances([stop(null, ["ana"], "ben"), stop(0, [], "cy")], MEMBERS, MEMBERS);
     expect(result.perMember.map((m) => m.userId)).toEqual(MEMBERS);
     expect(result.perMember.every((m) => m.share === 0 && m.paid === 0)).toBe(true);
   });
@@ -126,7 +155,7 @@ describe("balances", () => {
     // `ActivityView` keeps a `bookedBy` or a participant who is no longer a
     // member (detail.ts: "must still READ"). Their money did not leave with
     // them, so dropping them would make the balances stop adding up.
-    const result = balances([stop(1000, ["gone", "ana"], "left")], MEMBERS);
+    const result = balances([stop(1000, ["gone", "ana"], "left")], MEMBERS, MEMBERS);
     expect(result.perMember.map((m) => [m.userId, m.former])).toEqual([
       ["ana", false], ["ben", false], ["cy", false], ["gone", true], ["left", true],
     ]);
@@ -145,7 +174,7 @@ describe("balances", () => {
         (members, amountMinor, pickSome) => {
           const participants = pickSome ? members.slice(0, 1) : [];
           const activity = { cost: YEN(amountMinor), participants, bookedBy: null };
-          const shares = balances([activity], members).perMember.reduce((sum, m) => sum + m.share, 0);
+          const shares = balances([activity], members, members).perMember.reduce((sum, m) => sum + m.share, 0);
           runs += 1;
           expect(shares).toBe(stopTotal(activity, members.length));
         },
@@ -153,6 +182,57 @@ describe("balances", () => {
     );
     // Witness: no guard clause, so every generated case asserts.
     expect(runs).toBe(100);
+  });
+
+  it("splits a stop nobody picked across the travellers only, and lets anyone pay", () => {
+    // Cy is helping plan, not coming. A ¥3,000-a-head dinner for "everyone" is
+    // Ana and Ben; Cy booked it, so the two of them owe Cy ¥6,000 (D7: Booked
+    // by is any member, and paying does not make you a traveller).
+    const result = balances([stop(3000, [], "cy")], MEMBERS, ["ana", "ben"]);
+    expect(byId(result)).toEqual({
+      ana: { share: 3000, paid: 0, net: -3000, former: false },
+      ben: { share: 3000, paid: 0, net: -3000, former: false },
+      cy: { share: 0, paid: 6000, net: 6000, former: false },
+    });
+  });
+
+  it("charges a non-traveller for a stop they are explicitly picked for", () => {
+    // D6: explicit beats default. Cy is not travelling but joins one dinner.
+    const result = balances([stop(4000, ["ana", "cy"], "ana")], MEMBERS, ["ana", "ben"]);
+    expect(byId(result).cy).toEqual({ share: 4000, paid: 0, net: -4000, former: false });
+    expect(byId(result).ben).toEqual({ share: 0, paid: 0, net: 0, former: false });
+  });
+
+  it("never charges a non-traveller an even share, and always charges their explicit picks, for every trip", () => {
+    // D6 as a property: a non-traveller's share is exactly the stops that
+    // name them. A stop nobody picked never reaches them.
+    const ids = ["a", "b", "c", "d"];
+    const arbStop = fc.record({
+      cost: fc.nat({ max: 50_000 }).map(YEN),
+      participants: fc.oneof(fc.constant([] as string[]), fc.subarray(ids, { minLength: 1 })),
+      bookedBy: fc.option(fc.constantFrom(...ids), { nil: null }),
+    });
+    const w = { evenShareExercised: 0, pickExercised: 0 };
+    fc.assert(
+      fc.property(fc.array(arbStop, { maxLength: 6 }), fc.subarray(ids), (stops, travellers) => {
+        const result = balances(stops, ids, travellers);
+        for (const id of ids.filter((x) => !travellers.includes(x))) {
+          const picked = stops.filter((s) => s.participants.includes(id));
+          const expected = picked.reduce((sum, s) => sum + s.cost.amountMinor, 0);
+          expect(result.perMember.find((m) => m.userId === id)!.share).toBe(expected);
+          // Ticks only when the claim had something to refuse or to count: a
+          // priced stop nobody picked while travellers exist, or a priced pick.
+          if (travellers.length > 0 && stops.some((s) => s.participants.length === 0 && s.cost.amountMinor > 0)) {
+            w.evenShareExercised += 1;
+          }
+          if (expected > 0) w.pickExercised += 1;
+        }
+      }),
+    );
+    // Counted per non-traveller per case, so either can pass 100. Observed over
+    // 20 runs: 54-126 and 84-151.
+    expect(w.evenShareExercised).toBeGreaterThanOrEqual(27);
+    expect(w.pickExercised).toBeGreaterThanOrEqual(42);
   });
 
   it("nets to minus what is not paid yet, for every trip — the money balances", () => {
@@ -171,8 +251,10 @@ describe("balances", () => {
     });
     let withMoney = 0;
     fc.assert(
-      fc.property(fc.array(arbStop, { maxLength: 8 }), fc.subarray(ids.slice(0, 4)), (stops, members) => {
-        const result = balances(stops, members);
+      fc.property(fc.array(arbStop, { maxLength: 8 }), fc.subarray(ids.slice(0, 4)), fc.func(fc.boolean()), (stops, members, travels) => {
+        // Any subset travelling, none included: who is charged by default
+        // moves money between people, never out of the sum.
+        const result = balances(stops, members, members.filter((id) => travels(id)));
         const net = result.perMember.reduce((sum, m) => sum + m.net, 0);
         // Ticks only when money moved: with nothing priced, 0 === −0 is true
         // of any implementation.

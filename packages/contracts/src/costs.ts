@@ -1,7 +1,7 @@
 import type { ActivityKind } from "./activity.ts";
 import type { Money } from "./money.ts";
 
-// **A stop's price is per person** (ADR-060). These three functions are the only
+// **A stop's price is per person** (ADR-060). These functions are the only
 // place that reading is written down. The domain's `rollupCosts`, the server's
 // read-time recost, `apps/web/src/lib/cost.ts` and every `@tc/pages` cost widget
 // call them, which is why they live in contracts: a second copy of "price ×
@@ -9,29 +9,47 @@ import type { Money } from "./money.ts";
 // (invariant 5).
 
 /**
- * How many people a stop is priced for: the people picked in *Who is in*, or
- * every member of the trip when nobody is picked (ADR-060 decision 2).
+ * Who on a trip is travelling, in member order (travellers spec D1). A member
+ * with no `travelling` reads as travelling — `TripMember`'s default (D2) — so a
+ * caller holding an unparsed row counts the same people the schema would.
  *
- * `memberCount` is the EFFECTIVE member count at read time, not the log's. It is
- * never trusted below 1, because a trip always has its owner and a zero would
- * make every price vanish.
+ * This is "everyone" wherever nobody is picked. Who may be *picked*, and who
+ * may be Booked by, is still every member (D6, D7).
+ */
+export function travellerIds(members: readonly { userId: string; travelling?: boolean }[]): string[] {
+  return members.filter((m) => m.travelling !== false).map((m) => m.userId);
+}
+
+/**
+ * How many people a stop is priced for: the people picked in *Who is in*, or
+ * every **traveller** when nobody is picked (ADR-060 decision 2, as amended by
+ * the travellers spec). A picked non-traveller counts: explicit beats default
+ * (D6).
+ *
+ * `travellerCount` is `travellerIds(members).length` over the EFFECTIVE members
+ * at read time, not the log's. It is never trusted below 1 (D5): the owner may
+ * be planning a trip nobody on it is travelling, and a zero would make every
+ * price vanish.
  *
  * People are counted by distinct id. `participants` is not constrained unique
  * and the log keeps what it was given, so a repeated id is one person, not two
  * charges.
  */
-export function stopHeadcount(activity: { participants: readonly string[] }, memberCount: number): number {
+export function stopHeadcount(activity: { participants: readonly string[] }, travellerCount: number): number {
   const picked = new Set(activity.participants).size;
-  return picked > 0 ? picked : Math.max(memberCount, 1);
+  return picked > 0 ? picked : Math.max(travellerCount, 1);
 }
 
-/** A stop's whole price in minor units: per-person `cost` × headcount, or 0 when it has no cost. */
+/**
+ * A stop's whole price in minor units: per-person `cost` × headcount, or 0 when
+ * it has no cost. `travellerCount` as for `stopHeadcount`.
+ */
 export function stopTotal(
   activity: { cost?: Money | null; participants: readonly string[] },
-  memberCount: number,
+  travellerCount: number,
 ): number {
   if (!activity.cost) return 0;
-  return activity.cost.amountMinor * stopHeadcount(activity, memberCount);
+  return activity.cost.amountMinor * stopHeadcount(activity, travellerCount);
 }
 
 /**
@@ -45,15 +63,18 @@ export function isCommittedCost(kind: ActivityKind): boolean {
 
 /**
  * Who is in a stop: the people picked in *Who is in*, each once, or every
- * member when nobody is (ADR-060 decision 2). `stopHeadcount` is this list's
- * length for any trip with a member; with none at all — not a state a trip can
- * reach, since it always has its owner — this is empty and there is nobody to
- * charge.
+ * traveller when nobody is (ADR-060 decision 2; travellers spec D6).
+ * `stopHeadcount` is this list's length whenever the trip has a traveller.
+ * With none (D5) this is empty while `stopHeadcount` floors at 1: there is
+ * nobody to charge, though the board still prices the stop for one.
  */
-export function stopPeople(activity: { participants: readonly string[] }, memberIds: readonly string[]): readonly string[] {
+export function stopPeople(
+  activity: { participants: readonly string[] },
+  travellerIds: readonly string[],
+): readonly string[] {
   // Distinct, as `stopHeadcount` counts: a repeated id is one person, so it
   // owes one share of a total that charged one head for it.
-  return activity.participants.length > 0 ? [...new Set(activity.participants)] : memberIds;
+  return activity.participants.length > 0 ? [...new Set(activity.participants)] : travellerIds;
 }
 
 /** One person's side of the trip's money, in minor units of the one currency the caller summed. */
@@ -75,7 +96,7 @@ export interface MemberBalance {
 }
 
 export interface Balances {
-  /** Every member, in `memberIds` order, then any former member in the order the stops name them. */
+  /** Every member — traveller or not — in `memberIds` order, then any former member in the order the stops name them. */
   perMember: MemberBalance[];
   /** The total of every priced stop nobody booked: owed to the trip, not to a person. */
   unpaid: number;
@@ -83,10 +104,14 @@ export interface Balances {
 
 /**
  * Who owes what (ADR-060 decision 6). For each priced stop, every person in it
- * owes `cost` to its `bookedBy`, who is credited the stop's whole total; a stop
- * with no `bookedBy` is **not paid yet**, so its total goes to `unpaid` and its
- * people's shares are still theirs. The payer's own share cancels inside their
- * `net`.
+ * (`stopPeople`: the picked, or the travellers) owes `cost` to its `bookedBy`,
+ * who is credited the stop's whole total; a stop with no `bookedBy` is **not
+ * paid yet**, so its total goes to `unpaid` and its people's shares are still
+ * theirs. The payer's own share cancels inside their `net`.
+ *
+ * Two lists, because they answer different questions. `memberIds` is who gets
+ * a row and who is not `former` — a non-traveller can still pay (D7) or be
+ * picked (D6). `travellerIds` is who "everyone" is on a stop nobody picked.
  *
  * **It always balances: Σ net = −unpaid.** Every unit owed is credited to a
  * payer or to `unpaid`, so this holds for every input — former members
@@ -99,6 +124,7 @@ export interface Balances {
 export function balances(
   activities: Iterable<{ cost?: Money | null; participants: readonly string[]; bookedBy?: string | null }>,
   memberIds: readonly string[],
+  travellerIds: readonly string[],
 ): Balances {
   const members = new Set(memberIds);
   const rows = new Map<string, MemberBalance>();
@@ -115,11 +141,11 @@ export function balances(
   let unpaid = 0;
   for (const activity of activities) {
     if (!activity.cost || activity.cost.amountMinor === 0) continue;
-    const people = stopPeople(activity, memberIds);
+    const people = stopPeople(activity, travellerIds);
     if (people.length === 0) continue;
     for (const userId of people) row(userId).share += activity.cost.amountMinor;
     // `stopTotal` is `cost × people.length` here, since `people` is not empty.
-    const total = stopTotal(activity, memberIds.length);
+    const total = stopTotal(activity, travellerIds.length);
     if (activity.bookedBy) row(activity.bookedBy).paid += total;
     else unpaid += total;
   }

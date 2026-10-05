@@ -115,7 +115,7 @@ export const costBalances: MacroDef<BalancesParams, RepeatPayload> = {
     if (selection.status !== "ok") return selection;
     const { counted, others } = inTripCurrency(trip, selection.value.stops);
 
-    const result = balances(counted.map((s) => s.activity), memberIdsOf(trip));
+    const result = balances(counted.map((s) => s.activity), memberIdsOf(trip), memberIdsOf(trip));
     if (nothingPriced(result)) return others === null ? empty() : empty(`only priced in other currencies: ${others}`);
 
     const names = personNames(trip, people, result.perMember.map((m) => m.userId));
@@ -191,7 +191,7 @@ export const personShare: MacroDef<ShareParams, PersonSharePayload> = {
     const { counted, others } = inTripCurrency(trip, selection.value.stops);
 
     const memberIds = memberIdsOf(trip);
-    const result = balances(counted.map((s) => s.activity), memberIds);
+    const result = balances(counted.map((s) => s.activity), memberIds, memberIds);
     const mine = result.perMember.find((m) => m.userId === who);
     // Not a member and in nothing: an id from a page written before they left.
     if (!mine) return empty("not on this trip");

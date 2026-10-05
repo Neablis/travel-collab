@@ -60,6 +60,8 @@ function toDto(row: InviteRow): TripInvite {
     acceptedBy: row.acceptedBy,
     acceptedAt: row.acceptedAt === null ? null : row.acceptedAt.toISOString(),
     revokedAt: row.revokedAt === null ? null : row.revokedAt.toISOString(),
+    // No column yet, and a missing choice means travelling (travellers spec D2).
+    travelling: true,
   };
 }
 

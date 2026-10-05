@@ -335,6 +335,17 @@ export type TripRole = z.infer<typeof TripRole>;
 export const TripMember = z.object({
   userId: z.string().min(1),
   role: TripRole,
+  // Whether they are on the trip, as against helping plan it (travellers spec
+  // D1). Access data, overlaid at read time like the member list itself; the
+  // log never knows it. Absent means travelling (D2), and that reading lives in
+  // ONE place, `travellerIds` (costs.ts) — read it there, never as a bare
+  // `m.travelling`.
+  //
+  // `.optional()`, not `.default(true)`: the domain folds members as
+  // `{ userId, role }` without parsing, so a default materialised on parse
+  // would make a stored projection and its rebuild from the log differ
+  // (invariant 2), and would type every member literal as missing a field.
+  travelling: z.boolean().optional(),
 });
 export type TripMember = z.infer<typeof TripMember>;
 

@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  ChangeRoleInput,
   CreateInviteInput,
   InviteLanding,
   InviteRole,
+  SetTravellingInput,
   TripAccess,
+  TripEventsPage,
   TripInvite,
   TripMemberProfile,
   TripRole,
@@ -24,6 +27,7 @@ const invite = {
   acceptedBy: null,
   acceptedAt: null,
   revokedAt: null,
+  travelling: true,
 };
 
 describe("InviteRole", () => {
@@ -83,6 +87,62 @@ describe("CreateInviteInput", () => {
   it("rejects an owner invite", () => {
     expect(CreateInviteInput.safeParse({ email: null, role: "owner" }).success).toBe(false);
   });
+
+  // Travellers spec D3: the owner may say whether the invitee is coming. Left
+  // out, the server presets it from the role — so absent must stay absent
+  // here, not become `true` and override that preset.
+  it("carries an optional travelling choice, and leaves it unset when absent", () => {
+    expect(CreateInviteInput.parse({ email: null, role: "suggester", travelling: false }).travelling).toBe(false);
+    expect(CreateInviteInput.parse({ email: null, role: "suggester" }).travelling).toBeUndefined();
+  });
+});
+
+describe("TripInvite.travelling", () => {
+  // An invite row stored before the column, or served by a server one deploy
+  // behind, means what the column's default means: travelling (D2).
+  it("reads an invite with no travelling field as travelling", () => {
+    const { travelling: _omitted, ...older } = invite;
+    expect(TripInvite.parse(older).travelling).toBe(true);
+    expect(TripInvite.parse({ ...invite, travelling: false }).travelling).toBe(false);
+  });
+});
+
+describe("SetTravellingInput", () => {
+  it("takes exactly a boolean", () => {
+    expect(SetTravellingInput.parse({ travelling: false })).toEqual({ travelling: false });
+    expect(SetTravellingInput.safeParse({}).success).toBe(false);
+    expect(SetTravellingInput.safeParse({ travelling: "false" }).success).toBe(false);
+  });
+
+  // One PATCH carries either body (plan T3). Strict, so a body naming both is
+  // refused instead of half-applied by whichever schema the route tries first.
+  it("refuses a body that also names a role", () => {
+    expect(SetTravellingInput.safeParse({ travelling: true, role: "editor" }).success).toBe(false);
+  });
+});
+
+describe("ChangeRoleInput", () => {
+  // Travellers spec D8/D9: a role changes in place, but never to owner — the
+  // owner is the log's `TripCreated.createdBy`, and moving it is a transfer.
+  it("takes an invitable role and never owner", () => {
+    for (const role of InviteRole.options) expect(ChangeRoleInput.parse({ role })).toEqual({ role });
+    expect(ChangeRoleInput.safeParse({ role: "owner" }).success).toBe(false);
+  });
+
+  it("refuses a body that also names travelling", () => {
+    expect(ChangeRoleInput.safeParse({ role: "editor", travelling: true }).success).toBe(false);
+  });
+});
+
+describe("TripEventsPage.accessRev", () => {
+  // D11: rides the poll as `suggestionsRev` does. Optional, because a server
+  // that predates it sends none and the poll must still parse.
+  it("is optional, and a non-empty string when present", () => {
+    const page = { headSeq: 3, events: [], resync: false };
+    expect(TripEventsPage.parse(page).accessRev).toBeUndefined();
+    expect(TripEventsPage.parse({ ...page, accessRev: "a1" }).accessRev).toBe("a1");
+    expect(TripEventsPage.safeParse({ ...page, accessRev: "" }).success).toBe(false);
+  });
 });
 
 describe("TripAccess", () => {
@@ -134,10 +194,16 @@ describe("TripAccess", () => {
     ).toEqual([]);
   });
 
-  // TripMember (planning) stays { userId, role }; the profile fields are the
+  // TripMember (planning) carries no profile; the profile fields are the
   // Identity join, done in the Access module.
   it("keeps profile fields nullable, so a member with no user row still lists", () => {
     expect(TripMemberProfile.parse(member).name).toBeNull();
+  });
+
+  it("follows TripMember: travelling is optional, and an explicit choice is kept", () => {
+    expect(TripMemberProfile.parse(member)).not.toHaveProperty("travelling");
+    expect(TripMemberProfile.parse({ ...member, travelling: false }).travelling).toBe(false);
+    expect(TripMemberProfile.safeParse({ ...member, travelling: "no" }).success).toBe(false);
   });
 });
 
