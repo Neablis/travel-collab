@@ -195,3 +195,7 @@ payload. A trip rebuilt from its log is byte-identical (invariant 2).
 
 | # | Decision | Why |
 |---|---|---|
+| W1 | `TripMember.travelling` is **optional**, not `.default(true)`. Only `travellerIds(members)` reads it, and it treats a missing value as travelling. The access overlay (T2) always sets it explicitly. | A parse-time default would make every `{userId, role}` literal in the domain fail to typecheck. It would also make a stored projection differ from its rebuild from the log (invariant 2). |
+| W2 | Public API bumped to **1.6.0** in T1, not T3. | The generated `openapi.json` is fingerprint-checked by `pnpm check`. T3 updates the fingerprint again if it changes the document. |
+| W3 | `balances(activities, memberIds, travellerIds)` takes the traveller ids as a **required** third argument. | So no caller can keep the old even split by accident. |
+| W4 | **Open, low stakes:** when nobody is travelling and nobody is picked, `stopTotal` prices one person (D5) but `balances` charges nobody. The board total and "who owes what" then disagree. For now this is documented on `stopPeople`. | Only reachable on a trip where every member, owner included, is marked not travelling. |
