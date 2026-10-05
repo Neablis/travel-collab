@@ -259,7 +259,10 @@ export function PeopleSection({
       if (role === "owner") return [toggle];
       return [
         toggle,
-        { label: "Change role…", onSelect: () => setChangingRole({ member, name, role }) },
+        // Not during a lapse: every granted row reads as the capped `viewer`,
+        // so the dialog would open on *Can view* whatever was stored, and a
+        // change would show nothing. Resubscribing restores the roles.
+        ...(lapsed ? [] : [{ label: "Change role…", onSelect: () => setChangingRole({ member, name, role }) }]),
         { label: "Remove from trip…", destructive: true, onSelect: () => setConfirming({ kind: "remove", member, name }) },
       ];
     }

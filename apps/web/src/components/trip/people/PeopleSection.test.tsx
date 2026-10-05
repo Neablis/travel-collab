@@ -688,6 +688,17 @@ describe("PeopleSection", () => {
       expect(screen.queryByTestId("collaborators-gate")).toBeNull();
     });
 
+    // Every granted row is read-capped to `viewer` during a lapse, so the
+    // dialog would open on *Can view* whatever the stored role is, and a
+    // change would show no effect. Resubscribing restores the roles.
+    it("offers no role change during a lapse", async () => {
+      fetchTripAccessMock.mockResolvedValue({ ok: true, value: unentitled({ members: [alice, { ...bob, role: "viewer" }] }) });
+      render(<PeopleSection tripId={tripId} />);
+      await screen.findByText("Alice");
+      openMenu("bob@example.com");
+      expect(menuItems()).toEqual(["Mark as not travelling", "Remove from trip…"]);
+    });
+
     // A solo trip is not a lapse. With nobody else on it there is nothing
     // capped, so the banner would be describing a loss that did not happen.
     it("shows no lapse banner on a trip with no collaborators", async () => {
