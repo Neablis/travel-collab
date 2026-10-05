@@ -100,19 +100,36 @@ built. Finding an exact address is still `LocationInput`'s job, one row below.
 
 ## Exit gate
 
-- [ ] **The ranking is unit-tested and each test seen red**: only cities that overlap; the
+- [x] **The ranking is unit-tested and each test seen red**: only cities that overlap; the
       reader's own, private, deleted and moderated days excluded at the query; transit stops
       and stops already on the day excluded; duplicates collapsed with their count; closest
       first, with a `precision: "city"` coordinate not ranked by distance.
-- [ ] **The route is integration-tested against real Postgres**: it returns another person's
+      *(Ticked 2026-10-05, part 2 (#333): `nearbyStops.test.ts`, 10 tests. The query-side exclusions are
+      held by the integration test below, as the box splits them. Mutations and failures in #333's body,
+      e.g. the `precision === "city"` guard removed → `expected [ 'Centre', 'Near', 'Far' ] to deeply
+      equal [ 'Near', 'Far', 'Centre' ]`.)*
+- [x] **The route is integration-tested against real Postgres**: it returns another person's
       published stop in the day's city, and never a private, deleted or moderated day's stop
       or the reader's own; a non-member gets the trip-access refusal. Each seen red.
-- [ ] **A pick fills name, place, length, kind and tags, and leaves start time and cost
+      *(Ticked 2026-10-05, part 2 (#333): `route.int.test.ts`, 8 tests, each exclusion beside a visible
+      control day. Dropping the private, deleted, moderated or own-day clause each went red; a
+      non-member through a bare `getTripDetail` → `expected 200 to be 403`. The route takes no
+      invite token (M27 D12, `inviteTokenRoutes.test.ts`): signed-in members only.)*
+- [x] **A pick fills name, place, length, kind and tags, and leaves start time and cost
       alone**, held by a component test seen red, including a length outside the five options.
-- [ ] **The placeholder is gone**: `grep -c add-stop-suggestions
+      *(Ticked 2026-10-05, part 3 (#334): `ActivityEditor.test.tsx`. A pick that skips `setKind` →
+      `expected 'Pending' to be 'Planned'`; one that snaps a 100-minute length →
+      `expected '1.5 hours' to be '1 h 40 m'`.)*
+- [x] **The placeholder is gone**: `grep -c add-stop-suggestions
       apps/web/src/lib/preview-registry.ts` prints 0, and the sheet renders no Preview frame.
-- [ ] **The e2e spec passes on `pnpm --filter web test:e2e:ci-like`**, and the add-stop specs
+      *(Ticked 2026-10-05, part 3 (#334): the registry entry and the Preview are deleted;
+      `preview-registry.test.ts` names the retired id.)*
+- [x] **The e2e spec passes on `pnpm --filter web test:e2e:ci-like`**, and the add-stop specs
       that already type into "What or where" still pass.
+      *(Ticked 2026-10-05, part 3 (#334): `m34-nearby-stops.spec.ts` with m1, m2, m3, m4, m8,
+      suggester and m14-notebook-widgets, **44 passed** on ci-like. Seen red with a pick that drops
+      the place: `m34-nearby-stops.spec.ts:84`, the saved stop has no `Somewhere in …`, on both
+      attempts.)*
 - [ ] **[walk]** On the PR preview, adding a stop to a day in a city the library covers lists
       library stops before typing, narrows as you type, and a pick fills the form.
 - [ ] A retro is appended at gate close.
