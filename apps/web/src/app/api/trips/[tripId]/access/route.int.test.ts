@@ -121,6 +121,23 @@ describe("GET /api/trips/:id/access", () => {
     expect(body.access.members.map((m) => m.userId)).toEqual([OWNER, GUEST]);
     expect(body.access.invites).toEqual([]);
   });
+
+  // The People section marks "You" from this, so a failed session probe does
+  // not cost a member the menu on their own row (the Leave trip door).
+  it("names the reader when they are on the trip, and nobody for a look through an invite link", async () => {
+    const tripId = await seedTrip();
+    const invite = await createInvite(tripId, OWNER, { email: null, role: "viewer" });
+    await join(tripId, "editor");
+    const read = async (headers: Record<string, string> = {}) =>
+      ((await (await GET(new Request("http://test/x", { headers }), params(tripId))).json()) as {
+        access: { viewerId?: string };
+      }).access;
+
+    currentUserId = GUEST;
+    expect((await read()).viewerId).toBe(GUEST);
+    currentUserId = STRANGER;
+    expect((await read({ [INVITE_TOKEN_HEADER]: invite.token })).viewerId).toBeUndefined();
+  });
 });
 
 // KI-2026-09-05-f item 3 (F-A04). A viewer can be a stranger — an invite link

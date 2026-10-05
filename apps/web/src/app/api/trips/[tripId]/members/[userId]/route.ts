@@ -135,6 +135,8 @@ async function accessView(
   return TripAccess.parse({
     tripId,
     myRole: access.role,
+    // The writer, who passed the membership check above, so is on the list.
+    viewerId: access.userId,
     members: await withProfiles(members, access.userId),
     // Owner only, as `GET /access` rules: each invite carries its token, and
     // PATCH answers a member setting their own travelling too.

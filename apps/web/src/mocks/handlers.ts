@@ -194,6 +194,12 @@ export function makeTripHandlers(
     myRole?: TripRole;
     /** M20 link 6 — whether the trip's OWNER holds `trip.collaborators`. */
     collaboratorsEntitled?: boolean;
+    /**
+     * Who is reading, as `TripAccess.viewerId`. Defaults to the owner when
+     * `myRole` is `owner`, and to nobody otherwise — a suite reading as a
+     * member names which one.
+     */
+    viewerId?: string;
     /** Every suggestion draft POSTed, as parsed — what a suggester sent. */
     onSuggestion?: (input: CreateSuggestionInput) => void;
     /** Changes already stored when the suite starts, oldest first. */
@@ -217,6 +223,7 @@ export function makeTripHandlers(
     return `r${hash.toString(36)}`;
   };
   const rankAtLeastSuggester = role !== "viewer";
+  const viewerId = options?.viewerId ?? (role === "owner" ? detail.members[0]?.userId : undefined);
   return [
     http.get("/api/trips/:tripId", ({ params }) =>
       params.tripId === detail.tripId
@@ -361,6 +368,7 @@ export function makeTripHandlers(
           // written for; the gate's own surfaces are covered in
           // `people/PeopleSection.test.tsx` and `collaborationGate.int.test.ts`.
           collaboratorsEntitled: options?.collaboratorsEntitled ?? true,
+          viewerId,
         },
       }),
     ),
@@ -381,6 +389,7 @@ export function makeTripHandlers(
             members,
             invites: [],
             collaboratorsEntitled: options?.collaboratorsEntitled ?? true,
+            viewerId,
           },
         });
       }),

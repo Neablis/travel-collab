@@ -49,7 +49,19 @@ export async function GET(request: Request, { params }: { params: Promise<{ trip
     isDemoTripId(tripId) || owner === null
       ? true
       : await accountCan(owner, "trip.collaborators");
+  // Who is reading, so the People section marks "You" without waiting on the
+  // session probe. Only a reader on the list: the demo visitor and an
+  // invite-link look carry stand-in ids that name nobody.
+  const viewerId = members.some((m) => m.userId === access.userId) ? access.userId : undefined;
   return Response.json({
-    access: TripAccess.parse({ tripId, myRole: access.role, members, invites, collaboratorsEntitled, accessRev }),
+    access: TripAccess.parse({
+      tripId,
+      myRole: access.role,
+      members,
+      invites,
+      collaboratorsEntitled,
+      accessRev,
+      viewerId,
+    }),
   });
 }

@@ -105,6 +105,7 @@ describe("DELETE /api/trips/:tripId/members/:userId", () => {
     expect(access.tripId).toBe(tripId);
     expect(access.myRole).toBe("owner");
     expect(access.members.map((member) => member.userId)).toEqual([OWNER]);
+    expect(access.viewerId).toBe(OWNER);
   });
 
   it("401s when unauthenticated", async () => {
@@ -266,6 +267,8 @@ describe("PATCH /api/trips/:tripId/members/:userId", () => {
     const access = TripAccess.parse(((await res.json()) as { access: unknown }).access);
     expect(access.myRole).toBe("viewer");
     expect(access.invites).toEqual([]);
+    // Who "You" is on the People section's re-render from this response.
+    expect(access.viewerId).toBe(GUEST);
     expect((await member(tripId, GUEST))?.travelling).toBe(false);
   });
 

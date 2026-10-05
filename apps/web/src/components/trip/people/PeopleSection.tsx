@@ -242,9 +242,15 @@ export function PeopleSection({
   const ordered = [...members].sort((a, b) => Number(b.role === "owner") - Number(a.role === "owner"));
   const pending = isOwner ? (access?.invites ?? []).filter((i) => i.status === "pending") : [];
 
+  // Who is reading, as the server that answered the read knows it; the session
+  // only for a server that does not say. Waiting on the session left a member
+  // no menu on their own row — no way to leave — until it answered, and for
+  // good if the probe failed.
+  const viewerId = access?.viewerId ?? me?.id ?? null;
+
   function isYou(member: TripMemberProfile): boolean {
-    // The owner's row is the owner's whether or not the session has answered yet.
-    return (me?.id !== undefined && me?.id !== null && member.userId === me.id) || (isOwner && member.role === "owner");
+    // The owner's row is the owner's whoever the reader turns out to be.
+    return member.userId === viewerId || (isOwner && member.role === "owner");
   }
 
   function memberActions(member: TripMemberProfile, name: string): PersonAction[] {

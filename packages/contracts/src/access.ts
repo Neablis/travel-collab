@@ -117,8 +117,9 @@ export const TripAccess = z.object({
   collaboratorsEntitled: z.boolean(),
   /**
    * The trip's access revision as of this read (travellers spec D11, W22): the
-   * same opaque string the events poll reports as `accessRev`, compared only
-   * for equality.
+   * same string the events poll reports as `accessRev`. It is a per-trip
+   * integer counter (W5). The provider compares it for equality only; the
+   * People section orders by it, to refuse a read older than the one it holds.
    *
    * **Read before the members it describes, never after.** So it is never
    * newer than the list beside it. A client that takes it as its baseline
@@ -131,6 +132,17 @@ export const TripAccess = z.object({
    * first poll's rev as the baseline.
    */
   accessRev: z.string().optional(),
+  /**
+   * The reader's own user id, as the server that authenticated them knows it.
+   * The People section marks "You" and offers the reader's own row its menu
+   * from this, rather than waiting on a separate session probe — which, when
+   * it failed, left the reader no way to leave the trip.
+   *
+   * Optional: absent for a reader who is not on the trip (the demo visitor, an
+   * invite-link look), and from a server that predates it. A client without
+   * it falls back to the session.
+   */
+  viewerId: z.string().min(1).optional(),
 });
 export type TripAccess = z.infer<typeof TripAccess>;
 

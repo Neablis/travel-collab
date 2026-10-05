@@ -182,6 +182,16 @@ describe("TripAccess", () => {
     ).toBe(false);
   });
 
+  // Who the reader is, from the server that authenticated them, so the
+  // People section can mark their row without waiting on the session probe.
+  // Optional: absent for a reader who is not on the trip (the demo visitor,
+  // an invite-link look), and from a server that predates it.
+  it("carries the reader's own id when served, and parses without it", () => {
+    const access = { tripId, myRole: "owner", members: [member], invites: [], collaboratorsEntitled: true };
+    expect(TripAccess.parse({ ...access, viewerId: "dev-alice" }).viewerId).toBe("dev-alice");
+    expect(TripAccess.parse(access).viewerId).toBeUndefined();
+  });
+
   it("allows an empty invite list, which is what a non-owner is served", () => {
     expect(
       TripAccess.parse({

@@ -302,6 +302,22 @@ describe("PeopleSection", () => {
       expect(menuItems()).toEqual(["Mark as not travelling", "Leave trip…"]);
     });
 
+    // The session probe can be slow or fail outright; the server that answered
+    // the read already knows who asked. Without it the member's own row had
+    // no menu at all, and so no way to leave the trip.
+    it("offers a member their own row's menu with no session, from who the server says is reading", async () => {
+      meId = undefined;
+      fetchTripAccessMock.mockResolvedValue({
+        ok: true,
+        value: access({ myRole: "editor", invites: [], viewerId: "dev-bob" }),
+      });
+      render(<PeopleSection tripId={tripId} />);
+      await screen.findByText("Alice");
+      expect(within(personRow("dev-bob")).getByText("You")).toBeTruthy();
+      openMenu("bob@example.com");
+      expect(menuItems()).toEqual(["Mark as not travelling", "Leave trip…"]);
+    });
+
     // D4: a member decides travelling for themselves only. Everything on
     // anyone else's row is the owner's, so there is no menu to show at all.
     it("gives a member no menu on anyone else's row", async () => {

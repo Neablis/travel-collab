@@ -23,6 +23,25 @@ Format:
 - Not in the public API: `openapi.json`, `API_VERSION` (1.6.0) and `API_FINGERPRINT` are unchanged.
 - Breaking? no. A wider range; every value that parsed before still parses.
 
+## 2026-10-05 — `TripAccess.viewerId`: the access read says who is reading
+
+- **Added:** `TripAccess.viewerId`, an optional non-empty string: the reader's own user id, as
+  the server that authenticated the read knows it.
+- Why: review of PR #335. The People section marked "You", and gave a member the menu on their
+  own row (the only way to leave the trip), from `useSessionUser()`. Until that probe answered
+  the row had no menu, and if the probe failed it never got one.
+- Consumers updated: `GET /api/trips/:tripId/access` fills it when the reader is on the member
+  list, so the demo visitor and an invite-link look get none. The `TripAccess` that
+  `PATCH`/`DELETE …/members/:userId` answer with fills it with the writer. `PeopleSection` uses
+  it for "You", falling back to the session. The MSW `makeTripHandlers` serves it (the owner by
+  default, or `options.viewerId`).
+- Also: `TripAccess.accessRev`'s doc now says what the People section does with it. The section
+  orders reads by it, as the integer counter it is (W5), to refuse one older than it holds; the
+  entry below said the section ignored it.
+- Not in the public API: `TripAccess` is a BFF type, so `openapi.json`, `API_VERSION` and
+  `API_FINGERPRINT` are unchanged.
+- Breaking? no. The field is optional, and a client without it uses the session as before.
+
 ## 2026-10-05 — `TripAccess.accessRev`: the access read carries its own revision
 
 - **Added:** `TripAccess.accessRev`, an optional opaque string. It is the same value the events
