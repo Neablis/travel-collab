@@ -575,7 +575,7 @@ describe("TripHeader — the avatar stack (D10)", () => {
       person("dev-eve", "Eve Ellis", false),
     ];
     await renderHeader();
-    const stack = await screen.findByRole("button", { name: "People on this trip" });
+    const stack = await screen.findByRole("button", { name: "Travellers on this trip" });
     expect(stack.textContent).toBe("AABBCC+1");
     // Hidden below `sm` (640px); jsdom loads no stylesheet, so the class is the assertion.
     // eslint-disable-next-line no-restricted-syntax -- the breakpoint is the claim, as in "TripHeader on a phone" above
@@ -585,7 +585,7 @@ describe("TripHeader — the avatar stack (D10)", () => {
   it("opens Trip settings scrolled to People", async () => {
     accessMembers = [person("dev-alice", "Alice Ames"), person("dev-bob", "Bob Burns")];
     await renderHeader();
-    await userEvent.click(await screen.findByRole("button", { name: "People on this trip" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Travellers on this trip" }));
 
     expect(screen.getByRole("dialog", { name: /trip settings/i })).toBeTruthy();
     expect(scrolled.map((el) => el.id)).toEqual(["people"]);
@@ -594,7 +594,7 @@ describe("TripHeader — the avatar stack (D10)", () => {
   it("does not scroll when the sheet is opened from the title", async () => {
     accessMembers = [person("dev-alice", "Alice Ames")];
     await renderHeader();
-    await screen.findByRole("button", { name: "People on this trip" });
+    await screen.findByRole("button", { name: "Travellers on this trip" });
     await userEvent.click(screen.getByRole("button", { name: /trip settings/i }));
 
     // Witness: the sheet and its People section are there to be scrolled to.
@@ -606,7 +606,7 @@ describe("TripHeader — the avatar stack (D10)", () => {
     await renderHeader();
     // Witness: the access read has answered, and the header rendered.
     await screen.findByRole("button", { name: "Add stop" });
-    expect(screen.queryByRole("button", { name: "People on this trip" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Travellers on this trip" })).toBeNull();
   });
 });
 

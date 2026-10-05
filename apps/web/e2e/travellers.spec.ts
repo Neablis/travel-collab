@@ -63,7 +63,7 @@ async function tripCostTotal(read: Promise<Response>): Promise<number> {
  */
 async function peopleFromHeader(page: Page): Promise<void> {
   if (page.viewportSize()!.width < 640) return;
-  await page.getByRole("button", { name: "People on this trip" }).click();
+  await page.getByRole("button", { name: "Travellers on this trip" }).click();
   const sheet = page.getByRole("dialog", { name: "Trip settings" });
   await expect(sheet).toBeVisible();
   await expect(sheet.getByTestId("people-section")).toBeInViewport();

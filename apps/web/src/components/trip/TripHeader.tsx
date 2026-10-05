@@ -591,8 +591,8 @@ function TravellerStack({ access, onOpen }: { access: TripAccess | null; onOpen:
     <Button
       variant="ghost"
       onClick={onOpen}
-      aria-label="People on this trip"
-      title="People on this trip"
+      aria-label="Travellers on this trip"
+      title="Travellers on this trip"
       className="hidden h-8 px-1 sm:inline-flex"
     >
       {/* Its own row, so the overlap is not undone by the button's gap. */}
