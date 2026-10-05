@@ -521,7 +521,7 @@ describe("ActivityEditorSheet — a viewer gets no form", () => {
 });
 
 // Booked by decides who is owed money (ADR-060 decision 6), so the editor's
-// attribution controls must read as people: the Travelers list's names, then
+// attribution controls must read as people: the People section's names, then
 // "Traveler N" by place in the trip while they are missing — never an id, and
 // never an email (a co-traveller's address is not this surface's to show).
 describe("ActivityEditorSheet — who a stop is for, by name", () => {

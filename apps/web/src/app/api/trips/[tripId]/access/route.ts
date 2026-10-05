@@ -6,7 +6,7 @@ import { demoTripMembers } from "@/server/demoTrip";
 import { isDemoTripId } from "@/lib/demoTrip";
 import { accountCan } from "@/server/entitlements/resolver";
 
-// The Travelers panel's one read: who is on this trip, what am I, and (owner
+// The People section's one read: who is on this trip, what am I, and (owner
 // only) which links are outstanding.
 export async function GET(request: Request, { params }: { params: Promise<{ tripId: string }> }) {
   const { tripId } = await params;

@@ -8,7 +8,7 @@ import { displayNameFor } from "@/lib/displayName";
 
 // What a notebook widget calls each member (`WidgetContext.people`, M19 part 2).
 //
-// **Not a new read.** The names are the Travelers list's own join —
+// **Not a new read.** The names are the People section's own join —
 // `TripAccess.members`, which `PageScreen` and `TripProvider` already fetch
 // under `tripKeys.access` — so the provider below asks the cache for the
 // response those surfaces share, and `displayNameFor` is the one rule that

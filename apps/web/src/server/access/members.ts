@@ -453,7 +453,7 @@ export async function changeMemberRole(
 
 /**
  * The Identity join, done here rather than in a planning read model: the
- * Travelers list wants names and avatars, and `TripMember` must stay
+ * People section wants names and avatars, and `TripMember` must stay
  * `{ userId, role }` so the planning domain keeps knowing nothing about people.
  *
  * A member with no `users` row (an actor id from before M11 link 1, or the

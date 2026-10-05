@@ -14,8 +14,8 @@ import { accountCan } from "@/server/entitlements/resolver";
  *
  * The response is the same `TripAccess` shape `GET .../access` returns, not a
  * bare `{ ok: true }`: the caller's next question is always "so who is on it
- * now", and answering it here means the Travelers panel — when it is designed
- * (SPEC §8) — re-renders from the mutation instead of chasing it with a read.
+ * now", and answering it here means the People section (travellers spec §4)
+ * re-renders from the mutation instead of chasing it with a read.
  * It also means this endpoint introduced no new contract type, so nothing in
  * `packages/contracts` moved for it (AGENTS.md invariant 5).
  */

@@ -117,6 +117,12 @@ here two days later.
     stops at the first refusal and keeps what landed). How the entry is worded and attributed
     when the changes come from several suggesters (`Origin` carries one author today). Whether
     undoing it returns the changes to pending or leaves them accepted-then-undone.
+- **PLACED 2026-10-05 — this is the travellers spec, and its three decisions are answered.**
+  *Built as `docs/specs/2026-10-05-travellers-and-people-panel-design.md`, recorded as ADR-065.
+  The default is chosen on the invite and preset by role (D3; everyone already on a trip stays
+  travelling, D2). It lives in Access, not the log (D1). Picks already made stand (D6). Delete
+  this entry and the one below when that branch merges.*
+
 - **Choose who on a trip is actually travelling (asked 2026-10-04).** Every member today counts
   as a traveller: a suggester who joined to advise doubled a trip's per-person total ($9,130 →
   $18,260 on #314's preview) and appears in "Who is in" and "Booked by". Mitchell: *"Add a idea
