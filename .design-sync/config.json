@@ -14,6 +14,7 @@
     "Dialog": { "cardMode": "single", "viewport": "560x420" },
     "Sheet": { "cardMode": "single", "viewport": "560x520" },
     "Popover": { "cardMode": "single", "viewport": "420x360" },
+    "Menu": { "cardMode": "single", "viewport": "420x360" },
     "DialogFooter": { "cardMode": "single", "viewport": "560x420" },
     "PageContainer": { "cardMode": "column" }
   }

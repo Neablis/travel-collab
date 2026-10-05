@@ -250,6 +250,7 @@ these tokens, plus our own additions). **UI code outside `ui/` never renders raw
 | `NativeSelect` | Styled native `<select>` — **not** Radix Select (keeps e2e `selectOption` semantics) |
 | `Badge` | Semantic variants (danger/warning/success/info/neutral), pill |
 | `Card` | Surface + hairline border + `rounded-md` |
+| `Avatar` | Round initials (or an `icon`, for a pending invite); `sm` a People row, `md` a stacked crew, `lg` the invite landing's inviter; `moss`/`info` tones. Decorative (`aria-hidden`): every use prints the name beside it |
 
 ### Composites
 
@@ -267,6 +268,7 @@ these tokens, plus our own additions). **UI code outside `ui/` never renders raw
 | `PageContainer` | Centers + constrains page width; `width="content"` (default, 1120px) / `"measure"` (640px) / `"full"` (board/map); optionally `as="main"` |
 | `Sheet` | Side-anchored Radix Dialog; activity editor, trip settings. State-controlled (`open`/`onOpenChange`), no `SheetTrigger` |
 | `Popover` | Anchored Radix Popover; History, clear-date, row menus. State-controlled (`open`/`onOpenChange`), no `PopoverTrigger` |
+| `Menu` | Radix dropdown of actions (`MenuTrigger`, `MenuContent`, `MenuItem` with a `destructive` variant, `MenuSeparator`, `MenuLabel`); the People rows' `⋯`. State-controlled (`open`/`onOpenChange`); `MenuTrigger` opens on a plain click so `fireEvent.click` works. No submenus |
 | `EmptyState` | Empty trip list, empty day, empty backlog |
 | `ChartContainer`, `ChartLegend` | shadcn `chart` on Recharts, re-themed (`ui/chart.tsx`, M14 link 11) — **the one chart component**. Series colours are typed as `@theme` custom properties (`ChartToken`), never CSS colours; axis, tick and value text is IBM Plex Mono through the exported `chartTick`/`chartLabel`. Fixed height (ADR-044), measured width, and the SVG mounts through a portal into a `<span>` so a chart can sit in a notebook paragraph. `ui/chart.test.tsx` renders every chart and fails on any paint or font that is not a token, Recharts' own defaults included |
 | `BudgetMeter` | Header spent-vs-budget glance (#30): fill bar (`bg-brand` under budget, `bg-warning` over, clamped at 100%) + `DataText` label (`cost of budget currency`, `text-warning-ink` when over). Fill width is computed geometry via inline `style` — same pattern as `TimelineLens`'s position math |
