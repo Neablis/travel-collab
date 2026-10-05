@@ -1,6 +1,7 @@
 import { Crown } from "lucide-react";
 import type { TripMemberProfile } from "@tc/contracts";
 import { Avatar } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { Text } from "@/components/ui/text";
 import { roleLabel } from "@/lib/tripRole";
 
@@ -43,9 +44,9 @@ export function PersonRow({
             {name}
           </Text>
           {isYou ? (
-            <Text as="span" className="shrink-0 rounded-sm bg-moss px-1.5 text-2xs font-medium text-slate">
-              You
-            </Text>
+            // `Badge`, so it sits on the 12px floor (KI-2026-10-05-i). Tighter
+            // than the default pill: it rides inside a name line.
+            <Badge className="shrink-0 px-1.5 py-0 font-medium">You</Badge>
           ) : null}
         </span>
         <Text as="span" variant="muted" className="flex items-center gap-1">

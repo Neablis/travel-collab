@@ -418,7 +418,9 @@ export function PeopleSection({
             <Text
               as="span"
               id={`${ids}-${group.key}`}
-              className="text-2xs font-semibold uppercase tracking-wider text-slate"
+              // 12px, the app's floor (KI-2026-10-05-i); a step lighter than
+              // the section's own heading, which is the same size.
+              className="text-xs font-medium uppercase tracking-wider text-slate"
             >
               {group.label} · {group.rows.length}
             </Text>
