@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { TripDetail, TripSummary } from "@tc/contracts";
 import { db } from "@/server/db/client";
-import { grantedMembersByTrip, mergeMembers } from "@/server/access/members";
+import { grantedMembersByTrip, mergeMembers, travellingByTrip, withTravelling } from "@/server/access/members";
 import { listTripSummariesPage } from "@/server/projections";
 import { orThrow, runCreation, tripDatesCommand } from "@/server/public-api/commands";
 import { route } from "@/server/public-api/route";
@@ -36,11 +36,19 @@ export const { GET, POST } = route({
       // omits real members. This query already returns trips someone reaches
       // through a `trip_memberships` row; answering those with an owner-only
       // `members` array would be a wrong answer rather than a lean one. It costs
-      // one batched read for the whole page, not one per trip.
-      const granted = await grantedMembersByTrip(db, rows.map((r) => r.tripId));
+      // one batched read for the whole page, not one per trip — and one more
+      // for who is travelling, as `GET /api/trips` does (travellers spec W21).
+      const tripIds = rows.map((r) => r.tripId);
+      const [granted, travelling] = await Promise.all([
+        grantedMembersByTrip(db, tripIds),
+        travellingByTrip(db, tripIds),
+      ]);
       return rows.map((r) => ({
         ...r,
-        members: mergeMembers(r.members, granted.get(r.tripId) ?? []),
+        members: withTravelling(
+          mergeMembers(r.members, granted.get(r.tripId) ?? []),
+          travelling.get(r.tripId) ?? new Map(),
+        ),
       }));
     },
   },

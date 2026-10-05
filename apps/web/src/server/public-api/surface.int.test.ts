@@ -428,6 +428,27 @@ describe("who is travelling, through v1", () => {
       { userId: guest, role: "editor", travelling: false },
     ]);
   });
+
+  // W21 for the public list: `GET /api/trips` carries `travelling`, and the v1
+  // list merged the same members without it, so a caller read everyone as going.
+  it("lists the trip with its not-travelling member marked so", async () => {
+    const owner = await entitled();
+    const secret = await tokenFor(owner, ["trips:read", "trips:write", "sharing:write"]);
+    const { tripId } = await seed(secret);
+    const made = await ADD_INVITE(req(secret, { email: null, role: "editor", travelling: false }, "POST"), P({ tripId }));
+    const guest = `${owner}-guest`;
+    expect((await acceptInvite((await made.json()).token, guest)).ok).toBe(true);
+
+    const listed = await LIST_TRIPS(req(secret), NO_PARAMS);
+    expect(listed.status).toBe(200);
+    const trip = ((await listed.json()).items as { tripId: string; members: unknown[] }[]).find(
+      (t) => t.tripId === tripId,
+    );
+    expect(trip?.members).toEqual([
+      { userId: owner, role: "owner", travelling: true },
+      { userId: guest, role: "editor", travelling: false },
+    ]);
+  });
 });
 
 describe("a patch changes what it names, and nothing else", () => {
