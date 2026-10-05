@@ -28,3 +28,12 @@
   runs: every step 0.6-1.9s. Tool time is milliseconds throughout, so it is the model call: the
   same prompt is 2.4s one time and 134.5s the next. This is the provider route or the model, not
   turn size and not our code.
+- **A candidate, measured 2026-10-05:** the same four cheap-tier questions ×3 with the cheap tier
+  on `zai/glm-5.3-flash` (`EVAL_MODEL_CHEAP`): 12 of 12 passed, every turn 1.9-4.1s, every step
+  under 2.2s. That is the fix this entry was waiting to name: switch `AI_MODEL_CHEAP`.
+- **The strong tier too, one run:** `t-reads-and-says-nothing` on `zai/glm-5.3` (plan a six-day
+  trip): steps 2.0s + 104.7s, then the 240s deadline stopped step 3 with no proposal. A plan
+  writes far more than a question, so one run does not separate slow output from a stall; it
+  needs repeats before it is a finding of its own.
+- **Neither `zai/glm-4.7-flashx` nor `zai/glm-5.3` has an entry in `modelRates.ts`**, so every
+  cheap-tier and strong-tier turn in production is counted as unpriced by `costPerAccount`.

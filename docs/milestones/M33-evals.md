@@ -57,6 +57,11 @@ strong tier, and one is a production defect nobody had seen:
   latched the record as `error` and cleared the hard deadline. Fixed 2026-10-05 (the failure is
   now recorded only on the stream's `error` part); the same fix resolved `KI-2026-09-16-a`.
 
+**Candidate cheap model, 2026-10-05** (`EVAL_MODEL_CHEAP=zai/glm-5.3-flash`, the mid tier's
+model, on the four cheap-tier questions ×3): **12 of 12 passed, 1.9–4.1s each**, against 5–137s on
+production's `zai/glm-4.7-flashx` for the same prompts. Switching `AI_MODEL_CHEAP` is Mitchell's
+call; `glm-4.7-flashx` and `glm-5.3` have no entry in `modelRates.ts`, so their turns are unpriced.
+
 ## Exit gate
 
 - [x] **`pnpm --filter web eval` runs the live set on a real model through the unmocked `/ask`
@@ -68,7 +73,9 @@ strong tier, and one is a production defect nobody had seen:
       The network allowlist too (`evalNetworkGuard.test.ts`, a substring match → red).
 - [x] **It reproduces a known production defect and shows its fix**: M32's table above.
 - [x] **Every finding of the first full run is either fixed in the eval or filed** (above).
-- [ ] **The strong tier's production model is in `models.json`** (Mitchell: the id
+- [x] **The strong tier's production model is in `models.json`** (Mitchell: the id
       `AI_MODEL_STRONG` holds), and `t-reads-and-says-nothing` runs on it.
-      *(2026-10-05: Mitchell gave `zai/glm-5.3`; in `models.json`. Ticks on its run.)*
+      *(Ticked 2026-10-05: Mitchell gave `zai/glm-5.3`. It ran, and FAILED: steps 2.0s + 104.7s,
+      then the 240s deadline stopped the third; three reads, no proposal. One run, so not yet
+      a rate; recorded in `KI-2026-10-04-c`.)*
 - [ ] A retro is appended at gate close.
