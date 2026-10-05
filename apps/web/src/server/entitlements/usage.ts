@@ -133,6 +133,8 @@ export async function recordTurnLedger(ledger: TurnLedger, now: Date = new Date(
               escalated: step.escalated,
               pivoted: step.pivoted,
               durationMs: step.durationMs,
+              provider: step.provider,
+              gatewayGenerationId: step.gatewayGenerationId,
               createdAt: now,
             })),
           )
@@ -149,6 +151,8 @@ export async function recordTurnLedger(ledger: TurnLedger, now: Date = new Date(
               "escalated",
               "pivoted",
               "durationMs",
+              "provider",
+              "gatewayGenerationId",
             ]),
           });
       }

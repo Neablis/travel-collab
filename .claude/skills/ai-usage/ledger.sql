@@ -170,3 +170,23 @@ SELECT model,
 FROM steps
 GROUP BY model
 ORDER BY p95_model_ms DESC;
+
+-- 9. Which AI Gateway provider served the steps, per model (migration 0038).
+--    The Gateway sells one model through many providers at different prices,
+--    and `modelRates.ts` prices every step at one list rate, so this is the
+--    query that says whether that rate is the one being paid. The ids are
+--    what the billed cost is looked up by (SKILL.md, *What a turn was billed*);
+--    no dollar is stored. Rows before 0038, and simulated turns, have no
+--    provider and are left out.
+WITH window_ AS (SELECT now() - interval '7 days' AS since)
+SELECT s.model,
+       s.provider,
+       count(*) AS steps,
+       sum(s.tokens_in) AS tokens_in,
+       sum(s.tokens_out) AS tokens_out,
+       (array_agg(s.gateway_generation_id ORDER BY s.created_at DESC))[1:20] AS latest_generation_ids
+FROM ai_usage_steps s
+CROSS JOIN window_ w
+WHERE s.created_at >= w.since AND s.provider IS NOT NULL
+GROUP BY s.model, s.provider
+ORDER BY steps DESC;

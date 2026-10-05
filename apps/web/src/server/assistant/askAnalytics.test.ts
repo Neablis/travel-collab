@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   createAskRecorder,
+  gatewayRoutingOf,
   logAskAnalytics,
   type AskAnalyticsRecord,
   type AskDroppedCall,
@@ -489,6 +490,36 @@ const FINISHES: EndPath = (recorder) => recorder.finish({ finishReason: "stop" }
 const ABORTS: EndPath = (recorder) => recorder.abandon("abort");
 const ERRORS: EndPath = (recorder) => recorder.abandon("error", new Error("boom"));
 
+// The Gateway sells one model through many providers at different prices, so
+// the model id alone does not say what a step was billed at. The recorder keeps
+// which provider served each step and the Gateway's generation id, by which the
+// billed cost is looked up (no dollar is stored).
+describe("which provider served each step", () => {
+  const routed = (finalProvider: unknown, generationId: unknown) => ({
+    gateway: { routing: { finalProvider, resolvedProvider: "zai" }, cost: "0.0004", generationId },
+  });
+
+  it("records the Gateway's final provider and generation id on the step row", () => {
+    const { recorder, ledgers } = recorderWith();
+    // A fallback: resolved to zai, served by deepinfra. The bill is deepinfra's.
+    recorder.observeStep({ usage: { inputTokens: 10, outputTokens: 1 }, providerMetadata: routed("deepinfra", "gen_01ABC") });
+    recorder.observeStep({ usage: { inputTokens: 20, outputTokens: 2 } });
+    FINISHES(recorder);
+
+    expect(ledgers[0]!.stepSpend.map((step) => [step.provider, step.gatewayGenerationId])).toEqual([
+      ["deepinfra", "gen_01ABC"],
+      [null, null],
+    ]);
+  });
+
+  it("reads a malformed or missing value as null, never a guess", () => {
+    expect(gatewayRoutingOf(undefined)).toEqual({ provider: null, gatewayGenerationId: null });
+    expect(gatewayRoutingOf({ gateway: "nope" })).toEqual({ provider: null, gatewayGenerationId: null });
+    expect(gatewayRoutingOf(routed(42, ""))).toEqual({ provider: null, gatewayGenerationId: null });
+    expect(gatewayRoutingOf(routed("x".repeat(65), "gen_1"))).toEqual({ provider: null, gatewayGenerationId: "gen_1" });
+  });
+});
+
 describe("the turn ledger", () => {
   // **Written on all three end paths, including failure** — *"because the
   // round-trips already made were already paid for"* (M20 link 9). It is free
@@ -781,6 +812,8 @@ describe("the per-step and per-tool ledger", () => {
         escalated: false,
         pivoted: false,
         durationMs: 40,
+        provider: null,
+        gatewayGenerationId: null,
       },
     ]);
   });

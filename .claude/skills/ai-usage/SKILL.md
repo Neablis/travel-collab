@@ -40,6 +40,7 @@ them.
 6. escalation rate, and the tokens spent after escalating;
 7. turn latency by outcome;
 8. model time per step, p50 and p95 per model (M32: step `duration_ms` less its tool calls).
+9. which AI Gateway provider served the steps, per model, with recent generation ids (0038).
 
 Each starts with a `window_` CTE; change `since` there. Simulated turns are
 excluded.
@@ -55,6 +56,28 @@ step rows is priced per step, at the model each step ran on, with cached reads a
 the cached rate (KI-2026-09-17-c, resolved). To price a window by hand, take
 query 4's token counts and multiply by `modelRates.ts`' entry in force on those
 dates, keeping cached reads separate.
+
+## What a turn was billed
+
+`modelRates.ts` prices every step of a model at ONE list rate, but AI Gateway sells a
+model through many providers at different prices (`zai/glm-5.3-flash`: $0.075–0.45
+input per MTok across about 20 of them, `GET /v1/models/zai/glm-5.3-flash/endpoints`),
+and picks one per request unless `providerOptions.gateway.order`/`only` pins it. So the
+SQL price is an estimate. Each step row (from migration `0038`) carries `provider`, the
+Gateway's `routing.finalProvider`, and `gateway_generation_id`: query 9 says which
+providers served a window, and the id is how the **real** billed cost is read. It is
+never stored (no dollars on the ledger, `usage.noMoney.test.ts`).
+
+- **One generation:** `GET https://ai-gateway.vercel.sh/v1/generation?id=gen_…` with
+  `Authorization: Bearer <a key on this team>`. `total_cost` is what was debited (USD,
+  surcharges included), `market_cost` the list price, and `provider_name` who served it.
+  A just-finished generation can answer `Usage event not found` for a few seconds.
+- **A window:** `GET /v1/report?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD&group_by=provider`
+  (or `model`) gives billed totals the Gateway already summed (`total_cost`, `market_cost`).
+  Not on Hobby or a Pro trial (`403`).
+- **Lookups are free** (no model is called), but never print the key, and say which window
+  or ids were read. Compare the billed total against query 4's tokens × `modelRates.ts`: a
+  gap is the provider mix, and pinning a cheaper provider is a code change to argue from it.
 
 **To test a change before it ships, run the eval, not this skill**:
 `EVAL_CONFIRM=1 pnpm --filter web eval` (M33, `docs/milestones/M33-evals.md`) sends the live set

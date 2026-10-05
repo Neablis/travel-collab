@@ -17,6 +17,7 @@ function ledger(steps: { model: string; tokensIn: number | null; tokensOut: numb
     stepSpend: steps.map((step, index) => ({
       index, model: step.model, tier: null, tokensIn: step.tokensIn, cacheReadTokens: step.cacheRead ?? 0,
       cacheWriteTokens: 0, tokensOut: step.tokensOut, finishReason: "stop", escalated: false, pivoted: false, durationMs: 1,
+      provider: null, gatewayGenerationId: null,
     })),
   };
 }

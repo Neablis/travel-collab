@@ -87,6 +87,8 @@ export type _StepKeys = Assert<
     | "escalated"
     | "pivoted"
     | "durationMs"
+    | "provider"
+    | "gatewayGenerationId"
   >
 >;
 
