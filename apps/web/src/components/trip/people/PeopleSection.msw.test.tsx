@@ -1,8 +1,16 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { setupServer } from "msw/node";
-import { afterAll, afterEach, beforeAll, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { tripDetailFixture } from "@tc/factories";
 import { makeTripHandlers } from "@/mocks/handlers";
+import {
+  apiUrl,
+  changeMemberRole,
+  fetchTripAccess,
+  removeMember,
+  setTravelling,
+  type ApiResult,
+} from "@/lib/apiClient";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 vi.mock("@/components/account/useSessionUser", () => ({ useSessionUser: () => ({ id: "dev-alice" }) }));
@@ -51,4 +59,54 @@ it("takes a member off the list through the mock's DELETE", async () => {
 
   expect(await screen.findByText("People · 1")).toBeTruthy();
   expect(screen.queryByText("Bob")).toBeNull();
+});
+
+// The handler answered 200 to anything, so a UI written against it never met
+// the refusals the route gives (`members/[userId]/route.ts`). Each status
+// here is one the route's int test pins.
+describe("the mock's member writes refuse as the route does", () => {
+  const status = async (result: Promise<ApiResult<unknown>>) => {
+    const answered = await result;
+    return answered.ok ? 200 : answered.error.status;
+  };
+
+  it("404s someone who is not on the trip", async () => {
+    server.use(...makeTripHandlers(detail));
+    expect(await status(removeMember(detail.tripId, "dev-nobody"))).toBe(404);
+    expect(await status(setTravelling(detail.tripId, "dev-nobody", false))).toBe(404);
+    expect(await status(changeMemberRole(detail.tripId, "dev-nobody", "viewer"))).toBe(404);
+  });
+
+  it("409s the owner as the target of a removal or a role change", async () => {
+    server.use(...makeTripHandlers(detail));
+    expect(await status(removeMember(detail.tripId, "dev-alice"))).toBe(409);
+    expect(await status(changeMemberRole(detail.tripId, "dev-alice", "viewer"))).toBe(409);
+  });
+
+  it("403s a member acting on someone else, and lets them set their own travelling", async () => {
+    server.use(...makeTripHandlers(detail, { myRole: "editor", viewerId: "dev-bob" }));
+    expect(await status(setTravelling(detail.tripId, "dev-alice", false))).toBe(403);
+    expect(await status(removeMember(detail.tripId, "dev-alice"))).toBe(403);
+    expect(await status(changeMemberRole(detail.tripId, "dev-bob", "viewer"))).toBe(403);
+    expect(await status(setTravelling(detail.tripId, "dev-bob", false))).toBe(200);
+  });
+
+  it("400s a body that is neither change", async () => {
+    server.use(...makeTripHandlers(detail));
+    const res = await fetch(apiUrl(`/api/trips/${detail.tripId}/members/dev-bob`), {
+      method: "PATCH",
+      body: JSON.stringify({ travelling: false, role: "viewer" }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  // W22: the section orders reads by it, so a write's answer has to carry one
+  // newer than the read it follows.
+  it("answers a write with an access revision past the read's", async () => {
+    server.use(...makeTripHandlers(detail));
+    const read = await fetchTripAccess(detail.tripId);
+    const written = await setTravelling(detail.tripId, "dev-bob", false);
+    if (!read.ok || !written.ok) throw new Error("expected both to answer");
+    expect(Number(written.value.accessRev)).toBeGreaterThan(Number(read.value.accessRev));
+  });
 });
