@@ -431,6 +431,32 @@ describe("PeopleSection", () => {
       expect(pushMock).toHaveBeenCalledWith("/");
     });
 
+    // A cancel that closed the dialog mid-leave did not stop the leave: the
+    // request was already out, and its answer still sent the reader home from
+    // a dialog they had dismissed. While it is in flight nothing closes it.
+    it("cannot be cancelled while the leave is in flight", async () => {
+      meId = "dev-bob";
+      fetchTripAccessMock.mockResolvedValue({ ok: true, value: access({ myRole: "editor", invites: [] }) });
+      let answer: (value: unknown) => void = () => {};
+      leaveTripMock.mockReturnValue(new Promise((resolve) => (answer = resolve)));
+      render(<PeopleSection tripId={tripId} />);
+      await screen.findByText("Alice");
+      openMenu("bob@example.com");
+      fireEvent.click(screen.getByRole("menuitem", { name: "Leave trip…" }));
+      const dialog = await screen.findByRole("dialog");
+      await userEvent.click(within(dialog).getByRole("button", { name: "Leave trip" }));
+      await waitFor(() => expect(leaveTripMock).toHaveBeenCalledWith(tripId));
+
+      fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+      fireEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+      await userEvent.keyboard("{Escape}");
+      expect(screen.getByRole("dialog")).toBe(dialog);
+      expect(pushMock).not.toHaveBeenCalled();
+
+      await act(async () => answer({ ok: true, value: { ok: true } }));
+      expect(pushMock).toHaveBeenCalledWith("/");
+    });
+
     it("stays put and says so when leaving is refused", async () => {
       meId = "dev-bob";
       fetchTripAccessMock.mockResolvedValue({ ok: true, value: access({ myRole: "editor", invites: [] }) });

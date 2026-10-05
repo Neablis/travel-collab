@@ -24,11 +24,18 @@ export function ConfirmDialog({
   onOpenChange: (open: boolean) => void;
   onConfirm: () => void;
 }) {
+  // **Nothing closes it while `busy`** — Cancel, the ✕ or Esc. The request is
+  // already out, and closing would not stop it: a leave cancelled mid-flight
+  // still sent the reader home from a dialog they had dismissed.
+  const openChange = (open: boolean) => {
+    if (!open && busy) return;
+    onOpenChange(open);
+  };
   return (
-    <Dialog open onOpenChange={onOpenChange} title={title}>
+    <Dialog open onOpenChange={openChange} title={title}>
       <Text variant="secondary">{body}</Text>
       <DialogFooter>
-        <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
+        <Button variant="ghost" size="sm" disabled={busy} onClick={() => openChange(false)}>
           Cancel
         </Button>
         <Button variant="destructive" size="sm" disabled={busy} onClick={onConfirm}>
