@@ -42,8 +42,14 @@
   - `components/pages/WidgetPicker.tsx:472`
   - `components/pages/WidgetPicker.tsx:480`
   - PR #335 added two more, in `components/trip/people/PersonRow.tsx` (the "You" chip) and
-    `PeopleSection.tsx` (group labels). Those are being fixed in that PR, and are not part of
-    this entry.
+    `PeopleSection.tsx` (group labels). Both were fixed in that PR (946835b): the chip is a
+    `Badge`, the labels `text-xs`. They are not part of this entry.
+  - Two more under the floor that do not use the token, so a grep for `text-2xs` misses them.
+    Both are hand-rolled initials in an inline `style`, and both predate PR #335:
+    - `components/home/TripCard.tsx:217`: 9px initials.
+    - `components/home/NextTripHero.tsx:258`: 11px initials in a 30px circle.
+
+    Each could adopt the `Avatar` primitive, which holds its initials at 12px below `lg`.
 - **Why it happened:** no lint enforces the rule. `scripts/check-color-wall.mjs` checks colour and
   text-size tokens exist, not where the front-door-only ones are used. Each use copied a nearby one.
 - **Fix:**
