@@ -238,6 +238,29 @@ describe("PeopleSection", () => {
       expect(link!.textContent).not.toContain("travel");
     });
 
+    // Two link invites have no address to tell them apart, and both menus
+    // were "Actions for Link invite" — a screen reader could not say which.
+    it("names each link invite's menu by its role and age", async () => {
+      fetchTripAccessMock.mockResolvedValue({
+        ok: true,
+        value: access({
+          invites: [
+            tripInviteFactory.build({ tripId, email: null, role: "viewer", travelling: false }),
+            tripInviteFactory.build({ tripId, email: null, role: "editor", travelling: true }),
+          ],
+        }),
+      });
+      render(<PeopleSection tripId={tripId} />);
+      await screen.findByRole("list", { name: "Invited · 2" });
+      const names = screen
+        .getAllByRole("button", { name: /^Actions for Link invite/ })
+        .map((b) => b.getAttribute("aria-label"));
+      expect(names).toEqual([
+        expect.stringMatching(/^Actions for Link invite, Can view, sent .+/),
+        expect.stringMatching(/^Actions for Link invite, Can edit, will travel, sent .+/),
+      ]);
+    });
+
     // KI-2026-10-04-b: an invite accepted in another browser while this is
     // open. The provider re-reads access on the poll's `accessRev`; the
     // section adopts what it read without a second request of its own.
@@ -535,6 +558,38 @@ describe("PeopleSection", () => {
       expect((fallback as HTMLInputElement).value).toBe(`http://test/invite/${invite.token}`);
       expect(fallback.hasAttribute("readonly")).toBe(true);
       expect(within(inviteRow(invite.inviteId)).queryByText("Copied")).toBeNull();
+    });
+
+    // A revoked invite's link no longer works, so offering it to copy is
+    // offering a dead link.
+    it("drops the fallback link once its invite is revoked", async () => {
+      writeText.mockRejectedValueOnce(new Error("denied"));
+      render(<PeopleSection tripId={tripId} />);
+      await screen.findByText("cara@example.com");
+      openMenu("cara@example.com");
+      fireEvent.click(screen.getByRole("menuitem", { name: "Copy invite link" }));
+      expect(await screen.findByLabelText("Invite link")).toBeTruthy();
+
+      fetchTripAccessMock.mockResolvedValue({ ok: true, value: access({ invites: [{ ...invite, status: "revoked" }] }) });
+      await revokeThroughConfirm();
+      await waitFor(() => expect(screen.queryByRole("list", { name: /^Invited/ })).toBeNull());
+      expect(screen.queryByLabelText("Invite link")).toBeNull();
+    });
+
+    it("lets Copied go after a few seconds", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      try {
+        render(<PeopleSection tripId={tripId} />);
+        await screen.findByText("cara@example.com");
+        openMenu("cara@example.com");
+        fireEvent.click(screen.getByRole("menuitem", { name: "Copy invite link" }));
+        expect(await within(inviteRow(invite.inviteId)).findByText("Copied")).toBeTruthy();
+
+        await act(async () => vi.advanceTimersByTime(5_000));
+        expect(within(inviteRow(invite.inviteId)).queryByText("Copied")).toBeNull();
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it("hides the fallback again once a copy succeeds", async () => {

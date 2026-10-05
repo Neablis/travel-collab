@@ -24,7 +24,7 @@ import {
 import { displayNameFor } from "@/lib/displayName";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { InviteDialog } from "./InviteDialog";
-import { InviteRow, inviteName } from "./InviteRow";
+import { InviteRow, inviteMenuLabel } from "./InviteRow";
 import { PersonMenu, type PersonAction } from "./PersonMenu";
 import { PersonRow } from "./PersonRow";
 import { RoleDialog } from "./RoleDialog";
@@ -71,6 +71,9 @@ function isOlder(next: TripAccess, held: TripAccess | null): boolean {
   if (next.accessRev === undefined) return true;
   return Number(next.accessRev) < Number(held.accessRev);
 }
+
+/** How long a row says "Copied" after its link went to the clipboard. */
+const COPIED_FOR_MS = 3_000;
 
 function travellersLine(count: number): string {
   // D5: totals floor at one person, so a trip with nobody travelling is still
@@ -131,11 +134,18 @@ export function PeopleSection({
     null,
   );
   const [copied, setCopied] = useState<string | null>(null);
+  // "Copied" is news, not a state of the row: it goes after a few seconds.
+  useEffect(() => {
+    if (copied === null) return;
+    const timer = setTimeout(() => setCopied(null), COPIED_FOR_MS);
+    return () => clearTimeout(timer);
+  }, [copied]);
   // The link, shown as selectable text, when the clipboard refused it. A
   // `title` tooltip is not a delivery mechanism — unreachable by keyboard and
   // on touch — so a denied clipboard would otherwise leave the owner no way to
-  // send the invite (CodeRabbit, PR #70).
-  const [revealed, setRevealed] = useState<string | null>(null);
+  // send the invite (CodeRabbit, PR #70). Held with its invite, so it is shown
+  // only while that invite is still out: a revoked one's link is dead.
+  const [revealed, setRevealed] = useState<{ inviteId: string; link: string } | null>(null);
   const ids = useId();
 
   // The value on screen, read synchronously: two reads in flight can land in
@@ -193,7 +203,7 @@ export function PeopleSection({
       setRevealed(null);
     } catch {
       setCopied(null);
-      setRevealed(link);
+      setRevealed({ inviteId: invite.inviteId, link });
     }
   }
 
@@ -304,7 +314,7 @@ export function PeopleSection({
           copied={copied === invite.inviteId}
           menu={
             <PersonMenu
-              label={inviteName(invite)}
+              label={inviteMenuLabel(invite)}
               actions={[
                 { label: "Copy invite link", onSelect: () => void copy(invite) },
                 { label: "Revoke invite…", destructive: true, onSelect: () => setConfirming({ kind: "revoke", invite }) },
@@ -431,12 +441,12 @@ export function PeopleSection({
         ),
       )}
 
-      {revealed !== null ? (
+      {revealed !== null && pending.some((i) => i.inviteId === revealed.inviteId) ? (
         <div className="flex flex-col gap-1">
           <Text as="span" variant="muted">
             Couldn&apos;t reach your clipboard — copy this instead:
           </Text>
-          <Input readOnly aria-label="Invite link" value={revealed} onFocus={(e) => e.target.select()} />
+          <Input readOnly aria-label="Invite link" value={revealed.link} onFocus={(e) => e.target.select()} />
         </div>
       ) : null}
 

@@ -15,11 +15,20 @@ export function inviteName(invite: TripInvite): string {
  * says nothing about it rather than "won't travel": the role already reads as
  * the reason, and the Not travelling group is where that shows once they join.
  */
-function subline(invite: TripInvite): string {
+function sublineParts(invite: TripInvite): string[] {
   const sent = formatRelativeInstant(invite.createdAt);
-  return [roleLabel(invite.role), invite.travelling ? "will travel" : null, sent === null ? null : `sent ${sent}`]
-    .filter((part) => part !== null)
-    .join(" · ");
+  return [roleLabel(invite.role), invite.travelling ? "will travel" : null, sent === null ? null : `sent ${sent}`].filter(
+    (part) => part !== null,
+  );
+}
+
+/**
+ * What the row's `⋯` is named for. An address tells two invites apart; a link
+ * invite has none, so two of them were both "Link invite" to a screen reader.
+ * It says what the row says under the name instead.
+ */
+export function inviteMenuLabel(invite: TripInvite): string {
+  return invite.email ?? [inviteName(invite), ...sublineParts(invite)].join(", ");
 }
 
 /**
@@ -38,7 +47,7 @@ export function InviteRow({ invite, copied, menu }: { invite: TripInvite; copied
           {name}
         </Text>
         <Text as="span" variant="muted">
-          {subline(invite)}
+          {sublineParts(invite).join(" · ")}
         </Text>
       </div>
       {copied ? (
