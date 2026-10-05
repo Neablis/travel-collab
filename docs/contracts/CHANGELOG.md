@@ -13,6 +13,16 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-05 — `SharedTripView.travellerCount` may be 0
+
+- **Changed:** `SharedTripView.travellerCount` is `.int().nonnegative()`, was `.int().min(1)`.
+- Why: the owner can be not travelling (travellers spec D5), so `readShare` serves 0 once nobody
+  is, and `GET /api/shares/:token` threw on its own `.parse` — a 500 for anyone holding the link.
+- Consumers updated: `SharedTripScreen` shows W14's line ("Nobody is marked as travelling, so costs
+  are priced for one person.") in place of "0 travellers". `fetchSharedTrip` parses the same schema.
+- Not in the public API: `openapi.json`, `API_VERSION` (1.6.0) and `API_FINGERPRINT` are unchanged.
+- Breaking? no. A wider range; every value that parsed before still parses.
+
 ## 2026-10-05 — `TripAccess.accessRev`: the access read carries its own revision
 
 - **Added:** `TripAccess.accessRev`, an optional opaque string. It is the same value the events

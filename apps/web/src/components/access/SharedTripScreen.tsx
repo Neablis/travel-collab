@@ -150,7 +150,11 @@ export function SharedTripScreen({ token }: { token: string }) {
             {trip.days.length} day{trip.days.length === 1 ? "" : "s"}
           </Text>
           <Text as="span" variant="secondary">
-            {trip.travellerCount} traveller{trip.travellerCount === 1 ? "" : "s"}
+            {/* The owner can be not travelling (travellers spec D5); the totals
+                are then priced for one person, which "0 travellers" would hide. */}
+            {trip.travellerCount === 0
+              ? "Nobody is marked as travelling, so costs are priced for one person."
+              : `${trip.travellerCount} traveller${trip.travellerCount === 1 ? "" : "s"}`}
           </Text>
           {trip.tripCostTotal > 0 && (
             <DataText size="sm">{formatMoney(trip.tripCostTotal, trip.currency)}</DataText>

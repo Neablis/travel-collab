@@ -84,7 +84,10 @@ describe("SharedTripView", () => {
     }
   });
 
-  it("requires at least one traveller — a trip always has an owner", () => {
-    expect(SharedTripView.safeParse({ ...view, travellerCount: 0 }).success).toBe(false);
+  // A trip always has an owner, but the owner can be not travelling
+  // (travellers spec D5), so 0 is a count the server really serves.
+  it("accepts a trip nobody is travelling on, and no negative count", () => {
+    expect(SharedTripView.safeParse({ ...view, travellerCount: 0 }).success).toBe(true);
+    expect(SharedTripView.safeParse({ ...view, travellerCount: -1 }).success).toBe(false);
   });
 });

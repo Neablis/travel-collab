@@ -6,6 +6,8 @@ import { tripDetails } from "../db/schema";
 import { executeTripCommand } from "../commands";
 import { createInvite, acceptInvite } from "./invites";
 import { createShare, listShares, readShare, revokeShare } from "./shares";
+import { setTravelling } from "./travellers";
+import { GET as PUBLIC_GET } from "../../app/api/shares/[token]/route";
 
 // Unique per run so this file's actors cannot collide with another suite's,
 // with a developer's own dev-login identity, or with a previous run's leftovers
@@ -272,6 +274,24 @@ describe("what a stranger is served", () => {
     const view = await readShare(share.value.token);
     if (!view.ok) throw new Error("share unreadable");
     expect(view.value.travellerCount).toBe(1);
+  });
+
+  // D5: the owner can be not travelling, so the count can be 0. Through the
+  // public route, because the route `.parse`s the view — a contract floor of 1
+  // turned this into a 500 for anyone holding the link.
+  it("serves a trip nobody is travelling on, with a count of 0", async () => {
+    const tripId = await seedTrip();
+    const notGoing = await setTravelling(tripId, OWNER, OWNER, false);
+    expect(notGoing.ok).toBe(true);
+    const share = await createShare(tripId, OWNER);
+    if (!share.ok) throw new Error("share refused");
+
+    const res = await PUBLIC_GET(new Request("http://test/x"), {
+      params: Promise.resolve({ token: share.value.token }),
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { trip: { travellerCount: number } };
+    expect(body.trip.travellerCount).toBe(0);
   });
 });
 
