@@ -56,6 +56,13 @@ the cached rate (KI-2026-09-17-c, resolved). To price a window by hand, take
 query 4's token counts and multiply by `modelRates.ts`' entry in force on those
 dates, keeping cached reads separate.
 
+**To test a change before it ships, run the eval, not this skill**:
+`EVAL_CONFIRM=1 pnpm --filter web eval` (M33, `docs/milestones/M33-evals.md`) sends the live set
+through the real `/ask` handler on production's models and fails on any broken expectation. It is
+paid: without `EVAL_CONFIRM=1` it only prints the plan, and `EVAL_MAX_USD` caps it (default $0.10).
+Say the turn count and cap before running it. This skill reads what
+already happened in production; the eval says what will.
+
 **A baseline for comparing two stacks** (M31's parity gate) is the live set,
 `apps/web/src/server/ai/eval/live-set.json`. Run it with
 `pnpm --filter web live-set` (`apps/web/scripts/assistant-live-set.mjs`), which prints the window and the account to put

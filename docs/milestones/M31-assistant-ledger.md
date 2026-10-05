@@ -13,8 +13,7 @@ parked as a candidate, together with its triggers and its draft parity threshold
 is kept in ADR-062 § *Deferred: the port* and in `docs/candidates.md`. Its Phase 0 spike
 is done, and the findings are in the ADR.
 
-Two gate boxes are left, and both are operator steps: the Gateway spend budget, and the
-baseline run on a preview.
+**Gate closed 2026-10-05** (7 of 7); the retro is at the end of this file.
 
 **Opened by:** Mitchell, 2026-10-02, choosing the full eve port with measurement as a
 first-class term. The ledger was to ship before any eve code, and it is now the whole of
@@ -123,12 +122,28 @@ milestone.
       *(Ticked 2026-10-03. `ledger.sql` ran clean against an empty migrated database, so
       every division handles zero. It also ran against seeded rows, checked by hand: p50
       tokens 4,125, cached share 0.500, and simulated turns excluded.)*
-- [ ] **[operator]** An AI Gateway project spend budget with alerts is set in the dashboard.
+- [x] **[operator]** An AI Gateway project spend budget with alerts is set in the dashboard.
       This is Mitchell's to do; the box records the amount.
-- [ ] **A baseline is recorded** in this file. Run the live set on a preview with `ai-live` on,
+      *(Ticked 2026-10-05: **$20 per month**, set by Mitchell on 2026-10-04 ("i turned on
+      budget"). Alert thresholds were not stated.)*
+- [x] **A baseline is recorded** in this file. Run the live set on a preview with `ai-live` on,
       then run `ledger.sql` over the printed window and record the numbers and n here. It
       needs `VERCEL_AUTOMATION_BYPASS_SECRET` if an agent runs it (STATUS.md, *Blocking*).
       It is also the real model call M9's gate is waiting for.
+      *(Ticked 2026-10-05 **on a substitute Mitchell accepted**: n=2 hand-typed production
+      turns, not the live set on a preview. `ledger.sql` over 2026-10-04 23:00 UTC onward:*
+
+      | Turn | Model | Steps | Tokens in / out | Cached | Tool calls | Latency | Proposal |
+      |---|---|---|---|---|---|---|---|
+      | question | `zai/glm-4.7-flashx` | 3 | 8,386 / 825 | 1.5% | 10 | 162.3 s | — |
+      | edit | `zai/glm-5.3-flash` | 5 | 39,143 / 525 | 56.9% | 5 | 13.8 s | reached |
+
+      *Tool failures 0 of 15 (`find_free_time` ×11, `read_trip` ×2, `search_places` ×1,
+      `AddActivity` ×1). Tokens per turn p50 ≈ 24,440, p75 ≈ 32,050; cached share 0.471.
+      Proposal reached on 1 of 1 change turns. Escalation 0 of 2. The baseline's one consumer
+      is the eve port's parity check, which is deferred; that port will need a full live-set
+      run on whatever stack is current anyway. M9's gate is not satisfied by this: it stays
+      paused.)*
 
 ## Prerequisites
 
@@ -141,3 +156,29 @@ milestone.
     production, as well as the child rows.
   - So dispatch the migration **before** the code deploys to production, or immediately
     after.
+
+## Retro — gate closed 2026-10-05 (7 of 7, one box on an accepted substitute)
+
+**What shipped.** Per-step (`ai_usage_steps`) and per-tool-call (`ai_usage_tool_calls`) rows for
+every `/ask` turn, written on all three end paths from the recorder's existing latch; cached
+tokens and escalated steps priced at the model each step ran on; the `ai-usage` skill's
+`ledger.sql`. Migration `0035`, dispatched. Built 2026-10-03 beside M19.
+
+**What held.**
+- **The ledger found the first real problem within one evening of production use.** Mitchell's
+  second turn on it took 162 seconds while its tools took 15 ms, which is what the ledger was
+  built to make visible. It opened `KI-2026-10-04-c`, M32 (one call for "which day is free",
+  per-step durations) and M33 (evals), and ended in switching the cheap tier's model.
+- **No user text and no money in the tables**, held by a test that goes red on a dollar column.
+
+**What it cost.**
+- **The ledger could say *that* a turn was slow, not *which step*.** Steps carried no duration,
+  so the 162-second turn needed M32's `duration_ms` (migration `0037`) and an eval to localise.
+  A per-step timing belonged in the first schema.
+- **The baseline box assumed a preview run that nobody scheduled.** It closed on two production
+  turns instead, accepted by Mitchell as recorded above; the honest label is in the box.
+
+**Left open, not gating.**
+- **The eve port** (ADR-062 Phases 2–5), deferred with its triggers in `docs/candidates.md`.
+- **`KI-2026-10-04-c`**: open until production's step durations show the cheap-tier switch held.
+- **M9** stays paused; this baseline is not its live model call.

@@ -21,28 +21,30 @@ general setup.
 
 ## Where the work is right now
 
-**M31 — WE CAN SEE WHAT THE ASSISTANT COSTS — IS THE CURRENT MILESTONE AS OF 2026-10-04**,
-by **M19's gate closing at 13 of 13**. Order:
-`… M14 ✓ → M19 ✓ → M31` (M9 stays paused: its gate needs a live model call).
-M19 (ADR-060: a price is per person, committed vs estimate derives from kind, Booked by pays)
-shipped as three stacked parts; its retro is at the end of `docs/milestones/M19-cost-model.md`.
-What it left open, none gating: `KI-2026-09-24-p` (totals add across currencies),
-`KI-2026-09-24-q` (a stored `person` filter widens to the whole trip), and free vs unknown (KI-82).
-
-**M31 was minted and built 2026-10-03.** It is ADR-062's Phase 1: per-step and per-tool rows
-next to `ai_usage`, cached tokens, per-step pricing, the `ai-usage` skill's SQL and the live set.
-It closed KI-2026-09-14-b and KI-2026-09-17-c. **It adds migration `0035`, which must be
-dispatched to production right after merge.** Until it is applied, production's ledger writes
-fail, the `ai_usage` row included (`docs/milestones/M31-assistant-ledger.md`, *Prerequisites*).
-Gate 5 of 7. **The two boxes left are Mitchell's:** the Gateway spend budget, and the baseline
-run on a preview. **The eve port is deferred until there are users** (ADR-062 § *Deferred: the port*).
-
-**M32 — The assistant can say which day is free, in one call — minted and built 2026-10-04,
-beside M31, not current.** From Mitchell's production turn that called `find_free_time` once per
-day and counted sleep as free: the tool now ranks days inside 08:00-22:00 in one call, and each
-ledger step row carries `duration_ms`. **It adds migration `0037`, to dispatch right after
-merge.** The 162-second turn that prompted it is `KI-2026-10-04-c`.
+**M32 — THE ASSISTANT CAN SAY WHICH DAY IS FREE, IN ONE CALL — IS THE CURRENT MILESTONE AS OF
+2026-10-05**, by **M31's gate closing at 7 of 7**. Order: `… M14 ✓ → M19 ✓ → M31 ✓ → M32 → M33`
+(M9 stays paused: its gate needs a live model call). M32 came from Mitchell's production turn that
+called `find_free_time` once per day and counted sleep as free: the tool now ranks days inside
+08:00-22:00 in one call (and, from a day's chat, `wholeTrip: true` searches every day), and each
+ledger step row carries `duration_ms`. **It is #326, which adds migration `0037`.** Merged and applied 2026-10-05; what remains is a production walk and the retro.
 (`docs/milestones/M32-free-day.md`)
+
+**M31 closed 2026-10-05** on Mitchell's two answers: a **$20/month** Gateway spend budget, and
+the baseline accepted as two hand-typed production turns rather than a preview live-set run. Its
+retro is at the end of `docs/milestones/M31-assistant-ledger.md`. **The eve port is deferred
+until there are users** (ADR-062 § *Deferred: the port*). M19's leftovers, none gating:
+`KI-2026-09-24-p` (totals add across currencies), `KI-2026-09-24-q` (a stored `person` filter
+widens to the whole trip), and free vs unknown (KI-82).
+
+**M33 — evals — minted and built 2026-10-05, beside M31 and M32.** `pnpm --filter web eval` runs the
+live set on production's per-tier models through the real `/ask` handler and scores each turn by
+code (needs `TRAVEL_COLLAB_EVAL_KEY`). It showed M32 working before merge (0/3 → 3/3 on
+`q-most-free`), and found that a tool error the model recovers from was recorded as a failed turn
+(`KI-2026-10-05-a`, `KI-2026-09-16-a`, both fixed on #327). With the turns recorded honestly, the
+cheap tier's model stalls inside single steps (134.5s in one): `KI-2026-10-04-c`. **Mitchell switched
+`AI_MODEL_CHEAP` to `zai/glm-5.3-flash` on 2026-10-05**; the KI stays open until production's step
+durations show it held. Every run states its plan without `EVAL_CONFIRM=1` and stops at
+`EVAL_MAX_USD` (seen live: $0.0027, two turns skipped). (`docs/milestones/M33-evals.md`)
 
 **M29 (the time river) and M30 (notebooks with one job each) closed their gates on
 2026-10-04**, at 20 of 20 and 9 of 9; each retro is at the end of its milestone file. Neither
@@ -192,9 +194,9 @@ half, the model guessing a coordinate rather than citing one, is M9 scope.
 
 ## Next action
 
-**M31's two operator boxes** (Gateway spend budget; baseline run on a preview with `ai-live`
-on) are Mitchell's, and nothing code-side is left in it. With M31 closed, the only unchecked
-row is M9, paused.
+**#326 (M32) is merged and `0037` is applied (2026-10-05); #327 (M33) targets `main`.** M32's last boxes are a production walk of *"Which day has the most free time?"* and
+query 8 of `ledger.sql` over the step durations `0037` starts recording, which is also what
+resolves `KI-2026-10-04-c`.
 
 **Carried out of M24, not gating:** `KI-2026-09-25-q`. About a dozen
 surfaces read `activity.location.city` directly, including the M14 ones this

@@ -1,6 +1,6 @@
 {
   "name": "mangled-tool-input",
-  "about": "The provider emits a tool call whose arguments are not valid JSON \u2014 a step that ended on `length` with the object half written. Two live turns on 2026-09-12 died this way, which is why `repairToolInput` exists. **Replaying it shows that it still dies**: `repairToolInput` repairs a well-formed object with wrong FIELDS, and truncated bytes are not an object at all, so `repairToolCall` returns null and `ToolLoopAgent` aborts the run \u2014 the user gets an error rather than the read the turn had already completed. Filed as KI-2026-09-16-a. A scripted mock cannot produce this input (it is well-formed by construction), which is exactly KI-11's structural point, and this transcript is the harness earning its keep on its first run. The record still names  in  \u2014 the model DID ask for it, and the trace is what a reader diagnoses from \u2014 while  stays 1 and no proposal exists, which is the pair that says the call never ran.",
+  "about": "The provider emits a tool call whose arguments are not valid JSON: a step that ended on `length` with the object half written. Two live turns on 2026-09-12 died this way, which is why `repairToolInput` exists. Truncated bytes are not an object, so `repairToolCall` returns null. **Until 2026-10-05 that ended the turn as `error`**, and this transcript recorded it (KI-2026-09-16-a), but not because the SDK aborted the run: AI SDK 7 turns an unrepairable call into a tool error the model reads, and the run goes on. What ended it was our own `onError`, which the UI stream calls to word every tool error and which latched the record as `error`. With the failure recorded only on a real `error` part, the turn now completes: the model reads the error and answers, all three steps are counted, and no proposal exists because the one write never ran. A scripted mock cannot produce this input (it is well-formed by construction), which is KI-11's structural point.",
   "source": {
     "kind": "synthetic",
     "from": "the two aborted live turns of 2026-09-12 (repairToolInput's own note)"
@@ -47,13 +47,13 @@
     }
   ],
   "expect": {
-    "steps": 1,
+    "steps": 3,
     "toolCalls": [
       "read_trip",
       "AddActivity"
     ],
     "proposalChanges": 0,
-    "answered": false,
-    "outcome": "error"
+    "answered": true,
+    "outcome": "completed"
   }
 }

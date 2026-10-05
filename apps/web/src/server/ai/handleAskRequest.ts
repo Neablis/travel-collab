@@ -837,6 +837,19 @@ export async function handleAskRequest(
       // or a fifth key now fails to compile here instead of arriving at a
       // client that quietly ignores it.
       messageMetadata: ({ part }): AskStreamMetadata | undefined => {
+        // **The turn failed: an `error` part, and only an `error` part, says
+        // so** (2026-10-05). This used to live in `onError` below, which the
+        // SDK also calls to word a recoverable TOOL error (an invented tool
+        // name, unreadable arguments, a tool that threw) for the UI stream.
+        // Every such call latched the record as `error`, dropped its steps,
+        // and cleared the hard deadline, while the model read the tool error
+        // and went on to answer. M33's eval measured it: "how long is this
+        // trip?" recorded as failed 4 times in 5 on the cheap tier, each with
+        // a correct answer (KI-2026-10-05-a, KI-2026-09-16-a).
+        if (part.type === "error") {
+          clearTimeout(hardDeadline);
+          recorder.abandon("error", part.error);
+        }
         // **A page turn's drafts survive a turn that does not finish**
         // (KI-2026-09-26-s). An aborted or failed run has no `finish` part, so
         // everything it had inserted used to be dropped with it — the SDK
@@ -861,17 +874,14 @@ export async function handleAskRequest(
         return proposal === null ? undefined : { proposal };
       },
       onError: (error) => {
-        // The turn failed. Record it — WITH the error — before the message
-        // goes out: `onEnd` will not fire, and the tool-call trace of a failed
-        // turn is the whole reason to keep one.
+        // **This only words an error; it does not decide the turn failed.**
+        // The SDK calls it for the stream's `error` part AND for every
+        // recoverable tool error (`tool-input-error`, `tool-output-error`),
+        // which the model reads and recovers from. Recording the failure,
+        // WITH the error, happens on the `error` part in `messageMetadata`
+        // above (2026-10-05). Passing the error itself there, not only a
+        // reason, is still the 2026-08-29 fix: the cause goes on the record.
         //
-        // Passing `error` rather than only the reason is the 2026-08-29 fix. A
-        // live turn failed here, this line recorded `finishReason: "error"`,
-        // and the only thing that ever saw the actual cause was the client —
-        // the message went out on the stream and nothing wrote it down. The
-        // whole diagnosis was "step 1 finished, step 2 did not".
-        clearTimeout(hardDeadline);
-        recorder.abandon("error", error);
         // **The client sees a fixed sentence, never the error's text**
         // (2026-09-24). This used to return `errorMessage(error)` so the rail
         // said something better than the SDK's default "An error occurred.",

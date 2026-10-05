@@ -111,7 +111,9 @@ for collaboration later landing on a product people already want to join.
 | M28 | Three kinds | **Gate closed 2026-09-26, 9 of 9** (#238, #239); placed by Mitchell 2026-09-25. A stop's kind is `planned`, `pending` or `transit`; `idea` and `hold` fold into `pending`, `booked` into `planned`. Retired kinds are never written and read back as their replacement (ADR-054): `M28-three-kinds.md` |
 | M29 | The time river | **Merged, gate open, not current.** SPEC §36.9b, four PRs merged 2026-09-26; ADR-055: `M29-time-river.md` |
 | M30 | Notebooks with one job each, and links between them | **Built 2026-09-26, unplaced.** Four seeded notebooks and two id-based link widgets (ADR-056): `M30-notebooks-and-links.md` |
-| M31 | We can see what the assistant costs, step by step and tool by tool | **Minted 2026-10-03 and placed after M19; built 2026-10-03 beside M19, not current** (Mitchell: build the ledger now, and defer the eve port until there are users). It is ADR-062's Phase 1: per-step and per-tool rows next to `ai_usage`, cached tokens, per-step pricing, and the `ai-usage` skill's SQL. It closed KI-2026-09-14-b and KI-2026-09-17-c. Gate 5 of 7; the two left are operator steps (Gateway budget, baseline run). The port (Phases 2–5) is a candidate: `M31-assistant-ledger.md` |
+| M31 | We can see what the assistant costs, step by step and tool by tool | **Minted 2026-10-03 and placed after M19; built 2026-10-03 beside M19, not current** (Mitchell: build the ledger now, and defer the eve port until there are users). It is ADR-062's Phase 1: per-step and per-tool rows next to `ai_usage`, cached tokens, per-step pricing, and the `ai-usage` skill's SQL. It closed KI-2026-09-14-b and KI-2026-09-17-c. **Gate closed 2026-10-05, 7 of 7**: a $20/month Gateway budget, and a baseline of two production turns Mitchell accepted in place of a preview live-set run. The port (Phases 2–5) is a candidate: `M31-assistant-ledger.md` |
+| M32 | The assistant can say which day is free, in one call | **CURRENT MILESTONE from 2026-10-05**, by M31's gate closing; minted 2026-10-04 from Mitchell's production turn and built beside M31. `find_free_time` ranks every day inside 08:00-22:00 in one call, and each ledger step carries its duration (migration `0037`): `M32-free-day.md` |
+| M33 | We can see whether an assistant change works before it ships | **Minted and built 2026-10-05, beside M31 and M32, not current.** `pnpm --filter web eval` runs the live set through the unmocked `/ask` handler on production's per-tier models, grades it in code, states its cost and stops at a cap: `M33-evals.md` |
 
 - **Restructure (2026-07-28), from the Phase 1 gate review.** The gate had not
   been met and the reason was structural, not cosmetic: a trip cannot be renamed
@@ -177,11 +179,16 @@ Placement notes (decided 2026-07-07):
   questions stay open — start-only trip dates, first-run vs. the four-step
   wizard, and whether the landing copy may sell M11/M12 — see the review's §8.
 
-Current milestone: M31 — We can see what the assistant costs, step by step and…
-**2026-10-01, BY M14'S GATE CLOSING** at **22 of 22**. M19 was **scoped on
-2026-10-02** by ADR-060: a price is per person, committed vs estimate derives from kind,
-and Booked by pays. Its 13-box gate covers links 2-5 (link 1 shipped on 2026-09-26),
-built as three stacked parts. Scope and gate: `docs/milestones/M19-cost-model.md`.
+Current milestone: M32 — The assistant can say which day is free, in one call
+**M32 became current 2026-10-05, by M31's gate closing** at **7 of 7**. Scope and gate:
+`docs/milestones/M32-free-day.md`; two boxes wait on migration `0037` being dispatched and a
+production walk.
+
+**M31 — the assistant ledger — was current from 2026-10-04 to 2026-10-05**, by M19's gate
+closing. Its retro is at the end of `docs/milestones/M31-assistant-ledger.md`.
+
+**M19 — the cost model — became current 2026-10-01, by M14's gate closing** at **22 of 22**,
+and was scoped on 2026-10-02 by ADR-060. Scope and gate: `docs/milestones/M19-cost-model.md`.
 
 **M14 — Rich layer — was current from 2026-09-26 to 2026-10-01**, by M28's gate
 closing. Its retro is at the end of `docs/milestones/M14-rich-layer.md`.

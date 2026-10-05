@@ -1,0 +1,33 @@
+{
+  "name": "provider-error-mid-turn",
+  "about": "The provider's stream fails on step 2, after a read. This is a turn that genuinely FAILS, and the set must hold one so the outcome assertion is not a constant. Until 2026-10-05 `mangled-tool-input` was that member, but it was never a real failure: it was a recoverable tool error that our `onError` recorded as one (KI-2026-09-16-a, KI-2026-10-05-a). A failure is now recorded only on the stream's `error` part, and this transcript is what proves that path still records one: outcome `error`, one step counted, no answer.",
+  "source": {
+    "kind": "synthetic",
+    "from": "the 2026-08-29 live turn that finished step 1 and failed on step 2 (handleAskRequest's onError note)"
+  },
+  "question": "how long is this trip?",
+  "scope": {
+    "kind": "trip"
+  },
+  "classification": {
+    "intent": "question",
+    "certainty": "sure"
+  },
+  "steps": [
+    {
+      "content": [{ "type": "tool-call", "toolCallId": "c1", "toolName": "read_trip", "input": "{}" }],
+      "finishReason": "tool-calls"
+    },
+    {
+      "content": [{ "type": "error", "error": "upstream provider returned 503" }],
+      "finishReason": "stop"
+    }
+  ],
+  "expect": {
+    "steps": 1,
+    "toolCalls": ["read_trip"],
+    "proposalChanges": 0,
+    "answered": false,
+    "outcome": "error"
+  }
+}
