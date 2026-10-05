@@ -250,7 +250,7 @@ these tokens, plus our own additions). **UI code outside `ui/` never renders raw
 | `NativeSelect` | Styled native `<select>` — **not** Radix Select (keeps e2e `selectOption` semantics) |
 | `Badge` | Semantic variants (danger/warning/success/info/neutral), pill |
 | `Card` | Surface + hairline border + `rounded-md` |
-| `Avatar` | Round initials (or an `icon`, for a pending invite); `sm` a People row, `md` a stacked crew, `lg` the invite landing's inviter; `moss`/`info` tones. Decorative (`aria-hidden`): every use prints the name beside it |
+| `Avatar` | Round initials (or an `icon`, for a pending invite); `sm` a People row, `md` a stacked crew, `lg` the invite landing's inviter, with 12px initials below `lg` (the front-door crew stack passes `text-2xs`); `moss`/`info` tones. Decorative (`aria-hidden`): every use prints the name beside it |
 
 ### Composites
 

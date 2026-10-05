@@ -5,14 +5,18 @@ import { initialsFor } from "../../lib/initials";
 // Extracted from the invite landing's two hand-rolled circles (the inviter at
 // 44px, the crew stack at 30px) so the People panel's rows draw the same shape
 // rather than a third copy of it.
+//
+// `text-xs` at both small sizes: 12px is the app's floor (design-system.md).
+// The invite landing is the front door, where `text-2xs` is allowed, and its
+// crew stack passes it as a `className` to keep the handoff's 11px.
 const avatarVariants = cva("grid shrink-0 place-items-center rounded-full font-semibold", {
   variants: {
     size: {
       // A People row. Under the row's 44px touch floor on purpose: the ROW is
       // the target, the circle only identifies it.
-      sm: "size-7 text-2xs",
+      sm: "size-7 text-xs",
       // The crew stack and the header's account button (handoff `…dc.html:97`).
-      md: "size-7.5 text-2xs",
+      md: "size-7.5 text-xs",
       // The invite landing's "who asked".
       lg: "size-11 text-md",
     },

@@ -221,7 +221,8 @@ function ValidInvite({
                 initials={initials(name)}
                 title={name}
                 size="md"
-                className={cn("border-2 border-paper", index > 0 && "-ml-2")}
+                // The handoff's 11px, which only the front door may use.
+                className={cn("border-2 border-paper text-2xs", index > 0 && "-ml-2")}
               />
             ))}
           </span>
