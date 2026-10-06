@@ -113,7 +113,7 @@ Six links, each one reviewable by clicking on its own preview.
 
 - [x] **Four tabs, URL-driven**: each `?tab=` value renders its tab, an unknown one renders
       Financial, and `?account=` is dropped on a tab switch. Held by a test seen red.
-      *(Ticked 2026-10-06, part 2 (#339): `consoleTab.test.ts`, `ConsoleTabs.test.tsx`. Fallback changed → `expected 'users' to be 'financial'`; push keeping `&account=` → `expected "vi.fn()" to be called with arguments: [ '/admin?tab=library' ]`. AI models joined the strip in part 5.)*
+      *(Ticked 2026-10-06, part 2 (#339): `consoleTab.test.ts`, `ConsoleTabs.test.tsx`. Fallback changed → `expected 'users' to be 'financial'`; push keeping `&account=` → `expected "vi.fn()" to be called with arguments: [ '/admin?tab=library' ]`. AI models joined the strip in part 5. End to end, part 6: `m36-operator-console.spec.ts` clicks each tab and checks its URL and body.)*
 - [x] **`GrantSourcePanel` is gone** — `ls apps/web/src/components/admin/GrantSourcePanel*`
       finds nothing — and *Underwater by construction* still counts per grant source.
       *(Ticked 2026-10-06, part 2: deleted; `admin.console.test.ts` › the grant-cost panel stays deleted, seen red by restoring the file. `UnderwaterPanel` still counts per source.)*
