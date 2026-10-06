@@ -1,6 +1,8 @@
 import {
   AskStreamMetadata,
   BatchableCommand,
+  CoverCandidate,
+  CoverSearchResponse,
   InviteLanding,
   NearbyStopsResponse,
   PageDoc,
@@ -15,6 +17,8 @@ import {
   SharedTripView,
   SuggestionChange,
   TripAccess,
+  TripCover,
+  TripCoverResponse,
   TripDetail,
   TripGlobals,
   TripWeatherResponse,
@@ -639,6 +643,58 @@ export async function resolveSuggestionChange(
     return networkError(err);
   } finally {
     endWrite(scope);
+  }
+}
+
+// ── Cover photos (M37) ───────────────────────────────────────────────────────
+// Not commands: a cover is trip metadata in its own table (D1), and TripDetail
+// does not carry it, so no trip read is invalidated by these writes. Home
+// reads the cover off `TripSummary` from `fetchTrips`, which is not cached.
+// A 503 is the deployment having no Unsplash key, and a 429 the search quota;
+// the picker tells them apart by `error.status`.
+
+/** The trip's cover, or `null` for none. Asks Unsplash nothing. */
+export async function fetchTripCover(tripId: string): Promise<ApiResult<TripCover | null>> {
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/cover`));
+    return await readJson(res, (data) => TripCoverResponse.parse(data).cover);
+  } catch (err) {
+    return networkError(err);
+  }
+}
+
+/** One page (from 1) of photos for `q`, for an editor choosing a cover. Spends the search quota. */
+export async function searchTripCovers(tripId: string, q: string, page = 1): Promise<ApiResult<CoverCandidate[]>> {
+  try {
+    const params = new URLSearchParams({ q, page: String(page) });
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/cover/search?${params.toString()}`));
+    return await readJson(res, (data) => CoverSearchResponse.parse(data).results);
+  } catch (err) {
+    return networkError(err);
+  }
+}
+
+/** Makes `candidate` the trip's cover, and answers the stored cover. */
+export async function setTripCover(tripId: string, candidate: CoverCandidate): Promise<ApiResult<TripCover>> {
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/cover`), {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ candidate }),
+    });
+    return await readJson(res, (data) => TripCover.parse(TripCoverResponse.parse(data).cover));
+  } catch (err) {
+    return networkError(err);
+  }
+}
+
+/** Removes the trip's cover. */
+export async function clearTripCover(tripId: string): Promise<ApiResult<null>> {
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/cover`), { method: "DELETE" });
+    return await readJson(res, () => null);
+  } catch (err) {
+    return networkError(err);
   }
 }
 
