@@ -198,10 +198,31 @@ describe("the AI models tab", () => {
   });
 
   it("replaces the whole body with an empty box when nobody asked anything", () => {
-    render(<AiModelsTab report={healthyReport({ turns: 0, accounts: 0, measuredTurns: 0, tools: [], models: [] })} />);
+    render(
+      <AiModelsTab
+        report={healthyReport({ turns: 0, accounts: 0, measuredTurns: 0, tools: [], models: [], unpricedTurns: 0 })}
+      />,
+    );
 
     expect(screen.getByRole("heading", { name: "No assistant turns in the last 30 days" })).toBeTruthy();
     expect(screen.queryByTestId("ai-turns")).toBeNull();
     expect(screen.queryByRole("heading", { name: "Tool calls" })).toBeNull();
+    expect(screen.queryByTestId("ai-models-window")).toBeNull();
+  });
+
+  it("keeps Models under the empty box when Financial's longer window priced turns", () => {
+    // No turn in the 30 UTC days, but one in the up-to-a-day Financial reaches
+    // further back: its cost is in Financial's column, so it shows here too.
+    const priced = healthyReport().models[0]!;
+    render(
+      <AiModelsTab
+        report={healthyReport({ turns: 0, accounts: 0, measuredTurns: 0, tools: [], models: [{ ...priced, calls: 0 }] })}
+      />,
+    );
+
+    expect(screen.getByRole("heading", { name: "No assistant turns in the last 30 days" })).toBeTruthy();
+    expect(screen.getByTestId(`ai-model-${priced.model}`)).toBeTruthy();
+    expect(screen.getByTestId("ai-models-window")).toBeTruthy();
+    expect(screen.queryByTestId("ai-turns")).toBeNull();
   });
 });

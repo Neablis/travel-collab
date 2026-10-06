@@ -417,15 +417,25 @@ function ToolsPanel({ report }: { report: AdminAiModelsReport }) {
 /**
  * The AI models tab's body: the `ledger-gap` banner when step rows are
  * missing, then the strip, turns a day, context and models, and tool calls —
- * or, with no turns in the window, the `no-usage` empty box instead of all of it.
+ * or, with no turns in the window, the `no-usage` empty box instead of all of
+ * it. Models still shows under the box when Financial's window, which starts
+ * up to a day earlier, priced something: its column has that cost, so hiding
+ * it here would leave the two disagreeing with nothing to say why.
  */
 export function AiModelsTab({ report }: { report: AdminAiModelsReport }) {
   if (report.turns === 0) {
-    return (
+    const empty = (
       <EmptyState
         title={`No assistant turns in the last ${report.windowDays} days`}
         body="Either nobody holding ai.ask has asked anything, or turns aren't being recorded. If accounts in Users show questions asked, it's the second."
       />
+    );
+    if (report.models.length === 0 && report.unpricedTurns === 0) return empty;
+    return (
+      <div className="flex flex-col gap-5">
+        {empty}
+        <ModelsPanel report={report} />
+      </div>
     );
   }
   const gap = report.ledgerGap;
