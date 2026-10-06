@@ -534,4 +534,34 @@ describe("what the console reads", () => {
     expect((await topSpenders(since, 1)).length).toBe(1);
     expect(await usageFor(light)).toHaveLength(1);
   });
+
+  // **Scoped is the unscoped answer, filtered** (M36 perf pass): the account
+  // page prices one account rather than everyone's window. The escalated turn
+  // is priced from its step rows, so a scoped read that lost them would fall
+  // back to the turn's own totals and come out cheaper.
+  it("prices only the accounts asked for, at the same numbers", async () => {
+    const at = new Date();
+    const escalated = (userId: string): TurnLedger => ({
+      ...ledger({ userId, turnId: randomUUID(), classifier: null, turn: { model: TURN_MODEL, tokensIn: 2000, tokensOut: 200 } }),
+      stepSpend: [
+        { index: 0, model: TURN_MODEL, tier: "low", tokensIn: 1000, cacheReadTokens: 0, cacheWriteTokens: 0, tokensOut: 100, finishReason: "tool-calls", escalated: false, pivoted: false, durationMs: null, provider: null, gatewayGenerationId: null },
+        { index: 1, model: "anthropic/claude-haiku-4-5", tier: "mid", tokensIn: 1000, cacheReadTokens: 0, cacheWriteTokens: 0, tokensOut: 100, finishReason: "stop", escalated: true, pivoted: false, durationMs: null, provider: null, gatewayGenerationId: null },
+      ],
+    });
+    const [mine, theirs] = [`dev-${randomUUID()}`, `dev-${randomUUID()}`];
+    await recordTurnLedger(escalated(mine), at);
+    await recordTurnLedger(ledger({ userId: mine }), at);
+    await recordTurnLedger(escalated(theirs), at);
+
+    const since = new Date(at.getTime() - 1000);
+    const everyone = await costPerAccount(since);
+    const scoped = await costPerAccount(since, [mine]);
+    expect(scoped).toEqual(everyone.filter((cost) => cost.userId === mine));
+    // The witness: the escalated turn is priced per step, not at its totals.
+    const plain = (await rowsFor(mine)).find((row) => row.classifierModel !== null)!;
+    const perStep = priceOf(TURN_MODEL, 1000, 100, at)! + priceOf("anthropic/claude-haiku-4-5", 1000, 100, at)!;
+    expect(scoped).toHaveLength(1);
+    expect(scoped[0]!.microUsd).toBe(perStep + microUsdForRow(plain)!);
+    expect(await costPerAccount(since, [])).toEqual([]);
+  });
 });

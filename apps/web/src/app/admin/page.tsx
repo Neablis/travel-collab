@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
 import { Heading } from "@/components/ui/heading";
 import { AccountsPanel } from "@/components/admin/AccountsPanel";
 import { AccountPage, NoSuchAccount } from "@/components/admin/AccountPage";
@@ -8,7 +9,7 @@ import { resolveConsoleTab, type ConsoleTab } from "@/components/admin/consoleTa
 import { TierPanel } from "@/components/admin/TierPanel";
 import { RevenueStaleBanner, RevenueStrip } from "@/components/admin/RevenueStrip";
 import { UnderwaterPanel } from "@/components/admin/UnderwaterPanel";
-import { PriceCheckPanel } from "@/components/admin/PriceCheckPanel";
+import { PriceCheckPanel, PriceCheckPending } from "@/components/admin/PriceCheckPanel";
 import { LibraryTab } from "@/components/admin/LibraryTab";
 import { AiModelsTab } from "@/components/admin/AiModelsTab";
 import { Panel } from "@/components/ui/panel";
@@ -18,6 +19,7 @@ import { adminFinancial, adminUsers, grantablePlanIds } from "@/server/entitleme
 import { aiModelsReport } from "@/server/entitlements/aiModels";
 import { ASSISTANT_TOOLS } from "@/server/assistant/registry";
 import { adminUserId } from "@/server/entitlements/requireAdmin";
+import { priceConsistencyReport } from "@/server/billing/prices";
 import { listReports } from "@/server/reports";
 import { adminNotebooks } from "@/server/savedNotebooks";
 
@@ -144,34 +146,23 @@ export default async function AdminPage({
   }
 
   if (tab === "users") {
-    const users = await adminUsers();
+    const view = resolveAccountsView(params);
+    const users = await adminUsers(new Date(), view);
     return (
       // **Stale revenue is a page-level banner on both tabs that read it** —
       // Financial's MRR and Users' *Pays* column go stale together.
       <ConsoleShell tab={tab} banner={<RevenueStaleBanner revenue={users.revenue} />}>
         <Panel title="Accounts">
-          {/* Search, counted filters, 8 rows a page and a no-match state all live
-              in the client component: they are view state over a list the server
-              already sent, and a round trip per keystroke would be a worse
-              console for a table of the newest 100 accounts plus every
-              underwater payer. They are seeded from the URL, which is where
-              they are kept (D2), and re-seeded when a navigation brings
-              another view (see `AccountsPanel`). Granting and revoking live
-              on the account page a row opens (M36 link 3). */}
-          {/* `plansGrantingNothing` is decided once, here, from the plan file, and
-              asked as "does this plan grant anything" rather than "is this plan
-              free" — ADR-045 rule 4, which `planVersions.fourthPlan.test.ts`
-              enforces by walking every source file for a plan-id comparison. It
-              refused the first version of the Free filter, which compared
-              `planId === "free"` directly. */}
+          {/* **One page, read for the view in the URL** (D2, M36 perf pass):
+              the server searches, counts the six filters over the whole
+              search, and resolves only the eight rows it draws, so a search
+              or a filter is a navigation. Granting and revoking live on the
+              account page a row opens (M36 link 3). */}
           <AccountsPanel
-            accounts={users.accounts}
+            table={users.table}
+            view={view}
             windowDays={users.windowDays}
             now={new Date().toISOString()}
-            underwater={users.underwater.paying.map((account) => account.userId)}
-            plansGrantingNothing={users.livePlans
-              .filter((live) => live.entitlements.length === 0)
-              .map((live) => live.planId)}
           />
         </Panel>
       </ConsoleShell>
@@ -212,10 +203,19 @@ export default async function AdminPage({
 
       {/* **M21 link 2's price sweep** (KI-2026-09-16-c) — every published
           version's Stripe Price against the plan file, not only the one being
-          bought at the till. Reports; never creates a Price. */}
-      <PriceCheckPanel report={financial.prices} />
+          bought at the till. Reports; never creates a Price. **Streamed**: it
+          waits on Stripe for up to `PRICE_CHECK_DEADLINE_MS` (3 s), and the
+          rest of the tab is the database's alone (M36 perf pass). */}
+      <Suspense fallback={<PriceCheckPending />}>
+        <PriceCheck />
+      </Suspense>
     </ConsoleShell>
   );
+}
+
+/** The price sweep, awaited inside its own Suspense boundary. */
+async function PriceCheck() {
+  return <PriceCheckPanel report={await priceConsistencyReport()} />;
 }
 
 /** The heading row and the tab strip every tab shares, then the tab's body. */

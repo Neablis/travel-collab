@@ -1,23 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useLayoutEffect, useState, useTransition } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { Text } from "@/components/ui/text";
-import type { AdminAccountRow } from "@/lib/adminOverview";
+import type { AdminAccountRow, AdminAccountsPage } from "@/lib/adminOverview";
 import { cn } from "@/lib/cn";
-import {
-  ACCOUNT_FILTERS,
-  accountsViewHref,
-  resolveAccountsView,
-  type AccountFilter,
-  type AccountsView,
-} from "./accountsView";
+import { ACCOUNT_FILTERS, accountsViewHref, type AccountsView } from "./accountsView";
 import { microUsdCost, microUsdMoney } from "./microUsd";
 
 // **The accounts table, as the design actually draws it** (handoff `SPEC.md`
@@ -31,76 +25,24 @@ import { microUsdCost, microUsdMoney } from "./microUsd";
 // *Pays* column exists, and the label goes back (operator-console spec,
 // § Accounts table).
 //
-// **Counts are over the SEARCH, not the page** — `f.count` in the design is
-// `opsMatch(f.id, q)`, the whole matching set. A count that shrank as you
-// paged would be answering a question nobody asked.
+// **The server searches, counts and pages; this draws one page** (M36 perf
+// pass). It used to be handed the newest 100 accounts plus every underwater
+// payer, each through the resolver — 310 queries a load — and filter over
+// them here, so an account older than the newest 100 could not be found at
+// all. What a filter means now lives in one place, `accountsMatching` in
+// `server/entitlements/admin.ts`, and its counts are over the whole search,
+// not the page — `f.count` in the design is `opsMatch(f.id, q)`.
 //
-// **Search, filter and page live in the URL** (M36 D2) so the account page can
-// hand them back. They are still filtering over the list the server already
-// sent; only where they are kept changed.
+// **Search, filter and page are the URL** (M36 D2), so the account page can
+// hand them back and every change is a navigation to the next view. A filter
+// or a page is one click and navigates at once; typing navigates once the
+// operator pauses (`SEARCH_PAUSE_MS`), so a keystroke is never a round trip
+// and the box never waits on one.
 
-const PAGE_SIZE = 8;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/**
- * Does this row match one filter?
- *
- * **`grantsNothing` is a set, and the first version of this was `planId ===
- * "free"`.** `planVersions.fourthPlan.test.ts` refused it — it walks every
- * source file for a comparison against a plan id and expects to find none,
- * which is ADR-045 rule 4 as a test. The rule is not pedantry: a fourth plan
- * that grants nothing would be silently missing from the *Free* count, and a
- * paid plan renamed would move accounts between groups with nothing failing.
- *
- * **`underwater` is the server's list, not a second opinion.** It is the
- * `paying` half of `underwaterReport` — the rows Financial counts — so *Show
- * them in Users* lands on the same accounts that panel counted.
- */
-function matchesFilter(
-  account: AdminAccountRow,
-  filter: AccountFilter,
-  grantsNothing: ReadonlySet<string>,
-  underwater: ReadonlySet<string>,
-): boolean {
-  const planId = account.planVersionRef.split("@")[0] ?? "";
-  switch (filter) {
-    case "all":
-      return true;
-    case "paying":
-      // **Pays = a subscription conferring its plan right now**, which is
-      // `paysMicroUsd !== 0`. A `past_due` account inside its grace window
-      // confers and so counts; holding a paid plan by grant is not paying.
-      //
-      // **Not always the strip's paying count, in two ways.** `null` — a
-      // conferring subscription this deploy cannot price — counts here, because
-      // the account does pay and the *Pays* column says `unpriced` rather than
-      // hiding it; `revenueSummary` leaves it out of its paying accounts and
-      // reports it as `unpricedSubscriptions`, because it cannot add an unknown
-      // to MRR or divide MRR by it. And this counts the table's rows — the
-      // newest 100 plus every underwater payer — where the strip counts every
-      // account.
-      return account.paysMicroUsd !== 0;
-    case "granted":
-      return account.grants.length > 0;
-    case "unentitled":
-      return grantsNothing.has(planId);
-    case "pastDue":
-      // Stripe's own word. Past the grace window it reads `lapsed` instead.
-      return account.subscriptionState === "past_due";
-    case "underwater":
-      return underwater.has(account.userId);
-  }
-}
-
-/** Address search, falling back to the id for an account with no address. */
-function matchesQuery(account: AdminAccountRow, query: string): boolean {
-  const needle = query.trim().toLowerCase();
-  if (needle === "") return true;
-  return (
-    (account.email ?? "").toLowerCase().includes(needle) ||
-    account.userId.toLowerCase().includes(needle)
-  );
-}
+/** How long typing must pause before the search is sent — a word, not a letter. */
+export const SEARCH_PAUSE_MS = 300;
 
 /** The two words that are not a Stripe status: nothing, and lapsed. */
 function stateLabel(account: AdminAccountRow): string {
@@ -140,106 +82,88 @@ function opensAccount(event: React.MouseEvent<HTMLTableRowElement>): boolean {
 }
 
 type AccountsPanelProps = {
-  accounts: readonly AdminAccountRow[];
-  /** Plan ids whose live version grants no entitlement. See `matchesFilter`. */
-  plansGrantingNothing: readonly string[];
-  /** Paying accounts the underwater report lists. See `matchesFilter`. */
-  underwater: readonly string[];
+  /** One page of the table, read by the server for `view`. */
+  table: AdminAccountsPage;
+  /** The view the URL carries (D2). Its page is the one asked for; `table.page` is the one served. */
+  view: AccountsView;
   /** ISO, from the server render — what *Last active* is measured against. */
   now: string;
   windowDays: number;
 };
 
-/** The view a query string holds, normalised as the table would write it. */
-function viewIn(params: URLSearchParams): AccountsView {
-  return resolveAccountsView(Object.fromEntries(params));
-}
-
 /**
  * The Users tab's accounts table: search, six counted filters, eight rows a
  * page, each row opening its account page with the view kept in the URL.
  *
- * **The view is read from `useSearchParams`, not from the server render.** It
- * was a server-passed `initial`, and Next's `history.replaceState` changes the
- * URL while a history entry keeps the tree it was first rendered with — so
- * Back to an entry whose filter the table had rewritten remounted it on the
- * entry's original view (M36 part 3 review). `useSearchParams` is what Next
- * keeps in step with `replaceState` and with Back and Forward, and on the
- * server it is the request's own, so the first paint needs nothing else.
- *
- * **Seeded once, then re-seeded only by a navigation** — a URL that differs
- * from the table's own view and is where the browser actually is. The second
- * half is what tells Back from this table's own write arriving a render late:
- * typing moves the URL every keystroke, and re-seeding from a write the input
- * has since typed past would put the old text back.
+ * **Filter and page are read straight off `view`**, so Back or Forward to
+ * another view redraws the table with nothing to re-seed. The search box is
+ * the one piece of local state — typing must not wait on the server — and it
+ * follows the URL whenever the URL's search moves under it — except when the
+ * search that landed is the one this box sent and the operator has typed past
+ * it: that newer text is on its way.
  */
-export function AccountsPanel({
-  accounts,
-  plansGrantingNothing,
-  underwater,
-  now,
-  windowDays,
-}: AccountsPanelProps) {
+export function AccountsPanel({ table, view, now, windowDays }: AccountsPanelProps) {
   const router = useRouter();
-  const arrived = viewIn(useSearchParams());
-  const grantsNothing = useMemo(() => new Set(plansGrantingNothing), [plansGrantingNothing]);
-  const underwaterIds = useMemo(() => new Set(underwater), [underwater]);
-  const [query, setQuery] = useState(arrived.query);
-  const [filter, setFilter] = useState<AccountFilter>(arrived.filter);
-  const [page, setPage] = useState(arrived.page);
-
-  const searched = useMemo(
-    () => accounts.filter((account) => matchesQuery(account, query)),
-    [accounts, query],
-  );
-  const matching = useMemo(
-    () => searched.filter((account) => matchesFilter(account, filter, grantsNothing, underwaterIds)),
-    [searched, filter, grantsNothing, underwaterIds],
-  );
-
-  // Clamped rather than reset on every change: a filter that empties the last
-  // page should land on the last page that has rows, not silently on page one
-  // while the range line says otherwise.
-  const pageCount = Math.max(1, Math.ceil(matching.length / PAGE_SIZE));
-  const current = Math.min(page, pageCount - 1);
-  const rows = matching.slice(current * PAGE_SIZE, current * PAGE_SIZE + PAGE_SIZE);
-  const view: AccountsView = { query, filter, page: current };
-
-  // **State → URL, one direction**, as `DiscoverScreen` does it: the input
-  // keeps its own state so typing never waits on a navigation, and
-  // `history.replaceState` rather than `router.replace` because Next syncs the
-  // native history API into its router while a router navigation would re-run
-  // this page's server component — the whole overview, Stripe's price sweep
-  // included — once per keystroke. Replace, not push: a filter is not a place
-  // Back should stop. Only when the URL says something else — which on the
-  // first render is a view the table corrected, a page past the end or a
-  // filter it does not know, and is written back so the address bar and the
-  // row links agree with the table.
-  const href = accountsViewHref(view);
-  useEffect(() => {
-    if (href === window.location.pathname + window.location.search) return;
-    window.history.replaceState(window.history.state, "", href);
-  }, [href]);
-
-  // **URL → state, on a navigation only.** After the write above, never before
-  // it: when both move in one render, the write has put the browser where the
-  // table is, and the URL this render read is the one being left.
-  const arrivedHref = accountsViewHref(arrived);
-  useEffect(() => {
-    if (arrivedHref === href) return;
-    if (arrivedHref !== accountsViewHref(viewIn(new URLSearchParams(window.location.search)))) return;
-    setQuery(arrived.query);
-    setFilter(arrived.filter);
-    setPage(arrived.page);
-    // Keyed on the URL alone: a change of `href` is this table's own doing.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [arrivedHref]);
-
-  function reset() {
-    setQuery("");
-    setFilter("all");
-    setPage(0);
+  const [navigating, startNavigation] = useTransition();
+  const [query, setQuery] = useState(view.query);
+  // The search the URL carries or this box last sent, whichever came later.
+  const [sent, setSent] = useState(view.query);
+  const [seen, setSeen] = useState(view.query);
+  if (view.query !== seen) {
+    setSeen(view.query);
+    // Our own send landing (`view.query === sent`) keeps text typed since;
+    // any other search is a navigation — Back, Forward, a link — and wins,
+    // which also drops the pending send (M36 part 7 review).
+    if (query === sent || view.query !== sent) setQuery(view.query);
+    setSent(view.query);
   }
+
+  /**
+   * Go to another view. **Replace, not push**, as when the view was written
+   * with `history.replaceState`: a filter is not a place Back should stop.
+   * In a transition, so the page on screen stays until the next one is read.
+   */
+  function show(next: AccountsView) {
+    setSent(next.query);
+    startNavigation(() => router.replace(accountsViewHref(next), { scroll: false }));
+  }
+
+  useEffect(() => {
+    if (query === sent) return;
+    const timer = setTimeout(() => {
+      setSent(query);
+      startNavigation(() =>
+        router.replace(accountsViewHref({ query, filter: view.filter, page: 0 }), { scroll: false }),
+      );
+    }, SEARCH_PAUSE_MS);
+    return () => clearTimeout(timer);
+  }, [query, sent, view.filter, router]);
+
+  const { rows, counts, page, pageSize } = table;
+  const matching = counts[view.filter];
+  const pageCount = Math.max(1, Math.ceil(matching / pageSize));
+  // The rows' links carry the view that was SERVED, so *← All accounts* comes
+  // back to the page the operator was looking at.
+  const served: AccountsView = { ...view, page };
+
+  // **The address bar says what the table drew** (M36 part 3 review). The
+  // server clamps a page past the end and drops a filter it does not know, so
+  // `?page=9` over two pages draws page 2; the URL is corrected to match, with
+  // `replaceState` because the table already shows that view — there is
+  // nothing for a navigation to read.
+  //
+  // **A layout effect, and never while a navigation is pending** (M36 part 7,
+  // CodeRabbit). A passive effect runs after the browser may have handled a
+  // click, so a pill clicked in that gap would start a `router.replace` that
+  // this `replaceState` — which Next reads as a restore — could then discard.
+  // A layout effect runs in the same task as the commit, before any input.
+  const servedHref = accountsViewHref(served);
+  useLayoutEffect(() => {
+    if (navigating) return;
+    if (servedHref === window.location.pathname + window.location.search) return;
+    window.history.replaceState(window.history.state, "", servedHref);
+  }, [servedHref, navigating]);
+  const underwaterIds = new Set(table.underwater);
 
   return (
     <div className="flex flex-col gap-3">
@@ -254,10 +178,7 @@ export function AccountsPanel({
           aria-label="Find an account"
           placeholder="Find an address…"
           value={query}
-          onChange={(event) => {
-            setQuery(event.target.value);
-            setPage(0);
-          }}
+          onChange={(event) => setQuery(event.target.value)}
         />
         <div className="flex flex-wrap gap-1.5">
           {ACCOUNT_FILTERS.map((option) => (
@@ -272,21 +193,14 @@ export function AccountsPanel({
               size="md"
               // Pills, as the design draws them.
               className="rounded-full text-sm"
-              variant={option.id === filter ? "secondary" : "ghost"}
-              aria-pressed={option.id === filter}
-              onClick={() => {
-                setFilter(option.id);
-                setPage(0);
-              }}
+              variant={option.id === view.filter ? "secondary" : "ghost"}
+              aria-pressed={option.id === view.filter}
+              // The box's text, sent or not: a filter picked mid-word filters
+              // what the operator can see they typed.
+              onClick={() => show({ query, filter: option.id, page: 0 })}
             >
               {option.label}
-              <span className="ml-1.5 text-xs text-slate">
-                {
-                  searched.filter((account) =>
-                    matchesFilter(account, option.id, grantsNothing, underwaterIds),
-                  ).length
-                }
-              </span>
+              <span className="ml-1.5 text-xs text-slate">{counts[option.id]}</span>
             </Button>
           ))}
         </div>
@@ -296,18 +210,26 @@ export function AccountsPanel({
         <EmptyState
           title="No account matches"
           body={
-            query.trim() === ""
+            view.query.trim() === ""
               ? "No account is in this group yet."
-              : `No address matches “${query.trim()}” in this group.`
+              : `No address matches “${view.query.trim()}” in this group.`
           }
           action={
-            <Button type="button" variant="secondary" size="sm" onClick={reset}>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                setQuery("");
+                show({ query: "", filter: "all", page: 0 });
+              }}
+            >
               Clear the filter
             </Button>
           }
         />
       ) : (
-        <div className="overflow-x-auto">
+        <div className={cn("overflow-x-auto", navigating && "opacity-60")} aria-busy={navigating}>
           <Table className="text-xs" data-testid="accounts-table">
             <THead>
               <TR>
@@ -326,7 +248,7 @@ export function AccountsPanel({
             </THead>
             <TBody>
               {rows.map((account) => {
-                const open = accountsViewHref(view, account.userId);
+                const open = accountsViewHref(served, account.userId);
                 const sinking = underwaterIds.has(account.userId);
                 return (
                   <TR
@@ -406,17 +328,17 @@ export function AccountsPanel({
 
       <div className="flex flex-wrap items-center justify-between gap-2 border-t border-hairline pt-2">
         <Text as="span" variant="secondary" className="text-xs" data-testid="accounts-range">
-          {matching.length === 0
+          {matching === 0
             ? "No accounts"
-            : `${current * PAGE_SIZE + 1}–${current * PAGE_SIZE + rows.length} of ${matching.length}`}
+            : `${page * pageSize + 1}–${page * pageSize + rows.length} of ${matching}`}
         </Text>
         <div className="flex items-center gap-1.5">
           <Button
             type="button"
             variant="secondary"
             size="sm"
-            disabled={current === 0}
-            onClick={() => setPage(current - 1)}
+            disabled={page === 0}
+            onClick={() => show({ ...served, page: page - 1 })}
           >
             Previous
           </Button>
@@ -424,8 +346,8 @@ export function AccountsPanel({
             type="button"
             variant="secondary"
             size="sm"
-            disabled={current >= pageCount - 1}
-            onClick={() => setPage(current + 1)}
+            disabled={page >= pageCount - 1}
+            onClick={() => show({ ...served, page: page + 1 })}
           >
             Next
           </Button>

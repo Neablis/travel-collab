@@ -13,7 +13,7 @@
 //
 // **No dollars anywhere in this file.** Price is a join, performed at read
 // time against `modelRates.ts`, as at a point in time.
-import { and, desc, getTableColumns, gte, sql, type SQL } from "drizzle-orm";
+import { and, desc, getTableColumns, gte, inArray, sql, type SQL } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
 import { db } from "@/server/db/client";
 import { aiUsage, aiUsageSteps, aiUsageToolCalls } from "@/server/db/schema";
@@ -22,6 +22,18 @@ import { microUsdFor, type ModelRate } from "./modelRates";
 
 /** One `ai_usage` row, as read back. */
 export type AiUsageRow = typeof aiUsage.$inferSelect;
+
+/** The part of an `ai_usage` row that pricing reads. */
+export type AiUsagePricedRow = Pick<
+  AiUsageRow,
+  | "createdAt"
+  | "turnModel"
+  | "turnTokensIn"
+  | "turnTokensOut"
+  | "classifierModel"
+  | "classifierTokensIn"
+  | "classifierTokensOut"
+>;
 
 /** The part of an `ai_usage_steps` row that pricing reads. */
 export type AiUsageStepRow = Pick<
@@ -225,7 +237,7 @@ function excludedOf<T extends PgTable, K extends keyof T["_"]["columns"] & strin
  * can price must not silently contribute nothing to a total.
  */
 export function microUsdForRow(
-  row: AiUsageRow,
+  row: AiUsagePricedRow,
   at: Date = row.createdAt,
   // Passed through to `rateAt`, so a test can re-derive the same stored row
   // against a different published history — which is what "re-pricing works"
@@ -297,11 +309,6 @@ export async function usageFor(userId: string, limit = 100): Promise<AiUsageRow[
     .limit(limit);
 }
 
-/** Every row written since `since`. The console's trailing window. */
-export async function usageSince(since: Date): Promise<AiUsageRow[]> {
-  return db.select().from(aiUsage).where(gte(aiUsage.createdAt, since));
-}
-
 /** What one account cost over a trailing window, in micro-dollars. */
 export interface AccountCost {
   userId: string;
@@ -325,8 +332,31 @@ export interface AccountCost {
  * `unpriced` is reported rather than folded in, because an unpriceable row
  * silently counted as zero is the same defect class as a dollar column.
  */
-export async function costPerAccount(since: Date): Promise<AccountCost[]> {
-  const rows = await usageSince(since);
+export async function costPerAccount(
+  since: Date,
+  // **Only these accounts**, when given: the account page needs one account's
+  // cost, and pricing everyone's window to keep one row was ~400 ms of a
+  // ~450 ms page at 20k turns (M36 perf pass). Same rows, same rule — a
+  // scoped answer is the unscoped one filtered, which `usage.int.test.ts` pins.
+  userIds?: readonly string[],
+): Promise<AccountCost[]> {
+  if (userIds !== undefined && userIds.length === 0) return [];
+  const mine = userIds === undefined ? undefined : inArray(aiUsage.userId, [...userIds]);
+  // Only the columns pricing reads, as for the steps below.
+  const rows = await db
+    .select({
+      id: aiUsage.id,
+      userId: aiUsage.userId,
+      createdAt: aiUsage.createdAt,
+      turnModel: aiUsage.turnModel,
+      turnTokensIn: aiUsage.turnTokensIn,
+      turnTokensOut: aiUsage.turnTokensOut,
+      classifierModel: aiUsage.classifierModel,
+      classifierTokensIn: aiUsage.classifierTokensIn,
+      classifierTokensOut: aiUsage.classifierTokensOut,
+    })
+    .from(aiUsage)
+    .where(and(gte(aiUsage.createdAt, since), mine));
   // Every step row in the window, by turn. `recordTurnLedger` stamps a turn's
   // row and its step rows with the same `now`, though in separate writes, so
   // the window that selects a turn selects its steps.
@@ -343,7 +373,16 @@ export async function costPerAccount(since: Date): Promise<AccountCost[]> {
       tokensOut: aiUsageSteps.tokensOut,
     })
     .from(aiUsageSteps)
-    .where(gte(aiUsageSteps.createdAt, since));
+    .where(
+      and(
+        gte(aiUsageSteps.createdAt, since),
+        mine &&
+          inArray(
+            aiUsageSteps.turnId,
+            db.select({ id: aiUsage.id }).from(aiUsage).where(and(gte(aiUsage.createdAt, since), mine)),
+          ),
+      ),
+    );
   for (const step of stepRows) {
     const list = stepsByTurn.get(step.turnId) ?? [];
     list.push(step);
@@ -371,12 +410,19 @@ export async function topSpenders(since: Date, n = 10): Promise<AccountCost[]> {
   return (await costPerAccount(since)).slice(0, n);
 }
 
-/** How many rows one account has ever written. Cheap, for the accounts list. */
-export async function requestCounts(since: Date): Promise<Map<string, number>> {
+/**
+ * How many turns each of these accounts asked since `since` — the accounts
+ * table's *Asked* column, for the rows it draws and no others.
+ */
+export async function requestCounts(
+  since: Date,
+  userIds: readonly string[],
+): Promise<Map<string, number>> {
+  if (userIds.length === 0) return new Map();
   const rows = await db
     .select({ userId: aiUsage.userId, count: sql<number>`count(*)::int` })
     .from(aiUsage)
-    .where(and(gte(aiUsage.createdAt, since)))
+    .where(and(gte(aiUsage.createdAt, since), inArray(aiUsage.userId, [...userIds])))
     .groupBy(aiUsage.userId);
   return new Map(rows.map((row) => [row.userId, row.count]));
 }

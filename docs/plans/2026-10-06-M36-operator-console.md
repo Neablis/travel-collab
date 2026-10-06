@@ -6,7 +6,7 @@ cited here as D1–D10; links as L1–L6. Delete this file at M36's gate close
 
 ## The stack
 
-Six parts, each on its own branch and stacked on the one below, merged 1 → 6 with merge commits
+Seven parts, each on its own branch and stacked on the one below, merged 1 → 7 with merge commits
 (`docs/guidelines/stacked-prs.md`). All open as drafts. **Nothing merges without Mitchell.**
 
 | Part | Branch | Links | Tier | On the preview, a person clicks… |
@@ -17,6 +17,7 @@ Six parts, each on its own branch and stacked on the one below, merged 1 → 6 w
 | 4 | `claude/eager-sagan-ekawmk-account` | **L3** the account page | 2 | a row in Users; Revoke on a test account |
 | 5 | `claude/eager-sagan-ekawmk-ai` | **L4** the AI models tab | 2 | AI models |
 | 6 | `claude/eager-sagan-ekawmk-library` | **L5** Library notebooks, **L6** e2e + sweep, then Tier 3 on the whole stack | 2 → 3 | Library; the whole walk |
+| 7 | `claude/eager-sagan-ekawmk-perf` | **Perf pass** (Mitchell, 2026-10-06: tabs slow to open): Users paged and counted in SQL, reads scoped to what a tab draws, `events (actor_id, occurred_at)` — the stack's one migration | 3 | each tab opens fast; Users pages, searches and filters over every account |
 
 Each part is based on the part above it in the table. L4 depends only on L1, so part 5 may be
 **built** in parallel with parts 3 and 4 in its own worktree, from part 2's head; it is merged
