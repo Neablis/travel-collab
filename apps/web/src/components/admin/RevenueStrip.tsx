@@ -1,3 +1,4 @@
+import { Banner } from "@/components/ui/banner";
 import { Text } from "@/components/ui/text";
 import type { AdminRevenueView } from "@/lib/adminOverview";
 import { microUsdMargin, microUsdMoney } from "./microUsd";
@@ -76,11 +77,6 @@ export function RevenueStrip({ revenue }: { revenue: AdminRevenueView }) {
           testId="revenue-median-margin"
         />
       </div>
-      {/* **`webhooks-behind`, the state M21 link 7 names as its own** — revenue
-          numbers stamped stale, with grants still applying, because grants do
-          not go through Stripe. The honest version of it here is a
-          subscription this deploy cannot price: its pinned version is not in
-          the committed plan file, so MRR understates and nothing errors. */}
       {revenue.payersWithUnknownCost > 0 ? (
         <Text variant="secondary" className="text-xs" data-testid="revenue-unknown-cost">
           {revenue.payersWithUnknownCost} paying account
@@ -89,13 +85,28 @@ export function RevenueStrip({ revenue }: { revenue: AdminRevenueView }) {
           total and a margin from it would flatter us.
         </Text>
       ) : null}
-      {revenue.unpricedSubscriptions > 0 ? (
-        <Text variant="secondary" className="text-xs" data-testid="revenue-unpriced">
-          {revenue.unpricedSubscriptions} subscription
-          {revenue.unpricedSubscriptions === 1 ? "" : "s"} pin a plan version this deploy cannot
-          price, so MRR is a floor rather than a total.
-        </Text>
-      ) : null}
     </div>
+  );
+}
+
+/**
+ * **`webhooks-behind`, the state M21 link 7 names as its own** — revenue
+ * numbers stamped stale, with grants still applying, because grants do not go
+ * through Stripe. The honest version of it here is a subscription this deploy
+ * cannot price: its pinned version is not in the committed plan file, so MRR
+ * understates and nothing errors.
+ *
+ * **A page-level banner, not a line in the strip** (M36 link 1): *Pays* in the
+ * Users tab is stale for the same reason MRR is, so the page shows this on
+ * Financial and Users alike.
+ */
+export function RevenueStaleBanner({ revenue }: { revenue: AdminRevenueView }) {
+  if (revenue.unpricedSubscriptions === 0) return null;
+  return (
+    <Banner variant="danger" data-testid="revenue-unpriced">
+      {revenue.unpricedSubscriptions} subscription
+      {revenue.unpricedSubscriptions === 1 ? "" : "s"} pin a plan version this deploy cannot price,
+      so MRR is a floor rather than a total. Grants still apply — they don&apos;t go through Stripe.
+    </Banner>
   );
 }
