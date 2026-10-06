@@ -1,14 +1,15 @@
-// **The console's tab is URL state** (M36 D1): `/admin?tab=financial|users|library`.
+// **The console's tab is URL state** (M36 D1): `/admin?tab=financial|users|library|ai`.
 //
 // One module, read by the server page (which decides the body) and by the
 // client strip (which navigates), so the set of tabs cannot differ between the
-// two. The AI models tab joins this list when M36 link 4 builds it — not
-// before, so no tab here is a placeholder.
+// two. AI models joined when M36 link 4 built it, not before, so no tab here
+// was ever a placeholder.
 
 export const CONSOLE_TABS = [
   { value: "financial", label: "Financial" },
   { value: "users", label: "Users" },
   { value: "library", label: "Library" },
+  { value: "ai", label: "AI models" },
 ] as const;
 
 export type ConsoleTab = (typeof CONSOLE_TABS)[number]["value"];

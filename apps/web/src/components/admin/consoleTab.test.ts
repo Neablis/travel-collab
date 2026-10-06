@@ -11,15 +11,21 @@ describe("resolveConsoleTab", () => {
       "financial",
       "users",
       "library",
+      "ai",
     ]);
   });
 
-  it("renders Financial for a missing, unknown or not-yet-built tab", () => {
+  it("renders Financial for a missing or unknown tab", () => {
     expect(resolveConsoleTab(undefined)).toBe("financial");
     expect(resolveConsoleTab("")).toBe("financial");
     expect(resolveConsoleTab("billing")).toBe("financial");
-    // Link 4 adds AI models; until then its URL is an unknown tab, not a blank one.
-    expect(resolveConsoleTab("ai")).toBe("financial");
+    // The value, not the label: `?tab=AI models` is a typed URL, not a tab.
+    expect(resolveConsoleTab("AI models")).toBe("financial");
+  });
+
+  it("labels the fourth tab AI models, after Library (M36 link 4)", () => {
+    expect(CONSOLE_TABS.at(-1)).toEqual({ value: "ai", label: "AI models" });
+    expect(resolveConsoleTab("ai")).toBe("ai");
   });
 
   it("takes the first of a repeated param", () => {
