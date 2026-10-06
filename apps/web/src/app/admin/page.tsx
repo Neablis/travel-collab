@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { Heading } from "@/components/ui/heading";
 import { AccountsPanel } from "@/components/admin/AccountsPanel";
+import { resolveAccountsView } from "@/components/admin/accountsView";
 import { ConsoleTabs } from "@/components/admin/ConsoleTabs";
 import { resolveConsoleTab, type ConsoleTab } from "@/components/admin/consoleTab";
 import { TierPanel } from "@/components/admin/TierPanel";
@@ -76,7 +77,8 @@ export default async function AdminPage({
   // Before any data is read, and before anything renders. `notFound()` throws,
   // so there is no path where `adminOverview()` runs for a non-operator.
   if ((await adminUserId()) === null) notFound();
-  const tab = resolveConsoleTab((await searchParams).tab);
+  const params = await searchParams;
+  const tab = resolveConsoleTab(params.tab);
 
   if (tab === "library") {
     // The report queue is read here for the same reason the overview is — see
@@ -112,7 +114,9 @@ export default async function AdminPage({
           {/* Search, counted filters, 8 rows a page and a no-match state all live
               in the client component: they are view state over a list the server
               already sent, and a round trip per keystroke would be a worse
-              console for a table bounded at 100 rows. Only enabled plans are
+              console for a table bounded at 100 rows. They are seeded from the
+              URL, which is where they are kept (D2). `?account=` renders this
+              table too until M36 link 3 builds the account page. Only enabled plans are
               offered to the grant dialog — `enabled` bounds what an operator may
               hand out, never what a holder may do, which is what lets the
               disabled fourth-plan proof ship without anyone receiving it. */}
@@ -125,6 +129,9 @@ export default async function AdminPage({
           <AccountsPanel
             accounts={overview.accounts}
             windowDays={overview.windowDays}
+            initial={resolveAccountsView(params)}
+            now={new Date().toISOString()}
+            underwater={overview.underwater.paying.map((account) => account.userId)}
             plans={overview.plans.filter((plan) => plan.live.enabled).map((plan) => plan.planId)}
             plansGrantingNothing={overview.plans
               .filter((plan) => plan.live.entitlements.length === 0)

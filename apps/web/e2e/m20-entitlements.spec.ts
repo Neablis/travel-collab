@@ -236,8 +236,9 @@ test.describe("M20 — an account knows what it may do", () => {
     // console re-reads server-side after a write, so a stale row here would
     // mean an operator reissuing a grant that already landed.
     await expect(dialog).toBeHidden();
+    // `Holds` is the resolver's answer. The row's `Can` column (`ai.ask`) left
+    // the table with M36 link 2's column set.
     await expect(row).toContainText("premium");
-    await expect(row).toContainText("ai.ask");
 
     await operator.context().close();
   });
