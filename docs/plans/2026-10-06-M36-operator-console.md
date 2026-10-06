@@ -4,19 +4,24 @@ Gate: `docs/milestones/M36-operator-console.md` § *Exit gate*. Decisions are nu
 cited here as D1–D10; links as L1–L6. Delete this file at M36's gate close
 (`docs/plans/README.md`).
 
-## Order and branches
+## The stack
 
-| PR | Links | Tier | On the preview, a person clicks… |
-|---|---|---|---|
-| 1 | minting (this plan, the milestone file, TODO/README/STATUS rows) + **L1** the shell | 2 | `/admin`, then each of Financial · Users · Library; the tier tabs on Financial |
-| 2 | **L2** six filters, Asked 30d, Last active, row → account link, *Show them in Users* | 2 | Users; each filter; a row; the link on Financial |
-| 3 | **L3** the account page | 2 | a row in Users; Revoke on a test account |
-| 4 | **L4** the AI models tab | 2 | AI models |
-| 5 | **L5** Library notebooks, **L6** e2e + sweep, then Tier 3 | 2 → 3 | Library; the whole walk |
+Six parts, each on its own branch and stacked on the one below, merged 1 → 6 with merge commits
+(`docs/guidelines/stacked-prs.md`). All open as drafts. **Nothing merges without Mitchell.**
 
-The first PR is on `claude/eager-sagan-ekawmk`. Later PRs branch from the previous one's head or
-from `main` once it has merged; whichever, each is a draft until it is green. The AI models tab
-(L4) depends only on L1, so it can run in parallel with L2/L3 in its own worktree.
+| Part | Branch | Links | Tier | On the preview, a person clicks… |
+|---|---|---|---|---|
+| 1 | `claude/eager-sagan-ekawmk` | minting: this plan, the milestone file, TODO/README/STATUS rows, the candidate | 1 (prose) | nothing — docs only |
+| 2 | `claude/eager-sagan-ekawmk-shell` | **L1** the tab shell | 2 | `/admin`, then Financial · Users · Library; the tier tabs on Financial |
+| 3 | `claude/eager-sagan-ekawmk-users` | **L2** six filters, Asked 30d, Last active, row → account link, *Show them in Users* | 2 | Users; each filter; a row; the link on Financial |
+| 4 | `claude/eager-sagan-ekawmk-account` | **L3** the account page | 2 | a row in Users; Revoke on a test account |
+| 5 | `claude/eager-sagan-ekawmk-ai` | **L4** the AI models tab | 2 | AI models |
+| 6 | `claude/eager-sagan-ekawmk-library` | **L5** Library notebooks, **L6** e2e + sweep, then Tier 3 on the whole stack | 2 → 3 | Library; the whole walk |
+
+Each part is based on the part above it in the table. L4 depends only on L1, so part 5 may be
+**built** in parallel with parts 3 and 4 in its own worktree, from part 2's head; it is merged
+forward onto part 4 before it opens, so the stack stays a single line. Fixes go to the lowest
+part they touch and merge forward (§3 of the guideline).
 
 ## What is true today
 
