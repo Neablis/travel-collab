@@ -8,7 +8,7 @@ import { CONSOLE_TABS, consoleTabHref, type ConsoleTab } from "./consoleTab";
 // server component that reads the Entitlements module directly, so the tab has
 // to reach it as a request; `TabStrip` owns no state here, the URL does.
 
-/** The console's Financial · Users · Library strip; a pick navigates to `/admin?tab=…`. */
+/** The console's Financial · Users · Library · AI models strip; a pick navigates to `/admin?tab=…`. */
 export function ConsoleTabs({ value }: { value: ConsoleTab }) {
   const router = useRouter();
   return (

@@ -10,6 +10,7 @@ import { spendChartConfig } from "../pages/blocks/SpendByDayBlock";
 import { SpendByDayChart } from "../pages/blocks/SpendByDayChart";
 import { breakdownChartConfig } from "../pages/blocks/SpendBreakdownBlock";
 import { SpendBreakdownChart } from "../pages/blocks/SpendBreakdownChart";
+import { ContextByStepChart, TurnsADayChart } from "../admin/AiModelsCharts";
 
 // The M14 gate box, as a test: *"Charts go through the one adopted chart
 // component, and none carries a colour or font outside the design-system
@@ -80,10 +81,39 @@ const CHARTS: Record<string, Record<string, () => ReactElement>> = {
     "by kind": () => breakdownChart({}),
     "by tag": () => breakdownChart({ by: "tag" }),
   },
+  // The operator console's AI models tab (M36 link 4).
+  "components/admin/AiModelsCharts.tsx": {
+    "turns a day": () => (
+      <TurnsADayChart
+        days={Array.from({ length: 30 }, (_, i) => ({
+          day: new Date(Date.UTC(2026, 8, 6 + i)).toISOString(),
+          turns: 200 + i * 4,
+          failed: i === 21 ? 20 : 3,
+        }))}
+        height={120}
+      />
+    ),
+    "context by step": () => (
+      <ContextByStepChart
+        steps={["1", "2", "3", "4", "5", "6", "7", "8+"].map((step, i) => ({
+          step,
+          median: 3000 + i * 1900,
+          p95: 5000 + i * 4500,
+          turns: 8000 >> i,
+        }))}
+        height={184}
+      />
+    ),
+  },
 };
 
 // A chart that draws far fewer marks than the bars gets its own floor below.
-const PAINTED_FLOOR: Record<string, number> = { "components/pages/blocks/SpendBreakdownChart.tsx": 2 };
+const PAINTED_FLOOR: Record<string, number> = {
+  "components/pages/blocks/SpendBreakdownChart.tsx": 2,
+  // Two areas (fill and stroke for turns, fill for failed) and the baseline:
+  // measured at 4, no axis by design. 3 still fails a chart missing an area.
+  "components/admin/AiModelsCharts.tsx": 3,
+};
 
 // Every kind priced, and stops tagged as `spendTrip` tags them, so each split
 // draws several slices.

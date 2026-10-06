@@ -10,17 +10,20 @@ import { RevenueStaleBanner, RevenueStrip } from "@/components/admin/RevenueStri
 import { UnderwaterPanel } from "@/components/admin/UnderwaterPanel";
 import { PriceCheckPanel } from "@/components/admin/PriceCheckPanel";
 import { ReportsPanel } from "@/components/admin/ReportsPanel";
+import { AiModelsTab } from "@/components/admin/AiModelsTab";
 import { Panel } from "@/components/ui/panel";
 import { Text } from "@/components/ui/text";
 import { adminAccountDetail } from "@/server/admin/accountDetail";
 import { adminFinancial, adminUsers, grantablePlanIds } from "@/server/entitlements/admin";
+import { aiModelsReport } from "@/server/entitlements/aiModels";
+import { ASSISTANT_TOOLS } from "@/server/assistant/registry";
 import { adminUserId } from "@/server/entitlements/requireAdmin";
 import { listReports } from "@/server/reports";
 
 // **The console, read-only over plans and granting as its only write**
 // (M20 link 7, and the 2026-09-02 amendment).
 //
-// **Three tabs since M36 link 1, not one scroll.** The scroll grew a panel per
+// **Four tabs since M36 link 4 (three since link 1), not one scroll.** The scroll grew a panel per
 // milestone and every new one went to the bottom, so the one part that needs
 // action — reports — sat below four that only report. The tab is URL state
 // (`?tab=`, D1), so each tab is its own request and reads only what it draws:
@@ -104,6 +107,20 @@ export default async function AdminPage({
         <Panel title="Reports">
           <ReportsPanel initial={{ open, actioned, dismissed }} />
         </Panel>
+      </ConsoleShell>
+    );
+  }
+
+  if (tab === "ai") {
+    // **The ledger, read on its own** (M36 link 4): this tab reads
+    // `aiModelsReport` and nothing else — not the overview, whose revenue
+    // banner is scoped to Financial and Users. The registry's names are what
+    // *almost never called* is measured against, passed in because the
+    // Entitlements module that reads the ledger knows no trip tools (ADR-045).
+    const report = await aiModelsReport(ASSISTANT_TOOLS.map((tool) => tool.name));
+    return (
+      <ConsoleShell tab={tab}>
+        <AiModelsTab report={report} />
       </ConsoleShell>
     );
   }

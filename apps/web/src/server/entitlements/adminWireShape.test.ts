@@ -26,12 +26,14 @@ import type {
   AdminGrantRow as UiAdminGrantRow,
   AdminOverview as UiAdminOverview,
 } from "@/lib/adminOverview";
+import type { AdminAiModelsReport as UiAiModelsReport } from "@/lib/adminAiModels";
 import type {
   AdminAccountRow as ServerAdminAccountRow,
   AdminGrantRow as ServerAdminGrantRow,
   AdminOverview as ServerAdminOverview,
 } from "./admin";
 import type { AccountCost as ServerAccountCost } from "./usage";
+import type { AiModelsReport as ServerAiModelsReport } from "./aiModels";
 import type {
   AdminAccountAssistant as UiAdminAccountAssistant,
   AdminAccountDetail as UiAdminAccountDetail,
@@ -62,6 +64,8 @@ const overview: AssertEquals<UiAdminOverview, ServerAdminOverview> = true;
 const account: AssertEquals<UiAdminAccountRow, ServerAdminAccountRow> = true;
 const grant: AssertEquals<UiAdminGrantRow, ServerAdminGrantRow> = true;
 const cost: AssertEquals<UiAdminAccountCost, ServerAccountCost> = true;
+// M36 link 4: the AI models tab reads its own report, under the same rule.
+const aiModels: AssertEquals<UiAiModelsReport, ServerAiModelsReport> = true;
 // M36 link 3's account page. The whole detail is pinned, and its parts too, so
 // a mismatch names the part rather than only the outermost type.
 const detail: AssertEquals<UiAdminAccountDetail, ServerAdminAccountDetail> = true;
@@ -72,8 +76,7 @@ const grantRecord: AssertEquals<UiAdminAccountGrantRecord, ServerAdminAccountGra
 
 describe("the console's wire shape", () => {
   it("is byte-identical on both sides of the lint wall", () => {
-    expect([overview, account, grant, cost, detail, accountPlan, assistant, turn, grantRecord]).toEqual(
-      Array.from({ length: 9 }, () => true),
-    );
+    const checks = [overview, account, grant, cost, aiModels, detail, accountPlan, assistant, turn, grantRecord];
+    expect(checks).toEqual(Array.from({ length: checks.length }, () => true));
   });
 });
