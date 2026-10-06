@@ -19,8 +19,13 @@ import { dayLabel, shortDate, spokenRef } from "./accountFormat";
 //     back and nothing said the grant was still held. A revoke that did not
 //     land must say so, or the operator walks away believing it did — and say
 //     which way it missed: a request that never arrived, or one the server
-//     refused with a status. A 404 is neither: the endpoint found no unrevoked
-//     grant by that id, so it was already gone and the page re-reads.
+//     refused with a status. Two answers get their own line:
+//       - 409 `no-active-grant`: the endpoint found no unrevoked grant by that
+//         id, so it was already gone; the card goes and the page re-reads.
+//       - 404 `not-found`: the admin gate's answer — the session ended, or the
+//         caller stopped being an operator (role or `admin-console` flag
+//         removed). Nothing was revoked, so the card stays and nothing re-reads.
+//     A 404 with any other body (a proxy, a missing route) is a plain refusal.
 //
 // **Revoking marks, it never deletes** — the endpoint stamps `revoked_at`, the
 // row stays and reappears below as history. The card disappears when the page
@@ -28,6 +33,15 @@ import { dayLabel, shortDate, spokenRef } from "./accountFormat";
 
 const UNREACHED = "The revoke didn't reach the server. Nothing changed — they still hold it.";
 const refused = (status: number) => `The server refused the revoke (${status}). Nothing changed — they still hold it.`;
+
+const SESSION_ENDED = "Your session ended — nothing changed";
+
+/** The error code in a JSON error body, or null for no body, no JSON, or no code. */
+async function errorCode(res: Response): Promise<string | null> {
+  const body: unknown = await res.json().catch(() => null);
+  const code = typeof body === "object" && body !== null ? (body as { error?: unknown }).error : null;
+  return typeof code === "string" ? code : null;
+}
 
 /** What one card is doing: at rest, asking, sending, or having failed with a line to show. */
 type CardState = "idle" | "confirming" | "busy" | { failed: string };
@@ -66,21 +80,24 @@ export function AccountGrants({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ grantId }),
       });
-      if (!res.ok && res.status !== 404) {
-        set(grantId, { failed: refused(res.status) });
+      const code = res.ok ? null : await errorCode(res);
+      const gone = res.status === 409 && code === "no-active-grant";
+      if (!res.ok && !gone) {
+        set(grantId, { failed: res.status === 404 && code === "not-found" ? SESSION_ENDED : refused(res.status) });
         return;
       }
       // Hidden here AND re-read: the local set takes the card away now, the
       // refresh makes the header, the badges and the history agree with it.
+      // The refresh is requested before the toast, which says it happened.
       setRevoked((current) => new Set(current).add(grantId));
+      router.refresh();
       setToast(
-        res.status === 404
+        gone
           ? "Already revoked — the page has re-read"
           : others === 0
             ? `Revoked — ${account} holds ${spokenRef(fallsBackTo)} from their next request`
             : `Revoked — ${account} keeps what their other ${others === 1 ? "grant gives" : "grants give"} them from their next request`,
       );
-      router.refresh();
     } catch {
       set(grantId, { failed: UNREACHED });
     }

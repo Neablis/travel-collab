@@ -10,6 +10,7 @@ import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { db } from "@/server/db/client";
 import { aiUsage, aiUsageSteps, aiUsageToolCalls } from "@/server/db/schema";
+import { trailingWindowStart } from "./admin";
 import { microUsdFor } from "./modelRates";
 import { costPerAccount } from "./usage";
 import { aiModelsReport } from "./aiModels";
@@ -132,14 +133,14 @@ const midnightBefore = (now: Date, days: number) =>
   new Date(Math.floor(now.getTime() / DAY) * DAY - days * DAY).toISOString();
 
 describe("turns over the trailing 30 days", () => {
-  it("counts turns and accounts in the window, the previous 30 for the delta, and nothing older", async () => {
+  it("counts turns and accounts in the window, the span before it for the delta, and nothing older", async () => {
     const now = freshNow();
     const userA = `dev-${randomUUID()}`;
     await turn(daysBefore(now, 1), { userId: userA, steps: [{}, {}] });
     await turn(daysBefore(now, 5), { userId: userA, steps: [{}, {}, {}, {}], outcome: "error" });
     await turn(daysBefore(now, 29), { steps: [{}], taskClass: "edit" });
-    // The previous window — counted for the delta only. The second is 30 × 24h
-    // ago less an hour, but on the calendar day before the window's first.
+    // The previous window — counted for the delta only. The second is 29.5 ×
+    // 24h ago less an hour, on the calendar day before the window's first.
     await turn(daysBefore(now, 45), { steps: [{}], calls: [{ tool: "read_trip" }] });
     await turn(new Date(Date.parse(midnightBefore(now, 29)) - 60 * 60 * 1000), { steps: [{}] });
     // Older than both windows, with steps and a call — none of it may count.
@@ -168,6 +169,18 @@ describe("turns over the trailing 30 days", () => {
     expect(report.days.reduce((sum, day) => sum + day.turns, 0)).toBe(3);
     expect(report.days.at(-2)).toMatchObject({ day: midnightBefore(now, 1), turns: 1, failed: 0 });
     expect(report.days.at(-6)).toMatchObject({ day: midnightBefore(now, 5), turns: 1, failed: 1 });
+  });
+
+  it("compares the window with the same span before it, so flat traffic reads as no change", async () => {
+    // Noon: the window is 29.5 days long, today being half gone.
+    const now = freshNow();
+    // A turn every 12 hours, back past both windows.
+    for (let k = 0; k < 120; k += 1) await turn(new Date(now.getTime() - (6 + 12 * k) * 60 * 60 * 1000));
+
+    const report = await aiModelsReport([], now);
+
+    expect(report.turns).toBe(59);
+    expect(report.previousTurns).toBe(59);
   });
 });
 
@@ -330,14 +343,23 @@ describe("the models table", () => {
     // Priced steps and a classifier with no reported usage: the whole turn is
     // unpriced, as `microUsdForRow` leaves it — its steps' cost too.
     await turn(at, { userId, classifier: { tokensIn: 100, tokensOut: null }, steps: [{ tokensIn: 7000 }] });
+    // Inside Financial's 30 × 24h and before the first calendar day (noon now,
+    // so that starts 29.5 days back): priced here, drawn in no bar or count.
+    const early = daysBefore(now, 29.6);
+    await turn(early, { userId, steps: [{ model: CHEAP, tokensIn: 3000, tokensOut: 80 }] });
+    // ai-live off: Financial counts it, and no rate prices it.
+    await turn(at, { userId, turnModel: "simulated/no-op", steps: [{ model: "simulated/no-op" }] });
 
     const report = await aiModelsReport([], now);
-    const financial = (await costPerAccount(daysBefore(now, 30))).find((row) => row.userId === userId)!;
+    const financial = (await costPerAccount(trailingWindowStart(now))).find((row) => row.userId === userId)!;
     const price = (model: string, tokensIn: number, tokensOut: number) => microUsdFor(model, tokensIn, tokensOut, at)!;
 
     expect(report.models.reduce((sum, row) => sum + row.costMicroUsd, 0)).toBe(financial.microUsd);
     expect(report.unpricedTurns).toBe(financial.unpriced);
-    expect(financial).toMatchObject({ requests: 5, unpriced: 2 });
+    expect(financial).toMatchObject({ requests: 7, unpriced: 3 });
+    // Neither extra turn is in the calendar window's counts.
+    expect(report.turns).toBe(5);
+    expect(report.models.map((row) => row.model)).not.toContain("simulated/no-op");
     expect(report.models.find((row) => row.model === FLASHX)).toMatchObject({
       calls: 0,
       turnPriced: 1,
@@ -349,9 +371,10 @@ describe("the models table", () => {
       costMicroUsd: price(STRONG, 6000, 300),
     });
     expect(report.models.find((row) => row.model === CHEAP)).toMatchObject({
+      calls: 3,
       unpriced: 1,
       turnPriced: 1,
-      costMicroUsd: price(CHEAP, 4000, 100) + price(CHEAP, 100, 10),
+      costMicroUsd: price(CHEAP, 4000, 100) + price(CHEAP, 100, 10) + microUsdFor(CHEAP, 3000, 80, early)!,
     });
   });
 });
@@ -407,6 +430,19 @@ describe("the tool-calls table", () => {
       { tool: "delete_day", calls: 0 },
       { tool: "set_budget", calls: 0 },
     ]);
+  });
+
+  it("counts a tool's turns among measured turns only, the denominator the tab divides by", async () => {
+    const now = freshNow();
+    await turn(daysBefore(now, 1), { steps: [{}], calls: [{ tool: "read_trip" }] });
+    await turn(daysBefore(now, 2), { steps: [{}] });
+    // Calls and no step rows: its calls are calls, but it is no measured turn.
+    await turn(daysBefore(now, 3), { calls: [{ tool: "read_trip" }, { tool: "read_trip" }] });
+
+    const report = await aiModelsReport([], now);
+
+    expect(report.measuredTurns).toBe(2);
+    expect(report.tools).toMatchObject([{ tool: "read_trip", calls: 3, turns: 1 }]);
   });
 });
 

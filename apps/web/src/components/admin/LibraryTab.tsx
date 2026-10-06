@@ -8,6 +8,7 @@ import { Text } from "@/components/ui/text";
 import type { AdminNotebooksReport } from "@/lib/adminNotebooks";
 import { displayNameFor } from "@/lib/displayName";
 import type { AdminReportQueueItem } from "@/lib/reports";
+import { accountsViewHref } from "./accountsView";
 import { count, shortDay } from "./aiFormat";
 import { ReportsPanel } from "./ReportsPanel";
 
@@ -26,10 +27,8 @@ import { ReportsPanel } from "./ReportsPanel";
 
 const HEAD = "whitespace-nowrap border-b border-border-strong bg-moss font-mono";
 
-/** Where a notebook's owner opens in the console — the Users tab's account page. */
-export function accountHref(ownerId: string): string {
-  return `/admin?tab=users&account=${encodeURIComponent(ownerId)}`;
-}
+/** Where a notebook's owner opens: their account page over a fresh Users table. */
+const OWNER_VIEW = { query: "", filter: "all", page: 0 } as const;
 
 /**
  * The Library tab's body: **Reports first** — the only part of the tab that
@@ -57,8 +56,8 @@ export function LibraryTab({
 
 /**
  * The notebooks section under Reports: the one tile and the latest saves, or
- * the `no-notebooks` empty box in their place. Reports is drawn by the page and
- * stays either way.
+ * the `no-notebooks` empty box in their place. Reports is drawn above it by
+ * `LibraryTab` and stays either way.
  */
 export function LibraryNotebooks({ report }: { report: AdminNotebooksReport }) {
   if (report.saved === 0) {
@@ -104,7 +103,7 @@ export function LibraryNotebooks({ report }: { report: AdminNotebooksReport }) {
                   <TR key={row.savedNotebookId}>
                     <TD className="font-semibold text-ink">{row.title}</TD>
                     <TD>
-                      <Link href={accountHref(row.ownerId)} className="text-ink underline">
+                      <Link href={accountsViewHref(OWNER_VIEW, row.ownerId)} className="text-ink underline">
                         {displayNameFor({ userId: row.ownerId, email: row.ownerEmail })}
                       </Link>
                     </TD>

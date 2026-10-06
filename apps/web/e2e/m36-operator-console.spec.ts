@@ -168,7 +168,9 @@ test.describe("M36 — the operator console", () => {
 
     // **Every tab answers a non-admin 404, an account page included** — the
     // route group is not merely hidden, per tab (gate's [walk] box, held here).
-    expect((await page.request.get("/admin?tab=ai")).status()).toBe(404);
+    for (const tab of ["financial", "users", "library", "ai"]) {
+      expect((await page.request.get(`/admin?tab=${tab}`)).status(), `?tab=${tab}`).toBe(404);
+    }
     expect((await page.request.get(`/admin?tab=users&account=${encodeURIComponent(userId)}`)).status()).toBe(404);
   });
 });
