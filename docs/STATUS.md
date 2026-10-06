@@ -57,6 +57,12 @@ durations show it held. Every run states its plan without `EVAL_CONFIRM=1` and s
 2026-10-04**, at 20 of 20 and 9 of 9; each retro is at the end of its milestone file. Neither
 has a row in `TODO.md`'s order, and placing them there is Mitchell's call.
 
+**M36 — the operator console in four tabs — minted 2026-10-06 as the next milestone** (after
+M34, ahead of M35) **and started the same day**: Financial · Users · Library · AI models, an
+account page, the M31 ledger read by an admin surface for the first time. Link 1 (the tab shell)
+is on `claude/eager-sagan-ekawmk`. Plan `docs/plans/2026-10-06-M36-operator-console.md`.
+(`docs/milestones/M36-operator-console.md`)
+
 **Built beside M19, not a milestone: the SEO pass** (five stacked draft PRs, #295-#299,
 to merge 1 → 5 with merge commits; plan `docs/plans/2026-10-02-seo-pass.md`). It adds robots
 and canonicals, a sitemap, server-rendered day and Discover pages with real 404s and
@@ -210,6 +216,9 @@ swallowed into coordinate-less locations) is fixed. The remaining architectural
 half, the model guessing a coordinate rather than citing one, is M9 scope.
 
 ## Next action
+
+**M36 links 2–6** after link 1's PR (`docs/plans/2026-10-06-M36-operator-console.md`); the AI
+models tab (link 4) can run beside links 2 and 3. M34's walk and retro are still open.
 
 **M34, part 2 then part 3** of the stack in `docs/plans/2026-10-05-M34-nearby-stops.md`. The
 walk box is Mitchell's, on part 3's preview. Separately, `KI-2026-10-04-c` resolves on query 8 of
