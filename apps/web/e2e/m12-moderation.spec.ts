@@ -120,7 +120,8 @@ test("a reported day is hidden from the console, leaves the library, and the aut
 
   // ── the operator hides it, from the console ───────────────────────────────
   const operator = await signedInAs(browser, E2E_ADMIN_USERNAME);
-  await operator.goto("/admin");
+  // The report queue is the Library tab's since M36 link 1.
+  await operator.goto("/admin?tab=library");
   await expect(operator.getByRole("heading", { name: "Reports", exact: true })).toBeVisible();
   const row = operator.getByTestId(/^report-/).filter({ hasText: dayName });
   await expect(row).toBeVisible();
