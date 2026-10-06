@@ -50,6 +50,8 @@ import { homedir } from "node:os";
 import { join, win32 } from "node:path";
 import { pathToFileURL } from "node:url";
 
+import { checkShell } from "./e2e-browser.mjs";
+
 const root = process.env.CLAUDE_PROJECT_DIR ?? process.cwd();
 const OK = "OK";
 const BLOCKED = "BLOCKED";
@@ -195,19 +197,42 @@ function playwrightCacheDir(env, platform, home) {
   return join(env.XDG_CACHE_HOME || join(home, ".cache"), "ms-playwright");
 }
 
+// A directory of browsers is not enough (KI-2026-09-25-i): the cloud image
+// links the pinned revision at an older chrome, so e2e launches and passes on
+// Chromium 141 while CI runs 153. A known mismatch is BLOCKED — the lane runs,
+// but its verdict is not CI's. "Could not tell" stays OK; the probe never
+// cries wolf over a manifest it failed to read.
+//
+// Linux only. `e2e-browser.mjs` knows Playwright's Linux layouts, which is
+// where the skew lives (the cloud image), and a Mac or Windows cache filed
+// under its own layout would read as "missing": the false BLOCKED that
+// 2026-10-01's macOS fix above exists to prevent (PR #345 review).
+function withShellCheck(dir, shell, platform) {
+  const found = { status: OK, note: `browsers at ${dir}` };
+  if (platform !== "linux") return found;
+  const check = shell(dir);
+  if (check?.state !== "mismatch" && check?.state !== "missing") return found;
+  return {
+    status: BLOCKED,
+    note: `e2e would launch ${check.actual ?? "no headless shell"}, CI launches ${check.expected} — a local e2e verdict may be wrong; run \`node scripts/e2e-browser.mjs --install\``,
+    ki: "KI-2026-09-25-i",
+  };
+}
+
 export function probeBrowser(
   fs = { existsSync },
   env = process.env,
   platform = process.platform,
   home = homedir(),
+  shell = (dir) => checkShell({ dir }),
 ) {
   const envPath = env.PLAYWRIGHT_BROWSERS_PATH;
   if (envPath && fs.existsSync(envPath)) {
-    return { status: OK, note: `browsers at ${envPath}` };
+    return withShellCheck(envPath, shell, platform);
   }
   const cache = playwrightCacheDir(env, platform, home);
   if (fs.existsSync(cache)) {
-    return { status: OK, note: `browsers at ${cache}` };
+    return withShellCheck(cache, shell, platform);
   }
   return {
     status: BLOCKED,

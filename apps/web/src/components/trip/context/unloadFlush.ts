@@ -1,4 +1,4 @@
-import type { BatchableCommand } from "@tc/contracts";
+import type { TripCommandUnit } from "@tc/contracts";
 import type { PendingUnit } from "./optimistic";
 
 /**
@@ -14,15 +14,16 @@ export const KEEPALIVE_BODY_BUDGET = 48 * 1024;
 export type UnloadFlush = {
   /** The units sent, oldest first. Always a prefix of what was passed in. */
   units: PendingUnit[];
-  /** Their commands, in queue order, as one batch. */
-  commands: BatchableCommand[];
+  /** The request body's `units`: each sent unit's key and commands, in order (ADR-066). */
+  body: TripCommandUnit[];
   /** Whether the body fits a keepalive request. */
   keepalive: boolean;
 };
 
 /**
- * What to send for the queued units nobody has sent yet, when the queue is
- * about to stop existing (KI-5).
+ * What to send for the queued units, when the queue is about to stop existing
+ * (KI-5). Each goes with its key (ADR-066), so the caller may include the unit
+ * already in flight: if the server has applied it, the batch leaves it out.
  *
  * **One batch, not one request per unit.** Separate requests from a page that
  * is going away race each other to the server, and ordered edits applied out
@@ -41,36 +42,53 @@ export function unloadFlush(
   units: readonly PendingUnit[],
   { unloading, budget = KEEPALIVE_BODY_BUDGET }: { unloading: boolean; budget?: number },
 ): UnloadFlush | null {
-  const all = units.flatMap((u) => u.commands);
-  if (all.length === 0) return null;
+  const body = units.map((u) => ({ key: u.id, commands: u.commands }));
+  if (body.length === 0) return null;
 
-  // One pass, each command encoded once: this runs synchronously inside
+  // One pass, each unit encoded once: this runs synchronously inside
   // `pagehide`, and re-encoding the growing batch per unit is quadratic in the
-  // queue. The body is `{"commands":[c1,c2,…]}`, so its size is the empty
-  // envelope, plus every command's own bytes, plus one comma between each pair
-  // — exactly what `JSON.stringify({ commands })` would produce.
+  // queue. The body is `{"units":[u1,u2,…]}`, so its size is the empty
+  // envelope, plus every unit's own bytes, plus one comma between each pair,
+  // exactly what `JSON.stringify({ units })` would produce.
   const encoder = new TextEncoder();
   const bytes = (value: unknown) => encoder.encode(JSON.stringify(value)).length;
-  const envelope = bytes({ commands: [] });
+  const envelope = bytes({ units: [] });
   const bodySize = (payload: number, count: number) => envelope + payload + Math.max(count - 1, 0);
 
   let payload = 0;
-  let count = 0;
   let taken = 0;
-  for (const unit of units) {
-    const nextPayload = payload + unit.commands.reduce((sum, c) => sum + bytes(c), 0);
-    const nextCount = count + unit.commands.length;
+  for (const unit of body) {
+    const nextPayload = payload + bytes(unit);
     // Staying pages send everything (see above), so only an unloading one stops.
-    if (unloading && bodySize(nextPayload, nextCount) > budget) break;
+    if (unloading && bodySize(nextPayload, taken + 1) > budget) break;
     payload = nextPayload;
-    count = nextCount;
     taken += 1;
   }
 
-  if (taken === units.length) {
-    return { units: [...units], commands: all, keepalive: bodySize(payload, count) <= budget };
-  }
-  return taken === 0
-    ? null
-    : { units: units.slice(0, taken), commands: units.slice(0, taken).flatMap((u) => u.commands), keepalive: true };
+  if (taken === 0) return null;
+  return {
+    units: units.slice(0, taken),
+    body: body.slice(0, taken),
+    keepalive: bodySize(payload, taken) <= budget,
+  };
+}
+
+/**
+ * The `pagehide` flush for a queue whose first unit the sender may already have
+ * sent (ADR-066). That unit goes too, under its key, so the server leaves it
+ * out if it landed. But it is only a maybe: if carrying it costs the units
+ * behind it their place in the keepalive budget, the flush goes without it,
+ * as it did before keys. The rule is to carry the most unsent units, with the
+ * head on a tie.
+ */
+export function unloadFlushAfterHead(
+  units: readonly PendingUnit[],
+  { headSent, budget = KEEPALIVE_BODY_BUDGET }: { headSent: boolean; budget?: number },
+): UnloadFlush | null {
+  const withHead = unloadFlush(units, { unloading: true, budget });
+  if (!headSent || units.length === 0) return withHead;
+  const unsentWithHead = withHead ? withHead.units.length - 1 : 0;
+  if (unsentWithHead === units.length - 1) return withHead;
+  const withoutHead = unloadFlush(units.slice(1), { unloading: true, budget });
+  return (withoutHead?.units.length ?? 0) > unsentWithHead ? withoutHead : withHead;
 }

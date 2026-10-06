@@ -5,6 +5,7 @@ import { tripDetailFixture, historyFixture } from "@tc/factories";
 
 const sendTripCommandMock = vi.fn();
 const sendTripCommandBatchMock = vi.fn();
+const sendTripUnitsMock = vi.fn();
 const fetchTripAccessMock = vi.fn();
 // Settable, like the others: one test needs a trip whose own state refuses
 // every command, to prove a predicted rejection is reported rather than eaten.
@@ -31,6 +32,7 @@ vi.mock("@/lib/apiClient", async (orig) => {
     fetchTripAccess: (...args: unknown[]) => fetchTripAccessMock(...args),
     sendTripCommand: (...args: unknown[]) => sendTripCommandMock(...args),
     sendTripCommandBatch: (...args: unknown[]) => sendTripCommandBatchMock(...args),
+    sendTripUnits: (...args: unknown[]) => sendTripUnitsMock(...args),
   };
 });
 
@@ -45,6 +47,7 @@ const accessAs = (myRole: "owner" | "editor" | "viewer") => ({
 beforeEach(() => {
   sendTripCommandMock.mockReset();
   sendTripCommandBatchMock.mockReset();
+  sendTripUnitsMock.mockReset();
   // Owner by default: every pre-existing test in this file was written
   // against a board its user can fully edit.
   fetchTripAccessMock.mockReset().mockResolvedValue(accessAs("owner"));
@@ -340,6 +343,12 @@ describe("TripProvider failed-send queue (KI-36)", () => {
     expect(sendTripCommandMock).toHaveBeenCalledTimes(3);
     expect(screen.getByTestId("failedAt").textContent).toBe("none");
     expect(screen.getByTestId("error").textContent).toBe("none");
+    // ADR-066: a retry is the same unit, so it goes under the same key, and a
+    // failure that had in fact landed is answered rather than applied twice.
+    // The unit behind it has a key of its own.
+    const keys = sendTripCommandMock.mock.calls.map((call) => (call[1] as { idempotencyKey: string }).idempotencyKey);
+    expect(keys[1]).toBe(keys[0]);
+    expect(keys[2]).not.toBe(keys[0]);
   });
 
   it("keeps the failure recorded when the user makes further edits (the page alert does not)", async () => {
@@ -1511,6 +1520,9 @@ function FlushProbe() {
 const addDayCommand = (dayId: string) => ({ type: "AddDay", tripId: "x", dayId });
 const confirmedOutcome = () => ({ ok: true, value: { detail: twoDayDetail(), history: historyFixture("x") } });
 
+/** The key the sender sent the first unit under (ADR-066). */
+const headKey = () => (sendTripCommandMock.mock.calls[0]![1] as { idempotencyKey: string }).idempotencyKey;
+
 /** Renders, then queues d-a (held in flight) with d-b and d-c behind it. */
 async function queueBehindAnInFlightHead() {
   let settleHead: (v: unknown) => void = () => {};
@@ -1530,18 +1542,26 @@ async function queueBehindAnInFlightHead() {
 }
 
 describe("TripProvider unload flush (KI-5)", () => {
-  it("on pagehide, sends everything behind the in-flight unit as one keepalive batch, and not that unit", async () => {
-    sendTripCommandBatchMock.mockReturnValue(new Promise(() => {})); // the page is gone; nothing answers
+  it("on pagehide, sends the whole queue as one keepalive batch, the unit in flight included, each unit with its key", async () => {
+    sendTripUnitsMock.mockReturnValue(new Promise(() => {})); // the page is gone; nothing answers
     await queueBehindAnInFlightHead();
 
     act(() => { window.dispatchEvent(new Event("pagehide")); });
 
-    expect(sendTripCommandBatchMock).toHaveBeenCalledTimes(1);
-    expect(sendTripCommandBatchMock).toHaveBeenCalledWith(
-      "x",
-      [addDayCommand("d-b"), addDayCommand("d-c")],
-      { keepalive: true },
-    );
+    expect(sendTripUnitsMock).toHaveBeenCalledTimes(1);
+    const [tripId, units, options] = sendTripUnitsMock.mock.calls[0]!;
+    expect(tripId).toBe("x");
+    expect(options).toEqual({ keepalive: true });
+    expect(units.map((u: { commands: unknown[] }) => u.commands)).toEqual([
+      [addDayCommand("d-a")],
+      [addDayCommand("d-b")],
+      [addDayCommand("d-c")],
+    ]);
+    // The head goes under the key the sender already sent it with (ADR-066),
+    // so the server leaves it out if it landed. Without the key, a head that
+    // landed would refuse the whole batch.
+    expect(units[0].key).toBe(headKey());
+    expect(new Set(units.map((u: { key: string }) => u.key)).size).toBe(3);
     expect(sendTripCommandMock).toHaveBeenCalledTimes(1);
   });
 
@@ -1552,8 +1572,8 @@ describe("TripProvider unload flush (KI-5)", () => {
   // already reached the server, which applied it. Counting it as unsent put it
   // in the flush a second time; the batch is atomic, so its duplicate refused
   // the whole of it, and everything behind the head was lost.
-  it("on pagehide, still leaves out a unit in flight whose fetch failed as the page went", async () => {
-    sendTripCommandBatchMock.mockReturnValue(new Promise(() => {}));
+  it("on pagehide, still carries a unit in flight whose fetch failed as the page went, by its key", async () => {
+    sendTripUnitsMock.mockReturnValue(new Promise(() => {}));
     const { settleHead } = await queueBehindAnInFlightHead();
 
     // Not inside `act`: the page is going, so no render happens between the
@@ -1562,11 +1582,9 @@ describe("TripProvider unload flush (KI-5)", () => {
     for (let i = 0; i < 10; i++) await Promise.resolve();
     window.dispatchEvent(new Event("pagehide"));
 
-    expect(sendTripCommandBatchMock).toHaveBeenCalledWith(
-      "x",
-      [addDayCommand("d-b"), addDayCommand("d-c")],
-      { keepalive: true },
-    );
+    const [, units] = sendTripUnitsMock.mock.calls[0]!;
+    expect(units.map((u: { key: string }) => u.key)[0]).toBe(headKey());
+    expect(units).toHaveLength(3);
     // Were the page to survive, the failure still reaches the user (KI-36).
     await waitFor(() => expect(screen.getByTestId("failedAt").textContent).not.toBe("none"));
   });
@@ -1581,20 +1599,20 @@ describe("TripProvider unload flush (KI-5)", () => {
 
     view.unmount();
     await act(async () => { await new Promise((r) => setTimeout(r, 20)); });
-    expect(sendTripCommandBatchMock).not.toHaveBeenCalled();
+    expect(sendTripUnitsMock).not.toHaveBeenCalled();
     expect(sendTripCommandMock).toHaveBeenCalledTimes(1); // only the head, still in flight
 
     await act(async () => { settleHead(confirmedOutcome()); });
     await waitFor(() => expect(sendTripCommandMock).toHaveBeenCalledTimes(2));
-    expect(sendTripCommandMock).toHaveBeenLastCalledWith(addDayCommand("d-b"));
+    expect(sendTripCommandMock).toHaveBeenLastCalledWith(addDayCommand("d-b"), { idempotencyKey: expect.any(String) });
     await act(async () => { await new Promise((r) => setTimeout(r, 20)); });
     expect(sendTripCommandMock).toHaveBeenCalledTimes(2); // d-c waits for d-b's answer
 
     await act(async () => { answers[0]!(confirmedOutcome()); });
     await waitFor(() => expect(sendTripCommandMock).toHaveBeenCalledTimes(3));
-    expect(sendTripCommandMock).toHaveBeenLastCalledWith(addDayCommand("d-c"));
+    expect(sendTripCommandMock).toHaveBeenLastCalledWith(addDayCommand("d-c"), { idempotencyKey: expect.any(String) });
     await act(async () => { answers[1]!(confirmedOutcome()); });
-    expect(sendTripCommandBatchMock).not.toHaveBeenCalled();
+    expect(sendTripUnitsMock).not.toHaveBeenCalled();
   });
 
   it("on an in-app navigation, a unit the server refuses does not stop the ones behind it", async () => {
@@ -1630,12 +1648,12 @@ describe("TripProvider unload flush (KI-5)", () => {
     await act(async () => { await new Promise((r) => setTimeout(r, 20)); });
 
     expect(sendTripCommandMock).toHaveBeenCalledTimes(1);
-    expect(sendTripCommandBatchMock).not.toHaveBeenCalled();
+    expect(sendTripUnitsMock).not.toHaveBeenCalled();
   });
 
   it("never lets the sender send a flushed unit as well", async () => {
     let answerFlush: (v: unknown) => void = () => {};
-    sendTripCommandBatchMock.mockImplementationOnce(() => new Promise((res) => { answerFlush = res; }));
+    sendTripUnitsMock.mockImplementationOnce(() => new Promise((res) => { answerFlush = res; }));
     const { settleHead } = await queueBehindAnInFlightHead();
     act(() => { window.dispatchEvent(new Event("pagehide")); });
 
@@ -1652,7 +1670,7 @@ describe("TripProvider unload flush (KI-5)", () => {
   });
 
   it("hands a refused flush back to the sender, which sends it unit by unit", async () => {
-    sendTripCommandBatchMock.mockResolvedValueOnce({
+    sendTripUnitsMock.mockResolvedValueOnce({
       ok: false,
       error: { status: 409, message: "Someone else changed this trip. Retry.", code: "concurrency-conflict" },
     });
@@ -1663,6 +1681,23 @@ describe("TripProvider unload flush (KI-5)", () => {
     await act(async () => { settleHead(confirmedOutcome()); });
     await waitFor(() => expect(screen.getByTestId("unsent").textContent).toBe("0"));
     expect(sendTripCommandMock).toHaveBeenCalledTimes(3);
+  });
+
+  // PR #345's review. The cancelled fetch's failure has been rendered before
+  // `pagehide` this time. It refused nothing, and the flush resends the head
+  // under its key, so the queue must not be held back by it.
+  it("on pagehide, still flushes a queue whose head failed with no answer from the server", async () => {
+    sendTripUnitsMock.mockReturnValue(new Promise(() => {}));
+    const { settleHead } = await queueBehindAnInFlightHead();
+    await act(async () => { settleHead({ ok: false, error: { status: 0, message: "Failed to fetch" } }); });
+    await waitFor(() => expect(screen.getByTestId("failedAt").textContent).not.toBe("none"));
+
+    act(() => { window.dispatchEvent(new Event("pagehide")); });
+
+    expect(sendTripUnitsMock).toHaveBeenCalledTimes(1);
+    const [, units] = sendTripUnitsMock.mock.calls[0]!;
+    expect(units.map((u: { key: string }) => u.key)[0]).toBe(headKey());
+    expect(units).toHaveLength(3);
   });
 
   it("does not send a queue whose head the server refused: leaving is not a retry", async () => {
@@ -1680,6 +1715,6 @@ describe("TripProvider unload flush (KI-5)", () => {
 
     act(() => { window.dispatchEvent(new Event("pagehide")); });
 
-    expect(sendTripCommandBatchMock).not.toHaveBeenCalled();
+    expect(sendTripUnitsMock).not.toHaveBeenCalled();
   });
 });

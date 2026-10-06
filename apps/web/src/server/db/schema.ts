@@ -326,6 +326,23 @@ export const events = pgTable(
   ],
 );
 
+// One row per client unit of work the command pipeline has applied to a trip,
+// keyed by the id the client minted for it (ADR-066, KI-5). Written in the same
+// transaction as the unit's events, so "this key is here" and "this unit's
+// events are on the stream" are one fact. The primary key is the guarantee: two
+// requests carrying the same unit, from a page and from its unload flush, cannot
+// both commit. Not a projection. Nothing is rebuilt from it, and losing it only
+// loses de-duplication of a retry.
+export const commandReceipts = pgTable(
+  "command_receipts",
+  {
+    tripId: uuid("trip_id").notNull(),
+    key: text("key").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.tripId, t.key] })],
+);
+
 export const tripSummaries = pgTable("trip_summaries", {
   tripId: uuid("trip_id").primaryKey(),
   name: text("name").notNull(),

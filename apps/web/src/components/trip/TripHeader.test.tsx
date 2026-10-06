@@ -44,7 +44,9 @@ vi.mock("@/lib/apiClient", async (orig) => {
         : { ok: true as const, value: { tripId: "x", myRole, members: accessMembers, invites: [] } },
     ),
     setTravelling: (...args: unknown[]) => setTravellingMock(...args),
-    sendTripCommand: (...args: unknown[]) => sendTripCommandMock(...args),
+    // The command only. The unit's key (ADR-066) is the sender's business,
+    // asserted in TripProvider.test.tsx.
+    sendTripCommand: (command: unknown) => sendTripCommandMock(command),
     sendTripCommandBatch: (...args: unknown[]) => sendTripCommandBatchMock(...args),
   };
 });

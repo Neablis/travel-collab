@@ -25,6 +25,7 @@ import {
 import { serverConflictContext } from "./conflictContext";
 import { db } from "./db/client";
 import { appendToStream, readStream, readStreamHeadSeq } from "./eventStore";
+import { appliedKeys, recordReceipts } from "./commandReceipts";
 import { applyTripEvents, upsertTripDetail } from "./projections";
 import { memberRolePolicy } from "./accessPolicy";
 import { effectiveMembers } from "./access/members";
@@ -51,12 +52,20 @@ async function projectAndHistory(
   allEnvelopes: EventEnvelope[],
   tripId: string,
 ): Promise<{ detail: TripDetail; history: TripHistory }> {
+  const outcome = outcomeOf(allEnvelopes, tripId);
+  await upsertTripDetail(tx, outcome.detail);
+  return outcome;
+}
+
+// The detail and history DTOs for a stream, written nowhere. `projectAndHistory`
+// persists the detail too. A unit whose receipt says it is already applied
+// (ADR-066) is answered with this, the trip exactly as it stands.
+function outcomeOf(allEnvelopes: EventEnvelope[], tripId: string): { detail: TripDetail; history: TripHistory } {
   const nextState = foldEnvelopes(allEnvelopes);
   if (nextState === null) throw new Error("state cannot be null after an accepted command");
   const firstEnvelope = allEnvelopes[0];
   if (firstEnvelope === undefined) throw new Error("no envelopes to project");
   const detail = tripDetailFromState(nextState, firstEnvelope.occurredAt, serverConflictContext());
-  await upsertTripDetail(tx, detail);
   const targets = deriveUndoRedo(groupBatches(allEnvelopes));
   const history: TripHistory = {
     tripId,
@@ -67,22 +76,64 @@ async function projectAndHistory(
   return { detail, history };
 }
 
+// The answer to a unit that is already applied: success, with the trip as it
+// stands. Not `no-op`. The unit did have an effect, once, and the sender
+// confirms it the same way it confirms any applied unit.
+function alreadyApplied(tripId: string, history: EventEnvelope[], members: TripMember[] | null): CommandResult {
+  const { detail, history: historyDto } = outcomeOf(history, tripId);
+  return { ok: true, tripId, detail: withMembers(detail, members), history: historyDto };
+}
+
+const CONFLICT: CommandFailure = {
+  ok: false,
+  error: { code: "concurrency-conflict", message: "Someone else changed this trip. Retry." },
+};
+
 // The command pipeline (docs/guidelines/building-the-parts.md). Every write
 // in the planning domain goes through this exact sequence — including undo,
 // redo, and revert, which differ ONLY in how step 4 decides (ADR-005).
-export async function executeTripCommand(input: unknown, actorId: string): Promise<CommandResult> {
+//
+// `options.idempotencyKey` is the id the client minted for the unit this
+// command is (ADR-066). A key already on the trip's receipts is answered with
+// the trip as it stands, and nothing is decided or appended. Otherwise the
+// receipt commits with the command's events, or with its `no-op`, which is as
+// much a decision as an append and must not be made again later against a
+// trip that has moved.
+//
+// The receipts are read BEFORE the stream. A receipt committed before that read
+// is then seen together with the events it committed with. Read after the
+// stream, a flush committing between the two reads would be seen as "applied"
+// and answered with a trip that did not yet hold it.
+//
+// A keyed command that fails may have failed because its own unit landed first,
+// carried by the page's unload flush (KI-5): it lost the append race, or the
+// flush's events made it a rejection (an AddDay of a day that now exists). So
+// its receipt is looked up once more. On a hit the answer is the trip; on a
+// miss the original failure stands. It is never decided again: a re-decided
+// head could land after units the user made later.
+export async function executeTripCommand(
+  input: unknown,
+  actorId: string,
+  options: { idempotencyKey?: string } = {},
+): Promise<CommandResult> {
   // 1. validate the command against the contract
   const parsed = TripCommand.safeParse(input);
   if (!parsed.success) {
     return { ok: false, error: { code: "invalid-command", message: parsed.error.message } };
   }
   const command = parsed.data;
+  const key = options.idempotencyKey;
 
-  return db.transaction(async (tx): Promise<CommandResult> => {
+  const result = await db.transaction(async (tx): Promise<CommandResult> => {
+    // 2a. a unit already applied is answered, not decided again (ADR-066).
+    //     Read first, acted on only once the actor is authorized.
+    const applied = key !== undefined && (await appliedKeys(tx, command.tripId, [key])).has(key);
+
     // 2-3. load, fold, authorize
     const loaded = await loadAndAuthorize(tx, command.tripId, actorId, [command.type]);
     if (!loaded.ok) return loaded;
     const { history, state, members } = loaded;
+    if (applied && history.length > 0) return alreadyApplied(command.tripId, history, members);
 
     // 4. decide — history commands need the envelope history (already loaded;
     //    zero extra I/O), everything else the folded state.
@@ -99,7 +150,12 @@ export async function executeTripCommand(input: unknown, actorId: string): Promi
       origin = decision.origin;
     } else {
       const decision = decideTripCommand(state, command, decideContext(actorId, members));
-      if (!decision.ok) return { ok: false, error: decision.rejection };
+      if (!decision.ok) {
+        // A keyed no-op is recorded like an applied unit: a resend is answered
+        // from the receipt, not decided against whatever the trip is by then.
+        if (decision.rejection.code === "no-op" && key !== undefined) await recordOrRollBack(tx, command.tripId, [key]);
+        return { ok: false, error: decision.rejection };
+      }
       events = decision.events;
       origin = { kind: "user" };
     }
@@ -108,6 +164,9 @@ export async function executeTripCommand(input: unknown, actorId: string): Promi
     //    into a formerly-conflicted state resurfaces its badges here.
     const projected = await appendAndProject(tx, { tripId: command.tripId, history, events, actorId, origin });
     if (!projected.ok) return projected;
+    // 7b. the receipt, in the same transaction. Losing it means another request
+    //     carrying this unit committed first: roll this one back.
+    if (key !== undefined) await recordOrRollBack(tx, command.tripId, [key]);
 
     return {
       ok: true,
@@ -115,7 +174,33 @@ export async function executeTripCommand(input: unknown, actorId: string): Promi
       detail: withMembers(projected.detail, members),
       history: projected.history,
     };
+  }).catch((error: unknown) => {
+    if (error instanceof RolledBack) return error.failure;
+    throw error;
   });
+
+  if (key === undefined || result.ok || !mayHaveLandedElsewhere(result.error.code)) return result;
+  // Failed, keyed: did this unit land through another request? One indexed
+  // lookup; the trip is read only on a hit.
+  if (!(await appliedKeys(db, command.tripId, [key])).has(key)) return result;
+  return db.transaction(async (tx): Promise<CommandResult> => {
+    const loaded = await loadAndAuthorize(tx, command.tripId, actorId, [command.type]);
+    if (!loaded.ok) return loaded;
+    return alreadyApplied(command.tripId, loaded.history, loaded.members);
+  });
+}
+
+// Failures a unit's own landing elsewhere can cause: a lost race, or a domain
+// rejection of the unit decided on top of itself. Not a malformed request, a
+// refused actor, or a no-op, which already answered this unit.
+function mayHaveLandedElsewhere(code: string): boolean {
+  return code !== "invalid-command" && code !== "forbidden" && code !== "no-op";
+}
+
+// Step 7b: record the receipts, or roll the whole transaction back when another
+// request recorded one of them first (Postgres has aborted it at the insert).
+async function recordOrRollBack(tx: Tx, tripId: string, keys: readonly string[]): Promise<void> {
+  if (!(await recordReceipts(tx, tripId, keys))) throw new RolledBack(CONFLICT);
 }
 
 type Tx = Parameters<typeof upsertTripDetail>[0];
@@ -268,7 +353,12 @@ export async function executeTripCommandBatch(
     tx: Parameters<typeof upsertTripDetail>[0],
     committed: { tripId: string; detail: TripDetail },
   ) => Promise<void>,
-  options: { expectedSeq?: number; origin?: Origin; runOnNoOp?: boolean } = {},
+  options: {
+    expectedSeq?: number;
+    origin?: Origin;
+    runOnNoOp?: boolean;
+    units?: readonly { key: string; size: number }[];
+  } = {},
 ): Promise<CommandResult> {
   const origin: Origin = options.origin ?? { kind: "user" };
   // 1. validate the batch shape against the contract
@@ -284,6 +374,16 @@ export async function executeTripCommandBatch(
       error: { code: "invalid-command", message: "All commands in a batch must target the same trip." },
     };
   }
+  const units = options.units;
+  if (units !== undefined) {
+    const sizes = units.reduce((sum, u) => sum + u.size, 0);
+    if (units.some((u) => u.size < 1) || sizes !== commands.length || new Set(units.map((u) => u.key)).size !== units.length) {
+      return {
+        ok: false,
+        error: { code: "invalid-command", message: "Units must partition the batch's commands and have distinct keys." },
+      };
+    }
+  }
 
   // One attempt is one transaction. `lostAppendRace` marks the only failure a
   // fresh attempt can change: step 5's append losing `events_stream_seq` to a
@@ -294,6 +394,10 @@ export async function executeTripCommandBatch(
   const attempt = async () => {
     let lostAppendRace = false;
     const result = await db.transaction(async (tx): Promise<CommandResult> => {
+      // 2a. keyed units already applied (ADR-066), read BEFORE the stream for the
+      //     reason `executeTripCommand` gives, acted on only after authorization.
+      const applied = units === undefined ? new Set<string>() : await appliedKeys(tx, tripId, units.map((u) => u.key));
+
       // 2-3. load, fold, authorize — for EVERY sub-command (see loadAndAuthorize)
       const loaded = await loadAndAuthorize(tx, tripId, actorId, commands.map((c) => c.type));
       if (!loaded.ok) return loaded;
@@ -312,14 +416,31 @@ export async function executeTripCommandBatch(
         };
       }
 
-      // 4. decide each command in order against the evolving state
-      const decided = decideInOrder(loaded.state, commands, decideContext(actorId, loaded.members));
-      if (!decided.ok) return decided;
-      const { events } = decided;
+      // 4. decide. Keyed units (ADR-066) unit by unit, see `decideUnits`; plain
+      //    commands in order, all or nothing.
+      let events: TripEvent[];
+      let keysToRecord: string[] = [];
+      if (units !== undefined) {
+        const keyed = decideUnits(loaded.state, commands, units, applied, decideContext(actorId, members));
+        if (!keyed.ok) return keyed;
+        if (keyed.decidedKeys.length === 0) return alreadyApplied(tripId, history, members);
+        events = keyed.events;
+        keysToRecord = keyed.decidedKeys;
+      } else {
+        const decided = decideInOrder(loaded.state, commands, decideContext(actorId, members));
+        if (!decided.ok) return decided;
+        events = decided.events;
+      }
       // If every sub-command was a no-op there is nothing to append — report it the
       // same way a single no-op command does, rather than appending an empty batch
       // (appendToStream requires ≥1 event and one batch = one history entry).
       if (events.length === 0) {
+        // Keyed no-op units are decided too, so they get receipts (see
+        // `executeTripCommand`).
+        if (!(await recordReceipts(tx, tripId, keysToRecord))) {
+          lostAppendRace = true;
+          throw new RolledBack(CONFLICT);
+        }
         if (alsoInSameTransaction && options.runOnNoOp) {
           // Authorized and decided, so the stream exists: nothing is null here.
           const unchanged = tripDetailFromState(loaded.state!, history[0]!.occurredAt, serverConflictContext());
@@ -341,6 +462,14 @@ export async function executeTripCommandBatch(
         lostAppendRace = true;
         return projected;
       }
+      // 7b. the receipts, with the events. One lost means a request carrying
+      //     that unit committed first: a lost race like the append's, so this
+      //     attempt is rolled back and the batch run again, and the re-run
+      //     leaves that unit out.
+      if (!(await recordReceipts(tx, tripId, keysToRecord))) {
+        lostAppendRace = true;
+        throw new RolledBack(CONFLICT);
+      }
 
       // 8. the non-planning write that has to commit with this batch, if any.
       //    Last, so it sees the trip exactly as this batch left it.
@@ -361,6 +490,43 @@ export async function executeTripCommandBatch(
     const { result, lostAppendRace } = await attempt();
     if (!lostAppendRace || options.expectedSeq !== undefined || tries >= BATCH_APPEND_ATTEMPTS) return result;
   }
+}
+
+// Step 4 for keyed units (ADR-066), in their order. A unit already applied is
+// left out. A unit the domain refuses is left out too, and the units after it
+// are still decided, against the state the units before it left. This is the
+// in-app drain's rule (KI-5 residual 8), and it is what keeps the unload flush
+// from losing everything behind a unit in flight that the server is refusing.
+// A unit is atomic within itself: one refused command refuses its whole unit.
+// `decidedKeys` lists the units decided, no-ops included, and is what gets
+// receipts. With none decided and one refused, the answer is that refusal.
+function decideUnits(
+  initial: ReturnType<typeof foldEnvelopes>,
+  commands: readonly BatchableCommand[],
+  units: readonly { key: string; size: number }[],
+  applied: ReadonlySet<string>,
+  ctx: DecideContext,
+): { ok: true; events: TripEvent[]; decidedKeys: string[] } | CommandFailure {
+  let state = initial;
+  const events: TripEvent[] = [];
+  const decidedKeys: string[] = [];
+  let firstRefusal: CommandFailure | null = null;
+  let at = 0;
+  for (const unit of units) {
+    const unitCommands = commands.slice(at, at + unit.size);
+    at += unit.size;
+    if (applied.has(unit.key)) continue;
+    const decided = decideInOrder(state, unitCommands, ctx);
+    if (!decided.ok) {
+      firstRefusal ??= decided;
+      continue;
+    }
+    for (const event of decided.events) state = evolveTrip(state, event);
+    events.push(...decided.events);
+    decidedKeys.push(unit.key);
+  }
+  if (decidedKeys.length === 0 && firstRefusal) return firstRefusal;
+  return { ok: true, events, decidedKeys };
 }
 
 // Step 4 for a list of batchable commands, shared by the batch and by a

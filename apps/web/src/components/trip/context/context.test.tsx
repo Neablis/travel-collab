@@ -44,7 +44,8 @@ vi.mock("@/lib/apiClient", () => ({
     ok: true,
     value: { tripId: "italy-trip", myRole: "owner", members: [], invites: [] },
   }),
-  sendTripCommand: (...a: unknown[]) => dispatchSpy(...a),
+  // The command only; the unit's key (ADR-066) is asserted in TripProvider.test.tsx.
+  sendTripCommand: (command: unknown) => dispatchSpy(command),
   sendTripCommandBatch: vi.fn(),
   // An owner's board also reads the trip's suggestions; none here.
   fetchTripSuggestions: vi.fn().mockResolvedValue({ ok: true, value: { changes: [], rev: "r" } }),

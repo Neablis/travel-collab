@@ -1,6 +1,6 @@
 import {
   sendTripCommand,
-  sendTripCommandBatch,
+  sendTripUnits,
   type ApiResult,
   type BoardCommand,
   type CommandOutcome,
@@ -11,12 +11,15 @@ import type { PendingUnit } from "./optimistic";
 
 /**
  * Send one queued unit the way the sequential sender does: a single command
- * through the single-command endpoint, anything larger as one batch.
+ * through the single-command endpoint, anything larger as one batch. Either
+ * way it carries the unit's id as its key (ADR-066), so the server applies it
+ * once however many times it is sent: by the sender, a retry, or the unload
+ * flush.
  */
 export function sendUnit(tripId: string, unit: PendingUnit): Promise<ApiResult<CommandOutcome>> {
   return unit.commands.length === 1
-    ? sendTripCommand(unit.commands[0]! as BoardCommand)
-    : sendTripCommandBatch(tripId, unit.commands);
+    ? sendTripCommand(unit.commands[0]! as BoardCommand, { idempotencyKey: unit.id })
+    : sendTripUnits(tripId, [{ key: unit.id, commands: unit.commands }]);
 }
 
 /** The drain still running for each trip, so a second one queues behind it. */

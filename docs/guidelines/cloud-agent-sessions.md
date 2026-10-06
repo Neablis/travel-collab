@@ -61,6 +61,17 @@ linked. `link_playwright_shell` in the session hook now repairs that on every
 start, generically. If e2e dies on a missing executable, read that function
 first.
 
+**A browser that launches is not the browser CI runs.** The link above points
+the pinned revision at the image's own chrome, Chromium 141, which CI runs as
+151 or 153. On 2026-09-25 that hid a real defect: KI-5's unload flush failed in CI
+every time and passed here every time (KI-2026-09-25-i). The hook now runs
+`node scripts/e2e-browser.mjs --install`. It replaces the linked headless shell
+with the exact pinned build from Chrome for Testing, which the proxy allows
+(`cdn.playwright.dev` is 403 here), and `pnpm lanes` reports `browser` BLOCKED
+whenever the version on disk is not `browsers.json`'s `browserVersion`. If that
+line is red, run the script before trusting any e2e verdict. After a Playwright
+bump, run it again: the session hook only runs at startup.
+
 **There IS a browser here. Do not report otherwise.** Two agents on
 2026-08-28 independently concluded "this container has no browser" and
 skipped a browser verification on that basis — one of them recorded it in

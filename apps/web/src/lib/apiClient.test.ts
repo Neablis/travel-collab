@@ -53,6 +53,7 @@ import {
   fetchPublicProfile,
   sendTripCommand,
   sendTripCommandBatch,
+  sendTripUnits,
   unpublishSavedDay,
   updatePreferences,
   type ApiResult,
@@ -144,6 +145,37 @@ describe("apiClient", () => {
     expect(r.value.detail.days).toHaveLength(1);
   });
 
+  // ADR-066: the unit's key goes where each route reads it.
+  it("sendTripCommand sends its unit's key as Idempotency-Key, and no header without one", async () => {
+    const fixture = tripDetailFixture();
+    const seen: (string | null)[] = [];
+    server.use(
+      http.post("/api/trips/:tripId/commands", ({ request }) => {
+        seen.push(request.headers.get("Idempotency-Key"));
+        return HttpResponse.json({ ok: true, tripId: fixture.tripId, detail: fixture, history: historyFixture(fixture.tripId) });
+      }),
+    );
+    const command = { type: "AddDay", tripId: fixture.tripId, dayId: "44444444-4444-4444-8444-444444444444" } as const;
+    await sendTripCommand(command, { idempotencyKey: "unit-1" });
+    await sendTripCommand(command);
+    expect(seen).toEqual(["unit-1", null]);
+  });
+
+  it("sendTripUnits posts each unit with its key to the batch endpoint", async () => {
+    const fixture = tripDetailFixture();
+    let body: unknown = null;
+    server.use(
+      http.post("/api/trips/:tripId/commands/batch", async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json({ ok: true, tripId: fixture.tripId, detail: fixture, history: historyFixture(fixture.tripId) });
+      }),
+    );
+    const commands = [{ type: "AddDay", tripId: fixture.tripId, dayId: "44444444-4444-4444-8444-444444444444" }] as const;
+    const r = await sendTripUnits(fixture.tripId, [{ key: "unit-1", commands: [...commands] }]);
+    expect(r.ok).toBe(true);
+    expect(body).toEqual({ units: [{ key: "unit-1", commands }] });
+  });
+
   it("surfaces HTTP errors as typed results", async () => {
     const fixture = tripDetailFixture();
     server.use(...makeTripHandlers(fixture));
@@ -208,6 +240,7 @@ const FETCHING_HELPERS: Record<string, () => Promise<ApiResult<unknown>>> = {
   sendTripCommand: () => sendTripCommand({ type: "AddDay", tripId: TRIP_ID, dayId: UUID }),
   sendTripCommandBatch: () =>
     sendTripCommandBatch(TRIP_ID, [{ type: "AddDay", tripId: TRIP_ID, dayId: UUID }]),
+  sendTripUnits: () => sendTripUnits(TRIP_ID, [{ key: UUID, commands: [{ type: "AddDay", tripId: TRIP_ID, dayId: UUID }] }]),
   duplicateTrip: () => duplicateTrip(TRIP_ID),
   // M26 link 6b. Not `sendTripCommand` — leaving is Access CRUD, not a
   // planning command — so it needs its own row in this table.

@@ -148,7 +148,8 @@ travelling flags, overlaid on every read and command response) and the demo trip
 ```
 
 - **Client queue** (`src/components/trip/context/optimistic.ts`): sequential sender; on rejection the queue is kept
-  and nothing more is sent until a manual retry; `pagehide` flushes what is left with keepalive.
+  and nothing more is sent until a manual retry; `pagehide` flushes the whole queue with keepalive. Every unit
+  carries its id as a key, which `command_receipts` records with its events, so a resent unit is applied once (ADR-066).
 - **Lost append race**: with no `expectedSeq` the server re-runs the whole transaction, `BATCH_APPEND_ATTEMPTS = 3`.
   With `expectedSeq` (public API) the 409 and `currentSeq` are the answer.
 - **Realtime is a poll, not push** (ADR-049). `POLL_INTERVAL_MS = 2000`, only for visible trips with more than one

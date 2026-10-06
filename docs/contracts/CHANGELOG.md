@@ -13,6 +13,20 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-06 — `TripCommandUnit` and `CommandUnitKey`: a queued unit is applied once
+
+- **Added:** `CommandUnitKey`, 1–64 characters of `[A-Za-z0-9_-]`, and `TripCommandUnit`,
+  `{ key: CommandUnitKey, commands: BatchableCommand[] (≥1) }`, in `trip.ts` (ADR-066).
+- Why: KI-5 residuals 1 and 2. The page's unload flush could not carry the unit already in flight,
+  because the server could not tell a unit it had applied from a new one.
+- Consumers updated: `POST /api/trips/:tripId/commands/batch` takes `{ units: TripCommandUnit[] }`
+  as well as `{ commands }`. `POST /api/trips/:tripId/commands` reads an optional
+  `Idempotency-Key` header, validated as `CommandUnitKey`. `apiClient` has `sendTripUnits`, and
+  `sendTripCommand` takes `{ idempotencyKey }`. `TripProvider`'s sender, its `pagehide` flush and
+  `queueDrain`'s `sendUnit` send every unit under its key. The MSW batch handler accepts `units`.
+- Not in the public API: `openapi.json`, `API_VERSION` and `API_FINGERPRINT` are unchanged.
+- Breaking? no. Both additions are optional, and a request without a key behaves as before.
+
 ## 2026-10-05 — `SharedTripView.travellerCount` may be 0
 
 - **Changed:** `SharedTripView.travellerCount` is `.int().nonnegative()`, was `.int().min(1)`.

@@ -17,7 +17,7 @@ import {
   fetchTripDetailAt,
   fetchTripHistory,
   sendTripCommand,
-  sendTripCommandBatch,
+  sendTripUnits,
   type BoardCommand,
   type CommandOutcome,
 } from "@/lib/apiClient";
@@ -41,7 +41,7 @@ import { boardMode } from "@/lib/tripRole";
 import { headSeqOf, useTripBroadcast } from "./broadcast";
 import { draftStops, enqueueDraft, type DraftStops } from "./draftQueue";
 import { drainAfter, sendUnit } from "./queueDrain";
-import { unloadFlush } from "./unloadFlush";
+import { unloadFlushAfterHead } from "./unloadFlush";
 import { useTripSuggestions, type TripSuggestions } from "./useTripSuggestions";
 
 type Status = "loading" | "ready" | "unauthenticated" | "error";
@@ -219,7 +219,6 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
   // A ref, like `inFlight`: a double click, or an edit, lands before the
   // re-render that would show the send is out. `runDispatch` reads it (W66).
   const sendingDraft = useRef(false);
-  const seq = useRef(0);
   // Mirrors `optimistic` so `runDispatch` can predict against the CURRENT queue
   // without taking it as a dependency. Two things depend on that: the callback
   // keeps a stable identity (a drag captures it once and must not see it swap
@@ -399,11 +398,11 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
   // while a send is outstanding don't kick off a second send for the same head.
   const inFlight = useRef(false);
   // KI-5. Units this sender has put on the wire and the server has not
-  // refused. The unload flush sends only units NOT in here: one of these may
-  // already be applied, and the batch endpoint has no idempotency key, so
-  // sending it again could apply it twice. Tracked by id rather than read off
-  // `inFlight`, which is cleared a render before `confirmHead` removes the
-  // head it was about.
+  // refused. The in-app drain sends only units NOT in here: it waits for the
+  // unit in flight to answer, so it has no reason to send it again. The
+  // `pagehide` flush sends them too, by key (ADR-066), because it cannot wait.
+  // Tracked by id rather than read off `inFlight`, which is cleared a render
+  // before `confirmHead` removes the head it was about.
   const sentIds = useRef(new Set<string>());
   // KI-5. Units the unload flush has taken over. The sender never sends one:
   // it stops at the first and waits for the flush to answer.
@@ -451,16 +450,21 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
       const failure: SendFailure | null =
         result.ok || result.error.code === "no-op"
           ? null
-          : { at: new Date().toISOString(), message: result.error.message };
+          : {
+              at: new Date().toISOString(),
+              message: result.error.message,
+              ...(result.ok || result.error.status !== 0 ? {} : { unanswered: true as const }),
+            };
       // Refused, so not applied: the head is retained and is unsent work again.
       // Only a refusal the SERVER answered, though. `status: 0` is a request
       // that produced no response — and a reload produces exactly that for the
       // unit in flight: Chromium cancels its fetch as the page goes, which can
       // be after the server applied it. From Chromium 151 on that rejection
       // lands just before `pagehide`, ahead of the render that would record
-      // the failure, so the flush saw the head as unsent and sent it again;
-      // its duplicate refused the atomic batch and everything behind it was
-      // lost (PR #234's CI red, KI-5). Unknown is treated as sent.
+      // the failure (PR #234's CI red, KI-5). Unknown is treated as sent. The
+      // flush now carries it either way, by key (ADR-066), and the server
+      // leaves it out if it landed; this keeps the in-app drain from sending
+      // it a second time.
       if (failure && !result.ok && result.error.status !== 0) sentIds.current.delete(head.id);
       setOptimistic((prev) => {
         if (!prev) return prev;
@@ -537,7 +541,7 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
     }
     // W75: in a draft, an edit to a stop the draft added joins the change that
     // added it, so the count is of changes a reviewer will see.
-    const result = (mode === "suggest" ? enqueueDraft : enqueue)(base, `c${++seq.current}`, commands);
+    const result = (mode === "suggest" ? enqueueDraft : enqueue)(base, crypto.randomUUID(), commands);
     if (!result.ok) {
       // A no-op changed nothing, which is not worth alarming anyone about —
       // the same judgement the send effect makes on the server's own no-op.
@@ -745,12 +749,14 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
   // header having already shown it as applied. Two exits, handled differently:
   //
   // - **`pagehide`** — the document is going. Nothing can be waited for, so
-  //   every unit the sender has not yet sent goes to the server at once as ONE
-  //   keepalive batch (`unloadFlush.ts` says why one), racing the unit in
-  //   flight. The server re-runs a precondition-free batch that loses the
-  //   sequence race to it (`executeTripCommandBatch`); if the flush overtakes
-  //   it instead, the flushed units are decided before it. Neither applies
-  //   anything twice or half a batch.
+  //   the whole queue goes to the server at once as ONE keepalive batch
+  //   (`unloadFlush.ts` says why one), the unit in flight included. Every unit
+  //   carries its key (ADR-066): a unit the server has already applied is left
+  //   out, and one that never arrived is applied first, in its place. A flush
+  //   that loses the race to the unit in flight is run again and then leaves
+  //   it out, and a unit in flight that loses to the flush is answered from
+  //   its receipt. Nothing is applied twice, and what lands is always a prefix
+  //   of what the user did.
   // - **Unmount with the page alive** — an in-app navigation away from the
   //   trip. Here there is time, so the queue is drained properly: after the
   //   unit in flight has answered, one unit at a time, in order, each its own
@@ -762,7 +768,8 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
   // because nothing sends a draft on its own.
   //
   // What neither sends, on purpose:
-  // - **A unit already sent.** It may already be applied (see `sentIds`).
+  // - **On an in-app navigation, a unit already sent.** The drain waits for
+  //   its answer instead (see `sentIds`).
   // - **A queue whose head the server refused** (KI-36). Nothing re-sends a
   //   refused change without the user asking, and leaving is not asking.
   // - **A suggester's draft** (W7). Flushed, it would go as commands, which
@@ -776,11 +783,22 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
 
   const flushOnPageHide = useCallback(
     () => {
-      const flush = unloadFlush(unsentUnits(), { unloading: true });
+      const state = optimisticRef.current;
+      // A failure the server never answered (`unanswered`: the fetch was
+      // cancelled as the page went) refused nothing, and the flush resends
+      // under the same key (ADR-066), so it does not hold the queue back. A
+      // refusal the server did answer still does (KI-36).
+      if (!state || (state.failure && !state.failure.unanswered) || suggesting.current) return;
+      // The unit in flight goes too, by key: its answer may never arrive.
+      const queued = state.pending.filter((u) => !handedOff.current.has(u.id));
+      const head = queued[0];
+      const flush = unloadFlushAfterHead(queued, { headSent: head !== undefined && sentIds.current.has(head.id) });
       if (!flush) return;
-      const ids = flush.units.map((u) => u.id);
+      // The flush takes over only the units the sender had not sent. One it had
+      // sent is still the sender's to confirm or fail, if the page survives.
+      const ids = flush.units.filter((u) => !sentIds.current.has(u.id)).map((u) => u.id);
       for (const id of ids) handedOff.current.add(id);
-      void sendTripCommandBatch(tripId, flush.commands, { keepalive: flush.keepalive }).then((result) => {
+      void sendTripUnits(tripId, flush.body, { keepalive: flush.keepalive }).then((result) => {
         // Reached only if this page is still alive — restored from the
         // back/forward cache, or a provider that survived its own cleanup. A
         // provider that is gone ignores both updates.
@@ -802,7 +820,7 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
         }
       });
     },
-    [tripId, onRemoteChange, unsentUnits],
+    [tripId, onRemoteChange],
   );
 
   useEffect(() => {

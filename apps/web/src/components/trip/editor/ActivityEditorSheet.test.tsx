@@ -31,7 +31,9 @@ vi.mock("@/lib/apiClient", async (orig) => {
     // "the role read failed" is a different state from "the role is owner"
     // (TripProvider's `accessUnknown`).
     fetchTripAccess: (...args: unknown[]) => fetchTripAccessMock(...args),
-    sendTripCommand: (...args: unknown[]) => sendTripCommandMock(...args),
+    // The command only. The unit's key (ADR-066) is the sender's business,
+    // asserted in TripProvider.test.tsx.
+    sendTripCommand: (command: unknown) => sendTripCommandMock(command),
     sendTripCommandBatch: (...args: unknown[]) => sendTripCommandBatchMock(...args),
     fetchNearbyStops: (...args: unknown[]) => fetchNearbyStopsMock(...args),
   };

@@ -319,6 +319,21 @@ const BatchableCommandUnion = z.discriminatedUnion("type", [
 export const BatchableCommand = BatchableCommandUnion.superRefine(refuseKindDetailOffKind);
 export type BatchableCommand = z.infer<typeof BatchableCommand>;
 
+// ADR-066. The id a client mints for one unit of its send queue, which the
+// server records with the unit's events and never applies twice. A UUID in
+// practice. Anything URL- and header-safe up to 64 characters is accepted.
+export const CommandUnitKey = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/);
+export type CommandUnitKey = z.infer<typeof CommandUnitKey>;
+
+// One queued unit, as `POST /api/trips/:tripId/commands/batch` takes it in
+// `units`: its key and its commands, in order. A unit the trip's receipts
+// already hold is left out of the batch rather than decided again.
+export const TripCommandUnit = z.object({
+  key: CommandUnitKey,
+  commands: z.array(BatchableCommand).min(1),
+});
+export type TripCommandUnit = z.infer<typeof TripCommandUnit>;
+
 // Ordered least- to most-privileged; `AccessPolicy` (apps/web/src/server) is
 // the only thing that interprets the ranking, and the planning domain never
 // reads a role at all (AGENTS.md invariant 6c). `owner` is still the only role

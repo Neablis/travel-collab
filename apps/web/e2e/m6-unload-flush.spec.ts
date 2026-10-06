@@ -52,6 +52,46 @@ test("edits still queued when the page reloads are not lost", async ({ page }) =
   await expect(days).toHaveCount(before + 4);
 });
 
+// ADR-066, KI-5 residual 2: the unit in flight never reaches the server. Its
+// request is held inside Playwright and dies with the page, as a fetch the
+// browser had not transmitted yet would. The flush carries that unit too,
+// under its key, so it lands first and the edits behind it land after it.
+// Before keys the flush could not carry it (it might already have been
+// applied), and the trip persisted the last three edits without the first.
+test("an edit whose request never left the page is still saved, ahead of the ones behind it", async ({ page }) => {
+  const tripName = e2eTripName("Narvik");
+  await page.goto("/");
+  await createEmptyTripViaWizard(page, tripName);
+  await page.getByRole("link", { name: tripName }).click();
+  await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
+  await openPlan(page);
+
+  const days = page.getByTestId("day-column");
+  const before = await days.count();
+
+  // Held, never forwarded: the server never sees the single-command send.
+  await page.route("**/api/trips/*/commands", async (route) => {
+    if (route.request().method() !== "POST") return route.continue();
+    await new Promise(() => {});
+  });
+
+  const addDay = page.getByRole("button", { name: "Add a day", exact: true });
+  for (let i = 0; i < 4; i++) await addDay.click();
+  await expect(days).toHaveCount(before + 4);
+
+  const tripId = new URL(page.url()).pathname.split("/")[2];
+  // The route stays: removing it hands the held request on to the server,
+  // which is the case above, not this one. The flush goes to `/commands/batch`,
+  // which this pattern does not match.
+  await page.reload();
+
+  const persistedDays = async () => {
+    const res = await page.request.get(`/api/trips/${tripId}`);
+    return ((await res.json()) as { trip: { days: unknown[] } }).trip.days.length;
+  };
+  await expect.poll(persistedDays).toBe(before + 4);
+});
+
 // The same queue, left by an IN-APP navigation instead of a reload: the page
 // lives on, so the queue is drained after the unit in flight, one unit at a
 // time — four edits, four history entries, where the reload's single keepalive
