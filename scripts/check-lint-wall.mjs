@@ -359,6 +359,54 @@ expectRejectedBy(
   'relative "./gateway" import outside modelSelection.ts correctly rejected',
 );
 
+// THE UNSPLASH WALL (M37 D2): no page view calls Unsplash, so only the cover
+// routes and the port's own files may import `server/external/unsplash`. Shut
+// for server code, for a relative spelling, and for a trip route that is not a
+// cover route; open for exactly the cover routes and the port, which still
+// hold the gateway wall. The route paths are real `[tripId]` paths because the
+// glob escapes its brackets, and a fixture is what proves the escape matches.
+const UNSPLASH_IMPORT = 'import { getCoverPhotos } from "@/server/external/unsplash";\nexport const forbidden = getCoverPhotos;\n';
+expectRejectedBy(
+  lintFixture("unsplash_server_fixture", UNSPLASH_IMPORT, { dir: "src/server", ext: "ts" }),
+  "no-restricted-imports",
+  "unsplash: a server module outside the cover routes correctly rejected",
+);
+expectRejectedBy(
+  lintFixture("unsplash_relative_fixture", 'import { getCoverPhotos } from "../unsplash";\nexport const forbidden = getCoverPhotos;\n', {
+    dir: "src/server/external/weather",
+    ext: "ts",
+  }),
+  "import/no-restricted-paths",
+  'unsplash: a relative "../unsplash" from a sibling port correctly rejected',
+);
+expectRejectedBy(
+  lintFixture("unsplash_trip_route_fixture", UNSPLASH_IMPORT, { file: "src/app/api/trips/[tripId]/route.ts" }),
+  "no-restricted-imports",
+  "unsplash: the trip read route (a page view) correctly rejected",
+);
+expectClean(
+  lintFixture("unsplash_cover_route_fixture", UNSPLASH_IMPORT, { file: "src/app/api/trips/[tripId]/cover/search/route.ts" }),
+  "unsplash: a trip cover route may import the port",
+);
+expectClean(
+  lintFixture("unsplash_saved_day_cover_fixture", UNSPLASH_IMPORT, { file: "src/app/api/saved-days/[savedDayId]/cover/route.ts" }),
+  "unsplash: a saved day's cover route may import the port",
+);
+expectClean(
+  lintFixture("unsplash_port_fixture", 'import { createUnsplash } from "./unsplash";\nexport const own = createUnsplash;\n', {
+    dir: "src/server/external/unsplash",
+    ext: "ts",
+  }),
+  "unsplash: the port's own files import each other",
+);
+expectRejectedBy(
+  lintFixture("unsplash_cover_gateway_fixture", 'import { aiModel } from "@/server/ai/gateway";\nexport const forbidden = aiModel;\n', {
+    file: "src/app/api/trips/[tripId]/cover/route.ts",
+  }),
+  "no-restricted-imports",
+  "unsplash: the cover routes' exemption keeps the gateway wall",
+);
+
 // THE ASSISTANT KERNEL WALL (ADR-043, corrected 2026-09-10): from inside
 // `src/server/assistant/**`, no `@/server/*` import at all except a named
 // allowlist, and no `next/*`. Everything else arrives as an injected port.

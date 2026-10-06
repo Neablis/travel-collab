@@ -77,7 +77,11 @@ const contentSecurityPolicy = [
   // connect-src because maplibre's image path has historically moved
   // between fetch and <img>, and the origin is the same one either way — it
   // is the only external origin this app talks to from the browser at all.
-  `img-src 'self' data: blob: https://tiles.openfreemap.org${toolbar("https://vercel.live", "https://vercel.com")}`,
+  // images.unsplash.com is the cover photos' CDN (M37 D3): Unsplash's
+  // guidelines require hotlinking it, so a cover is a plain <img> on that
+  // origin and is never proxied through ours. Images only — the API host is
+  // called by the server, never by the browser.
+  `img-src 'self' data: blob: https://tiles.openfreemap.org https://images.unsplash.com${toolbar("https://vercel.live", "https://vercel.com")}`,
 
   // next/font/google downloads and self-hosts at build time, so no
   // fonts.gstatic.com origin is needed here.

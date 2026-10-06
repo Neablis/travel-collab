@@ -122,7 +122,12 @@ test("passes against the checked-in config, and every rejection names the rule t
   // `@/server/*`, still may not import `@tc/domain` or build an Auth.js
   // instance, and a non-page file beside them, a layout under them and a page
   // outside `playbooks` get no exemption. The sixth victim, the same way.
-  assert.equal(stdout.trim().split("\n").length, 51,`the wall's assertion count changed:\n${stdout}`);
+  //
+  // **51 → 58 on 2026-10-06**: the Unsplash wall (M37 part 3) — server code, a
+  // relative spelling and the trip read route are refused the port; both cover
+  // routes and the port's own files are not; the cover routes keep the gateway
+  // wall. Caught by running this file in the Tier 2 subset, as the skill says.
+  assert.equal(stdout.trim().split("\n").length, 58,`the wall's assertion count changed:\n${stdout}`);
 });
 
 // THE REGRESSION THIS ENTRY EXISTS FOR. Both fixtures below trip a second, unrelated rule
