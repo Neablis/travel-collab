@@ -51,6 +51,13 @@ const DATABASE_KEY = createHash("sha256").update(DATABASE_URL).digest("hex").sli
 const deploymentKey = (): string =>
   process.env.VERCEL_DEPLOYMENT_ID || process.env.VERCEL_GIT_COMMIT_SHA || "local";
 
+/**
+ * The key parts every data-cache entry in this app starts with: the database
+ * it was read from and the deployment that wrote it, for the reasons above.
+ * Shared so another cache (the operator console's) cannot key differently.
+ */
+export const cacheScope = (): string[] => [DATABASE_KEY, deploymentKey()];
+
 // Production builds only. `next dev` and the test lanes read live, so a
 // reseeded database or a test's own write is seen at once, and the cache's
 // behaviour is proven where it runs: the e2e lane's `next start`.
@@ -66,7 +73,7 @@ export async function libraryCached<T>(
 ): Promise<T> {
   if (process.env.NODE_ENV !== "production") return read();
   const { unstable_cache } = await nextCache();
-  return unstable_cache(read, ["library", DATABASE_KEY, deploymentKey(), ...key], {
+  return unstable_cache(read, ["library", ...cacheScope(), ...key], {
     revalidate: LIBRARY_CACHE_SECONDS,
     tags: [...tags],
   })();

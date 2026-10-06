@@ -40,6 +40,9 @@ two analytics surfaces the data now supports.
    rows a page draws; a filter, a page or a pause in typing is a navigation. The 100-row bound
    is gone, so every account is reachable, and *Costs more than it pays* lists every underwater
    payer a page at a time.
+   *And cached 2026-10-06 (Mitchell: "use leverage cache, it's a admin dashboard, a delay is
+   fine"):* the trailing cost and grant-holder reads behind every page are kept five minutes in
+   Next's data cache (`consoleCache.ts`), and dropped when an operator grants or revokes.
 3. **`PriceCheckPanel` stays on Financial**, below the two panels, unchanged (the spec's open
    question 1, its own assumed answer).
 4. **Growth per tier is not in this milestone** (the spec's open question 2). Neither
@@ -61,6 +64,8 @@ two analytics surfaces the data now supports.
    *Taken 2026-10-06:* `0040_admin_console_indexes`, `events (actor_id, occurred_at)` — every
    console read of the log was a sequential scan. It locks writes to `events` while it builds;
    its header says how long, and why it cannot be `CONCURRENTLY` here.
+   *Confirmed 2026-10-06 by Mitchell: "for now 30d look back fine"* — an account last seen more
+   than 30 days ago shows `—`, and no wider read is built.
 7. **The account page's assistant section reads counts and sizes only.** The footer is verbatim
    and the page grows no "view question" affordance: the ledger holds no content
    (`usage.int.test.ts`), and this milestone does not change that.

@@ -1,4 +1,5 @@
 import { AdminGrantInput } from "@tc/contracts";
+import { invalidateConsole } from "@/server/entitlements/consoleCache";
 import { issueGrant, revokeGrant } from "@/server/entitlements/grants";
 import { livePlanVersion, planVersionFromRef } from "@/server/entitlements/planVersions";
 import { requireAdminApi } from "@/server/entitlements/requireAdmin";
@@ -46,6 +47,9 @@ export async function POST(request: Request) {
     reason,
     expiresAt: expiresAt === null ? null : new Date(expiresAt),
   });
+  // The console caches who holds a grant (`consoleCache.ts`); the operator who
+  // just changed that should see it on their next page.
+  if (written) await invalidateConsole();
   return Response.json({ granted: written }, { status: written ? 201 : 200 });
 }
 
@@ -70,6 +74,7 @@ export async function DELETE(request: Request) {
   // changed nothing that the grant was gone. `no-active-grant` covers an id
   // that never existed too; the console only sends ids it listed.
   const revoked = await revokeGrant(grantId, guard.userId);
+  if (revoked) await invalidateConsole();
   return revoked
     ? Response.json({ revoked: true })
     : Response.json({ error: "no-active-grant" }, { status: 409 });

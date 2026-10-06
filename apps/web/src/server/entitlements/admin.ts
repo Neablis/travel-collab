@@ -24,6 +24,7 @@ import { CONFERRING_STATUSES, type PlanId } from "@tc/contracts";
 import { db } from "@/server/db/client";
 import { adminConsoleFlag } from "@/server/flags";
 import { aiUsage, entitlementGrants, events, subscriptions, users } from "@/server/db/schema";
+import { consoleCached } from "./consoleCache";
 import { activeGrantHolders } from "./grants";
 import { PLAN_VERSIONS, livePlanVersion, planVersionRefOf, type PlanVersion } from "./planVersions";
 import { entitlementsFor, type AccountEntitlements } from "./resolver";
@@ -808,9 +809,17 @@ interface SharedReads {
   holders: Awaited<ReturnType<typeof activeGrantHolders>>;
 }
 
+// **Cached for five minutes in production** (`consoleCached`): these two reads
+// are the same for every click on the Users tab, which pages, searches and
+// filters by navigating. A cached entry carries the `now` of the request that
+// filled it, so the window can trail by up to the cache's lifetime — a delay
+// Mitchell accepted for the console (2026-10-06). A grant or a revoke drops it
+// (`invalidateConsole`, from the grants route).
 async function sharedReads(now: Date): Promise<SharedReads> {
-  const [trailing, holders] = await Promise.all([adminCostPerAccount(now), activeGrantHolders(now)]);
-  return { trailing, holders };
+  return consoleCached(["shared-reads"], async () => {
+    const [trailing, holders] = await Promise.all([adminCostPerAccount(now), activeGrantHolders(now)]);
+    return { trailing, holders };
+  });
 }
 
 /**
