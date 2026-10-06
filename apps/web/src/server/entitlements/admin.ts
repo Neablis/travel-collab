@@ -19,7 +19,7 @@
 // exactly as the milestone says — accounts, versions and hold counts are M20's
 // and live here; MRR and median margin per tier are link 7's and are merged in
 // from Billing.
-import { desc, eq, inArray, sql } from "drizzle-orm";
+import { asc, desc, eq, inArray, sql } from "drizzle-orm";
 import type { PlanId } from "@tc/contracts";
 import { db } from "@/server/db/client";
 import { adminConsoleFlag } from "@/server/flags";
@@ -393,10 +393,12 @@ export async function lastActiveSince(since: Date): Promise<Map<string, string>>
  *
  * **`include` is outside the bound.** The `limit` newest accounts come first,
  * newest first; any id in `include` that is not among them is appended after,
- * also newest first. The overview passes the underwater payers, so *Show them
- * in Users* finds every account Financial counted — `underwaterReport` reads
- * every account with a cost, and a payer older than the newest 100 was
- * counted there and drawn nowhere.
+ * also newest first. Ties on `createdAt` — a bulk insert stamps one instant —
+ * break on the id, so the bound and the order are the same on every read.
+ * The overview passes the underwater payers, so *Show them in Users* finds
+ * every account Financial counted — `underwaterReport` reads every account
+ * with a cost, and a payer older than the newest 100 was counted there and
+ * drawn nowhere.
  */
 export async function adminAccounts(
   limit = 100,
@@ -407,7 +409,7 @@ export async function adminAccounts(
   const since = trailingWindowStart(now);
   const columns = { id: users.id, email: users.email, isAdmin: users.isAdmin };
   const [newest, costs, counts, lastActive] = await Promise.all([
-    db.select(columns).from(users).orderBy(desc(users.createdAt)).limit(limit),
+    db.select(columns).from(users).orderBy(desc(users.createdAt), asc(users.id)).limit(limit),
     // The overview's one ledger read, when it hands it down (see `adminOverview`).
     trailing ?? costPerAccount(since),
     requestCounts(since),
@@ -424,7 +426,7 @@ export async function adminAccounts(
             .select(columns)
             .from(users)
             .where(inArray(users.id, missing))
-            .orderBy(desc(users.createdAt))),
+            .orderBy(desc(users.createdAt), asc(users.id))),
         ];
   const costByUser = new Map(costs.map((cost) => [cost.userId, cost]));
   return Promise.all(

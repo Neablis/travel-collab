@@ -218,7 +218,10 @@ describe("the accounts table and the underwater count", () => {
     expect(overview.underwater.paying.map((row) => row.userId)).toContain(payer);
     const rows = overview.accounts.filter((row) => row.userId === payer);
     expect(rows).toHaveLength(1);
-    expect(overview.accounts.at(-1)!.userId).toBe(payer);
+    // Appended after the newest hundred, not among them. Its position past
+    // them is not: another test's underwater payer, sharing this database, is
+    // appended alongside it.
+    expect(overview.accounts.findIndex((row) => row.userId === payer)).toBeGreaterThanOrEqual(100);
     // And the Users tab's own read, which is what the console draws.
     const usersTab = await adminUsers(now);
     expect(usersTab.underwater.paying.map((row) => row.userId)).toContain(payer);
