@@ -120,7 +120,7 @@ describe("how each tier is doing, one tier per tab", () => {
 
   it("offers no control but the tabs: versions are published from the repo", () => {
     render(<TierPanel plans={plans()} />);
-    expect(within(panel()).queryAllByRole("button").filter((b) => b.getAttribute("role") !== "tab")).toHaveLength(0);
+    expect(within(panel()).queryAllByRole("button")).toHaveLength(0);
     expect(panel().textContent).toContain("Read-only. Versions are published from the repo, not from here.");
   });
 });
