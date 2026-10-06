@@ -1,4 +1,4 @@
-import { TripCommand } from "@tc/contracts";
+import { CommandUnitKey, TripCommand } from "@tc/contracts";
 import { auth } from "@/server/auth";
 import { executeTripCommand } from "@/server/commands";
 import { readBody } from "@/server/readBody";
@@ -28,7 +28,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ tri
   if (body.data.tripId !== tripId) {
     return Response.json({ error: "command tripId does not match the URL" }, { status: 400 });
   }
-  const result = await executeTripCommand(body.data, session.user.id);
+  // ADR-066: the client's id for the queued unit this command is. Optional, so
+  // every caller that has never sent one is unchanged.
+  const rawKey = request.headers.get("Idempotency-Key");
+  const key = rawKey === null ? undefined : CommandUnitKey.safeParse(rawKey);
+  if (key && !key.success) {
+    return Response.json({ error: "malformed Idempotency-Key" }, { status: 400 });
+  }
+  const result = await executeTripCommand(body.data, session.user.id, { idempotencyKey: key?.data });
   if (!result.ok) {
     return Response.json(
       { error: result.error.message, code: result.error.code },

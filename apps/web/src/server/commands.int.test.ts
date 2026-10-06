@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
 import { asc, eq, inArray, sql } from "drizzle-orm";
-import { decideTripCommand, foldEnvelopes } from "@tc/domain";
+import { decideTripCommand, evolveTrip, foldEnvelopes } from "@tc/domain";
 import { db } from "./db/client";
 import { events, tripDetails, tripSummaries } from "./db/schema";
 import { executeTripCommand, executeTripCommandBatch, executeTripCreation } from "./commands";
 import { appendToStream, readStream } from "./eventStore";
+import { recordReceipts } from "./commandReceipts";
 import { getTripDetail, rebuildProjections } from "./projections";
 
 const exec = (command: object, actorId = "user-1") => executeTripCommand(command, actorId);
@@ -551,5 +552,187 @@ describe("executeTripCommandBatch racing an uncommitted append on the same strea
       error: { code: "concurrency-conflict", message: "Someone else changed this trip. Retry." },
     });
     expect(await seqsOf(tripId)).toEqual([1, 2]);
+  });
+});
+
+// ADR-066: a client unit carries a key, and a unit already on the trip's
+// receipts is never applied again. Each case is one of KI-5's unload-flush
+// orderings: the page's own send and its `pagehide` flush both carrying the
+// unit in flight, and which of them lands first.
+describe("keyed units (ADR-066, KI-5)", () => {
+  // A transaction that appends `dayIds` as AddDays and records `keys`, then
+  // stays open until released: the unit in flight, or a flush, mid-commit.
+  async function holdKeyedAppend(tripId: string, dayIds: string[], keys: string[]) {
+    let release!: () => void;
+    const released = new Promise<void>((resolve) => (release = resolve));
+    let appended!: (pid: number) => void;
+    const holding = new Promise<number>((resolve) => (appended = resolve));
+    const done = db.transaction(async (tx) => {
+      const { rows } = await tx.execute<{ pid: number }>(sql`select pg_backend_pid() as pid`);
+      const history = await readStream(tx, tripId);
+      let state = foldEnvelopes(history);
+      const decided = [];
+      for (const dayId of dayIds) {
+        const decision = decideTripCommand(state, { type: "AddDay", tripId, dayId }, { actorId: "user-1" });
+        if (!decision.ok) throw new Error(decision.rejection.message);
+        for (const e of decision.events) state = evolveTrip(state, e);
+        decided.push(...decision.events);
+      }
+      const result = await appendToStream(tx, {
+        streamId: tripId,
+        expectedSeq: history.length,
+        events: decided,
+        actorId: "user-1",
+        occurredAt: new Date().toISOString(),
+        batchId: randomUUID(),
+        origin: { kind: "user" },
+      });
+      if (!result.ok) throw new Error("the held append should own the head");
+      if (!(await recordReceipts(tx, tripId, keys))) throw new Error("the held receipts should be first");
+      appended(rows[0]!.pid);
+      await released;
+    });
+    const pid = await holding;
+    return { release, done, pid };
+  }
+
+  async function blockedBehind(pid: number) {
+    for (;;) {
+      const { rows } = await db.execute<{ n: number }>(
+        sql`select count(*)::int as n from pg_stat_activity where ${pid} = any(pg_blocking_pids(pid))`,
+      );
+      if (rows[0]!.n > 0) return;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+  }
+
+  async function seqsOf(tripId: string) {
+    const rows = await db.select({ seq: events.seq }).from(events).where(eq(events.streamId, tripId)).orderBy(asc(events.seq));
+    return rows.map((r) => r.seq);
+  }
+
+  async function newTrip() {
+    const tripId = randomUUID();
+    await exec({ type: "CreateTrip", tripId, name: "Keyed units" });
+    return tripId;
+  }
+
+  const addDay = (tripId: string, dayId: string) => ({ type: "AddDay", tripId, dayId }) as const;
+  const flush = (tripId: string, units: { key: string; dayId: string }[]) =>
+    executeTripCommandBatch(
+      units.map((u) => addDay(tripId, u.dayId)),
+      "user-1",
+      undefined,
+      { units: units.map((u) => ({ key: u.key, size: 1 })) },
+    );
+
+  it("a single command sent twice with the same key is applied once, and the second answers with the trip", async () => {
+    const tripId = await newTrip();
+    const key = randomUUID();
+    const dayId = randomUUID();
+    const first = await executeTripCommand(addDay(tripId, dayId), "user-1", { idempotencyKey: key });
+    const again = await executeTripCommand(addDay(tripId, dayId), "user-1", { idempotencyKey: key });
+    expect(first.ok).toBe(true);
+    // Without the receipt: `day-already-exists`.
+    expect(again.ok ? "applied" : again.error).toBe("applied");
+    if (again.ok) expect(again.detail.days.map((d) => d.dayId)).toEqual([dayId]);
+    expect(await seqsOf(tripId)).toEqual([1, 2]);
+  });
+
+  it("a flush carrying the head the server already applied skips it and applies the units behind it", async () => {
+    // KI-5's 2026-09-25 CI red, by keys rather than by the client guessing: the
+    // head's request reached the server, its response did not reach the page.
+    const tripId = await newTrip();
+    const head = { key: randomUUID(), dayId: randomUUID() };
+    const behind = [{ key: randomUUID(), dayId: randomUUID() }, { key: randomUUID(), dayId: randomUUID() }];
+    await executeTripCommand(addDay(tripId, head.dayId), "user-1", { idempotencyKey: head.key });
+
+    const result = await flush(tripId, [head, ...behind]);
+    expect(result.ok ? "applied" : result.error).toBe("applied");
+    if (result.ok) expect(result.detail.days.map((d) => d.dayId)).toEqual([head.dayId, ...behind.map((u) => u.dayId)]);
+    expect(await seqsOf(tripId)).toEqual([1, 2, 3, 4]);
+  });
+
+  it("a flush of units that are all applied already answers with the trip and appends nothing", async () => {
+    const tripId = await newTrip();
+    const units = [{ key: randomUUID(), dayId: randomUUID() }];
+    expect((await flush(tripId, units)).ok).toBe(true);
+    const again = await flush(tripId, units);
+    expect(again.ok ? "applied" : again.error).toBe("applied");
+    expect(await seqsOf(tripId)).toEqual([1, 2]);
+  });
+
+  it("a flush racing the head's still-open transaction waits, then leaves the head out (residual 1)", async () => {
+    const tripId = await newTrip();
+    const head = { key: randomUUID(), dayId: randomUUID() };
+    const behind = { key: randomUUID(), dayId: randomUUID() };
+    const held = await holdKeyedAppend(tripId, [head.dayId], [head.key]);
+
+    const racing = flush(tripId, [head, behind]);
+    await blockedBehind(held.pid);
+    held.release();
+    await held.done;
+
+    const result = await racing;
+    expect(result.ok ? "applied" : result.error).toBe("applied");
+    if (result.ok) expect(result.detail.days.map((d) => d.dayId)).toEqual([head.dayId, behind.dayId]);
+    expect(await seqsOf(tripId)).toEqual([1, 2, 3]);
+  });
+
+  it("a flush that overtakes a head that never arrived applies the head first, and the late head is answered, not re-applied (residual 2)", async () => {
+    const tripId = await newTrip();
+    const head = { key: randomUUID(), dayId: randomUUID() };
+    const behind = { key: randomUUID(), dayId: randomUUID() };
+
+    const flushed = await flush(tripId, [head, behind]);
+    expect(flushed.ok).toBe(true);
+    if (flushed.ok) expect(flushed.detail.days.map((d) => d.dayId)).toEqual([head.dayId, behind.dayId]);
+
+    const late = await executeTripCommand(addDay(tripId, head.dayId), "user-1", { idempotencyKey: head.key });
+    expect(late.ok ? "applied" : late.error).toBe("applied");
+    expect(await seqsOf(tripId)).toEqual([1, 2, 3]);
+  });
+
+  it("a head whose append loses to a flush that already carried it is answered as applied (residual 1, rarer ordering)", async () => {
+    const tripId = await newTrip();
+    const head = { key: randomUUID(), dayId: randomUUID() };
+    const behind = { key: randomUUID(), dayId: randomUUID() };
+    // The flush is the one mid-commit, and it carries the head.
+    const held = await holdKeyedAppend(tripId, [head.dayId, behind.dayId], [head.key, behind.key]);
+
+    const racing = executeTripCommand(addDay(tripId, head.dayId), "user-1", { idempotencyKey: head.key });
+    await blockedBehind(held.pid);
+    held.release();
+    await held.done;
+
+    const result = await racing;
+    // Before ADR-066: `concurrency-conflict`, to a page that is gone.
+    expect(result.ok ? "applied" : result.error).toBe("applied");
+    if (result.ok) expect(result.detail.days.map((d) => d.dayId)).toEqual([head.dayId, behind.dayId]);
+    expect(await seqsOf(tripId)).toEqual([1, 2, 3]);
+  });
+
+  it("a keyed head that loses its race to someone else's write is still refused, never decided again", async () => {
+    const tripId = await newTrip();
+    const held = await holdKeyedAppend(tripId, [randomUUID()], [randomUUID()]);
+    const racing = executeTripCommand(addDay(tripId, randomUUID()), "user-1", { idempotencyKey: randomUUID() });
+    await blockedBehind(held.pid);
+    held.release();
+    await held.done;
+    const result = await racing;
+    expect(result.ok ? "applied" : result.error.code).toBe("concurrency-conflict");
+    expect(await seqsOf(tripId)).toEqual([1, 2]);
+  });
+
+  it("refuses units that do not partition the commands, or repeat a key", async () => {
+    const tripId = await newTrip();
+    const commands = [addDay(tripId, randomUUID()), addDay(tripId, randomUUID())];
+    const short = await executeTripCommandBatch(commands, "user-1", undefined, { units: [{ key: "a", size: 1 }] });
+    const repeated = await executeTripCommandBatch(commands, "user-1", undefined, {
+      units: [{ key: "a", size: 1 }, { key: "a", size: 1 }],
+    });
+    expect(short.ok ? "applied" : short.error.code).toBe("invalid-command");
+    expect(repeated.ok ? "applied" : repeated.error.code).toBe("invalid-command");
+    expect(await seqsOf(tripId)).toEqual([1]);
   });
 });

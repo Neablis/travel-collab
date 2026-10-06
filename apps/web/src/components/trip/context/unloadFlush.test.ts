@@ -10,7 +10,9 @@ function unit(id: string, nameLength = 10): PendingUnit {
   return { id, commands: [command], predictedDetail: null, description: id };
 }
 
-const bodySize = (commands: BatchableCommand[]) => new TextEncoder().encode(JSON.stringify({ commands })).length;
+// The bytes of the request the flush sends: `{ units: [{ key, commands }] }` (ADR-066).
+const bodyOf = (units: PendingUnit[]) => ({ units: units.map((u) => ({ key: u.id, commands: u.commands })) });
+const bodySize = (units: PendingUnit[]) => new TextEncoder().encode(JSON.stringify(bodyOf(units))).length;
 
 describe("unloadFlush (KI-5)", () => {
   it("sends nothing for an empty queue", () => {
@@ -21,17 +23,18 @@ describe("unloadFlush (KI-5)", () => {
     const units = [unit("a"), unit("b"), unit("c")];
     const flush = unloadFlush(units, { unloading: true });
     expect(flush?.units.map((u) => u.id)).toEqual(["a", "b", "c"]);
-    expect(flush?.commands).toEqual(units.flatMap((u) => u.commands));
+    // Each unit keeps its own key, so the server can leave out one it applied.
+    expect(flush?.body).toEqual(bodyOf(units).units);
     expect(flush?.keepalive).toBe(true);
   });
 
   it("on unload, sends the longest prefix that fits and never skips a unit to fit a later one", () => {
     // b is too big to fit after a; c is small and would fit on its own.
     const units = [unit("a", 100), unit("b", 1000), unit("c", 10)];
-    const budget = bodySize(units[0]!.commands) + 200;
+    const budget = bodySize([units[0]!]) + 200;
     const flush = unloadFlush(units, { unloading: true, budget });
     expect(flush?.units.map((u) => u.id)).toEqual(["a"]);
-    expect(bodySize(flush!.commands)).toBeLessThanOrEqual(budget);
+    expect(bodySize(flush!.units)).toBeLessThanOrEqual(budget);
   });
 
   it("on unload, sends nothing when even the first unit is over the limit", () => {
@@ -40,7 +43,7 @@ describe("unloadFlush (KI-5)", () => {
 
   it("takes a unit whose body lands exactly on the budget, and not one byte over", () => {
     const units = [unit("a", 40), unit("b", 40), unit("c", 40)];
-    const two = bodySize([...units[0]!.commands, ...units[1]!.commands]);
+    const two = bodySize([units[0]!, units[1]!]);
     expect(unloadFlush(units, { unloading: true, budget: two })?.units.map((u) => u.id)).toEqual(["a", "b"]);
     expect(unloadFlush(units, { unloading: true, budget: two - 1 })?.units.map((u) => u.id)).toEqual(["a"]);
   });
@@ -50,7 +53,7 @@ describe("unloadFlush (KI-5)", () => {
     // every unit is quadratic in the queue: ~150 units here would encode ~70x
     // the queue's own size instead of about 2x.
     const units = Array.from({ length: 200 }, (_, i) => unit(`u${i}`, 30));
-    const whole = bodySize(units.flatMap((u) => u.commands));
+    const whole = bodySize(units);
     const encode = vi.spyOn(TextEncoder.prototype, "encode");
     try {
       const flush = unloadFlush(units, { unloading: true, budget: Math.floor(whole * 0.75) });

@@ -67,3 +67,39 @@ describe("POST /api/trips/:id/commands/batch", () => {
     expect(res.status).toBe(400);
   });
 });
+
+// ADR-066: the unload flush sends `units`, each with its key.
+describe("POST /api/trips/:id/commands/batch — units", () => {
+  const post = (tripId: string, body: unknown) =>
+    POST(
+      new Request(`http://test/api/trips/${tripId}/commands/batch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+      { params: Promise.resolve({ tripId }) },
+    );
+
+  it("leaves out a unit already applied and applies the rest, in order", async () => {
+    const tripId = await seedTrip();
+    const head = { key: randomUUID(), commands: [{ type: "AddDay", tripId, dayId: randomUUID() }] };
+    const behind = { key: randomUUID(), commands: [{ type: "AddDay", tripId, dayId: randomUUID() }] };
+    expect((await post(tripId, { units: [head] })).status).toBe(200);
+
+    const res = await post(tripId, { units: [head, behind] });
+    // Without the keys the head is decided again: 400 `day-already-exists`.
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.detail.days.map((d: { dayId: string }) => d.dayId)).toEqual([
+      head.commands[0]!.dayId,
+      behind.commands[0]!.dayId,
+    ]);
+  });
+
+  it("refuses a unit with a malformed key or no commands", async () => {
+    const tripId = await seedTrip();
+    const day = { type: "AddDay", tripId, dayId: randomUUID() };
+    expect((await post(tripId, { units: [{ key: "has space", commands: [day] }] })).status).toBe(400);
+    expect((await post(tripId, { units: [{ key: randomUUID(), commands: [] }] })).status).toBe(400);
+  });
+});

@@ -26,7 +26,8 @@ function toEnvelope(row: EventRow): EventEnvelope {
   };
 }
 
-function isUniqueViolation(err: unknown): boolean {
+/** Whether `err` (or anything in its `cause` chain) is a Postgres unique violation, 23505. */
+export function isUniqueViolation(err: unknown): boolean {
   let cursor: unknown = err;
   while (typeof cursor === "object" && cursor !== null) {
     if ((cursor as { code?: string }).code === "23505") return true;

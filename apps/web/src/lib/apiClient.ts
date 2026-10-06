@@ -61,7 +61,7 @@ import {
   CreateReportResponse,
   type AdminReportQueueItem,
 } from "@/lib/reports";
-import type { ContentReport, DroppedInsert, ReportStatus } from "@tc/contracts";
+import type { ContentReport, DroppedInsert, ReportStatus, TripCommandUnit } from "@tc/contracts";
 
 export type ApiError = { status: number; message: string; code?: string };
 export type ApiResult<T> = { ok: true; value: T } | { ok: false; error: ApiError };
@@ -248,13 +248,20 @@ function parseOutcome(data: { detail: unknown; history: unknown }): CommandOutco
   return { detail: TripDetail.parse(data.detail), history: TripHistory.parse(data.history) };
 }
 
-export async function sendTripCommand(command: BoardCommand): Promise<ApiResult<CommandOutcome>> {
+export async function sendTripCommand(
+  command: BoardCommand,
+  options: { idempotencyKey?: string } = {},
+): Promise<ApiResult<CommandOutcome>> {
   const scope = tripKeys.all(command.tripId);
   beginWrite(scope);
   try {
     const res = await fetch(apiUrl(`/api/trips/${command.tripId}/commands`), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        // ADR-066: the queued unit's key, so a resend is not applied twice.
+        ...(options.idempotencyKey ? { "Idempotency-Key": options.idempotencyKey } : {}),
+      },
       body: JSON.stringify(command),
     });
     if (!res.ok) {
@@ -284,13 +291,35 @@ export async function sendTripCommandBatch(
   commands: BatchableCommand[],
   options: { keepalive?: boolean } = {},
 ): Promise<ApiResult<CommandOutcome>> {
+  return postBatch(tripId, { commands }, options);
+}
+
+/**
+ * Queued units, each with the key its sender minted (ADR-066), as one batch:
+ * a unit the server has already applied is left out instead of applied again.
+ * The sender's own multi-command units and TripProvider's unload flush go
+ * this way. `keepalive` as for `sendTripCommandBatch`.
+ */
+export async function sendTripUnits(
+  tripId: string,
+  units: TripCommandUnit[],
+  options: { keepalive?: boolean } = {},
+): Promise<ApiResult<CommandOutcome>> {
+  return postBatch(tripId, { units }, options);
+}
+
+async function postBatch(
+  tripId: string,
+  body: { commands: BatchableCommand[] } | { units: TripCommandUnit[] },
+  options: { keepalive?: boolean },
+): Promise<ApiResult<CommandOutcome>> {
   const scope = tripKeys.all(tripId);
   beginWrite(scope);
   try {
     const res = await fetch(apiUrl(`/api/trips/${tripId}/commands/batch`), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ commands }),
+      body: JSON.stringify(body),
       ...(options.keepalive ? { keepalive: true } : {}),
     });
     if (!res.ok) {

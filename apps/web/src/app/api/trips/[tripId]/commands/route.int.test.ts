@@ -63,3 +63,36 @@ describe("POST /api/trips/:id/commands — UndoLastChange with undoesBatchId", (
     expect(rows.at(-1)!.origin).toEqual({ kind: "undo", undoesBatchId: mine });
   });
 });
+
+// ADR-066: the queued unit's key travels as `Idempotency-Key`.
+describe("POST /api/trips/:id/commands — Idempotency-Key", () => {
+  const send = (tripId: string, dayId: string, key?: string) =>
+    POST(
+      new Request(`http://test/api/trips/${tripId}/commands`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(key === undefined ? {} : { "Idempotency-Key": key }) },
+        body: JSON.stringify({ type: "AddDay", tripId, dayId }),
+      }),
+      { params: Promise.resolve({ tripId }) },
+    );
+
+  it("applies a unit once when it is sent twice with the same key, and answers the second with the trip", async () => {
+    const tripId = randomUUID();
+    await executeTripCommand({ type: "CreateTrip", tripId, name: "Keyed" }, ACTOR_ID);
+    const dayId = randomUUID();
+    const key = randomUUID();
+    expect((await send(tripId, dayId, key)).status).toBe(200);
+    const again = await send(tripId, dayId, key);
+    expect(again.status).toBe(200);
+    expect((await again.json()).detail.days).toHaveLength(1);
+    expect(await eventsOf(tripId)).toHaveLength(2);
+  });
+
+  it("refuses a malformed key before deciding anything", async () => {
+    const tripId = randomUUID();
+    await executeTripCommand({ type: "CreateTrip", tripId, name: "Keyed" }, ACTOR_ID);
+    const res = await send(tripId, randomUUID(), "not a key!");
+    expect(res.status).toBe(400);
+    expect(await eventsOf(tripId)).toHaveLength(1);
+  });
+});

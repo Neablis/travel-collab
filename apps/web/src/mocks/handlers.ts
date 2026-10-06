@@ -245,8 +245,11 @@ export function makeTripHandlers(
       });
     }),
     http.post("/api/trips/:tripId/commands/batch", async ({ request }) => {
-      const body = (await request.json()) as { commands: unknown[] };
-      const commands = body.commands.map((c) => BatchableCommand.parse(c));
+      // Plain `commands`, or keyed `units` (ADR-066). The mock applies every
+      // unit; leaving out one the server already applied needs its receipts.
+      const body = (await request.json()) as { commands?: unknown[]; units?: { commands: unknown[] }[] };
+      const raw = body.units ? body.units.flatMap((u) => u.commands) : (body.commands ?? []);
+      const commands = raw.map((c) => BatchableCommand.parse(c));
       commands.forEach((c) => options?.onCommand?.(c));
       for (const command of commands) {
         detail = applyMock(detail, command);

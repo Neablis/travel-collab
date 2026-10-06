@@ -281,6 +281,13 @@
       "when": 1791182512445,
       "tag": "0039_trip_travellers",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1791264955074,
+      "tag": "0040_command_receipts",
+      "breakpoints": true
     }
   ]
 }
