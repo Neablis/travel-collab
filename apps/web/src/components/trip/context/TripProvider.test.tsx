@@ -1683,6 +1683,23 @@ describe("TripProvider unload flush (KI-5)", () => {
     expect(sendTripCommandMock).toHaveBeenCalledTimes(3);
   });
 
+  // PR #345's review. The cancelled fetch's failure has been rendered before
+  // `pagehide` this time. It refused nothing, and the flush resends the head
+  // under its key, so the queue must not be held back by it.
+  it("on pagehide, still flushes a queue whose head failed with no answer from the server", async () => {
+    sendTripUnitsMock.mockReturnValue(new Promise(() => {}));
+    const { settleHead } = await queueBehindAnInFlightHead();
+    await act(async () => { settleHead({ ok: false, error: { status: 0, message: "Failed to fetch" } }); });
+    await waitFor(() => expect(screen.getByTestId("failedAt").textContent).not.toBe("none"));
+
+    act(() => { window.dispatchEvent(new Event("pagehide")); });
+
+    expect(sendTripUnitsMock).toHaveBeenCalledTimes(1);
+    const [, units] = sendTripUnitsMock.mock.calls[0]!;
+    expect(units.map((u: { key: string }) => u.key)[0]).toBe(headKey());
+    expect(units).toHaveLength(3);
+  });
+
   it("does not send a queue whose head the server refused: leaving is not a retry", async () => {
     sendTripCommandMock.mockResolvedValue(rejection);
     render(

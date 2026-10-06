@@ -736,3 +736,79 @@ describe("keyed units (ADR-066, KI-5)", () => {
     expect(await seqsOf(tripId)).toEqual([1]);
   });
 });
+
+// PR #345's review of ADR-066: a refused unit no longer sinks the flush, and a
+// keyed no-op is answered from its receipt.
+describe("keyed units: refusals and no-ops (ADR-066)", () => {
+  async function newTrip() {
+    const tripId = randomUUID();
+    await exec({ type: "CreateTrip", tripId, name: "Keyed refusals" });
+    return tripId;
+  }
+
+  it("a unit the domain refuses is left out, and the units behind it are still applied", async () => {
+    // The unload flush carries the unit in flight; if the server is refusing
+    // it, the edits behind it must not be lost with it.
+    const tripId = await newTrip();
+    const behind = randomUUID();
+    const result = await executeTripCommandBatch(
+      [{ type: "RemoveDay", tripId, dayId: randomUUID() }, { type: "AddDay", tripId, dayId: behind }],
+      "user-1",
+      undefined,
+      { units: [{ key: randomUUID(), size: 1 }, { key: randomUUID(), size: 1 }] },
+    );
+    expect(result.ok ? result.detail.days.map((d) => d.dayId) : result.error).toEqual([behind]);
+  });
+
+  it("a unit is atomic within itself: one refused command refuses its whole unit", async () => {
+    const tripId = await newTrip();
+    const inRefusedUnit = randomUUID();
+    const behind = randomUUID();
+    const result = await executeTripCommandBatch(
+      [
+        { type: "AddDay", tripId, dayId: inRefusedUnit },
+        { type: "RemoveDay", tripId, dayId: randomUUID() },
+        { type: "AddDay", tripId, dayId: behind },
+      ],
+      "user-1",
+      undefined,
+      { units: [{ key: randomUUID(), size: 2 }, { key: randomUUID(), size: 1 }] },
+    );
+    expect(result.ok ? result.detail.days.map((d) => d.dayId) : result.error).toEqual([behind]);
+  });
+
+  it("a keyed batch whose every unit is refused answers with the first refusal", async () => {
+    const tripId = await newTrip();
+    const result = await executeTripCommandBatch(
+      [{ type: "RemoveDay", tripId, dayId: randomUUID() }],
+      "user-1",
+      undefined,
+      { units: [{ key: randomUUID(), size: 1 }] },
+    );
+    expect(result.ok ? "applied" : result.error.code).toBe("day-not-found");
+  });
+
+  it("a keyed no-op is recorded: a resend after the trip moved is answered, not decided again", async () => {
+    const tripId = await newTrip();
+    const key = randomUUID();
+    const sameName = { type: "SetTripName", tripId, name: "Keyed refusals" } as const;
+    const first = await executeTripCommand(sameName, "user-1", { idempotencyKey: key });
+    expect(first.ok ? "applied" : first.error.code).toBe("no-op");
+    await exec({ type: "SetTripName", tripId, name: "Renamed by someone else" });
+
+    const resent = await executeTripCommand(sameName, "user-1", { idempotencyKey: key });
+    expect(resent.ok ? resent.detail.name : resent.error).toBe("Renamed by someone else");
+  });
+
+  it("a keyed no-op unit in a batch is recorded the same way", async () => {
+    const tripId = await newTrip();
+    const unit = { key: randomUUID(), size: 1 };
+    const sameName = { type: "SetTripName", tripId, name: "Keyed refusals" } as const;
+    const first = await executeTripCommandBatch([sameName], "user-1", undefined, { units: [unit] });
+    expect(first.ok ? "applied" : first.error.code).toBe("no-op");
+    await exec({ type: "SetTripName", tripId, name: "Renamed by someone else" });
+
+    const resent = await executeTripCommandBatch([sameName], "user-1", undefined, { units: [unit] });
+    expect(resent.ok ? resent.detail.name : resent.error).toBe("Renamed by someone else");
+  });
+});

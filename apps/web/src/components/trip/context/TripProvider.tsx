@@ -41,7 +41,7 @@ import { boardMode } from "@/lib/tripRole";
 import { headSeqOf, useTripBroadcast } from "./broadcast";
 import { draftStops, enqueueDraft, type DraftStops } from "./draftQueue";
 import { drainAfter, sendUnit } from "./queueDrain";
-import { unloadFlush } from "./unloadFlush";
+import { unloadFlushAfterHead } from "./unloadFlush";
 import { useTripSuggestions, type TripSuggestions } from "./useTripSuggestions";
 
 type Status = "loading" | "ready" | "unauthenticated" | "error";
@@ -450,7 +450,11 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
       const failure: SendFailure | null =
         result.ok || result.error.code === "no-op"
           ? null
-          : { at: new Date().toISOString(), message: result.error.message };
+          : {
+              at: new Date().toISOString(),
+              message: result.error.message,
+              ...(result.ok || result.error.status !== 0 ? {} : { unanswered: true as const }),
+            };
       // Refused, so not applied: the head is retained and is unsent work again.
       // Only a refusal the SERVER answered, though. `status: 0` is a request
       // that produced no response — and a reload produces exactly that for the
@@ -780,10 +784,15 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
   const flushOnPageHide = useCallback(
     () => {
       const state = optimisticRef.current;
-      if (!state || state.failure || suggesting.current) return;
+      // A failure the server never answered (`unanswered`: the fetch was
+      // cancelled as the page went) refused nothing, and the flush resends
+      // under the same key (ADR-066), so it does not hold the queue back. A
+      // refusal the server did answer still does (KI-36).
+      if (!state || (state.failure && !state.failure.unanswered) || suggesting.current) return;
       // The unit in flight goes too, by key: its answer may never arrive.
       const queued = state.pending.filter((u) => !handedOff.current.has(u.id));
-      const flush = unloadFlush(queued, { unloading: true });
+      const head = queued[0];
+      const flush = unloadFlushAfterHead(queued, { headSent: head !== undefined && sentIds.current.has(head.id) });
       if (!flush) return;
       // The flush takes over only the units the sender had not sent. One it had
       // sent is still the sender's to confirm or fail, if the page survives.

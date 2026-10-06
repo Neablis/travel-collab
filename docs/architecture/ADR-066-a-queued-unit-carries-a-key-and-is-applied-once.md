@@ -41,23 +41,42 @@ red in CI and stayed green locally (KI-2026-09-25-i).
    `command_receipts(trip_id, key, created_at)` table is written in the same transaction as the
    unit's events, with primary key `(trip_id, key)`. A unit already on the trip's receipts is
    never decided again. If two requests carrying the same unit race, the second insert loses at
-   the primary key and its transaction rolls back. Receipts are read after the stream, so a
-   receipt that committed before that read is seen.
+   the primary key and its transaction rolls back. Receipts are read **before** the stream, so a
+   receipt that is seen comes with the events it committed with. Read after, a flush committing
+   between the two reads would be answered "applied" with a trip that did not yet hold it. A keyed
+   `no-op` gets a receipt too: it is a decision, and a resend must not be decided again against
+   a trip that has moved since.
 4. **An applied unit is answered with the trip as it stands.** The answer is success, not
    `no-op`, because the unit did have its effect, once. The sender confirms it like any other
    applied unit. A keyed batch leaves out the units already applied and decides the rest in
-   order. If none are left, it answers with the trip and appends nothing.
+   order. If none are left, it answers with the trip and appends nothing. **A keyed batch decides
+   unit by unit:** a unit the domain refuses is left out, and the units after it are still
+   decided, as the in-app drain already does (KI-5 residual 8). A unit stays atomic within itself.
+   With every unit refused, the answer is the first refusal. Without this, the flush carrying a
+   unit in flight that the server was refusing would be refused whole, and everything behind it
+   lost.
 5. **The flush carries the whole queue, the unit in flight included.** On `pagehide`, every
    queued unit goes with its key. If the unit in flight already landed, the server leaves it
    out. If it never arrived, the server applies it first, in its place. Either way, what persists
    is a prefix of what the user did. The flush takes over (`handedOff`) only the units the sender
-   had not sent. A sent unit stays the sender's to confirm if the page survives.
+   had not sent. A sent unit stays the sender's to confirm if the page survives. A sent head that
+   would cost units behind it their place in the 48 KiB keepalive budget is dropped from the
+   flush instead (`unloadFlushAfterHead`): it may well have landed, and they have not. A send
+   failure with no response (`status: 0`, marked `unanswered`) no longer holds the flush back,
+   because it refused nothing and the flush resends the head under its key.
 6. **Lost races.** A keyed batch whose receipt insert loses is a lost race like an append's. It
    is rolled back and run again, at most `BATCH_APPEND_ATTEMPTS` times, and the re-run leaves
-   that unit out. A keyed single command that loses its append race looks up its receipt once
-   more and nothing else. If the flush already carried it, the answer is success. If not, the
-   answer is the same 409 as before. It is **never decided a second time**: a head re-decided
+   that unit out. A keyed single command that fails, by losing its append race or by a domain
+   rejection the flush's events caused (an `AddDay` of a day that now exists), looks up its
+   receipt once more in one indexed query. On a hit it reads the trip and answers success. On a
+   miss the original failure stands. It is **never decided a second time**: a head re-decided
    after a flush could land after units the user made later.
+7. **The code tolerates the table not existing yet.** Merging deploys before `migrate-production`
+   runs migration 0041, and every board edit carries a key. Until the table exists, receipts are
+   skipped, and a key does nothing (`receiptsTableExists`, which caches only a sighting). In that
+   window a flushed unit in flight that had landed is decided again: an `AddDay` is refused and
+   left out (decision 4), but a `MoveActivity` is applied twice. That was the pre-ADR risk this
+   ADR closes, so dispatch the migration soon after merging.
 
 ## Consequences
 

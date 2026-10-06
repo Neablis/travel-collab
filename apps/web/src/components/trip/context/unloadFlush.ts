@@ -72,3 +72,23 @@ export function unloadFlush(
     keepalive: bodySize(payload, taken) <= budget,
   };
 }
+
+/**
+ * The `pagehide` flush for a queue whose first unit the sender may already have
+ * sent (ADR-066). That unit goes too, under its key, so the server leaves it
+ * out if it landed. But it is only a maybe: if carrying it costs the units
+ * behind it their place in the keepalive budget, the flush goes without it,
+ * as it did before keys. The rule is to carry the most unsent units, with the
+ * head on a tie.
+ */
+export function unloadFlushAfterHead(
+  units: readonly PendingUnit[],
+  { headSent, budget = KEEPALIVE_BODY_BUDGET }: { headSent: boolean; budget?: number },
+): UnloadFlush | null {
+  const withHead = unloadFlush(units, { unloading: true, budget });
+  if (!headSent || units.length === 0) return withHead;
+  const unsentWithHead = withHead ? withHead.units.length - 1 : 0;
+  if (unsentWithHead === units.length - 1) return withHead;
+  const withoutHead = unloadFlush(units.slice(1), { unloading: true, budget });
+  return (withoutHead?.units.length ?? 0) > unsentWithHead ? withoutHead : withHead;
+}

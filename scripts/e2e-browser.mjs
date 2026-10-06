@@ -133,6 +133,8 @@ export function checkShell({ dir = process.env.PLAYWRIGHT_BROWSERS_PATH, arch = 
 
 /**
  * Download and unpack the pinned headless shell, then swap it into place.
+ * Bounded at 60s (a second, normally): this runs in the session-start hook, and
+ * a stalled proxy must not hold every session's startup (PR #345 review).
  * The old directory (often just a symlink to an older chrome) is replaced only
  * after the new binary has answered `--version` with the expected build.
  */
@@ -144,7 +146,7 @@ function install(check, arch) {
   const work = mkdtempSync(join(dirname(revDir), ".e2e-browser-"));
   try {
     const zip = join(work, "shell.zip");
-    execFileSync("curl", ["-fsSL", "--max-time", "300", "-o", zip, url], { stdio: ["ignore", "ignore", "pipe"] });
+    execFileSync("curl", ["-fsSL", "--connect-timeout", "10", "--max-time", "60", "-o", zip, url], { stdio: ["ignore", "ignore", "pipe"] });
     const staged = join(work, "rev");
     mkdirSync(staged);
     execFileSync("unzip", ["-q", zip, "-d", staged], { stdio: ["ignore", "ignore", "pipe"] });
@@ -167,6 +169,11 @@ function install(check, arch) {
 }
 
 function main() {
+  // Linux layouts only (SHELL_REL), and Chrome for Testing builds only linux64.
+  if (process.platform !== "linux") {
+    console.log("e2e-browser: the version check runs on Linux only; `playwright install` keeps other platforms current.");
+    return;
+  }
   const arch = process.arch;
   let check = checkShell({ arch });
   if (check.state === "unknown") {

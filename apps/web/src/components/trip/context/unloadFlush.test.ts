@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { BatchableCommand } from "@tc/contracts";
 import type { PendingUnit } from "./optimistic";
-import { unloadFlush } from "./unloadFlush";
+import { unloadFlush, unloadFlushAfterHead } from "./unloadFlush";
 
 const TRIP = "00000000-0000-4000-8000-000000000000";
 
@@ -70,5 +70,32 @@ describe("unloadFlush (KI-5)", () => {
     const flush = unloadFlush(units, { unloading: false, budget: 100 });
     expect(flush?.units.map((u) => u.id)).toEqual(["a", "b"]);
     expect(flush?.keepalive).toBe(false);
+  });
+});
+
+// PR #345's review: the unit in flight goes first in the flush, and must not
+// cost the units behind it their place in the budget.
+describe("unloadFlushAfterHead (ADR-066)", () => {
+  it("carries a sent head that fits, ahead of everything behind it", () => {
+    const units = [unit("head"), unit("b"), unit("c")];
+    expect(unloadFlushAfterHead(units, { headSent: true })?.units.map((u) => u.id)).toEqual(["head", "b", "c"]);
+  });
+
+  it("drops a sent head too large to fit, rather than everything behind it", () => {
+    const units = [unit("head", 2000), unit("b"), unit("c")];
+    const budget = bodySize([units[1]!, units[2]!]);
+    expect(unloadFlushAfterHead(units, { headSent: true, budget })?.units.map((u) => u.id)).toEqual(["b", "c"]);
+  });
+
+  it("drops a sent head whose bytes would push units behind it out of the budget", () => {
+    const units = [unit("head", 300), unit("b", 300), unit("c", 300)];
+    const budget = bodySize([units[1]!, units[2]!]);
+    expect(unloadFlushAfterHead(units, { headSent: true, budget })?.units.map((u) => u.id)).toEqual(["b", "c"]);
+  });
+
+  it("keeps the prefix rule for a head never sent: nothing jumps it", () => {
+    const units = [unit("head", 2000), unit("b"), unit("c")];
+    const budget = bodySize([units[1]!, units[2]!]);
+    expect(unloadFlushAfterHead(units, { headSent: false, budget })).toBeNull();
   });
 });

@@ -220,3 +220,15 @@ test("cftShellUrl and shellPath match Playwright's layout, and arm64 has no down
     "/opt/pw-browsers/chromium_headless_shell-1243/chrome-headless-shell-linux64/chrome-headless-shell",
   );
 });
+
+test("probeBrowser does not version-check a Mac or Windows cache — never a false BLOCKED", () => {
+  // e2e-browser.mjs knows Playwright's Linux layouts only. On a Mac it cannot
+  // find chrome-headless-shell-mac-arm64/..., so a check there reports
+  // "missing" for a browser that is installed and current (PR #345 review).
+  const skewed = () => ({ state: "missing", expected: "153.0.8010.12", actual: null });
+  const mac = probeBrowser(only("/Users/m/Library/Caches/ms-playwright"), {}, "darwin", "/Users/m", skewed);
+  assert.equal(mac.status, "OK");
+  const winCache = "C:\\Users\\m\\AppData\\Local\\ms-playwright";
+  const win = probeBrowser(only(winCache), {}, "win32", "C:\\Users\\m", skewed);
+  assert.equal(win.status, "OK");
+});

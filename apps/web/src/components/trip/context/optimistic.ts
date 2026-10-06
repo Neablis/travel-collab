@@ -27,7 +27,14 @@ export type Confirmed = { detail: TripDetail; history: TripHistory };
 // on every accepted enqueue, but the failure is still true until a retry
 // succeeds. `at` is passed in by the caller, never read from a clock in here:
 // these are reducers, and React may invoke a state updater more than once.
-export type SendFailure = { at: string; message: string };
+export type SendFailure = {
+  at: string;
+  message: string;
+  // The request produced no response (`status: 0`), so nothing says the
+  // server refused it: it may have landed. The page's unload flush still
+  // carries such a queue (ADR-066); the in-app drain does not.
+  unanswered?: true;
+};
 
 export type OptimisticState = {
   confirmed: Confirmed;
