@@ -1,6 +1,7 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { createPortal } from "react-dom";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // **No `@testing-library/jest-dom` in this repo**, deliberately — assertions
 // read the DOM property rather than a matcher that wraps it.
@@ -9,11 +10,29 @@ import type { AdminAccountRow } from "@/lib/adminOverview";
 // `GrantDialog` and `GrantList` both reach the network on interaction and
 // neither is what these tests are about — this file is the search, the counted
 // filters, the page window and the no-match state, which the design specifies
-// and the first build of the console shipped without.
+// and the first build of the console shipped without. Each stand-in keeps the
+// one thing the row's click has to respect: a real button, and for the dialog,
+// content portalled out of the table the way Radix puts it.
 vi.mock("@/components/admin/GrantDialog", () => ({
-  GrantDialog: ({ userId }: { userId: string }) => <span>grant:{userId}</span>,
+  GrantDialog: ({ userId }: { userId: string }) => (
+    <>
+      <button type="button">Grant a plan to {userId}</button>
+      {createPortal(<p>dialog for {userId}</p>, document.body)}
+    </>
+  ),
 }));
-vi.mock("@/components/admin/GrantList", () => ({ GrantList: () => <span>grants</span> }));
+vi.mock("@/components/admin/GrantList", () => ({
+  GrantList: () => <button type="button">Revoke</button>,
+}));
+
+const push = vi.fn();
+// **The search params are the browser's own**, read fresh on every render, as
+// Next keeps `useSearchParams` in step with `history.replaceState` and with
+// Back and Forward. A test moves the URL with `visit` and re-renders.
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push }),
+  useSearchParams: () => new URLSearchParams(window.location.search),
+}));
 
 import { AccountsPanel } from "./AccountsPanel";
 
@@ -30,6 +49,7 @@ function account(over: Partial<AdminAccountRow> & { userId: string }): AdminAcco
     unpriced: 0,
     paysMicroUsd: 0 as number | null,
     subscriptionState: null,
+    lastActiveAt: null,
     ...over,
   };
 }
@@ -38,7 +58,7 @@ function account(over: Partial<AdminAccountRow> & { userId: string }): AdminAcco
 function tenAccounts(): AdminAccountRow[] {
   return [
     ...Array.from({ length: 6 }, (_, i) => account({ userId: `free${i}` })),
-    account({ userId: "paid0", planVersionRef: "plus@v1" }),
+    account({ userId: "paid0", planVersionRef: "plus@v1", paysMicroUsd: 8_000_000, subscriptionState: "active" }),
     ...Array.from({ length: 3 }, (_, i) =>
       account({
         userId: `granted${i}`,
@@ -61,12 +81,44 @@ function rowIds(): string[] {
     .map((row) => row.getAttribute("data-testid")!.replace("account-", ""));
 }
 
-afterEach(cleanup);
+const NOW = "2026-10-06T12:00:00.000Z";
+
+/** Puts the browser at `url` — a load, or Back and Forward — unseen by the spy. */
+function visit(url: string) {
+  window.history.pushState(null, "", url);
+}
+
+function panel(accounts: AdminAccountRow[], options: { underwater?: string[] } = {}) {
+  return (
+    <AccountsPanel
+      accounts={accounts}
+      plans={["plus"]}
+      plansGrantingNothing={["free"]}
+      underwater={options.underwater ?? []}
+      now={NOW}
+      windowDays={30}
+    />
+  );
+}
+
+const counts = (name: string) =>
+  within(screen.getByRole("button", { name: new RegExp(`^${name}`) })).getByText(/^\d+$/).textContent;
+
+let replaceState: ReturnType<typeof vi.spyOn>;
+beforeEach(() => {
+  visit("/admin?tab=users");
+  replaceState = vi.spyOn(window.history, "replaceState");
+});
+afterEach(() => {
+  cleanup();
+  push.mockReset();
+  replaceState.mockRestore();
+});
 
 describe("AccountsPanel", () => {
   it("shows one page of eight and pages through the rest", async () => {
     const user = userEvent.setup();
-    render(<AccountsPanel accounts={tenAccounts()} plans={["plus"]} plansGrantingNothing={["free"]} windowDays={30} />);
+    render(panel(tenAccounts()));
 
     expect(rowIds()).toHaveLength(8);
     expect(screen.getByTestId("accounts-range").textContent).toContain("1–8 of 10");
@@ -88,7 +140,7 @@ describe("AccountsPanel", () => {
       ...tenAccounts(),
       account({ userId: "opaque-id-1", email: "wren@elsewhere.test" }),
     ];
-    render(<AccountsPanel accounts={accounts} plans={["plus"]} plansGrantingNothing={["free"]} windowDays={30} />);
+    render(panel(accounts));
 
     await user.type(screen.getByRole("textbox", { name: "Find an account" }), "wren");
     expect(rowIds()).toEqual(["opaque-id-1"]);
@@ -97,29 +149,25 @@ describe("AccountsPanel", () => {
   it("falls back to the account id when a row has no address", async () => {
     const user = userEvent.setup();
     const accounts = [...tenAccounts(), account({ userId: "no-address-1", email: null })];
-    render(<AccountsPanel accounts={accounts} plans={["plus"]} plansGrantingNothing={["free"]} windowDays={30} />);
+    render(panel(accounts));
 
     await user.type(screen.getByRole("textbox", { name: "Find an account" }), "no-address");
     expect(rowIds()).toEqual(["no-address-1"]);
   });
 
   it("counts each filter over the whole matching set, not the page", async () => {
-    render(<AccountsPanel accounts={tenAccounts()} plans={["plus"]} plansGrantingNothing={["free"]} windowDays={30} />);
+    render(panel(tenAccounts()));
 
     // Ten rows, eight of them visible — a count taken from the page would read
-    // 8/…/6 here rather than 10/4/3/6.
-    const counts = (name: string) =>
-      within(screen.getByRole("button", { name: new RegExp(`^${name}`) })).getByText(/^\d+$/)
-        .textContent;
+    // 8/…/6 here rather than 10/3/6.
     expect(counts("All")).toBe("10");
-    expect(counts("Holds a paid plan")).toBe("4");
     expect(counts("Granted")).toBe("3");
     expect(counts("Free")).toBe("6");
   });
 
   it("narrows the table to the chosen filter", async () => {
     const user = userEvent.setup();
-    render(<AccountsPanel accounts={tenAccounts()} plans={["plus"]} plansGrantingNothing={["free"]} windowDays={30} />);
+    render(panel(tenAccounts()));
 
     await user.click(screen.getByRole("button", { name: /^Granted/ }));
     expect(rowIds()).toEqual(["granted0", "granted1", "granted2"]);
@@ -130,7 +178,7 @@ describe("AccountsPanel", () => {
 
   it("offers a way out when nothing matches", async () => {
     const user = userEvent.setup();
-    render(<AccountsPanel accounts={tenAccounts()} plans={["plus"]} plansGrantingNothing={["free"]} windowDays={30} />);
+    render(panel(tenAccounts()));
 
     await user.type(screen.getByRole("textbox", { name: "Find an account" }), "nobody");
     expect(screen.queryAllByTestId(/^account-/)).toHaveLength(0);
@@ -151,18 +199,201 @@ describe("AccountsPanel", () => {
   // line claims rows exist.
   it("clamps to the last real page when the list shrinks underneath it", async () => {
     const user = userEvent.setup();
-    const { rerender } = render(
-      <AccountsPanel accounts={tenAccounts()} plans={["plus"]} plansGrantingNothing={["free"]} windowDays={30} />,
-    );
+    const { rerender } = render(panel(tenAccounts()));
 
     await user.click(screen.getByRole("button", { name: "Next" }));
     expect(screen.getByTestId("accounts-range").textContent).toContain("9–10 of 10");
 
-    rerender(
-      <AccountsPanel accounts={tenAccounts().slice(0, 3)} plans={["plus"]} plansGrantingNothing={["free"]} windowDays={30} />,
-    );
+    rerender(panel(tenAccounts().slice(0, 3)));
 
     expect(rowIds()).toEqual(["free0", "free1", "free2"]);
     expect(screen.getByTestId("accounts-range").textContent).toContain("1–3 of 3");
+  });
+  // **The six filters** (M36 link 2). Each id below is chosen so one rule
+  // separates it from its neighbours: a payer whose price this deploy cannot
+  // read (`null`) still pays; a lapsed subscription is not past due; and
+  // *Costs more than it pays* is the server's underwater list, not anything
+  // this row's own numbers say.
+  function everyKind(): AdminAccountRow[] {
+    const paying = { planVersionRef: "plus@v1", paysMicroUsd: 8_000_000, subscriptionState: "active" };
+    return [
+      ...tenAccounts(),
+      account({ userId: "late0", ...paying, subscriptionState: "past_due" }),
+      account({ userId: "unpriced0", ...paying, paysMicroUsd: null }),
+      // Its own numbers look fine; the server says otherwise, and the server wins.
+      account({ userId: "sinking0", ...paying }),
+      account({ userId: "lapsed0", subscriptionState: "lapsed" }),
+    ];
+  }
+
+  it("counts all six filters over the search", async () => {
+    const user = userEvent.setup();
+    render(panel(everyKind(), { underwater: ["sinking0"] }));
+
+    expect(counts("All")).toBe("14");
+    expect(counts("Paying")).toBe("4");
+    expect(counts("Granted")).toBe("3");
+    expect(counts("Free")).toBe("7");
+    expect(counts("Past due")).toBe("1");
+    expect(counts("Costs more than it pays")).toBe("1");
+
+    // Searched down, every count follows the search.
+    await user.type(screen.getByRole("textbox", { name: "Find an account" }), "late");
+    expect(counts("All")).toBe("1");
+    expect(counts("Paying")).toBe("1");
+    expect(counts("Past due")).toBe("1");
+    expect(counts("Costs more than it pays")).toBe("0");
+  });
+
+  it("narrows to Past due and to Costs more than it pays", async () => {
+    const user = userEvent.setup();
+    render(panel(everyKind(), { underwater: ["sinking0"] }));
+
+    await user.click(screen.getByRole("button", { name: /^Past due/ }));
+    expect(rowIds()).toEqual(["late0"]);
+    await user.click(screen.getByRole("button", { name: /^Costs more than it pays/ }));
+    expect(rowIds()).toEqual(["sinking0"]);
+  });
+
+  it("draws Asked and Last active from the row", () => {
+    render(
+      panel([
+        account({ userId: "busy", requests: 1234, lastActiveAt: "2026-10-03T09:00:00.000Z" }),
+        account({ userId: "idle" }),
+      ]),
+    );
+    const cells = (id: string) =>
+      within(screen.getByTestId(`account-${id}`))
+        .getAllByRole("cell")
+        .map((cell) => cell.textContent);
+    expect(cells("busy")).toEqual(expect.arrayContaining(["1,234", "3 days ago"]));
+    // Columns 6 and 7 — Asked, Last active — read `—` when there is nothing.
+    expect(cells("idle").slice(5, 7)).toEqual(["—", "—"]);
+  });
+
+  // **D2: the view is URL state.** Seeded from the URL, and written back as it
+  // changes — without a navigation, which would re-run the whole overview per
+  // keystroke.
+  it("starts from the view the URL arrived with", () => {
+    visit("/admin?tab=users&q=granted&filter=granted");
+    render(panel(everyKind()));
+    expect((screen.getByRole("textbox", { name: "Find an account" }) as HTMLInputElement).value).toBe("granted");
+    expect(screen.getByRole("button", { name: /^Granted/ }).getAttribute("aria-pressed")).toBe("true");
+    expect(rowIds()).toEqual(["granted0", "granted1", "granted2"]);
+    // Seeded, so nothing to write back yet.
+    expect(replaceState).not.toHaveBeenCalled();
+  });
+
+  // **A view the table corrects is written back at once** (M36 part 3 review).
+  // The first render was never written, on the reasoning that the URL had
+  // seeded it — but a page past the end is clamped, so the address bar said
+  // page 9 over a table on page 2, and the row links carried page 2.
+  it("writes a clamped page back on the first render", () => {
+    visit("/admin?tab=users&page=9");
+    render(panel(tenAccounts()));
+    expect(screen.getByTestId("accounts-range").textContent).toContain("9–10 of 10");
+    expect(replaceState.mock.calls.map((call: unknown[]) => call[2])).toEqual(["/admin?tab=users&page=2"]);
+  });
+
+  // **Back and Forward change the URL and nothing else.** The view used to come
+  // from the server's `initial`, and a history entry whose URL the table had
+  // rewritten with `replaceState` kept the `initial` it was first rendered
+  // with: chosen *Paying*, opened a row, came Back — the address said
+  // `filter=paying` and the table said All (M36 part 3 review). Here the
+  // props stay exactly as they were; only the URL moves.
+  it("follows Back or Forward to a different view", () => {
+    const { rerender } = render(panel(everyKind()));
+    visit("/admin?tab=users&q=granted&filter=granted");
+    rerender(panel(everyKind()));
+    expect(screen.getByRole("button", { name: /^Granted/ }).getAttribute("aria-pressed")).toBe("true");
+    expect(rowIds()).toEqual(["granted0", "granted1", "granted2"]);
+  });
+
+  // **Its own writes are not a navigation.** Every keystroke moves the URL, and
+  // a table that re-seeded from each move would put back a view the operator
+  // had already typed past. Here the URL this panel reads trails its writes by
+  // one render, as a Next transition can.
+  it("keeps typing over its own writes to the URL", async () => {
+    const user = userEvent.setup();
+    render(panel(everyKind()));
+    const input = screen.getByRole("textbox", { name: "Find an account" }) as HTMLInputElement;
+    await user.type(input, "granted");
+    expect(input.value).toBe("granted");
+    expect(window.location.search).toBe("?tab=users&q=granted");
+  });
+
+  it("writes search, filter and page back to the URL as they change", async () => {
+    const user = userEvent.setup();
+    render(panel(everyKind()));
+    const lastUrl = () => replaceState.mock.calls.at(-1)?.[2];
+
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    expect(lastUrl()).toBe("/admin?tab=users&page=2");
+    await user.click(screen.getByRole("button", { name: /^Paying/ }));
+    expect(lastUrl()).toBe("/admin?tab=users&filter=paying");
+    await user.type(screen.getByRole("textbox", { name: "Find an account" }), "late");
+    expect(lastUrl()).toBe("/admin?tab=users&q=late&filter=paying");
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  // **The whole row opens the account page, with the view kept**, so the
+  // account page's *← All accounts* comes back to the same page of the same
+  // filter. Ten free accounts searched by "free", on page two of the filter.
+  it("links each row to its account, keeping q, filter and page", async () => {
+    const user = userEvent.setup();
+    const accounts = Array.from({ length: 10 }, (_, i) => account({ userId: `free${i}` }));
+    visit("/admin?tab=users&q=free&filter=unentitled&page=2");
+    render(panel(accounts));
+    const expected = "/admin?tab=users&account=free8&q=free&filter=unentitled&page=2";
+
+    const row = screen.getByTestId("account-free8");
+    expect(within(row).getByRole("link").getAttribute("href")).toBe(expected);
+    await user.click(within(row).getByText("free@v1"));
+    expect(push).toHaveBeenCalledWith(expected);
+  });
+
+  // A modifier asks for a new tab or window, which `push` cannot give; the
+  // address link is there for that. Each modifier on its own, so one dropped
+  // from the guard fails here.
+  it("does not open the account on a modified click", async () => {
+    const user = userEvent.setup();
+    render(panel([account({ userId: "solo" })]));
+    const cell = within(screen.getByTestId("account-solo")).getByText("free@v1");
+
+    for (const key of ["Meta", "Control", "Shift"]) {
+      await user.keyboard(`{${key}>}`);
+      await user.click(cell);
+      await user.keyboard(`{/${key}}`);
+    }
+    expect(push).not.toHaveBeenCalled();
+    // The witness: the same click unmodified does open it.
+    await user.click(cell);
+    expect(push).toHaveBeenCalledTimes(1);
+  });
+
+  // `fireEvent`, not `user.click`: user-event's pointer collapses the selection
+  // on the way down, which is what a click does but not what a drag ends with.
+  it("does not open the account when the click ends a text selection", () => {
+    render(panel([account({ userId: "solo" })]));
+    const cell = within(screen.getByTestId("account-solo")).getByText("free@v1");
+
+    window.getSelection()!.selectAllChildren(cell);
+    fireEvent.click(cell);
+    expect(push).not.toHaveBeenCalled();
+    // The witness: with the selection gone, the same click opens it.
+    window.getSelection()!.removeAllRanges();
+    fireEvent.click(cell);
+    expect(push).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not open the account when Grant, Revoke or the dialog is clicked", async () => {
+    const user = userEvent.setup();
+    render(panel([account({ userId: "solo" })]));
+
+    await user.click(screen.getByRole("button", { name: "Grant a plan to solo" }));
+    await user.click(screen.getByRole("button", { name: "Revoke" }));
+    // Portalled out of the table, but React bubbles it through the row.
+    await user.click(screen.getByText("dialog for solo"));
+    expect(push).not.toHaveBeenCalled();
   });
 });

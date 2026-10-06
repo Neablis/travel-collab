@@ -236,8 +236,35 @@ test.describe("M20 — an account knows what it may do", () => {
     // console re-reads server-side after a write, so a stale row here would
     // mean an operator reissuing a grant that already landed.
     await expect(dialog).toBeHidden();
+    // `Holds` is the resolver's answer. The row's `Can` column (`ai.ask`) left
+    // the table with M36 link 2's column set.
     await expect(row).toContainText("premium");
-    await expect(row).toContainText("ai.ask");
+
+    await operator.context().close();
+  });
+
+  // **Back to the accounts table brings back the filter chosen on it** (M36
+  // part 3 review). The filter is written with `replaceState`, which moves the
+  // URL but not the tree Next keeps for that history entry; while the table
+  // took its view from the server render, Back from an opened row said
+  // `filter=unentitled` in the address bar and drew All. *Free* because the
+  // operator's own account is in it, so there is always a row to open.
+  test("Back from an opened account keeps the table's filter", async ({ browser }) => {
+    const operator = await openOperator(browser);
+    await operator.setViewportSize({ width: 1440, height: 900 });
+    await operator.goto("/admin?tab=users");
+
+    const free = operator.getByRole("button", { name: /^Free/ });
+    await free.click();
+    await expect(operator).toHaveURL(/filter=unentitled/);
+    // A cell, not the address link: the row's own click is the `push` here.
+    await operator.getByTestId(/^account-/).first().getByRole("cell").nth(1).click();
+    await expect(operator).toHaveURL(/account=/);
+
+    await operator.goBack();
+    await expect(operator).not.toHaveURL(/account=/);
+    await expect(operator).toHaveURL(/filter=unentitled/);
+    await expect(free).toHaveAttribute("aria-pressed", "true");
 
     await operator.context().close();
   });

@@ -19,11 +19,11 @@
 // exactly as the milestone says — accounts, versions and hold counts are M20's
 // and live here; MRR and median margin per tier are link 7's and are merged in
 // from Billing.
-import { desc, eq, sql } from "drizzle-orm";
+import { asc, desc, eq, inArray, sql } from "drizzle-orm";
 import type { PlanId } from "@tc/contracts";
 import { db } from "@/server/db/client";
 import { adminConsoleFlag } from "@/server/flags";
-import { users } from "@/server/db/schema";
+import { aiUsage, events, users } from "@/server/db/schema";
 import { activeGrantHolders } from "./grants";
 import { PLAN_VERSIONS, livePlanVersion, planVersionRefOf, type PlanVersion } from "./planVersions";
 import { entitlementsFor } from "./resolver";
@@ -311,7 +311,14 @@ export interface AdminAccountRow {
   grants: readonly AdminGrantRow[];
   /** Their effective capabilities, as the resolver answers them right now. */
   entitlements: readonly string[];
-  /** Requests and micro-dollars over the trailing window. */
+  /**
+   * Requests and micro-dollars over the trailing window.
+   *
+   * `requests` is the console's **Asked 30d** (M36 link 2): one `ai_usage` row
+   * is one assistant turn, so a count of them in the window is the questions
+   * asked. It was already this, so the column reads it rather than adding a
+   * second field that would have to agree with it.
+   */
   requests: number;
   microUsd: number;
   /** Rows whose model has no published rate, so `microUsd` understates. */
@@ -330,6 +337,48 @@ export interface AdminAccountRow {
   paysMicroUsd: number | null;
   /** Stripe's own word, or `null` for an account that has never subscribed. */
   subscriptionState: string | null;
+  /**
+   * **Last active** (M36 D6), ISO — the later of the account's newest planning
+   * event and its newest assistant turn inside the trailing window, or `null`
+   * when it did neither in that window. See `lastActiveSince`.
+   */
+  lastActiveAt: string | null;
+}
+
+/**
+ * **When each account last did anything**, over the trailing window (M36 D6).
+ *
+ * Derived, never stored: the newest of its planning events (`events.actor_id`)
+ * and its assistant turns (`ai_usage.user_id`), so no `last_seen` column and
+ * no write on the request path. **One grouped read for every account**, not
+ * one per row — the table it feeds is a hundred-odd rows. Bounded by the window
+ * as D6 words it, so `null` reads "not in 30 days", not "never".
+ *
+ * **It scans the event log over the window**: `events` has no index on
+ * `occurred_at` or `actor_id`, so the read grows with every event written in
+ * the last 30 days, all accounts' together. D6 allows that index as this
+ * milestone's one migration if the read proves too slow; whether to add it is
+ * held for a decision, not taken here.
+ *
+ * This reads the event log, which is the planning domain's and not this
+ * module's; a read of who wrote a row is not a write through it (invariant 1),
+ * and nothing here learns what any event means — only its actor and time.
+ */
+export async function lastActiveSince(since: Date): Promise<Map<string, string>> {
+  const from = since.toISOString();
+  const rows = await db.execute<{ user_id: string; at: Date | string }>(sql`
+    select user_id, max(at) as at from (
+      select ${events.actorId} as user_id, max(${events.occurredAt}) as at
+        from ${events} where ${events.occurredAt} >= ${from} group by ${events.actorId}
+      union all
+      select ${aiUsage.userId} as user_id, max(${aiUsage.createdAt}) as at
+        from ${aiUsage} where ${aiUsage.createdAt} >= ${from} group by ${aiUsage.userId}
+    ) as activity
+    group by user_id
+  `);
+  // `db.execute` hands back whatever the driver produced: node-postgres parses
+  // a `timestamptz` into a `Date`, and a string is accepted for the day it does not.
+  return new Map(rows.rows.map((row) => [row.user_id, new Date(row.at).toISOString()]));
 }
 
 /**
@@ -341,23 +390,44 @@ export interface AdminAccountRow {
  * with the gates, and the one that disagrees is always the one nobody is
  * looking at. Bounded by `limit` for exactly that reason: this is N+2 queries
  * and it is a page of an operator tool, not a hot path.
+ *
+ * **`include` is outside the bound.** The `limit` newest accounts come first,
+ * newest first; any id in `include` that is not among them is appended after,
+ * also newest first. Ties on `createdAt` — a bulk insert stamps one instant —
+ * break on the id, so the bound and the order are the same on every read.
+ * The overview passes the underwater payers, so *Show them in Users* finds
+ * every account Financial counted — `underwaterReport` reads every account
+ * with a cost, and a payer older than the newest 100 was counted there and
+ * drawn nowhere.
  */
 export async function adminAccounts(
   limit = 100,
   now: Date = new Date(),
   trailing?: readonly AccountCost[],
+  include: readonly string[] = [],
 ): Promise<AdminAccountRow[]> {
   const since = trailingWindowStart(now);
-  const [rows, costs, counts] = await Promise.all([
-    db
-      .select({ id: users.id, email: users.email, isAdmin: users.isAdmin })
-      .from(users)
-      .orderBy(desc(users.createdAt))
-      .limit(limit),
+  const columns = { id: users.id, email: users.email, isAdmin: users.isAdmin };
+  const [newest, costs, counts, lastActive] = await Promise.all([
+    db.select(columns).from(users).orderBy(desc(users.createdAt), asc(users.id)).limit(limit),
     // The overview's one ledger read, when it hands it down (see `adminOverview`).
     trailing ?? costPerAccount(since),
     requestCounts(since),
+    lastActiveSince(since),
   ]);
+  const shown = new Set(newest.map((row) => row.id));
+  const missing = [...new Set(include)].filter((id) => !shown.has(id));
+  const rows =
+    missing.length === 0
+      ? newest
+      : [
+          ...newest,
+          ...(await db
+            .select(columns)
+            .from(users)
+            .where(inArray(users.id, missing))
+            .orderBy(desc(users.createdAt), asc(users.id))),
+        ];
   const costByUser = new Map(costs.map((cost) => [cost.userId, cost]));
   return Promise.all(
     rows.map(async (row) => {
@@ -390,6 +460,7 @@ export async function adminAccounts(
         unpriced: cost?.unpriced ?? 0,
         paysMicroUsd: pays,
         subscriptionState: subscription?.lapsed === true ? "lapsed" : (subscription?.row.status ?? null),
+        lastActiveAt: lastActive.get(row.id) ?? null,
       };
     }),
   );
@@ -437,6 +508,8 @@ export interface AdminUsers {
   windowDays: number;
   /** Only `unpricedSubscriptions` is drawn, by the banner both tabs share. */
   revenue: RevenueSummary;
+  /** Its paying ids drive the *Costs more than it pays* filter and badge. */
+  underwater: UnderwaterReport;
 }
 
 /** Everything the console reads, in one call — what `GET /api/admin/overview` answers. */
@@ -477,26 +550,43 @@ async function sharedReads(now: Date): Promise<SharedReads> {
   return { trailing, holders };
 }
 
-/** The Financial tab, over one read of the ledger and one of the grant holders. */
+/**
+ * The Financial tab, over one read of the ledger and one of the grant holders.
+ * `underwater` is the overview's, when it has already built the report from
+ * the same `reads` for the accounts table (see `adminOverview`).
+ */
 export async function adminFinancial(
   now: Date = new Date(),
   reads?: SharedReads,
+  underwater?: UnderwaterReport,
 ): Promise<AdminFinancial> {
   const { trailing, holders } = reads ?? (await sharedReads(now));
-  const [plans, revenue, underwater, prices] = await Promise.all([
+  const [plans, revenue, report, prices] = await Promise.all([
     planPanel(now, trailing),
     revenueSummary(TRAILING_WINDOW_DAYS, trailing, now),
-    underwaterReport(TRAILING_WINDOW_DAYS, trailing, holders, now),
+    underwater ?? underwaterReport(TRAILING_WINDOW_DAYS, trailing, holders, now),
     priceConsistencyReport(),
   ]);
-  return { plans, windowDays: TRAILING_WINDOW_DAYS, revenue, underwater, prices };
+  return { plans, windowDays: TRAILING_WINDOW_DAYS, revenue, underwater: report, prices };
 }
 
-/** The Users tab, over one read of the ledger. It needs no grant holders. */
+/**
+ * The Users tab: one read of the ledger and one of the grant holders, and never
+ * Stripe's price sweep. The holders are read for the underwater report alone —
+ * its paying ids decide the *Costs more than it pays* filter and badge, and
+ * **every one of them gets a row**, however old the account, because that
+ * filter is how Financial's count is opened (M36 part 3 review).
+ */
 export async function adminUsers(now: Date = new Date()): Promise<AdminUsers> {
-  const trailing = await adminCostPerAccount(now);
+  const { trailing, holders } = await sharedReads(now);
+  const underwater = await underwaterReport(TRAILING_WINDOW_DAYS, trailing, holders, now);
   const [accounts, revenue] = await Promise.all([
-    adminAccounts(100, now, trailing),
+    adminAccounts(
+      100,
+      now,
+      trailing,
+      underwater.paying.map((row) => row.userId),
+    ),
     revenueSummary(TRAILING_WINDOW_DAYS, trailing, now),
   ]);
   const planIds = [...new Set(PLAN_VERSIONS.map((entry) => entry.planId))];
@@ -505,15 +595,29 @@ export async function adminUsers(now: Date = new Date()): Promise<AdminUsers> {
     livePlans: planIds.map(livePlanVersion),
     windowDays: TRAILING_WINDOW_DAYS,
     revenue,
+    underwater,
   };
 }
 
-/** Every panel of the operator console, computed over one read of the ledger. */
+/**
+ * Every panel of the operator console, computed over one read of the ledger.
+ *
+ * **The underwater report first, then everything else at once**, as
+ * `adminUsers` does it: the accounts table needs only the report's paying ids,
+ * and taking them off `adminFinancial`'s result held the table behind Stripe's
+ * price sweep — a round trip per published version (M36 part 3 review).
+ */
 export async function adminOverview(now: Date = new Date()): Promise<AdminOverview> {
   const reads = await sharedReads(now);
+  const underwater = await underwaterReport(TRAILING_WINDOW_DAYS, reads.trailing, reads.holders, now);
   const [financial, accounts, spenders] = await Promise.all([
-    adminFinancial(now, reads),
-    adminAccounts(100, now, reads.trailing),
+    adminFinancial(now, reads, underwater),
+    adminAccounts(
+      100,
+      now,
+      reads.trailing,
+      underwater.paying.map((row) => row.userId),
+    ),
     adminTopSpenders(10, now, reads.trailing),
   ]);
   return { ...financial, accounts, topSpenders: spenders };

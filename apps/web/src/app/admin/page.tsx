@@ -79,7 +79,8 @@ export default async function AdminPage({
   // Before any data is read, and before anything renders. `notFound()` throws,
   // so there is no path where any of the reads below runs for a non-operator.
   if ((await adminUserId()) === null) notFound();
-  const tab = resolveConsoleTab((await searchParams).tab);
+  const params = await searchParams;
+  const tab = resolveConsoleTab(params.tab);
 
   if (tab === "library") {
     // The report queue is read here for the same reason the other tabs read
@@ -114,7 +115,11 @@ export default async function AdminPage({
           {/* Search, counted filters, 8 rows a page and a no-match state all live
               in the client component: they are view state over a list the server
               already sent, and a round trip per keystroke would be a worse
-              console for a table bounded at 100 rows. Only enabled plans are
+              console for a table of the newest 100 accounts plus every
+              underwater payer. They are seeded from the URL, which is where
+              they are kept (D2), and re-seeded when a navigation brings
+              another view (see `AccountsPanel`). `?account=` renders this
+              table too until M36 link 3 builds the account page. Only enabled plans are
               offered to the grant dialog — `enabled` bounds what an operator may
               hand out, never what a holder may do, which is what lets the
               disabled fourth-plan proof ship without anyone receiving it. */}
@@ -127,6 +132,8 @@ export default async function AdminPage({
           <AccountsPanel
             accounts={users.accounts}
             windowDays={users.windowDays}
+            now={new Date().toISOString()}
+            underwater={users.underwater.paying.map((account) => account.userId)}
             plans={users.livePlans.filter((live) => live.enabled).map((live) => live.planId)}
             plansGrantingNothing={users.livePlans
               .filter((live) => live.entitlements.length === 0)

@@ -6,7 +6,8 @@ import { randomUUID } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
-import { entitlementGrants, users } from "@/server/db/schema";
+import { entitlementGrants, events, users } from "@/server/db/schema";
+import { executeTripCommand } from "@/server/commands";
 import { upsertUser } from "@/server/users";
 import type { TurnLedger } from "@/server/assistant/ledger";
 import { recordTurnLedger } from "./usage";
@@ -197,6 +198,64 @@ describe("the console answers from real data", () => {
     expect(row.planVersionRef).toBe("premium@v1");
     expect([...row.entitlements].sort()).toEqual(["ai.ask", "ai.command", "trip.collaborators"]);
     expect(await accountCan(id, "trip.collaborators")).toBe(true);
+  });
+});
+
+// **Asked 30d and Last active** (M36 link 2, D6). Read from the ledger and the
+// event log at the console's own window, so each case plants rows on both
+// sides of it and on another account.
+describe("the accounts table's activity columns", () => {
+  const DAY = 24 * 60 * 60 * 1000;
+  const now = new Date();
+  const ago = (ms: number) => new Date(now.getTime() - ms);
+
+  /** One planning event by `actorId`, through the command path, then dated. */
+  async function plannedAt(actorId: string, at: Date) {
+    const tripId = randomUUID();
+    expect((await executeTripCommand({ type: "CreateTrip", tripId, name: "Activity" }, actorId)).ok).toBe(true);
+    // Back-dated in place: the command stamps its own clock, and the read under
+    // test is about WHEN, which only the stored row can be made to say.
+    await db.update(events).set({ occurredAt: at.toISOString() }).where(eq(events.streamId, tripId));
+  }
+
+  const rowOf = async (userId: string) =>
+    (await adminAccounts(500, now)).find((row) => row.userId === userId)!;
+
+  it("counts only the window's turns as Asked", async () => {
+    const id = await account({ planId: "plus" });
+    await recordTurnLedger(usage(id), ago(2 * DAY));
+    await recordTurnLedger(usage(id), ago(40 * DAY));
+    expect((await rowOf(id)).requests).toBe(1);
+  });
+
+  it("takes the later of a turn and a planning event, whichever it is", async () => {
+    const askedLast = await account({ planId: "plus" });
+    await plannedAt(askedLast, ago(5 * DAY));
+    await recordTurnLedger(usage(askedLast), ago(2 * DAY));
+
+    const plannedLast = await account({ planId: "plus" });
+    await recordTurnLedger(usage(plannedLast), ago(3 * DAY));
+    await plannedAt(plannedLast, ago(DAY));
+
+    expect((await rowOf(askedLast)).lastActiveAt).toBe(ago(2 * DAY).toISOString());
+    expect((await rowOf(plannedLast)).lastActiveAt).toBe(ago(DAY).toISOString());
+  });
+
+  it("does not count another account's events", async () => {
+    const quiet = await account();
+    await plannedAt(quiet, ago(10 * DAY));
+    // Newer, and somebody else's.
+    await plannedAt(await account(), ago(DAY));
+    expect((await rowOf(quiet)).lastActiveAt).toBe(ago(10 * DAY).toISOString());
+  });
+
+  it("is null for an account whose activity is all older than the window", async () => {
+    const lapsed = await account({ planId: "plus" });
+    await plannedAt(lapsed, ago(40 * DAY));
+    await recordTurnLedger(usage(lapsed), ago(45 * DAY));
+    const row = await rowOf(lapsed);
+    expect(row.lastActiveAt).toBeNull();
+    expect(row.requests).toBe(0);
   });
 });
 
