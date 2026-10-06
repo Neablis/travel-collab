@@ -10,7 +10,7 @@ import { PriceCheckPanel } from "@/components/admin/PriceCheckPanel";
 import { ReportsPanel } from "@/components/admin/ReportsPanel";
 import { Panel } from "@/components/ui/panel";
 import { Text } from "@/components/ui/text";
-import { adminOverview } from "@/server/entitlements/admin";
+import { adminFinancial, adminUsers } from "@/server/entitlements/admin";
 import { adminUserId } from "@/server/entitlements/requireAdmin";
 import { listReports } from "@/server/reports";
 
@@ -20,7 +20,10 @@ import { listReports } from "@/server/reports";
 // **Three tabs since M36 link 1, not one scroll.** The scroll grew a panel per
 // milestone and every new one went to the bottom, so the one part that needs
 // action — reports — sat below four that only report. The tab is URL state
-// (`?tab=`, D1), so each tab is its own request and reads only what it draws.
+// (`?tab=`, D1), so each tab is its own request and reads only what it draws:
+// Library the report queue, Users `adminUsers()` — the accounts table without
+// the Stripe price sweep or the tier panel — and Financial `adminFinancial()`,
+// which is the overview without the accounts table.
 //
 // **The revenue half arrived with M21 link 7**, 2026-09-14: the four-number
 // strip, the per-tier MRR and margin columns, the `Pays` and `State` columns in
@@ -74,13 +77,13 @@ export default async function AdminPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   // Before any data is read, and before anything renders. `notFound()` throws,
-  // so there is no path where `adminOverview()` runs for a non-operator.
+  // so there is no path where any of the reads below runs for a non-operator.
   if ((await adminUserId()) === null) notFound();
   const tab = resolveConsoleTab((await searchParams).tab);
 
   if (tab === "library") {
-    // The report queue is read here for the same reason the overview is — see
-    // the header — and after the gate for the same reason too.
+    // The report queue is read here for the same reason the other tabs read
+    // theirs — see the header — and after the gate for the same reason too.
     // `admin.console.test.ts` holds that order. Only this tab reads it: it is
     // the one read on the page that carries other people's words.
     const [open, actioned, dismissed] = await Promise.all([
@@ -101,13 +104,12 @@ export default async function AdminPage({
     );
   }
 
-  const overview = await adminOverview();
-
-  return (
-    // **Stale revenue is a page-level banner on both tabs that read it** —
-    // Financial's MRR and Users' *Pays* column go stale together.
-    <ConsoleShell tab={tab} banner={<RevenueStaleBanner revenue={overview.revenue} />}>
-      {tab === "users" ? (
+  if (tab === "users") {
+    const users = await adminUsers();
+    return (
+      // **Stale revenue is a page-level banner on both tabs that read it** —
+      // Financial's MRR and Users' *Pays* column go stale together.
+      <ConsoleShell tab={tab} banner={<RevenueStaleBanner revenue={users.revenue} />}>
         <Panel title="Accounts">
           {/* Search, counted filters, 8 rows a page and a no-match state all live
               in the client component: they are view state over a list the server
@@ -123,50 +125,54 @@ export default async function AdminPage({
               refused the first version of the Free filter, which compared
               `planId === "free"` directly. */}
           <AccountsPanel
-            accounts={overview.accounts}
-            windowDays={overview.windowDays}
-            plans={overview.plans.filter((plan) => plan.live.enabled).map((plan) => plan.planId)}
-            plansGrantingNothing={overview.plans
-              .filter((plan) => plan.live.entitlements.length === 0)
-              .map((plan) => plan.planId)}
+            accounts={users.accounts}
+            windowDays={users.windowDays}
+            plans={users.livePlans.filter((live) => live.enabled).map((live) => live.planId)}
+            plansGrantingNothing={users.livePlans
+              .filter((live) => live.entitlements.length === 0)
+              .map((live) => live.planId)}
           />
         </Panel>
-      ) : (
-        <>
-          {/* **The four-number strip** (M21 link 7). ARPU appears twice and both
-              are labelled, which is the link's most emphatic requirement: with
-              founder, referral, trial and admin grants in the mix the two differ a
-              lot, and a single unlabelled one gets quoted as whichever is
-              convenient. */}
-          <RevenueStrip revenue={overview.revenue} />
+      </ConsoleShell>
+    );
+  }
 
-          {/* Two panels side by side, as the design lays them out; one column
-              on a narrow window, which this route only ever sees on a small
-              laptop since the console is not on the phone at all. The design's
-              `repeat(auto-fit, minmax(340px, 1fr))` is an arbitrary Tailwind
-              value, which the colour wall refuses (tokens only); `lg` is where
-              two columns are already wider than 340px each. */}
-          <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-2">
-            {/* **Segmented in the layout, not just in the query** (M21 link 7).
-                A comped account is underwater by construction — a decision
-                already taken, not a finding — and on this deployment every
-                account predating M20's migration holds a permanent founder
-                grant, so unsegmented they would swamp the list and the metric
-                would be worthless. Its per-source counts are why the old
-                *What the grants cost* panel was deleted (M36 link 1): the same
-                numbers twice. */}
-            <Panel title="Costs more than it pays">
-              <UnderwaterPanel report={overview.underwater} />
-            </Panel>
-            <TierPanel plans={overview.plans} />
-          </div>
+  const financial = await adminFinancial();
 
-          {/* **M21 link 2's price sweep** (KI-2026-09-16-c) — every published
-              version's Stripe Price against the plan file, not only the one being
-              bought at the till. Reports; never creates a Price. */}
-          <PriceCheckPanel report={overview.prices} />
-        </>
-      )}
+  return (
+    <ConsoleShell tab={tab} banner={<RevenueStaleBanner revenue={financial.revenue} />}>
+      {/* **The four-number strip** (M21 link 7). ARPU appears twice and both
+          are labelled, which is the link's most emphatic requirement: with
+          founder, referral, trial and admin grants in the mix the two differ a
+          lot, and a single unlabelled one gets quoted as whichever is
+          convenient. */}
+      <RevenueStrip revenue={financial.revenue} />
+
+      {/* Two panels side by side, as the design lays them out; one column
+          on a narrow window, which this route only ever sees on a small
+          laptop since the console is not on the phone at all. The design's
+          `repeat(auto-fit, minmax(340px, 1fr))` is an arbitrary Tailwind
+          value, which the colour wall refuses (tokens only); `lg` is where
+          two columns are already wider than 340px each. */}
+      <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-2">
+        {/* **Segmented in the layout, not just in the query** (M21 link 7).
+            A comped account is underwater by construction — a decision
+            already taken, not a finding — and on this deployment every
+            account predating M20's migration holds a permanent founder
+            grant, so unsegmented they would swamp the list and the metric
+            would be worthless. Its per-source counts are why the old
+            *What the grants cost* panel was deleted (M36 link 1): the same
+            numbers twice. */}
+        <Panel title="Costs more than it pays">
+          <UnderwaterPanel report={financial.underwater} />
+        </Panel>
+        <TierPanel plans={financial.plans} />
+      </div>
+
+      {/* **M21 link 2's price sweep** (KI-2026-09-16-c) — every published
+          version's Stripe Price against the plan file, not only the one being
+          bought at the till. Reports; never creates a Price. */}
+      <PriceCheckPanel report={financial.prices} />
     </ConsoleShell>
   );
 }

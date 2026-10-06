@@ -46,7 +46,7 @@ const WEB = path.resolve(HERE, "../../..");
 const ADMIN_COMPONENTS_DIR = path.join(WEB, "src/components/admin");
 const ADMIN_COMPONENTS = readdirSync(ADMIN_COMPONENTS_DIR)
   .filter((name) => name.endsWith(".tsx") || name.endsWith(".ts"))
-  .filter((name) => !name.endsWith(".test.tsx"))
+  .filter((name) => !/\.test\.tsx?$/.test(name))
   .map((name) => path.join(ADMIN_COMPONENTS_DIR, name));
 
 const CONSOLE_FILES = [

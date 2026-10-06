@@ -82,13 +82,6 @@ export interface AdminPlanPanelRow {
   medianMarginMicroUsd: number | null;
 }
 
-/** Mirrors `GrantSourceRow`. */
-export interface AdminGrantSourceRow {
-  source: string;
-  accounts: number;
-  microUsd: number;
-}
-
 /** Mirrors `AdminGrantRow`. */
 export interface AdminGrantRow {
   id: string;
@@ -201,7 +194,6 @@ export type AdminPriceConsistencyView =
 
 export interface AdminOverview {
   plans: AdminPlanPanelRow[];
-  grantSources: AdminGrantSourceRow[];
   accounts: AdminAccountRow[];
   topSpenders: AdminAccountCost[];
   windowDays: number;
