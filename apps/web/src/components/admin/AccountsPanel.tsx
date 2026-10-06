@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -11,7 +11,13 @@ import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { Text } from "@/components/ui/text";
 import type { AdminAccountRow } from "@/lib/adminOverview";
 import { cn } from "@/lib/cn";
-import { ACCOUNT_FILTERS, accountsViewHref, type AccountFilter, type AccountsView } from "./accountsView";
+import {
+  ACCOUNT_FILTERS,
+  accountsViewHref,
+  resolveAccountsView,
+  type AccountFilter,
+  type AccountsView,
+} from "./accountsView";
 import { microUsdCost, microUsdMoney } from "./microUsd";
 
 // **The accounts table, as the design actually draws it** (handoff `SPEC.md`
@@ -139,41 +145,48 @@ type AccountsPanelProps = {
   plansGrantingNothing: readonly string[];
   /** Paying accounts the underwater report lists. See `matchesFilter`. */
   underwater: readonly string[];
-  /** The view the URL arrived with (D2). */
-  initial: AccountsView;
   /** ISO, from the server render — what *Last active* is measured against. */
   now: string;
   windowDays: number;
 };
 
+/** The view a query string holds, normalised as the table would write it. */
+function viewIn(params: URLSearchParams): AccountsView {
+  return resolveAccountsView(Object.fromEntries(params));
+}
+
 /**
  * The Users tab's accounts table: search, six counted filters, eight rows a
  * page, each row opening its account page with the view kept in the URL.
  *
- * **Keyed on the view it arrived with**, so a navigation that brings a
- * different one — Back or Forward to another filter — remounts the table and
- * re-seeds it. The state below is seeded once and only ever flows out to the
- * URL; without the key, Back changed the address bar and left the table where
- * it was.
+ * **The view is read from `useSearchParams`, not from the server render.** It
+ * was a server-passed `initial`, and Next's `history.replaceState` changes the
+ * URL while a history entry keeps the tree it was first rendered with — so
+ * Back to an entry whose filter the table had rewritten remounted it on the
+ * entry's original view (M36 part 3 review). `useSearchParams` is what Next
+ * keeps in step with `replaceState` and with Back and Forward, and on the
+ * server it is the request's own, so the first paint needs nothing else.
+ *
+ * **Seeded once, then re-seeded only by a navigation** — a URL that differs
+ * from the table's own view and is where the browser actually is. The second
+ * half is what tells Back from this table's own write arriving a render late:
+ * typing moves the URL every keystroke, and re-seeding from a write the input
+ * has since typed past would put the old text back.
  */
-export function AccountsPanel(props: AccountsPanelProps) {
-  return <AccountsTable key={accountsViewHref(props.initial)} {...props} />;
-}
-
-function AccountsTable({
+export function AccountsPanel({
   accounts,
   plansGrantingNothing,
   underwater,
-  initial,
   now,
   windowDays,
 }: AccountsPanelProps) {
   const router = useRouter();
+  const arrived = viewIn(useSearchParams());
   const grantsNothing = useMemo(() => new Set(plansGrantingNothing), [plansGrantingNothing]);
   const underwaterIds = useMemo(() => new Set(underwater), [underwater]);
-  const [query, setQuery] = useState(initial.query);
-  const [filter, setFilter] = useState<AccountFilter>(initial.filter);
-  const [page, setPage] = useState(initial.page);
+  const [query, setQuery] = useState(arrived.query);
+  const [filter, setFilter] = useState<AccountFilter>(arrived.filter);
+  const [page, setPage] = useState(arrived.page);
 
   const searched = useMemo(
     () => accounts.filter((account) => matchesQuery(account, query)),
@@ -198,16 +211,29 @@ function AccountsTable({
   // native history API into its router while a router navigation would re-run
   // this page's server component — the whole overview, Stripe's price sweep
   // included — once per keystroke. Replace, not push: a filter is not a place
-  // Back should stop. Skipped on the first render, which the URL seeded.
-  const seeded = useRef(true);
+  // Back should stop. Only when the URL says something else — which on the
+  // first render is a view the table corrected, a page past the end or a
+  // filter it does not know, and is written back so the address bar and the
+  // row links agree with the table.
   const href = accountsViewHref(view);
   useEffect(() => {
-    if (seeded.current) {
-      seeded.current = false;
-      return;
-    }
+    if (href === window.location.pathname + window.location.search) return;
     window.history.replaceState(window.history.state, "", href);
   }, [href]);
+
+  // **URL → state, on a navigation only.** After the write above, never before
+  // it: when both move in one render, the write has put the browser where the
+  // table is, and the URL this render read is the one being left.
+  const arrivedHref = accountsViewHref(arrived);
+  useEffect(() => {
+    if (arrivedHref === href) return;
+    if (arrivedHref !== accountsViewHref(viewIn(new URLSearchParams(window.location.search)))) return;
+    setQuery(arrived.query);
+    setFilter(arrived.filter);
+    setPage(arrived.page);
+    // Keyed on the URL alone: a change of `href` is this table's own doing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [arrivedHref]);
 
   function reset() {
     setQuery("");

@@ -168,7 +168,6 @@ export default async function AdminPage({
           <AccountsPanel
             accounts={users.accounts}
             windowDays={users.windowDays}
-            initial={resolveAccountsView(params)}
             now={new Date().toISOString()}
             underwater={users.underwater.paying.map((account) => account.userId)}
             plansGrantingNothing={users.livePlans
