@@ -11,6 +11,11 @@
 // test database; only the call count is observed. `topSpenders` is counted too
 // because it is `costPerAccount(...).slice(0, n)` — a ledger read by another
 // name. Billing is left unconfigured, so the price sweep never asks Stripe.
+//
+// **Each console tab reads only what it draws** (M36 link 1). Users is the one
+// that must not pay for the price sweep, a Stripe round trip per published
+// version that it never shows; the sweep is spied for that, and counted on the
+// other two so a spy that never fires cannot pass the Users case.
 import { randomUUID } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
@@ -20,6 +25,7 @@ import { upsertUser } from "@/server/users";
 
 const ledgerReads = vi.fn();
 const holderReads = vi.fn();
+const priceSweeps = vi.fn();
 
 vi.mock("./usage", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./usage")>();
@@ -47,11 +53,23 @@ vi.mock("./grants", async (importOriginal) => {
   };
 });
 
-const { adminOverview } = await import("./admin");
+vi.mock("@/server/billing/prices", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/server/billing/prices")>();
+  return {
+    ...actual,
+    priceConsistencyReport: (...args: Parameters<typeof actual.priceConsistencyReport>) => {
+      priceSweeps();
+      return actual.priceConsistencyReport(...args);
+    },
+  };
+});
+
+const { adminFinancial, adminOverview, adminUsers } = await import("./admin");
 
 beforeEach(() => {
   ledgerReads.mockClear();
   holderReads.mockClear();
+  priceSweeps.mockClear();
   vi.stubEnv("STRIPE_SECRET_KEY", "");
 });
 
@@ -65,6 +83,27 @@ describe("adminOverview", () => {
     expect(overview.plans.length).toBeGreaterThan(0);
     expect(ledgerReads.mock.calls).toEqual([["costPerAccount"]]);
     expect(holderReads).toHaveBeenCalledTimes(1);
+    expect(priceSweeps).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("the console's per-tab reads", () => {
+  it("Financial reads the ledger and the grant holders once, and sweeps prices", async () => {
+    const financial = await adminFinancial();
+    expect(financial.plans.length).toBeGreaterThan(0);
+    expect(ledgerReads.mock.calls).toEqual([["costPerAccount"]]);
+    expect(holderReads).toHaveBeenCalledTimes(1);
+    expect(priceSweeps).toHaveBeenCalledTimes(1);
+  });
+
+  // The holders are read once, for the underwater report whose paying ids
+  // drive the table's *Costs more than it pays* filter (M36 part 3 review).
+  it("Users reads the ledger and the grant holders once, and never Stripe", async () => {
+    const users = await adminUsers();
+    expect(users.livePlans.length).toBeGreaterThan(0);
+    expect(ledgerReads.mock.calls).toEqual([["costPerAccount"]]);
+    expect(holderReads).toHaveBeenCalledTimes(1);
+    expect(priceSweeps).not.toHaveBeenCalled();
   });
 });
 
@@ -128,5 +167,9 @@ describe("the accounts table and the underwater count", () => {
     const rows = overview.accounts.filter((row) => row.userId === payer);
     expect(rows).toHaveLength(1);
     expect(overview.accounts.at(-1)!.userId).toBe(payer);
+    // And the Users tab's own read, which is what the console draws.
+    const usersTab = await adminUsers(now);
+    expect(usersTab.underwater.paying.map((row) => row.userId)).toContain(payer);
+    expect(usersTab.accounts.filter((row) => row.userId === payer)).toHaveLength(1);
   });
 });
