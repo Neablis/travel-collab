@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures/test";
 import { dragCardTo, openPlan, createEmptyTripViaWizard, homeTrip } from "./helpers";
@@ -183,8 +184,20 @@ test("create, name, date, build, reorder, rename, delete", async ({ page }) => {
 test("an open trip-actions menu does not drift when the cost lines land", async ({ page }) => {
   const tripName = e2eTripName("Anchor");
 
+  // **Planned, and undated.** Planned because a trip with no days shows its
+  // next steps where the cost line goes (M37), so an empty anchor would have
+  // no line landing to wait for. Undated so it still sorts after the hero
+  // below — `orderHomeTrips` puts any upcoming dated trip first.
+  const { tripId } = await page.request.post("/api/trips", { data: { name: tripName } }).then((r) => r.json());
+  const dayId = randomUUID();
+  for (const command of [
+    { type: "AddDay", tripId, dayId },
+    { type: "AddActivity", tripId, activityId: randomUUID(), dayId, title: "Coffee" },
+  ]) {
+    expect((await page.request.post(`/api/trips/${tripId}/commands`, { data: command })).ok()).toBe(true);
+  }
+
   await page.goto("/");
-  await createEmptyTripViaWizard(page, tripName);
   // **A second trip after it, so the anchor is a CARD** (SPEC §35.2). The
   // hero is not in *Other trips*, so a trip that is the hero has no card to
   // anchor a menu on. Home picks the hero by date (`orderHomeTrips`, KI-034):

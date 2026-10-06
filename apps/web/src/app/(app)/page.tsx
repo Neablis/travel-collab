@@ -637,7 +637,7 @@ export default function Home() {
         {loading ? (
           <NextTripHeroSkeleton />
         ) : (
-          nextTrip && <NextTripHero trip={nextTrip} menuSlot={tripMenu(nextTrip)} />
+          nextTrip && <NextTripHero trip={nextTrip} menuSlot={tripMenu(nextTrip)} viewerId={viewer?.id} />
         )}
 
         <div className="flex flex-col gap-3.5">
@@ -724,6 +724,7 @@ export default function Home() {
                         trip={t}
                         plannedOfBudget={plannedOfBudgetById[t.tripId]}
                         menuSlot={tripMenu(t)}
+                        viewerId={viewer?.id}
                       />
                     ))}
                   </div>
