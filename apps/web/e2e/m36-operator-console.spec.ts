@@ -124,7 +124,8 @@ test.describe("M36 — the operator console", () => {
     // **The row itself opens the account** — a cell that is not the link, so
     // this is the row's click and not the anchor m20 already follows.
     const row = operator.getByTestId(`account-${userId}`);
-    await row.getByRole("cell", { name: "free@v1", exact: true }).click();
+    // Matched by plan, not version: `free@v2` being published must not break the walk.
+    await row.getByRole("cell", { name: /^free@v\d+$/ }).click();
     await expect(operator).toHaveURL(new RegExp(`[?&]account=${encodeURIComponent(userId)}(&|$)`));
     const account = operator.getByTestId("account-page");
     await expect(account.getByText(address, { exact: true })).toBeVisible();

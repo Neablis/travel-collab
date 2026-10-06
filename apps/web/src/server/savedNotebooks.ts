@@ -235,7 +235,9 @@ export interface AdminNotebooksReport {
  * saves rather than the design's *start the most trips*, which is the ordering
  * a missing ledger would have supplied.
  *
- * Every number is as of `now`, so a row stamped after it is not yet saved.
+ * Saves are counted as of `now` — a row stamped at or after it is not yet
+ * saved. Deletion is read as it stands, not as of `now`: production always
+ * passes the real time, where the two are the same.
  */
 export async function adminNotebooks(now: Date = new Date()): Promise<AdminNotebooksReport> {
   const since = new Date(now.getTime() - ADMIN_NOTEBOOK_WINDOW_DAYS * DAY_MS);

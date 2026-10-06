@@ -58,6 +58,7 @@ describe("adminNotebooks", () => {
     await saved(new Date(now.getTime() - 30 * DAY - 1)); // a millisecond earlier: all time only
     await saved(new Date(now.getTime() - 2 * DAY), { deletedAt: new Date(now.getTime() - DAY) });
     await saved(new Date(now.getTime() + DAY)); // after `now`: not yet saved, as of this read
+    await saved(now); // at `now` exactly: the bound is exclusive, so not yet either
 
     const after = await adminNotebooks(now);
     expect(after.saved - before.saved).toBe(3);
