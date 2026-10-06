@@ -11,6 +11,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { displayNameFor } from "@/lib/displayName";
 import { formatInstantLong } from "@/lib/formatDate";
 import type { AdminReportQueueItem } from "@/lib/reports";
+import { accountsViewHref, type AccountsView } from "./accountsView";
+
+const ACCOUNTS_DEFAULT_VIEW: AccountsView = { query: "", filter: "all", page: 0 };
 
 const REASON_LABEL: Record<ReportReason, string> = {
   spam: "Spam",
@@ -80,7 +83,12 @@ export function ReportRow({
               {day.name}
             </Link>
             <Text as="span" variant="secondary">
-              by {day.ownerDisplayName}
+              {/* The author's account page (M36 link 3) — what they hold, what
+                  they did — is the context a moderation call wants. */}
+              by{" "}
+              <Link href={accountsViewHref(ACCOUNTS_DEFAULT_VIEW, day.ownerId)} className="underline">
+                {day.ownerDisplayName}
+              </Link>
             </Text>
           </>
         )}
