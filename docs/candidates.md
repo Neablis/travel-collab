@@ -824,19 +824,6 @@ here two days later.
   (or a SPEC amendment through a design sync — `.design-sync/**` is a build
   input), then one milestone or one PR per decision. **Not placed.**
 
-- **The cloud container's e2e browser matches the one CI runs (2026-09-25,
-  `KI-2026-09-25-i`).** `/opt/pw-browsers` files Chromium 141 under the
-  revision `@playwright/test@1.62.1` asks for as Chrome Headless Shell 151.
-  That gap hid a real KI-5 data-loss bug overnight: the spec passed locally
-  every time and failed in CI every time, and only downloading CI's exact
-  build from Chrome for Testing reproduced it. Small and mechanical:
-  `link_playwright_shell` in `.claude/hooks/session-start.sh` compares the
-  linked binary's version with `browsers.json`'s `browserVersion` and installs
-  the matching build (Chrome for Testing is reachable through the proxy;
-  `cdn.playwright.dev` is not), or warns loudly, and `pnpm state`'s LANES line
-  reports the mismatch instead of "OK browser". **Repo automation, not a
-  milestone. Not placed — do it before the next e2e-heavy change.**
-
 - **`/ask` survives a throw while building its proposal (2026-09-25,
   `KI-2026-09-24-w`).** A throw inside `buildProposal` (called from
   `messageMetadata` on the stream's `finish` part in `handleAskRequest.ts`)

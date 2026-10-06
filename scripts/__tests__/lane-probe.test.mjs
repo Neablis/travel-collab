@@ -10,6 +10,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { pnpmMajorSkew, nodeLaneStatus, pinnedNodeMajor, probeDeps, probeBrowser } from "../lane-probe.mjs";
+import { compareShell, parseVersion, cftShellUrl, shellPath } from "../e2e-browser.mjs";
 
 // --- pnpm major skew (KI-2026-09-08-b) ------------------------------------
 
@@ -101,6 +102,9 @@ test("probeDeps reports OK only when BOTH trees exist", () => {
 // A fake filesystem holding exactly the listed paths, so a probe that looks in
 // the wrong place for the platform finds nothing — as it would on a real box.
 const only = (...paths) => ({ existsSync: (p) => paths.includes(String(p)) });
+// The location tests below are about WHERE the browsers are; the version check
+// (KI-2026-09-25-i) is stubbed to "matches" so they test only that.
+const matches = () => ({ state: "match" });
 
 test("probeBrowser finds the macOS cache, which is not under ~/.cache", () => {
   // Verified on a Mac 2026-10-01: chromium-1234 lives in
@@ -109,28 +113,28 @@ test("probeBrowser finds the macOS cache, which is not under ~/.cache", () => {
   // Playwright browsers — e2e cannot run here", and a session believed it and
   // skipped running a spec it had just edited.
   const cache = "/Users/m/Library/Caches/ms-playwright";
-  const r = probeBrowser(only(cache), {}, "darwin", "/Users/m");
+  const r = probeBrowser(only(cache), {}, "darwin", "/Users/m", matches);
   assert.equal(r.status, "OK");
   assert.ok(r.note.includes(cache), r.note);
 });
 
 test("probeBrowser finds the Windows cache under %LOCALAPPDATA%", () => {
   const cache = "C:\\Users\\m\\AppData\\Local\\ms-playwright";
-  const r = probeBrowser(only(cache), { LOCALAPPDATA: "C:\\Users\\m\\AppData\\Local" }, "win32", "D:\\elsewhere");
+  const r = probeBrowser(only(cache), { LOCALAPPDATA: "C:\\Users\\m\\AppData\\Local" }, "win32", "D:\\elsewhere", matches);
   assert.equal(r.status, "OK");
   assert.ok(r.note.includes(cache), r.note);
 });
 
 test("probeBrowser finds the Linux cache, honouring XDG_CACHE_HOME as Playwright does", () => {
-  const home = probeBrowser(only("/root/.cache/ms-playwright"), {}, "linux", "/root");
+  const home = probeBrowser(only("/root/.cache/ms-playwright"), {}, "linux", "/root", matches);
   assert.equal(home.status, "OK");
   assert.ok(home.note.includes("/root/.cache/ms-playwright"), home.note);
-  const xdg = probeBrowser(only("/xdg/ms-playwright"), { XDG_CACHE_HOME: "/xdg" }, "linux", "/root");
+  const xdg = probeBrowser(only("/xdg/ms-playwright"), { XDG_CACHE_HOME: "/xdg" }, "linux", "/root", matches);
   assert.equal(xdg.status, "OK");
 });
 
 test("probeBrowser prefers PLAYWRIGHT_BROWSERS_PATH and reports it", () => {
-  const r = probeBrowser(only("/opt/pw"), { PLAYWRIGHT_BROWSERS_PATH: "/opt/pw" }, "linux", "/root");
+  const r = probeBrowser(only("/opt/pw"), { PLAYWRIGHT_BROWSERS_PATH: "/opt/pw" }, "linux", "/root", matches);
   assert.equal(r.status, "OK");
   assert.ok(r.note.includes("/opt/pw"), r.note);
 });
@@ -138,10 +142,10 @@ test("probeBrowser prefers PLAYWRIGHT_BROWSERS_PATH and reports it", () => {
 test("probeBrowser does not accept another platform's cache — never a false OK", () => {
   // Playwright on macOS does not read ~/.cache; a leftover directory there
   // (a synced dotfile tree, say) must not turn a browserless Mac green.
-  const r = probeBrowser(only("/Users/m/.cache/ms-playwright"), {}, "darwin", "/Users/m");
+  const r = probeBrowser(only("/Users/m/.cache/ms-playwright"), {}, "darwin", "/Users/m", matches);
   assert.equal(r.status, "BLOCKED");
-  assert.equal(probeBrowser(only(), {}, "linux", "/root").status, "BLOCKED");
-  assert.equal(probeBrowser(only(), {}, "win32", "C:\\Users\\m").status, "BLOCKED");
+  assert.equal(probeBrowser(only(), {}, "linux", "/root", matches).status, "BLOCKED");
+  assert.equal(probeBrowser(only(), {}, "win32", "C:\\Users\\m", matches).status, "BLOCKED");
 });
 
 test("probeBrowser falls back to the home directory when the env vars are absent", () => {
@@ -149,12 +153,70 @@ test("probeBrowser falls back to the home directory when the env vars are absent
   // Windows uses <home>\\AppData\\Local when LOCALAPPDATA is unset. A probe that
   // needs the variables reports BLOCKED on a box Playwright can use. Copilot,
   // PR #287.
-  const mac = probeBrowser(only("/Users/m/Library/Caches/ms-playwright"), {}, "darwin", "/Users/m");
+  const mac = probeBrowser(only("/Users/m/Library/Caches/ms-playwright"), {}, "darwin", "/Users/m", matches);
   assert.equal(mac.status, "OK");
-  const linux = probeBrowser(only("/root/.cache/ms-playwright"), {}, "linux", "/root");
+  const linux = probeBrowser(only("/root/.cache/ms-playwright"), {}, "linux", "/root", matches);
   assert.equal(linux.status, "OK");
   const winCache = "C:\\Users\\m\\AppData\\Local\\ms-playwright";
-  const win = probeBrowser(only(winCache), {}, "win32", "C:\\Users\\m");
+  const win = probeBrowser(only(winCache), {}, "win32", "C:\\Users\\m", matches);
   assert.equal(win.status, "OK");
   assert.ok(win.note.includes(winCache), win.note);
+});
+
+// --- the browser's VERSION, not just its presence (KI-2026-09-25-i) -------
+
+test("probeBrowser reports BLOCKED when the headless shell is not the build CI runs", () => {
+  // The cloud image linked chromium_headless_shell-1243 (Chrome 153 in CI) at
+  // its own Chromium 141. The probe said "OK browser", e2e passed on 141, and
+  // a product bug only 151+ exposes (KI-5's unload flush) stayed green here
+  // while CI went red three times.
+  const skewed = () => ({ state: "mismatch", expected: "153.0.8010.12", actual: "141.0.7390.37" });
+  const r = probeBrowser(only("/opt/pw"), { PLAYWRIGHT_BROWSERS_PATH: "/opt/pw" }, "linux", "/root", skewed);
+  assert.equal(r.status, "BLOCKED");
+  assert.equal(r.ki, "KI-2026-09-25-i");
+  assert.ok(r.note.includes("141.0.7390.37") && r.note.includes("153.0.8010.12"), r.note);
+});
+
+test("probeBrowser asks the version check about the directory it found", () => {
+  let asked = null;
+  const r = probeBrowser(only("/root/.cache/ms-playwright"), {}, "linux", "/root", (dir) => {
+    asked = dir;
+    return { state: "match" };
+  });
+  assert.equal(r.status, "OK");
+  assert.equal(asked, "/root/.cache/ms-playwright");
+});
+
+test("probeBrowser stays OK when the version cannot be determined — never a false alarm", () => {
+  const r = probeBrowser(only("/opt/pw"), { PLAYWRIGHT_BROWSERS_PATH: "/opt/pw" }, "linux", "/root",
+    () => ({ state: "unknown", reason: "no manifest" }));
+  assert.equal(r.status, "OK");
+});
+
+test("compareShell demands the exact pinned build, not the same major", () => {
+  const pinned = { revision: "1243", browserVersion: "153.0.8010.12" };
+  assert.equal(compareShell(pinned, "153.0.8010.12").state, "match");
+  assert.equal(compareShell(pinned, "141.0.7390.37").state, "mismatch");
+  assert.equal(compareShell(pinned, "153.0.8010.5").state, "mismatch");
+  assert.equal(compareShell(pinned, null).state, "missing");
+  assert.equal(compareShell(null, "153.0.8010.12").state, "unknown");
+});
+
+test("parseVersion reads both spellings a headless shell prints", () => {
+  // Real output, 2026-10-06: the image's chrome, then Chrome for Testing's shell.
+  assert.equal(parseVersion("Chromium 141.0.7390.37 \n"), "141.0.7390.37");
+  assert.equal(parseVersion("Google Chrome for Testing 153.0.8010.12"), "153.0.8010.12");
+  assert.equal(parseVersion(""), null);
+});
+
+test("cftShellUrl and shellPath match Playwright's layout, and arm64 has no download", () => {
+  assert.equal(
+    cftShellUrl("153.0.8010.12", "x64"),
+    "https://storage.googleapis.com/chrome-for-testing-public/153.0.8010.12/linux64/chrome-headless-shell-linux64.zip",
+  );
+  assert.equal(cftShellUrl("153.0.8010.12", "arm64"), null);
+  assert.equal(
+    shellPath("/opt/pw-browsers", "1243", "x64"),
+    "/opt/pw-browsers/chromium_headless_shell-1243/chrome-headless-shell-linux64/chrome-headless-shell",
+  );
 });

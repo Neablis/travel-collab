@@ -335,6 +335,16 @@ link_playwright_shell() {
       fi
     done
   done
+
+  # A link keeps e2e LAUNCHING; it does not make the verdict CI's. The image's
+  # chrome is Chromium 141, and the revision linked above is 151/153 in CI —
+  # on 2026-09-25 that skew passed a real defect locally every time while CI
+  # failed it identically (KI-2026-09-25-i, KI-5). So replace the linked
+  # headless shell with the exact pinned build from Chrome for Testing, which
+  # the cloud proxy allows (Playwright's own CDN is 403 here). Quiet when it
+  # already matches; loud, and never fatal, when it cannot.
+  PLAYWRIGHT_BROWSERS_PATH="$browsers" node scripts/e2e-browser.mjs --install --quiet ||
+    echo "session-start: could not check the e2e browser version (KI-2026-09-25-i)" >&2
 }
 
 # The state digest: "where are we", extracted deterministically and printed
