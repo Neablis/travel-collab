@@ -44,8 +44,9 @@ export function bytes(value: number): string {
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 /**
- * An ISO instant as a day, `27 Sep`, in UTC — the ledger's days are 24-hour
- * windows counted back from the read, so a local calendar would shift them.
+ * An ISO instant as a day, `27 Sep`, in UTC — the ledger's days are UTC
+ * calendar days, as `aiModelsReport` buckets them, so a local calendar would
+ * shift them.
  */
 export function shortDay(iso: string): string {
   const date = new Date(iso);

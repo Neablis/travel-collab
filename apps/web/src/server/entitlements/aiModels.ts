@@ -1,11 +1,14 @@
 // **The AI models tab's one read** (M36 link 4) — the ledger M31 built, per
 // turn, per step and per tool call, which no admin surface read until now.
 //
-// **Thirty UTC calendar days, today the last, and the thirty before for one
-// number** (D10): the turns delta. Everything else is the current window only.
-// Calendar days rather than `now − 30 × 24h`, so a bar's label is the day its
-// turns happened on — a now-anchored bucket straddles two dates and the chart
-// would name the wrong one for half of it.
+// **Thirty UTC calendar days, today the last and so far, and the same span
+// before them for one number** (D10): the turns delta. Calendar days rather
+// than `now − 30 × 24h`, so a bar's label is the day its turns happened on — a
+// now-anchored bucket straddles two dates and the chart would name the wrong
+// one for half of it. **Except cost**, which is Financial's window exactly
+// (`trailingWindowStart`, `now − 30 × 24h`): up to a day longer at the start,
+// and a models table that read the calendar window would not add up to
+// Financial's column by as much as a day of spend.
 //
 // **Tool calls are aggregated in SQL; steps are read as rows.** A tool-call
 // row is only ever counted, and `percentile_cont` is the median the `ai-usage`
@@ -14,24 +17,27 @@
 // (`modelRates.ts`), for the reason `costPerAccount` gives — and each step is
 // rounded on its own, so summing tokens in SQL first would move the total off
 // Financial's. The step volume is the one the console already reads on every
-// load: `costPerAccount` selects every step in the same window.
+// load: `costPerAccount` selects every step in the same window, Financial's.
 //
 // **A step or tool call belongs to the window its TURN is in**, joined on
 // `ai_usage.id`, so a turn is never half in and half out. The writer stamps
 // all three rows with one `now`, so the two readings agree except across a
 // replayed write, where the turn's own time is the honest one.
 //
-// **Simulated turns are left out everywhere** (`turn_model = 'simulated/…'`,
-// ai-live off), as the `ai-usage` skill's queries leave them out: they spend
-// nothing and their tool calls are scripted, so they would dilute every rate
-// on this tab with a number nobody's question produced.
+// **Simulated turns are left out of every count** (`turn_model =
+// 'simulated/…'`, ai-live off), as the `ai-usage` skill's queries leave them
+// out: they spend nothing and their tool calls are scripted, so they would
+// dilute every rate on this tab with a number nobody's question produced.
+// **They are priced, though**, because `costPerAccount` prices every row: no
+// rate is published for `simulated/…`, so each is one of `unpricedTurns`, as
+// it is one of Financial's `unpriced`.
 //
 // **Cost is Financial's rule, turn by turn** (D10, `microUsdForRow`): per step
 // at the model each ran on when every step prices, else the turn's own totals
 // at `turn_model` — carried on that model's row — and a turn that cannot be
 // priced either way, or whose classifier cannot, adds nothing anywhere. So the
-// models' costs sum to what `costPerAccount` sums for the same turns
-// (`aiModels.int.test.ts`). **No dollars stored and no `Money`**
+// models' costs sum to what `costPerAccount` sums over its window, and
+// `unpricedTurns` is its `unpriced` (`aiModels.int.test.ts`). **No dollars stored and no `Money`**
 // (`usage.noMoney.test.ts`): micro-dollars throughout. **No content either**
 // (D7): nothing here selects a column a question or an answer could be in,
 // because there is none.
@@ -39,7 +45,7 @@ import { and, eq, gte, lt, sql } from "drizzle-orm";
 import { db } from "@/server/db/client";
 import { aiUsage, aiUsageSteps, aiUsageToolCalls } from "@/server/db/schema";
 import { microUsdFor } from "./modelRates";
-import { TRAILING_WINDOW_DAYS } from "./admin";
+import { TRAILING_WINDOW_DAYS, trailingWindowStart } from "./admin";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -76,7 +82,10 @@ export interface AiContextStep {
   turns: number;
 }
 
-/** One model's row in *Models*. */
+/**
+ * One model's row in *Models*. Its counts are the calendar window's, like the
+ * rest of the tab; its cost and `turnPriced` are Financial's window.
+ */
 export interface AiModelRow {
   model: string;
   /**
@@ -133,6 +142,7 @@ export interface AiWorstDay {
 export interface AiModelsReport {
   windowDays: number;
   turns: number;
+  /** Turns in the span of the same length just before the window. */
   previousTurns: number;
   accounts: number;
   medianStepsPerTurn: number | null;
@@ -162,7 +172,10 @@ export interface AiModelsReport {
    */
   growthPerStep: number | null;
   models: AiModelRow[];
-  /** Turns neither rule could price — Financial's `unpriced` — so every cost is a floor. */
+  /**
+   * Turns in Financial's window neither rule could price — its `unpriced`,
+   * simulated turns included — so every cost is a floor.
+   */
   unpricedTurns: number;
   tools: AiToolRow[];
   /** Registered tools called in under 1% of measured turns, fewest calls first. */
@@ -194,7 +207,8 @@ const median = (values: Iterable<number>) => percentile(ascending(values), 0.5);
 const notSimulated = sql`${aiUsage.turnModel} NOT LIKE 'simulated/%'`;
 
 /**
- * The AI models tab's whole read, for the 30 UTC days ending with `now`'s.
+ * The AI models tab's whole read, for the 30 UTC days ending with `now`'s —
+ * its costs for Financial's 30 × 24 hours to `now`.
  *
  * `registeredTools` is the assistant's tool registry by name, passed in rather
  * than imported: the registry is the assistant's and reaches trip tools, and
@@ -207,11 +221,16 @@ export async function aiModelsReport(
 ): Promise<AiModelsReport> {
   const today = Math.floor(now.getTime() / DAY_MS) * DAY_MS;
   const since = new Date(today - (TRAILING_WINDOW_DAYS - 1) * DAY_MS);
-  const previousSince = new Date(since.getTime() - TRAILING_WINDOW_DAYS * DAY_MS);
+  // As long as the current window, today's part-day included: a full thirty
+  // days against twenty-nine and a part would read flat traffic as a decline.
+  const previousSince = new Date(since.getTime() - (now.getTime() - since.getTime()));
   const inWindow = and(gte(aiUsage.createdAt, since), lt(aiUsage.createdAt, now), notSimulated);
+  // Financial's window, simulated turns and all: what `costPerAccount` prices.
+  // It starts at or before `since`, so it holds every counted turn too.
+  const inPricing = and(gte(aiUsage.createdAt, trailingWindowStart(now)), lt(aiUsage.createdAt, now));
   const call = aiUsageToolCalls;
 
-  const [turns, steps, toolRows, turnToolRows, [previous]] = await Promise.all([
+  const [priced, pricedSteps, toolRows, turnToolRows, [previous]] = await Promise.all([
     db
       .select({
         id: aiUsage.id,
@@ -228,7 +247,7 @@ export async function aiModelsReport(
         createdAt: aiUsage.createdAt,
       })
       .from(aiUsage)
-      .where(inWindow),
+      .where(inPricing),
     db
       .select({
         turnId: aiUsageSteps.turnId,
@@ -244,14 +263,15 @@ export async function aiModelsReport(
       })
       .from(aiUsageSteps)
       .innerJoin(aiUsage, eq(aiUsage.id, aiUsageSteps.turnId))
-      .where(inWindow),
+      .where(inPricing),
     // One row per tool. `percentile_cont` skips nulls and is null over none,
-    // which is what a duration or a size nobody measured should do.
+    // which is what a duration or a size nobody measured should do. `turns`
+    // counts measured turns only — the tab divides it by `measuredTurns`.
     db
       .select({
         tool: call.tool,
         calls: sql<number>`count(*)::int`,
-        turns: sql<number>`count(DISTINCT ${call.turnId})::int`,
+        turns: sql<number>`(count(DISTINCT ${call.turnId}) FILTER (WHERE EXISTS (SELECT 1 FROM ${aiUsageSteps} WHERE ${aiUsageSteps.turnId} = ${call.turnId})))::int`,
         failed: sql<number>`(count(*) FILTER (WHERE ${call.outcome} = 'failed'))::int`,
         repaired: sql<number>`(count(*) FILTER (WHERE ${call.outcome} = 'repaired'))::int`,
         medianDurationMs: sql<number | null>`percentile_cont(0.5) WITHIN GROUP (ORDER BY ${call.durationMs})`,
@@ -282,6 +302,13 @@ export async function aiModelsReport(
       .where(and(gte(aiUsage.createdAt, previousSince), lt(aiUsage.createdAt, since), notSimulated)),
   ]);
 
+  // The counted turns: the calendar window, simulated ones out.
+  const turns = priced.filter(
+    (turn) => turn.createdAt >= since && !turn.turnModel.startsWith("simulated/"),
+  );
+  const counted = new Set(turns.map((turn) => turn.id));
+  const steps = pricedSteps.filter((step) => counted.has(step.turnId));
+
   const turnDay = new Map(
     turns.map((turn) => [turn.id, Math.floor((turn.createdAt.getTime() - since.getTime()) / DAY_MS)]),
   );
@@ -305,12 +332,12 @@ export async function aiModelsReport(
 
   // --- steps: which turns were measured, context, escalation
   const stepsByTurn = new Map<string, (typeof steps)[number][]>();
-  for (const step of steps) {
+  for (const step of pricedSteps) {
     const list = stepsByTurn.get(step.turnId) ?? [];
     list.push(step);
     stepsByTurn.set(step.turnId, list);
   }
-  const measured = new Set(stepsByTurn.keys());
+  const measured = new Set(steps.map((step) => step.turnId));
   const escalated = new Set(steps.filter((step) => step.escalated).map((step) => step.turnId));
   const over32k = new Set(
     steps.filter((step) => (step.tokensIn ?? 0) > LONG_CONTEXT_TOKENS).map((step) => step.turnId),
@@ -402,7 +429,9 @@ export async function aiModelsReport(
     worstDay = { day: worst.day, turns: worst.turns, failed: worst.failed, tool: blamed ? blamed[0].split("|")[1]! : null };
   }
 
-  // --- models: counts per step at the model it ran on, then the classifier
+  // --- models: counts per step at the model it ran on, then the classifier;
+  // counted turns only. Cost over every turn Financial prices — a row a turn
+  // outside the counts reaches carries cost and nothing else.
   type ModelTally = {
     roles: Set<string>; calls: number; tokensIn: number; ms: number[];
     cost: number; unpriced: number; turnPriced: number; read: number; base: number;
@@ -420,56 +449,62 @@ export async function aiModelsReport(
   // both slots: *"did the classifier save more than it cost"* needs its spend
   // on its own (the schema's note on `ai_usage`).
   const classifiers = new Map<string, ModelTally>();
+  const classifierRow = (model: string) => {
+    const row = classifiers.get(model) ?? tally(["classifier"]);
+    classifiers.set(model, row);
+    return row;
+  };
   let unpricedTurns = 0;
-  for (const turn of turns) {
+  for (const turn of priced) {
     // Priced at the TURN's date, as `costPerAccount` prices it — one turn,
     // one rate lookup, even across a replayed step write.
     const at = turn.createdAt;
     const turnSteps = stepsByTurn.get(turn.id) ?? [];
-    const stepCosts = turnSteps.map((step) => {
-      const row = modelRow(step.model);
-      if (step.tier !== null) row.roles.add(step.tier);
-      row.calls += 1;
-      row.tokensIn += step.tokensIn ?? 0;
-      if (step.durationMs !== null) row.ms.push(step.durationMs);
-      if (step.tokensIn !== null && step.cacheReadTokens !== null) {
-        row.read += step.cacheReadTokens;
-        row.base += step.tokensIn;
+    const stepCosts = turnSteps.map((step) =>
+      microUsdFor(step.model, step.tokensIn, step.tokensOut, at, undefined, step.cacheReadTokens, step.cacheWriteTokens),
+    );
+    const classifierCost =
+      turn.classifierModel === null
+        ? null
+        : microUsdFor(turn.classifierModel, turn.classifierTokensIn, turn.classifierTokensOut, at);
+    if (counted.has(turn.id)) {
+      turnSteps.forEach((step, i) => {
+        const row = modelRow(step.model);
+        if (step.tier !== null) row.roles.add(step.tier);
+        row.calls += 1;
+        row.tokensIn += step.tokensIn ?? 0;
+        if (step.durationMs !== null) row.ms.push(step.durationMs);
+        if (step.tokensIn !== null && step.cacheReadTokens !== null) {
+          row.read += step.cacheReadTokens;
+          row.base += step.tokensIn;
+        }
+        if (stepCosts[i] === null) row.unpriced += 1;
+      });
+      if (turn.classifierModel !== null) {
+        const row = classifierRow(turn.classifierModel);
+        row.calls += 1;
+        row.tokensIn += turn.classifierTokensIn ?? 0;
+        if (classifierCost === null) row.unpriced += 1;
       }
-      const cost = microUsdFor(
-        step.model, step.tokensIn, step.tokensOut, at, undefined, step.cacheReadTokens, step.cacheWriteTokens,
-      );
-      if (cost === null) row.unpriced += 1;
-      return { row, cost };
-    });
-    let classifier: { row: ModelTally; cost: number | null } | null = null;
-    if (turn.classifierModel !== null) {
-      const row = classifiers.get(turn.classifierModel) ?? tally(["classifier"]);
-      classifiers.set(turn.classifierModel, row);
-      row.calls += 1;
-      row.tokensIn += turn.classifierTokensIn ?? 0;
-      const cost = microUsdFor(turn.classifierModel, turn.classifierTokensIn, turn.classifierTokensOut, at);
-      if (cost === null) row.unpriced += 1;
-      classifier = { row, cost };
     }
     // `microUsdForRow`, attributed: every step priced → each at its model;
     // else the turn's totals at `turn_model`; else, or with an unpriceable
     // classifier, nothing — a turn partly unknown is not its known part.
-    const perStep = turnSteps.length > 0 && stepCosts.every(({ cost }) => cost !== null);
+    const perStep = turnSteps.length > 0 && stepCosts.every((cost) => cost !== null);
     const turnLevel = perStep
       ? null
       : microUsdFor(turn.turnModel, turn.turnTokensIn, turn.turnTokensOut, at);
-    if ((!perStep && turnLevel === null) || classifier?.cost === null) {
+    if ((!perStep && turnLevel === null) || (turn.classifierModel !== null && classifierCost === null)) {
       unpricedTurns += 1;
       continue;
     }
-    if (perStep) for (const { row, cost } of stepCosts) row.cost += cost!;
+    if (perStep) turnSteps.forEach((step, i) => (modelRow(step.model).cost += stepCosts[i]!));
     else {
       const row = modelRow(turn.turnModel);
       row.cost += turnLevel!;
       row.turnPriced += 1;
     }
-    if (classifier) classifier.row.cost += classifier.cost!;
+    if (turn.classifierModel !== null) classifierRow(turn.classifierModel).cost += classifierCost!;
   }
   const toModelRow =
     (isClassifier: boolean) =>
