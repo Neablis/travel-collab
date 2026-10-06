@@ -2,9 +2,9 @@
 // under `/admin?tab=users`, so the account page's *← All accounts* returns with
 // them kept.
 //
-// One module, read by the server page (which seeds the panel from
-// `searchParams`) and by the client panel (which writes the URL back and builds
-// each row's link), so the two cannot disagree about a param's name or default.
+// One module for reading the view off the URL and writing it back — the panel
+// does both, and builds each row's link from it — so the two directions cannot
+// disagree about a param's name or default.
 
 /**
  * **Filter ids say what the group MEANS, never a plan id** — they were `"free"`
