@@ -5,7 +5,7 @@ there and cited here as D1–D6. Delete this file at M37's gate close (`docs/pla
 
 ## The stack
 
-Four parts, each on its own branch, merged 1 → 4 with merge commits
+Five parts, each on its own branch, merged 1 → 5 with merge commits
 (`docs/guidelines/stacked-prs.md`). All open as drafts. **Nothing merges without Mitchell.**
 
 | Part | Branch | Theme | Tier |
@@ -13,12 +13,71 @@ Four parts, each on its own branch, merged 1 → 4 with merge commits
 | 1 | `ccr-0e9597fb-6iqsii` | M35 closed, M37 current, this plan | 1 (prose) |
 | 2 | `ccr-0e9597fb-6iqsii-cards` | `TripSummary` gains `dayCount` and `stopCount`; card and hero get the empty state and the length | 2 |
 | 3 | `ccr-0e9597fb-6iqsii-covers-server` | migration `0042` (`trip_covers`), the Unsplash port and its offline fake, search / pick / clear routes, `TripSummary.cover`, CSP, the import wall | 2 |
-| 4 | `ccr-0e9597fb-6iqsii-covers-ui` | the picker in Trip settings; the cover and credit on card and hero; the e2e spec | 2, then 3 on the top |
+| 4 | `ccr-0e9597fb-6iqsii-covers-ui` | the picker in Trip settings; the cover and credit on card and hero; the e2e spec | 2 |
+| 5 | `ccr-0e9597fb-6iqsii-playbook-covers` | covers on playbook days: the author picks one, the day page fades it into the title, Discover cards lead with it | 2, then 3 on the top |
 
 **On the preview, what does a person click to see this?**
 - Part 2: the home page. A new trip's card (or hero) is designed, and every card reads its length.
 - Part 3: nothing (routes and a column, no screen), so its body says so.
 - Part 4: Trip settings → Cover photo → search, pick. Home shows it.
+- Part 5: on your own playbook day, *Add cover*. The day page and its Discover card show it.
+
+## The design (approved before any UI is built)
+
+The canvas is **https://claude.ai/artifact/655uQXn7esDDWjeAnnAxa1**. It has seven artboards:
+home desktop, home with an empty trip, home on a phone, the cover picker, a playbook day on desktop
+and phone, and Discover cards. Mitchell asked on 2026-10-06 to *"drawn out the design and let me
+approve"*. **No UI in parts 2, 4 or 5 merges until he has approved it.** Part 2's server half
+does not wait.
+
+The rules it sets:
+- **The fade is the front door's veil.** The photo dissolves into the paper (or into the card's
+  surface) where the words begin, and the title stands on the fade. A playbook day uses a
+  full-bleed 440px cover (360px on a phone). Home's hero uses a 236px band; a card uses a 132px
+  strip.
+- **No cover, no change.** Every surface without a cover renders as it does today, or as part 2's
+  card does.
+- **The credit sits wherever the photo is**: *Photo by <name> on Unsplash*, both linked, on the
+  card, the hero, the day page, the Discover card and the picker.
+- **The empty trip is dashed, not blank.** It shows its dates (or *No dates yet*), *nothing
+  planned*, and then, as links:
+  - *Add the first day*;
+  - *Invite who's coming* (owner and alone only);
+  - *Choose a cover photo* (editors only).
+  The hero version keeps the moss *Shape of the trip* panel, with dashed rows for the dated days.
+- **A trip shared with you that is empty** says whose it is (*Sam hasn't planned anything yet*)
+  and offers no actions.
+
+## Unsplash's API guidelines (binding on parts 3–5)
+
+From Unsplash's published API guidelines and API terms, recorded here because
+`help.unsplash.com` is unreachable from a cloud session's proxy. Re-read them before applying for
+production access.
+1. **Hotlink.** Images render from the `urls.*` Unsplash returns (`images.unsplash.com`). They are
+   never downloaded, re-hosted or proxied. Sizing uses the imgix parameters on `urls.raw`
+   (`w`, `q`, `fm`, `fit`, `crop`), which is allowed.
+2. **Trigger a download when a photo is used.** Picking a cover sends one GET to the photo's
+   `links.download_location` with the key. A search result being shown does not. A re-pick of the
+   same photo sends one more, because it is a new use.
+3. **Attribute, linked, on every surface the photo appears**: *Photo by
+   [name](user.links.html) on [Unsplash](https://unsplash.com)*. Both links carry
+   `?utm_source=caesura&utm_medium=referral`. The `utm_source` value is the registered app name,
+   so register it as **Caesura**. Store the photographer's name and profile URL with the cover, so
+   a page never asks Unsplash for them.
+4. **Don't replicate Unsplash.** The picker serves one purpose (a cover for this trip or day): no
+   browsing feed, no downloads, no wallpaper or gallery features.
+5. **The app is not named or branded like Unsplash**, and no Unsplash logo implies endorsement.
+   The credit is text.
+6. **Keys.** Only the **Access Key** is used, sent server-side as
+   `Authorization: Client-ID <key>`. It goes in `UNSPLASH_ACCESS_KEY`, never in the browser
+   bundle. The **Secret Key is not used and should not be set**: it exists only for the OAuth
+   flow that acts *as* an Unsplash user (likes, uploads, collections), which Caesura never does.
+7. **Rate limits.** The demo tier allows 50 requests an hour; production allows 5,000 an hour
+   after Unsplash approves the app. Approval asks for screenshots showing the attribution and
+   confirms download tracking. The search quota (`unsplashSearchQuota`) stays under the tier we
+   hold, and only a person typing a search spends it (D2).
+8. **Content.** Search sends `content_filter=high`. Results use `alt_description` as the image's
+   alt text, falling back to *Photo by <name>*.
 
 ## What is true today
 
@@ -134,14 +193,42 @@ Surveyed 2026-10-06. Re-check the line numbers before trusting them.
    - pick a cover;
    - see it and its credit on home.
    Run on `test:e2e:ci-like`.
-4. **Tier 3 on the top part**: `pnpm check`, ci-like e2e and `seed:verify`, run once. Record the
+
+
+## Part 5 — covers on playbook days
+
+Mitchell, 2026-10-06: *"Yes on playbook days, make sure to really consider the design and the
+aesthetic of the playbook pages with the new images, i would love something similiar to homepage
+where it has a fade through to context below it."*
+1. **Storage**: a saved day is Community CRUD, not a projection, so it gets a side table
+   `saved_day_covers` keyed by `saved_day_id`, the same shape as `trip_covers`, in the same
+   migration if part 3 has not merged by then, otherwise as `0043`.
+   - **Only the author sets or clears it.**
+   - **Moderation**: a hidden day hides its cover with it.
+2. **Routes**, author-only: `GET /api/saved-days/:id/cover/search`, `PUT`, `DELETE`. They reuse
+   part 3's port, quota and ping.
+3. **The day page** (`SharedDayScreen.tsx`): the full-bleed cover with the paper veil, and the
+   title block (cities, `h1`, meta line, Share) standing on the fade. Its credit line sits at the
+   right. The author gets *Change cover* or *Add cover*. Without a cover the page is unchanged. The
+   veil is a named class in `globals.css`, the same way `.front-door-veil` is.
+4. **Discover cards** (`DiscoverCard.tsx`): the cover leads, with the city chips on the fade and
+   the credit under the facts line.
+5. **The day's link-preview (OG) image** (ADR-061) is **not changed** by this part. Using the
+   cover there would mean generating an image from a photo we may only hotlink. That is its own
+   decision, asked of Mitchell after this ships.
+6. **Tests**:
+   - int: author-only, one ping per pick, moderation hides the cover;
+   - unit: day page and card with and without a cover;
+   - e2e: `m37-playbook-cover.spec.ts`, where the author adds a cover and the public page shows
+     it with its credit.
+7. **Tier 3 on this top part**: `pnpm check`, ci-like e2e and `seed:verify`, run once. Record the
    result in part 1's body.
 
 ## Out of this stack
 
-- **Covers on public playbook days (D4's second half).** It needs the OG-image decision from
-  ADR-061, and the gate does not ask for it. It stays a follow-up in this milestone file.
+- **The cover as a playbook day's link-preview image**: asked separately (part 5, item 5).
 - **Mitchell's steps:**
-  - set `UNSPLASH_ACCESS_KEY` in Vercel (preview and production) and register the app with
-    Unsplash;
+  - register the app with Unsplash as **Caesura**, and set **only the Access Key** as
+    `UNSPLASH_ACCESS_KEY` in Vercel (preview and production). The Secret Key is not used;
+  - apply for production rate limits once part 4 is on a preview, with screenshots of the credit;
   - dispatch `migrate-production` after part 3 merges.

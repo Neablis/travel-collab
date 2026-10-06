@@ -1,6 +1,6 @@
 # M37 — A trip looks like somewhere before it has a plan
 
-**Status:** **Current from 2026-10-06**, by M35's gate closing; being built as a four-part stack from `docs/plans/2026-10-06-M37-trip-cards-and-covers.md`. **Scoped 2026-10-06, placed after M35.** Every decision below was answered as
+**Status:** **Current from 2026-10-06**, by M35's gate closing; being built as a five-part stack from `docs/plans/2026-10-06-M37-trip-cards-and-covers.md`. **Scoped 2026-10-06, placed after M35.** Every decision below was answered as
 recommended (*"Yes that recommendation is fine"*), and the order M37 → M47 was confirmed
 (*"Order is good"*), both on 2026-10-06. Minted from `docs/candidates.md` when its 42 unplaced
 entries were grouped into milestones (asked 2026-10-06: *"Go through the suggested new features,
@@ -34,7 +34,11 @@ Candidates absorbed (each deleted by this gate):
    and a download-tracking ping when a photo is picked.
 3. **Hotlink Unsplash's CDN, do not copy the file.** *Recommended:* Unsplash's guidelines expect
    hotlinking, and copying means storage we do not have.
-4. **Scope of the first pass: trips, then playbook days.** *Recommended:* stops and notebooks get
+4. **Scope of the first pass: trips, then playbook days.** *Widened 2026-10-06 by Mitchell: "Yes
+   on playbook days, make sure to really consider the design and the aesthetic of the playbook
+   pages with the new images, i would love something similiar to homepage where it has a fade
+   through to context below it." Playbook days are in this milestone (plan part 5). Their OG
+   image stays as it is, and that is asked separately.* *Recommended:* stops and notebooks get
    photos in a later pass. A stop photo is per-stop UI on the board, which is a design question.
    Public playbook days need a decision on their OG images (ADR-061).
 5. **The card reads only what the trip list already returns.** Any new fact the card shows
@@ -76,6 +80,15 @@ Candidates absorbed (each deleted by this gate):
       routes read the stored URL only.
 - [ ] **The card shows the trip's length**, and `TripSummary` changes appear in
       `docs/contracts/CHANGELOG.md`.
+- [ ] **The design is approved by Mitchell before its UI merges** (asked 2026-10-06: *"go ahead and
+      drawn out the design and let me approve"*). Canvas:
+      https://claude.ai/artifact/655uQXn7esDDWjeAnnAxa1.
+- [ ] **A playbook day can carry a cover** (decision 4, widened 2026-10-06). The author picks it.
+      The day page fades it into the title, as the front door's veil does, and its Discover card
+      leads with it, each with the credit. A hidden day hides its cover.
+- [ ] **Unsplash's guidelines hold**: hotlinked URLs only, one download ping per pick, a linked
+      credit with `utm_source=caesura&utm_medium=referral` wherever a photo renders, the Access
+      Key server-side only. The list is in the plan's *Unsplash's API guidelines*.
 - [ ] **The e2e spec passes on `pnpm --filter web test:e2e:ci-like`**: create an empty trip, see
       the designed card, pick a cover, and see it on the card.
 - [ ] **[walk]** On the PR preview, the home page with one empty and one populated trip is walked
