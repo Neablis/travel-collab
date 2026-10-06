@@ -25,8 +25,8 @@ import { db } from "@/server/db/client";
 import { adminConsoleFlag } from "@/server/flags";
 import { aiUsage, events, users } from "@/server/db/schema";
 import { activeGrantHolders } from "./grants";
-import { PLAN_VERSIONS, planVersionRefOf, type PlanVersion } from "./planVersions";
-import { entitlementsFor } from "./resolver";
+import { PLAN_VERSIONS, livePlanVersion, planVersionRefOf, type PlanVersion } from "./planVersions";
+import { entitlementsFor, type AccountEntitlements } from "./resolver";
 import {
   monthlyMicroUsd,
   revenueByPlan,
@@ -253,6 +253,17 @@ export async function planPanel(
 }
 
 /**
+ * Plan ids an operator may grant: those whose live version is enabled — the
+ * same test `POST /api/admin/grants` refuses on. `enabled` bounds what may be
+ * handed out, never what a holder may do.
+ */
+export function grantablePlanIds(): PlanId[] {
+  return [...new Set(PLAN_VERSIONS.map((entry) => entry.planId))].filter(
+    (planId) => livePlanVersion(planId).enabled,
+  );
+}
+
+/**
  * Every holder's trailing cost, bucketed by the plan they hold.
  *
  * Accounts with no usage in the window are deliberately **absent** rather than
@@ -471,40 +482,88 @@ export async function adminAccounts(
   ]);
   const costByUser = new Map(costs.map((cost) => [cost.userId, cost]));
   return Promise.all(
-    rows.map(async (row) => {
-      const resolved = await entitlementsFor(row.id, now);
-      const cost = costByUser.get(row.id);
-      // **Read off the resolver's own answer**, not re-queried. It already
-      // fetched this account's subscription standing to decide what the account
-      // may do, so asking again would be a second read that can disagree with
-      // the gate — which is the one thing an operator console must never do.
-      const subscription = resolved.subscription;
-      const pays =
-        subscription !== null && subscription.conferring
-          ? monthlyMicroUsd(subscription.row)
-          : 0;
-      return {
-        userId: row.id,
-        email: row.email,
-        planVersionRef: planVersionRefOf(resolved.held),
-        isAdmin: row.isAdmin,
-        grantSources: resolved.grants.map((grant) => grant.source),
-        grants: resolved.grants.map((grant) => ({
-          id: grant.id,
-          source: grant.source,
-          planVersionRef: `${grant.planId}@v${grant.planVersion}`,
-          expiresAt: grant.expiresAt?.toISOString() ?? null,
-        })),
-        entitlements: [...resolved.entitlements],
+    rows.map(async (row) =>
+      accountRow(row, await entitlementsFor(row.id, now), {
+        cost: costByUser.get(row.id),
         requests: counts.get(row.id) ?? 0,
-        microUsd: cost?.microUsd ?? 0,
-        unpriced: cost?.unpriced ?? 0,
-        paysMicroUsd: pays,
-        subscriptionState: subscription?.lapsed === true ? "lapsed" : (subscription?.row.status ?? null),
         lastActiveAt: lastActive.get(row.id) ?? null,
-      };
-    }),
+      }),
+    ),
   );
+}
+
+/**
+ * **One account's row, built by the same code as the table's** (M36 link 3).
+ * The account page's header and facts are this row, so the page and the row it
+ * was opened from cannot describe the account differently. `null` when there
+ * is no such account.
+ */
+export async function adminAccount(
+  userId: string,
+  now: Date = new Date(),
+): Promise<{ row: AdminAccountRow; resolved: AccountEntitlements; cost: AccountCost | undefined } | null> {
+  const since = trailingWindowStart(now);
+  const [found, costs, counts, lastActive, resolved] = await Promise.all([
+    db
+      .select({ id: users.id, email: users.email, isAdmin: users.isAdmin })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1),
+    // Every account's, filtered: `costPerAccount` is the one pricing path, and
+    // a second per-account copy of it is a second thing that can disagree
+    // with the table's Costs column.
+    costPerAccount(since),
+    requestCounts(since),
+    lastActiveSince(since),
+    entitlementsFor(userId, now),
+  ]);
+  const user = found[0];
+  if (user === undefined) return null;
+  const cost = costs.find((entry) => entry.userId === userId);
+  return {
+    cost,
+    row: accountRow(user, resolved, {
+      cost,
+      requests: counts.get(userId) ?? 0,
+      lastActiveAt: lastActive.get(userId) ?? null,
+    }),
+    resolved,
+  };
+}
+
+/** One `users` row and its resolver answer, as the accounts table shows it. */
+function accountRow(
+  row: { id: string; email: string | null; isAdmin: boolean },
+  resolved: AccountEntitlements,
+  reads: { cost: AccountCost | undefined; requests: number; lastActiveAt: string | null },
+): AdminAccountRow {
+  // **Read off the resolver's own answer**, not re-queried. It already
+  // fetched this account's subscription standing to decide what the account
+  // may do, so asking again would be a second read that can disagree with
+  // the gate — which is the one thing an operator console must never do.
+  const subscription = resolved.subscription;
+  const pays =
+    subscription !== null && subscription.conferring ? monthlyMicroUsd(subscription.row) : 0;
+  return {
+    userId: row.id,
+    email: row.email,
+    planVersionRef: planVersionRefOf(resolved.held),
+    isAdmin: row.isAdmin,
+    grantSources: resolved.grants.map((grant) => grant.source),
+    grants: resolved.grants.map((grant) => ({
+      id: grant.id,
+      source: grant.source,
+      planVersionRef: `${grant.planId}@v${grant.planVersion}`,
+      expiresAt: grant.expiresAt?.toISOString() ?? null,
+    })),
+    entitlements: [...resolved.entitlements],
+    requests: reads.requests,
+    microUsd: reads.cost?.microUsd ?? 0,
+    unpriced: reads.cost?.unpriced ?? 0,
+    paysMicroUsd: pays,
+    subscriptionState: subscription?.lapsed === true ? "lapsed" : (subscription?.row.status ?? null),
+    lastActiveAt: reads.lastActiveAt,
+  };
 }
 
 /**
