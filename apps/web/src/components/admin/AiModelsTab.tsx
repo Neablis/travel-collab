@@ -74,7 +74,7 @@ function Strip({ report }: { report: AdminAiModelsReport }) {
         value={count(report.turns)}
         aside={delta === undefined ? undefined : `${delta >= 0 ? "+" : "−"}${percent(Math.abs(delta))}`}
         asideTone={delta !== undefined && delta > 0 ? "success" : "slate"}
-        note={`Last ${report.windowDays} days, from ${count(report.accounts)} account${report.accounts === 1 ? "" : "s"}.${
+        note={`Last ${report.windowDays} UTC days, today so far, from ${count(report.accounts)} account${report.accounts === 1 ? "" : "s"}; the change is against the same span before.${
           report.medianStepsPerTurn === null ? "" : ` ${decimal(report.medianStepsPerTurn)} steps a turn, median.`
         }`}
         testId="ai-turns"

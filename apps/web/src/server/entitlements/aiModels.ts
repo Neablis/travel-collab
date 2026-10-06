@@ -1,8 +1,9 @@
 // **The AI models tab's one read** (M36 link 4) — the ledger M31 built, per
 // turn, per step and per tool call, which no admin surface read until now.
 //
-// **Thirty UTC calendar days, today the last, and the thirty before for one
-// number** (D10): the turns delta. Everything else is the current window only.
+// **Thirty UTC calendar days, today the last and so far, and the same span
+// before them for one number** (D10): the turns delta. Everything else is the
+// current window only.
 // Calendar days rather than `now − 30 × 24h`, so a bar's label is the day its
 // turns happened on — a now-anchored bucket straddles two dates and the chart
 // would name the wrong one for half of it.
@@ -133,6 +134,7 @@ export interface AiWorstDay {
 export interface AiModelsReport {
   windowDays: number;
   turns: number;
+  /** Turns in the span of the same length just before the window. */
   previousTurns: number;
   accounts: number;
   medianStepsPerTurn: number | null;
@@ -207,7 +209,9 @@ export async function aiModelsReport(
 ): Promise<AiModelsReport> {
   const today = Math.floor(now.getTime() / DAY_MS) * DAY_MS;
   const since = new Date(today - (TRAILING_WINDOW_DAYS - 1) * DAY_MS);
-  const previousSince = new Date(since.getTime() - TRAILING_WINDOW_DAYS * DAY_MS);
+  // As long as the current window, today's part-day included: a full thirty
+  // days against twenty-nine and a part would read flat traffic as a decline.
+  const previousSince = new Date(since.getTime() - (now.getTime() - since.getTime()));
   const inWindow = and(gte(aiUsage.createdAt, since), lt(aiUsage.createdAt, now), notSimulated);
   const call = aiUsageToolCalls;
 

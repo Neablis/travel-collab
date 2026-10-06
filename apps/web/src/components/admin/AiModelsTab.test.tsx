@@ -114,8 +114,11 @@ describe("the AI models tab", () => {
     render(<AiModelsTab report={healthyReport()} />);
 
     expect(screen.getByTestId("ai-turns").textContent).toContain("300");
-    // 300 against 240 the month before.
+    // 300 against 240 over the same span before.
     expect(screen.getByTestId("ai-turns").textContent).toContain("+25%");
+    expect(screen.getByTestId("ai-turns").textContent).toContain(
+      "Last 30 UTC days, today so far, from 12 accounts; the change is against the same span before.",
+    );
     expect(screen.getByTestId("ai-tool-calls").textContent).toContain("p95 11");
     expect(screen.getByTestId("ai-context").textContent).toContain("6.2k");
     expect(screen.getByRole("heading", { name: "Models" })).toBeTruthy();
