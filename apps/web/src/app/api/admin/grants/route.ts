@@ -61,8 +61,16 @@ export async function DELETE(request: Request) {
   // **Marks, never deletes.** Revoking is not tidying: the row is what answers
   // "has this account ever held a trial", and removing it would hand the trial
   // back to whoever had it revoked.
+  //
+  // **409, not 404, when nothing was left to revoke.** The gate above answers
+  // 404 `not-found` to a caller who is not an operator — including one whose
+  // admin role was removed mid-session — and must keep looking like a missing
+  // route. Had this answered the same, the console could not tell "already
+  // revoked" from "you may no longer revoke", and would tell an operator who
+  // changed nothing that the grant was gone. `no-active-grant` covers an id
+  // that never existed too; the console only sends ids it listed.
   const revoked = await revokeGrant(grantId, guard.userId);
   return revoked
     ? Response.json({ revoked: true })
-    : Response.json({ error: "not-found" }, { status: 404 });
+    : Response.json({ error: "no-active-grant" }, { status: 409 });
 }

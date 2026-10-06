@@ -1,29 +1,10 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { createPortal } from "react-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // **No `@testing-library/jest-dom` in this repo**, deliberately — assertions
 // read the DOM property rather than a matcher that wraps it.
 import type { AdminAccountRow } from "@/lib/adminOverview";
-
-// `GrantDialog` and `GrantList` both reach the network on interaction and
-// neither is what these tests are about — this file is the search, the counted
-// filters, the page window and the no-match state, which the design specifies
-// and the first build of the console shipped without. Each stand-in keeps the
-// one thing the row's click has to respect: a real button, and for the dialog,
-// content portalled out of the table the way Radix puts it.
-vi.mock("@/components/admin/GrantDialog", () => ({
-  GrantDialog: ({ userId }: { userId: string }) => (
-    <>
-      <button type="button">Grant a plan to {userId}</button>
-      {createPortal(<p>dialog for {userId}</p>, document.body)}
-    </>
-  ),
-}));
-vi.mock("@/components/admin/GrantList", () => ({
-  GrantList: () => <button type="button">Revoke</button>,
-}));
 
 const push = vi.fn();
 // **The search params are the browser's own**, read fresh on every render, as
@@ -92,7 +73,6 @@ function panel(accounts: AdminAccountRow[], options: { underwater?: string[] } =
   return (
     <AccountsPanel
       accounts={accounts}
-      plans={["plus"]}
       plansGrantingNothing={["free"]}
       underwater={options.underwater ?? []}
       now={NOW}
@@ -352,6 +332,28 @@ describe("AccountsPanel", () => {
     expect(push).toHaveBeenCalledWith(expected);
   });
 
+  // **Grant and Revoke left the row for the account page** (M36 link 3). The
+  // row says why the account holds what it holds, in words, and the one
+  // thing on it that does anything is the way into the account.
+  it("offers no grant or revoke, and names the grant sources as text", () => {
+    render(
+      panel([
+        account({
+          userId: "comped",
+          grantSources: ["admin", "founder"],
+          grants: [
+            { id: "g1", source: "admin", planVersionRef: "premium@v1", expiresAt: null },
+            { id: "g2", source: "founder", planVersionRef: "plus@v1", expiresAt: null },
+          ] as AdminAccountRow["grants"],
+        }),
+      ]),
+    );
+    const row = screen.getByTestId("account-comped");
+    expect(within(row).getByText("admin · founder")).toBeTruthy();
+    expect(within(row).queryAllByRole("button")).toEqual([]);
+    expect(within(row).getAllByRole("link")).toHaveLength(1);
+  });
+
   // A modifier asks for a new tab or window, which `push` cannot give; the
   // address link is there for that. Each modifier on its own, so one dropped
   // from the guard fails here.
@@ -384,16 +386,5 @@ describe("AccountsPanel", () => {
     window.getSelection()!.removeAllRanges();
     fireEvent.click(cell);
     expect(push).toHaveBeenCalledTimes(1);
-  });
-
-  it("does not open the account when Grant, Revoke or the dialog is clicked", async () => {
-    const user = userEvent.setup();
-    render(panel([account({ userId: "solo" })]));
-
-    await user.click(screen.getByRole("button", { name: "Grant a plan to solo" }));
-    await user.click(screen.getByRole("button", { name: "Revoke" }));
-    // Portalled out of the table, but React bubbles it through the row.
-    await user.click(screen.getByText("dialog for solo"));
-    expect(push).not.toHaveBeenCalled();
   });
 });

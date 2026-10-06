@@ -9,8 +9,6 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { Text } from "@/components/ui/text";
-import { GrantDialog } from "@/components/admin/GrantDialog";
-import { GrantList } from "@/components/admin/GrantList";
 import type { AdminAccountRow } from "@/lib/adminOverview";
 import { cn } from "@/lib/cn";
 import {
@@ -126,12 +124,12 @@ function lastActiveLabel(at: string | null, now: string): string {
 
 /**
  * Whether a click on a row should open the account. Not when it landed on a
- * control in the row — Grant, Revoke, the account's own link — and not when it
- * came from the grant dialog: that is portalled out of the table in the DOM,
- * but React still bubbles its clicks up through this row. Not with a modifier
- * held, which asks the browser for something the row's `push` cannot give —
- * the address link is there for a new tab — and not when the click ended a
- * text selection, which is someone copying an address.
+ * control in the row — the account's own link — and not when it came from
+ * anything portalled out of the table in the DOM, whose clicks React still
+ * bubbles up through this row. Not with a modifier held, which asks the
+ * browser for something the row's `push` cannot give — the address link is
+ * there for a new tab — and not when the click ended a text selection, which
+ * is someone copying an address.
  */
 function opensAccount(event: React.MouseEvent<HTMLTableRowElement>): boolean {
   if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey) return false;
@@ -143,8 +141,6 @@ function opensAccount(event: React.MouseEvent<HTMLTableRowElement>): boolean {
 
 type AccountsPanelProps = {
   accounts: readonly AdminAccountRow[];
-  /** Plan ids an operator may grant — enabled plans only. */
-  plans: readonly string[];
   /** Plan ids whose live version grants no entitlement. See `matchesFilter`. */
   plansGrantingNothing: readonly string[];
   /** Paying accounts the underwater report lists. See `matchesFilter`. */
@@ -179,7 +175,6 @@ function viewIn(params: URLSearchParams): AccountsView {
  */
 export function AccountsPanel({
   accounts,
-  plans,
   plansGrantingNothing,
   underwater,
   now,
@@ -353,12 +348,14 @@ export function AccountsPanel({
                     </TD>
                     <TD className="text-ink">{account.planVersionRef}</TD>
                     <TD className="text-ink">
-                      {/* Link 7's grant history, and the console's second write.
-                          Revoking marks the row rather than removing it — the row
-                          is what answers "has this account ever held a trial".
-                          It moves to the account page with M36 link 3; until
-                          then it stays, or this preview could not revoke. */}
-                      <GrantList grants={account.grants} />
+                      {/* Why they hold it: every active grant's source. Granting
+                          and revoking are the account page's (M36 link 3) — a
+                          write with a confirm needs more room than a cell. */}
+                      {account.grantSources.length === 0 ? (
+                        <span className="text-slate">—</span>
+                      ) : (
+                        account.grantSources.join(" · ")
+                      )}
                     </TD>
                     <TD className="text-ink">
                       {account.paysMicroUsd === null
@@ -396,13 +393,8 @@ export function AccountsPanel({
                         {sinking ? <Badge variant="danger">Costs more than it pays</Badge> : null}
                       </div>
                     </TD>
-                    <TD className="text-slate">
-                      <div className="flex items-center justify-end gap-2">
-                        {/* Grant leaves the row for the account page with M36
-                            link 3; it stays until that page exists to hold it. */}
-                        <GrantDialog userId={account.userId} plans={plans} />
-                        <span aria-hidden="true">›</span>
-                      </div>
+                    <TD className="text-right text-slate">
+                      <span aria-hidden="true">›</span>
                     </TD>
                   </TR>
                 );

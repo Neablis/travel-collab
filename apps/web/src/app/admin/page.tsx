@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import { Heading } from "@/components/ui/heading";
 import { AccountsPanel } from "@/components/admin/AccountsPanel";
+import { AccountPage, NoSuchAccount } from "@/components/admin/AccountPage";
+import { accountsViewHref, resolveAccountsView } from "@/components/admin/accountsView";
 import { ConsoleTabs } from "@/components/admin/ConsoleTabs";
 import { resolveConsoleTab, type ConsoleTab } from "@/components/admin/consoleTab";
 import { TierPanel } from "@/components/admin/TierPanel";
@@ -10,7 +12,8 @@ import { PriceCheckPanel } from "@/components/admin/PriceCheckPanel";
 import { ReportsPanel } from "@/components/admin/ReportsPanel";
 import { Panel } from "@/components/ui/panel";
 import { Text } from "@/components/ui/text";
-import { adminFinancial, adminUsers } from "@/server/entitlements/admin";
+import { adminAccountDetail } from "@/server/admin/accountDetail";
+import { adminFinancial, adminUsers, grantablePlanIds } from "@/server/entitlements/admin";
 import { adminUserId } from "@/server/entitlements/requireAdmin";
 import { listReports } from "@/server/reports";
 
@@ -105,6 +108,25 @@ export default async function AdminPage({
     );
   }
 
+  // **An open account replaces the table, in place** (D1, M36 link 3). Its own
+  // read, not the overview's: the page needs one account, not every panel and
+  // Stripe's price sweep. *← All accounts* is the table's URL with the view the
+  // link carried, so it comes back to the same filter and page.
+  const accountId = Array.isArray(params.account) ? params.account[0] : params.account;
+  if (tab === "users" && accountId !== undefined && accountId !== "") {
+    const back = accountsViewHref(resolveAccountsView(params));
+    const detail = await adminAccountDetail(accountId);
+    return (
+      <ConsoleShell tab={tab}>
+        {detail === null ? (
+          <NoSuchAccount back={back} />
+        ) : (
+          <AccountPage detail={detail} plans={grantablePlanIds()} back={back} now={new Date().toISOString()} />
+        )}
+      </ConsoleShell>
+    );
+  }
+
   if (tab === "users") {
     const users = await adminUsers();
     return (
@@ -118,11 +140,8 @@ export default async function AdminPage({
               console for a table of the newest 100 accounts plus every
               underwater payer. They are seeded from the URL, which is where
               they are kept (D2), and re-seeded when a navigation brings
-              another view (see `AccountsPanel`). `?account=` renders this
-              table too until M36 link 3 builds the account page. Only enabled plans are
-              offered to the grant dialog — `enabled` bounds what an operator may
-              hand out, never what a holder may do, which is what lets the
-              disabled fourth-plan proof ship without anyone receiving it. */}
+              another view (see `AccountsPanel`). Granting and revoking live
+              on the account page a row opens (M36 link 3). */}
           {/* `plansGrantingNothing` is decided once, here, from the plan file, and
               asked as "does this plan grant anything" rather than "is this plan
               free" — ADR-045 rule 4, which `planVersions.fourthPlan.test.ts`
@@ -134,7 +153,6 @@ export default async function AdminPage({
             windowDays={users.windowDays}
             now={new Date().toISOString()}
             underwater={users.underwater.paying.map((account) => account.userId)}
-            plans={users.livePlans.filter((live) => live.enabled).map((live) => live.planId)}
             plansGrantingNothing={users.livePlans
               .filter((live) => live.entitlements.length === 0)
               .map((live) => live.planId)}
