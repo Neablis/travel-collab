@@ -284,6 +284,17 @@ describe("AccountsPanel", () => {
     expect(replaceState).not.toHaveBeenCalled();
   });
 
+  // **A view the table corrects is written back at once** (M36 part 3 review).
+  // The first render was never written, on the reasoning that the URL had
+  // seeded it — but a page past the end is clamped, so the address bar said
+  // page 9 over a table on page 2, and the row links carried page 2.
+  it("writes a clamped page back on the first render", () => {
+    visit("/admin?tab=users&page=9");
+    render(panel(tenAccounts()));
+    expect(screen.getByTestId("accounts-range").textContent).toContain("9–10 of 10");
+    expect(replaceState.mock.calls.map((call) => call[2])).toEqual(["/admin?tab=users&page=2"]);
+  });
+
   // **Back and Forward change the URL and nothing else.** The view used to come
   // from the server's `initial`, and a history entry whose URL the table had
   // rewritten with `replaceState` kept the `initial` it was first rendered

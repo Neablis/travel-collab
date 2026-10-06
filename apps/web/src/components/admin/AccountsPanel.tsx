@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -216,14 +216,13 @@ export function AccountsPanel({
   // native history API into its router while a router navigation would re-run
   // this page's server component — the whole overview, Stripe's price sweep
   // included — once per keystroke. Replace, not push: a filter is not a place
-  // Back should stop. Skipped on the first render, which the URL seeded.
-  const seeded = useRef(true);
+  // Back should stop. Only when the URL says something else — which on the
+  // first render is a view the table corrected, a page past the end or a
+  // filter it does not know, and is written back so the address bar and the
+  // row links agree with the table.
   const href = accountsViewHref(view);
   useEffect(() => {
-    if (seeded.current) {
-      seeded.current = false;
-      return;
-    }
+    if (href === window.location.pathname + window.location.search) return;
     window.history.replaceState(window.history.state, "", href);
   }, [href]);
 
