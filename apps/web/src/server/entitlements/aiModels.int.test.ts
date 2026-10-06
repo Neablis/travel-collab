@@ -408,6 +408,19 @@ describe("the tool-calls table", () => {
       { tool: "set_budget", calls: 0 },
     ]);
   });
+
+  it("counts a tool's turns among measured turns only, the denominator the tab divides by", async () => {
+    const now = freshNow();
+    await turn(daysBefore(now, 1), { steps: [{}], calls: [{ tool: "read_trip" }] });
+    await turn(daysBefore(now, 2), { steps: [{}] });
+    // Calls and no step rows: its calls are calls, but it is no measured turn.
+    await turn(daysBefore(now, 3), { calls: [{ tool: "read_trip" }, { tool: "read_trip" }] });
+
+    const report = await aiModelsReport([], now);
+
+    expect(report.measuredTurns).toBe(2);
+    expect(report.tools).toMatchObject([{ tool: "read_trip", calls: 3, turns: 1 }]);
+  });
 });
 
 describe("almost never called", () => {

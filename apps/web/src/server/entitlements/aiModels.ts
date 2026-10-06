@@ -246,12 +246,13 @@ export async function aiModelsReport(
       .innerJoin(aiUsage, eq(aiUsage.id, aiUsageSteps.turnId))
       .where(inWindow),
     // One row per tool. `percentile_cont` skips nulls and is null over none,
-    // which is what a duration or a size nobody measured should do.
+    // which is what a duration or a size nobody measured should do. `turns`
+    // counts measured turns only — the tab divides it by `measuredTurns`.
     db
       .select({
         tool: call.tool,
         calls: sql<number>`count(*)::int`,
-        turns: sql<number>`count(DISTINCT ${call.turnId})::int`,
+        turns: sql<number>`(count(DISTINCT ${call.turnId}) FILTER (WHERE EXISTS (SELECT 1 FROM ${aiUsageSteps} WHERE ${aiUsageSteps.turnId} = ${call.turnId})))::int`,
         failed: sql<number>`(count(*) FILTER (WHERE ${call.outcome} = 'failed'))::int`,
         repaired: sql<number>`(count(*) FILTER (WHERE ${call.outcome} = 'repaired'))::int`,
         medianDurationMs: sql<number | null>`percentile_cont(0.5) WITHIN GROUP (ORDER BY ${call.durationMs})`,
