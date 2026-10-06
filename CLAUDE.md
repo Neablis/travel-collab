@@ -8,6 +8,7 @@ Quick orientation:
 - **Where the work actually is right now (read this first): `docs/STATUS.md`**
 - What to work on next: `TODO.md`
 - Product/architecture design: `docs/specs/2026-07-07-foundation-design.md`
+- How the whole system fits together today, and which ADR to open: `docs/architecture/SYSTEM-DESIGN.md`
 - Decisions and rationale: `docs/architecture/` (ADRs)
 - Current milestone and gates: `docs/milestones/README.md`
 - How to build/connect/validate/enforce quality: `docs/guidelines/`
