@@ -26,6 +26,9 @@ import { upsertUser } from "@/server/users";
 const ledgerReads = vi.fn();
 const holderReads = vi.fn();
 const priceSweeps = vi.fn();
+const accountReads = vi.fn();
+// Set by a test that needs the sweep to wait on something; null otherwise.
+let sweepWaitsFor: Promise<unknown> | null = null;
 
 vi.mock("./usage", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./usage")>();
@@ -38,6 +41,12 @@ vi.mock("./usage", async (importOriginal) => {
     topSpenders: (...args: Parameters<typeof actual.topSpenders>) => {
       ledgerReads("topSpenders");
       return actual.topSpenders(...args);
+    },
+    // Only the accounts table asks for request counts, so this is the moment
+    // its reads start.
+    requestCounts: (...args: Parameters<typeof actual.requestCounts>) => {
+      accountReads();
+      return actual.requestCounts(...args);
     },
   };
 });
@@ -53,12 +62,26 @@ vi.mock("./grants", async (importOriginal) => {
   };
 });
 
+// The report the accounts table and Financial's panel share, built once.
+const underwaterReports = vi.fn();
+vi.mock("@/server/billing/revenue", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/server/billing/revenue")>();
+  return {
+    ...actual,
+    underwaterReport: (...args: Parameters<typeof actual.underwaterReport>) => {
+      underwaterReports();
+      return actual.underwaterReport(...args);
+    },
+  };
+});
+
 vi.mock("@/server/billing/prices", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/server/billing/prices")>();
   return {
     ...actual,
-    priceConsistencyReport: (...args: Parameters<typeof actual.priceConsistencyReport>) => {
+    priceConsistencyReport: async (...args: Parameters<typeof actual.priceConsistencyReport>) => {
       priceSweeps();
+      if (sweepWaitsFor !== null) await sweepWaitsFor;
       return actual.priceConsistencyReport(...args);
     },
   };
@@ -70,6 +93,9 @@ beforeEach(() => {
   ledgerReads.mockClear();
   holderReads.mockClear();
   priceSweeps.mockClear();
+  underwaterReports.mockClear();
+  accountReads.mockReset();
+  sweepWaitsFor = null;
   vi.stubEnv("STRIPE_SECRET_KEY", "");
 });
 
@@ -84,6 +110,32 @@ describe("adminOverview", () => {
     expect(ledgerReads.mock.calls).toEqual([["costPerAccount"]]);
     expect(holderReads).toHaveBeenCalledTimes(1);
     expect(priceSweeps).toHaveBeenCalledTimes(1);
+    expect(underwaterReports).toHaveBeenCalledTimes(1);
+  });
+
+  // **The accounts table is not held behind Stripe's price sweep** (M36 part 3
+  // review). The sweep here finishes only once the table's reads have started,
+  // or after two seconds if they never do; an overview that awaited the sweep
+  // first takes the two seconds and records it in the wrong order.
+  it("starts the accounts table's reads before the price sweep finishes", async () => {
+    const order: string[] = [];
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const accountsStarted = new Promise<void>((resolve) => {
+      accountReads.mockImplementation(() => {
+        order.push("accounts");
+        resolve();
+      });
+    });
+    sweepWaitsFor = Promise.race([
+      accountsStarted,
+      new Promise((resolve) => (timer = setTimeout(resolve, 2_000))),
+    ]).then(() => order.push("sweep"));
+    try {
+      await adminOverview();
+    } finally {
+      clearTimeout(timer);
+    }
+    expect(order).toEqual(["accounts", "sweep"]);
   });
 });
 
@@ -166,7 +218,10 @@ describe("the accounts table and the underwater count", () => {
     expect(overview.underwater.paying.map((row) => row.userId)).toContain(payer);
     const rows = overview.accounts.filter((row) => row.userId === payer);
     expect(rows).toHaveLength(1);
-    expect(overview.accounts.at(-1)!.userId).toBe(payer);
+    // Appended after the newest hundred, not among them. Its position past
+    // them is not: another test's underwater payer, sharing this database, is
+    // appended alongside it.
+    expect(overview.accounts.findIndex((row) => row.userId === payer)).toBeGreaterThanOrEqual(100);
     // And the Users tab's own read, which is what the console draws.
     const usersTab = await adminUsers(now);
     expect(usersTab.underwater.paying.map((row) => row.userId)).toContain(payer);
