@@ -21,10 +21,14 @@ general setup.
 
 ## Where the work is right now
 
-**M36 — THE OPERATOR CONSOLE IS FOUR TABS, AND AN ACCOUNT HAS A PAGE — IS THE CURRENT MILESTONE
-AS OF 2026-10-06**, by **M34's gate closing at 7 of 7**. Order: `… M33 ✓ → M34 ✓ → M36 → M35`.
-M36 was started before it was current; its gate is 10 of 13, with two walks and the retro open.
-(`docs/milestones/M36-operator-console.md`)
+**M35 — YOU CAN SAY WHO ON A TRIP IS ACTUALLY GOING — IS THE CURRENT MILESTONE AS OF
+2026-10-06**, by **M36's gate closing at 13 of 13**. Order: `… M34 ✓ → M36 ✓ → M35`, and it is
+the last unticked milestone in `TODO.md`. M35 is built and merged (#335); its gate is 8 of 12.
+(`docs/milestones/M35-travellers-and-people.md`)
+
+**M36 closed 2026-10-06** on Mitchell's word that the admin console works; its two walk boxes are
+ticked on that attestation, not re-walked. Its retro is at the end of
+`docs/milestones/M36-operator-console.md`.
 
 **M34 and M9 closed 2026-10-06** on Mitchell's word that both work in production; their walk
 boxes are ticked on that attestation, not re-walked. **M9 is closed for good**, not paused: two of
@@ -59,12 +63,6 @@ durations show it held. Every run states its plan without `EVAL_CONFIRM=1` and s
 **M29 (the time river) and M30 (notebooks with one job each) closed their gates on
 2026-10-04**, at 20 of 20 and 9 of 9; each retro is at the end of its milestone file. Their
 ticked rows were added to `TODO.md` on 2026-10-06, so `pnpm milestones` reads them as closed.
-
-**M36 — the operator console in four tabs — minted 2026-10-06** (after M34, ahead of M35) **and
-started the same day**: Financial · Users · Library · AI models, an
-account page, the M31 ledger read by an admin surface for the first time. A six-part draft stack:
-minting is part 1 (`claude/eager-sagan-ekawmk`), the tab shell part 2 (`-shell`). Plan `docs/plans/2026-10-06-M36-operator-console.md`.
-(`docs/milestones/M36-operator-console.md`)
 
 **Built beside M19, not a milestone: the SEO pass** (five stacked draft PRs, #295-#299,
 to merge 1 → 5 with merge commits; plan `docs/plans/2026-10-02-seo-pass.md`). It adds robots
@@ -220,9 +218,8 @@ half, the model guessing a coordinate rather than citing one, is M9 scope.
 
 ## Next action
 
-**M36's gate**: the operator walk against the artboard, the non-admin 404 walk, and the retro
-(`docs/milestones/M36-operator-console.md`). Then **M35's**: the eval re-run, CodeRabbit on #335,
-ticking migration 0039 (`pnpm state` reads it applied) and the retro. Separately,
+**M35's gate**: the eval re-run, CodeRabbit on #335, ticking migration 0039 (`pnpm state` reads
+it applied) and the retro (`docs/milestones/M35-travellers-and-people.md`). Separately,
 `KI-2026-10-04-c` resolves on query 8 of `ledger.sql` over a few days of cheap-tier step durations.
 
 **Carried out of M24, not gating:** `KI-2026-09-25-q`. About a dozen

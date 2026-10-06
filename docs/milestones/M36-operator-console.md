@@ -1,6 +1,6 @@
 # M36 — The operator console is four tabs, and an account has a page
 
-**Status:** Minted, scoped and placed 2026-10-06 by Mitchell — *"I added a design handoff to redo
+**Status:** **Gate closed 2026-10-06, 13 of 13** (retro at the end). Minted, scoped and placed 2026-10-06 by Mitchell — *"I added a design handoff to redo
 the admin/operator dashboard. Create a new milestone … it will be the next milestone"* — and
 **started the same day**, while M34 is still current with its walk and retro open. Its row sits
 **immediately after M34** in `TODO.md`, ahead of M35, so `pnpm milestone close M34` reads M36 as
@@ -155,8 +155,32 @@ Six links, each one reviewable by clicking on its own preview.
 - [x] **The e2e spec passes on `pnpm --filter web test:e2e:ci-like`**, and the existing admin and
       report specs still pass.
       *(Ticked 2026-10-06, part 6: `m36-operator-console.spec.ts`, seen red twice at `:159` and `:90`. Full ci-like run on the stack's top: **237 passed, 1 flaky** (`m6-unload-flush`, KI-2026-09-25-i / KI-5, unrelated). With it, `pnpm check` lanes on the same head: unit 4,991, scripts 357, integration 1,402, all passed.)*
-- [ ] **[walk]** On the PR preview, as an operator: each tab against the artboard
+- [x] **[walk]** On the PR preview, as an operator: each tab against the artboard
       (`OperatorConsole.dc.html`, `startTab`), an account page opened from the table and closed
       back to the same filter, and a grant then a revoke on a test account.
-- [ ] **[walk]** As a non-admin, `/admin` and every `?tab=` answer 404.
-- [ ] A retro is appended at gate close.
+      *(Ticked 2026-10-06 on Mitchell's attestation: *"im done with admin dashboard, works"*. Not
+      re-walked for the close.)*
+- [x] **[walk]** As a non-admin, `/admin` and every `?tab=` answer 404.
+      *(Ticked 2026-10-06 on the same attestation. Not re-walked for the close.)*
+- [x] A retro is appended at gate close.
+
+## Retro — gate closed 2026-10-06 (13 of 13)
+
+Closed on Mitchell's word, 2026-10-06: *"im done with admin dashboard, works"*. Both walk boxes
+are ticked on that attestation; nothing was re-walked for the close.
+
+**What shipped.** The one-scroll console became four URL-driven tabs, Financial · Users ·
+Library · AI models, with an account page (usage, activity, grants, and revoke behind a confirm)
+and the first admin surface that reads M31's ledger. `GrantSourcePanel` is deleted. Six stacked
+PRs, #339 to #343, then a read-caching follow-up (#344, #346). No migration was planned; `0040` added
+the indexes its reads needed.
+
+**What held.**
+- **Minted, built and closed in one day**, ahead of M34's close, as a stack of six with every
+  automated box ticked before the walks. The walks were the only thing left at the end.
+- **The ledger stayed aggregate-only**: the account page's assistant section is tested to carry
+  no question or answer text, so the first admin read of the ledger did not become a way to read
+  people's conversations.
+
+**Left open, not gating.**
+- Growth per tier and notebook shares stay out, by decision: neither has a source.
