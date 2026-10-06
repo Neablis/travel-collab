@@ -15,9 +15,10 @@ import { and, desc, eq, getTableColumns, inArray, isNull, lte, ne, or, sql } fro
 import { hasMembershipRow } from "./access/members";
 import { serverConflictContext } from "./conflictContext";
 import { db, type Queryable } from "./db/client";
-import { events, pages, tripDetails, tripSummaries } from "./db/schema";
+import { events, pages, tripCovers, tripDetails, tripSummaries } from "./db/schema";
 import { readAll } from "./eventStore";
 import { isUuid } from "./ids";
+import { TRIP_COVER_JSON } from "./tripCovers";
 
 // The ONLY code allowed to write trip_summaries (AGENTS.md invariant 1).
 export async function applyTripEvents(
@@ -375,6 +376,10 @@ const LISTED_SUMMARY = {
   endDate: sql<string | null>`CASE WHEN ${LAST_DAY_DATE} ~ '^\\d{4}-\\d{2}-\\d{2}$' THEN ${LAST_DAY_DATE} END`,
   dayCount: countOf("strict $.days[*]"),
   stopCount: countOf("strict $.days[*].activityIds[*]"),
+  // The cover (M37 D1) is not planning state, so it is not on the projection:
+  // it is its own CRUD table, LEFT JOINed here so the grid reads every card's
+  // cover in the statement that reads the cards.
+  cover: TRIP_COVER_JSON,
 };
 
 export async function listTripSummaries() {
@@ -453,6 +458,7 @@ export async function listTripSummariesPage(
     .select(LISTED_SUMMARY)
     .from(tripSummaries)
     .leftJoin(tripDetails, eq(tripDetails.tripId, tripSummaries.tripId))
+    .leftJoin(tripCovers, eq(tripCovers.tripId, tripSummaries.tripId))
     .where(seek === undefined ? visible : and(visible, seek))
     .orderBy(desc(tripSummaries.createdAt), desc(tripSummaries.tripId))
     .limit(page.limit);
@@ -474,6 +480,7 @@ export async function listTripSummariesVisibleTo(userId: string) {
     .select(LISTED_SUMMARY)
     .from(tripSummaries)
     .leftJoin(tripDetails, eq(tripDetails.tripId, tripSummaries.tripId))
+    .leftJoin(tripCovers, eq(tripCovers.tripId, tripSummaries.tripId))
     .where(
       and(
         eq(tripSummaries.status, "active"),

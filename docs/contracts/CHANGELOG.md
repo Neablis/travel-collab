@@ -13,6 +13,35 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-06 — `TripCover`, `CoverCandidate` and `TripSummary.cover`: a trip can have a cover photo
+
+- **Added:** `cover.ts`, exported from the package root:
+  - `CoverUrls` (`raw`, `regular`, `small`), `CoverCandidate` (one Unsplash search result: `id`,
+    `urls`, `alt`, `photographerName`, `photographerUrl`, `photoPageUrl`, `downloadLocation`),
+    `CoverSearchResponse` (`{ results }`) and `SetCoverBody`
+    (`{ candidate }`);
+  - `TripCover` (`unsplashId`, `urls`, `alt`, `photographerName`, `photographerUrl`,
+    `photoPageUrl`) and `TripCoverResponse` (`{ cover }`, nullable);
+  - `unsplashCreditHref(url)` and `UNSPLASH_HOME`: a credit link with
+    `utm_source=caesura&utm_medium=referral`, falling back to Unsplash's home page for anything
+    not https on `unsplash.com`. For the card, the hero, the picker and (part 5) the day page.
+- **Added:** `TripSummary.cover: TripCover.nullable().default(null)`. `StoredTripSummary` omits it:
+  the projection does not hold it.
+- URLs are strings, not `.url()`: the offline fake serves same-origin paths. Which hosts are
+  acceptable is checked by the server when a cover is set.
+- Why: M37 D1–D3. A cover is trip metadata, not an event: a CRUD side table `trip_covers`
+  (migration `0042`), hotlinked from Unsplash's CDN, with the credit stored beside it so no page
+  view asks Unsplash anything.
+- Consumers updated: `LISTED_SUMMARY` (`server/projections.ts`) LEFT JOINs `trip_covers` into the
+  listing query, so `GET /api/trips` and `GET /v1/trips` carry it with no new statement. New
+  internal routes `GET`/`PUT`/`DELETE /api/trips/:id/cover` and `GET /api/trips/:id/cover/search`
+  speak the new schemas. `@tc/factories`' `tripSummaryFactory` defaults `cover: null`. No UI reads
+  it yet (part 4).
+- Public API: `GET /v1/trips` items gain `cover`. `API_VERSION` 1.7.0 → 1.8.0 (additive),
+  `API_FINGERPRINT` and `openapi.json` regenerated. The cover routes are `planned` in
+  `exposure.ts`, not published.
+- Breaking? no. `cover` is defaulted, so a summary from before it parses as null.
+
 ## 2026-10-06 — `TripSummary.dayCount` and `stopCount`: the card knows the trip's length
 
 - **Added:** `TripSummary.dayCount` and `TripSummary.stopCount`, each

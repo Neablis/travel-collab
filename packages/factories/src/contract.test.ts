@@ -1,8 +1,8 @@
-import { TripAccess, TripDetail, TripSummary } from "@tc/contracts";
+import { TripAccess, TripCover, TripDetail, TripSummary } from "@tc/contracts";
 import { describe, expect, it } from "vitest";
 import { tripAccessFixture } from "./access";
 import { scenarios } from "./scenarios";
-import { tripDetailFactory, tripSummaryFactory } from "./trip";
+import { tripCoverFactory, tripDetailFactory, tripSummaryFactory } from "./trip";
 
 // The standing guard KI-38 did not have. `TripDetail` is a real runtime Zod
 // schema, but the repo only ever imports it as `import type` — and `z.infer` of
@@ -115,5 +115,14 @@ describe("tripSummaryFactory", () => {
   it("parses as the TripSummary the client reads", () => {
     const parsed = TripSummary.safeParse(tripSummaryFactory.build());
     expect(parsed.success, parsed.success ? "" : JSON.stringify(parsed.error.issues)).toBe(true);
+  });
+});
+
+describe("tripCoverFactory", () => {
+  it("parses as a TripCover, and as a summary's cover", () => {
+    const cover = tripCoverFactory.build();
+    const parsed = TripCover.safeParse(cover);
+    expect(parsed.success, parsed.success ? "" : JSON.stringify(parsed.error.issues)).toBe(true);
+    expect(TripSummary.parse(tripSummaryFactory.build({ cover })).cover).toEqual(cover);
   });
 });

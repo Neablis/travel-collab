@@ -1,6 +1,6 @@
 export { FACTORY_SEED, faker } from "./seed";
 export { uuidFrom } from "./ids";
-export { activityFactory, locationFactory, moneyFactory, tripDetailFactory, tripMemberFactory, tripSummaryFactory } from "./trip";
+export { activityFactory, locationFactory, moneyFactory, tripDetailFactory, tripCoverFactory, tripMemberFactory, tripSummaryFactory } from "./trip";
 export { scenarios } from "./scenarios";
 export { withCostRollups } from "./rollups";
 export { commandsFor, type CommandsForOverrides, type ScenarioSpec } from "./commands";
