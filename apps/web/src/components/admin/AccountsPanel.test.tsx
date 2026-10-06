@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createPortal } from "react-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -277,6 +277,15 @@ describe("AccountsPanel", () => {
     expect(replaceState).not.toHaveBeenCalled();
   });
 
+  // Back and Forward re-render the page with another `initial` and nothing
+  // else; the table has to follow it rather than keep the state it seeded.
+  it("follows a navigation to a different view", () => {
+    const { rerender } = render(panel(everyKind()));
+    rerender(panel(everyKind(), { initial: { query: "granted", filter: "granted", page: 0 } }));
+    expect(screen.getByRole("button", { name: /^Granted/ }).getAttribute("aria-pressed")).toBe("true");
+    expect(rowIds()).toEqual(["granted0", "granted1", "granted2"]);
+  });
+
   it("writes search, filter and page back to the URL as they change", async () => {
     const user = userEvent.setup();
     render(panel(everyKind()));
@@ -304,6 +313,40 @@ describe("AccountsPanel", () => {
     expect(within(row).getByRole("link").getAttribute("href")).toBe(expected);
     await user.click(within(row).getByText("free@v1"));
     expect(push).toHaveBeenCalledWith(expected);
+  });
+
+  // A modifier asks for a new tab or window, which `push` cannot give; the
+  // address link is there for that. Each modifier on its own, so one dropped
+  // from the guard fails here.
+  it("does not open the account on a modified click", async () => {
+    const user = userEvent.setup();
+    render(panel([account({ userId: "solo" })]));
+    const cell = within(screen.getByTestId("account-solo")).getByText("free@v1");
+
+    for (const key of ["Meta", "Control", "Shift"]) {
+      await user.keyboard(`{${key}>}`);
+      await user.click(cell);
+      await user.keyboard(`{/${key}}`);
+    }
+    expect(push).not.toHaveBeenCalled();
+    // The witness: the same click unmodified does open it.
+    await user.click(cell);
+    expect(push).toHaveBeenCalledTimes(1);
+  });
+
+  // `fireEvent`, not `user.click`: user-event's pointer collapses the selection
+  // on the way down, which is what a click does but not what a drag ends with.
+  it("does not open the account when the click ends a text selection", () => {
+    render(panel([account({ userId: "solo" })]));
+    const cell = within(screen.getByTestId("account-solo")).getByText("free@v1");
+
+    window.getSelection()!.selectAllChildren(cell);
+    fireEvent.click(cell);
+    expect(push).not.toHaveBeenCalled();
+    // The witness: with the selection gone, the same click opens it.
+    window.getSelection()!.removeAllRanges();
+    fireEvent.click(cell);
+    expect(push).toHaveBeenCalledTimes(1);
   });
 
   it("does not open the account when Grant, Revoke or the dialog is clicked", async () => {

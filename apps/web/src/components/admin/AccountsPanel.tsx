@@ -64,10 +64,17 @@ function matchesFilter(
       return true;
     case "paying":
       // **Pays = a subscription conferring its plan right now**, which is
-      // `paysMicroUsd !== 0`: `null` is one this deploy cannot price, and it
-      // still pays. A `past_due` account inside its grace window confers and so
-      // counts — the same set MRR and *ARPU · paying only* are taken over, so
-      // the chip and the strip agree. Holding a paid plan by grant is not paying.
+      // `paysMicroUsd !== 0`. A `past_due` account inside its grace window
+      // confers and so counts; holding a paid plan by grant is not paying.
+      //
+      // **Not always the strip's paying count, in two ways.** `null` — a
+      // conferring subscription this deploy cannot price — counts here, because
+      // the account does pay and the *Pays* column says `unpriced` rather than
+      // hiding it; `revenueSummary` leaves it out of its paying accounts and
+      // reports it as `unpricedSubscriptions`, because it cannot add an unknown
+      // to MRR or divide MRR by it. And this counts the table's rows — the
+      // newest 100 plus every underwater payer — where the strip counts every
+      // account.
       return account.paysMicroUsd !== 0;
     case "granted":
       return account.grants.length > 0;
@@ -115,27 +122,20 @@ function lastActiveLabel(at: string | null, now: string): string {
  * Whether a click on a row should open the account. Not when it landed on a
  * control in the row — Grant, Revoke, the account's own link — and not when it
  * came from the grant dialog: that is portalled out of the table in the DOM,
- * but React still bubbles its clicks up through this row.
+ * but React still bubbles its clicks up through this row. Not with a modifier
+ * held, which asks the browser for something the row's `push` cannot give —
+ * the address link is there for a new tab — and not when the click ended a
+ * text selection, which is someone copying an address.
  */
 function opensAccount(event: React.MouseEvent<HTMLTableRowElement>): boolean {
+  if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey) return false;
+  if ((window.getSelection()?.toString() ?? "") !== "") return false;
   const target = event.target as Element;
   if (!event.currentTarget.contains(target)) return false;
   return target.closest("a, button, input, select, textarea, label") === null;
 }
 
-/**
- * The Users tab's accounts table: search, six counted filters, eight rows a
- * page, each row opening its account page with the view kept in the URL.
- */
-export function AccountsPanel({
-  accounts,
-  plans,
-  plansGrantingNothing,
-  underwater,
-  initial,
-  now,
-  windowDays,
-}: {
+type AccountsPanelProps = {
   accounts: readonly AdminAccountRow[];
   /** Plan ids an operator may grant — enabled plans only. */
   plans: readonly string[];
@@ -148,7 +148,31 @@ export function AccountsPanel({
   /** ISO, from the server render — what *Last active* is measured against. */
   now: string;
   windowDays: number;
-}) {
+};
+
+/**
+ * The Users tab's accounts table: search, six counted filters, eight rows a
+ * page, each row opening its account page with the view kept in the URL.
+ *
+ * **Keyed on the view it arrived with**, so a navigation that brings a
+ * different one — Back or Forward to another filter — remounts the table and
+ * re-seeds it. The state below is seeded once and only ever flows out to the
+ * URL; without the key, Back changed the address bar and left the table where
+ * it was.
+ */
+export function AccountsPanel(props: AccountsPanelProps) {
+  return <AccountsTable key={accountsViewHref(props.initial)} {...props} />;
+}
+
+function AccountsTable({
+  accounts,
+  plans,
+  plansGrantingNothing,
+  underwater,
+  initial,
+  now,
+  windowDays,
+}: AccountsPanelProps) {
   const router = useRouter();
   const grantsNothing = useMemo(() => new Set(plansGrantingNothing), [plansGrantingNothing]);
   const underwaterIds = useMemo(() => new Set(underwater), [underwater]);

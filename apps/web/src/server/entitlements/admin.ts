@@ -19,7 +19,7 @@
 // exactly as the milestone says — accounts, versions and hold counts are M20's
 // and live here; MRR and median margin per tier are link 7's and are merged in
 // from Billing.
-import { desc, eq, sql } from "drizzle-orm";
+import { desc, eq, inArray, sql } from "drizzle-orm";
 import { GrantSource, type PlanId } from "@tc/contracts";
 import { db } from "@/server/db/client";
 import { adminConsoleFlag } from "@/server/flags";
@@ -418,8 +418,14 @@ export interface AdminAccountRow {
  * Derived, never stored: the newest of its planning events (`events.actor_id`)
  * and its assistant turns (`ai_usage.user_id`), so no `last_seen` column and
  * no write on the request path. **One grouped read for every account**, not
- * one per row — the table it feeds is 100 rows. Bounded by the window as D6
- * words it, so `null` reads "not in 30 days", not "never".
+ * one per row — the table it feeds is a hundred-odd rows. Bounded by the window
+ * as D6 words it, so `null` reads "not in 30 days", not "never".
+ *
+ * **It scans the event log over the window**: `events` has no index on
+ * `occurred_at` or `actor_id`, so the read grows with every event written in
+ * the last 30 days, all accounts' together. D6 allows that index as this
+ * milestone's one migration if the read proves too slow; whether to add it is
+ * held for a decision, not taken here.
  *
  * This reads the event log, which is the planning domain's and not this
  * module's; a read of who wrote a row is not a write through it (invariant 1),
@@ -451,24 +457,42 @@ export async function lastActiveSince(since: Date): Promise<Map<string, string>>
  * with the gates, and the one that disagrees is always the one nobody is
  * looking at. Bounded by `limit` for exactly that reason: this is N+2 queries
  * and it is a page of an operator tool, not a hot path.
+ *
+ * **`include` is outside the bound.** The `limit` newest accounts come first,
+ * newest first; any id in `include` that is not among them is appended after,
+ * also newest first. The overview passes the underwater payers, so *Show them
+ * in Users* finds every account Financial counted — `underwaterReport` reads
+ * every account with a cost, and a payer older than the newest 100 was
+ * counted there and drawn nowhere.
  */
 export async function adminAccounts(
   limit = 100,
   now: Date = new Date(),
   trailing?: readonly AccountCost[],
+  include: readonly string[] = [],
 ): Promise<AdminAccountRow[]> {
   const since = trailingWindowStart(now);
-  const [rows, costs, counts, lastActive] = await Promise.all([
-    db
-      .select({ id: users.id, email: users.email, isAdmin: users.isAdmin })
-      .from(users)
-      .orderBy(desc(users.createdAt))
-      .limit(limit),
+  const columns = { id: users.id, email: users.email, isAdmin: users.isAdmin };
+  const [newest, costs, counts, lastActive] = await Promise.all([
+    db.select(columns).from(users).orderBy(desc(users.createdAt)).limit(limit),
     // The overview's one ledger read, when it hands it down (see `adminOverview`).
     trailing ?? costPerAccount(since),
     requestCounts(since),
     lastActiveSince(since),
   ]);
+  const shown = new Set(newest.map((row) => row.id));
+  const missing = [...new Set(include)].filter((id) => !shown.has(id));
+  const rows =
+    missing.length === 0
+      ? newest
+      : [
+          ...newest,
+          ...(await db
+            .select(columns)
+            .from(users)
+            .where(inArray(users.id, missing))
+            .orderBy(desc(users.createdAt))),
+        ];
   const costByUser = new Map(costs.map((cost) => [cost.userId, cost]));
   return Promise.all(
     rows.map(async (row) => {
@@ -555,13 +579,23 @@ export async function adminOverview(now: Date = new Date()): Promise<AdminOvervi
   // reading Entitlements' tables (ADR-047's 2026-09-25 amendment).
   // `adminOverview.int.test.ts` pins one read of each.
   const [trailing, holders] = await Promise.all([adminCostPerAccount(now), activeGrantHolders(now)]);
+  const underwaterRead = underwaterReport(TRAILING_WINDOW_DAYS, trailing, holders, now);
   const [plans, grantSources, accounts, spenders, revenue, underwater, prices] = await Promise.all([
     planPanel(now, trailing),
     grantSourcePanel(now, { trailing, holders }),
-    adminAccounts(100, now, trailing),
+    // Every underwater payer gets a row, however old the account: the table's
+    // *Costs more than it pays* filter is how Financial's count is opened.
+    underwaterRead.then((report) =>
+      adminAccounts(
+        100,
+        now,
+        trailing,
+        report.paying.map((row) => row.userId),
+      ),
+    ),
     adminTopSpenders(10, now, trailing),
     revenueSummary(TRAILING_WINDOW_DAYS, trailing, now),
-    underwaterReport(TRAILING_WINDOW_DAYS, trailing, holders, now),
+    underwaterRead,
     priceConsistencyReport(),
   ]);
   return {

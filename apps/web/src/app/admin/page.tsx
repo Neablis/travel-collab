@@ -114,8 +114,10 @@ export default async function AdminPage({
           {/* Search, counted filters, 8 rows a page and a no-match state all live
               in the client component: they are view state over a list the server
               already sent, and a round trip per keystroke would be a worse
-              console for a table bounded at 100 rows. They are seeded from the
-              URL, which is where they are kept (D2). `?account=` renders this
+              console for a table of the newest 100 accounts plus every
+              underwater payer. They are seeded from the URL, which is where
+              they are kept (D2), and re-seeded when a navigation brings
+              another view (see `AccountsPanel`). `?account=` renders this
               table too until M36 link 3 builds the account page. Only enabled plans are
               offered to the grant dialog — `enabled` bounds what an operator may
               hand out, never what a holder may do, which is what lets the
