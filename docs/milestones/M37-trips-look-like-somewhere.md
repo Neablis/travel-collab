@@ -1,6 +1,6 @@
 # M37 — A trip looks like somewhere before it has a plan
 
-**Status:** **Scoped 2026-10-06, placed after M35.** Every decision below was answered as
+**Status:** **Current from 2026-10-06**, by M35's gate closing; being built as a four-part stack from `docs/plans/2026-10-06-M37-trip-cards-and-covers.md`. **Scoped 2026-10-06, placed after M35.** Every decision below was answered as
 recommended (*"Yes that recommendation is fine"*), and the order M37 → M47 was confirmed
 (*"Order is good"*), both on 2026-10-06. Minted from `docs/candidates.md` when its 42 unplaced
 entries were grouped into milestones (asked 2026-10-06: *"Go through the suggested new features,
