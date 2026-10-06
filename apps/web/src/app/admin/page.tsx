@@ -7,7 +7,7 @@ import { TierPanel } from "@/components/admin/TierPanel";
 import { RevenueStaleBanner, RevenueStrip } from "@/components/admin/RevenueStrip";
 import { UnderwaterPanel } from "@/components/admin/UnderwaterPanel";
 import { PriceCheckPanel } from "@/components/admin/PriceCheckPanel";
-import { ReportsPanel } from "@/components/admin/ReportsPanel";
+import { LibraryTab } from "@/components/admin/LibraryTab";
 import { AiModelsTab } from "@/components/admin/AiModelsTab";
 import { Panel } from "@/components/ui/panel";
 import { Text } from "@/components/ui/text";
@@ -16,6 +16,7 @@ import { aiModelsReport } from "@/server/entitlements/aiModels";
 import { ASSISTANT_TOOLS } from "@/server/assistant/registry";
 import { adminUserId } from "@/server/entitlements/requireAdmin";
 import { listReports } from "@/server/reports";
+import { adminNotebooks } from "@/server/savedNotebooks";
 
 // **The console, read-only over plans and granting as its only write**
 // (M20 link 7, and the 2026-09-02 amendment).
@@ -85,21 +86,19 @@ export default async function AdminPage({
     // The report queue is read here for the same reason the overview is — see
     // the header — and after the gate for the same reason too.
     // `admin.console.test.ts` holds that order. Only this tab reads it: it is
-    // the one read on the page that carries other people's words.
-    const [open, actioned, dismissed] = await Promise.all([
+    // the one read on the page that carries other people's words. The
+    // notebook read (M36 link 5) joins it here, and nowhere else.
+    const [open, actioned, dismissed, notebooks] = await Promise.all([
       listReports({ status: "open" }),
       listReports({ status: "actioned" }),
       listReports({ status: "dismissed" }),
+      adminNotebooks(),
     ]);
     return (
       <ConsoleShell tab={tab}>
-        {/* **Reports** (M12 link 6) — the one place an operator acts on them.
-            Hiding a day takes it off Discover, the board and profiles; the
-            author keeps their copy. First paint from the server, actions from
-            the browser against the gated endpoints: `ReportsPanel` says why. */}
-        <Panel title="Reports">
-          <ReportsPanel initial={{ open, actioned, dismissed }} />
-        </Panel>
+        {/* **Reports** (M12 link 6) first — the one place an operator acts on
+            them — then notebooks, only the half with a source (M36 D5). */}
+        <LibraryTab reports={{ open, actioned, dismissed }} notebooks={notebooks} />
       </ConsoleShell>
     );
   }
