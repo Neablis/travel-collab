@@ -22,9 +22,14 @@ general setup.
 ## Where the work is right now
 
 **M35 — YOU CAN SAY WHO ON A TRIP IS ACTUALLY GOING — IS THE CURRENT MILESTONE AS OF
-2026-10-06**, by **M36's gate closing at 13 of 13**. Order: `… M34 ✓ → M36 ✓ → M35`, and it is
-the last unticked milestone in `TODO.md`. M35 is built and merged (#335); its gate is 8 of 12.
+2026-10-06**, by **M36's gate closing at 13 of 13**. Order: `… M34 ✓ → M36 ✓ → M35 → M37 … M47`.
+M35 is built and merged (#335); its gate is 8 of 12.
 (`docs/milestones/M35-travellers-and-people.md`)
+
+**M37 to M47 were proposed on 2026-10-06** by grouping the candidates file, and placed after M35 in
+that order. **None is scoped yet**: each file lists its decisions with a recommendation, and
+answering M37's decisions is the next step after M35's gate. Grouping and order:
+`docs/milestones/README.md`, *2026-10-06 — proposed: M37 to M47*.
 
 **M36 closed 2026-10-06** on Mitchell's word that the admin console works; its two walk boxes are
 ticked on that attestation, not re-walked. Its retro is at the end of

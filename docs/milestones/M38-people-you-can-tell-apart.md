@@ -1,0 +1,75 @@
+# M38 — You can tell people apart, and see a trip before you join it
+
+**Status:** **Proposed 2026-10-06, placed after M37. Not scoped yet**: the decisions below are
+recommendations and none has been answered. Minted from `docs/candidates.md` (see
+`docs/milestones/README.md`, *2026-10-06 — proposed: M37 to M47*). It builds on M35: the `Avatar`
+primitive (`components/ui/avatar.tsx`) and the People section are where both halves plug in.
+
+## Why this exists
+
+M35 made it possible to say who on a trip is going. It did not make those people easy to tell
+apart. Mitchell, 2026-10-04: *"avatars and better personas for your account so you can see who's in
+a activity or invited easier, they can select a avatar and a color, along with there custom name"*.
+
+The invite-accept page is where someone decides whether to join, and it says little about the
+trip. The same day: *"leveraging the notebook widgets for the accept joining trip page so it shares
+code and tells you more about the trip before accepting"*. Both are about how a person meets a
+trip and the people on it, so they are one milestone.
+
+Candidates absorbed (each deleted by this gate):
+- *Avatars and personas: a picture, a colour and a name you choose* (2026-10-04)
+- *The invite-accept page uses notebook widgets to say what the trip is* (2026-10-04)
+
+## Decisions it needs (recommendations; none answered)
+
+1. **Avatars come from a fixed set; there are no uploads.** *Recommended:* uploads bring storage
+   and moderation, which the admin reports panel does not cover for images.
+2. **A display name is separate from the sign-in name**, and it is what every trip surface shows.
+   It falls back to the sign-in name. A public-library profile (ADR-061) shows the display name
+   only if the user opts in, so a private name never leaks.
+3. **Colour is personal, and a trip resolves clashes at render time.** *Recommended:* if two
+   travellers on one trip chose the same colour, the later joiner's chip is shifted for that trip
+   only. Their stored choice does not change. Requiring a unique colour per trip would make
+   joining fail for a reason the joiner cannot see.
+4. **What an invitee sees before accepting.** *Recommended:* dates, the route (days and cities),
+   the map, who is going (display names and avatars), and the trip's total. Per-person cost and
+   individual stop costs stay hidden, because costs are the sensitive part. The token holder is
+   not a member yet (ADR-026), so the token is what authorises this read.
+5. **The owner does not choose which widgets show**, at least at first. *Recommended:* one fixed
+   set, so there is one code path. Owner choice can come later if anyone asks for it.
+6. **How a widget renders without membership.** ADR-035 says a widget is a function of declared
+   inputs. *Recommended:* a server read keyed on the invite token builds exactly those inputs, and
+   the page renders the same widget components read-only. There is no invite-only copy of any
+   widget.
+
+## Scope
+
+- Account preferences gain avatar, colour and display name, through a migration and a contracts
+  change.
+- Every place a person appears uses them: stop attendees, *Who is in*, *Booked by*, the People
+  section, pending invites, the header avatar stack, suggestion authors, and History.
+- `app/(front)/invite/[token]` renders a read-only trip slice with the notebook widgets, fed by a
+  token-scoped read.
+
+## Out of scope
+
+- Uploaded photos as avatars.
+- Ownership transfer (M35 D9).
+- Trip chat (M46), which will reuse these personas.
+
+## Exit gate
+
+- [ ] **Decisions 1–6 are answered and recorded here.**
+- [ ] **A person's avatar, colour and display name show on every surface listed under Scope.** A
+      test per surface, or one test over a shared `PersonChip` they all use, was seen red with the
+      old initials.
+- [ ] **No private name reaches a public page**: an integration test reads a public profile and a
+      published day for a user who has not opted in, and finds only the public name.
+- [ ] **The invite page shows the trip before accepting, using the notebook widgets'
+      components**. A grep or architecture-wall rule shows no invite-only copy of a widget.
+- [ ] **The token-scoped read returns nothing that decision 4 hides**: an integration test asserts
+      per-person and per-stop costs are absent, and an expired or revoked token returns nothing.
+- [ ] **The e2e spec passes on `pnpm --filter web test:e2e:ci-like`**: set an avatar, invite
+      someone, open the invite as them, see the trip, accept, and see the avatar in People.
+- [ ] **[walk]** On the PR preview, a two-person trip where both chose the same colour is walked.
+- [ ] A retro is appended at gate close.
