@@ -2,7 +2,7 @@ import { cleanup, render, screen, waitFor, within } from "@testing-library/react
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TripSummary } from "@tc/contracts";
-import { tripDetailFixture, historyFixture } from "@tc/factories";
+import { tripDetailFixture, historyFixture, tripSummaryFactory } from "@tc/factories";
 import { formatMoney } from "@/lib/formatMoney";
 
 const pushMock = vi.fn();
@@ -28,16 +28,16 @@ import { rememberPlaybookAdd } from "@/lib/pendingPlaybookAdd";
 const tripId = "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f";
 
 function tripSummaryFixture(overrides: Partial<TripSummary> = {}): TripSummary {
-  return {
+  return tripSummaryFactory.build({
     tripId,
     name: "Japan",
-    status: "active",
     members: [{ userId: OWNER_ID, role: "owner" }],
-    createdAt: "2026-07-08T12:00:00.000Z",
-    startDate: null,
-    endDate: null,
+    // Planned: these tests are about cards that carry a cost line, and an
+    // unplanned trip's card shows its next steps in that slot instead (M37).
+    dayCount: 1,
+    stopCount: 1,
     ...overrides,
-  };
+  });
 }
 
 function jsonResponse(body: unknown, status = 200): Response {

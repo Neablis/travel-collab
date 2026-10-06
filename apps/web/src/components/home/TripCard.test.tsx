@@ -1,6 +1,7 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import type { TripSummary } from "@tc/contracts";
+import { tripSummaryFactory } from "@tc/factories";
 import { TripCard } from "./TripCard";
 
 afterEach(() => {
@@ -8,16 +9,11 @@ afterEach(() => {
 });
 
 function tripSummaryFixture(overrides: Partial<TripSummary> = {}): TripSummary {
-  return {
+  return tripSummaryFactory.build({
     tripId: "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f",
     name: "Iceland Ring Road",
-    status: "active",
-    members: [{ userId: "dev-alice", role: "owner" }],
-    createdAt: "2026-07-08T12:00:00.000Z",
-    startDate: null,
-    endDate: null,
     ...overrides,
-  };
+  });
 }
 
 // Two members instead of the single-member default fixture, so the "one

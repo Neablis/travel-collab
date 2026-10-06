@@ -387,13 +387,22 @@ export const TripSummary = z.object({
   // `listTripSummariesVisibleTo`. `.default(null)` for the same version skew
   // as `startDate`.
   endDate: z.string().regex(ISO_DATE).nullable().default(null),
+  // How many days the trip has, and how many stops sit on them (M37 D5): what
+  // a card needs to say the trip's length and to tell an empty trip from a
+  // planned one, read from the trip's document in the same query as `endDate`.
+  // A stop is an activity placed on a day — the plan's stops. The backlog is
+  // not counted: an idea parked there is not yet on the plan, and a card that
+  // called a trip with no days "3 stops" would be describing a plan that does
+  // not exist. `.default(0)` for the same version skew as `startDate`.
+  dayCount: z.number().int().nonnegative().default(0),
+  stopCount: z.number().int().nonnegative().default(0),
 });
 export type TripSummary = z.infer<typeof TripSummary>;
 
 /**
  * What the `trip_summaries` projection itself holds, and what
- * `projectTripSummaries` folds from the log: a `TripSummary` without
- * `endDate`, which the list query reads from the trip's document instead of
- * storing a second copy of the day-date math (KI-2026-09-24-e).
+ * `projectTripSummaries` folds from the log: a `TripSummary` without the
+ * fields the list query reads from the trip's document instead of storing a
+ * second copy — `endDate` (KI-2026-09-24-e), and the day and stop counts (M37).
  */
-export type StoredTripSummary = Omit<TripSummary, "endDate">;
+export type StoredTripSummary = Omit<TripSummary, "endDate" | "dayCount" | "stopCount">;

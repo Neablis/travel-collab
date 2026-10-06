@@ -355,9 +355,26 @@ export async function rebuildProjections(): Promise<void> {
  * key — reads as null, "end unknown", the same as an undated trip.
  */
 const LAST_DAY_DATE = sql`${tripDetails.doc} -> 'days' -> -1 ->> 'date'`;
+/**
+ * `dayCount` and `stopCount` (M37) come from the same document on the same
+ * terms: no column, no second projector, no query of their own. A stop is an
+ * activity on a day; the backlog is not on the plan, so it is not counted
+ * (`TripSummary.stopCount`).
+ *
+ * A strict jsonpath, run silent, rather than `jsonb_array_length(doc -> 'days')`:
+ * that raises on a `days` or `activityIds` that is not an array, and one bad
+ * row would fail every trip on Home, as `endDate`'s shape check says. Silent,
+ * a key that is missing or the wrong shape counts as nothing. Strict, not lax,
+ * because lax mode wraps a non-array and would count an object as one day.
+ * The `COALESCE` is the missing-document case of the LEFT JOIN.
+ */
+const countOf = (path: string) =>
+  sql<number>`COALESCE(jsonb_array_length(jsonb_path_query_array(${tripDetails.doc}, ${path}::jsonpath, '{}', true)), 0)`;
 const LISTED_SUMMARY = {
   ...getTableColumns(tripSummaries),
   endDate: sql<string | null>`CASE WHEN ${LAST_DAY_DATE} ~ '^\\d{4}-\\d{2}-\\d{2}$' THEN ${LAST_DAY_DATE} END`,
+  dayCount: countOf("strict $.days[*]"),
+  stopCount: countOf("strict $.days[*].activityIds[*]"),
 };
 
 export async function listTripSummaries() {

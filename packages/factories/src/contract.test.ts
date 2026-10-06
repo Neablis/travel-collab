@@ -1,8 +1,8 @@
-import { TripAccess, TripDetail } from "@tc/contracts";
+import { TripAccess, TripDetail, TripSummary } from "@tc/contracts";
 import { describe, expect, it } from "vitest";
 import { tripAccessFixture } from "./access";
 import { scenarios } from "./scenarios";
-import { tripDetailFactory } from "./trip";
+import { tripDetailFactory, tripSummaryFactory } from "./trip";
 
 // The standing guard KI-38 did not have. `TripDetail` is a real runtime Zod
 // schema, but the repo only ever imports it as `import type` — and `z.infer` of
@@ -105,6 +105,15 @@ describe("factory-built trips satisfy the TripDetail contract at runtime", () =>
 describe("tripAccessFixture", () => {
   it("parses as the TripAccess the client reads", () => {
     const parsed = TripAccess.safeParse(tripAccessFixture());
+    expect(parsed.success, parsed.success ? "" : JSON.stringify(parsed.error.issues)).toBe(true);
+  });
+});
+
+// Same reason for the home-grid row: the client parses `GET /api/trips` with
+// `TripSummary`, so a card test is fed a row the server could have sent.
+describe("tripSummaryFactory", () => {
+  it("parses as the TripSummary the client reads", () => {
+    const parsed = TripSummary.safeParse(tripSummaryFactory.build());
     expect(parsed.success, parsed.success ? "" : JSON.stringify(parsed.error.issues)).toBe(true);
   });
 });

@@ -1,7 +1,7 @@
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TripSummary } from "@tc/contracts";
-import { costedTripDetailFixture, tripDetailFixture } from "@tc/factories";
+import { costedTripDetailFixture, tripDetailFixture, tripSummaryFactory } from "@tc/factories";
 
 const fetchTripDetailMock = vi.fn();
 
@@ -24,19 +24,15 @@ beforeEach(() => {
 });
 
 function tripSummaryFixture(overrides: Partial<TripSummary> = {}): TripSummary {
-  return {
+  return tripSummaryFactory.build({
     tripId: "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f",
     name: "Japan: Tokyo to Kyoto",
-    status: "active",
     members: [
       { userId: "dev-alice", role: "owner" },
       { userId: "dev-bob", role: "owner" },
     ],
-    createdAt: "2026-07-08T12:00:00.000Z",
-    startDate: null,
-    endDate: null,
     ...overrides,
-  };
+  });
 }
 
 // Two days, three stops on day 1 and one on day 2 — real per-day activity

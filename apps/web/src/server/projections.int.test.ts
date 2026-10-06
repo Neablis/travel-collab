@@ -106,6 +106,54 @@ describe("trip summaries carry the start date, in a stated order", () => {
 });
 
 /**
+ * M37 D5: the card reads a trip's length and whether it has a plan from the
+ * list itself, never from a per-card detail read. Both counts come off the
+ * document in the listing query, so both listing queries are asserted.
+ */
+describe("trip summaries carry the day and stop counts", () => {
+  it("counts days and the stops on them, not the backlog, in both listing queries", async () => {
+    const member = `m37-${randomUUID().slice(0, 8)}`;
+    const planned = randomUUID();
+    const empty = randomUUID();
+    const [day1, day2] = [randomUUID(), randomUUID()];
+    await executeTripCommand({ type: "CreateTrip", tripId: planned, name: "Planned" }, member);
+    await executeTripCommand(
+      { type: "SetTripDates", tripId: planned, startDate: "2099-05-01", endDate: "2099-05-02", newDayIds: [day1, day2] },
+      member,
+    );
+    for (const dayId of [day1, day1, day2, undefined]) {
+      await executeTripCommand(
+        { type: "AddActivity", tripId: planned, activityId: randomUUID(), dayId, title: "Stop" },
+        member,
+      );
+    }
+    // Created last, so it heads both newest-first lists.
+    await executeTripCommand({ type: "CreateTrip", tripId: empty, name: "Empty" }, member);
+
+    const counts = (rows: { name: string; dayCount: number; stopCount: number }[]) =>
+      rows.map((r) => [r.name, r.dayCount, r.stopCount]);
+    // Three stops on two days; the fourth activity is in the backlog.
+    const expected = [
+      ["Empty", 0, 0],
+      ["Planned", 2, 3],
+    ];
+    expect(counts(await listTripSummariesVisibleTo(member))).toEqual(expected);
+    expect(counts(await listTripSummariesPage(member, { limit: 10, after: null }))).toEqual(expected);
+
+    // A `days` that is not an array — only a corrupt or past server could
+    // write one — counts as nothing rather than failing every trip on the list.
+    await db
+      .update(tripDetails)
+      .set({ doc: sql`jsonb_set(${tripDetails.doc}, '{days}', '{}'::jsonb)` })
+      .where(eq(tripDetails.tripId, planned));
+    expect(counts(await listTripSummariesVisibleTo(member))).toEqual([
+      ["Empty", 0, 0],
+      ["Planned", 0, 0],
+    ]);
+  });
+});
+
+/**
  * KI-2026-09-05-r. `trip_details.doc` is `jsonb(...).$type<TripDetail>()` — a
  * Drizzle CAST, checked by nothing at runtime — and `getTripDetail` handed that
  * column straight back under a `Promise<TripDetail | null>` signature. Every

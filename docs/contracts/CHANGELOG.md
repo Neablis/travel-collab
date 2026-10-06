@@ -13,6 +13,25 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-06 — `TripSummary.dayCount` and `stopCount`: the card knows the trip's length
+
+- **Added:** `TripSummary.dayCount` and `TripSummary.stopCount`, each
+  `z.number().int().nonnegative().default(0)`, in `trip.ts`. `StoredTripSummary` omits both, as it
+  omits `endDate`: the projection does not store them.
+- What a stop is: an activity placed on a day — the sum of `days[].activityIds`. The backlog is
+  not counted. An idea parked there is not on the plan, and a trip with no days is not "3 stops".
+- Why: M37 D5 and D6. Home's card says the trip's length, and a trip with no days and no stops
+  gets a designed empty state. The card reads only what the list returns, so both are on the
+  summary rather than fetched per card.
+- Consumers updated: `LISTED_SUMMARY` (`server/projections.ts`) derives both in SQL from
+  `trip_details.doc` alongside `endDate`, so `GET /api/trips` and `GET /v1/trips` carry them with
+  no new query, column or migration. `TripCard` and `NextTripHero` show "N days" and the empty
+  state. `@tc/factories` gains `tripSummaryFactory`. The web tests that hand-built a summary
+  build it from that factory.
+- Public API: `GET /v1/trips` items gain both fields. `API_VERSION` 1.6.0 → 1.7.0 (additive),
+  `API_FINGERPRINT` and `openapi.json` regenerated.
+- Breaking? no. Both are defaulted, so a summary from before them parses as 0 and 0.
+
 ## 2026-10-06 — `TripCommandUnit` and `CommandUnitKey`: a queued unit is applied once
 
 - **Added:** `CommandUnitKey`, 1–64 characters of `[A-Za-z0-9_-]`, and `TripCommandUnit`,
