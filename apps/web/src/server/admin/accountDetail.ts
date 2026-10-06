@@ -19,12 +19,13 @@ import { TRAILING_WINDOW_DAYS, trailingWindowStart } from "@/server/entitlements
 import {
   adminAccountAssistant,
   adminAccountPlan,
-  windowDayOf,
   type AdminAccountAssistant,
   type AdminAccountMoment,
   type AdminAccountPlan,
 } from "@/server/entitlements/adminAccount";
 import { describeEvent } from "./describeEvent";
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** Everything the account page draws for one account. */
 export interface AdminAccountDetail {
@@ -57,10 +58,18 @@ export async function adminAccountDetail(
 
   const [assistant, edits, recentEvents, owned, invited, notebooks] = await Promise.all([
     adminAccountAssistant(plan, now),
+    // Bucketed in the database — a row per day it edited, not per event. `ago`
+    // is `windowDayOf`'s whole 24-hour periods before `now`, taken at a JS
+    // Date's millisecond precision so an edit lands on the same bar here as
+    // it would there.
     db
-      .select({ at: events.occurredAt })
+      .select({
+        ago: sql<number>`floor((extract(epoch from ${now.toISOString()}::timestamptz) - extract(epoch from date_trunc('milliseconds', ${events.occurredAt}))) * 1000 / ${DAY_MS})::int`,
+        count: sql<number>`count(*)::int`,
+      })
       .from(events)
-      .where(and(eq(events.actorId, userId), gte(events.occurredAt, since))),
+      .where(and(eq(events.actorId, userId), gte(events.occurredAt, since)))
+      .groupBy(sql`1`),
     // Not bounded by the window: the six newest are the six newest, however
     // long ago — an account idle for two months still has a last thing it did.
     db
@@ -92,9 +101,8 @@ export async function adminAccountDetail(
   ]);
 
   const editsPerDay = Array.from({ length: TRAILING_WINDOW_DAYS }, () => 0);
-  for (const edit of edits) {
-    const day = windowDayOf(new Date(edit.at), now);
-    if (day !== null) editsPerDay[day]! += 1;
+  for (const { ago, count } of edits) {
+    if (ago >= 0 && ago < TRAILING_WINDOW_DAYS) editsPerDay[TRAILING_WINDOW_DAYS - 1 - ago] = count;
   }
   // The same two sources as *Last active* (`lastActiveSince`), on the same days.
   const activeDays = editsPerDay.filter((count, day) => count > 0 || assistant.perDay[day]! > 0).length;

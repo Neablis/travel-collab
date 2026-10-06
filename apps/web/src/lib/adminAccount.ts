@@ -4,9 +4,12 @@
 // and `adminWireShape.test.ts` pins every pair with the same compile-time
 // identity check.
 //
-// **No field carries a question, an answer or a trip's content** (M36 D7).
-// The ledger has none to give, and a field added here for one would be the
-// "view question" affordance the page must not grow.
+// **No assistant or ledger field carries a question or an answer** (M36 D7).
+// The ledger has none to give, and a field added to `AdminAccountAssistant` or
+// `AdminAccountTurn` for one would be the "view question" affordance the page
+// must not grow. The planning half is not under that rule: `activity.recent`
+// is the account's own edits as sentences, so its `what` names trips and the
+// things in them.
 import type { GrantSource } from "@tc/contracts";
 import type { AdminAccountRow } from "./adminOverview";
 

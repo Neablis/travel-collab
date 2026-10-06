@@ -30,9 +30,10 @@ import { microUsdCost } from "./microUsd";
  *
  * **The paying rows are not listed here since M36 link 2.** *Show them in
  * Users* opens the accounts table on its *Costs more than it pays* filter —
- * the same `report.paying` set, passed to that table as ids — so the rows are
- * shown once, where an account can be opened, rather than in a second table
- * that could disagree with it.
+ * the same `report.paying` set, passed to that table as ids, and `adminOverview`
+ * gives every one of them a row however old the account (`adminAccounts`'
+ * `include`) — so the rows are shown once, where an account can be opened,
+ * rather than in a second table that could disagree with it.
  */
 export function UnderwaterPanel({ report }: { report: AdminUnderwaterView }) {
   return (

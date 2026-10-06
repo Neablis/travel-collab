@@ -11,9 +11,9 @@ import { executeTripCommand } from "@/server/commands";
 import { upsertUser } from "@/server/users";
 import type { TurnLedger } from "@/server/assistant/ledger";
 import { recordTurnLedger } from "./usage";
-import { allGrantsFor, issueGrant, offerTrial } from "./grants";
+import { activeGrantHolders, allGrantsFor, issueGrant, offerTrial } from "./grants";
 import { accountCan } from "./resolver";
-import { adminAccounts, adminTopSpenders, grantSourcePanel, isAdmin, planPanel } from "./admin";
+import { adminAccounts, adminTopSpenders, isAdmin, planPanel } from "./admin";
 import { livePlanVersion, versionsOf } from "./planVersions";
 
 let currentUserId = "";
@@ -162,20 +162,20 @@ describe("the console answers from real data", () => {
     expect(Object.keys(studio.holdsByVersion)).toHaveLength(studio.versions.length);
   });
 
+  // What *Underwater by construction* counts per source (M36 link 1 deleted
+  // the grant-cost panel that used to be asserted here; the read is the same).
   it("counts accounts per ACTIVE grant source", async () => {
     const trialled = await account();
     await offerTrial(trialled);
-    const trialOf = (rows: Awaited<ReturnType<typeof grantSourcePanel>>) =>
-      rows.find((row) => row.source === "trial")?.accounts ?? 0;
-    const before = trialOf(await grantSourcePanel());
-    expect(before).toBeGreaterThan(0);
+    const onTrial = async (now?: Date) =>
+      (await activeGrantHolders(now)).some((row) => row.source === "trial" && row.userId === trialled);
+    expect(await onTrial()).toBe(true);
 
     // An expired trial stops being counted — and the row is still there,
     // because nothing sweeps that table. "On a trial now" and "ever had one"
-    // are different questions and this panel asks the first.
+    // are different questions and this read asks the first.
     const later = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-    const after = trialOf(await grantSourcePanel(later));
-    expect(after).toBeLessThan(before);
+    expect(await onTrial(later)).toBe(false);
     expect(await allGrantsFor(trialled)).toHaveLength(1);
   });
 

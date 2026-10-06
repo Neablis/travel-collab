@@ -116,6 +116,9 @@ describe("the account page reads one account", () => {
     expect(mine.assistant.questions).toBe(0);
     expect(mine.assistant.topTools).toEqual([]);
     expect(mine.assistant.recent).toEqual([]);
+    // The percentiles are their own query; it must be scoped as the turns are.
+    expect(mine.assistant.contextMedian).toBeNull();
+    expect(mine.assistant.contextP95).toBeNull();
     expect(mine.activity.editsPerDay.every((count) => count === 0)).toBe(true);
     expect(mine.activity.recent).toEqual([]);
     expect(mine.activeDays).toBe(0);
@@ -126,6 +129,7 @@ describe("the account page reads one account", () => {
     // And the busy one sees its own — or the zeros above prove nothing.
     const theirs = await detailOf(busy);
     expect(theirs.assistant.questions).toBe(1);
+    expect(theirs.assistant.contextMedian).toBe(1000);
     expect(theirs.trips.owned).toBe(1);
     expect(theirs.notebooks).toBe(1);
     expect(theirs.plan.grants).toHaveLength(1);

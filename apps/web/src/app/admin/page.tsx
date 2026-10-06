@@ -14,7 +14,7 @@ import { AiModelsTab } from "@/components/admin/AiModelsTab";
 import { Panel } from "@/components/ui/panel";
 import { Text } from "@/components/ui/text";
 import { adminAccountDetail } from "@/server/admin/accountDetail";
-import { adminOverview, grantablePlanIds } from "@/server/entitlements/admin";
+import { adminFinancial, adminUsers, grantablePlanIds } from "@/server/entitlements/admin";
 import { aiModelsReport } from "@/server/entitlements/aiModels";
 import { ASSISTANT_TOOLS } from "@/server/assistant/registry";
 import { adminUserId } from "@/server/entitlements/requireAdmin";
@@ -26,7 +26,10 @@ import { listReports } from "@/server/reports";
 // **Four tabs since M36 link 4 (three since link 1), not one scroll.** The scroll grew a panel per
 // milestone and every new one went to the bottom, so the one part that needs
 // action — reports — sat below four that only report. The tab is URL state
-// (`?tab=`, D1), so each tab is its own request and reads only what it draws.
+// (`?tab=`, D1), so each tab is its own request and reads only what it draws:
+// Library the report queue, Users `adminUsers()` — the accounts table without
+// the Stripe price sweep or the tier panel — and Financial `adminFinancial()`,
+// which is the overview without the accounts table.
 //
 // **The revenue half arrived with M21 link 7**, 2026-09-14: the four-number
 // strip, the per-tier MRR and margin columns, the `Pays` and `State` columns in
@@ -80,14 +83,14 @@ export default async function AdminPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   // Before any data is read, and before anything renders. `notFound()` throws,
-  // so there is no path where `adminOverview()` runs for a non-operator.
+  // so there is no path where any of the reads below runs for a non-operator.
   if ((await adminUserId()) === null) notFound();
   const params = await searchParams;
   const tab = resolveConsoleTab(params.tab);
 
   if (tab === "library") {
-    // The report queue is read here for the same reason the overview is — see
-    // the header — and after the gate for the same reason too.
+    // The report queue is read here for the same reason the other tabs read
+    // theirs — see the header — and after the gate for the same reason too.
     // `admin.console.test.ts` holds that order. Only this tab reads it: it is
     // the one read on the page that carries other people's words.
     const [open, actioned, dismissed] = await Promise.all([
@@ -141,20 +144,21 @@ export default async function AdminPage({
     );
   }
 
-  const overview = await adminOverview();
-
-  return (
-    // **Stale revenue is a page-level banner on both tabs that read it** —
-    // Financial's MRR and Users' *Pays* column go stale together.
-    <ConsoleShell tab={tab} banner={<RevenueStaleBanner revenue={overview.revenue} />}>
-      {tab === "users" ? (
+  if (tab === "users") {
+    const users = await adminUsers();
+    return (
+      // **Stale revenue is a page-level banner on both tabs that read it** —
+      // Financial's MRR and Users' *Pays* column go stale together.
+      <ConsoleShell tab={tab} banner={<RevenueStaleBanner revenue={users.revenue} />}>
         <Panel title="Accounts">
           {/* Search, counted filters, 8 rows a page and a no-match state all live
               in the client component: they are view state over a list the server
               already sent, and a round trip per keystroke would be a worse
-              console for a table bounded at 100 rows. They are seeded from the
-              URL, which is where they are kept (D2). Granting and revoking
-              live on the account page a row opens (M36 link 3). */}
+              console for a table of the newest 100 accounts plus every
+              underwater payer. They are seeded from the URL, which is where
+              they are kept (D2), and re-seeded when a navigation brings
+              another view (see `AccountsPanel`). Granting and revoking live
+              on the account page a row opens (M36 link 3). */}
           {/* `plansGrantingNothing` is decided once, here, from the plan file, and
               asked as "does this plan grant anything" rather than "is this plan
               free" — ADR-045 rule 4, which `planVersions.fourthPlan.test.ts`
@@ -162,52 +166,56 @@ export default async function AdminPage({
               refused the first version of the Free filter, which compared
               `planId === "free"` directly. */}
           <AccountsPanel
-            accounts={overview.accounts}
-            windowDays={overview.windowDays}
+            accounts={users.accounts}
+            windowDays={users.windowDays}
             initial={resolveAccountsView(params)}
             now={new Date().toISOString()}
-            underwater={overview.underwater.paying.map((account) => account.userId)}
-            plansGrantingNothing={overview.plans
-              .filter((plan) => plan.live.entitlements.length === 0)
-              .map((plan) => plan.planId)}
+            underwater={users.underwater.paying.map((account) => account.userId)}
+            plansGrantingNothing={users.livePlans
+              .filter((live) => live.entitlements.length === 0)
+              .map((live) => live.planId)}
           />
         </Panel>
-      ) : (
-        <>
-          {/* **The four-number strip** (M21 link 7). ARPU appears twice and both
-              are labelled, which is the link's most emphatic requirement: with
-              founder, referral, trial and admin grants in the mix the two differ a
-              lot, and a single unlabelled one gets quoted as whichever is
-              convenient. */}
-          <RevenueStrip revenue={overview.revenue} />
+      </ConsoleShell>
+    );
+  }
 
-          {/* Two panels side by side, as the design lays them out; one column
-              on a narrow window, which this route only ever sees on a small
-              laptop since the console is not on the phone at all. The design's
-              `repeat(auto-fit, minmax(340px, 1fr))` is an arbitrary Tailwind
-              value, which the colour wall refuses (tokens only); `lg` is where
-              two columns are already wider than 340px each. */}
-          <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-2">
-            {/* **Segmented in the layout, not just in the query** (M21 link 7).
-                A comped account is underwater by construction — a decision
-                already taken, not a finding — and on this deployment every
-                account predating M20's migration holds a permanent founder
-                grant, so unsegmented they would swamp the list and the metric
-                would be worthless. Its per-source counts are why the old
-                *What the grants cost* panel was deleted (M36 link 1): the same
-                numbers twice. */}
-            <Panel title="Costs more than it pays">
-              <UnderwaterPanel report={overview.underwater} />
-            </Panel>
-            <TierPanel plans={overview.plans} />
-          </div>
+  const financial = await adminFinancial();
 
-          {/* **M21 link 2's price sweep** (KI-2026-09-16-c) — every published
-              version's Stripe Price against the plan file, not only the one being
-              bought at the till. Reports; never creates a Price. */}
-          <PriceCheckPanel report={overview.prices} />
-        </>
-      )}
+  return (
+    <ConsoleShell tab={tab} banner={<RevenueStaleBanner revenue={financial.revenue} />}>
+      {/* **The four-number strip** (M21 link 7). ARPU appears twice and both
+          are labelled, which is the link's most emphatic requirement: with
+          founder, referral, trial and admin grants in the mix the two differ a
+          lot, and a single unlabelled one gets quoted as whichever is
+          convenient. */}
+      <RevenueStrip revenue={financial.revenue} />
+
+      {/* Two panels side by side, as the design lays them out; one column
+          on a narrow window, which this route only ever sees on a small
+          laptop since the console is not on the phone at all. The design's
+          `repeat(auto-fit, minmax(340px, 1fr))` is an arbitrary Tailwind
+          value, which the colour wall refuses (tokens only); `lg` is where
+          two columns are already wider than 340px each. */}
+      <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-2">
+        {/* **Segmented in the layout, not just in the query** (M21 link 7).
+            A comped account is underwater by construction — a decision
+            already taken, not a finding — and on this deployment every
+            account predating M20's migration holds a permanent founder
+            grant, so unsegmented they would swamp the list and the metric
+            would be worthless. Its per-source counts are why the old
+            *What the grants cost* panel was deleted (M36 link 1): the same
+            numbers twice. */}
+        <Panel title="Costs more than it pays">
+          <UnderwaterPanel report={financial.underwater} />
+        </Panel>
+        <TierPanel plans={financial.plans} />
+      </div>
+
+      {/* **M21 link 2's price sweep** (KI-2026-09-16-c) — every published
+          version's Stripe Price against the plan file, not only the one being
+          bought at the till. Reports; never creates a Price. */}
+      <PriceCheckPanel report={financial.prices} />
     </ConsoleShell>
   );
 }
