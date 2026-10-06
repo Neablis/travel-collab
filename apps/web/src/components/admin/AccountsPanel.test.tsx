@@ -26,10 +26,15 @@ vi.mock("@/components/admin/GrantList", () => ({
 }));
 
 const push = vi.fn();
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
+// **The search params are the browser's own**, read fresh on every render, as
+// Next keeps `useSearchParams` in step with `history.replaceState` and with
+// Back and Forward. A test moves the URL with `visit` and re-renders.
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push }),
+  useSearchParams: () => new URLSearchParams(window.location.search),
+}));
 
 import { AccountsPanel } from "./AccountsPanel";
-import type { AccountsView } from "./accountsView";
 
 function account(over: Partial<AdminAccountRow> & { userId: string }): AdminAccountRow {
   return {
@@ -77,19 +82,19 @@ function rowIds(): string[] {
 }
 
 const NOW = "2026-10-06T12:00:00.000Z";
-const FRESH: AccountsView = { query: "", filter: "all", page: 0 };
 
-function panel(
-  accounts: AdminAccountRow[],
-  options: { initial?: AccountsView; underwater?: string[] } = {},
-) {
+/** Puts the browser at `url` — a load, or Back and Forward — unseen by the spy. */
+function visit(url: string) {
+  window.history.pushState(null, "", url);
+}
+
+function panel(accounts: AdminAccountRow[], options: { underwater?: string[] } = {}) {
   return (
     <AccountsPanel
       accounts={accounts}
       plans={["plus"]}
       plansGrantingNothing={["free"]}
       underwater={options.underwater ?? []}
-      initial={options.initial ?? FRESH}
       now={NOW}
       windowDays={30}
     />
@@ -101,6 +106,7 @@ const counts = (name: string) =>
 
 let replaceState: ReturnType<typeof vi.spyOn>;
 beforeEach(() => {
+  visit("/admin?tab=users");
   replaceState = vi.spyOn(window.history, "replaceState");
 });
 afterEach(() => {
@@ -265,11 +271,12 @@ describe("AccountsPanel", () => {
     expect(cells("idle").slice(5, 7)).toEqual(["—", "—"]);
   });
 
-  // **D2: the view is URL state.** Seeded from what the server read off the
-  // URL, and written back as it changes — without a navigation, which would
-  // re-run the whole overview per keystroke.
+  // **D2: the view is URL state.** Seeded from the URL, and written back as it
+  // changes — without a navigation, which would re-run the whole overview per
+  // keystroke.
   it("starts from the view the URL arrived with", () => {
-    render(panel(everyKind(), { initial: { query: "granted", filter: "granted", page: 0 } }));
+    visit("/admin?tab=users&q=granted&filter=granted");
+    render(panel(everyKind()));
     expect((screen.getByRole("textbox", { name: "Find an account" }) as HTMLInputElement).value).toBe("granted");
     expect(screen.getByRole("button", { name: /^Granted/ }).getAttribute("aria-pressed")).toBe("true");
     expect(rowIds()).toEqual(["granted0", "granted1", "granted2"]);
@@ -277,13 +284,31 @@ describe("AccountsPanel", () => {
     expect(replaceState).not.toHaveBeenCalled();
   });
 
-  // Back and Forward re-render the page with another `initial` and nothing
-  // else; the table has to follow it rather than keep the state it seeded.
-  it("follows a navigation to a different view", () => {
+  // **Back and Forward change the URL and nothing else.** The view used to come
+  // from the server's `initial`, and a history entry whose URL the table had
+  // rewritten with `replaceState` kept the `initial` it was first rendered
+  // with: chosen *Paying*, opened a row, came Back — the address said
+  // `filter=paying` and the table said All (M36 part 3 review). Here the
+  // props stay exactly as they were; only the URL moves.
+  it("follows Back or Forward to a different view", () => {
     const { rerender } = render(panel(everyKind()));
-    rerender(panel(everyKind(), { initial: { query: "granted", filter: "granted", page: 0 } }));
+    visit("/admin?tab=users&q=granted&filter=granted");
+    rerender(panel(everyKind()));
     expect(screen.getByRole("button", { name: /^Granted/ }).getAttribute("aria-pressed")).toBe("true");
     expect(rowIds()).toEqual(["granted0", "granted1", "granted2"]);
+  });
+
+  // **Its own writes are not a navigation.** Every keystroke moves the URL, and
+  // a table that re-seeded from each move would put back a view the operator
+  // had already typed past. Here the URL this panel reads trails its writes by
+  // one render, as a Next transition can.
+  it("keeps typing over its own writes to the URL", async () => {
+    const user = userEvent.setup();
+    render(panel(everyKind()));
+    const input = screen.getByRole("textbox", { name: "Find an account" }) as HTMLInputElement;
+    await user.type(input, "granted");
+    expect(input.value).toBe("granted");
+    expect(window.location.search).toBe("?tab=users&q=granted");
   });
 
   it("writes search, filter and page back to the URL as they change", async () => {
@@ -306,7 +331,8 @@ describe("AccountsPanel", () => {
   it("links each row to its account, keeping q, filter and page", async () => {
     const user = userEvent.setup();
     const accounts = Array.from({ length: 10 }, (_, i) => account({ userId: `free${i}` }));
-    render(panel(accounts, { initial: { query: "free", filter: "unentitled", page: 1 } }));
+    visit("/admin?tab=users&q=free&filter=unentitled&page=2");
+    render(panel(accounts));
     const expected = "/admin?tab=users&account=free8&q=free&filter=unentitled&page=2";
 
     const row = screen.getByTestId("account-free8");

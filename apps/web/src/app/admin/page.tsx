@@ -1,7 +1,6 @@
 import { notFound } from "next/navigation";
 import { Heading } from "@/components/ui/heading";
 import { AccountsPanel } from "@/components/admin/AccountsPanel";
-import { resolveAccountsView } from "@/components/admin/accountsView";
 import { ConsoleTabs } from "@/components/admin/ConsoleTabs";
 import { resolveConsoleTab, type ConsoleTab } from "@/components/admin/consoleTab";
 import { TierPanel } from "@/components/admin/TierPanel";
@@ -133,7 +132,6 @@ export default async function AdminPage({
           <AccountsPanel
             accounts={users.accounts}
             windowDays={users.windowDays}
-            initial={resolveAccountsView(params)}
             now={new Date().toISOString()}
             underwater={users.underwater.paying.map((account) => account.userId)}
             plans={users.livePlans.filter((live) => live.enabled).map((live) => live.planId)}
