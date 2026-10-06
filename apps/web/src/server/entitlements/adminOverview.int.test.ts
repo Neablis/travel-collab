@@ -11,10 +11,16 @@
 // test database; only the call count is observed. `topSpenders` is counted too
 // because it is `costPerAccount(...).slice(0, n)` — a ledger read by another
 // name. Billing is left unconfigured, so the price sweep never asks Stripe.
+//
+// **Each console tab reads only what it draws** (M36 link 1). Users is the one
+// that must not pay for the price sweep, a Stripe round trip per published
+// version that it never shows; the sweep is spied for that, and counted on the
+// other two so a spy that never fires cannot pass the Users case.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const ledgerReads = vi.fn();
 const holderReads = vi.fn();
+const priceSweeps = vi.fn();
 
 vi.mock("./usage", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./usage")>();
@@ -42,11 +48,23 @@ vi.mock("./grants", async (importOriginal) => {
   };
 });
 
-const { adminOverview } = await import("./admin");
+vi.mock("@/server/billing/prices", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/server/billing/prices")>();
+  return {
+    ...actual,
+    priceConsistencyReport: (...args: Parameters<typeof actual.priceConsistencyReport>) => {
+      priceSweeps();
+      return actual.priceConsistencyReport(...args);
+    },
+  };
+});
+
+const { adminFinancial, adminOverview, adminUsers } = await import("./admin");
 
 beforeEach(() => {
   ledgerReads.mockClear();
   holderReads.mockClear();
+  priceSweeps.mockClear();
   vi.stubEnv("STRIPE_SECRET_KEY", "");
 });
 
@@ -60,5 +78,24 @@ describe("adminOverview", () => {
     expect(overview.plans.length).toBeGreaterThan(0);
     expect(ledgerReads.mock.calls).toEqual([["costPerAccount"]]);
     expect(holderReads).toHaveBeenCalledTimes(1);
+    expect(priceSweeps).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("the console's per-tab reads", () => {
+  it("Financial reads the ledger and the grant holders once, and sweeps prices", async () => {
+    const financial = await adminFinancial();
+    expect(financial.plans.length).toBeGreaterThan(0);
+    expect(ledgerReads.mock.calls).toEqual([["costPerAccount"]]);
+    expect(holderReads).toHaveBeenCalledTimes(1);
+    expect(priceSweeps).toHaveBeenCalledTimes(1);
+  });
+
+  it("Users reads the ledger once, and neither the grant holders nor Stripe", async () => {
+    const users = await adminUsers();
+    expect(users.livePlans.length).toBeGreaterThan(0);
+    expect(ledgerReads.mock.calls).toEqual([["costPerAccount"]]);
+    expect(holderReads).not.toHaveBeenCalled();
+    expect(priceSweeps).not.toHaveBeenCalled();
   });
 });

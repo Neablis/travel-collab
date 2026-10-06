@@ -161,11 +161,16 @@ test.describe("M20 — an account knows what it may do", () => {
     const operator = await openOperator(browser);
     await operator.goto("/admin");
     await expect(operator.getByRole("heading", { name: "Operator console", level: 1 })).toBeVisible();
-    // Read-only over plans, and the three sold plans are on it.
-    await expect(operator.getByTestId("plan-free")).toBeVisible();
+    // Read-only over plans, one tier per tab (M36 link 1): the panel opens on
+    // the first paid tier, and every plan, the fourth-plan proof included, is
+    // a tab away.
+    const tiers = operator.getByRole("tablist", { name: "Tier" });
     await expect(operator.getByTestId("plan-premium")).toBeVisible();
+    await tiers.getByRole("tab", { name: "free", exact: true }).click();
+    await expect(operator.getByTestId("plan-free")).toBeVisible();
     // **The fourth-plan proof is published and disabled**, so the console shows
     // it and says so.
+    await tiers.getByRole("tab", { name: "studio", exact: true }).click();
     await expect(operator.getByTestId("plan-studio")).toContainText("disabled");
     // **This asserted "no revenue on this console" until M21 link 7 built it**
     // — the deployed-layer twin of `admin.console.test.ts`'s sweep, and the two
@@ -206,7 +211,8 @@ test.describe("M20 — an account knows what it may do", () => {
 
     const operator = await openOperator(browser);
     await operator.setViewportSize({ width: 1440, height: 900 });
-    await operator.goto("/admin");
+    // The accounts table is the Users tab's since M36 link 1.
+    await operator.goto("/admin?tab=users");
 
     const row = operator.getByTestId(`account-${userId}`);
     await expect(row).toContainText("free@v1");
