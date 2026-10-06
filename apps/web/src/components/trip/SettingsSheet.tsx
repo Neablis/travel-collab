@@ -12,6 +12,7 @@ import { BudgetMeter } from "@/components/ui/budget-meter";
 import { Banner } from "@/components/ui/banner";
 import { Popover } from "@/components/ui/popover";
 import { PeopleSection } from "@/components/trip/people/PeopleSection";
+import { CoverSection } from "@/components/trip/cover/CoverSection";
 import { ShareButton } from "@/components/trip/ShareButton";
 import type { TripCounts } from "@/components/trip/TripMetaPill";
 import { TripMoneySettings } from "@/components/board/TripMoneySettings";
@@ -20,6 +21,7 @@ import { formatInstantLong, formatTripDate } from "@/lib/formatDate";
 import { isDemoTripId } from "@/lib/demoTrip";
 import { formatMoney } from "@/lib/formatMoney";
 import { committedLine, type TripSpend } from "@/lib/cost";
+import type { SettingsSection } from "@/lib/tripSettingsLink";
 
 function SectionHeading({ children }: { children: React.ReactNode }) {
   return (
@@ -88,7 +90,7 @@ export function SettingsSheet({
   onInvitesChanged,
   access,
   onAccessChanged,
-  scrollToPeople = false,
+  scrollTo = null,
   onCommand,
 }: {
   tripId: string;
@@ -139,9 +141,9 @@ export function SettingsSheet({
   // A member write moved who is on the trip or who travels, and with it the
   // trip's per-person totals: TripProvider's `refreshAccess` (W15).
   onAccessChanged?: () => void;
-  // Opened from the header's avatar stack (D10): land on People, not on the
-  // sheet's top.
-  scrollToPeople?: boolean;
+  // The section to land on rather than the sheet's top: People from the
+  // header's avatar stack (D10), or whichever a `?settings=` link names (M37).
+  scrollTo?: SettingsSection | null;
   onCommand: (command: TripCommand) => void;
 }) {
   // Dispatch is severed at the SOURCE, not at each control. The individual
@@ -294,6 +296,19 @@ export function SettingsSheet({
           </div>
         </div>
 
+        {/* **Cover photo** (M37), after the overview and before Budget, as the
+            approved artboard places it: what the trip looks like, beside what
+            it is. Its own reads and writes, like People below — a cover is
+            trip metadata, not a command (D1). Editing is for whoever may write
+            to the trip (`!readOnly`, so not a suggester: a cover is not a plan
+            change their draft can hold, and the route refuses them). Not on
+            `/demo`, whose visitor has no session for the cover read. */}
+        {!isDemoTripId(tripId) && (
+          <div id="cover" ref={scrollTo === "cover" ? scrollIntoView : undefined} className="scroll-mt-4">
+            <CoverSection tripId={tripId} canEdit={!readOnly} />
+          </div>
+        )}
+
         <div>
           <SectionHeading>Budget</SectionHeading>
           <TripMoneySettings
@@ -345,7 +360,7 @@ export function SettingsSheet({
             that read carries names, emails and the invite list — none of
             which live on TripDetail, and none of which should (they are
             Identity and Access data — packages/contracts/src/access.ts). */}
-        <div id="people" ref={scrollToPeople ? scrollIntoView : undefined} className="scroll-mt-4">
+        <div id="people" ref={scrollTo === "people" ? scrollIntoView : undefined} className="scroll-mt-4">
           <PeopleSection
             tripId={tripId}
             access={access}

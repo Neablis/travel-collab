@@ -35,6 +35,15 @@ vi.mock("@/components/trip/people/PeopleSection", () => ({
   PeopleSection: ({ tripId }: { tripId: string }) => <div data-testid="people-section">{tripId}</div>,
 }));
 
+// The cover section likewise has its own suite (`cover/CoverSection.test.tsx`)
+// and its own reads. What this file says about it is where it sits and who
+// may edit it, so the stub reports exactly that.
+vi.mock("@/components/trip/cover/CoverSection", () => ({
+  CoverSection: ({ canEdit }: { canEdit: boolean }) => (
+    <div data-testid="cover-section">{canEdit ? "editable" : "read-only"}</div>
+  ),
+}));
+
 import { SettingsSheet } from "./SettingsSheet";
 import { DEMO_TRIP_ID } from "@/lib/demoTrip";
 
@@ -643,5 +652,37 @@ describe("SettingsSheet share", () => {
     // The sheet rendered, so an absent Share is the gate and not an empty tree.
     expect(screen.getByRole("link", { name: "Download Trip" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Share" })).toBeNull();
+  });
+});
+
+// M37 part 4: the approved artboard puts Cover photo after the overview and
+// before Budget, editable by whoever may write to the trip.
+describe("SettingsSheet cover photo", () => {
+  it("sits between the trip overview and Budget", () => {
+    renderSheet();
+    const sheet = screen.getByRole("dialog").textContent ?? "";
+    const overviewAt = sheet.indexOf("Trip overview");
+    const coverAt = sheet.indexOf("editable");
+    expect(overviewAt).toBeGreaterThan(-1);
+    expect(coverAt).toBeGreaterThan(overviewAt);
+    expect(sheet.indexOf("Budget")).toBeGreaterThan(coverAt);
+  });
+
+  // A suggester may edit the trip fields into a draft, but a cover is not a
+  // command, and the route refuses them: they read it, as a viewer does.
+  it.each([
+    ["a writer", { readOnly: false }, "editable"],
+    ["a suggester", { readOnly: true, canEditBoard: true }, "read-only"],
+    ["a viewer", { readOnly: true }, "read-only"],
+  ] as const)("gives %s a cover section that is %s", (_label, gate, expected) => {
+    renderSheet(gate);
+    expect(screen.getByTestId("cover-section").textContent).toBe(expected);
+  });
+
+  it("is not on /demo, whose visitor has no session to read it with", () => {
+    renderSheet({ readOnly: true, tripId: DEMO_TRIP_ID });
+    // Witness: the sheet rendered its other sections.
+    expect(screen.getByText("Trip overview")).toBeTruthy();
+    expect(screen.queryByTestId("cover-section")).toBeNull();
   });
 });
