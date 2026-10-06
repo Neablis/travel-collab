@@ -471,6 +471,11 @@ describe("the accounts table's page", () => {
     const found = async (query: string) =>
       (await adminAccountsPage({ query, filter: "all", page: 0 }, now, [], underwater)).counts.all;
     expect(await found(`  LATE.${tag.toUpperCase()}  `)).toBe(1);
+    // And the other way round: an address stored with capitals is found by a
+    // lower-case search. The box lowercases what it sends, so this is the half
+    // only the query's ILIKE can hold.
+    await tagged(tag, "Shouty");
+    expect(await found(`shouty.${tag}`)).toBe(1);
     // The id, which holds `-late-` where the address holds `late.`.
     expect(await found(ids.late)).toBe(1);
     expect(await found(`${tag}%`)).toBe(0);
