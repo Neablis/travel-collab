@@ -1,10 +1,9 @@
 # M29 — The time river
 
-**Status:** **Gate closed 2026-10-04, 20 of 20** (retro at the end). Minted 2026-09-26 from Mitchell's asks in chat; **in flight beside M14, not
-the current milestone** (M14 stays current — its open boxes wait on a person). Built as
+**Status:** **Gate closed 2026-10-04, 20 of 20** (retro at the end). Minted 2026-09-26 from Mitchell's asks in chat; built
+beside M14, never the current milestone. Built as
 four stacked PRs, plus a fifth for the phone, **all merged** (#242, #244, #245, #243 by
-2026-09-26; the phone's as #251). Decision record for part 1: **ADR-055**. What is left
-is part 4's Overview read and the gate-close items.
+2026-09-26; the phone's as #251). Decision record for part 1: **ADR-055**.
 
 ## Why this exists
 
