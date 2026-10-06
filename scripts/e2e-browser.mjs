@@ -103,9 +103,14 @@ export function compareShell(pinned, actual) {
   return { state: "mismatch", expected: pinned.browserVersion, actual };
 }
 
-/** Chrome for Testing publishes linux64 only; there is no arm64 Linux build. */
+/**
+ * Chrome for Testing publishes linux64 only; there is no arm64 Linux build.
+ * The version comes from a file (Playwright's `browsers.json`), so it goes into
+ * the URL only when it is a plain four-part build number. Anything else would
+ * be a path or a host change, not a version (CodeQL, PR #345).
+ */
 export function cftShellUrl(browserVersion, arch) {
-  if (arch !== "x64") return null;
+  if (arch !== "x64" || !/^\d+\.\d+\.\d+\.\d+$/.test(String(browserVersion))) return null;
   return `https://storage.googleapis.com/chrome-for-testing-public/${browserVersion}/linux64/chrome-headless-shell-linux64.zip`;
 }
 

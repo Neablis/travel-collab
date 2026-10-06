@@ -215,6 +215,10 @@ test("cftShellUrl and shellPath match Playwright's layout, and arm64 has no down
     "https://storage.googleapis.com/chrome-for-testing-public/153.0.8010.12/linux64/chrome-headless-shell-linux64.zip",
   );
   assert.equal(cftShellUrl("153.0.8010.12", "arm64"), null);
+  // The version is read from a file: only a plain build number reaches the URL.
+  assert.equal(cftShellUrl("153.0.8010.12/../../evil", "x64"), null);
+  assert.equal(cftShellUrl("153.0.8010.12@attacker.example", "x64"), null);
+  assert.equal(cftShellUrl(undefined, "x64"), null);
   assert.equal(
     shellPath("/opt/pw-browsers", "1243", "x64"),
     "/opt/pw-browsers/chromium_headless_shell-1243/chrome-headless-shell-linux64/chrome-headless-shell",
