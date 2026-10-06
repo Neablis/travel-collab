@@ -341,6 +341,34 @@ describe("granting is the only write", () => {
     expect(still).toBeDefined();
     expect(still!.revokedBy).toBe(currentUserId);
   });
+
+  // **Already revoked is not the gate's 404.** The gate answers a caller who is
+  // no longer an operator with 404 `not-found`; a second revoke of the same
+  // grant must answer something the console can tell apart from that.
+  it("answers 409 no-active-grant for a grant already revoked", async () => {
+    currentUserId = await account({ admin: true });
+    const target = await account();
+    await issueGrant({
+      userId: target,
+      planId: "premium",
+      planVersion: 1,
+      source: "admin",
+      grantedBy: currentUserId,
+      expiresAt: null,
+    });
+    const [grant] = await allGrantsFor(target);
+    const revoke = () =>
+      REVOKE(
+        new Request("http://localhost/api/admin/grants", {
+          method: "DELETE",
+          body: JSON.stringify({ grantId: grant!.id }),
+        }),
+      );
+    expect((await revoke()).status).toBe(200);
+    const again = await revoke();
+    expect(again.status).toBe(409);
+    expect(await again.json()).toEqual({ error: "no-active-grant" });
+  });
 });
 
 describe("the operator bootstrap", () => {
