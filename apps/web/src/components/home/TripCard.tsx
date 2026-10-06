@@ -11,6 +11,7 @@ import { initialsFor } from "@/lib/initials";
 import { cn } from "@/lib/cn";
 import { formatTripDateLong } from "@/lib/formatDate";
 import { PHONE_TOUCH } from "@/components/ui/button";
+import { UnplannedTripSteps, isUnplanned, tripDateRange, tripMetaLine } from "./UnplannedTrip";
 
 export type TripCardProps = {
   trip: TripSummary;
@@ -27,6 +28,11 @@ export type TripCardProps = {
   // plannedOfBudgetLine helper (lib/cost.ts). An absent prop renders nothing
   // rather than a fabricated line (Task 4.1, M10 Phase 4).
   plannedOfBudget?: string;
+  // Who is reading, so an unplanned trip offers its owner next steps and a
+  // reader it was shared with only a line (M37 D6). The caller already knows
+  // it for the menu (`useSessionUser`); `undefined` while that probe is in
+  // flight, which reads as "not the owner", as the menu does.
+  viewerId?: string | null;
 };
 
 // Same static-map pattern as Sparkline.tsx's BAR_BG / badge.tsx's variant
@@ -59,14 +65,15 @@ function statusLabel(status: TripStatus): string {
 // colors independently of any other card in the grid (Task 8.2, Group B), so
 // it resolves as a single-element dayAccents() call rather than batching
 /**
- * Renders a trip summary card with traveler information, status, start date (or creation date when undated), and optional cost details.
+ * Renders a trip summary card with traveler information, status, dates (or creation date when undated), length, stops and optional cost details — or, for a trip with nothing planned, a dashed card with its next steps in the cost line's place.
  *
  * @param trip - The trip data displayed by the card
  * @param menuSlot - Optional actions menu content
  * @param plannedOfBudget - Optional preformatted planned-cost and budget text
+ * @param viewerId - The reader's user id, which decides an unplanned trip's next steps
  * @returns The rendered trip summary card
  */
-export function TripCard({ trip, menuSlot, plannedOfBudget }: TripCardProps) {
+export function TripCard({ trip, menuSlot, plannedOfBudget, viewerId }: TripCardProps) {
   const accent = dayAccents([trip.tripId])[0]!;
   // The stack is who is going (travellers spec §5): an adviser who joined to
   // help plan is not counted, and not drawn — so the label and the avatars it
@@ -85,12 +92,16 @@ export function TripCard({ trip, menuSlot, plannedOfBudget }: TripCardProps) {
   const createdLabel = Number.isNaN(created.getTime())
     ? null
     : created.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-  const dateLine =
+  // M37: an unplanned trip says "No dates yet" rather than when it was made
+  // (`tripMetaLine`), and a trip whose last day is known reads as a range.
+  const unplanned = isUnplanned(trip);
+  const dates =
     trip.startDate !== null
-      ? formatTripDateLong(trip.startDate)
-      : createdLabel !== null
+      ? (tripDateRange(trip) ?? formatTripDateLong(trip.startDate))
+      : createdLabel !== null && !unplanned
         ? `Created ${createdLabel}`
         : null;
+  const meta = tripMetaLine(trip, dates);
 
   return (
     // data-testid: the card is the anchor for its own actions menu, and the
@@ -98,12 +109,17 @@ export function TripCard({ trip, menuSlot, plannedOfBudget }: TripCardProps) {
     // fan-out). KI-28 needs a way to wait for *this* card to stop growing
     // before opening that menu, and the trigger's aria-label alone gives no
     // handle on the row it belongs to.
-    <Card data-testid="trip-card" className="flex flex-col gap-3">
+    // An unplanned trip's card is dashed, and its accent neutral: it has no
+    // plan yet for the accent to stand for (M37 D6).
+    <Card
+      data-testid="trip-card"
+      className={cn("flex flex-col gap-3", unplanned && "border-dashed border-border-strong")}
+    >
       <div className="flex items-start justify-between gap-2">
         <div
           data-testid="accent-bar"
           aria-hidden
-          className={cn("h-1.5 rounded-full", ACCENT_BAR_BG[accent.solid])}
+          className={cn("h-1.5 rounded-full", unplanned ? "bg-border-strong" : ACCENT_BAR_BG[accent.solid])}
           // eslint-disable-next-line no-restricted-syntax -- 46px accent bar width has no token equivalent, matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
           style={{ width: "46px" }}
         />
@@ -121,11 +137,9 @@ export function TripCard({ trip, menuSlot, plannedOfBudget }: TripCardProps) {
         >
           <Heading level={3}>{trip.name}</Heading>
         </Link>
-        {dateLine !== null && (
-          <div className="mt-1">
-            <DataText size="sm">{dateLine}</DataText>
-          </div>
-        )}
+        <div className="mt-1">
+          <DataText size="sm">{meta}</DataText>
+        </div>
         {/* KI-28: the slot is reserved (mt-1 + min-h-5, exactly one text-sm
             line; leading-5 pins the FILLED line box to that same 20px, which
             takes the residual difference between the two states from ~0.3px
@@ -194,9 +208,19 @@ export function TripCard({ trip, menuSlot, plannedOfBudget }: TripCardProps) {
             NextTripHero takes the same reservation at `sm` rather than `md`
             because its own slot IS monotonic below `lg` — 402px already at a
             500px viewport, 542px at 640px — so it has no such band. */}
-        <div className="mt-1 min-h-10 leading-5 md:min-h-5">
-          {plannedOfBudget && <DataText size="sm">{plannedOfBudget}</DataText>}
-        </div>
+        {/* M37 D6: an unplanned trip's next steps take this slot. There is
+            nothing planned to cost, and the rows are static, so this state
+            never grows when the caller's fetch lands — KI-28's reason for the
+            reservation does not arise. */}
+        {unplanned ? (
+          <div className="mt-1">
+            <UnplannedTripSteps trip={trip} viewerId={viewerId} />
+          </div>
+        ) : (
+          <div className="mt-1 min-h-10 leading-5 md:min-h-5">
+            {plannedOfBudget && <DataText size="sm">{plannedOfBudget}</DataText>}
+          </div>
+        )}
       </div>
 
       <div className="mt-auto flex items-center justify-between pt-1">
@@ -220,7 +244,7 @@ export function TripCard({ trip, menuSlot, plannedOfBudget }: TripCardProps) {
             </div>
           ))}
         </div>
-        <Badge variant={STATUS_BADGE_VARIANT[trip.status]}>{statusLabel(trip.status)}</Badge>
+        {!unplanned && <Badge variant={STATUS_BADGE_VARIANT[trip.status]}>{statusLabel(trip.status)}</Badge>}
       </div>
     </Card>
   );

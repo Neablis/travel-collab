@@ -25,8 +25,9 @@ Format:
   summary rather than fetched per card.
 - Consumers updated: `LISTED_SUMMARY` (`server/projections.ts`) derives both in SQL from
   `trip_details.doc` alongside `endDate`, so `GET /api/trips` and `GET /v1/trips` carry them with
-  no new query, column or migration. `TripCard` and `NextTripHero` show "N days" and the empty
-  state. `@tc/factories` gains `tripSummaryFactory`. The web tests that hand-built a summary
+  no new query, column or migration. `TripCard` and `NextTripHero` read "dates · N days · M stops",
+  and a trip with no stops on its plan gets the designed unplanned state (M37 D6).
+  `@tc/factories` gains `tripSummaryFactory`. The web tests that hand-built a summary
   build it from that factory.
 - Public API: `GET /v1/trips` items gain both fields. `API_VERSION` 1.6.0 → 1.7.0 (additive),
   `API_FINGERPRINT` and `openapi.json` regenerated.

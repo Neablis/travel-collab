@@ -12,6 +12,11 @@ function tripSummaryFixture(overrides: Partial<TripSummary> = {}): TripSummary {
   return tripSummaryFactory.build({
     tripId: "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f",
     name: "Iceland Ring Road",
+    // Planned, so the cost slot is the cost slot: an unplanned trip puts its
+    // next steps there instead (M37), which would let the absence tests below
+    // pass on a card that never had a cost line to show.
+    dayCount: 3,
+    stopCount: 5,
     ...overrides,
   });
 }
@@ -116,7 +121,80 @@ describe("TripCard", () => {
   it("shows the trip's dates rather than its creation date", () => {
     const trip = tripSummaryFixture({ startDate: "2026-10-01" });
     render(<TripCard trip={trip} />);
-    expect(screen.getByText("Thu, Oct 1, 2026")).toBeTruthy();
+    expect(screen.getByText(/^Thu, Oct 1, 2026/)).toBeTruthy();
     expect(screen.queryByText(/^Created /)).toBeNull();
+  });
+});
+
+// M37: the card says the trip's length and stops, and a trip with nothing
+// planned gets a designed state — its dates or "No dates yet", next steps for
+// its owner, a nudge to invite while they plan alone — instead of reading like
+// a full card with the facts missing (D6).
+describe("TripCard — length, stops and the unplanned trip", () => {
+  const unplanned = (overrides: Partial<TripSummary> = {}) =>
+    tripSummaryFixture({ dayCount: 0, stopCount: 0, ...overrides });
+
+  it("says the trip's dates, length and stops, in the singular for one", () => {
+    const { unmount } = render(
+      <TripCard trip={tripSummaryFixture({ startDate: "2026-10-01", endDate: "2026-10-05", dayCount: 5, stopCount: 12 })} />,
+    );
+    expect(screen.getByText("Oct 1 – Oct 5, 2026 · 5 days · 12 stops")).toBeTruthy();
+    unmount();
+
+    render(<TripCard trip={tripSummaryFixture({ startDate: "2026-10-01", endDate: "2026-10-01", dayCount: 1, stopCount: 1 })} />);
+    expect(screen.getByText("Thu, Oct 1, 2026 · 1 day · 1 stop")).toBeTruthy();
+  });
+
+  it("gives an owner planning alone the first day and the invite, and no cost line or badge", () => {
+    const trip = unplanned();
+    render(<TripCard trip={trip} plannedOfBudget="$0.00 planned of $1,640.00" viewerId="dev-alice" />);
+
+    expect(screen.getByText("No dates yet · nothing planned yet")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Add the first day" }).getAttribute("href")).toBe(
+      `/trips/${trip.tripId}?view=Plan`,
+    );
+    expect(screen.getByRole("link", { name: "Invite who's coming" }).getAttribute("href")).toBe(`/trips/${trip.tripId}`);
+    expect(screen.queryByText(/planned of/)).toBeNull();
+    expect(screen.queryByText("Active")).toBeNull();
+  });
+
+  // Setting dates makes days, so a dated trip with no stops has days to fill.
+  it("offers a dated trip with days its first stop, not its first day", () => {
+    render(
+      <TripCard
+        trip={unplanned({ startDate: "2026-10-01", endDate: "2026-10-05", dayCount: 5 })}
+        viewerId="dev-alice"
+      />,
+    );
+    expect(screen.getByText("Oct 1 – Oct 5, 2026 · 5 days · nothing planned yet")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Add the first stop" })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Add the first day" })).toBeNull();
+  });
+
+  it("does not nudge an owner who is not alone", () => {
+    const trip = unplanned({
+      members: [
+        { userId: "dev-alice", role: "owner" },
+        { userId: "dev-bob", role: "editor" },
+      ],
+    });
+    render(<TripCard trip={trip} viewerId="dev-alice" />);
+    expect(screen.getByRole("link", { name: "Add the first day" })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Invite who's coming" })).toBeNull();
+  });
+
+  it.each([
+    ["a reader it was shared with", "dev-bob"],
+    ["a reader not yet known", undefined],
+  ] as const)("tells %s nothing is planned, with no actions", (_label, viewerId) => {
+    render(<TripCard trip={unplanned()} viewerId={viewerId} />);
+    expect(screen.getByText("Nothing planned yet.")).toBeTruthy();
+    expect(screen.queryByRole("link", { name: /Add the first|Invite who's coming/ })).toBeNull();
+  });
+
+  it("offers a planned trip no next step", () => {
+    render(<TripCard trip={tripSummaryFixture()} viewerId="dev-alice" />);
+    expect(screen.queryByRole("link", { name: /Add the first|Invite who's coming/ })).toBeNull();
+    expect(screen.queryByText(/nothing planned/i)).toBeNull();
   });
 });

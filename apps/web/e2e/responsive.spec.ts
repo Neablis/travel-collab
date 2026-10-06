@@ -305,14 +305,21 @@ test.describe("responsive (narrow viewport)", () => {
       for (const command of commandsFor("threeDayTrip", tripId)) {
         await page.request.post(`/api/trips/${tripId}/commands`, { data: command });
       }
-      // A newer trip after it, so there is a CARD to measure even on an
-      // otherwise empty account: the newest trip is the hero, and since SPEC
-      // §35.2 the hero is not in the grid.
-      await page.request.post("/api/trips", { data: { name: e2eTripName("Narrow cost hero") } });
+      // A second trip, so there is a CARD to measure even on an otherwise
+      // empty account: one of the two is the hero, and since SPEC §35.2 the
+      // hero is not in the grid. Planned like the first, because a trip with
+      // no days shows its next steps where the cost line goes (M37) — so the
+      // card is picked by name, never as whichever trip sorts first.
+      const { tripId: heroId } = await page.request
+        .post("/api/trips", { data: { name: e2eTripName("Narrow cost hero") } })
+        .then((r) => r.json());
+      for (const command of commandsFor("threeDayTrip", heroId)) {
+        await page.request.post(`/api/trips/${heroId}/commands`, { data: command });
+      }
 
       await page.setViewportSize({ width, height: 900 });
       await page.goto("/");
-      const card = page.getByTestId("trip-card").first();
+      const card = page.getByTestId("trip-card").filter({ hasText: "Narrow cost" }).first();
       await expect(card).toBeVisible();
       // The line has actually landed — otherwise this would measure the
       // reserved slot against itself and pass for the wrong reason.

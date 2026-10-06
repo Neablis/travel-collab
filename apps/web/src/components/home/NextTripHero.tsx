@@ -11,6 +11,16 @@ import { PHONE_TOUCH, buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Sparkline, type SparklineDay } from "@/components/trip/Sparkline";
 import { SparklineSkeleton } from "./HomeSkeletons";
+import {
+  addFirstDayHref,
+  firstStepLabel,
+  inviteHref,
+  isUnplanned,
+  ownerAlone,
+  tripDateRange,
+  tripMetaLine,
+} from "./UnplannedTrip";
+import { viewerOwnsTrip } from "@/lib/tripRole";
 import { cityFor } from "@/lib/dayChips";
 import { fetchTripDetail } from "@/lib/apiClient";
 import { cachedRead } from "@/lib/queryCache";
@@ -32,6 +42,8 @@ export type NextTripHeroProps = {
    * "nothing orphaned".
    */
   menuSlot?: ReactNode;
+  /** The reader's user id, which decides an unplanned trip's next steps (M37 D6), as `TripCard` takes it. */
+  viewerId?: string | null;
 };
 
 // Sparkline needs each day's real stop count and real city, but TripSummary
@@ -58,9 +70,10 @@ type SparklineFetchState =
  *
  * @param trip - Summary data for the trip and its travelers
  * @param menuSlot - The trip's lifecycle menu, the same one a trip card carries
+ * @param viewerId - The reader's user id, which decides an unplanned trip's next steps
  * @returns The rendered trip overview hero
  */
-export function NextTripHero({ trip, menuSlot }: NextTripHeroProps) {
+export function NextTripHero({ trip, menuSlot, viewerId }: NextTripHeroProps) {
   // Who is going, as TripCard counts and draws them (travellers spec §5).
   const going = new Set(travellerIds(trip.members));
   const travellers = trip.members.filter((m) => going.has(m.userId));
@@ -120,6 +133,23 @@ export function NextTripHero({ trip, menuSlot }: NextTripHeroProps) {
   const detailLoading = sparkline.status === "loading";
   const hasDecisions = conflictCount !== null && conflictCount > 0;
   const hasUnbooked = notBooked !== null && notBooked > 0;
+  // M37 D6, decided from the summary so it is there on the first frame. The
+  // next trip is usually a NEW one, so the hero is where the unplanned state
+  // is seen most. Only the owner is offered next steps; a reader the trip was
+  // shared with is told nothing is planned, as the card tells them.
+  const unplanned = isUnplanned(trip);
+  const owns = viewerOwnsTrip(trip.members, viewerId);
+  const alone = ownerAlone(trip, viewerId);
+  // The range only while the summary's start is the one shown: once the
+  // detail has moved the start, the summary's end may belong to the old one.
+  const range = shownStartDate !== null && shownStartDate === trip.startDate ? tripDateRange(trip) : null;
+  const dates =
+    shownStartDate !== null
+      ? (range ?? formatTripDate(shownStartDate))
+      : createdLabel !== null && !unplanned
+        ? `Created ${createdLabel}`
+        : null;
+  const meta = tripMetaLine(trip, dates);
 
   useEffect(() => {
     let cancelled = false;
@@ -202,18 +232,11 @@ export function NextTripHero({ trip, menuSlot }: NextTripHeroProps) {
                 start date (`shownStartDate`: the summary's until the detail
                 lands, KI-034). An undated trip falls back to the one other
                 date-shaped fact it has, labelled as what it is: when the trip
-                was created. */}
-            {shownStartDate !== null ? (
-              <div className="mt-1.5">
-                <DataText size="sm">{formatTripDate(shownStartDate)}</DataText>
-              </div>
-            ) : (
-              createdLabel && (
-                <div className="mt-1.5">
-                  <DataText size="sm">Created {createdLabel}</DataText>
-                </div>
-              )
-            )}
+                was created — unless nothing is planned, where it says "No dates
+                yet" (`tripMetaLine`, M37). Length and stops follow. */}
+            <div className="mt-1.5">
+              <DataText size="sm">{meta}</DataText>
+            </div>
             {/* KI-28: reserved slot, same reason as TripCard's own cost line
                 — this hero sits ABOVE the trip grid, so the 27px it used to
                 gain when its TripDetail landed pushed every card (and any
@@ -240,9 +263,24 @@ export function NextTripHero({ trip, menuSlot }: NextTripHeroProps) {
                 a column at `sm`, so each card narrows to a 263px slot at
                 640px, under the 277px the widest figure needs. The table in
                 TripCard.tsx has the numbers. */}
-            <div className="mt-1.5 min-h-10 leading-5 sm:min-h-5">
-              {plannedOfBudget && <DataText size="sm">{plannedOfBudget}</DataText>}
-            </div>
+            {/* M37 D6: an unplanned trip has nothing to cost, so the slot
+                carries what to do instead. Static text from the summary, so it
+                never grows when the detail lands. */}
+            {unplanned ? (
+              <p className="mt-1.5 text-sm text-slate">
+                {owns
+                  ? `A blank trip. Start with the first ${trip.dayCount === 0 ? "day" : "stop"}${
+                      alone
+                        ? ", or bring in the people you're going with so they can plan alongside you."
+                        : "."
+                    }`
+                  : "Nothing planned yet."}
+              </p>
+            ) : (
+              <div className="mt-1.5 min-h-10 leading-5 sm:min-h-5">
+                {plannedOfBudget && <DataText size="sm">{plannedOfBudget}</DataText>}
+              </div>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center" role="group" aria-label={`${travellers.length} traveler${travellers.length === 1 ? "" : "s"}`}>
@@ -292,9 +330,30 @@ export function NextTripHero({ trip, menuSlot }: NextTripHeroProps) {
                 destination the link does not have: it lands on whichever lens
                 the trip was last left on. `Open trip` is what it actually
                 does. §35.2 redraws it as *Open plan*; M27 D2 keeps this. */}
-            <Link href={`/trips/${trip.tripId}`} className={cn(buttonVariants({ variant: "primary", size: "md" }))}>
-              Open trip
-            </Link>
+            {unplanned && owns ? (
+              // M37 D6: an unplanned trip's owner gets its first step as the
+              // primary action; the name above is still the way into the trip.
+              <>
+                <Link
+                  href={addFirstDayHref(trip.tripId)}
+                  className={cn(buttonVariants({ variant: "primary", size: "md" }))}
+                >
+                  {firstStepLabel(trip)}
+                </Link>
+                {alone && (
+                  <Link
+                    href={inviteHref(trip.tripId)}
+                    className={cn(buttonVariants({ variant: "secondary", size: "md" }))}
+                  >
+                    Invite who&apos;s coming
+                  </Link>
+                )}
+              </>
+            ) : (
+              <Link href={`/trips/${trip.tripId}`} className={cn(buttonVariants({ variant: "primary", size: "md" }))}>
+                Open trip
+              </Link>
+            )}
             {/* A link, where the artboard draws a button with the same
                 handler as *Open plan*: a navigation is a link — middle-clickable,
                 and read as one.
@@ -339,7 +398,9 @@ export function NextTripHero({ trip, menuSlot }: NextTripHeroProps) {
         <div className="bg-moss p-6">
           <div className="text-xs font-semibold uppercase tracking-wide text-slate">Shape of the trip</div>
           <div className="mt-4">
-            {sparkline.status === "ready" && sparkline.days.length > 0 ? (
+            {unplanned ? (
+              <EmptyShape trip={trip} />
+            ) : sparkline.status === "ready" && sparkline.days.length > 0 ? (
               // Sparkline itself handles a day with zero stops gracefully
               // (an empty, day-numbered slot) — the placeholder below is
               // only for states where there's no real day data at all yet.
@@ -361,5 +422,43 @@ export function NextTripHero({ trip, menuSlot }: NextTripHeroProps) {
         </div>
       </div>
     </Card>
+  );
+}
+
+// Rows past this are summarised, so a month-long blank trip does not stretch
+// the hero a screen tall.
+const EMPTY_SHAPE_ROWS = 7;
+
+/**
+ * The right panel for an unplanned trip (M37 D6): a dashed, empty bar per
+ * dated day, from the summary's start date and day count — days run on from
+ * the start, as `tripDetailFromState` dates them — then what fills them in.
+ * An undated trip gets the line alone.
+ */
+function EmptyShape({ trip }: { trip: TripSummary }) {
+  const dates: string[] = [];
+  if (trip.startDate !== null) {
+    const [y, m, d] = trip.startDate.split("-").map(Number) as [number, number, number];
+    for (let i = 0; i < Math.min(trip.dayCount, EMPTY_SHAPE_ROWS); i++) {
+      const day = new Date(y, m - 1, d + i);
+      dates.push(day.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }));
+    }
+  }
+  const more = trip.startDate !== null ? trip.dayCount - dates.length : 0;
+  return (
+    <div className="flex flex-col gap-2">
+      {dates.length > 0 && (
+        <ul className="flex flex-col gap-1.5" aria-label="Days with nothing planned">
+          {dates.map((date) => (
+            <li key={date} className="flex items-center gap-3">
+              <span className="w-24 shrink-0 text-xs text-slate">{date}</span>
+              <span aria-hidden className="h-2.5 flex-1 rounded-full border border-dashed border-border-strong" />
+            </li>
+          ))}
+          {more > 0 && <li className="text-xs text-slate">and {more} more</li>}
+        </ul>
+      )}
+      <p className="text-xs text-slate">Each day fills in as you add stops.</p>
+    </div>
   );
 }
