@@ -1,6 +1,6 @@
 # M37 — A trip looks like somewhere before it has a plan
 
-**Status:** **Current from 2026-10-06**, by M35's gate closing; being built as a four-part stack from `docs/plans/2026-10-06-M37-trip-cards-and-covers.md`. **Scoped 2026-10-06, placed after M35.** Every decision below was answered as
+**Status:** **Current from 2026-10-06**, by M35's gate closing; being built as a five-part stack from `docs/plans/2026-10-06-M37-trip-cards-and-covers.md`. **Scoped 2026-10-06, placed after M35.** Every decision below was answered as
 recommended (*"Yes that recommendation is fine"*), and the order M37 → M47 was confirmed
 (*"Order is good"*), both on 2026-10-06. Minted from `docs/candidates.md` when its 42 unplaced
 entries were grouped into milestones (asked 2026-10-06: *"Go through the suggested new features,
@@ -34,7 +34,11 @@ Candidates absorbed (each deleted by this gate):
    and a download-tracking ping when a photo is picked.
 3. **Hotlink Unsplash's CDN, do not copy the file.** *Recommended:* Unsplash's guidelines expect
    hotlinking, and copying means storage we do not have.
-4. **Scope of the first pass: trips, then playbook days.** *Recommended:* stops and notebooks get
+4. **Scope of the first pass: trips, then playbook days.** *Widened 2026-10-06 by Mitchell: "Yes
+   on playbook days, make sure to really consider the design and the aesthetic of the playbook
+   pages with the new images, i would love something similiar to homepage where it has a fade
+   through to context below it." Playbook days are in this milestone (plan part 5). Their OG
+   image stays as it is, and that is asked separately.* *Recommended:* stops and notebooks get
    photos in a later pass. A stop photo is per-stop UI on the board, which is a design question.
    Public playbook days need a decision on their OG images (ADR-061).
 5. **The card reads only what the trip list already returns.** Any new fact the card shows
@@ -66,18 +70,44 @@ Candidates absorbed (each deleted by this gate):
 - [x] **Decisions 1–6 are answered and recorded here**, with the date and who answered.
       *(Ticked 2026-10-06: all six as recommended. No automatic cover; a photo is trip metadata,
       not an event.)*
-- [ ] **An empty trip's card is designed, not blank**: a trip with no days and no stops shows its
+- [x] **An empty trip's card is designed, not blank**: a trip with no days and no stops shows its
       dates or destination and a next step, and a test asserts that state. The test was seen red
       against the old card.
-- [ ] **A cover can be searched, picked and cleared**, with the photographer's credit visible
+      *(Ticked 2026-10-06, part 2 (#351, `ffde4c9`): `TripCard.test.tsx` and `NextTripHero.test.tsx`, run against the old components: 12 of 14 fail, e.g. `Unable to find an element with the text: No dates yet · nothing planned yet`. "Nothing planned" is read as no stops (see #351); a trip with no days satisfies this box word for word.)*
+- [x] **A cover can be searched, picked and cleared**, with the photographer's credit visible
       wherever the photo renders. The download ping fires once per pick, which an integration test
       asserts against a stubbed Unsplash.
-- [ ] **No page view calls Unsplash.** An integration test, or a grep wall, shows the card and trip
+      *(Ticked 2026-10-06, parts 3–4 (#352, #353): `cover/route.int.test.ts` against real Postgres with the offline Unsplash fake. A pick stores the row and sends one ping, a re-pick sends exactly one more, clear removes it. Seen red with `trackDownload` called twice: `expected [ …(2) ] to deeply equal [ Array(1) ]`. The credit renders on the card, the hero, the settings preview and each tile (`CoverCredit.test.tsx`, `m37-trip-covers.spec.ts`).)*
+- [x] **No page view calls Unsplash.** An integration test, or a grep wall, shows the card and trip
       routes read the stored URL only.
-- [ ] **The card shows the trip's length**, and `TripSummary` changes appear in
+      *(Ticked 2026-10-06, part 3 (#352): both an integration test and a wall. `cover/route.int.test.ts` asserts zero port calls across `GET /api/trips` and `GET /api/trips/:id`; seen red as `expected "vi.fn()" to not be called at all, but actually been called 1 times`. The ESLint zone lets only the cover routes import the port, with lint-wall fixtures. Part 5 adds the same zero-call assertion for public day reads.)*
+- [x] **The card shows the trip's length**, and `TripSummary` changes appear in
       `docs/contracts/CHANGELOG.md`.
-- [ ] **The e2e spec passes on `pnpm --filter web test:e2e:ci-like`**: create an empty trip, see
+      *(Ticked 2026-10-06, part 2 (#351, `b25b1c3`): `dayCount`/`stopCount` on `TripSummary`, with a `CHANGELOG.md` entry and API 1.7.0. Covers add entries for 1.8.0 (#352) and 1.9.0 (#354).)*
+- [x] **The design is approved by Mitchell before its UI merges** (asked 2026-10-06: *"go ahead and
+      drawn out the design and let me approve"*). Canvas:
+      https://claude.ai/artifact/655uQXn7esDDWjeAnnAxa1.
+      *(Ticked 2026-10-06: Mitchell, "designs approved", on the canvas's seven artboards as first
+      published. The UI in parts 2, 4 and 5 builds to them.)*
+- [x] **A playbook day can carry a cover** (decision 4, widened 2026-10-06). The author picks it.
+      The day page fades it into the title, as the front door's veil does, and its Discover card
+      leads with it, each with the credit. A hidden day hides its cover.
+      *(Ticked 2026-10-06, part 5 (#354, `0814970`): author-only routes, the day page's 440/360px band with `.cover-veil-paper`, and the Discover card leading with the photo. `saved-days/[savedDayId]/cover/route.int.test.ts` covers the hidden day: with `notModerated` emptied it fails as `expected { …(21) } to be undefined`. `m37-playbook-cover.spec.ts` passes on ci-like.)*
+- [x] **Unsplash's guidelines hold**: hotlinked URLs only, one download ping per pick, a linked
+      credit with `utm_source=caesura&utm_medium=referral` wherever a photo renders, the Access
+      Key server-side only. The list is in the plan's *Unsplash's API guidelines*.
+      *(Ticked 2026-10-06, parts 3–5:*
+      - *Images are hotlinked from `urls.*`, sized with imgix parameters on `urls.raw`.*
+      - *`trackDownload` is called once per pick, and only to `api.unsplash.com`.*
+      - *`unsplashCreditHref` adds `utm_source=caesura&utm_medium=referral`. Seen red as `Received: "…utm_source=app…"`.*
+      - *`UNSPLASH_ACCESS_KEY` is server-side only.*
+      - *There is no logo and nothing named like Unsplash.*
+      *Mitchell's pasted production checklist is quoted in the plan.)*
+- [x] **The e2e spec passes on `pnpm --filter web test:e2e:ci-like`**: create an empty trip, see
       the designed card, pick a cover, and see it on the card.
+      *(Ticked 2026-10-06:*
+      - *`m37-trip-covers.spec.ts` (#353) covers the trip journey. `m37-playbook-cover.spec.ts` (#354) covers the playbook day.*
+      - *Full ci-like run on the stack's top (#354): **243 passed, 1 flaky**. The flaky one is `m14-notebook-widgets.spec.ts:754`, which passed on retry and 8 of 8 in repeats. It is filed as KI-2026-10-06-a; the stack touches no notebook code.)*
 - [ ] **[walk]** On the PR preview, the home page with one empty and one populated trip is walked
       at desktop and phone widths.
 - [ ] A retro is appended at gate close.
