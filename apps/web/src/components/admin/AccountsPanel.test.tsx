@@ -292,7 +292,7 @@ describe("AccountsPanel", () => {
     visit("/admin?tab=users&page=9");
     render(panel(tenAccounts()));
     expect(screen.getByTestId("accounts-range").textContent).toContain("9–10 of 10");
-    expect(replaceState.mock.calls.map((call) => call[2])).toEqual(["/admin?tab=users&page=2"]);
+    expect(replaceState.mock.calls.map((call: unknown[]) => call[2])).toEqual(["/admin?tab=users&page=2"]);
   });
 
   // **Back and Forward change the URL and nothing else.** The view used to come
