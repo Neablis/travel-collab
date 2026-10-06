@@ -16,6 +16,17 @@ not by anybody remembering. That automation exists because the rule was being
 skipped: M23's entry survived its own gate closing on 2026-09-19 and was still
 here two days later.
 
+- **Accounts by tier, week by week, on the operator console (split out of M36, 2026-10-06).**
+  The 2026-10-05 handoff draws one area chart per tier on the Users tab — accounts holding the tier
+  at the end of each week for 26 weeks, with *+N added* and *−N lost* over 30 days
+  (`.design-sync/handoff/specs/operator-console.md`, *Accounts by tier*).
+  - **What exists.** Nothing history-preserving: `users.plan_id` is the current holding, and
+    `entitlement_grants` plus `subscriptions` say what is held now, not what was held last week.
+  - **Decisions it needs.** A weekly rollup table (a migration and a scheduled job, exact from the
+    day it ships, empty before) or a derivation from `entitlement_grants` and `billing_events`
+    (back-fills history, but has never been checked against Stripe's own record). The spec's open
+    question 2; M36 decision 4 is why it is here rather than there.
+
 - **An account-wide assistant that answers about every trip you have taken (asked 2026-10-04).**
   Mitchell: *"Account wide AI assistant, be able to ask about what kind of trips they have taken
   overall"*, with examples: *what was the most expensive meal I've eaten, how many countries have

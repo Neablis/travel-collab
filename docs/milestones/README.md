@@ -116,6 +116,7 @@ for collaboration later landing on a product people already want to join.
 | M33 | We can see whether an assistant change works before it ships | **Gate closed 2026-10-05, 6 of 6** (current for the same day, from M32's close); minted and built the same day beside M31 and M32, merged as #327. `pnpm --filter web eval` runs the live set through the unmocked `/ask` handler on production's per-tier models, grades it in code, states its cost and stops at a cap: `M33-evals.md` |
 | M34 | Adding a stop suggests what other travellers did nearby | **CURRENT MILESTONE from 2026-10-05**, by M33's gate closing. **Minted, scoped and placed 2026-10-05 by Mitchell, after M33.** The add-stop sheet's *"Example match"* placeholder was filed under M9's grounding, but nothing in it needs the model or a place vendor: it lists stops from other people's published days in the day's city, closest first, filtered as you type, and a pick fills name, place, length, kind and tags (not time or cost). Named `nearbyStops` in code, because *suggestion* is ADR-064's word: `M34-nearby-stops.md` |
 | M35 | You can say who on a trip is actually going | **Minted 2026-10-05 by Mitchell, built before minting, not current.** Built off-milestone on PR #335 while M34 is current, from an approved spec and plan; see the 2026-10-05 note below. Travelling is a per-person Access attribute counted at read time (ADR-065), so per-person costs, balances and "N travellers" count travellers, not members, and a suggester who joins to advise no longer doubles a total. Trip settings → People replaces the Travelers panel, with an owner state, role change in place and realtime access. Migration `0039`: `M35-travellers-and-people.md` |
+| M36 | The operator console is four tabs, and an account has a page | **Minted, scoped and placed 2026-10-06 by Mitchell as the next milestone** — after M34, ahead of M35 — and **started the same day** while M34 is current (see the 2026-10-06 note below). The 2026-10-05 handoff (`specs/operator-console.md`, DRIFT D20/D21) redraws the one-scroll console as Financial · Users · Library · AI models, gives an account a page (usage, activity, grants, revoke with a confirm), deletes `GrantSourcePanel`, and is the first admin surface to read M31's ledger. Growth per tier and notebook shares are out by decision: neither has a source. Six links, no planned migration: `M36-operator-console.md` |
 
 - **Restructure (2026-07-28), from the Phase 1 gate review.** The gate had not
   been met and the reason was structural, not cosmetic: a trip cannot be renamed
@@ -222,6 +223,19 @@ the argument, not the live instruction, and they were 56% of this file.
 - **2026-09-19** — M25's gate closed, and what it leaves the milestones behind it
 - **2026-09-19 (later)** — minted, scoped and placed: M26, design parity
 - **2026-08-08, 2026-08-14, 2026-08-25, 2026-08-26** — the superseded reorders and M10's reopened gate, and the placement paragraphs for M26 to M28: *Moved out of README.md on 2026-09-30*, at the end
+
+### 2026-10-06 — minted and placed: M36, the operator console, started ahead of M34's close
+
+**Mitchell's call, 2026-10-06:** *"I added a design handoff to redo the admin/operator dashboard.
+Create a new milestone … then start on that milestone, it will be the next milestone."* M36 is
+**placed immediately after M34**, so its `TODO.md` row sits above M35's and `pnpm milestone close
+M34` will make it current. **M35 moves one row down**: it is built and merged, and what is left of
+its gate (the eval re-run, CodeRabbit, the 0039 dispatch, the retro) does not need it to be
+current.
+
+**It is started before M34 closes**, which is building ahead of the current milestone. M34 has
+two boxes open, the preview walk and the retro, both Mitchell's or the gate-closer's; nothing in
+M36 touches the add-stop sheet. Recorded here rather than back-dated.
 
 ### 2026-10-05 — minted: M35, built before it was minted
 
