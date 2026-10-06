@@ -3618,164 +3618,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
       </sc-if>
 
       <sc-if value="{{ isAdminRoute }}" hint-placeholder-val="{{ false }}">
-        <x-import component-from-global-scope="TravelCollabUI.PageContainer" hint-size="100%,auto" width="content">
-          <div style="padding: 26px 0 90px; display: flex; flex-direction: column; gap: 20px;">
-
-            <div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 14px;">
-              <div style="display: flex; flex-direction: column; gap: 5px;">
-                <x-import component-from-global-scope="TravelCollabUI.Heading" hint-size="auto,34px" level="{{ 2 }}">Operator console</x-import>
-                <span style="font-size: 13.5px; color: var(--color-slate); text-wrap: pretty;">Accounts, what they hold, what they cost. Admin only — a non-admin gets nothing here, not a hidden link.</span>
-              </div>
-              <div style="font-family: var(--font-next-mono); font-size: 11px; line-height: 1.5; color: var(--color-slate); border: 1px dashed var(--color-border-strong); border-radius: 8px; padding: 8px 11px; max-width: 300px;">Design note — operator tool, deliberately plain. No accent language, no product chrome.</div>
-            </div>
-
-            <sc-if value="{{ opStale }}" hint-placeholder-val="{{ false }}">
-              <x-import component-from-global-scope="TravelCollabUI.Banner" hint-size="100%,auto" variant="danger" title="Stripe events are behind">Three webhook deliveries are unprocessed, so plans and revenue below are as of 14:02. Grants still apply immediately — they don't go through Stripe.</x-import>
-            </sc-if>
-            <sc-if value="{{ opConflict }}" hint-placeholder-val="{{ false }}">
-              <x-import component-from-global-scope="TravelCollabUI.Banner" hint-size="100%,auto" variant="warning" title="Mitchell published premium v3 while you were here">Your version list is one behind. Nothing you did was lost — reload before you migrate anyone, or you'll migrate them to v2.</x-import>
-            </sc-if>
-
-            <div data-r="grid4" style="display: grid; grid-template-columns: repeat(4, 1fr); background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 10px; overflow: hidden;">
-              <sc-for list="{{ opsMetrics }}" as="m" hint-placeholder-count="4">
-                <div style="display: flex; flex-direction: column; gap: 8px; padding: 18px 20px; border-left: 1px solid {{ m.divider }};">
-                  <span style="font-size: 13px; font-weight: 600; color: var(--color-ink);">{{ m.k }}</span>
-                  <div style="display: flex; align-items: baseline; gap: 8px;">
-                    <span style="font-family: var(--font-next-mono); font-size: 27px; font-weight: 600; letter-spacing: -0.02em; line-height: 1; color: var(--color-ink);">{{ m.v }}</span>
-                    <span style="font-family: var(--font-next-mono); font-size: 12px; color: {{ m.deltaInk }};">{{ m.delta }}</span>
-                  </div>
-                  <span style="font-size: 12.5px; line-height: 1.45; color: var(--color-slate); text-wrap: pretty;">{{ m.sub }}</span>
-                </div>
-              </sc-for>
-            </div>
-
-            <x-import component-from-global-scope="TravelCollabUI.Panel" hint-size="100%,auto" title="Accounts">
-              <div style="display: flex; flex-direction: column; gap: 12px;">
-                <div style="font-size: 12.5px; color: var(--color-slate);">Plan and version are what the account holds. Cost is model tokens over the trailing 30 days, priced at the rates in force on each day.</div>
-
-                <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px;">
-                  <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="240px,34px" className="w-60" placeholder="Find an address…" aria-label="Find an account" value="{{ opQ }}" onChange="{{ setOpQ }}"></x-import>
-                  <div style="display: flex; flex-wrap: wrap; gap: 6px;">
-                    <sc-for list="{{ opFilters }}" as="f" hint-placeholder-count="6">
-                      <button onClick="{{ f.pick }}" style="display: inline-flex; align-items: center; gap: 6px; font-family: inherit; font-size: 12.5px; color: {{ f.ink }}; background: {{ f.bg }}; border: 1px solid {{ f.border }}; border-radius: 999px; padding: 5px 11px; cursor: pointer;">
-                        {{ f.label }}
-                        <span style="font-family: var(--font-next-mono); font-size: 11px; color: {{ f.countInk }};">{{ f.count }}</span>
-                      </button>
-                    </sc-for>
-                  </div>
-                </div>
-
-                <div style="overflow-x: auto;">
-                  <x-import component-from-global-scope="TravelCollabUI.Table" hint-size="100%,auto">
-                    <x-import component-from-global-scope="TravelCollabUI.THead" hint-size="100%,34px">
-                      <tr>
-                        <th style="text-align: left; font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate); background: var(--color-moss); border-bottom: 1px solid var(--color-border-strong); padding: 9px 10px; white-space: nowrap;">Account</th>
-                        <th style="text-align: left; font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate); background: var(--color-moss); border-bottom: 1px solid var(--color-border-strong); padding: 9px 10px; white-space: nowrap;">Holds</th>
-                        <th style="text-align: left; font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate); background: var(--color-moss); border-bottom: 1px solid var(--color-border-strong); padding: 9px 10px; white-space: nowrap;">Why</th>
-                        <th style="text-align: right; font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate); background: var(--color-moss); border-bottom: 1px solid var(--color-border-strong); padding: 9px 10px; white-space: nowrap;">Pays</th>
-                        <th style="text-align: right; font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate); background: var(--color-moss); border-bottom: 1px solid var(--color-border-strong); padding: 9px 10px; white-space: nowrap;">Costs 30d</th>
-                        <th style="text-align: left; font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate); background: var(--color-moss); border-bottom: 1px solid var(--color-border-strong); padding: 9px 10px; white-space: nowrap;">State</th>
-                        <th style="background: var(--color-moss); border-bottom: 1px solid var(--color-border-strong); padding: 9px 10px;"></th>
-                      </tr>
-                    </x-import>
-                    <x-import component-from-global-scope="TravelCollabUI.TBody" hint-size="100%,240px">
-                      <sc-for list="{{ opsAccounts }}" as="a" hint-placeholder-count="7">
-                        <tr style="background: {{ a.rowBg }};">
-                          <td style="padding: 9px 10px; font-family: var(--font-next-mono); font-size: 12.5px; color: var(--color-ink); white-space: nowrap;">{{ a.email }}</td>
-                          <td style="padding: 9px 10px; font-size: 13px; color: var(--color-ink); white-space: nowrap;">{{ a.holds }}</td>
-                          <td style="padding: 9px 10px; font-size: 12.5px; color: var(--color-slate); white-space: nowrap;">{{ a.why }}</td>
-                          <td style="padding: 9px 10px; font-family: var(--font-next-mono); font-size: 12.5px; color: var(--color-ink); text-align: right; white-space: nowrap;">{{ a.pays }}</td>
-                          <td style="padding: 9px 10px; font-family: var(--font-next-mono); font-size: 12.5px; color: {{ a.costInk }}; text-align: right; white-space: nowrap;">{{ a.cost }}</td>
-                          <td style="padding: 9px 10px; font-size: 12.5px; color: var(--color-slate); white-space: nowrap;">{{ a.state }}</td>
-                          <td style="padding: 6px 10px; text-align: right; white-space: nowrap;">
-                            <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,28px" variant="secondary" size="sm" onClick="{{ a.grant }}">Grant</x-import>
-                          </td>
-                        </tr>
-                      </sc-for>
-                    </x-import>
-                  </x-import>
-                </div>
-
-                <sc-if value="{{ opNone }}" hint-placeholder-val="{{ false }}">
-                  <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 8px; border: 1px dashed var(--color-border-strong); border-radius: 10px; padding: 18px 20px;">
-                    <span style="font-size: 13.5px; font-weight: 600; color: var(--color-ink);">No account matches</span>
-                    <span style="font-size: 12.5px; color: var(--color-slate);">{{ opNoneLine }}</span>
-                    <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,30px" variant="secondary" size="sm" onClick="{{ opClear }}">Clear the filter</x-import>
-                  </div>
-                </sc-if>
-
-                <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; border-top: 1px solid var(--color-hairline); padding-top: 10px;">
-                  <span style="font-family: var(--font-next-mono); font-size: 11.5px; color: var(--color-slate);">{{ opRange }}</span>
-                  <div style="display: flex; align-items: center; gap: 6px;">
-                    <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,30px" variant="secondary" size="sm" disabled="{{ opAtStart }}" onClick="{{ opPrev }}">Previous</x-import>
-                    <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,30px" variant="secondary" size="sm" disabled="{{ opAtEnd }}" onClick="{{ opNext }}">Next</x-import>
-                  </div>
-                </div>
-              </div>
-            </x-import>
-
-            <div data-r="grid2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start;">
-
-              <x-import component-from-global-scope="TravelCollabUI.Panel" hint-size="100%,auto" title="Costs more than it pays">
-                <div style="display: flex; flex-direction: column; gap: 14px;">
-                  <div style="display: flex; flex-direction: column; gap: 9px;">
-                    <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-danger-ink);">Paying, and underwater</span>
-                    <div style="display: flex; align-items: baseline; gap: 10px; background: var(--color-danger-tint); border-radius: 8px; padding: 11px 13px;">
-                      <span style="font-family: var(--font-next-mono); font-size: 22px; font-weight: 600; line-height: 1; color: var(--color-danger-ink);">{{ underPayCount }}</span>
-                      <span style="flex: 1; min-width: 0; font-size: 12.5px; line-height: 1.45; color: var(--color-danger-ink); text-wrap: pretty;">{{ underPayLine }}</span>
-                    </div>
-                    <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,30px" variant="secondary" size="sm" onClick="{{ showUnder }}">Show them in the table</x-import>
-                    <span style="font-size: 12.5px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">Trailing 30 days, marginal model cost only. The addresses live in the table above — this is the count, not a second copy of the list.</span>
-                  </div>
-                  <div style="display: flex; flex-direction: column; gap: 7px; border-top: 1px solid var(--color-hairline); padding-top: 12px;">
-                    <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-slate);">Underwater by construction</span>
-                    <sc-for list="{{ underwaterGrant }}" as="g" hint-placeholder-count="4">
-                      <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 10px;">
-                        <span style="font-size: 13px; color: var(--color-ink);">{{ g.source }}</span>
-                        <span style="font-family: var(--font-next-mono); font-size: 12.5px; color: var(--color-slate);">{{ g.line }}</span>
-                      </div>
-                    </sc-for>
-                    <span style="font-size: 12.5px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">Comped on purpose, so they're counted and set aside rather than listed. Mixed into the list above they'd bury the two rows that matter.</span>
-                  </div>
-                </div>
-              </x-import>
-
-              <x-import component-from-global-scope="TravelCollabUI.Panel" hint-size="100%,auto" title="How each tier is doing">
-                <div style="display: flex; flex-direction: column; gap: 16px;">
-                  <sc-for list="{{ opsPlans }}" as="p" hint-placeholder-count="3">
-                    <div style="display: flex; flex-direction: column; gap: 9px; border-bottom: 1px solid var(--color-hairline); padding-bottom: 14px;">
-                      <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 10px;">
-                        <span style="font-family: var(--font-next-display); font-size: 15px; font-weight: 600; color: var(--color-ink);">{{ p.name }}</span>
-                        <span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate); text-align: right;">{{ p.grants }}</span>
-                      </div>
-                      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;">
-                        <sc-for list="{{ p.stats }}" as="st" hint-placeholder-count="4">
-                          <div style="display: flex; flex-direction: column; gap: 3px;">
-                            <span style="font-family: var(--font-next-mono); font-size: 15px; font-weight: 600; color: var(--color-ink);">{{ st.v }}</span>
-                            <span style="font-size: 11.5px; line-height: 1.3; color: var(--color-slate);">{{ st.k }}</span>
-                          </div>
-                        </sc-for>
-                      </div>
-                      <div style="display: flex; flex-direction: column; gap: 3px; border-top: 1px solid var(--color-hairline); padding-top: 8px;">
-                        <sc-for list="{{ p.versions }}" as="v" hint-placeholder-count="2">
-                          <div style="display: grid; grid-template-columns: 34px 58px 1fr auto; gap: 10px; align-items: baseline; font-family: var(--font-next-mono); font-size: 11.5px;">
-                            <span style="color: var(--color-ink);">{{ v.v }}</span>
-                            <span style="color: var(--color-ink);">{{ v.price }}</span>
-                            <span style="color: var(--color-slate); overflow: hidden; text-overflow: ellipsis;">{{ v.when }}</span>
-                            <span style="color: var(--color-slate); white-space: nowrap;">{{ v.held }}</span>
-                          </div>
-                        </sc-for>
-                      </div>
-                    </div>
-                  </sc-for>
-                  <span style="font-size: 12.5px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">Read-only. Versions are published from the repo, not from here — this page is for seeing which tier is worth keeping, and who is on an older one.</span>
-                </div>
-              </x-import>
-
-            </div>
-
-          </div>
-        </x-import>
+        <dc-import name="OperatorConsole" ops="{{ opsMode }}" hint-size="100%,900px"></dc-import>
       </sc-if>
 
       <sc-if value="{{ isBoard }}" hint-placeholder-val="{{ false }}">
@@ -5875,7 +5718,7 @@ body > div.fixed.inset-0, body > div[data-state][aria-hidden] { z-index: 300; }
   </div>
 </sc-if>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props="{&quot;startScreen&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;app&quot;,&quot;landing&quot;,&quot;invite&quot;,&quot;signin&quot;,&quot;signup&quot;,&quot;firstrun&quot;],&quot;default&quot;:&quot;app&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;inviteState&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;valid&quot;,&quot;expired&quot;,&quot;revoked&quot;,&quot;member&quot;],&quot;default&quot;:&quot;valid&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;dataState&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;live&quot;,&quot;loading&quot;,&quot;empty&quot;,&quot;failed&quot;],&quot;default&quot;:&quot;live&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;saveState&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;saved&quot;,&quot;saving&quot;,&quot;error&quot;],&quot;default&quot;:&quot;saved&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;showSyncError&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;importOutcome&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;lands&quot;,&quot;refused&quot;],&quot;default&quot;:&quot;lands&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;defaultView&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;home&quot;,&quot;columns&quot;,&quot;calendar&quot;,&quot;map&quot;],&quot;default&quot;:&quot;home&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Trip page&quot;},&quot;showTravelTimes&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Trip page&quot;},&quot;assistantDefault&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;expanded&quot;,&quot;bubble&quot;],&quot;default&quot;:&quot;expanded&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Assistant&quot;},&quot;surface&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;desktop&quot;,&quot;phone&quot;],&quot;default&quot;:&quot;desktop&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;plan&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;free&quot;,&quot;plus&quot;,&quot;premium&quot;],&quot;default&quot;:&quot;premium&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Billing&quot;},&quot;billingStatus&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;active&quot;,&quot;trial&quot;,&quot;past_due&quot;,&quot;lapsed&quot;],&quot;default&quot;:&quot;active&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Billing&quot;},&quot;adminUser&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Billing&quot;},&quot;opsState&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;healthy&quot;,&quot;webhooks-behind&quot;,&quot;version-conflict&quot;],&quot;default&quot;:&quot;healthy&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Billing&quot;},&quot;coEditConflict&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;States&quot;},&quot;overviewStage&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;full&quot;,&quot;new&quot;],&quot;default&quot;:&quot;full&quot;,&quot;tsType&quot;:&quot;'full' | 'new'&quot;,&quot;section&quot;:&quot;States&quot;}}">
+<script type="text/x-dc" data-dc-script data-props="{&quot;startScreen&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;app&quot;,&quot;landing&quot;,&quot;invite&quot;,&quot;signin&quot;,&quot;signup&quot;,&quot;firstrun&quot;],&quot;default&quot;:&quot;app&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;inviteState&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;valid&quot;,&quot;expired&quot;,&quot;revoked&quot;,&quot;member&quot;],&quot;default&quot;:&quot;valid&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;dataState&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;live&quot;,&quot;loading&quot;,&quot;empty&quot;,&quot;failed&quot;],&quot;default&quot;:&quot;live&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;saveState&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;saved&quot;,&quot;saving&quot;,&quot;error&quot;],&quot;default&quot;:&quot;saved&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;showSyncError&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;importOutcome&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;lands&quot;,&quot;refused&quot;],&quot;default&quot;:&quot;lands&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;defaultView&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;home&quot;,&quot;columns&quot;,&quot;calendar&quot;,&quot;map&quot;],&quot;default&quot;:&quot;home&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Trip page&quot;},&quot;showTravelTimes&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Trip page&quot;},&quot;assistantDefault&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;expanded&quot;,&quot;bubble&quot;],&quot;default&quot;:&quot;expanded&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Assistant&quot;},&quot;surface&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;desktop&quot;,&quot;phone&quot;],&quot;default&quot;:&quot;desktop&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Screen&quot;},&quot;plan&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;free&quot;,&quot;plus&quot;,&quot;premium&quot;],&quot;default&quot;:&quot;premium&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Billing&quot;},&quot;billingStatus&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;active&quot;,&quot;trial&quot;,&quot;past_due&quot;,&quot;lapsed&quot;],&quot;default&quot;:&quot;active&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Billing&quot;},&quot;adminUser&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Billing&quot;},&quot;opsState&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;healthy&quot;,&quot;webhooks-behind&quot;,&quot;version-conflict&quot;,&quot;ledger-gap&quot;,&quot;no-usage&quot;,&quot;offline&quot;],&quot;default&quot;:&quot;healthy&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Billing&quot;},&quot;coEditConflict&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;States&quot;},&quot;overviewStage&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;full&quot;,&quot;new&quot;],&quot;default&quot;:&quot;full&quot;,&quot;tsType&quot;:&quot;'full' | 'new'&quot;,&quot;section&quot;:&quot;States&quot;}}">
 class Component extends DCLogic {
   state = {
     route: 'home', tripId: 'japan',
@@ -7026,6 +6869,7 @@ class Component extends DCLogic {
 
     return {
       isAdminRoute: s.route === 'admin',
+      opsMode: ops,
       // Comment: nothing here needs to work on a phone — the entry point goes too.
       isOperator: P.adminUser !== false && this.surface() !== 'phone',
       goAdmin: () => this.setState({ route: 'admin', acctOpen: false }),

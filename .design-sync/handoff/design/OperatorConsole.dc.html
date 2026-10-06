@@ -1,0 +1,1212 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="_ds/travel-collab-ui-baseline-c5b66415-77a7-4370-aec7-2bcbd6dd88ec/fonts/fonts.css">
+  <link rel="stylesheet" href="_ds/travel-collab-ui-baseline-c5b66415-77a7-4370-aec7-2bcbd6dd88ec/_ds_bundle.css">
+  <link rel="stylesheet" href="_ds/travel-collab-ui-baseline-c5b66415-77a7-4370-aec7-2bcbd6dd88ec/styles.css">
+  <script src="_ds/travel-collab-ui-baseline-c5b66415-77a7-4370-aec7-2bcbd6dd88ec/_ds_bundle.js"></script>
+  <style>body { margin: 0; background: var(--color-paper); } a { color: var(--color-ink); } a:hover { color: var(--color-brand); }</style>
+</helmet>
+
+<x-import component-from-global-scope="TravelCollabUI.PageContainer" hint-size="100%,auto" width="content">
+  <div data-screen-label="Operator console" style="padding: 26px 0 90px; display: flex; flex-direction: column; gap: 20px;">
+
+    <div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 14px;">
+      <div style="display: flex; flex-direction: column; gap: 5px;">
+        <x-import component-from-global-scope="TravelCollabUI.Heading" hint-size="auto,34px" level="{{ 2 }}">Operator console</x-import>
+        <span style="font-size: 13.5px; color: var(--color-slate); text-wrap: pretty;">Admin only — a non-admin gets nothing here, not a hidden link.</span>
+      </div>
+      <x-import component-from-global-scope="TravelCollabUI.TabStrip" hint-size="auto,32px" value="{{ tab }}" onValueChange="{{ setTab }}" options="{{ tabOptions }}" aria-label="Console sections"></x-import>
+    </div>
+
+    <sc-if value="{{ opStale }}" hint-placeholder-val="{{ false }}">
+      <x-import component-from-global-scope="TravelCollabUI.Banner" hint-size="100%,auto" variant="danger" title="Stripe events are behind">Three webhook deliveries are unprocessed, so plans and revenue are as of 14:02. Grants still apply immediately — they don't go through Stripe.</x-import>
+    </sc-if>
+    <sc-if value="{{ opConflict }}" hint-placeholder-val="{{ false }}">
+      <x-import component-from-global-scope="TravelCollabUI.Banner" hint-size="100%,auto" variant="warning" title="Mitchell published premium v3 while you were here">Your version list is one behind. Nothing you did was lost — reload before you grant anyone premium, or you'll pin them to v2.</x-import>
+    </sc-if>
+
+    <sc-if value="{{ isFinancial }}" hint-placeholder-val="{{ true }}">
+      <div data-screen-label="Financial" style="display: flex; flex-direction: column; gap: 20px;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 10px; overflow: hidden;">
+          <sc-for list="{{ opsMetrics }}" as="m" hint-placeholder-count="4">
+            <div style="display: flex; flex-direction: column; gap: 8px; padding: 18px 20px; border-left: 1px solid {{ m.divider }};">
+              <span style="font-size: 13px; font-weight: 600; color: var(--color-ink);">{{ m.k }}</span>
+              <div style="display: flex; align-items: baseline; gap: 8px;">
+                <span style="font-family: var(--font-next-mono); font-size: 27px; font-weight: 600; letter-spacing: -0.02em; line-height: 1; color: var(--color-ink);">{{ m.v }}</span>
+                <span style="font-family: var(--font-next-mono); font-size: 12px; color: {{ m.deltaInk }};">{{ m.delta }}</span>
+              </div>
+              <span style="font-size: 12.5px; line-height: 1.45; color: var(--color-slate); text-wrap: pretty;">{{ m.sub }}</span>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 12px; align-items: start;">
+          <x-import component-from-global-scope="TravelCollabUI.Panel" hint-size="100%,auto" title="Costs more than it pays">
+            <div style="display: flex; flex-direction: column; gap: 14px;">
+              <div style="display: flex; flex-direction: column; gap: 9px;">
+                <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-danger-ink);">Paying, and underwater</span>
+                <div style="display: flex; align-items: baseline; gap: 10px; background: var(--color-danger-tint); border-radius: 8px; padding: 11px 13px;">
+                  <span style="font-family: var(--font-next-mono); font-size: 22px; font-weight: 600; line-height: 1; color: var(--color-danger-ink);">2</span>
+                  <span style="flex: 1; min-width: 0; font-size: 12.5px; line-height: 1.45; color: var(--color-danger-ink); text-wrap: pretty;">paying accounts whose trailing model cost is above what they pay — $16.00 in, $22.00 out</span>
+                </div>
+                <div style="display: flex;">
+                  <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,30px" variant="secondary" size="sm" onClick="{{ showUnder }}">Show them in Users</x-import>
+                </div>
+                <span style="font-size: 12.5px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">Trailing 30 days, marginal model cost only. The addresses live in Users — this is the count, not a second copy of the list.</span>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 7px; border-top: 1px solid var(--color-hairline); padding-top: 12px;">
+                <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-slate);">Underwater by construction</span>
+                <sc-for list="{{ underwaterGrant }}" as="g" hint-placeholder-count="4">
+                  <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 10px;">
+                    <span style="font-size: 13px; color: var(--color-ink);">{{ g.source }}</span>
+                    <span style="font-family: var(--font-next-mono); font-size: 12.5px; color: var(--color-slate);">{{ g.line }}</span>
+                  </div>
+                </sc-for>
+                <span style="font-size: 12.5px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">Comped on purpose, so they're counted and set aside rather than listed.</span>
+              </div>
+            </div>
+          </x-import>
+
+          <x-import component-from-global-scope="TravelCollabUI.Panel" hint-size="100%,auto" title="How each tier is doing">
+            <div style="display: flex; flex-direction: column; gap: 16px;">
+              <x-import component-from-global-scope="TravelCollabUI.TabStrip" hint-size="auto,32px" value="{{ tierTab }}" onValueChange="{{ setTierTab }}" options="{{ tierOptions }}" aria-label="Tier"></x-import>
+              <div style="display: flex; flex-direction: column; gap: 4px;">
+                <div style="display: flex; align-items: baseline; gap: 10px;">
+                  <span style="font-family: var(--font-next-display); font-size: 20px; font-weight: 600; color: var(--color-ink);">{{ tier.name }}</span>
+                  <span style="font-family: var(--font-next-mono); font-size: 13px; color: var(--color-slate);">{{ tier.price }}</span>
+                </div>
+                <span style="font-size: 12.5px; color: var(--color-slate);">{{ tier.grantsLine }}</span>
+              </div>
+              <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; background: var(--color-hairline); border: 1px solid var(--color-hairline); border-radius: 8px; overflow: hidden;">
+                <sc-for list="{{ tier.stats }}" as="st" hint-placeholder-count="4">
+                  <div style="display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; background: var(--color-surface);">
+                    <span style="font-size: 12px; color: var(--color-slate);">{{ st.label }}</span>
+                    <span style="font-family: var(--font-next-mono); font-size: 20px; font-weight: 600; color: var(--color-ink);">{{ st.v }}</span>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 6px;">
+                <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-slate);">Published versions</span>
+                <x-import component-from-global-scope="TravelCollabUI.Table" hint-size="100%,auto">
+                  <x-import component-from-global-scope="TravelCollabUI.THead" hint-size="100%,32px">
+                    <tr>
+                      <th style="text-align: left; font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate); background: var(--color-moss); border-bottom: 1px solid var(--color-border-strong); padding: 8px 10px; white-space: nowrap;">Version</th>
+                      <th style="text-align: right; font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate); background: var(--color-moss); border-bottom: 1px solid var(--color-border-strong); padding: 8px 10px; white-space: nowrap;">Price</th>
+                      <th style="text-align: left; font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate); background: var(--color-moss); border-bottom: 1px solid var(--color-border-strong); padding: 8px 10px; white-space: nowrap;">Published</th>
+                      <th style="text-align: right; font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate); background: var(--color-moss); border-bottom: 1px solid var(--color-border-strong); padding: 8px 10px; white-space: nowrap;">Accounts on it</th>
+                    </tr>
+                  </x-import>
+                  <x-import component-from-global-scope="TravelCollabUI.TBody" hint-size="100%,70px">
+                    <sc-for list="{{ tier.versions }}" as="v" hint-placeholder-count="2">
+                      <tr>
+                        <td style="padding: 8px 10px; font-family: var(--font-next-mono); font-size: 12.5px; color: var(--color-ink);">{{ v.label }}</td>
+                        <td style="padding: 8px 10px; font-family: var(--font-next-mono); font-size: 12.5px; color: var(--color-ink); text-align: right;">{{ v.price }}</td>
+                        <td style="padding: 8px 10px; font-size: 12.5px; color: var(--color-slate); white-space: nowrap;">{{ v.when }}</td>
+                        <td style="padding: 8px 10px; font-family: var(--font-next-mono); font-size: 12.5px; color: var(--color-ink); text-align: right;">{{ v.held }}</td>
+                      </tr>
+                    </sc-for>
+                  </x-import>
+                </x-import>
+              </div>
+              <span style="font-size: 12.5px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">Read-only. Versions are published from the repo, not from here.</span>
+            </div>
+          </x-import>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isUsersList }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Users" style="display: flex; flex-direction: column; gap: 20px;">
+        <x-import component-from-global-scope="TravelCollabUI.Panel" hint-size="100%,auto" title="Accounts by tier">
+          <div style="display: flex; flex-direction: column; gap: 12px;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px;">
+              <sc-for list="{{ growth }}" as="t" hint-placeholder-count="3">
+                <div style="display: flex; flex-direction: column; gap: 8px; border: 1px solid var(--color-hairline); border-radius: 10px; padding: 14px 16px 10px; background: var(--color-surface);">
+                  <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 10px;">
+                    <span style="font-family: var(--font-next-display); font-size: 15px; font-weight: 600; color: var(--color-ink);">{{ t.name }}</span>
+                    <span style="font-family: var(--font-next-mono); font-size: 22px; font-weight: 600; letter-spacing: -0.02em; color: var(--color-ink);">{{ t.now }}</span>
+                  </div>
+                  <div style="display: flex; flex-wrap: wrap; gap: 4px 12px; font-family: var(--font-next-mono); font-size: 11.5px;">
+                    <span style="color: var(--color-success-ink);">{{ t.added }}</span>
+                    <span style="color: var(--color-slate);">{{ t.lost }}</span>
+                  </div>
+                  <svg viewBox="0 0 300 72" preserveAspectRatio="none" aria-hidden="true" style="display: block; width: 100%; height: 72px;">
+                    <line x1="0" y1="71" x2="300" y2="71" stroke="var(--color-hairline)" stroke-width="1" vector-effect="non-scaling-stroke"></line>
+                    <path d="{{ t.fill }}" fill="var(--color-ink)" fill-opacity="0.08"></path>
+                    <path d="{{ t.line }}" fill="none" stroke="var(--color-ink)" stroke-width="1.6" vector-effect="non-scaling-stroke"></path>
+                  </svg>
+                  <div style="display: flex; justify-content: space-between; font-family: var(--font-next-mono); font-size: 10.5px; color: var(--color-slate);">
+                    <span>{{ t.from }}</span>
+                    <span>{{ t.peak }}</span>
+                    <span>now</span>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+            <span style="font-size: 12.5px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">Accounts holding each tier at the end of each week, last 26 weeks. Each chart has its own scale — on a shared one, free flattens the other two. Added and lost are the last 30 days, upgrades and lapses included.</span>
+          </div>
+        </x-import>
+
+        <x-import component-from-global-scope="TravelCollabUI.Panel" hint-size="100%,auto" title="Accounts">
+          <div style="display: flex; flex-direction: column; gap: 12px;">
+            <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px;">
+              <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="240px,34px" className="w-60" placeholder="Find an address…" aria-label="Find an account" value="{{ opQ }}" onChange="{{ setOpQ }}"></x-import>
+              <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                <sc-for list="{{ opFilters }}" as="f" hint-placeholder-count="6">
+                  <button onClick="{{ f.pick }}" style="display: inline-flex; align-items: center; gap: 6px; font-family: inherit; font-size: 12.5px; color: {{ f.ink }}; background: {{ f.bg }}; border: 1px solid {{ f.border }}; border-radius: 999px; padding: 5px 11px; cursor: pointer;">
+                    {{ f.label }}
+                    <span style="font-family: var(--font-next-mono); font-size: 11px; color: {{ f.countInk }};">{{ f.count }}</span>
+                  </button>
+                </sc-for>
+              </div>
+            </div>
+
+            <div style="overflow-x: auto;">
+              <x-import component-from-global-scope="TravelCollabUI.Table" hint-size="100%,auto">
+                <x-import component-from-global-scope="TravelCollabUI.THead" hint-size="100%,34px">
+                  <tr>
+                    <th style="text-align: left; font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate); background: var(--color-moss); border-bottom: 1px solid var(--color-border-strong); padding: 9px 10px; white-space: nowrap;">Account</th>
+                    <th style="text-align: left; font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate); background: var(--color-moss); border-bottom: 1px solid var(--color-border-strong); padding: 9px 10px; white-space: nowrap;">Holds</th>
+                    <th style="text-align: left; font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate); background: var(--color-moss); border-bottom: 1px solid var(--color-border-strong); padding: 9px 10px; white-space: nowrap;">Why</th>
+                    <th style="text-align: right; font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate); background: var(--color-moss); border-bottom: 1px solid var(--color-border-strong); padding: 9px 10px; white-space: nowrap;">Pays</th>
+                    <th style="text-align: right; font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate); background: var(--color-moss); border-bottom: 1px solid var(--color-border-strong); padding: 9px 10px; white-space: nowrap;">Costs 30d</th>
+                    <th style="text-align: right; font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate); background: var(--color-moss); border-bottom: 1px solid var(--color-border-strong); padding: 9px 10px; white-space: nowrap;">Asked 30d</th>
+                    <th style="text-align: left; font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate); background: var(--color-moss); border-bottom: 1px solid var(--color-border-strong); padding: 9px 10px; white-space: nowrap;">Last active</th>
+                    <th style="text-align: left; font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate); background: var(--color-moss); border-bottom: 1px solid var(--color-border-strong); padding: 9px 10px; white-space: nowrap;">State</th>
+                    <th style="background: var(--color-moss); border-bottom: 1px solid var(--color-border-strong); padding: 9px 10px;"></th>
+                  </tr>
+                </x-import>
+                <x-import component-from-global-scope="TravelCollabUI.TBody" hint-size="100%,240px">
+                  <sc-for list="{{ opsAccounts }}" as="a" hint-placeholder-count="8">
+                    <tr onClick="{{ a.open }}" style="background: {{ a.rowBg }}; cursor: pointer;" style-hover="background: var(--color-moss);">
+                      <td style="padding: 9px 10px; font-family: var(--font-next-mono); font-size: 12.5px; color: var(--color-ink); white-space: nowrap;">{{ a.email }}</td>
+                      <td style="padding: 9px 10px; font-size: 13px; color: var(--color-ink); white-space: nowrap;">{{ a.holds }}</td>
+                      <td style="padding: 9px 10px; font-size: 12.5px; color: var(--color-slate); white-space: nowrap;">{{ a.why }}</td>
+                      <td style="padding: 9px 10px; font-family: var(--font-next-mono); font-size: 12.5px; color: var(--color-ink); text-align: right; white-space: nowrap;">{{ a.pays }}</td>
+                      <td style="padding: 9px 10px; font-family: var(--font-next-mono); font-size: 12.5px; color: {{ a.costInk }}; text-align: right; white-space: nowrap;">{{ a.cost }}</td>
+                      <td style="padding: 9px 10px; font-family: var(--font-next-mono); font-size: 12.5px; color: var(--color-ink); text-align: right; white-space: nowrap;">{{ a.askedLabel }}</td>
+                      <td style="padding: 9px 10px; font-size: 12.5px; color: var(--color-slate); white-space: nowrap;">{{ a.last }}</td>
+                      <td style="padding: 9px 10px; font-size: 12.5px; color: var(--color-slate); white-space: nowrap;">{{ a.state }}</td>
+                      <td style="padding: 9px 10px; font-size: 14px; color: var(--color-slate); text-align: right;">›</td>
+                    </tr>
+                  </sc-for>
+                </x-import>
+              </x-import>
+            </div>
+
+            <sc-if value="{{ opNone }}" hint-placeholder-val="{{ false }}">
+              <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 8px; border: 1px dashed var(--color-border-strong); border-radius: 10px; padding: 18px 20px;">
+                <span style="font-size: 13.5px; font-weight: 600; color: var(--color-ink);">No account matches</span>
+                <span style="font-size: 12.5px; color: var(--color-slate);">{{ opNoneLine }}</span>
+                <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,30px" variant="secondary" size="sm" onClick="{{ opClear }}">Clear the filter</x-import>
+              </div>
+            </sc-if>
+
+            <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; border-top: 1px solid var(--color-hairline); padding-top: 10px;">
+              <span style="font-family: var(--font-next-mono); font-size: 11.5px; color: var(--color-slate);">{{ opRange }}</span>
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,30px" variant="secondary" size="sm" disabled="{{ opAtStart }}" onClick="{{ opPrev }}">Previous</x-import>
+                <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,30px" variant="secondary" size="sm" disabled="{{ opAtEnd }}" onClick="{{ opNext }}">Next</x-import>
+              </div>
+            </div>
+          </div>
+        </x-import>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isUserDetail }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="User detail" style="display: flex; flex-direction: column; gap: 18px;">
+        <div style="display: flex;">
+          <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,30px" variant="ghost" size="sm" onClick="{{ backToList }}">← All accounts</x-import>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px;">
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <span style="font-family: var(--font-next-mono); font-size: 22px; font-weight: 600; letter-spacing: -0.01em; color: var(--color-ink);">{{ u.email }}</span>
+            <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+              <x-import component-from-global-scope="TravelCollabUI.Badge" hint-size="auto,22px" variant="neutral">{{ u.holds }}</x-import>
+              <x-import component-from-global-scope="TravelCollabUI.Badge" hint-size="auto,22px" variant="{{ u.stateVariant }}">{{ u.state }}</x-import>
+              <sc-if value="{{ u.under }}" hint-placeholder-val="{{ false }}">
+                <x-import component-from-global-scope="TravelCollabUI.Badge" hint-size="auto,22px" variant="danger">Costs more than it pays</x-import>
+              </sc-if>
+            </div>
+          </div>
+          <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="secondary" onClick="{{ openGrant }}">Grant a plan</x-import>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 10px; overflow: hidden;">
+          <sc-for list="{{ u.facts }}" as="f" hint-placeholder-count="5">
+            <div style="display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; border-left: 1px solid {{ f.divider }};">
+              <span style="font-size: 12px; color: var(--color-slate);">{{ f.k }}</span>
+              <span style="font-family: var(--font-next-mono); font-size: 17px; font-weight: 600; color: {{ f.ink }};">{{ f.v }}</span>
+              <span style="font-size: 11.5px; color: var(--color-slate);">{{ f.sub }}</span>
+            </div>
+          </sc-for>
+        </div>
+
+        <x-import component-from-global-scope="TravelCollabUI.Panel" hint-size="100%,auto" title="Assistant · last 30 days">
+          <sc-if value="{{ u.hasAi }}" hint-placeholder-val="{{ true }}">
+            <div style="display: flex; flex-direction: column; gap: 18px;">
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 14px;">
+                <sc-for list="{{ u.aiStats }}" as="st" hint-placeholder-count="5">
+                  <div style="display: flex; flex-direction: column; gap: 3px;">
+                    <span style="font-family: var(--font-next-mono); font-size: 18px; font-weight: 600; color: {{ st.ink }};">{{ st.v }}</span>
+                    <span style="font-size: 11.5px; line-height: 1.35; color: var(--color-slate);">{{ st.k }}</span>
+                  </div>
+                </sc-for>
+              </div>
+
+              <div style="display: flex; flex-direction: column; gap: 6px;">
+                <div style="display: flex; justify-content: space-between; gap: 10px; font-size: 12px; color: var(--color-slate);">
+                  <span>Questions a day</span>
+                  <span style="font-family: var(--font-next-mono);">{{ u.ceilingLabel }}</span>
+                </div>
+                <div style="position: relative; height: 96px; border-bottom: 1px solid var(--color-hairline);">
+                  <sc-if value="{{ u.ceilingOn }}" hint-placeholder-val="{{ false }}">
+                    <div style="position: absolute; left: 0; right: 0; bottom: {{ u.ceilingPos }}; border-top: 1px dashed var(--color-danger-ink);"></div>
+                  </sc-if>
+                  <div style="position: absolute; inset: 0; display: flex; align-items: flex-end; gap: 3px;">
+                    <sc-for list="{{ u.bars }}" as="b" hint-placeholder-count="30">
+                      <div title="{{ b.tip }}" style="flex: 1; min-width: 0; height: {{ b.h }}; background: {{ b.fill }}; border-radius: 2px 2px 0 0;"></div>
+                    </sc-for>
+                  </div>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-family: var(--font-next-mono); font-size: 10.5px; color: var(--color-slate);">
+                  <span>{{ u.barFrom }}</span>
+                  <span>today</span>
+                </div>
+              </div>
+
+              <div style="display: flex; flex-direction: column; gap: 8px;">
+                <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-slate);">Tools it called most</span>
+                <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                  <sc-for list="{{ u.tools }}" as="tl" hint-placeholder-count="4">
+                    <span style="display: inline-flex; align-items: baseline; gap: 6px; border: 1px solid var(--color-hairline); border-radius: 6px; padding: 4px 9px; font-family: var(--font-next-mono); font-size: 12px; color: var(--color-ink);">{{ tl.name }}<span style="color: var(--color-slate);">{{ tl.n }}</span></span>
+                  </sc-for>
+                </div>
+              </div>
+
+              <div style="display: flex; flex-direction: column; gap: 8px;">
+                <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-slate);">Recent turns</span>
+                <div style="overflow-x: auto;">
+                  <x-import component-from-global-scope="TravelCollabUI.Table" hint-size="100%,auto">
+                    <x-import component-from-global-scope="TravelCollabUI.THead" hint-size="100%,34px">
+                      <tr>
+                        <th style="text-align: left; font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate); background: var(--color-moss); border-bottom: 1px solid var(--color-border-strong); padding: 8px 10px; white-space: nowrap;">When</th>
+                        <th style="text-align: left; font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate); background: var(--color-moss); border-bottom: 1px solid var(--color-border-strong); padding: 8px 10px; white-space: nowrap;">Kind</th>
+                        <th style="text-align: left; font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate); background: var(--color-moss); border-bottom: 1px solid var(--color-border-strong); padding: 8px 10px; white-space: nowrap;">Model</th>
+                        <th style="text-align: right; font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate); background: var(--color-moss); border-bottom: 1px solid var(--color-border-strong); padding: 8px 10px; white-space: nowrap;">Steps</th>
+                        <th style="text-align: right; font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate); background: var(--color-moss); border-bottom: 1px solid var(--color-border-strong); padding: 8px 10px; white-space: nowrap;">Tool calls</th>
+                        <th style="text-align: right; font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate); background: var(--color-moss); border-bottom: 1px solid var(--color-border-strong); padding: 8px 10px; white-space: nowrap;">Peak context</th>
+                        <th style="text-align: right; font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate); background: var(--color-moss); border-bottom: 1px solid var(--color-border-strong); padding: 8px 10px; white-space: nowrap;">Took</th>
+                        <th style="text-align: left; font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate); background: var(--color-moss); border-bottom: 1px solid var(--color-border-strong); padding: 8px 10px; white-space: nowrap;">Outcome</th>
+                      </tr>
+                    </x-import>
+                    <x-import component-from-global-scope="TravelCollabUI.TBody" hint-size="100%,200px">
+                      <sc-for list="{{ u.turns }}" as="t" hint-placeholder-count="6">
+                        <tr>
+                          <td style="padding: 8px 10px; font-family: var(--font-next-mono); font-size: 12px; color: var(--color-ink); white-space: nowrap;">{{ t.when }}</td>
+                          <td style="padding: 8px 10px; font-size: 12.5px; color: var(--color-ink); white-space: nowrap;">{{ t.kind }}</td>
+                          <td style="padding: 8px 10px; font-family: var(--font-next-mono); font-size: 12px; color: var(--color-slate); white-space: nowrap;">{{ t.model }}</td>
+                          <td style="padding: 8px 10px; font-family: var(--font-next-mono); font-size: 12px; color: var(--color-ink); text-align: right;">{{ t.steps }}</td>
+                          <td style="padding: 8px 10px; font-family: var(--font-next-mono); font-size: 12px; color: var(--color-ink); text-align: right;">{{ t.tools }}</td>
+                          <td style="padding: 8px 10px; font-family: var(--font-next-mono); font-size: 12px; color: {{ t.ctxInk }}; text-align: right;">{{ t.ctx }}</td>
+                          <td style="padding: 8px 10px; font-family: var(--font-next-mono); font-size: 12px; color: var(--color-ink); text-align: right;">{{ t.took }}</td>
+                          <td style="padding: 6px 10px; white-space: nowrap;">
+                            <x-import component-from-global-scope="TravelCollabUI.Badge" hint-size="auto,22px" variant="{{ t.variant }}">{{ t.outcome }}</x-import>
+                          </td>
+                        </tr>
+                      </sc-for>
+                    </x-import>
+                  </x-import>
+                </div>
+                <span style="font-size: 12px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">The ledger keeps counts and sizes, never the question or the trip — so this shows what a turn cost, not what was asked.</span>
+              </div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ u.noAi }}" hint-placeholder-val="{{ false }}">
+            <div style="display: flex; flex-direction: column; gap: 6px; border: 1px dashed var(--color-border-strong); border-radius: 10px; padding: 18px 20px;">
+              <span style="font-size: 13.5px; font-weight: 600; color: var(--color-ink);">{{ u.noAiTitle }}</span>
+              <span style="font-size: 12.5px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">{{ u.noAiBody }}</span>
+            </div>
+          </sc-if>
+        </x-import>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 12px; align-items: start;">
+          <x-import component-from-global-scope="TravelCollabUI.Panel" hint-size="100%,auto" title="Activity">
+            <div style="display: flex; flex-direction: column; gap: 14px;">
+              <div style="display: flex; flex-direction: column; gap: 6px;">
+                <div style="height: 34px; display: flex; align-items: flex-end; gap: 3px; border-bottom: 1px solid var(--color-hairline);">
+                  <sc-for list="{{ u.activity }}" as="d" hint-placeholder-count="30">
+                    <div title="{{ d.tip }}" style="flex: 1; min-width: 0; height: {{ d.h }}; background: var(--color-slate); border-radius: 1px;"></div>
+                  </sc-for>
+                </div>
+                <span style="font-family: var(--font-next-mono); font-size: 11px; color: var(--color-slate);">{{ u.activeLine }}</span>
+              </div>
+              <div style="display: flex; flex-direction: column;">
+                <sc-for list="{{ u.events }}" as="e" hint-placeholder-count="6">
+                  <div style="display: grid; grid-template-columns: 74px 1fr; gap: 10px; align-items: baseline; padding: 7px 0; border-top: 1px solid var(--color-hairline);">
+                    <span style="font-family: var(--font-next-mono); font-size: 11.5px; color: var(--color-slate);">{{ e.when }}</span>
+                    <span style="font-size: 13px; line-height: 1.4; color: var(--color-ink);">{{ e.what }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </x-import>
+
+          <x-import component-from-global-scope="TravelCollabUI.Panel" hint-size="100%,auto" title="Plan and grants">
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+              <sc-if value="{{ u.hasGrants }}" hint-placeholder-val="{{ false }}">
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                  <sc-for list="{{ u.grants }}" as="g" hint-placeholder-count="1">
+                    <div style="display: flex; flex-direction: column; gap: 8px; border: 1px solid var(--color-hairline); border-radius: 8px; padding: 10px 12px;">
+                      <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+                        <div style="display: flex; flex-direction: column; gap: 2px;">
+                          <span style="font-size: 13px; font-weight: 600; color: var(--color-ink);">{{ g.title }}</span>
+                          <span style="font-family: var(--font-next-mono); font-size: 11.5px; color: var(--color-slate);">{{ g.sub }}</span>
+                        </div>
+                        <sc-if value="{{ g.idle }}" hint-placeholder-val="{{ true }}">
+                          <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,28px" variant="ghost" size="sm" onClick="{{ g.ask }}">Revoke</x-import>
+                        </sc-if>
+                      </div>
+                      <sc-if value="{{ g.confirming }}" hint-placeholder-val="{{ false }}">
+                        <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; background: var(--color-danger-tint); border-radius: 6px; padding: 8px 10px;">
+                          <span style="font-size: 12.5px; color: var(--color-danger-ink);">{{ g.confirmLine }}</span>
+                          <div style="display: flex; gap: 6px;">
+                            <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,28px" variant="ghost" size="sm" onClick="{{ g.keep }}">Keep it</x-import>
+                            <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,28px" variant="destructive" size="sm" onClick="{{ g.revoke }}">Revoke</x-import>
+                          </div>
+                        </div>
+                      </sc-if>
+                      <sc-if value="{{ g.failed }}" hint-placeholder-val="{{ false }}">
+                        <span style="font-size: 12.5px; color: var(--color-danger-ink);">The revoke didn't reach the server. Nothing changed — they still hold it.</span>
+                      </sc-if>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-if>
+              <div style="display: flex; flex-direction: column;">
+                <sc-for list="{{ u.history }}" as="h" hint-placeholder-count="3">
+                  <div style="display: grid; grid-template-columns: 74px 1fr; gap: 10px; align-items: baseline; padding: 7px 0; border-top: 1px solid var(--color-hairline);">
+                    <span style="font-family: var(--font-next-mono); font-size: 11.5px; color: var(--color-slate);">{{ h.when }}</span>
+                    <span style="font-size: 13px; line-height: 1.4; color: var(--color-ink);">{{ h.what }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </x-import>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isNotebooks }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="Library" style="display: flex; flex-direction: column; gap: 20px;">
+        <x-import component-from-global-scope="TravelCollabUI.Panel" hint-size="100%,auto" title="Reports">
+          <div style="display: flex; flex-direction: column; gap: 12px;">
+            <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+              <sc-for list="{{ rpFilters }}" as="f" hint-placeholder-count="3">
+                <button onClick="{{ f.pick }}" style="display: inline-flex; align-items: center; gap: 6px; font-family: inherit; font-size: 12.5px; color: {{ f.ink }}; background: {{ f.bg }}; border: 1px solid {{ f.border }}; border-radius: 999px; padding: 5px 11px; cursor: pointer;">
+                  {{ f.label }}
+                  <span style="font-family: var(--font-next-mono); font-size: 11px; color: {{ f.countInk }};">{{ f.count }}</span>
+                </button>
+              </sc-for>
+            </div>
+            <sc-if value="{{ rpStale }}" hint-placeholder-val="{{ false }}">
+              <span role="status" style="font-size: 12.5px; color: var(--color-danger-ink);">The action was taken, but the lists could not be re-read. Reload the page before acting again.</span>
+            </sc-if>
+            <sc-if value="{{ rpNone }}" hint-placeholder-val="{{ false }}">
+              <div style="display: flex; flex-direction: column; gap: 6px; border: 1px dashed var(--color-border-strong); border-radius: 10px; padding: 18px 20px;">
+                <span style="font-size: 13.5px; font-weight: 600; color: var(--color-ink);">{{ rpNoneTitle }}</span>
+                <span style="font-size: 12.5px; color: var(--color-slate);">{{ rpNoneBody }}</span>
+              </div>
+            </sc-if>
+            <div style="display: flex; flex-direction: column;">
+              <sc-for list="{{ rpRows }}" as="r" hint-placeholder-count="3">
+                <div style="display: flex; flex-direction: column; gap: 8px; padding: 12px 0; border-top: 1px solid var(--color-hairline);">
+                  <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px;">
+                    <x-import component-from-global-scope="TravelCollabUI.Badge" hint-size="auto,22px" variant="neutral">{{ r.kind }}</x-import>
+                    <span style="font-size: 13.5px; font-weight: 600; color: var(--color-ink);">{{ r.day }}</span>
+                    <button onClick="{{ r.openOwner }}" style="font-size: 12.5px; color: var(--color-slate); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-decoration-color: var(--color-border-strong); text-underline-offset: 3px;">by {{ r.owner }}</button>
+                    <x-import component-from-global-scope="TravelCollabUI.Badge" hint-size="auto,22px" variant="{{ r.countVariant }}">{{ r.countLabel }}</x-import>
+                  </div>
+                  <sc-if value="{{ r.isReview }}" hint-placeholder-val="{{ false }}">
+                    <div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; font-size: 13px;">
+                      <span style="font-family: var(--font-next-mono); color: var(--color-ink);">{{ r.stars }}</span>
+                      <span style="color: var(--color-ink);">“{{ r.reviewNote }}”</span>
+                      <span style="color: var(--color-slate);">review by {{ r.reviewer }}</span>
+                    </div>
+                  </sc-if>
+                  <div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px;">
+                    <x-import component-from-global-scope="TravelCollabUI.Badge" hint-size="auto,22px" variant="danger">{{ r.reason }}</x-import>
+                    <span style="font-size: 13px; color: var(--color-ink);">{{ r.note }}</span>
+                    <span style="font-size: 12px; color: var(--color-slate);">Reported by {{ r.reporter }} on {{ r.when }}</span>
+                  </div>
+                  <sc-if value="{{ r.hasResolution }}" hint-placeholder-val="{{ false }}">
+                    <span style="font-size: 12px; color: var(--color-warning-ink);">{{ r.resolution }}</span>
+                  </sc-if>
+                  <sc-if value="{{ r.composing }}" hint-placeholder-val="{{ false }}">
+                    <div style="display: flex; flex-direction: column; gap: 8px; max-width: 460px;">
+                      <x-import component-from-global-scope="TravelCollabUI.FormField" hint-size="100%,110px" id="{{ r.noteId }}" label="Note to the author (optional)" description="Shown on their copy of the day, as the reason it left the library.">
+                        <x-import component-from-global-scope="TravelCollabUI.Textarea" hint-size="100%,64px" id="{{ r.noteId }}" value="{{ rpNote }}" onChange="{{ setRpNote }}"></x-import>
+                      </x-import>
+                      <div style="display: flex; gap: 6px;">
+                        <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,28px" variant="destructive" size="sm" onClick="{{ r.hide }}">Hide it</x-import>
+                        <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,28px" variant="ghost" size="sm" onClick="{{ r.cancel }}">Cancel</x-import>
+                      </div>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ r.showActions }}" hint-placeholder-val="{{ true }}">
+                    <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                      <sc-for list="{{ r.actions }}" as="ac" hint-placeholder-count="2">
+                        <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,28px" variant="{{ ac.variant }}" size="sm" onClick="{{ ac.run }}">{{ ac.label }}</x-import>
+                      </sc-for>
+                    </div>
+                  </sc-if>
+                </div>
+              </sc-for>
+            </div>
+            <span style="font-size: 12.5px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">Hiding a day takes it off Discover, the board and profiles; the author keeps their copy. One decision settles every open report on the same day.</span>
+          </div>
+        </x-import>
+
+        <sc-if value="{{ nbEmpty }}" hint-placeholder-val="{{ false }}">
+          <div style="display: flex; flex-direction: column; gap: 6px; border: 1px dashed var(--color-border-strong); border-radius: 10px; padding: 22px 24px;">
+            <span style="font-size: 14px; font-weight: 600; color: var(--color-ink);">No notebooks saved yet</span>
+            <span style="font-size: 12.5px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">Every trip has notebook pages, but nobody has saved one to their library. Shares and trips started from one count from the first save.</span>
+          </div>
+        </sc-if>
+        <sc-if value="{{ nbHas }}" hint-placeholder-val="{{ true }}">
+          <div style="display: flex; flex-direction: column; gap: 20px;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 10px; overflow: hidden;">
+              <sc-for list="{{ nbMetrics }}" as="m" hint-placeholder-count="4">
+                <div style="display: flex; flex-direction: column; gap: 8px; padding: 18px 20px; border-left: 1px solid {{ m.divider }};">
+                  <span style="font-size: 13px; font-weight: 600; color: var(--color-ink);">{{ m.k }}</span>
+                  <div style="display: flex; align-items: baseline; gap: 8px;">
+                    <span style="font-family: var(--font-next-mono); font-size: 27px; font-weight: 600; letter-spacing: -0.02em; line-height: 1; color: var(--color-ink);">{{ m.v }}</span>
+                    <span style="font-family: var(--font-next-mono); font-size: 12px; color: {{ m.deltaInk }};">{{ m.delta }}</span>
+                  </div>
+                  <span style="font-size: 12.5px; line-height: 1.45; color: var(--color-slate); text-wrap: pretty;">{{ m.sub }}</span>
+                </div>
+              </sc-for>
+            </div>
+
+            <x-import component-from-global-scope="TravelCollabUI.Panel" hint-size="100%,auto" title="Each week">
+              <div style="display: flex; flex-direction: column; gap: 12px;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px;">
+                  <sc-for list="{{ nbCharts }}" as="t" hint-placeholder-count="3">
+                    <div style="display: flex; flex-direction: column; gap: 8px; border: 1px solid var(--color-hairline); border-radius: 10px; padding: 14px 16px 10px; background: var(--color-surface);">
+                      <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 10px;">
+                        <span style="font-size: 13px; font-weight: 600; color: var(--color-ink);">{{ t.name }}</span>
+                        <span style="font-family: var(--font-next-mono); font-size: 18px; font-weight: 600; color: var(--color-ink);">{{ t.now }}</span>
+                      </div>
+                      <svg viewBox="0 0 300 64" preserveAspectRatio="none" aria-hidden="true" style="display: block; width: 100%; height: 64px;">
+                        <line x1="0" y1="63" x2="300" y2="63" stroke="var(--color-hairline)" stroke-width="1" vector-effect="non-scaling-stroke"></line>
+                        <path d="{{ t.fill }}" fill="var(--color-ink)" fill-opacity="0.08"></path>
+                        <path d="{{ t.line }}" fill="none" stroke="var(--color-ink)" stroke-width="1.6" vector-effect="non-scaling-stroke"></path>
+                      </svg>
+                      <div style="display: flex; justify-content: space-between; font-family: var(--font-next-mono); font-size: 10.5px; color: var(--color-slate);">
+                        <span>{{ t.from }}</span>
+                        <span>this week</span>
+                      </div>
+                    </div>
+                  </sc-for>
+                </div>
+                <span style="font-size: 12.5px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">Last 26 weeks, each on its own scale. A trip started from a notebook counts once, however many pages it copied.</span>
+              </div>
+            </x-import>
+
+            <x-import component-from-global-scope="TravelCollabUI.Panel" hint-size="100%,auto" title="Notebooks that start the most trips">
+              <div style="display: flex; flex-direction: column; gap: 12px;">
+                <div style="overflow-x: auto;">
+                  <x-import component-from-global-scope="TravelCollabUI.Table" hint-size="100%,auto">
+                    <x-import component-from-global-scope="TravelCollabUI.THead" hint-size="100%,34px">
+                      <tr>
+                        <th style="text-align: left; font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate); background: var(--color-moss); border-bottom: 1px solid var(--color-border-strong); padding: 9px 10px; white-space: nowrap;">Notebook</th>
+                        <th style="text-align: left; font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate); background: var(--color-moss); border-bottom: 1px solid var(--color-border-strong); padding: 9px 10px; white-space: nowrap;">By</th>
+                        <th style="text-align: left; font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate); background: var(--color-moss); border-bottom: 1px solid var(--color-border-strong); padding: 9px 10px; white-space: nowrap;">Saved</th>
+                        <th style="text-align: right; font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate); background: var(--color-moss); border-bottom: 1px solid var(--color-border-strong); padding: 9px 10px; white-space: nowrap;">Pages</th>
+                        <th style="text-align: right; font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate); background: var(--color-moss); border-bottom: 1px solid var(--color-border-strong); padding: 9px 10px; white-space: nowrap;">Shares</th>
+                        <th style="text-align: right; font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate); background: var(--color-moss); border-bottom: 1px solid var(--color-border-strong); padding: 9px 10px; white-space: nowrap;">Trips started</th>
+                        <th style="text-align: left; font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate); background: var(--color-moss); border-bottom: 1px solid var(--color-border-strong); padding: 9px 10px; white-space: nowrap;">Last used</th>
+                      </tr>
+                    </x-import>
+                    <x-import component-from-global-scope="TravelCollabUI.TBody" hint-size="100%,240px">
+                      <sc-for list="{{ nbRows }}" as="n" hint-placeholder-count="8">
+                        <tr>
+                          <td style="padding: 9px 10px; font-size: 13px; color: var(--color-ink);">{{ n.title }}</td>
+                          <td style="padding: 6px 10px; white-space: nowrap;">
+                            <button onClick="{{ n.openAuthor }}" style="font-family: var(--font-next-mono); font-size: 12.5px; color: var(--color-ink); background: none; border: 0; padding: 3px 0; cursor: pointer; text-decoration: underline; text-decoration-color: var(--color-border-strong); text-underline-offset: 3px;">{{ n.by }}</button>
+                          </td>
+                          <td style="padding: 9px 10px; font-family: var(--font-next-mono); font-size: 12px; color: var(--color-slate); white-space: nowrap;">{{ n.saved }}</td>
+                          <td style="padding: 9px 10px; font-family: var(--font-next-mono); font-size: 12.5px; color: var(--color-ink); text-align: right;">{{ n.pages }}</td>
+                          <td style="padding: 9px 10px; font-family: var(--font-next-mono); font-size: 12.5px; color: var(--color-ink); text-align: right;">{{ n.shares }}</td>
+                          <td style="padding: 9px 10px; font-family: var(--font-next-mono); font-size: 12.5px; font-weight: 600; color: var(--color-ink); text-align: right;">{{ n.trips }}</td>
+                          <td style="padding: 9px 10px; font-size: 12.5px; color: var(--color-slate); white-space: nowrap;">{{ n.last }}</td>
+                        </tr>
+                      </sc-for>
+                    </x-import>
+                  </x-import>
+                </div>
+                <span style="font-size: 12.5px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">Shares are people who opened a shared link and saved it to their own library. A trip started is a new trip seeded from the notebook — the author's own don't count.</span>
+              </div>
+            </x-import>
+          </div>
+        </sc-if>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isAi }}" hint-placeholder-val="{{ false }}">
+      <div data-screen-label="AI models" style="display: flex; flex-direction: column; gap: 20px;">
+        <sc-if value="{{ ledgerGap }}" hint-placeholder-val="{{ false }}">
+          <x-import component-from-global-scope="TravelCollabUI.Banner" hint-size="100%,auto" variant="warning" title="142 turns since 09:40 have no step or tool-call rows">The turn rows wrote, so turn counts are right. Tool calls and context size undercount until the step write recovers — nothing needs re-sending.</x-import>
+        </sc-if>
+
+        <sc-if value="{{ aiEmpty }}" hint-placeholder-val="{{ false }}">
+          <div style="display: flex; flex-direction: column; gap: 6px; border: 1px dashed var(--color-border-strong); border-radius: 10px; padding: 22px 24px;">
+            <span style="font-size: 14px; font-weight: 600; color: var(--color-ink);">No assistant turns in the last 30 days</span>
+            <span style="font-size: 12.5px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">Either nobody holding ai.ask has asked anything, or turns aren't being recorded. If accounts in Users show questions asked, it's the second.</span>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ aiHas }}" hint-placeholder-val="{{ true }}">
+          <div style="display: flex; flex-direction: column; gap: 20px;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); background: var(--color-surface); border: 1px solid var(--color-hairline); border-radius: 10px; overflow: hidden;">
+              <sc-for list="{{ aiMetrics }}" as="m" hint-placeholder-count="4">
+                <div style="display: flex; flex-direction: column; gap: 8px; padding: 18px 20px; border-left: 1px solid {{ m.divider }};">
+                  <span style="font-size: 13px; font-weight: 600; color: var(--color-ink);">{{ m.k }}</span>
+                  <div style="display: flex; align-items: baseline; gap: 8px;">
+                    <span style="font-family: var(--font-next-mono); font-size: 27px; font-weight: 600; letter-spacing: -0.02em; line-height: 1; color: var(--color-ink);">{{ m.v }}</span>
+                    <span style="font-family: var(--font-next-mono); font-size: 12px; color: {{ m.deltaInk }};">{{ m.delta }}</span>
+                  </div>
+                  <span style="font-size: 12.5px; line-height: 1.45; color: var(--color-slate); text-wrap: pretty;">{{ m.sub }}</span>
+                </div>
+              </sc-for>
+            </div>
+
+            <x-import component-from-global-scope="TravelCollabUI.Panel" hint-size="100%,auto" title="Turns a day">
+              <div style="display: flex; flex-direction: column; gap: 8px;">
+                <svg viewBox="0 0 300 90" preserveAspectRatio="none" aria-hidden="true" style="display: block; width: 100%; height: 120px;">
+                  <line x1="0" y1="89" x2="300" y2="89" stroke="var(--color-hairline)" stroke-width="1" vector-effect="non-scaling-stroke"></line>
+                  <path d="{{ turnsChart.fill }}" fill="var(--color-ink)" fill-opacity="0.08"></path>
+                  <path d="{{ turnsChart.line }}" fill="none" stroke="var(--color-ink)" stroke-width="1.6" vector-effect="non-scaling-stroke"></path>
+                  <path d="{{ turnsChart.failFill }}" fill="var(--color-danger-ink)" fill-opacity="0.55"></path>
+                </svg>
+                <div style="display: flex; justify-content: space-between; font-family: var(--font-next-mono); font-size: 10.5px; color: var(--color-slate);">
+                  <span>{{ turnsChart.from }}</span>
+                  <span>today</span>
+                </div>
+                <div style="display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12.5px; color: var(--color-slate);">
+                  <sc-for list="{{ turnsSplit }}" as="sp" hint-placeholder-count="4">
+                    <span><span style="font-family: var(--font-next-mono); color: var(--color-ink);">{{ sp.v }}</span> {{ sp.k }}</span>
+                  </sc-for>
+                </div>
+              </div>
+            </x-import>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 12px; align-items: start;">
+              <x-import component-from-global-scope="TravelCollabUI.Panel" hint-size="100%,auto" title="Context size by step">
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                  <div style="position: relative; height: 150px; display: flex; align-items: flex-end; gap: 10px; border-bottom: 1px solid var(--color-hairline);">
+                    <sc-for list="{{ ctxBars }}" as="c" hint-placeholder-count="8">
+                      <div title="{{ c.tip }}" style="position: relative; flex: 1; min-width: 0; height: 100%; display: flex; align-items: flex-end; justify-content: center;">
+                        <div style="position: absolute; left: 0; right: 0; bottom: 0; height: {{ c.p95h }}; background: var(--color-moss); border: 1px solid var(--color-border-strong); border-bottom: 0; border-radius: 3px 3px 0 0;"></div>
+                        <div style="position: relative; width: 100%; height: {{ c.p50h }}; background: var(--color-ink); border-radius: 3px 3px 0 0;"></div>
+                      </div>
+                    </sc-for>
+                  </div>
+                  <div style="display: flex; gap: 10px;">
+                    <sc-for list="{{ ctxBars }}" as="c" hint-placeholder-count="8">
+                      <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 1px; font-family: var(--font-next-mono);">
+                        <span style="font-size: 11.5px; color: var(--color-ink);">{{ c.step }}</span>
+                        <span style="font-size: 10.5px; color: var(--color-slate);">{{ c.p50 }}</span>
+                      </div>
+                    </sc-for>
+                  </div>
+                  <div style="display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--color-slate);">
+                    <span style="display: inline-flex; align-items: center; gap: 6px;"><span style="width: 10px; height: 10px; border-radius: 2px; background: var(--color-ink);"></span>median input tokens</span>
+                    <span style="display: inline-flex; align-items: center; gap: 6px;"><span style="width: 10px; height: 10px; border-radius: 2px; background: var(--color-moss); border: 1px solid var(--color-border-strong);"></span>95th percentile</span>
+                  </div>
+                  <span style="font-size: 12.5px; line-height: 1.5; color: var(--color-slate); text-wrap: pretty;">Each step re-sends the conversation, so context grows about 1.9k tokens a step as tool results pile up. 71% of input tokens were cache reads. 41 turns crossed 32k.</span>
+                </div>
+              </x-import>
+
+              <x-import component-from-global-scope="TravelCollabUI.Panel" hint-size="100%,auto" title="Models">
+                <div style="display: flex; flex-direction: column;">
+                  <sc-for list="{{ models }}" as="md" hint-placeholder-count="3">
+                    <div style="display: flex; flex-direction: column; gap: 8px; padding: 12px 0; border-bottom: 1px solid var(--color-hairline);">
+                      <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 10px;">
+                        <span style="font-family: var(--font-next-mono); font-size: 13px; font-weight: 600; color: var(--color-ink);">{{ md.id }}</span>
+                        <span style="font-family: var(--font-next-mono); font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--color-slate);">{{ md.role }}</span>
+                      </div>
+                      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;">
+                        <sc-for list="{{ md.stats }}" as="st" hint-placeholder-count="4">
+                          <div style="display: flex; flex-direction: column; gap: 2px;">
+                            <span style="font-family: var(--font-next-mono); font-size: 14px; font-weight: 600; color: var(--color-ink);">{{ st.v }}</span>
+                            <span style="font-size: 11px; line-height: 1.3; color: var(--color-slate);">{{ st.k }}</span>
+                          </div>
+                        </sc-for>
+                      </div>
+                      <span style="font-size: 12px; color: var(--color-slate);">{{ md.note }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </x-import>
+            </div>
+
+            <x-import component-from-global-scope="TravelCollabUI.Panel" hint-size="100%,auto" title="Tool calls">
+              <div style="display: flex; flex-direction: column; gap: 12px;">
+                <div style="overflow-x: auto;">
+                  <x-import component-from-global-scope="TravelCollabUI.Table" hint-size="100%,auto">
+                    <x-import component-from-global-scope="TravelCollabUI.THead" hint-size="100%,34px">
+                      <tr>
+                        <th style="text-align: left; font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate); background: var(--color-moss); border-bottom: 1px solid var(--color-border-strong); padding: 9px 10px; white-space: nowrap;">Tool</th>
+                        <th style="text-align: right; font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate); background: var(--color-moss); border-bottom: 1px solid var(--color-border-strong); padding: 9px 10px; white-space: nowrap;">Calls</th>
+                        <th style="text-align: right; font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate); background: var(--color-moss); border-bottom: 1px solid var(--color-border-strong); padding: 9px 10px; white-space: nowrap;">In turns</th>
+                        <th style="text-align: right; font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate); background: var(--color-moss); border-bottom: 1px solid var(--color-border-strong); padding: 9px 10px; white-space: nowrap;">Failed</th>
+                        <th style="text-align: right; font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate); background: var(--color-moss); border-bottom: 1px solid var(--color-border-strong); padding: 9px 10px; white-space: nowrap;">Repaired</th>
+                        <th style="text-align: right; font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate); background: var(--color-moss); border-bottom: 1px solid var(--color-border-strong); padding: 9px 10px; white-space: nowrap;">Median time</th>
+                        <th style="text-align: right; font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate); background: var(--color-moss); border-bottom: 1px solid var(--color-border-strong); padding: 9px 10px; white-space: nowrap;">Median result</th>
+                        <th style="text-align: right; font-family: var(--font-next-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-slate); background: var(--color-moss); border-bottom: 1px solid var(--color-border-strong); padding: 9px 10px; white-space: nowrap;">Reached a proposal</th>
+                      </tr>
+                    </x-import>
+                    <x-import component-from-global-scope="TravelCollabUI.TBody" hint-size="100%,260px">
+                      <sc-for list="{{ tools }}" as="t" hint-placeholder-count="8">
+                        <tr>
+                          <td style="padding: 9px 10px; font-family: var(--font-next-mono); font-size: 12.5px; color: var(--color-ink); white-space: nowrap;">{{ t.name }}</td>
+                          <td style="padding: 9px 10px; font-family: var(--font-next-mono); font-size: 12.5px; color: var(--color-ink); text-align: right;">{{ t.calls }}</td>
+                          <td style="padding: 9px 10px; font-family: var(--font-next-mono); font-size: 12.5px; color: var(--color-ink); text-align: right;">{{ t.share }}</td>
+                          <td style="padding: 9px 10px; font-family: var(--font-next-mono); font-size: 12.5px; color: {{ t.failInk }}; text-align: right; white-space: nowrap;">{{ t.failed }}</td>
+                          <td style="padding: 9px 10px; font-family: var(--font-next-mono); font-size: 12.5px; color: var(--color-slate); text-align: right;">{{ t.repaired }}</td>
+                          <td style="padding: 9px 10px; font-family: var(--font-next-mono); font-size: 12.5px; color: var(--color-ink); text-align: right;">{{ t.ms }}</td>
+                          <td style="padding: 9px 10px; font-family: var(--font-next-mono); font-size: 12.5px; color: var(--color-ink); text-align: right;">{{ t.out }}</td>
+                          <td style="padding: 9px 10px; font-family: var(--font-next-mono); font-size: 12.5px; color: var(--color-slate); text-align: right;">{{ t.prop }}</td>
+                        </tr>
+                      </sc-for>
+                    </x-import>
+                  </x-import>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 4px; border-top: 1px solid var(--color-hairline); padding-top: 10px;">
+                  <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-slate);">Offered on every step, almost never called</span>
+                  <span style="font-size: 12.5px; line-height: 1.5; color: var(--color-ink); text-wrap: pretty;"><span style="font-family: var(--font-next-mono);">delete_day</span> (4 calls) and <span style="font-family: var(--font-next-mono);">set_budget</span> (11) — together about 820 tokens of schema on each of 18.9k steps.</span>
+                </div>
+              </div>
+            </x-import>
+          </div>
+        </sc-if>
+      </div>
+    </sc-if>
+
+  </div>
+</x-import>
+
+<x-import component-from-global-scope="TravelCollabUI.Dialog" hint-size="0,0" open="{{ grantOpen }}" onOpenChange="{{ setGrantOpen }}" title="Grant a plan">
+  <div style="display: flex; flex-direction: column; gap: 14px;">
+    <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 10px; border: 1px solid var(--color-hairline); border-radius: 8px; padding: 10px 12px;">
+      <span style="font-size: 12px; color: var(--color-slate);">Account</span>
+      <span style="font-family: var(--font-next-mono); font-size: 13px; color: var(--color-ink);">{{ u.email }}</span>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px;">
+      <x-import component-from-global-scope="TravelCollabUI.FormField" hint-size="100%,70px" id="og1" label="Plan">
+        <x-import component-from-global-scope="TravelCollabUI.NativeSelect" hint-size="100%,36px" id="og1" className="w-full" value="{{ gPlan }}" onChange="{{ setGPlan }}">
+          <option value="plus">plus</option>
+          <option value="premium">premium</option>
+        </x-import>
+      </x-import>
+      <x-import component-from-global-scope="TravelCollabUI.FormField" hint-size="100%,70px" id="og3" label="Because">
+        <x-import component-from-global-scope="TravelCollabUI.NativeSelect" hint-size="100%,36px" id="og3" className="w-full" value="{{ gSource }}" onChange="{{ setGSource }}">
+          <option value="admin">admin</option>
+          <option value="trial">trial</option>
+          <option value="referral">referral</option>
+          <option value="founder">founder</option>
+        </x-import>
+      </x-import>
+      <x-import component-from-global-scope="TravelCollabUI.FormField" hint-size="100%,70px" id="og4" label="Runs out" description="Empty means permanent.">
+        <x-import component-from-global-scope="TravelCollabUI.Input" hint-size="100%,36px" id="og4" type="date" value="{{ gExpiry }}" onChange="{{ setGExpiry }}"></x-import>
+      </x-import>
+    </div>
+    <x-import component-from-global-scope="TravelCollabUI.Banner" hint-size="100%,auto" variant="info">{{ gNote }}</x-import>
+    <x-import component-from-global-scope="TravelCollabUI.DialogFooter" hint-size="100%,50px">
+      <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="ghost" onClick="{{ closeGrant }}">Cancel</x-import>
+      <x-import component-from-global-scope="TravelCollabUI.Button" hint-size="auto,36px" variant="primary" onClick="{{ confirmGrant }}">Grant</x-import>
+    </x-import>
+  </div>
+</x-import>
+
+<sc-if value="{{ hasToast }}" hint-placeholder-val="{{ false }}">
+  <div role="status" style="position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 60; background: var(--color-ink); color: var(--color-surface); font-size: 13px; padding: 10px 16px; border-radius: 8px; box-shadow: var(--shadow-overlay); max-width: 90vw;">{{ toast }}</div>
+</sc-if>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;ops&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;healthy&quot;,&quot;webhooks-behind&quot;,&quot;version-conflict&quot;,&quot;ledger-gap&quot;,&quot;no-usage&quot;,&quot;no-notebooks&quot;,&quot;offline&quot;],&quot;default&quot;:&quot;healthy&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;States&quot;},&quot;startTab&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;financial&quot;,&quot;users&quot;,&quot;library&quot;,&quot;ai&quot;],&quot;default&quot;:&quot;financial&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;States&quot;}}">
+class Component extends DCLogic {
+  state = { rpStatus: 'open', rpNote: '', rpComposing: null, rpState: {}, tierTab: 'premium', tab: null, opQ: '', opFilter: 'all', opPage: 0, user: null, grantOpen: false, gPlan: 'premium', gSource: 'admin', gExpiry: '', confirming: null, revoked: {}, revokeFail: null, toast: null };
+
+  MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  TODAY = new Date(2026, 9, 5);
+  ago(n) { const d = new Date(this.TODAY); d.setDate(d.getDate() - n); return d.getDate() + ' ' + this.MONTHS[d.getMonth()]; }
+  hash(s) { let h = 7; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return Math.abs(h); }
+  rng(seed) { let a = seed || 1; return () => { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+  nf(n) { return Math.round(n).toLocaleString('en-US'); }
+  k(n) { return n >= 1000 ? (n / 1000).toFixed(n >= 10000 ? 0 : 1) + 'k' : String(Math.round(n)); }
+  flash(msg) { clearTimeout(this._t); this.setState({ toast: msg }); this._t = setTimeout(() => this.setState({ toast: null }), 2600); }
+
+  area(vals, w, h) {
+    const max = Math.max.apply(null, vals) * 1.12 || 1, n = vals.length;
+    const pts = vals.map((v, i) => [(i / (n - 1)) * w, h - 1 - (v / max) * (h - 4)]);
+    const line = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+    return { line, fill: line + ' L' + w + ' ' + (h - 1) + ' L0 ' + (h - 1) + ' Z', max };
+  }
+
+  OPS_BASE = [
+    { email: 'sam@example.com', holds: 'premium v2', why: 'bought', pays: '$16.00', cost: '$1.42', state: 'active · renews 1 Oct', asked: 412, last: 'today' },
+    { email: 'mei@example.com', holds: 'premium v1', why: 'bought', pays: '$12.00', cost: '$0.88', state: 'active · renews 4 Oct', asked: 188, last: '2 days ago' },
+    { email: 'priya@example.com', holds: 'plus v2', why: 'bought', pays: '$8.00', cost: '$9.60', state: 'active', under: true, asked: 2480, last: 'today' },
+    { email: 'rex@example.com', holds: 'plus v2', why: 'bought', pays: '$8.00', cost: '$12.40', state: 'active', under: true, asked: 2910, last: 'today' },
+    { email: 'tomas@example.com', holds: 'premium v2', why: 'bought', pays: '$16.00', cost: '$0.00', state: 'past due · grace ends 7 Oct', asked: 0, last: '9 days ago' },
+    { email: 'luis@example.com', holds: 'plus v2', why: 'trial · ends 10 Oct', pays: '—', cost: '$0.31', state: 'granted', asked: 64, last: 'yesterday' },
+    { email: 'malee@example.com', holds: 'premium v1', why: 'founder · no expiry', pays: '—', cost: '$6.20', state: 'granted', asked: 1420, last: 'today' },
+    { email: 'dana@example.com', holds: 'plus v1', why: 'referral · to 28 Oct', pays: '—', cost: '$1.05', state: 'granted', asked: 140, last: '3 days ago' },
+    { email: 'kenji@example.com', holds: 'free v1', why: '—', pays: '—', cost: '$0.00', state: 'free', asked: 0, last: '5 days ago' }
+  ];
+  OPS_NAMES = ['aiko', 'ben', 'cara', 'dev', 'elin', 'fabio', 'gita', 'hugo', 'ines', 'jonas', 'kaito', 'lena', 'marc', 'nina', 'omar', 'pia', 'quinn', 'rosa', 'sami', 'tara', 'uwe', 'vera', 'wei', 'yuki', 'zoe', 'ada', 'noor'];
+  LAST = ['today', 'yesterday', '2 days ago', '4 days ago', '1 week ago', '3 weeks ago'];
+  opsAll() {
+    if (this._opsAll) return this._opsAll;
+    const rows = this.OPS_BASE.slice();
+    this.OPS_NAMES.forEach((n, i) => {
+      const plan = i % 5 === 0 ? 'free' : i % 3 === 0 ? 'premium' : 'plus';
+      const v1 = i % 4 === 0;
+      const why = plan === 'free' ? '—' : i % 7 === 0 ? 'referral · to 28 Oct' : i % 11 === 0 ? 'trial · ends 12 Oct' : 'bought';
+      const pays = why !== 'bought' ? '—' : plan === 'premium' ? (v1 ? '$12.00' : '$16.00') : (v1 ? '$6.00' : '$8.00');
+      rows.push({
+        email: n + '@example.com', holds: plan + ' ' + (v1 ? 'v1' : 'v2'), why, pays,
+        cost: plan === 'free' ? '$0.00' : '$' + (((i * 37) % 340) / 100).toFixed(2),
+        state: plan === 'free' ? 'free' : why === 'bought' ? 'active · renews ' + (2 + (i % 26)) + ' Oct' : 'granted',
+        asked: plan === 'free' ? 0 : (i * 53) % 400, last: this.LAST[i % 6]
+      });
+    });
+    this._opsAll = rows;
+    return rows;
+  }
+  opsMatch(filter, q) {
+    const needle = (q || '').trim().toLowerCase();
+    return this.opsAll().filter(a => {
+      if (needle && a.email.indexOf(needle) < 0) return false;
+      if (filter === 'paying') return a.pays !== '—';
+      if (filter === 'granted') return /trial|referral|founder|admin/.test(a.why);
+      if (filter === 'free') return a.holds.indexOf('free') === 0;
+      if (filter === 'past_due') return a.state.indexOf('past due') >= 0;
+      if (filter === 'under') return !!a.under;
+      return true;
+    });
+  }
+  OPS_PLANS = [
+    { name: 'premium', grants: 'ai.ask · ai.command · trip.collaborators', versions: [
+      { v: 'v2', price: '$16.00', when: 'published 1 Sep by mitchell', held: '204 hold' },
+      { v: 'v1', price: '$12.00', when: 'published 2 Aug by mitchell', held: '41 hold' }] },
+    { name: 'plus', grants: 'ai.ask · ai.command', versions: [
+      { v: 'v2', price: '$8.00', when: 'published 1 Sep by mitchell', held: '96 hold' },
+      { v: 'v1', price: '$6.00', when: 'published 2 Aug by mitchell', held: '71 hold' }] },
+    { name: 'free', grants: 'planning only — no ai.*, no collaborators', versions: [
+      { v: 'v1', price: '$0.00', when: 'published 2 Aug by mitchell', held: '1,140 hold' }] }
+  ];
+  PLAN_STATS = {
+    premium: [{ k: 'accounts', v: '245' }, { k: 'MRR', v: '$3,704' }, { k: 'median cost 30d', v: '$1.10' }, { k: 'median margin', v: '$14.20' }],
+    plus: [{ k: 'accounts', v: '167' }, { k: 'MRR', v: '$1,116' }, { k: 'median cost 30d', v: '$0.94' }, { k: 'median margin', v: '$6.60' }],
+    free: [{ k: 'accounts', v: '1,140' }, { k: 'MRR', v: '$0' }, { k: 'median cost 30d', v: '$0.00' }, { k: 'median margin', v: '—' }]
+  };
+
+  growth() {
+    if (this._growth) return this._growth;
+    const tiers = [
+      { name: 'free', start: 610, end: 1140, added: 96, lost: 31 },
+      { name: 'plus', start: 38, end: 167, added: 29, lost: 6 },
+      { name: 'premium', start: 52, end: 245, added: 41, lost: 4 }
+    ];
+    this._growth = tiers.map(t => {
+      const r = this.rng(this.hash(t.name));
+      const vals = [];
+      for (let i = 0; i < 26; i++) {
+        const base = t.start * Math.pow(t.end / t.start, i / 25);
+        vals.push(i === 25 ? t.end : Math.round(base * (1 + (r() - 0.5) * 0.05)));
+      }
+      const a = this.area(vals, 300, 72);
+      return { name: t.name, now: this.nf(t.end), added: '+' + t.added + ' added', lost: '−' + t.lost + ' lost', line: a.line, fill: a.fill, from: this.ago(25 * 7), peak: 'peak ' + this.nf(Math.max.apply(null, vals)) };
+    });
+    return this._growth;
+  }
+
+  turnsChart() {
+    if (this._turns) return this._turns;
+    const r = this.rng(42), tot = [], fail = [];
+    for (let i = 0; i < 30; i++) {
+      const d = new Date(this.TODAY); d.setDate(d.getDate() - (29 - i));
+      const wk = d.getDay() === 0 || d.getDay() === 6 ? 1.25 : 1;
+      const v = Math.round((210 + i * 4.2) * wk * (0.9 + r() * 0.2));
+      tot.push(v); fail.push(Math.round(v * (i === 21 ? 0.09 : 0.012 + r() * 0.012)));
+    }
+    const a = this.area(tot, 300, 90), max = a.max, n = tot.length;
+    const fp = fail.map((v, i) => [(i / (n - 1)) * 300, 89 - (v / max) * 86]);
+    const failFill = fp.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ') + ' L300 89 L0 89 Z';
+    this._turns = { line: a.line, fill: a.fill, failFill, from: this.ago(29) };
+    return this._turns;
+  }
+
+  NB = [
+    ['Kyoto in five slow days', 'malee', '12 Aug', 9, 142, 61, 'today'],
+    ['Japan rail, without the panic', 'sam', '19 Aug', 6, 118, 48, 'today'],
+    ['Lisbon long weekend', 'mei', '2 Sep', 4, 86, 31, 'yesterday'],
+    ['Hokkaido in winter', 'priya', '24 Aug', 7, 64, 22, '2 days ago'],
+    ['Seoul food crawl', 'kaito', '9 Sep', 5, 51, 19, 'today'],
+    ['Amalfi without a car', 'rosa', '28 Aug', 6, 47, 17, '4 days ago'],
+    ['Mexico City, first time', 'omar', '14 Sep', 8, 39, 14, 'yesterday'],
+    ['Taipei with kids', 'wei', '21 Sep', 5, 22, 9, '1 week ago']
+  ];
+  nbCharts() {
+    if (this._nb) return this._nb;
+    const sets = [{ name: 'Saved', start: 14, end: 58 }, { name: 'Shared', start: 3, end: 16 }, { name: 'Trips started', start: 2, end: 21 }];
+    this._nb = sets.map(t => {
+      const r = this.rng(this.hash(t.name)), vals = [];
+      for (let i = 0; i < 26; i++) vals.push(i === 25 ? t.end : Math.max(0, Math.round(t.start + (t.end - t.start) * (i / 25) + (r() - 0.5) * t.end * 0.3)));
+      const a = this.area(vals, 300, 64);
+      return { name: t.name, now: String(t.end), line: a.line, fill: a.fill, from: this.ago(25 * 7) };
+    });
+    return this._nb;
+  }
+
+  REPORTS = [
+    { id: 'r1', kind: 'Day', day: 'Gion at dusk', owner: 'malee', reason: 'Inaccurate', note: '“Says the teahouse is open Mondays — it closed in 2025.”', reporter: 'ben', when: '4 Oct', count: 2 },
+    { id: 'r2', kind: 'Review', day: 'Kyoto in five slow days', owner: 'malee', reason: 'Offensive', note: '', reporter: 'cara', when: '3 Oct', count: 1, stars: '★☆☆☆☆', reviewNote: 'Whoever wrote this has never left a tour bus.', reviewer: 'hugo' },
+    { id: 'r3', kind: 'Day', day: 'Cheap eats in Shinjuku', owner: 'rex', reason: 'Spam', note: '“Every stop links to the same booking site.”', reporter: 'gita', when: '2 Oct', count: 4 },
+    { id: 'r4', kind: 'Day', day: 'Lisbon long weekend', owner: 'mei', reason: 'Unsafe', note: '“Recommends swimming at a beach with a red flag.”', reporter: 'ines', when: '27 Sep', count: 1, status: 'actioned', resolution: 'Hidden from the library since 28 Sep by mitchell — note to the author: “Please swap the beach before re-sharing.”' },
+    { id: 'r5', kind: 'Day', day: 'Seoul food crawl', owner: 'kaito', reason: 'Other', note: '', reporter: 'pia', when: '24 Sep', count: 1, status: 'dismissed', resolution: 'Dismissed by mitchell on 25 Sep' }
+  ];
+  reportRows() {
+    const st = this.state.rpState;
+    return this.REPORTS.map(r => Object.assign({}, r, st[r.id] || {}, { status: (st[r.id] && st[r.id].status) || r.status || 'open' }));
+  }
+  actOnReport(r, status, resolution, msg) {
+    if (this.props.ops === 'offline') { this.setState({ rpComposing: null }); this.flash('The action did not reach the server. Nothing changed.'); return; }
+    const patch = {};
+    this.reportRows().forEach(x => { if (x.id === r.id || (status === 'actioned' && x.day === r.day && x.kind === r.kind && x.status === 'open')) patch[x.id] = { status, resolution }; });
+    this.setState(s => ({ rpComposing: null, rpNote: '', rpState: Object.assign({}, s.rpState, patch) }));
+    this.flash(msg);
+  }
+
+  CTX = [[3100, 5200, 8412], [4900, 8900, 6120], [6800, 12600, 4010], [8700, 16800, 2380], [10500, 21400, 1290], [12600, 26000, 640], [14400, 30900, 280], [16300, 36200, 110]];
+
+  TOOLS = [
+    ['read_trip', 7980, '89%', 12, 0, 38, '14.2 KB', '—'],
+    ['read_day', 4210, '41%', 9, 0, 22, '3.1 KB', '—'],
+    ['AddActivity', 2940, '18%', 118, 88, 51, '0.4 KB', '91%'],
+    ['find_free_time', 1860, '19%', 41, 0, 64, '0.9 KB', '—'],
+    ['search_places', 1420, '14%', 82, 21, 410, '2.6 KB', '—'],
+    ['MoveActivity', 1110, '9%', 30, 14, 47, '0.3 KB', '88%'],
+    ['AddDay', 380, '3%', 4, 0, 33, '0.2 KB', '95%'],
+    ['insert_playbook_day', 210, '2%', 34, 0, 120, '1.8 KB', '72%']
+  ];
+
+  detail(a) {
+    const r = this.rng(this.hash(a.email));
+    const plan = a.holds.split(' ')[0];
+    const ceil = { free: 0, plus: 100, premium: 300 }[plan];
+    const total = a.asked || 0;
+    const w = [];
+    for (let i = 0; i < 30; i++) w.push(r() < (a.under ? 0.95 : 0.55) ? (0.3 + r()) * (1 + i / 40) : 0);
+    const sum = w.reduce((x, y) => x + y, 0);
+    const daily = w.map(x => (sum ? Math.round((x / sum) * total) : 0));
+    // The daily ceiling is a hard cap: move any excess onto days with headroom.
+    if (ceil > 0) {
+      for (let pass = 0; pass < 8; pass++) {
+        let extra = 0;
+        daily.forEach((v, i) => { if (v > ceil) { extra += v - ceil; daily[i] = ceil; } });
+        if (!extra) break;
+        const room = daily.map((v, i) => (w[i] && v < ceil ? ceil - v : 0));
+        const roomSum = room.reduce((x, y) => x + y, 0) || 1;
+        daily.forEach((v, i) => { daily[i] = v + Math.round((room[i] / roomSum) * extra); });
+      }
+      daily.forEach((v, i) => { if (v > ceil) daily[i] = ceil; });
+    }
+    const peak = Math.max.apply(null, daily);
+    const ceilingOn = ceil > 0 && peak > ceil * 0.4;
+    const scale = ceilingOn ? ceil * 1.1 : Math.max(1, peak * 1.2);
+    const hitCeil = daily.filter(v => v >= ceil * 0.95).length;
+    const bars = daily.map((v, i) => ({
+      h: (v ? Math.max(3, (Math.min(v, scale) / scale) * 100) : 0).toFixed(1) + '%',
+      fill: ceilingOn && v >= ceil * 0.95 ? 'var(--color-danger-ink)' : 'var(--color-ink)',
+      tip: v + ' questions · ' + this.ago(29 - i)
+    }));
+    const steps = Math.round(total * (a.under ? 2.9 : 2.3));
+    const heavy = !!a.under;
+    const p50 = heavy ? 9400 : 5200 + (this.hash(a.email) % 1400);
+    const p95 = heavy ? 31000 : 15000 + (this.hash(a.email) % 5000);
+    const toolsPer = heavy ? 4 : 3;
+    const failedN = Math.round(total * (heavy ? 0.031 : 0.012));
+    const kinds = ['question', 'change', 'question', 'change', 'question', 'question'];
+    const when = ['Today 14:02', 'Today 11:47', 'Yesterday 21:10', 'Yesterday 09:31', this.ago(2) + ' 18:04', this.ago(3) + ' 08:55'];
+    const turns = kinds.map((kd, i) => {
+      const st = kd === 'change' ? 3 + Math.floor(r() * (heavy ? 6 : 4)) : 1 + Math.floor(r() * 3);
+      const strong = kd === 'change' && (heavy || r() < 0.3);
+      const ctx = 3100 + st * 1900 + Math.floor(r() * 1500);
+      const failed = heavy && i === 1;
+      return {
+        when: when[i], kind: kd, model: strong ? 'zai/glm-5.3' : 'zai/glm-5.3-flash', steps: st,
+        tools: st + Math.floor(r() * 3), ctx: this.k(ctx), ctxInk: ctx > 24000 ? 'var(--color-danger-ink)' : 'var(--color-ink)',
+        took: (st * (strong ? 3.1 : 1.6) + r()).toFixed(1) + 's',
+        outcome: failed ? 'failed' : kd === 'change' ? 'proposed' : 'answered',
+        variant: failed ? 'danger' : 'neutral'
+      };
+    });
+    const tl = heavy
+      ? [['read_trip', 2210], ['AddActivity', 1430], ['MoveActivity', 610], ['search_places', 380]]
+      : [['read_trip', Math.round(total * 0.9)], ['read_day', Math.round(total * 0.4)], ['find_free_time', Math.round(total * 0.2)]];
+    const own = 1 + (this.hash(a.email) % 4), joined = this.hash(a.email) % 3;
+    const nbRow = this.NB.find(n => n[1] + '@example.com' === a.email);
+    const joinedDays = (nbRow ? 70 : 30) + (this.hash(a.email) % 120);
+    const nbSaved = nbRow ? 3 + (this.hash(a.email) % 4) : this.hash(a.email) % 3, nbShared = nbRow ? 1 + (this.hash(a.email) % 2) : 0, nbTrips = nbRow ? nbRow[5] : 0;
+    const act = [];
+    for (let i = 0; i < 30; i++) act.push(r() < 0.6 ? Math.floor(r() * 30) : 0);
+    const amax = Math.max.apply(null, act) || 1;
+    const activeDays = act.filter(v => v).length;
+    const revoked = !!this.state.revoked[a.email];
+    const grantMatch = /^(trial|referral|founder|admin)/.exec(a.why);
+    const grants = grantMatch && !revoked ? [{
+      title: grantMatch[1] + ' grant · ' + a.holds,
+      sub: a.why.replace(grantMatch[1] + ' · ', '') + ' · by mitchell',
+      key: a.email
+    }] : [];
+    const paysMo = a.pays === '—' ? '—' : a.pays;
+    const facts = [
+      { k: 'Joined', v: this.ago(joinedDays), sub: joinedDays + ' days ago' },
+      { k: 'Last active', v: a.last, sub: activeDays + ' of the last 30 days' },
+      { k: 'Trips', v: String(own + joined), sub: own + ' own · ' + joined + ' invited to' },
+      { k: 'Notebooks', v: String(nbSaved), sub: nbShared + ' shared · started ' + nbTrips + ' trips' },
+      { k: 'Pays', v: paysMo, sub: a.pays === '—' ? (grants.length ? 'comped' : 'nothing') : 'a month' },
+      { k: 'Costs 30d', v: a.cost, sub: 'model tokens', ink: a.under ? 'var(--color-danger-ink)' : 'var(--color-ink)' }
+    ].map((f, i) => Object.assign({ ink: 'var(--color-ink)' }, f, { divider: i ? 'var(--color-hairline)' : 'transparent' }));
+    const events = [
+      { when: 'Today', what: total ? 'Asked the assistant ' + Math.max(1, daily[29]) + ' times on Japan' : 'Opened Japan' },
+      { when: 'Today', what: 'Moved 3 stops on day 4 of Japan' },
+      { when: 'Yesterday', what: 'Added 6 stops to Japan' },
+      { when: this.ago(4), what: plan === 'premium' ? 'Invited mei@example.com to Japan' : 'Downloaded Japan as a file' },
+      { when: this.ago(9), what: 'Saved “Gion at dusk” as a playbook day' },
+      { when: this.ago(joinedDays), what: 'Signed up and created Japan' }
+    ];
+    const history = [];
+    if (revoked) history.push({ when: 'Just now', what: 'Grant revoked by you — holds free v1 from their next request' });
+    if (a.why === 'bought') history.push({ when: this.ago(Math.min(joinedDays - 3, 34)), what: 'Bought ' + a.holds });
+    if (grantMatch) history.push({ when: this.ago(Math.min(joinedDays - 2, 20)), what: 'Granted ' + a.holds + ' — ' + grantMatch[1] });
+    history.push({ when: this.ago(joinedDays), what: 'Signed up on free v1' });
+    const hasAi = ceil > 0 && total > 0;
+    return {
+      email: a.email, holds: revoked ? 'free v1' : a.holds, state: revoked ? 'free' : a.state, under: !!a.under,
+      stateVariant: /past due/.test(a.state) ? 'warning' : a.state === 'free' || revoked ? 'neutral' : a.state === 'granted' ? 'info' : 'success',
+      facts, hasAi, noAi: !hasAi,
+      noAiTitle: ceil === 0 ? 'No assistant on this plan' : 'Hasn’t asked anything in 30 days',
+      noAiBody: ceil === 0 ? 'free grants no ai.* entitlement, so there is nothing to show. Grant plus or premium and it applies on their next request.' : 'They hold a plan with the assistant and haven’t used it. Nothing is wrong — this is just quiet.',
+      aiStats: [
+        { k: 'questions asked', v: this.nf(total) },
+        { k: 'steps · ' + (steps / Math.max(1, total)).toFixed(1) + ' a question', v: this.nf(steps) },
+        { k: 'tool calls a turn, median', v: String(toolsPer) },
+        { k: 'context per step, median · p95', v: this.k(p50) + ' · ' + this.k(p95), ink: heavy ? 'var(--color-danger-ink)' : 'var(--color-ink)' },
+        { k: 'failed turns', v: String(failedN), ink: failedN > 20 ? 'var(--color-danger-ink)' : 'var(--color-ink)' }
+      ].map(s => Object.assign({ ink: 'var(--color-ink)' }, s)),
+      bars, barFrom: this.ago(29), ceilingOn, ceilingPos: ((ceil / scale) * 100).toFixed(1) + '%',
+      ceilingLabel: ceil === 0 ? '' : ceilingOn ? 'dashed line = ' + ceil + ' a day ceiling · hit on ' + hitCeil + ' days' : 'ceiling ' + ceil + ' a day — well above this',
+      tools: tl.map(t => ({ name: t[0], n: this.nf(t[1]) })),
+      turns,
+      activity: act.map((v, i) => ({ h: (v ? Math.max(8, (v / amax) * 100) : 0).toFixed(0) + '%', tip: v + ' edits · ' + this.ago(29 - i) })),
+      activeLine: 'Edits a day · active ' + activeDays + ' of 30 days',
+      events, history,
+      hasGrants: grants.length > 0,
+      grants: grants.map(g => {
+        const c = this.state.confirming === g.key;
+        return Object.assign({}, g, {
+          idle: !c, confirming: c, failed: this.state.revokeFail === g.key,
+          confirmLine: 'They drop to free v1 on their next request. The grant row stays, marked revoked.',
+          ask: () => this.setState({ confirming: g.key, revokeFail: null }),
+          keep: () => this.setState({ confirming: null }),
+          revoke: () => {
+            if (this.props.ops === 'offline') { this.setState({ confirming: null, revokeFail: g.key }); return; }
+            this.setState(s => ({ confirming: null, revoked: Object.assign({}, s.revoked, { [g.key]: true }) }));
+            this.flash('Revoked — ' + g.key + ' holds free v1 from their next request');
+          }
+        });
+      })
+    };
+  }
+
+  renderVals() {
+    const P = this.props, s = this.state;
+    const ops = P.ops || 'healthy';
+    const tab = s.tab || P.startTab || 'financial';
+    const hits = this.opsMatch(s.opFilter, s.opQ);
+    const total = this.opsAll().length;
+    const from = Math.min(Math.max(0, s.opPage * 8), Math.max(0, (Math.ceil(hits.length / 8) - 1) * 8));
+    const page = hits.slice(from, from + 8);
+    const userRow = s.user ? this.opsAll().find(a => a.email === s.user) : null;
+    const u = userRow ? this.detail(userRow) : { email: '', facts: [], aiStats: [], bars: [], tools: [], turns: [], activity: [], events: [], history: [], grants: [] };
+    const aiEmpty = ops === 'no-usage';
+    const div = (arr) => arr.map((m, i) => Object.assign({ deltaInk: 'var(--color-slate)', delta: '' }, m, { divider: i ? 'var(--color-hairline)' : 'transparent' }));
+
+    return {
+      tab, setTab: v => this.setState({ tab: v, user: null }),
+      tabOptions: [{ value: 'financial', label: 'Financial' }, { value: 'users', label: 'Users' }, { value: 'library', label: 'Library' }, { value: 'ai', label: 'AI models' }],
+      isFinancial: tab === 'financial', isUsersList: tab === 'users' && !userRow, isUserDetail: tab === 'users' && !!userRow, isAi: tab === 'ai', isNotebooks: tab === 'library',
+      opStale: ops === 'webhooks-behind' && tab !== 'ai', opConflict: ops === 'version-conflict' && tab === 'financial',
+
+      opsMetrics: div([
+        { k: 'MRR', v: '$4,820', delta: '+$610', deltaInk: 'var(--color-success-ink)', sub: '412 active subscriptions, up 38 this month' },
+        { k: 'ARPU · all accounts', v: '$2.94', sub: 'Across all 1,640 accounts — comped and trial included' },
+        { k: 'ARPU · paying only', v: '$11.70', sub: 'The 412 that pay. Quote both of these or neither.' },
+        { k: 'Margin per paying account', v: '$11.06', delta: 'median', sub: 'Trailing 30 days — what they pay minus their model tokens' }
+      ]),
+      showUnder: () => this.setState({ tab: 'users', user: null, opFilter: 'under', opQ: '', opPage: 0 }),
+      underwaterGrant: [
+        { source: 'founder', line: '18 accounts · $41.60' }, { source: 'trial', line: '12 · $3.90' },
+        { source: 'referral', line: '5 · $6.10' }, { source: 'admin', line: '2 · $0.70' }
+      ],
+      tierTab: s.tierTab || 'premium', setTierTab: v => this.setState({ tierTab: v }),
+      tierOptions: this.OPS_PLANS.map(p => ({ value: p.name, label: p.name })),
+      tier: (() => {
+        const p = this.OPS_PLANS.find(x => x.name === (s.tierTab || 'premium'));
+        const labels = { 'accounts': 'Accounts', 'MRR': 'MRR', 'median cost 30d': 'Median cost · 30 days', 'median margin': 'Median margin · payers' };
+        return {
+          name: p.name, price: p.versions[0].price === '$0.00' ? 'free' : p.versions[0].price + ' / month',
+          grantsLine: p.grants.indexOf('ai.') === 0 ? 'Grants ' + p.grants : p.grants.charAt(0).toUpperCase() + p.grants.slice(1),
+          stats: this.PLAN_STATS[p.name].map(st => ({ label: labels[st.k] || st.k, v: st.v })),
+          versions: p.versions.map((v, i) => ({ label: v.v + (i === 0 ? ' · live' : ''), price: v.price, when: v.when.replace('published ', ''), held: v.held.replace(' hold', '') }))
+        };
+      })(),
+
+      growth: this.growth(),
+      opQ: s.opQ, setOpQ: e => this.setState({ opQ: e.target.value, opPage: 0 }),
+      opFilters: [
+        { id: 'all', label: 'All' }, { id: 'paying', label: 'Paying' }, { id: 'granted', label: 'Granted' },
+        { id: 'free', label: 'Free' }, { id: 'past_due', label: 'Past due' }, { id: 'under', label: 'Costs more than it pays' }
+      ].map(fl => {
+        const on = s.opFilter === fl.id;
+        return Object.assign({}, fl, {
+          count: this.opsMatch(fl.id, s.opQ).length,
+          bg: on ? 'var(--color-ink)' : 'var(--color-surface)', border: on ? 'var(--color-ink)' : 'var(--color-hairline)',
+          ink: on ? 'var(--color-surface)' : 'var(--color-ink)', countInk: on ? 'var(--color-hairline)' : 'var(--color-slate)',
+          pick: () => this.setState({ opFilter: fl.id, opPage: 0 })
+        });
+      }),
+      opsAccounts: page.map(a => Object.assign({}, a, {
+        askedLabel: a.asked ? this.nf(a.asked) : '—',
+        rowBg: a.under ? 'var(--color-danger-tint)' : 'transparent',
+        costInk: a.under ? 'var(--color-danger-ink)' : 'var(--color-ink)',
+        open: () => this.setState({ user: a.email, confirming: null, revokeFail: null })
+      })),
+      opRange: hits.length ? 'Showing ' + (from + 1) + '–' + Math.min(hits.length, from + 8) + ' of ' + hits.length + (hits.length === total ? '' : ' matching · ' + total + ' accounts') : '0 of ' + total + ' accounts',
+      opAtStart: from === 0, opAtEnd: from + 8 >= hits.length,
+      opPrev: () => this.setState(st => ({ opPage: Math.max(0, st.opPage - 1) })),
+      opNext: () => this.setState(st => ({ opPage: st.opPage + 1 })),
+      opNone: hits.length === 0,
+      opNoneLine: 'Nothing in ' + (s.opFilter === 'all' ? 'all accounts' : 'that filter') + ' matches “' + s.opQ + '”.',
+      opClear: () => this.setState({ opFilter: 'all', opQ: '', opPage: 0 }),
+
+      u, backToList: () => this.setState({ user: null, confirming: null }),
+      openGrant: () => this.setState({ grantOpen: true }),
+
+      rpFilters: [{ id: 'open', label: 'Open' }, { id: 'actioned', label: 'Actioned' }, { id: 'dismissed', label: 'Dismissed' }].map(fl => {
+        const on = s.rpStatus === fl.id;
+        return Object.assign({}, fl, {
+          count: this.reportRows().filter(r => r.status === fl.id).length,
+          bg: on ? 'var(--color-ink)' : 'var(--color-surface)', border: on ? 'var(--color-ink)' : 'var(--color-hairline)',
+          ink: on ? 'var(--color-surface)' : 'var(--color-ink)', countInk: on ? 'var(--color-hairline)' : 'var(--color-slate)',
+          pick: () => this.setState({ rpStatus: fl.id, rpComposing: null })
+        });
+      }),
+      rpStale: false,
+      rpRows: this.reportRows().filter(r => r.status === s.rpStatus).map(r => {
+        const open = r.status === 'open', isReview = r.kind === 'Review', composing = s.rpComposing === r.id;
+        const hidden = r.status === 'actioned';
+        const actions = [];
+        if (open && !isReview) actions.push({ label: 'Hide from the library', variant: 'secondary', run: () => this.setState({ rpComposing: r.id, rpNote: '' }) });
+        if (open && isReview) actions.push({ label: 'Hide review', variant: 'secondary', run: () => this.actOnReport(r, 'actioned', 'Review hidden since today by you', 'Review hidden — it no longer shows on the day') });
+        if (hidden) actions.push({ label: isReview ? 'Restore review' : 'Restore to the library', variant: 'secondary', run: () => this.actOnReport(r, 'dismissed', 'Restored today by you', isReview ? 'Review restored' : '“' + r.day + '” is back in the library') });
+        if (open) actions.push({ label: 'Dismiss', variant: 'ghost', run: () => this.actOnReport(r, 'dismissed', 'Dismissed by you today', 'Report dismissed — the day stays up') });
+        return Object.assign({}, r, {
+          isReview, composing, showActions: !composing && actions.length > 0, actions, noteId: 'rpn-' + r.id,
+          countLabel: r.count === 1 ? '1 report on this' : r.count + ' reports on this', countVariant: r.count > 1 ? 'warning' : 'neutral',
+          note: r.note || '', hasResolution: !!r.resolution,
+          openOwner: () => this.setState({ tab: 'users', user: r.owner + '@example.com', opFilter: 'all', opQ: '' }),
+          hide: () => this.actOnReport(r, 'actioned', 'Hidden from the library since today by you' + (s.rpNote.trim() ? ' — note to the author: “' + s.rpNote.trim() + '”' : ''), '“' + r.day + '” hidden from the library — the author keeps their copy'),
+          cancel: () => this.setState({ rpComposing: null })
+        });
+      }),
+      rpNone: this.reportRows().filter(r => r.status === s.rpStatus).length === 0,
+      rpNoneTitle: 'No ' + s.rpStatus + ' reports',
+      rpNoneBody: s.rpStatus === 'open' ? 'Nothing open. Reports people file on shared days and reviews land here.' : 'Nothing ' + s.rpStatus + ' yet.',
+      rpNote: s.rpNote, setRpNote: e => this.setState({ rpNote: e.target.value }),
+
+      nbEmpty: ops === 'no-notebooks', nbHas: ops !== 'no-notebooks',
+      nbMetrics: div([
+        { k: 'Saved to a library', v: '1,284', delta: '+212', deltaInk: 'var(--color-success-ink)', sub: 'Notebooks saved from a trip, all time. 212 in the last 30 days.' },
+        { k: 'Shared', v: '318', delta: '25%', sub: 'Saved notebooks with a share link that someone has opened.' },
+        { k: 'Saved by someone else', v: '941', delta: '', sub: 'Copies made from a shared link — 3.0 per shared notebook.' },
+        { k: 'Trips started from one', v: '406', delta: '+74', deltaInk: 'var(--color-success-ink)', sub: '43% of the copies went on to seed a new trip.' }
+      ]),
+      nbCharts: this.nbCharts(),
+      nbRows: this.NB.map(n => ({
+        title: n[0], by: n[1] + '@example.com', saved: n[2], pages: n[3], shares: this.nf(n[4]), trips: this.nf(n[5]), last: n[6],
+        openAuthor: () => this.setState({ tab: 'users', user: n[1] + '@example.com', opFilter: 'all', opQ: '', confirming: null })
+      })),
+
+      ledgerGap: ops === 'ledger-gap', aiEmpty, aiHas: !aiEmpty,
+      aiMetrics: div([
+        { k: 'Turns', v: '8,412', delta: '+12%', deltaInk: 'var(--color-success-ink)', sub: 'Last 30 days, from 486 accounts. 2.3 steps a turn, median.' },
+        { k: 'Tool calls a turn', v: '3', delta: 'p95 11', sub: '20,130 calls. 2.6% failed, 0.6% repaired by a retry.' },
+        { k: 'Context per step', v: '6.2k', delta: 'p95 24k', sub: 'Input tokens sent on each step — the number that drives cost.' },
+        { k: 'Failed turns', v: '1.8%', delta: '151', sub: '27 Sep was 9% — search_places timed out for two hours.' }
+      ]),
+      turnsChart: this.turnsChart(),
+      turnsSplit: [
+        { v: '62%', k: 'questions' }, { v: '38%', k: 'changes' },
+        { v: '17%', k: 'escalated to the strong model' }, { v: '151', k: 'failed (red)' }
+      ],
+      ctxBars: this.CTX.map((c, i) => ({
+        step: i === 7 ? '8+' : String(i + 1), p50: this.k(c[0]),
+        p50h: ((c[0] / 38000) * 100).toFixed(1) + '%', p95h: ((c[1] / 38000) * 100).toFixed(1) + '%',
+        tip: 'Step ' + (i + 1) + ' · median ' + this.nf(c[0]) + ' · p95 ' + this.nf(c[1]) + ' · ' + this.nf(c[2]) + ' turns got this far'
+      })),
+      models: [
+        { id: 'zai/glm-5.3-flash', role: 'cheap · default', stats: [{ k: 'steps', v: '14.2k' }, { k: 'input tokens', v: '82.1M' }, { k: 'median step', v: '1.9s' }, { k: 'cost 30d', v: '$41.20' }], note: 'Answers 83% of turns without escalating. 71% of its input is cache reads.' },
+        { id: 'zai/glm-5.3', role: 'strong', stats: [{ k: 'steps', v: '3.6k' }, { k: 'input tokens', v: '31.6M' }, { k: 'median step', v: '3.8s' }, { k: 'cost 30d', v: '$58.90' }], note: 'Takes the 1,432 turns that escalate — a quarter of the steps, more than half the cost.' },
+        { id: 'zai/glm-4.7-flash', role: 'classifier', stats: [{ k: 'calls', v: '8.4k' }, { k: 'input tokens', v: '2.9M' }, { k: 'median', v: '0.4s' }, { k: 'cost 30d', v: '$0.80' }], note: 'One call a turn to pick question or change, before the turn model runs.' }
+      ],
+      tools: this.TOOLS.map(t => {
+        const rate = t[3] / t[1];
+        return {
+          name: t[0], calls: this.nf(t[1]), share: t[2],
+          failed: t[3] + ' · ' + (rate * 100).toFixed(1) + '%',
+          failInk: rate > 0.05 ? 'var(--color-danger-ink)' : 'var(--color-ink)',
+          repaired: t[4] ? String(t[4]) : '—', ms: t[5] + 'ms', out: t[6], prop: t[7]
+        };
+      }),
+
+      grantOpen: s.grantOpen, setGrantOpen: v => { if (!v) this.setState({ grantOpen: false }); },
+      closeGrant: () => this.setState({ grantOpen: false }),
+      gPlan: s.gPlan, setGPlan: e => this.setState({ gPlan: e.target.value }),
+      gSource: s.gSource, setGSource: e => this.setState({ gSource: e.target.value }),
+      gExpiry: s.gExpiry, setGExpiry: e => this.setState({ gExpiry: e.target.value }),
+      gNote: 'Pins ' + s.gPlan + ' v2, the version live now — publishing a newer one later does not move it. Applies on their next request, no sign-out.',
+      confirmGrant: () => { this.setState({ grantOpen: false }); this.flash('Granted ' + s.gPlan + ' v2 to ' + u.email + ' — live on their next request'); },
+
+      hasToast: !!s.toast, toast: s.toast || ''
+    };
+  }
+}
+
+</script>
+</body>
+</html>

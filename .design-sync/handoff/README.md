@@ -4,13 +4,29 @@ This folder is the **only** handoff. Dated snapshot folders are gone: previous s
 in version control, not beside the current one. Re-read this file each time — it is
 rewritten in place.
 
-Last substantive pass: **2026-09-25 — resync against `main` @ `7892bed`, then a design pass on
+Latest addition: **2026-10-05 — the operator console** (top section). Last substantive pass: **2026-09-25 — resync against `main` @ `7892bed`, then a design pass on
 how a day reads.** The build had shipped M13, M12, M14 and most of M24 with four surfaces
 undrawn; those are drawn. Then: kind collapses to three values with one line language, Plan
 becomes a to-scale time river, travel between cities is implied, the widget catalogue is the
 build's own 30 presets, and the seeded Overview is rewritten as a prose-and-widgets document.
 **SPEC §36 is the whole pass.** The files here are **design references in HTML** — recreate them
 in `apps/web` with its components and tokens; do not ship the markup.
+
+### What changed on 2026-10-05, in build terms — the operator console
+
+| Change | Spec | What a build owes |
+|---|---|---|
+| Console is four tabs | `specs/operator-console.md` | Financial · Users · Library · AI models in a `TabStrip`; banners scoped per tab (DRIFT **D20**) |
+| Reports move into Library | same | `ReportsPanel` unchanged, first in the Library tab; owner links to the account page |
+| Tiers one per tab | same | Tier panel becomes a tabbed card: 2×2 stats + a versions table |
+| `GrantSourcePanel` deleted | same | It repeats *Underwater by construction* (rule 4) |
+| Account page | same | Row click → usage, activity, grants; Grant and Revoke move off the row; Revoke confirms and reports failure |
+| Six filters, two new columns | same | Past due + Costs more than it pays; *Paying* not *Holds a paid plan*; Asked 30d, Last active |
+| Growth per tier | same | Weekly plan-holding history — no source today (open question 3) |
+| AI models tab | same | Reads `ai_usage`, `ai_usage_steps`, `ai_usage_tool_calls`: turns, tool calls, context by step, models |
+| Library tab — notebooks | same | Shares and trips started need a share link + adds ledger first (DRIFT **D21**) |
+
+New tweak props on `OperatorConsole`: `ops` (healthy · webhooks-behind · version-conflict · ledger-gap · no-usage · no-notebooks · offline), `startTab`.
 
 ### What changed on 2026-09-30, in build terms — sun and weather (§36.11)
 
@@ -265,6 +281,8 @@ what may exist on a page — read `RULES.md` first.
 | _(mobile has no separate file)_ | The phone is a **surface inside the desktop design file**, reached by its `surface` prop. SPEC §10 scopes it, §13 states its foundations, **§19 is the phone Notebook** |
 | `SPEC.md` | Written spec for what the design file cannot say out loud. **§36 (resync, kinds, time river, implied transit, the Overview) is the newest**, §35 before it; §30 (new-trip conversation, transcript type) is this pass**; §29 (plans route); §21 (widget framework), §20 (Save as Playbook), §19 (phone Notebook), §18 (Notebook widgets — supersedes §7's page scope), §17 (billing) and §16 (day map, phone Playbooks) are this pass**; §15 Playbooks, §14 landing, §12 Calendar, §11 rules |
 | `DRIFT.md` | Design ↔ build reconciliation — §1 open drift (**D10 is billing**, D9 Playbooks scope), §2 landing, §2b Playbooks, **§2c billing, §2d day map + phone Playbooks, §2e Notebook widgets, §2f phone Notebook**, §4 what's real in code and undesigned, §5 closed, §6 build checks, §7 their KIs |
+| **`specs/operator-console.md`** | The operator console as four tabs, the account page, reports, AI and notebook analytics, states — 2026-10-05 |
+| `design/OperatorConsole.dc.html` | The console itself; the main design file mounts it on the `admin` route |
 | **`specs/sun-and-weather-widgets.md`** | Weather (2a) and sunrise/sunset (1a) as drawn, the *Show as* setting, their states — 2026-09-30 |
 | `design/Sun and Weather Widgets.dc.html` | The widget explorations; 1a and 2a picked |
 | **`specs/widgets-in-build.md`** | Every widget and template the build ships today (main @ 7892bed), how each reads and is used — the reference for new templates |
@@ -277,43 +295,6 @@ what may exist on a page — read `RULES.md` first.
 | `specs/save-a-day-as-a-playbook.md` | The Save-a-day-as-a-Playbook flow: entry point, dialog, save action, the exact animation, five open questions |
 | `data/japan-trip-seed.json` | Structure export of the Japan trip, for seed data |
 | `DS-UPSTREAM.md` | Bugs and gaps owed to the **design-system** package, not to this product. Route these to the DS repo |
-
-<!-- ROUTE-ARTBOARD-INDEX:START -->
-
-### Route → artboard → spec
-
-**Generated — do not edit by hand.** Run `node scripts/route-artboard-index.mjs --write`;
-`pnpm test` fails when a gate below has been renamed out of the design file, when a line
-number has drifted, or when the app grows a route nobody has decided an artboard for.
-
-The design file is one document, not a folder of artboards: a screen is the
-`<sc-if value="{{ … }}">` block named below, reached by driving `startScreen` and the nav.
-Open the line, then read the `SPEC.md` sections beside it — **in that order**, and diff both
-against the milestone link that owns the screen before writing code
-(`docs/guidelines/building-from-the-design.md`).
-
-| Route | Where it is drawn | Spec | Notes |
-|---|---|---|---|
-| `/` | `isHome` · line 1589 | §28, §32 | Trips, the new-trip fork and the import entry |
-| `/trips/[tripId]` | `isTrip` · line 1873 | §24, §25 | The four tabs; Overview is a notebook page |
-| `/trips/[tripId]/pages` | `isNotebook` · line 3881 | §7, §18, §19 | Notebook index |
-| `/trips/[tripId]/pages/[pageId]` | `isDoc` · line 3976 | §18, §21, §26 | One page, and the widget framework |
-| `/playbooks` | `isPlaybooks` · line 2723 | §15, §33 | Discover — §33 re-sorts the header by kind of decision |
-| `/playbooks/day/[savedDayId]` | `isDay` · line 2960 | §15, §16, §33 | The shared day; §16 gives it a map, §33 gives it day scope |
-| `/playbooks/board` | `isBoard` · line 3781 | §15 | Leaderboard |
-| `/playbooks/profile/[userId]` | `isProfile` · line 3815 | §15 | Public profile |
-| `/plans` | `isPlansRoute` · line 3488 | §29, §34 | §34.3 adds the phone treatment |
-| `/account` | `isAccountRoute` · line 3220 | §12, §34 | Three tabs in `?tab=`; was a Sheet until M26 link 1 |
-| `/admin` | `isAdminRoute` · line 3620 | §17 | Operator console. The artboard also draws M21's strip — read M20 link 7's split note |
-| `/welcome` | `isDeskLanding` · line 5161 | §14, §17 | The landing page; `isPhoneLanding` is its phone artboard. §17.1 is the pricing block |
-| `/signin` | `isSignin` · line 5574 | §14, §28 | Inside the `isAuth` block |
-| `/signup` | `isSignup` · line 5571 | §14, §28 | Inside the `isAuth` block |
-| `/demo` | `isTrip` · line 1873 | §27 | No artboard of its own — the trip surface in `readOnly` (§27) |
-| `/s/[token]` | `isTrip` · line 1873 | §27 | No artboard of its own — the trip surface in `readOnly` (§27) |
-| `/invite/[token]` | `isInvite` · line 5582 | §35 | §35.6: `valid`, `revoked`, `member` (M27 D9 — no `expired`) |
-| `/invite/[token]/look` | `isTrip` · line 1873 | §27, §35 | No artboard of its own — the trip surface in `readOnly`, §35.6's invite banner (M27 D12) |
-
-<!-- ROUTE-ARTBOARD-INDEX:END -->
 
 ## How to read the design file
 

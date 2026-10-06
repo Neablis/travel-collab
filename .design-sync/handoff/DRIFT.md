@@ -95,16 +95,6 @@ Read this before §1; it is why §1 is short now.
 - **M24 is current, 9 of 11** — `mode` (seven values, ADR-053) and `endLocation` on a transit stop,
   legs drawn on the map, `map-legend-modes` deleted. The Preview registry is down to **3** entries.
 
-## 0d. What moved since 2026-09-25
-
-- **2026-10-01 — the build matches `specs/sun-and-weather-widgets.md`.** *Weather* draws 2a
-  (temperature rows) and *Sunrise and sunset* draws 1a (daylight ribbons, now a block) by default,
-  each with a table view of the same rows. Three decisions (Mitchell, 2026-09-30): the setting is
-  labelled **"Show as"** (Graphic · Table); a forecast's **conditions are kept, inline** under the
-  city (`Day 1 · showers likely`); and the sun is **seeded in *Before you go***, under *Clocks*, for
-  new trips only. Not built: the design's legend row (line style alone tells a forecast from an
-  average) and a "Now" column in either view. The metric axis base is 5–25 °C in steps of 5.
-
 ## 1. Open drift — code and design still disagree
 
 | # | Thing | Code | Design | Call |
@@ -122,8 +112,9 @@ Read this before §1; it is why §1 is short now.
 | **D18** | Concurrent-edit conflict | In `ConflictBanner`, with the other conflicts | **On the stop's own card**, same two resolutions (*Keep yours* / *Keep Mei's*) | Same data, different place. The card is where the edit was made; the banner is a list of things to go and find. Build call — flag if the banner is deliberate |
 
 | **D19** | Kind | Five values — `planned · idea · hold · booked · transit`; the editor asks for a start **and** a *Going to* place for travel | Three — **Planned · Pending · Transit**, with Pending's reason and Transit's mode as one second row; booked is a fact; transit's two ends are **implied** from its neighbours | **Proposal, maps onto today's enum with no migration** (SPEC §36.9). Collapsing the enum is the build's call; the implied ends are the part that removes typing |
-| **D20** | Landing hero, Timeline and Notebook panels (`Trip Planner Redesign.dc.html:1885-1999`) | **New 2026-09-27.** The product's own components on a committed snapshot of the `/demo` trip: the time river (M29), read-only and scaled to 20px an hour so Day 7 (9 am – 9 pm, Kyoto) fits whole; and the notebook's **Trip strip** over Day 5's day card (M30), fading out at the panel's foot. The hand-drawn panels remain only as the placeholder while that code loads. Map panel, day pills, copy and CTAs unchanged | Hand-drawn rows: *Day 7 · Kyoto → Osaka* with "Marcus is dragging this", and the *Getting to Kurama* prose page with macro chips and a comment | **Build wins, approved by Mitchell (2026-09-27).** The mockups predate the river and the M30 widgets and showed a product that no longer looks like that. Design owes the artboards redrawn from the real panels. Build side: `docs/specs/2026-09-27-link-previews-and-real-hero-design.md` §3, M26 "design is stale here" item 16 |
-| **D21** | Landing copy and feature blocks | **New 2026-09-28.** Mitchell's retro: "same page, new temperature" — hero *Days worth reliving / Put the best day on repeat.*; four blocks in the order Playbooks, Together, **Countdown** (new — no artboard), Notebook, each with its own heading and no section `<h2>` above them; "Relived 214 times"; a *can't wait* heart on the hero map's first pin and on the Together timeline; a minimal footer. (*Free during early access.* was in the retro and came back out on the preview — there will always be a free tier.) The phone front door's four claims follow the same order and headings | The 2026-08-26 copy: *The trip everyone actually helped plan.*, three blocks under *Planning is the trip, three times over.*, "Early access" as the only footnote | **Build wins, direct instruction** (`docs/design-feedback/2026-09-28-landing-retro-copy.md`). SPEC §14's "no free" rule stands. Design owes the Countdown artboard and the new words |
+
+| **D20** | Operator console shape | One scroll: revenue strip → accounts (4 filters, grant + revoke in the row) → underwater → Reports → grant-cost + tiers → price check (`app/admin/page.tsx`) | **Four tabs** — Financial · Users · Library (Reports + notebooks) · AI models; all six filters; the row opens an **account page** (usage, activity, grants, revoke with confirm); tiers one per tab; `GrantSourcePanel` deleted | `specs/operator-console.md` |
+| **D21** | Notebook and AI analytics | `ai_usage*` tables are real and unread by any admin surface. `SavedNotebookVisibility` is `["private"]`; no record of a trip seeded from a saved notebook | AI models tab reads all three ledger tables; Library tab counts shares and trips started | AI: build-ready. Notebooks: needs a share link and an adds ledger before two of four tiles have data |
 
 D1, D2, D4, D5, D7, D8, D9, D12, D13 and D14 are closed — §5.
 
@@ -295,6 +286,7 @@ All in the design file; SPEC §36 has the rules.
 
 ## 4. Real in code, absent from design
 
+- **Operator console — redesigned 2026-10-05** (D20, D21), Reports included — first in the Library tab.
 - **Trip lifecycle — designed 2026-09-12, no longer a gap.** Delete is optimistic (the
   card goes on the click), the toast carries a single **Undo** that restores it, and
   `duplicateTrip` lands a real card named "(copy)" with dates and travellers cleared —
