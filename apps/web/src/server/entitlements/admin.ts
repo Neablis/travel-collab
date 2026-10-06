@@ -19,8 +19,8 @@
 // exactly as the milestone says — accounts, versions and hold counts are M20's
 // and live here; MRR and median margin per tier are link 7's and are merged in
 // from Billing.
-import { desc, eq, sql } from "drizzle-orm";
-import { GrantSource, type PlanId } from "@tc/contracts";
+import { desc, eq, inArray, sql } from "drizzle-orm";
+import type { PlanId } from "@tc/contracts";
 import { db } from "@/server/db/client";
 import { adminConsoleFlag } from "@/server/flags";
 import { aiUsage, events, users } from "@/server/db/schema";
@@ -37,9 +37,6 @@ import {
 } from "@/server/billing/revenue";
 import { priceConsistencyReport, type PriceConsistencyReport } from "@/server/billing/prices";
 import { costPerAccount, requestCounts, topSpenders, type AccountCost } from "./usage";
-
-/** One active grant, as `activeGrantHolders` reads it. */
-type GrantHolder = Awaited<ReturnType<typeof activeGrantHolders>>[number];
 
 /**
  * **The STORED fact, about any account.** Never consults the flag.
@@ -193,8 +190,9 @@ function median(values: readonly number[]): number | null {
  *
  * Counts `users.plan_id`, which is what an account HOLDS. A grant of `premium`
  * does not move an account into the `premium` row here, and that is correct:
- * what it holds and what it was granted are two different facts, and the grant
- * counts below are where the second one is answered.
+ * what it holds and what it was granted are two different facts, and the
+ * per-source counts in Billing's `underwaterReport` are where the second one is
+ * answered.
  */
 export async function planPanel(
   now: Date = new Date(),
@@ -295,71 +293,6 @@ async function costByPlan(costs: readonly AccountCost[]): Promise<Map<PlanId, nu
   return byPlan;
 }
 
-/**
- * **Accounts per active grant source** (gate box).
- *
- * Active, so an expired trial is not counted as one somebody holds — and the
- * row it reads is still there, because nothing sweeps this table. The two
- * questions *"how many accounts are on a trial right now"* and *"how many have
- * ever had one"* are different, and this is the first.
- */
-export interface GrantSourceRow {
-  source: string;
-  /** Distinct accounts holding at least one active grant from this source. */
-  accounts: number;
-  /** What those accounts cost over the trailing window, in micro-dollars. */
-  microUsd: number;
-}
-
-/**
- * **What each grant source costs**, which is the comped half of the design's
- * *"Costs more than it pays"* panel.
- *
- * The other half — *"paying, and underwater"* — is `underwaterReport` in
- * `server/billing/revenue.ts`, and the two are deliberately not merged: these
- * accounts are underwater **by construction**, because they were comped on
- * purpose, and mixing them into the table would bury the rows that actually
- * need a decision.
- *
- * **Active grants only**, so an expired trial is not counted as one somebody
- * holds. The row it reads is still there — nothing sweeps that table — because
- * *"how many are on a trial now"* and *"how many ever had one"* are different
- * questions and this is the first.
- *
- * Cost is attributed **per account, once**: an account holding both a trial and
- * a referral grant contributes its whole trailing cost to each source's line,
- * because the question each line answers is "what is this source costing me",
- * not "how does this total decompose". Summing the column would double-count,
- * and the design never sums it.
- */
-export async function grantSourcePanel(
-  now: Date = new Date(),
-  reads?: { trailing: readonly AccountCost[]; holders: readonly GrantHolder[] },
-): Promise<GrantSourceRow[]> {
-  // The overview's one read of each, when it hands them down (see `adminOverview`).
-  const [rows, costs] = reads
-    ? [reads.holders, reads.trailing]
-    : await Promise.all([activeGrantHolders(now), adminCostPerAccount(now)]);
-
-  const costOf = new Map(costs.map((cost) => [cost.userId, cost.microUsd]));
-  const holders = new Map<string, Set<string>>();
-  for (const row of rows) {
-    const set = holders.get(row.source) ?? new Set<string>();
-    set.add(row.userId);
-    holders.set(row.source, set);
-  }
-
-  // Every source in the contract, including the ones nobody holds — a panel
-  // whose rows appear and vanish with the data makes "no trials right now" and
-  // "trials are not a thing" indistinguishable.
-  return GrantSource.options.map((source) => {
-    const users = holders.get(source) ?? new Set<string>();
-    let microUsd = 0;
-    for (const userId of users) microUsd += costOf.get(userId) ?? 0;
-    return { source, accounts: users.size, microUsd };
-  });
-}
-
 /** One active grant, as the console shows it. */
 export interface AdminGrantRow {
   id: string;
@@ -429,8 +362,14 @@ export interface AdminAccountRow {
  * Derived, never stored: the newest of its planning events (`events.actor_id`)
  * and its assistant turns (`ai_usage.user_id`), so no `last_seen` column and
  * no write on the request path. **One grouped read for every account**, not
- * one per row — the table it feeds is 100 rows. Bounded by the window as D6
- * words it, so `null` reads "not in 30 days", not "never".
+ * one per row — the table it feeds is a hundred-odd rows. Bounded by the window
+ * as D6 words it, so `null` reads "not in 30 days", not "never".
+ *
+ * **It scans the event log over the window**: `events` has no index on
+ * `occurred_at` or `actor_id`, so the read grows with every event written in
+ * the last 30 days, all accounts' together. D6 allows that index as this
+ * milestone's one migration if the read proves too slow; whether to add it is
+ * held for a decision, not taken here.
  *
  * This reads the event log, which is the planning domain's and not this
  * module's; a read of who wrote a row is not a write through it (invariant 1),
@@ -462,24 +401,42 @@ export async function lastActiveSince(since: Date): Promise<Map<string, string>>
  * with the gates, and the one that disagrees is always the one nobody is
  * looking at. Bounded by `limit` for exactly that reason: this is N+2 queries
  * and it is a page of an operator tool, not a hot path.
+ *
+ * **`include` is outside the bound.** The `limit` newest accounts come first,
+ * newest first; any id in `include` that is not among them is appended after,
+ * also newest first. The overview passes the underwater payers, so *Show them
+ * in Users* finds every account Financial counted — `underwaterReport` reads
+ * every account with a cost, and a payer older than the newest 100 was
+ * counted there and drawn nowhere.
  */
 export async function adminAccounts(
   limit = 100,
   now: Date = new Date(),
   trailing?: readonly AccountCost[],
+  include: readonly string[] = [],
 ): Promise<AdminAccountRow[]> {
   const since = trailingWindowStart(now);
-  const [rows, costs, counts, lastActive] = await Promise.all([
-    db
-      .select({ id: users.id, email: users.email, isAdmin: users.isAdmin })
-      .from(users)
-      .orderBy(desc(users.createdAt))
-      .limit(limit),
+  const columns = { id: users.id, email: users.email, isAdmin: users.isAdmin };
+  const [newest, costs, counts, lastActive] = await Promise.all([
+    db.select(columns).from(users).orderBy(desc(users.createdAt)).limit(limit),
     // The overview's one ledger read, when it hands it down (see `adminOverview`).
     trailing ?? costPerAccount(since),
     requestCounts(since),
     lastActiveSince(since),
   ]);
+  const shown = new Set(newest.map((row) => row.id));
+  const missing = [...new Set(include)].filter((id) => !shown.has(id));
+  const rows =
+    missing.length === 0
+      ? newest
+      : [
+          ...newest,
+          ...(await db
+            .select(columns)
+            .from(users)
+            .where(inArray(users.id, missing))
+            .orderBy(desc(users.createdAt))),
+        ];
   const costByUser = new Map(costs.map((cost) => [cost.userId, cost]));
   return Promise.all(
     rows.map(async (row) =>
@@ -584,10 +541,37 @@ export async function adminCostPerAccount(now: Date = new Date()): Promise<Accou
   return costPerAccount(trailingWindowStart(now));
 }
 
-/** Everything one console page needs, in one call. */
+/**
+ * **What the Financial tab draws**: the tier panel, the four numbers, the
+ * segmented underwater list and the price sweep. Not the accounts table, which
+ * is N+2 queries for a tab that never shows it.
+ */
+export type AdminFinancial = Pick<
+  AdminOverview,
+  "plans" | "windowDays" | "revenue" | "underwater" | "prices"
+>;
+
+/**
+ * **What the Users tab draws**: the accounts table, the live version of each
+ * plan for the grant dialog, and the revenue summary for the stale banner.
+ *
+ * **No price sweep** — that is a round trip to Stripe per published version,
+ * and this tab shows none of it — and no tier panel or underwater report.
+ */
+export interface AdminUsers {
+  accounts: AdminAccountRow[];
+  /** The newest published version of every plan, in the plan file's order. */
+  livePlans: PlanVersion[];
+  windowDays: number;
+  /** Only `unpricedSubscriptions` is drawn, by the banner both tabs share. */
+  revenue: RevenueSummary;
+  /** Its paying ids drive the *Costs more than it pays* filter and badge. */
+  underwater: UnderwaterReport;
+}
+
+/** Everything the console reads, in one call — what `GET /api/admin/overview` answers. */
 export interface AdminOverview {
   plans: PlanPanelRow[];
-  grantSources: GrantSourceRow[];
   accounts: AdminAccountRow[];
   topSpenders: AccountCost[];
   windowDays: number;
@@ -604,33 +588,81 @@ export interface AdminOverview {
   prices: PriceConsistencyReport;
 }
 
-/** Every panel of the operator console, computed over one read of the ledger. */
-export async function adminOverview(now: Date = new Date()): Promise<AdminOverview> {
-  // **One read of the trailing cost and one of the grant holders, for every
-  // panel.** Each panel used to read its own — six `costPerAccount`s and two
-  // `activeGrantHolders` per page — so a request logged between two of them
-  // counted in some panels and not others, and the page could disagree with
-  // itself (PR #234 review). Billing takes both as arguments rather than
-  // reading Entitlements' tables (ADR-047's 2026-09-25 amendment).
-  // `adminOverview.int.test.ts` pins one read of each.
+/**
+ * **One read of the trailing cost and one of the grant holders, for every
+ * panel.** Each panel used to read its own — six `costPerAccount`s and two
+ * `activeGrantHolders` per page — so a request logged between two of them
+ * counted in some panels and not others, and the page could disagree with
+ * itself (PR #234 review). Billing takes both as arguments rather than reading
+ * Entitlements' tables (ADR-047's 2026-09-25 amendment).
+ * `adminOverview.int.test.ts` pins one read of each.
+ */
+interface SharedReads {
+  trailing: AccountCost[];
+  holders: Awaited<ReturnType<typeof activeGrantHolders>>;
+}
+
+async function sharedReads(now: Date): Promise<SharedReads> {
   const [trailing, holders] = await Promise.all([adminCostPerAccount(now), activeGrantHolders(now)]);
-  const [plans, grantSources, accounts, spenders, revenue, underwater, prices] = await Promise.all([
+  return { trailing, holders };
+}
+
+/** The Financial tab, over one read of the ledger and one of the grant holders. */
+export async function adminFinancial(
+  now: Date = new Date(),
+  reads?: SharedReads,
+): Promise<AdminFinancial> {
+  const { trailing, holders } = reads ?? (await sharedReads(now));
+  const [plans, revenue, underwater, prices] = await Promise.all([
     planPanel(now, trailing),
-    grantSourcePanel(now, { trailing, holders }),
-    adminAccounts(100, now, trailing),
-    adminTopSpenders(10, now, trailing),
     revenueSummary(TRAILING_WINDOW_DAYS, trailing, now),
     underwaterReport(TRAILING_WINDOW_DAYS, trailing, holders, now),
     priceConsistencyReport(),
   ]);
+  return { plans, windowDays: TRAILING_WINDOW_DAYS, revenue, underwater, prices };
+}
+
+/**
+ * The Users tab: one read of the ledger and one of the grant holders, and never
+ * Stripe's price sweep. The holders are read for the underwater report alone —
+ * its paying ids decide the *Costs more than it pays* filter and badge, and
+ * **every one of them gets a row**, however old the account, because that
+ * filter is how Financial's count is opened (M36 part 3 review).
+ */
+export async function adminUsers(now: Date = new Date()): Promise<AdminUsers> {
+  const { trailing, holders } = await sharedReads(now);
+  const underwater = await underwaterReport(TRAILING_WINDOW_DAYS, trailing, holders, now);
+  const [accounts, revenue] = await Promise.all([
+    adminAccounts(
+      100,
+      now,
+      trailing,
+      underwater.paying.map((row) => row.userId),
+    ),
+    revenueSummary(TRAILING_WINDOW_DAYS, trailing, now),
+  ]);
+  const planIds = [...new Set(PLAN_VERSIONS.map((entry) => entry.planId))];
   return {
-    plans,
-    grantSources,
     accounts,
-    topSpenders: spenders,
+    livePlans: planIds.map(livePlanVersion),
     windowDays: TRAILING_WINDOW_DAYS,
     revenue,
     underwater,
-    prices,
   };
+}
+
+/** Every panel of the operator console, computed over one read of the ledger. */
+export async function adminOverview(now: Date = new Date()): Promise<AdminOverview> {
+  const reads = await sharedReads(now);
+  const financial = await adminFinancial(now, reads);
+  const [accounts, spenders] = await Promise.all([
+    adminAccounts(
+      100,
+      now,
+      reads.trailing,
+      financial.underwater.paying.map((row) => row.userId),
+    ),
+    adminTopSpenders(10, now, reads.trailing),
+  ]);
+  return { ...financial, accounts, topSpenders: spenders };
 }

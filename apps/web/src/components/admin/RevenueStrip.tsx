@@ -105,8 +105,9 @@ export function RevenueStaleBanner({ revenue }: { revenue: AdminRevenueView }) {
   return (
     <Banner variant="danger" data-testid="revenue-unpriced">
       {revenue.unpricedSubscriptions} subscription
-      {revenue.unpricedSubscriptions === 1 ? "" : "s"} pin a plan version this deploy cannot price,
-      so MRR is a floor rather than a total. Grants still apply — they don&apos;t go through Stripe.
+      {revenue.unpricedSubscriptions === 1 ? " pins" : "s pin"} a plan version this deploy cannot
+      price, so MRR is a floor rather than a total. Grants still apply — they don&apos;t go through
+      Stripe.
     </Banner>
   );
 }

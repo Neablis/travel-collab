@@ -17,16 +17,20 @@ import { dayLabel, shortDate, spokenRef } from "./accountFormat";
 //     click on the console. The confirm says what happens, in the spec's words.
 //   * **A failure line.** The row's revoke ignored a refusal: the button came
 //     back and nothing said the grant was still held. A revoke that did not
-//     land must say so, or the operator walks away believing it did.
+//     land must say so, or the operator walks away believing it did — and say
+//     which way it missed: a request that never arrived, or one the server
+//     refused with a status. A 404 is neither: the endpoint found no unrevoked
+//     grant by that id, so it was already gone and the page re-reads.
 //
 // **Revoking marks, it never deletes** — the endpoint stamps `revoked_at`, the
 // row stays and reappears below as history. The card disappears when the page
 // re-reads, because an inactive grant has nothing left to revoke.
 
-const FAILED = "The revoke didn't reach the server. Nothing changed — they still hold it.";
+const UNREACHED = "The revoke didn't reach the server. Nothing changed — they still hold it.";
+const refused = (status: number) => `The server refused the revoke (${status}). Nothing changed — they still hold it.`;
 
-/** What one card is doing: at rest, asking, sending, or having failed. */
-type CardState = "idle" | "confirming" | "busy" | "failed";
+/** What one card is doing: at rest, asking, sending, or having failed with a line to show. */
+type CardState = "idle" | "confirming" | "busy" | { failed: string };
 
 /** Active grants as revocable cards, then every plan event newest first. */
 export function AccountGrants({
@@ -52,7 +56,8 @@ export function AccountGrants({
 
   const active = grants.filter((grant) => grant.active && !revoked.has(grant.id));
 
-  async function revoke(grantId: string) {
+  /** `others`: the active grants besides this one when Revoke was confirmed. */
+  async function revoke(grantId: string, others: number) {
     set(grantId, "busy");
     try {
       // eslint-disable-next-line no-restricted-globals -- an app API call with no client helper yet; moves onto the client with the collapse still open in KI-2026-09-05-q
@@ -61,17 +66,23 @@ export function AccountGrants({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ grantId }),
       });
-      if (!res.ok) {
-        set(grantId, "failed");
+      if (!res.ok && res.status !== 404) {
+        set(grantId, { failed: refused(res.status) });
         return;
       }
       // Hidden here AND re-read: the local set takes the card away now, the
       // refresh makes the header, the badges and the history agree with it.
       setRevoked((current) => new Set(current).add(grantId));
-      setToast(`Revoked — ${account} holds ${spokenRef(fallsBackTo)} from their next request`);
+      setToast(
+        res.status === 404
+          ? "Already revoked — the page has re-read"
+          : others === 0
+            ? `Revoked — ${account} holds ${spokenRef(fallsBackTo)} from their next request`
+            : `Revoked — ${account} keeps what their other ${others === 1 ? "grant gives" : "grants give"} them from their next request`,
+      );
       router.refresh();
     } catch {
-      set(grantId, "failed");
+      set(grantId, { failed: UNREACHED });
     }
   }
 
@@ -99,7 +110,7 @@ export function AccountGrants({
                       {grant.grantedBy !== null && ` · by ${grant.grantedBy}`}
                     </Text>
                   </div>
-                  {(state === "idle" || state === "failed") && (
+                  {(state === "idle" || typeof state === "object") && (
                     <Button
                       variant="ghost"
                       size="sm"
@@ -126,16 +137,16 @@ export function AccountGrants({
                         variant="destructive"
                         size="sm"
                         disabled={state === "busy"}
-                        onClick={() => void revoke(grant.id)}
+                        onClick={() => void revoke(grant.id, others)}
                       >
                         Revoke
                       </Button>
                     </div>
                   </div>
                 )}
-                {state === "failed" && (
+                {typeof state === "object" && (
                   <Text as="span" role="alert" className="text-sm text-danger-ink">
-                    {FAILED}
+                    {state.failed}
                   </Text>
                 )}
               </li>
