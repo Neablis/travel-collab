@@ -647,37 +647,39 @@ export async function resolveSuggestionChange(
 }
 
 // ── Cover photos (M37) ───────────────────────────────────────────────────────
-// Not commands: a cover is trip metadata in its own table (D1), and TripDetail
+// Not commands: a cover is metadata in its own table (D1), and TripDetail
 // does not carry it, so no trip read is invalidated by these writes. Home
-// reads the cover off `TripSummary` from `fetchTrips`, which is not cached.
-// A 503 is the deployment having no Unsplash key, and a 429 the search quota;
-// the picker tells them apart by `error.status`.
+// reads a trip's cover off `TripSummary` from `fetchTrips`, which is not
+// cached; a playbook day's comes back on `fetchSavedDay`. A 503 is the
+// deployment having no Unsplash key, and a 429 the search quota; the picker
+// tells them apart by `error.status`. A trip's routes and a saved day's speak
+// the same schemas, so each pair below is one call at two addresses.
 
-/** The trip's cover, or `null` for none. Asks Unsplash nothing. */
-export async function fetchTripCover(tripId: string): Promise<ApiResult<TripCover | null>> {
+const tripCoverPath = (tripId: string) => `/api/trips/${tripId}/cover`;
+const savedDayCoverPath = (savedDayId: string) => `/api/saved-days/${savedDayId}/cover`;
+
+async function readCover(path: string): Promise<ApiResult<TripCover | null>> {
   try {
-    const res = await fetch(apiUrl(`/api/trips/${tripId}/cover`));
+    const res = await fetch(apiUrl(path));
     return await readJson(res, (data) => TripCoverResponse.parse(data).cover);
   } catch (err) {
     return networkError(err);
   }
 }
 
-/** One page (from 1) of photos for `q`, for an editor choosing a cover. Spends the search quota. */
-export async function searchTripCovers(tripId: string, q: string, page = 1): Promise<ApiResult<CoverCandidate[]>> {
+async function searchCovers(path: string, q: string, page: number): Promise<ApiResult<CoverCandidate[]>> {
   try {
     const params = new URLSearchParams({ q, page: String(page) });
-    const res = await fetch(apiUrl(`/api/trips/${tripId}/cover/search?${params.toString()}`));
+    const res = await fetch(apiUrl(`${path}/search?${params.toString()}`));
     return await readJson(res, (data) => CoverSearchResponse.parse(data).results);
   } catch (err) {
     return networkError(err);
   }
 }
 
-/** Makes `candidate` the trip's cover, and answers the stored cover. */
-export async function setTripCover(tripId: string, candidate: CoverCandidate): Promise<ApiResult<TripCover>> {
+async function putCover(path: string, candidate: CoverCandidate): Promise<ApiResult<TripCover>> {
   try {
-    const res = await fetch(apiUrl(`/api/trips/${tripId}/cover`), {
+    const res = await fetch(apiUrl(path), {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ candidate }),
@@ -688,14 +690,53 @@ export async function setTripCover(tripId: string, candidate: CoverCandidate): P
   }
 }
 
-/** Removes the trip's cover. */
-export async function clearTripCover(tripId: string): Promise<ApiResult<null>> {
+async function deleteCover(path: string): Promise<ApiResult<null>> {
   try {
-    const res = await fetch(apiUrl(`/api/trips/${tripId}/cover`), { method: "DELETE" });
+    const res = await fetch(apiUrl(path), { method: "DELETE" });
     return await readJson(res, () => null);
   } catch (err) {
     return networkError(err);
   }
+}
+
+/** The trip's cover, or `null` for none. Asks Unsplash nothing. */
+export function fetchTripCover(tripId: string): Promise<ApiResult<TripCover | null>> {
+  return readCover(tripCoverPath(tripId));
+}
+
+/** One page (from 1) of photos for `q`, for an editor choosing a cover. Spends the search quota. */
+export function searchTripCovers(tripId: string, q: string, page = 1): Promise<ApiResult<CoverCandidate[]>> {
+  return searchCovers(tripCoverPath(tripId), q, page);
+}
+
+/** Makes `candidate` the trip's cover, and answers the stored cover. */
+export function setTripCover(tripId: string, candidate: CoverCandidate): Promise<ApiResult<TripCover>> {
+  return putCover(tripCoverPath(tripId), candidate);
+}
+
+/** Removes the trip's cover. */
+export function clearTripCover(tripId: string): Promise<ApiResult<null>> {
+  return deleteCover(tripCoverPath(tripId));
+}
+
+/** A playbook day's cover, or `null` for none, for anyone who may open the day. */
+export function fetchSavedDayCover(savedDayId: string): Promise<ApiResult<TripCover | null>> {
+  return readCover(savedDayCoverPath(savedDayId));
+}
+
+/** One page (from 1) of photos for `q`, for the day's author. Spends the search quota. */
+export function searchSavedDayCovers(savedDayId: string, q: string, page = 1): Promise<ApiResult<CoverCandidate[]>> {
+  return searchCovers(savedDayCoverPath(savedDayId), q, page);
+}
+
+/** Makes `candidate` the day's cover (its author only), and answers the stored cover. */
+export function setSavedDayCover(savedDayId: string, candidate: CoverCandidate): Promise<ApiResult<TripCover>> {
+  return putCover(savedDayCoverPath(savedDayId), candidate);
+}
+
+/** Removes the day's cover (its author only). */
+export function clearSavedDayCover(savedDayId: string): Promise<ApiResult<null>> {
+  return deleteCover(savedDayCoverPath(savedDayId));
 }
 
 // ── Pinned read-only shares (M11 link 4) ─────────────────────────────────────
@@ -954,6 +995,7 @@ export async function fetchSavedDay(
     pinning: boolean;
     publishedAt?: string | null;
     moderation: SavedDayModeration | null;
+    cover: TripCover | null;
   }>
 > {
   try {
@@ -965,11 +1007,14 @@ export async function fetchSavedDay(
         pinning: unknown;
         publishedAt?: unknown;
         moderation?: unknown;
+        cover?: unknown;
       };
       return {
         // An operator hid it, and why — sent to the author only
         // (KI-2026-09-23-i). Absent (an older server) reads as "not hidden".
         moderation: body.moderation == null ? null : SavedDayModeration.parse(body.moderation),
+        // The author's cover (M37 part 5). Absent (an older server) is none.
+        cover: body.cover == null ? null : TripCover.parse(body.cover),
         savedDay: SavedDay.parse(body.savedDay),
         isAuthor: body.isAuthor === true,
         // True while the server is putting this day's stops on the map after

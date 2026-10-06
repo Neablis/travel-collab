@@ -105,3 +105,19 @@ export async function readSavedDayAsViewer(savedDayId: string): Promise<SavedDay
   }
   return { readerId, day, isAuthor: readerId !== null && day.ownerId === readerId };
 }
+
+/**
+ * `requireSavedDayRead`, and then **only its author** — for a write that
+ * changes how the day looks to everyone who opens it, such as its cover
+ * (M37 part 5). A day this reader cannot open is the same 404 it always is;
+ * one they can open but did not write is a 403, which says nothing they could
+ * not already see on the page.
+ */
+export async function requireSavedDayAuthor(
+  savedDayId: string,
+): Promise<{ error: Response } | { readerId: string; day: SavedDay }> {
+  const read = await requireSavedDayRead(savedDayId);
+  if ("error" in read) return read;
+  if (!read.isAuthor) return { error: Response.json({ error: "not-the-author" }, { status: 403 }) };
+  return { readerId: read.readerId, day: read.day };
+}

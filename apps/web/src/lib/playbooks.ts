@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { Money, SavedDayAuthorKind, TimeWindow } from "@tc/contracts";
+import { Money, SavedDayAuthorKind, TimeWindow, TripCover } from "@tc/contracts";
 import { CityMatch } from "@/lib/cities";
 
 // The wire shapes of the public library's three read endpoints (M11b PR3):
@@ -369,6 +369,12 @@ export const DiscoverDay = z.object({
   publishedAt: z.string().nullable(),
   /** Whether the signed-in reader authored it — decides the "Yours" badge. */
   isMine: z.boolean(),
+  /**
+   * The cover its author picked (M37 part 5), or null. The stored choice and
+   * its credit, LEFT JOINed into the same read; a card never asks Unsplash
+   * anything. Defaulted, so a card from before it parses as "no cover".
+   */
+  cover: TripCover.nullable().default(null),
 });
 export type DiscoverDay = z.infer<typeof DiscoverDay>;
 

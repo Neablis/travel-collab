@@ -923,6 +923,32 @@ export const savedDayReviews = pgTable(
   ],
 );
 
+// A playbook day's cover photo (M37 part 5): `trip_covers`' columns, one row
+// per saved day, set and cleared by the day's author through
+// `server/savedDayCovers.ts`. Community CRUD beside a CRUD table, so not a
+// projection and not an event.
+//
+// **No foreign key**, `saved_day_adds`' and `saved_day_reviews`' terms: no
+// table keyed by a saved day carries one, and `saved_days` is soft-deleted, so
+// `ON DELETE CASCADE` would never fire. A deleted or moderated day hides its
+// cover by the reads, which reach this table only through a day they may
+// already show (`readableSavedDay`, `matchPredicate`); an undeleted day gets
+// its cover back.
+export const savedDayCovers = pgTable("saved_day_covers", {
+  savedDayId: uuid("saved_day_id").primaryKey(),
+  unsplashId: text("unsplash_id").notNull(),
+  urlRaw: text("url_raw").notNull(),
+  urlRegular: text("url_regular").notNull(),
+  urlSmall: text("url_small").notNull(),
+  alt: text("alt"),
+  photographerName: text("photographer_name").notNull(),
+  photographerUrl: text("photographer_url").notNull(),
+  photoPageUrl: text("photo_page_url").notNull(),
+  // A `users.id`, on `saved_days.owner_id`'s no-foreign-key terms (ADR-025).
+  setBy: text("set_by").notNull(),
+  setAt: timestamp("set_at", { withTimezone: true, mode: "string" }).notNull(),
+});
+
 // Saved notebooks (M14 link 10): a person's notebook kept as a template for a
 // future trip. `saved_days`' shape one level down, on ADR-029's terms — owned by
 // a person, ordinary CRUD, NOT event-sourced — and the only writer is

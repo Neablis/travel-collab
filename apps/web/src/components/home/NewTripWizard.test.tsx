@@ -122,6 +122,7 @@ function published(overrides: Partial<DiscoverDay> & Pick<DiscoverDay, "savedDay
     createdAt: "2026-09-01T00:00:00.000Z",
     publishedAt: "2026-09-02T00:00:00.000Z",
     isMine: false,
+    cover: null,
     ...overrides,
   };
 }

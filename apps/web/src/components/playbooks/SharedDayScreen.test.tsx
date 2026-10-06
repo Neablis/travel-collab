@@ -1,7 +1,8 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { SavedDay, SavedDayReviewsResponse, SavedStop } from "@tc/contracts";
+import type { CoverCandidate, SavedDay, SavedDayReviewsResponse, SavedStop } from "@tc/contracts";
+import { tripCoverFactory } from "@tc/factories";
 import type { PublicProfileResponse } from "@/lib/playbooks";
 
 const fetchSavedDayMock = vi.fn();
@@ -17,6 +18,10 @@ const fetchReviewsMock = vi.fn();
 const putReviewMock = vi.fn();
 const createReportMock = vi.fn();
 const pushMock = vi.fn();
+const fetchCoverMock = vi.fn();
+const searchCoversMock = vi.fn();
+const setCoverMock = vi.fn();
+const clearCoverMock = vi.fn();
 
 vi.mock("@/lib/apiClient", () => ({
   fetchSavedDay: (...a: unknown[]) => fetchSavedDayMock(...a),
@@ -31,6 +36,10 @@ vi.mock("@/lib/apiClient", () => ({
   fetchReviews: (...a: unknown[]) => fetchReviewsMock(...a),
   putReview: (...a: unknown[]) => putReviewMock(...a),
   createReport: (...a: unknown[]) => createReportMock(...a),
+  fetchSavedDayCover: (...a: unknown[]) => fetchCoverMock(...a),
+  searchSavedDayCovers: (...a: unknown[]) => searchCoversMock(...a),
+  setSavedDayCover: (...a: unknown[]) => setCoverMock(...a),
+  clearSavedDayCover: (...a: unknown[]) => clearCoverMock(...a),
 }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: pushMock }) }));
 // Who is reading. `undefined` (not known yet) unless a test says otherwise —
@@ -133,6 +142,10 @@ beforeEach(() => {
   putReviewMock.mockReset();
   createReportMock.mockReset();
   pushMock.mockReset();
+  fetchCoverMock.mockReset().mockResolvedValue(ok(null));
+  searchCoversMock.mockReset().mockResolvedValue(ok([]));
+  setCoverMock.mockReset();
+  clearCoverMock.mockReset().mockResolvedValue(ok(null));
 });
 
 beforeEach(() => {
@@ -489,7 +502,7 @@ describe("a shared day", () => {
         savedDayId={DAY_ID}
         backHref="/playbooks"
         backLabel="Discover"
-        initial={{ day: savedDay(), isAuthor: false, author: profile().author, pinning: false, publishedAt: null, moderation: null }}
+        initial={{ day: savedDay(), isAuthor: false, author: profile().author, pinning: false, publishedAt: null, moderation: null, cover: null }}
       />,
     );
     expect(screen.getByRole("heading", { level: 1, name: "Kyoto temples on foot" })).toBeTruthy();
@@ -1283,3 +1296,89 @@ describe("sharing a day", () => {
     }
   });
 });
+
+// M37 part 5, the approved `PlaybookDay` and `PlaybookPhone` artboards: a day
+// with a cover runs it edge to edge, and the title block stands on its fade.
+// Without one the page is what it was. Only the author is offered the picker,
+// which is Trip settings' own (`CoverPicker`), pointed at this day's routes.
+describe("a day's cover", () => {
+  const cover = tripCoverFactory.build({ alt: "Lanterns along the Kamo river", photographerName: "Aiko Tanaka" });
+  const withCover = (isAuthor: boolean) =>
+    fetchSavedDayMock.mockResolvedValue(ok({ savedDay: savedDay(), isAuthor, moderation: null, cover }));
+
+  it("stands the title, cities, meta line and Share on the photo, credited, for a reader", async () => {
+    withCover(false);
+    renderDay();
+    const band = await screen.findByTestId("day-cover");
+    const photo = within(band).getByRole("img", { name: "Lanterns along the Kamo river" });
+    // The page's largest image, above the fold.
+    expect(photo.getAttribute("loading")).toBe("eager");
+    expect(photo.getAttribute("fetchpriority")).toBe("high");
+    expect(within(band).getByRole("heading", { level: 1, name: "Kyoto temples on foot" })).toBeTruthy();
+    expect(within(band).getByRole("link", { name: "Kyoto" }).getAttribute("href")).toBe("/playbooks/city/kyoto");
+    expect(within(band).getByTestId("playbook-meta").textContent).toContain("2 stops");
+    // One Share and one title on the page, both on the band.
+    expect(screen.getAllByTestId("share-day")).toHaveLength(1);
+    expect(within(band).getByTestId("share-day")).toBeTruthy();
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+    // Credited and linked wherever the photo is (Unsplash's guidelines).
+    const credits = within(band).getAllByText((_, el) => el?.tagName === "P" && el.textContent === "Photo by Aiko Tanaka on Unsplash");
+    expect(credits.length).toBeGreaterThan(0);
+    expect(within(credits[0]!).getByRole("link", { name: "Aiko Tanaka" })).toBeTruthy();
+    // The way back is a pill over the photo, named for where it goes.
+    expect(within(band).getByRole("link", { name: "Back to Discover" }).getAttribute("href")).toBe("/playbooks");
+    expect(screen.queryByRole("button", { name: "Change cover" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add cover" })).toBeNull();
+  });
+
+  it("offers its author Change cover over the photo, which opens the picker on this day's routes", async () => {
+    withCover(true);
+    searchCoversMock.mockResolvedValue(ok([]));
+    renderDay();
+    const band = await screen.findByTestId("day-cover");
+    await userEvent.click(within(band).getByRole("button", { name: "Change cover" }));
+    const dialog = await screen.findByRole("dialog", { name: "Cover photo" });
+    // Trip settings' picker: the same search row, the same Remove cover.
+    await userEvent.type(within(dialog).getByRole("searchbox", { name: "Search photos" }), "kamo");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Search" }));
+    await waitFor(() => expect(searchCoversMock).toHaveBeenCalledWith(DAY_ID, "kamo", 1));
+    expect(fetchCoverMock).toHaveBeenCalledWith(DAY_ID);
+  });
+
+  it("is the page it always was without one, for a reader: no photo and no cover controls", async () => {
+    renderDay();
+    await screen.findByTestId("author-strip");
+    expect(screen.queryByTestId("day-cover")).toBeNull();
+    expect(screen.queryByRole("img")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add cover" })).toBeNull();
+    expect(screen.getByRole("link", { name: "← Discover" })).toBeTruthy();
+  });
+
+  it("offers its author Add cover without one; a pick re-reads the day and the band arrives", async () => {
+    const candidate: CoverCandidate = {
+      id: cover.unsplashId,
+      urls: cover.urls,
+      alt: cover.alt,
+      photographerName: cover.photographerName,
+      photographerUrl: cover.photographerUrl,
+      photoPageUrl: cover.photoPageUrl,
+      downloadLocation: "https://api.unsplash.com/photos/x/download",
+    };
+    fetchSavedDayMock.mockResolvedValue(ok({ savedDay: savedDay(), isAuthor: true, moderation: null }));
+    searchCoversMock.mockResolvedValue(ok([candidate]));
+    setCoverMock.mockImplementation(async () => {
+      fetchSavedDayMock.mockResolvedValue(ok({ savedDay: savedDay(), isAuthor: true, moderation: null, cover }));
+      return ok(cover);
+    });
+    renderDay();
+    expect(screen.queryByTestId("day-cover")).toBeNull();
+    await userEvent.click(await screen.findByRole("button", { name: "Add cover" }));
+    const dialog = await screen.findByRole("dialog", { name: "Cover photo" });
+    await userEvent.type(within(dialog).getByRole("searchbox", { name: "Search photos" }), "kyoto");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Search" }));
+    await userEvent.click(await within(dialog).findByRole("button", { name: "Use photo by Aiko Tanaka" }));
+    expect(setCoverMock).toHaveBeenCalledWith(DAY_ID, candidate);
+    expect(await screen.findByTestId("day-cover")).toBeTruthy();
+  });
+});
+

@@ -1,30 +1,39 @@
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, type AnyColumn, type SQL } from "drizzle-orm";
 import { TripCover, type CoverCandidate } from "@tc/contracts";
 import { db } from "./db/client";
-import { tripCovers } from "./db/schema";
+import { savedDayCovers, tripCovers } from "./db/schema";
 
 // A trip's cover photo (M37 D1): ordinary CRUD on `trip_covers`, never an
 // event. The routes under `app/api/trips/[tripId]/cover/` are the only callers
 // that write; the listing query reads the same table through
 // `TRIP_COVER_JSON` (`projections.ts`), so both shapes are built here.
+// `saved_day_covers` has these columns too, and `savedDayCovers.ts` reads and
+// writes it through `coverOf` and `coverValues` below.
 
 /**
- * The `TripCover` a `trip_covers` row describes, as one jsonb value, or SQL
- * null when the LEFT JOIN found no row. Read alongside the summary, so the
- * home grid's covers cost no statement of their own.
+ * The `TripCover` a row of `table` describes, as one jsonb value, or SQL null
+ * when the LEFT JOIN on `key` found no row. Read alongside a listing, so its
+ * covers cost no statement of their own.
  */
-export const TRIP_COVER_JSON = sql<TripCover | null>`CASE WHEN ${tripCovers.tripId} IS NULL THEN NULL ELSE jsonb_build_object(
-  'unsplashId', ${tripCovers.unsplashId},
-  'urls', jsonb_build_object('raw', ${tripCovers.urlRaw}, 'regular', ${tripCovers.urlRegular}, 'small', ${tripCovers.urlSmall}),
-  'alt', ${tripCovers.alt},
-  'photographerName', ${tripCovers.photographerName},
-  'photographerUrl', ${tripCovers.photographerUrl},
-  'photoPageUrl', ${tripCovers.photoPageUrl}
+export function coverJson(table: typeof tripCovers | typeof savedDayCovers, key: AnyColumn): SQL<TripCover | null> {
+  return sql<TripCover | null>`CASE WHEN ${key} IS NULL THEN NULL ELSE jsonb_build_object(
+  'unsplashId', ${table.unsplashId},
+  'urls', jsonb_build_object('raw', ${table.urlRaw}, 'regular', ${table.urlRegular}, 'small', ${table.urlSmall}),
+  'alt', ${table.alt},
+  'photographerName', ${table.photographerName},
+  'photographerUrl', ${table.photographerUrl},
+  'photoPageUrl', ${table.photoPageUrl}
 ) END`;
+}
 
-type Row = typeof tripCovers.$inferSelect;
+/** A trip's cover in the home listing (`LISTED_SUMMARY`). */
+export const TRIP_COVER_JSON = coverJson(tripCovers, tripCovers.tripId);
 
-function coverOf(row: Row): TripCover {
+/** The columns a cover row has, in `trip_covers` and `saved_day_covers` alike. */
+export type CoverRow = Omit<typeof tripCovers.$inferSelect, "tripId">;
+
+/** The `TripCover` a cover row describes. */
+export function coverOf(row: CoverRow): TripCover {
   return TripCover.parse({
     unsplashId: row.unsplashId,
     urls: { raw: row.urlRaw, regular: row.urlRegular, small: row.urlSmall },
@@ -52,7 +61,18 @@ export async function setTripCover(
   userId: string,
   now: Date = new Date(),
 ): Promise<TripCover> {
-  const values = {
+  const values = coverValues(candidate, userId, now);
+  const [row] = await db
+    .insert(tripCovers)
+    .values({ tripId, ...values })
+    .onConflictDoUpdate({ target: tripCovers.tripId, set: values })
+    .returning();
+  return coverOf(row!);
+}
+
+/** The row a pick of `candidate` writes: everything but its `downloadLocation`. */
+export function coverValues(candidate: CoverCandidate, userId: string, now: Date): CoverRow {
+  return {
     unsplashId: candidate.id,
     urlRaw: candidate.urls.raw,
     urlRegular: candidate.urls.regular,
@@ -64,12 +84,6 @@ export async function setTripCover(
     setBy: userId,
     setAt: now.toISOString(),
   };
-  const [row] = await db
-    .insert(tripCovers)
-    .values({ tripId, ...values })
-    .onConflictDoUpdate({ target: tripCovers.tripId, set: values })
-    .returning();
-  return coverOf(row!);
 }
 
 /** Remove the trip's cover. Clearing a trip with none is not an error. */

@@ -1,5 +1,7 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
+import { unsplashCreditHref } from "@tc/contracts";
+import { tripCoverFactory } from "@tc/factories";
 import type { DiscoverDay } from "@/lib/playbooks";
 import { DiscoverCard } from "./DiscoverCard";
 
@@ -34,6 +36,7 @@ function day(over: Partial<DiscoverDay> = {}): DiscoverDay {
     createdAt: "2026-08-01T00:00:00.000Z",
     publishedAt: "2026-08-02T00:00:00.000Z",
     isMine: false,
+    cover: null,
     ...over,
   };
 }
@@ -159,6 +162,46 @@ describe("a Discover card's author", () => {
     render(<DiscoverCard day={day()} origin={{ from: "playbooks" }} />);
     expect(screen.getByRole("link", { name: "Alice C." }).getAttribute("href")).toContain(
       "/playbooks/profile/dev-alice",
+    );
+  });
+});
+
+// M37 part 5, the approved `DiscoverCards` artboard: a cover leads the card,
+// the city chips stand on its fade, and the credit sits under the facts line.
+// Without one the card is exactly what it was.
+describe("a Discover card's cover", () => {
+  const cover = tripCoverFactory.build({ alt: "Lanterns along the Kamo river", photographerName: "Aiko Tanaka" });
+  /** Whether `a` comes before `b` in the card. */
+  const before = (a: Element, b: Element) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+  const credit = () =>
+    screen.queryByText((_, el) => el?.tagName === "P" && el.textContent === "Photo by Aiko Tanaka on Unsplash");
+
+  it("leads with the photo, the chips on its fade, and credits it under the facts line", () => {
+    render(<DiscoverCard day={day({ cover })} origin={{ from: "playbooks" }} />);
+    const photo = screen.getByRole("img", { name: "Lanterns along the Kamo river" });
+    const chips = screen.getByTestId("city-chips");
+    const title = screen.getByRole("heading", { name: "Kyoto temples on foot" });
+    expect(photo.getAttribute("loading")).toBe("lazy");
+    // Photo, then the chips laid over its foot, then the title.
+    expect(before(photo, chips)).toBe(true);
+    expect(before(chips, title)).toBe(true);
+
+    const line = credit();
+    expect(line).not.toBeNull();
+    expect(within(line!).getByRole("link", { name: "Aiko Tanaka" }).getAttribute("href")).toBe(
+      unsplashCreditHref(cover.photographerUrl),
+    );
+    // Under the title's facts line, above the rating.
+    expect(before(title, line!)).toBe(true);
+    expect(before(line!, screen.getByTestId("card-rating"))).toBe(true);
+  });
+
+  it("is today's card without one: no photo, no credit, the chips first", () => {
+    render(<DiscoverCard day={day()} origin={{ from: "playbooks" }} />);
+    expect(screen.queryByRole("img")).toBeNull();
+    expect(credit()).toBeNull();
+    expect(before(screen.getByTestId("city-chips"), screen.getByRole("heading", { name: "Kyoto temples on foot" }))).toBe(
+      true,
     );
   });
 });

@@ -32,6 +32,7 @@ function day(over: Partial<DiscoverDay> = {}): DiscoverDay {
     createdAt: "2026-08-01T00:00:00.000Z",
     publishedAt: "2026-08-02T00:00:00.000Z",
     isMine: false,
+    cover: null,
     ...over,
   };
 }

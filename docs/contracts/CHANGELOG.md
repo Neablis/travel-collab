@@ -13,6 +13,32 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-06 — `DiscoverDay.cover` and the shared day's `cover`: a playbook day can have a cover photo
+
+- **Added:** `DiscoverDay.cover: TripCover.nullable().default(null)` (`apps/web/src/lib/playbooks.ts`,
+  the app-local card shape that `GET /v1/discover/playbooks` publishes). `GET /api/saved-days/:id`
+  answers `cover` (a `TripCover`, or null) on its envelope beside `publishedAt`, and
+  `SharedDayView` carries it. Not a field on `SavedDay`: `SavedDay` is the library's content and
+  every owner read, and the cover is read beside the day the way `publishedAt` is.
+- **Reused, not added:** `TripCover`, `CoverCandidate`, `CoverSearchResponse`, `SetCoverBody` and
+  `TripCoverResponse` serve the saved day's cover routes as they are. Their docstrings in
+  `cover.ts` now name both routes; no schema moved.
+- Why: M37 part 5. A cover is Community CRUD in a side table, `saved_day_covers` (migration
+  `0043`), set and cleared by the day's author only. A moderated, private or deleted day hides its
+  cover with it: every read reaches the table only through a day it may already show.
+- Consumers updated: `server/playbooks.ts` LEFT JOINs `saved_day_covers` into Discover's three
+  reads (`discoverDays`, `discoverPage`, `publishedDaysPage`), so Discover, a city or country page
+  and a profile carry the cover with no new statement. `sharedDayRead` and the cached
+  `dayPageView` read it beside the day. `apiClient.fetchSavedDay` parses it, absent as null.
+  New internal routes `GET`/`PUT`/`DELETE /api/saved-days/:id/cover` and
+  `GET /api/saved-days/:id/cover/search` speak the existing cover schemas. Web test builders of
+  `DiscoverDay` and `SharedDayView` carry `cover: null`.
+- Public API: `GET /v1/discover/playbooks` items gain `cover`. `API_VERSION` 1.8.0 → 1.9.0
+  (additive), `API_FINGERPRINT` and `openapi.json` regenerated. `CollectionDef`'s item schema now
+  accepts any input type, so an item with a defaulted field can be declared. The cover routes are
+  `planned` in `exposure.ts`, not published; `GET /v1/playbooks/{id}` (a `SavedDay`) is unchanged.
+- Breaking? no. `cover` is defaulted, so a card from before it parses as null.
+
 ## 2026-10-06 — `TripCover`, `CoverCandidate` and `TripSummary.cover`: a trip can have a cover photo
 
 - **Added:** `cover.ts`, exported from the package root:

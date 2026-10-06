@@ -1,4 +1,4 @@
-import { SavedDay, SavedDayModeration } from "@tc/contracts";
+import { SavedDay, SavedDayModeration, TripCover } from "@tc/contracts";
 import { auth } from "@/server/auth";
 import { publicLibraryReader } from "@/server/publicLibraryLimit";
 import { deleteSavedDay } from "@/server/savedDays";
@@ -28,6 +28,11 @@ import { sharedDayRead } from "@/server/sharedDayView";
 // person whose day it is. Everyone else gets `null` — and cannot open a hidden
 // day anyway, so the branch is a second wall, not the only one.
 //
+// `cover` is the author's chosen photo and its credit (M37 part 5), or null.
+// On the envelope for `publishedAt`'s reason, and read only once the seam has
+// let this reader open the day — a day they may not read hides its cover with
+// it, moderation included.
+//
 // A reader with no account (ADR-061) gets a published, unmoderated day or the
 // same 404 as anyone else, and is charged per IP. They never start a pin
 // backfill: it spends the reader's geocode quota, and they have none — the
@@ -47,6 +52,7 @@ export async function GET(
     pinning: view.pinning,
     publishedAt: view.publishedAt,
     moderation: view.moderation === null ? null : SavedDayModeration.parse(view.moderation),
+    cover: view.cover === null ? null : TripCover.parse(view.cover),
   });
 }
 

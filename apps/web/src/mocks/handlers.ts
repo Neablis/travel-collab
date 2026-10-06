@@ -905,7 +905,8 @@ export function makeNearbyStopsHandler(stops: NearbyStopsResponse["stops"]) {
 
 /**
  * The cover routes (M37): `GET`, `PUT` and `DELETE /api/trips/:tripId/cover`
- * and `GET …/cover/search`, over one in-memory cover. Search answers `pages[n-1]`
+ * and `GET …/cover/search` — or a saved day's, `/api/saved-days/:id/cover`,
+ * with `at: "saved-day"` — over one in-memory cover. Search answers `pages[n-1]`
  * for `?page=n` and nothing past the last. `search: "unavailable"` answers the
  * route's 503 (no Unsplash key here), `"quota"` its 429 — the two refusals the
  * picker words differently. Every pick and clear is recorded, as sent.
@@ -917,12 +918,14 @@ export function makeCoverHandlers(
     search?: "ok" | "unavailable" | "quota";
     onSet?: (candidate: CoverCandidate) => void;
     onClear?: () => void;
+    at?: "trip" | "saved-day";
   } = {},
 ) {
   let cover = options.cover ?? null;
   const pages = options.pages ?? [];
+  const base = options.at === "saved-day" ? "/api/saved-days/:savedDayId/cover" : "/api/trips/:tripId/cover";
   return [
-    http.get("/api/trips/:tripId/cover/search", ({ request }) => {
+    http.get(`${base}/search`, ({ request }) => {
       if (options.search === "unavailable") return HttpResponse.json({ error: "covers-unavailable" }, { status: 503 });
       if (options.search === "quota") {
         return HttpResponse.json(
@@ -933,8 +936,8 @@ export function makeCoverHandlers(
       const page = Number(new URL(request.url).searchParams.get("page") ?? "1");
       return HttpResponse.json({ results: pages[page - 1] ?? [] });
     }),
-    http.get("/api/trips/:tripId/cover", () => HttpResponse.json({ cover })),
-    http.put("/api/trips/:tripId/cover", async ({ request }) => {
+    http.get(base, () => HttpResponse.json({ cover })),
+    http.put(base, async ({ request }) => {
       const { candidate } = SetCoverBody.parse(await request.json());
       options.onSet?.(candidate);
       // What the route stores: everything but the ping URL (D2).
@@ -948,7 +951,7 @@ export function makeCoverHandlers(
       };
       return HttpResponse.json({ cover });
     }),
-    http.delete("/api/trips/:tripId/cover", () => {
+    http.delete(base, () => {
       options.onClear?.();
       cover = null;
       return HttpResponse.json({ cover: null });

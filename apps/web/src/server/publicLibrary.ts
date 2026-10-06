@@ -1,9 +1,10 @@
-import type { SavedDay } from "@tc/contracts";
+import type { SavedDay, TripCover } from "@tc/contracts";
 import type { DiscoverResponse, PublicAuthor } from "@/lib/playbooks";
 import { slugify } from "@/lib/playbookUrls";
 import type { SharedDayView } from "@/lib/sharedDayView";
 import { LIBRARY_CACHE_SECONDS, LIBRARY_TAG, authorTag, dayTag, libraryCached } from "./libraryCache";
 import * as live from "./playbooks";
+import { getSavedDayCover } from "./savedDayCovers";
 import { schedulePinBackfill } from "./savedDayPinBackfill";
 import { publishedAtOf, readableSavedDay } from "./savedDays";
 import { sharedDayView } from "./sharedDayView";
@@ -23,7 +24,7 @@ import { sharedDayView } from "./sharedDayView";
 // it. A day is tagged by its id, and its author's numbers by the author.
 
 /** One published day as a stranger reads it, and when it was read. */
-type PublicDay = { day: SavedDay; publishedAt: string | null; readAt: number };
+type PublicDay = { day: SavedDay; publishedAt: string | null; cover: TripCover | null; readAt: number };
 
 /** Thrown inside the cache for a day not in the library: `unstable_cache` keeps no throw. */
 class NotInLibrary extends Error {}
@@ -31,7 +32,8 @@ class NotInLibrary extends Error {}
 async function readPublicDay(savedDayId: string): Promise<PublicDay> {
   const day = await readableSavedDay(savedDayId, null);
   if (day === null) throw new NotInLibrary();
-  return { day, publishedAt: await publishedAtOf(savedDayId), readAt: Date.now() };
+  const [publishedAt, cover] = await Promise.all([publishedAtOf(savedDayId), getSavedDayCover(savedDayId)]);
+  return { day, publishedAt, cover, readAt: Date.now() };
 }
 
 // A day past its lifetime is read live, not served. Next answers an expired
@@ -74,7 +76,7 @@ export async function dayPageView(
     const view = await sharedDayView(savedDayId, readerId);
     return view === null ? null : { view };
   }
-  const { day, publishedAt } = published;
+  const { day, publishedAt, cover } = published;
   return {
     view: {
       day,
@@ -84,6 +86,8 @@ export async function dayPageView(
       pinning: readerId === null ? false : schedulePinBackfill(day, readerId),
       publishedAt,
       moderation: null,
+      // In the day's cache entry, so a pick or a clear clears `dayTag` too.
+      cover,
     },
   };
 }
