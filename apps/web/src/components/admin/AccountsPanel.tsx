@@ -98,8 +98,9 @@ type AccountsPanelProps = {
  * **Filter and page are read straight off `view`**, so Back or Forward to
  * another view redraws the table with nothing to re-seed. The search box is
  * the one piece of local state — typing must not wait on the server — and it
- * follows the URL whenever the URL's search moves under it, except while the
- * operator has typed past what was last sent: that newer text is on its way.
+ * follows the URL whenever the URL's search moves under it — except when the
+ * search that landed is the one this box sent and the operator has typed past
+ * it: that newer text is on its way.
  */
 export function AccountsPanel({ table, view, now, windowDays }: AccountsPanelProps) {
   const router = useRouter();
@@ -110,8 +111,11 @@ export function AccountsPanel({ table, view, now, windowDays }: AccountsPanelPro
   const [seen, setSeen] = useState(view.query);
   if (view.query !== seen) {
     setSeen(view.query);
+    // Our own send landing (`view.query === sent`) keeps text typed since;
+    // any other search is a navigation — Back, Forward, a link — and wins,
+    // which also drops the pending send (M36 part 7 review).
+    if (query === sent || view.query !== sent) setQuery(view.query);
     setSent(view.query);
-    if (query === sent) setQuery(view.query);
   }
 
   /**

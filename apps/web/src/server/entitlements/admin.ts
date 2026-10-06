@@ -564,8 +564,12 @@ function accountsMatching(view: AccountsQuery, now: Date, underwater: readonly s
   const search =
     needle === "" ? sql`true` : sql`(coalesce(u.email, '') ilike ${pattern} or u.id ilike ${pattern})`;
   const at = now.toISOString();
+  // `standingOf`'s lapse, `now > graceEndsAt(since)`, turned round so the
+  // arithmetic is JS's exact 72 hours and not Postgres's calendar days in the
+  // session's time zone, which differ by an hour across a DST change.
+  const lapsesBefore = new Date(now.getTime() - GRACE_WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString();
   const lapsed = sql`(s.status = 'past_due' and s.past_due_since is not null
-    and ${at}::timestamptz > s.past_due_since + make_interval(days => ${GRACE_WINDOW_DAYS}::int))`;
+    and s.past_due_since < ${lapsesBefore}::timestamptz)`;
   const confers = inList(sql`s.status`, CONFERRING_STATUSES);
   return sql`(
     select u.id, u.email, u.is_admin, u.created_at,

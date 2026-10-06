@@ -210,6 +210,24 @@ describe("AccountsPanel", () => {
     expect(replace).toHaveBeenLastCalledWith("/admin?tab=users&q=wren", { scroll: false });
   });
 
+  // Back in the middle of typing is the operator leaving what they typed: the
+  // box takes the search Back landed on, and the pending send is dropped
+  // rather than written over that history entry 300 ms later.
+  it("drops what was being typed when Back lands on another search", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const { rerender } = render(panel(page([account({ userId: "x" })])));
+
+    await user.type(box(), "zz");
+    rerender(panel(page([account({ userId: "x" })]), { ...FRESH, query: "foo" }));
+    expect(box().value).toBe("foo");
+
+    act(() => {
+      vi.advanceTimersByTime(SEARCH_PAUSE_MS);
+    });
+    expect(replace).not.toHaveBeenCalled();
+  });
+
   // Back and Forward re-render the page with another view and nothing else;
   // the box and the pills have to follow it.
   it("follows a navigation to a different view", () => {
