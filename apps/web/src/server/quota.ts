@@ -338,6 +338,34 @@ export function weatherQuota(): QuotaPolicy[] {
 }
 
 /**
+ * Unsplash quota (M37 D2): every call the cover routes make to Unsplash on a
+ * person's behalf — a page of search results, or a pick's download ping. A
+ * page view never spends it, because no page view calls Unsplash.
+ *
+ * Hourly, because the vendor's limit is: the demo tier allows 50 requests an
+ * hour per key. These windows are fixed and Unsplash's is not, so two adjacent
+ * windows can both fill inside one of its hours; the global default is 24 so
+ * that even then the key sees 48. The per-user one lets a person try ten
+ * searches and still leaves the rest of the deployment some. Raise both by
+ * environment once Unsplash approves production (5,000 an hour).
+ *
+ * Picks are charged as well as searches: a pick is a request to Unsplash too,
+ * and an editor replaying one in a loop would otherwise empty the key for
+ * every other trip. Shared with saved-day covers (plan, part 5): one key, one
+ * ceiling.
+ */
+export function unsplashSearchQuota(): QuotaPolicy[] {
+  return [
+    {
+      name: "unsplash-hourly",
+      windowMs: HOUR_MS,
+      perUser: envCeiling("UNSPLASH_RATE_LIMIT_PER_USER_HOURLY", 10),
+      global: envCeiling("UNSPLASH_RATE_LIMIT_GLOBAL_HOURLY", 24),
+    },
+  ];
+}
+
+/**
  * Link-preview quota (spec 2026-09-27 §2.2): the four public `/api/og/**`
  * routes, keyed by client IP because their callers have no account.
  *

@@ -21,6 +21,11 @@ export const serverConfig = {
   // NEVER a user's. Unset, `getForecast()` throws, as `getGeocoder()` does
   // without its key.
   externalDataContact: process.env.EXTERNAL_DATA_CONTACT ?? "",
+  // Unsplash's Access Key, for cover photos (M37). Sent server-side only, as
+  // `Authorization: Client-ID <key>`. The Secret Key is for acting AS an
+  // Unsplash user, which this app never does, so it is not read anywhere.
+  // Unset, `getCoverPhotos()` answers null and the cover routes answer 503.
+  unsplashAccessKey: process.env.UNSPLASH_ACCESS_KEY ?? "",
   // The cache's store (ADR-059): `upstash` | `memory` | `off`, blank for auto
   // (Upstash with both credentials below, memory without). Resolved, with its
   // fallbacks, by `resolveCacheDriver` in `server/cache/redis.ts`.
