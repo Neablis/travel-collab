@@ -50,6 +50,7 @@ function healthyReport(overrides: Partial<AdminAiModelsReport> = {}): AdminAiMod
         medianDurationMs: 1900,
         costMicroUsd: 41_200_000,
         unpriced: 0,
+        turnPriced: 0,
         cacheReadShare: 0.7,
       },
       {
@@ -60,6 +61,7 @@ function healthyReport(overrides: Partial<AdminAiModelsReport> = {}): AdminAiMod
         medianDurationMs: null,
         costMicroUsd: 800_000,
         unpriced: 0,
+        turnPriced: 0,
         cacheReadShare: null,
       },
     ],
@@ -101,6 +103,7 @@ function healthyReport(overrides: Partial<AdminAiModelsReport> = {}): AdminAiMod
       { tool: "delete_day", calls: 0 },
       { tool: "set_budget", calls: 2 },
     ],
+    unpricedTurns: 0,
     ledgerGap: { turns: 0, since: null },
     ...overrides,
   };
@@ -128,6 +131,39 @@ describe("the AI models tab", () => {
     expect(within(screen.getByTestId("ai-tool-AddActivity")).getByTestId("ai-tool-proposal").textContent).toBe("91%");
     expect(screen.getByTestId("ai-rarely-called").textContent).toContain("delete_day (0 calls) and set_budget (2)");
     expect(screen.queryByTestId("ai-ledger-gap")).toBeNull();
+    expect(screen.queryByTestId("ai-models-unpriced")).toBeNull();
+    // A slope across columns, named as one — not one turn's growth.
+    expect(screen.getByTestId("ai-context-note").textContent).toContain(
+      "Median input goes from 3.1k at step 1 to 16k at step 8+, about 1.9k a column",
+    );
+  });
+
+  it("says which costs are a floor, and why, on turn models and the classifier alike", () => {
+    const [turnModel, classifier] = healthyReport().models;
+    render(
+      <AiModelsTab
+        report={healthyReport({
+          models: [
+            { ...turnModel!, unpriced: 3, turnPriced: 2 },
+            { ...classifier!, unpriced: 1 },
+          ],
+          unpricedTurns: 4,
+        })}
+      />,
+    );
+
+    expect(screen.getByTestId("ai-model-zai/glm-5.3-flash").textContent).toContain(
+      "3 steps have no published rate or no reported usage, so their turns are priced from the turn's own totals",
+    );
+    expect(screen.getByTestId("ai-model-zai/glm-5.3-flash").textContent).toContain(
+      "Includes 2 turns admitted on it and priced from their own totals",
+    );
+    expect(screen.getByTestId("ai-model-zai/glm-4.7-flash").textContent).toContain(
+      "1 call has no published rate or no reported usage, so its turn is left out of every cost here.",
+    );
+    expect(screen.getByTestId("ai-models-unpriced").textContent).toBe(
+      "4 turns could not be priced at all, as in Financial, so these costs are a floor.",
+    );
   });
 
   it("puts a tool's failed share in danger ink only above 5%", () => {
@@ -148,6 +184,8 @@ describe("the AI models tab", () => {
     expect(screen.getByTestId("ai-ledger-gap").textContent).toContain(
       "142 turns since 5 Oct 09:40 UTC have no step or tool-call rows",
     );
+    // Cost falls back to the turn row, so the banner does not list it as short.
+    expect(screen.getByTestId("ai-ledger-gap").textContent).toContain("turn counts are right, and so is cost");
     // A warning over the body, not instead of it: turn counts are still right.
     expect(screen.getByTestId("ai-turns")).toBeTruthy();
   });

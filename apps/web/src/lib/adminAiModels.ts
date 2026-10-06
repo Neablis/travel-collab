@@ -32,6 +32,7 @@ export interface AdminAiModelRow {
   medianDurationMs: number | null;
   costMicroUsd: number;
   unpriced: number;
+  turnPriced: number;
   cacheReadShare: number | null;
 }
 
@@ -81,6 +82,7 @@ export interface AdminAiModelsReport {
   turnsOver32k: number;
   growthPerStep: number | null;
   models: AdminAiModelRow[];
+  unpricedTurns: number;
   tools: AdminAiToolRow[];
   rarelyCalled: { tool: string; calls: number }[];
   ledgerGap: { turns: number; since: string | null };

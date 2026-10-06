@@ -168,10 +168,14 @@ function TurnsPanel({ report }: { report: AdminAiModelsReport }) {
 }
 
 function ContextPanel({ report }: { report: AdminAiModelsReport }) {
+  const first = report.contextByStep[0];
+  const last = report.contextByStep.at(-1);
   const sentences = [
-    report.growthPerStep === null
+    // Named as columns, not as one turn's growth: each column is the turns
+    // that got that far, so this is a slope across a thinning population.
+    report.growthPerStep === null || first === undefined || last === undefined
       ? null
-      : `Each step re-sends the conversation, so context grows about ${compact(report.growthPerStep)} tokens a step.`,
+      : `Median input goes from ${compact(first.median)} at step ${first.step} to ${compact(last.median)} at step ${last.step}, about ${compact(report.growthPerStep)} a column — each step re-sends the conversation.`,
     report.cacheReadShare === null ? null : `${percent(report.cacheReadShare)} of input tokens were cache reads.`,
     `${count(report.turnsOver32k)} turn${report.turnsOver32k === 1 ? "" : "s"} crossed 32k.`,
   ].filter((s): s is string => s !== null);
@@ -193,7 +197,9 @@ function ContextPanel({ report }: { report: AdminAiModelsReport }) {
             95th percentile
           </span>
         </span>
-        <Text variant="secondary">{sentences.join(" ")}</Text>
+        <Text variant="secondary" data-testid="ai-context-note">
+          {sentences.join(" ")}
+        </Text>
         <Table className="sr-only">
           <caption>Input tokens by step</caption>
           <thead>
@@ -222,8 +228,17 @@ function ContextPanel({ report }: { report: AdminAiModelsReport }) {
 
 /** The sentence under a model: computed from its rows, never written by hand. */
 function modelNote(model: AdminAiModelRow, report: AdminAiModelsReport): string {
+  const n = model.unpriced;
   if (model.roles.includes("classifier")) {
-    return `One call per classified turn — ${percent(report.turns === 0 ? 0 : model.calls / report.turns)} of turns — before the turn model runs.`;
+    const parts = [
+      `One call per classified turn — ${percent(report.turns === 0 ? 0 : model.calls / report.turns)} of turns — before the turn model runs.`,
+    ];
+    if (n > 0) {
+      parts.push(
+        `${count(n)} call${n === 1 ? " has" : "s have"} no published rate or no reported usage, so ${n === 1 ? "its turn is" : "their turns are"} left out of every cost here.`,
+      );
+    }
+    return parts.join(" ");
   }
   const turnModels = report.models.filter((m) => !m.roles.includes("classifier"));
   const steps = turnModels.reduce((sum, m) => sum + m.calls, 0);
@@ -232,8 +247,15 @@ function modelNote(model: AdminAiModelRow, report: AdminAiModelsReport): string 
     `${percent(steps === 0 ? 0 : model.calls / steps)} of steps and ${percent(cost === 0 ? 0 : model.costMicroUsd / cost)} of the priced cost.`,
   ];
   if (model.cacheReadShare !== null) parts.push(`${percent(model.cacheReadShare)} of its input was cache reads.`);
-  if (model.unpriced > 0) {
-    parts.push(`${count(model.unpriced)} step${model.unpriced === 1 ? " has" : "s have"} no published rate, so its cost is a floor.`);
+  if (n > 0) {
+    parts.push(
+      `${count(n)} step${n === 1 ? " has" : "s have"} no published rate or no reported usage, so ${n === 1 ? "its turn is" : "their turns are"} priced from the turn's own totals where that can be.`,
+    );
+  }
+  if (model.turnPriced > 0) {
+    parts.push(
+      `Includes ${count(model.turnPriced)} turn${model.turnPriced === 1 ? "" : "s"} admitted on it and priced from ${model.turnPriced === 1 ? "its" : "their"} own totals — a step without usage, or no step rows.`,
+    );
   }
   return parts.join(" ");
 }
@@ -278,6 +300,11 @@ function ModelsPanel({ report }: { report: AdminAiModelsReport }) {
             </div>
           );
         })}
+        {report.unpricedTurns > 0 ? (
+          <Text variant="secondary" className="pt-2" data-testid="ai-models-unpriced">
+            {`${count(report.unpricedTurns)} turn${report.unpricedTurns === 1 ? "" : "s"} could not be priced at all, as in Financial, so these costs are a floor.`}
+          </Text>
+        ) : null}
       </div>
     </Panel>
   );
@@ -408,8 +435,9 @@ export function AiModelsTab({ report }: { report: AdminAiModelsReport }) {
             {gap.since === null ? "" : ` since ${shortDayTime(gap.since)}`} {gap.turns === 1 ? "has" : "have"} no step or
             tool-call rows.
           </strong>{" "}
-          The turn rows wrote, so turn counts are right. Tool calls and context size undercount until the step write
-          recovers — nothing needs re-sending.
+          The turn rows wrote, so turn counts are right, and so is cost: those turns are priced from their own totals,
+          as Financial prices them, on the model each started on. Tool calls and context size undercount until the
+          step write recovers — nothing needs re-sending.
         </Banner>
       ) : null}
       <Strip report={report} />
