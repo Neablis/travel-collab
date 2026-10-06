@@ -27,9 +27,10 @@ import { Text } from "@/components/ui/text";
 // bounds what an operator may hand out, which is what lets the fourth-plan
 // proof ship without anyone being able to receive it.
 //
-// **This lives in a dialog now, opened from an account's row** (Mitchell, on
-// the #174 preview: *"Grants are spose to be a modal that is triggered off a
-// button here"*). Two consequences, and the second is the one that matters:
+// **This lives in a dialog now, opened from the account it applies to** — an
+// account's row first (Mitchell, on the #174 preview: *"Grants are spose to be
+// a modal that is triggered off a button here"*), its account page since M36
+// link 3. Two consequences, and the second is the one that matters:
 //
 //   * **Stacked, not a row.** It was a single `flex-wrap` row on the page,
 //     which needed explicit widths to stop `Input`'s `w-full` wrapping every
@@ -50,7 +51,8 @@ export function GrantForm({
 }: {
   plans: readonly string[];
   userId?: string;
-  onGranted?: () => void;
+  /** Called with the plan granted, after the page has been asked to re-read. */
+  onGranted?: (planId: string) => void;
 }) {
   const [typedUserId, setTypedUserId] = useState("");
   const [planId, setPlanId] = useState(plans[0] ?? "");
@@ -59,9 +61,9 @@ export function GrantForm({
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const router = useRouter();
-  // `useId` rather than hand-written ids: several of these can be mounted at
-  // once (one dialog per account row), and duplicate ids would point every
-  // label at the first row's field.
+  // `useId` rather than hand-written ids: nothing guarantees one of these is
+  // mounted at a time, and duplicate ids would point every label at the first
+  // form's field.
   const ids = useId();
 
   const userId = fixedUserId ?? typedUserId;
@@ -98,7 +100,7 @@ export function GrantForm({
         // the state rather than a claim about it. A refusal keeps the dialog
         // open, because a message nobody sees is the failure mode that matters.
         router.refresh();
-        onGranted?.();
+        onGranted?.(planId);
         return;
       }
       setMessage(`Refused (${res.status}).`);

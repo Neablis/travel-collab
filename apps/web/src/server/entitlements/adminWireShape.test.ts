@@ -34,6 +34,20 @@ import type {
 } from "./admin";
 import type { AccountCost as ServerAccountCost } from "./usage";
 import type { AiModelsReport as ServerAiModelsReport } from "./aiModels";
+import type {
+  AdminAccountAssistant as UiAdminAccountAssistant,
+  AdminAccountDetail as UiAdminAccountDetail,
+  AdminAccountGrantRecord as UiAdminAccountGrantRecord,
+  AdminAccountPlan as UiAdminAccountPlan,
+  AdminAccountTurn as UiAdminAccountTurn,
+} from "@/lib/adminAccount";
+import type { AdminAccountDetail as ServerAdminAccountDetail } from "@/server/admin/accountDetail";
+import type {
+  AdminAccountAssistant as ServerAdminAccountAssistant,
+  AdminAccountGrantRecord as ServerAdminAccountGrantRecord,
+  AdminAccountPlan as ServerAdminAccountPlan,
+  AdminAccountTurn as ServerAdminAccountTurn,
+} from "./adminAccount";
 
 /**
  * Two types are identical only if a generic function returning a conditional
@@ -52,9 +66,17 @@ const grant: AssertEquals<UiAdminGrantRow, ServerAdminGrantRow> = true;
 const cost: AssertEquals<UiAdminAccountCost, ServerAccountCost> = true;
 // M36 link 4: the AI models tab reads its own report, under the same rule.
 const aiModels: AssertEquals<UiAiModelsReport, ServerAiModelsReport> = true;
+// M36 link 3's account page. The whole detail is pinned, and its parts too, so
+// a mismatch names the part rather than only the outermost type.
+const detail: AssertEquals<UiAdminAccountDetail, ServerAdminAccountDetail> = true;
+const accountPlan: AssertEquals<UiAdminAccountPlan, ServerAdminAccountPlan> = true;
+const assistant: AssertEquals<UiAdminAccountAssistant, ServerAdminAccountAssistant> = true;
+const turn: AssertEquals<UiAdminAccountTurn, ServerAdminAccountTurn> = true;
+const grantRecord: AssertEquals<UiAdminAccountGrantRecord, ServerAdminAccountGrantRecord> = true;
 
 describe("the console's wire shape", () => {
   it("is byte-identical on both sides of the lint wall", () => {
-    expect([overview, account, grant, cost, aiModels]).toEqual([true, true, true, true, true]);
+    const checks = [overview, account, grant, cost, aiModels, detail, accountPlan, assistant, turn, grantRecord];
+    expect(checks).toEqual(Array.from({ length: checks.length }, () => true));
   });
 });
