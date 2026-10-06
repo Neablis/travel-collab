@@ -116,6 +116,25 @@ describe("AccountsPanel", () => {
     );
   });
 
+  it("corrects the address bar to the view it drew, and leaves a matching one alone", () => {
+    window.history.replaceState(null, "", "/admin?tab=users&page=7&filter=nonsense");
+    const spy = vi.spyOn(window.history, "replaceState");
+    const { unmount } = render(
+      panel(page([account({ userId: "last" })], { page: 1, counts: { ...NO_COUNTS, all: 9 } }), {
+        ...FRESH,
+        page: 6,
+      }),
+    );
+    expect(spy.mock.calls.map((call: unknown[]) => call[2])).toEqual(["/admin?tab=users&page=2"]);
+    expect(window.location.search).toBe("?tab=users&page=2");
+
+    unmount();
+    spy.mockClear();
+    render(panel(page([account({ userId: "last" })], { page: 1, counts: { ...NO_COUNTS, all: 9 } }), { ...FRESH, page: 1 }));
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
   it("pages by navigating, keeping the search and the filter", async () => {
     const user = userEvent.setup();
     const view: AccountsView = { query: "wren", filter: "granted", page: 1 };

@@ -19,7 +19,7 @@
 // exactly as the milestone says — accounts, versions and hold counts are M20's
 // and live here; MRR and median margin per tier are link 7's and are merged in
 // from Billing.
-import { desc, eq, inArray, sql, type SQL } from "drizzle-orm";
+import { asc, desc, eq, inArray, sql, type SQL } from "drizzle-orm";
 import { CONFERRING_STATUSES, type PlanId } from "@tc/contracts";
 import { db } from "@/server/db/client";
 import { adminConsoleFlag } from "@/server/flags";
@@ -414,10 +414,14 @@ export async function lastActiveSince(
  * looking at. Bounded by `limit` for exactly that reason: the resolver is
  * three queries an account.
  *
- * **`include` is outside the bound**, appended after, also newest first. The
- * overview passes the underwater payers, so every account Financial counted
- * has a row — `underwaterReport` reads every account with a cost, and a payer
- * older than the newest 100 was counted there and drawn nowhere.
+ * **`include` is outside the bound.** The `limit` newest accounts come first,
+ * newest first; any id in `include` that is not among them is appended after,
+ * also newest first. Ties on `createdAt` — a bulk insert stamps one instant —
+ * break on the id, so the bound and the order are the same on every read.
+ * The overview passes the underwater payers, so *Show them in Users* finds
+ * every account Financial counted — `underwaterReport` reads every account
+ * with a cost, and a payer older than the newest 100 was counted there and
+ * drawn nowhere.
  */
 export async function adminAccounts(
   limit = 100,
@@ -426,7 +430,7 @@ export async function adminAccounts(
   include: readonly string[] = [],
 ): Promise<AdminAccountRow[]> {
   const columns = { id: users.id, email: users.email, isAdmin: users.isAdmin };
-  const newest = await db.select(columns).from(users).orderBy(desc(users.createdAt)).limit(limit);
+  const newest = await db.select(columns).from(users).orderBy(desc(users.createdAt), asc(users.id)).limit(limit);
   const shown = new Set(newest.map((row) => row.id));
   const missing = [...new Set(include)].filter((id) => !shown.has(id));
   const rows =
@@ -438,7 +442,7 @@ export async function adminAccounts(
             .select(columns)
             .from(users)
             .where(inArray(users.id, missing))
-            .orderBy(desc(users.createdAt))),
+            .orderBy(desc(users.createdAt), asc(users.id))),
         ];
   return accountRows(rows, now, trailing);
 }
@@ -805,18 +809,23 @@ async function sharedReads(now: Date): Promise<SharedReads> {
   return { trailing, holders };
 }
 
-/** The Financial tab, over one read of the ledger and one of the grant holders. */
+/**
+ * The Financial tab, over one read of the ledger and one of the grant holders.
+ * `underwater` is the overview's, when it has already built the report from
+ * the same `reads` for the accounts table (see `adminOverview`).
+ */
 export async function adminFinancial(
   now: Date = new Date(),
   reads?: SharedReads,
+  underwater?: UnderwaterReport,
 ): Promise<AdminFinancial> {
   const { trailing, holders } = reads ?? (await sharedReads(now));
-  const [plans, revenue, underwater] = await Promise.all([
+  const [plans, revenue, report] = await Promise.all([
     planPanel(now, trailing),
     revenueSummary(TRAILING_WINDOW_DAYS, trailing, now),
-    underwaterReport(TRAILING_WINDOW_DAYS, trailing, holders, now),
+    underwater ?? underwaterReport(TRAILING_WINDOW_DAYS, trailing, holders, now),
   ]);
-  return { plans, windowDays: TRAILING_WINDOW_DAYS, revenue, underwater };
+  return { plans, windowDays: TRAILING_WINDOW_DAYS, revenue, underwater: report };
 }
 
 /**
@@ -844,16 +853,25 @@ export async function adminUsers(
   return { table, windowDays: TRAILING_WINDOW_DAYS, revenue };
 }
 
-/** Every panel of the operator console, computed over one read of the ledger. */
+/**
+ * Every panel of the operator console, computed over one read of the ledger.
+ *
+ * **The underwater report first, then everything else at once**, as
+ * `adminUsers` does it: the accounts table needs only the report's paying ids,
+ * and taking them off `adminFinancial`'s result held the table behind Stripe's
+ * price sweep — a round trip per published version (M36 part 3 review).
+ */
 export async function adminOverview(now: Date = new Date()): Promise<AdminOverview> {
   const reads = await sharedReads(now);
-  const [financial, prices] = await Promise.all([adminFinancial(now, reads), priceConsistencyReport()]);
-  const [accounts, spenders] = await Promise.all([
+  const underwater = await underwaterReport(TRAILING_WINDOW_DAYS, reads.trailing, reads.holders, now);
+  const [financial, prices, accounts, spenders] = await Promise.all([
+    adminFinancial(now, reads, underwater),
+    priceConsistencyReport(),
     adminAccounts(
       100,
       now,
       reads.trailing,
-      financial.underwater.paying.map((row) => row.userId),
+      underwater.paying.map((row) => row.userId),
     ),
     adminTopSpenders(10, now, reads.trailing),
   ]);

@@ -141,6 +141,17 @@ export function AccountsPanel({ table, view, now, windowDays }: AccountsPanelPro
   // The rows' links carry the view that was SERVED, so *← All accounts* comes
   // back to the page the operator was looking at.
   const served: AccountsView = { ...view, page };
+
+  // **The address bar says what the table drew** (M36 part 3 review). The
+  // server clamps a page past the end and drops a filter it does not know, so
+  // `?page=9` over two pages draws page 2; the URL is corrected to match, with
+  // `replaceState` because the table already shows that view — there is
+  // nothing for a navigation to read.
+  const servedHref = accountsViewHref(served);
+  useEffect(() => {
+    if (servedHref === window.location.pathname + window.location.search) return;
+    window.history.replaceState(window.history.state, "", servedHref);
+  }, [servedHref]);
   const underwaterIds = new Set(table.underwater);
 
   return (
