@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useLayoutEffect, useState, useTransition } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -151,11 +151,18 @@ export function AccountsPanel({ table, view, now, windowDays }: AccountsPanelPro
   // `?page=9` over two pages draws page 2; the URL is corrected to match, with
   // `replaceState` because the table already shows that view — there is
   // nothing for a navigation to read.
+  //
+  // **A layout effect, and never while a navigation is pending** (M36 part 7,
+  // CodeRabbit). A passive effect runs after the browser may have handled a
+  // click, so a pill clicked in that gap would start a `router.replace` that
+  // this `replaceState` — which Next reads as a restore — could then discard.
+  // A layout effect runs in the same task as the commit, before any input.
   const servedHref = accountsViewHref(served);
-  useEffect(() => {
+  useLayoutEffect(() => {
+    if (navigating) return;
     if (servedHref === window.location.pathname + window.location.search) return;
     window.history.replaceState(window.history.state, "", servedHref);
-  }, [servedHref]);
+  }, [servedHref, navigating]);
   const underwaterIds = new Set(table.underwater);
 
   return (
