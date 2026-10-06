@@ -111,27 +111,37 @@ Six links, each one reviewable by clicking on its own preview.
 
 ## Exit gate
 
-- [ ] **Four tabs, URL-driven**: each `?tab=` value renders its tab, an unknown one renders
+- [x] **Four tabs, URL-driven**: each `?tab=` value renders its tab, an unknown one renders
       Financial, and `?account=` is dropped on a tab switch. Held by a test seen red.
-- [ ] **`GrantSourcePanel` is gone** — `ls apps/web/src/components/admin/GrantSourcePanel*`
+      *(Ticked 2026-10-06, part 2 (#339): `consoleTab.test.ts`, `ConsoleTabs.test.tsx`. Fallback changed → `expected 'users' to be 'financial'`; push keeping `&account=` → `expected "vi.fn()" to be called with arguments: [ '/admin?tab=library' ]`. AI models joined the strip in part 5.)*
+- [x] **`GrantSourcePanel` is gone** — `ls apps/web/src/components/admin/GrantSourcePanel*`
       finds nothing — and *Underwater by construction* still counts per grant source.
-- [ ] **How each tier is doing is one tier per tab** with the 2×2, the versions table and the
+      *(Ticked 2026-10-06, part 2: deleted; `admin.console.test.ts` › the grant-cost panel stays deleted, seen red by restoring the file. `UnderwaterPanel` still counts per source.)*
+- [x] **How each tier is doing is one tier per tab** with the 2×2, the versions table and the
       read-only footer, and no publish or migrate control (`admin.console.test.ts`).
-- [ ] **All six filters, counted over the search**, including Past due and Costs more than it
+      *(Ticked 2026-10-06, part 2: `TierPanel.test.tsx`, seven mutations seen red; `admin.console.test.ts` still refuses publish/migrate.)*
+- [x] **All six filters, counted over the search**, including Past due and Costs more than it
       pays; *Show them in Users* lands on the latter. Held by a component test seen red.
-- [ ] **Asked 30d and Last active are read from the ledger and the event log**, held by an
+      *(Ticked 2026-10-06, part 3 (#340): `AccountsPanel.test.tsx`, `UnderwaterPanel.test.tsx`; e.g. Paying as `(pays ?? 0) > 0` → `expected '3' to be '4'`, the Show-them link at `all` → `expected '/admin?tab=users' to be '/admin?tab=users&filter=underwater'`.)*
+- [x] **Asked 30d and Last active are read from the ledger and the event log**, held by an
       integration test against real Postgres seen red (another account's events do not count;
       events older than 30 days do not count toward *active N of 30*).
-- [ ] **The account page renders usage, activity and grants for one account**, and its
+      *(Ticked 2026-10-06, part 3: `admin.int.test.ts` › the accounts table's activity columns; six mutations seen red, e.g. events branch removed → `expected null to be '2026-09-26T…'`.)*
+- [x] **The account page renders usage, activity and grants for one account**, and its
       assistant section carries no question or answer text — held by a test seen red.
-- [ ] **Revoke confirms, and a failed revoke says nothing changed**, held by a component test
+      *(Ticked 2026-10-06, part 4 (#341): `accountDetail.int.test.ts` (a `question` field added → the key-list deep-equal fails) and `AccountPage.test.tsx` (a link in the turns table → `expected [ <a href="#q"></a> ] to deeply equal []`).)*
+- [x] **Revoke confirms, and a failed revoke says nothing changed**, held by a component test
       seen red against a refused `DELETE`.
-- [ ] **The AI models tab's aggregates are integration-tested** — turns, tool calls a turn,
+      *(Ticked 2026-10-06, part 4: `AccountPage.test.tsx`; a refused DELETE treated as success → `Unable to find an element by: [data-testid="grant-grant-1"]`; after review, 403 / 404 / network failure each have their own line, each seen red.)*
+- [x] **The AI models tab's aggregates are integration-tested** — turns, tool calls a turn,
       context per step by `step_index`, per-model and per-tool rows — each seen red.
-- [ ] **Library shows Reports first, then the notebook tile and table**, and no tile for a number
+      *(Ticked 2026-10-06, part 5 (#342): `aiModels.int.test.ts`, 11 tests incl. the cost sum equal to `costPerAccount`'s; e.g. steps not window-filtered → `expected 8 to be 3`.)*
+- [x] **Library shows Reports first, then the notebook tile and table**, and no tile for a number
       with no source.
-- [ ] **The e2e spec passes on `pnpm --filter web test:e2e:ci-like`**, and the existing admin and
+      *(Ticked 2026-10-06, part 6 (#343): `LibraryTab.test.tsx`; a Shared tile added → `Shared: expected <span …> to be null`; notebooks before Reports → `expected +0 to be truthy`.)*
+- [x] **The e2e spec passes on `pnpm --filter web test:e2e:ci-like`**, and the existing admin and
       report specs still pass.
+      *(Ticked 2026-10-06, part 6: `m36-operator-console.spec.ts`, seen red twice at `:159` and `:90`. Full ci-like run on the stack's top: **237 passed, 1 flaky** (`m6-unload-flush`, KI-2026-09-25-i / KI-5, unrelated). With it, `pnpm check` lanes on the same head: unit 4,991, scripts 357, integration 1,402, all passed.)*
 - [ ] **[walk]** On the PR preview, as an operator: each tab against the artboard
       (`OperatorConsole.dc.html`, `startTab`), an account page opened from the table and closed
       back to the same filter, and a grant then a revoke on a test account.
