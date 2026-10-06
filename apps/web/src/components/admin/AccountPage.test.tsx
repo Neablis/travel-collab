@@ -238,9 +238,9 @@ describe("AccountPage", () => {
     };
 
     // Reached, and refused: the status is the operator's only clue to why.
-    it("says the server refused, and that nothing changed, on a non-2xx other than 404", async () => {
+    it("says the server refused, and that nothing changed, on a non-2xx", async () => {
       const user = userEvent.setup();
-      fetchMock.mockResolvedValue(new Response(JSON.stringify({ error: "forbidden" }), { status: 403 }));
+      fetchMock.mockResolvedValue(new Response(JSON.stringify({ error: "invalid-grant-id" }), { status: 400 }));
       render(page());
       await confirmRevoke(user);
 
@@ -249,9 +249,39 @@ describe("AccountPage", () => {
         expect.objectContaining({ method: "DELETE", body: JSON.stringify({ grantId: "grant-1" }) }),
       );
       expect((await within(card()).findByRole("alert")).textContent).toBe(
-        "The server refused the revoke (403). Nothing changed — they still hold it.",
+        "The server refused the revoke (400). Nothing changed — they still hold it.",
       );
       expect(screen.getByText("trial grant · plus v2")).toBeTruthy();
+      expect(refresh).not.toHaveBeenCalled();
+    });
+
+    // The admin gate's real refusal — 404 `not-found` — is what an operator
+    // whose session ended, or whose role or flag was removed mid-session, gets.
+    // Nothing was revoked, so it must not read as "already revoked".
+    it("says the session ended, keeps the card and re-reads nothing, on the gate's 404", async () => {
+      const user = userEvent.setup();
+      fetchMock.mockResolvedValue(new Response(JSON.stringify({ error: "not-found" }), { status: 404 }));
+      render(page());
+      await confirmRevoke(user);
+
+      expect((await within(card()).findByRole("alert")).textContent).toBe("Your session ended — nothing changed");
+      expect(screen.queryByText(/Already revoked/)).toBeNull();
+      expect(screen.getByText("trial grant · plus v2")).toBeTruthy();
+      expect(refresh).not.toHaveBeenCalled();
+    });
+
+    // A 404 with no body at all (a proxy, a missing route) is no more a sign
+    // the grant is gone than the gate's is.
+    it("says the server refused on a bare 404 with no body", async () => {
+      const user = userEvent.setup();
+      fetchMock.mockResolvedValue(new Response(null, { status: 404 }));
+      render(page());
+      await confirmRevoke(user);
+
+      expect((await within(card()).findByRole("alert")).textContent).toBe(
+        "The server refused the revoke (404). Nothing changed — they still hold it.",
+      );
+      expect(screen.queryByText(/Already revoked/)).toBeNull();
       expect(refresh).not.toHaveBeenCalled();
     });
 
@@ -268,15 +298,31 @@ describe("AccountPage", () => {
       expect(refresh).not.toHaveBeenCalled();
     });
 
-    // The endpoint's 404 is "no unrevoked grant with that id": the server was
-    // reached and they no longer hold it, so "they still hold it" would be false.
-    it("says it was already revoked on a 404, and re-reads the page", async () => {
+    // Only the endpoint's own code means "already gone"; a 409 that says
+    // anything else is a refusal.
+    it("says the server refused on a 409 that is not no-active-grant", async () => {
       const user = userEvent.setup();
-      fetchMock.mockResolvedValue(new Response(JSON.stringify({ error: "not-found" }), { status: 404 }));
+      fetchMock.mockResolvedValue(new Response(JSON.stringify({ error: "conflict" }), { status: 409 }));
+      render(page());
+      await confirmRevoke(user);
+
+      expect((await within(card()).findByRole("alert")).textContent).toBe(
+        "The server refused the revoke (409). Nothing changed — they still hold it.",
+      );
+      expect(refresh).not.toHaveBeenCalled();
+    });
+
+    // The endpoint's 409 `no-active-grant` is "no unrevoked grant with that id":
+    // the server was reached and they no longer hold it, so "they still hold it"
+    // would be false.
+    it("says it was already revoked on a 409 no-active-grant, and re-reads the page", async () => {
+      const user = userEvent.setup();
+      fetchMock.mockResolvedValue(new Response(JSON.stringify({ error: "no-active-grant" }), { status: 409 }));
       render(page());
       await confirmRevoke(user);
 
       expect(await screen.findByText("Already revoked — the page has re-read")).toBeTruthy();
+      expect(refresh).toHaveBeenCalledTimes(1);
       expect(screen.queryByTestId("grant-grant-1")).toBeNull();
       expect(screen.queryByRole("alert")).toBeNull();
       expect(refresh).toHaveBeenCalledTimes(1);
