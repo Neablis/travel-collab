@@ -1,7 +1,7 @@
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TripSummary } from "@tc/contracts";
-import { costedTripDetailFixture, tripDetailFixture, tripSummaryFactory } from "@tc/factories";
+import { costedTripDetailFixture, tripCoverFactory, tripDetailFixture, tripSummaryFactory } from "@tc/factories";
 
 const fetchTripDetailMock = vi.fn();
 
@@ -668,7 +668,12 @@ describe("NextTripHero — length, stops and the unplanned trip", () => {
     expect(screen.getByRole("link", { name: "Add the first day" }).getAttribute("href")).toBe(
       `/trips/${trip.tripId}?view=Plan`,
     );
-    expect(screen.getByRole("link", { name: "Invite who's coming" }).getAttribute("href")).toBe(`/trips/${trip.tripId}`);
+    expect(screen.getByRole("link", { name: "Invite who's coming" }).getAttribute("href")).toBe(
+      `/trips/${trip.tripId}?settings=people`,
+    );
+    expect(screen.getByRole("link", { name: "Choose a cover photo" }).getAttribute("href")).toBe(
+      `/trips/${trip.tripId}?settings=cover`,
+    );
     expect(screen.queryByRole("link", { name: /open trip/i })).toBeNull();
     // Undated: the panel says what fills it, with no rows to fill.
     expect(screen.getByText("Each day fills in as you add stops.")).toBeTruthy();
@@ -712,6 +717,32 @@ describe("NextTripHero — length, stops and the unplanned trip", () => {
     expect(screen.queryByRole("link", { name: /Add the first|Invite who's coming/ })).toBeNull();
   });
 
+  // The cover is an editor's call, where planning actions are the owner's.
+  it.each([
+    ["an editor", "editor", true],
+    ["a suggester", "suggester", false],
+    ["a viewer", "viewer", false],
+  ] as const)("offers %s it was shared with a cover photo only if they may set one", (_label, role, offered) => {
+    fetchTripDetailMock.mockReturnValue(new Promise(() => {}));
+    const trip = unplanned({
+      members: [
+        { userId: "dev-alice", role: "owner" },
+        { userId: "dev-bob", role },
+      ],
+    });
+    render(<NextTripHero trip={trip} viewerId="dev-bob" />);
+    // Witness: this is the shared reader's state, whatever their role.
+    expect(screen.getByText("Nothing planned yet.")).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Choose a cover photo" }) !== null).toBe(offered);
+  });
+
+  it("stops offering a cover photo once the trip has one", () => {
+    fetchTripDetailMock.mockReturnValue(new Promise(() => {}));
+    render(<NextTripHero trip={unplanned({ cover: tripCoverFactory.build() })} viewerId="dev-alice" />);
+    expect(screen.getByRole("link", { name: "Add the first day" })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Choose a cover photo" })).toBeNull();
+  });
+
   // A backlog over budget is a decision on a trip with no stops.
   it("still says what an unplanned trip needs decided, once the detail lands", async () => {
     const trip = unplanned();
@@ -736,5 +767,37 @@ describe("NextTripHero — length, stops and the unplanned trip", () => {
     await screen.findByText(/No budget yet|planned of/);
     expect(screen.queryByRole("link", { name: /Add the first|Invite who's coming/ })).toBeNull();
     expect(screen.queryByText(/nothing planned/i)).toBeNull();
+  });
+});
+
+// M37 part 4: the approved canvas's hero with a cover — the photo as a band,
+// credited, and the hero unchanged without one.
+describe("NextTripHero — a cover", () => {
+  it("shows the cover eagerly, with its alt text and a linked credit", () => {
+    fetchTripDetailMock.mockReturnValue(new Promise(() => {}));
+    const cover = tripCoverFactory.build({ alt: "Maples over a temple roof", photographerName: "Aiko Tanaka" });
+    const trip = tripSummaryFixture({ cover });
+    render(<NextTripHero trip={trip} />);
+
+    const hero = screen.getByTestId("next-trip-hero");
+    const photo = within(hero).getByRole("img", { name: "Maples over a temple roof" });
+    // The top of Home: never lazy, or it pops in after the page has painted.
+    expect(photo.getAttribute("loading")).toBe("eager");
+    expect(within(hero).getByText((_, el) => el?.tagName === "P" && el.textContent === "Photo by Aiko Tanaka on Unsplash")).toBeTruthy();
+    expect(within(hero).getByRole("link", { name: "Aiko Tanaka" }).getAttribute("href")).toBe(
+      `${cover.photographerUrl}?utm_source=caesura&utm_medium=referral`,
+    );
+    // The name is still the way in, over the fade.
+    expect(within(hero).getByRole("link", { name: trip.name }).getAttribute("href")).toBe(`/trips/${trip.tripId}`);
+  });
+
+  it("draws no photo and no credit without a cover", () => {
+    fetchTripDetailMock.mockReturnValue(new Promise(() => {}));
+    render(<NextTripHero trip={tripSummaryFixture()} />);
+    const hero = screen.getByTestId("next-trip-hero");
+    // Witness: the hero rendered.
+    expect(within(hero).getByText("Next trip")).toBeTruthy();
+    expect(within(hero).queryByRole("img")).toBeNull();
+    expect(within(hero).queryByText(/Photo by/)).toBeNull();
   });
 });

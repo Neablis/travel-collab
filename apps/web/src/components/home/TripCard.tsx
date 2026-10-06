@@ -11,6 +11,8 @@ import { initialsFor } from "@/lib/initials";
 import { cn } from "@/lib/cn";
 import { formatTripDateLong } from "@/lib/formatDate";
 import { PHONE_TOUCH } from "@/components/ui/button";
+import { CoverCredit } from "@/components/cover/CoverCredit";
+import { CoverImage } from "@/components/cover/CoverImage";
 import { UnplannedTripSteps, isUnplanned, tripDateRange, tripMetaLine } from "./UnplannedTrip";
 
 export type TripCardProps = {
@@ -102,30 +104,13 @@ export function TripCard({ trip, menuSlot, plannedOfBudget, viewerId }: TripCard
         ? `Created ${createdLabel}`
         : null;
   const meta = tripMetaLine(trip, dates);
+  // M37: a trip with a cover leads with it — a strip the photo fades out of,
+  // the title standing on the fade, and the credit where the status badge was
+  // (the approved canvas). Without one, the card is exactly what it was.
+  const { cover } = trip;
 
-  return (
-    // data-testid: the card is the anchor for its own actions menu, and the
-    // cost line below lands asynchronously (page.tsx's per-card TripDetail
-    // fan-out). KI-28 needs a way to wait for *this* card to stop growing
-    // before opening that menu, and the trigger's aria-label alone gives no
-    // handle on the row it belongs to.
-    // An unplanned trip's card is dashed, and its accent neutral: it has no
-    // plan yet for the accent to stand for (M37 D6).
-    <Card
-      data-testid="trip-card"
-      className={cn("flex flex-col gap-3", unplanned && "border-dashed border-border-strong")}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <div
-          data-testid="accent-bar"
-          aria-hidden
-          className={cn("h-1.5 rounded-full", unplanned ? "bg-border-strong" : ACCENT_BAR_BG[accent.solid])}
-          // eslint-disable-next-line no-restricted-syntax -- 46px accent bar width has no token equivalent, matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
-          style={{ width: "46px" }}
-        />
-        {menuSlot}
-      </div>
-
+  const body = (
+    <>
       <div>
         {/* §13.1's phone floor on the card's ROW ACTION — this title link is
             the way into the trip, so it is the target (M26 link 14's sweep).
@@ -244,8 +229,62 @@ export function TripCard({ trip, menuSlot, plannedOfBudget, viewerId }: TripCard
             </div>
           ))}
         </div>
-        {!unplanned && <Badge variant={STATUS_BADGE_VARIANT[trip.status]}>{statusLabel(trip.status)}</Badge>}
+        {cover !== null ? (
+          <CoverCredit photo={cover} className="min-w-0 text-right" />
+        ) : (
+          !unplanned && <Badge variant={STATUS_BADGE_VARIANT[trip.status]}>{statusLabel(trip.status)}</Badge>
+        )}
       </div>
+    </>
+  );
+
+  return (
+    // data-testid: the card is the anchor for its own actions menu, and the
+    // cost line below lands asynchronously (page.tsx's per-card TripDetail
+    // fan-out). KI-28 needs a way to wait for *this* card to stop growing
+    // before opening that menu, and the trigger's aria-label alone gives no
+    // handle on the row it belongs to.
+    // An unplanned trip's card is dashed, and its accent neutral: it has no
+    // plan yet for the accent to stand for (M37 D6).
+    <Card
+      data-testid="trip-card"
+      className={cn(
+        "flex flex-col gap-3",
+        cover !== null && "overflow-hidden p-0",
+        unplanned && "border-dashed border-border-strong",
+      )}
+    >
+      {cover !== null ? (
+        <>
+          {/* 112px on a phone, 132px from `sm`: the canvas's two strips. */}
+          <CoverImage
+            photo={cover}
+            veil="strip"
+            className="h-28 shrink-0 sm:h-33"
+            sizes="(min-width: 1024px) 360px, (min-width: 640px) 50vw, 100vw"
+          >
+            {/* The menu sits on the photo, on a plate so its dots read. */}
+            {menuSlot !== undefined && (
+              <div className="absolute top-1 right-1 rounded-lg bg-surface/85 md:top-2 md:right-2">{menuSlot}</div>
+            )}
+          </CoverImage>
+          <div className="relative -mt-4 flex flex-1 flex-col gap-3 px-3 pb-3 sm:-mt-4.5">{body}</div>
+        </>
+      ) : (
+        <>
+          <div className="flex items-start justify-between gap-2">
+            <div
+              data-testid="accent-bar"
+              aria-hidden
+              className={cn("h-1.5 rounded-full", unplanned ? "bg-border-strong" : ACCENT_BAR_BG[accent.solid])}
+              // eslint-disable-next-line no-restricted-syntax -- 46px accent bar width has no token equivalent, matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
+              style={{ width: "46px" }}
+            />
+            {menuSlot}
+          </div>
+          {body}
+        </>
+      )}
     </Card>
   );
 }

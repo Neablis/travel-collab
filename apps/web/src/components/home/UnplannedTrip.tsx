@@ -2,7 +2,8 @@ import Link from "next/link";
 import type { TripSummary } from "@tc/contracts";
 import { cn } from "@/lib/cn";
 import { formatTripDateWithYear } from "@/lib/formatDate";
-import { viewerOwnsTrip } from "@/lib/tripRole";
+import { boardMode, viewerOwnsTrip } from "@/lib/tripRole";
+import { tripSettingsHref } from "@/lib/tripSettingsLink";
 
 // M37 D6: a trip with nothing on it gets a designed state on Home rather than
 // a card that reads like a full one with the facts missing. Card and hero
@@ -70,13 +71,24 @@ export function addFirstDayHref(tripId: string): string {
   return `/trips/${tripId}?view=Plan`;
 }
 
-/**
- * Where *Invite who's coming* goes: the trip, not Trip settings → People. The
- * sheet opens at People only from the header's avatar stack (`TripHeader`'s
- * `settingsAtPeople`), and no URL reaches that state yet.
- */
+/** Where *Invite who's coming* goes: the trip, with Trip settings open at People. */
 export function inviteHref(tripId: string): string {
-  return `/trips/${tripId}`;
+  return tripSettingsHref(tripId, "people");
+}
+
+/** Where *Choose a cover photo* goes: the trip, with Trip settings open at Cover photo. */
+export function coverHref(tripId: string): string {
+  return tripSettingsHref(tripId, "cover");
+}
+
+/**
+ * Whether *Choose a cover photo* is offered: to a reader who may set one (an
+ * owner or an editor — the cover routes' line), on a trip that has none yet.
+ * Display only; the route decides.
+ */
+export function offersCover(trip: TripSummary, viewerId: string | null | undefined): boolean {
+  if (trip.cover !== null || !viewerId) return false;
+  return boardMode(trip.members.find((m) => m.userId === viewerId)?.role) === "write";
 }
 
 /**
@@ -92,13 +104,28 @@ const ROW = "flex min-h-11 items-center gap-2 text-sm no-underline hover:underli
 
 /**
  * An unplanned card's next steps, one row each: `firstStepLabel`, and
- * *Invite who's coming* for an owner planning alone. A trip shared with the
- * reader gets no actions, only a line saying nothing is planned — the member
- * list carries no names, so it cannot say whose trip it is without a fetch.
+ * *Invite who's coming* for an owner planning alone, then *Choose a cover
+ * photo* for anyone who may set one (`offersCover`). A trip shared with the
+ * reader gets no planning actions, only a line saying nothing is planned —
+ * the member list carries no names, so it cannot say whose trip it is without
+ * a fetch — and, for an editor, the cover.
  */
 export function UnplannedTripSteps({ trip, viewerId }: { trip: TripSummary; viewerId: string | null | undefined }) {
+  const cover = offersCover(trip, viewerId) && (
+    <li>
+      <Link href={coverHref(trip.tripId)} className={cn(ROW, "text-slate")}>
+        <span aria-hidden className="size-3 shrink-0 rounded-sm border-2 border-current" />
+        Choose a cover photo
+      </Link>
+    </li>
+  );
   if (!viewerOwnsTrip(trip.members, viewerId)) {
-    return <p className="flex min-h-11 items-center text-sm text-slate md:min-h-9">Nothing planned yet.</p>;
+    return (
+      <>
+        <p className="flex min-h-11 items-center text-sm text-slate md:min-h-9">Nothing planned yet.</p>
+        {cover && <ul className="flex flex-col">{cover}</ul>}
+      </>
+    );
   }
   return (
     <ul className="flex flex-col">
@@ -116,6 +143,7 @@ export function UnplannedTripSteps({ trip, viewerId }: { trip: TripSummary; view
           </Link>
         </li>
       )}
+      {cover}
     </ul>
   );
 }
