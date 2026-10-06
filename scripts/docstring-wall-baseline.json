@@ -89,7 +89,6 @@
   "apps/web/src/components/admin/GrantDialog.tsx::GrantDialog",
   "apps/web/src/components/admin/GrantForm.tsx::GrantForm",
   "apps/web/src/components/admin/GrantList.tsx::GrantList",
-  "apps/web/src/components/admin/GrantSourcePanel.tsx::GrantSourcePanel",
   "apps/web/src/components/admin/RevenueStrip.tsx::RevenueStrip",
   "apps/web/src/components/admin/TierPanel.tsx::TierPanel",
   "apps/web/src/components/admin/UnderwaterPanel.tsx::UnderwaterPanel",

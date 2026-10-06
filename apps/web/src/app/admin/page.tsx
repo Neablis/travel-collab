@@ -1,20 +1,29 @@
 import { notFound } from "next/navigation";
 import { Heading } from "@/components/ui/heading";
 import { AccountsPanel } from "@/components/admin/AccountsPanel";
+import { ConsoleTabs } from "@/components/admin/ConsoleTabs";
+import { resolveConsoleTab, type ConsoleTab } from "@/components/admin/consoleTab";
 import { TierPanel } from "@/components/admin/TierPanel";
-import { GrantSourcePanel } from "@/components/admin/GrantSourcePanel";
-import { RevenueStrip } from "@/components/admin/RevenueStrip";
+import { RevenueStaleBanner, RevenueStrip } from "@/components/admin/RevenueStrip";
 import { UnderwaterPanel } from "@/components/admin/UnderwaterPanel";
 import { PriceCheckPanel } from "@/components/admin/PriceCheckPanel";
 import { ReportsPanel } from "@/components/admin/ReportsPanel";
 import { Panel } from "@/components/ui/panel";
 import { Text } from "@/components/ui/text";
-import { adminOverview } from "@/server/entitlements/admin";
+import { adminFinancial, adminUsers } from "@/server/entitlements/admin";
 import { adminUserId } from "@/server/entitlements/requireAdmin";
 import { listReports } from "@/server/reports";
 
 // **The console, read-only over plans and granting as its only write**
 // (M20 link 7, and the 2026-09-02 amendment).
+//
+// **Three tabs since M36 link 1, not one scroll.** The scroll grew a panel per
+// milestone and every new one went to the bottom, so the one part that needs
+// action — reports — sat below four that only report. The tab is URL state
+// (`?tab=`, D1), so each tab is its own request and reads only what it draws:
+// Library the report queue, Users `adminUsers()` — the accounts table without
+// the Stripe price sweep or the tier panel — and Financial `adminFinancial()`,
+// which is the overview without the accounts table.
 //
 // **The revenue half arrived with M21 link 7**, 2026-09-14: the four-number
 // strip, the per-tier MRR and margin columns, the `Pays` and `State` columns in
@@ -62,93 +71,140 @@ import { listReports } from "@/server/reports";
 // really does cost $0.0006, and a price is two because two more would be false
 // precision on a number read at a glance.
 
-export default async function AdminPage() {
+export default async function AdminPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   // Before any data is read, and before anything renders. `notFound()` throws,
-  // so there is no path where `adminOverview()` runs for a non-operator.
+  // so there is no path where any of the reads below runs for a non-operator.
   if ((await adminUserId()) === null) notFound();
-  // The report queue is read here for the same reason the overview is — see
-  // the header — and after the gate for the same reason too.
-  // `admin.console.test.ts` holds that order.
-  const [overview, open, actioned, dismissed] = await Promise.all([
-    adminOverview(),
-    listReports({ status: "open" }),
-    listReports({ status: "actioned" }),
-    listReports({ status: "dismissed" }),
-  ]);
+  const tab = resolveConsoleTab((await searchParams).tab);
+
+  if (tab === "library") {
+    // The report queue is read here for the same reason the other tabs read
+    // theirs — see the header — and after the gate for the same reason too.
+    // `admin.console.test.ts` holds that order. Only this tab reads it: it is
+    // the one read on the page that carries other people's words.
+    const [open, actioned, dismissed] = await Promise.all([
+      listReports({ status: "open" }),
+      listReports({ status: "actioned" }),
+      listReports({ status: "dismissed" }),
+    ]);
+    return (
+      <ConsoleShell tab={tab}>
+        {/* **Reports** (M12 link 6) — the one place an operator acts on them.
+            Hiding a day takes it off Discover, the board and profiles; the
+            author keeps their copy. First paint from the server, actions from
+            the browser against the gated endpoints: `ReportsPanel` says why. */}
+        <Panel title="Reports">
+          <ReportsPanel initial={{ open, actioned, dismissed }} />
+        </Panel>
+      </ConsoleShell>
+    );
+  }
+
+  if (tab === "users") {
+    const users = await adminUsers();
+    return (
+      // **Stale revenue is a page-level banner on both tabs that read it** —
+      // Financial's MRR and Users' *Pays* column go stale together.
+      <ConsoleShell tab={tab} banner={<RevenueStaleBanner revenue={users.revenue} />}>
+        <Panel title="Accounts">
+          {/* Search, counted filters, 8 rows a page and a no-match state all live
+              in the client component: they are view state over a list the server
+              already sent, and a round trip per keystroke would be a worse
+              console for a table bounded at 100 rows. Only enabled plans are
+              offered to the grant dialog — `enabled` bounds what an operator may
+              hand out, never what a holder may do, which is what lets the
+              disabled fourth-plan proof ship without anyone receiving it. */}
+          {/* `plansGrantingNothing` is decided once, here, from the plan file, and
+              asked as "does this plan grant anything" rather than "is this plan
+              free" — ADR-045 rule 4, which `planVersions.fourthPlan.test.ts`
+              enforces by walking every source file for a plan-id comparison. It
+              refused the first version of the Free filter, which compared
+              `planId === "free"` directly. */}
+          <AccountsPanel
+            accounts={users.accounts}
+            windowDays={users.windowDays}
+            plans={users.livePlans.filter((live) => live.enabled).map((live) => live.planId)}
+            plansGrantingNothing={users.livePlans
+              .filter((live) => live.entitlements.length === 0)
+              .map((live) => live.planId)}
+          />
+        </Panel>
+      </ConsoleShell>
+    );
+  }
+
+  const financial = await adminFinancial();
 
   return (
-    <main className="flex flex-col gap-6">
-      <div className="flex flex-col gap-1">
-        <Heading level={1}>Operator console</Heading>
-        {/* The design's subtitle, verbatim — it says what the page is for and
-            what a non-admin gets, which is the one thing about this route that
-            is easy to get wrong by omission. */}
-        <Text variant="secondary" className="text-sm">
-          Accounts, what they hold, what they cost. Admin only — a non-admin gets nothing here,
-          not a hidden link.
-        </Text>
-      </div>
-
+    <ConsoleShell tab={tab} banner={<RevenueStaleBanner revenue={financial.revenue} />}>
       {/* **The four-number strip** (M21 link 7). ARPU appears twice and both
           are labelled, which is the link's most emphatic requirement: with
           founder, referral, trial and admin grants in the mix the two differ a
           lot, and a single unlabelled one gets quoted as whichever is
           convenient. */}
-      <RevenueStrip revenue={overview.revenue} />
+      <RevenueStrip revenue={financial.revenue} />
 
-      <Panel title="Accounts">
-        {/* Search, counted filters, 8 rows a page and a no-match state all live
-            in the client component: they are view state over a list the server
-            already sent, and a round trip per keystroke would be a worse
-            console for a table bounded at 100 rows. Only enabled plans are
-            offered to the grant dialog — `enabled` bounds what an operator may
-            hand out, never what a holder may do, which is what lets the
-            disabled fourth-plan proof ship without anyone receiving it. */}
-        {/* `plansGrantingNothing` is decided once, here, from the plan file, and
-            asked as "does this plan grant anything" rather than "is this plan
-            free" — ADR-045 rule 4, which `planVersions.fourthPlan.test.ts`
-            enforces by walking every source file for a plan-id comparison. It
-            refused the first version of the Free filter, which compared
-            `planId === "free"` directly. */}
-        <AccountsPanel
-          accounts={overview.accounts}
-          windowDays={overview.windowDays}
-          plans={overview.plans.filter((plan) => plan.live.enabled).map((plan) => plan.planId)}
-          plansGrantingNothing={overview.plans
-            .filter((plan) => plan.live.entitlements.length === 0)
-            .map((plan) => plan.planId)}
-        />
-      </Panel>
-
-      {/* **Segmented in the layout, not just in the query** (M21 link 7).
-          A comped account is underwater by construction — a decision already
-          taken, not a finding — and on this deployment every account predating
-          M20's migration holds a permanent founder grant, so unsegmented they
-          would swamp the list and the metric would be worthless. */}
-      <Panel title="Costs more than it pays">
-        <UnderwaterPanel report={overview.underwater} />
-      </Panel>
-
-      {/* **Reports** (M12 link 6) — the one place an operator acts on them.
-          Hiding a day takes it off Discover, the board and profiles; the
-          author keeps their copy. First paint from the server, actions from
-          the browser against the gated endpoints: `ReportsPanel` says why. */}
-      <Panel title="Reports">
-        <ReportsPanel initial={{ open, actioned, dismissed }} />
-      </Panel>
-
-      {/* Two panels side by side, as the design lays them out; one column on a
-          narrow window, which this route only ever sees on a small laptop since
-          the console is not on the phone at all. */}
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-        <GrantSourcePanel sources={overview.grantSources} />
-        <TierPanel plans={overview.plans} />
+      {/* Two panels side by side, as the design lays them out; one column
+          on a narrow window, which this route only ever sees on a small
+          laptop since the console is not on the phone at all. The design's
+          `repeat(auto-fit, minmax(340px, 1fr))` is an arbitrary Tailwind
+          value, which the colour wall refuses (tokens only); `lg` is where
+          two columns are already wider than 340px each. */}
+      <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-2">
+        {/* **Segmented in the layout, not just in the query** (M21 link 7).
+            A comped account is underwater by construction — a decision
+            already taken, not a finding — and on this deployment every
+            account predating M20's migration holds a permanent founder
+            grant, so unsegmented they would swamp the list and the metric
+            would be worthless. Its per-source counts are why the old
+            *What the grants cost* panel was deleted (M36 link 1): the same
+            numbers twice. */}
+        <Panel title="Costs more than it pays">
+          <UnderwaterPanel report={financial.underwater} />
+        </Panel>
+        <TierPanel plans={financial.plans} />
       </div>
 
       {/* **M21 link 2's price sweep** (KI-2026-09-16-c) — every published
           version's Stripe Price against the plan file, not only the one being
           bought at the till. Reports; never creates a Price. */}
-      <PriceCheckPanel report={overview.prices} />
+      <PriceCheckPanel report={financial.prices} />
+    </ConsoleShell>
+  );
+}
+
+/** The heading row and the tab strip every tab shares, then the tab's body. */
+function ConsoleShell({
+  tab,
+  banner,
+  children,
+}: {
+  tab: ConsoleTab;
+  banner?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <main className="flex flex-col gap-6">
+      <div className="flex flex-wrap items-end justify-between gap-3.5">
+        <div className="flex flex-col gap-1">
+          <Heading level={1}>Operator console</Heading>
+          {/* M20's design subtitle, kept — it says what the page is for and
+              what a non-admin gets, which is the one thing about this route that
+              is easy to get wrong by omission. The M36 artboard keeps only its
+              second sentence. */}
+          <Text variant="secondary" className="text-sm">
+            Accounts, what they hold, what they cost. Admin only — a non-admin gets nothing here,
+            not a hidden link.
+          </Text>
+        </div>
+        <ConsoleTabs value={tab} />
+      </div>
+      {banner}
+      {children}
     </main>
   );
 }

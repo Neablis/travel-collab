@@ -30,6 +30,10 @@
 //      screen would look wrong afterwards.
 //   4. **The report queue is read after the gate** (M12 link 6) — the page's
 //      second server read, and the first that carries other people's words.
+//   5. **The grant-cost panel stays deleted** (M36 link 1). It showed the
+//      per-source counts *Underwater by construction* already shows; two panels
+//      with the same numbers drift, and the deleted one is easy to restore from
+//      history without noticing the other.
 import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -42,7 +46,7 @@ const WEB = path.resolve(HERE, "../../..");
 const ADMIN_COMPONENTS_DIR = path.join(WEB, "src/components/admin");
 const ADMIN_COMPONENTS = readdirSync(ADMIN_COMPONENTS_DIR)
   .filter((name) => name.endsWith(".tsx") || name.endsWith(".ts"))
-  .filter((name) => !name.endsWith(".test.tsx"))
+  .filter((name) => !/\.test\.tsx?$/.test(name))
   .map((name) => path.join(ADMIN_COMPONENTS_DIR, name));
 
 const CONSOLE_FILES = [
@@ -170,5 +174,17 @@ describe("the report queue is read behind the gate", () => {
     expect(page.indexOf("adminUserId()")).toBeGreaterThan(-1);
     expect(page.indexOf("adminUserId()")).toBeLessThan(gate);
     expect(gate).toBeLessThan(read);
+  });
+});
+
+describe("the grant-cost panel stays deleted", () => {
+  // M36's gate box: `GrantSourcePanel` is gone, and *Underwater by
+  // construction* still counts per grant source. The second half is
+  // "renders them as two blocks" above; this is the first.
+  it("is not a file, and nothing on the console names it", () => {
+    expect(ADMIN_COMPONENTS.map((file) => path.basename(file))).not.toContain("GrantSourcePanel.tsx");
+    for (const file of CONSOLE_FILES) {
+      expect(codeOf(file), file).not.toMatch(/GrantSourcePanel|What the grants cost/);
+    }
   });
 });
