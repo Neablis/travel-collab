@@ -366,7 +366,9 @@ function QuestionsADay({
       ? `dashed line = ${rule.ceiling} a day ceiling · hit on ${rule.daysAtCeiling} days`
       : rule.mode === "far"
         ? `ceiling ${rule.ceiling} a day — well above this`
-        : "no daily ceiling of its own — the deployment default applies";
+        : rule.mode === "none"
+          ? "ceiling 0 a day — what they hold now allows no questions"
+          : "no daily ceiling of its own — the deployment default applies";
   const from = new Date(Date.parse(now) - (windowDays - 1) * 24 * 60 * 60 * 1000).toISOString();
 
   return (

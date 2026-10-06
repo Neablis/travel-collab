@@ -192,6 +192,16 @@ describe("AccountPage", () => {
     });
   });
 
+  // 0 is a ceiling, not the absence of one: the quota gate lets nothing
+  // through, where null falls to the deployment default.
+  it("says a ceiling of 0 allows no questions, and is not the uncapped case", () => {
+    render(page(detail({ assistant: { requestsPerDay: 0, perDay: days(0, 3) } })));
+    const chart = screen.getByTestId("questions-a-day");
+    expect(within(chart).queryByTestId("ceiling-line")).toBeNull();
+    expect(within(chart).getByText("ceiling 0 a day — what they hold now allows no questions")).toBeTruthy();
+    expect(within(chart).queryByText(/deployment default/)).toBeNull();
+  });
+
   describe("the assistant's empty states", () => {
     it("says a plan without ai.* has no assistant", () => {
       render(page(detail({ assistant: { offered: false, questions: 0, recent: [], topTools: [] } })));
@@ -222,33 +232,86 @@ describe("AccountPage", () => {
       expect(within(card()).queryByText(/marked revoked/)).toBeNull();
     });
 
-    it("says nothing changed when the server refuses, and keeps the card", async () => {
-      const user = userEvent.setup();
-      fetchMock.mockResolvedValue(new Response(JSON.stringify({ error: "not-found" }), { status: 404 }));
-      render(page());
+    const confirmRevoke = async (user: ReturnType<typeof userEvent.setup>) => {
       await user.click(within(card()).getByRole("button", { name: "Revoke the trial grant of plus v2" }));
       await user.click(within(card()).getByRole("button", { name: "Revoke" }));
+    };
+
+    // Reached, and refused: the status is the operator's only clue to why.
+    it("says the server refused, and that nothing changed, on a non-2xx other than 404", async () => {
+      const user = userEvent.setup();
+      fetchMock.mockResolvedValue(new Response(JSON.stringify({ error: "forbidden" }), { status: 403 }));
+      render(page());
+      await confirmRevoke(user);
 
       expect(fetchMock).toHaveBeenCalledWith(
         "/api/admin/grants",
         expect.objectContaining({ method: "DELETE", body: JSON.stringify({ grantId: "grant-1" }) }),
       );
-      expect(
-        (await within(card()).findByRole("alert")).textContent,
-      ).toBe("The revoke didn't reach the server. Nothing changed — they still hold it.");
+      expect((await within(card()).findByRole("alert")).textContent).toBe(
+        "The server refused the revoke (403). Nothing changed — they still hold it.",
+      );
       expect(screen.getByText("trial grant · plus v2")).toBeTruthy();
       expect(refresh).not.toHaveBeenCalled();
+    });
+
+    it("says it didn't reach the server only when the request never landed", async () => {
+      const user = userEvent.setup();
+      fetchMock.mockRejectedValue(new TypeError("Failed to fetch"));
+      render(page());
+      await confirmRevoke(user);
+
+      expect((await within(card()).findByRole("alert")).textContent).toBe(
+        "The revoke didn't reach the server. Nothing changed — they still hold it.",
+      );
+      expect(screen.getByText("trial grant · plus v2")).toBeTruthy();
+      expect(refresh).not.toHaveBeenCalled();
+    });
+
+    // The endpoint's 404 is "no unrevoked grant with that id": the server was
+    // reached and they no longer hold it, so "they still hold it" would be false.
+    it("says it was already revoked on a 404, and re-reads the page", async () => {
+      const user = userEvent.setup();
+      fetchMock.mockResolvedValue(new Response(JSON.stringify({ error: "not-found" }), { status: 404 }));
+      render(page());
+      await confirmRevoke(user);
+
+      expect(await screen.findByText("Already revoked — the page has re-read")).toBeTruthy();
+      expect(screen.queryByTestId("grant-grant-1")).toBeNull();
+      expect(screen.queryByRole("alert")).toBeNull();
+      expect(refresh).toHaveBeenCalledTimes(1);
     });
 
     it("takes the card away and re-reads the page when it lands", async () => {
       const user = userEvent.setup();
       fetchMock.mockResolvedValue(new Response(JSON.stringify({ revoked: true }), { status: 200 }));
       render(page());
-      await user.click(within(card()).getByRole("button", { name: "Revoke the trial grant of plus v2" }));
-      await user.click(within(card()).getByRole("button", { name: "Revoke" }));
+      await confirmRevoke(user);
       expect(await screen.findByText("Revoked — mei@example.test holds free v1 from their next request")).toBeTruthy();
       expect(screen.queryByTestId("grant-grant-1")).toBeNull();
       expect(refresh).toHaveBeenCalledTimes(1);
+    });
+
+    // The fallback is only what they hold when nothing else is granted; with a
+    // second grant still active the toast says what the confirm said.
+    it("names no fallback in the toast when another grant remains", async () => {
+      const user = userEvent.setup();
+      fetchMock.mockResolvedValue(new Response(JSON.stringify({ revoked: true }), { status: 200 }));
+      const founder: AdminAccountGrantRecord = { ...GRANT, id: "grant-2", source: "founder", expiresAt: null };
+      render(page(detail({ grants: [GRANT, founder] })));
+      await user.click(within(card()).getByRole("button", { name: "Revoke the trial grant of plus v2" }));
+      expect(
+        within(card()).getByText(
+          "They keep what their other grant gives them on their next request. The grant row stays, marked revoked.",
+        ),
+      ).toBeTruthy();
+      await user.click(within(card()).getByRole("button", { name: "Revoke" }));
+
+      expect(
+        await screen.findByText("Revoked — mei@example.test keeps what their other grant gives them from their next request"),
+      ).toBeTruthy();
+      expect(screen.queryByText(/holds free v1/)).toBeNull();
+      expect(screen.getByTestId("grant-grant-2")).toBeTruthy();
     });
   });
 });

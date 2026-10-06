@@ -51,6 +51,9 @@ export function seconds(ms: number): string {
  * *Questions a day*).
  *
  *   * No ceiling (`null` — no version names one) → `uncapped`: scale to the data.
+ *   * A ceiling of `0` → `none`: what they hold now allows no questions (the
+ *     quota gate lets nothing through), so there is no line to draw and no
+ *     "well above" to say — but it is a ceiling, not the absence of one.
  *   * Peak over 40% of the ceiling → `near`: the scale is the ceiling × 1.1, the
  *     ceiling draws as a line, and days AT it are danger bars. The ceiling is a
  *     hard cap, so "at" is the top of what a day can be.
@@ -60,6 +63,7 @@ export function seconds(ms: number): string {
  */
 export type CeilingRule =
   | { mode: "uncapped"; scale: number }
+  | { mode: "none"; scale: number }
   | { mode: "far"; scale: number; ceiling: number }
   | { mode: "near"; scale: number; ceiling: number; daysAtCeiling: number };
 
@@ -67,7 +71,8 @@ export type CeilingRule =
 export function ceilingRule(perDay: readonly number[], ceiling: number | null): CeilingRule {
   const peak = Math.max(0, ...perDay);
   const dataScale = Math.max(1, peak * 1.2);
-  if (ceiling === null || ceiling <= 0) return { mode: "uncapped", scale: dataScale };
+  if (ceiling === null) return { mode: "uncapped", scale: dataScale };
+  if (ceiling <= 0) return { mode: "none", scale: dataScale };
   if (peak > ceiling * 0.4) {
     return {
       mode: "near",
