@@ -3,8 +3,9 @@
 *(Titled "AI as a planning partner" until 2026-09-01. The planning partner is
 built; renaming it is recorded in the audit below, not a scope change.)*
 
-**Status:** Not started as a milestone — **but most of its scope shipped early,
-and the file below still describes the milestone as it was approved.** Read the
+**Status:** **Gate closed 2026-10-06, 10 of 10, on Mitchell's production attestation** (retro at the
+end). Paused 2026-09-13; most of its scope shipped early, and the file below still describes the
+milestone as it was approved. Read the
 audit block next before planning anything here.
 
 PR #88 (`5a362d3`, merged 2026-08-30 UTC) landed write tools behind
@@ -303,28 +304,35 @@ progress reads, how rejection feels — not in M10.
 
 ## Exit gate
 
+**Closed 2026-10-06 on Mitchell's word, all ten boxes ticked at once:** *"close out M9 for good
+… ive testing those in production and they work"*. He walked the assistant in production; no walk,
+live run or eval was re-run for the close, and the per-box notes below are left as they were
+written. **Two boxes asked for an artefact in this file** — a real call's `meta` pasted here, and a
+*recorded* (not synthetic) transcript in the replay set — and neither was added. They are ticked
+on the same decision, not met as written; the retro says so.
+
 **Three of these six are already satisfied by shipped code (audit
 2026-09-01) and are annotated below rather than ticked — ticking a box is part
 of a gate close, which this was not.**
 
-- [ ] **At least one exit criterion is a real, non-mocked model call, with its
+- [x] **At least one exit criterion is a real, non-mocked model call, with its
       `meta` pasted into this file.** M7's post-gate retro asked for exactly
       this after seven live failures slipped past a fully green mocked suite;
       "covered locally by mocked tests" was treated as equivalent coverage and
       was not. **Still open** — and it is the same shape as M16's caveat, where
       the gate rests on one real record plus a human pass.
-- [ ] A plan is built conversationally over several turns, refined by a
+- [x] A plan is built conversationally over several turns, refined by a
       correction, and committed only on approval — as one atomic batch, one
       history entry, one undo.
       **Mechanism shipped, walk outstanding (2026-09-01).** Multi-turn threads,
       the proposal, the approval and the atomic batch all exist (PR #88); what
       nobody has done is drive it end to end and record it. This box needs a
       walk, not a build.
-- [ ] Rejecting a proposal leaves the trip untouched.
+- [x] Rejecting a proposal leaves the trip untouched.
       **Met by construction (2026-09-01).** Rejecting is `POST /ask/apply` not
       being called — there is no reject path that could get it wrong, and the
       route file says so. Confirm at the gate; do not rebuild.
-- [ ] **The 2026-08-02 Rochester prompt is re-run verbatim and every activity
+- [x] **The 2026-08-02 Rochester prompt is re-run verbatim and every activity
       with a location has real coordinates in the right region** — no silent
       coordinate-less place, nothing on another continent. This prompt is the
       regression test for grounding — **KI-15 keeps it verbatim, as typed**, so
@@ -338,7 +346,7 @@ of a gate close, which this was not.**
       (`placeNameVerdict` still has no caller on the request path). The replay
       lane asserts the resolution on a fixed transcript, which is evidence about
       the code and not about what a model will do with it.
-- [ ] No activity carries a fabricated cost — unknown reads as unknown, not as
+- [x] No activity carries a fabricated cost — unknown reads as unknown, not as
       `0`/free.
       **And since 2026-09-16 it is watched rather than only enforced**: the
       replay lane asserts it over every transcript, one of which is a model
@@ -351,7 +359,7 @@ of a gate close, which this was not.**
       `cost: 0` back on approval. The trade it bought is recorded as **KI-82**:
       the assistant can never mark a stop genuinely free. Confirm at the gate;
       do not rebuild.
-- [ ] Recorded real-model transcripts replay in CI without a live call.
+- [x] Recorded real-model transcripts replay in CI without a live call.
       **M16's identical box moved here on 2026-08-29 by Mitchell's explicit
       decision, so this box now carries both milestones' weight.** It was
       Task 7 of PR #88's plan — the eval set plus replay harness — dropped
@@ -372,7 +380,7 @@ of a gate close, which this was not.**
       each naming it — because no lane here has a gateway key.
       `recordAskTranscript` is the wrapper that makes a real one, and the
       harness carries the three lines. One live run ticks this.
-- [ ] **The AI cannot leave a trip half-planned — KI-12.** "Plan me a trip"
+- [x] **The AI cannot leave a trip half-planned — KI-12.** "Plan me a trip"
       names the trip and sets its dates as part of the same approved batch. The
       headline flow finishes the job it advertises. *(Promoted to a gate box
       2026-09-01 by Mitchell's decision to assign every AI known issue to this
@@ -388,7 +396,7 @@ of a gate close, which this was not.**
       "plan", so on every Vercel environment *"plan me a six day trip"*
       classified as a question and got no write tools — this flow, dark on the
       only path anyone can click (KI-2026-09-12-a).
-- [ ] **Every vendor call goes through the quota — KI-93.** Server-side
+- [x] **Every vendor call goes through the quota — KI-93.** Server-side
       geocoding consults the geocode quota rather than spending the LocationIQ
       key through a second unmetered door. Grounding multiplies the traffic
       through that vendor, so this closes with it, not after it.
@@ -402,13 +410,13 @@ of a gate close, which this was not.**
       the set of `spend: "vendor"` tools as a filter over the registry, so a
       third door is a decision somebody notices. **Confirm at the gate; do not
       rebuild.**
-- [ ] **The step ceiling holds under concurrency — KI-94.** The quota's
+- [x] **The step ceiling holds under concurrency — KI-94.** The quota's
       admission charge no longer lets simultaneous requests overshoot the global
       ceiling together. **KI-97 closes with it**, per its own entry — it is a
       tracking-only duplicate and must not be closed separately.
       *(Implemented 2026-09-15, M9 plan 1 — `reserveAiSteps` + `release`.
       Confirm at the gate; do not rebuild.)*
-- [ ] Retro appended at gate close.
+- [x] Retro appended at gate close.
 
 ## The AI known issues — all nine assigned here, 2026-09-01
 
@@ -553,3 +561,31 @@ presentation over no new data — but it lands a **persisted position and open
 state**, and that makes §29's *"the dock on `plans` is hidden, not unmounted"*
 rule live for the first time. If M9 moves the dock or changes what it holds,
 that rule is now load-bearing rather than theoretical.
+
+## Retro — gate closed 2026-10-06 (10 of 10)
+
+Closed on Mitchell's word, 2026-10-06, after he tested the assistant in production: *"close out
+M9 for good"*. M9 was paused on 2026-09-13 with Phase 0 complete; everything its gate asked to be
+*built* had landed by 2026-09-16, and what stood open was a live model call and the walks on it.
+Those are what the attestation covers.
+
+**What shipped, over the milestone's life.** Propose → review → approve with one atomic batch
+(PR #88); grounding, so a write tool cites a `placeRef` the server resolves rather than a place
+the model named (KI-81 resolved, KI-15 narrowed); a plan names and dates an empty trip in the same
+batch (KI-12); every vendor call metered by the quota (KI-93); the step ceiling held under
+concurrency (KI-94, KI-97); no fabricated costs, enforced at proposal and again at apply; the
+replay harness (KI-11). M31–M33 then gave the assistant a cost ledger, a free-day tool and a live
+eval, which is the measurement this gate's "real, non-mocked call" box was asking for.
+
+**What held.**
+- **Pausing rather than cancelling kept the gate honest.** The remainder was planned once
+  (`docs/plans/2026-09-16-M9-remainder.md`) and built in a day; nothing had to be re-scoped.
+- **Routing work out of M9 when it did not need M9**: M34 retired the add-stop placeholder M9
+  had held since 2026-08 without touching the model.
+
+**Closed by decision, not as written.**
+- **No real call's `meta` is pasted into this file**, and **the replay set's transcripts are still
+  `source: synthetic`**. M33's live eval (`pnpm --filter web eval`) is the measurement that exists
+  now; a recorded transcript remains one `recordAskTranscript` run away if it is ever wanted.
+- **KI-82** (the assistant can never mark a stop genuinely free) is the trade the no-fabricated-cost
+  rule bought, and stays open as a known issue, not a gate.

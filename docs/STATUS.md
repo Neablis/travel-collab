@@ -21,12 +21,19 @@ general setup.
 
 ## Where the work is right now
 
-**M34 — ADDING A STOP SUGGESTS WHAT OTHER TRAVELLERS DID NEARBY — IS THE CURRENT MILESTONE AS OF
-2026-10-05**, by **M33's gate closing at 6 of 6**. Order: `… M31 ✓ → M32 ✓ → M33 ✓ → M34`
-(M9 stays paused). The add-stop sheet lists stops from other people's published days in the same
-city, closest first, and a pick fills name, place, length, kind and tags. It replaces the
-*"Example match"* Preview, which had been filed under M9. A three-part draft stack:
-`docs/plans/2026-10-05-M34-nearby-stops.md`. (`docs/milestones/M34-nearby-stops.md`)
+**M35 — YOU CAN SAY WHO ON A TRIP IS ACTUALLY GOING — IS THE CURRENT MILESTONE AS OF
+2026-10-06**, by **M36's gate closing at 13 of 13**. Order: `… M34 ✓ → M36 ✓ → M35`, and it is
+the last unticked milestone in `TODO.md`. M35 is built and merged (#335); its gate is 8 of 12.
+(`docs/milestones/M35-travellers-and-people.md`)
+
+**M36 closed 2026-10-06** on Mitchell's word that the admin console works; its two walk boxes are
+ticked on that attestation, not re-walked. Its retro is at the end of
+`docs/milestones/M36-operator-console.md`.
+
+**M34 and M9 closed 2026-10-06** on Mitchell's word that both work in production; their walk
+boxes are ticked on that attestation, not re-walked. **M9 is closed for good**, not paused: two of
+its boxes asked for an artefact (a pasted `meta`, a recorded transcript) that was not added, and
+are ticked by decision. Each retro is at the end of its milestone file.
 
 **M33 closed 2026-10-05** on Mitchell's word, with every box but the retro already ticked. Its
 retro is at the end of `docs/milestones/M33-evals.md`.
@@ -54,14 +61,8 @@ durations show it held. Every run states its plan without `EVAL_CONFIRM=1` and s
 `EVAL_MAX_USD` (seen live: $0.0027, two turns skipped). (`docs/milestones/M33-evals.md`)
 
 **M29 (the time river) and M30 (notebooks with one job each) closed their gates on
-2026-10-04**, at 20 of 20 and 9 of 9; each retro is at the end of its milestone file. Neither
-has a row in `TODO.md`'s order, and placing them there is Mitchell's call.
-
-**M36 — the operator console in four tabs — minted 2026-10-06 as the next milestone** (after
-M34, ahead of M35) **and started the same day**: Financial · Users · Library · AI models, an
-account page, the M31 ledger read by an admin surface for the first time. A six-part draft stack:
-minting is part 1 (`claude/eager-sagan-ekawmk`), the tab shell part 2 (`-shell`). Plan `docs/plans/2026-10-06-M36-operator-console.md`.
-(`docs/milestones/M36-operator-console.md`)
+2026-10-04**, at 20 of 20 and 9 of 9; each retro is at the end of its milestone file. Their
+ticked rows were added to `TODO.md` on 2026-10-06, so `pnpm milestones` reads them as closed.
 
 **Built beside M19, not a milestone: the SEO pass** (five stacked draft PRs, #295-#299,
 to merge 1 → 5 with merge commits; plan `docs/plans/2026-10-02-seo-pass.md`). It adds robots
@@ -217,12 +218,9 @@ half, the model guessing a coordinate rather than citing one, is M9 scope.
 
 ## Next action
 
-**M36 links 2–6** after link 1's PR (`docs/plans/2026-10-06-M36-operator-console.md`); the AI
-models tab (link 4) can run beside links 2 and 3. M34's walk and retro are still open.
-
-**M34, part 2 then part 3** of the stack in `docs/plans/2026-10-05-M34-nearby-stops.md`. The
-walk box is Mitchell's, on part 3's preview. Separately, `KI-2026-10-04-c` resolves on query 8 of
-`ledger.sql` over a few days of cheap-tier step durations.
+**M35's gate**: the eval re-run, CodeRabbit on #335, ticking migration 0039 (`pnpm state` reads
+it applied) and the retro (`docs/milestones/M35-travellers-and-people.md`). Separately,
+`KI-2026-10-04-c` resolves on query 8 of `ledger.sql` over a few days of cheap-tier step durations.
 
 **Carried out of M24, not gating:** `KI-2026-09-25-q`. About a dozen
 surfaces read `activity.location.city` directly, including the M14 ones this
@@ -236,15 +234,10 @@ close owes (three corrected country codes), and, from M27,
 `LOCATIONIQ_API_KEY` on Vercel (Production and Preview) — the Playbook pin
 backfill does nothing without it.
 
-**Waiting on Mitchell, not blocked.** Whether to flip `ai-live` now that its
-precondition is met (*Live rules* above says what it would expose), and M9
-Phase 0's three open questions (`docs/milestones/M9-ai-planning-partner.md`,
-*open questions*). The second, *which quota window a sold ceiling binds*, is
-the one that costs if left: it is implemented per-day and stated in no
-contract.
-
-**M9 is built; what is left is its gate**: a live model call, the Rochester
-re-run resting on one, and the browser walks.
+**Waiting on Mitchell, not blocked.** Whether to flip `ai-live`; *Live rules* above says what
+it would expose. M9's gate is closed, but its Phase 0 open questions were never answered
+(`docs/milestones/M9-ai-planning-partner.md`, *open questions*). The one that costs if left is
+*which quota window a sold ceiling binds*: it is implemented per-day and stated in no contract.
 
 **`KI-20260916-d` is still open**: no account can hold `api.tokens` on a
 preview, so the next tier-gated box walked on a preview will meet it. The entry

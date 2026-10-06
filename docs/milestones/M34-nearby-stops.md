@@ -1,6 +1,6 @@
 # M34 — Adding a stop suggests what other travellers did nearby
 
-**Status:** Minted, scoped and placed 2026-10-05 by Mitchell, after M33, which closed the same
+**Status:** **Gate closed 2026-10-06, 7 of 7** (retro at the end). Minted, scoped and placed 2026-10-05 by Mitchell, after M33, which closed the same
 day. It replaces the last illustrative placeholder in the add-stop sheet
 (`<Preview id="add-stop-suggestions">`), which `preview-registry.ts` had filed under M9.
 Build plan: `docs/plans/2026-10-05-M34-nearby-stops.md`.
@@ -130,6 +130,30 @@ built. Finding an exact address is still `LocationInput`'s job, one row below.
       suggester and m14-notebook-widgets, **44 passed** on ci-like. Seen red with a pick that drops
       the place: `m34-nearby-stops.spec.ts:84`, the saved stop has no `Somewhere in …`, on both
       attempts.)*
-- [ ] **[walk]** On the PR preview, adding a stop to a day in a city the library covers lists
+- [x] **[walk]** On the PR preview, adding a stop to a day in a city the library covers lists
       library stops before typing, narrows as you type, and a pick fills the form.
-- [ ] A retro is appended at gate close.
+      *(Ticked 2026-10-06 on Mitchell's attestation: walked **in production** rather than on a
+      preview — *"ive testing those in production and they work"*. No walk was re-run for the
+      close.)*
+- [x] A retro is appended at gate close.
+
+## Retro — gate closed 2026-10-06 (7 of 7)
+
+Closed on Mitchell's word, 2026-10-06: he walked the add-stop sheet in production and it works.
+The walk box is ticked on that attestation; nothing was re-walked for the close.
+
+**What shipped.** The add-stop sheet lists stops from other people's published days in the same
+city, closest first, before anything is typed, and narrows as you type. A pick fills name, place,
+length, kind and tags, and leaves start time and cost alone. The `add-stop-suggestions` Preview,
+the last illustrative placeholder in the sheet, is deleted (#333, #334).
+
+**What held.**
+- **The M9 tag was a routing accident, and treating it as one paid.** Nothing here needed the
+  model or a place vendor; the public library already had the stops. That retired a placeholder
+  M9 had been holding since 2026-08 without waiting on M9.
+- **Every exclusion was tested beside a visible control day**, so a dropped private, deleted,
+  moderated or own-day clause went red rather than returning an empty list that looked right.
+
+**Left open, not gating.**
+- Ranking by how often a stop was added, and merging "What or where" with the location row
+  (B10), stay out of scope until the sheet has been used.
