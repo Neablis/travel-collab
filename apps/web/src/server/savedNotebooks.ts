@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, count, desc, eq, gte, isNull, lt } from "drizzle-orm";
 import {
   PageContent,
   PageDoc,
@@ -12,7 +12,7 @@ import {
 } from "@tc/contracts";
 import { instantiateTemplate } from "@tc/pages";
 import { db } from "./db/client";
-import { savedNotebooks } from "./db/schema";
+import { savedNotebooks, users } from "./db/schema";
 import { isUuid } from "./ids";
 import { getPage } from "./pages";
 import { executePageCommand } from "./pageCommands";
@@ -195,4 +195,82 @@ export async function instantiateSavedNotebook(
   if (!result.ok) return result;
   if (result.page === null) return { ok: false, error: { code: "not-found", message: "The notebook was not created." } };
   return { ok: true, page: result.page };
+}
+
+/** How far back *+N in 30 days* on the Library tab's tile reaches. */
+export const ADMIN_NOTEBOOK_WINDOW_DAYS = 30;
+/** How many rows the Library tab's notebook table shows. */
+export const ADMIN_NOTEBOOK_ROWS = 10;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** One row of the Library tab's notebook table — the columns with a source (M36 D5). */
+export interface AdminNotebookRow {
+  savedNotebookId: string;
+  title: string;
+  ownerId: string;
+  /** `null` for an owner with no `users` row — ADR-025 keeps no foreign key. */
+  ownerEmail: string | null;
+  savedAt: string;
+}
+
+/** What the Library tab's notebooks section reads. */
+export interface AdminNotebooksReport {
+  windowDays: number;
+  /** Saved to a library and not deleted, all time up to `now`. */
+  saved: number;
+  /** Of those, saved in the trailing window. */
+  savedInWindow: number;
+  /** The newest saves, newest first. */
+  recent: AdminNotebookRow[];
+}
+
+/**
+ * **The operator console's notebook read** (M36 link 5), across every owner —
+ * the one read in this module that is not scoped to one, which is why it is
+ * called only behind `/admin`'s gate.
+ *
+ * **Only what has a source** (M36 D5, DRIFT D21). A row here is one page kept
+ * as a template, so there is no page count to report; nothing records a share
+ * or a trip started from one, so neither is counted. The table is the newest
+ * saves rather than the design's *start the most trips*, which is the ordering
+ * a missing ledger would have supplied.
+ *
+ * Every number is as of `now`, so a row stamped after it is not yet saved.
+ */
+export async function adminNotebooks(now: Date = new Date()): Promise<AdminNotebooksReport> {
+  const since = new Date(now.getTime() - ADMIN_NOTEBOOK_WINDOW_DAYS * DAY_MS);
+  const kept = and(isNull(savedNotebooks.deletedAt), lt(savedNotebooks.createdAt, now));
+  const [[all], [inWindow], rows] = await Promise.all([
+    db.select({ n: count() }).from(savedNotebooks).where(kept),
+    db
+      .select({ n: count() })
+      .from(savedNotebooks)
+      .where(and(kept, gte(savedNotebooks.createdAt, since))),
+    db
+      .select({
+        id: savedNotebooks.id,
+        title: savedNotebooks.title,
+        ownerId: savedNotebooks.ownerId,
+        ownerEmail: users.email,
+        createdAt: savedNotebooks.createdAt,
+      })
+      .from(savedNotebooks)
+      .leftJoin(users, eq(users.id, savedNotebooks.ownerId))
+      .where(kept)
+      // `id` breaks a same-instant tie so the order is total (`listSavedNotebooks`).
+      .orderBy(desc(savedNotebooks.createdAt), desc(savedNotebooks.id))
+      .limit(ADMIN_NOTEBOOK_ROWS),
+  ]);
+  return {
+    windowDays: ADMIN_NOTEBOOK_WINDOW_DAYS,
+    saved: all?.n ?? 0,
+    savedInWindow: inWindow?.n ?? 0,
+    recent: rows.map((row) => ({
+      savedNotebookId: row.id,
+      title: row.title,
+      ownerId: row.ownerId,
+      ownerEmail: row.ownerEmail,
+      savedAt: row.createdAt.toISOString(),
+    })),
+  };
 }

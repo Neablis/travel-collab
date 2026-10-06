@@ -27,6 +27,7 @@ import type {
   AdminOverview as UiAdminOverview,
 } from "@/lib/adminOverview";
 import type { AdminAiModelsReport as UiAiModelsReport } from "@/lib/adminAiModels";
+import type { AdminNotebooksReport as UiNotebooksReport } from "@/lib/adminNotebooks";
 import type {
   AdminAccountRow as ServerAdminAccountRow,
   AdminGrantRow as ServerAdminGrantRow,
@@ -34,6 +35,7 @@ import type {
 } from "./admin";
 import type { AccountCost as ServerAccountCost } from "./usage";
 import type { AiModelsReport as ServerAiModelsReport } from "./aiModels";
+import type { AdminNotebooksReport as ServerNotebooksReport } from "../savedNotebooks";
 
 /**
  * Two types are identical only if a generic function returning a conditional
@@ -52,9 +54,11 @@ const grant: AssertEquals<UiAdminGrantRow, ServerAdminGrantRow> = true;
 const cost: AssertEquals<UiAdminAccountCost, ServerAccountCost> = true;
 // M36 link 4: the AI models tab reads its own report, under the same rule.
 const aiModels: AssertEquals<UiAiModelsReport, ServerAiModelsReport> = true;
+// M36 link 5: the Library tab's notebook read, from the module that owns the table.
+const notebooks: AssertEquals<UiNotebooksReport, ServerNotebooksReport> = true;
 
 describe("the console's wire shape", () => {
   it("is byte-identical on both sides of the lint wall", () => {
-    expect([overview, account, grant, cost, aiModels]).toEqual([true, true, true, true, true]);
+    expect([overview, account, grant, cost, aiModels, notebooks]).toEqual([true, true, true, true, true, true]);
   });
 });
