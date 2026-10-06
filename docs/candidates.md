@@ -16,19 +16,6 @@ not by anybody remembering. That automation exists because the rule was being
 skipped: M23's entry survived its own gate closing on 2026-09-19 and was still
 here two days later.
 
-- **The Users tab prices the whole ledger window on every click (split out of M36 part 7, 2026-10-06).**
-  M36 part 7 pages, searches and filters the accounts table on the server, so a filter pill, Next
-  or a pause in typing is a navigation — and each one runs `adminUsers` → `sharedReads`, which
-  prices every account's 30 days (`costPerAccount`, ~240 ms at 20k turns after part 7's memo) only
-  to learn the underwater ids for one filter and one column.
-  - **What exists.** The scoped `costPerAccount(since, userIds)` for a page's rows; the unscoped
-    read is kept for `underwaterReport`, which needs every payer's cost.
-  - **Options.** A short-lived cache of the trailing read (`unstable_cache` keyed on the window,
-    revalidated each minute — the console is minutes-stale already), or an underwater read that
-    prices only accounts with a conferring subscription.
-  - **Why not in M36.** Part 7 already took the page from ~310 queries to 35; this is the next
-    cost, not a regression, and a cache is a decision about staleness the operator should make.
-
 - **Accounts by tier, week by week, on the operator console (split out of M36, 2026-10-06).**
   The 2026-10-05 handoff draws one area chart per tier on the Users tab — accounts holding the tier
   at the end of each week for 26 weeks, with *+N added* and *−N lost* over 30 days
