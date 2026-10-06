@@ -211,7 +211,7 @@ export async function aiModelsReport(
   const inWindow = and(gte(aiUsage.createdAt, since), lt(aiUsage.createdAt, now), notSimulated);
   const call = aiUsageToolCalls;
 
-  const [turns, steps, toolRows, turnToolRows, [previous]] = await Promise.all([
+  const [turns, steps, toolRows, turnCallRows, failedRows, [previous]] = await Promise.all([
     db
       .select({
         id: aiUsage.id,
@@ -263,18 +263,26 @@ export async function aiModelsReport(
       .innerJoin(aiUsage, eq(aiUsage.id, call.turnId))
       .where(inWindow)
       .groupBy(call.tool),
-    // One row per tool a turn called: calls a turn, and which tool failed on
-    // which day. Bounded by turns × tools, never by calls.
+    // Calls a turn: one row per turn that called anything.
+    db
+      .select({ turnId: call.turnId, calls: sql<number>`count(*)::int` })
+      .from(call)
+      .innerJoin(aiUsage, eq(aiUsage.id, call.turnId))
+      .where(inWindow)
+      .groupBy(call.turnId),
+    // Which tool failed in which turn — only the pairs that did, for naming
+    // the worst day's tool. This and the read above were one row per tool a
+    // turn called, ~73k rows at 20k turns shipped to count two things that
+    // are a turn's total and the rare failure (M36 perf pass).
     db
       .select({
         turnId: call.turnId,
         tool: call.tool,
-        calls: sql<number>`count(*)::int`,
         failed: sql<number>`(count(*) FILTER (WHERE ${call.outcome} = 'failed'))::int`,
       })
       .from(call)
       .innerJoin(aiUsage, eq(aiUsage.id, call.turnId))
-      .where(inWindow)
+      .where(and(inWindow, eq(call.outcome, "failed")))
       .groupBy(call.turnId, call.tool),
     db
       .select({ count: sql<number>`count(*)::int` })
@@ -363,12 +371,12 @@ export async function aiModelsReport(
   // be a turn in no other per-step number on this tab.
   const callsPerTurn = new Map<string, number>([...measured].map((id) => [id, 0]));
   const failedByDayTool = new Map<string, number>();
-  for (const row of turnToolRows) {
+  for (const row of turnCallRows) {
     if (measured.has(row.turnId)) callsPerTurn.set(row.turnId, callsPerTurn.get(row.turnId)! + row.calls);
-    if (row.failed > 0) {
-      const key = `${turnDay.get(row.turnId)}|${row.tool}`;
-      failedByDayTool.set(key, (failedByDayTool.get(key) ?? 0) + row.failed);
-    }
+  }
+  for (const row of failedRows) {
+    const key = `${turnDay.get(row.turnId)}|${row.tool}`;
+    failedByDayTool.set(key, (failedByDayTool.get(key) ?? 0) + row.failed);
   }
   const perTurn = ascending(callsPerTurn.values());
   const tools: AiToolRow[] = toolRows

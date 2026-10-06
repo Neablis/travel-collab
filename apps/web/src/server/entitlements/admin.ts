@@ -19,11 +19,11 @@
 // exactly as the milestone says — accounts, versions and hold counts are M20's
 // and live here; MRR and median margin per tier are link 7's and are merged in
 // from Billing.
-import { desc, eq, inArray, sql } from "drizzle-orm";
-import type { PlanId } from "@tc/contracts";
+import { desc, eq, inArray, sql, type SQL } from "drizzle-orm";
+import { CONFERRING_STATUSES, type PlanId } from "@tc/contracts";
 import { db } from "@/server/db/client";
 import { adminConsoleFlag } from "@/server/flags";
-import { aiUsage, events, users } from "@/server/db/schema";
+import { aiUsage, entitlementGrants, events, subscriptions, users } from "@/server/db/schema";
 import { activeGrantHolders } from "./grants";
 import { PLAN_VERSIONS, livePlanVersion, planVersionRefOf, type PlanVersion } from "./planVersions";
 import { entitlementsFor, type AccountEntitlements } from "./resolver";
@@ -36,6 +36,7 @@ import {
   type UnderwaterReport,
 } from "@/server/billing/revenue";
 import { priceConsistencyReport, type PriceConsistencyReport } from "@/server/billing/prices";
+import { GRACE_WINDOW_DAYS } from "@/server/billing/standing";
 import { costPerAccount, requestCounts, topSpenders, type AccountCost } from "./usage";
 
 /**
@@ -357,33 +358,43 @@ export interface AdminAccountRow {
 }
 
 /**
- * **When each account last did anything**, over the trailing window (M36 D6).
+ * **When each of these accounts last did anything**, over the trailing window
+ * (M36 D6).
  *
  * Derived, never stored: the newest of its planning events (`events.actor_id`)
  * and its assistant turns (`ai_usage.user_id`), so no `last_seen` column and
- * no write on the request path. **One grouped read for every account**, not
- * one per row — the table it feeds is a hundred-odd rows. Bounded by the window
- * as D6 words it, so `null` reads "not in 30 days", not "never".
+ * no write on the request path. Bounded by the window as D6 words it, so
+ * `null` reads "not in 30 days", not "never".
  *
- * **It scans the event log over the window**: `events` has no index on
- * `occurred_at` or `actor_id`, so the read grows with every event written in
- * the last 30 days, all accounts' together. D6 allows that index as this
- * milestone's one migration if the read proves too slow; whether to add it is
- * held for a decision, not taken here.
+ * **Only the accounts asked about** — one page of the table, or one account
+ * page — over `events_actor_occurred` (migration 0040) and
+ * `ai_usage_user_created`. It was one grouped read over everyone's window,
+ * which is a sequential scan of the event log on every console load: 31 ms at
+ * 300k events and growing with the log, against ~1 ms scoped (M36 perf pass).
  *
  * This reads the event log, which is the planning domain's and not this
  * module's; a read of who wrote a row is not a write through it (invariant 1),
  * and nothing here learns what any event means — only its actor and time.
  */
-export async function lastActiveSince(since: Date): Promise<Map<string, string>> {
+export async function lastActiveSince(
+  since: Date,
+  userIds: readonly string[],
+): Promise<Map<string, string>> {
+  if (userIds.length === 0) return new Map();
   const from = since.toISOString();
+  const ids = sql.join(
+    userIds.map((id) => sql`${id}`),
+    sql`, `,
+  );
   const rows = await db.execute<{ user_id: string; at: Date | string }>(sql`
     select user_id, max(at) as at from (
       select ${events.actorId} as user_id, max(${events.occurredAt}) as at
-        from ${events} where ${events.occurredAt} >= ${from} group by ${events.actorId}
+        from ${events} where ${events.actorId} in (${ids}) and ${events.occurredAt} >= ${from}
+       group by ${events.actorId}
       union all
       select ${aiUsage.userId} as user_id, max(${aiUsage.createdAt}) as at
-        from ${aiUsage} where ${aiUsage.createdAt} >= ${from} group by ${aiUsage.userId}
+        from ${aiUsage} where ${aiUsage.userId} in (${ids}) and ${aiUsage.createdAt} >= ${from}
+       group by ${aiUsage.userId}
     ) as activity
     group by user_id
   `);
@@ -393,21 +404,20 @@ export async function lastActiveSince(since: Date): Promise<Map<string, string>>
 }
 
 /**
- * The accounts table (gate box: *"accounts per plan"*, plus the reporting in
- * link 9).
+ * The newest `limit` accounts, newest first, plus any id in `include` that is
+ * not among them — what `GET /api/admin/overview` answers. The console's own
+ * table is `adminAccountsPage`, which pages in SQL instead.
  *
  * **Resolved per account through the real resolver**, not reassembled here.
  * A second implementation of the union is a second thing that can disagree
  * with the gates, and the one that disagrees is always the one nobody is
- * looking at. Bounded by `limit` for exactly that reason: this is N+2 queries
- * and it is a page of an operator tool, not a hot path.
+ * looking at. Bounded by `limit` for exactly that reason: the resolver is
+ * three queries an account.
  *
- * **`include` is outside the bound.** The `limit` newest accounts come first,
- * newest first; any id in `include` that is not among them is appended after,
- * also newest first. The overview passes the underwater payers, so *Show them
- * in Users* finds every account Financial counted — `underwaterReport` reads
- * every account with a cost, and a payer older than the newest 100 was
- * counted there and drawn nowhere.
+ * **`include` is outside the bound**, appended after, also newest first. The
+ * overview passes the underwater payers, so every account Financial counted
+ * has a row — `underwaterReport` reads every account with a cost, and a payer
+ * older than the newest 100 was counted there and drawn nowhere.
  */
 export async function adminAccounts(
   limit = 100,
@@ -415,15 +425,8 @@ export async function adminAccounts(
   trailing?: readonly AccountCost[],
   include: readonly string[] = [],
 ): Promise<AdminAccountRow[]> {
-  const since = trailingWindowStart(now);
   const columns = { id: users.id, email: users.email, isAdmin: users.isAdmin };
-  const [newest, costs, counts, lastActive] = await Promise.all([
-    db.select(columns).from(users).orderBy(desc(users.createdAt)).limit(limit),
-    // The overview's one ledger read, when it hands it down (see `adminOverview`).
-    trailing ?? costPerAccount(since),
-    requestCounts(since),
-    lastActiveSince(since),
-  ]);
+  const newest = await db.select(columns).from(users).orderBy(desc(users.createdAt)).limit(limit);
   const shown = new Set(newest.map((row) => row.id));
   const missing = [...new Set(include)].filter((id) => !shown.has(id));
   const rows =
@@ -437,16 +440,211 @@ export async function adminAccounts(
             .where(inArray(users.id, missing))
             .orderBy(desc(users.createdAt))),
         ];
+  return accountRows(rows, now, trailing);
+}
+
+/**
+ * These accounts' rows, in the order given: the resolver per account, and the
+ * window's activity read for these ids only. `trailing` is the caller's one
+ * ledger read when it has one (see `adminOverview`); without it only these
+ * accounts' cost is priced.
+ */
+async function accountRows(
+  rows: readonly { id: string; email: string | null; isAdmin: boolean }[],
+  now: Date,
+  trailing?: readonly AccountCost[],
+): Promise<AdminAccountRow[]> {
+  const since = trailingWindowStart(now);
+  const ids = rows.map((row) => row.id);
+  const [costs, counts, lastActive, resolved] = await Promise.all([
+    trailing ?? costPerAccount(since, ids),
+    requestCounts(since, ids),
+    lastActiveSince(since, ids),
+    Promise.all(ids.map((id) => entitlementsFor(id, now))),
+  ]);
   const costByUser = new Map(costs.map((cost) => [cost.userId, cost]));
-  return Promise.all(
-    rows.map(async (row) =>
-      accountRow(row, await entitlementsFor(row.id, now), {
-        cost: costByUser.get(row.id),
-        requests: counts.get(row.id) ?? 0,
-        lastActiveAt: lastActive.get(row.id) ?? null,
-      }),
-    ),
+  return rows.map((row, index) =>
+    accountRow(row, resolved[index]!, {
+      cost: costByUser.get(row.id),
+      requests: counts.get(row.id) ?? 0,
+      lastActiveAt: lastActive.get(row.id) ?? null,
+    }),
   );
+}
+
+/**
+ * **The accounts table's six filters** (M36 link 2), by what each group means
+ * — never a plan id (ADR-045 rule 4). The UI's `ACCOUNT_FILTERS` carries the
+ * labels; `adminWireShape.test.ts` holds the two lists of ids identical.
+ */
+export const ACCOUNT_FILTER_IDS = ["all", "paying", "granted", "unentitled", "pastDue", "underwater"] as const;
+export type AccountFilterId = (typeof ACCOUNT_FILTER_IDS)[number];
+
+/** Rows a page of the accounts table — the design's eight (SPEC §18.2). */
+export const ACCOUNTS_PAGE_SIZE = 8;
+
+/** The table's view, as the URL carries it (D2). `page` is zero-based. */
+export interface AccountsQuery {
+  query: string;
+  filter: AccountFilterId;
+  page: number;
+}
+
+/** One page of the accounts table, and the six counts over the whole search. */
+export interface AdminAccountsPage {
+  rows: AdminAccountRow[];
+  /** Every filter's size over the search — the whole matching set, not this page. */
+  counts: Record<AccountFilterId, number>;
+  /** The page served, zero-based: the one asked for, or the last that has rows. */
+  page: number;
+  pageSize: number;
+  /** Which of `rows` the underwater report lists as a paying account. */
+  underwater: string[];
+}
+
+/** `column in (…)`, or `false` for an empty list, which `in ()` cannot say. */
+function inList(column: SQL, values: readonly string[]): SQL {
+  if (values.length === 0) return sql`false`;
+  return sql`${column} in (${sql.join(
+    values.map((value) => sql`${value}`),
+    sql`, `,
+  )})`;
+}
+
+/**
+ * Versions sold at no charge: a subscription to one confers, and pays nothing.
+ * `monthlyMicroUsd` answers 0 for exactly these, and `null` — an unpriceable
+ * subscription, which still counts as paying — for a ref the file lacks.
+ */
+const FREE_OF_CHARGE = PLAN_VERSIONS.filter((entry) => entry.price !== null && entry.price.minor === 0).map(
+  planVersionRefOf,
+);
+
+/**
+ * **Plans whose live version grants nothing** — the *Free* filter, asked as
+ * "does this plan grant anything" rather than "is this plan free" (ADR-045
+ * rule 4, which `planVersions.fourthPlan.test.ts` enforces).
+ */
+function plansGrantingNothing(): PlanId[] {
+  return [...new Set(PLAN_VERSIONS.map((entry) => entry.planId))].filter(
+    (planId) => livePlanVersion(planId).entitlements.length === 0,
+  );
+}
+
+/**
+ * Every account the search matches, with one boolean per filter, as a
+ * subquery. **Each boolean is the rule the row itself is drawn by**, written
+ * in SQL so the counts and the page are taken over the whole set rather than
+ * over rows the server already resolved:
+ *
+ *   * `paying` — the account's subscription (`subscriptionFor`'s pick: its
+ *     newest conferring-status row, else its newest) confers right now
+ *     (`standingOf`: a conferring status, and not `past_due` beyond the grace
+ *     window) and is not on a version sold at no charge. That is the row's
+ *     `paysMicroUsd !== 0`, unpriceable subscriptions included.
+ *   * `granted` — an active grant: not revoked, not expired (`activeAt`).
+ *   * `unentitled` — `users.plan_id` grants nothing, the row's held plan.
+ *   * `pastDue` — Stripe says `past_due` and the window is still open; past
+ *     it the row reads `lapsed`.
+ *   * `underwater` — the underwater report's paying ids, handed in, so *Show
+ *     them in Users* lists every account Financial counted.
+ *
+ * `admin.int.test.ts` builds one account per rule and holds the counts to
+ * the rows the resolver draws.
+ */
+function accountsMatching(view: AccountsQuery, now: Date, underwater: readonly string[]): SQL {
+  const needle = view.query.trim().toLowerCase();
+  // `\` is ILIKE's default escape, so a `%` or `_` typed into the box is a
+  // character to find rather than a wildcard.
+  const pattern = `%${needle.replace(/[\\%_]/g, (char) => `\\${char}`)}%`;
+  const search =
+    needle === "" ? sql`true` : sql`(coalesce(u.email, '') ilike ${pattern} or u.id ilike ${pattern})`;
+  const at = now.toISOString();
+  const lapsed = sql`(s.status = 'past_due' and s.past_due_since is not null
+    and ${at}::timestamptz > s.past_due_since + make_interval(days => ${GRACE_WINDOW_DAYS}::int))`;
+  const confers = inList(sql`s.status`, CONFERRING_STATUSES);
+  return sql`(
+    select u.id, u.email, u.is_admin, u.created_at,
+           coalesce(${confers} and not ${lapsed}
+             and not ${inList(sql`(s.plan_id || '@v' || s.plan_version)`, FREE_OF_CHARGE)}, false) as paying,
+           exists (select 1 from ${entitlementGrants} g
+                    where g.user_id = u.id and g.revoked_at is null
+                      and (g.expires_at is null or g.expires_at > ${at}::timestamptz)) as granted,
+           ${inList(sql`u.plan_id`, plansGrantingNothing())} as unentitled,
+           coalesce(s.status = 'past_due' and not ${lapsed}, false) as past_due,
+           ${inList(sql`u.id`, underwater)} as underwater
+      from ${users} u
+      left join lateral (
+        select s.status, s.plan_id, s.plan_version, s.past_due_since
+          from ${subscriptions} s where s.user_id = u.id
+         order by ${confers} desc, s.created_at desc
+         limit 1
+      ) s on true
+     where ${search}
+  )`;
+}
+
+/** The boolean column of `accountsMatching` that a filter selects on. */
+const FILTER_COLUMN: Record<AccountFilterId, SQL> = {
+  all: sql`true`,
+  paying: sql`m.paying`,
+  granted: sql`m.granted`,
+  unentitled: sql`m.unentitled`,
+  pastDue: sql`m.past_due`,
+  underwater: sql`m.underwater`,
+};
+
+/**
+ * **One page of the accounts table, for the view in the URL** (D2).
+ *
+ * The server pages, counts and searches, and resolves only the rows it
+ * draws. It used to resolve the newest 100 accounts plus every underwater
+ * payer — three resolver queries each, 310 round trips a load — and the client
+ * paged and counted over them, so an account older than the newest 100 could
+ * be found only if it was underwater. Now every account is reachable, and a
+ * load is three queries plus the resolver for eight rows (M36 perf pass).
+ *
+ * Newest first, as before. A page past the end serves the last page that has
+ * rows rather than an empty table under a range line that says otherwise.
+ */
+export async function adminAccountsPage(
+  view: AccountsQuery,
+  now: Date,
+  trailing: readonly AccountCost[],
+  underwater: readonly string[],
+): Promise<AdminAccountsPage> {
+  const matching = accountsMatching(view, now, underwater);
+  const counted = await db.execute<Record<AccountFilterId, number>>(sql`
+    select count(*)::int as "all",
+           (count(*) filter (where m.paying))::int as "paying",
+           (count(*) filter (where m.granted))::int as "granted",
+           (count(*) filter (where m.unentitled))::int as "unentitled",
+           (count(*) filter (where m.past_due))::int as "pastDue",
+           (count(*) filter (where m.underwater))::int as "underwater"
+      from ${matching} m
+  `);
+  const counts = counted.rows[0]!;
+  const pageCount = Math.max(1, Math.ceil(counts[view.filter] / ACCOUNTS_PAGE_SIZE));
+  const page = Math.min(Math.max(view.page, 0), pageCount - 1);
+  const found = await db.execute<{ id: string; email: string | null; is_admin: boolean }>(sql`
+    select m.id, m.email, m.is_admin from ${matching} m
+     where ${FILTER_COLUMN[view.filter]}
+     order by m.created_at desc, m.id desc
+     limit ${ACCOUNTS_PAGE_SIZE} offset ${page * ACCOUNTS_PAGE_SIZE}
+  `);
+  const rows = await accountRows(
+    found.rows.map((row) => ({ id: row.id, email: row.email, isAdmin: row.is_admin })),
+    now,
+    trailing,
+  );
+  const sinking = new Set(underwater);
+  return {
+    rows,
+    counts,
+    page,
+    pageSize: ACCOUNTS_PAGE_SIZE,
+    underwater: rows.filter((row) => sinking.has(row.userId)).map((row) => row.userId),
+  };
 }
 
 /**
@@ -454,6 +652,11 @@ export async function adminAccounts(
  * The account page's header and facts are this row, so the page and the row it
  * was opened from cannot describe the account differently. `null` when there
  * is no such account.
+ *
+ * **Every read is this account's alone** — its cost, its turns, its last
+ * activity. It priced every account's window and kept one, ~400 of the page's
+ * ~450 ms at 20k turns (M36 perf pass); `costPerAccount` scoped is the same
+ * rule over the same rows.
  */
 export async function adminAccount(
   userId: string,
@@ -466,12 +669,9 @@ export async function adminAccount(
       .from(users)
       .where(eq(users.id, userId))
       .limit(1),
-    // Every account's, filtered: `costPerAccount` is the one pricing path, and
-    // a second per-account copy of it is a second thing that can disagree
-    // with the table's Costs column.
-    costPerAccount(since),
-    requestCounts(since),
-    lastActiveSince(since),
+    costPerAccount(since, [userId]),
+    requestCounts(since, [userId]),
+    lastActiveSince(since, [userId]),
     entitlementsFor(userId, now),
   ]);
   const user = found[0];
@@ -542,31 +742,29 @@ export async function adminCostPerAccount(now: Date = new Date()): Promise<Accou
 }
 
 /**
- * **What the Financial tab draws**: the tier panel, the four numbers, the
- * segmented underwater list and the price sweep. Not the accounts table, which
- * is N+2 queries for a tab that never shows it.
+ * **What the Financial tab reads from the database**: the tier panel, the four
+ * numbers and the segmented underwater list. Not the accounts table, which is
+ * a resolver per row for a tab that never shows it.
+ *
+ * **Not the price sweep either**, though the tab draws it: the page streams
+ * that panel on its own (`priceConsistencyReport` in a Suspense boundary), so
+ * Stripe's round trip — up to `PRICE_CHECK_DEADLINE_MS`, 3 s — no longer holds
+ * the rest of the tab (M36 perf pass).
  */
-export type AdminFinancial = Pick<
-  AdminOverview,
-  "plans" | "windowDays" | "revenue" | "underwater" | "prices"
->;
+export type AdminFinancial = Pick<AdminOverview, "plans" | "windowDays" | "revenue" | "underwater">;
 
 /**
- * **What the Users tab draws**: the accounts table, the live version of each
- * plan for the grant dialog, and the revenue summary for the stale banner.
+ * **What the Users tab draws**: one page of the accounts table, and the
+ * revenue summary for the stale banner.
  *
  * **No price sweep** — that is a round trip to Stripe per published version,
  * and this tab shows none of it — and no tier panel or underwater report.
  */
 export interface AdminUsers {
-  accounts: AdminAccountRow[];
-  /** The newest published version of every plan, in the plan file's order. */
-  livePlans: PlanVersion[];
+  table: AdminAccountsPage;
   windowDays: number;
   /** Only `unpricedSubscriptions` is drawn, by the banner both tabs share. */
   revenue: RevenueSummary;
-  /** Its paying ids drive the *Costs more than it pays* filter and badge. */
-  underwater: UnderwaterReport;
 }
 
 /** Everything the console reads, in one call — what `GET /api/admin/overview` answers. */
@@ -613,48 +811,43 @@ export async function adminFinancial(
   reads?: SharedReads,
 ): Promise<AdminFinancial> {
   const { trailing, holders } = reads ?? (await sharedReads(now));
-  const [plans, revenue, underwater, prices] = await Promise.all([
+  const [plans, revenue, underwater] = await Promise.all([
     planPanel(now, trailing),
     revenueSummary(TRAILING_WINDOW_DAYS, trailing, now),
     underwaterReport(TRAILING_WINDOW_DAYS, trailing, holders, now),
-    priceConsistencyReport(),
   ]);
-  return { plans, windowDays: TRAILING_WINDOW_DAYS, revenue, underwater, prices };
+  return { plans, windowDays: TRAILING_WINDOW_DAYS, revenue, underwater };
 }
 
 /**
  * The Users tab: one read of the ledger and one of the grant holders, and never
  * Stripe's price sweep. The holders are read for the underwater report alone —
- * its paying ids decide the *Costs more than it pays* filter and badge, and
- * **every one of them gets a row**, however old the account, because that
- * filter is how Financial's count is opened (M36 part 3 review).
+ * its paying ids are the *Costs more than it pays* filter, which therefore
+ * lists **every** account Financial counted, however old (M36 part 3 review),
+ * a page at a time.
  */
-export async function adminUsers(now: Date = new Date()): Promise<AdminUsers> {
+export async function adminUsers(
+  now: Date = new Date(),
+  view: AccountsQuery = { query: "", filter: "all", page: 0 },
+): Promise<AdminUsers> {
   const { trailing, holders } = await sharedReads(now);
   const underwater = await underwaterReport(TRAILING_WINDOW_DAYS, trailing, holders, now);
-  const [accounts, revenue] = await Promise.all([
-    adminAccounts(
-      100,
+  const [table, revenue] = await Promise.all([
+    adminAccountsPage(
+      view,
       now,
       trailing,
       underwater.paying.map((row) => row.userId),
     ),
     revenueSummary(TRAILING_WINDOW_DAYS, trailing, now),
   ]);
-  const planIds = [...new Set(PLAN_VERSIONS.map((entry) => entry.planId))];
-  return {
-    accounts,
-    livePlans: planIds.map(livePlanVersion),
-    windowDays: TRAILING_WINDOW_DAYS,
-    revenue,
-    underwater,
-  };
+  return { table, windowDays: TRAILING_WINDOW_DAYS, revenue };
 }
 
 /** Every panel of the operator console, computed over one read of the ledger. */
 export async function adminOverview(now: Date = new Date()): Promise<AdminOverview> {
   const reads = await sharedReads(now);
-  const financial = await adminFinancial(now, reads);
+  const [financial, prices] = await Promise.all([adminFinancial(now, reads), priceConsistencyReport()]);
   const [accounts, spenders] = await Promise.all([
     adminAccounts(
       100,
@@ -664,5 +857,5 @@ export async function adminOverview(now: Date = new Date()): Promise<AdminOvervi
     ),
     adminTopSpenders(10, now, reads.trailing),
   ]);
-  return { ...financial, accounts, topSpenders: spenders };
+  return { ...financial, prices, accounts, topSpenders: spenders };
 }

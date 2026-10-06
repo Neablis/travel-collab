@@ -88,19 +88,23 @@ describe("adminOverview", () => {
 });
 
 describe("the console's per-tab reads", () => {
-  it("Financial reads the ledger and the grant holders once, and sweeps prices", async () => {
+  // **The sweep is not Financial's database read** (M36 perf pass): the page
+  // streams it in its own Suspense boundary, so Stripe's round trip — up to
+  // three seconds — does not hold the tier panel and the four numbers.
+  it("Financial reads the ledger and the grant holders once, and leaves Stripe to the page", async () => {
     const financial = await adminFinancial();
     expect(financial.plans.length).toBeGreaterThan(0);
     expect(ledgerReads.mock.calls).toEqual([["costPerAccount"]]);
     expect(holderReads).toHaveBeenCalledTimes(1);
-    expect(priceSweeps).toHaveBeenCalledTimes(1);
+    expect(priceSweeps).not.toHaveBeenCalled();
   });
 
   // The holders are read once, for the underwater report whose paying ids
   // drive the table's *Costs more than it pays* filter (M36 part 3 review).
   it("Users reads the ledger and the grant holders once, and never Stripe", async () => {
     const users = await adminUsers();
-    expect(users.livePlans.length).toBeGreaterThan(0);
+    // Shape, not data: this file can run first, on a database with no accounts.
+    expect(Object.keys(users.table.counts)).toHaveLength(6);
     expect(ledgerReads.mock.calls).toEqual([["costPerAccount"]]);
     expect(holderReads).toHaveBeenCalledTimes(1);
     expect(priceSweeps).not.toHaveBeenCalled();
@@ -108,9 +112,10 @@ describe("the console's per-tab reads", () => {
 });
 
 // **Show them in Users finds every account Financial counted** (M36 part 3
-// review). The table is the newest 100 accounts and `underwaterReport` reads
-// every account with a cost, so an underwater payer older than the 100 was
-// counted on Financial and drawn nowhere.
+// review). The overview's table is the newest 100 accounts and
+// `underwaterReport` reads every account with a cost, so an underwater payer
+// older than the 100 was counted on Financial and drawn nowhere. The Users tab
+// pages in SQL now and has no bound; its underwater filter must still list it.
 describe("the accounts table and the underwater count", () => {
   const DAY = 24 * 60 * 60 * 1000;
 
@@ -167,9 +172,16 @@ describe("the accounts table and the underwater count", () => {
     const rows = overview.accounts.filter((row) => row.userId === payer);
     expect(rows).toHaveLength(1);
     expect(overview.accounts.at(-1)!.userId).toBe(payer);
-    // And the Users tab's own read, which is what the console draws.
-    const usersTab = await adminUsers(now);
-    expect(usersTab.underwater.paying.map((row) => row.userId)).toContain(payer);
-    expect(usersTab.accounts.filter((row) => row.userId === payer)).toHaveLength(1);
+    // And the Users tab's own read, which is what the console draws: *Costs
+    // more than it pays* lists it, on whichever page, however old it is.
+    const listed: string[] = [];
+    for (let page = 0; ; page += 1) {
+      const { table } = await adminUsers(now, { query: "", filter: "underwater", page });
+      if (table.page !== page) break;
+      listed.push(...table.rows.map((row) => row.userId));
+      expect(table.underwater).toEqual(table.rows.map((row) => row.userId));
+      if (listed.length >= table.counts.underwater) break;
+    }
+    expect(listed.filter((id) => id === payer)).toHaveLength(1);
   });
 });

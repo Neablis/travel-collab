@@ -201,9 +201,8 @@ test.describe("M20 — an account knows what it may do", () => {
   // the grant card appears on that page.
   test("an operator opens an account from its row and grants there", async ({ page, browser }) => {
     // A fresh account, so the page's before-state is known rather than whatever
-    // the shared fixtures have accumulated. `adminAccounts` orders by
-    // `createdAt` descending, so the newest account is on the first page of the
-    // console's 100-row bound.
+    // the shared fixtures have accumulated. The table orders by `createdAt`
+    // descending, so the newest account is on its first page.
     const who = newcomer("m20modal");
     await signInAs(page, who);
     const userId = `dev-${who}`;

@@ -2,9 +2,11 @@
 // under `/admin?tab=users`, so the account page's *← All accounts* returns with
 // them kept.
 //
-// One module, read by the server page (which seeds the panel from
-// `searchParams`) and by the client panel (which writes the URL back and builds
-// each row's link), so the two cannot disagree about a param's name or default.
+// One module, read by the server page (which reads the view off
+// `searchParams` and hands it to the server's paged read) and by the client
+// panel (which navigates to a new view and builds each row's link), so the two
+// cannot disagree about a param's name or default.
+import type { AdminAccountFilter } from "@/lib/adminOverview";
 
 /**
  * **Filter ids say what the group MEANS, never a plan id** — they were `"free"`
@@ -24,6 +26,14 @@ export const ACCOUNT_FILTERS = [
 ] as const;
 
 export type AccountFilter = (typeof ACCOUNT_FILTERS)[number]["id"];
+
+// **The pills are exactly the filters the server counts** — a seventh here
+// would draw a pill with no count, and one missing would hide a group. Either
+// fails the typecheck; `adminWireShape.test.ts` holds the mirror to the
+// server's own list.
+type SameIds<A, B> = [A] extends [B] ? ([B] extends [A] ? true : never) : never;
+const pillsAreTheServersFilters: SameIds<AccountFilter, AdminAccountFilter> = true;
+void pillsAreTheServersFilters;
 
 /** The table's view. `page` is zero-based here and one-based in the URL. */
 export interface AccountsView {

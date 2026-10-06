@@ -118,6 +118,20 @@ export interface AdminAccountRow {
   lastActiveAt: string | null;
 }
 
+/** Mirrors `AccountFilterId` — the accounts table's six filters, by meaning. */
+export type AdminAccountFilter = "all" | "paying" | "granted" | "unentitled" | "pastDue" | "underwater";
+
+/** Mirrors `AdminAccountsPage` — one page of the table, counted over the search. */
+export interface AdminAccountsPage {
+  rows: AdminAccountRow[];
+  counts: Record<AdminAccountFilter, number>;
+  /** The page served, zero-based — the last with rows when the URL asked past it. */
+  page: number;
+  pageSize: number;
+  /** Which of `rows` cost more than they pay. */
+  underwater: string[];
+}
+
 /** Mirrors `AccountCost` (`@/server/entitlements/usage`). */
 export interface AdminAccountCost {
   userId: string;

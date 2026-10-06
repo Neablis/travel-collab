@@ -35,6 +35,11 @@ two analytics surfaces the data now supports.
 2. **The accounts table's search, filter and page also move to the URL** (`q`, `filter`, `page`),
    so *← All accounts* returns with them kept, which the spec asks for. They stay client-side
    filtering over the list the server already sent; only their storage changes.
+   *Amended 2026-10-06 (perf pass, Mitchell: "make sure we are paginating"):* the server now
+   searches, counts the six filters in SQL over the whole search, and resolves only the eight
+   rows a page draws; a filter, a page or a pause in typing is a navigation. The 100-row bound
+   is gone, so every account is reachable, and *Costs more than it pays* lists every underwater
+   payer a page at a time.
 3. **`PriceCheckPanel` stays on Financial**, below the two panels, unchanged (the spec's open
    question 1, its own assumed answer).
 4. **Growth per tier is not in this milestone** (the spec's open question 2). Neither
@@ -53,6 +58,9 @@ two analytics surfaces the data now supports.
    of 30 days* is a count of distinct days in the same read. No `last_seen` column and no
    write on the request path. If the `events` read is too slow without an index on
    `actor_id`, the index is this milestone's one migration and the PR says so.
+   *Taken 2026-10-06:* `0040_admin_console_indexes`, `events (actor_id, occurred_at)` — every
+   console read of the log was a sequential scan. It locks writes to `events` while it builds;
+   its header says how long, and why it cannot be `CONCURRENTLY` here.
 7. **The account page's assistant section reads counts and sizes only.** The footer is verbatim
    and the page grows no "view question" affordance: the ledger holds no content
    (`usage.int.test.ts`), and this milestone does not change that.

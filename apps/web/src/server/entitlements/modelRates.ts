@@ -171,6 +171,26 @@ export function rateAt(
   // own two-entry history instead.
   history: readonly ModelRate[] = MODEL_RATES,
 ): ModelRate | null {
+  if (history !== MODEL_RATES) return scanRates(model, at, history);
+  // **Remembered per model and UTC day, for the committed record only.** The
+  // console prices every step of a 30-day window — 75k calls at 20k turns —
+  // and the scan below was ~100 ms of that (M36 perf pass). The answer depends
+  // only on the model and the date's day, and `MODEL_RATES` is frozen, so it
+  // cannot go stale; an injected history always scans.
+  const key = `${model}\u0000${Math.floor(at.getTime() / DAY_MS)}`;
+  let rate = committedRateMemo.get(key);
+  if (rate === undefined) {
+    rate = scanRates(model, at, history);
+    committedRateMemo.set(key, rate);
+  }
+  return rate;
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const committedRateMemo = new Map<string, ModelRate | null>();
+
+/** `rateAt`'s answer, worked out from the history. */
+function scanRates(model: string, at: Date, history: readonly ModelRate[]): ModelRate | null {
   const asIso = at.toISOString().slice(0, 10);
   const candidates = history.filter(
     (rate) => rate.model === model && rate.effectiveFrom <= asIso,

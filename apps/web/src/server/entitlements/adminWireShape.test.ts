@@ -22,14 +22,18 @@
 import { describe, expect, it } from "vitest";
 import type {
   AdminAccountCost as UiAdminAccountCost,
+  AdminAccountFilter as UiAdminAccountFilter,
   AdminAccountRow as UiAdminAccountRow,
+  AdminAccountsPage as UiAdminAccountsPage,
   AdminGrantRow as UiAdminGrantRow,
   AdminOverview as UiAdminOverview,
 } from "@/lib/adminOverview";
 import type { AdminAiModelsReport as UiAiModelsReport } from "@/lib/adminAiModels";
 import type { AdminNotebooksReport as UiNotebooksReport } from "@/lib/adminNotebooks";
 import type {
+  AccountFilterId as ServerAccountFilterId,
   AdminAccountRow as ServerAdminAccountRow,
+  AdminAccountsPage as ServerAdminAccountsPage,
   AdminGrantRow as ServerAdminGrantRow,
   AdminOverview as ServerAdminOverview,
 } from "./admin";
@@ -65,6 +69,10 @@ type AssertEquals<A, B> = Equals<A, B> extends true ? true : { mismatch: [A, B] 
 const overview: AssertEquals<UiAdminOverview, ServerAdminOverview> = true;
 const account: AssertEquals<UiAdminAccountRow, ServerAdminAccountRow> = true;
 const grant: AssertEquals<UiAdminGrantRow, ServerAdminGrantRow> = true;
+const accountsPage: AssertEquals<UiAdminAccountsPage, ServerAdminAccountsPage> = true;
+// The six filter ids the server's SQL selects on; `accountsView.ts` holds the
+// pills to the same union from the UI side.
+const filterIds: AssertEquals<UiAdminAccountFilter, ServerAccountFilterId> = true;
 const cost: AssertEquals<UiAdminAccountCost, ServerAccountCost> = true;
 // M36 link 4: the AI models tab reads its own report, under the same rule.
 const aiModels: AssertEquals<UiAiModelsReport, ServerAiModelsReport> = true;
@@ -81,7 +89,7 @@ const grantRecord: AssertEquals<UiAdminAccountGrantRecord, ServerAdminAccountGra
 
 describe("the console's wire shape", () => {
   it("is byte-identical on both sides of the lint wall", () => {
-    const checks = [overview, account, grant, cost, aiModels, notebooks, detail, accountPlan, assistant, turn, grantRecord];
+    const checks = [overview, account, grant, accountsPage, filterIds, cost, aiModels, notebooks, detail, accountPlan, assistant, turn, grantRecord];
     expect(checks).toEqual(Array.from({ length: checks.length }, () => true));
   });
 });

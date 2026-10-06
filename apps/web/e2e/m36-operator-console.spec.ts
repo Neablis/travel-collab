@@ -15,10 +15,11 @@ import { E2E_ADMIN_USERNAME } from "./adminBootstrap";
 //   * **The tab is URL state end to end.** `ConsoleTabs` pushes `?tab=`, the
 //     server page reads it and renders that tab's body — a strip that pushed
 //     the wrong value, or a page that ignored it, renders the wrong panel.
-//   * **The view survives the round trip through the server.** The table writes
-//     `q`/`filter` with `history.replaceState`, the row carries them into the
-//     account link, the server builds *← All accounts* from them, and the table
-//     re-seeds from that URL. Four hands; one dropped param breaks it.
+//   * **The view survives the round trip through the server.** The table
+//     navigates to `q`/`filter`, the server searches and filters for them, the
+//     row carries them into the account link, the server builds *← All
+//     accounts* from them, and the table reads them back. Five hands; one
+//     dropped param breaks it.
 //
 // What `m20-entitlements.spec.ts` already proves — that the grant lands on the
 // account that was clicked, and that the dialog names it rather than asking —

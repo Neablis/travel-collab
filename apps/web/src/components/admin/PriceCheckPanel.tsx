@@ -27,6 +27,8 @@ const VERDICT_TEXT: Record<AdminPriceCheckRow["verdict"], string> = {
   unpriced: "not sold",
 };
 
+const TITLE = "Stripe charges what the plan says";
+
 /**
  * The console panel for the price sweep: one row per published version with the
  * plan file's price, Stripe's, and a verdict — or a sentence saying why nothing
@@ -34,7 +36,7 @@ const VERDICT_TEXT: Record<AdminPriceCheckRow["verdict"], string> = {
  */
 export function PriceCheckPanel({ report }: { report: AdminPriceConsistencyView }) {
   return (
-    <Panel title="Stripe charges what the plan says">
+    <Panel title={TITLE}>
       <div className="flex flex-col gap-2" data-testid="price-check-panel">
         {report.status === "unconfigured" ? (
           <Text as="span" className="text-xs text-slate" data-testid="price-check-unconfigured">
@@ -74,6 +76,21 @@ export function PriceCheckPanel({ report }: { report: AdminPriceConsistencyView 
           means publish a new version rather than edit this one.
         </Text>
       </div>
+    </Panel>
+  );
+}
+
+/**
+ * The same panel while Stripe is being asked. Financial streams the sweep
+ * (M36 perf pass), so this is what stands in the panel's place until it
+ * answers — the same frame, so the page does not jump when it does.
+ */
+export function PriceCheckPending() {
+  return (
+    <Panel title={TITLE}>
+      <Text as="span" className="text-xs text-slate" data-testid="price-check-pending">
+        Asking Stripe…
+      </Text>
     </Panel>
   );
 }

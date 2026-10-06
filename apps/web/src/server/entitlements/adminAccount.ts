@@ -45,9 +45,9 @@ export type AdminAccountState = "active" | "granted" | "pastDue" | "none";
 
 /**
  * The header's state badge, decided from the table's own row by the table's
- * own rules (`AccountsPanel`'s filters): Stripe's `past_due` first, then
- * paying (`paysMicroUsd !== 0`, so an unpriceable subscription still pays),
- * then holding a grant, then nothing.
+ * own rules (the filters `accountsMatching` in `admin.ts` writes in SQL):
+ * Stripe's `past_due` first, then paying (`paysMicroUsd !== 0`, so an
+ * unpriceable subscription still pays), then holding a grant, then nothing.
  */
 export function accountState(row: AdminAccountRow): AdminAccountState {
   if (row.subscriptionState === "past_due") return "pastDue";

@@ -1,7 +1,7 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import type { AdminPriceCheckRow } from "@/lib/adminOverview";
-import { PriceCheckPanel } from "./PriceCheckPanel";
+import { PriceCheckPanel, PriceCheckPending } from "./PriceCheckPanel";
 
 // **The operator is who the price sweep reports to** (KI-2026-09-16-c), so the
 // row that matters has to be on the screen, and "never asked" must not render
@@ -46,5 +46,20 @@ describe("the price-check panel", () => {
   it("says billing is off on a deployment with no keys", () => {
     render(<PriceCheckPanel report={{ status: "unconfigured" }} />);
     expect(screen.getByTestId("price-check-unconfigured")).toBeTruthy();
+  });
+
+  // **Financial streams the sweep** (M36 perf pass), so this stands in its
+  // place first. It must not look like an answer: no table, which would read
+  // as "nothing disagrees", and the panel's own title, so it is plainly the
+  // same panel still waiting.
+  it("waits under the panel's own title, and draws no table while it does", () => {
+    render(<PriceCheckPending />);
+    const waiting = screen.getByRole("heading").textContent;
+    expect(screen.getByTestId("price-check-pending").textContent).toBe("Asking Stripe…");
+    expect(screen.queryByTestId("price-check-panel")).toBeNull();
+    cleanup();
+
+    render(<PriceCheckPanel report={{ status: "unconfigured" }} />);
+    expect(screen.getByRole("heading").textContent).toBe(waiting);
   });
 });

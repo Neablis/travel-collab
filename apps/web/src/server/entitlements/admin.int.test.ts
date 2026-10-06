@@ -6,15 +6,25 @@ import { randomUUID } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { db } from "@/server/db/client";
-import { entitlementGrants, events, users } from "@/server/db/schema";
+import { entitlementGrants, events, subscriptions, users } from "@/server/db/schema";
 import { executeTripCommand } from "@/server/commands";
 import { upsertUser } from "@/server/users";
 import type { TurnLedger } from "@/server/assistant/ledger";
 import { recordTurnLedger } from "./usage";
 import { activeGrantHolders, allGrantsFor, issueGrant, offerTrial } from "./grants";
 import { accountCan } from "./resolver";
-import { adminAccounts, adminTopSpenders, isAdmin, planPanel } from "./admin";
-import { livePlanVersion, versionsOf } from "./planVersions";
+import {
+  ACCOUNT_FILTER_IDS,
+  ACCOUNTS_PAGE_SIZE,
+  adminAccounts,
+  adminAccountsPage,
+  adminTopSpenders,
+  isAdmin,
+  planPanel,
+  type AccountFilterId,
+  type AdminAccountRow,
+} from "./admin";
+import { PLAN_VERSIONS, livePlanVersion, versionsOf } from "./planVersions";
 
 let currentUserId = "";
 vi.mock("@/server/auth", () => ({
@@ -256,6 +266,215 @@ describe("the accounts table's activity columns", () => {
     const row = await rowOf(lapsed);
     expect(row.lastActiveAt).toBeNull();
     expect(row.requests).toBe(0);
+  });
+});
+
+// **The accounts table is paged, counted and searched in SQL** (M36 perf
+// pass). Each filter used to be a predicate over rows the resolver had
+// already built (`AccountsPanel`'s `matchesFilter`); now it is a boolean in
+// `accountsMatching`. So the fixture plants one account per rule — and per
+// edge of a rule — and holds the SQL's counts and pages to the rule the row
+// itself is drawn by, as the old client applied it.
+describe("the accounts table's page", () => {
+  const DAY = 24 * 60 * 60 * 1000;
+  const now = new Date();
+
+  /**
+   * One account whose address carries `tag`, so a search isolates the fixture,
+   * each signed up a second after the last so "newest first" has one answer.
+   */
+  let signups = 0;
+  async function tagged(tag: string, name: string, planId: "free" | "plus" = "free") {
+    const id = `dev-${tag}-${name}-${randomUUID().slice(0, 8)}`;
+    await upsertUser({ id, email: `${name}.${tag}@example.test`, name: null, image: null });
+    signups += 1;
+    const createdAt = new Date(now.getTime() - DAY + signups * 1000).toISOString();
+    await db.update(users).set({ planId, planVersion: 1, createdAt }).where(eq(users.id, id));
+    return id;
+  }
+
+  async function subscribe(
+    userId: string,
+    status: "active" | "past_due" | "canceled",
+    options: { planId?: "free" | "plus" | "studio"; pastDueDays?: number; createdDaysAgo?: number } = {},
+  ) {
+    const created = new Date(now.getTime() - (options.createdDaysAgo ?? 10) * DAY);
+    await db.insert(subscriptions).values({
+      id: randomUUID(),
+      userId,
+      stripeCustomerId: `cus_${userId}`,
+      stripeSubscriptionId: `sub_${randomUUID()}`,
+      planId: options.planId ?? "plus",
+      planVersion: 1,
+      status,
+      currentPeriodEnd: new Date(now.getTime() + 20 * DAY),
+      cancelAtPeriodEnd: false,
+      pastDueSince: options.pastDueDays === undefined ? null : new Date(now.getTime() - options.pastDueDays * DAY),
+      lastEventAt: created,
+      createdAt: created,
+      updatedAt: created,
+    });
+  }
+
+  async function grant(userId: string, options: { expired?: boolean; revoked?: boolean } = {}) {
+    const premium = livePlanVersion("premium");
+    await db.insert(entitlementGrants).values({
+      id: randomUUID(),
+      userId,
+      planId: premium.planId,
+      planVersion: premium.version,
+      source: "admin",
+      grantedBy: null,
+      reason: "fixture",
+      createdAt: new Date(now.getTime() - 5 * DAY),
+      expiresAt: options.expired ? new Date(now.getTime() - DAY) : null,
+      revokedAt: options.revoked ? new Date(now.getTime() - DAY) : null,
+      revokedBy: null,
+    });
+  }
+
+  /** Every account, one per rule and per edge of one. */
+  async function fixture() {
+    const tag = randomUUID().slice(0, 8);
+    const ids = {
+      payer: await tagged(tag, "payer", "plus"),
+      // A conferring subscription this deploy cannot price still pays.
+      unpriced: await tagged(tag, "unpriced", "plus"),
+      // A subscription to a version sold at no charge confers and pays nothing.
+      freeSub: await tagged(tag, "freesub"),
+      late: await tagged(tag, "late", "plus"),
+      lapsed: await tagged(tag, "lapsed", "plus"),
+      // Its newest row is cancelled; `subscriptionFor` picks the older active one.
+      resubscribed: await tagged(tag, "resubscribed", "plus"),
+      granted: await tagged(tag, "granted"),
+      expired: await tagged(tag, "expired"),
+      revoked: await tagged(tag, "revoked"),
+      sinking: await tagged(tag, "sinking", "plus"),
+      idle: await tagged(tag, "idle"),
+    };
+    await subscribe(ids.payer, "active");
+    // `studio@v1` is published and sold for no price (`price: null`), so a
+    // subscription to it is unpriceable without inventing a version — which
+    // `planVersions.republish.int.test.ts` refuses in any row.
+    await subscribe(ids.unpriced, "active", { planId: "studio" });
+    await subscribe(ids.freeSub, "active", { planId: "free" });
+    await subscribe(ids.late, "past_due", { pastDueDays: 1 });
+    await subscribe(ids.lapsed, "past_due", { pastDueDays: 5 });
+    await subscribe(ids.resubscribed, "active", { createdDaysAgo: 40 });
+    await subscribe(ids.resubscribed, "canceled", { createdDaysAgo: 2 });
+    await subscribe(ids.sinking, "active");
+    await grant(ids.granted);
+    await grant(ids.expired, { expired: true });
+    await grant(ids.revoked, { revoked: true });
+    return { tag, ids, underwater: [ids.sinking] };
+  }
+
+  /** The old client's `matchesFilter`, over a row the resolver drew. */
+  const grantsNothing = new Set<string>(
+    [...new Set(PLAN_VERSIONS.map((entry) => entry.planId))].filter(
+      (planId) => livePlanVersion(planId).entitlements.length === 0,
+    ),
+  );
+  function drawnAs(row: AdminAccountRow, filter: AccountFilterId, underwater: readonly string[]): boolean {
+    switch (filter) {
+      case "all":
+        return true;
+      case "paying":
+        return row.paysMicroUsd !== 0;
+      case "granted":
+        return row.grants.length > 0;
+      case "unentitled":
+        return grantsNothing.has(row.planVersionRef.split("@")[0]!);
+      case "pastDue":
+        return row.subscriptionState === "past_due";
+      case "underwater":
+        return underwater.includes(row.userId);
+    }
+  }
+
+  /** Every page of one filter, in order, until the server runs out. */
+  async function everyPage(query: string, filter: AccountFilterId, underwater: readonly string[]) {
+    const pages = [];
+    for (let page = 0; ; page += 1) {
+      const served = await adminAccountsPage({ query, filter, page }, now, [], underwater);
+      if (served.page !== page) break;
+      pages.push(served);
+      if ((page + 1) * ACCOUNTS_PAGE_SIZE >= served.counts[filter]) break;
+    }
+    return pages;
+  }
+
+  it("counts each filter by the rule its rows are drawn by", async () => {
+    const { tag, ids, underwater } = await fixture();
+    const [all] = await everyPage(tag, "all", underwater);
+    const served = await everyPage(tag, "all", underwater);
+    const rows = served.flatMap((page) => page.rows);
+    // The witness: the search found the fixture and nothing else.
+    expect(rows.map((row) => row.userId).sort()).toEqual(Object.values(ids).sort());
+
+    // The rule each count is held to, and the number it comes to here.
+    for (const filter of ACCOUNT_FILTER_IDS) {
+      expect(all!.counts[filter], filter).toBe(rows.filter((row) => drawnAs(row, filter, underwater)).length);
+    }
+    expect(all!.counts).toEqual({
+      all: 11,
+      // payer, unpriced, late (inside its window), resubscribed, sinking.
+      paying: 5,
+      granted: 1,
+      // freesub, granted, expired, revoked, idle — their held plan grants nothing.
+      unentitled: 5,
+      pastDue: 1,
+      underwater: 1,
+    });
+  });
+
+  it("serves each filter's own rows, newest first", async () => {
+    const { tag, ids, underwater } = await fixture();
+    const ofFilter = async (filter: AccountFilterId) =>
+      (await everyPage(tag, filter, underwater)).flatMap((page) => page.rows.map((row) => row.userId));
+    expect((await ofFilter("paying")).sort()).toEqual(
+      [ids.payer, ids.unpriced, ids.late, ids.resubscribed, ids.sinking].sort(),
+    );
+    expect(await ofFilter("pastDue")).toEqual([ids.late]);
+    expect(await ofFilter("granted")).toEqual([ids.granted]);
+    expect(await ofFilter("underwater")).toEqual([ids.sinking]);
+    // Newest first: `idle` was signed up last.
+    expect((await ofFilter("all"))[0]).toBe(ids.idle);
+  });
+
+  it("serves at most a page of rows, covers the set once, and keeps the counts page to page", async () => {
+    const { tag, ids, underwater } = await fixture();
+    const pages = await everyPage(tag, "all", underwater);
+    // 11 accounts: a full page and a short one.
+    expect(pages.map((page) => page.rows.length)).toEqual([ACCOUNTS_PAGE_SIZE, 11 - ACCOUNTS_PAGE_SIZE]);
+    expect(pages[1]!.counts).toEqual(pages[0]!.counts);
+    const seen = pages.flatMap((page) => page.rows.map((row) => row.userId));
+    expect(new Set(seen).size).toBe(seen.length);
+    expect(seen.sort()).toEqual(Object.values(ids).sort());
+    // Only the page's underwater rows are named, and they are on the page.
+    for (const page of pages) {
+      expect(page.underwater.every((id) => page.rows.some((row) => row.userId === id))).toBe(true);
+    }
+  });
+
+  it("serves the last page with rows when asked past the end", async () => {
+    const { tag, underwater } = await fixture();
+    const served = await adminAccountsPage({ query: tag, filter: "all", page: 40 }, now, [], underwater);
+    expect(served.page).toBe(1);
+    expect(served.rows).toHaveLength(11 - ACCOUNTS_PAGE_SIZE);
+  });
+
+  // An address search is a substring, not a pattern: a `%` typed into the box
+  // would otherwise match every account there is.
+  it("searches addresses and ids as text, case-insensitively", async () => {
+    const { tag, ids, underwater } = await fixture();
+    const found = async (query: string) =>
+      (await adminAccountsPage({ query, filter: "all", page: 0 }, now, [], underwater)).counts.all;
+    expect(await found(`  LATE.${tag.toUpperCase()}  `)).toBe(1);
+    // The id, which holds `-late-` where the address holds `late.`.
+    expect(await found(ids.late)).toBe(1);
+    expect(await found(`${tag}%`)).toBe(0);
+    expect(await found(`${tag}_`)).toBe(0);
   });
 });
 
