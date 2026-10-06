@@ -1,7 +1,8 @@
 # M37 — A trip looks like somewhere before it has a plan
 
-**Status:** **Proposed 2026-10-06, placed after M35. Not scoped yet**: the decisions below are
-recommendations and none has been answered. Minted from `docs/candidates.md` when its 42 unplaced
+**Status:** **Scoped 2026-10-06, placed after M35.** Every decision below was answered as
+recommended (*"Yes that recommendation is fine"*), and the order M37 → M47 was confirmed
+(*"Order is good"*), both on 2026-10-06. Minted from `docs/candidates.md` when its 42 unplaced
 entries were grouped into milestones (asked 2026-10-06: *"Go through the suggested new features,
 categorize them into similar features, and lets build out our next new milestones"*). The grouping
 and the order are in `docs/milestones/README.md` under *2026-10-06 — proposed: M37 to M47*.
@@ -20,7 +21,7 @@ Candidates absorbed (each deleted by this gate):
 - *Free Unsplash photos on activities, trips, playbook days and notebooks* (2026-10-04)
 - *Trip list row: show the trip's length* (2026-08-01)
 
-## Decisions it needs (recommendations; none answered)
+## Decisions (answered 2026-10-06: every one as recommended)
 
 1. **A photo is a decoration on the trip, not a plan fact.** *Recommended:* store it as trip
    metadata (a column or side table: Unsplash id, URLs, photographer, credit link), not as an
@@ -62,7 +63,9 @@ Candidates absorbed (each deleted by this gate):
 
 ## Exit gate
 
-- [ ] **Decisions 1–6 are answered and recorded here**, with the date and who answered.
+- [x] **Decisions 1–6 are answered and recorded here**, with the date and who answered.
+      *(Ticked 2026-10-06: all six as recommended. No automatic cover; a photo is trip metadata,
+      not an event.)*
 - [ ] **An empty trip's card is designed, not blank**: a trip with no days and no stops shows its
       dates or destination and a next step, and a test asserts that state. The test was seen red
       against the old card.

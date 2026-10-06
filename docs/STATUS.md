@@ -27,8 +27,8 @@ M35 is built and merged (#335); its gate is 8 of 12.
 (`docs/milestones/M35-travellers-and-people.md`)
 
 **M37 to M47 were proposed on 2026-10-06** by grouping the candidates file, and placed after M35 in
-that order. **None is scoped yet**: each file lists its decisions with a recommendation, and
-answering M37's decisions is the next step after M35's gate. Grouping and order:
+that order. The order was confirmed the same day, and **M37 is scoped**: its six decisions were answered as
+recommended. M38–M47 are not scoped yet. Grouping and order:
 `docs/milestones/README.md`, *2026-10-06 — proposed: M37 to M47*.
 
 **M36 closed 2026-10-06** on Mitchell's word that the admin console works; its two walk boxes are
