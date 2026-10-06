@@ -23,8 +23,14 @@ general setup.
 
 **M37 — A TRIP LOOKS LIKE SOMEWHERE BEFORE IT HAS A PLAN — IS THE CURRENT MILESTONE AS OF
 2026-10-06**, by **M35's gate closing at 12 of 12**. Order: `… M36 ✓ → M35 ✓ → M37 → M38 … M47`.
-It is scoped, with all six decisions answered as recommended, and is being built from
-`docs/plans/2026-10-06-M37-trip-cards-and-covers.md`. Its gate is 1 of 8.
+It is built as a five-part draft stack, #350 → #354, from
+`docs/plans/2026-10-06-M37-trip-cards-and-covers.md`. Its gate is **10 of 12**, with the
+preview `[walk]` and the retro open. Tier 3 ran once, on #354:
+- `pnpm check` exit 0;
+- ci-like e2e: 243 passed, 1 flaky, filed as KI-2026-10-06-a;
+- `seed:verify`: 108/108.
+**Migrations `0042` and `0043` must be dispatched after the stack merges.** Nothing merges without
+Mitchell.
 (`docs/milestones/M37-trips-look-like-somewhere.md`)
 
 **M35 closed 2026-10-06.** Migration `0039` is confirmed applied from `migrate-production` run #37
