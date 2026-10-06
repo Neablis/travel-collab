@@ -23,7 +23,7 @@ import { desc, eq, sql } from "drizzle-orm";
 import { GrantSource, type PlanId } from "@tc/contracts";
 import { db } from "@/server/db/client";
 import { adminConsoleFlag } from "@/server/flags";
-import { users } from "@/server/db/schema";
+import { aiUsage, events, users } from "@/server/db/schema";
 import { activeGrantHolders } from "./grants";
 import { PLAN_VERSIONS, planVersionRefOf, type PlanVersion } from "./planVersions";
 import { entitlementsFor } from "./resolver";
@@ -378,7 +378,14 @@ export interface AdminAccountRow {
   grants: readonly AdminGrantRow[];
   /** Their effective capabilities, as the resolver answers them right now. */
   entitlements: readonly string[];
-  /** Requests and micro-dollars over the trailing window. */
+  /**
+   * Requests and micro-dollars over the trailing window.
+   *
+   * `requests` is the console's **Asked 30d** (M36 link 2): one `ai_usage` row
+   * is one assistant turn, so a count of them in the window is the questions
+   * asked. It was already this, so the column reads it rather than adding a
+   * second field that would have to agree with it.
+   */
   requests: number;
   microUsd: number;
   /** Rows whose model has no published rate, so `microUsd` understates. */
@@ -397,6 +404,42 @@ export interface AdminAccountRow {
   paysMicroUsd: number | null;
   /** Stripe's own word, or `null` for an account that has never subscribed. */
   subscriptionState: string | null;
+  /**
+   * **Last active** (M36 D6), ISO — the later of the account's newest planning
+   * event and its newest assistant turn inside the trailing window, or `null`
+   * when it did neither in that window. See `lastActiveSince`.
+   */
+  lastActiveAt: string | null;
+}
+
+/**
+ * **When each account last did anything**, over the trailing window (M36 D6).
+ *
+ * Derived, never stored: the newest of its planning events (`events.actor_id`)
+ * and its assistant turns (`ai_usage.user_id`), so no `last_seen` column and
+ * no write on the request path. **One grouped read for every account**, not
+ * one per row — the table it feeds is 100 rows. Bounded by the window as D6
+ * words it, so `null` reads "not in 30 days", not "never".
+ *
+ * This reads the event log, which is the planning domain's and not this
+ * module's; a read of who wrote a row is not a write through it (invariant 1),
+ * and nothing here learns what any event means — only its actor and time.
+ */
+export async function lastActiveSince(since: Date): Promise<Map<string, string>> {
+  const from = since.toISOString();
+  const rows = await db.execute<{ user_id: string; at: Date | string }>(sql`
+    select user_id, max(at) as at from (
+      select ${events.actorId} as user_id, max(${events.occurredAt}) as at
+        from ${events} where ${events.occurredAt} >= ${from} group by ${events.actorId}
+      union all
+      select ${aiUsage.userId} as user_id, max(${aiUsage.createdAt}) as at
+        from ${aiUsage} where ${aiUsage.createdAt} >= ${from} group by ${aiUsage.userId}
+    ) as activity
+    group by user_id
+  `);
+  // `db.execute` hands back whatever the driver produced: node-postgres parses
+  // a `timestamptz` into a `Date`, and a string is accepted for the day it does not.
+  return new Map(rows.rows.map((row) => [row.user_id, new Date(row.at).toISOString()]));
 }
 
 /**
@@ -415,7 +458,7 @@ export async function adminAccounts(
   trailing?: readonly AccountCost[],
 ): Promise<AdminAccountRow[]> {
   const since = trailingWindowStart(now);
-  const [rows, costs, counts] = await Promise.all([
+  const [rows, costs, counts, lastActive] = await Promise.all([
     db
       .select({ id: users.id, email: users.email, isAdmin: users.isAdmin })
       .from(users)
@@ -424,6 +467,7 @@ export async function adminAccounts(
     // The overview's one ledger read, when it hands it down (see `adminOverview`).
     trailing ?? costPerAccount(since),
     requestCounts(since),
+    lastActiveSince(since),
   ]);
   const costByUser = new Map(costs.map((cost) => [cost.userId, cost]));
   return Promise.all(
@@ -457,6 +501,7 @@ export async function adminAccounts(
         unpriced: cost?.unpriced ?? 0,
         paysMicroUsd: pays,
         subscriptionState: subscription?.lapsed === true ? "lapsed" : (subscription?.row.status ?? null),
+        lastActiveAt: lastActive.get(row.id) ?? null,
       };
     }),
   );

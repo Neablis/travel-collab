@@ -106,6 +106,7 @@ export interface AdminAccountRow {
   grantSources: readonly string[];
   grants: readonly AdminGrantRow[];
   entitlements: readonly string[];
+  /** Assistant turns in the trailing window — the table's *Asked 30d*. */
   requests: number;
   microUsd: number;
   unpriced: number;
@@ -120,6 +121,8 @@ export interface AdminAccountRow {
   paysMicroUsd: number | null;
   /** Stripe's own word, `"lapsed"`, or `null` for an account that never paid. */
   subscriptionState: string | null;
+  /** M36 D6 — ISO; newest planning event or assistant turn in the window, or `null`. */
+  lastActiveAt: string | null;
 }
 
 /** Mirrors `AccountCost` (`@/server/entitlements/usage`). */
