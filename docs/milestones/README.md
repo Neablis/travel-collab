@@ -117,6 +117,17 @@ for collaboration later landing on a product people already want to join.
 | M34 | Adding a stop suggests what other travellers did nearby | **Gate closed 2026-10-06, 7 of 7**, the walk on Mitchell's production attestation. Current from 2026-10-05 to 2026-10-06. **Minted, scoped and placed 2026-10-05 by Mitchell, after M33.** The add-stop sheet's *"Example match"* placeholder was filed under M9's grounding, but nothing in it needs the model or a place vendor: it lists stops from other people's published days in the day's city, closest first, filtered as you type, and a pick fills name, place, length, kind and tags (not time or cost). Named `nearbyStops` in code, because *suggestion* is ADR-064's word: `M34-nearby-stops.md` |
 | M35 | You can say who on a trip is actually going | **CURRENT MILESTONE from 2026-10-06**, by M36's gate closing. **Minted 2026-10-05 by Mitchell, built before minting.** Built off-milestone on PR #335 while M34 is current, from an approved spec and plan; see the 2026-10-05 note below. Travelling is a per-person Access attribute counted at read time (ADR-065), so per-person costs, balances and "N travellers" count travellers, not members, and a suggester who joins to advise no longer doubles a total. Trip settings → People replaces the Travelers panel, with an owner state, role change in place and realtime access. Migration `0039`: `M35-travellers-and-people.md` |
 | M36 | The operator console is four tabs, and an account has a page | **Gate closed 2026-10-06, 13 of 13**, the walks on Mitchell's attestation. Current for part of 2026-10-06, by M34's gate closing. **Minted, scoped and placed 2026-10-06 by Mitchell as the next milestone** — after M34, ahead of M35 — and **started the same day** while M34 is current (see the 2026-10-06 note below). The 2026-10-05 handoff (`specs/operator-console.md`, DRIFT D20/D21) redraws the one-scroll console as Financial · Users · Library · AI models, gives an account a page (usage, activity, grants, revoke with a confirm), deletes `GrantSourcePanel`, and is the first admin surface to read M31's ledger. Growth per tier and notebook shares are out by decision: neither has a source. Six links, no planned migration: `M36-operator-console.md` |
+| M37 | A trip looks like somewhere before it has a plan | **Proposed and scoped 2026-10-06**; all six decisions answered as recommended. From `docs/candidates.md`; see *2026-10-06 — proposed: M37 to M47*. Home trip cards with a designed empty state, Unsplash covers, trip length: `M37-trips-look-like-somewhere.md` |
+| M38 | You can tell people apart, and see a trip before you join it | **Proposed 2026-10-06, not scoped**; its decisions are recommendations, none answered. From `docs/candidates.md`; see *2026-10-06 — proposed: M37 to M47*. Avatars, colours and display names on every person surface; the invite page built from notebook widgets: `M38-people-you-can-tell-apart.md` |
+| M39 | The phone layout is decided once, and Caesura installs like an app | **Proposed 2026-10-06, not scoped**; its decisions are recommendations, none answered. From `docs/candidates.md`; see *2026-10-06 — proposed: M37 to M47*. The phone/tablet design critique and its KIs, the phone conflict state, PWA install tiers 1–2: `M39-the-phone-is-decided.md` |
+| M40 | A big change is reviewed whole, taken whole, and undone whole | **Proposed 2026-10-06, not scoped**; its decisions are recommendations, none answered. From `docs/candidates.md`; see *2026-10-06 — proposed: M37 to M47*. Accept all as one batch, named snapshots, assistant planning turns write suggestions: `M40-a-big-change-is-one-change.md` |
+| M41 | Moving and adding stops takes one gesture wherever you are | **Proposed 2026-10-06, not scoped**; its decisions are recommendations, none answered. From `docs/candidates.md`; see *2026-10-06 — proposed: M37 to M47*. Calendar drag, Move to…, quick-add, search-to-add, the drawer's add, parked-stop origin, empty states, optimistic Duplicate/Restore: `M41-planning-without-friction.md` |
+| M42 | The front door shows more than one trip, and what it costs | **Proposed 2026-10-06, not scoped**; its decisions are recommendations, none answered. From `docs/candidates.md`; see *2026-10-06 — proposed: M37 to M47*. `/demo/<slug>` picker, landing pricing, the SEO pass's leftovers: `M42-the-front-door-shows-more.md` |
+| M43 | A trip's notebooks keep up with their templates | **Proposed 2026-10-06, not scoped**; its decisions are recommendations, none answered. From `docs/candidates.md`; see *2026-10-06 — proposed: M37 to M47*. Seed back-fill and reset, `pages.kind`, derived Overview title, the `open` widget's design and filters: `M43-notebooks-keep-up.md` |
+| M44 | A stop knows what was booked, and what it sits inside | **Proposed 2026-10-06, not scoped**; its decisions are recommendations, none answered. From `docs/candidates.md`; see *2026-10-06 — proposed: M37 to M47*. `booking` on the activity contract, the containment rule in `conflicts.ts`: `M44-a-stop-knows-what-was-booked.md` |
+| M45 | The assistant answers about all your trips, and can take you places | **Proposed 2026-10-06, not scoped**; its decisions are recommendations, none answered. From `docs/candidates.md`; see *2026-10-06 — proposed: M37 to M47*. Account-wide read tools, `ClientAction` navigation, approved edit mode: `M45-the-assistant-beyond-one-trip.md` |
+| M46 | A trip has a conversation, with the people taking it | **Proposed 2026-10-06, not scoped**; its decisions are recommendations, none answered. From `docs/candidates.md`; see *2026-10-06 — proposed: M37 to M47*. Trip chat, its own store, unread counts, moderation: `M46-a-trip-has-a-conversation.md` |
+| M47 | The operator console shows tiers over time, and paid flows can be tested in production | **Proposed 2026-10-06, not scoped**; its decisions are recommendations, none answered. From `docs/candidates.md`; see *2026-10-06 — proposed: M37 to M47*. Weekly tier rollup and chart; Stripe `livemode` beside live: `M47-the-business-over-time.md` |
 
 - **Restructure (2026-07-28), from the Phase 1 gate review.** The gate had not
   been met and the reason was structural, not cosmetic: a trip cannot be renamed
@@ -223,6 +234,50 @@ the argument, not the live instruction, and they were 56% of this file.
 - **2026-09-19** — M25's gate closed, and what it leaves the milestones behind it
 - **2026-09-19 (later)** — minted, scoped and placed: M26, design parity
 - **2026-08-08, 2026-08-14, 2026-08-25, 2026-08-26** — the superseded reorders and M10's reopened gate, and the placement paragraphs for M26 to M28: *Moved out of README.md on 2026-09-30*, at the end
+
+### 2026-10-06 — proposed: M37 to M47, from the candidates file
+
+**Asked 2026-10-06:** *"Go through the suggested new features, categorize them into similar
+features, and lets build out our next new milestones since we are getting close to done with
+current"*. M35 is at 8 of 12 and is the last unticked row. These eleven milestones are proposed
+and placed after it in `TODO.md`, in the order below.
+**Confirmed the same day:** *"Order is good"*, and M37's six decisions were answered as
+recommended, so **M37 is scoped**. **The rest are not scoped**: each file lists the decisions it needs, with a recommendation for
+each, and none of those decisions has been answered. A milestone is scoped when its decisions
+are. Until then its gate can change freely, and the order can too, by moving rows.
+
+The 42 unplaced candidates were grouped by what they would change for a user:
+
+| Group | Milestone | Candidates |
+|---|---|---|
+| First impression of a trip | M37 | home cards, Unsplash photos, trip length |
+| People and joining | M38 | avatars and personas, invite page from widgets |
+| The phone | M39 | design critique (5 KIs), PWA tiers 1–2, phone conflict state |
+| Reviewing big changes | M40 | Accept all as one batch, named snapshots, assistant proposes via suggestions |
+| Board ergonomics | M41 | Calendar drag, M8 C/D trim, unscheduled add, parked origin, optimistic duplicate |
+| Signed-out visitors | M42 | demo picker, landing pricing, SEO leftovers |
+| Seeded notebooks | M43 | reset/back-fill, Overview identity, Overview title, `open` shape, `open` filters |
+| The activity contract | M44 | booking fields, contained activities |
+| Assistant reach | M45 | account-wide assistant, navigation, UI-action approval |
+| Talking on a trip | M46 | trip chat |
+| Billing truth | M47 | tier history, Stripe test mode |
+
+**Why this order.** Mitchell wants users before increasing AI cost (2026-10-03), so the work a
+new user sees comes first: the home page (M37), the people on a trip (M38), the phone (M39). M40
+is next because it reuses the suggestions machinery while it is fresh, and it makes the
+assistant's large changes safe. The polish milestones (M41–M44) follow. New AI traffic (M45), the
+largest new surface (M46), and billing work that pays off only with paying users (M47) come last.
+
+**Left unplaced (nine), and why.** The eve port and user memory stay deferred behind ADR-062's
+triggers. The architecture map and the cloud e2e browser match are repo automation, not product
+work. `/ask` surviving a throw is a KI-sized fix for M9's carried cluster. The fourth-plan proof
+is a note, not work. The model-comparison harness should follow evidence from M33's evals rather
+than lead. The save-light popover and the design-sync items (History beyond the popover,
+`MapRail`, auth error states) need design first.
+
+**Housekeeping in the same commit.** The PLACED→M24 entry and *Transport mode per leg* were
+deleted from `docs/candidates.md`. M24's gate closed on 2026-09-25 and should have deleted them,
+but the first entry's deletion sentence was missed, and the second never said a gate deletes it.
 
 ### 2026-10-06 — M34, M9 and M36 closed on Mitchell's production word; M29 and M30 get their rows; TODO.md trimmed
 

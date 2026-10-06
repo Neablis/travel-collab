@@ -26,6 +26,7 @@ here two days later.
     day it ships, empty before) or a derivation from `entitlement_grants` and `billing_events`
     (back-fills history, but has never been checked against Stripe's own record). The spec's open
     question 2; M36 decision 4 is why it is here rather than there.
+  *Placed 2026-10-06 → `docs/milestones/M47-the-business-over-time.md` (proposed, not yet scoped). M47's gate deletes this entry at close.*
 
 - **An account-wide assistant that answers about every trip you have taken (asked 2026-10-04).**
   Mitchell: *"Account wide AI assistant, be able to ask about what kind of trips they have taken
@@ -43,6 +44,7 @@ here two days later.
     deterministic tools or the model reads trip dumps (cost and accuracy). Country/city
     derivation where a stop has no geocoded place. Invariant 7 still holds: it reads only what
     the user could open. Pairs with "User memory", which is deferred with the eve port.
+  *Placed 2026-10-06 → `docs/milestones/M45-the-assistant-beyond-one-trip.md` (proposed, not yet scoped). M45's gate deletes this entry at close.*
 
 - **A chat for a trip, with the people taking it (asked 2026-10-04).** Mitchell: *"a chat for a
   trip with the others taking the trip"*. Nothing like it exists; collaborators coordinate
@@ -54,6 +56,7 @@ here two days later.
     Which roles may read and post (a suggester?). Realtime versus refresh. Notifications, which
     nothing generates today. Moderation, report and delete, given the admin reports panel.
     Retention when a trip is soft-deleted (ADR-016).
+  *Placed 2026-10-06 → `docs/milestones/M46-a-trip-has-a-conversation.md` (proposed, not yet scoped). M46's gate deletes this entry at close.*
 
 - **Free Unsplash photos on activities, trips, playbook days and notebooks (asked
   2026-10-04).** Mitchell: *"leveraging unsplashed free photos to add photos to activities,
@@ -66,6 +69,7 @@ here two days later.
     Per-use hotlinking versus copying into our own storage. Whether a photo is a stop fact
     (an event, so History and undo apply) or a decoration. How the public library (ADR-061) and
     its OG images treat a photo. Per ADR-052 external data enters as a server-fetched input.
+  *Placed 2026-10-06 → `docs/milestones/M37-trips-look-like-somewhere.md` (proposed, not yet scoped). M37's gate deletes this entry at close.*
 
 - **The invite-accept page uses notebook widgets to say what the trip is (asked 2026-10-04).**
   Mitchell: *"leveraging the notebook widgets for the accept joining trip page so it shares code
@@ -78,6 +82,7 @@ here two days later.
   - **Decisions it needs.** What an invitee may see before accepting, since the token holder is
     not yet a member (ADR-026) and costs are the sensitive part. Which widgets, and whether the
     owner chooses. How a read-only render with no membership gets its inputs.
+  *Placed 2026-10-06 → `docs/milestones/M38-people-you-can-tell-apart.md` (proposed, not yet scoped). M38's gate deletes this entry at close.*
 
 - **Avatars and personas: a picture, a colour and a name you choose (asked 2026-10-04).**
   Mitchell: *"avatars and better personas for your account so you can see who's in a activity or
@@ -89,6 +94,7 @@ here two days later.
     before they have an account. Whether a colour is unique within a trip so people are told
     apart, or purely personal. A fixed avatar set versus uploads (uploads bring storage and
     moderation). Public-library profiles (ADR-061) must not leak a private name.
+  *Placed 2026-10-06 → `docs/milestones/M38-people-you-can-tell-apart.md` (proposed, not yet scoped). M38's gate deletes this entry at close.*
 
 - **Better home-page trip cards, above all for a trip with no days or stops (asked 2026-10-04).**
   Mitchell: *"better card for trips on your homepage, especially when a trip doesn't have days
@@ -100,6 +106,7 @@ here two days later.
   - **Decisions it needs.** Which facts the card may show without a read per trip. The skeleton
     in `HomeSkeletons.tsx` has to match. It is a design change, so it goes through the design
     sync if it touches `.design-sync/**`.
+  *Placed 2026-10-06 → `docs/milestones/M37-trips-look-like-somewhere.md` (proposed, not yet scoped). M37's gate deletes this entry at close.*
 
 - **The assistant can move around the site (asked 2026-10-04).** Mitchell: *"give the AI agent
   the ability to move around the website, go to notebooks, change to map view, etc"*.
@@ -112,6 +119,7 @@ here two days later.
     page with unsaved input. How it learns the available destinations (a typed route list, not
     free URLs). Cheap to build once the account-wide assistant exists, since that assistant has
     no page of its own to start on.
+  *Placed 2026-10-06 → `docs/milestones/M45-the-assistant-beyond-one-trip.md` (proposed, not yet scoped). M45's gate deletes this entry at close.*
 
 - **Named snapshots in History: save the trip as it is now, jump back without scrolling (asked
   2026-10-05).** Mitchell: *"Named Snapshots in history. So essentially the ability to 'save' the
@@ -140,6 +148,7 @@ here two days later.
     - A limit per trip, and suggested names ("Before Sam's changes", "Booked flights").
     - Whether the assistant can save one before a large proposal and offer a way back (see the
       assistant-proposals entry above); that pairing is the likeliest first use.
+  *Placed 2026-10-06 → `docs/milestones/M40-a-big-change-is-one-change.md` (proposed, not yet scoped). M40's gate deletes this entry at close.*
 
 - **"Accept all" lands as one History entry, not one per change (asked 2026-10-04).** #314's
   "Accept all" accepts each pending change in turn through the single-accept route, so a
@@ -156,6 +165,7 @@ here two days later.
     stops at the first refusal and keeps what landed). How the entry is worded and attributed
     when the changes come from several suggesters (`Origin` carries one author today). Whether
     undoing it returns the changes to pending or leaves them accepted-then-undone.
+  *Placed 2026-10-06 → `docs/milestones/M40-a-big-change-is-one-change.md` (proposed, not yet scoped). M40's gate deletes this entry at close.*
 - **PLACED 2026-10-05 — this is M35, the travellers spec, and its three decisions are answered.**
   *Scheduled as `docs/milestones/M35-travellers-and-people.md`, built as
   `docs/specs/2026-10-05-travellers-and-people-panel-design.md`, recorded as ADR-065. The default
@@ -195,6 +205,7 @@ here two days later.
     - "Suggested by" needs a name for an assistant author.
     - It is undecided whether assistant changes count against the 50-per-author pending cap.
     - Whether it supersedes ADR-022's ephemeral proposals or sits beside them is an ADR question.
+  *Placed 2026-10-06 → `docs/milestones/M40-a-big-change-is-one-change.md` (proposed, not yet scoped). M40's gate deletes this entry at close.*
 - **Caesura installable as a phone app, as a PWA and not a store release (asked
   2026-10-02).** Mitchell: *"what would be the lift to get Caesura working as a
   mobile app? Not like a full on app store"*, then *"add the PWA to potential
@@ -225,6 +236,7 @@ here two days later.
   cookie jar, emailed invite links open in Safari and not in the app, and
   long-press drag on the board is unverified (the `phone` e2e project is desktop
   Chrome at 411px with no touch).
+  *Placed 2026-10-06 → `docs/milestones/M39-the-phone-is-decided.md` (proposed, not yet scoped). M39's gate deletes this entry at close.*
 
 - **The assistant on eve: the port, deferred until there are users (asked 2026-10-02,
   deferred 2026-10-03).** ADR-062 records the decision and the Phase 0 spike's evidence.
@@ -292,6 +304,7 @@ here two days later.
     card and copy already exist.
   - `/welcome` renders two `<h1>`s, and `/s/<token>` and `/invite/<token>`
     carry no `noindex`.
+  *Placed 2026-10-06 → `docs/milestones/M42-the-front-door-shows-more.md` (proposed, not yet scoped). M42's gate deletes this entry at close.*
 
 - **Structured booking fields on a stop — confirmation number, provider, link
   (asked 2026-09-30).** From an external API consumer's feedback: confirmation
@@ -307,6 +320,7 @@ here two days later.
   Open questions: which fields actually render (card, editor, the Money notebook?),
   whether check-in/out times belong here or in the time window, and whether a
   confirmation number is sensitive enough to hide from viewers and share links.
+  *Placed 2026-10-06 → `docs/milestones/M44-a-stop-knows-what-was-booked.md` (proposed, not yet scoped). M44's gate deletes this entry at close.*
 
 - **Reset a trip's default notebooks to their seed, and add any seed the trip is
   missing (asked 2026-09-27).** Mitchell, reading the M29/M30 Overview: *"Its hard to
@@ -328,6 +342,7 @@ here two days later.
   Open questions: where the control lives (the notebook list, or each notebook's menu),
   who may use it (owner only?), and whether the Overview's links to the other seeds
   survive a reset (they name seed ids, which a reset keeps).
+  *Placed 2026-10-06 → `docs/milestones/M43-notebooks-keep-up.md` (proposed, not yet scoped). M43's gate deletes this entry at close.*
 
 - **An architecture map that is generated, drift-checked, and annotated at gate
   close (designed 2026-09-18 — `docs/specs/2026-09-18-architecture-map-and-drift-audit-design.md`).**
@@ -380,6 +395,7 @@ here two days later.
   `docs/specs/2026-09-27-link-previews-and-real-hero-design.md` §3.2 (one
   snapshot per trip) and on `server/demoTrip.ts` folding a bundle, not only the
   Japan fixture.
+  *Placed 2026-10-06 → `docs/milestones/M42-the-front-door-shows-more.md` (proposed, not yet scoped). M42's gate deletes this entry at close.*
 
 - **Stripe test mode alongside live, without a redeploy to switch.** Asked for
   2026-09-16: *"i would like to be able to use test card without needing to take
@@ -416,6 +432,7 @@ here two days later.
   checkout, the webhook, or the decline → grace → lapse chain — and those are
   better walked in an environment that is entirely test mode (local with
   `stripe listen`) than in a live one with a mode switch inside it.
+  *Placed 2026-10-06 → `docs/milestones/M47-the-business-over-time.md` (proposed, not yet scoped). M47's gate deletes this entry at close.*
 
 - **The header's "Add stop" on desktop — where should creating an UNSCHEDULED
   stop live?** Reported on the preview, 2026-09-15: *"This Add Stop button i
@@ -434,6 +451,7 @@ here two days later.
   Not guessed at in the M21 branch — RULES.md 2 ("no purposeless UI") and RULES.md
   4 ("challenge to simplify") point opposite ways here until someone picks.
   *(Filed 2026-09-15 from PR #177's preview feedback.)*
+  *Placed 2026-10-06 → `docs/milestones/M41-planning-without-friction.md` (proposed, not yet scoped). M41's gate deletes this entry at close.*
 - **A capability `premium` does not grant would make M20's fourth-plan proof
   unconditional.** `studio` grants `trip.collaborators` without `ai.command`,
   which makes it incomparable with `plus` — but it is still a *subset of
@@ -481,6 +499,7 @@ here two days later.
   long value, which is what he saw as *"the Issue text is still going down side
   of page"*. That was `minmax(0, 1fr)` letting the label track starve, and it
   hit every repeat widget rather than this one.
+  *Placed 2026-10-06 → `docs/milestones/M43-notebooks-keep-up.md` (proposed, not yet scoped). M43's gate deletes this entry at close.*
 
 - **The Overview notebook's identity moves from `context.kind` into the
   database (raised by Mitchell on the PR 170 preview, 2026-09-13).** His words:
@@ -508,6 +527,7 @@ here two days later.
   `PageContext.kind`, and a decision on whether the field stays in `context` as
   a mirror (two sources of truth) or leaves (a breaking read for anything
   holding an old `PageContext`).
+  *Placed 2026-10-06 → `docs/milestones/M43-notebooks-keep-up.md` (proposed, not yet scoped). M43's gate deletes this entry at close.*
 
 - **The seeded Overview is titled `Overview — <trip name>` (same thread).**
   *"use the trip name for its title like Overview - <trip name>, since there
@@ -520,6 +540,7 @@ here two days later.
 
   Filed alongside: *"might want to bucket up the notebooks for overviews or not
   show them here"* — explicitly tentative, and not clear enough to build from.
+  *Placed 2026-10-06 → `docs/milestones/M43-notebooks-keep-up.md` (proposed, not yet scoped). M43's gate deletes this entry at close.*
 
 - **`open` takes filters: which kind of open item, and over which days (raised
   by Mitchell on the PR 170 preview, 2026-09-13).** His words: *"This component
@@ -564,6 +585,7 @@ here two days later.
 
   Either way it is a contracts change with a changelog entry, and it belongs
   with the widget work rather than bolted onto a design-sync PR that is green.
+  *Placed 2026-10-06 → `docs/milestones/M43-notebooks-keep-up.md` (proposed, not yet scoped). M43's gate deletes this entry at close.*
 
 - **The assistant asks to change the app's own state, and you approve it
   (raised by Mitchell on the PR 141 preview, 2026-09-04).** His words: *"The AI
@@ -587,6 +609,7 @@ here two days later.
   approval tier is a different axis from a role. Generalises well past edit
   mode, which is the argument for doing it properly once. Vercel toolbar thread
   `ULm7F9Ys7Cyx`.
+  *Placed 2026-10-06 → `docs/milestones/M45-the-assistant-beyond-one-trip.md` (proposed, not yet scoped). M45's gate deletes this entry at close.*
 
 - **Pricing on the landing page (designed 2026-09-02, `SPEC.md` §17.1).** A
   section plus a `#pricing` nav anchor on M15's existing landing route — three
@@ -603,6 +626,7 @@ here two days later.
   set, so it can now name one. `PlansScreen` / `PlanComparison` on the
   signed-in `/plans` route (#177) are the obvious parts to reuse; the landing
   route (`LandingScreen.tsx`) still has no section and no `#pricing` anchor.
+  *Placed 2026-10-06 → `docs/milestones/M42-the-front-door-shows-more.md` (proposed, not yet scoped). M42's gate deletes this entry at close.*
 
 - **The phone has no conflict state (2026-09-01, DRIFT §8).** The remainder
   of the "shared day gets a map, Playbooks becomes a fifth phone tab" entry,
@@ -612,32 +636,7 @@ here two days later.
   phone has no conflict state"* — which project rule 6 requires — is recorded
   by `docs/milestones/M26-design-parity.md` as design-owed rather than built:
   it needs a design before it needs a build.
-
-- **PLACED 2026-09-18 — this is M24, and its open question is answered.**
-  *Scheduled as `docs/milestones/M24-travel-legs.md`. The question below —
-  does a mode inherit from `kind` or carry its own field — is answered: it
-  carries its own, legal only when `kind === "transit"` and enforced by the
-  schema, so the two cannot disagree. The entry's own note that this is "worth
-  deciding once for both" still holds for M19 link 1, which may answer
-  differently for costs only with a stated reason. M24's gate deletes this
-  entry at close.*
-
-- **Transport mode per leg — the map legend's modes (2026-09-01, out of the
-  milestone audit).** `map-legend-modes` in `preview-registry.ts` was tagged
-  **M9** and is not M9's work: M9's scope has no transport-mode link, no
-  contract change and no migration. It was **retagged `unplaced`** rather than
-  moved to a milestone that merely sounds adjacent — the registry's own rule is
-  that a tag is a claim the milestone will wire the shell up, and a false claim
-  costs a future gate, which is how M11b's *"no M11-tagged entry remains"* box
-  got stuck.
-  What it would need: a field modelling how you get from one stop to the next.
-  **`ActivityKind` already carries `transit`** (M18), so the stop knows it *is*
-  travel — what nothing records is *by what*. `activity.ts` warns explicitly
-  against a second field that could disagree with `kind`, so this is the same
-  design question M19's link 1 has to answer about costs: inherit, or carry its
-  own. Worth deciding once for both.
-  Not scoped, not placed, and deliberately not attached to a milestone until
-  someone wants it.
+  *Placed 2026-10-06 → `docs/milestones/M39-the-phone-is-decided.md` (proposed, not yet scoped). M39's gate deletes this entry at close.*
 
 - **Save light: move Retry out of the mark and into a popover on it
   (2026-08-26, Mitchell, PR #55 — "nice to have, to do later").** SPEC's "The
@@ -704,12 +703,14 @@ here two days later.
   "Move to…" menu for a *scheduled* stop (the editor's Day select is disabled
   in edit mode; only the rack's dropdown moves anything, and only off the
   rack), and empty states for the day column, the rack and History.
+  *Placed 2026-10-06 → `docs/milestones/M41-planning-without-friction.md` (proposed, not yet scoped). M41's gate deletes this entry at close.*
 
 - **Trip list row: show the trip's length (Mitchell, 2026-08-01, from M8
   dogfooding).** The rest of this entry shipped: the card shows a formatted
   start date (or "Created <date>") instead of the raw ISO `createdAt` (#218,
   KI-034), and a "{planned} planned of {budget}" cost line (`TripCard.tsx`).
   The trip's length in days is still not on the card.
+  *Placed 2026-10-06 → `docs/milestones/M37-trips-look-like-somewhere.md` (proposed, not yet scoped). M37's gate deletes this entry at close.*
 
 - **Duplicate and the undo-toast's Restore: no optimistic update yet (Mitchell,
   2026-08-01, from M8 dogfooding).** Delete's optimism (page.tsx's
@@ -719,6 +720,7 @@ here two days later.
   redirect fires) and Undo (`page.tsx`'s `undoDelete` does a full `load()`
   refetch rather than re-inserting the row locally) are lower-value/more work
   for now — deferred rather than done reflexively.
+  *Placed 2026-10-06 → `docs/milestones/M41-planning-without-friction.md` (proposed, not yet scoped). M41's gate deletes this entry at close.*
 
 - **Contained activities: a meal inside a day-long activity is not a conflict
   (Mitchell, 2026-08-02, from M8 dogfooding).** Every day of the Rochester run
@@ -740,6 +742,7 @@ here two days later.
   whether containment ever needs to mean anything beyond silencing a warn.
   Deliberately kept out of M9 — it is a `packages/domain` contract question
   with conflict-detector consequences and deserves its own design pass.
+  *Placed 2026-10-06 → `docs/milestones/M44-a-stop-knows-what-was-booked.md` (proposed, not yet scoped). M44's gate deletes this entry at close.*
 
 - **AI cost/quality tuning — "best model for my buck" (Mitchell, 2026-07-25).**
   **Thread (1), prompt trimming, was measured on 2026-07-27 and is NOT worth
@@ -783,6 +786,7 @@ here two days later.
      perform. Wiring them needs a drop target in the calendar lens itself and
      reuses `MoveActivity`, the command Board's `ActivityCard` drag already
      dispatches.
+  *Placed 2026-10-06 → `docs/milestones/M41-planning-without-friction.md` (proposed, not yet scoped). M41's gate deletes this entry at close.*
 
 - **A parked stop remembers which day it came from (2026-09-22).** Half of the
   `rack-provenance` preview M13 link 5 retired. That link modelled **who**
@@ -794,6 +798,7 @@ here two days later.
   placed** — it needs a decision about whether the origin is a field on the
   activity (which replay would have to maintain) or something read back off
   the event log, and that is a real design question rather than a line.
+  *Placed 2026-10-06 → `docs/milestones/M41-planning-without-friction.md` (proposed, not yet scoped). M41's gate deletes this entry at close.*
 
 - **Design critique: phone and tablet layout, decided once (2026-09-25).**
   Mitchell, after the overnight KI sweep: *"I want to do a design critique
@@ -823,6 +828,7 @@ here two days later.
   **Output of the critique:** a decision per bullet recorded in the entries
   (or a SPEC amendment through a design sync — `.design-sync/**` is a build
   input), then one milestone or one PR per decision. **Not placed.**
+  *Placed 2026-10-06 → `docs/milestones/M39-the-phone-is-decided.md` (proposed, not yet scoped). M39's gate deletes this entry at close.*
 
 - **`/ask` survives a throw while building its proposal (2026-09-25,
   `KI-2026-09-24-w`).** A throw inside `buildProposal` (called from

@@ -72,6 +72,17 @@ drift.
 - [x] **M36 The operator console is four tabs, and an account has a page** — gate closed 2026-10-06 → `docs/milestones/M36-operator-console.md`
 - [ ] **M35 You can say who on a trip is actually going** (minted 2026-10-05 by Mitchell, **built before minting** on PR #335 while M34 was current, and not restacked, by his call; per-person costs count travellers rather than members (ADR-065), and Trip settings → People replaces the Travelers panel; migration `0039`) → ← **current milestone**
       `docs/milestones/M35-travellers-and-people.md`
+- [ ] **M37 A trip looks like somewhere before it has a plan** (proposed 2026-10-06 from `docs/candidates.md`, scoped the same day, decisions as recommended: home cards, Unsplash covers, trip length) → `docs/milestones/M37-trips-look-like-somewhere.md`
+- [ ] **M38 You can tell people apart, and see a trip before you join it** (proposed 2026-10-06 from `docs/candidates.md`, not scoped: avatars, colours, display names; invite page from notebook widgets) → `docs/milestones/M38-people-you-can-tell-apart.md`
+- [ ] **M39 The phone layout is decided once, and Caesura installs like an app** (proposed 2026-10-06 from `docs/candidates.md`, not scoped: design critique, phone conflict state, PWA install) → `docs/milestones/M39-the-phone-is-decided.md`
+- [ ] **M40 A big change is reviewed whole, taken whole, and undone whole** (proposed 2026-10-06 from `docs/candidates.md`, not scoped: Accept all as one batch, named snapshots, assistant writes suggestions) → `docs/milestones/M40-a-big-change-is-one-change.md`
+- [ ] **M41 Moving and adding stops takes one gesture wherever you are** (proposed 2026-10-06 from `docs/candidates.md`, not scoped: Calendar drag, Move to…, quick-add, drawer add, parked origin) → `docs/milestones/M41-planning-without-friction.md`
+- [ ] **M42 The front door shows more than one trip, and what it costs** (proposed 2026-10-06 from `docs/candidates.md`, not scoped: demo picker, landing pricing, SEO leftovers) → `docs/milestones/M42-the-front-door-shows-more.md`
+- [ ] **M43 A trip's notebooks keep up with their templates** (proposed 2026-10-06 from `docs/candidates.md`, not scoped: seed back-fill and reset, pages.kind, the open widget's design and filters) → `docs/milestones/M43-notebooks-keep-up.md`
+- [ ] **M44 A stop knows what was booked, and what it sits inside** (proposed 2026-10-06 from `docs/candidates.md`, not scoped: booking fields, containment rule) → `docs/milestones/M44-a-stop-knows-what-was-booked.md`
+- [ ] **M45 The assistant answers about all your trips, and can take you places** (proposed 2026-10-06 from `docs/candidates.md`, not scoped: account-wide assistant, ClientAction navigation, approved edit mode) → `docs/milestones/M45-the-assistant-beyond-one-trip.md`
+- [ ] **M46 A trip has a conversation, with the people taking it** (proposed 2026-10-06 from `docs/candidates.md`, not scoped: trip chat) → `docs/milestones/M46-a-trip-has-a-conversation.md`
+- [ ] **M47 The operator console shows tiers over time, and paid flows can be tested in production** (proposed 2026-10-06 from `docs/candidates.md`, not scoped: tier history rollup, Stripe livemode) → `docs/milestones/M47-the-business-over-time.md`
 - [x] **M15 Front door** — gate closed → `docs/milestones/M15-front-door.md`
 - [x] **M9 The assistant cites what it plans** — gate closed 2026-10-06 → `docs/milestones/M9-ai-planning-partner.md`
 
