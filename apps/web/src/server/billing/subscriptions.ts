@@ -39,6 +39,19 @@ export async function subscriptionFor(userId: string): Promise<SubscriptionRow |
   return rows.find((row) => CONFERRING_STATUSES.includes(row.status)) ?? rows[0] ?? null;
 }
 
+/**
+ * Every subscription this account has ever had, newest first — the operator
+ * account page's plan history (M36 link 3). The "what has it ever been on"
+ * question `subscriptionFor` declines to answer.
+ */
+export async function subscriptionsOf(userId: string): Promise<SubscriptionRow[]> {
+  return db
+    .select()
+    .from(subscriptions)
+    .where(eq(subscriptions.userId, userId))
+    .orderBy(desc(subscriptions.createdAt));
+}
+
 /** Every subscription in a set of statuses — link 7's revenue reads. */
 export async function subscriptionsWithStatus(
   statuses: readonly SubscriptionStatus[],
