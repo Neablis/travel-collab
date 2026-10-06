@@ -80,9 +80,11 @@ Candidates absorbed (each deleted by this gate):
       routes read the stored URL only.
 - [ ] **The card shows the trip's length**, and `TripSummary` changes appear in
       `docs/contracts/CHANGELOG.md`.
-- [ ] **The design is approved by Mitchell before its UI merges** (asked 2026-10-06: *"go ahead and
+- [x] **The design is approved by Mitchell before its UI merges** (asked 2026-10-06: *"go ahead and
       drawn out the design and let me approve"*). Canvas:
       https://claude.ai/artifact/655uQXn7esDDWjeAnnAxa1.
+      *(Ticked 2026-10-06: Mitchell, "designs approved", on the canvas's seven artboards as first
+      published. The UI in parts 2, 4 and 5 builds to them.)*
 - [ ] **A playbook day can carry a cover** (decision 4, widened 2026-10-06). The author picks it.
       The day page fades it into the title, as the front door's veil does, and its Discover card
       leads with it, each with the credit. A hidden day hides its cover.

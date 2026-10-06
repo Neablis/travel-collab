@@ -27,8 +27,8 @@ Five parts, each on its own branch, merged 1 → 5 with merge commits
 The canvas is **https://claude.ai/artifact/655uQXn7esDDWjeAnnAxa1**. It has seven artboards:
 home desktop, home with an empty trip, home on a phone, the cover picker, a playbook day on desktop
 and phone, and Discover cards. Mitchell asked on 2026-10-06 to *"drawn out the design and let me
-approve"*. **No UI in parts 2, 4 or 5 merges until he has approved it.** Part 2's server half
-does not wait.
+approve"*, and **approved it the same day** (*"designs approved"*). Parts 2, 4 and 5 build to
+it.
 
 The rules it sets:
 - **The fade is the front door's veil.** The photo dissolves into the paper (or into the card's
@@ -50,9 +50,19 @@ The rules it sets:
 
 ## Unsplash's API guidelines (binding on parts 3–5)
 
-From Unsplash's published API guidelines and API terms, recorded here because
-`help.unsplash.com` is unreachable from a cloud session's proxy. Re-read them before applying for
-production access.
+Unsplash's production-access checklist, as Mitchell pasted it on 2026-10-06:
+
+> - **Hotlink photos.** Photos must be hotlinked to the original image URL on Unsplash.
+> - **Trigger downloads.** When a user in your application uses a photo, it triggers an event to
+>   the download endpoint.
+> - Your app does not use the Unsplash logo and is not named similarly to Unsplash.
+> - Your app must look visually distinct from Unsplash and not use 'Unsplash' in the name.
+> - The photographer's full name and Unsplash are properly attributed and linked (ex: *Photo by
+>   Annie Spratt on Unsplash*).
+
+The rules below implement it. Items 1, 2, 3 and 5 are the checklist's. The rest come from the API
+documentation and the terms, as known when this was written: `unsplash.com` is unreachable from a
+cloud session's proxy. **Mitchell added the Access Key on 2026-10-06.**
 1. **Hotlink.** Images render from the `urls.*` Unsplash returns (`images.unsplash.com`). They are
    never downloaded, re-hosted or proxied. Sizing uses the imgix parameters on `urls.raw`
    (`w`, `q`, `fm`, `fit`, `crop`), which is allowed.
