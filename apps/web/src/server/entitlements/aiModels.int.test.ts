@@ -10,6 +10,7 @@ import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { db } from "@/server/db/client";
 import { aiUsage, aiUsageSteps, aiUsageToolCalls } from "@/server/db/schema";
+import { trailingWindowStart } from "./admin";
 import { microUsdFor } from "./modelRates";
 import { costPerAccount } from "./usage";
 import { aiModelsReport } from "./aiModels";
@@ -342,14 +343,23 @@ describe("the models table", () => {
     // Priced steps and a classifier with no reported usage: the whole turn is
     // unpriced, as `microUsdForRow` leaves it — its steps' cost too.
     await turn(at, { userId, classifier: { tokensIn: 100, tokensOut: null }, steps: [{ tokensIn: 7000 }] });
+    // Inside Financial's 30 × 24h and before the first calendar day (noon now,
+    // so that starts 29.5 days back): priced here, drawn in no bar or count.
+    const early = daysBefore(now, 29.6);
+    await turn(early, { userId, steps: [{ model: CHEAP, tokensIn: 3000, tokensOut: 80 }] });
+    // ai-live off: Financial counts it, and no rate prices it.
+    await turn(at, { userId, turnModel: "simulated/no-op", steps: [{ model: "simulated/no-op" }] });
 
     const report = await aiModelsReport([], now);
-    const financial = (await costPerAccount(daysBefore(now, 30))).find((row) => row.userId === userId)!;
+    const financial = (await costPerAccount(trailingWindowStart(now))).find((row) => row.userId === userId)!;
     const price = (model: string, tokensIn: number, tokensOut: number) => microUsdFor(model, tokensIn, tokensOut, at)!;
 
     expect(report.models.reduce((sum, row) => sum + row.costMicroUsd, 0)).toBe(financial.microUsd);
     expect(report.unpricedTurns).toBe(financial.unpriced);
-    expect(financial).toMatchObject({ requests: 5, unpriced: 2 });
+    expect(financial).toMatchObject({ requests: 7, unpriced: 3 });
+    // Neither extra turn is in the calendar window's counts.
+    expect(report.turns).toBe(5);
+    expect(report.models.map((row) => row.model)).not.toContain("simulated/no-op");
     expect(report.models.find((row) => row.model === FLASHX)).toMatchObject({
       calls: 0,
       turnPriced: 1,
@@ -361,9 +371,10 @@ describe("the models table", () => {
       costMicroUsd: price(STRONG, 6000, 300),
     });
     expect(report.models.find((row) => row.model === CHEAP)).toMatchObject({
+      calls: 3,
       unpriced: 1,
       turnPriced: 1,
-      costMicroUsd: price(CHEAP, 4000, 100) + price(CHEAP, 100, 10),
+      costMicroUsd: price(CHEAP, 4000, 100) + price(CHEAP, 100, 10) + microUsdFor(CHEAP, 3000, 80, early)!,
     });
   });
 });

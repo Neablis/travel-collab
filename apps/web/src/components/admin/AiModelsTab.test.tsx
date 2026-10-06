@@ -135,6 +135,10 @@ describe("the AI models tab", () => {
     expect(screen.getByTestId("ai-rarely-called").textContent).toContain("delete_day (0 calls) and set_budget (2)");
     expect(screen.queryByTestId("ai-ledger-gap")).toBeNull();
     expect(screen.queryByTestId("ai-models-unpriced")).toBeNull();
+    // Cost and counts read different windows, and the panel says which.
+    expect(screen.getByTestId("ai-models-window").textContent).toBe(
+      "Costs are Financial's last 30 × 24 hours, so they add up to its cost column; steps and calls are the 30 UTC days above.",
+    );
     // A slope across columns, named as one — not one turn's growth.
     expect(screen.getByTestId("ai-context-note").textContent).toContain(
       "Median input goes from 3.1k at step 1 to 16k at step 8+, about 1.9k a column",
@@ -165,7 +169,7 @@ describe("the AI models tab", () => {
       "1 call has no published rate or no reported usage, so its turn is left out of every cost here.",
     );
     expect(screen.getByTestId("ai-models-unpriced").textContent).toBe(
-      "4 turns could not be priced at all, as in Financial, so these costs are a floor.",
+      "4 turns could not be priced at all — no rate, no reported usage, or simulated — as in Financial, so these costs are a floor.",
     );
   });
 

@@ -300,9 +300,12 @@ function ModelsPanel({ report }: { report: AdminAiModelsReport }) {
             </div>
           );
         })}
+        <Text variant="secondary" className="pt-2" data-testid="ai-models-window">
+          {`Costs are Financial's last ${report.windowDays} × 24 hours, so they add up to its cost column; steps and calls are the ${report.windowDays} UTC days above.`}
+        </Text>
         {report.unpricedTurns > 0 ? (
           <Text variant="secondary" className="pt-2" data-testid="ai-models-unpriced">
-            {`${count(report.unpricedTurns)} turn${report.unpricedTurns === 1 ? "" : "s"} could not be priced at all, as in Financial, so these costs are a floor.`}
+            {`${count(report.unpricedTurns)} turn${report.unpricedTurns === 1 ? "" : "s"} could not be priced at all — no rate, no reported usage, or simulated — as in Financial, so these costs are a floor.`}
           </Text>
         ) : null}
       </div>
