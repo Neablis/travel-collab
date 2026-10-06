@@ -166,25 +166,6 @@ here two days later.
     when the changes come from several suggesters (`Origin` carries one author today). Whether
     undoing it returns the changes to pending or leaves them accepted-then-undone.
   *Placed 2026-10-06 → `docs/milestones/M40-a-big-change-is-one-change.md` (proposed, not yet scoped). M40's gate deletes this entry at close.*
-- **PLACED 2026-10-05 — this is M35, the travellers spec, and its three decisions are answered.**
-  *Scheduled as `docs/milestones/M35-travellers-and-people.md`, built as
-  `docs/specs/2026-10-05-travellers-and-people-panel-design.md`, recorded as ADR-065. The default
-  is chosen on the invite and preset by role (D3; everyone already on a trip stays travelling,
-  D2). It lives in Access, not the log (D1). Picks already made stand (D6). M35's gate deletes
-  this entry at close, and the one below says the same so it goes too.*
-
-- **Choose who on a trip is actually travelling (asked 2026-10-04).** Every member today counts
-  as a traveller: a suggester who joined to advise doubled a trip's per-person total ($9,130 →
-  $18,260 on #314's preview) and appears in "Who is in" and "Booked by". Mitchell: *"Add a idea
-  for the future to be able to select who in the trip is actually going on the trip. we can keep
-  that issue for now"*. So for now any member, of any role, is a traveller.
-  - **The idea.** A per-member "travelling" flag the owner sets, independent of role: an editor
-    may plan without going, a suggester may be going. Per-person costs, "Who is in" and "Booked
-    by" count only travellers.
-  - **Decisions it needs.** Its default for a new member (travelling, or not, or by role).
-    Whether it lives on the membership (access) or as a trip fact (an event, so History shows
-    it). What happens to stops already split across someone later marked as not travelling.
-  - **Placed as M35** (see the entry above). M35's gate deletes this entry at close.
 - **The assistant proposes through suggestions, so a big change is reviewed on the board (asked
   2026-10-03).** Mitchell: *"the proposed changes functionality could also be a good way to
   preview large amount of changes from the AI assistant, for instance if I ask it to add a day,
