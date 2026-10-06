@@ -190,21 +190,19 @@ test.describe("M20 — an account knows what it may do", () => {
     await operator.context().close();
   });
 
-  // **Granting happens in a dialog opened from the account's own row**
-  // (Mitchell, on the #174 preview: *"Grants are spose to be a modal that is
-  // triggered off a button here"*).
+  // **Granting happens in a dialog opened from the account it applies to** —
+  // its row first (Mitchell, on the #174 preview: *"Grants are spose to be a
+  // modal that is triggered off a button here"*), its account page since M36
+  // link 3, which the row opens.
   //
-  // This replaces a test that measured whether the old inline form's controls
-  // shared a row. That form is gone, and a geometry assertion about a layout
-  // that no longer exists is worse than no assertion — it passes, so it reads
-  // as coverage. What is worth asserting now is the property the move was FOR:
-  // the account is carried by the row rather than retyped, so the grant cannot
-  // land on a different account than the one the operator clicked.
-  test("an operator grants from an account's row, and the row updates", async ({ page, browser }) => {
-    // A fresh account, so the row's before-state is known rather than whatever
-    // the shared fixtures have accumulated. `adminAccounts` orders by
-    // `createdAt` descending, so the newest account is on the first page of the
-    // console's 100-row bound.
+  // What is worth asserting is the property the move was FOR: the account is
+  // carried from the row the operator clicked rather than retyped, so the grant
+  // cannot land on a different account. Row → page → dialog all name it, and
+  // the grant card appears on that page.
+  test("an operator opens an account from its row and grants there", async ({ page, browser }) => {
+    // A fresh account, so the page's before-state is known rather than whatever
+    // the shared fixtures have accumulated. The table orders by `createdAt`
+    // descending, so the newest account is on its first page.
     const who = newcomer("m20modal");
     await signInAs(page, who);
     const userId = `dev-${who}`;
@@ -216,28 +214,60 @@ test.describe("M20 — an account knows what it may do", () => {
 
     const row = operator.getByTestId(`account-${userId}`);
     await expect(row).toContainText("free@v1");
+    await row.getByRole("link").click();
 
-    // The dialog is not open until the row's own button opens it.
+    // The account page replaces the table, for the account that was clicked.
+    await expect(operator).toHaveURL(new RegExp(`[?&]account=${encodeURIComponent(userId)}(&|$)`));
+    const account = operator.getByTestId("account-page");
+    await expect(account).toBeVisible();
+    await expect(operator.getByTestId("accounts-table")).toBeHidden();
+
+    // The dialog is not open until the page's own button opens it.
     await expect(operator.getByRole("dialog")).toBeHidden();
-    await row.getByRole("button", { name: `Grant a plan to ${userId}` }).click();
+    await account.getByRole("button", { name: `Grant a plan to ${userId}` }).click();
 
     const dialog = operator.getByRole("dialog");
     await expect(dialog).toBeVisible();
-    // **The account is shown, not typed** — the whole point of opening from the
-    // row. A text box here would be the mistyped-id defect back again.
+    // **The account is shown, not typed.** A text box here would be the
+    // mistyped-id defect back again.
     await expect(dialog).toContainText(userId);
     await expect(dialog.getByRole("textbox", { name: "Account id" })).toBeHidden();
 
     await dialog.getByLabel("Plan", { exact: true }).selectOption("premium");
-    await dialog.getByLabel("Reason", { exact: true }).fill("e2e: granted from the row");
+    await dialog.getByLabel("Reason", { exact: true }).fill("e2e: granted from the account page");
     await dialog.getByRole("button", { name: "Grant" }).click();
 
-    // Closing IS the confirmation, and the refreshed row is the evidence: the
-    // console re-reads server-side after a write, so a stale row here would
-    // mean an operator reissuing a grant that already landed.
+    // Closing IS the confirmation, and the re-read page is the evidence: a
+    // grant card for premium on THIS account. A stale page here would mean an
+    // operator reissuing a grant that already landed.
     await expect(dialog).toBeHidden();
-    await expect(row).toContainText("premium");
-    await expect(row).toContainText("ai.ask");
+    await expect(account.getByText(/^admin grant · premium v\d+$/)).toBeVisible();
+
+    await operator.context().close();
+  });
+
+  // **Back to the accounts table brings back the filter chosen on it** (M36
+  // part 3 review). The filter is written with `replaceState`, which moves the
+  // URL but not the tree Next keeps for that history entry; while the table
+  // took its view from the server render, Back from an opened row said
+  // `filter=unentitled` in the address bar and drew All. *Free* because the
+  // operator's own account is in it, so there is always a row to open.
+  test("Back from an opened account keeps the table's filter", async ({ browser }) => {
+    const operator = await openOperator(browser);
+    await operator.setViewportSize({ width: 1440, height: 900 });
+    await operator.goto("/admin?tab=users");
+
+    const free = operator.getByRole("button", { name: /^Free/ });
+    await free.click();
+    await expect(operator).toHaveURL(/filter=unentitled/);
+    // A cell, not the address link: the row's own click is the `push` here.
+    await operator.getByTestId(/^account-/).first().getByRole("cell").nth(1).click();
+    await expect(operator).toHaveURL(/account=/);
+
+    await operator.goBack();
+    await expect(operator).not.toHaveURL(/account=/);
+    await expect(operator).toHaveURL(/filter=unentitled/);
+    await expect(free).toHaveAttribute("aria-pressed", "true");
 
     await operator.context().close();
   });

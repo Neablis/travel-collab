@@ -1,5 +1,5 @@
 {
-  "id": "6221066c-daef-4fb7-b8ad-56cfddb73ae7",
+  "id": "7e7d8364-85d5-4e7f-bec7-1f5e1fd172f6",
   "prevId": "26332522-ba57-441f-ae3e-c18c3ebe5cf4",
   "version": "7",
   "dialect": "postgresql",
@@ -596,45 +596,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.command_receipts": {
-      "name": "command_receipts",
-      "schema": "",
-      "columns": {
-        "trip_id": {
-          "name": "trip_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "key": {
-          "name": "key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {
-        "command_receipts_trip_id_key_pk": {
-          "name": "command_receipts_trip_id_key_pk",
-          "columns": [
-            "trip_id",
-            "key"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.content_reports": {
       "name": "content_reports",
       "schema": "",
@@ -968,6 +929,27 @@
             }
           ],
           "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "events_actor_occurred": {
+          "name": "events_actor_occurred",
+          "columns": [
+            {
+              "expression": "actor_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "occurred_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
           "concurrently": false,
           "method": "btree",
           "with": {}

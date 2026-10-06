@@ -120,7 +120,8 @@ describe("ReportsPanel", () => {
     const link = r.getByRole("link", { name: "Kyoto temples at dawn" });
     expect(link.getAttribute("href")).toBe(`/playbooks/day/${DAY_ID}`);
     expect(r.getByText(/^Day$/)).toBeTruthy();
-    expect(r.getByText(/by Alice/)).toBeTruthy();
+    // **by {owner}** opens the author's account page (M36 link 3).
+    expect(r.getByRole("link", { name: "Alice" }).getAttribute("href")).toBe("/admin?tab=users&account=dev-alice");
     expect(r.getByText("Spam")).toBeTruthy();
     expect(r.getByText(/Every stop is an ad for one hotel\./)).toBeTruthy();
     expect(r.getByText("3 reports on this")).toBeTruthy();

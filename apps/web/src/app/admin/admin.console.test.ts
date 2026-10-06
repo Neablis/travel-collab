@@ -61,6 +61,12 @@ const CONSOLE_FILES = [
   ...ADMIN_COMPONENTS,
   path.join(WEB, "src/lib/adminOverview.ts"),
   path.join(WEB, "src/server/entitlements/admin.ts"),
+  // M36 link 4: the AI models tab's read and its mirror, under the same rules.
+  path.join(WEB, "src/lib/adminAiModels.ts"),
+  path.join(WEB, "src/server/entitlements/aiModels.ts"),
+  // M36 link 5: the Library tab's notebook read and its mirror.
+  path.join(WEB, "src/lib/adminNotebooks.ts"),
+  path.join(WEB, "src/server/savedNotebooks.ts"),
   path.join(WEB, "src/server/billing/revenue.ts"),
   path.join(WEB, "src/app/api/admin/overview/route.ts"),
   path.join(WEB, "src/app/api/admin/grants/route.ts"),

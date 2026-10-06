@@ -1,23 +1,32 @@
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
 import { Heading } from "@/components/ui/heading";
 import { AccountsPanel } from "@/components/admin/AccountsPanel";
+import { AccountPage, NoSuchAccount } from "@/components/admin/AccountPage";
+import { accountsViewHref, resolveAccountsView } from "@/components/admin/accountsView";
 import { ConsoleTabs } from "@/components/admin/ConsoleTabs";
 import { resolveConsoleTab, type ConsoleTab } from "@/components/admin/consoleTab";
 import { TierPanel } from "@/components/admin/TierPanel";
 import { RevenueStaleBanner, RevenueStrip } from "@/components/admin/RevenueStrip";
 import { UnderwaterPanel } from "@/components/admin/UnderwaterPanel";
-import { PriceCheckPanel } from "@/components/admin/PriceCheckPanel";
-import { ReportsPanel } from "@/components/admin/ReportsPanel";
+import { PriceCheckPanel, PriceCheckPending } from "@/components/admin/PriceCheckPanel";
+import { LibraryTab } from "@/components/admin/LibraryTab";
+import { AiModelsTab } from "@/components/admin/AiModelsTab";
 import { Panel } from "@/components/ui/panel";
 import { Text } from "@/components/ui/text";
-import { adminFinancial, adminUsers } from "@/server/entitlements/admin";
+import { adminAccountDetail } from "@/server/admin/accountDetail";
+import { adminFinancial, adminUsers, grantablePlanIds } from "@/server/entitlements/admin";
+import { aiModelsReport } from "@/server/entitlements/aiModels";
+import { ASSISTANT_TOOLS } from "@/server/assistant/registry";
 import { adminUserId } from "@/server/entitlements/requireAdmin";
+import { priceConsistencyReport } from "@/server/billing/prices";
 import { listReports } from "@/server/reports";
+import { adminNotebooks } from "@/server/savedNotebooks";
 
 // **The console, read-only over plans and granting as its only write**
 // (M20 link 7, and the 2026-09-02 amendment).
 //
-// **Three tabs since M36 link 1, not one scroll.** The scroll grew a panel per
+// **Four tabs since M36 link 4 (three since link 1), not one scroll.** The scroll grew a panel per
 // milestone and every new one went to the bottom, so the one part that needs
 // action — reports — sat below four that only report. The tab is URL state
 // (`?tab=`, D1), so each tab is its own request and reads only what it draws:
@@ -79,58 +88,81 @@ export default async function AdminPage({
   // Before any data is read, and before anything renders. `notFound()` throws,
   // so there is no path where any of the reads below runs for a non-operator.
   if ((await adminUserId()) === null) notFound();
-  const tab = resolveConsoleTab((await searchParams).tab);
+  const params = await searchParams;
+  const tab = resolveConsoleTab(params.tab);
 
   if (tab === "library") {
     // The report queue is read here for the same reason the other tabs read
     // theirs — see the header — and after the gate for the same reason too.
     // `admin.console.test.ts` holds that order. Only this tab reads it: it is
-    // the one read on the page that carries other people's words.
-    const [open, actioned, dismissed] = await Promise.all([
+    // the one read on the page that carries other people's words. The
+    // notebook read (M36 link 5) joins it here, and nowhere else.
+    const [open, actioned, dismissed, notebooks] = await Promise.all([
       listReports({ status: "open" }),
       listReports({ status: "actioned" }),
       listReports({ status: "dismissed" }),
+      adminNotebooks(),
     ]);
     return (
       <ConsoleShell tab={tab}>
-        {/* **Reports** (M12 link 6) — the one place an operator acts on them.
-            Hiding a day takes it off Discover, the board and profiles; the
-            author keeps their copy. First paint from the server, actions from
-            the browser against the gated endpoints: `ReportsPanel` says why. */}
-        <Panel title="Reports">
-          <ReportsPanel initial={{ open, actioned, dismissed }} />
-        </Panel>
+        {/* **Reports** (M12 link 6) first — the one place an operator acts on
+            them — then notebooks, only the half with a source (M36 D5). */}
+        <LibraryTab reports={{ open, actioned, dismissed }} notebooks={notebooks} />
+      </ConsoleShell>
+    );
+  }
+
+  if (tab === "ai") {
+    // **The ledger, read on its own** (M36 link 4): this tab reads
+    // `aiModelsReport` and nothing else — not the overview, whose revenue
+    // banner is scoped to Financial and Users. The registry's names are what
+    // *almost never called* is measured against, passed in because the
+    // Entitlements module that reads the ledger knows no trip tools (ADR-045).
+    const report = await aiModelsReport(ASSISTANT_TOOLS.map((tool) => tool.name));
+    return (
+      <ConsoleShell tab={tab}>
+        <AiModelsTab report={report} />
+      </ConsoleShell>
+    );
+  }
+
+  // **An open account replaces the table, in place** (D1, M36 link 3). Its own
+  // read, not the overview's: the page needs one account, not every panel and
+  // Stripe's price sweep. *← All accounts* is the table's URL with the view the
+  // link carried, so it comes back to the same filter and page.
+  const accountId = Array.isArray(params.account) ? params.account[0] : params.account;
+  if (tab === "users" && accountId !== undefined && accountId !== "") {
+    const back = accountsViewHref(resolveAccountsView(params));
+    const detail = await adminAccountDetail(accountId);
+    return (
+      <ConsoleShell tab={tab}>
+        {detail === null ? (
+          <NoSuchAccount back={back} />
+        ) : (
+          <AccountPage detail={detail} plans={grantablePlanIds()} back={back} now={new Date().toISOString()} />
+        )}
       </ConsoleShell>
     );
   }
 
   if (tab === "users") {
-    const users = await adminUsers();
+    const view = resolveAccountsView(params);
+    const users = await adminUsers(new Date(), view);
     return (
       // **Stale revenue is a page-level banner on both tabs that read it** —
       // Financial's MRR and Users' *Pays* column go stale together.
       <ConsoleShell tab={tab} banner={<RevenueStaleBanner revenue={users.revenue} />}>
         <Panel title="Accounts">
-          {/* Search, counted filters, 8 rows a page and a no-match state all live
-              in the client component: they are view state over a list the server
-              already sent, and a round trip per keystroke would be a worse
-              console for a table bounded at 100 rows. Only enabled plans are
-              offered to the grant dialog — `enabled` bounds what an operator may
-              hand out, never what a holder may do, which is what lets the
-              disabled fourth-plan proof ship without anyone receiving it. */}
-          {/* `plansGrantingNothing` is decided once, here, from the plan file, and
-              asked as "does this plan grant anything" rather than "is this plan
-              free" — ADR-045 rule 4, which `planVersions.fourthPlan.test.ts`
-              enforces by walking every source file for a plan-id comparison. It
-              refused the first version of the Free filter, which compared
-              `planId === "free"` directly. */}
+          {/* **One page, read for the view in the URL** (D2, M36 perf pass):
+              the server searches, counts the six filters over the whole
+              search, and resolves only the eight rows it draws, so a search
+              or a filter is a navigation. Granting and revoking live on the
+              account page a row opens (M36 link 3). */}
           <AccountsPanel
-            accounts={users.accounts}
+            table={users.table}
+            view={view}
             windowDays={users.windowDays}
-            plans={users.livePlans.filter((live) => live.enabled).map((live) => live.planId)}
-            plansGrantingNothing={users.livePlans
-              .filter((live) => live.entitlements.length === 0)
-              .map((live) => live.planId)}
+            now={new Date().toISOString()}
           />
         </Panel>
       </ConsoleShell>
@@ -171,10 +203,19 @@ export default async function AdminPage({
 
       {/* **M21 link 2's price sweep** (KI-2026-09-16-c) — every published
           version's Stripe Price against the plan file, not only the one being
-          bought at the till. Reports; never creates a Price. */}
-      <PriceCheckPanel report={financial.prices} />
+          bought at the till. Reports; never creates a Price. **Streamed**: it
+          waits on Stripe for up to `PRICE_CHECK_DEADLINE_MS` (3 s), and the
+          rest of the tab is the database's alone (M36 perf pass). */}
+      <Suspense fallback={<PriceCheckPending />}>
+        <PriceCheck />
+      </Suspense>
     </ConsoleShell>
   );
+}
+
+/** The price sweep, awaited inside its own Suspense boundary. */
+async function PriceCheck() {
+  return <PriceCheckPanel report={await priceConsistencyReport()} />;
 }
 
 /** The heading row and the tab strip every tab shares, then the tab's body. */

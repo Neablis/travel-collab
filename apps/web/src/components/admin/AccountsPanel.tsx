@@ -1,15 +1,17 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useLayoutEffect, useState, useTransition } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { Text } from "@/components/ui/text";
-import { GrantDialog } from "@/components/admin/GrantDialog";
-import { GrantList } from "@/components/admin/GrantList";
-import type { AdminAccountRow } from "@/lib/adminOverview";
+import type { AdminAccountRow, AdminAccountsPage } from "@/lib/adminOverview";
+import { cn } from "@/lib/cn";
+import { ACCOUNT_FILTERS, accountsViewHref, type AccountsView } from "./accountsView";
 import { microUsdCost, microUsdMoney } from "./microUsd";
 
 // **The accounts table, as the design actually draws it** (handoff `SPEC.md`
@@ -17,103 +19,30 @@ import { microUsdCost, microUsdMoney } from "./microUsd";
 // state"*). Reported missing by Mitchell on the #174 preview: the first build
 // rendered a bare 100-row table with none of it.
 //
-// **Four of the six filters, and the two that are absent are the point.** The
-// design's set is All / Paying / Granted / Free / Past due / Costs more than it
-// pays. `Past due` is a subscription state and `Costs more than it pays` is a
-// comparison against revenue — **both need Stripe, so both are M21 link 7's**,
-// exactly like the four-number strip this console deliberately does not have.
-// The temptation is to ship them against `microUsd` alone, and that is the
-// split failing in the direction M20's link 7 warns about at length: an
-// implementer working from the finished screen builds the revenue half inside
-// M20. There is no honest M20 answer to "costs more than it pays" because
-// nothing pays yet.
+// **All six filters since M36 link 2.** M20 shipped four and renamed `Paying`
+// to *Holds a paid plan*, because nothing paid yet and `Past due` and `Costs
+// more than it pays` needed Stripe. M21 link 7 built the revenue half, the
+// *Pays* column exists, and the label goes back (operator-console spec,
+// § Accounts table).
 //
-// `Paying` is renamed **Holds a paid plan** for the same reason. In M20 an
-// account holds `premium` because an operator granted it, and nobody has paid
-// anything; a chip reading "Paying" over a table of comped accounts would be a
-// false number of exactly the kind the split exists to prevent.
+// **The server searches, counts and pages; this draws one page** (M36 perf
+// pass). It used to be handed the newest 100 accounts plus every underwater
+// payer, each through the resolver — 310 queries a load — and filter over
+// them here, so an account older than the newest 100 could not be found at
+// all. What a filter means now lives in one place, `accountsMatching` in
+// `server/entitlements/admin.ts`, and its counts are over the whole search,
+// not the page — `f.count` in the design is `opsMatch(f.id, q)`.
 //
-// **Counts are over the SEARCH, not the page** — `f.count` in the design is
-// `opsMatch(f.id, '')`, the whole matching set. A count that shrank as you
-// paged would be answering a question nobody asked.
+// **Search, filter and page are the URL** (M36 D2), so the account page can
+// hand them back and every change is a navigation to the next view. A filter
+// or a page is one click and navigates at once; typing navigates once the
+// operator pauses (`SEARCH_PAUSE_MS`), so a keystroke is never a round trip
+// and the box never waits on one.
 
-const PAGE_SIZE = 8;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
-// **Filter ids deliberately do not spell a plan id.** They were `"free"` and
-// `"paid"`, and `planVersions.fourthPlan.test.ts` flagged this file for
-// `case "free":` — its scan cannot tell a filter id from a plan id, and it is
-// right not to try: a bare `"free"` in a switch is exactly the shape ADR-045
-// rule 4 forbids, and allowlisting the file would blind the scan to a real one
-// arriving here later. The ids say what the group MEANS instead, which is also
-// what `matchesFilter` asks.
-type FilterId = "all" | "entitled" | "unentitled" | "granted";
-
-const FILTERS: readonly { id: FilterId; label: string }[] = [
-  { id: "all", label: "All" },
-  { id: "entitled", label: "Holds a paid plan" },
-  { id: "granted", label: "Granted" },
-  { id: "unentitled", label: "Free" },
-];
-
-/**
- * Does this row match one filter?
- *
- * **`grantsNothing` is a set, and the first version of this was `planId ===
- * "free"`.** `planVersions.fourthPlan.test.ts` refused it — it walks every
- * source file for a comparison against a plan id and expects to find none,
- * which is ADR-045 rule 4 as a test. The rule is not pedantry: a fourth plan
- * that grants nothing would be silently missing from the *Free* count, and a
- * paid plan renamed would move accounts between groups with nothing failing.
- *
- * The question a tier answers is *"does this plan grant anything"*, which is
- * also how `rewardReferrer` decides whether a referrer earns anything. It is
- * decided once from the plan file, server-side, and arrives here as a set —
- * so this stays a lookup rather than becoming a second opinion about which
- * plans are free.
- */
-function matchesFilter(
-  account: AdminAccountRow,
-  filter: FilterId,
-  grantsNothing: ReadonlySet<string>,
-): boolean {
-  const planId = account.planVersionRef.split("@")[0] ?? "";
-  switch (filter) {
-    case "all":
-      return true;
-    case "unentitled":
-      return grantsNothing.has(planId);
-    case "entitled":
-      return !grantsNothing.has(planId);
-    case "granted":
-      return account.grants.length > 0;
-  }
-}
-
-/** Address search, falling back to the id for an account with no address. */
-function matchesQuery(account: AdminAccountRow, query: string): boolean {
-  const needle = query.trim().toLowerCase();
-  if (needle === "") return true;
-  return (
-    (account.email ?? "").toLowerCase().includes(needle) ||
-    account.userId.toLowerCase().includes(needle)
-  );
-}
-
-/**
- * **Does this account cost more than it sends?** (M21 link 7.)
- *
- * The row-level version of the underwater panel's question, and it is asked of
- * PAYING accounts only: an account that pays nothing and costs something is
- * either comped on purpose or is a gate defect, and neither is what a red row
- * in this table should mean.
- */
-function costsMoreThanItPays(account: AdminAccountRow): boolean {
-  // `null` is a subscription this deploy cannot price, so the comparison has
-  // no answer — and a row with unpriceable USAGE has no answer either, because
-  // `microUsd` understates it. Both are shown as unpriced rather than judged.
-  if (account.paysMicroUsd === null || account.unpriced > 0) return false;
-  return account.paysMicroUsd > 0 && account.microUsd > account.paysMicroUsd;
-}
+/** How long typing must pause before the search is sent — a word, not a letter. */
+export const SEARCH_PAUSE_MS = 300;
 
 /** The two words that are not a Stripe status: nothing, and lapsed. */
 function stateLabel(account: AdminAccountRow): string {
@@ -121,45 +50,120 @@ function stateLabel(account: AdminAccountRow): string {
   return account.subscriptionState.replace(/_/g, " ");
 }
 
-export function AccountsPanel({
-  accounts,
-  plans,
-  plansGrantingNothing,
-  windowDays,
-}: {
-  accounts: readonly AdminAccountRow[];
-  /** Plan ids an operator may grant — enabled plans only. */
-  plans: readonly string[];
-  /** Plan ids whose live version grants no entitlement. See `matchesFilter`. */
-  plansGrantingNothing: readonly string[];
+/**
+ * *Last active* as the artboard words it — `today`, `yesterday`, `9 days ago`,
+ * `3 weeks ago`. Never older than the window (D6), so it needs no date form.
+ * `now` comes from the server render, so server and browser draw the same word.
+ */
+function lastActiveLabel(at: string | null, now: string): string {
+  if (at === null) return "—";
+  const days = Math.floor((Date.parse(now) - Date.parse(at)) / DAY_MS);
+  if (days <= 0) return "today";
+  if (days === 1) return "yesterday";
+  if (days < 14) return `${days} days ago`;
+  return `${Math.floor(days / 7)} weeks ago`;
+}
+
+/**
+ * Whether a click on a row should open the account. Not when it landed on a
+ * control in the row — the account's own link — and not when it came from
+ * anything portalled out of the table in the DOM, whose clicks React still
+ * bubbles up through this row. Not with a modifier held, which asks the
+ * browser for something the row's `push` cannot give — the address link is
+ * there for a new tab — and not when the click ended a text selection, which
+ * is someone copying an address.
+ */
+function opensAccount(event: React.MouseEvent<HTMLTableRowElement>): boolean {
+  if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey) return false;
+  if ((window.getSelection()?.toString() ?? "") !== "") return false;
+  const target = event.target as Element;
+  if (!event.currentTarget.contains(target)) return false;
+  return target.closest("a, button, input, select, textarea, label") === null;
+}
+
+type AccountsPanelProps = {
+  /** One page of the table, read by the server for `view`. */
+  table: AdminAccountsPage;
+  /** The view the URL carries (D2). Its page is the one asked for; `table.page` is the one served. */
+  view: AccountsView;
+  /** ISO, from the server render — what *Last active* is measured against. */
+  now: string;
   windowDays: number;
-}) {
-  const grantsNothing = useMemo(() => new Set(plansGrantingNothing), [plansGrantingNothing]);
-  const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<FilterId>("all");
-  const [page, setPage] = useState(0);
+};
 
-  const searched = useMemo(
-    () => accounts.filter((account) => matchesQuery(account, query)),
-    [accounts, query],
-  );
-  const matching = useMemo(
-    () => searched.filter((account) => matchesFilter(account, filter, grantsNothing)),
-    [searched, filter, grantsNothing],
-  );
-
-  // Clamped rather than reset on every change: a filter that empties the last
-  // page should land on the last page that has rows, not silently on page one
-  // while the range line says otherwise.
-  const pageCount = Math.max(1, Math.ceil(matching.length / PAGE_SIZE));
-  const current = Math.min(page, pageCount - 1);
-  const rows = matching.slice(current * PAGE_SIZE, current * PAGE_SIZE + PAGE_SIZE);
-
-  function reset() {
-    setQuery("");
-    setFilter("all");
-    setPage(0);
+/**
+ * The Users tab's accounts table: search, six counted filters, eight rows a
+ * page, each row opening its account page with the view kept in the URL.
+ *
+ * **Filter and page are read straight off `view`**, so Back or Forward to
+ * another view redraws the table with nothing to re-seed. The search box is
+ * the one piece of local state — typing must not wait on the server — and it
+ * follows the URL whenever the URL's search moves under it — except when the
+ * search that landed is the one this box sent and the operator has typed past
+ * it: that newer text is on its way.
+ */
+export function AccountsPanel({ table, view, now, windowDays }: AccountsPanelProps) {
+  const router = useRouter();
+  const [navigating, startNavigation] = useTransition();
+  const [query, setQuery] = useState(view.query);
+  // The search the URL carries or this box last sent, whichever came later.
+  const [sent, setSent] = useState(view.query);
+  const [seen, setSeen] = useState(view.query);
+  if (view.query !== seen) {
+    setSeen(view.query);
+    // Our own send landing (`view.query === sent`) keeps text typed since;
+    // any other search is a navigation — Back, Forward, a link — and wins,
+    // which also drops the pending send (M36 part 7 review).
+    if (query === sent || view.query !== sent) setQuery(view.query);
+    setSent(view.query);
   }
+
+  /**
+   * Go to another view. **Replace, not push**, as when the view was written
+   * with `history.replaceState`: a filter is not a place Back should stop.
+   * In a transition, so the page on screen stays until the next one is read.
+   */
+  function show(next: AccountsView) {
+    setSent(next.query);
+    startNavigation(() => router.replace(accountsViewHref(next), { scroll: false }));
+  }
+
+  useEffect(() => {
+    if (query === sent) return;
+    const timer = setTimeout(() => {
+      setSent(query);
+      startNavigation(() =>
+        router.replace(accountsViewHref({ query, filter: view.filter, page: 0 }), { scroll: false }),
+      );
+    }, SEARCH_PAUSE_MS);
+    return () => clearTimeout(timer);
+  }, [query, sent, view.filter, router]);
+
+  const { rows, counts, page, pageSize } = table;
+  const matching = counts[view.filter];
+  const pageCount = Math.max(1, Math.ceil(matching / pageSize));
+  // The rows' links carry the view that was SERVED, so *← All accounts* comes
+  // back to the page the operator was looking at.
+  const served: AccountsView = { ...view, page };
+
+  // **The address bar says what the table drew** (M36 part 3 review). The
+  // server clamps a page past the end and drops a filter it does not know, so
+  // `?page=9` over two pages draws page 2; the URL is corrected to match, with
+  // `replaceState` because the table already shows that view — there is
+  // nothing for a navigation to read.
+  //
+  // **A layout effect, and never while a navigation is pending** (M36 part 7,
+  // CodeRabbit). A passive effect runs after the browser may have handled a
+  // click, so a pill clicked in that gap would start a `router.replace` that
+  // this `replaceState` — which Next reads as a restore — could then discard.
+  // A layout effect runs in the same task as the commit, before any input.
+  const servedHref = accountsViewHref(served);
+  useLayoutEffect(() => {
+    if (navigating) return;
+    if (servedHref === window.location.pathname + window.location.search) return;
+    window.history.replaceState(window.history.state, "", servedHref);
+  }, [servedHref, navigating]);
+  const underwaterIds = new Set(table.underwater);
 
   return (
     <div className="flex flex-col gap-3">
@@ -174,13 +178,10 @@ export function AccountsPanel({
           aria-label="Find an account"
           placeholder="Find an address…"
           value={query}
-          onChange={(event) => {
-            setQuery(event.target.value);
-            setPage(0);
-          }}
+          onChange={(event) => setQuery(event.target.value)}
         />
         <div className="flex flex-wrap gap-1.5">
-          {FILTERS.map((option) => (
+          {ACCOUNT_FILTERS.map((option) => (
             <Button
               key={option.id}
               type="button"
@@ -192,17 +193,14 @@ export function AccountsPanel({
               size="md"
               // Pills, as the design draws them.
               className="rounded-full text-sm"
-              variant={option.id === filter ? "secondary" : "ghost"}
-              aria-pressed={option.id === filter}
-              onClick={() => {
-                setFilter(option.id);
-                setPage(0);
-              }}
+              variant={option.id === view.filter ? "secondary" : "ghost"}
+              aria-pressed={option.id === view.filter}
+              // The box's text, sent or not: a filter picked mid-word filters
+              // what the operator can see they typed.
+              onClick={() => show({ query, filter: option.id, page: 0 })}
             >
               {option.label}
-              <span className="ml-1.5 text-xs text-slate">
-                {searched.filter((account) => matchesFilter(account, option.id, grantsNothing)).length}
-              </span>
+              <span className="ml-1.5 text-xs text-slate">{counts[option.id]}</span>
             </Button>
           ))}
         </div>
@@ -212,89 +210,117 @@ export function AccountsPanel({
         <EmptyState
           title="No account matches"
           body={
-            query.trim() === ""
+            view.query.trim() === ""
               ? "No account is in this group yet."
-              : `No address matches “${query.trim()}” in this group.`
+              : `No address matches “${view.query.trim()}” in this group.`
           }
           action={
-            <Button type="button" variant="secondary" size="sm" onClick={reset}>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                setQuery("");
+                show({ query: "", filter: "all", page: 0 });
+              }}
+            >
               Clear the filter
             </Button>
           }
         />
       ) : (
-        <div className="overflow-x-auto">
+        <div className={cn("overflow-x-auto", navigating && "opacity-60")} aria-busy={navigating}>
           <Table className="text-xs" data-testid="accounts-table">
             <THead>
               <TR>
                 <TH>Account</TH>
                 <TH>Holds</TH>
                 <TH>Why</TH>
-                <TH>Can</TH>
                 <TH>Pays</TH>
+                <TH>Costs {windowDays}d</TH>
+                <TH>Asked {windowDays}d</TH>
+                <TH>Last active</TH>
                 <TH>State</TH>
-                <TH>Requests ({windowDays}d)</TH>
-                <TH>Cost ({windowDays}d)</TH>
-                <TH>Grant</TH>
+                <TH>
+                  <span className="sr-only">Open</span>
+                </TH>
               </TR>
             </THead>
             <TBody>
-              {rows.map((account) => (
-                <TR key={account.userId} data-testid={`account-${account.userId}`}>
-                  <TD className="text-ink">
-                    {account.email ?? account.userId}
-                    {account.isAdmin && <span className="ml-1 text-slate">(admin)</span>}
-                  </TD>
-                  <TD className="text-ink">{account.planVersionRef}</TD>
-                  <TD className="text-ink">
-                    {/* Link 7's grant history, and the console's second write.
-                        Revoking marks the row rather than removing it — the row
-                        is what answers "has this account ever held a trial". */}
-                    <GrantList grants={account.grants} />
-                  </TD>
-                  <TD className="text-ink">
-                    {account.entitlements.length === 0 ? "—" : account.entitlements.join(", ")}
-                  </TD>
-                  <TD className="text-ink">
-                    {account.paysMicroUsd === null
-                      ? "unpriced"
-                      : account.paysMicroUsd === 0
-                        ? "—"
-                        : microUsdMoney(account.paysMicroUsd)}
-                  </TD>
-                  <TD className="text-ink">
-                    <div className="flex flex-wrap items-center gap-1">
-                      <span>{stateLabel(account)}</span>
-                      {/* The design's two chips. `Past due` is a warning
-                          because nothing has been taken yet — the grace window
-                          is still running — and `Costs more than it pays` is
-                          the one that wants an answer. */}
-                      {account.subscriptionState === "past_due" ? (
-                        <Badge variant="warning">Past due</Badge>
-                      ) : null}
-                      {costsMoreThanItPays(account) ? (
-                        <Badge variant="danger">Costs more than it pays</Badge>
-                      ) : null}
-                    </div>
-                  </TD>
-                  <TD className="text-ink">{account.requests}</TD>
-                  <TD className="text-ink">
-                    {microUsdCost(account.microUsd)}
-                    {account.unpriced > 0 && (
-                      // **A cost with unpriceable rows behind it is not the
-                      // cost.** An account whose every request used a model
-                      // with no published rate rendered a confident `$0.0000`.
-                      // Reported rather than folded in, the same way the ledger
-                      // itself refuses to price an unmeasurable row. CodeRabbit,
-                      // PR #174.
-                      <span className="ml-1 text-slate">({account.unpriced} unpriced)</span>
-                    )}
-                  </TD>
-                  <TD className="text-ink">
-                    <GrantDialog userId={account.userId} plans={plans} />
-                  </TD>
-                </TR>
-              ))}
+              {rows.map((account) => {
+                const open = accountsViewHref(served, account.userId);
+                const sinking = underwaterIds.has(account.userId);
+                return (
+                  <TR
+                    key={account.userId}
+                    data-testid={`account-${account.userId}`}
+                    // **The whole row opens the account page** (M36 link 2), with
+                    // the view kept so its *← All accounts* comes back here. The
+                    // address is also a real link, for the keyboard and for a
+                    // middle-click; the row's click is the pointer's shortcut.
+                    // Underwater rows keep their tint until hovered, as drawn.
+                    className={cn("cursor-pointer hover:bg-moss", sinking && "bg-danger-tint")}
+                    onClick={(event) => {
+                      if (opensAccount(event)) router.push(open);
+                    }}
+                  >
+                    <TD className="text-ink">
+                      <Link href={open}>{account.email ?? account.userId}</Link>
+                      {account.isAdmin && <span className="ml-1 text-slate">(admin)</span>}
+                    </TD>
+                    <TD className="text-ink">{account.planVersionRef}</TD>
+                    <TD className="text-ink">
+                      {/* Why they hold it: every active grant's source. Granting
+                          and revoking are the account page's (M36 link 3) — a
+                          write with a confirm needs more room than a cell. */}
+                      {account.grantSources.length === 0 ? (
+                        <span className="text-slate">—</span>
+                      ) : (
+                        account.grantSources.join(" · ")
+                      )}
+                    </TD>
+                    <TD className="text-ink">
+                      {account.paysMicroUsd === null
+                        ? "unpriced"
+                        : account.paysMicroUsd === 0
+                          ? "—"
+                          : microUsdMoney(account.paysMicroUsd)}
+                    </TD>
+                    <TD className={sinking ? "text-danger-ink" : "text-ink"}>
+                      {microUsdCost(account.microUsd)}
+                      {account.unpriced > 0 && (
+                        // **A cost with unpriceable rows behind it is not the
+                        // cost.** An account whose every request used a model
+                        // with no published rate rendered a confident `$0.0000`.
+                        // Reported rather than folded in, the same way the ledger
+                        // itself refuses to price an unmeasurable row. CodeRabbit,
+                        // PR #174.
+                        <span className="ml-1 text-slate">({account.unpriced} unpriced)</span>
+                      )}
+                    </TD>
+                    <TD className="text-ink">
+                      {account.requests === 0 ? "—" : account.requests.toLocaleString("en-US")}
+                    </TD>
+                    <TD className="text-slate">{lastActiveLabel(account.lastActiveAt, now)}</TD>
+                    <TD className="text-ink">
+                      <div className="flex flex-wrap items-center gap-1">
+                        <span>{stateLabel(account)}</span>
+                        {/* The design's two chips. `Past due` is a warning
+                            because nothing has been taken yet — the grace window
+                            is still running — and `Costs more than it pays` is
+                            the one that wants an answer. */}
+                        {account.subscriptionState === "past_due" ? (
+                          <Badge variant="warning">Past due</Badge>
+                        ) : null}
+                        {sinking ? <Badge variant="danger">Costs more than it pays</Badge> : null}
+                      </div>
+                    </TD>
+                    <TD className="text-right text-slate">
+                      <span aria-hidden="true">›</span>
+                    </TD>
+                  </TR>
+                );
+              })}
             </TBody>
           </Table>
         </div>
@@ -302,17 +328,17 @@ export function AccountsPanel({
 
       <div className="flex flex-wrap items-center justify-between gap-2 border-t border-hairline pt-2">
         <Text as="span" variant="secondary" className="text-xs" data-testid="accounts-range">
-          {matching.length === 0
+          {matching === 0
             ? "No accounts"
-            : `${current * PAGE_SIZE + 1}–${current * PAGE_SIZE + rows.length} of ${matching.length}`}
+            : `${page * pageSize + 1}–${page * pageSize + rows.length} of ${matching}`}
         </Text>
         <div className="flex items-center gap-1.5">
           <Button
             type="button"
             variant="secondary"
             size="sm"
-            disabled={current === 0}
-            onClick={() => setPage(current - 1)}
+            disabled={page === 0}
+            onClick={() => show({ ...served, page: page - 1 })}
           >
             Previous
           </Button>
@@ -320,8 +346,8 @@ export function AccountsPanel({
             type="button"
             variant="secondary"
             size="sm"
-            disabled={current >= pageCount - 1}
-            onClick={() => setPage(current + 1)}
+            disabled={page >= pageCount - 1}
+            onClick={() => show({ ...served, page: page + 1 })}
           >
             Next
           </Button>

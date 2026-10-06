@@ -1,12 +1,10 @@
-"use client";
-
-import { useState } from "react";
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
-import { TBody, THead, TH, TD, TR, Table } from "@/components/ui/table";
 import type { AdminUnderwaterView } from "@/lib/adminOverview";
-import { microUsdCost, microUsdMargin, microUsdMoney } from "./microUsd";
+import { accountsViewHref } from "./accountsView";
+import { microUsdCost } from "./microUsd";
 
 // **"Costs more than it pays", segmented by WHY** — M21 link 7's hardest
 // requirement, and it is a requirement about the LAYOUT and not only about the
@@ -27,9 +25,17 @@ import { microUsdCost, microUsdMargin, microUsdMoney } from "./microUsd";
 // source**, set aside and deliberately not enumerated, because enumerating it
 // invites reading it as the same kind of finding.
 
+/**
+ * The paying-and-underwater count, then the grant-funded counts per source.
+ *
+ * **The paying rows are not listed here since M36 link 2.** *Show them in
+ * Users* opens the accounts table on its *Costs more than it pays* filter —
+ * the same `report.paying` set, passed to that table as ids, and `adminOverview`
+ * gives every one of them a row however old the account (`adminAccounts`'
+ * `include`) — so the rows are shown once, where an account can be opened,
+ * rather than in a second table that could disagree with it.
+ */
 export function UnderwaterPanel({ report }: { report: AdminUnderwaterView }) {
-  const [showing, setShowing] = useState(false);
-
   return (
     <div className="flex flex-col gap-3" data-testid="underwater-panel">
       <div className="flex flex-wrap items-center gap-3">
@@ -46,39 +52,14 @@ export function UnderwaterPanel({ report }: { report: AdminUnderwaterView }) {
           </Text>
         </div>
         {report.paying.length > 0 ? (
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => setShowing((open) => !open)}
-            data-testid="underwater-toggle"
+          <Link
+            href={accountsViewHref({ query: "", filter: "underwater", page: 0 })}
+            className={buttonVariants({ variant: "secondary", size: "sm" })}
           >
-            {showing ? "Hide them" : "Show them"}
-          </Button>
+            Show them in Users
+          </Link>
         ) : null}
       </div>
-
-      {showing && report.paying.length > 0 ? (
-        <Table data-testid="underwater-table">
-          <THead>
-            <TR>
-              <TH>Account</TH>
-              <TH>Pays</TH>
-              <TH>Costs ({report.windowDays}d)</TH>
-              <TH>Margin</TH>
-            </TR>
-          </THead>
-          <TBody>
-            {report.paying.map((account) => (
-              <TR key={account.userId}>
-                <TD className="text-ink">{account.userId}</TD>
-                <TD className="text-ink">{microUsdMoney(account.paysMicroUsd)}</TD>
-                <TD className="text-ink">{microUsdCost(account.costMicroUsd)}</TD>
-                <TD className="text-danger-ink">{microUsdMargin(account.marginMicroUsd)}</TD>
-              </TR>
-            ))}
-          </TBody>
-        </Table>
-      ) : null}
 
       {/* **Set aside, and counted.** Underwater by construction is not a
           finding, so these are never in the table above and are never

@@ -22,16 +22,38 @@
 import { describe, expect, it } from "vitest";
 import type {
   AdminAccountCost as UiAdminAccountCost,
+  AdminAccountFilter as UiAdminAccountFilter,
   AdminAccountRow as UiAdminAccountRow,
+  AdminAccountsPage as UiAdminAccountsPage,
   AdminGrantRow as UiAdminGrantRow,
   AdminOverview as UiAdminOverview,
 } from "@/lib/adminOverview";
+import type { AdminAiModelsReport as UiAiModelsReport } from "@/lib/adminAiModels";
+import type { AdminNotebooksReport as UiNotebooksReport } from "@/lib/adminNotebooks";
 import type {
+  AccountFilterId as ServerAccountFilterId,
   AdminAccountRow as ServerAdminAccountRow,
+  AdminAccountsPage as ServerAdminAccountsPage,
   AdminGrantRow as ServerAdminGrantRow,
   AdminOverview as ServerAdminOverview,
 } from "./admin";
 import type { AccountCost as ServerAccountCost } from "./usage";
+import type { AiModelsReport as ServerAiModelsReport } from "./aiModels";
+import type { AdminNotebooksReport as ServerNotebooksReport } from "../savedNotebooks";
+import type {
+  AdminAccountAssistant as UiAdminAccountAssistant,
+  AdminAccountDetail as UiAdminAccountDetail,
+  AdminAccountGrantRecord as UiAdminAccountGrantRecord,
+  AdminAccountPlan as UiAdminAccountPlan,
+  AdminAccountTurn as UiAdminAccountTurn,
+} from "@/lib/adminAccount";
+import type { AdminAccountDetail as ServerAdminAccountDetail } from "@/server/admin/accountDetail";
+import type {
+  AdminAccountAssistant as ServerAdminAccountAssistant,
+  AdminAccountGrantRecord as ServerAdminAccountGrantRecord,
+  AdminAccountPlan as ServerAdminAccountPlan,
+  AdminAccountTurn as ServerAdminAccountTurn,
+} from "./adminAccount";
 
 /**
  * Two types are identical only if a generic function returning a conditional
@@ -47,10 +69,27 @@ type AssertEquals<A, B> = Equals<A, B> extends true ? true : { mismatch: [A, B] 
 const overview: AssertEquals<UiAdminOverview, ServerAdminOverview> = true;
 const account: AssertEquals<UiAdminAccountRow, ServerAdminAccountRow> = true;
 const grant: AssertEquals<UiAdminGrantRow, ServerAdminGrantRow> = true;
+const accountsPage: AssertEquals<UiAdminAccountsPage, ServerAdminAccountsPage> = true;
+// The six filter ids the server's SQL selects on; `accountsView.ts` holds the
+// pills to the same union from the UI side.
+const filterIds: AssertEquals<UiAdminAccountFilter, ServerAccountFilterId> = true;
 const cost: AssertEquals<UiAdminAccountCost, ServerAccountCost> = true;
+// M36 link 4: the AI models tab reads its own report, under the same rule.
+const aiModels: AssertEquals<UiAiModelsReport, ServerAiModelsReport> = true;
+// M36 link 5: the Library tab's notebook read, from the module that owns the table.
+const notebooks: AssertEquals<UiNotebooksReport, ServerNotebooksReport> = true;
+
+// M36 link 3's account page. The whole detail is pinned, and its parts too, so
+// a mismatch names the part rather than only the outermost type.
+const detail: AssertEquals<UiAdminAccountDetail, ServerAdminAccountDetail> = true;
+const accountPlan: AssertEquals<UiAdminAccountPlan, ServerAdminAccountPlan> = true;
+const assistant: AssertEquals<UiAdminAccountAssistant, ServerAdminAccountAssistant> = true;
+const turn: AssertEquals<UiAdminAccountTurn, ServerAdminAccountTurn> = true;
+const grantRecord: AssertEquals<UiAdminAccountGrantRecord, ServerAdminAccountGrantRecord> = true;
 
 describe("the console's wire shape", () => {
   it("is byte-identical on both sides of the lint wall", () => {
-    expect([overview, account, grant, cost]).toEqual([true, true, true, true]);
+    const checks = [overview, account, grant, accountsPage, filterIds, cost, aiModels, notebooks, detail, accountPlan, assistant, turn, grantRecord];
+    expect(checks).toEqual(Array.from({ length: checks.length }, () => true));
   });
 });

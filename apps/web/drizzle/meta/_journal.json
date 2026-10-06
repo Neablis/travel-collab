@@ -285,8 +285,15 @@
     {
       "idx": 40,
       "version": "7",
-      "when": 1791264955074,
-      "tag": "0040_command_receipts",
+      "when": 1791263935223,
+      "tag": "0040_admin_console_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1791292216269,
+      "tag": "0041_command_receipts",
       "breakpoints": true
     }
   ]

@@ -316,7 +316,14 @@ export const events = pgTable(
     batchId: uuid("batch_id").notNull(),
     origin: jsonb("origin").$type<Origin>().notNull(),
   },
-  (t) => [uniqueIndex("events_stream_seq").on(t.streamId, t.seq)],
+  (t) => [
+    uniqueIndex("events_stream_seq").on(t.streamId, t.seq),
+    // The operator console's reads by actor (M36 D6): *Last active* for one
+    // page of the accounts table, and the account page's edits a day and six
+    // newest events. Without it each was a sequential scan of the whole log.
+    // Migration 0040, whose header says how it locks.
+    index("events_actor_occurred").on(t.actorId, t.occurredAt),
+  ],
 );
 
 // One row per client unit of work the command pipeline has applied to a trip,

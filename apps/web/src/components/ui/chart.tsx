@@ -52,7 +52,11 @@ import { cn } from "../../lib/cn";
 /** A colour a chart may paint with: an `@theme` token's custom property. */
 export type ChartToken =
   | "--color-ink" | "--color-slate" | "--color-hairline" | "--color-border-strong" | "--color-border-input"
-  | "--color-surface" | "--color-brand" | "--color-warning" | "--color-info" | "--color-success";
+  | "--color-surface" | "--color-brand" | "--color-warning" | "--color-info" | "--color-success"
+  // The operator console's AI models tab (M36 link 4): failed turns in danger
+  // ink at the base of *Turns a day*, and the p95 column in moss behind the
+  // median in *Context size by step* — the spec's two marks no token above is.
+  | "--color-danger-ink" | "--color-moss";
 
 /** Each series: its legend label and the token it paints with. */
 export type ChartConfig = Record<string, { label: string; color: ChartToken }>;

@@ -1,0 +1,14 @@
+-- The operator console reads the event log by actor (M36 D6): *Last active*
+-- for one page of the accounts table, and the account page's edits a day and
+-- six newest events. Each was a sequential scan of every event — 18-25 ms a
+-- read at 300k events, growing with the log — and is an index scan under 1 ms
+-- with this.
+--
+-- **It locks writes to `events` while it builds.** Plain CREATE INDEX takes a
+-- SHARE lock: reads go on, every planning command's append waits. Measured
+-- locally at 0.4 s for 300k events, so about 1.3 s per million. It cannot be
+-- CONCURRENTLY: `drizzle-kit migrate` applies every pending migration inside
+-- one transaction, and Postgres refuses CREATE INDEX CONCURRENTLY in a
+-- transaction block (checked against Postgres 16 and drizzle-orm 0.45's
+-- migrator). So dispatch `migrate-production` when nobody is editing.
+CREATE INDEX "events_actor_occurred" ON "events" USING btree ("actor_id","occurred_at");
