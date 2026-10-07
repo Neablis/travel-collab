@@ -84,8 +84,9 @@ cloud session's proxy. **Mitchell added the Access Key on 2026-10-06.**
    flow that acts *as* an Unsplash user (likes, uploads, collections), which Caesura never does.
 7. **Rate limits.** The demo tier allows 50 requests an hour; production allows 5,000 an hour
    after Unsplash approves the app. Approval asks for screenshots showing the attribution and
-   confirms download tracking. The search quota (`unsplashSearchQuota`) stays under the tier we
-   hold, and only a person typing a search spends it (D2).
+   confirms download tracking. The search and pick quotas (`unsplashSearchQuota`,
+   `unsplashPickQuota`) together stay under the tier we hold, and only a person typing a search
+   or picking a photo spends them (D2).
 8. **Content.** Search sends `content_filter=high`. Results use `alt_description` as the image's
    alt text, falling back to *Photo by <name>*.
 
@@ -169,7 +170,7 @@ Surveyed 2026-10-06. Re-check the line numbers before trusting them.
    - `GET /api/trips/:id/cover/search?q=` uses the quota `unsplashSearchQuota`, per user and global,
      because the vendor's demo tier allows 50 requests an hour;
    - `PUT /api/trips/:id/cover` takes `{candidate}`, re-validates it, upserts the row and fires
-     `trackDownload` once;
+     `trackDownload` once, after the response, on its own quota `unsplashPickQuota`;
    - `DELETE /api/trips/:id/cover` deletes the row.
    Without a key and not offline, search answers 503 `{error:"covers-unavailable"}`, so the UI can
    say so.

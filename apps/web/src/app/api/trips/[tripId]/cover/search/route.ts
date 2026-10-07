@@ -2,9 +2,10 @@ import { CoverSearchResponse } from "@tc/contracts";
 import { requireTripAccess } from "@/server/access/trip-access";
 import { getCoverPhotos, UpstreamError } from "@/server/external/unsplash";
 import { consumeQuota, quotaRefusal, unsplashSearchQuota } from "@/server/quota";
+import { coversUnavailable, tripDeleted, upstreamFailure } from "../responses";
 
 // The cover picker's search (M37 D2). The only route that spends the Unsplash
-// quota on a search, and only when a person typed one: an empty query answers
+// search quota, and only when a person typed one: an empty query answers
 // nothing without asking anyone, as `/api/geocode` does.
 
 // Unsplash's search answers at most 50 pages for a sensible query; a page
@@ -17,9 +18,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ trip
   const { tripId } = await params;
   const access = await requireTripAccess(tripId, "editor");
   if ("error" in access) return access.error;
-  if (access.detail.status === "deleted") {
-    return Response.json({ error: "This trip has been deleted." }, { status: 400 });
-  }
+  if (access.detail.status === "deleted") return tripDeleted();
   const search = new URL(request.url).searchParams;
   const q = search.get("q")?.trim() ?? "";
   const page = Number(search.get("page") ?? "1");
@@ -27,7 +26,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ trip
     return Response.json({ error: `q is at most ${MAX_QUERY} characters; page is 1 to ${MAX_PAGE}` }, { status: 400 });
   }
   const photos = getCoverPhotos();
-  if (photos === null) return Response.json({ error: "covers-unavailable" }, { status: 503 });
+  if (photos === null) return coversUnavailable();
   if (!q) return Response.json(CoverSearchResponse.parse({ results: [] }));
   const quota = await consumeQuota(unsplashSearchQuota(), access.userId);
   if (!quota.allowed) return quotaRefusal(quota);
@@ -36,6 +35,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ trip
   } catch (error) {
     if (!(error instanceof UpstreamError)) throw error;
     console.error(`[covers] ${error.message}`);
-    return Response.json({ error: "covers-upstream" }, { status: 502 });
+    return upstreamFailure(error);
   }
 }

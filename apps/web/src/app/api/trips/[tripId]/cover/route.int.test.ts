@@ -16,6 +16,20 @@ import { entitleAccounts } from "@/server/test-support/entitledAccount";
 // records each download ping, which is what "exactly one ping per pick" is
 // asserted on; `getCoverPhotos` is wrapped so "no page view calls Unsplash"
 // can count calls to the port itself.
+//
+// The ping is sent with Next's `after()`, which throws outside a request
+// scope. It is replaced here by a queue `settle()` drains, so a test sees the
+// ping was not sent before the response and then awaits it, deterministically.
+const afterResponse = vi.hoisted(() => [] as Array<() => unknown>);
+vi.mock("next/server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/server")>()),
+  after: (task: () => unknown) => {
+    afterResponse.push(task);
+  },
+}));
+async function settle(): Promise<void> {
+  while (afterResponse.length > 0) await afterResponse.shift()!();
+}
 
 let currentUserId = "";
 vi.mock("@/server/auth", () => ({
@@ -87,11 +101,12 @@ beforeAll(async () => {
 beforeEach(async () => {
   vi.stubEnv("EXTERNAL_DATA_OFFLINE", "true");
   offlineCoverPhotos.pings.length = 0;
+  afterResponse.length = 0;
   portCalls.mockClear();
   currentUserId = OWNER;
-  // Only this policy's rows: the global ceiling is per deployment, and this
-  // file's picks and searches would otherwise add up across tests.
-  await db.delete(rateLimitCounters).where(like(rateLimitCounters.bucket, "unsplash-hourly:%"));
+  // Only these policies' rows: the global ceilings are per deployment, and
+  // this file's picks and searches would otherwise add up across tests.
+  await db.delete(rateLimitCounters).where(like(rateLimitCounters.bucket, "unsplash-%"));
 });
 
 afterEach(() => {
@@ -111,18 +126,59 @@ describe("GET /api/trips/:id/cover/search", () => {
     const [charged] = await db
       .select({ hits: rateLimitCounters.hits })
       .from(rateLimitCounters)
-      .where(eq(rateLimitCounters.bucket, `unsplash-hourly:user:${EDITOR}`));
+      .where(eq(rateLimitCounters.bucket, `unsplash-search-hourly:user:${EDITOR}`));
     expect(charged?.hits).toBe(1);
   });
 
-  it("429s once the person's Unsplash quota is spent", async () => {
-    vi.stubEnv("UNSPLASH_RATE_LIMIT_PER_USER_HOURLY", "2");
+  it("429s once the person's Unsplash search quota is spent", async () => {
+    vi.stubEnv("UNSPLASH_SEARCH_RATE_LIMIT_PER_USER_HOURLY", "2");
     const tripId = await seedTrip();
     expect((await search(tripId)).status).toBe(200);
     expect((await search(tripId)).status).toBe(200);
     const refused = await search(tripId);
     expect(refused.status).toBe(429);
     expect(await refused.json()).toMatchObject({ reason: "user" });
+  });
+
+  // PR #352 review: picks once shared the search quota, so ten searches left
+  // the person unable to keep what they found.
+  it("still takes a pick once the person's searches are spent", async () => {
+    vi.stubEnv("UNSPLASH_SEARCH_RATE_LIMIT_PER_USER_HOURLY", "2");
+    const tripId = await seedTrip();
+    const [first] = await candidates(tripId);
+    expect((await search(tripId)).status).toBe(200);
+    expect((await search(tripId)).status).toBe(429);
+
+    expect((await pick(tripId, first!)).status).toBe(200);
+    await settle();
+    expect(offlineCoverPhotos.pings).toEqual([first!.downloadLocation]);
+  });
+
+  // Unsplash's own limit — reached by another deployment on the same key, say
+  // — is "not now", with a time to come back; anything else it fails with is
+  // the vendor broken, a 502. Against the real adapter, `fetch` stubbed.
+  it.each([
+    // Unsplash names no time with its 403: the adapter's ten minutes.
+    ["a 403 with no requests remaining", 429, 403, { "X-Ratelimit-Remaining": "0" }, 600],
+    ["a 429 naming its Retry-After", 429, 429, { "Retry-After": "90" }, 90],
+    ["a plain 403", 502, 403, {}, null],
+    ["a 500", 502, 500, {}, null],
+  ])("answers Unsplash's %s with a %i", async (_what, expected, upstream, headers, retryAfter) => {
+    vi.stubEnv("EXTERNAL_DATA_OFFLINE", "false");
+    serverConfig.unsplashAccessKey = "test-key-never-sent";
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("{}", { status: upstream, headers })));
+    const tripId = await seedTrip();
+    const res = await search(tripId);
+    expect(res.status).toBe(expected);
+    if (expected === 429) {
+      const seconds = Number(res.headers.get("Retry-After"));
+      // A second's slack for the clock moving between adapter and route.
+      expect(seconds).toBeGreaterThanOrEqual(retryAfter! - 1);
+      expect(seconds).toBeLessThanOrEqual(retryAfter!);
+      expect(await res.json()).toEqual({ error: "covers-rate-limited", retryAfterSeconds: seconds });
+    } else {
+      expect(await res.json()).toEqual({ error: "covers-upstream" });
+    }
   });
 
   it("503s covers-unavailable with no key and not offline, before charging anything", async () => {
@@ -132,7 +188,7 @@ describe("GET /api/trips/:id/cover/search", () => {
     const res = await search(tripId);
     expect(res.status).toBe(503);
     expect(await res.json()).toEqual({ error: "covers-unavailable" });
-    expect(await db.select().from(rateLimitCounters).where(like(rateLimitCounters.bucket, "unsplash-hourly:%"))).toEqual([]);
+    expect(await db.select().from(rateLimitCounters).where(like(rateLimitCounters.bucket, "unsplash-%"))).toEqual([]);
   });
 
   it("400s on a deleted trip and refuses a page out of range", async () => {
@@ -144,7 +200,7 @@ describe("GET /api/trips/:id/cover/search", () => {
 });
 
 describe("PUT and DELETE /api/trips/:id/cover", () => {
-  it("stores a pick and pings its download location exactly once", async () => {
+  it("stores a pick and pings its download location exactly once, after the response", async () => {
     const tripId = await seedTrip();
     const [first] = await candidates(tripId);
     const res = await pick(tripId, first!);
@@ -158,6 +214,8 @@ describe("PUT and DELETE /api/trips/:id/cover", () => {
       photographerUrl: first!.photographerUrl,
       photoPageUrl: first!.photoPageUrl,
     });
+    expect(offlineCoverPhotos.pings).toEqual([]);
+    await settle();
     expect(offlineCoverPhotos.pings).toEqual([first!.downloadLocation]);
     expect(await coverOf(tripId)).toEqual(cover);
     // A search result shown is not a use: only the pick pinged.
@@ -170,6 +228,7 @@ describe("PUT and DELETE /api/trips/:id/cover", () => {
     currentUserId = EDITOR;
     expect((await pick(tripId, second!)).status).toBe(200);
     expect((await pick(tripId, second!)).status).toBe(200);
+    await settle();
 
     expect(offlineCoverPhotos.pings).toEqual([first!.downloadLocation, second!.downloadLocation, second!.downloadLocation]);
     expect((await coverOf(tripId))?.unsplashId).toBe(second!.id);
@@ -189,14 +248,19 @@ describe("PUT and DELETE /api/trips/:id/cover", () => {
     expect(await db.select().from(tripCovers).where(eq(tripCovers.tripId, tripId))).toEqual([]);
   });
 
-  it("refuses a candidate the source did not mint, storing and pinging nothing", async () => {
+  it.each([
+    ["a script for a credit link", { photographerUrl: "javascript:alert(1)" }],
+    // A credit shown to everyone on the trip, naming someone who did not take it.
+    ["another photographer's name", { photographerName: "Someone Else" }],
+    ["a rewritten caption", { alt: "Something else entirely" }],
+  ])("refuses a candidate the source did not mint (%s), storing and pinging nothing", async (_what, forgery) => {
     const tripId = await seedTrip();
     const [first] = await candidates(tripId);
-    const forged = { ...first!, photographerUrl: "javascript:alert(1)" };
-    const res = await pick(tripId, forged);
+    const res = await pick(tripId, { ...first!, ...forgery });
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual({ error: "not-a-cover-candidate" });
     expect(await coverOf(tripId)).toBeNull();
+    await settle();
     expect(offlineCoverPhotos.pings).toEqual([]);
   });
 
@@ -207,12 +271,14 @@ describe("PUT and DELETE /api/trips/:id/cover", () => {
     const tripId = await seedTrip();
     const [first] = await candidates(tripId);
     await pick(tripId, first!);
+    await settle();
     offlineCoverPhotos.pings.length = 0;
 
     currentUserId = userId;
     expect((await search(tripId)).status).toBe(403);
     expect((await pick(tripId, first!)).status).toBe(403);
     expect((await clear(tripId)).status).toBe(403);
+    await settle();
     expect(offlineCoverPhotos.pings).toEqual([]);
     // They may still see it.
     expect((await coverOf(tripId))?.unsplashId).toBe(first!.id);
@@ -224,6 +290,7 @@ describe("PUT and DELETE /api/trips/:id/cover", () => {
     await executeTripCommand({ type: "DeleteTrip", tripId }, OWNER);
     expect((await pick(tripId, first!)).status).toBe(400);
     expect((await clear(tripId)).status).toBe(400);
+    await settle();
     expect(offlineCoverPhotos.pings).toEqual([]);
   });
 });
@@ -258,6 +325,7 @@ describe("a cover on the trip list", () => {
     const tripId = await seedTrip();
     const [first] = await candidates(tripId);
     await pick(tripId, first!);
+    await settle();
     portCalls.mockClear();
     offlineCoverPhotos.pings.length = 0;
 

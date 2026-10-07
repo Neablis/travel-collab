@@ -29,7 +29,7 @@ import { cityFor } from "@/lib/dayChips";
 import { fetchTripDetail } from "@/lib/apiClient";
 import { cachedRead } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
-import { formatTripDate, relativeCalendarDays } from "@/lib/formatDate";
+import { formatTripDateLong, relativeCalendarDays } from "@/lib/formatDate";
 import { displayNameFor } from "@/lib/displayName";
 import { initialsFor } from "@/lib/initials";
 import { needsBooking } from "@/lib/needsBooking";
@@ -46,7 +46,11 @@ export type NextTripHeroProps = {
    * "nothing orphaned".
    */
   menuSlot?: ReactNode;
-  /** The reader's user id, which decides an unplanned trip's next steps (M37 D6), as `TripCard` takes it. */
+  /**
+   * The reader's user id, which decides an unplanned trip's next steps (M37
+   * D6), as `TripCard` takes it. `undefined` while the session probe is in
+   * flight, and `null` for nobody signed in.
+   */
   viewerId?: string | null;
 };
 
@@ -141,15 +145,27 @@ export function NextTripHero({ trip, menuSlot, viewerId }: NextTripHeroProps) {
   // next trip is usually a NEW one, so the hero is where the unplanned state
   // is seen most. Only the owner is offered next steps; a reader the trip was
   // shared with is told nothing is planned, as the card tells them.
+  //
+  // While the reader is unknown (`viewerId` undefined, the session probe in
+  // flight) the hero lays out the owner-alone state, hidden: its paragraph and
+  // both buttons, invisible and out of the accessibility tree and tab order.
+  // That is the commonest answer for a new trip, so it lands in place instead
+  // of growing the hero and pushing the trip grid below it down. A reader or
+  // an owner with company gets a shorter hero when the answer lands — the
+  // less common case — rather than one that is wrong for a moment.
   const unplanned = isUnplanned(trip);
-  const owns = viewerOwnsTrip(trip.members, viewerId);
-  const alone = ownerAlone(trip, viewerId);
+  const viewerKnown = viewerId !== undefined;
+  const owns = viewerKnown ? viewerOwnsTrip(trip.members, viewerId) : true;
+  const alone = viewerKnown ? ownerAlone(trip, viewerId) : true;
+  const holding = unplanned && !viewerKnown;
   // The range only while the summary's start is the one shown: once the
   // detail has moved the start, the summary's end may belong to the old one.
+  // With the year either way, as the card says it — a single day without one
+  // read as a different format from the range beside it.
   const range = shownStartDate !== null && shownStartDate === trip.startDate ? tripDateRange(trip) : null;
   const dates =
     shownStartDate !== null
-      ? (range ?? formatTripDate(shownStartDate))
+      ? (range ?? formatTripDateLong(shownStartDate))
       : createdLabel !== null && !unplanned
         ? `Created ${createdLabel}`
         : null;
@@ -159,7 +175,9 @@ export function NextTripHero({ trip, menuSlot, viewerId }: NextTripHeroProps) {
   // the travellers move into a footer beside the credit (the approved
   // canvas). Without one, the hero is exactly what it was.
   const { cover } = trip;
-  const pickCover = unplanned && offersCover(trip, viewerId);
+  // Held with the owner's buttons while the reader is unknown: an owner may
+  // always set one, so it is part of the owner-alone row.
+  const pickCover = unplanned && (holding ? cover === null : offersCover(trip, viewerId));
 
   useEffect(() => {
     let cancelled = false;
@@ -322,7 +340,10 @@ export function NextTripHero({ trip, menuSlot, viewerId }: NextTripHeroProps) {
                   carries what to do instead. Static text from the summary, so it
                   never grows when the detail lands. */}
               {unplanned ? (
-                <p className="mt-1.5 text-sm text-slate">
+                <p
+                  className={cn("mt-1.5 text-sm text-slate", holding && "invisible")}
+                  aria-hidden={holding || undefined}
+                >
                   {owns
                     ? `A blank trip. Start with the first ${trip.dayCount === 0 ? "day" : "stop"}${
                         alone
@@ -373,7 +394,11 @@ export function NextTripHero({ trip, menuSlot, viewerId }: NextTripHeroProps) {
               {unplanned && owns ? (
                 // M37 D6: an unplanned trip's owner gets its first step as the
                 // primary action; the name above is still the way into the trip.
-                <>
+                <div
+                  className={cn("contents", holding && "invisible")}
+                  aria-hidden={holding || undefined}
+                  inert={holding || undefined}
+                >
                   <Link
                     href={addFirstDayHref(trip.tripId)}
                     className={cn(buttonVariants({ variant: "primary", size: "md" }))}
@@ -388,7 +413,7 @@ export function NextTripHero({ trip, menuSlot, viewerId }: NextTripHeroProps) {
                       Invite who&apos;s coming
                     </Link>
                   )}
-                </>
+                </div>
               ) : (
                 <Link href={`/trips/${trip.tripId}`} className={cn(buttonVariants({ variant: "primary", size: "md" }))}>
                   Open trip
@@ -398,7 +423,13 @@ export function NextTripHero({ trip, menuSlot, viewerId }: NextTripHeroProps) {
               {pickCover && (
                 <Link
                   href={coverHref(trip.tripId)}
-                  className={cn("inline-flex items-center px-1 text-sm text-slate hover:underline", PHONE_TOUCH)}
+                  className={cn(
+                    "inline-flex items-center px-1 text-sm text-slate hover:underline",
+                    PHONE_TOUCH,
+                    holding && "invisible",
+                  )}
+                  aria-hidden={holding || undefined}
+                  inert={holding || undefined}
                 >
                   Choose a cover photo
                 </Link>
@@ -455,7 +486,7 @@ export function NextTripHero({ trip, menuSlot, viewerId }: NextTripHeroProps) {
           <div className="text-xs font-semibold uppercase tracking-wide text-slate">Shape of the trip</div>
           <div className="mt-4">
             {unplanned ? (
-              <EmptyShape trip={trip} />
+              <EmptyShape startDate={shownStartDate} dayCount={trip.dayCount} />
             ) : sparkline.status === "ready" && sparkline.days.length > 0 ? (
               // Sparkline itself handles a day with zero stops gracefully
               // (an empty, day-numbered slot) — the placeholder below is
@@ -487,20 +518,21 @@ const EMPTY_SHAPE_ROWS = 7;
 
 /**
  * The right panel for an unplanned trip (M37 D6): a dashed, empty bar per
- * dated day, from the summary's start date and day count — days run on from
- * the start, as `tripDetailFromState` dates them — then what fills them in.
- * An undated trip gets the line alone.
+ * dated day, from the start date the hero shows (`shownStartDate`, so the rows
+ * and the meta row never disagree) and the summary's day count — days run on
+ * from the start, as `tripDetailFromState` dates them — then what fills them
+ * in. An undated trip gets the line alone.
  */
-function EmptyShape({ trip }: { trip: TripSummary }) {
+function EmptyShape({ startDate, dayCount }: { startDate: string | null; dayCount: number }) {
   const dates: string[] = [];
-  if (trip.startDate !== null) {
-    const [y, m, d] = trip.startDate.split("-").map(Number) as [number, number, number];
-    for (let i = 0; i < Math.min(trip.dayCount, EMPTY_SHAPE_ROWS); i++) {
+  if (startDate !== null) {
+    const [y, m, d] = startDate.split("-").map(Number) as [number, number, number];
+    for (let i = 0; i < Math.min(dayCount, EMPTY_SHAPE_ROWS); i++) {
       const day = new Date(y, m - 1, d + i);
       dates.push(day.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }));
     }
   }
-  const more = trip.startDate !== null ? trip.dayCount - dates.length : 0;
+  const more = startDate !== null ? dayCount - dates.length : 0;
   return (
     <div className="flex flex-col gap-2">
       {dates.length > 0 && (

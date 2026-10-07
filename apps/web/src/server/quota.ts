@@ -338,29 +338,51 @@ export function weatherQuota(): QuotaPolicy[] {
 }
 
 /**
- * Unsplash quota (M37 D2): every call the cover routes make to Unsplash on a
- * person's behalf — a page of search results, or a pick's download ping. A
- * page view never spends it, because no page view calls Unsplash.
+ * Unsplash quotas (M37 D2): every call the cover routes make to Unsplash on a
+ * person's behalf. A page view never spends them, because no page view calls
+ * Unsplash. Two policies, so the two kinds of call cannot starve each other:
+ * a person who searched ten times must still be able to pick what they found,
+ * or the choice they came for is lost to a 429 (PR #352 review).
  *
  * Hourly, because the vendor's limit is: the demo tier allows 50 requests an
  * hour per key. These windows are fixed and Unsplash's is not, so two adjacent
- * windows can both fill inside one of its hours; the global default is 24 so
- * that even then the key sees 48. The per-user one lets a person try ten
- * searches and still leaves the rest of the deployment some. Raise both by
+ * windows can both fill inside one of its hours. The globals are sized for
+ * that worst case: (20 searches + 4 picks) × 2 = 48, under 50. Raise them by
  * environment once Unsplash approves production (5,000 an hour).
  *
- * Picks are charged as well as searches: a pick is a request to Unsplash too,
- * and an editor replaying one in a loop would otherwise empty the key for
- * every other trip. Shared with saved-day covers (plan, part 5): one key, one
- * ceiling.
+ * **What these do not bound: other deployments on the same key.** The counters
+ * live in this deployment's database, and each preview has its own, while
+ * every deployment shares the one key. Production and an active preview can
+ * together exceed 48, and Unsplash answers that with a 403 the cover routes
+ * pass on as a 429 (`covers-rate-limited`), not as a failure. The ceiling is
+ * per database, honestly; a shared one would need the cache's Upstash store.
  */
 export function unsplashSearchQuota(): QuotaPolicy[] {
   return [
     {
-      name: "unsplash-hourly",
+      name: "unsplash-search-hourly",
       windowMs: HOUR_MS,
-      perUser: envCeiling("UNSPLASH_RATE_LIMIT_PER_USER_HOURLY", 10),
-      global: envCeiling("UNSPLASH_RATE_LIMIT_GLOBAL_HOURLY", 24),
+      // Eight pages each still leaves the deployment's other editors twelve.
+      perUser: envCeiling("UNSPLASH_SEARCH_RATE_LIMIT_PER_USER_HOURLY", 8),
+      global: envCeiling("UNSPLASH_SEARCH_RATE_LIMIT_GLOBAL_HOURLY", 20),
+    },
+  ];
+}
+
+/**
+ * The pick's own policy (`unsplashSearchQuota` has the sizing): one download
+ * ping per pick. Charged at all because a pick is a request to Unsplash too,
+ * and an editor replaying one in a loop would otherwise empty the key for
+ * every other trip. Three a person allows a change of mind and a change back.
+ * Shared with saved-day covers (plan, part 5): one key, one ceiling.
+ */
+export function unsplashPickQuota(): QuotaPolicy[] {
+  return [
+    {
+      name: "unsplash-pick-hourly",
+      windowMs: HOUR_MS,
+      perUser: envCeiling("UNSPLASH_PICK_RATE_LIMIT_PER_USER_HOURLY", 3),
+      global: envCeiling("UNSPLASH_PICK_RATE_LIMIT_GLOBAL_HOURLY", 4),
     },
   ];
 }
