@@ -1,6 +1,6 @@
 # M37 — A trip looks like somewhere before it has a plan
 
-**Status:** **Current from 2026-10-06**, by M35's gate closing; being built as a five-part stack from `docs/plans/2026-10-06-M37-trip-cards-and-covers.md`. **Scoped 2026-10-06, placed after M35.** Every decision below was answered as
+**Status:** **Gate closed 2026-10-07, 11 of 11** (retro at the end). Current from 2026-10-06, by M35's gate closing. Built as a five-part stack, #350 → #354, from `docs/plans/2026-10-06-M37-trip-cards-and-covers.md`. **Scoped 2026-10-06, placed after M35.** Every decision below was answered as
 recommended (*"Yes that recommendation is fine"*), and the order M37 → M47 was confirmed
 (*"Order is good"*), both on 2026-10-06. Minted from `docs/candidates.md` when its 42 unplaced
 entries were grouped into milestones (asked 2026-10-06: *"Go through the suggested new features,
@@ -108,6 +108,67 @@ Candidates absorbed (each deleted by this gate):
       *(Ticked 2026-10-06:*
       - *`m37-trip-covers.spec.ts` (#353) covers the trip journey. `m37-playbook-cover.spec.ts` (#354) covers the playbook day.*
       - *Full ci-like run on the stack's top (#354): **243 passed, 1 flaky**. The flaky one is `m14-notebook-widgets.spec.ts:754`, which passed on retry and 8 of 8 in repeats. It is filed as KI-2026-10-06-a; the stack touches no notebook code.)*
-- [ ] **[walk]** On the PR preview, the home page with one empty and one populated trip is walked
+- [x] **[walk]** On the PR preview, the home page with one empty and one populated trip is walked
       at desktop and phone widths.
-- [ ] A retro is appended at gate close.
+      *(Ticked 2026-10-07: walked on #354's preview (`4b95117`) by the phase-verifier at 1280 and 390,
+      signed in as `alice` and signed out. All six steps passed:*
+      - *empty and populated cards;*
+      - *the `?settings=people|cover` links;*
+      - *real Unsplash search, pick, credit and remove, with utm hrefs and `images.unsplash.com`
+        sources;*
+      - *a playbook-day cover on the day page, on Discover and on the city card.*
+
+      *The walk found one problem: credit and city links were 15px tall at 390. The fix is
+      `min-h-11` on `CoverCredit` (#353) and on the band's city link (#354). The e2e specs now
+      measure both at 44px. Real photo pixels were not seen: the session's network blocks
+      `images.unsplash.com`, so layout was checked with a stand-in image.)*
+- [x] A retro is appended at gate close.
+
+## Retro — gate closed 2026-10-07 (11 of 11)
+
+**What shipped.**
+- **Trip cards (#351, plus fixes in #352).**
+  - Every trip card and the next-trip hero show the trip's length and stops (`TripSummary.dayCount`, `stopCount`, `ideaCount`).
+  - An unplanned trip gets a designed state: a dashed card with *Add the first day*, *Invite who's coming* and *Choose a cover photo*.
+- **Unsplash covers for trips (#352, #353).**
+  - Search, pick and clear live in Trip settings.
+  - The cover fades into the card and hero, with a linked credit.
+- **Covers for playbook days (#354).**
+  - The day page gets a full-bleed band with the paper veil rising into the title.
+  - The Discover card leads with the photo.
+- **Storage.** Two side tables, `trip_covers` (`0042`) and `saved_day_covers` (`0043`). Neither is a projection, so neither touches the event log.
+- **Unsplash's production checklist is met:**
+  - photos are hotlinked;
+  - one download ping is sent per pick, after the response;
+  - a linked credit with utm params appears wherever a photo renders;
+  - no Unsplash logo or naming;
+  - the Access Key is used server-side only.
+
+**What held.**
+- **The design came first.** Mitchell approved a seven-artboard canvas (https://claude.ai/artifact/655uQXn7esDDWjeAnnAxa1) before any UI merged, and every part built to it.
+- **Two reviews per part found real bugs that CI didn't.**
+  - My own review of each part caught one major per part:
+    - an ideas-only trip read as blank;
+    - searching locked out picking;
+    - *More results* spent quota on an empty last page.
+  - CodeRabbit caught two more:
+    - the key followed a same-origin redirect;
+    - city chips escaped a Discover card's photo at 390.
+- **The stack's Tier 3 run found bugs that green CI had missed.** The full ci-like run on the top part found three #353 bugs:
+  - the settings sheet losing its scroll position;
+  - the e2e pick quota running out;
+  - a viewport check that depended on whether alice held Premium.
+
+  #353's own CI was green only because of spec order inside its shard. The fixes were moved down to #353, as the stacked-PR guide says.
+
+**What did not.**
+- **Self-review came after the PRs were opened, not before.** The stacked-PR guide says self-review comes first. Mitchell had to ask *"Was there code reviews done for each of the PRs?"*, and when the reviews were done they lived only in chat until he asked again. **Next time:** review each part before opening it, and post the review on the PR.
+- **#351 merged before its review fixes landed.** They shipped through #352 instead. That worked, but it meant reconciling the API version against what `main` had already shipped (1.7.0 went out without `ideaCount`).
+- **The merge reached production before its migrations.** `main` deploys on merge, and `0042`/`0043` had not been dispatched when the stack merged (14:21 UTC, 2026-10-07), so the trip list and Discover failed until they were. **Next time:** say in the merge hand-off that the dispatch has to follow the merge immediately.
+- **Drafts get no preview.** The first walk attempt found nothing to open, because `vercel-preview.yml` skips draft PRs.
+
+**Left open, not gating.**
+- `/v1/trips` publishes `cover` and `ideaCount` as optional, though they are always sent. This is the same shape #354 fixed for `DiscoverDay`.
+- A single city name of 40 or more characters with no spaces overflows a card. This predates M37.
+- Real Unsplash photos were never seen on a preview from this session, because the session's network blocks the CDN.
+- Production rate limits: register **Caesura** with Unsplash and apply for production access, with screenshots of the credit.

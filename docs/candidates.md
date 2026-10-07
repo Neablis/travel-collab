@@ -58,19 +58,6 @@ here two days later.
     Retention when a trip is soft-deleted (ADR-016).
   *Placed 2026-10-06 → `docs/milestones/M46-a-trip-has-a-conversation.md` (proposed, not yet scoped). M46's gate deletes this entry at close.*
 
-- **Free Unsplash photos on activities, trips, playbook days and notebooks (asked
-  2026-10-04).** Mitchell: *"leveraging unsplashed free photos to add photos to activities,
-  trips, playbook days notebooks"*.
-  - **The idea.** A server-side search against Unsplash that attaches a cover or thumbnail to a
-    stop, trip, playbook day or notebook, and used as the empty-state art for the home card below.
-  - **Decisions it needs.** The API key lives server-side only and is rate limited (demo tier),
-    so results are fetched once and the chosen photo's URL and credit are stored, never
-    re-queried per view. Unsplash's terms require attribution and a download-tracking ping.
-    Per-use hotlinking versus copying into our own storage. Whether a photo is a stop fact
-    (an event, so History and undo apply) or a decoration. How the public library (ADR-061) and
-    its OG images treat a photo. Per ADR-052 external data enters as a server-fetched input.
-  *Placed 2026-10-06 → `docs/milestones/M37-trips-look-like-somewhere.md` (proposed, not yet scoped). M37's gate deletes this entry at close.*
-
 - **The invite-accept page uses notebook widgets to say what the trip is (asked 2026-10-04).**
   Mitchell: *"leveraging the notebook widgets for the accept joining trip page so it shares code
   and tells you more about the trip before accepting"*.
@@ -95,18 +82,6 @@ here two days later.
     apart, or purely personal. A fixed avatar set versus uploads (uploads bring storage and
     moderation). Public-library profiles (ADR-061) must not leak a private name.
   *Placed 2026-10-06 → `docs/milestones/M38-people-you-can-tell-apart.md` (proposed, not yet scoped). M38's gate deletes this entry at close.*
-
-- **Better home-page trip cards, above all for a trip with no days or stops (asked 2026-10-04).**
-  Mitchell: *"better card for trips on your homepage, especially when a trip doesn't have days
-  or activities, it looks very blank atm"*. The card is `components/home/TripCard.tsx`.
-  - **The idea.** A designed empty state (a prompt to add the first day, the dates or
-    destination if known, an invite nudge when the owner is alone), and a fuller populated card
-    (route, stop count, who is going, cost per person). A cover photo from the Unsplash entry
-    above would carry the most visual weight; the card must not depend on it.
-  - **Decisions it needs.** Which facts the card may show without a read per trip. The skeleton
-    in `HomeSkeletons.tsx` has to match. It is a design change, so it goes through the design
-    sync if it touches `.design-sync/**`.
-  *Placed 2026-10-06 → `docs/milestones/M37-trips-look-like-somewhere.md` (proposed, not yet scoped). M37's gate deletes this entry at close.*
 
 - **The assistant can move around the site (asked 2026-10-04).** Mitchell: *"give the AI agent
   the ability to move around the website, go to notebooks, change to map view, etc"*.
@@ -685,13 +660,6 @@ here two days later.
   in edit mode; only the rack's dropdown moves anything, and only off the
   rack), and empty states for the day column, the rack and History.
   *Placed 2026-10-06 → `docs/milestones/M41-planning-without-friction.md` (proposed, not yet scoped). M41's gate deletes this entry at close.*
-
-- **Trip list row: show the trip's length (Mitchell, 2026-08-01, from M8
-  dogfooding).** The rest of this entry shipped: the card shows a formatted
-  start date (or "Created <date>") instead of the raw ISO `createdAt` (#218,
-  KI-034), and a "{planned} planned of {budget}" cost line (`TripCard.tsx`).
-  The trip's length in days is still not on the card.
-  *Placed 2026-10-06 → `docs/milestones/M37-trips-look-like-somewhere.md` (proposed, not yet scoped). M37's gate deletes this entry at close.*
 
 - **Duplicate and the undo-toast's Restore: no optimistic update yet (Mitchell,
   2026-08-01, from M8 dogfooding).** Delete's optimism (page.tsx's
