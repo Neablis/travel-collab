@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { tripMemberProfileFactory } from "@tc/factories";
 import type { TripMemberProfile } from "@tc/contracts";
 import { describe, expect, it } from "vitest";
-import { PersonChip, type PersonChipProps } from "./PersonChip";
+import { PersonChip, type PersonChipProps } from "./person-chip";
 
 // The chip is `aria-hidden` and has no role, so it is found by the `title`
 // it passes through — which is also how the passthrough itself is proven.
