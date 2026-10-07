@@ -650,10 +650,24 @@ export async function resolveSuggestionChange(
 // Not commands: a cover is metadata in its own table (D1), and TripDetail
 // does not carry it, so no trip read is invalidated by these writes. Home
 // reads a trip's cover off `TripSummary` from `fetchTrips`, which is not
-// cached; a playbook day's comes back on `fetchSavedDay`. A 503 is the
-// deployment having no Unsplash key, and a 429 the search quota; the picker
-// tells them apart by `error.status`. A trip's routes and a saved day's speak
-// the same schemas, so each pair below is one call at two addresses.
+// cached; a playbook day's comes back on `fetchSavedDay`. A 503
+// `covers-unavailable` is the deployment having no Unsplash key; a 429 is our
+// quota (search or pick) or, as `covers-rate-limited`, Unsplash's own. The
+// picker tells them apart by status and message. A trip's routes and a saved
+// day's speak the same schemas, so each pair below is one call at two
+// addresses.
+
+/** A cover route's refusal: `retryAfterSeconds` when it was a 429 that said. */
+export type CoverRefusal = ApiError & { retryAfterSeconds?: number };
+/** A cover call's outcome: `ApiResult` with the 429's `retryAfterSeconds` on a refusal. */
+export type CoverResult<T> = { ok: true; value: T } | { ok: false; error: CoverRefusal };
+
+/** The refusal with the 429's `retryAfterSeconds`, which both quotas and Unsplash's limit send. */
+function coverRefusal(res: Response) {
+  return refusal(res, (body) =>
+    typeof body.retryAfterSeconds === "number" ? { retryAfterSeconds: body.retryAfterSeconds } : {},
+  );
+}
 
 const tripCoverPath = (tripId: string) => `/api/trips/${tripId}/cover`;
 const savedDayCoverPath = (savedDayId: string) => `/api/saved-days/${savedDayId}/cover`;
@@ -667,23 +681,25 @@ async function readCover(path: string): Promise<ApiResult<TripCover | null>> {
   }
 }
 
-async function searchCovers(path: string, q: string, page: number): Promise<ApiResult<CoverCandidate[]>> {
+async function searchCovers(path: string, q: string, page: number): Promise<CoverResult<CoverCandidate[]>> {
   try {
     const params = new URLSearchParams({ q, page: String(page) });
     const res = await fetch(apiUrl(`${path}/search?${params.toString()}`));
+    if (!res.ok) return await coverRefusal(res);
     return await readJson(res, (data) => CoverSearchResponse.parse(data).results);
   } catch (err) {
     return networkError(err);
   }
 }
 
-async function putCover(path: string, candidate: CoverCandidate): Promise<ApiResult<TripCover>> {
+async function putCover(path: string, candidate: CoverCandidate): Promise<CoverResult<TripCover>> {
   try {
     const res = await fetch(apiUrl(path), {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ candidate }),
     });
+    if (!res.ok) return await coverRefusal(res);
     return await readJson(res, (data) => TripCover.parse(TripCoverResponse.parse(data).cover));
   } catch (err) {
     return networkError(err);
@@ -705,12 +721,12 @@ export function fetchTripCover(tripId: string): Promise<ApiResult<TripCover | nu
 }
 
 /** One page (from 1) of photos for `q`, for an editor choosing a cover. Spends the search quota. */
-export function searchTripCovers(tripId: string, q: string, page = 1): Promise<ApiResult<CoverCandidate[]>> {
+export function searchTripCovers(tripId: string, q: string, page = 1): Promise<CoverResult<CoverCandidate[]>> {
   return searchCovers(tripCoverPath(tripId), q, page);
 }
 
 /** Makes `candidate` the trip's cover, and answers the stored cover. */
-export function setTripCover(tripId: string, candidate: CoverCandidate): Promise<ApiResult<TripCover>> {
+export function setTripCover(tripId: string, candidate: CoverCandidate): Promise<CoverResult<TripCover>> {
   return putCover(tripCoverPath(tripId), candidate);
 }
 
@@ -725,12 +741,16 @@ export function fetchSavedDayCover(savedDayId: string): Promise<ApiResult<TripCo
 }
 
 /** One page (from 1) of photos for `q`, for the day's author. Spends the search quota. */
-export function searchSavedDayCovers(savedDayId: string, q: string, page = 1): Promise<ApiResult<CoverCandidate[]>> {
+export function searchSavedDayCovers(
+  savedDayId: string,
+  q: string,
+  page = 1,
+): Promise<CoverResult<CoverCandidate[]>> {
   return searchCovers(savedDayCoverPath(savedDayId), q, page);
 }
 
 /** Makes `candidate` the day's cover (its author only), and answers the stored cover. */
-export function setSavedDayCover(savedDayId: string, candidate: CoverCandidate): Promise<ApiResult<TripCover>> {
+export function setSavedDayCover(savedDayId: string, candidate: CoverCandidate): Promise<CoverResult<TripCover>> {
   return putCover(savedDayCoverPath(savedDayId), candidate);
 }
 

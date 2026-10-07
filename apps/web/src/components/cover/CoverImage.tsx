@@ -25,9 +25,12 @@ export function coverSrc(raw: string, width: number): string {
   return `${raw}${raw.includes("?") ? "&" : "?"}w=${width}&q=80&fm=jpg&fit=crop`;
 }
 
-/** The image's alt text: Unsplash's description, else who took it (plan rule 8). */
+/**
+ * The image's alt text: Unsplash's description, else who took it (plan rule
+ * 8). `||`, not `??`: Unsplash sends `""` for a photo with no description.
+ */
 export function coverAlt(photo: CoverPhoto): string {
-  return photo.alt ?? `Photo by ${photo.photographerName}`;
+  return photo.alt || `Photo by ${photo.photographerName}`;
 }
 
 /**

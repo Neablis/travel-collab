@@ -8,8 +8,20 @@ import { clearTripCover, fetchTripCover, searchTripCovers, setTripCover } from "
 // (`components/cover/CoverPicker.tsx`), pointed at the trip's cover routes.
 // Shown to every member; only an editor gets the search and *Remove cover*.
 
-/** The trip's cover in Trip settings: editable for an editor, read-only for everyone else. */
-export function CoverSection({ tripId, canEdit }: { tripId: string; canEdit: boolean }) {
+/**
+ * The trip's cover in Trip settings: editable for an editor, read-only for
+ * everyone else. `onSettled` is the picker's: called once its opening reads
+ * have landed, so `SettingsSheet` can land on a section below it again.
+ */
+export function CoverSection({
+  tripId,
+  canEdit,
+  onSettled,
+}: {
+  tripId: string;
+  canEdit: boolean;
+  onSettled?: () => void;
+}) {
   const api = useMemo<CoverApi>(
     () => ({
       read: () => fetchTripCover(tripId),
@@ -19,5 +31,5 @@ export function CoverSection({ tripId, canEdit }: { tripId: string; canEdit: boo
     }),
     [tripId],
   );
-  return <CoverPicker api={api} canEdit={canEdit} />;
+  return <CoverPicker api={api} canEdit={canEdit} onSettled={onSettled} />;
 }

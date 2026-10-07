@@ -44,9 +44,9 @@ export function httpsOn(url: string, host: string): boolean {
 }
 
 /**
- * Both credit links on unsplash.com. Shared by the two adapters: the offline
+ * Both credit links on unsplash.com — the real adapter's check. The offline
  * fake's credits point at Unsplash too, because a credit is a link a person
- * follows, never a request the app makes.
+ * follows, never a request the app makes, but it compares them to its own.
  */
 export function creditLinksOnUnsplash(candidate: CoverCandidate): boolean {
   return httpsOn(candidate.photographerUrl, "unsplash.com") && httpsOn(candidate.photoPageUrl, "unsplash.com");

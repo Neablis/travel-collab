@@ -1,7 +1,6 @@
 [
   "apps/web/src/app/(app)/account/page.tsx::AccountPage",
   "apps/web/src/app/(app)/layout.tsx::AppLayout",
-  "apps/web/src/app/(app)/page.tsx::Home",
   "apps/web/src/app/(app)/plans/page.tsx::PlansPage",
   "apps/web/src/app/(app)/playbooks/board/page.tsx::LeaderboardPage",
   "apps/web/src/app/(app)/playbooks/page.tsx::PlaybooksPage",

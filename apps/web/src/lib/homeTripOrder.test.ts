@@ -6,6 +6,7 @@ import { orderHomeTrips } from "./homeTripOrder";
 // KI-034: Home's hero is `orderHomeTrips(...)[0]`. Each list below is given in
 // the server's order (newest-created first), which is the tie-break.
 let sequence = 0;
+/** A trip summary with a fresh id, named and dated; the end defaults to the start. */
 function trip(name: string, startDate: string | null, endDate: string | null = startDate): TripSummary {
   return tripSummaryFactory.build({ tripId: uuidFrom(++sequence), name, startDate, endDate });
 }

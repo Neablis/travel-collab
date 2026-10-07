@@ -27,6 +27,7 @@ import { rememberPlaybookAdd } from "@/lib/pendingPlaybookAdd";
 
 const tripId = "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f";
 
+/** A `TripSummary` from `tripSummaryFactory`, planned unless `overrides` say otherwise. */
 function tripSummaryFixture(overrides: Partial<TripSummary> = {}): TripSummary {
   return tripSummaryFactory.build({
     tripId,

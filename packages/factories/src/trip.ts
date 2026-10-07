@@ -230,9 +230,10 @@ export const tripDetailFactory = Factory.define<TripDetail, TripTransient>(
   },
 );
 
-// A home-grid row. Zero days, zero stops and no cover by default — what
-// `CreateTrip` leaves, so the default is the trip M37's empty card is for; a
-// test about a planned trip states its counts, and one about a cover its cover.
+// Zero days, stops and ideas, and no cover, by default — what `CreateTrip`
+// leaves, so the default is the trip M37's empty card is for; a test about a
+// planned trip states its counts, and one about a cover its cover.
+/** A home-grid row (`TripSummary`), as `GET /api/trips` returns one. */
 export const tripSummaryFactory = Factory.define<TripSummary>(({ sequence }) => ({
   tripId: uuidFrom(sequence),
   name: `${faker.helpers.arrayElement(["Rome", "Kyoto", "Paris", "Barcelona"])} ${2027 + (sequence % 3)}`,
@@ -243,6 +244,7 @@ export const tripSummaryFactory = Factory.define<TripSummary>(({ sequence }) => 
   endDate: null,
   dayCount: 0,
   stopCount: 0,
+  ideaCount: 0,
   cover: null,
 }));
 

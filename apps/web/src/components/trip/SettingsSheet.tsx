@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useState } from "react";
+import { Fragment, useCallback, useMemo, useRef, useState } from "react";
 import type { Money, TripAccess, TripCommand, TripDetail } from "@tc/contracts";
 import { Sheet } from "@/components/ui/sheet";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -156,6 +156,29 @@ export function SettingsSheet({
   const dispatch = canEditBoard ? onCommand : () => undefined;
   const [datesOpen, setDatesOpen] = useState(false);
 
+  // Opened at a section, the sheet lands there when it mounts — but Cover
+  // photo changes height when its reads land (a skeleton becomes a photo, or
+  // nothing), and the landing does not survive it. People, below Cover, moves
+  // out from under a browser with no scroll anchoring (PR #353 review). Cover
+  // itself loses its landing on a tall screen: at 1280×900 the skeleton going
+  // took the content under the scrollport's height, the browser clamped the
+  // scroll to 0, and the content grew back with the sheet at its top
+  // (measured in m37-trip-covers.spec.ts). So the section is landed on again
+  // once Cover has settled; where nothing moved, that is a no-op.
+  const sections = useRef<Partial<Record<SettingsSection, HTMLDivElement | null>>>({});
+  // One stable callback ref per section: a new one each render would land
+  // again on every render.
+  const landing = useMemo(() => {
+    const at = (section: SettingsSection) => (el: HTMLDivElement | null) => {
+      sections.current[section] = el;
+      if (scrollTo === section) scrollIntoView(el);
+    };
+    return { cover: at("cover"), people: at("people") };
+  }, [scrollTo]);
+  const onCoverSettled = useCallback(() => {
+    if (scrollTo !== null) scrollIntoView(sections.current[scrollTo] ?? null);
+  }, [scrollTo]);
+
   // Null only for an unparseable timestamp, which is a projection bug rather
   // than a state to word around — the line just drops the date rather than
   // rendering "Invalid Date" at somebody.
@@ -304,8 +327,8 @@ export function SettingsSheet({
             change their draft can hold, and the route refuses them). Not on
             `/demo`, whose visitor has no session for the cover read. */}
         {!isDemoTripId(tripId) && (
-          <div id="cover" ref={scrollTo === "cover" ? scrollIntoView : undefined} className="scroll-mt-4">
-            <CoverSection tripId={tripId} canEdit={!readOnly} />
+          <div id="cover" ref={landing.cover} className="scroll-mt-4">
+            <CoverSection tripId={tripId} canEdit={!readOnly} onSettled={onCoverSettled} />
           </div>
         )}
 
@@ -360,7 +383,7 @@ export function SettingsSheet({
             that read carries names, emails and the invite list — none of
             which live on TripDetail, and none of which should (they are
             Identity and Access data — packages/contracts/src/access.ts). */}
-        <div id="people" ref={scrollTo === "people" ? scrollIntoView : undefined} className="scroll-mt-4">
+        <div id="people" ref={landing.people} className="scroll-mt-4">
           <PeopleSection
             tripId={tripId}
             access={access}

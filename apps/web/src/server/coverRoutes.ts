@@ -1,13 +1,14 @@
+import { after } from "next/server";
 import { CoverSearchResponse, SetCoverBody, TripCoverResponse, type CoverCandidate, type TripCover } from "@tc/contracts";
 import { UpstreamError } from "./external/upstream";
-import { consumeQuota, quotaRefusal, unsplashSearchQuota } from "./quota";
+import { consumeQuota, quotaRefusal, unsplashPickQuota, unsplashSearchQuota } from "./quota";
 import { readBody } from "./readBody";
 
 // What a trip's cover routes and a playbook day's share once each has decided
-// who may act (M37 parts 3 and 5): the search, and the pick with its one
-// download ping. One copy, so the two cannot drift on the 503, the quota or
-// the ping — Unsplash's guidelines are about the key, not about which page
-// asked.
+// who may act (M37 parts 3 and 5): the search, the pick with its one download
+// ping, and the answers the picker reads. One copy, so the two cannot drift on
+// the 503, the 429, the quotas or the ping — Unsplash's guidelines are about
+// the key, not about which page asked.
 //
 // The cover source arrives as an argument. This file may not import
 // `server/external/unsplash` (the Unsplash wall, `eslint.config.mjs`): only a
@@ -20,8 +21,30 @@ export type CoverSource = {
   owns(candidate: CoverCandidate): boolean;
 };
 
-/** What the picker reads to say covers are not set up on this deployment. */
+// When Unsplash said "not now" without saying until when.
+const FALLBACK_RETRY_SECONDS = 600;
+
+/** Covers are not set up on this deployment: no key, and not offline. The UI says so. */
 export const coversUnavailable = () => Response.json({ error: "covers-unavailable" }, { status: 503 });
+
+/** The trip is deleted: no cover is searched for, set or cleared on it. */
+export const tripDeleted = () => Response.json({ error: "This trip has been deleted." }, { status: 400 });
+
+/**
+ * What a failed call to Unsplash answers. Its rate limit is "not now", so a
+ * 429 with `Retry-After`, as our own quota's refusal is; anything else is the
+ * vendor failing, a 502.
+ */
+export function upstreamFailure(error: UpstreamError, now: Date = new Date()): Response {
+  if (error.status !== 429) return Response.json({ error: "covers-upstream" }, { status: 502 });
+  const retryAfterSeconds = error.retryAfter
+    ? Math.max(1, Math.ceil((error.retryAfter.getTime() - now.getTime()) / 1000))
+    : FALLBACK_RETRY_SECONDS;
+  return Response.json(
+    { error: "covers-rate-limited", retryAfterSeconds },
+    { status: 429, headers: { "Retry-After": String(retryAfterSeconds) } },
+  );
+}
 
 // Unsplash's search answers at most 50 pages for a sensible query; a page
 // beyond what anyone scrolls is refused here rather than spent there.
@@ -30,8 +53,8 @@ const MAX_QUERY = 100;
 
 /**
  * The picker's search (D2): one page of candidates for `?q=`, `?page=` from 1,
- * as a `CoverSearchResponse`. Spends `userId`'s Unsplash quota only on a
- * non-empty query; an empty one answers nothing without asking anyone, as
+ * as a `CoverSearchResponse`. Spends `userId`'s Unsplash search quota only on
+ * a non-empty query; an empty one answers nothing without asking anyone, as
  * `/api/geocode` does, which is how the picker learns covers are set up.
  */
 export async function coverSearch(request: Request, userId: string, photos: CoverSource | null): Promise<Response> {
@@ -50,15 +73,16 @@ export async function coverSearch(request: Request, userId: string, photos: Cove
   } catch (error) {
     if (!(error instanceof UpstreamError)) throw error;
     console.error(`[covers] ${error.message}`);
-    return Response.json({ error: "covers-upstream" }, { status: 502 });
+    return upstreamFailure(error);
   }
 }
 
 /**
  * A pick: the body's candidate, re-checked against the cover source, charged
- * to the Unsplash quota, handed to `store`, and then reported to Unsplash as a
- * download — once per pick, a re-pick of the same photo included (guideline
- * 2). Answers `{ cover }`.
+ * to the pick quota (its own, so searching cannot spend it), handed to
+ * `store`, and then reported to Unsplash as a download after the response —
+ * once per pick, a re-pick of the same photo included (guideline 2). Answers
+ * `{ cover }`.
  */
 export async function coverPick(
   request: Request,
@@ -74,16 +98,19 @@ export async function coverPick(
   // who sees the cover, so it must be one the source could have returned:
   // images on its CDN, credits on unsplash.com, the ping on its API.
   if (!photos.owns(candidate)) return Response.json({ error: "not-a-cover-candidate" }, { status: 400 });
-  const quota = await consumeQuota(unsplashSearchQuota(), userId);
+  const quota = await consumeQuota(unsplashPickQuota(), userId);
   if (!quota.allowed) return quotaRefusal(quota);
   const cover = await store(candidate);
-  // After the write, and not fatal to it: the cover is chosen whether or not
-  // Unsplash heard about it, and failing the pick over a lost ping would make
-  // a person pick again — which would be a second use, and a second ping.
-  try {
-    await photos.trackDownload(candidate.downloadLocation);
-  } catch (error) {
-    console.error(`[covers] download ping failed: ${error instanceof Error ? error.message : String(error)}`);
-  }
+  // After the response, and not fatal to it: the cover is chosen whether or
+  // not Unsplash heard about it, so the person does not wait on a vendor round
+  // trip, and failing the pick over a lost ping would make them pick again —
+  // a second use, and a second ping.
+  after(async () => {
+    try {
+      await photos.trackDownload(candidate.downloadLocation);
+    } catch (error) {
+      console.error(`[covers] download ping failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  });
   return Response.json(TripCoverResponse.parse({ cover }));
 }

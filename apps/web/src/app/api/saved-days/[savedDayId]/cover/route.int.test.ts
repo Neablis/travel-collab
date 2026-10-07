@@ -20,6 +20,20 @@ import { dayPageView, publishedDaysPage } from "@/server/publicLibrary";
 // the library is global, and a Discover assertion about a shared city would be
 // an assertion about whatever else this lane published into it.
 
+// The ping is sent with Next's `after()`, which throws outside a request
+// scope: replaced by a queue `settle()` drains, as the trip suite does, so a
+// test sees the ping was not sent before the response and then awaits it.
+const afterResponse = vi.hoisted(() => [] as Array<() => unknown>);
+vi.mock("next/server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/server")>()),
+  after: (task: () => unknown) => {
+    afterResponse.push(task);
+  },
+}));
+async function settle(): Promise<void> {
+  while (afterResponse.length > 0) await afterResponse.shift()!();
+}
+
 let currentUserId: string | null = null;
 vi.mock("@/server/auth", () => ({
   auth: vi.fn(async () => (currentUserId ? { user: { id: currentUserId } } : null)),
@@ -57,10 +71,11 @@ beforeEach(async () => {
   currentUserId = AUTHOR;
   vi.stubEnv("EXTERNAL_DATA_OFFLINE", "true");
   offlineCoverPhotos.pings.length = 0;
+  afterResponse.length = 0;
   portCalls.mockClear();
-  // This policy's rows only, as the trip suite clears them: the global ceiling
-  // is per deployment, and the picks below would otherwise add up.
-  await db.delete(rateLimitCounters).where(like(rateLimitCounters.bucket, "unsplash-hourly:%"));
+  // These policies' rows only, as the trip suite clears them: the global
+  // ceilings are per deployment, and the picks below would otherwise add up.
+  await db.delete(rateLimitCounters).where(like(rateLimitCounters.bucket, "unsplash-%"));
 });
 
 const savedKey = serverConfig.unsplashAccessKey;
@@ -162,6 +177,7 @@ describe("who may change a playbook day's cover", () => {
       expect(res.status).toBe(403);
       expect(await res.json()).toEqual({ error: "not-the-author" });
     }
+    await settle();
     expect(offlineCoverPhotos.pings).toEqual([]);
     expect(await db.select().from(savedDayCovers).where(eq(savedDayCovers.savedDayId, savedDayId))).toEqual([]);
   });
@@ -182,7 +198,7 @@ describe("who may change a playbook day's cover", () => {
 });
 
 describe("picking and clearing", () => {
-  it("stores the pick with exactly one ping, a re-pick sends one more, and a clear removes it", async () => {
+  it("stores the pick with exactly one ping after the response, a re-pick sends one more, and a clear removes it", async () => {
     const savedDayId = await saveDay();
     await publish(savedDayId);
     const [first, second] = await candidates(savedDayId);
@@ -192,12 +208,15 @@ describe("picking and clearing", () => {
     expect(res.status).toBe(200);
     const stored = TripCoverResponse.parse(await res.json()).cover;
     expect(stored?.unsplashId).toBe(first!.id);
+    expect(offlineCoverPhotos.pings).toEqual([]);
+    await settle();
     expect(offlineCoverPhotos.pings).toEqual([first!.downloadLocation]);
     expect(TripCoverResponse.parse(await (await coverRead(savedDayId)).json()).cover).toEqual(stored);
 
     // The same photo again is a new use (guideline 2); another photo replaces it.
     expect((await pick(savedDayId, first!)).status).toBe(200);
     expect((await pick(savedDayId, second!)).status).toBe(200);
+    await settle();
     expect(offlineCoverPhotos.pings).toEqual([first!.downloadLocation, first!.downloadLocation, second!.downloadLocation]);
     expect(await db.select().from(savedDayCovers).where(eq(savedDayCovers.savedDayId, savedDayId))).toHaveLength(1);
     expect((await dayCover(savedDayId)) as TripCover).toMatchObject({ unsplashId: second!.id });
@@ -205,6 +224,7 @@ describe("picking and clearing", () => {
     const cleared = await clear(savedDayId);
     expect(await cleared.json()).toEqual({ cover: null });
     expect(await dayCover(savedDayId)).toBeNull();
+    await settle();
     expect(offlineCoverPhotos.pings).toHaveLength(3);
   });
 
@@ -215,6 +235,7 @@ describe("picking and clearing", () => {
     const res = await pick(savedDayId, forged);
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual({ error: "not-a-cover-candidate" });
+    await settle();
     expect(offlineCoverPhotos.pings).toEqual([]);
   });
 
@@ -229,12 +250,27 @@ describe("picking and clearing", () => {
     }
   });
 
-  it("429s once the author's Unsplash quota is spent", async () => {
-    vi.stubEnv("UNSPLASH_RATE_LIMIT_PER_USER_HOURLY", "2");
+  it("429s once the author's Unsplash search quota is spent, and still takes a pick", async () => {
+    vi.stubEnv("UNSPLASH_SEARCH_RATE_LIMIT_PER_USER_HOURLY", "2");
     const savedDayId = await saveDay();
-    expect((await search(savedDayId)).status).toBe(200);
+    const [first] = await candidates(savedDayId);
     expect((await search(savedDayId)).status).toBe(200);
     expect((await search(savedDayId)).status).toBe(429);
+    // The pick quota is its own (PR #352 review): searches spent do not cost the find.
+    expect((await pick(savedDayId, first!)).status).toBe(200);
+    await settle();
+    expect(offlineCoverPhotos.pings).toEqual([first!.downloadLocation]);
+  });
+
+  it("429s a pick once the author's pick quota is spent, and pings nothing for it", async () => {
+    vi.stubEnv("UNSPLASH_PICK_RATE_LIMIT_PER_USER_HOURLY", "1");
+    const savedDayId = await saveDay();
+    const [first, second] = await candidates(savedDayId);
+    expect((await pick(savedDayId, first!)).status).toBe(200);
+    expect((await pick(savedDayId, second!)).status).toBe(429);
+    await settle();
+    expect(offlineCoverPhotos.pings).toEqual([first!.downloadLocation]);
+    expect((await dayCover(savedDayId)) as TripCover).toMatchObject({ unsplashId: first!.id });
   });
 });
 

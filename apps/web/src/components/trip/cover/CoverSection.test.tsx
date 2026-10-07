@@ -1,5 +1,6 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { CoverCandidate } from "@tc/contracts";
@@ -57,6 +58,9 @@ describe("CoverSection — an editor", () => {
     await waitFor(() => expect(screen.queryByRole("img", { name: "Maples over a temple roof" })).toBeNull());
     expect(cleared).toBe(1);
     expect(screen.queryByRole("button", { name: "Remove cover" })).toBeNull();
+    // The button went with the cover; focus goes to the search, not the page.
+    const box = screen.getByRole("searchbox", { name: "Search photos" });
+    await waitFor(() => expect(box.matches(":focus")).toBe(true));
   });
 
   it("searches, shows six results a screen, each credited, and pages through what it has before asking again", async () => {
@@ -85,8 +89,42 @@ describe("CoverSection — an editor", () => {
       "Use photo by Photographer 13",
       "Use photo by Photographer 14",
     ]));
+    // Page 2 was short, so it was the last: no press is offered that would
+    // spend a search to learn so, and focus is not dropped on the page.
+    const end = screen.getByText("No more photos.");
+    expect(screen.queryByRole("button", { name: "More results" })).toBeNull();
+    await waitFor(() => expect(end.matches(":focus")).toBe(true));
     // The opening probe (an empty query, which spends nothing), then the two pages.
     expect(asked).toEqual(["?q=&page=1", "?q=kyoto+maple&page=1", "?q=kyoto+maple&page=2"]);
+  });
+
+  it("offers no more after a short first page", async () => {
+    server.use(...makeCoverHandlers({ pages: [run(1, 3), run(4, 3)] }));
+    render(<CoverSection tripId={TRIP} canEdit />);
+    await searchFor("dunes");
+    await waitFor(() => expect(tiles()).toHaveLength(3));
+    expect(screen.getByText("No more photos.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "More results" })).toBeNull();
+  });
+
+  // Page 2 repeats a photo page 1 had, so it adds eleven, not twelve: the
+  // third screen starts on the 23rd photo, not where a fixed step of six
+  // would put it, and the photo repeated is offered once.
+  it("pages from the first new photo, and offers a repeated one once", async () => {
+    server.use(...makeCoverHandlers({ pages: [run(1, 12), [candidate(12), ...run(13, 11)], run(24, 12)] }));
+    render(<CoverSection tripId={TRIP} canEdit />);
+    const labels = () => tiles().map((t) => t.getAttribute("aria-label")!.replace("Use photo by Photographer ", ""));
+
+    await searchFor("kyoto");
+    await waitFor(() => expect(tiles()).toHaveLength(6));
+    const more = () => userEvent.click(screen.getByRole("button", { name: "More results" }));
+    await more(); // 7–12, in hand
+    await more(); // page 2: 13–18
+    await waitFor(() => expect(labels()).toEqual(["13", "14", "15", "16", "17", "18"]));
+    await more(); // 19–23, in hand: five, not a sixth that would be 12 again
+    await waitFor(() => expect(labels()).toEqual(["19", "20", "21", "22", "23"]));
+    await more(); // page 3
+    await waitFor(() => expect(labels()).toEqual(["24", "25", "26", "27", "28", "29"]));
   });
 
   it("picks a result, and shows it as the cover and as pressed", async () => {
@@ -127,11 +165,111 @@ describe("CoverSection — an editor", () => {
   it("asks politely for a retry when the search quota is spent, and keeps the search", async () => {
     server.use(...makeCoverHandlers({ search: "quota" }));
     render(<CoverSection tripId={TRIP} canEdit />);
-    // The probe is refused too, and a 429 is not "not set up".
+    // A 429 is not "not set up".
     await searchFor("kyoto");
     expect(await screen.findByText(/a lot of photo searches for now.*try again/i)).toBeTruthy();
     expect(screen.getByRole("searchbox", { name: "Search photos" })).toBeTruthy();
     expect(screen.queryByText("Cover photos aren't available here yet.")).toBeNull();
+  });
+
+  // The rate limiter's own outage is a 503 too (`quotaRefusal`). It is a
+  // failed search, not a deployment without covers, so the search stays.
+  it("reads a 503 that is not covers-unavailable as a failure, not as no covers", async () => {
+    server.use(
+      http.get("/api/trips/:tripId/cover/search", ({ request }) =>
+        new URL(request.url).searchParams.get("q")
+          ? HttpResponse.json({ error: "rate limiter unavailable", reason: "unavailable", retryAfterSeconds: 60 }, { status: 503 })
+          : HttpResponse.json({ results: [] }),
+      ),
+      ...makeCoverHandlers(),
+    );
+    render(<CoverSection tripId={TRIP} canEdit />);
+    await searchFor("kyoto");
+    expect(await screen.findByText("That didn't work. Try again.")).toBeTruthy();
+    expect(screen.getByRole("searchbox", { name: "Search photos" })).toBeTruthy();
+    expect(screen.queryByText("Cover photos aren't available here yet.")).toBeNull();
+  });
+
+  it("says when Unsplash's own limit is hit, and for how long", async () => {
+    server.use(...makeCoverHandlers({ search: "upstream-limit" }));
+    render(<CoverSection tripId={TRIP} canEdit />);
+    await searchFor("kyoto");
+    expect(await screen.findByText(/Unsplash .* Try again in about 5 minutes\./)).toBeTruthy();
+    expect(screen.queryByText(/a lot of photo searches/)).toBeNull();
+  });
+
+  it("words a refused pick as picking, not searching", async () => {
+    server.use(...makeCoverHandlers({ pages: [run(1, 3)], pick: "quota" }));
+    render(<CoverSection tripId={TRIP} canEdit />);
+    await searchFor("dunes");
+    await userEvent.click(await screen.findByRole("button", { name: "Use photo by Photographer 1" }));
+    expect(await screen.findByText(/a lot of cover changes for now.*try again/i)).toBeTruthy();
+    expect(screen.queryByText(/photo searches/)).toBeNull();
+  });
+
+  // Not knowing is not "no cover": a trip that has one keeps *Remove cover*
+  // once the read is retried.
+  it("says a failed read failed, and retries it", async () => {
+    const cover = tripCoverFactory.build({ alt: "A harbour" });
+    server.use(...makeCoverHandlers({ cover, read: "fail-once" }));
+    render(<CoverSection tripId={TRIP} canEdit />);
+
+    expect(await screen.findByText("Couldn't load the cover photo.")).toBeTruthy();
+    expect(screen.queryByText("No cover photo yet.")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByRole("img", { name: "A harbour" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Remove cover" })).toBeTruthy();
+  });
+
+  // Either read can move what is under the section: the cover by becoming a
+  // photo or nothing, the probe by swapping the search row for a line. Each
+  // case lets the other read land visibly first, then releases the held one.
+  it("has not settled while the cover read is out, though the probe has answered", async () => {
+    let settled = 0;
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    const cover = tripCoverFactory.build({ alt: "A harbour" });
+    // First: the earlier of two matching handlers answers.
+    server.use(
+      http.get("/api/trips/:tripId/cover", async () => {
+        await held;
+        return HttpResponse.json({ cover });
+      }),
+      ...makeCoverHandlers({ cover, search: "unavailable" }),
+    );
+    render(<CoverSection tripId={TRIP} canEdit onSettled={() => settled++} />);
+    expect(await screen.findByText("Cover photos aren't available here yet.")).toBeTruthy();
+    expect(settled).toBe(0);
+    release();
+    expect(await screen.findByRole("img", { name: "A harbour" })).toBeTruthy();
+    await waitFor(() => expect(settled).toBe(1));
+  });
+
+  it("has not settled while the probe is out, and settles once only", async () => {
+    let settled = 0;
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    const cover = tripCoverFactory.build({ alt: "A harbour" });
+    server.use(
+      http.get("/api/trips/:tripId/cover/search", async ({ request }) => {
+        // A real search falls through to the handlers below.
+        if (new URL(request.url).searchParams.get("q")) return undefined;
+        await held;
+        return HttpResponse.json({ results: [] });
+      }),
+      ...makeCoverHandlers({ cover, pages: [run(1, 3)] }),
+    );
+    render(<CoverSection tripId={TRIP} canEdit onSettled={() => settled++} />);
+    expect(await screen.findByRole("img", { name: "A harbour" })).toBeTruthy();
+    expect(settled).toBe(0);
+    release();
+    await waitFor(() => expect(settled).toBe(1));
+    // A pick changes the cover again later: that is not a second settling,
+    // or a sheet opened at People would jump back there under the picker.
+    await searchFor("kyoto");
+    await userEvent.click(await screen.findByRole("button", { name: "Use photo by Photographer 2" }));
+    expect(await screen.findByRole("img", { name: "Photo by Photographer 2" })).toBeTruthy();
+    expect(settled).toBe(1);
   });
 });
 

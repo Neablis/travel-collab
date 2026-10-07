@@ -105,6 +105,12 @@ export function TripHeader({
   // mount, from `window.location` rather than `useSearchParams`: it is a
   // one-shot instruction, not state the header follows, and an effect keeps
   // the server render and the first client frame the same.
+  //
+  // Once per mount, so a `?settings=` reached by a client-side navigation to
+  // the trip the header is already showing would not open the sheet. Today's
+  // only entry points are Home's links, and leaving Home for a trip mounts a
+  // fresh header; a link from inside the trip page would need this to follow
+  // the URL instead.
   useEffect(() => {
     const section = settingsSectionFrom(window.location.search);
     if (section === null) return;

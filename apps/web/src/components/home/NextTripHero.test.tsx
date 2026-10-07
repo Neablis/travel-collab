@@ -23,6 +23,7 @@ beforeEach(() => {
   fetchTripDetailMock.mockReset();
 });
 
+/** A `TripSummary` from `tripSummaryFactory`, planned unless `overrides` say otherwise. */
 function tripSummaryFixture(overrides: Partial<TripSummary> = {}): TripSummary {
   return tripSummaryFactory.build({
     tripId: "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f",
@@ -643,17 +644,39 @@ describe("NextTripHero — length, stops and the unplanned trip", () => {
       members: [{ userId: "dev-alice", role: "owner" }],
       dayCount: 0,
       stopCount: 0,
+      ideaCount: 0,
       ...overrides,
     });
 
+  // With the year, as a range and as the card say it.
   it("says the trip's dates, length and stops", () => {
     fetchTripDetailMock.mockReturnValue(new Promise(() => {}));
     render(<NextTripHero trip={tripSummaryFixture({ startDate: "2026-10-01", dayCount: 1, stopCount: 3 })} />);
-    expect(screen.getByText("Thu, Oct 1 · 1 day · 3 stops")).toBeTruthy();
+    expect(screen.getByText("Thu, Oct 1, 2026 · 1 day · 3 stops")).toBeTruthy();
+  });
+
+  // The header's *Add stop* parks a stop in the backlog (PR #351 review).
+  it("reads a trip with ideas but no stops as started: its ideas, and Open trip", () => {
+    fetchTripDetailMock.mockReturnValue(new Promise(() => {}));
+    render(<NextTripHero trip={unplanned({ ideaCount: 4 })} viewerId="dev-alice" />);
+
+    expect(screen.getByText(/· 4 ideas, none on a day yet$/)).toBeTruthy();
+    expect(screen.getByRole("link", { name: /open trip/i })).toBeTruthy();
+    expect(screen.queryByText(/A blank trip/)).toBeNull();
+    expect(screen.queryByRole("link", { name: /Add the first|Invite who's coming/ })).toBeNull();
   });
 
   // From the summary, on the first frame: the detail is still loading here,
   // and the next steps do not wait for it.
+  // As a card's are (TripCard.test.tsx): the trip's name describes each step.
+  it("describes each next step by the trip's name", () => {
+    fetchTripDetailMock.mockReturnValue(new Promise(() => {}));
+    render(<NextTripHero trip={unplanned({ name: "Kyoto" })} viewerId="dev-alice" />);
+    for (const step of ["Add the first day", "Invite who's coming", "Choose a cover photo"]) {
+      expect(screen.getByRole("link", { name: step, description: "Kyoto" })).toBeTruthy();
+    }
+  });
+
   it("gives an owner planning alone the first day and the invite before the detail loads", () => {
     fetchTripDetailMock.mockReturnValue(new Promise(() => {}));
     const trip = unplanned();
@@ -691,7 +714,22 @@ describe("NextTripHero — length, stops and the unplanned trip", () => {
     const rows = within(screen.getByRole("list", { name: "Days with nothing planned" })).getAllByRole("listitem");
     expect(rows.map((r) => r.textContent)).toEqual(["Fri, Oct 30", "Sat, Oct 31", "Sun, Nov 1"]);
     expect(screen.getByText("Oct 30 – Nov 1, 2026 · 3 days · nothing planned yet")).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Add the first stop" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /^Add the first stop/ })).toBeTruthy();
+  });
+
+  // The rows date from the start the hero shows, which is the detail's once
+  // it lands — not a summary start the meta row above has already replaced.
+  it("dates the empty rows from the detail's start once it lands", async () => {
+    const trip = unplanned({ startDate: "2026-10-30", endDate: "2026-11-01", dayCount: 3 });
+    fetchTripDetailMock.mockResolvedValue({
+      ok: true,
+      value: tripDetailFixture({ tripId: trip.tripId, startDate: "2026-11-05" }),
+    });
+    render(<NextTripHero trip={trip} viewerId="dev-alice" />);
+
+    await screen.findByText(/^Thu, Nov 5, 2026 ·/);
+    const rows = within(screen.getByRole("list", { name: "Days with nothing planned" })).getAllByRole("listitem");
+    expect(rows.map((r) => r.textContent)).toEqual(["Thu, Nov 5", "Fri, Nov 6", "Sat, Nov 7"]);
   });
 
   it("does not nudge an owner who is not alone", () => {
@@ -704,8 +742,8 @@ describe("NextTripHero — length, stops and the unplanned trip", () => {
     });
     render(<NextTripHero trip={trip} viewerId="dev-alice" />);
     expect(screen.getByText("A blank trip. Start with the first day.")).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Add the first day" })).toBeTruthy();
-    expect(screen.queryByRole("link", { name: "Invite who's coming" })).toBeNull();
+    expect(screen.getByRole("link", { name: /^Add the first day/ })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: /Invite who's coming/ })).toBeNull();
   });
 
   it("tells a reader it was shared with that nothing is planned, and only opens the trip", () => {
@@ -743,6 +781,15 @@ describe("NextTripHero — length, stops and the unplanned trip", () => {
     expect(screen.queryByRole("link", { name: "Choose a cover photo" })).toBeNull();
   });
 
+  // The session probe still in flight: neither the reader's line nor the
+  // owner's actions, so neither one is replaced by the other a moment later.
+  it("says and offers nothing while the reader is not yet known", () => {
+    fetchTripDetailMock.mockReturnValue(new Promise(() => {}));
+    render(<NextTripHero trip={unplanned()} viewerId={undefined} />);
+    expect(screen.queryByText("Nothing planned yet.")).toBeNull();
+    expect(screen.queryByRole("link", { name: /Add the first|Invite who's coming|open trip|cover photo/i })).toBeNull();
+  });
+
   // A backlog over budget is a decision on a trip with no stops.
   it("still says what an unplanned trip needs decided, once the detail lands", async () => {
     const trip = unplanned();
@@ -756,7 +803,7 @@ describe("NextTripHero — length, stops and the unplanned trip", () => {
     render(<NextTripHero trip={trip} viewerId="dev-alice" />);
 
     expect(await screen.findByRole("link", { name: "1 needs a decision" })).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Add the first day" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /^Add the first day/ })).toBeTruthy();
   });
 
   it("offers a planned trip no next step", async () => {
