@@ -12,21 +12,28 @@ Five parts, each on its own branch, merged 1 → 5 with merge commits
 |---|---|---|---|
 | 1 | `claude/beautiful-dijkstra-mu237r` | M38 scoped (D1–D6 answered), this plan | 1 (prose) |
 | 2 | `…-personas-server` | migration `0044` (avatar, colour, public-name opt-in); `UserPreferences` and `TripMemberProfile` gain them; `publicNameFor` honours the opt-in | 2 |
-| 3 | `…-personas-ui` | the picker on Account; one `PersonChip` that every person surface uses; per-trip colour clash resolution | 2 |
-| 4 | `…-invite-preview-server` | the token-scoped read that builds widget inputs with costs stripped (D4, D6) | 2 |
+| 3 | `…-invite-preview-server` | the token-scoped read that builds widget inputs with costs stripped (D4, D6) | 2 |
+| 4 | `…-personas-ui` | the picker on Account; one `PersonChip` that every person surface uses; per-trip colour clash resolution | 2 |
 | 5 | `…-invite-preview-ui` | the invite page renders the shared widget components read-only; the wall rule; the e2e spec | 2, then 3 on the top |
 
 **On the preview, what does a person click to see this?**
 - Part 2: nothing. It adds columns and fields and has no screen, so its body says so.
-- Part 3: Account → Profile → pick an avatar and colour. Then open a trip and look at People,
+- Part 3: nothing. It adds a route, so its body says so.
+- Part 4: Account → Profile → pick an avatar and colour. Then open a trip and look at People,
   the header stack, a stop's *Who is in*, and History.
-- Part 4: nothing. It adds a route, so its body says so.
 - Part 5: open an invite link while signed out, or as another account, before accepting.
+
+**Reordered 2026-10-07:** the invite preview read was built while the persona UI waited on the
+design canvas, so it is part 3 and the persona UI is part 4. The section headings below keep their
+original numbers: *Part 3* below is the persona UI, and *Part 4* is the preview read.
+
+**Each part is built by several subagents at once, one per workstream** (Mitchell, 2026-10-07:
+*"many subagents per workstream of a part"*). The workstreams of a part merge into its branch.
 
 ## The design (approved before any UI is built)
 
-Parts 3 and 5 change screens, so a design canvas goes to Mitchell before either is built, the way
-M37's did. It covers four things:
+Parts 4 and 5 change screens, so a design canvas goes to Mitchell before either is built, the way
+M37's did. **The canvas: https://claude.ai/artifact/S5AsuePX2Yqqq8ifQWNoS1** (awaiting approval). It covers four things:
 - the avatar set and colour palette on Account;
 - a `PersonChip` at each size it renders;
 - two travellers with the same colour on one trip (the gate's walk);
