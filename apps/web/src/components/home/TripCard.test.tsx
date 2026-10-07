@@ -8,6 +8,7 @@ afterEach(() => {
   cleanup();
 });
 
+/** A `TripSummary` from `tripSummaryFactory`, planned unless `overrides` say otherwise. */
 function tripSummaryFixture(overrides: Partial<TripSummary> = {}): TripSummary {
   return tripSummaryFactory.build({
     tripId: "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f",
@@ -131,8 +132,16 @@ describe("TripCard", () => {
 // its owner, a nudge to invite while they plan alone — instead of reading like
 // a full card with the facts missing (D6).
 describe("TripCard — length, stops and the unplanned trip", () => {
+  // The owner planning alone, stated rather than inherited from the factory's
+  // default member: the invite nudge depends on exactly this list.
   const unplanned = (overrides: Partial<TripSummary> = {}) =>
-    tripSummaryFixture({ dayCount: 0, stopCount: 0, ...overrides });
+    tripSummaryFixture({
+      members: [{ userId: "dev-alice", role: "owner" }],
+      dayCount: 0,
+      stopCount: 0,
+      ideaCount: 0,
+      ...overrides,
+    });
 
   it("says the trip's dates, length and stops, in the singular for one", () => {
     const { unmount } = render(
@@ -143,6 +152,28 @@ describe("TripCard — length, stops and the unplanned trip", () => {
 
     render(<TripCard trip={tripSummaryFixture({ startDate: "2026-10-01", endDate: "2026-10-01", dayCount: 1, stopCount: 1 })} />);
     expect(screen.getByText("Thu, Oct 1, 2026 · 1 day · 1 stop")).toBeTruthy();
+  });
+
+  // "Dec 28 – Jan 3, 2027" would put the start in the wrong year.
+  it("gives a range across New Year both its years", () => {
+    render(<TripCard trip={tripSummaryFixture({ startDate: "2026-12-28", endDate: "2027-01-03", dayCount: 7, stopCount: 9 })} />);
+    expect(screen.getByText("Dec 28, 2026 – Jan 3, 2027 · 7 days · 9 stops")).toBeTruthy();
+  });
+
+  // The header's *Add stop* puts a stop in the backlog, so a trip built that
+  // way has no stops on a day and is still not a blank trip (PR #351 review).
+  it("reads a trip with ideas but no stops as started, not blank", () => {
+    const trip = unplanned({ startDate: "2026-10-01", endDate: "2026-10-05", dayCount: 5, ideaCount: 4 });
+    const { unmount } = render(<TripCard trip={trip} plannedOfBudget="$0.00 planned of $1,640.00" viewerId="dev-alice" />);
+
+    expect(screen.getByText("Oct 1 – Oct 5, 2026 · 5 days · 4 ideas, none on a day yet")).toBeTruthy();
+    expect(screen.getByText("$0.00 planned of $1,640.00")).toBeTruthy();
+    expect(screen.getByText("Active")).toBeTruthy();
+    expect(screen.queryByRole("link", { name: /Add the first|Invite who's coming/ })).toBeNull();
+    unmount();
+
+    render(<TripCard trip={unplanned({ ideaCount: 1 })} viewerId="dev-alice" />);
+    expect(screen.getByText(/· 1 idea, none on a day yet$/)).toBeTruthy();
   });
 
   it("gives an owner planning alone the first day and the invite, and no cost line or badge", () => {
@@ -168,7 +199,7 @@ describe("TripCard — length, stops and the unplanned trip", () => {
     );
     expect(screen.getByText("Oct 1 – Oct 5, 2026 · 5 days · nothing planned yet")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Add the first stop" })).toBeTruthy();
-    expect(screen.queryByRole("link", { name: "Add the first day" })).toBeNull();
+    expect(screen.queryByRole("link", { name: /Add the first day/ })).toBeNull();
   });
 
   it("does not nudge an owner who is not alone", () => {
@@ -179,16 +210,22 @@ describe("TripCard — length, stops and the unplanned trip", () => {
       ],
     });
     render(<TripCard trip={trip} viewerId="dev-alice" />);
-    expect(screen.getByRole("link", { name: "Add the first day" })).toBeTruthy();
-    expect(screen.queryByRole("link", { name: "Invite who's coming" })).toBeNull();
+    expect(screen.getByRole("link", { name: /Add the first day/ })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: /Invite who's coming/ })).toBeNull();
   });
 
-  it.each([
-    ["a reader it was shared with", "dev-bob"],
-    ["a reader not yet known", undefined],
-  ] as const)("tells %s nothing is planned, with no actions", (_label, viewerId) => {
-    render(<TripCard trip={unplanned()} viewerId={viewerId} />);
+  it("tells a reader it was shared with nothing is planned, with no actions", () => {
+    render(<TripCard trip={unplanned()} viewerId="dev-bob" />);
     expect(screen.getByText("Nothing planned yet.")).toBeTruthy();
+    expect(screen.queryByRole("link", { name: /Add the first|Invite who's coming/ })).toBeNull();
+  });
+
+  // While the session probe is in flight the reader is unknown: say nothing
+  // and offer nothing, rather than a reader's line that becomes an owner's
+  // steps a moment later.
+  it("says and offers nothing while the reader is not yet known", () => {
+    render(<TripCard trip={unplanned()} viewerId={undefined} />);
+    expect(screen.queryByText("Nothing planned yet.")).toBeNull();
     expect(screen.queryByRole("link", { name: /Add the first|Invite who's coming/ })).toBeNull();
   });
 

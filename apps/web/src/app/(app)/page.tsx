@@ -45,6 +45,11 @@ function todayIso(): string {
   return `${y}-${m}-${d}`;
 }
 
+/**
+ * Home ("Your trips"): the next-trip hero, the other trips as cards, and the
+ * new-trip sheet — and where a copy of the demo trip, or a Playbook add, asked
+ * for before sign-up is finished.
+ */
 export default function Home() {
   const router = useRouter();
   // `todayIso()` reads the wall clock, so evaluating it during render would
@@ -87,6 +92,10 @@ export default function Home() {
   // probe is in flight, which `viewerOwnsTrip` answers as "not the owner" —
   // see its note for why that is the safe side to be wrong on.
   const viewer = useSessionUser();
+  // `undefined` while the session probe is in flight, `null` once it says
+  // nobody: the unplanned card and hero hold their space for the first and
+  // settle on the second, which `viewer?.id` would flatten into the first.
+  const viewerId = viewer === null ? null : viewer?.id;
   const [newTripOpen, setNewTripOpen] = useState(false);
   // True while the "Make this trip mine" copy this page inherited from `/demo`
   // is in flight — see `lib/pendingDemoClone.ts` for why the intent arrives
@@ -637,7 +646,7 @@ export default function Home() {
         {loading ? (
           <NextTripHeroSkeleton />
         ) : (
-          nextTrip && <NextTripHero trip={nextTrip} menuSlot={tripMenu(nextTrip)} viewerId={viewer?.id} />
+          nextTrip && <NextTripHero trip={nextTrip} menuSlot={tripMenu(nextTrip)} viewerId={viewerId} />
         )}
 
         <div className="flex flex-col gap-3.5">
@@ -724,7 +733,7 @@ export default function Home() {
                         trip={t}
                         plannedOfBudget={plannedOfBudgetById[t.tripId]}
                         menuSlot={tripMenu(t)}
-                        viewerId={viewer?.id}
+                        viewerId={viewerId}
                       />
                     ))}
                   </div>

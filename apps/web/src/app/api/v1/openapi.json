@@ -26501,6 +26501,11 @@
                             "minimum": 0,
                             "default": 0
                           },
+                          "ideaCount": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "default": 0
+                          },
                           "cover": {
                             "type": "object",
                             "properties": {

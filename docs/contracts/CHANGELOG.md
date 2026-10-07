@@ -13,6 +13,24 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-07 — `TripSummary.ideaCount`: a trip with only ideas is not blank
+
+- **Added:** `TripSummary.ideaCount`, `z.number().int().nonnegative().default(0)`, in `trip.ts`:
+  how many activities are in the trip's backlog. `StoredTripSummary` omits it, as it omits
+  `stopCount`: the projection does not store it.
+- Why: PR #351 review (M37 D6). The trip header's *Add stop* puts its stop in the backlog, so a
+  trip built only that way has zero stops and is still not a blank trip. "Unplanned" is now zero
+  stops **and** zero ideas; a trip with ideas only reads "N ideas, none on a day yet" and keeps
+  its cost line and status badge.
+- Consumers updated: `LISTED_SUMMARY` (`server/projections.ts`) derives it in SQL from
+  `trip_details.doc` with the same strict, silent jsonpath as `stopCount` (`strict $.backlog[*]`).
+  `TripCard`, `NextTripHero` and `UnplannedTrip` read it. `@tc/factories`' `tripSummaryFactory`
+  defaults it to 0.
+- Public API: `GET /v1/trips` items gain `ideaCount`, in the same unreleased 1.7.0 → 1.8.0 bump as
+  `cover` (below). 1.7.0 shipped on `main` without it — its review fix missed that merge — so it is
+  documented here, not in the 1.7.0 entry. `API_FINGERPRINT` and `openapi.json` regenerated.
+- Breaking? no. Defaulted, so a summary from before it parses as 0.
+
 ## 2026-10-06 — `TripCover`, `CoverCandidate` and `TripSummary.cover`: a trip can have a cover photo
 
 - **Added:** `cover.ts`, exported from the package root:
@@ -37,9 +55,9 @@ Format:
   internal routes `GET`/`PUT`/`DELETE /api/trips/:id/cover` and `GET /api/trips/:id/cover/search`
   speak the new schemas. `@tc/factories`' `tripSummaryFactory` defaults `cover: null`. No UI reads
   it yet (part 4).
-- Public API: `GET /v1/trips` items gain `cover`. `API_VERSION` 1.7.0 → 1.8.0 (additive),
-  `API_FINGERPRINT` and `openapi.json` regenerated. The cover routes are `planned` in
-  `exposure.ts`, not published.
+- Public API: `GET /v1/trips` items gain `cover` (and `ideaCount`, above). `API_VERSION` 1.7.0 →
+  1.8.0 (additive), `API_FINGERPRINT` and `openapi.json` regenerated. The cover routes are
+  `planned` in `exposure.ts`, not published.
 - Breaking? no. `cover` is defaulted, so a summary from before it parses as null.
 
 ## 2026-10-06 — `TripSummary.dayCount` and `stopCount`: the card knows the trip's length
