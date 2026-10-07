@@ -15,6 +15,7 @@ export * from "./pageEvents.ts";
 export * from "./sentenceTemplate.ts";
 export * from "./pageDoc.ts";
 export * from "./access.ts";
+export * from "./invitePreview.ts";
 export * from "./share.ts";
 export * from "./saved.ts";
 export * from "./savedNotebook.ts";
