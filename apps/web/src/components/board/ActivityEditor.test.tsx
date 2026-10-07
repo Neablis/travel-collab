@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { NearbyStop, type ActivityView, type Anchor } from "@tc/contracts";
 import { locationFactory } from "@tc/factories";
+import { accessibleNames } from "@/test-support/accessibleNames";
 import { ActivityEditor, type NamedMember } from "./ActivityEditor";
 
 describe("ActivityEditor", () => {
@@ -401,13 +402,28 @@ describe("ActivityEditor attribution (M13 link 5)", () => {
   it("labels both controls with the members' names, not their ids", () => {
     mount(stop());
     const group = screen.getByRole("group", { name: "Who is going" });
-    expect(within(group).getAllByRole("button").map((b) => b.textContent)).toEqual(["Alice", "Bob"]);
+    expect(accessibleNames(group, "button")).toEqual(["Alice", "Bob"]);
     const options = [...(screen.getByLabelText("Booked by") as HTMLSelectElement).options];
     expect(options.map((o) => [o.value, o.text])).toEqual([
       ["", "Nobody yet"],
       ["u-alice", "Alice"],
       ["u-bob", "Bob"],
     ]);
+  });
+
+  // M38: a pill leads with the person's chip, and Booked by — a native select,
+  // whose options cannot hold an icon — draws the chosen person's beside it.
+  it("draws each person's chip in their pill, and the booker's beside Booked by", () => {
+    mount(stop(), [
+      { userId: "u-alice", name: "Alice", avatar: "mountain", color: "plum" },
+      { userId: "u-bob", name: "Bob", avatar: "camera", color: "ochre" },
+    ]);
+    expect(screen.getByRole("button", { name: "Alice" }).innerHTML).toContain("lucide-mountain");
+    const booked = screen.getByTestId("booked-by");
+    expect(booked.innerHTML).not.toContain("lucide-");
+
+    fireEvent.change(screen.getByLabelText("Booked by"), { target: { value: "u-bob" } });
+    expect(booked.innerHTML).toContain("lucide-camera");
   });
 
   it("sends who booked it, separately from who is going", () => {
@@ -454,12 +470,13 @@ describe("ActivityEditor attribution (M13 link 5)", () => {
     ]);
     expect(screen.getByTestId("activity-cost-total").textContent).toBe("× 2 people = $60.00");
     const going = screen.getByRole("group", { name: "Who is going" });
-    expect(within(going).getAllByRole("button").map((b) => b.textContent)).toEqual(["Alice", "Bob", "Carol"]);
-    const carol = within(screen.getByRole("group", { name: "Not travelling" })).getByRole("button", { name: "Carol" });
+    expect(accessibleNames(going, "button")).toEqual(["Alice", "Bob", "Carol"]);
+    const apart = screen.getByRole("group", { name: "Not travelling" });
+    const carol = within(apart).getByRole("button", { name: "Carol" });
 
     fireEvent.click(carol);
     expect(carol.getAttribute("aria-pressed")).toBe("true");
-    expect(carol.textContent).toBe("Carol (not travelling)");
+    expect(accessibleNames(apart, "button")).toEqual(["Carol (not travelling)"]);
     expect(screen.getByTestId("activity-cost-total").textContent).toBe("× 1 person = $30.00");
     const booked = [...(screen.getByLabelText("Booked by") as HTMLSelectElement).options].map((o) => o.value);
     expect(booked).toEqual(["", "u-carol", "u-alice", "u-bob"]);

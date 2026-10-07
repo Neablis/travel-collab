@@ -7,7 +7,7 @@ import { Heading } from "@/components/ui/heading";
 import { DataText } from "@/components/ui/data-text";
 import { dayAccents, type AccentFamily } from "@/lib/dayAccent";
 import { displayNameFor } from "@/lib/displayName";
-import { initialsFor } from "@/lib/initials";
+import { PersonChip } from "@/components/ui/person-chip";
 import { cn } from "@/lib/cn";
 import { formatTripDateLong } from "@/lib/formatDate";
 import { PHONE_TOUCH } from "@/components/ui/button";
@@ -221,18 +221,15 @@ export function TripCard({ trip, menuSlot, plannedOfBudget, viewerId }: TripCard
           aria-label={`${travellers.length} traveler${travellers.length === 1 ? "" : "s"}`}
         >
           {travellers.map((member, i) => (
-            <div
+            <PersonChip
               key={member.userId}
-              aria-hidden
-              className={cn(
-                "grid size-6 place-items-center rounded-full border-2 border-surface bg-brand-tint font-semibold text-brand-pressed",
-                i > 0 && "-ml-2",
-              )}
-              // eslint-disable-next-line no-restricted-syntax -- 9px initials text has no token equivalent (below text-xs/12px), matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
-              style={{ fontSize: "9px" }}
-            >
-              {initialsFor(displayNameFor(member))}
-            </div>
+              name={displayNameFor(member)}
+              avatar={member.avatar}
+              color={member.color}
+              size="md"
+              ring
+              className={cn(i > 0 && "-ml-2")}
+            />
           ))}
         </div>
         {cover !== null ? (

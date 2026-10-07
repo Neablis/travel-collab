@@ -79,8 +79,9 @@ describe("PeopleProvider", () => {
     ])).toEqual({ "u-ana": "Nana" });
   });
 
-  // M38: what a person chip will draw — the name, and the stored avatar and
-  // colour — by userId, from the same read the names come from. No address.
+  // M38: what a person chip will draw — the name, the avatar, and the colour
+  // this trip shows them in, with whether it was shifted — by userId, from the
+  // same read the names come from. No address.
   it("hands each member's persona to whoever asks for it", async () => {
     const tripId = crypto.randomUUID();
     server.use(
@@ -89,7 +90,7 @@ describe("PeopleProvider", () => {
           access: tripAccessFixture({
             tripId,
             members: [
-              tripMemberProfileFactory.build({ userId: "u-ana", role: "owner", name: "Ana Lima", email: "ana@example.com", displayName: "Nana", avatar: "compass", color: "plum" }),
+              tripMemberProfileFactory.build({ userId: "u-ana", role: "owner", name: "Ana Lima", email: "ana@example.com", displayName: "Nana", avatar: "compass", color: "plum", colorShifted: true }),
               tripMemberProfileFactory.build({ userId: "u-ben-4f2a91", email: "ben@example.com" }),
             ],
           }),
@@ -108,8 +109,8 @@ describe("PeopleProvider", () => {
     );
     await screen.findByText("ready");
     expect(seen).toEqual({
-      "u-ana": { name: "Nana", avatar: "compass", color: "plum" },
-      "u-ben-4f2a91": { name: "Traveler 4f2a91", avatar: null, color: null },
+      "u-ana": { name: "Nana", avatar: "compass", color: "plum", colorShifted: true },
+      "u-ben-4f2a91": { name: "Traveler 4f2a91", avatar: null, color: null, colorShifted: false },
     });
   });
 });

@@ -589,6 +589,19 @@ describe("TripHeader — the avatar stack (D10)", () => {
     expect(stack.className).toMatch(/\bhidden\b.*\bsm:inline-flex\b/);
   });
 
+  // M38: each face is the person's chip — the glyph they picked, or initials
+  // from the name they chose — not initials from their sign-in name.
+  it("draws each traveller's chosen avatar, or the initials of their display name", async () => {
+    accessMembers = [
+      { ...person("dev-alice", "Alice Ames"), avatar: "mountain", color: "plum" },
+      { ...person("dev-bob", "Bob Burns"), displayName: "Kenji Watanabe" },
+    ];
+    await renderHeader();
+    const stack = await screen.findByRole("button", { name: "Travellers on this trip" });
+    expect(stack.innerHTML).toContain("lucide-mountain");
+    expect(stack.textContent).toBe("KW");
+  });
+
   it("opens Trip settings scrolled to People", async () => {
     accessMembers = [person("dev-alice", "Alice Ames"), person("dev-bob", "Bob Burns")];
     await renderHeader();

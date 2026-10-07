@@ -235,14 +235,17 @@ describe("UnscheduledRack — who parked a stop", () => {
   const parker = "6b1f0c7e-2d4a-4c8e-9f1a-3e5d7c9b4f2a";
   const parked = [{ ...items[0]!, bookedBy: parker }];
 
-  it("names the person who parked it, by the name they chose", async () => {
+  // M38: and beside the name, their chip — the glyph they picked.
+  it("names the person who parked it, by the name and chip they chose", async () => {
     const tripId = crypto.randomUUID();
     server.use(
       http.get("/api/trips/:tripId/access", () =>
         HttpResponse.json({
           access: tripAccessFixture({
             tripId,
-            members: [tripMemberProfileFactory.build({ userId: parker, role: "owner", name: "Dana Reyes", displayName: "Dee" })],
+            members: [
+              tripMemberProfileFactory.build({ userId: parker, role: "owner", name: "Dana Reyes", displayName: "Dee", avatar: "tent", color: "teal" }),
+            ],
           }),
         }),
       ),
@@ -255,6 +258,7 @@ describe("UnscheduledRack — who parked a stop", () => {
 
     expect(await screen.findByText("Parked by Dee")).toBeTruthy();
     expect(screen.queryByText(new RegExp(parker))).toBeNull();
+    expect(screen.getByTestId("rack-card").innerHTML).toContain("lucide-tent");
   });
 
   // Before the members land, or for someone who has left: a handle, never the id.

@@ -20,11 +20,11 @@ import { displayNameFor } from "@/lib/displayName";
 // rule for a page. A member with no name reads as their handle instead.
 
 /**
- * What a person surface draws for one member (M38): the name to print, and the
- * avatar and colour they chose. The STORED colour — the per-trip clash shift
- * (D3) is not applied here.
+ * What a person surface draws for one member (M38): the name to print, the
+ * avatar they chose, and the colour this trip shows them in — already
+ * clash-resolved by the server (D3), so a chip renders it as given.
  */
-export type Persona = { name: string } & Pick<TripMemberProfile, "avatar" | "color">;
+export type Persona = { name: string } & Pick<TripMemberProfile, "avatar" | "color" | "colorShifted">;
 
 /** userId → their persona, for every member `TripAccess` lists. */
 export function personasOf(members: readonly TripMemberProfile[]): Readonly<Record<string, Persona>> {
@@ -35,6 +35,7 @@ export function personasOf(members: readonly TripMemberProfile[]): Readonly<Reco
         name: displayNameFor({ userId: m.userId, displayName: m.displayName, name: m.name, email: null }),
         avatar: m.avatar,
         color: m.color,
+        colorShifted: m.colorShifted,
       },
     ]),
   );
