@@ -64,11 +64,21 @@ Candidates absorbed (each deleted by this gate):
       display name opt-in on public pages; colour clashes resolved at render time per trip; the
       invitee sees no per-person or per-stop costs; one fixed widget set; a token-scoped read feeds
       the shared widget components.)*
-- [ ] **A person's avatar, colour and display name show on every surface listed under Scope.** A
+- [x] **A person's avatar, colour and display name show on every surface listed under Scope.** A
       test per surface, or one test over a shared `PersonChip` they all use, was seen red with the
       old initials.
-- [ ] **No private name reaches a public page**: an integration test reads a public profile and a
+      *(Ticked 2026-10-07, part 4: one test per surface, each in that surface's own test file. The
+      surfaces are People rows, the header stack, home cards and the hero, *Who is in*, *Booked by*,
+      the editor sheet, suggestion authors, History's *Suggested by* line and the rack's *Parked
+      by*. Each was seen red with the old initials, e.g. `expected '<span aria-hidden="true" …' to
+      contain 'lucide-mountain'` (received `…>BO</span>…`). Pending invites keep their invited
+      look, by the design.)*
+- [x] **No private name reaches a public page**: an integration test reads a public profile and a
       published day for a user who has not opted in, and finds only the public name.
+      *(Ticked 2026-10-07, part 2 (#357): `playbooks/board/route.int.test.ts` › *never shows a chosen
+      name its owner has not opted in to publishing* reads the board, the profile, Discover and the
+      published day's page. Seen red with the gate removed: `expected [ 'Pip Q.', 'Pip Q.', 'Pip
+      Q.' ] to deeply equal [ 'Paula H.', 'Paula H.', 'Paula H.' ]`.)*
 - [ ] **The invite page shows the trip before accepting, using the notebook widgets'
       components**. A grep or architecture-wall rule shows no invite-only copy of a widget.
 - [ ] **The token-scoped read returns nothing that decision 4 hides**: an integration test asserts

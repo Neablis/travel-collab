@@ -31,7 +31,7 @@ import { cachedRead } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
 import { formatTripDateLong, relativeCalendarDays } from "@/lib/formatDate";
 import { displayNameFor } from "@/lib/displayName";
-import { initialsFor } from "@/lib/initials";
+import { PersonChip } from "@/components/ui/person-chip";
 import { needsBooking } from "@/lib/needsBooking";
 import { tripSpend, plannedOfBudgetLine } from "@/lib/cost";
 import { cn } from "@/lib/cn";
@@ -251,18 +251,15 @@ export function NextTripHero({ trip, menuSlot, viewerId }: NextTripHeroProps) {
   const travellerStack = (
     <div className="flex flex-wrap items-center" role="group" aria-label={`${travellers.length} traveler${travellers.length === 1 ? "" : "s"}`}>
       {travellers.map((member, i) => (
-        <div
+        <PersonChip
           key={member.userId}
-          aria-hidden
-          className={cn(
-            "grid place-items-center rounded-full border-2 border-surface bg-brand-tint font-semibold text-brand-pressed",
-            i > 0 && "-ml-2",
-          )}
-          // eslint-disable-next-line no-restricted-syntax -- 30px avatar circle + 11px initials text have no token equivalent, matching TimelineLens/MapLens/ActivityCard's computed-geometry pattern
-          style={{ height: "30px", width: "30px", fontSize: "11px" }}
-        >
-          {initialsFor(displayNameFor(member))}
-        </div>
+          name={displayNameFor(member)}
+          avatar={member.avatar}
+          color={member.color}
+          size="md"
+          ring
+          className={cn(i > 0 && "-ml-2")}
+        />
       ))}
     </div>
   );

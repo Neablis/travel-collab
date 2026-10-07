@@ -7,7 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toClockRange } from "@/lib/time";
 import { useTimeFormat } from "@/components/account/PreferencesProvider";
-import { usePeople } from "@/components/pages/people";
+import { usePersonas } from "@/components/pages/people";
+import { PersonChip } from "@/components/ui/person-chip";
 import { displayNameFor } from "@/lib/displayName";
 import { Card } from "@/components/ui/card";
 import { NativeSelect } from "@/components/ui/native-select";
@@ -349,7 +350,8 @@ function RackCard({
   onRemove?: (activityId: string) => void;
 }) {
   const clock = useTimeFormat();
-  const people = usePeople();
+  const personas = usePersonas();
+  const parker = item.bookedBy === null ? undefined : personas?.[item.bookedBy];
   const ref = useRef<HTMLDivElement>(null);
   const [dragging, setDragging] = useState(false);
 
@@ -478,15 +480,22 @@ function RackCard({
             half is recorded in `docs/candidates.md` rather than left as a
             placeholder that reads as a promise. */}
         {item.bookedBy !== null && (
-          <div
-            className="text-slate"
-            // eslint-disable-next-line no-restricted-syntax -- 11.5px provenance line is below Tailwind's text-xs (12px) floor
-            style={{ fontSize: "11.5px" }}
-          >
-            {/* Named from the trip's members (M38 part 3; this printed the raw
-                id). Before they land, or for someone who has left, the id's
-                handle — never the id itself. */}
-            Parked by {people?.[item.bookedBy] ?? displayNameFor({ userId: item.bookedBy })}
+          <div className="flex items-center gap-1.5">
+            {/* Their chip once the members land (M38); nothing before, or for
+                someone who has left, rather than the initials of a handle. */}
+            {parker !== undefined && (
+              <PersonChip name={parker.name} avatar={parker.avatar} color={parker.color} size="xs" />
+            )}
+            <span
+              className="text-slate"
+              // eslint-disable-next-line no-restricted-syntax -- 11.5px provenance line is below Tailwind's text-xs (12px) floor
+              style={{ fontSize: "11.5px" }}
+            >
+              {/* Named from the trip's members (M38 part 3; this printed the raw
+                  id). Before they land, or for someone who has left, the id's
+                  handle — never the id itself. */}
+              Parked by {parker?.name ?? displayNameFor({ userId: item.bookedBy })}
+            </span>
           </div>
         )}
         {/* Accessible name is the bare "Add to day"; the first

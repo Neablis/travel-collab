@@ -3,6 +3,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import type { TripHistory } from "@tc/contracts";
+import { tripAccessFixture, tripMemberProfileFactory } from "@tc/factories";
 import { PeopleProvider } from "@/components/pages/people";
 import { clearQueryCache } from "@/lib/queryCache";
 import { HistoryPanel } from "./HistoryPanel";
@@ -133,6 +134,37 @@ describe("HistoryPanel — accepted suggestions", () => {
     expect(await screen.findByRole("button", { name: /Added Gelato.*Suggested by a former traveler/ })).toBeTruthy();
     // An ordinary edit is not attributed to anyone.
     expect(screen.getByRole("button", { name: /Added Day 1/ }).textContent).not.toContain("Suggested");
+  });
+
+  // M38: the author's line leads with their chip — the glyph they picked —
+  // beside the name they chose.
+  it("draws the author's chip beside the name they chose", async () => {
+    server.use(
+      http.get("/api/trips/:tripId/access", () =>
+        HttpResponse.json({
+          access: tripAccessFixture({
+            tripId: TRIP,
+            members: [
+              tripMemberProfileFactory.build({ userId: "u1", role: "owner", name: "Alice" }),
+              tripMemberProfileFactory.build({ userId: "u-sam", role: "suggester", name: "Sam", displayName: "Sammy", avatar: "sailboat", color: "rose" }),
+            ],
+          }),
+        }),
+      ),
+    );
+    render(
+      <PeopleProvider tripId={TRIP}>
+        <HistoryPanel
+          history={{ ...history, entries: [accepted("u-sam", "Moved Ramen to Day 2", 3), ...history.entries] }}
+          previewSeq={null}
+          onPreview={() => {}}
+          onExitPreview={() => {}}
+          onRevert={() => {}}
+        />
+      </PeopleProvider>,
+    );
+    const row = await screen.findByRole("button", { name: /Moved Ramen to Day 2.*Suggested by Sammy/ });
+    expect(row.innerHTML).toContain("lucide-sailboat");
   });
 
   // Review of #311, finding 3.1: the names are read once, so a suggester who

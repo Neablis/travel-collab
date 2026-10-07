@@ -117,6 +117,19 @@ describe("TripCard", () => {
     expect(within(group).getByText("SO")).toBeTruthy();
   });
 
+  // M38: a face is the person's chip, so the glyph they picked stands in for
+  // their initials.
+  it("draws a traveller's chosen avatar in place of their initials", () => {
+    const trip = tripSummaryFixture({
+      members: [tripSummaryMemberFactory.build({ userId: "dev-dana", role: "owner", displayName: "Dana Reyes", avatar: "compass", color: "sky" })],
+    });
+    render(<TripCard trip={trip} />);
+
+    const group = screen.getByRole("group", { name: "1 traveler" });
+    expect(group.innerHTML).toContain("lucide-compass");
+    expect(within(group).queryByText("DR")).toBeNull();
+  });
+
   // Task 4.1 (M10 Phase 4): TripSummary carries no cost fields at all, so
   // TripCard can't derive this line itself — it only ever renders whatever
   // already-formatted string the caller (page.tsx, which fetches each

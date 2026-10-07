@@ -13,7 +13,7 @@ import { addActivityCommand, updateActivityCommand } from "@/components/board/ac
 import { ActivityConflicts } from "@/components/trip/editor/ActivityConflicts";
 import { useEditor } from "@/components/trip/context/EditorHost";
 import { useTrip, type DispatchResult } from "@/components/trip/context/TripProvider";
-import { peopleNamesOf } from "@/components/pages/people";
+import { peopleNamesOf, personasOf } from "@/components/pages/people";
 import { dayLabel } from "@/lib/dates";
 import { toClockRange } from "@/lib/time";
 import { useTimeFormat } from "@/components/account/PreferencesProvider";
@@ -153,7 +153,14 @@ export function ActivityEditorSheet() {
 
   const memberIds = activeTrip?.members.map((m) => m.userId) ?? [];
   const names = activeTrip === null ? new Map<string, string>() : personNames(activeTrip, people, memberIds);
-  const namedMembers = (activeTrip?.members ?? []).map(({ userId, travelling }) => ({ userId, name: names.get(userId)!, travelling }));
+  const personas = access === null ? null : personasOf(access.members);
+  const namedMembers = (activeTrip?.members ?? []).map(({ userId, travelling }) => ({
+    userId,
+    name: names.get(userId)!,
+    travelling,
+    avatar: personas?.[userId]?.avatar,
+    color: personas?.[userId]?.color,
+  }));
 
   const dayOptions: ActivityDayOption[] =
     activeTrip?.days.map((day, index) => ({

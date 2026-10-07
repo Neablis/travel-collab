@@ -20,7 +20,7 @@ function tripOf(ids: readonly string[]): TripDetail {
 }
 
 const persona = (name: string, extra: Partial<Persona> = {}): Persona => ({
-  name, avatar: null, color: null, travelling: true, ...extra,
+  name, avatar: null, color: null, colorShifted: false, travelling: true, ...extra,
 });
 
 describe("TripPeopleBlock", () => {
