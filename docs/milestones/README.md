@@ -115,9 +115,9 @@ for collaboration later landing on a product people already want to join.
 | M32 | The assistant can say which day is free, in one call | **Gate closed 2026-10-05, 7 of 7** (current for the same day, from M31's close); minted 2026-10-04 from Mitchell's production turn and built beside M31. `find_free_time` ranks every day inside 08:00-22:00 in one call, and each ledger step carries its duration (migration `0037`): `M32-free-day.md` |
 | M33 | We can see whether an assistant change works before it ships | **Gate closed 2026-10-05, 6 of 6** (current for the same day, from M32's close); minted and built the same day beside M31 and M32, merged as #327. `pnpm --filter web eval` runs the live set through the unmocked `/ask` handler on production's per-tier models, grades it in code, states its cost and stops at a cap: `M33-evals.md` |
 | M34 | Adding a stop suggests what other travellers did nearby | **Gate closed 2026-10-06, 7 of 7**, the walk on Mitchell's production attestation. Current from 2026-10-05 to 2026-10-06. **Minted, scoped and placed 2026-10-05 by Mitchell, after M33.** The add-stop sheet's *"Example match"* placeholder was filed under M9's grounding, but nothing in it needs the model or a place vendor: it lists stops from other people's published days in the day's city, closest first, filtered as you type, and a pick fills name, place, length, kind and tags (not time or cost). Named `nearbyStops` in code, because *suggestion* is ADR-064's word: `M34-nearby-stops.md` |
-| M35 | You can say who on a trip is actually going | **CURRENT MILESTONE from 2026-10-06**, by M36's gate closing. **Minted 2026-10-05 by Mitchell, built before minting.** Built off-milestone on PR #335 while M34 is current, from an approved spec and plan; see the 2026-10-05 note below. Travelling is a per-person Access attribute counted at read time (ADR-065), so per-person costs, balances and "N travellers" count travellers, not members, and a suggester who joins to advise no longer doubles a total. Trip settings → People replaces the Travelers panel, with an owner state, role change in place and realtime access. Migration `0039`: `M35-travellers-and-people.md` |
+| M35 | You can say who on a trip is actually going | **Gate closed 2026-10-06, 12 of 12**: the migration confirmed from the run log, the eval re-run on Mitchell's word. Current for part of 2026-10-06, by M36's gate closing. **Minted 2026-10-05 by Mitchell, built before minting.** Built off-milestone on PR #335 while M34 is current, from an approved spec and plan; see the 2026-10-05 note below. Travelling is a per-person Access attribute counted at read time (ADR-065), so per-person costs, balances and "N travellers" count travellers, not members, and a suggester who joins to advise no longer doubles a total. Trip settings → People replaces the Travelers panel, with an owner state, role change in place and realtime access. Migration `0039`: `M35-travellers-and-people.md` |
 | M36 | The operator console is four tabs, and an account has a page | **Gate closed 2026-10-06, 13 of 13**, the walks on Mitchell's attestation. Current for part of 2026-10-06, by M34's gate closing. **Minted, scoped and placed 2026-10-06 by Mitchell as the next milestone** — after M34, ahead of M35 — and **started the same day** while M34 is current (see the 2026-10-06 note below). The 2026-10-05 handoff (`specs/operator-console.md`, DRIFT D20/D21) redraws the one-scroll console as Financial · Users · Library · AI models, gives an account a page (usage, activity, grants, revoke with a confirm), deletes `GrantSourcePanel`, and is the first admin surface to read M31's ledger. Growth per tier and notebook shares are out by decision: neither has a source. Six links, no planned migration: `M36-operator-console.md` |
-| M37 | A trip looks like somewhere before it has a plan | **Proposed and scoped 2026-10-06**; all six decisions answered as recommended. From `docs/candidates.md`; see *2026-10-06 — proposed: M37 to M47*. Home trip cards with a designed empty state, Unsplash covers, trip length: `M37-trips-look-like-somewhere.md` |
+| M37 | A trip looks like somewhere before it has a plan | **CURRENT MILESTONE from 2026-10-06**, by M35's gate closing. **Proposed and scoped 2026-10-06**; all six decisions answered as recommended. From `docs/candidates.md`; see *2026-10-06 — proposed: M37 to M47*. Home trip cards with a designed empty state, Unsplash covers, trip length: `M37-trips-look-like-somewhere.md` |
 | M38 | You can tell people apart, and see a trip before you join it | **Proposed 2026-10-06, not scoped**; its decisions are recommendations, none answered. From `docs/candidates.md`; see *2026-10-06 — proposed: M37 to M47*. Avatars, colours and display names on every person surface; the invite page built from notebook widgets: `M38-people-you-can-tell-apart.md` |
 | M39 | The phone layout is decided once, and Caesura installs like an app | **Proposed 2026-10-06, not scoped**; its decisions are recommendations, none answered. From `docs/candidates.md`; see *2026-10-06 — proposed: M37 to M47*. The phone/tablet design critique and its KIs, the phone conflict state, PWA install tiers 1–2: `M39-the-phone-is-decided.md` |
 | M40 | A big change is reviewed whole, taken whole, and undone whole | **Proposed 2026-10-06, not scoped**; its decisions are recommendations, none answered. From `docs/candidates.md`; see *2026-10-06 — proposed: M37 to M47*. Accept all as one batch, named snapshots, assistant planning turns write suggestions: `M40-a-big-change-is-one-change.md` |
@@ -193,7 +193,7 @@ Placement notes (decided 2026-07-07):
   questions stay open — start-only trip dates, first-run vs. the four-step
   wizard, and whether the landing copy may sell M11/M12 — see the review's §8.
 
-Current milestone: M35 — You can say who on a trip is actually going
+Current milestone: M37 — A trip looks like somewhere before it has a plan
 **M34 became current 2026-10-05, by M33's gate closing** at **6 of 6**, the day it was minted.
 Scope and gate: `docs/milestones/M34-nearby-stops.md`; build plan
 `docs/plans/2026-10-05-M34-nearby-stops.md`.
@@ -234,6 +234,17 @@ the argument, not the live instruction, and they were 56% of this file.
 - **2026-09-19** — M25's gate closed, and what it leaves the milestones behind it
 - **2026-09-19 (later)** — minted, scoped and placed: M26, design parity
 - **2026-08-08, 2026-08-14, 2026-08-25, 2026-08-26** — the superseded reorders and M10's reopened gate, and the placement paragraphs for M26 to M28: *Moved out of README.md on 2026-09-30*, at the end
+
+### 2026-10-06 — M35 closed; M37 is current
+
+**Mitchell, 2026-10-06:** *"Let's start the next milestone, close out the previous by confirming
+the migration run, and checking the boxes"*. M35 closed 12 of 12 through `pnpm milestone close
+M35`, which made **M37** current.
+- **Migration `0039` was confirmed from the run, not from `pnpm state`.** `migrate-production`
+  run #37 on `498530c` logged "migrations applied successfully!". `pnpm state` cannot list runs
+  without `gh`, so in a cloud session it read a 2026-09-27 run and reported `0039` unapplied.
+- **CodeRabbit had nothing to work.** It skipped #335 because of the repo's star count.
+- **The eval re-run was ticked on Mitchell's word** (*"Tick it on your word"*). It was not run.
 
 ### 2026-10-06 — proposed: M37 to M47, from the candidates file
 

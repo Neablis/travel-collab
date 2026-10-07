@@ -1,6 +1,6 @@
 # M35 — You can say who on a trip is actually going
 
-**Status:** Minted 2026-10-05 by Mitchell — *"Create and add a milestone so this work is tracked
+**Status:** **Gate closed 2026-10-06, 12 of 12** (retro at the end). Minted 2026-10-05 by Mitchell — *"Create and add a milestone so this work is tracked
 correctly."* **Built before it was minted**, on one branch (`ccr-d8e97d98-xyat7o`, PR #335), from
 an approved spec and a T1–T9 plan, while **M34 is the current milestone**. So it ran out of the
 README order: nothing placed it, and AGENTS.md says not to build ahead of the current
@@ -137,10 +137,16 @@ All on `ccr-d8e97d98-xyat7o`, one commit per task, in the plan's order:
       *(Ticked 2026-10-05: at `edaad30`, clean tree. The local Tier-3 stamp
       (`.git/tc-tier3.json`, written as `pnpm check`'s last step) records that sha at
       15:15 UTC.)*
-- [ ] **The assistant's live set is re-run with M33's tooling** (`pnpm --filter web eval`),
+- [x] **The assistant's live set is re-run with M33's tooling** (`pnpm --filter web eval`),
       because the cost wording it reads changed (plan T5). This needs a live model and a paid run.
-- [ ] **CodeRabbit's review on #335 is worked** (`docs/guidelines/working-a-review.md`).
+      *(Ticked 2026-10-06 on Mitchell's word, asked whether to tick it, leave it open or carry it:
+      *"Tick it on your word"*. **Not re-run for the close**: the closing session had no model
+      key. No eval output after #335 is recorded.)*
+- [x] **CodeRabbit's review on #335 is worked** (`docs/guidelines/working-a-review.md`).
       This step is Mitchell's.
+      *(Ticked 2026-10-06: there was no review to work. CodeRabbit skipped #335 ("does not
+      receive automatic reviews because it has fewer than 10 stars"), and the PR has no reviews
+      and no review threads, as read from GitHub at close.)*
 - [x] **[walk]** On #335's preview, as two people: the owner invites a suggester, who accepts
       with the switch preset off. The owner's per-person total does not move, and the row sits
       under *Not travelling* without a reload. Marking them travelling doubles it. The owner row
@@ -164,9 +170,15 @@ All on `ccr-d8e97d98-xyat7o`, one commit per task, in the plan's order:
       - *Copy link from a row menu.*
 
       *Found: KI-2026-10-05-h.*
-- [ ] **Migration 0039 is applied to production**: `migrate-production` dispatched after merge,
+- [x] **Migration 0039 is applied to production**: `migrate-production` dispatched after merge,
       and `pnpm state` reports it applied.
-- [ ] A retro is appended at gate close.
+      *(Ticked 2026-10-06: run #37 (`37349376298`), dispatched 2026-10-05 17:33 UTC on `498530c`
+      (#335's merge, whose tree has `0039_trip_travellers.sql`), succeeded with "migrations
+      applied successfully!". Run #40 (`37478131814`) on `767d503` 2026-10-06 also succeeded and
+      covers `0040` and `0041`. This session's `pnpm state` read "5+ NOT applied" from a stale
+      run (`ef8d096`, 2026-09-27) because `gh` is unavailable in cloud sessions. The runs above
+      were read through the GitHub API instead.)*
+- [x] A retro is appended at gate close.
 
 ## Carried, not gating
 
@@ -176,3 +188,33 @@ All on `ccr-d8e97d98-xyat7o`, one commit per task, in the plan's order:
   predates this work and was found during it.
 - `KI-2026-10-05-h`: a removed member's open page never learns they were removed. Found on the
   preview walk.
+
+## Retro — gate closed 2026-10-06 (12 of 12)
+
+Closed at Mitchell's request on 2026-10-06 (*"close out the previous by confirming the migration
+run, and checking the boxes"*). Two boxes were closed on evidence read at close: the migration,
+from the `migrate-production` run log, and CodeRabbit, which never reviewed the PR. The eval
+re-run is ticked on his word and was **not** run.
+
+**What shipped.** Travelling is a per-person Access attribute counted at read time (ADR-065,
+migration `0039`). Per-person costs, shares, balances, the over-budget rule and the assistant's
+reads count travellers, not members. A suggester who joins to advise no longer doubles a total.
+Trip settings → People replaced the Travelers panel, with an owner state, role changes in place
+and Access changes that reach the board without a reload. One PR, #335.
+
+**What held.**
+- **Built before minting, still one reviewable PR.** It was built while M34 was current and was
+  not restacked, by decision. The plan's A/B/C split survived as the review order, and every
+  automated box was ticked before merge.
+- **The e2e found the bug the unit tests missed.** It was seen red on the doubled total, and on
+  the ci-like lane it found the first-poll baseline that hid an early accept (KI-2026-10-05-g,
+  fixed in `b638a83`).
+
+**What did not.**
+- **The eval box gated on a paid run nobody scheduled.** It sat open for a day and closed on
+  attestation. A box that needs money or a key belongs to whoever holds the key, and should say
+  so when it is written.
+- **`pnpm state` cannot see `migrate-production` from a cloud session** (no `gh`), so it reported
+  migrations unapplied a day after they ran. The close used the GitHub API instead.
+
+**Left open, not gating.** KI-2026-10-05-e, -f and -h, listed under *Carried, not gating*.

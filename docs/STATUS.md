@@ -21,10 +21,22 @@ general setup.
 
 ## Where the work is right now
 
-**M35 — YOU CAN SAY WHO ON A TRIP IS ACTUALLY GOING — IS THE CURRENT MILESTONE AS OF
-2026-10-06**, by **M36's gate closing at 13 of 13**. Order: `… M34 ✓ → M36 ✓ → M35 → M37 … M47`.
-M35 is built and merged (#335); its gate is 8 of 12.
-(`docs/milestones/M35-travellers-and-people.md`)
+**M37 — A TRIP LOOKS LIKE SOMEWHERE BEFORE IT HAS A PLAN — IS THE CURRENT MILESTONE AS OF
+2026-10-06**, by **M35's gate closing at 12 of 12**. Order: `… M36 ✓ → M35 ✓ → M37 → M38 … M47`.
+It is built as a five-part draft stack, #350 → #354, from
+`docs/plans/2026-10-06-M37-trip-cards-and-covers.md`. Its gate is **10 of 12**, with the
+preview `[walk]` and the retro open. Tier 3 ran once, on #354:
+- `pnpm check` exit 0;
+- ci-like e2e: 243 passed, 1 flaky, filed as KI-2026-10-06-a;
+- `seed:verify`: 108/108.
+**Migrations `0042` and `0043` must be dispatched after the stack merges.** Nothing merges without
+Mitchell.
+(`docs/milestones/M37-trips-look-like-somewhere.md`)
+
+**M35 closed 2026-10-06.** Migration `0039` is confirmed applied from `migrate-production` run #37
+on #335's merge. CodeRabbit never reviewed #335, so there was nothing to work. The eval re-run is
+ticked on Mitchell's word and was **not** run. Its retro is at the end of
+`docs/milestones/M35-travellers-and-people.md`.
 
 **M37 to M47 were proposed on 2026-10-06** by grouping the candidates file, and placed after M35 in
 that order. The order was confirmed the same day, and **M37 is scoped**: its six decisions were answered as
@@ -80,12 +92,10 @@ part 2 is live; and checking production's canonical on `caesura.today/playbooks`
 **M35 — who is travelling, and the People panel — minted 2026-10-05, after it was built** beside
 M33 and M34 (PR #335, one branch `ccr-d8e97d98-xyat7o`, T1–T9, not restacked by Mitchell's call;
 plan `docs/plans/2026-10-05-travellers-and-people-panel.md`). Gate:
-`docs/milestones/M35-travellers-and-people.md`; open are the preview walk, CodeRabbit, the eval
-re-run, migration 0039 and the retro.
+`docs/milestones/M35-travellers-and-people.md`. **Gate closed 2026-10-06, 12 of 12.**
 Per-person totals count travellers, not members (ADR-065, amending ADR-060 decision 2). Trip
 settings → People replaces the Travelers panel, and the owner's open panel now sees a join
-(KI-2026-10-04-b, resolved). It carries **migration 0039**, which has to be dispatched after
-merge. Open from it: `KI-2026-10-05-e`, `-f` and `-g`.
+(KI-2026-10-04-b, resolved). **Migration 0039** is applied (run #37). Open from it: `KI-2026-10-05-e`, `-f` and `-g`.
 
 **M28 — Three kinds — closed 2026-09-26** (#238, #239): a stop's kind is
 `planned`, `pending` or `transit`, and the retired `idea`/`hold`/`booked` are
@@ -223,8 +233,8 @@ half, the model guessing a coordinate rather than citing one, is M9 scope.
 
 ## Next action
 
-**M35's gate**: the eval re-run, CodeRabbit on #335, ticking migration 0039 (`pnpm state` reads
-it applied) and the retro (`docs/milestones/M35-travellers-and-people.md`). Separately,
+**M37's gate**, built from `docs/plans/2026-10-06-M37-trip-cards-and-covers.md`
+(`docs/milestones/M37-trips-look-like-somewhere.md`). Separately,
 `KI-2026-10-04-c` resolves on query 8 of `ledger.sql` over a few days of cheap-tier step durations.
 
 **Carried out of M24, not gating:** `KI-2026-09-25-q`. About a dozen
