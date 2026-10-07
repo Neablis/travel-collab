@@ -1,5 +1,5 @@
 import type { CoverCandidate } from "@tc/contracts";
-import { creditLinksOnUnsplash, type CoverPhotos } from "./ports";
+import { UpstreamError, type CoverPhotos } from "./ports";
 
 // The cover source every automated lane uses (`EXTERNAL_DATA_OFFLINE=true`):
 // no automated test may call a real third party (Mitchell's policy), and the
@@ -9,7 +9,10 @@ import { creditLinksOnUnsplash, type CoverPhotos } from "./ports";
 // own origin, so a spec renders a cover with no network and no CSP exception.
 // Its credit links point at unsplash.com: they are links a person follows,
 // not requests anything makes. Its download locations are never fetched — a
-// pick is recorded in `pings` instead, which is what a test asserts.
+// pick is recorded in `pings` instead, which is what a test asserts — but it
+// keeps the port's promises as the real adapter does: it refuses a location
+// it did not mint, and owns a candidate only as it served it, credit included,
+// so a forged pick goes red offline too.
 
 const photo = (id: string, name: string, alt: string | null, by: string, handle: string): CoverCandidate => {
   const raw = `/offline-covers/${name}.svg`;
@@ -50,9 +53,14 @@ export const offlineCoverPhotos: OfflineCoverPhotos = {
   },
 
   async trackDownload(downloadLocation) {
+    if (!PHOTOS.some((p) => p.downloadLocation === downloadLocation)) {
+      throw new UpstreamError("offline covers: refusing a download location this source did not mint");
+    }
     this.pings.push(downloadLocation);
   },
 
+  // Field for field: every photo it serves is fixed, so anything but an exact
+  // copy of one — another name in the credit included — was not served.
   owns(candidate) {
     const own = PHOTOS.find((p) => p.id === candidate.id);
     return (
@@ -61,7 +69,10 @@ export const offlineCoverPhotos: OfflineCoverPhotos = {
       own.urls.raw === candidate.urls.raw &&
       own.urls.regular === candidate.urls.regular &&
       own.urls.small === candidate.urls.small &&
-      creditLinksOnUnsplash(candidate)
+      own.alt === candidate.alt &&
+      own.photographerName === candidate.photographerName &&
+      own.photographerUrl === candidate.photographerUrl &&
+      own.photoPageUrl === candidate.photoPageUrl
     );
   },
 };
