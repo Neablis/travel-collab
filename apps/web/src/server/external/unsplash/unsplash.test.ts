@@ -145,6 +145,17 @@ describe("the Unsplash adapter", () => {
     expect(init?.headers).toEqual({ Authorization: "Client-ID KEY123", "Accept-Version": "v1" });
   });
 
+  // `fetch` follows redirects by default and keeps `Authorization` on a
+  // same-origin hop, so a 3xx on api.unsplash.com would carry the key to a
+  // path `downloadLocationId` never checked. The adapter refuses to follow.
+  it("never follows a redirect with the key, and treats a 3xx as a failure", async () => {
+    const fetchMock = stubFetch(302, {}, { Location: "https://api.unsplash.com/me" });
+    await expect(createUnsplash("KEY123").trackDownload(PHOTO.links.download_location)).rejects.toBeInstanceOf(
+      UpstreamError,
+    );
+    expect(fetchMock.mock.calls[0]![1]?.redirect).toBe("manual");
+  });
+
   // The key goes wherever the location points, so it must point at a
   // photo's download on Unsplash's API and nowhere else there.
   it.each([

@@ -103,11 +103,13 @@ export function createUnsplash(accessKey: string): CoverPhotos {
   const headers = { Authorization: `Client-ID ${accessKey}`, "Accept-Version": "v1" };
 
   // A timeout or a dropped connection is the vendor not answering, the same
-  // as a 5xx: one error type, so a route has one thing to catch.
+  // as a 5xx: one error type, so a route has one thing to catch. Redirects
+  // are never followed: the key rides on a same-origin hop, to a path the
+  // checks above never saw, so a 3xx is a failure like any other non-2xx.
   const get = async (url: URL | string, what: string): Promise<Response> => {
     let res: Response;
     try {
-      res = await fetch(url, { headers, signal: AbortSignal.timeout(TIMEOUT_MS) });
+      res = await fetch(url, { headers, redirect: "manual", signal: AbortSignal.timeout(TIMEOUT_MS) });
     } catch (error) {
       throw new UpstreamError(`Unsplash ${what}: ${error instanceof Error ? error.name : "failed"}`);
     }
