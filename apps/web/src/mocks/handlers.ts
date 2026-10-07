@@ -8,6 +8,7 @@ import {
   AdminReportAction,
   BatchableCommand,
   ChangeRoleInput,
+  CoverCandidate,
   CreatePageInput,
   CreateReportInput,
   CreateSavedNotebookInput,
@@ -17,6 +18,7 @@ import {
   PutReviewInput,
   ResolveSuggestionChangeInput,
   RestorePageInput,
+  SetCoverBody,
   SetTravellingInput,
   SYSTEM_ACTOR_ID,
   stopTotal,
@@ -34,6 +36,7 @@ import {
   type SuggestionChange,
   type TripDetail,
   type TripEventsPage,
+  type TripCover,
   type TripHistory,
   type TripRole,
 } from "@tc/contracts";
@@ -444,6 +447,12 @@ export function makeTripHandlers(
       HttpResponse.json({ globals: { days: [], cities: [], tags: [] } }),
     ),
     makeWeatherHandler(),
+    // Trip settings reads the cover when it opens, and an editor's sheet
+    // makes the empty search that says covers are set up (M37). No cover and
+    // no results, by default; a suite about the picker uses
+    // `makeCoverHandlers` with what it needs.
+    http.get("/api/trips/:tripId/cover/search", () => HttpResponse.json({ results: [] })),
+    http.get("/api/trips/:tripId/cover", () => HttpResponse.json({ cover: null })),
     http.get("/api/geocode", ({ request }) => {
       const q = new URL(request.url).searchParams.get("q")?.trim();
       return HttpResponse.json({ results: q ? (options?.geocode ?? []) : [] });
@@ -892,4 +901,81 @@ export function makeNearbyStopsHandler(stops: NearbyStopsResponse["stops"]) {
   return http.get("/api/trips/:tripId/nearby-stops", () =>
     HttpResponse.json(NearbyStopsResponse.parse({ stops })),
   );
+}
+
+// Our quota's refusal, as `quotaRefusal` words it, and Unsplash's own limit,
+// as the search route passes it on (`cover/responses.ts`).
+const QUOTA_429 = () =>
+  HttpResponse.json(
+    { error: "you've made too many requests — try again later", reason: "user", retryAfterSeconds: 60 },
+    { status: 429, headers: { "Retry-After": "60" } },
+  );
+const UPSTREAM_429 = () =>
+  HttpResponse.json(
+    { error: "covers-rate-limited", retryAfterSeconds: 300 },
+    { status: 429, headers: { "Retry-After": "300" } },
+  );
+
+/**
+ * The cover routes (M37): `GET`, `PUT` and `DELETE /api/trips/:tripId/cover`
+ * and `GET …/cover/search`, over one in-memory cover. Search answers `pages[n-1]`
+ * for `?page=n` and nothing past the last. `search: "unavailable"` answers the
+ * route's 503 (no Unsplash key here), `"quota"` our quota's 429 and
+ * `"upstream-limit"` Unsplash's — the refusals the picker words differently.
+ * As the real route does, an empty query is answered before any quota, so
+ * only `"unavailable"` refuses it. `read: "fail-once"` fails the first cover read and
+ * `pick: "quota"` refuses the pick quota. Every pick and clear is recorded.
+ */
+export function makeCoverHandlers(
+  options: {
+    cover?: TripCover | null;
+    pages?: CoverCandidate[][];
+    search?: "ok" | "unavailable" | "quota" | "upstream-limit";
+    read?: "ok" | "fail-once";
+    pick?: "ok" | "quota";
+    onSet?: (candidate: CoverCandidate) => void;
+    onClear?: () => void;
+  } = {},
+) {
+  let cover = options.cover ?? null;
+  let readFails = options.read === "fail-once" ? 1 : 0;
+  const pages = options.pages ?? [];
+  return [
+    http.get("/api/trips/:tripId/cover/search", ({ request }) => {
+      if (options.search === "unavailable") return HttpResponse.json({ error: "covers-unavailable" }, { status: 503 });
+      const params = new URL(request.url).searchParams;
+      if (!params.get("q")?.trim()) return HttpResponse.json({ results: [] });
+      if (options.search === "quota") return QUOTA_429();
+      if (options.search === "upstream-limit") return UPSTREAM_429();
+      const page = Number(params.get("page") ?? "1");
+      return HttpResponse.json({ results: pages[page - 1] ?? [] });
+    }),
+    http.get("/api/trips/:tripId/cover", () => {
+      if (readFails > 0) {
+        readFails--;
+        return HttpResponse.json({ error: "internal error" }, { status: 500 });
+      }
+      return HttpResponse.json({ cover });
+    }),
+    http.put("/api/trips/:tripId/cover", async ({ request }) => {
+      const { candidate } = SetCoverBody.parse(await request.json());
+      if (options.pick === "quota") return QUOTA_429();
+      options.onSet?.(candidate);
+      // What the route stores: everything but the ping URL (D2).
+      cover = {
+        unsplashId: candidate.id,
+        urls: candidate.urls,
+        alt: candidate.alt,
+        photographerName: candidate.photographerName,
+        photographerUrl: candidate.photographerUrl,
+        photoPageUrl: candidate.photoPageUrl,
+      };
+      return HttpResponse.json({ cover });
+    }),
+    http.delete("/api/trips/:tripId/cover", () => {
+      options.onClear?.();
+      cover = null;
+      return HttpResponse.json({ cover: null });
+    }),
+  ];
 }

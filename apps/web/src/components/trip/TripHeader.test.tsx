@@ -623,6 +623,51 @@ describe("TripHeader — the avatar stack (D10)", () => {
   });
 });
 
+// M37: Home's *Invite who's coming* and *Choose a cover photo* link here with
+// `?settings=people|cover`, which opens the sheet where the avatar stack does.
+describe("TripHeader — a link into Trip settings", () => {
+  let scrolled: Element[];
+  beforeEach(() => {
+    scrolled = [];
+    Element.prototype.scrollIntoView = function (this: Element) {
+      scrolled.push(this);
+    };
+  });
+  afterEach(() => {
+    delete (Element.prototype as Partial<Element>).scrollIntoView;
+    window.history.replaceState(null, "", "/");
+  });
+
+  it.each(["cover", "people"] as const)("opens the sheet at %s from ?settings=", async (section) => {
+    window.history.replaceState(null, "", `/trips/x?view=Plan&settings=${section}`);
+    await renderHeader();
+
+    expect(await screen.findByRole("dialog", { name: /trip settings/i })).toBeTruthy();
+    // Only ever at that section: People is landed on again once Cover settles
+    // (SettingsSheet.test.tsx), so how many times is not this test's claim.
+    await waitFor(() => expect(scrolled.length).toBeGreaterThan(0));
+    expect(new Set(scrolled.map((el) => el.id))).toEqual(new Set([section]));
+  });
+
+  it("drops the param when the sheet closes, and keeps the rest of the URL", async () => {
+    window.history.replaceState(null, "", "/trips/x?view=Plan&settings=cover");
+    await renderHeader();
+    await screen.findByRole("dialog", { name: /trip settings/i });
+
+    await userEvent.click(screen.getByRole("button", { name: /close/i }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: /trip settings/i })).toBeNull());
+    expect(window.location.search).toBe("?view=Plan");
+  });
+
+  it("opens nothing for a section it does not have", async () => {
+    window.history.replaceState(null, "", "/trips/x?settings=budget");
+    await renderHeader();
+    // Witness: the header rendered, so the sheet had its chance to open.
+    await screen.findByRole("button", { name: "Add stop" });
+    expect(screen.queryByRole("dialog", { name: /trip settings/i })).toBeNull();
+  });
+});
+
 // Travellers spec W15: a member write in Trip settings recosts the board for
 // the person who made it, without waiting for a poll a solo trip never runs.
 describe("TripHeader — a change in People re-reads the trip", () => {

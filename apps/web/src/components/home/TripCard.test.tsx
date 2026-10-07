@@ -1,7 +1,7 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import type { TripSummary } from "@tc/contracts";
-import { tripSummaryFactory } from "@tc/factories";
+import { tripCoverFactory, tripSummaryFactory } from "@tc/factories";
 import { TripCard } from "./TripCard";
 
 afterEach(() => {
@@ -184,9 +184,30 @@ describe("TripCard — length, stops and the unplanned trip", () => {
     expect(screen.getByRole("link", { name: "Add the first day" }).getAttribute("href")).toBe(
       `/trips/${trip.tripId}?view=Plan`,
     );
-    expect(screen.getByRole("link", { name: "Invite who's coming" }).getAttribute("href")).toBe(`/trips/${trip.tripId}`);
+    expect(screen.getByRole("link", { name: "Invite who's coming" }).getAttribute("href")).toBe(
+      `/trips/${trip.tripId}?settings=people`,
+    );
+    expect(screen.getByRole("link", { name: "Choose a cover photo" }).getAttribute("href")).toBe(
+      `/trips/${trip.tripId}?settings=cover`,
+    );
     expect(screen.queryByText(/planned of/)).toBeNull();
     expect(screen.queryByText("Active")).toBeNull();
+  });
+
+  // Every unplanned card offers the same three links, so each is described by
+  // its trip's name; the name is the visible text alone, which is what a voice
+  // user says and what the e2e suite's locators match.
+  it("describes each next step by its own trip's name", () => {
+    render(
+      <>
+        <TripCard trip={unplanned({ name: "Kyoto" })} viewerId="dev-alice" />
+        <TripCard trip={unplanned({ name: "Lisbon" })} viewerId="dev-alice" />
+      </>,
+    );
+    for (const step of ["Add the first day", "Invite who's coming", "Choose a cover photo"]) {
+      expect(screen.getByRole("link", { name: step, description: "Kyoto" })).toBeTruthy();
+      expect(screen.getByRole("link", { name: step, description: "Lisbon" })).toBeTruthy();
+    }
   });
 
   // Setting dates makes days, so a dated trip with no stops has days to fill.
@@ -233,5 +254,36 @@ describe("TripCard — length, stops and the unplanned trip", () => {
     render(<TripCard trip={tripSummaryFixture()} viewerId="dev-alice" />);
     expect(screen.queryByRole("link", { name: /Add the first|Invite who's coming/ })).toBeNull();
     expect(screen.queryByText(/nothing planned/i)).toBeNull();
+  });
+});
+
+// M37 part 4: the approved canvas's card with a cover — the photo as a strip,
+// credited where the badge was — and part 2's card, unchanged, without one.
+describe("TripCard — a cover", () => {
+  it("leads with the cover, lazily, credited and linked, with its menu still there", () => {
+    const cover = tripCoverFactory.build({ alt: null, photographerName: "Rui Matos" });
+    const trip = tripSummaryFixture({ cover });
+    render(<TripCard trip={trip} menuSlot={<button aria-label={`Trip actions for ${trip.name}`} />} />);
+
+    // No alt from Unsplash: who took it, instead (plan rule 8).
+    const photo = screen.getByRole("img", { name: "Photo by Rui Matos" });
+    expect(photo.getAttribute("loading")).toBe("lazy");
+    expect(screen.getByRole("link", { name: "Rui Matos" }).getAttribute("href")).toBe(
+      `${cover.photographerUrl}?utm_source=caesura&utm_medium=referral`,
+    );
+    expect(screen.getByRole("link", { name: "Unsplash" }).getAttribute("href")).toBe(
+      "https://unsplash.com/?utm_source=caesura&utm_medium=referral",
+    );
+    expect(screen.getByRole("link", { name: trip.name })).toBeTruthy();
+    expect(screen.getByRole("button", { name: `Trip actions for ${trip.name}` })).toBeTruthy();
+  });
+
+  it("draws no photo and no credit without a cover", () => {
+    render(<TripCard trip={tripSummaryFixture()} />);
+    // Witness: part 2's card, accent bar and badge.
+    expect(screen.getByTestId("accent-bar")).toBeTruthy();
+    expect(screen.getByText("Active")).toBeTruthy();
+    expect(screen.queryByRole("img")).toBeNull();
+    expect(screen.queryByText(/Photo by/)).toBeNull();
   });
 });

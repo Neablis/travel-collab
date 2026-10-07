@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Clock } from "lucide-react";
 import { travellerIds, type TripAccess } from "@tc/contracts";
@@ -17,6 +17,7 @@ import { isDemoTripId } from "@/lib/demoTrip";
 import { isInviteLook } from "@/lib/inviteLook";
 import { cn } from "@/lib/cn";
 import { displayNameFor } from "@/lib/displayName";
+import { settingsSectionFrom, withoutSettingsParam, type SettingsSection } from "@/lib/tripSettingsLink";
 import { HistoryPanel } from "@/components/board/HistoryPanel";
 import { SuggestionsChip } from "@/components/board/SuggestionsChip";
 import { PeopleProvider } from "@/components/pages/people";
@@ -95,8 +96,27 @@ export function TripHeader({
   const { openCreate } = useEditor();
   const [historyOpen, setHistoryOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  // Whether the sheet was opened from the avatar stack, which lands on People.
-  const [settingsAtPeople, setSettingsAtPeople] = useState(false);
+  // The section the sheet was opened at: People from the avatar stack, or
+  // whatever a `?settings=` link named; null for the sheet's top.
+  const [settingsAt, setSettingsAt] = useState<SettingsSection | null>(null);
+  // **A link into Trip settings** (M37): Home's *Invite who's coming* and
+  // *Choose a cover photo* land here with `?settings=people|cover`, which is
+  // the avatar stack's state reached from another page. Read once, after
+  // mount, from `window.location` rather than `useSearchParams`: it is a
+  // one-shot instruction, not state the header follows, and an effect keeps
+  // the server render and the first client frame the same.
+  //
+  // Once per mount, so a `?settings=` reached by a client-side navigation to
+  // the trip the header is already showing would not open the sheet. Today's
+  // only entry points are Home's links, and leaving Home for a trip mounts a
+  // fresh header; a link from inside the trip page would need this to follow
+  // the URL instead.
+  useEffect(() => {
+    const section = settingsSectionFrom(window.location.search);
+    if (section === null) return;
+    setSettingsAt(section);
+    setSettingsOpen(true);
+  }, []);
   // **The delete toast is gone with the verb that raised it** — M26 link 6a,
   // DRIFT D13. A15 built this level's toast because the settings sheet's own
   // subtree unmounts on a successful delete and could not host one; with
@@ -270,7 +290,7 @@ export function TripHeader({
             <TravellerStack
               access={access}
               onOpen={() => {
-                setSettingsAtPeople(true);
+                setSettingsAt("people");
                 setSettingsOpen(true);
               }}
             />
@@ -537,9 +557,17 @@ export function TripHeader({
         open={settingsOpen}
         onOpenChange={(open) => {
           setSettingsOpen(open);
-          if (!open) setSettingsAtPeople(false);
+          if (open) return;
+          setSettingsAt(null);
+          // Closing ends the link's instruction: the param goes, so a reload
+          // or a copied URL does not reopen a sheet the reader closed. The
+          // native call, which Next's router observes, keeps the view param.
+          const { pathname, search, hash } = window.location;
+          if (settingsSectionFrom(search) !== null) {
+            window.history.replaceState(window.history.state, "", `${pathname}${withoutSettingsParam(search)}${hash}`);
+          }
         }}
-        scrollToPeople={settingsAtPeople}
+        scrollTo={settingsAt}
         startDate={activeTrip.startDate}
         endDate={activeTrip.days[activeTrip.days.length - 1]?.date ?? null}
         // The pill's own three figures, derived by the pill's own function

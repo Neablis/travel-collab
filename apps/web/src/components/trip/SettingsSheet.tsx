@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useState } from "react";
+import { Fragment, useCallback, useMemo, useRef, useState } from "react";
 import type { Money, TripAccess, TripCommand, TripDetail } from "@tc/contracts";
 import { Sheet } from "@/components/ui/sheet";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import { BudgetMeter } from "@/components/ui/budget-meter";
 import { Banner } from "@/components/ui/banner";
 import { Popover } from "@/components/ui/popover";
 import { PeopleSection } from "@/components/trip/people/PeopleSection";
+import { CoverSection } from "@/components/trip/cover/CoverSection";
 import { ShareButton } from "@/components/trip/ShareButton";
 import type { TripCounts } from "@/components/trip/TripMetaPill";
 import { TripMoneySettings } from "@/components/board/TripMoneySettings";
@@ -20,6 +21,7 @@ import { formatInstantLong, formatTripDate } from "@/lib/formatDate";
 import { isDemoTripId } from "@/lib/demoTrip";
 import { formatMoney } from "@/lib/formatMoney";
 import { committedLine, type TripSpend } from "@/lib/cost";
+import type { SettingsSection } from "@/lib/tripSettingsLink";
 
 function SectionHeading({ children }: { children: React.ReactNode }) {
   return (
@@ -34,6 +36,34 @@ function SectionHeading({ children }: { children: React.ReactNode }) {
 // Optional-called because jsdom has no `scrollIntoView`.
 function scrollIntoView(el: HTMLElement | null) {
   el?.scrollIntoView?.({ block: "start" });
+}
+
+// What ends a held landing: the person moving the sheet themselves.
+const HOLD_RELEASED_BY = ["wheel", "touchstart", "pointerdown", "keydown"] as const;
+
+// Cover is not the only section whose reads move what is under the landing.
+// On the stack's top part People's member list landed AFTER Cover had
+// settled, 59px taller, under a sheet the browser had already clamped to its
+// top (m37-trip-covers.spec.ts, 1280×900: "219px down at scrollTop 0 of 52").
+// So every change in the content's height lands again, until the person
+// moves the sheet: from then on, where it is is theirs.
+/**
+ * Keeps `el` landed on while the sheet's content changes height, until a
+ * wheel, touch, press or key. Answers the release, for the ref's cleanup.
+ * A no-op where there is no `ResizeObserver` (jsdom).
+ */
+function holdLanding(el: HTMLElement): () => void {
+  const content = el.parentElement;
+  if (content === null || typeof ResizeObserver === "undefined") return () => undefined;
+  const observer = new ResizeObserver(() => scrollIntoView(el));
+  observer.observe(content);
+  const doc = el.ownerDocument;
+  const release = () => {
+    observer.disconnect();
+    for (const type of HOLD_RELEASED_BY) doc.removeEventListener(type, release, true);
+  };
+  for (const type of HOLD_RELEASED_BY) doc.addEventListener(type, release, true);
+  return release;
 }
 
 function datesLabel(startDate: string | null, endDate: string | null): string {
@@ -88,7 +118,7 @@ export function SettingsSheet({
   onInvitesChanged,
   access,
   onAccessChanged,
-  scrollToPeople = false,
+  scrollTo = null,
   onCommand,
 }: {
   tripId: string;
@@ -139,9 +169,9 @@ export function SettingsSheet({
   // A member write moved who is on the trip or who travels, and with it the
   // trip's per-person totals: TripProvider's `refreshAccess` (W15).
   onAccessChanged?: () => void;
-  // Opened from the header's avatar stack (D10): land on People, not on the
-  // sheet's top.
-  scrollToPeople?: boolean;
+  // The section to land on rather than the sheet's top: People from the
+  // header's avatar stack (D10), or whichever a `?settings=` link names (M37).
+  scrollTo?: SettingsSection | null;
   onCommand: (command: TripCommand) => void;
 }) {
   // Dispatch is severed at the SOURCE, not at each control. The individual
@@ -153,6 +183,39 @@ export function SettingsSheet({
   // about not offering them.
   const dispatch = canEditBoard ? onCommand : () => undefined;
   const [datesOpen, setDatesOpen] = useState(false);
+
+  // Opened at a section, the sheet lands there when it mounts — but Cover
+  // photo changes height when its reads land (a skeleton becomes a photo, or
+  // nothing), and the landing does not survive it. People, below Cover, moves
+  // out from under a browser with no scroll anchoring (PR #353 review). Cover
+  // itself loses its landing on a tall screen: at 1280×900 the skeleton going
+  // took the content under the scrollport's height, the browser clamped the
+  // scroll to 0, and the content grew back with the sheet at its top
+  // (measured in m37-trip-covers.spec.ts). So the section is landed on again
+  // once Cover has settled, and — in a browser — whenever the content's
+  // height changes before the person moves the sheet (`holdLanding`): a
+  // section other than Cover can still be landing late. Where nothing moved,
+  // either is a no-op.
+  const sections = useRef<Partial<Record<SettingsSection, HTMLDivElement | null>>>({});
+  // One stable callback ref per section: a new one each render would land
+  // again on every render.
+  const landing = useMemo(() => {
+    const at = (section: SettingsSection) => (el: HTMLDivElement | null) => {
+      sections.current[section] = el;
+      if (scrollTo !== section || el === null) return;
+      scrollIntoView(el);
+      const release = holdLanding(el);
+      // A cleanup, so React calls this rather than the ref with null.
+      return () => {
+        release();
+        sections.current[section] = null;
+      };
+    };
+    return { cover: at("cover"), people: at("people") };
+  }, [scrollTo]);
+  const onCoverSettled = useCallback(() => {
+    if (scrollTo !== null) scrollIntoView(sections.current[scrollTo] ?? null);
+  }, [scrollTo]);
 
   // Null only for an unparseable timestamp, which is a projection bug rather
   // than a state to word around — the line just drops the date rather than
@@ -294,6 +357,19 @@ export function SettingsSheet({
           </div>
         </div>
 
+        {/* **Cover photo** (M37), after the overview and before Budget, as the
+            approved artboard places it: what the trip looks like, beside what
+            it is. Its own reads and writes, like People below — a cover is
+            trip metadata, not a command (D1). Editing is for whoever may write
+            to the trip (`!readOnly`, so not a suggester: a cover is not a plan
+            change their draft can hold, and the route refuses them). Not on
+            `/demo`, whose visitor has no session for the cover read. */}
+        {!isDemoTripId(tripId) && (
+          <div id="cover" ref={landing.cover} className="scroll-mt-4">
+            <CoverSection tripId={tripId} canEdit={!readOnly} onSettled={onCoverSettled} />
+          </div>
+        )}
+
         <div>
           <SectionHeading>Budget</SectionHeading>
           <TripMoneySettings
@@ -345,7 +421,7 @@ export function SettingsSheet({
             that read carries names, emails and the invite list — none of
             which live on TripDetail, and none of which should (they are
             Identity and Access data — packages/contracts/src/access.ts). */}
-        <div id="people" ref={scrollToPeople ? scrollIntoView : undefined} className="scroll-mt-4">
+        <div id="people" ref={landing.people} className="scroll-mt-4">
           <PeopleSection
             tripId={tripId}
             access={access}

@@ -430,6 +430,43 @@ html[data-look="ledger"] .shadow-raised {
     );
   }
 
+  /* A cover photo's veil (M37): the photo dissolves into whatever is under the
+     words, and the title stands on the fade — the front door's veil, applied
+     to a cover. Stops are the approved canvas's. `strip` is a home card's
+     132px strip, `band` the hero's 236px band, both into the card's surface;
+     `paper` is a playbook day's full-bleed cover, into the page. Classes, not
+     `bg-[linear-gradient(…)]`, for the colour wall's reason given above. */
+  .cover-veil-strip {
+    background: linear-gradient(
+      180deg,
+      transparent 45%,
+      color-mix(in srgb, var(--color-surface) 60%, transparent) 80%,
+      var(--color-surface) 100%
+    );
+  }
+  .cover-veil-band {
+    background: linear-gradient(
+      180deg,
+      transparent 30%,
+      color-mix(in srgb, var(--color-surface) 55%, transparent) 66%,
+      var(--color-surface) 100%
+    );
+  }
+  .cover-veil-paper {
+    background: linear-gradient(
+      180deg,
+      transparent 34%,
+      color-mix(in srgb, var(--color-paper) 35%, transparent) 52%,
+      color-mix(in srgb, var(--color-paper) 82%, transparent) 72%,
+      var(--color-paper) 90%
+    );
+  }
+  /* Light text laid on a photo (the hero's countdown): a soft shadow keeps it
+     readable on a bright sky, where the photo is not yet veiled. */
+  .cover-over-text {
+    text-shadow: 0 1px 2px color-mix(in srgb, var(--color-ink) 45%, transparent);
+  }
+
   /* SPEC §26's edit-mode affordance, and the property that matters is what it
      does NOT do: **the prose must not move when edit mode opens.**
 

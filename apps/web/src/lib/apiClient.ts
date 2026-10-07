@@ -1,6 +1,8 @@
 import {
   AskStreamMetadata,
   BatchableCommand,
+  CoverCandidate,
+  CoverSearchResponse,
   InviteLanding,
   NearbyStopsResponse,
   PageDoc,
@@ -15,6 +17,8 @@ import {
   SharedTripView,
   SuggestionChange,
   TripAccess,
+  TripCover,
+  TripCoverResponse,
   TripDetail,
   TripGlobals,
   TripWeatherResponse,
@@ -639,6 +643,72 @@ export async function resolveSuggestionChange(
     return networkError(err);
   } finally {
     endWrite(scope);
+  }
+}
+
+// ── Cover photos (M37) ───────────────────────────────────────────────────────
+// Not commands: a cover is trip metadata in its own table (D1), and TripDetail
+// does not carry it, so no trip read is invalidated by these writes. Home
+// reads the cover off `TripSummary` from `fetchTrips`, which is not cached.
+// A 503 `covers-unavailable` is the deployment having no Unsplash key; a 429
+// is our quota (search or pick) or, as `covers-rate-limited`, Unsplash's own.
+// The picker tells them apart by status and message.
+
+/** A cover route's refusal: `retryAfterSeconds` when it was a 429 that said. */
+export type CoverRefusal = ApiError & { retryAfterSeconds?: number };
+type CoverResult<T> = { ok: true; value: T } | { ok: false; error: CoverRefusal };
+
+/** The refusal with the 429's `retryAfterSeconds`, which both quotas and Unsplash's limit send. */
+function coverRefusal(res: Response) {
+  return refusal(res, (body) =>
+    typeof body.retryAfterSeconds === "number" ? { retryAfterSeconds: body.retryAfterSeconds } : {},
+  );
+}
+
+/** The trip's cover, or `null` for none. Asks Unsplash nothing. */
+export async function fetchTripCover(tripId: string): Promise<ApiResult<TripCover | null>> {
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/cover`));
+    return await readJson(res, (data) => TripCoverResponse.parse(data).cover);
+  } catch (err) {
+    return networkError(err);
+  }
+}
+
+/** One page (from 1) of photos for `q`, for an editor choosing a cover. Spends the search quota. */
+export async function searchTripCovers(tripId: string, q: string, page = 1): Promise<CoverResult<CoverCandidate[]>> {
+  try {
+    const params = new URLSearchParams({ q, page: String(page) });
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/cover/search?${params.toString()}`));
+    if (!res.ok) return await coverRefusal(res);
+    return await readJson(res, (data) => CoverSearchResponse.parse(data).results);
+  } catch (err) {
+    return networkError(err);
+  }
+}
+
+/** Makes `candidate` the trip's cover, and answers the stored cover. */
+export async function setTripCover(tripId: string, candidate: CoverCandidate): Promise<CoverResult<TripCover>> {
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/cover`), {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ candidate }),
+    });
+    if (!res.ok) return await coverRefusal(res);
+    return await readJson(res, (data) => TripCover.parse(TripCoverResponse.parse(data).cover));
+  } catch (err) {
+    return networkError(err);
+  }
+}
+
+/** Removes the trip's cover. */
+export async function clearTripCover(tripId: string): Promise<ApiResult<null>> {
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/cover`), { method: "DELETE" });
+    return await readJson(res, () => null);
+  } catch (err) {
+    return networkError(err);
   }
 }
 

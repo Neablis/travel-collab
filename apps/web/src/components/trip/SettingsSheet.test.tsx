@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Money, TripCommand, TripDetail } from "@tc/contracts";
@@ -33,6 +33,21 @@ vi.mock("@/lib/apiClient", () => ({
 // file's tests neither stub nor care about.
 vi.mock("@/components/trip/people/PeopleSection", () => ({
   PeopleSection: ({ tripId }: { tripId: string }) => <div data-testid="people-section">{tripId}</div>,
+}));
+
+// The cover section likewise has its own suite (`cover/CoverSection.test.tsx`)
+// and its own reads. What this file says about it is where it sits and who
+// may edit it, so the stub reports exactly that.
+// *Settle cover* stands for its opening reads landing (`onSettled`).
+vi.mock("@/components/trip/cover/CoverSection", () => ({
+  CoverSection: ({ canEdit, onSettled }: { canEdit: boolean; onSettled?: () => void }) => (
+    <>
+      <div data-testid="cover-section">{canEdit ? "editable" : "read-only"}</div>
+      <button type="button" onClick={() => onSettled?.()}>
+        Settle cover
+      </button>
+    </>
+  ),
 }));
 
 import { SettingsSheet } from "./SettingsSheet";
@@ -86,6 +101,8 @@ function renderSheet(
     counts?: TripCounts;
     /** Which trip the sheet is for. The demo trip's id is the one that matters. */
     tripId?: string;
+    /** The section the sheet was opened at. */
+    scrollTo?: "people" | "cover" | null;
   } = {},
 ) {
   const onCommand = overrides.onCommand ?? vi.fn();
@@ -105,6 +122,7 @@ function renderSheet(
       createdAt={overrides.createdAt ?? "2026-08-31T14:20:00.000Z"}
       readOnly={overrides.readOnly ?? false}
       canEditBoard={overrides.canEditBoard ?? !(overrides.readOnly ?? false)}
+      scrollTo={overrides.scrollTo ?? null}
       onCommand={onCommand}
     />,
   );
@@ -643,5 +661,107 @@ describe("SettingsSheet share", () => {
     // The sheet rendered, so an absent Share is the gate and not an empty tree.
     expect(screen.getByRole("link", { name: "Download Trip" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Share" })).toBeNull();
+  });
+});
+
+// M37 part 4: the approved artboard puts Cover photo after the overview and
+// before Budget, editable by whoever may write to the trip.
+describe("SettingsSheet cover photo", () => {
+  it("sits between the trip overview and Budget", () => {
+    renderSheet();
+    const sheet = screen.getByRole("dialog").textContent ?? "";
+    const overviewAt = sheet.indexOf("Trip overview");
+    const coverAt = sheet.indexOf("editable");
+    expect(overviewAt).toBeGreaterThan(-1);
+    expect(coverAt).toBeGreaterThan(overviewAt);
+    expect(sheet.indexOf("Budget")).toBeGreaterThan(coverAt);
+  });
+
+  // A suggester may edit the trip fields into a draft, but a cover is not a
+  // command, and the route refuses them: they read it, as a viewer does.
+  it.each([
+    ["a writer", { readOnly: false }, "editable"],
+    ["a suggester", { readOnly: true, canEditBoard: true }, "read-only"],
+    ["a viewer", { readOnly: true }, "read-only"],
+  ] as const)("gives %s a cover section that is %s", (_label, gate, expected) => {
+    renderSheet(gate);
+    expect(screen.getByTestId("cover-section").textContent).toBe(expected);
+  });
+
+  it("is not on /demo, whose visitor has no session to read it with", () => {
+    renderSheet({ readOnly: true, tripId: DEMO_TRIP_ID });
+    // Witness: the sheet rendered its other sections.
+    expect(screen.getByText("Trip overview")).toBeTruthy();
+    expect(screen.queryByTestId("cover-section")).toBeNull();
+  });
+
+  // Cover changes height when its reads land, and the landing does not
+  // survive it — People moves, and on a tall screen the scroll is clamped to
+  // the top — so the section asked for is landed on again once Cover settles.
+  describe("opened at a section", () => {
+    // The id of each element landed on: the section anchors.
+    const landed: string[] = [];
+    beforeEach(() => {
+      landed.length = 0;
+      Element.prototype.scrollIntoView = function (this: Element) {
+        landed.push(this.id);
+      };
+    });
+    afterEach(() => {
+      delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+    });
+
+    it.each(["people", "cover"] as const)("lands on %s again once Cover has settled, and nowhere else", (section) => {
+      renderSheet({ scrollTo: section });
+      expect(landed).toEqual([section]);
+      fireEvent.click(screen.getByRole("button", { name: "Settle cover" }));
+      expect(landed).toEqual([section, section]);
+    });
+
+    // PR #354's Tier 3: People's member list landed after Cover settled and
+    // left the sheet at its top. A change in the content's height lands
+    // again — until the person moves the sheet, which is theirs from then.
+    it("lands again when the content changes height, until the person scrolls", () => {
+      const resized: Array<() => void> = [];
+      vi.stubGlobal(
+        "ResizeObserver",
+        class {
+          constructor(callback: () => void) {
+            resized.push(callback);
+          }
+          observe() {}
+          disconnect() {
+            resized.length = 0;
+          }
+        },
+      );
+      try {
+        renderSheet({ scrollTo: "people" });
+        expect(landed).toEqual(["people"]);
+        resized.forEach((grew) => grew());
+        expect(landed).toEqual(["people", "people"]);
+        fireEvent.wheel(document);
+        resized.forEach((grew) => grew());
+        expect(landed).toEqual(["people", "people"]);
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+
+    // Opening the Dates popover re-renders the sheet; the landing is the
+    // open's, not each render's.
+    it("does not land again on an ordinary re-render", async () => {
+      renderSheet({ scrollTo: "people" });
+      await userEvent.click(screen.getByRole("button", { name: "Dates" }));
+      expect(landed).toEqual(["people"]);
+    });
+
+    it("lands nowhere, before or after, when opened at its top", () => {
+      renderSheet();
+      fireEvent.click(screen.getByRole("button", { name: "Settle cover" }));
+      // Witness: the stub's settle was reachable.
+      expect(screen.getByTestId("cover-section")).toBeTruthy();
+      expect(landed).toEqual([]);
+    });
   });
 });
