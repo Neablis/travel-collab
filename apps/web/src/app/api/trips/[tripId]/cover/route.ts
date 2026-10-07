@@ -1,11 +1,8 @@
-import { after } from "next/server";
-import { SetCoverBody, TripCoverResponse } from "@tc/contracts";
+import { TripCoverResponse } from "@tc/contracts";
 import { requireTripAccess } from "@/server/access/trip-access";
+import { coverPick, tripDeleted } from "@/server/coverRoutes";
 import { getCoverPhotos } from "@/server/external/unsplash";
-import { consumeQuota, quotaRefusal, unsplashPickQuota } from "@/server/quota";
-import { readBody } from "@/server/readBody";
 import { clearTripCover, getTripCover, setTripCover } from "@/server/tripCovers";
-import { coversUnavailable, tripDeleted } from "./responses";
 
 // A trip's cover photo (M37). Not a planning command: a cover is a decoration
 // on the trip, kept in its own table and never in the event log (D1), so these
@@ -25,41 +22,17 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tri
 }
 
 /**
- * Makes the picked candidate the trip's cover and answers `{ cover }`. The
- * candidate is re-checked against the cover source, charged to the pick quota
- * (its own, so searching cannot spend it), stored, and then reported to
- * Unsplash as a download after the response — once per pick, a re-pick of
- * the same photo included (guideline 2).
+ * Makes the picked candidate the trip's cover and answers `{ cover }`, with
+ * one download ping per pick, after the response (`coverPick`).
  */
 export async function PUT(request: Request, { params }: { params: Promise<{ tripId: string }> }) {
   const { tripId } = await params;
   const access = await requireTripAccess(tripId, "editor");
   if ("error" in access) return access.error;
   if (access.detail.status === "deleted") return tripDeleted();
-  const body = await readBody(request, SetCoverBody, "candidate is required");
-  if ("error" in body) return body.error;
-  const photos = getCoverPhotos();
-  if (photos === null) return coversUnavailable();
-  const { candidate } = body.data;
-  // The pick comes from the browser and its links are then shown to everyone
-  // on the trip, so it must be one the source could have returned: images on
-  // its CDN, credits on unsplash.com, the ping on its API.
-  if (!photos.owns(candidate)) return Response.json({ error: "not-a-cover-candidate" }, { status: 400 });
-  const quota = await consumeQuota(unsplashPickQuota(), access.userId);
-  if (!quota.allowed) return quotaRefusal(quota);
-  const cover = await setTripCover(tripId, candidate, access.userId);
-  // After the response, and not fatal to it: the cover is chosen whether or
-  // not Unsplash heard about it, so the person does not wait on a vendor round
-  // trip, and failing the pick over a lost ping would make them pick again —
-  // a second use, and a second ping.
-  after(async () => {
-    try {
-      await photos.trackDownload(candidate.downloadLocation);
-    } catch (error) {
-      console.error(`[covers] download ping failed: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  });
-  return Response.json(TripCoverResponse.parse({ cover }));
+  return coverPick(request, access.userId, getCoverPhotos(), (candidate) =>
+    setTripCover(tripId, candidate, access.userId),
+  );
 }
 
 /** Removes the trip's cover; answers `{ cover: null }`. */

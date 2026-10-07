@@ -1,5 +1,5 @@
 import { inArray, sql, type SQL } from "drizzle-orm";
-import { SavedDayVisibility } from "@tc/contracts";
+import { SavedDayVisibility, TripCover } from "@tc/contracts";
 import type { CityMatch } from "@/lib/cities";
 import {
   DISCOVER_PAGE_SIZE,
@@ -23,6 +23,7 @@ import { publicNameFor } from "@/lib/displayName";
 import { db, type Queryable } from "./db/client";
 import { users } from "./db/schema";
 import { isUuid } from "./ids";
+import { SAVED_DAY_COVER_JOIN, SAVED_DAY_COVER_JSON } from "./savedDayCovers";
 import { parseSavedDayColumns } from "./savedDayRow";
 
 // The public library's three read surfaces (M11b links 5, 7 and 8): Discover's
@@ -140,6 +141,8 @@ type DiscoverRow = {
   source_trip_name: string;
   created_at: unknown;
   published_at: unknown;
+  /** `SAVED_DAY_COVER_JSON`: the jsonb `TripCover`, or null for none. */
+  cover: unknown;
   matched_count: number;
 } & OwnerNames;
 
@@ -456,7 +459,23 @@ function toDiscoverDay(row: DiscoverRow, queryCities: string[], readerId: string
     createdAt: isoOf(row.created_at) ?? new Date(0).toISOString(),
     publishedAt: isoOf(row.published_at),
     isMine: row.owner_id === readerId,
+    cover: coverOfRow(row),
   };
+}
+
+/**
+ * The card's cover, or null. A cover that no longer parses costs the card its
+ * photo, never the card — `toDiscoverDay`'s rule for the rest of the row.
+ */
+function coverOfRow(row: Pick<DiscoverRow, "id" | "cover">): TripCover | null {
+  if (row.cover === null || row.cover === undefined) return null;
+  const parsed = TripCover.safeParse(row.cover);
+  if (parsed.success) return parsed.data;
+  console.error("saved_day_covers row failed TripCover parse; card shown without it", {
+    savedDayId: row.id,
+    issues: parsed.error.issues,
+  });
+  return null;
 }
 
 /**
@@ -591,17 +610,22 @@ function matchedCount(query: Pick<DiscoverQuery, "cities" | "countries">): SQL {
       )))`;
 }
 
-/** The columns a `DiscoverRow` is read from. */
+/**
+ * The columns a `DiscoverRow` is read from. `cover` needs `SAVED_DAY_COVER_JOIN`
+ * after `from saved_days d`: a row the predicates keep brings its cover, and a
+ * row they drop — private, moderated, deleted — takes it with it.
+ */
 const discoverColumns = sql`
       d.id, d.owner_id, d.name, d.stops, d.cities, d.visibility, d.adds, d.rating, d.review_count,
       d.author_kind, d.day_count, d.source_trip_name, d.created_at, d.published_at,
+      ${SAVED_DAY_COVER_JSON} as cover,
       ${ownerNames(sql`d.owner_id`)}`;
 
 export async function discoverDays(query: DiscoverQuery): Promise<DiscoverResponse> {
   const rows = await db.execute<DiscoverRow>(sql`
     select ${discoverColumns}, ${matchedCount(query)}::int as matched_count,
       count(*) over ()::int as total_count
-    from saved_days d
+    from saved_days d ${SAVED_DAY_COVER_JOIN}
     where ${matchPredicate(query)}
     order by ${orderBy(query.sort)}
     limit ${CANDIDATE_LIMIT}
@@ -741,7 +765,7 @@ export async function discoverPage(
     const want = page.limit - out.length;
     const rows = await db.execute<DiscoverRow>(sql`
       select ${discoverColumns}, ${matchedCount(full)}::int as matched_count
-      from saved_days d
+      from saved_days d ${SAVED_DAY_COVER_JOIN}
       where ${matchPredicate(full)}
         ${
           after === null
@@ -1073,7 +1097,7 @@ export async function publishedDaysPage(
   // a small slice of a library of a few hundred.
   const rows = await db.execute<DiscoverRow>(sql`
     select ${discoverColumns}, ${matchedCount(query)}::int as matched_count
-    from saved_days d
+    from saved_days d ${SAVED_DAY_COVER_JOIN}
     where ${matchPredicate(query)}
     order by ${orderBy(query.sort)}
   `);

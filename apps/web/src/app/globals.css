@@ -461,6 +461,20 @@ html[data-look="ledger"] .shadow-raised {
       var(--color-paper) 90%
     );
   }
+  /* A phone's band is shorter and its title wraps sooner, so the paper starts
+     rising earlier — the approved phone artboard's stops. 767px is `md`'s
+     edge, where the band grows to 440px. */
+  @media (max-width: 767px) {
+    .cover-veil-paper {
+      background: linear-gradient(
+        180deg,
+        transparent 28%,
+        color-mix(in srgb, var(--color-paper) 40%, transparent) 48%,
+        color-mix(in srgb, var(--color-paper) 86%, transparent) 70%,
+        var(--color-paper) 88%
+      );
+    }
+  }
   /* Light text laid on a photo (the hero's countdown): a soft shadow keeps it
      readable on a bright sky, where the photo is not yet veiled. */
   .cover-over-text {

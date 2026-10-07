@@ -904,7 +904,7 @@ export function makeNearbyStopsHandler(stops: NearbyStopsResponse["stops"]) {
 }
 
 // Our quota's refusal, as `quotaRefusal` words it, and Unsplash's own limit,
-// as the search route passes it on (`cover/responses.ts`).
+// as the search route passes it on (`server/coverRoutes.ts`).
 const QUOTA_429 = () =>
   HttpResponse.json(
     { error: "you've made too many requests — try again later", reason: "user", retryAfterSeconds: 60 },
@@ -918,7 +918,8 @@ const UPSTREAM_429 = () =>
 
 /**
  * The cover routes (M37): `GET`, `PUT` and `DELETE /api/trips/:tripId/cover`
- * and `GET …/cover/search`, over one in-memory cover. Search answers `pages[n-1]`
+ * and `GET …/cover/search` — or a saved day's, `/api/saved-days/:id/cover`,
+ * with `at: "saved-day"` — over one in-memory cover. Search answers `pages[n-1]`
  * for `?page=n` and nothing past the last. `search: "unavailable"` answers the
  * route's 503 (no Unsplash key here), `"quota"` our quota's 429 and
  * `"upstream-limit"` Unsplash's — the refusals the picker words differently.
@@ -935,13 +936,15 @@ export function makeCoverHandlers(
     pick?: "ok" | "quota";
     onSet?: (candidate: CoverCandidate) => void;
     onClear?: () => void;
+    at?: "trip" | "saved-day";
   } = {},
 ) {
   let cover = options.cover ?? null;
   let readFails = options.read === "fail-once" ? 1 : 0;
   const pages = options.pages ?? [];
+  const base = options.at === "saved-day" ? "/api/saved-days/:savedDayId/cover" : "/api/trips/:tripId/cover";
   return [
-    http.get("/api/trips/:tripId/cover/search", ({ request }) => {
+    http.get(`${base}/search`, ({ request }) => {
       if (options.search === "unavailable") return HttpResponse.json({ error: "covers-unavailable" }, { status: 503 });
       const params = new URL(request.url).searchParams;
       if (!params.get("q")?.trim()) return HttpResponse.json({ results: [] });
@@ -950,14 +953,14 @@ export function makeCoverHandlers(
       const page = Number(params.get("page") ?? "1");
       return HttpResponse.json({ results: pages[page - 1] ?? [] });
     }),
-    http.get("/api/trips/:tripId/cover", () => {
+    http.get(base, () => {
       if (readFails > 0) {
         readFails--;
         return HttpResponse.json({ error: "internal error" }, { status: 500 });
       }
       return HttpResponse.json({ cover });
     }),
-    http.put("/api/trips/:tripId/cover", async ({ request }) => {
+    http.put(base, async ({ request }) => {
       const { candidate } = SetCoverBody.parse(await request.json());
       if (options.pick === "quota") return QUOTA_429();
       options.onSet?.(candidate);
@@ -972,7 +975,7 @@ export function makeCoverHandlers(
       };
       return HttpResponse.json({ cover });
     }),
-    http.delete("/api/trips/:tripId/cover", () => {
+    http.delete(base, () => {
       options.onClear?.();
       cover = null;
       return HttpResponse.json({ cover: null });

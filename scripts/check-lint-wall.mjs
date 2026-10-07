@@ -393,6 +393,25 @@ expectClean(
   "unsplash: a saved day's cover route may import the port",
 );
 expectClean(
+  lintFixture("unsplash_saved_day_cover_search_fixture", UNSPLASH_IMPORT, {
+    file: "src/app/api/saved-days/[savedDayId]/cover/search/route.ts",
+  }),
+  "unsplash: a saved day's cover search may import the port",
+);
+expectRejectedBy(
+  lintFixture("unsplash_saved_day_read_fixture", UNSPLASH_IMPORT, { file: "src/app/api/saved-days/[savedDayId]/route.ts" }),
+  "no-restricted-imports",
+  "unsplash: the shared-day read route (a page view) correctly rejected",
+);
+// The day page may import `@/server` (the playbooks page exemption), and its
+// block restates `no-restricted-imports` without the Unsplash patterns — so
+// what holds it is the wall's path zone, which that block leaves in place.
+expectRejectedBy(
+  lintFixture("unsplash_day_page_fixture", UNSPLASH_IMPORT, { file: "src/app/(app)/playbooks/day/[savedDayId]/page.tsx" }),
+  "import/no-restricted-paths",
+  "unsplash: the server-rendered day page (inside the playbooks page exemption) correctly rejected",
+);
+expectClean(
   lintFixture("unsplash_port_fixture", 'import { createUnsplash } from "./unsplash";\nexport const own = createUnsplash;\n', {
     dir: "src/server/external/unsplash",
     ext: "ts",

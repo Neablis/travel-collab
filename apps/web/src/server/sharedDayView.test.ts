@@ -10,6 +10,9 @@ vi.mock("./savedDays", () => ({
   publishedAtOf: async () => null,
   moderationOf: async () => null,
 }));
+// The cover is read beside the day (M37 part 5), after the read seam.
+const COVER = { unsplashId: "p-1" };
+vi.mock("./savedDayCovers", () => ({ getSavedDayCover: async () => COVER }));
 
 import { sharedDayRead, sharedDayView } from "./sharedDayView";
 
@@ -31,5 +34,6 @@ describe("sharedDayView", () => {
     const view = await sharedDayView("d-1", null);
     expect(publicAuthor).toHaveBeenCalledWith("dev-alice");
     expect(view?.author).toEqual({ userId: "dev-alice", displayName: "Alice C." });
+    expect(view?.cover).toBe(COVER);
   });
 });

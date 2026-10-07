@@ -48,8 +48,8 @@ const gatewayWallZones = [
 // Enforced by the gateway block below, which already covers all of `src` with
 // both rules; the importers listed here are its `ignores`, and the block after
 // it re-asserts the gateway wall for them alone. `[` is escaped because a glob
-// reads `[tripId]` as a character class. Part 5 of the M37 plan adds the saved
-// day's cover routes here; the path is listed ahead of them.
+// reads `[tripId]` as a character class. A playbook day's cover routes (M37
+// part 5) are the third entry, on the same terms.
 // The assistant-kernel block restates the gateway wall and not this one; it
 // needs no copy, because its allowlist already refuses all of `@/server`
 // outside the kernel.
@@ -60,7 +60,7 @@ const UNSPLASH_IMPORTERS = [
 ];
 
 const UNSPLASH_WALL_MESSAGE =
-  "Only the cover routes (app/api/trips/[tripId]/cover/**) may import the Unsplash port — no page view calls Unsplash (M37 D2). A page reads the stored cover from TripSummary.cover.";
+  "Only the cover routes (app/api/trips/[tripId]/cover/** and app/api/saved-days/[savedDayId]/cover/**) may import the Unsplash port — no page view calls Unsplash (M37 D2). A page reads the stored cover (TripSummary.cover, DiscoverDay.cover, the shared day's `cover`); shared route logic takes the port as an argument (server/coverRoutes.ts).";
 
 const unsplashWallPatterns = [
   {

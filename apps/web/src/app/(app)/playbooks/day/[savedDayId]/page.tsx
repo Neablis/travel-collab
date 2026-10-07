@@ -122,17 +122,21 @@ export default async function SharedDayPage({
         publishedDaysPage({ authorId: view.day.ownerId }, page).then(({ days }) => days),
       ])
     : [[], []];
+  // The screen sets its own width and top (M37 part 5): a day with a cover
+  // runs its photo edge to edge under the header, so `<main>` holds no column.
   return (
-    <main className="mx-auto max-w-6xl px-6 py-8">
+    <main className="pb-8">
       {structured !== null && <JsonLd data={structured} />}
       <SharedDayScreen savedDayId={view.day.savedDayId} backHref={back.href} backLabel={back.label} initial={view} />
-      <RelatedDays
-        savedDayId={view.day.savedDayId}
-        cityName={firstCity}
-        authorName={view.author.displayName}
-        sameCity={sameCity}
-        sameAuthor={sameAuthor}
-      />
+      <div className="mx-auto max-w-6xl px-6">
+        <RelatedDays
+          savedDayId={view.day.savedDayId}
+          cityName={firstCity}
+          authorName={view.author.displayName}
+          sameCity={sameCity}
+          sameAuthor={sameAuthor}
+        />
+      </div>
     </main>
   );
 }

@@ -50,8 +50,9 @@ const VEIL_CLASS: Record<CoverVeil, string> = {
  * A fixed-height box filled by the cover photo, cropped to cover it, with an
  * optional veil and anything the caller lays over the top (a badge, a menu).
  * The caller sets the height in `className`, so the box never changes size
- * when the image arrives. Lazy unless `eager` — the hero, which is above the
- * fold, is the one eager caller.
+ * when the image arrives. Lazy unless `eager` — the hero and a playbook day's
+ * cover, which are above the fold, are the eager callers; `priority` also asks
+ * the browser to fetch it first, for the one image that is the page's largest.
  */
 export function CoverImage({
   photo,
@@ -59,6 +60,7 @@ export function CoverImage({
   sizes,
   veil,
   eager = false,
+  priority = false,
   children,
 }: {
   photo: CoverPhoto;
@@ -68,6 +70,8 @@ export function CoverImage({
   sizes: string;
   veil?: CoverVeil;
   eager?: boolean;
+  /** Eager and `fetchpriority="high"`: the page's largest image. */
+  priority?: boolean;
   children?: ReactNode;
 }) {
   return (
@@ -78,7 +82,8 @@ export function CoverImage({
         srcSet={WIDTHS.map((w) => `${coverSrc(photo.urls.raw, w)} ${w}w`).join(", ")}
         sizes={sizes}
         alt={coverAlt(photo)}
-        loading={eager ? "eager" : "lazy"}
+        loading={eager || priority ? "eager" : "lazy"}
+        fetchPriority={priority ? "high" : undefined}
         decoding="async"
         className="absolute inset-0 size-full object-cover"
       />

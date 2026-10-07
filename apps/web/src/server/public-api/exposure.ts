@@ -94,6 +94,9 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
   // quota, so publishing it is a decision, not a default.
   "trips/[tripId]/cover": PLANNED("Undecided — a trip's cover photo (M37)"),
   "trips/[tripId]/cover/search": PLANNED("Undecided — searching Unsplash for a cover; spends the vendor's quota (M37)"),
+  // M37 part 5: the trip cover routes' terms, for a playbook day's author.
+  "saved-days/[savedDayId]/cover": PLANNED("Undecided — a playbook day's cover photo (M37)"),
+  "saved-days/[savedDayId]/cover/search": PLANNED("Undecided — searching Unsplash for a day's cover; spends the vendor's quota (M37)"),
 
   // ── Never ────────────────────────────────────────────────────────────────
   "trips/[tripId]/ask": {

@@ -1,4 +1,4 @@
-import type { SavedDay, SavedDayModeration } from "@tc/contracts";
+import type { SavedDay, SavedDayModeration, TripCover } from "@tc/contracts";
 import type { PublicAuthor } from "./playbooks";
 
 /**
@@ -15,4 +15,10 @@ export type SharedDayView = {
   publishedAt?: string | null;
   /** An operator hid it (KI-2026-09-23-i). Only ever non-null on the author's own read. */
   moderation: SavedDayModeration | null;
+  /**
+   * The cover its author picked (M37 part 5), or null. Beside the day rather
+   * than on `SavedDay`, `publishedAt`'s way: `SavedDay` is the library's
+   * content and every owner read, and this is one read's picture of it.
+   */
+  cover: TripCover | null;
 };

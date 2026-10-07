@@ -161,6 +161,22 @@ describe("openapi.json is derived from the declarations", () => {
     }
   });
 
+  // PR #354 review: the server sends a Discover card's `cover` on every card,
+  // null for none, so the document must not call it optional — as the app's
+  // own defaulted `DiscoverDay.cover` would have it published.
+  it("publishes a Discover card's cover as always present, and null for none", async () => {
+    const doc = JSON.parse(await generate()) as {
+      paths: Record<string, { get: { responses: Record<string, { content: Record<string, { schema: unknown }> }> } }>;
+    };
+    const page = doc.paths["/v1/discover/playbooks"]!.get.responses["200"]!.content["application/json"]!.schema as {
+      properties: { items: { items: { required: string[]; properties: Record<string, { nullable?: boolean; default?: unknown }> } } };
+    };
+    const card = page.properties.items.items;
+    expect(card.required).toContain("cover");
+    expect(card.properties.cover).toMatchObject({ nullable: true });
+    expect(card.properties.cover).not.toHaveProperty("default");
+  });
+
   // **A summary says what the call does, not where it lives.** Every operation
   // used to be titled `"GET /v1/…"`, and an external agent reading the reference
   // never found the place search behind `GET …/geocode`. The type makes a

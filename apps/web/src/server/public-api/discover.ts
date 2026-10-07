@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TripCover } from "@tc/contracts";
 import { DiscoverDay, DiscoverSort, LengthBand, RatingFloor } from "@/lib/playbooks";
 import { discoverPage } from "@/server/playbooks";
 import type { CollectionDef } from "./route";
@@ -43,7 +44,12 @@ const Query = z.object({
 });
 type Query = z.infer<typeof Query>;
 
-const ApiDiscoverDay = DiscoverDay.omit({ ownerDisplayName: true });
+// **`cover` is always sent, so it is published as required** — null for a
+// day with none (PR #354 review). The app's `DiscoverDay` defaults it, so a
+// client mid-rollout can parse a card from before it; a caller of v1 reads
+// only what this server sends, and an optional field would tell them to
+// handle its absence for nothing.
+const ApiDiscoverDay = DiscoverDay.omit({ ownerDisplayName: true }).extend({ cover: TripCover.nullable() });
 type ApiDiscoverDay = z.infer<typeof ApiDiscoverDay>;
 
 export const discoverPlaybooksDef: CollectionDef<ApiDiscoverDay> = {

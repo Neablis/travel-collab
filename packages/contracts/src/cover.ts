@@ -48,22 +48,23 @@ export const CoverCandidate = z.object({
 });
 export type CoverCandidate = z.infer<typeof CoverCandidate>;
 
-/** `GET /api/trips/:tripId/cover/search` — one page of candidates. */
+/** `GET /api/trips/:tripId/cover/search` and `/api/saved-days/:savedDayId/cover/search` — one page of candidates. */
 export const CoverSearchResponse = z.object({
   results: z.array(CoverCandidate),
 });
 export type CoverSearchResponse = z.infer<typeof CoverSearchResponse>;
 
-/** `PUT /api/trips/:tripId/cover` — the photo the editor picked. */
+/** `PUT /api/trips/:tripId/cover` (an editor) or `/api/saved-days/:savedDayId/cover` (the author) — the photo picked. */
 export const SetCoverBody = z.object({
   candidate: CoverCandidate,
 });
 export type SetCoverBody = z.infer<typeof SetCoverBody>;
 
 /**
- * A trip's chosen cover, as every surface that shows it reads it: the images
- * and the credit (photographer and photo page), stored with the choice so a
- * page never asks Unsplash for them (D2).
+ * A chosen cover — a trip's, or a playbook day's (M37 part 5) — as every
+ * surface that shows it reads it: the images and the credit (photographer and
+ * photo page), stored with the choice so a page never asks Unsplash for them
+ * (D2). Named for the trip, which had one first.
  */
 export const TripCover = z.object({
   /** Unsplash's photo id, so the picker can mark the current one. */
@@ -76,7 +77,7 @@ export const TripCover = z.object({
 });
 export type TripCover = z.infer<typeof TripCover>;
 
-/** `GET` and `PUT /api/trips/:tripId/cover` — the trip's cover, or `null` for none. */
+/** `GET` and `PUT` on a trip's or a saved day's `/cover` — its cover, or `null` for none. */
 export const TripCoverResponse = z.object({
   cover: TripCover.nullable(),
 });

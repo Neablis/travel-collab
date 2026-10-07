@@ -176,6 +176,7 @@ describe("/playbooks/day/<slug>-<id> metadata", () => {
       pinning: false,
       publishedAt: null,
       moderation: over.moderation ?? null,
+      cover: null,
     } satisfies SharedDayView,
     rating: { rating: null, reviewCount: 0 },
   });

@@ -127,7 +127,11 @@ test("passes against the checked-in config, and every rejection names the rule t
   // relative spelling and the trip read route are refused the port; both cover
   // routes and the port's own files are not; the cover routes keep the gateway
   // wall. Caught by running this file in the Tier 2 subset, as the skill says.
-  assert.equal(stdout.trim().split("\n").length, 58,`the wall's assertion count changed:\n${stdout}`);
+  //
+  // **58 → 61 on 2026-10-06**: M37 part 5 — a playbook day's cover search may
+  // import the port; the shared-day read route and the server-rendered day
+  // page may not.
+  assert.equal(stdout.trim().split("\n").length, 61,`the wall's assertion count changed:\n${stdout}`);
 });
 
 // THE REGRESSION THIS ENTRY EXISTS FOR. Both fixtures below trip a second, unrelated rule

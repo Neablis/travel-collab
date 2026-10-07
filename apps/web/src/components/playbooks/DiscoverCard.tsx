@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { CoverCredit } from "@/components/cover/CoverCredit";
+import { CoverImage } from "@/components/cover/CoverImage";
 import { DataText } from "@/components/ui/data-text";
 import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
@@ -80,79 +82,75 @@ export function DiscoverCard({ day, origin }: { day: DiscoverDay; origin: BackOr
   const rated = ratingLine(day);
   const back = backQuery(origin);
   const chips = cityChips(day);
-  return (
-    <Card
-      raised
-      as="li"
-      data-testid="discover-card"
-      data-saved-day-id={day.savedDayId}
-      className="flex flex-col gap-3 rounded-lg p-4"
-    >
-      {/* `dc.html:2610-2626`: the cities lead, with the card's own marks at the
-          far end of the same row; then the title, with the facts line directly
-          under it. The title used to lead and the chips sat below the badges,
-          which put the thing a reader scans a grid for — where — mid-card.
-
-          Filled = matched, outlined = the rest. The distinction is the whole
-          point of "a day matches on ANY city it contains": the card has to show
-          that the Kyoto you asked for is one of three cities this day covers,
-          or the extra cities look like a mistake rather than the offer. */}
-      <div className="flex flex-wrap items-start gap-2">
-        <ul className="flex flex-wrap gap-x-1.5 gap-y-6 md:gap-y-1.5" data-testid="city-chips">
-          {chips.shown.map((city) => {
-            const matched = day.matchedCities.includes(city);
-            const href = cityPath(city);
-            const chip = (
-              <span
-                data-city={city}
-                data-matched={matched}
-                className={cn(
-                  "relative rounded-full px-2.5 py-0.5 text-2xs font-semibold tracking-wide uppercase group-hover/chip:underline",
-                  matched
-                    ? "bg-brand-tint text-brand-pressed"
-                    : "border border-hairline bg-surface text-slate",
-                )}
-              >
-                {city}
-              </span>
-            );
-            // The chip opens its city's page (SEO pass, D6); a city whose name
-            // has no slug has no page and stays a label. A 44px target and a
-            // 20px chip on a phone, as `StopTagChips` draws its tags
-            // (KI-2026-09-24-m): the link is the hit area, `-my-3` hands back
-            // the 24px `min-h-11` adds, and `md:` releases it. A named group,
-            // because the hover belongs to the chip, not to the card.
-            return (
-              <li key={city} className="flex">
-                {href === null ? (
-                  chip
-                ) : (
-                  <Link
-                    href={href}
-                    className="group/chip inline-flex min-h-11 -my-3 items-center md:my-0 md:min-h-0"
-                  >
-                    {chip}
-                  </Link>
-                )}
-              </li>
-            );
-          })}
-          {chips.hidden.length > 0 && (
-            <li
-              title={chips.hidden.join(", ")}
-              data-testid="city-chips-more"
-              className="rounded-full border border-hairline bg-surface px-2.5 py-0.5 text-2xs font-semibold tracking-wide text-slate uppercase"
+  const { cover } = day;
+  // `dc.html:2610-2626`: the cities lead, with the card's own marks at the far
+  // end of the same row; then the title, with the facts line directly under
+  // it. The title used to lead and the chips sat below the badges, which put
+  // the thing a reader scans a grid for — where — mid-card.
+  //
+  // Filled = matched, outlined = the rest. The distinction is the whole point
+  // of "a day matches on ANY city it contains": the card has to show that the
+  // Kyoto you asked for is one of three cities this day covers, or the extra
+  // cities look like a mistake rather than the offer.
+  const chipRow = (
+    <div className="flex flex-wrap items-start gap-2">
+      <ul className="flex flex-wrap gap-x-1.5 gap-y-6 md:gap-y-1.5" data-testid="city-chips">
+        {chips.shown.map((city) => {
+          const matched = day.matchedCities.includes(city);
+          const href = cityPath(city);
+          const chip = (
+            <span
+              data-city={city}
+              data-matched={matched}
+              className={cn(
+                "relative rounded-full px-2.5 py-0.5 text-2xs font-semibold tracking-wide uppercase group-hover/chip:underline",
+                matched
+                  ? "bg-brand-tint text-brand-pressed"
+                  : "border border-hairline bg-surface text-slate",
+              )}
             >
-              +{chips.hidden.length} more
+              {city}
+            </span>
+          );
+          // The chip opens its city's page (SEO pass, D6); a city whose name
+          // has no slug has no page and stays a label. A 44px target and a
+          // 20px chip on a phone, as `StopTagChips` draws its tags
+          // (KI-2026-09-24-m): the link is the hit area, `-my-3` hands back
+          // the 24px `min-h-11` adds, and `md:` releases it. A named group,
+          // because the hover belongs to the chip, not to the card.
+          return (
+            <li key={city} className="flex">
+              {href === null ? (
+                chip
+              ) : (
+                <Link
+                  href={href}
+                  className="group/chip inline-flex min-h-11 -my-3 items-center md:my-0 md:min-h-0"
+                >
+                  {chip}
+                </Link>
+              )}
             </li>
-          )}
-        </ul>
-        <span className="flex flex-1 flex-wrap items-center justify-end gap-1.5">
-          {day.isMine && <Badge variant="brand">Yours</Badge>}
-          {day.visibility === "private" && <Badge variant="neutral">Private</Badge>}
-        </span>
-      </div>
-
+          );
+        })}
+        {chips.hidden.length > 0 && (
+          <li
+            title={chips.hidden.join(", ")}
+            data-testid="city-chips-more"
+            className="rounded-full border border-hairline bg-surface px-2.5 py-0.5 text-2xs font-semibold tracking-wide text-slate uppercase"
+          >
+            +{chips.hidden.length} more
+          </li>
+        )}
+      </ul>
+      <span className="flex flex-1 flex-wrap items-center justify-end gap-1.5">
+        {day.isMine && <Badge variant="brand">Yours</Badge>}
+        {day.visibility === "private" && <Badge variant="neutral">Private</Badge>}
+      </span>
+    </div>
+  );
+  const body = (
+    <>
       {line !== null && (
         <Text variant="secondary" data-testid="match-line">
           {line}
@@ -197,6 +195,9 @@ export function DiscoverCard({ day, origin }: { day: DiscoverDay; origin: BackOr
           {day.totalCost !== null &&
             ` · ${formatMoney(day.totalCost.amountMinor, day.totalCost.currency)} each`}
         </DataText>
+        {/* The photo's credit, under the facts it heads (Unsplash's
+            guidelines: wherever the photo is). */}
+        {cover !== null && <CoverCredit photo={cover} className="mt-1.5" />}
       </div>
 
       {/* `dc.html:2630-2642`: the rating sits between the facts line and the
@@ -250,6 +251,50 @@ export function DiscoverCard({ day, origin }: { day: DiscoverDay; origin: BackOr
           Added to {day.adds} trip{day.adds === 1 ? "" : "s"}
         </Text>
       </div>
+    </>
+  );
+  return (
+    <Card
+      raised
+      as="li"
+      data-testid="discover-card"
+      data-saved-day-id={day.savedDayId}
+      className={cn("flex flex-col rounded-lg", cover === null ? "gap-3 p-4" : "overflow-hidden p-0")}
+    >
+      {cover === null ? (
+        <>
+          {chipRow}
+          {body}
+        </>
+      ) : (
+        // **With a cover the photo leads** (M37 part 5, the approved
+        // `DiscoverCards` artboard): 150px, fading into the card's surface,
+        // with the city chips standing on the fade where they led before.
+        // Lazy: a grid of thirty is mostly below the fold.
+        //
+        // 150px is a floor, not a height. On a phone each chip row costs 44px
+        // (a 20px chip, `gap-y-6` keeping the 44px hit areas apart), so three
+        // long names and "+N more" wrap to four rows and need 176px; an
+        // overlay pinned to the foot of a fixed 150px box grew up past its
+        // top and the photo clipped the first chip (PR #354 review, measured
+        // by `m37-playbook-cover.spec.ts`). The row sits in flow at the foot
+        // instead, and only a card that needs the room gets a taller photo —
+        // the veil is in percentages, so the chips stay on the fade.
+        <>
+          <CoverImage
+            photo={cover}
+            veil="strip"
+            sizes="(min-width: 1024px) 360px, (min-width: 640px) 50vw, 100vw"
+            className="flex min-h-37.5 shrink-0 flex-col justify-end"
+          >
+            {/* `py-3`: a chip's phone hit area reaches 12px past it either
+                way (`-my-3` on `min-h-11`), and the photo clips what passes
+                its edge. `relative` paints it over the photo and veil. */}
+            <div className="relative px-4 py-3">{chipRow}</div>
+          </CoverImage>
+          <div className="flex flex-1 flex-col gap-3 px-4 pt-2 pb-4">{body}</div>
+        </>
+      )}
     </Card>
   );
 }

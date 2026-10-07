@@ -16,12 +16,19 @@ export function Dialog({
   onOpenChange,
   title,
   size = "default",
+  onCloseAutoFocus,
   children,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: string;
   size?: "default" | "wide";
+  /**
+   * Where focus goes on close, for a dialog whose opener may be gone by then:
+   * `preventDefault()` the event and focus the control that is there now.
+   * Without it focus returns to a `Dialog.Trigger`, and with none, to `<body>`.
+   */
+  onCloseAutoFocus?: (event: Event) => void;
   children: React.ReactNode;
 }) {
   return (
@@ -56,6 +63,7 @@ export function Dialog({
           // is already outside the inline-style wall's scope, so the directive
           // that used to sit here suppressed nothing.)
           style={{ maxHeight: "85vh" }}
+          onCloseAutoFocus={onCloseAutoFocus}
         >
           <div className="mb-3 flex items-start justify-between gap-3">
             <RadixDialog.Title asChild>

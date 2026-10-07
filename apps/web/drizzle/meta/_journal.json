@@ -302,6 +302,13 @@
       "when": 1791299766371,
       "tag": "0042_trip_covers",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1791307554823,
+      "tag": "0043_saved_day_covers",
+      "breakpoints": true
     }
   ]
 }

@@ -75,7 +75,7 @@ import {
 import type { Location } from "@tc/contracts";
 import { randomUUID } from "node:crypto";
 import { db } from "@/server/db/client";
-import { savedDayAdds, savedDays } from "@/server/db/schema";
+import { savedDayAdds, savedDayCovers, savedDays } from "@/server/db/schema";
 import { executeTripCommand, executeTripCommandBatch } from "@/server/commands";
 import { newSavedDayRow } from "@/server/savedDays";
 import { recordAdd } from "@/server/savedDayAdds";
@@ -180,6 +180,12 @@ export async function importPlaybooks(bundle: ContentBundleV1, prune: boolean) {
     const moderation = await carryModeration(tx, ids);
     // Ledger first: `saved_day_adds` has no foreign key (this schema's
     // convention), so removing the days first would orphan it.
+    //
+    // A cover is carried, not cleared (M37 part 5): a re-imported day keeps
+    // its id, and `saved_day_covers` is keyed by it with no foreign key, so
+    // leaving the row alone is the carry. Its author chose it on the live
+    // site; a content fix to the stops is no reason to lose it. A day the
+    // prune below removes for good loses its cover with it.
     if (ids.length > 0) {
       await tx.delete(savedDayAdds).where(inArray(savedDayAdds.savedDayId, ids));
       await tx.delete(savedDays).where(inArray(savedDays.id, ids));
@@ -202,6 +208,7 @@ export async function importPlaybooks(bundle: ContentBundleV1, prune: boolean) {
       const staleIds = stale.map((r) => r.id);
       if (staleIds.length > 0) {
         await tx.delete(savedDayAdds).where(inArray(savedDayAdds.savedDayId, staleIds));
+        await tx.delete(savedDayCovers).where(inArray(savedDayCovers.savedDayId, staleIds));
         await tx.delete(savedDays).where(inArray(savedDays.id, staleIds));
         pruned = staleIds.length;
       }

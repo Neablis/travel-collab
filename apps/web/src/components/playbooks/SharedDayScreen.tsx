@@ -2,16 +2,20 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Fragment, useCallback, useEffect, useRef, useState } from "react";
-import type { SavedDay, TimeFormat } from "@tc/contracts";
+import { Check, Share } from "lucide-react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { SavedDay, TimeFormat, TripCover } from "@tc/contracts";
 import { Badge } from "@/components/ui/badge";
+import { CoverCredit } from "@/components/cover/CoverCredit";
+import { CoverImage } from "@/components/cover/CoverImage";
+import { CoverPicker, type CoverApi } from "@/components/cover/CoverPicker";
 import { SharedDayMap } from "./SharedDayMap";
 import { mapPanel } from "./sharedDayFacts";
 import { scopedGeometry } from "./sharedDayGeometry";
 import { useDistanceUnit } from "@/components/account/PreferencesProvider";
 import { useSessionUser } from "@/components/account/useSessionUser";
 import { Banner } from "@/components/ui/banner";
-import { Button } from "@/components/ui/button";
+import { Button, PHONE_TOUCH } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogFooter } from "@/components/ui/dialog";
 import { DataText } from "@/components/ui/data-text";
@@ -22,15 +26,20 @@ import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
 import { formatMoney } from "@/lib/formatMoney";
 import {
+  clearSavedDayCover,
   deleteSavedDay,
   fetchPublicProfile,
   fetchSavedDay,
+  fetchSavedDayCover,
   publishSavedDay,
+  searchSavedDayCovers,
+  setSavedDayCover,
   unpublishSavedDay,
   type ApiResult,
 } from "@/lib/apiClient";
 import type { SharedDayView } from "@/lib/sharedDayView";
 import { takePlaybookAdd } from "@/lib/pendingPlaybookAdd";
+import { cn } from "@/lib/cn";
 import { cityPath, dayPath, daySegment } from "@/lib/playbookUrls";
 import { dayLength, savedDayFacts, DAY_LENGTH_LABELS } from "@/lib/savedDayFacts";
 import { toClockLabel, toClockRange } from "@/lib/time";
@@ -179,6 +188,7 @@ async function readDay(savedDayId: string): Promise<ApiResult<SharedDayView>> {
       pinning: dayResult.value.pinning,
       publishedAt: dayResult.value.publishedAt,
       moderation: dayResult.value.moderation ?? null,
+      cover: dayResult.value.cover ?? null,
     },
   };
 }
@@ -187,7 +197,13 @@ async function readDay(savedDayId: string): Promise<ApiResult<SharedDayView>> {
 // reader — the day's stops are a snapshot and never change after it is saved.
 // At module level, not in a `useCallback`: `useLibraryRead` tells "the question
 // the server already answered" from a new one by this function's identity.
+// Not the cover: only its author changes it, and from this page.
 const signature = (value: SharedDayView) => `${value.day.visibility}:${value.day.adds}`;
+
+// The page's own width, which the cover band alone breaks out of (M37 part 5):
+// the day page's `<main>` no longer sets it, so the band can run edge to edge
+// without a `100vw` that a scrollbar would turn into a sideways scroll.
+const COLUMN = "mx-auto w-full max-w-6xl px-6";
 
 /** The shared-day screen: the title block, the stops, the author strip, the map and the rail. */
 export function SharedDayScreen({
@@ -228,6 +244,22 @@ export function SharedDayScreen({
   const [visibilityError, setVisibilityError] = useState<string | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  // The cover picker (M37 part 5): the trip settings picker, pointed at this
+  // day's cover routes. Only its author ever opens it.
+  const [choosingCover, setChoosingCover] = useState(false);
+  // *Add cover* or *Change cover*, whichever the page has now. A pick or a
+  // removal swaps one for the other under the open dialog, so the one that
+  // opened it is gone when it closes, and focus would fall to `<body>`.
+  const coverControl = useRef<HTMLButtonElement>(null);
+  const coverApi = useMemo<CoverApi>(
+    () => ({
+      read: () => fetchSavedDayCover(savedDayId),
+      search: (q, page) => searchSavedDayCovers(savedDayId, q, page),
+      set: (candidate) => setSavedDayCover(savedDayId, candidate),
+      clear: () => clearSavedDayCover(savedDayId),
+    }),
+    [savedDayId],
+  );
   const router = useRouter();
   const unit = useDistanceUnit();
   // The day's `publishedAt` as this page read it: a review held offline sends
@@ -347,7 +379,7 @@ export function SharedDayScreen({
   // so the copy cannot claim to know which.
   if (feed.data === null && feed.error !== null && !feed.loading) {
     return (
-      <div className="flex flex-col gap-4">
+      <div className={cn(COLUMN, "flex flex-col gap-4 pt-8")}>
         <BackLink href={backHref} label={backLabel} />
         <EmptyState
           title="This day is not in the library"
@@ -369,14 +401,14 @@ export function SharedDayScreen({
 
   if (feed.data === null) {
     return (
-      <div className="flex flex-col gap-4">
+      <div className={cn(COLUMN, "flex flex-col gap-4 pt-8")}>
         <BackLink href={backHref} label={backLabel} />
         <SharedDaySkeleton />
       </div>
     );
   }
 
-  const { day, isAuthor, author, moderation } = feed.data;
+  const { day, isAuthor, author, moderation, cover } = feed.data;
   const facts = savedDayFacts(day.stops, day.dayCount);
   const length = dayLength(facts.window);
   const groups = playbookDays(day);
@@ -386,447 +418,485 @@ export function SharedDayScreen({
   const panel = mapPanel(scopedGeometry(groups, dayScope), unit);
   const scopedGroup = dayScope === "all" ? null : (visibleGroups[0] ?? null);
 
+  // Where, each city a way to that city's page (SEO pass, D6) — and so the
+  // link a crawler follows from a day to the place it belongs to. A private
+  // day, or one an operator hid, is in no city's list, so its author sees the
+  // names without the links. Under the title, or over it on a cover.
+  const cityLinks = day.cities.map((city, i) => (
+    <Fragment key={city}>
+      {i > 0 && (cover === null ? ", " : " · ")}
+      {day.visibility === "public" && moderation === null ? <CityLink city={city} overPhoto={cover !== null} /> : city}
+    </Fragment>
+  ));
+  // §33.1: **the title block always speaks for the whole Playbook**, so no
+  // number below it is stated twice. This line is why the rail no longer
+  // carries Days, Stops or Kept in — it owned three facts the title should
+  // have.
+  //
+  // The clock range rides this line too, as the artboard's `meta` does
+  // (`dc.html:6872`) — and it is NOT gated on the day count. `facts.window` is
+  // null for a Playbook over one day (ADR-048 decision 4: no single window
+  // spans a night), so the one line reads right for both without a branch of
+  // its own. It used to be a rail row shown only when `dayCount === 1`, which
+  // made the two kinds of Playbook lay out differently for no reason a reader
+  // could see (Mitchell, M27 link 10: "Multiday and single day playbooks
+  // should mostly look the same").
+  const metaLine = [
+    day.dayCount > 1 ? `${day.dayCount} days` : null,
+    `${day.stops.length} stop${day.stops.length === 1 ? "" : "s"}`,
+    facts.window !== null ? toClockRange(facts.window.start, facts.window.end, clock) : null,
+    `kept in ${keptInLine(day.createdAt)}`,
+  ]
+    .filter((part) => part !== null)
+    .join(" · ");
+  const share = <ShareDayButton path={dayPath(day)} title={day.name} overPhoto={cover !== null} />;
+  // The author's way into the picker: *Add cover* beside Share on a day with
+  // none, *Change cover* over the photo on a day with one. Nobody else is
+  // offered either; the routes refuse them regardless.
+  const openPicker = () => setChoosingCover(true);
+
   return (
-    <div className="flex flex-col gap-4">
-      <BackLink href={backHref} label={backLabel} />
-
-      <SyncFailure read={feed} what="this day" />
-      <LibraryMoved read={feed}>
-        This day has changed since you opened it — its author published, withdrew or someone took it.
-      </LibraryMoved>
-      <ReviewConflictBanner reviews={reviews} />
-      {withdrawn && (
-        <Banner variant="warning" data-testid="day-withdrawn">
-          That day is no longer in the library, so it could not be added. Its author took it back
-          out while this page was open.
-        </Banner>
-      )}
-      {/* KI-2026-09-23-i. Author-only here as well as on the route: the note
-          is addressed to them. "Publishing it again" is named because it is
-          the obvious next move and it does nothing — moderation and visibility
-          are independent (the schema's `moderatedAt` note). */}
-      {isAuthor && moderation !== null && (
-        <Banner variant="warning" data-testid="day-hidden">
-          A moderator hid this day from the library. It is still yours, but nobody else can find or
-          open it, and publishing it again will not bring it back.
-          {moderation.moderationNote !== null && (
-            <>
-              {" "}
-              Their note to you: “{moderation.moderationNote}”
-            </>
-          )}
-        </Banner>
+    <div className={cn("flex flex-col gap-4", cover === null && cn(COLUMN, "pt-8"))}>
+      {cover === null ? (
+        <BackLink href={backHref} label={backLabel} />
+      ) : (
+        <CoverBand
+          cover={cover}
+          back={{ href: backHref, label: backLabel }}
+          onChangeCover={isAuthor ? openPicker : null}
+          controlRef={coverControl}
+          cities={day.cities.length > 0 ? cityLinks : null}
+          title={day.name}
+          badge={day.visibility === "private" ? <Badge variant="neutral">Private</Badge> : null}
+          meta={metaLine}
+          share={share}
+        />
       )}
 
-      <div className="flex flex-col gap-6 lg:flex-row">
-        <div className="min-w-0 flex-1 flex flex-col gap-4">
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Heading level={1}>{day.name}</Heading>
-              {day.visibility === "private" && <Badge variant="neutral">Private</Badge>}
-              <ShareDayButton path={dayPath(day)} title={day.name} />
-            </div>
-            {/* Where, under the title, each city a way to that city's page
-                (SEO pass, D6) — and so the link a crawler follows from a day
-                to the place it belongs to. A private day, or one an operator
-                hid, is in no city's list, so its author sees the names without
-                the links. */}
-            {day.cities.length > 0 && (
-              <Text variant="secondary" className="mt-1">
-                {day.cities.map((city, i) => (
-                  <Fragment key={city}>
-                    {i > 0 && ", "}
-                    {day.visibility === "public" && moderation === null ? <CityLink city={city} /> : city}
-                  </Fragment>
-                ))}
-              </Text>
-            )}
-            {/* §33.1: **the title block always speaks for the whole Playbook**,
-                so no number below it is stated twice. This line is why the rail
-                no longer carries Days, Stops or Kept in — it owned three facts
-                the title should have. */}
-            {/* The clock range rides this line too, as the artboard's `meta`
-                does (`dc.html:6872`) — and it is NOT gated on the day count.
-                `facts.window` is null for a Playbook over one day (ADR-048
-                decision 4: no single window spans a night), so the one line
-                reads right for both without a branch of its own. It used to
-                be a rail row shown only when `dayCount === 1`, which made the
-                two kinds of Playbook lay out differently for no reason a
-                reader could see (Mitchell, M27 link 10: "Multiday and single
-                day playbooks should mostly look the same"). */}
-            <DataText size="xs" className="mt-1.5 block text-slate" data-testid="playbook-meta">
-              {[
-                day.dayCount > 1 ? `${day.dayCount} days` : null,
-                `${day.stops.length} stop${day.stops.length === 1 ? "" : "s"}`,
-                facts.window !== null ? toClockRange(facts.window.start, facts.window.end, clock) : null,
-                `kept in ${keptInLine(day.createdAt)}`,
-              ]
-                .filter((part) => part !== null)
-                .join(" · ")}
-            </DataText>
-            {/* The author's own paragraph (`saved_days.summary`). It is also
-                the page's meta description, so what a search result prints is
-                on the page it leads to. A blank one is no paragraph at all,
-                as it is no description (`dayDescription`). */}
-            {day.summary !== null && day.summary.trim() !== "" && (
-              <Text className="mt-2 max-w-prose" data-testid="playbook-summary">
-                {day.summary.trim()}
-              </Text>
-            )}
-          </div>
-
-          {/* §33.1: **`All days · Day 1 · Day 2 …`, under the title block.**
-              `All days` first and default; **no tab row at all for a one-day
-              Playbook**, because a single tab is a label pretending to be a
-              control (project rule 2).
-
-              A `TabStrip` — the moss pill — and not link 2's `UnderlineTabs`.
-              The distinction is §33.2's own: an underline says "you are on a
-              different page of this thing", and these are views of ONE
-              Playbook, which is what the pill is for. The design agrees; its
-              artboard mounts `TabStrip` here. */}
-          {day.dayCount > 1 && (
-            <div className="flex flex-wrap items-center gap-x-3.5 gap-y-2.5 border-t border-hairline pt-3.5">
-              <TabStrip<string>
-                aria-label="Which day of this Playbook"
-                value={dayScope === "all" ? "all" : String(dayScope)}
-                options={[
-                  { value: "all", label: "All days" },
-                  ...groups.map((g) => ({ value: String(g.dayIndex), label: `Day ${g.dayIndex + 1}` })),
-                ]}
-                onValueChange={(value) => setDayScope(value === "all" ? "all" : Number(value))}
-              />
-              {/* The scoped day's own range beside the tab that chose it
-                  (`dc.html` `dayLine`). Nothing under `All days`: the title
-                  line already speaks for the whole Playbook. */}
-              {scopedGroup !== null && (
-                <DataText size="xs" data-testid="day-scope-line">
-                  {dayDividerLine(scopedGroup, clock)}
-                </DataText>
-              )}
-            </div>
-          )}
-
-          {/* SPEC §16 — **a shared day is a map plus a list.** It was only ever
-              the list until now; `sharedDayGeometry.ts` had been written for
-              this and had no production consumer (Mitchell, preview walk,
-              2026-09-20).
-
-              It sits ABOVE the list and BELOW the day tabs on purpose: the
-              tabs scope both surfaces at once, and a reader who taps `Day 2`
-              expects the map to follow the list rather than the two to
-              disagree. And above the author strip, where the artboard puts it
-              (`dc.html:2718`): the route is what somebody opens a Playbook to
-              judge, and who wrote it is the second question.
-
-              **Mounted for every Playbook, one day or ten** — never behind a
-              day-count check (Mitchell, M27 link 10: "Every playbook should
-              have maps for instance, not just the multi day ones"; the
-              SharedDayScreen test pins it). And its frame is always there,
-              whatever it holds — a route, the cities, a loading ground while
-              the server pins the stops, or "Nothing to map yet" — so nothing
-              below it moves when the map arrives. */}
-          <SharedDayMap savedDayId={savedDayId} days={groups} scope={dayScope} pinning={pinning} />
-
-          {/* The author strip. The name and the two numbers beside it are the
-              profile endpoint's own, so the strip cannot disagree with the
-              profile it links to. */}
-          <Card className="flex flex-wrap items-center justify-between gap-3 p-3" data-testid="author-strip">
-            <div className="min-w-0">
-              {/* "You" on your own day, rather than your own account id sitting
-                  next to the Publish button (Mitchell, 2026-09-01: "Dont show
-                  the UUID in the header bar where publish button is"). Somebody
-                  ELSE's name is the server's — `publicNameFor`, "Dana R." or
-                  their handle (Mitchell, 2026-10-02) — never derived here from
-                  the id. This branch is the better answer for the one reader
-                  who does not need to be told their own name. */}
-              <Link
-                href={`/playbooks/profile/${encodeURIComponent(author.userId)}${backQuery({ from: "day", day: daySegment(day) })}`}
-                className="font-semibold text-ink hover:underline"
-              >
-                {isAuthor ? "You" : author.displayName}
-              </Link>
-              <Text variant="secondary">
-                {author.playbooksShared} playbook{author.playbooksShared === 1 ? "" : "s"} shared · added to{" "}
-                {author.adds} trip{author.adds === 1 ? "" : "s"}
-              </Text>
-            </div>
-            {isAuthor && (
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={busy}
-                onClick={() => void setVisibility(day.visibility === "public" ? "private" : "public")}
-              >
-                {day.visibility === "public" ? "Unpublish" : "Publish"}
-              </Button>
-            )}
-          </Card>
-
-          {visibilityError !== null && (
-            <Banner variant="danger" data-testid="visibility-failed">
-              {visibilityError} Nothing changed — try again.
-            </Banner>
-          )}
-
-          {day.stops.length === 0 ? (
-            <EmptyState
-              title="This day has nothing on it"
-              body="Every stop has been removed since it was kept."
-            />
-          ) : (
-            <div>
-              {/* The ledger's label (`dc.html:6875`). The one string here that
-                  reads the day count, because it names what is being listed. */}
-              <DataText size="xs" className="block pb-2.5 text-2xs tracking-widest uppercase" data-testid="ledger-label">
-                {ledgerLabel(day.dayCount, dayScope)}
-              </DataText>
-              <ol className="flex flex-col" data-testid="stop-list">
-                {/* Scoped by the tab above: every day when `All days`, one day
-                    otherwise. **`All days` MERGES rather than concatenating** —
-                    one list, one running stop number — which is what the divider
-                    rows and `PlaybookDay.number` are between them for. */}
-                {visibleGroups.map((group) => (
-                  <Fragment key={group.dayIndex}>
-                    {/* A divider only in the rollup: scoped to one day the tab
-                        already names it, and repeating that under it is project
-                        rule 4. A one-day Playbook has no rollup to divide — the
-                        divider is part of the day picker, the one thing a
-                        one-day Playbook does not have. */}
-                    {dayScope === "all" && day.dayCount > 1 && (
-                      <li className="flex items-center gap-3 pt-4.5 pb-1 first:pt-0">
-                        <Text as="span" className="font-display font-semibold text-ink">
-                          Day {group.dayIndex + 1}
-                        </Text>
-                        <DataText size="xs" className="text-slate" data-testid="day-divider-line">
-                          {dayDividerLine(group, clock)}
-                        </DataText>
-                        <span aria-hidden className="h-px flex-1 bg-hairline" />
-                      </li>
-                    )}
-                    {group.stops.length === 0 && (
-                      <li className="py-2">
-                        <Text variant="secondary" className="text-sm">
-                          Nothing planned — kept as a rest day.
-                        </Text>
-                      </li>
-                    )}
-                    {group.stops.map((stop, i) => {
-                      const shown = dayScope === "all" ? stop.number : i + 1;
-                      const gap = panel.gaps.get(shown);
-                      return (
-                        <li key={`${group.dayIndex}:${stop.number}`}>
-                          {/* `dc.html:2751`: time | 24px pin | body. The pin is
-                              the map's own numbered pin, so a row and its pin
-                              read as the same thing. */}
-                          <div className="flex gap-2.5 pt-2.5 pb-0.5 md:gap-3">
-                            <DataText size="xs" className="w-15.5 shrink-0 pt-0.5 md:w-21.5">
-                              {/* The START, as the artboard's column shows it:
-                                  a full range wraps to two lines in 86px, and
-                                  the next row's start already says when this
-                                  one gives way. */}
-                              {stop.timeWindow !== null ? toClockLabel(stop.timeWindow.start, clock) : ""}
-                            </DataText>
-                            {/* §33.1's continuous numbering. Scoped to one day
-                                it restarts at 1 — see `playbookDays`. */}
-                            <span
-                              className="grid size-6 shrink-0 place-items-center rounded-full bg-brand font-mono text-2xs font-semibold text-surface"
-                              data-testid="stop-number"
-                            >
-                              {shown}
-                            </span>
-                            <div className="flex min-w-0 flex-1 flex-col gap-1.5 pt-px">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className="font-semibold text-ink">{stop.title}</span>
-                                {stop.location?.city !== undefined && (
-                                  <span className="rounded-full bg-moss px-2.5 py-0.5 text-2xs text-slate">
-                                    {stop.location.city}
-                                  </span>
-                                )}
-                              </div>
-                              {stop.notes !== null && stop.notes !== "" && (
-                                <Text variant="secondary" className="text-sm text-pretty">
-                                  {stop.notes}
-                                </Text>
-                              )}
-                            </div>
-                          </div>
-                          {/* The leg to the next stop, from the same geometry
-                              the map draws (`panel.gaps` was computed for this
-                              line and never had a reader until now). */}
-                          {gap !== undefined && (
-                            <div
-                              className="flex items-center gap-2.5 py-0.5 md:gap-3"
-                              data-testid="stop-gap"
-                            >
-                              <span className="w-15.5 shrink-0 md:w-21.5" />
-                              <span className="grid h-6 w-6 shrink-0 place-items-center">
-                                <span className="h-6 border-l-2 border-hairline" />
-                              </span>
-                              <DataText size="xs" className="text-2xs">
-                                {gap}
-                              </DataText>
-                            </div>
-                          )}
-                        </li>
-                      );
-                    })}
-                  </Fragment>
-                ))}
-              </ol>
-            </div>
-          )}
-
-          <ReviewsSection
-            reviews={reviews}
-            savedDayId={day.savedDayId}
-            canReview={!isAuthor && !signedOut}
-            canReport={!signedOut}
-          />
-        </div>
-
-        {/* The sticky rail: the facts, and the one action. */}
-        <aside className="lg:w-72 lg:shrink-0">
-          <Card raised className="flex flex-col gap-3 p-4 lg:sticky lg:top-6" data-testid="day-facts">
-            {/* The rating heads the rail, above the facts (`dc.html:2872`).
-                Nothing until the reviews are read: "Unrated so far" before the
-                answer arrives would be a claim the answer might contradict. */}
-            {reviews.data !== null && (
-              <div className="border-b border-hairline pb-3">
-                <ReviewRail summary={reviews.data.summary} />
-              </div>
-            )}
-            {/* **Days and Stops left this rail** (M26 link 3, §33.1): the
-                title block states both for the whole Playbook, and stating them
-                twice on one screen is project rule 4. M23 link 4's requirement
-                — that this route say how many days it is about to move — is
-                met by that line rather than dropped. */}
-            {/* **No Window row, for any Playbook** (M27 link 10). It was here
-                only when `dayCount === 1`, on the argument that a one-day
-                Playbook had nowhere else to say its range. The title line now
-                does, for every Playbook that HAS one range — the artboard's own
-                `meta` (`dc.html:6872`) — so the rail no longer lays a one-day
-                Playbook out differently from a three-day one.
-
-                Length stays: its own row rather than appended to the range
-                (Mitchell, 2026-09-01: "also add length, with a tag short medium
-                long if the duration is <4h, 4-12h, 12h+"), because at the
-                rail's `lg:w-72` a range plus a tag wraps and stops reading as
-                one thing. It is withheld, not shown as "—", whenever
-                `dayLength` has nothing to measure — a day with no times, or a
-                sequence with no single window (ADR-048 decision 4) — because a
-                day that says nothing about when it runs must not be labelled
-                "Short". That is a fact about the data, not a day-count branch. */}
-            {length !== null && <Fact label="Length" value={DAY_LENGTH_LABELS[length]} />}
-            {/* SPEC §15's "budget each". A saved stop's price is per person
-                and a saved day carries no people, so `facts.totalCost`, the
-                plain sum of its priced stops, is what the day costs one
-                person (ADR-060 decision 7). The "each" goes on the value, as
-                it does on the Discover card, and the label stays "Budget":
-                that was Mitchell's own wording (2026-09-01, *"Budget each →
-                Should just say Budget"*), so it is not up for a tidy-up into
-                "Cost" or "Total". The word "each" came off the number that day
-                because nothing yet said what a price meant. M19 settled it. */}
-            <Fact
-              label="Budget"
-              value={
-                facts.totalCost === null
-                  ? "Not priced"
-                  : `${formatMoney(facts.totalCost.amountMinor, facts.totalCost.currency)} each`
-              }
-            />
-            {/* **Kept in left this rail too** — it is the third part of the
-                title block's line (`3 days · 12 stops · kept in August 2026`).
-                `keptInLine` still owns the wording; only the mount point moved.
-                The season bucket that used to lead it went with Discover's
-                season filter (M26 link 2). */}
-            <Fact label="Added to" value={`${day.adds} trip${day.adds === 1 ? "" : "s"}`} />
-
-            <Button
-              variant="primary"
-              className="mt-1 w-full justify-center"
-              onClick={() => {
-                // Shown to a reader with no account too, and it asks them to
-                // sign in rather than vanishing (ADR-061, the share page's shape).
-                if (signedOut) {
-                  setSigningIn(true);
-                  return;
-                }
-                setWithdrawn(false);
-                setAdding(true);
-              }}
-            >
-              {/* §33.1: **`Add all N days to a trip`** — the count only
-                  surfaced inside the dialog before, so the button that moves
-                  three days said the same thing as the one that moves one. */}
-              {day.dayCount > 1 ? `Add all ${day.dayCount} days to a trip` : "Add to a trip"}
-            </Button>
-
-            {/* Delete, owner-only (Mitchell, 2026-09-01: "add a button to
-                delete a notebook activity you own"). The `Dialog` +
-                `variant="destructive"` pair is the repo's one idiom for this —
-                `SettingsSheet`'s delete-trip flow — rather than a second
-                confirmation shape.
-
-                **DISABLED with a reason for a published day, not withheld —
-                and that is a deliberate departure from ADR-031's "hidden, not
-                greyed".** ADR-031's rule is about a control the actor may
-                never use: a viewer's "Add stop" is greyed forever, so it only
-                ever says "there is something here for you" untruthfully, and
-                hiding it is the honest answer. This is the opposite case.
-                Delete IS this person's to use — the only thing standing
-                between them and it is one click on the Unpublish button four
-                rows up, in the same viewport. A control that vanished when
-                they published would read as the feature being gone, and would
-                say nothing about how to get it back; greyed with the reason
-                attached is exactly the "says what promotion would buy them"
-                reading ADR-031's closing section left open, with the argument
-                against it (that `readOnly` cannot tell two audiences apart —
-                TripHeader.tsx's KI-64 note) not applying here, because
-                `isAuthor` and `visibility` say precisely who this reader is
-                and what is blocking them.
-
-                The reason is on `title` AND in a visible line below, because a
-                `title` tooltip needs a hover and Mitchell filed this walking a
-                411px phone, where there is none. */}
-            {isAuthor && (
+      <div className={cn("flex flex-col gap-4", cover !== null && COLUMN)}>
+        <SyncFailure read={feed} what="this day" />
+        <LibraryMoved read={feed}>
+          This day has changed since you opened it — its author published, withdrew or someone took it.
+        </LibraryMoved>
+        <ReviewConflictBanner reviews={reviews} />
+        {withdrawn && (
+          <Banner variant="warning" data-testid="day-withdrawn">
+            That day is no longer in the library, so it could not be added. Its author took it back
+            out while this page was open.
+          </Banner>
+        )}
+        {/* KI-2026-09-23-i. Author-only here as well as on the route: the note
+            is addressed to them. "Publishing it again" is named because it is
+            the obvious next move and it does nothing — moderation and visibility
+            are independent (the schema's `moderatedAt` note). */}
+        {isAuthor && moderation !== null && (
+          <Banner variant="warning" data-testid="day-hidden">
+            A moderator hid this day from the library. It is still yours, but nobody else can find or
+            open it, and publishing it again will not bring it back.
+            {moderation.moderationNote !== null && (
               <>
-                <Button
-                  variant="destructive"
-                  className="w-full justify-center"
-                  disabled={busy || day.visibility === "public"}
-                  title={
-                    day.visibility === "public" ? "Unpublish it first" : undefined
-                  }
-                  onClick={() => {
-                    setDeleteError(null);
-                    setConfirmingDelete(true);
-                  }}
-                >
-                  Delete this day
-                </Button>
-                {day.visibility === "public" && (
-                  <Text variant="muted" className="text-xs">
-                    Unpublish it first — a day in the library cannot be deleted from here.
-                  </Text>
-                )}
-                {deleteError !== null && (
-                  <Banner variant="danger" data-testid="delete-failed">
-                    {deleteError}
-                  </Banner>
-                )}
+                {" "}
+                Their note to you: “{moderation.moderationNote}”
               </>
             )}
-            {/* Not for the author: reporting your own day is refused (403
-                `own-content`), so the control could only fail. Not for a reader
-                with no account either — the report answers 401 (ADR-061). */}
-            {!isAuthor && !signedOut && (
-              <div className="flex justify-end">
-                <ReportAction target={{ kind: "saved_day", savedDayId: day.savedDayId }} name="this day" />
+          </Banner>
+        )}
+
+        <div className="flex flex-col gap-6 lg:flex-row">
+          <div className="min-w-0 flex-1 flex flex-col gap-4">
+            <div>
+              {/* With a cover the title, the cities, the meta line and Share
+                  stand on its fade (`CoverBand`); without one, here, as always. */}
+              {cover === null && (
+                <>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Heading level={1}>{day.name}</Heading>
+                    {day.visibility === "private" && <Badge variant="neutral">Private</Badge>}
+                    {isAuthor ? (
+                      <span className="ml-auto flex items-center gap-2">
+                        <Button ref={coverControl} variant="secondary" size="sm" onClick={openPicker}>
+                          Add cover
+                        </Button>
+                        {share}
+                      </span>
+                    ) : (
+                      share
+                    )}
+                  </div>
+                  {day.cities.length > 0 && (
+                    <Text variant="secondary" className="mt-1">
+                      {cityLinks}
+                    </Text>
+                  )}
+                  <DataText size="xs" className="mt-1.5 block text-slate" data-testid="playbook-meta">
+                    {metaLine}
+                  </DataText>
+                </>
+              )}
+              {/* The author's own paragraph (`saved_days.summary`). It is also
+                  the page's meta description, so what a search result prints is
+                  on the page it leads to. A blank one is no paragraph at all,
+                  as it is no description (`dayDescription`). */}
+              {day.summary !== null && day.summary.trim() !== "" && (
+                <Text className="mt-2 max-w-prose" data-testid="playbook-summary">
+                  {day.summary.trim()}
+                </Text>
+              )}
+            </div>
+
+            {/* §33.1: **`All days · Day 1 · Day 2 …`, under the title block.**
+                `All days` first and default; **no tab row at all for a one-day
+                Playbook**, because a single tab is a label pretending to be a
+                control (project rule 2).
+
+                A `TabStrip` — the moss pill — and not link 2's `UnderlineTabs`.
+                The distinction is §33.2's own: an underline says "you are on a
+                different page of this thing", and these are views of ONE
+                Playbook, which is what the pill is for. The design agrees; its
+                artboard mounts `TabStrip` here. */}
+            {day.dayCount > 1 && (
+              <div className="flex flex-wrap items-center gap-x-3.5 gap-y-2.5 border-t border-hairline pt-3.5">
+                <TabStrip<string>
+                  aria-label="Which day of this Playbook"
+                  value={dayScope === "all" ? "all" : String(dayScope)}
+                  options={[
+                    { value: "all", label: "All days" },
+                    ...groups.map((g) => ({ value: String(g.dayIndex), label: `Day ${g.dayIndex + 1}` })),
+                  ]}
+                  onValueChange={(value) => setDayScope(value === "all" ? "all" : Number(value))}
+                />
+                {/* The scoped day's own range beside the tab that chose it
+                    (`dc.html` `dayLine`). Nothing under `All days`: the title
+                    line already speaks for the whole Playbook. */}
+                {scopedGroup !== null && (
+                  <DataText size="xs" data-testid="day-scope-line">
+                    {dayDividerLine(scopedGroup, clock)}
+                  </DataText>
+                )}
               </div>
             )}
-          </Card>
-        </aside>
+
+            {/* SPEC §16 — **a shared day is a map plus a list.** It was only ever
+                the list until now; `sharedDayGeometry.ts` had been written for
+                this and had no production consumer (Mitchell, preview walk,
+                2026-09-20).
+
+                It sits ABOVE the list and BELOW the day tabs on purpose: the
+                tabs scope both surfaces at once, and a reader who taps `Day 2`
+                expects the map to follow the list rather than the two to
+                disagree. And above the author strip, where the artboard puts it
+                (`dc.html:2718`): the route is what somebody opens a Playbook to
+                judge, and who wrote it is the second question.
+
+                **Mounted for every Playbook, one day or ten** — never behind a
+                day-count check (Mitchell, M27 link 10: "Every playbook should
+                have maps for instance, not just the multi day ones"; the
+                SharedDayScreen test pins it). And its frame is always there,
+                whatever it holds — a route, the cities, a loading ground while
+                the server pins the stops, or "Nothing to map yet" — so nothing
+                below it moves when the map arrives. */}
+            <SharedDayMap savedDayId={savedDayId} days={groups} scope={dayScope} pinning={pinning} />
+
+            {/* The author strip. The name and the two numbers beside it are the
+                profile endpoint's own, so the strip cannot disagree with the
+                profile it links to. */}
+            <Card className="flex flex-wrap items-center justify-between gap-3 p-3" data-testid="author-strip">
+              <div className="min-w-0">
+                {/* "You" on your own day, rather than your own account id sitting
+                    next to the Publish button (Mitchell, 2026-09-01: "Dont show
+                    the UUID in the header bar where publish button is"). Somebody
+                    ELSE's name is the server's — `publicNameFor`, "Dana R." or
+                    their handle (Mitchell, 2026-10-02) — never derived here from
+                    the id. This branch is the better answer for the one reader
+                    who does not need to be told their own name. */}
+                <Link
+                  href={`/playbooks/profile/${encodeURIComponent(author.userId)}${backQuery({ from: "day", day: daySegment(day) })}`}
+                  className="font-semibold text-ink hover:underline"
+                >
+                  {isAuthor ? "You" : author.displayName}
+                </Link>
+                <Text variant="secondary">
+                  {author.playbooksShared} playbook{author.playbooksShared === 1 ? "" : "s"} shared · added to{" "}
+                  {author.adds} trip{author.adds === 1 ? "" : "s"}
+                </Text>
+              </div>
+              {isAuthor && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={busy}
+                  onClick={() => void setVisibility(day.visibility === "public" ? "private" : "public")}
+                >
+                  {day.visibility === "public" ? "Unpublish" : "Publish"}
+                </Button>
+              )}
+            </Card>
+
+            {visibilityError !== null && (
+              <Banner variant="danger" data-testid="visibility-failed">
+                {visibilityError} Nothing changed — try again.
+              </Banner>
+            )}
+
+            {day.stops.length === 0 ? (
+              <EmptyState
+                title="This day has nothing on it"
+                body="Every stop has been removed since it was kept."
+              />
+            ) : (
+              <div>
+                {/* The ledger's label (`dc.html:6875`). The one string here that
+                    reads the day count, because it names what is being listed. */}
+                <DataText size="xs" className="block pb-2.5 text-2xs tracking-widest uppercase" data-testid="ledger-label">
+                  {ledgerLabel(day.dayCount, dayScope)}
+                </DataText>
+                <ol className="flex flex-col" data-testid="stop-list">
+                  {/* Scoped by the tab above: every day when `All days`, one day
+                      otherwise. **`All days` MERGES rather than concatenating** —
+                      one list, one running stop number — which is what the divider
+                      rows and `PlaybookDay.number` are between them for. */}
+                  {visibleGroups.map((group) => (
+                    <Fragment key={group.dayIndex}>
+                      {/* A divider only in the rollup: scoped to one day the tab
+                          already names it, and repeating that under it is project
+                          rule 4. A one-day Playbook has no rollup to divide — the
+                          divider is part of the day picker, the one thing a
+                          one-day Playbook does not have. */}
+                      {dayScope === "all" && day.dayCount > 1 && (
+                        <li className="flex items-center gap-3 pt-4.5 pb-1 first:pt-0">
+                          <Text as="span" className="font-display font-semibold text-ink">
+                            Day {group.dayIndex + 1}
+                          </Text>
+                          <DataText size="xs" className="text-slate" data-testid="day-divider-line">
+                            {dayDividerLine(group, clock)}
+                          </DataText>
+                          <span aria-hidden className="h-px flex-1 bg-hairline" />
+                        </li>
+                      )}
+                      {group.stops.length === 0 && (
+                        <li className="py-2">
+                          <Text variant="secondary" className="text-sm">
+                            Nothing planned — kept as a rest day.
+                          </Text>
+                        </li>
+                      )}
+                      {group.stops.map((stop, i) => {
+                        const shown = dayScope === "all" ? stop.number : i + 1;
+                        const gap = panel.gaps.get(shown);
+                        return (
+                          <li key={`${group.dayIndex}:${stop.number}`}>
+                            {/* `dc.html:2751`: time | 24px pin | body. The pin is
+                                the map's own numbered pin, so a row and its pin
+                                read as the same thing. */}
+                            <div className="flex gap-2.5 pt-2.5 pb-0.5 md:gap-3">
+                              <DataText size="xs" className="w-15.5 shrink-0 pt-0.5 md:w-21.5">
+                                {/* The START, as the artboard's column shows it:
+                                    a full range wraps to two lines in 86px, and
+                                    the next row's start already says when this
+                                    one gives way. */}
+                                {stop.timeWindow !== null ? toClockLabel(stop.timeWindow.start, clock) : ""}
+                              </DataText>
+                              {/* §33.1's continuous numbering. Scoped to one day
+                                  it restarts at 1 — see `playbookDays`. */}
+                              <span
+                                className="grid size-6 shrink-0 place-items-center rounded-full bg-brand font-mono text-2xs font-semibold text-surface"
+                                data-testid="stop-number"
+                              >
+                                {shown}
+                              </span>
+                              <div className="flex min-w-0 flex-1 flex-col gap-1.5 pt-px">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="font-semibold text-ink">{stop.title}</span>
+                                  {stop.location?.city !== undefined && (
+                                    <span className="rounded-full bg-moss px-2.5 py-0.5 text-2xs text-slate">
+                                      {stop.location.city}
+                                    </span>
+                                  )}
+                                </div>
+                                {stop.notes !== null && stop.notes !== "" && (
+                                  <Text variant="secondary" className="text-sm text-pretty">
+                                    {stop.notes}
+                                  </Text>
+                                )}
+                              </div>
+                            </div>
+                            {/* The leg to the next stop, from the same geometry
+                                the map draws (`panel.gaps` was computed for this
+                                line and never had a reader until now). */}
+                            {gap !== undefined && (
+                              <div
+                                className="flex items-center gap-2.5 py-0.5 md:gap-3"
+                                data-testid="stop-gap"
+                              >
+                                <span className="w-15.5 shrink-0 md:w-21.5" />
+                                <span className="grid h-6 w-6 shrink-0 place-items-center">
+                                  <span className="h-6 border-l-2 border-hairline" />
+                                </span>
+                                <DataText size="xs" className="text-2xs">
+                                  {gap}
+                                </DataText>
+                              </div>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </Fragment>
+                  ))}
+                </ol>
+              </div>
+            )}
+
+            <ReviewsSection
+              reviews={reviews}
+              savedDayId={day.savedDayId}
+              canReview={!isAuthor && !signedOut}
+              canReport={!signedOut}
+            />
+          </div>
+
+          {/* The sticky rail: the facts, and the one action. */}
+          <aside className="lg:w-72 lg:shrink-0">
+            <Card raised className="flex flex-col gap-3 p-4 lg:sticky lg:top-6" data-testid="day-facts">
+              {/* The rating heads the rail, above the facts (`dc.html:2872`).
+                  Nothing until the reviews are read: "Unrated so far" before the
+                  answer arrives would be a claim the answer might contradict. */}
+              {reviews.data !== null && (
+                <div className="border-b border-hairline pb-3">
+                  <ReviewRail summary={reviews.data.summary} />
+                </div>
+              )}
+              {/* **Days and Stops left this rail** (M26 link 3, §33.1): the
+                  title block states both for the whole Playbook, and stating them
+                  twice on one screen is project rule 4. M23 link 4's requirement
+                  — that this route say how many days it is about to move — is
+                  met by that line rather than dropped. */}
+              {/* **No Window row, for any Playbook** (M27 link 10). It was here
+                  only when `dayCount === 1`, on the argument that a one-day
+                  Playbook had nowhere else to say its range. The title line now
+                  does, for every Playbook that HAS one range — the artboard's own
+                  `meta` (`dc.html:6872`) — so the rail no longer lays a one-day
+                  Playbook out differently from a three-day one.
+
+                  Length stays: its own row rather than appended to the range
+                  (Mitchell, 2026-09-01: "also add length, with a tag short medium
+                  long if the duration is <4h, 4-12h, 12h+"), because at the
+                  rail's `lg:w-72` a range plus a tag wraps and stops reading as
+                  one thing. It is withheld, not shown as "—", whenever
+                  `dayLength` has nothing to measure — a day with no times, or a
+                  sequence with no single window (ADR-048 decision 4) — because a
+                  day that says nothing about when it runs must not be labelled
+                  "Short". That is a fact about the data, not a day-count branch. */}
+              {length !== null && <Fact label="Length" value={DAY_LENGTH_LABELS[length]} />}
+              {/* SPEC §15's "budget each". A saved stop's price is per person
+                  and a saved day carries no people, so `facts.totalCost`, the
+                  plain sum of its priced stops, is what the day costs one
+                  person (ADR-060 decision 7). The "each" goes on the value, as
+                  it does on the Discover card, and the label stays "Budget":
+                  that was Mitchell's own wording (2026-09-01, *"Budget each →
+                  Should just say Budget"*), so it is not up for a tidy-up into
+                  "Cost" or "Total". The word "each" came off the number that day
+                  because nothing yet said what a price meant. M19 settled it. */}
+              <Fact
+                label="Budget"
+                value={
+                  facts.totalCost === null
+                    ? "Not priced"
+                    : `${formatMoney(facts.totalCost.amountMinor, facts.totalCost.currency)} each`
+                }
+              />
+              {/* **Kept in left this rail too** — it is the third part of the
+                  title block's line (`3 days · 12 stops · kept in August 2026`).
+                  `keptInLine` still owns the wording; only the mount point moved.
+                  The season bucket that used to lead it went with Discover's
+                  season filter (M26 link 2). */}
+              <Fact label="Added to" value={`${day.adds} trip${day.adds === 1 ? "" : "s"}`} />
+
+              <Button
+                variant="primary"
+                className="mt-1 w-full justify-center"
+                onClick={() => {
+                  // Shown to a reader with no account too, and it asks them to
+                  // sign in rather than vanishing (ADR-061, the share page's shape).
+                  if (signedOut) {
+                    setSigningIn(true);
+                    return;
+                  }
+                  setWithdrawn(false);
+                  setAdding(true);
+                }}
+              >
+                {/* §33.1: **`Add all N days to a trip`** — the count only
+                    surfaced inside the dialog before, so the button that moves
+                    three days said the same thing as the one that moves one. */}
+                {day.dayCount > 1 ? `Add all ${day.dayCount} days to a trip` : "Add to a trip"}
+              </Button>
+
+              {/* Delete, owner-only (Mitchell, 2026-09-01: "add a button to
+                  delete a notebook activity you own"). The `Dialog` +
+                  `variant="destructive"` pair is the repo's one idiom for this —
+                  `SettingsSheet`'s delete-trip flow — rather than a second
+                  confirmation shape.
+
+                  **DISABLED with a reason for a published day, not withheld —
+                  and that is a deliberate departure from ADR-031's "hidden, not
+                  greyed".** ADR-031's rule is about a control the actor may
+                  never use: a viewer's "Add stop" is greyed forever, so it only
+                  ever says "there is something here for you" untruthfully, and
+                  hiding it is the honest answer. This is the opposite case.
+                  Delete IS this person's to use — the only thing standing
+                  between them and it is one click on the Unpublish button four
+                  rows up, in the same viewport. A control that vanished when
+                  they published would read as the feature being gone, and would
+                  say nothing about how to get it back; greyed with the reason
+                  attached is exactly the "says what promotion would buy them"
+                  reading ADR-031's closing section left open, with the argument
+                  against it (that `readOnly` cannot tell two audiences apart —
+                  TripHeader.tsx's KI-64 note) not applying here, because
+                  `isAuthor` and `visibility` say precisely who this reader is
+                  and what is blocking them.
+
+                  The reason is on `title` AND in a visible line below, because a
+                  `title` tooltip needs a hover and Mitchell filed this walking a
+                  411px phone, where there is none. */}
+              {isAuthor && (
+                <>
+                  <Button
+                    variant="destructive"
+                    className="w-full justify-center"
+                    disabled={busy || day.visibility === "public"}
+                    title={
+                      day.visibility === "public" ? "Unpublish it first" : undefined
+                    }
+                    onClick={() => {
+                      setDeleteError(null);
+                      setConfirmingDelete(true);
+                    }}
+                  >
+                    Delete this day
+                  </Button>
+                  {day.visibility === "public" && (
+                    <Text variant="muted" className="text-xs">
+                      Unpublish it first — a day in the library cannot be deleted from here.
+                    </Text>
+                  )}
+                  {deleteError !== null && (
+                    <Banner variant="danger" data-testid="delete-failed">
+                      {deleteError}
+                    </Banner>
+                  )}
+                </>
+              )}
+              {/* Not for the author: reporting your own day is refused (403
+                  `own-content`), so the control could only fail. Not for a reader
+                  with no account either — the report answers 401 (ADR-061). */}
+              {!isAuthor && !signedOut && (
+                <div className="flex justify-end">
+                  <ReportAction target={{ kind: "saved_day", savedDayId: day.savedDayId }} name="this day" />
+                </div>
+              )}
+            </Card>
+          </aside>
+        </div>
       </div>
 
       {/* The confirmation. Its copy says the two things the request itself
@@ -849,6 +919,34 @@ export function SharedDayScreen({
           </Button>
         </DialogFooter>
       </Dialog>
+
+      {/* The trip settings picker in a dialog, with its own title left to the
+          dialog's. It stays open after a pick so the choice shows as pressed;
+          the page behind it re-reads, so the band is there when it closes. */}
+      {isAuthor && (
+        <Dialog
+          open={choosingCover}
+          onOpenChange={setChoosingCover}
+          title="Cover photo"
+          onCloseAutoFocus={(event) => {
+            const control = coverControl.current;
+            if (control === null || !control.isConnected) return;
+            event.preventDefault();
+            control.focus();
+          }}
+        >
+          {/* The cover the page holds, and the one a pick or removal answers,
+              patched in: the route answers it in full, so neither the day nor
+              its author's numbers need reading again. */}
+          <CoverPicker
+            api={coverApi}
+            canEdit
+            heading={false}
+            initial={cover}
+            onChange={(next) => feed.patch((view) => ({ ...view, cover: next }))}
+          />
+        </Dialog>
+      )}
 
       <SignInToAddDialog open={signingIn} onOpenChange={setSigningIn} savedDayId={day.savedDayId} />
 
@@ -923,12 +1021,14 @@ function Fact({ label, value }: { label: string; value: string }) {
 }
 
 /** A city's name as a link to its page, or as text when its name has no slug. */
-function CityLink({ city }: { city: string }) {
+function CityLink({ city, overPhoto }: { city: string; overPhoto: boolean }) {
   const href = cityPath(city);
   return href === null ? (
     <>{city}</>
   ) : (
-    <Link href={href} className="hover:underline">
+    // Over a cover, the band's small caps measured 15px tall at 390px (PR
+    // #354's preview walk): the 44px phone floor, as `CoverCredit` takes it.
+    <Link href={href} className={cn("hover:underline", overPhoto && "inline-flex min-h-11 items-center md:min-h-0")}>
       {city}
     </Link>
   );
@@ -959,7 +1059,7 @@ function BackLink({ href, label }: { href: string; label: string }) {
  * the share sheet rejects with `AbortError`, which is the reader saying no and
  * gets no answer; any other refusal falls through to copying.
  */
-function ShareDayButton({ path, title }: { path: string; title: string }) {
+function ShareDayButton({ path, title, overPhoto = false }: { path: string; title: string; overPhoto?: boolean }) {
   const [outcome, setOutcome] = useState<"idle" | "copied" | "failed">("idle");
 
   // The label goes back after a moment; the cleanup is what keeps a timer from
@@ -989,8 +1089,127 @@ function ShareDayButton({ path, title }: { path: string; title: string }) {
   }
 
   return (
-    <Button variant="secondary" size="sm" className="ml-auto" onClick={() => void share()} data-testid="share-day">
-      {outcome === "copied" ? "Link copied" : outcome === "failed" ? "Could not copy" : "Share"}
+    <Button
+      variant="secondary"
+      size="sm"
+      // Over a cover, a phone gets it as a translucent pill in the band's top
+      // corner (`CoverBand`); a desktop keeps the button, at the title's right.
+      className={overPhoto ? cn(PILL, "px-0 md:rounded-md md:border md:bg-surface md:px-2.5") : "ml-auto"}
+      onClick={() => void share()}
+      data-testid="share-day"
+    >
+      {/* A 44px icon in the phone's corner, the artboard's; its words are
+          still its name, and a copy still says so with a tick. */}
+      {overPhoto && (
+        <span aria-hidden className="md:hidden">
+          {outcome === "copied" ? <Check className="size-4" /> : <Share className="size-4" />}
+        </span>
+      )}
+      <span className={overPhoto ? "sr-only md:not-sr-only" : undefined}>
+        {outcome === "copied" ? "Link copied" : outcome === "failed" ? "Could not copy" : "Share"}
+      </span>
     </Button>
+  );
+}
+
+/** A control laid over the photo: translucent paper, a full pill, 44px on a phone. */
+const PILL = "rounded-full border-0 bg-surface/90 px-3.5 text-sm font-medium text-ink hover:bg-surface";
+
+/**
+ * **A day with a cover** (M37 part 5, the approved `PlaybookDay` and
+ * `PlaybookPhone` artboards; Mitchell, 2026-10-06: *"something similiar to
+ * homepage where it has a fade through to context below it"*). The photo runs
+ * edge to edge — 440px, 360px on a phone — and the paper rises through its
+ * foot (`.cover-veil-paper`, the front door's veil turned to rise), so the
+ * title block stands on the fade rather than in a box: the cities, the `h1`,
+ * the meta line and Share. The way back and the author's *Change cover* are
+ * pills over the top of it.
+ *
+ * The credit sits wherever the photo is (Unsplash's guidelines): at the
+ * title's right on a desktop, under the band on a phone, where the right of
+ * the title has no room. Eager and fetched first: it is the page's largest
+ * image, and it is above the fold.
+ */
+function CoverBand({
+  cover,
+  back,
+  onChangeCover,
+  controlRef,
+  cities,
+  title,
+  badge,
+  meta,
+  share,
+}: {
+  cover: TripCover;
+  back: { href: string; label: string };
+  /** The author's *Change cover*, or null for every other reader. */
+  onChangeCover: (() => void) | null;
+  /** Given *Change cover*, where the picker's dialog hands focus back. */
+  controlRef: React.Ref<HTMLButtonElement>;
+  cities: React.ReactNode | null;
+  title: string;
+  badge: React.ReactNode | null;
+  meta: string;
+  share: React.ReactNode;
+}) {
+  return (
+    <div data-testid="day-cover">
+      <CoverImage photo={cover} veil="paper" priority sizes="100vw" className="h-90 md:h-110">
+        {/* Positioned, so the phone's Share pill is placed against the band. */}
+        <div className="absolute inset-0 flex flex-col">
+          <div className={cn(COLUMN, "flex items-center justify-between gap-3 px-2.5 pt-2.5 md:px-6 md:pt-4.5")}>
+            {/* The back link as a pill: an arrow alone on a phone, named for
+                where it goes to a screen reader at every width. */}
+            <Link
+              href={back.href}
+              aria-label={`Back to ${back.label}`}
+              className={cn(PILL, PHONE_TOUCH, "inline-flex items-center gap-1.5 md:py-2")}
+            >
+              <span aria-hidden>←</span>
+              <span aria-hidden className="hidden md:inline">
+                {back.label}
+              </span>
+            </Link>
+            {/* `pr-13` keeps clear of the phone's Share in the corner. */}
+            {onChangeCover !== null && (
+              <span className="pr-13 md:pr-0">
+                <Button
+                  ref={controlRef}
+                  variant="ghost"
+                  className={cn(PILL, "font-semibold md:py-2")}
+                  onClick={onChangeCover}
+                >
+                  Change cover
+                </Button>
+              </span>
+            )}
+          </div>
+          <div className={cn(COLUMN, "mt-auto flex items-end justify-between gap-6 px-4 pb-3.5 md:px-6 md:pb-5.5")}>
+            <div className="min-w-0 max-w-170">
+              {cities !== null && (
+                <Text as="p" className="text-xs font-semibold tracking-widest text-brand-pressed uppercase">
+                  {cities}
+                </Text>
+              )}
+              <div className="mt-1 flex flex-wrap items-center gap-2 md:mt-1.5">
+                <Heading level={1} className="text-balance lg:text-4xl">
+                  {title}
+                </Heading>
+                {badge}
+              </div>
+              <DataText size="xs" className="mt-2 block text-slate md:mt-2.5" data-testid="playbook-meta">
+                {meta}
+              </DataText>
+            </div>
+            <div className="flex shrink-0 flex-col items-end gap-2.5">
+              <div className="absolute top-2.5 right-2.5 md:static">{share}</div>
+              <CoverCredit photo={cover} className="hidden md:block" />
+            </div>
+          </div>
+        </div>
+      </CoverImage>
+      <CoverCredit photo={cover} className="px-4 pt-1.5 md:hidden" />
+    </div>
   );
 }

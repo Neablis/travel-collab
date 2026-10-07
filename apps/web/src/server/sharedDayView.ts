@@ -1,5 +1,6 @@
 import type { SharedDayView } from "@/lib/sharedDayView";
 import { publicAuthor } from "./playbooks";
+import { getSavedDayCover } from "./savedDayCovers";
 import { schedulePinBackfill } from "./savedDayPinBackfill";
 import { moderationOf, publishedAtOf, readableSavedDay } from "./savedDays";
 
@@ -22,9 +23,12 @@ export async function sharedDayRead(
   const day = await readableSavedDay(savedDayId, readerId);
   if (day === null) return null;
   const isAuthor = readerId !== null && day.ownerId === readerId;
-  const [publishedAt, moderation] = await Promise.all([
+  const [publishedAt, moderation, cover] = await Promise.all([
     publishedAtOf(savedDayId),
     isAuthor ? moderationOf(savedDayId) : null,
+    // After the read seam, as `publishedAtOf` is: a day this reader may not
+    // open never reaches here, so neither does its cover.
+    getSavedDayCover(savedDayId),
   ]);
   return {
     day,
@@ -32,6 +36,7 @@ export async function sharedDayRead(
     pinning: readerId === null ? false : schedulePinBackfill(day, readerId),
     publishedAt,
     moderation,
+    cover,
   };
 }
 

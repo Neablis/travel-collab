@@ -98,6 +98,9 @@ export async function POST(request: Request) {
     // this schema uses throughout), so deleting the days first would orphan it.
     // Read before the delete erases it; put back after the re-insert.
     const moderation = await carryModeration(tx, ids);
+    // `saved_day_covers` is left alone, which carries each day's cover: every
+    // id deleted here is inserted again below, and the cover is keyed by it
+    // with no foreign key (the production importer's rule).
     await tx.delete(savedDayAdds).where(inArray(savedDayAdds.savedDayId, ids));
     await tx.delete(savedDays).where(inArray(savedDays.id, ids));
 
