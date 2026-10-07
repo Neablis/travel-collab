@@ -515,8 +515,11 @@ export async function stranger(browser: Browser): Promise<Page> {
   return context.newPage();
 }
 
-/** alice keeps a one-stop day in `city` and publishes it. Returns its id. */
-export async function publishedDay(page: Page, city: string, name: string): Promise<string> {
+/**
+ * alice keeps a day with one stop in `city` — and one more in each of
+ * `alsoIn`, for a multi-city card — and publishes it. Returns its id.
+ */
+export async function publishedDay(page: Page, city: string, name: string, alsoIn: string[] = []): Promise<string> {
   const post = async (path: string, data?: unknown) => {
     const res = await page.request.post(path, data === undefined ? undefined : { data });
     expect(res.ok(), `${path} -> ${res.status()}`).toBe(true);
@@ -526,15 +529,17 @@ export async function publishedDay(page: Page, city: string, name: string): Prom
   const { tripId } = (await created.json()) as { tripId: string };
   const dayId = randomUUID();
   await post(`/api/trips/${tripId}/commands`, { type: "AddDay", tripId, dayId });
-  await post(`/api/trips/${tripId}/commands`, {
-    type: "AddActivity",
-    tripId,
-    activityId: randomUUID(),
-    dayId,
-    title: `Stop in ${city}`,
-    timeWindow: { start: "09:00", end: "10:00" },
-    location: { name: `Somewhere in ${city}`, city },
-  });
+  for (const [i, where] of [city, ...alsoIn].entries()) {
+    await post(`/api/trips/${tripId}/commands`, {
+      type: "AddActivity",
+      tripId,
+      activityId: randomUUID(),
+      dayId,
+      title: `Stop in ${where}`,
+      timeWindow: { start: `${String(9 + i).padStart(2, "0")}:00`, end: `${String(10 + i).padStart(2, "0")}:00` },
+      location: { name: `Somewhere in ${where}`, city: where },
+    });
+  }
   const kept = await post("/api/saved-days", { name, tripId, dayIds: [dayId] });
   const { savedDayId } = ((await kept.json()) as { savedDay: { savedDayId: string } }).savedDay;
   await post(`/api/saved-days/${savedDayId}/publish`);

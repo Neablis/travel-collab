@@ -271,17 +271,26 @@ export function DiscoverCard({ day, origin }: { day: DiscoverDay; origin: BackOr
         // `DiscoverCards` artboard): 150px, fading into the card's surface,
         // with the city chips standing on the fade where they led before.
         // Lazy: a grid of thirty is mostly below the fold.
+        //
+        // 150px is a floor, not a height. On a phone each chip row costs 44px
+        // (a 20px chip, `gap-y-6` keeping the 44px hit areas apart), so three
+        // long names and "+N more" wrap to four rows and need 176px; an
+        // overlay pinned to the foot of a fixed 150px box grew up past its
+        // top and the photo clipped the first chip (PR #354 review, measured
+        // by `m37-playbook-cover.spec.ts`). The row sits in flow at the foot
+        // instead, and only a card that needs the room gets a taller photo —
+        // the veil is in percentages, so the chips stay on the fade.
         <>
           <CoverImage
             photo={cover}
             veil="strip"
             sizes="(min-width: 1024px) 360px, (min-width: 640px) 50vw, 100vw"
-            className="h-37.5 shrink-0"
+            className="flex min-h-37.5 shrink-0 flex-col justify-end"
           >
-            {/* `bottom-3`: a chip's phone hit area reaches 12px below it
-                (`-my-3` on `min-h-11`), and the photo clips what passes its
-                foot (PR #354 review). */}
-            <div className="absolute inset-x-4 bottom-3">{chipRow}</div>
+            {/* `py-3`: a chip's phone hit area reaches 12px past it either
+                way (`-my-3` on `min-h-11`), and the photo clips what passes
+                its edge. `relative` paints it over the photo and veil. */}
+            <div className="relative px-4 py-3">{chipRow}</div>
           </CoverImage>
           <div className="flex flex-1 flex-col gap-3 px-4 pt-2 pb-4">{body}</div>
         </>

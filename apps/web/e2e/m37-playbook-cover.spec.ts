@@ -19,6 +19,7 @@ import { forget, publishedDay, stranger } from "./helpers";
 // A city minted per test, for `m11b-playbooks.spec.ts`'s reason: the library is
 // global, and a city page asserted on here must hold this day alone.
 
+/** A city name nothing else in the library has. */
 const mintCity = () => `Covere2e${randomUUID().replace(/-/g, "").slice(0, 8)}`;
 
 /** The author opens their day, presses Add cover and picks Ada Offline's dunes. */
@@ -126,6 +127,54 @@ test("a day's cover on a 390px phone: the band fits, its controls are 44px, the 
     const credit = band.getByText("Photo by Ada Offline on Unsplash").last();
     await expect(credit).toBeVisible();
     expect((await credit.boundingBox())!.y).toBeGreaterThanOrEqual(photoBox!.y + photoBox!.height);
+  } finally {
+    await forget(page, savedDayId);
+  }
+});
+
+test("a multi-city card's chips on a 390px phone: every one a 44px target, all of them on the photo", async ({
+  page,
+}) => {
+  test.slow();
+  await page.setViewportSize({ width: 390, height: 844 });
+  // Four cities, three with 36-character names (a nod to Llanfair PG): the
+  // card draws three chips and "+1 more", each long chip takes a line of its
+  // own at phone width, and "+1 more" a fourth. The chip row stands on the
+  // foot of a photo that clips, and a phone's chips are 44px links spaced to
+  // keep their hit areas apart, so four rows need 176px of a 150px photo —
+  // the first chip used to be cut off 34px above it (PR #354 review).
+  const city = mintCity();
+  const savedDayId = await publishedDay(page, city, `Many cities ${randomUUID().slice(0, 8)}`, [
+    `${mintCity()}Gwyngyllgogerychwyrn`,
+    `${mintCity()}Gwyngyllgogerychwyrn`,
+    `${mintCity()}Gwyngyllgogerychwyrn`,
+  ]);
+  try {
+    await addCover(page, savedDayId);
+    await page.goto(`/playbooks/city/${city.toLowerCase()}`);
+    const card = page.locator(`[data-testid="discover-card"][data-saved-day-id="${savedDayId}"]`);
+    const photo = card.getByRole("img", { name: "Sand dunes under a pale sun" });
+    await expectLoaded(photo);
+    const frame = (await photo.boundingBox())!;
+
+    const chips = card.getByTestId("city-chips");
+    const links = chips.getByRole("link");
+    await expect(links).toHaveCount(3);
+    await expect(chips.getByTestId("city-chips-more")).toHaveText("+1 more");
+    // The links are the hit areas; the "+N more" chip is drawn on the same
+    // row and must be on the photo as well.
+    const onPhoto = (box: { x: number; y: number; width: number; height: number }) => {
+      expect(box.y).toBeGreaterThanOrEqual(frame.y);
+      expect(box.y + box.height).toBeLessThanOrEqual(frame.y + frame.height);
+      expect(box.x).toBeGreaterThanOrEqual(frame.x);
+      expect(box.x + box.width).toBeLessThanOrEqual(frame.x + frame.width);
+    };
+    for (const link of await links.all()) {
+      const box = (await link.boundingBox())!;
+      expect(box.height).toBeGreaterThanOrEqual(44);
+      onPhoto(box);
+    }
+    onPhoto((await chips.getByTestId("city-chips-more").boundingBox())!);
   } finally {
     await forget(page, savedDayId);
   }

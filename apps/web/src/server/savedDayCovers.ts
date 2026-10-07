@@ -63,6 +63,7 @@ export async function clearSavedDayCover(savedDayId: string): Promise<void> {
 // it (PR #354 review): a publish in another tab between the two would
 // otherwise leave the old card cached for a day. Either order is then
 // covered — the publish clears after its own commit, and this after ours.
+/** Clears the cached day and its lists when the day is public now. */
 async function invalidateIfPublic(savedDayId: string): Promise<void> {
   const [day] = await db
     .select({ ownerId: savedDays.ownerId, visibility: savedDays.visibility })

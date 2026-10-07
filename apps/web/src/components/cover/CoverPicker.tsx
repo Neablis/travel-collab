@@ -52,6 +52,7 @@ type Call = "search" | "pick" | "remove";
 
 type Failure = "unavailable" | "quota" | "upstream-limit" | "other";
 
+/** Which of the picker's failures a refused cover call was. */
 function failureOf(error: CoverRefusal): Failure {
   // By the body, not the status alone: the rate limiter's own outage is a 503
   // too, and that is not "covers are not set up here".
@@ -197,6 +198,7 @@ export function CoverPicker({
     else setFailure(failureCopy(kind, call, error.retryAfterSeconds));
   }
 
+  /** One page of results for `q`, or null after recording why it failed. */
   async function readPage(q: string, page: number): Promise<CoverCandidate[] | null> {
     setSearching(true);
     setFailure(null);
@@ -209,6 +211,7 @@ export function CoverPicker({
     return result.value;
   }
 
+  /** A fresh search: page 1 of the trimmed query replaces whatever was shown. */
   async function search() {
     const q = query.trim();
     if (q === "") return;
@@ -221,6 +224,10 @@ export function CoverPicker({
     setExhausted(page.length < PAGE);
   }
 
+  /**
+   * The next screen of photos: from results already read when there are
+   * enough, else the next page from the route, without repeats.
+   */
   async function more() {
     if (searched === null) return;
     const next = start + GRID;
@@ -248,6 +255,7 @@ export function CoverPicker({
     if (last && fresh.length <= GRID) refocus.current = "no-more";
   }
 
+  /** Makes `candidate` the cover, and tells the caller. */
   async function pick(candidate: CoverCandidate) {
     setBusy(true);
     setFailure(null);
@@ -259,6 +267,7 @@ export function CoverPicker({
     onChange?.(result.value);
   }
 
+  /** Removes the cover, tells the caller, and moves focus back to the search. */
   async function remove() {
     setBusy(true);
     setFailure(null);

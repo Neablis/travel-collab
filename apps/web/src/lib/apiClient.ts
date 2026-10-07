@@ -672,6 +672,7 @@ function coverRefusal(res: Response) {
 const tripCoverPath = (tripId: string) => `/api/trips/${tripId}/cover`;
 const savedDayCoverPath = (savedDayId: string) => `/api/saved-days/${savedDayId}/cover`;
 
+/** GET a cover route: the stored cover, or `null` for none. */
 async function readCover(path: string): Promise<ApiResult<TripCover | null>> {
   try {
     const res = await fetch(apiUrl(path));
@@ -681,6 +682,7 @@ async function readCover(path: string): Promise<ApiResult<TripCover | null>> {
   }
 }
 
+/** GET `<path>/search`: one page of candidates, or the refusal with its retry hint. */
 async function searchCovers(path: string, q: string, page: number): Promise<CoverResult<CoverCandidate[]>> {
   try {
     const params = new URLSearchParams({ q, page: String(page) });
@@ -692,6 +694,7 @@ async function searchCovers(path: string, q: string, page: number): Promise<Cove
   }
 }
 
+/** PUT `candidate` to a cover route, answering the cover as stored. */
 async function putCover(path: string, candidate: CoverCandidate): Promise<CoverResult<TripCover>> {
   try {
     const res = await fetch(apiUrl(path), {
@@ -706,6 +709,7 @@ async function putCover(path: string, candidate: CoverCandidate): Promise<CoverR
   }
 }
 
+/** DELETE a cover route's cover. */
 async function deleteCover(path: string): Promise<ApiResult<null>> {
   try {
     const res = await fetch(apiUrl(path), { method: "DELETE" });
