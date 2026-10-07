@@ -718,6 +718,36 @@ describe("SettingsSheet cover photo", () => {
       expect(landed).toEqual([section, section]);
     });
 
+    // PR #354's Tier 3: People's member list landed after Cover settled and
+    // left the sheet at its top. A change in the content's height lands
+    // again — until the person moves the sheet, which is theirs from then.
+    it("lands again when the content changes height, until the person scrolls", () => {
+      const resized: Array<() => void> = [];
+      vi.stubGlobal(
+        "ResizeObserver",
+        class {
+          constructor(callback: () => void) {
+            resized.push(callback);
+          }
+          observe() {}
+          disconnect() {
+            resized.length = 0;
+          }
+        },
+      );
+      try {
+        renderSheet({ scrollTo: "people" });
+        expect(landed).toEqual(["people"]);
+        resized.forEach((grew) => grew());
+        expect(landed).toEqual(["people", "people"]);
+        fireEvent.wheel(document);
+        resized.forEach((grew) => grew());
+        expect(landed).toEqual(["people", "people"]);
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+
     // Opening the Dates popover re-renders the sheet; the landing is the
     // open's, not each render's.
     it("does not land again on an ordinary re-render", async () => {

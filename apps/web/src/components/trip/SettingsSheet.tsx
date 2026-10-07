@@ -38,6 +38,34 @@ function scrollIntoView(el: HTMLElement | null) {
   el?.scrollIntoView?.({ block: "start" });
 }
 
+// What ends a held landing: the person moving the sheet themselves.
+const HOLD_RELEASED_BY = ["wheel", "touchstart", "pointerdown", "keydown"] as const;
+
+// Cover is not the only section whose reads move what is under the landing.
+// On the stack's top part People's member list landed AFTER Cover had
+// settled, 59px taller, under a sheet the browser had already clamped to its
+// top (m37-trip-covers.spec.ts, 1280×900: "219px down at scrollTop 0 of 52").
+// So every change in the content's height lands again, until the person
+// moves the sheet: from then on, where it is is theirs.
+/**
+ * Keeps `el` landed on while the sheet's content changes height, until a
+ * wheel, touch, press or key. Answers the release, for the ref's cleanup.
+ * A no-op where there is no `ResizeObserver` (jsdom).
+ */
+function holdLanding(el: HTMLElement): () => void {
+  const content = el.parentElement;
+  if (content === null || typeof ResizeObserver === "undefined") return () => undefined;
+  const observer = new ResizeObserver(() => scrollIntoView(el));
+  observer.observe(content);
+  const doc = el.ownerDocument;
+  const release = () => {
+    observer.disconnect();
+    for (const type of HOLD_RELEASED_BY) doc.removeEventListener(type, release, true);
+  };
+  for (const type of HOLD_RELEASED_BY) doc.addEventListener(type, release, true);
+  return release;
+}
+
 function datesLabel(startDate: string | null, endDate: string | null): string {
   if (startDate === null) return "No dates set";
   if (endDate === null || endDate === startDate) return formatTripDate(startDate);
@@ -164,14 +192,24 @@ export function SettingsSheet({
   // took the content under the scrollport's height, the browser clamped the
   // scroll to 0, and the content grew back with the sheet at its top
   // (measured in m37-trip-covers.spec.ts). So the section is landed on again
-  // once Cover has settled; where nothing moved, that is a no-op.
+  // once Cover has settled, and — in a browser — whenever the content's
+  // height changes before the person moves the sheet (`holdLanding`): a
+  // section other than Cover can still be landing late. Where nothing moved,
+  // either is a no-op.
   const sections = useRef<Partial<Record<SettingsSection, HTMLDivElement | null>>>({});
   // One stable callback ref per section: a new one each render would land
   // again on every render.
   const landing = useMemo(() => {
     const at = (section: SettingsSection) => (el: HTMLDivElement | null) => {
       sections.current[section] = el;
-      if (scrollTo === section) scrollIntoView(el);
+      if (scrollTo !== section || el === null) return;
+      scrollIntoView(el);
+      const release = holdLanding(el);
+      // A cleanup, so React calls this rather than the ref with null.
+      return () => {
+        release();
+        sections.current[section] = null;
+      };
     };
     return { cover: at("cover"), people: at("people") };
   }, [scrollTo]);
