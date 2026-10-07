@@ -49,6 +49,13 @@ async function openCoverPickerFromHome(page: Page, tripName: string): Promise<Lo
 }
 
 test("pick a cover for an empty trip in Trip settings, and see it credited on Home", async ({ page }) => {
+  // Shorter than the project's 900, so the sheet always has somewhere to
+  // land. At 900 it fit exactly once alice held Premium — which
+  // `m11-invites.spec.ts` grants her mid-run, taking People's Premium note
+  // with it — and the landing check read "unscrollable (0)" with the section
+  // in plain view (PR #354's Tier 3). Whether it did depended on which spec
+  // ran first in the shard. At 720 the sheet scrolls whichever plan she has.
+  await page.setViewportSize({ width: 1280, height: 720 });
   const tripName = e2eTripName("Covers");
   const section = await openCoverPickerFromHome(page, tripName);
 
