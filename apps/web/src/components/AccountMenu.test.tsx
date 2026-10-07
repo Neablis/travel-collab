@@ -286,6 +286,36 @@ describe("HeaderSessionChrome's account menu", () => {
     expect(signOut).toHaveBeenCalledWith({ callbackUrl: "/welcome" });
   });
 
+  // M38 part 4: the header button is the person's own chip, so a glyph chosen
+  // on Account shows up here from the provider's one read. The chip is
+  // `aria-hidden` inside a button named "Account menu", so it is read for what
+  // a sighted person sees: the glyph, or the initials.
+  it("draws the chosen glyph on the account button, and initials without one", async () => {
+    const { getSession } = await import("next-auth/react");
+    vi.mocked(getSession).mockResolvedValueOnce({ user: { name: "Sam K", email: "sam@example.com" }, expires: "" });
+    fetchPreferencesMock.mockResolvedValueOnce({
+      ok: true,
+      value: {
+        preferences: { displayName: null, homeAirport: null, distanceUnit: "km", timeFormat: "12h", avatar: "compass", color: "teal", publicDisplayName: false },
+        isAdmin: false,
+      },
+    });
+
+    render(
+      <PreferencesProvider>
+        <HeaderSessionChrome />
+      </PreferencesProvider>,
+    );
+
+    const button = await screen.findByRole("button", { name: "Account menu" });
+    await waitFor(() => expect(button.innerHTML).toContain("lucide-compass"));
+    expect(button.textContent).toBe("");
+
+    cleanup();
+    render(<AccountMenu name="Sam K" email="sam@example.com" />);
+    expect(screen.getByRole("button", { name: "Account menu" }).textContent).toBe("SK");
+  });
+
   it("defaults demoResetEnabled to off, so no reset item appears without an explicit prop", async () => {
     const { getSession } = await import("next-auth/react");
     vi.mocked(getSession).mockResolvedValueOnce({

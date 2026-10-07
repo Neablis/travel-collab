@@ -6,7 +6,9 @@ import { Avatar } from "./avatar";
 
 // Whole class names, not `bg-person-${color}`: Tailwind only emits a utility it
 // can read in the source, and the colour wall's token check reads the same way.
-const PERSON_BG: Record<PersonColor, string> = {
+// Exported for Account's colour swatches, so a swatch and the chip it picks
+// cannot disagree — the one other reader of the person colours.
+export const PERSON_BG: Record<PersonColor, string> = {
   moss: "bg-person-moss",
   clay: "bg-person-clay",
   sky: "bg-person-sky",

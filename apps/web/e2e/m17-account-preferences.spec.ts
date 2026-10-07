@@ -72,7 +72,7 @@ test("account preferences: a name, a home airport, and miles that stick", async 
 
   await openAccountPage(page);
 
-  const nameField = page.getByLabel("Your name");
+  const nameField = page.getByLabel("Display name", { exact: true });
   const airportField = page.getByLabel("Home airport");
   await expect(nameField).toHaveValue("");
   await expect(airportField).toHaveValue("");
@@ -109,7 +109,7 @@ test("account preferences: a name, a home airport, and miles that stick", async 
   await expect(dayTile).toContainText(/· \d+(\.\d)? mi/);
 
   await openAccountPage(page);
-  await expect(page.getByLabel("Your name")).toHaveValue(DISPLAY_NAME);
+  await expect(page.getByLabel("Display name", { exact: true })).toHaveValue(DISPLAY_NAME);
   await expect(page.getByLabel("Home airport")).toHaveValue(HOME_AIRPORT);
   await expect(page.getByRole("radio", { name: "Imperial" })).toHaveAttribute("aria-checked", "true");
 
@@ -118,8 +118,11 @@ test("account preferences: a name, a home airport, and miles that stick", async 
   // its chain. Without it the menu would still be showing the dev-login
   // handle derived from the id.
   await page.keyboard.press("Escape");
+  //
+  // Scoped to the popover since M38 part 4: the account page behind it now
+  // prints the same name in its "How you appear" preview.
   await page.getByRole("button", { name: "Account menu" }).click();
-  await expect(page.getByText(DISPLAY_NAME)).toBeVisible();
+  await expect(page.getByRole("dialog").getByText(DISPLAY_NAME)).toBeVisible();
 });
 
 // The Time setting beside Units (Mitchell, PR #221: *"All times should be

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import type { AvatarKey, PersonColor } from "@tc/contracts";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
@@ -11,8 +12,8 @@ import { Dialog, DialogFooter } from "@/components/ui/dialog";
 import { Text } from "@/components/ui/text";
 import { useIsAdmin, usePreferences } from "@/components/account/PreferencesProvider";
 import { useSessionUser, type SessionUser } from "@/components/account/useSessionUser";
+import { PersonChip } from "@/components/ui/person-chip";
 import { displayNameFor } from "@/lib/displayName";
-import { initialsFor } from "@/lib/initials";
 import { resetDemoData } from "@/lib/apiClient";
 
 // Handoff `…dc.html:97`: the 30px round avatar sits between Tailwind's h-7
@@ -34,11 +35,16 @@ const AVATAR_SIZE = { height: "30px", width: "30px" };
 export function AccountMenu({
   name,
   email,
+  avatar = null,
+  color = null,
   onSignOut,
   demoResetEnabled = false,
   onResetDemoData,
 }: {
   name: string;
+  /** The chosen glyph and colour (M38); unset, the chip draws initials on slate. */
+  avatar?: AvatarKey | null;
+  color?: PersonColor | null;
   /** `null` for an account with none — dev-login's — which gets no line at all. */
   email: string | null;
   onSignOut?: () => void;
@@ -59,7 +65,6 @@ export function AccountMenu({
   // (KI-2026-09-14-f). `false` until that read lands, so the item never flashes
   // for a non-operator; any failure also reads as "not an operator".
   const isAdmin = useIsAdmin();
-  const initials = initialsFor(name);
 
   // Discards the caller's trips (via DeleteTrip — recoverable server-side,
   // but not from this dialog), so a single click must not do it — same
@@ -89,14 +94,17 @@ export function AccountMenu({
         // `phone-hit-44` (globals.css) grows the TAP target to 44px below
         // 768px without moving the 30px circle — see that rule for why the
         // avatar in particular needs it.
-        className="phone-hit-44 shrink-0 rounded-full border border-hairline bg-moss text-xs font-semibold text-slate hover:bg-moss hover:text-slate"
+        //
+        // The person's own chip since M38 part 4, at `md` — the same 30px the
+        // moss initials circle was — so the header shows what trips show.
+        className="phone-hit-44 shrink-0 rounded-full"
         // eslint-disable-next-line no-restricted-syntax -- see AVATAR_SIZE above
         style={AVATAR_SIZE}
       >
-        {initials}
+        <PersonChip name={name} avatar={avatar} color={color} size="md" />
       </Button>
     ),
-    [name, initials],
+    [name, avatar, color],
   );
 
   return (
@@ -387,6 +395,8 @@ function AccountMenuFor({
         email: user.email,
       })}
       email={user.email ?? null}
+      avatar={preferences.avatar}
+      color={preferences.color}
       // `/welcome`, not `/` — sign-out must not depend on a redirect it races.
       // `signOut` POSTs to /api/auth/signout (whose response clears the session
       // cookie) and then sets `window.location.href`. Pointed at `/`, the

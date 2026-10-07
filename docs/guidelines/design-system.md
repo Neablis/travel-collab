@@ -197,7 +197,9 @@ M38's eight chip colours, one per `PersonColor` key in `@tc/contracts`, and
 the ink that sits on them. Tokens are `--color-person-<key>` plus
 `--color-person-on` (utilities `bg-person-<key>`, `text-person-on`). The
 `person-` prefix is required: `moss` and `slate` are already neutrals above.
-Only `PersonChip` reads them, through a static class map. A person colour is
+Only `PersonChip` reads them, through a static class map (`PERSON_BG`); the
+one other reader, Account's colour swatches, imports that same map so a
+swatch and the chip it picks cannot disagree. A person colour is
 identity, not meaning — it never stands in for a semantic colour, and an
 invite that has no person yet never takes one.
 
