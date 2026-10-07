@@ -87,18 +87,23 @@ const LINK = "inline-flex min-h-11 items-center text-slate underline-offset-2 ho
  * The cover, with its credit, and — for whoever may change it — a search of
  * Unsplash to pick one from and a way to remove it. Anyone else sees the
  * cover and its credit, read-only. `canEdit` is advisory: the routes refuse
- * everyone else regardless. `onChange` hears each cover a pick or a removal
- * leaves; `heading={false}` leaves the visible title to a dialog around it.
+ * everyone else regardless. `initial` is a cover the page already holds,
+ * which the picker then does not read again; `onChange` hears each cover a
+ * pick or a removal leaves; `heading={false}` leaves the visible title to a
+ * dialog around it.
  */
 export function CoverPicker({
   api,
   canEdit,
+  initial,
   onChange,
   heading = true,
   onSettled,
 }: {
   api: CoverApi;
   canEdit: boolean;
+  /** The cover as the page read it (`null` for none), or `undefined` for the picker to read. */
+  initial?: TripCover | null;
   onChange?: (cover: TripCover | null) => void;
   heading?: boolean;
   /**
@@ -112,7 +117,9 @@ export function CoverPicker({
   // `undefined` until the first read lands; `null` is "no cover". A failed
   // read leaves it `undefined` and sets `readFailed`: not knowing is not "no
   // cover", and must not hide *Remove cover* from a cover that exists.
-  const [cover, setCover] = useState<TripCover | null | undefined>(undefined);
+  const [cover, setCover] = useState<TripCover | null | undefined>(initial);
+  // Only the first read is skipped for a known cover: *Try again* still reads.
+  const [known] = useState(initial !== undefined);
   const [readFailed, setReadFailed] = useState(false);
   const [readAttempt, setReadAttempt] = useState(0);
   const [unavailable, setUnavailable] = useState(false);
@@ -139,6 +146,7 @@ export function CoverPicker({
   const settled = useRef(false);
 
   useEffect(() => {
+    if (known && readAttempt === 0) return;
     let cancelled = false;
     void api.read().then((result) => {
       if (cancelled) return;
@@ -148,7 +156,7 @@ export function CoverPicker({
     return () => {
       cancelled = true;
     };
-  }, [api, readAttempt]);
+  }, [api, readAttempt, known]);
 
   // Covers are unavailable on a deployment with no Unsplash key. An empty
   // query is how to ask: the route answers it before the quota, so it spends

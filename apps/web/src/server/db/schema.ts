@@ -929,11 +929,13 @@ export const savedDayReviews = pgTable(
 // projection and not an event.
 //
 // **No foreign key**, `saved_day_adds`' and `saved_day_reviews`' terms: no
-// table keyed by a saved day carries one, and `saved_days` is soft-deleted, so
-// `ON DELETE CASCADE` would never fire. A deleted or moderated day hides its
-// cover by the reads, which reach this table only through a day they may
-// already show (`readableSavedDay`, `matchPredicate`); an undeleted day gets
-// its cover back.
+// table keyed by a saved day carries one. A person's delete is soft, and a
+// deleted or moderated day hides its cover by the reads, which reach this
+// table only through a day they may already show (`readableSavedDay`,
+// `matchPredicate`); an undeleted day gets its cover back. The hard deletes —
+// the content importer and the dev seed routes — handle it themselves: a
+// re-inserted day keeps its cover (same id, so the row is the carry), and a
+// day the importer prunes has its row deleted beside its `saved_day_adds`.
 export const savedDayCovers = pgTable("saved_day_covers", {
   savedDayId: uuid("saved_day_id").primaryKey(),
   unsplashId: text("unsplash_id").notNull(),

@@ -2,7 +2,6 @@ import { TripCoverResponse } from "@tc/contracts";
 import { requireSavedDayAuthor } from "@/server/access/saved-day-access";
 import { coverPick } from "@/server/coverRoutes";
 import { getCoverPhotos } from "@/server/external/unsplash";
-import { invalidatePublicDay } from "@/server/libraryCache";
 import { publicLibraryReader } from "@/server/publicLibraryLimit";
 import { clearSavedDayCover, getSavedDayCover, setSavedDayCover } from "@/server/savedDayCovers";
 import { readableSavedDay } from "@/server/savedDays";
@@ -14,7 +13,8 @@ import { readableSavedDay } from "@/server/savedDays";
 //
 // A published day's page and every list that shows its card are cached for a
 // day (ADR-063), so a write clears them, the way a publish does: a reader sees
-// the new cover on their next page, not tomorrow.
+// the new cover on their next page, not tomorrow. `setSavedDayCover` and
+// `clearSavedDayCover` decide that from the day after the write.
 
 /** Answers `{ cover }` for a day the caller may open: their own, or a published one. Asks Unsplash nothing. */
 export async function GET(request: Request, { params }: { params: Promise<{ savedDayId: string }> }) {
@@ -32,11 +32,9 @@ export async function PUT(request: Request, { params }: { params: Promise<{ save
   const { savedDayId } = await params;
   const author = await requireSavedDayAuthor(savedDayId);
   if ("error" in author) return author.error;
-  const response = await coverPick(request, author.readerId, getCoverPhotos(), (candidate) =>
+  return coverPick(request, author.readerId, getCoverPhotos(), (candidate) =>
     setSavedDayCover(savedDayId, candidate, author.readerId),
   );
-  if (response.ok && author.day.visibility === "public") await invalidatePublicDay(savedDayId, author.day.ownerId);
-  return response;
 }
 
 /** Removes the day's cover; answers `{ cover: null }`. */
@@ -45,6 +43,5 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   const author = await requireSavedDayAuthor(savedDayId);
   if ("error" in author) return author.error;
   await clearSavedDayCover(savedDayId);
-  if (author.day.visibility === "public") await invalidatePublicDay(savedDayId, author.day.ownerId);
   return Response.json(TripCoverResponse.parse({ cover: null }));
 }

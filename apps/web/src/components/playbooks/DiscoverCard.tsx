@@ -278,7 +278,10 @@ export function DiscoverCard({ day, origin }: { day: DiscoverDay; origin: BackOr
             sizes="(min-width: 1024px) 360px, (min-width: 640px) 50vw, 100vw"
             className="h-37.5 shrink-0"
           >
-            <div className="absolute inset-x-4 bottom-2">{chipRow}</div>
+            {/* `bottom-3`: a chip's phone hit area reaches 12px below it
+                (`-my-3` on `min-h-11`), and the photo clips what passes its
+                foot (PR #354 review). */}
+            <div className="absolute inset-x-4 bottom-3">{chipRow}</div>
           </CoverImage>
           <div className="flex flex-1 flex-col gap-3 px-4 pt-2 pb-4">{body}</div>
         </>

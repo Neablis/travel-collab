@@ -1342,7 +1342,9 @@ describe("a day's cover", () => {
     await userEvent.type(within(dialog).getByRole("searchbox", { name: "Search photos" }), "kamo");
     await userEvent.click(within(dialog).getByRole("button", { name: "Search" }));
     await waitFor(() => expect(searchCoversMock).toHaveBeenCalledWith(DAY_ID, "kamo", 1));
-    expect(fetchCoverMock).toHaveBeenCalledWith(DAY_ID);
+    // The page's cover, handed in: shown at once, and not read again.
+    expect(within(dialog).getByRole("button", { name: "Remove cover" })).toBeTruthy();
+    expect(fetchCoverMock).not.toHaveBeenCalled();
   });
 
   it("is the page it always was without one, for a reader: no photo and no cover controls", async () => {
@@ -1354,7 +1356,10 @@ describe("a day's cover", () => {
     expect(screen.getByRole("link", { name: "← Discover" })).toBeTruthy();
   });
 
-  it("offers its author Add cover without one; a pick re-reads the day and the band arrives", async () => {
+  // PR #354 review: the route answers the stored cover in full, so a pick
+  // patches it in rather than re-reading the day and its author's numbers;
+  // and the dialog hands focus to the control that now exists, not `<body>`.
+  it("offers its author Add cover without one; a pick patches the band in, and closing focuses Change cover", async () => {
     const candidate: CoverCandidate = {
       id: cover.unsplashId,
       urls: cover.urls,
@@ -1366,19 +1371,40 @@ describe("a day's cover", () => {
     };
     fetchSavedDayMock.mockResolvedValue(ok({ savedDay: savedDay(), isAuthor: true, moderation: null }));
     searchCoversMock.mockResolvedValue(ok([candidate]));
-    setCoverMock.mockImplementation(async () => {
-      fetchSavedDayMock.mockResolvedValue(ok({ savedDay: savedDay(), isAuthor: true, moderation: null, cover }));
-      return ok(cover);
-    });
+    setCoverMock.mockResolvedValue(ok(cover));
     renderDay();
     expect(screen.queryByTestId("day-cover")).toBeNull();
     await userEvent.click(await screen.findByRole("button", { name: "Add cover" }));
+    const reads = fetchSavedDayMock.mock.calls.length;
+    const profileReads = fetchPublicProfileMock.mock.calls.length;
     const dialog = await screen.findByRole("dialog", { name: "Cover photo" });
     await userEvent.type(within(dialog).getByRole("searchbox", { name: "Search photos" }), "kyoto");
     await userEvent.click(within(dialog).getByRole("button", { name: "Search" }));
     await userEvent.click(await within(dialog).findByRole("button", { name: "Use photo by Aiko Tanaka" }));
     expect(setCoverMock).toHaveBeenCalledWith(DAY_ID, candidate);
-    expect(await screen.findByTestId("day-cover")).toBeTruthy();
+    const band = await screen.findByTestId("day-cover");
+    expect(fetchSavedDayMock).toHaveBeenCalledTimes(reads);
+    expect(fetchPublicProfileMock).toHaveBeenCalledTimes(profileReads);
+    expect(fetchCoverMock).not.toHaveBeenCalled();
+
+    await userEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+    const change = within(band).getByRole("button", { name: "Change cover" });
+    await waitFor(() => expect(change.matches(":focus")).toBe(true));
+  });
+
+  it("removes the cover from the band, and closing focuses Add cover", async () => {
+    withCover(true);
+    renderDay();
+    const band = await screen.findByTestId("day-cover");
+    await userEvent.click(within(band).getByRole("button", { name: "Change cover" }));
+    const dialog = await screen.findByRole("dialog", { name: "Cover photo" });
+    await userEvent.click(within(dialog).getByRole("button", { name: "Remove cover" }));
+    await waitFor(() => expect(screen.queryByTestId("day-cover")).toBeNull());
+    expect(clearCoverMock).toHaveBeenCalledWith(DAY_ID);
+
+    await userEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+    const add = screen.getByRole("button", { name: "Add cover" });
+    await waitFor(() => expect(add.matches(":focus")).toBe(true));
   });
 });
 

@@ -1,11 +1,12 @@
 import { eq, sql } from "drizzle-orm";
-import type { CoverCandidate, TripCover } from "@tc/contracts";
+import { SavedDayVisibility, type CoverCandidate, type TripCover } from "@tc/contracts";
+import { coverJson, coverOf, coverValues, storedCover } from "./coverRows";
 import { db } from "./db/client";
-import { savedDayCovers } from "./db/schema";
-import { coverJson, coverOf, coverValues } from "./tripCovers";
+import { savedDayCovers, savedDays } from "./db/schema";
+import { invalidatePublicDay } from "./libraryCache";
 
 // A playbook day's cover photo (M37 part 5): ordinary Community CRUD on
-// `saved_day_covers`, `trip_covers`' shape. The routes under
+// `saved_day_covers`, `trip_covers`' shape (`coverRows.ts`). The routes under
 // `app/api/saved-days/[savedDayId]/cover/` are the only writers, and only for
 // the day's author.
 //
@@ -23,15 +24,16 @@ import { coverJson, coverOf, coverValues } from "./tripCovers";
 export const SAVED_DAY_COVER_JOIN = sql`left join ${savedDayCovers} on ${savedDayCovers.savedDayId} = d.id`;
 export const SAVED_DAY_COVER_JSON = coverJson(savedDayCovers, savedDayCovers.savedDayId);
 
-/** The day's cover, or `null` when it has none. Its caller has passed the read seam. */
+/** The day's cover, or `null` when it has none (or its row no longer parses). Its caller has passed the read seam. */
 export async function getSavedDayCover(savedDayId: string): Promise<TripCover | null> {
   const [row] = await db.select().from(savedDayCovers).where(eq(savedDayCovers.savedDayId, savedDayId));
   return row ? coverOf(row) : null;
 }
 
 /**
- * Make `candidate` the day's cover, replacing any it had. The caller has
- * checked the author and that the candidate came from the cover source.
+ * Make `candidate` the day's cover, replacing any it had, and clear the
+ * library's cache of the day if it is public. The caller has checked the
+ * author and that the candidate came from the cover source.
  */
 export async function setSavedDayCover(
   savedDayId: string,
@@ -45,10 +47,26 @@ export async function setSavedDayCover(
     .values({ savedDayId, ...values })
     .onConflictDoUpdate({ target: savedDayCovers.savedDayId, set: values })
     .returning();
-  return coverOf(row!);
+  await invalidateIfPublic(savedDayId);
+  return storedCover(row);
 }
 
-/** Remove the day's cover. Clearing a day with none is not an error. */
+/** Remove the day's cover, and clear the library's cache of it if public. Clearing a day with none is not an error. */
 export async function clearSavedDayCover(savedDayId: string): Promise<void> {
   await db.delete(savedDayCovers).where(eq(savedDayCovers.savedDayId, savedDayId));
+  await invalidateIfPublic(savedDayId);
+}
+
+// A public day's page and every list that shows its card are cached for a
+// day (ADR-063), so a cover write clears them, as a publish does. Decided
+// from the day as it is AFTER the write, not from the route's check before
+// it (PR #354 review): a publish in another tab between the two would
+// otherwise leave the old card cached for a day. Either order is then
+// covered — the publish clears after its own commit, and this after ours.
+async function invalidateIfPublic(savedDayId: string): Promise<void> {
+  const [day] = await db
+    .select({ ownerId: savedDays.ownerId, visibility: savedDays.visibility })
+    .from(savedDays)
+    .where(eq(savedDays.id, savedDayId));
+  if (day?.visibility === SavedDayVisibility.enum.public) await invalidatePublicDay(savedDayId, day.ownerId);
 }

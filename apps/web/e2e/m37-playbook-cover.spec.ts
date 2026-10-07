@@ -10,10 +10,11 @@ import { forget, publishedDay, stranger } from "./helpers";
 // the offline fake: three fixed photos served as SVGs from this origin, and no
 // request to Unsplash from any test.
 //
-// The stranger opens the day BEFORE the pick as well as after. This lane runs
-// `next start`, where a stranger's read of a published day is cached for a day
-// (ADR-063); seeing the cover on their second visit is what proves a pick
-// clears that cache, not just that the page can draw one.
+// The stranger opens the day and its city page BEFORE the pick as well as
+// after. This lane runs `next start`, where a stranger's read of a published
+// day and of every list showing its card is cached for a day (ADR-063);
+// seeing the cover on their second visit to each is what proves a pick clears
+// both the day's tag and the library's, not just that the page can draw one.
 //
 // A city minted per test, for `m11b-playbooks.spec.ts`'s reason: the library is
 // global, and a city page asserted on here must hold this day alone.
@@ -61,6 +62,10 @@ test("the author adds a cover to a published day; a stranger sees it, credited, 
     await expect(visitor.getByRole("heading", { level: 1, name })).toBeVisible();
     await expect(visitor.getByTestId("day-cover")).toHaveCount(0);
     await expect(visitor.getByRole("button", { name: "Add cover" })).toHaveCount(0);
+    await visitor.goto(`/playbooks/city/${city.toLowerCase()}`);
+    const card = visitor.locator(`[data-testid="discover-card"][data-saved-day-id="${savedDayId}"]`);
+    await expect(card).toBeVisible();
+    await expect(card.getByRole("img", { name: "Sand dunes under a pale sun" })).toHaveCount(0);
 
     const band = await addCover(page, savedDayId);
     await expectLoaded(band.getByRole("img", { name: "Sand dunes under a pale sun" }));
@@ -70,7 +75,7 @@ test("the author adds a cover to a published day; a stranger sees it, credited, 
     await expect(page.getByRole("button", { name: "Add cover" })).toHaveCount(0);
 
     // The stranger's next visit: the cover, its credit, and no way to change it.
-    await visitor.reload();
+    await visitor.goto(`/playbooks/day/${savedDayId}`);
     const theirs = visitor.getByTestId("day-cover");
     await expectLoaded(theirs.getByRole("img", { name: "Sand dunes under a pale sun" }));
     await expect(theirs.getByText("Photo by Ada Offline on Unsplash").first()).toBeVisible();
@@ -82,7 +87,6 @@ test("the author adds a cover to a published day; a stranger sees it, credited, 
 
     // The day's card on its city page leads with the same photo, credited.
     await visitor.goto(`/playbooks/city/${city.toLowerCase()}`);
-    const card = visitor.locator(`[data-testid="discover-card"][data-saved-day-id="${savedDayId}"]`);
     await card.scrollIntoViewIfNeeded();
     await expectLoaded(card.getByRole("img", { name: "Sand dunes under a pale sun" }));
     await expect(card.getByText("Photo by Ada Offline on Unsplash")).toBeVisible();
@@ -97,7 +101,8 @@ test("a day's cover on a 390px phone: the band fits, its controls are 44px, the 
 }) => {
   test.slow();
   await page.setViewportSize({ width: 390, height: 844 });
-  const savedDayId = await publishedDay(page, mintCity(), `Phone cover ${randomUUID().slice(0, 8)}`);
+  const city = mintCity();
+  const savedDayId = await publishedDay(page, city, `Phone cover ${randomUUID().slice(0, 8)}`);
   try {
     const band = await addCover(page, savedDayId);
     await expectLoaded(band.getByRole("img", { name: "Sand dunes under a pale sun" }));
@@ -110,6 +115,8 @@ test("a day's cover on a 390px phone: the band fits, its controls are 44px, the 
       band.getByRole("link", { name: /^Back to / }),
       band.getByRole("button", { name: "Change cover" }),
       band.getByTestId("share-day"),
+      // The way to the day's city, over the photo (PR #354's preview walk measured it 15px).
+      band.getByRole("link", { name: city, exact: true }),
     ]) {
       const box = await control.boundingBox();
       expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);

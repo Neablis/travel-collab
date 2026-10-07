@@ -9,6 +9,7 @@ import { db } from "@/server/db/client";
 import { rateLimitCounters, savedDayCovers, savedDays } from "@/server/db/schema";
 import { offlineCoverPhotos } from "@/server/external/unsplash/offline";
 import { dayPageView, publishedDaysPage } from "@/server/publicLibrary";
+import { clearSavedDayCover, setSavedDayCover } from "@/server/savedDayCovers";
 
 // M37 part 5: a playbook day's cover, against real Postgres and the offline
 // cover source (`EXTERNAL_DATA_OFFLINE=true`) — no test here reaches Unsplash.
@@ -38,6 +39,20 @@ let currentUserId: string | null = null;
 vi.mock("@/server/auth", () => ({
   auth: vi.fn(async () => (currentUserId ? { user: { id: currentUserId } } : null)),
 }));
+
+// The library cache's clear, watched: outside a production build it clears
+// nothing, so what a test can see is whether a write asked for it.
+const invalidated = vi.hoisted(() => vi.fn());
+vi.mock("@/server/libraryCache", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@/server/libraryCache")>();
+  return {
+    ...original,
+    invalidatePublicDay: async (savedDayId: string, ownerId: string) => {
+      invalidated(savedDayId, ownerId);
+      return original.invalidatePublicDay(savedDayId, ownerId);
+    },
+  };
+});
 
 const portCalls = vi.fn();
 vi.mock("@/server/external/unsplash", async (importOriginal) => {
@@ -274,7 +289,53 @@ describe("picking and clearing", () => {
   });
 });
 
+describe("the library cache", () => {
+  // PR #354 review: the decision is the day's visibility AFTER the write. The
+  // route's own check is earlier, so a publish in another tab in between left
+  // the old card cached for a day; the setters now decide, and are called
+  // here with no route in front of them.
+  it("is cleared by a cover write on a public day, decided by the setter itself", async () => {
+    const savedDayId = await saveDay();
+    const [first] = await candidates(savedDayId);
+    await publish(savedDayId);
+    invalidated.mockClear();
+
+    await setSavedDayCover(savedDayId, first!, AUTHOR);
+    expect(invalidated).toHaveBeenCalledWith(savedDayId, AUTHOR);
+    invalidated.mockClear();
+    await clearSavedDayCover(savedDayId);
+    expect(invalidated).toHaveBeenCalledWith(savedDayId, AUTHOR);
+  });
+
+  it("is left alone by a cover write on a private day, which no cached read holds", async () => {
+    const savedDayId = await saveDay();
+    const [first] = await candidates(savedDayId);
+    invalidated.mockClear();
+    await setSavedDayCover(savedDayId, first!, AUTHOR);
+    await clearSavedDayCover(savedDayId);
+    expect(invalidated).not.toHaveBeenCalled();
+  });
+});
+
 describe("where the cover shows, and where it must not", () => {
+  // PR #354 review: a row a later contract no longer accepts used to throw
+  // out of the day read, a 500 over a decoration. Discover's cards already
+  // dropped it; every read now does.
+  it("drops a stored cover that no longer parses, and shows the day without it", async () => {
+    const savedDayId = await saveDay();
+    await publish(savedDayId);
+    const [first] = await candidates(savedDayId);
+    expect((await pick(savedDayId, first!)).status).toBe(200);
+    // The witness: the cover reads as stored before the row is spoiled.
+    expect(await dayCover(savedDayId)).toMatchObject({ unsplashId: first!.id });
+    await db.update(savedDayCovers).set({ photographerName: "" }).where(eq(savedDayCovers.savedDayId, savedDayId));
+
+    currentUserId = OTHER;
+    expect(await dayCover(savedDayId)).toBeNull();
+    expect(await (await coverRead(savedDayId)).json()).toEqual({ cover: null });
+    expect((await card(savedDayId))?.cover).toBeNull();
+  });
+
   it("rides the shared-day read, its cached page read, Discover and the profile — once published", async () => {
     const savedDayId = await saveDay();
     await publish(savedDayId);

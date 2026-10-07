@@ -74,6 +74,13 @@ export type LibraryRead<T> = {
    * this suppresses the comparison, it does not dismiss anything.
    */
   refreshWithoutComparing: () => void;
+  /**
+   * Change what is on screen without asking the server, for a write THIS page
+   * made whose answer it already holds — the day's cover, which the cover
+   * route answers in full. Only for a part of `T` the `signature` does not
+   * read: the baseline is not moved, so it must not need to be.
+   */
+  patch: (update: (value: T) => T) => void;
   acknowledgeChange: () => void;
 };
 
@@ -160,6 +167,7 @@ export function useLibraryRead<T>(
     changed,
     reload: () => void run(true),
     refreshWithoutComparing: () => void run(false),
+    patch: (update) => setData((value) => (value === null ? value : update(value))),
     acknowledgeChange: () => setChanged(false),
   };
 }

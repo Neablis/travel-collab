@@ -51,11 +51,16 @@ Format:
   New internal routes `GET`/`PUT`/`DELETE /api/saved-days/:id/cover` and
   `GET /api/saved-days/:id/cover/search` speak the existing cover schemas. Web test builders of
   `DiscoverDay` and `SharedDayView` carry `cover: null`.
-- Public API: `GET /v1/discover/playbooks` items gain `cover`. `API_VERSION` 1.8.0 → 1.9.0
-  (additive), `API_FINGERPRINT` and `openapi.json` regenerated. `CollectionDef`'s item schema now
-  accepts any input type, so an item with a defaulted field can be declared. The cover routes are
-  `planned` in `exposure.ts`, not published; `GET /v1/playbooks/{id}` (a `SavedDay`) is unchanged.
-- Breaking? no. `cover` is defaulted, so a card from before it parses as null.
+- Public API: `GET /v1/discover/playbooks` items gain `cover`, published as **required and
+  nullable** (null for a day with none): the server sends it on every card, so `discover.ts`
+  overrides the app schema's default rather than documenting the field as optional (PR #354
+  review). `API_VERSION` 1.8.0 → 1.9.0 (additive), `API_FINGERPRINT` and `openapi.json`
+  regenerated. `CollectionDef`'s item schema accepts any input type, so an item with a defaulted
+  field anywhere in it can be declared — still needed after the override, because `TripCover.alt`
+  is itself defaulted. The cover routes are `planned` in `exposure.ts`, not published;
+  `GET /v1/playbooks/{id}` (a `SavedDay`) is unchanged.
+- Breaking? no. In the app, `cover` is defaulted, so a card from before it parses as null; on v1
+  it is a new field.
 
 ## 2026-10-06 — `TripCover`, `CoverCandidate` and `TripSummary.cover`: a trip can have a cover photo
 

@@ -247,6 +247,10 @@ export function SharedDayScreen({
   // The cover picker (M37 part 5): the trip settings picker, pointed at this
   // day's cover routes. Only its author ever opens it.
   const [choosingCover, setChoosingCover] = useState(false);
+  // *Add cover* or *Change cover*, whichever the page has now. A pick or a
+  // removal swaps one for the other under the open dialog, so the one that
+  // opened it is gone when it closes, and focus would fall to `<body>`.
+  const coverControl = useRef<HTMLButtonElement>(null);
   const coverApi = useMemo<CoverApi>(
     () => ({
       read: () => fetchSavedDayCover(savedDayId),
@@ -421,7 +425,7 @@ export function SharedDayScreen({
   const cityLinks = day.cities.map((city, i) => (
     <Fragment key={city}>
       {i > 0 && (cover === null ? ", " : " · ")}
-      {day.visibility === "public" && moderation === null ? <CityLink city={city} /> : city}
+      {day.visibility === "public" && moderation === null ? <CityLink city={city} overPhoto={cover !== null} /> : city}
     </Fragment>
   ));
   // §33.1: **the title block always speaks for the whole Playbook**, so no
@@ -460,6 +464,7 @@ export function SharedDayScreen({
           cover={cover}
           back={{ href: backHref, label: backLabel }}
           onChangeCover={isAuthor ? openPicker : null}
+          controlRef={coverControl}
           cities={day.cities.length > 0 ? cityLinks : null}
           title={day.name}
           badge={day.visibility === "private" ? <Badge variant="neutral">Private</Badge> : null}
@@ -509,7 +514,7 @@ export function SharedDayScreen({
                     {day.visibility === "private" && <Badge variant="neutral">Private</Badge>}
                     {isAuthor ? (
                       <span className="ml-auto flex items-center gap-2">
-                        <Button variant="secondary" size="sm" onClick={openPicker}>
+                        <Button ref={coverControl} variant="secondary" size="sm" onClick={openPicker}>
                           Add cover
                         </Button>
                         {share}
@@ -919,8 +924,27 @@ export function SharedDayScreen({
           dialog's. It stays open after a pick so the choice shows as pressed;
           the page behind it re-reads, so the band is there when it closes. */}
       {isAuthor && (
-        <Dialog open={choosingCover} onOpenChange={setChoosingCover} title="Cover photo">
-          <CoverPicker api={coverApi} canEdit heading={false} onChange={() => feed.refreshWithoutComparing()} />
+        <Dialog
+          open={choosingCover}
+          onOpenChange={setChoosingCover}
+          title="Cover photo"
+          onCloseAutoFocus={(event) => {
+            const control = coverControl.current;
+            if (control === null || !control.isConnected) return;
+            event.preventDefault();
+            control.focus();
+          }}
+        >
+          {/* The cover the page holds, and the one a pick or removal answers,
+              patched in: the route answers it in full, so neither the day nor
+              its author's numbers need reading again. */}
+          <CoverPicker
+            api={coverApi}
+            canEdit
+            heading={false}
+            initial={cover}
+            onChange={(next) => feed.patch((view) => ({ ...view, cover: next }))}
+          />
         </Dialog>
       )}
 
@@ -997,12 +1021,14 @@ function Fact({ label, value }: { label: string; value: string }) {
 }
 
 /** A city's name as a link to its page, or as text when its name has no slug. */
-function CityLink({ city }: { city: string }) {
+function CityLink({ city, overPhoto }: { city: string; overPhoto: boolean }) {
   const href = cityPath(city);
   return href === null ? (
     <>{city}</>
   ) : (
-    <Link href={href} className="hover:underline">
+    // Over a cover, the band's small caps measured 15px tall at 390px (PR
+    // #354's preview walk): the 44px phone floor, as `CoverCredit` takes it.
+    <Link href={href} className={cn("hover:underline", overPhoto && "inline-flex min-h-11 items-center md:min-h-0")}>
       {city}
     </Link>
   );
@@ -1108,6 +1134,7 @@ function CoverBand({
   cover,
   back,
   onChangeCover,
+  controlRef,
   cities,
   title,
   badge,
@@ -1118,6 +1145,8 @@ function CoverBand({
   back: { href: string; label: string };
   /** The author's *Change cover*, or null for every other reader. */
   onChangeCover: (() => void) | null;
+  /** Given *Change cover*, where the picker's dialog hands focus back. */
+  controlRef: React.Ref<HTMLButtonElement>;
   cities: React.ReactNode | null;
   title: string;
   badge: React.ReactNode | null;
@@ -1145,7 +1174,12 @@ function CoverBand({
             {/* `pr-13` keeps clear of the phone's Share in the corner. */}
             {onChangeCover !== null && (
               <span className="pr-13 md:pr-0">
-                <Button variant="ghost" className={cn(PILL, "font-semibold md:py-2")} onClick={onChangeCover}>
+                <Button
+                  ref={controlRef}
+                  variant="ghost"
+                  className={cn(PILL, "font-semibold md:py-2")}
+                  onClick={onChangeCover}
+                >
                   Change cover
                 </Button>
               </span>

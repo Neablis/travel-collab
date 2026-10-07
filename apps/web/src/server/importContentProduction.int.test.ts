@@ -9,12 +9,13 @@
 import { describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
 import { asc, eq } from "drizzle-orm";
-import { locationFactory } from "@tc/factories";
+import { locationFactory, tripCoverFactory } from "@tc/factories";
 import { parseBundle, playbookIdFor, tripIdFor, type ContentBundleV1 } from "@tc/fixtures";
 import type { Location } from "@tc/contracts";
 import { db } from "./db/client";
-import { events, savedDays } from "./db/schema";
+import { events, savedDayCovers, savedDays } from "./db/schema";
 import { getTripDetail } from "./projections";
+import { getSavedDayCover, setSavedDayCover } from "./savedDayCovers";
 import { importPlaybooks, importTrips } from "../../scripts/import-content-production";
 
 const owner = "user-content-import";
@@ -172,5 +173,49 @@ describe("importPlaybooks — the declared day count (KI-2026-09-24-b)", () => {
       .where(eq(savedDays.id, playbookIdFor(id, "slow")));
     expect((row!.stops as { dayIndex: number }[]).map((s) => s.dayIndex)).toEqual([0, 2]);
     expect(row!.dayCount).toBe(4);
+  });
+});
+
+// M37 part 5, PR #354 review: `saved_day_covers` has no foreign key, so the
+// importer's hard deletes must see to it. A day re-imported keeps its id and
+// its author's cover; a day pruned for good takes its cover row with it.
+describe("importPlaybooks — a playbook day's cover", () => {
+  it("is carried through a re-import, and deleted with a pruned day", async () => {
+    const id = `playbook-covers-${randomUUID().slice(0, 8)}`;
+    const playbook = (key: string) => ({
+      key,
+      name: `Day ${key}`,
+      ownerId: owner,
+      sourceTrip: { name: "Kyoto" },
+      days: [{ stops: [{ title: "Fushimi Inari" }] }],
+    });
+    const bundle = (keys: string[]) =>
+      parseBundle({
+        $schema: "travel-collab/content-bundle/v1",
+        bundle: { id, name: "Covers", origin: "ai" },
+        playbooks: keys.map(playbook),
+      });
+    const kept = playbookIdFor(id, "kept");
+    const pruned = playbookIdFor(id, "pruned");
+
+    await importPlaybooks(bundle(["kept", "pruned"]), false);
+    const cover = tripCoverFactory.build();
+    const candidate = {
+      id: cover.unsplashId,
+      urls: cover.urls,
+      alt: cover.alt,
+      photographerName: cover.photographerName,
+      photographerUrl: cover.photographerUrl,
+      photoPageUrl: cover.photoPageUrl,
+      downloadLocation: `https://api.unsplash.com/photos/${cover.unsplashId}/download`,
+    };
+    await setSavedDayCover(kept, candidate, owner);
+    await setSavedDayCover(pruned, candidate, owner);
+
+    await importPlaybooks(bundle(["kept"]), true);
+
+    expect((await getSavedDayCover(kept))?.unsplashId).toBe(candidate.id);
+    expect(await db.select().from(savedDays).where(eq(savedDays.id, pruned))).toEqual([]);
+    expect(await db.select().from(savedDayCovers).where(eq(savedDayCovers.savedDayId, pruned))).toEqual([]);
   });
 });
