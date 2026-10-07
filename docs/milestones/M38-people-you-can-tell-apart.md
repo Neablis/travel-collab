@@ -1,7 +1,7 @@
 # M38 — You can tell people apart, and see a trip before you join it
 
-**Status:** **Proposed 2026-10-06, placed after M37. Not scoped yet**: the decisions below are
-recommendations and none has been answered. Minted from `docs/candidates.md` (see
+**Status:** **Current from 2026-10-07**, by M37's gate closing. **Scoped 2026-10-07**: all six
+decisions below were answered as recommended. Build plan: `docs/plans/2026-10-07-M38-personas-and-invite-preview.md`. Minted from `docs/candidates.md` (see
 `docs/milestones/README.md`, *2026-10-06 — proposed: M37 to M47*). It builds on M35: the `Avatar`
 primitive (`components/ui/avatar.tsx`) and the People section are where both halves plug in.
 
@@ -20,7 +20,7 @@ Candidates absorbed (each deleted by this gate):
 - *Avatars and personas: a picture, a colour and a name you choose* (2026-10-04)
 - *The invite-accept page uses notebook widgets to say what the trip is* (2026-10-04)
 
-## Decisions it needs (recommendations; none answered)
+## Decisions (answered 2026-10-07: every one as recommended)
 
 1. **Avatars come from a fixed set; there are no uploads.** *Recommended:* uploads bring storage
    and moderation, which the admin reports panel does not cover for images.
@@ -59,7 +59,11 @@ Candidates absorbed (each deleted by this gate):
 
 ## Exit gate
 
-- [ ] **Decisions 1–6 are answered and recorded here.**
+- [x] **Decisions 1–6 are answered and recorded here.**
+      *(Ticked 2026-10-07: Mitchell accepted all six as recommended. Fixed avatar set, no uploads;
+      display name opt-in on public pages; colour clashes resolved at render time per trip; the
+      invitee sees no per-person or per-stop costs; one fixed widget set; a token-scoped read feeds
+      the shared widget components.)*
 - [ ] **A person's avatar, colour and display name show on every surface listed under Scope.** A
       test per surface, or one test over a shared `PersonChip` they all use, was seen red with the
       old initials.
