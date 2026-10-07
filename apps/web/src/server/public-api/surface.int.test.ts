@@ -444,9 +444,11 @@ describe("who is travelling, through v1", () => {
     const trip = ((await listed.json()).items as { tripId: string; members: unknown[] }[]).find(
       (t) => t.tripId === tripId,
     );
+    // Nobody here chose a persona or signed in with a name (M38, API 1.10.0).
+    const unnamed = { name: null, displayName: null, avatar: null, color: null };
     expect(trip?.members).toEqual([
-      { userId: owner, role: "owner", travelling: true },
-      { userId: guest, role: "editor", travelling: false },
+      { userId: owner, role: "owner", travelling: true, ...unnamed },
+      { userId: guest, role: "editor", travelling: false, ...unnamed },
     ]);
   });
 });

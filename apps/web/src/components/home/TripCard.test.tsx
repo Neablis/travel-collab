@@ -1,7 +1,7 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import type { TripSummary } from "@tc/contracts";
-import { tripCoverFactory, tripSummaryFactory } from "@tc/factories";
+import { tripCoverFactory, tripSummaryFactory, tripSummaryMemberFactory } from "@tc/factories";
 import { TripCard } from "./TripCard";
 
 afterEach(() => {
@@ -28,8 +28,8 @@ function tripSummaryFixture(overrides: Partial<TripSummary> = {}): TripSummary {
 const twoMemberTrip = () =>
   tripSummaryFixture({
     members: [
-      { userId: "dev-alice", role: "owner" },
-      { userId: "dev-bob", role: "owner" },
+      tripSummaryMemberFactory.build({ userId: "dev-alice", role: "owner" }),
+      tripSummaryMemberFactory.build({ userId: "dev-bob", role: "owner" }),
     ],
   });
 
@@ -89,7 +89,7 @@ describe("TripCard", () => {
   // the road, so the stack names and shows the travellers only.
   it("counts and shows the travellers, not every member", () => {
     const trip = tripSummaryFixture({
-      members: [...twoMemberTrip().members, { userId: "dev-carol", role: "suggester", travelling: false }],
+      members: [...twoMemberTrip().members, tripSummaryMemberFactory.build({ userId: "dev-carol", role: "suggester", travelling: false })],
     });
     render(<TripCard trip={trip} />);
 
@@ -98,6 +98,23 @@ describe("TripCard", () => {
     expect(within(group).getByText("AL")).toBeTruthy();
     expect(within(group).getByText("BO")).toBeTruthy();
     expect(within(group).queryByText("CA")).toBeNull();
+  });
+
+  // M38 part 3: the list now says who each member is, so the initials are the
+  // person's — the name they chose first, then their sign-in name — not their
+  // id's handle ("Traveler 4f2a91" → "T4").
+  it("draws each traveller's initials from their name, not their id", () => {
+    const trip = tripSummaryFixture({
+      members: [
+        tripSummaryMemberFactory.build({ userId: "6b1f0c7e-2d4a-4c8e-9f1a-3e5d7c9b4f2a", role: "owner", name: "Dana Reyes", displayName: "Mo Tanaka" }),
+        tripSummaryMemberFactory.build({ userId: "0a9e8d7c-6b5a-4f3e-8d2c-1b0a9f8e7d6c", role: "editor", name: "Sam Okafor" }),
+      ],
+    });
+    render(<TripCard trip={trip} />);
+
+    const group = screen.getByRole("group", { name: "2 travelers" });
+    expect(within(group).getByText("MT")).toBeTruthy();
+    expect(within(group).getByText("SO")).toBeTruthy();
   });
 
   // Task 4.1 (M10 Phase 4): TripSummary carries no cost fields at all, so
@@ -136,7 +153,7 @@ describe("TripCard — length, stops and the unplanned trip", () => {
   // default member: the invite nudge depends on exactly this list.
   const unplanned = (overrides: Partial<TripSummary> = {}) =>
     tripSummaryFixture({
-      members: [{ userId: "dev-alice", role: "owner" }],
+      members: [tripSummaryMemberFactory.build({ userId: "dev-alice", role: "owner" })],
       dayCount: 0,
       stopCount: 0,
       ideaCount: 0,
@@ -226,8 +243,8 @@ describe("TripCard — length, stops and the unplanned trip", () => {
   it("does not nudge an owner who is not alone", () => {
     const trip = unplanned({
       members: [
-        { userId: "dev-alice", role: "owner" },
-        { userId: "dev-bob", role: "editor" },
+        tripSummaryMemberFactory.build({ userId: "dev-alice", role: "owner" }),
+        tripSummaryMemberFactory.build({ userId: "dev-bob", role: "editor" }),
       ],
     });
     render(<TripCard trip={trip} viewerId="dev-alice" />);

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { TripCover } from "./cover.ts";
+import { AvatarKey, PersonColor } from "./identity.ts";
 import {
   ActivityAddedV1,
   ActivityMovedV1,
@@ -365,11 +366,42 @@ export const TripMember = z.object({
 });
 export type TripMember = z.infer<typeof TripMember>;
 
+/**
+ * **Who a person is, as a trip shows them** (M38): what they chose to be called,
+ * and the avatar and colour they picked. The stored choices — a per-trip colour
+ * shift (D3) happens at render time and is never part of this. Each field is
+ * defaulted for version skew. One copy, spread into `TripMemberProfile` and
+ * `TripSummaryMember`, so the two places a member carries a persona cannot
+ * disagree about its shape.
+ */
+export const MemberPersona = z.object({
+  displayName: z.string().nullable().default(null),
+  avatar: AvatarKey.nullable().default(null),
+  color: PersonColor.nullable().default(null),
+});
+
+/**
+ * A member as the trips LIST carries one (M38 part 3): `TripMember` plus the
+ * persona and the sign-in `name`, so a card can name its people. Never an email:
+ * a card is read by everyone on the trip.
+ *
+ * **Not `TripMember`, on purpose.** `TripMember` is planning's — the domain folds
+ * it into `trip_summaries` and `trip_details` — and no planning read model grows
+ * a name (`TripMemberProfile`'s note). This is overlaid at the list's read
+ * boundary from `users`, the way `travelling` and the granted members are
+ * (ADR-026, ADR-065), and `StoredTripSummary` keeps the bare `TripMember`.
+ */
+export const TripSummaryMember = TripMember.extend({
+  name: z.string().nullable().default(null),
+  ...MemberPersona.shape,
+});
+export type TripSummaryMember = z.infer<typeof TripSummaryMember>;
+
 export const TripSummary = z.object({
   tripId: z.string().uuid(),
   name: z.string(),
   status: TripStatus,
-  members: z.array(TripMember).min(1),
+  members: z.array(TripSummaryMember).min(1),
   createdAt: z.string(), // ISO 8601
   // The trip's first calendar day (`YYYY-MM-DD`), or null for an undated trip
   // (KI-034). What Home chooses its "next trip" by, and what a card prints in
@@ -416,9 +448,10 @@ export type TripSummary = z.infer<typeof TripSummary>;
  * fields the list query reads from the trip's document instead of storing a
  * second copy — `endDate` (KI-2026-09-24-e), and the day, stop and idea counts
  * (M37) — and the cover, which is not planning state at all and lives in its
- * own CRUD table (M37 D1).
+ * own CRUD table (M37 D1). Its members are the log's bare `TripMember`s: the
+ * persona is Identity's, overlaid at read time (M38, `TripSummaryMember`).
  */
 export type StoredTripSummary = Omit<
   TripSummary,
-  "endDate" | "dayCount" | "stopCount" | "ideaCount" | "cover"
->;
+  "endDate" | "dayCount" | "stopCount" | "ideaCount" | "cover" | "members"
+> & { members: TripMember[] };

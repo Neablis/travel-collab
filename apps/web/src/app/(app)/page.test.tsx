@@ -2,7 +2,7 @@ import { cleanup, render, screen, waitFor, within } from "@testing-library/react
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TripSummary } from "@tc/contracts";
-import { tripDetailFixture, historyFixture, tripSummaryFactory } from "@tc/factories";
+import { tripDetailFixture, historyFixture, tripSummaryFactory, tripSummaryMemberFactory } from "@tc/factories";
 import { formatMoney } from "@/lib/formatMoney";
 
 const pushMock = vi.fn();
@@ -32,7 +32,7 @@ function tripSummaryFixture(overrides: Partial<TripSummary> = {}): TripSummary {
   return tripSummaryFactory.build({
     tripId,
     name: "Japan",
-    members: [{ userId: OWNER_ID, role: "owner" }],
+    members: [tripSummaryMemberFactory.build({ userId: OWNER_ID, role: "owner" })],
     // Planned: these tests are about cards that carry a cost line, and an
     // unplanned trip's card shows its next steps in that slot instead (M37).
     dayCount: 1,
@@ -1406,8 +1406,8 @@ describe("Home — Delete or Leave, never the wrong one", () => {
     tripSummaryFixture({
       name: "Kyoto",
       members: [
-        { userId: OWNER_ID, role: "owner" },
-        { userId: GUEST_ID, role: "editor" },
+        tripSummaryMemberFactory.build({ userId: OWNER_ID, role: "owner" }),
+        tripSummaryMemberFactory.build({ userId: GUEST_ID, role: "editor" }),
       ],
     });
 

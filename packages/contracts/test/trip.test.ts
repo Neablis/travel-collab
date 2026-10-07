@@ -152,6 +152,27 @@ describe("trip contracts", () => {
     expect(TripSummary.safeParse({ ...summary, stopCount: -1 }).success).toBe(false);
     expect(TripSummary.safeParse({ ...summary, ideaCount: -1 }).success).toBe(false);
   });
+
+  // M38 part 3: a card names its people. A member from before the persona
+  // parses with every field null, and a persona outside the closed key sets
+  // is refused rather than passed on to a card.
+  it("parses a TripSummary member from before the persona existed, as nobody chose anything", () => {
+    const summary = {
+      tripId: "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f",
+      name: "Rome 2027",
+      status: "active",
+      members: [{ userId: "dev-alice", role: "owner" }],
+      createdAt: "2026-07-08T12:00:00.000Z",
+    };
+    expect(TripSummary.parse(summary).members).toEqual([
+      { userId: "dev-alice", role: "owner", name: null, displayName: null, avatar: null, color: null },
+    ]);
+    const chosen = { userId: "dev-alice", role: "owner", name: "Alice Ng", displayName: "Ali", avatar: "compass", color: "moss" };
+    expect(TripSummary.parse({ ...summary, members: [chosen] }).members).toEqual([chosen]);
+    expect(TripSummary.safeParse({ ...summary, members: [{ ...chosen, color: "#ff0000" }] }).success).toBe(false);
+    // Never an address: a card is read by everyone on the trip.
+    expect(TripSummary.parse({ ...summary, members: [{ ...chosen, email: "a@example.com" }] }).members[0]).not.toHaveProperty("email");
+  });
 });
 
 describe("lifecycle commands", () => {

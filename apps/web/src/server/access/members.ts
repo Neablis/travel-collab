@@ -1,4 +1,4 @@
-import { and, eq, exists, inArray, sql, type Column, type SQL } from "drizzle-orm";
+import { and, eq, exists, inArray, or, sql, type Column, type SQL } from "drizzle-orm";
 import {
   AvatarKey,
   PersonColor,
@@ -6,6 +6,7 @@ import {
   type TripMember,
   type TripMemberProfile,
   type TripRole,
+  type TripSummaryMember,
 } from "@tc/contracts";
 import { db, type Queryable } from "../db/client";
 import { memberRole, RANK } from "../accessPolicy";
@@ -521,15 +522,76 @@ export async function withProfiles(
     return {
       userId: m.userId,
       role: m.role,
-      name: profile?.name ?? null,
       email: mayReadEmail ? (profile?.email ?? null) : null,
       image: profile?.image ?? null,
       travelling: m.travelling ?? true,
-      // M38: the persona. The keys are re-validated as `toPreferences` does —
-      // the columns are plain text, and a key outside the set reads as unset.
-      displayName: profile?.displayName ?? null,
-      avatar: AvatarKey.safeParse(profile?.avatar).data ?? null,
-      color: PersonColor.safeParse(profile?.color).data ?? null,
+      ...personaOf(profile),
     };
   });
+}
+
+type Persona = Pick<TripSummaryMember, "name" | "displayName" | "avatar" | "color">;
+
+/**
+ * A `users` row as a trip shows the person (M38): the sign-in name and the
+ * persona, for both `withProfiles` and the trips list. The keys are
+ * re-validated as `toPreferences` does — the columns are plain text, and a key
+ * outside the set reads as unset. No row reads as nobody chose anything.
+ */
+function personaOf(
+  profile: Pick<typeof users.$inferSelect, "name" | "displayName" | "avatar" | "color"> | undefined,
+): Persona {
+  return {
+    name: profile?.name ?? null,
+    displayName: profile?.displayName ?? null,
+    avatar: AvatarKey.safeParse(profile?.avatar).data ?? null,
+    color: PersonColor.safeParse(profile?.color).data ?? null,
+  };
+}
+
+/**
+ * **The trips list's members** (`GET /api/trips` and `GET /v1/trips`): each
+ * summary's projected members merged with the granted ones, who is travelling,
+ * and each person's persona, so a card can name them (M38 part 3).
+ *
+ * One batched read of each for the whole list, run together — never one per
+ * card (M37 D5; the route's statement-count test pins it). The persona read
+ * covers both halves of every member list in one statement: the projected ids
+ * are known up front, and the granted ones are a subquery over the same
+ * `trip_memberships` rows `grantedMembersByTrip` reads. It selects no email: a
+ * card is read by everyone on the trip.
+ *
+ * A read overlay, like the merge it wraps: the stored projection keeps the
+ * log's bare `TripMember` and nothing here writes back (invariant 2).
+ */
+export async function withListedMembers<T extends { tripId: string; members: TripMember[] }>(
+  tx: Queryable,
+  rows: readonly T[],
+): Promise<(Omit<T, "members"> & { members: TripSummaryMember[] })[]> {
+  if (rows.length === 0) return [];
+  const tripIds = rows.map((r) => r.tripId);
+  const projectedIds = [...new Set(rows.flatMap((r) => r.members.map((m) => m.userId)))];
+  const [granted, travelling, profiles] = await Promise.all([
+    grantedMembersByTrip(tx, tripIds),
+    travellingByTrip(tx, tripIds),
+    tx
+      .select({ id: users.id, name: users.name, displayName: users.displayName, avatar: users.avatar, color: users.color })
+      .from(users)
+      .where(
+        or(
+          inArray(users.id, projectedIds),
+          inArray(
+            users.id,
+            tx.select({ userId: tripMemberships.userId }).from(tripMemberships).where(inArray(tripMemberships.tripId, tripIds)),
+          ),
+        ),
+      ),
+  ]);
+  const byId = new Map(profiles.map((p) => [p.id, p]));
+  return rows.map((r) => ({
+    ...r,
+    members: withTravelling(mergeMembers(r.members, granted.get(r.tripId) ?? []), travelling.get(r.tripId) ?? new Map()).map(
+      (m) => ({ ...m, ...personaOf(byId.get(m.userId)) }),
+    ),
+  }));
 }
