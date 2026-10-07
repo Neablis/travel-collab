@@ -1,6 +1,6 @@
 "use client";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import type { TripMemberProfile } from "@tc/contracts";
+import { travellerIds, type TripMemberProfile } from "@tc/contracts";
 import { fetchTripAccess } from "@/lib/apiClient";
 import { cachedRead, invalidate } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
@@ -20,14 +20,16 @@ import { displayNameFor } from "@/lib/displayName";
 // rule for a page. A member with no name reads as their handle instead.
 
 /**
- * What a person surface draws for one member (M38): the name to print, and the
- * avatar and colour they chose. The STORED colour — the per-trip clash shift
- * (D3) is not applied here.
+ * What a person surface draws for one member (M38): the name to print, the
+ * avatar they chose and the colour `TripAccess` resolved for this trip (D3), and
+ * whether they are going — what `trip.people` reads (`WidgetContext.personas`).
  */
-export type Persona = { name: string } & Pick<TripMemberProfile, "avatar" | "color">;
+export type Persona = { name: string; travelling: boolean } & Pick<TripMemberProfile, "avatar" | "color">;
 
 /** userId → their persona, for every member `TripAccess` lists. */
 export function personasOf(members: readonly TripMemberProfile[]): Readonly<Record<string, Persona>> {
+  // `travellerIds` holds the one reading of an absent `travelling` (D2).
+  const going = new Set(travellerIds(members));
   return Object.fromEntries(
     members.map((m) => [
       m.userId,
@@ -35,6 +37,7 @@ export function personasOf(members: readonly TripMemberProfile[]): Readonly<Reco
         name: displayNameFor({ userId: m.userId, displayName: m.displayName, name: m.name, email: null }),
         avatar: m.avatar,
         color: m.color,
+        travelling: going.has(m.userId),
       },
     ]),
   );
@@ -107,6 +110,15 @@ export function PeopleProvider({ tripId, children }: { tripId: string; children:
   // Derived, so the names and the personas can never come from different reads.
   const names = useMemo(() => (personas === null ? null : namesOf(personas)), [personas]);
   const value = useMemo(() => ({ names, personas, rechecked, recheck }), [names, personas, rechecked, recheck]);
+  return <PeopleContext.Provider value={value}>{children}</PeopleContext.Provider>;
+}
+
+/**
+ * Hands the widgets under it people somebody already has — the invite preview's
+ * (M38), whose holder may not read `TripAccess` — rather than reading them.
+ */
+export function FixedPeopleProvider({ personas, children }: { personas: Readonly<Record<string, Persona>>; children: ReactNode }) {
+  const value = useMemo(() => ({ names: namesOf(personas), personas, rechecked: NO_ONE, recheck: () => {} }), [personas]);
   return <PeopleContext.Provider value={value}>{children}</PeopleContext.Provider>;
 }
 

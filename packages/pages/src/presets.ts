@@ -395,6 +395,16 @@ export const PRESETS: readonly WidgetPreset[] = [
     summary: "Draws the whole trip as one band, a cell per day coloured by city, so you can see your route at a glance.",
     keywords: ["strip", "timeline", "overview", "cities", "route", "days", "at a glance", "band"],
   },
+  // ---- who's going -----------------------------------------------------------
+  // M38: the invite page's crew line, and any notebook's. No params.
+  {
+    id: "whos-going",
+    widget: "trip.people",
+    params: {},
+    title: "Who's going",
+    summary: "Shows everyone travelling as a row of their avatars, with their names in a sentence.",
+    keywords: ["people", "who", "going", "travellers", "travelers", "crew", "members", "avatars", "everyone", "group"],
+  },
   // M14 link 11, the first chart. Unfiltered: every day, every tag.
   {
     id: "spend-by-day",

@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import type { FilterDimension, ManifestObject, TripDetail, PageContext, TripGlobals, UserPreferences, ValueKind, WidgetShape } from "@tc/contracts";
+import type { AvatarKey, FilterDimension, ManifestObject, PersonColor, TripDetail, PageContext, TripGlobals, UserPreferences, ValueKind, WidgetShape } from "@tc/contracts";
 import type { WidgetEntity } from "./filters";
 import type { MacroResult, UnboundNeeds } from "./result";
 import type { ExternalInputs, ExternalNeed } from "./external";
@@ -102,6 +102,13 @@ export interface CountryFactsPayload { kind: "country-facts"; countries: Country
 export interface TripStripDay { dayId: string; ordinal: number; date: string | null; city: string | null; }
 export interface TripStripRun { city: string | null; days: TripStripDay[]; phrase: string; }
 export interface TripStripPayload { kind: "trip-strip"; runs: TripStripRun[]; summary: string; }
+// "Who's going" (`trip.people`, M38): the people a chip stack draws, then the
+// whole crew in one display-ready sentence ("Sam, Priya, Kenji and Mei are
+// going with Dana."). `stack` is the sentence's subjects, up to four; `avatar`
+// and `color` are keys, never a URL or a hex, and `apps/web` turns them into a
+// chip (`PersonChip`), as it turns a city name into a colour.
+export interface TripPeoplePerson { name: string; avatar: AvatarKey | null; color: PersonColor | null; }
+export interface TripPeoplePayload { kind: "trip-people"; stack: TripPeoplePerson[]; sentence: string; }
 
 // A DISCRIMINATED union, and the `kind` tags are the whole reason `MacroView`
 // no longer switches on a widget's name.
@@ -121,6 +128,7 @@ export interface TripStripPayload { kind: "trip-strip"; runs: TripStripRun[]; su
 export type BlockPayload =
   | ItineraryDayPayload | ItineraryTripPayload | CostsTablePayload | CityDetailPayload | CountryFactsPayload
   | TripStripPayload
+  | TripPeoplePayload
   | SpendByDayPayload
   | SpendBreakdownPayload
   | WeatherPayload
@@ -511,6 +519,30 @@ export interface WidgetContext {
    * for, and a second copy from the access fetch could disagree with it.
    */
   people?: Readonly<Record<string, string>> | null;
+  /**
+   * How each member looks and whether they are going, by `userId` (M38) — the
+   * same members as `people`, for the one widget that draws them, `trip.people`.
+   *
+   * **`travelling` is read from here, not from `trip.members`, by that widget
+   * alone.** A who's-going line divides no money, so it has no reason to share
+   * the recosted list `people` defers to above; and the invite preview's
+   * context (`previewContext`) marks every member not travelling on purpose, so
+   * that no per-person cost widget has anyone to charge, while the people it
+   * hands in here say who really is going.
+   *
+   * Optional and absent-is-fine, like `people`: a member with no entry is
+   * named by `personNames`, drawn with no avatar or colour, and counted going
+   * by `travellerIds(trip.members)`.
+   */
+  personas?: Readonly<Record<string, WidgetPersona>> | null;
+}
+
+/** One member as `WidgetContext.personas` carries them. */
+export interface WidgetPersona {
+  name: string;
+  avatar: AvatarKey | null;
+  color: PersonColor | null;
+  travelling: boolean;
 }
 
 // The per-iteration scope a repeat renderer passes as it maps a row template
