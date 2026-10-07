@@ -246,6 +246,7 @@ export const tripSummaryMemberFactory = Factory.define<TripSummaryMember>(({ par
     displayName: null,
     avatar: null,
     color: null,
+    colorShifted: false,
   };
 });
 

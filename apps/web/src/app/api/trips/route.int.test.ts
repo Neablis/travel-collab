@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { inArray } from "drizzle-orm";
 import type { TripSummaryMember } from "@tc/contracts";
+import { defaultPersonColor, resolveTripColors } from "@tc/domain";
+import { idAvoidingColors } from "@/server/test-support/personaIds";
 import { db } from "@/server/db/client";
 import {
   events,
@@ -40,9 +42,22 @@ const { GET } = await import("./route");
 
 type Summary = { tripId: string; name: string; members: TripSummaryMember[] };
 
-// The persona of a member with no `users` row — every id this file mints that
-// the naming test below does not sign in.
-const UNNAMED = { name: null, displayName: null, avatar: null, color: null };
+// Members as a card carries them when they have no `users` row — every id this
+// file mints that the naming tests below do not sign in: no name, no persona,
+// and each one's default colour as the trip resolves it in join order (M38 D3).
+// That rule is `resolveTripColors`' to pin; the colour test below pins that the
+// list applies it.
+function unnamed(members: Pick<TripSummaryMember, "userId" | "role" | "travelling">[]): TripSummaryMember[] {
+  const colors = resolveTripColors(members.map(({ userId }) => ({ userId, color: null })));
+  return members.map((m) => ({
+    ...m,
+    name: null,
+    displayName: null,
+    avatar: null,
+    color: colors.get(m.userId)!,
+    colorShifted: false,
+  }));
+}
 
 const seeded: string[] = [];
 const signedIn: string[] = [];
@@ -112,7 +127,7 @@ describe("GET /api/trips visibility", () => {
     const mine = (await grid()).find((t) => t.tripId === tripId);
     expect(mine).toBeDefined();
     expect(mine!.name).toBe("Projection only");
-    expect(mine!.members).toEqual([{ userId: OWNER, role: "owner", travelling: true, ...UNNAMED }]);
+    expect(mine!.members).toEqual(unnamed([{ userId: OWNER, role: "owner", travelling: true }]));
   });
 
   // M11 exit gate, SPEC R4: shared trips appear in the same grid, and the
@@ -127,10 +142,12 @@ describe("GET /api/trips visibility", () => {
     expect(shared!.name).toBe("Shared with me");
     // The avatar stack counts travellers: the effective list, not the
     // projection's owner-only one, and the owner still heads it.
-    expect(shared!.members).toEqual([
-      { userId: OWNER, role: "owner", travelling: true, ...UNNAMED },
-      { userId: GUEST, role: "editor", travelling: true, ...UNNAMED },
-    ]);
+    expect(shared!.members).toEqual(
+      unnamed([
+        { userId: OWNER, role: "owner", travelling: true },
+        { userId: GUEST, role: "editor", travelling: true },
+      ]),
+    );
   });
 
   it("serves an owned and a shared trip in the same shape — indistinguishable in the grid", async () => {
@@ -143,12 +160,14 @@ describe("GET /api/trips visibility", () => {
     const a = trips.find((t) => t.tripId === own)!;
     const b = trips.find((t) => t.tripId === shared)!;
     expect(Object.keys(a).sort()).toEqual(Object.keys(b).sort());
-    expect(a.members).toEqual([{ userId: GUEST, role: "owner", travelling: true, ...UNNAMED }]);
+    expect(a.members).toEqual(unnamed([{ userId: GUEST, role: "owner", travelling: true }]));
     // A viewer joins not travelling unless the invite said otherwise (D3).
-    expect(b.members).toEqual([
-      { userId: OWNER, role: "owner", travelling: true, ...UNNAMED },
-      { userId: GUEST, role: "viewer", travelling: false, ...UNNAMED },
-    ]);
+    expect(b.members).toEqual(
+      unnamed([
+        { userId: OWNER, role: "owner", travelling: true },
+        { userId: GUEST, role: "viewer", travelling: false },
+      ]),
+    );
   });
 
   // Travellers spec W21: the cards' "N travellers" and their avatars read
@@ -163,14 +182,18 @@ describe("GET /api/trips visibility", () => {
     expect(marked.ok).toBe(true);
 
     const trips = await grid();
-    expect(trips.find((t) => t.tripId === both)!.members).toEqual([
-      { userId: OWNER, role: "owner", travelling: true, ...UNNAMED },
-      { userId: GUEST, role: "editor", travelling: true, ...UNNAMED },
-    ]);
-    expect(trips.find((t) => t.tripId === ownerStays)!.members).toEqual([
-      { userId: OWNER, role: "owner", travelling: false, ...UNNAMED },
-      { userId: GUEST, role: "editor", travelling: true, ...UNNAMED },
-    ]);
+    expect(trips.find((t) => t.tripId === both)!.members).toEqual(
+      unnamed([
+        { userId: OWNER, role: "owner", travelling: true },
+        { userId: GUEST, role: "editor", travelling: true },
+      ]),
+    );
+    expect(trips.find((t) => t.tripId === ownerStays)!.members).toEqual(
+      unnamed([
+        { userId: OWNER, role: "owner", travelling: false },
+        { userId: GUEST, role: "editor", travelling: true },
+      ]),
+    );
   });
 
   // M38 part 3: a card names its people, so each member carries who they are —
@@ -179,7 +202,7 @@ describe("GET /api/trips visibility", () => {
   // address is never on it: a card is read by everyone on the trip.
   it("names every member by their persona, and never by their address", async () => {
     const owner = `trips-named-owner-${randomUUID()}`;
-    const guest = `trips-named-guest-${randomUUID()}`;
+    const guest = idAvoidingColors("trips-named-guest", ["plum"]);
     signedIn.push(owner, guest);
     await upsertUser({ id: owner, email: `${owner}@example.test`, name: "Dana Reyes", image: null });
     await upsertUser({ id: guest, email: `${guest}@example.test`, name: "Sam Okafor", image: null });
@@ -190,10 +213,36 @@ describe("GET /api/trips visibility", () => {
 
     const trip = (await grid()).find((t) => t.tripId === tripId)!;
     expect(trip.members).toEqual([
-      { userId: owner, role: "owner", travelling: true, name: "Dana Reyes", displayName: "Dee", avatar: "compass", color: "plum" },
-      { userId: guest, role: "editor", travelling: true, name: "Sam Okafor", displayName: null, avatar: null, color: null },
+      { userId: owner, role: "owner", travelling: true, name: "Dana Reyes", displayName: "Dee", avatar: "compass", color: "plum", colorShifted: false },
+      // Chose no colour: their default (D3), which this id keeps clear of plum.
+      { userId: guest, role: "editor", travelling: true, name: "Sam Okafor", displayName: null, avatar: null, color: defaultPersonColor(guest), colorShifted: false },
     ]);
     expect(JSON.stringify(trip)).not.toContain("@example.test");
+  });
+
+  // M38 D3: each card's colours are that trip's, resolved on the server. Two
+  // members who both chose ochre: the owner keeps it, the later joiner shows
+  // ochre's successor with `colorShifted`, and a member who chose nothing shows
+  // their deterministic default rather than a null.
+  it("resolves each trip's colour clashes, and fills a colour for a member who chose none", async () => {
+    const owner = `trips-colour-owner-${randomUUID()}`;
+    const clasher = `trips-colour-clasher-${randomUUID()}`;
+    const unchosen = idAvoidingColors("trips-colour-unchosen", ["ochre", "rose"]);
+    signedIn.push(owner, clasher, unchosen);
+    for (const id of [owner, clasher, unchosen]) await upsertUser({ id, email: null, name: null, image: null });
+    await writePreferences(owner, { color: "ochre" });
+    await writePreferences(clasher, { color: "ochre" });
+    const tripId = await seedTrip("Colours", owner);
+    await join(tripId, "editor", clasher, owner);
+    await join(tripId, "editor", unchosen, owner);
+    currentUserId = unchosen;
+
+    const trip = (await grid()).find((t) => t.tripId === tripId)!;
+    expect(trip.members.map(({ userId, color, colorShifted }) => ({ userId, color, colorShifted }))).toEqual([
+      { userId: owner, color: "ochre", colorShifted: false },
+      { userId: clasher, color: "rose", colorShifted: true },
+      { userId: unchosen, color: defaultPersonColor(unchosen), colorShifted: false },
+    ]);
   });
 
   // THE security assertion (project review L3). The predicate now lives in

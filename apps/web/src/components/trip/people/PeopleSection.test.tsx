@@ -142,7 +142,7 @@ describe("PeopleSection", () => {
     fetchTripAccessMock.mockResolvedValue({
       ok: true,
       value: access({
-        members: [{ userId: "dev-carol", role: "owner", name: null, email: null, image: null, displayName: null, avatar: null, color: null }],
+        members: [{ userId: "dev-carol", role: "owner", name: null, email: null, image: null, displayName: null, avatar: null, color: null, colorShifted: false }],
         invites: [],
       }),
     });
@@ -156,7 +156,7 @@ describe("PeopleSection", () => {
     fetchTripAccessMock.mockResolvedValue({
       ok: true,
       value: access({
-        members: [{ userId: sub, role: "owner", name: null, email: null, image: null, displayName: null, avatar: null, color: null }],
+        members: [{ userId: sub, role: "owner", name: null, email: null, image: null, displayName: null, avatar: null, color: null, colorShifted: false }],
         invites: [],
       }),
     });
@@ -200,7 +200,7 @@ describe("PeopleSection", () => {
           members: [
             alice,
             { ...bob, travelling: false },
-            { userId: "dev-dan", role: "suggester", name: "Dan", email: null, image: null, displayName: null, avatar: null, color: null },
+            { userId: "dev-dan", role: "suggester", name: "Dan", email: null, image: null, displayName: null, avatar: null, color: null, colorShifted: false },
           ],
         }),
       });

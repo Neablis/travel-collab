@@ -69,7 +69,9 @@ export async function readInvitePreview(
         // ends `?? email ?? handle`, and this is a stranger's page.
         name: displayNameFor({ userId: p.userId, displayName: p.displayName, name: p.name, email: null }),
         avatar: p.avatar,
+        // This trip's colour: `withProfiles` resolved it while it had the ids.
         color: p.color,
+        colorShifted: p.colorShifted,
         travelling: travellers.has(p.userId),
       })),
       total: { amountMinor: costed.tripCostTotal, currency: costed.currency },

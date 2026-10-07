@@ -5,7 +5,9 @@ import type { AddActivity, TripPreview } from "@tc/contracts";
 import { db } from "@/server/db/client";
 import { users } from "@/server/db/schema";
 import { executeTripCommand } from "@/server/commands";
-import { upsertUser } from "@/server/users";
+import { upsertUser, writePreferences } from "@/server/users";
+import { idAvoidingColors } from "@/server/test-support/personaIds";
+import { defaultPersonColor, resolveTripColors } from "@tc/domain";
 import { acceptInvite, createInvite, revokeInvite } from "@/server/access/invites";
 import { requireTripAccess } from "@/server/access/trip-access";
 import { entitleAccounts } from "@/server/test-support/entitledAccount";
@@ -102,6 +104,10 @@ describe("GET /api/invites/:token/preview — a pending invite", () => {
     expect(body.total).toEqual(usd(11_500));
     expect(body.total.amountMinor).toBe(look.detail.tripCostTotal);
 
+    const meiShows = resolveTripColors([
+      { userId: OWNER, color: "moss" },
+      { userId: GUEST, color: null },
+    ]).get(GUEST);
     expect(body).toEqual({
       name: "Kyoto in autumn",
       startDate: "2026-11-02",
@@ -118,8 +124,9 @@ describe("GET /api/invites/:token/preview — a pending invite", () => {
         { date: "2026-11-03", city: null, stops: [{ title: "Wander Gion", location: null }] },
       ],
       people: [
-        { name: "Dana", avatar: "compass", color: "moss", travelling: true },
-        { name: "Mei Tanaka", avatar: null, color: null, travelling: true },
+        { name: "Dana", avatar: "compass", color: "moss", colorShifted: false, travelling: true },
+        // Mei chose no colour: her default, moved off Dana's moss if they meet (M38 D3).
+        { name: "Mei Tanaka", avatar: null, color: meiShows, colorShifted: false, travelling: true },
       ],
       total: usd(11_500),
     });
@@ -139,6 +146,37 @@ describe("GET /api/invites/:token/preview — a pending invite", () => {
     // Names carry no address, and nobody is named by an id (ADR-027).
     expect(raw).not.toContain("@");
     for (const secret of [OWNER, GUEST, invite.token, tripId]) expect(raw).not.toContain(secret);
+  });
+});
+
+// M38 D3. `people` carries no user id, so the page cannot resolve a colour
+// clash itself: the server resolves it in join order before the ids are
+// dropped. Two people who chose ochre — the owner keeps it, the later joiner
+// shows ochre's successor with `colorShifted` — and a person who chose nothing
+// shows their deterministic default rather than a null.
+describe("GET /api/invites/:token/preview — people's colours", () => {
+  it("resolves the trip's colour clashes and fills a colour for a person who chose none", async () => {
+    const owner = `dev-preview-colour-owner-${run}`;
+    const clasher = `dev-preview-colour-clasher-${run}`;
+    const unchosen = idAvoidingColors("dev-preview-colour-unchosen", ["ochre", "rose"]);
+    await entitleAccounts([owner]);
+    for (const id of [clasher, unchosen]) await upsertUser({ id, email: null, name: null, image: null });
+    await writePreferences(owner, { color: "ochre" });
+    await writePreferences(clasher, { color: "ochre" });
+    const tripId = randomUUID();
+    if (!(await executeTripCommand({ type: "CreateTrip", tripId, name: "Colours" }, owner)).ok) throw new Error("seed");
+    for (const id of [clasher, unchosen]) {
+      expect((await acceptInvite((await createInvite(tripId, owner, { email: null, role: "editor" })).token, id)).ok).toBe(true);
+    }
+
+    const { status, raw } = await preview((await createInvite(tripId, owner, { email: null, role: "viewer" })).token);
+    expect(status).toBe(200);
+    const { people } = JSON.parse(raw) as TripPreview;
+    expect(people.map(({ color, colorShifted }) => ({ color, colorShifted }))).toEqual([
+      { color: "ochre", colorShifted: false },
+      { color: "rose", colorShifted: true },
+      { color: defaultPersonColor(unchosen), colorShifted: false },
+    ]);
   });
 });
 

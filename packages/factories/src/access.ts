@@ -19,6 +19,7 @@ export const tripMemberProfileFactory = Factory.define<TripMemberProfile>(({ seq
   displayName: null,
   avatar: null,
   color: null,
+  colorShifted: false,
 }));
 
 export const tripInviteFactory = Factory.define<TripInvite>(({ sequence }) => ({

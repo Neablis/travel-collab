@@ -16,6 +16,7 @@ import {
 } from "@tc/fixtures";
 import { serverConflictContext } from "./conflictContext";
 import { overlayMembers } from "./access/overlay";
+import { withTripColors } from "./access/personaColors";
 import { DEMO_TRIP_ID } from "@/lib/demoTrip";
 import { DEMO_TRIP_LEAD_DAYS, isoDateInDays } from "@/lib/seedDate";
 
@@ -68,17 +69,19 @@ const DEMO_ACTOR_ID = "00000000-0000-4000-8000-00000000a000";
  * demo's People section and its totals both show what that means. Each says
  * `travelling` explicitly, as `effectiveMembers` does for a real trip.
  */
-const DEMO_MEMBERS: TripMemberProfile[] = JAPAN_DEMO_ROSTER.map(({ name, role, travelling }) => ({
-  userId: name,
-  role,
-  travelling,
-  name,
-  email: null,
-  image: null,
-  displayName: null,
-  avatar: null,
-  color: null,
-}));
+const DEMO_MEMBERS: TripMemberProfile[] = withTripColors(
+  JAPAN_DEMO_ROSTER.map(({ name, role, travelling }) => ({
+    userId: name,
+    role,
+    travelling,
+    name,
+    email: null,
+    image: null,
+    displayName: null,
+    avatar: null,
+    color: null,
+  })),
+);
 
 /**
  * How the demo's own history is spaced out, in hours per batch, ending now.

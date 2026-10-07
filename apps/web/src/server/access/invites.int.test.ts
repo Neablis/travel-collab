@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { eq, inArray, sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { resolveTripColors } from "@tc/domain";
 import { db } from "../db/client";
 import { entitleAccounts } from "@/server/test-support/entitledAccount";
 import { tripInvites, users } from "../db/schema";
@@ -624,10 +625,15 @@ describe("member profiles", () => {
       OWNER,
     );
     // `travelling` explicit on every row: carried through, and travelling
-    // where the member list did not say (travellers spec D2).
+    // where the member list did not say (travellers spec D2). Neither chose a
+    // colour, so each shows their default as the trip resolves it (M38 D3).
+    const colors = resolveTripColors([
+      { userId: OWNER, color: null },
+      { userId: GUEST, color: null },
+    ]);
     expect(profiles).toEqual([
-      { userId: OWNER, role: "owner", name: null, email: null, image: null, travelling: true, displayName: null, avatar: null, color: null },
-      { userId: GUEST, role: "editor", name: "Bob", email: "bob@example.com", image: null, travelling: false, displayName: null, avatar: null, color: null },
+      { userId: OWNER, role: "owner", name: null, email: null, image: null, travelling: true, displayName: null, avatar: null, color: colors.get(OWNER), colorShifted: false },
+      { userId: GUEST, role: "editor", name: "Bob", email: "bob@example.com", image: null, travelling: false, displayName: null, avatar: null, color: colors.get(GUEST), colorShifted: false },
     ]);
   });
 });

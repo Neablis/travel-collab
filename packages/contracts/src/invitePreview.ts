@@ -22,8 +22,8 @@ import type { SavedStop } from "./saved.ts";
 // **No user id anywhere**, as the landing (`InviteLanding`) carries none: a
 // stranger's page has no use for one (ADR-027), and a Google account's id is
 // its `sub`. `people` is in join order instead — the owner first, then the
-// order invites were accepted — which is the order a per-trip colour clash is
-// resolved in (D3), so a client can resolve it without an id.
+// order invites were accepted — and each person's colour is already this
+// trip's (D3, resolved on the server while it still had the ids).
 
 /**
  * Where a stop is, as the read-only map draws it.
@@ -71,14 +71,16 @@ export type PreviewDay = z.infer<typeof PreviewDay>;
 /**
  * A person on the trip, as a persona (D2, D3). `name` is the trip-surface name
  * (`displayNameFor`) with the chain stopped before its email link — never an
- * address. `color` is the stored choice; the per-trip clash shift is the
- * client's, at render time, as on every other person surface.
+ * address. `color` and `colorShifted` mean what they mean on `MemberPersona`:
+ * this trip's colour, resolved on the server before the ids are dropped, since
+ * without them a client could not resolve it at all.
  */
 export const PreviewPerson = z
   .object({
     name: z.string(),
     avatar: AvatarKey.nullable(),
     color: PersonColor.nullable(),
+    colorShifted: z.boolean().default(false),
     travelling: z.boolean(),
   })
   .strict();

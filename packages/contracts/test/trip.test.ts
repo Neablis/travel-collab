@@ -154,7 +154,7 @@ describe("trip contracts", () => {
   });
 
   // M38 part 3: a card names its people. A member from before the persona
-  // parses with every field null, and a persona outside the closed key sets
+  // parses with every field null and no colour shift, and a persona outside the closed key sets
   // is refused rather than passed on to a card.
   it("parses a TripSummary member from before the persona existed, as nobody chose anything", () => {
     const summary = {
@@ -165,9 +165,9 @@ describe("trip contracts", () => {
       createdAt: "2026-07-08T12:00:00.000Z",
     };
     expect(TripSummary.parse(summary).members).toEqual([
-      { userId: "dev-alice", role: "owner", name: null, displayName: null, avatar: null, color: null },
+      { userId: "dev-alice", role: "owner", name: null, displayName: null, avatar: null, color: null, colorShifted: false },
     ]);
-    const chosen = { userId: "dev-alice", role: "owner", name: "Alice Ng", displayName: "Ali", avatar: "compass", color: "moss" };
+    const chosen = { userId: "dev-alice", role: "owner", name: "Alice Ng", displayName: "Ali", avatar: "compass", color: "moss", colorShifted: true };
     expect(TripSummary.parse({ ...summary, members: [chosen] }).members).toEqual([chosen]);
     expect(TripSummary.safeParse({ ...summary, members: [{ ...chosen, color: "#ff0000" }] }).success).toBe(false);
     // Never an address: a card is read by everyone on the trip.

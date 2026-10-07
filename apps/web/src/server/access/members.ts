@@ -13,6 +13,7 @@ import { memberRole, RANK } from "../accessPolicy";
 import { tripAccessRevs, tripMemberships, tripTravellers, users } from "../db/schema";
 import { isUuid } from "../ids";
 import { isDemoTripId } from "@/lib/demoTrip";
+import { withTripColors } from "./personaColors";
 // **Access & Membership reads a boolean out of Entitlements, never the other
 // way round** (ADR-045 rule 5). This import is the direction the module map
 // allows: the gate lives here, because this module is the one that knows an
@@ -507,6 +508,9 @@ export async function changeMemberRole(
  * leaves the projection's owner at the head, so a stray granted `owner` row
  * would make `requireTripAccess` report "owner" for someone who is not; keying
  * on the role would hand them every address. Same head `billingSubject` reads.
+ *
+ * `members` is one trip's, in join order, so each `color` comes back as this
+ * trip's (`withTripColors`, M38 D3).
  */
 export async function withProfiles(
   members: readonly TripMember[],
@@ -516,18 +520,20 @@ export async function withProfiles(
   const rows = ids.length === 0 ? [] : await db.select().from(users).where(inArray(users.id, ids));
   const byId = new Map(rows.map((r) => [r.id, r]));
   const viewerIsOwner = members[0]?.userId === viewerId;
-  return members.map((m) => {
-    const profile = byId.get(m.userId);
-    const mayReadEmail = viewerIsOwner || viewerId === m.userId;
-    return {
-      userId: m.userId,
-      role: m.role,
-      email: mayReadEmail ? (profile?.email ?? null) : null,
-      image: profile?.image ?? null,
-      travelling: m.travelling ?? true,
-      ...personaOf(profile),
-    };
-  });
+  return withTripColors(
+    members.map((m) => {
+      const profile = byId.get(m.userId);
+      const mayReadEmail = viewerIsOwner || viewerId === m.userId;
+      return {
+        userId: m.userId,
+        role: m.role,
+        email: mayReadEmail ? (profile?.email ?? null) : null,
+        image: profile?.image ?? null,
+        travelling: m.travelling ?? true,
+        ...personaOf(profile),
+      };
+    }),
+  );
 }
 
 type Persona = Pick<TripSummaryMember, "name" | "displayName" | "avatar" | "color">;
@@ -550,19 +556,40 @@ function personaOf(
 }
 
 /**
- * **The trips list's members** (`GET /api/trips` and `GET /v1/trips`): each
- * summary's projected members merged with the granted ones, who is travelling,
- * and each person's persona, so a card can name them (M38 part 3).
+ * **The trips list's members** for `GET /v1/trips`: each summary's projected
+ * members merged with the granted ones, and who is travelling — and no persona.
+ * `/v1` does not name co-members (M38, Mitchell's decision 2026-10-07): a
+ * token is a third party's, and this is the read that would tell it who else
+ * is on every trip at once. `withListedMembers` is this plus the names.
  *
  * One batched read of each for the whole list, run together — never one per
- * card (M37 D5; the route's statement-count test pins it). The persona read
- * covers both halves of every member list in one statement: the projected ids
- * are known up front, and the granted ones are a subquery over the same
- * `trip_memberships` rows `grantedMembersByTrip` reads. It selects no email: a
- * card is read by everyone on the trip.
+ * trip (M37 D5). A read overlay: the stored projection keeps the log's bare
+ * `TripMember` and nothing here writes back (invariant 2).
+ */
+export async function withEffectiveMembers<T extends { tripId: string; members: TripMember[] }>(
+  tx: Queryable,
+  rows: readonly T[],
+): Promise<(Omit<T, "members"> & { members: TripMember[] })[]> {
+  if (rows.length === 0) return [];
+  const tripIds = rows.map((r) => r.tripId);
+  const [granted, travelling] = await Promise.all([grantedMembersByTrip(tx, tripIds), travellingByTrip(tx, tripIds)]);
+  return rows.map((r) => ({
+    ...r,
+    members: withTravelling(mergeMembers(r.members, granted.get(r.tripId) ?? []), travelling.get(r.tripId) ?? new Map()),
+  }));
+}
+
+/**
+ * **The trips list's members** for `GET /api/trips`: `withEffectiveMembers`,
+ * plus each person's persona so a card can name them (M38 part 3), with each
+ * trip's colours resolved over that trip's members (`withTripColors`).
  *
- * A read overlay, like the merge it wraps: the stored projection keeps the
- * log's bare `TripMember` and nothing here writes back (invariant 2).
+ * Still one batched read of each for the whole list, run together — the route's
+ * statement-count test pins it. The persona read covers both halves of every
+ * member list in one statement: the projected ids are known up front, and the
+ * granted ones are a subquery over the same `trip_memberships` rows
+ * `grantedMembersByTrip` reads. It selects no email: a card is read by everyone
+ * on the trip.
  */
 export async function withListedMembers<T extends { tripId: string; members: TripMember[] }>(
   tx: Queryable,
@@ -571,9 +598,8 @@ export async function withListedMembers<T extends { tripId: string; members: Tri
   if (rows.length === 0) return [];
   const tripIds = rows.map((r) => r.tripId);
   const projectedIds = [...new Set(rows.flatMap((r) => r.members.map((m) => m.userId)))];
-  const [granted, travelling, profiles] = await Promise.all([
-    grantedMembersByTrip(tx, tripIds),
-    travellingByTrip(tx, tripIds),
+  const [merged, profiles] = await Promise.all([
+    withEffectiveMembers(tx, rows),
     tx
       .select({ id: users.id, name: users.name, displayName: users.displayName, avatar: users.avatar, color: users.color })
       .from(users)
@@ -588,10 +614,8 @@ export async function withListedMembers<T extends { tripId: string; members: Tri
       ),
   ]);
   const byId = new Map(profiles.map((p) => [p.id, p]));
-  return rows.map((r) => ({
+  return merged.map((r) => ({
     ...r,
-    members: withTravelling(mergeMembers(r.members, granted.get(r.tripId) ?? []), travelling.get(r.tripId) ?? new Map()).map(
-      (m) => ({ ...m, ...personaOf(byId.get(m.userId)) }),
-    ),
+    members: withTripColors(r.members.map((m) => ({ ...m, ...personaOf(byId.get(m.userId)) }))),
   }));
 }

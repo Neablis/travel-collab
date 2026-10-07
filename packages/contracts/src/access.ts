@@ -87,8 +87,9 @@ export const TripMemberProfile = z.object({
   image: z.string().nullable(),
   travelling: TripMember.shape.travelling,
   // M38: the persona. `displayName` is what the person chose (trip surfaces
-  // show it first, before `name`); `avatar` and `color` are their stored
-  // choices, before any per-trip clash shift. Defaulted for version skew.
+  // show it first, before `name`); `avatar` is their stored choice, and
+  // `color`/`colorShifted` are this trip's resolved colour (`MemberPersona`).
+  // Defaulted for version skew.
   ...MemberPersona.shape,
 });
 export type TripMemberProfile = z.infer<typeof TripMemberProfile>;
