@@ -1,6 +1,6 @@
 import { Factory } from "fishery";
 import { rollupCosts } from "@tc/domain";
-import { travellerIds, type ActivityView, type Location, type Money, type TimeWindow, type TripDetail, type TripMember } from "@tc/contracts";
+import { travellerIds, type ActivityView, type Location, type Money, type TimeWindow, type TripDetail, type TripMember, type TripSummary } from "@tc/contracts";
 import { faker } from "./seed";
 import { uuidFrom } from "./ids";
 
@@ -229,3 +229,18 @@ export const tripDetailFactory = Factory.define<TripDetail, TripTransient>(
     };
   },
 );
+
+// A home-grid row. Zero days and zero stops by default — what `CreateTrip`
+// leaves, so the default is the trip M37's empty card is for; a test about a
+// planned trip states its counts.
+export const tripSummaryFactory = Factory.define<TripSummary>(({ sequence }) => ({
+  tripId: uuidFrom(sequence),
+  name: `${faker.helpers.arrayElement(["Rome", "Kyoto", "Paris", "Barcelona"])} ${2027 + (sequence % 3)}`,
+  status: "active",
+  members: [tripMemberFactory.build()],
+  createdAt: "2026-07-08T12:00:00.000Z",
+  startDate: null,
+  endDate: null,
+  dayCount: 0,
+  stopCount: 0,
+}));

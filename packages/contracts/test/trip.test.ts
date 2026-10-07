@@ -133,6 +133,20 @@ describe("trip contracts", () => {
     expect(TripSummary.parse({ ...summary, endDate: "2027-05-08" }).endDate).toBe("2027-05-08");
     expect(TripSummary.safeParse({ ...summary, endDate: "May 8" }).success).toBe(false);
   });
+
+  // M37 added the counts on the same terms: a row from before them parses.
+  it("parses a TripSummary from before dayCount and stopCount existed, as zero", () => {
+    const summary = {
+      tripId: "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f",
+      name: "Rome 2027",
+      status: "active",
+      members: [{ userId: "dev-alice", role: "owner" }],
+      createdAt: "2026-07-08T12:00:00.000Z",
+    };
+    expect(TripSummary.parse(summary)).toMatchObject({ dayCount: 0, stopCount: 0 });
+    expect(TripSummary.parse({ ...summary, dayCount: 3, stopCount: 7 })).toMatchObject({ dayCount: 3, stopCount: 7 });
+    expect(TripSummary.safeParse({ ...summary, stopCount: -1 }).success).toBe(false);
+  });
 });
 
 describe("lifecycle commands", () => {

@@ -1,21 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { TripSummary } from "@tc/contracts";
-import { uuidFrom } from "@tc/factories";
+import { tripSummaryFactory, uuidFrom } from "@tc/factories";
 import { orderHomeTrips } from "./homeTripOrder";
 
 // KI-034: Home's hero is `orderHomeTrips(...)[0]`. Each list below is given in
 // the server's order (newest-created first), which is the tie-break.
 let sequence = 0;
 function trip(name: string, startDate: string | null, endDate: string | null = startDate): TripSummary {
-  return {
-    tripId: uuidFrom(++sequence),
-    name,
-    status: "active",
-    members: [{ userId: "dev-alice", role: "owner" }],
-    createdAt: "2026-07-08T12:00:00.000Z",
-    startDate,
-    endDate,
-  };
+  return tripSummaryFactory.build({ tripId: uuidFrom(++sequence), name, startDate, endDate });
 }
 
 const TODAY = "2026-09-24";
