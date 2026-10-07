@@ -556,6 +556,7 @@ describe("member writes on the wire", () => {
         displayName: null,
         avatar: null,
         color: null,
+        colorShifted: false,
       },
     ],
     invites: [],

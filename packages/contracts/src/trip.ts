@@ -368,16 +368,25 @@ export type TripMember = z.infer<typeof TripMember>;
 
 /**
  * **Who a person is, as a trip shows them** (M38): what they chose to be called,
- * and the avatar and colour they picked. The stored choices — a per-trip colour
- * shift (D3) happens at render time and is never part of this. Each field is
- * defaulted for version skew. One copy, spread into `TripMemberProfile` and
- * `TripSummaryMember`, so the two places a member carries a persona cannot
- * disagree about its shape.
+ * the avatar they picked, and the colour to render them in on THIS trip. Each
+ * field is defaulted for version skew. One copy, spread into
+ * `TripMemberProfile` and `TripSummaryMember`, so the two places a member
+ * carries a persona cannot disagree about its shape.
+ *
+ * `color` is resolved on the server (D3, `resolveTripColors`), over the trip's
+ * members in join order: the UI may not import the domain (invariant 6), so it
+ * renders this as given. The server always fills it — a person who chose no
+ * colour gets their deterministic default — and it stays nullable only so a
+ * payload from before the resolution parses. `colorShifted` is true only when
+ * the person chose a colour and this trip shows a different one, because
+ * someone earlier on the trip chose it first: it is what tells them why. The
+ * stored choice is never written.
  */
 export const MemberPersona = z.object({
   displayName: z.string().nullable().default(null),
   avatar: AvatarKey.nullable().default(null),
   color: PersonColor.nullable().default(null),
+  colorShifted: z.boolean().default(false),
 });
 
 /**

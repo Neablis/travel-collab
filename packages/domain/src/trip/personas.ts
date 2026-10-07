@@ -1,16 +1,4 @@
-import { PersonColor, type AvatarKey } from "@tc/contracts";
-
-/**
- * How one person looks on one trip (M38): the name trip surfaces show, the
- * avatar they chose, and the colour this trip resolved for them — which is not
- * necessarily the colour they stored (see `resolveTripColors`).
- */
-export type Persona = {
-  userId: string;
-  name: string;
-  avatar: AvatarKey | null;
-  color: PersonColor;
-};
+import { PersonColor } from "@tc/contracts";
 
 const PALETTE = PersonColor.options;
 

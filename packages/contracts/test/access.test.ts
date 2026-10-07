@@ -155,6 +155,7 @@ describe("TripAccess", () => {
     displayName: "Ali",
     avatar: "compass",
     color: "teal",
+    colorShifted: true,
   };
 
   it("round-trips a full access document", () => {

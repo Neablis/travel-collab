@@ -13,6 +13,39 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-07 — `colorShifted`: a member's `color` is the trip's, resolved on the server (M38 part 4)
+
+- **Added:** `MemberPersona.colorShifted` (`trip.ts`), `z.boolean().default(false)`, so
+  `TripMemberProfile` and `TripSummaryMember` both carry it; and `PreviewPerson.colorShifted`
+  (`invitePreview.ts`), the same. True only when the person stored a colour and this trip shows a
+  different one, because someone earlier in join order chose it first. It drives the "you're ochre
+  on this trip" tooltip (design open question 4).
+- **Changed (meaning, not type):** `MemberPersona.color` and `PreviewPerson.color` are now the
+  colour to RENDER on that trip, not the stored choice: `resolveTripColors` over the trip's members
+  in join order, owner first (D3). The server always fills it; a person who stored none gets
+  `defaultPersonColor(userId)` inside the resolver (open question 3). The type stays
+  `PersonColor.nullable()` (defaulting to null on `MemberPersona`) so a payload from before this
+  parses. The stored choice is read, never written.
+- **Removed:** the `Persona` type from `@tc/domain` (`trip/personas.ts`). Nothing imported it, and
+  the UI may not import the domain (invariant 6). `resolveTripColors` and `defaultPersonColor` stay.
+- Why: M38 D3. The UI cannot resolve a clash itself — invariant 6 keeps `@tc/domain` out of
+  components, and the invite preview carries no user ids to resolve by — so the server resolves
+  wherever a trip's members are sent with personas.
+- Consumers updated:
+  - `server/access/personaColors.ts` (new, pure): `withTripColors`, which runs the resolver over one
+    trip's members and sets `color` and `colorShifted`. Its own module so `demoTrip.ts` can use it
+    without reaching `db/client`.
+  - `withProfiles` (`TripAccess`, the member routes, the invite preview) and `withListedMembers`
+    (`GET /api/trips`, per trip) apply it. The invite preview copies `color` and `colorShifted`
+    from `withProfiles`, which resolved them before the ids are dropped. The `/demo` roster is
+    resolved the same way.
+  - `@tc/factories`' `tripMemberProfileFactory` and `tripSummaryMemberFactory` default
+    `colorShifted: false`; test literals typed as either carry it.
+- Public API: unchanged. `GET /v1/trips` members carry no persona at all (entry below), and
+  `openapi.json` is byte-identical to 1.9.0.
+- Breaking? no. `colorShifted` is defaulted, and `color` keeps its type; a client that read
+  `color` as the stored choice now reads the trip's colour, which is what it should render.
+
 ## 2026-10-07 — `TripSummaryMember`: Home's cards name their people (M38 part 4)
 
 - **Added:** in `trip.ts`:
@@ -30,19 +63,25 @@ Format:
   `travelling` already are (ADR-026, ADR-065). That is why it is a separate schema rather than a
   wider `TripMember`.
 - Consumers updated:
-  - `withListedMembers` (`server/access/members.ts`) is the trips list's whole member overlay:
-    granted members, who is travelling, and one `users` read for every member on the page, run
-    together. `GET /api/trips` and `GET /v1/trips` both call it; it replaces the two copies of the
-    merge they each carried. The statement count is constant at 4 (was 3), per M37 D5.
+  - `withListedMembers` (`server/access/members.ts`) is the app's trips-list member overlay:
+    `withEffectiveMembers` (granted members and who is travelling, batched) plus one `users` read
+    for every member on the page, run together. `GET /api/trips` calls it; the statement count is
+    constant at 4 (was 3), per M37 D5. `GET /v1/trips` calls `withEffectiveMembers` alone (3
+    statements, as before); the two routes' copies of the merge are gone.
   - `withProfiles` and the list share one `personaOf`, which re-validates the stored keys.
   - `TripCard` and `NextTripHero` needed no change: they already pass the member to
     `displayNameFor`, which now finds a name on it.
   - `@tc/factories` gains `tripSummaryMemberFactory`, and `tripSummaryFactory` uses it. Home's test
     literals build members with it.
-- Public API: `GET /v1/trips` items' `members` gain `name`, `displayName`, `avatar` and `color`.
-  `API_VERSION` 1.9.0 → 1.10.0 (additive), `API_FINGERPRINT` and `openapi.json` regenerated. This is
-  the first `/v1` response that names a co-member; `GET /v1/trips/:id/members` still returns
-  `TripMember` only.
+- Public API: **unchanged — `/v1` does not name co-members** (Mitchell's decision 2026-10-07). A
+  token is a third party's, and the trips list is the read that would tell it who else is on every
+  trip at once. `GET /v1/trips` declares its own item schema, `TripSummary` with
+  `members: TripMember[]` (`app/api/v1/trips/route.ts`), and its handler builds members with no
+  persona rather than relying on a parse to strip one (the wrapper sends what the handler
+  returned). The regenerated `openapi.json` is byte-identical to what 1.9.0 published, so
+  `API_VERSION` stays 1.9.0 and `API_FINGERPRINT` stays `bf7a4438…2038`. (An earlier commit on
+  this branch had bumped it to 1.10.0 with the names in; that never shipped.)
+  `GET /v1/trips/:id/members` still returns `TripMember` only.
 - Breaking? no. Every new field is defaulted, so a summary from before parses.
 
 ## 2026-10-07 — `TripPreview`: the trip as an invite's holder sees it before joining (M38 part 3)
