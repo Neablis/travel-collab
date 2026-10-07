@@ -135,7 +135,7 @@ describe("trip contracts", () => {
   });
 
   // M37 added the counts on the same terms: a row from before them parses.
-  it("parses a TripSummary from before dayCount and stopCount existed, as zero", () => {
+  it("parses a TripSummary from before dayCount, stopCount and ideaCount existed, as zero", () => {
     const summary = {
       tripId: "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f",
       name: "Rome 2027",
@@ -143,9 +143,14 @@ describe("trip contracts", () => {
       members: [{ userId: "dev-alice", role: "owner" }],
       createdAt: "2026-07-08T12:00:00.000Z",
     };
-    expect(TripSummary.parse(summary)).toMatchObject({ dayCount: 0, stopCount: 0 });
-    expect(TripSummary.parse({ ...summary, dayCount: 3, stopCount: 7 })).toMatchObject({ dayCount: 3, stopCount: 7 });
+    expect(TripSummary.parse(summary)).toMatchObject({ dayCount: 0, stopCount: 0, ideaCount: 0 });
+    expect(TripSummary.parse({ ...summary, dayCount: 3, stopCount: 7, ideaCount: 2 })).toMatchObject({
+      dayCount: 3,
+      stopCount: 7,
+      ideaCount: 2,
+    });
     expect(TripSummary.safeParse({ ...summary, stopCount: -1 }).success).toBe(false);
+    expect(TripSummary.safeParse({ ...summary, ideaCount: -1 }).success).toBe(false);
   });
 });
 

@@ -110,8 +110,8 @@ describe("trip summaries carry the start date, in a stated order", () => {
  * list itself, never from a per-card detail read. Both counts come off the
  * document in the listing query, so both listing queries are asserted.
  */
-describe("trip summaries carry the day and stop counts", () => {
-  it("counts days and the stops on them, not the backlog, in both listing queries", async () => {
+describe("trip summaries carry the day, stop and idea counts", () => {
+  it("counts days, the stops on them, and the backlog apart, in both listing queries", async () => {
     const member = `m37-${randomUUID().slice(0, 8)}`;
     const planned = randomUUID();
     const empty = randomUUID();
@@ -121,7 +121,7 @@ describe("trip summaries carry the day and stop counts", () => {
       { type: "SetTripDates", tripId: planned, startDate: "2099-05-01", endDate: "2099-05-02", newDayIds: [day1, day2] },
       member,
     );
-    for (const dayId of [day1, day1, day2, undefined]) {
+    for (const dayId of [day1, day1, day2, undefined, undefined]) {
       await executeTripCommand(
         { type: "AddActivity", tripId: planned, activityId: randomUUID(), dayId, title: "Stop" },
         member,
@@ -130,25 +130,26 @@ describe("trip summaries carry the day and stop counts", () => {
     // Created last, so it heads both newest-first lists.
     await executeTripCommand({ type: "CreateTrip", tripId: empty, name: "Empty" }, member);
 
-    const counts = (rows: { name: string; dayCount: number; stopCount: number }[]) =>
-      rows.map((r) => [r.name, r.dayCount, r.stopCount]);
-    // Three stops on two days; the fourth activity is in the backlog.
+    const counts = (rows: { name: string; dayCount: number; stopCount: number; ideaCount: number }[]) =>
+      rows.map((r) => [r.name, r.dayCount, r.stopCount, r.ideaCount]);
+    // Three stops on two days; the other two activities are in the backlog.
     const expected = [
-      ["Empty", 0, 0],
-      ["Planned", 2, 3],
+      ["Empty", 0, 0, 0],
+      ["Planned", 2, 3, 2],
     ];
     expect(counts(await listTripSummariesVisibleTo(member))).toEqual(expected);
     expect(counts(await listTripSummariesPage(member, { limit: 10, after: null }))).toEqual(expected);
 
-    // A `days` that is not an array — only a corrupt or past server could
-    // write one — counts as nothing rather than failing every trip on the list.
+    // A `days` or `backlog` that is not an array — only a corrupt or past
+    // server could write one — counts as nothing rather than failing every
+    // trip on the list.
     await db
       .update(tripDetails)
-      .set({ doc: sql`jsonb_set(${tripDetails.doc}, '{days}', '{}'::jsonb)` })
+      .set({ doc: sql`jsonb_set(jsonb_set(${tripDetails.doc}, '{days}', '{}'::jsonb), '{backlog}', '{}'::jsonb)` })
       .where(eq(tripDetails.tripId, planned));
     expect(counts(await listTripSummariesVisibleTo(member))).toEqual([
-      ["Empty", 0, 0],
-      ["Planned", 0, 0],
+      ["Empty", 0, 0, 0],
+      ["Planned", 0, 0, 0],
     ]);
   });
 });
