@@ -40,9 +40,9 @@ const preview: TripPreview = {
     { date: "2027-06-04", city: "Higashiyama", stops: [{ title: "Kiyomizu-dera", location: { name: "Kiyomizu-dera" } }] },
   ],
   people: [
-    { name: "Mitchell", avatar: null, color: null, travelling: true },
-    { name: "Priya", avatar: null, color: null, travelling: true },
-    { name: "Sam", avatar: null, color: null, travelling: false },
+    { name: "Mitchell", avatar: null, color: null, colorShifted: false, travelling: true },
+    { name: "Priya", avatar: null, color: null, colorShifted: false, travelling: true },
+    { name: "Sam", avatar: null, color: null, colorShifted: false, travelling: false },
   ],
   total: { amountMinor: 123_450, currency: "USD" },
 };
