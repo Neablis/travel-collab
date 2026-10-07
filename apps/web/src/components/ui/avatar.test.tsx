@@ -16,6 +16,19 @@ describe("Avatar", () => {
     expect(screen.getByTestId("a").textContent).toBe("A");
   });
 
+  // M38's xs is additive: the three sizes that shipped before it must draw
+  // exactly what they did.
+  it("draws a 20px circle at xs and leaves the other sizes as they were", () => {
+    const classesFor = (size: "xs" | "sm" | "md" | "lg"): string => {
+      render(<Avatar name="dev-alice" size={size} data-testid={size} />);
+      return screen.getByTestId(size).className;
+    };
+    expect(classesFor("xs")).toContain("size-5 text-xs");
+    expect(classesFor("sm")).toContain("size-7 text-xs");
+    expect(classesFor("md")).toContain("size-7.5 text-xs");
+    expect(classesFor("lg")).toContain("size-11 text-md");
+  });
+
   it("draws the icon instead of initials for a row that is not a person", () => {
     render(<Avatar name="Link invite" icon={<svg data-testid="glyph" />} data-testid="a" />);
     expect(screen.getByTestId("glyph")).toBeTruthy();

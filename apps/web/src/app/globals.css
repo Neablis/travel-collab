@@ -35,6 +35,21 @@
   --color-info-tint: #e1ebf7;
   --color-info-ink: #1f5187;
 
+  /* M38 person colours (design-system.md "Person colours"). Keyed by
+     `PersonColor` from @tc/contracts, and declared in palette order because
+     that order IS the clash shift order. `person-` because `moss` and `slate`
+     are already neutrals above. Light values only: the dark set is recorded in
+     the doc for the day the app gets a dark look, not shipped ahead of it. */
+  --color-person-moss: #56703a;
+  --color-person-clay: #a1512d;
+  --color-person-sky: #33619f;
+  --color-person-plum: #76457d;
+  --color-person-ochre: #86600e;
+  --color-person-rose: #a33b5c;
+  --color-person-slate: #535b68;
+  --color-person-teal: #17707a;
+  --color-person-on: #ffffff;
+
   /* Two notches below `text-xs` exist for the front door only: the landing
      page's dense illustrations (crew initials, ledger column heads, playbook
      day cards) carry micro-labels the app's chrome never needs, and the
