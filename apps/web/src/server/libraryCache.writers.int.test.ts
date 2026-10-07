@@ -137,7 +137,7 @@ describe("what clears the cached library", () => {
     await db.delete(users).where(eq(users.id, id));
   });
 
-  it("a display name that changed, and not the same one or another preference", async () => {
+  it("a display name or its public opt-in that changed, and not the same one or another preference", async () => {
     const id = `writer-prefs-${RUN}`;
     await upsertUser({ id, email: `${id}@example.com`, name: "Dana Reyes", image: null });
 
@@ -145,8 +145,11 @@ describe("what clears the cached library", () => {
     await writePreferences(id, { displayName: "Dana" });
     await writePreferences(id, { homeAirport: "SFO" });
     await writePreferences(id, { displayName: null });
+    // M38 D2: opting in changes what the library prints; a colour does not.
+    await writePreferences(id, { publicDisplayName: true });
+    await writePreferences(id, { color: "sky" });
 
-    expect(vi.mocked(invalidateAuthor).mock.calls).toEqual([[id], [id]]);
+    expect(vi.mocked(invalidateAuthor).mock.calls).toEqual([[id], [id], [id]]);
     await db.delete(users).where(eq(users.id, id));
   });
 

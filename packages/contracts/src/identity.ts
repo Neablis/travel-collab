@@ -42,6 +42,47 @@ export const TimeFormat = z.enum(["12h", "24h"]);
 export type TimeFormat = z.infer<typeof TimeFormat>;
 
 /**
+ * **The fixed avatar set** (M38 D1). An avatar is a key into this list, never a
+ * URL: there are no uploads, because an uploaded image needs storage and
+ * moderation that the admin reports panel does not cover. The client maps each
+ * key to a glyph; the server never renders one.
+ */
+export const AvatarKey = z.enum([
+  "compass",
+  "mountain",
+  "palm",
+  "plane",
+  "tent",
+  "sailboat",
+  "camera",
+  "map",
+  "sun",
+  "bike",
+  "train",
+  "coffee",
+]);
+export type AvatarKey = z.infer<typeof AvatarKey>;
+
+/**
+ * **The person palette** (M38 D3). A key, not a hex value: the colour wall
+ * (`scripts/check-color-wall.mjs`) keeps raw colours out of the app, so each
+ * key names a design token. A stored choice is personal and never changes
+ * because of a trip. When two travellers on one trip chose the same key, the
+ * later joiner's chip is shifted at render time for that trip only.
+ */
+export const PersonColor = z.enum([
+  "moss",
+  "clay",
+  "sky",
+  "plum",
+  "ochre",
+  "rose",
+  "slate",
+  "teal",
+]);
+export type PersonColor = z.infer<typeof PersonColor>;
+
+/**
  * What a person has set about themselves, as read back.
  *
  * Every field is present in the DTO — an absent field would make a reader
@@ -81,6 +122,17 @@ export const UserPreferences = z.object({
     .nullable(),
   distanceUnit: DistanceUnit,
   timeFormat: TimeFormat,
+  /** M38. `null` shows initials. Defaulted so a reader of an older server still parses. */
+  avatar: AvatarKey.nullable().default(null),
+  /** M38. `null` lets a trip pick one; see `PersonColor`. */
+  color: PersonColor.nullable().default(null),
+  /**
+   * M38 D2. Whether a public page (a profile, a published day, Discover) may
+   * show `displayName`. Off by default: a name chosen for friends on a trip is
+   * not published to strangers unless the person says so, and the public
+   * surfaces fall back to the sign-in name's short form.
+   */
+  publicDisplayName: z.boolean().default(false),
 });
 export type UserPreferences = z.infer<typeof UserPreferences>;
 

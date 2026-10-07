@@ -141,7 +141,7 @@ describe("the weather block", () => {
   // celsius, or metric vs imperial."* The account's `distanceUnit` reaches the
   // block through MacroView's `user`, the same prop every widget reads.
   it("reads °F and inches for an account in miles", () => {
-    const miles: UserPreferences = { displayName: null, homeAirport: null, distanceUnit: "mi", timeFormat: "12h" };
+    const miles: UserPreferences = { displayName: null, homeAirport: null, distanceUnit: "mi", timeFormat: "12h", avatar: null, color: null, publicDisplayName: false };
     view(trip(), { points: [point("2026-11-13")] }, false, { user: miles });
     expect(cellsOf(dataRows()[0]!)).toEqual(["64°F", "47°F", "0.08″"]);
   });

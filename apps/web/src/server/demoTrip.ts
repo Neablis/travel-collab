@@ -75,6 +75,9 @@ const DEMO_MEMBERS: TripMemberProfile[] = JAPAN_DEMO_ROSTER.map(({ name, role, t
   name,
   email: null,
   image: null,
+  displayName: null,
+  avatar: null,
+  color: null,
 }));
 
 /**

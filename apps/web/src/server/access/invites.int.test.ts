@@ -626,8 +626,8 @@ describe("member profiles", () => {
     // `travelling` explicit on every row: carried through, and travelling
     // where the member list did not say (travellers spec D2).
     expect(profiles).toEqual([
-      { userId: OWNER, role: "owner", name: null, email: null, image: null, travelling: true },
-      { userId: GUEST, role: "editor", name: "Bob", email: "bob@example.com", image: null, travelling: false },
+      { userId: OWNER, role: "owner", name: null, email: null, image: null, travelling: true, displayName: null, avatar: null, color: null },
+      { userId: GUEST, role: "editor", name: "Bob", email: "bob@example.com", image: null, travelling: false, displayName: null, avatar: null, color: null },
     ]);
   });
 });

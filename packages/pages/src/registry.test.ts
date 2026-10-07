@@ -250,7 +250,7 @@ describe("every widget renders (ADR-037 decision 2)", () => {
   // `account.homeAirport` resolve to `empty()` without it, so they would never
   // reach `render` and the witness floor would fail — which is the floor doing
   // exactly its job rather than a reason to lower it.
-  const user = { displayName: "Priya", homeAirport: "SFO", distanceUnit: "km" as const, timeFormat: "12h" as const };
+  const user = { displayName: "Priya", homeAirport: "SFO", distanceUnit: "km" as const, timeFormat: "12h" as const, avatar: null, color: null, publicDisplayName: false };
 
   // What the weather route would hand in for the day (ADR-052): with no slot
   // "Weather" answers `unavailable` and never reaches `render` — the floor

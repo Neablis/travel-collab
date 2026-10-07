@@ -158,11 +158,20 @@ type OwnerNames = { owner_display_name: string | null; owner_name: string | null
  * `from saved_days d` and every grouped one stays grouped by `d.owner_id`
  * alone. Two primary-key lookups a row. An owner with no `users` row reads as
  * two nulls, which `publicNameFor` answers with the handle.
+ *
+ * **The chosen name only when its owner opted in** (M38 D2): a name picked
+ * for the people on a trip is not published to strangers by default, so
+ * `owner_display_name` is null until `public_display_name` is set, and
+ * `publicNameFor` falls through to the sign-in name. Gated here, in the read,
+ * so no resolver downstream can forget it.
  */
 function ownerNames(ownerId: SQL): SQL {
-  return sql`(select u.display_name from users u where u.id = ${ownerId}) as owner_display_name,
+  return sql`(select case when u.public_display_name then u.display_name end from users u where u.id = ${ownerId}) as owner_display_name,
       (select u.name from users u where u.id = ${ownerId}) as owner_name`;
 }
+
+/** `users.display_name` when its owner opted in to showing it publicly (M38 D2), else null. */
+const optedInDisplayName = sql<string | null>`case when ${users.publicDisplayName} then ${users.displayName} end`;
 
 /**
  * **What the public library calls each of `userIds`** — `publicNameFor` over
@@ -183,7 +192,7 @@ export async function publicNamesOf(
     unique.length === 0
       ? []
       : await q
-          .select({ id: users.id, displayName: users.displayName, name: users.name })
+          .select({ id: users.id, displayName: optedInDisplayName, name: users.name })
           .from(users)
           .where(inArray(users.id, unique));
   const byId = new Map(rows.map((row) => [row.id, row]));

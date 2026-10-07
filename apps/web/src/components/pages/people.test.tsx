@@ -18,9 +18,9 @@ const server = setupServer(
         tripId: params.tripId,
         myRole: "owner",
         members: [
-          { userId: "u-ana", role: "owner", name: "Ana Lima", email: "ana@example.com", image: null },
+          { userId: "u-ana", role: "owner", name: "Ana Lima", email: "ana@example.com", image: null, displayName: null, avatar: null, color: null },
           // No name: the one member whose only identifier is an address.
-          { userId: "u-ben-4f2a91", role: "editor", name: null, email: "ben@example.com", image: null },
+          { userId: "u-ben-4f2a91", role: "editor", name: null, email: "ben@example.com", image: null, displayName: null, avatar: null, color: null },
         ],
         invites: [],
         collaboratorsEntitled: true,
@@ -66,8 +66,8 @@ describe("PeopleProvider", () => {
   it("never prints a member's email into a page, and never their raw id", () => {
     // A notebook is shared with every collaborator; the address is not theirs to read.
     expect(peopleNamesOf([
-      { userId: "u-ana", role: "owner", name: "Ana Lima", email: "ana@example.com", image: null },
-      { userId: "u-ben-4f2a91", role: "editor", name: null, email: "ben@example.com", image: null },
+      { userId: "u-ana", role: "owner", name: "Ana Lima", email: "ana@example.com", image: null, displayName: null, avatar: null, color: null },
+      { userId: "u-ben-4f2a91", role: "editor", name: null, email: "ben@example.com", image: null, displayName: null, avatar: null, color: null },
     ])).toEqual({ "u-ana": "Ana Lima", "u-ben-4f2a91": "Traveler 4f2a91" });
   });
 });

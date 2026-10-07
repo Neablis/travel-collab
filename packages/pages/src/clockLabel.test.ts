@@ -55,7 +55,7 @@ describe("toClockRange", () => {
 });
 
 describe("readerClock", () => {
-  const user: UserPreferences = { displayName: null, homeAirport: null, distanceUnit: "km", timeFormat: "24h" };
+  const user: UserPreferences = { displayName: null, homeAirport: null, distanceUnit: "km", timeFormat: "24h", avatar: null, color: null, publicDisplayName: false };
 
   it("is the reader's own clock", () => {
     expect(readerClock(user)).toBe("24h");

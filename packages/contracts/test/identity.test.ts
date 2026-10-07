@@ -6,6 +6,9 @@ const preferences = {
   homeAirport: "SFO",
   distanceUnit: "km",
   timeFormat: "12h",
+  avatar: "tent",
+  color: "plum",
+  publicDisplayName: true,
 };
 
 describe("UserPreferences", () => {
@@ -14,8 +17,29 @@ describe("UserPreferences", () => {
   });
 
   it("accepts null for both unsettable fields", () => {
-    const cleared = { displayName: null, homeAirport: null, distanceUnit: "mi", timeFormat: "24h" };
+    const cleared = {
+      displayName: null,
+      homeAirport: null,
+      distanceUnit: "mi",
+      timeFormat: "24h",
+      avatar: null,
+      color: null,
+      publicDisplayName: false,
+    };
     expect(UserPreferences.parse(cleared)).toEqual(cleared);
+  });
+
+  // M38: a body from a server that predates personas still parses, as "unset"
+  // and "not opted in" — never as a published name.
+  it("defaults the persona fields on a body from before them", () => {
+    const before = { displayName: "Mitchell", homeAirport: null, distanceUnit: "km", timeFormat: "12h" };
+    expect(UserPreferences.parse(before)).toEqual({ ...before, avatar: null, color: null, publicDisplayName: false });
+  });
+
+  // D1 and D3: keys from the fixed sets, never a URL or a raw colour.
+  it("refuses an avatar or colour outside the fixed sets", () => {
+    expect(UserPreferences.safeParse({ ...preferences, avatar: "https://x.test/me.png" }).success).toBe(false);
+    expect(UserPreferences.safeParse({ ...preferences, color: "crimson" }).success).toBe(false);
   });
 
   // Absent is NOT the same as null here — the DTO always carries every field,

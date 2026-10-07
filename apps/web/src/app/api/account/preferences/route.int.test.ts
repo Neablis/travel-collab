@@ -45,6 +45,9 @@ describe("GET /api/account/preferences", () => {
       homeAirport: null,
       distanceUnit: "km",
       timeFormat: "12h",
+      avatar: null,
+      color: null,
+      publicDisplayName: false,
     });
   });
 
@@ -58,6 +61,9 @@ describe("GET /api/account/preferences", () => {
       homeAirport: "LHR",
       distanceUnit: "km",
       timeFormat: "12h",
+      avatar: null,
+      color: null,
+      publicDisplayName: false,
     });
   });
 });
@@ -76,6 +82,9 @@ describe("PATCH /api/account/preferences", () => {
       homeAirport: null,
       distanceUnit: "mi",
       timeFormat: "12h",
+      avatar: null,
+      color: null,
+      publicDisplayName: false,
     });
   });
 
@@ -126,11 +135,32 @@ describe("PATCH /api/account/preferences", () => {
       homeAirport: null,
       distanceUnit: "mi",
       timeFormat: "12h",
+      avatar: null,
+      color: null,
+      publicDisplayName: false,
     });
   });
 
   // A PATCH carrying nothing is far more likely to be a client bug — a field
   // name that silently failed to match — than a request to change nothing.
+  // M38: the persona round-trips, and a key outside the fixed sets (D1, D3)
+  // is refused at the boundary rather than stored for a client to choke on.
+  it("stores an avatar, a colour and the public-name opt-in, and clears them", async () => {
+    currentUserId = await seedUser();
+    const set = (await (await patch({ avatar: "tent", color: "plum", publicDisplayName: true })).json()) as Body;
+    expect(set.preferences).toMatchObject({ avatar: "tent", color: "plum", publicDisplayName: true });
+    expect(((await (await GET()).json()) as Body).preferences).toMatchObject({ avatar: "tent", color: "plum" });
+
+    const cleared = (await (await patch({ avatar: null, color: null })).json()) as Body;
+    expect(cleared.preferences).toMatchObject({ avatar: null, color: null, publicDisplayName: true });
+  });
+
+  it("400s an avatar or colour that is not in the fixed set", async () => {
+    currentUserId = await seedUser();
+    expect((await patch({ avatar: "https://example.com/me.png" })).status).toBe(400);
+    expect((await patch({ color: "crimson" })).status).toBe(400);
+  });
+
   it("400s an empty patch rather than answering 200 to it", async () => {
     currentUserId = await seedUser();
     expect((await patch({})).status).toBe(400);

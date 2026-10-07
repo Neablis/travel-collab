@@ -105,6 +105,9 @@ describe("users repository", () => {
       homeAirport: null,
       distanceUnit: "km",
       timeFormat: "12h",
+      avatar: null,
+      color: null,
+      publicDisplayName: false,
       // M20's columns. A first sign-in holds the live `free` version — read
       // from the committed plan file by `upsertUser`, NOT left to the column's
       // `DEFAULT 1`, which is what makes "a new account gets v2" true the day
@@ -162,6 +165,9 @@ describe("account preferences (M17)", () => {
       homeAirport: null,
       distanceUnit: "km",
       timeFormat: "12h",
+      avatar: null,
+      color: null,
+      publicDisplayName: false,
     });
   });
 
@@ -174,6 +180,9 @@ describe("account preferences (M17)", () => {
       homeAirport: null,
       distanceUnit: "km",
       timeFormat: "12h",
+      avatar: null,
+      color: null,
+      publicDisplayName: false,
     });
   });
 
@@ -193,6 +202,9 @@ describe("account preferences (M17)", () => {
       homeAirport: "SFO",
       distanceUnit: "mi",
       timeFormat: "24h",
+      avatar: null,
+      color: null,
+      publicDisplayName: false,
     });
     expect(await readPreferences(id)).toEqual(written);
   });
@@ -211,6 +223,9 @@ describe("account preferences (M17)", () => {
       homeAirport: "SFO",
       distanceUnit: "mi",
       timeFormat: "12h",
+      avatar: null,
+      color: null,
+      publicDisplayName: false,
     });
 
     await writePreferences(id, { displayName: null });
@@ -219,6 +234,9 @@ describe("account preferences (M17)", () => {
       homeAirport: "SFO",
       distanceUnit: "mi",
       timeFormat: "12h",
+      avatar: null,
+      color: null,
+      publicDisplayName: false,
     });
   });
 
@@ -258,6 +276,9 @@ describe("account preferences (M17)", () => {
       homeAirport: "SFO",
       distanceUnit: "mi",
       timeFormat: "12h",
+      avatar: null,
+      color: null,
+      publicDisplayName: false,
     });
     // And the provider's own field still refreshes, so this is not passing
     // because the upsert stopped writing anything.
@@ -328,6 +349,9 @@ describe("recordSignIn (the Auth.js signIn callback)", () => {
       homeAirport: "OAK",
       distanceUnit: "mi",
       timeFormat: "24h",
+      avatar: null,
+      color: null,
+      publicDisplayName: false,
     });
   });
 

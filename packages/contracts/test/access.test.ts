@@ -146,7 +146,16 @@ describe("TripEventsPage.accessRev", () => {
 });
 
 describe("TripAccess", () => {
-  const member = { userId: "dev-alice", role: "owner", name: null, email: null, image: null };
+  const member = {
+    userId: "dev-alice",
+    role: "owner",
+    name: null,
+    email: null,
+    image: null,
+    displayName: "Ali",
+    avatar: "compass",
+    color: "teal",
+  };
 
   it("round-trips a full access document", () => {
     const access = {

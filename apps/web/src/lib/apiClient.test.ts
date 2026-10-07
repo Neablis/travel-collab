@@ -545,7 +545,19 @@ describe("member writes on the wire", () => {
   const access = {
     tripId: TRIP_ID,
     myRole: "owner",
-    members: [{ userId: "u-1", role: "owner", name: null, email: null, image: null, travelling: true }],
+    members: [
+      {
+        userId: "u-1",
+        role: "owner",
+        name: null,
+        email: null,
+        image: null,
+        travelling: true,
+        displayName: null,
+        avatar: null,
+        color: null,
+      },
+    ],
     invites: [],
     collaboratorsEntitled: true,
   };
