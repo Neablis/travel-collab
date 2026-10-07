@@ -668,6 +668,15 @@ describe("NextTripHero — length, stops and the unplanned trip", () => {
 
   // From the summary, on the first frame: the detail is still loading here,
   // and the next steps do not wait for it.
+  // As a card's are (TripCard.test.tsx): the trip's name describes each step.
+  it("describes each next step by the trip's name", () => {
+    fetchTripDetailMock.mockReturnValue(new Promise(() => {}));
+    render(<NextTripHero trip={unplanned({ name: "Kyoto" })} viewerId="dev-alice" />);
+    for (const step of ["Add the first day", "Invite who's coming", "Choose a cover photo"]) {
+      expect(screen.getByRole("link", { name: step, description: "Kyoto" })).toBeTruthy();
+    }
+  });
+
   it("gives an owner planning alone the first day and the invite before the detail loads", () => {
     fetchTripDetailMock.mockReturnValue(new Promise(() => {}));
     const trip = unplanned();

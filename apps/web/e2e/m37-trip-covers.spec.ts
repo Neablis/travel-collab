@@ -24,9 +24,27 @@ async function openCoverPickerFromHome(page: Page, tripName: string): Promise<Lo
 
   const sheet = page.getByRole("dialog", { name: "Trip settings" });
   await expect(sheet).toBeVisible();
-  // The link's whole point: the sheet opens AT the section, not its top.
+  // The link's whole point: the sheet opens AT the section, not its top. In
+  // view is not enough — the section is in view at the sheet's top too. So:
+  // its top at the scrollport's (less the 16px `scroll-mt-4`), or, where the
+  // sheet is too short to bring it that far, scrolled as far as it goes. At
+  // 1280×900 the second holds: the port scrolls 52px and the section stays
+  // 167px down; the sheet at its top read 219 and failed.
   const section = sheet.getByRole("region", { name: "Cover photo" });
-  await expect(section).toBeInViewport();
+  const scrollport = sheet.getByTestId("sheet-scrollport");
+  await expect
+    .poll(async () => {
+      const [at, port] = await Promise.all([section.boundingBox(), scrollport.boundingBox()]);
+      const { scrollTop, end } = await scrollport.evaluate((el) => ({
+        scrollTop: el.scrollTop,
+        end: el.scrollHeight - el.clientHeight,
+      }));
+      if (!at || !port || end <= 0) return `unscrollable (${end})`;
+      return Math.round(at.y - port.y) <= 24 || scrollTop >= end - 1
+        ? "landed"
+        : `${Math.round(at.y - port.y)}px down at scrollTop ${scrollTop} of ${end}`;
+    })
+    .toBe("landed");
   return section;
 }
 
@@ -66,7 +84,8 @@ test("pick a cover for an empty trip in Trip settings, and see it credited on Ho
 
 test("the cover picker fits a 390px phone, with 44px targets", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  const section = await openCoverPickerFromHome(page, e2eTripName("Covers phone"));
+  const tripName = e2eTripName("Covers phone");
+  const section = await openCoverPickerFromHome(page, tripName);
 
   await section.getByRole("searchbox", { name: "Search photos" }).fill("harbour");
   await section.getByRole("button", { name: "Search" }).click();
@@ -88,6 +107,20 @@ test("the cover picker fits a 390px phone, with 44px targets", async ({ page }) 
     section.getByRole("link", { name: "Ben Offline" }),
   ]) {
     const box = await target.boundingBox();
+    expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+  }
+
+  // And the credit Home shows under a cover: two links in a sentence, which
+  // measured 15px tall at 390 on the #354 preview.
+  await Promise.all([
+    page.waitForResponse((r) => /\/api\/trips\/[^/]+\/cover$/.test(new URL(r.url()).pathname) && r.request().method() === "PUT" && r.ok()),
+    section.getByRole("button", { name: "Use photo by Ben Offline" }).click(),
+  ]);
+  await page.goto("/");
+  const onHome = homeTrip(page, tripName);
+  for (const link of [onHome.getByRole("link", { name: "Ben Offline" }), onHome.getByRole("link", { name: "Unsplash" })]) {
+    await link.scrollIntoViewIfNeeded();
+    const box = await link.boundingBox();
     expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
   }
 });

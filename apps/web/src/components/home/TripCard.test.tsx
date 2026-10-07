@@ -194,6 +194,22 @@ describe("TripCard — length, stops and the unplanned trip", () => {
     expect(screen.queryByText("Active")).toBeNull();
   });
 
+  // Every unplanned card offers the same three links, so each is described by
+  // its trip's name; the name is the visible text alone, which is what a voice
+  // user says and what the e2e suite's locators match.
+  it("describes each next step by its own trip's name", () => {
+    render(
+      <>
+        <TripCard trip={unplanned({ name: "Kyoto" })} viewerId="dev-alice" />
+        <TripCard trip={unplanned({ name: "Lisbon" })} viewerId="dev-alice" />
+      </>,
+    );
+    for (const step of ["Add the first day", "Invite who's coming", "Choose a cover photo"]) {
+      expect(screen.getByRole("link", { name: step, description: "Kyoto" })).toBeTruthy();
+      expect(screen.getByRole("link", { name: step, description: "Lisbon" })).toBeTruthy();
+    }
+  });
+
   // Setting dates makes days, so a dated trip with no stops has days to fill.
   it("offers a dated trip with days its first stop, not its first day", () => {
     render(

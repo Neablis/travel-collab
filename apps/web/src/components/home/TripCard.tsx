@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import { travellerIds, type TripSummary, type TripStatus } from "@tc/contracts";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -110,6 +110,7 @@ export function TripCard({ trip, menuSlot, plannedOfBudget, viewerId }: TripCard
   // the title standing on the fade, and the credit where the status badge was
   // (the approved canvas). Without one, the card is exactly what it was.
   const { cover } = trip;
+  const titleId = useId();
 
   const body = (
     <>
@@ -122,7 +123,9 @@ export function TripCard({ trip, menuSlot, plannedOfBudget, viewerId }: TripCard
           href={`/trips/${trip.tripId}`}
           className={cn("inline-flex items-center hover:underline", PHONE_TOUCH)}
         >
-          <Heading level={3}>{trip.name}</Heading>
+          <Heading level={3} id={titleId}>
+            {trip.name}
+          </Heading>
         </Link>
         <div className="mt-1">
           <DataText size="sm">{meta}</DataText>
@@ -202,7 +205,7 @@ export function TripCard({ trip, menuSlot, plannedOfBudget, viewerId }: TripCard
             `UnplannedTripSteps` holds the height for that. */}
         {unplanned ? (
           <div className="mt-1">
-            <UnplannedTripSteps trip={trip} viewerId={viewerId} />
+            <UnplannedTripSteps trip={trip} viewerId={viewerId} describedBy={titleId} />
           </div>
         ) : (
           <div className="mt-1 min-h-10 leading-5 md:min-h-5">

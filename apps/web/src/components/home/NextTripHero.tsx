@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { travellerIds, type TripSummary } from "@tc/contracts";
 import { Badge } from "@/components/ui/badge";
@@ -175,6 +175,9 @@ export function NextTripHero({ trip, menuSlot, viewerId }: NextTripHeroProps) {
   // the travellers move into a footer beside the credit (the approved
   // canvas). Without one, the hero is exactly what it was.
   const { cover } = trip;
+  // Each next-step link is described by the trip's name, as a card's are
+  // (`UnplannedTripSteps`): Home can show the same links on several trips.
+  const titleId = useId();
   // Held with the owner's buttons while the reader is unknown: an owner may
   // always set one, so it is part of the owner-alone row.
   const pickCover = unplanned && (holding ? cover === null : offersCover(trip, viewerId));
@@ -299,7 +302,9 @@ export function NextTripHero({ trip, menuSlot, viewerId }: NextTripHeroProps) {
                 href={`/trips/${trip.tripId}`}
                 className={cn("inline-flex items-center hover:underline", PHONE_TOUCH)}
               >
-                <Heading level={2}>{trip.name}</Heading>
+                <Heading level={2} id={titleId}>
+                  {trip.name}
+                </Heading>
               </Link>
               {/* Meta row (README: "dates · length · cities") — the trip's real
                   start date (`shownStartDate`: the summary's until the detail
@@ -401,6 +406,7 @@ export function NextTripHero({ trip, menuSlot, viewerId }: NextTripHeroProps) {
                 >
                   <Link
                     href={addFirstDayHref(trip.tripId)}
+                    aria-describedby={titleId}
                     className={cn(buttonVariants({ variant: "primary", size: "md" }))}
                   >
                     {firstStepLabel(trip)}
@@ -408,6 +414,7 @@ export function NextTripHero({ trip, menuSlot, viewerId }: NextTripHeroProps) {
                   {alone && (
                     <Link
                       href={inviteHref(trip.tripId)}
+                      aria-describedby={titleId}
                       className={cn(buttonVariants({ variant: "secondary", size: "md" }))}
                     >
                       Invite who&apos;s coming
@@ -423,6 +430,7 @@ export function NextTripHero({ trip, menuSlot, viewerId }: NextTripHeroProps) {
               {pickCover && (
                 <Link
                   href={coverHref(trip.tripId)}
+                  aria-describedby={titleId}
                   className={cn(
                     "inline-flex items-center px-1 text-sm text-slate hover:underline",
                     PHONE_TOUCH,

@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Money, TripCommand, TripDetail } from "@tc/contracts";
@@ -38,9 +38,15 @@ vi.mock("@/components/trip/people/PeopleSection", () => ({
 // The cover section likewise has its own suite (`cover/CoverSection.test.tsx`)
 // and its own reads. What this file says about it is where it sits and who
 // may edit it, so the stub reports exactly that.
+// *Settle cover* stands for its opening reads landing (`onSettled`).
 vi.mock("@/components/trip/cover/CoverSection", () => ({
-  CoverSection: ({ canEdit }: { canEdit: boolean }) => (
-    <div data-testid="cover-section">{canEdit ? "editable" : "read-only"}</div>
+  CoverSection: ({ canEdit, onSettled }: { canEdit: boolean; onSettled?: () => void }) => (
+    <>
+      <div data-testid="cover-section">{canEdit ? "editable" : "read-only"}</div>
+      <button type="button" onClick={() => onSettled?.()}>
+        Settle cover
+      </button>
+    </>
   ),
 }));
 
@@ -95,6 +101,8 @@ function renderSheet(
     counts?: TripCounts;
     /** Which trip the sheet is for. The demo trip's id is the one that matters. */
     tripId?: string;
+    /** The section the sheet was opened at. */
+    scrollTo?: "people" | "cover" | null;
   } = {},
 ) {
   const onCommand = overrides.onCommand ?? vi.fn();
@@ -114,6 +122,7 @@ function renderSheet(
       createdAt={overrides.createdAt ?? "2026-08-31T14:20:00.000Z"}
       readOnly={overrides.readOnly ?? false}
       canEditBoard={overrides.canEditBoard ?? !(overrides.readOnly ?? false)}
+      scrollTo={overrides.scrollTo ?? null}
       onCommand={onCommand}
     />,
   );
@@ -684,5 +693,45 @@ describe("SettingsSheet cover photo", () => {
     // Witness: the sheet rendered its other sections.
     expect(screen.getByText("Trip overview")).toBeTruthy();
     expect(screen.queryByTestId("cover-section")).toBeNull();
+  });
+
+  // Cover changes height when its reads land, and the landing does not
+  // survive it — People moves, and on a tall screen the scroll is clamped to
+  // the top — so the section asked for is landed on again once Cover settles.
+  describe("opened at a section", () => {
+    // The id of each element landed on: the section anchors.
+    const landed: string[] = [];
+    beforeEach(() => {
+      landed.length = 0;
+      Element.prototype.scrollIntoView = function (this: Element) {
+        landed.push(this.id);
+      };
+    });
+    afterEach(() => {
+      delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+    });
+
+    it.each(["people", "cover"] as const)("lands on %s again once Cover has settled, and nowhere else", (section) => {
+      renderSheet({ scrollTo: section });
+      expect(landed).toEqual([section]);
+      fireEvent.click(screen.getByRole("button", { name: "Settle cover" }));
+      expect(landed).toEqual([section, section]);
+    });
+
+    // Opening the Dates popover re-renders the sheet; the landing is the
+    // open's, not each render's.
+    it("does not land again on an ordinary re-render", async () => {
+      renderSheet({ scrollTo: "people" });
+      await userEvent.click(screen.getByRole("button", { name: "Dates" }));
+      expect(landed).toEqual(["people"]);
+    });
+
+    it("lands nowhere, before or after, when opened at its top", () => {
+      renderSheet();
+      fireEvent.click(screen.getByRole("button", { name: "Settle cover" }));
+      // Witness: the stub's settle was reachable.
+      expect(screen.getByTestId("cover-section")).toBeTruthy();
+      expect(landed).toEqual([]);
+    });
   });
 });

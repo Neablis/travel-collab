@@ -8,7 +8,9 @@ import { cn } from "@/lib/cn";
 /** What a credit needs: a `TripCover`, or a picker candidate, has both. */
 export type CoverCreditPhoto = Pick<TripCover, "photographerName" | "photographerUrl">;
 
-const LINK = "text-slate underline-offset-2 hover:text-brand-pressed hover:underline";
+// The 44px phone floor (§13.1), released at `md`: on the #354 preview a
+// credit link measured 61×15 at 390px. Inline-flex keeps it in the sentence.
+const LINK = "inline-flex min-h-11 items-center text-slate underline-offset-2 hover:text-brand-pressed hover:underline md:min-h-0";
 
 /**
  * "Photo by <name> on Unsplash", both linked, each opening a new tab. Small

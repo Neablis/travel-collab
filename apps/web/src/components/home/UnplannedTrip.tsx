@@ -129,7 +129,20 @@ const ROW = "flex min-h-11 items-center gap-2 text-sm no-underline hover:underli
  * (`viewerId` undefined) it renders the owner-alone rows hidden, holding their
  * height; see the note inside.
  */
-export function UnplannedTripSteps({ trip, viewerId }: { trip: TripSummary; viewerId: string | null | undefined }) {
+export function UnplannedTripSteps({
+  trip,
+  viewerId,
+  describedBy,
+}: {
+  trip: TripSummary;
+  viewerId: string | null | undefined;
+  /**
+   * The id of the trip's title. Every unplanned card offers the same links,
+   * so each is described by its trip's name — the name itself stays the
+   * visible text alone, which is what a voice user says and a locator matches.
+   */
+  describedBy?: string;
+}) {
   // `undefined` is the session probe still in flight. Rendering the reader's
   // one line until it answered made the commonest card — a new trip, its owner
   // planning alone — grow a row when the answer landed, and push every card
@@ -141,7 +154,7 @@ export function UnplannedTripSteps({ trip, viewerId }: { trip: TripSummary; view
   if (viewerId === undefined) {
     return (
       <div aria-hidden inert className="invisible">
-        <Steps trip={trip} invite cover={trip.cover === null} />
+        <Steps trip={trip} invite cover={trip.cover === null} describedBy={describedBy} />
       </div>
     );
   }
@@ -152,43 +165,57 @@ export function UnplannedTripSteps({ trip, viewerId }: { trip: TripSummary; view
         <p className="flex min-h-11 items-center text-sm text-slate md:min-h-9">Nothing planned yet.</p>
         {cover && (
           <ul className="flex flex-col">
-            <CoverStep trip={trip} />
+            <CoverStep trip={trip} describedBy={describedBy} />
           </ul>
         )}
       </>
     );
   }
-  return <Steps trip={trip} invite={ownerAlone(trip, viewerId)} cover={cover} />;
+  return <Steps trip={trip} invite={ownerAlone(trip, viewerId)} cover={cover} describedBy={describedBy} />;
 }
 
 /** The owner's next-step rows: the first step, the invite when `invite`, the cover when `cover`. */
-function Steps({ trip, invite, cover }: { trip: TripSummary; invite: boolean; cover: boolean }) {
+function Steps({
+  trip,
+  invite,
+  cover,
+  describedBy,
+}: {
+  trip: TripSummary;
+  invite: boolean;
+  cover: boolean;
+  describedBy?: string;
+}) {
   return (
     <ul className="flex flex-col">
       <li>
-        <Link href={addFirstDayHref(trip.tripId)} className={cn(ROW, "font-semibold text-brand-pressed")}>
+        <Link
+          href={addFirstDayHref(trip.tripId)}
+          aria-describedby={describedBy}
+          className={cn(ROW, "font-semibold text-brand-pressed")}
+        >
           <span aria-hidden className="size-3 shrink-0 rounded-full border-2 border-current" />
           {firstStepLabel(trip)}
         </Link>
       </li>
       {invite && (
         <li>
-          <Link href={inviteHref(trip.tripId)} className={cn(ROW, "text-slate")}>
+          <Link href={inviteHref(trip.tripId)} aria-describedby={describedBy} className={cn(ROW, "text-slate")}>
             <span aria-hidden className="size-3 shrink-0 rounded-full border-2 border-current" />
             Invite who&apos;s coming
           </Link>
         </li>
       )}
-      {cover && <CoverStep trip={trip} />}
+      {cover && <CoverStep trip={trip} describedBy={describedBy} />}
     </ul>
   );
 }
 
 /** The *Choose a cover photo* row. */
-function CoverStep({ trip }: { trip: TripSummary }) {
+function CoverStep({ trip, describedBy }: { trip: TripSummary; describedBy?: string }) {
   return (
     <li>
-      <Link href={coverHref(trip.tripId)} className={cn(ROW, "text-slate")}>
+      <Link href={coverHref(trip.tripId)} aria-describedby={describedBy} className={cn(ROW, "text-slate")}>
         <span aria-hidden className="size-3 shrink-0 rounded-sm border-2 border-current" />
         Choose a cover photo
       </Link>

@@ -643,7 +643,10 @@ describe("TripHeader — a link into Trip settings", () => {
     await renderHeader();
 
     expect(await screen.findByRole("dialog", { name: /trip settings/i })).toBeTruthy();
-    expect(scrolled.map((el) => el.id)).toEqual([section]);
+    // Only ever at that section: People is landed on again once Cover settles
+    // (SettingsSheet.test.tsx), so how many times is not this test's claim.
+    await waitFor(() => expect(scrolled.length).toBeGreaterThan(0));
+    expect(new Set(scrolled.map((el) => el.id))).toEqual(new Set([section]));
   });
 
   it("drops the param when the sheet closes, and keeps the rest of the URL", async () => {

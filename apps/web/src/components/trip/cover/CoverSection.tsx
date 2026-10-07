@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Check } from "lucide-react";
 import { UNSPLASH_HOME, unsplashCreditHref, type CoverCandidate, type TripCover } from "@tc/contracts";
 import { CoverCredit } from "@/components/cover/CoverCredit";
@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
-import { clearTripCover, fetchTripCover, searchTripCovers, setTripCover, type ApiError } from "@/lib/apiClient";
+import { clearTripCover, fetchTripCover, searchTripCovers, setTripCover, type CoverRefusal } from "@/lib/apiClient";
 import { cn } from "@/lib/cn";
 
 // Trip settings → Cover photo (M37 part 4, the approved `CoverPicker`
@@ -20,30 +20,55 @@ import { cn } from "@/lib/cn";
 // One purpose only — a cover for this trip — so there is no feed, no
 // download and no gallery (Unsplash's guidelines, plan rule 4). A search is
 // spent only when a person presses Search (D2): opening the sheet asks for
-// the cover, and an EMPTY search, which the route answers without spending
-// the quota, to learn whether covers are set up here at all — so the search
-// row can be replaced before anyone types into it.
+// the cover, and makes the free probe below.
 
 // The artboard's 3×2 grid. The route answers 12 a page, so one page is two
 // screens of the grid, and "More results" asks Unsplash again only after both.
 const GRID = 6;
+// The route's page size (`PER_PAGE` in the Unsplash adapter). A page shorter
+// than this is the last: asking for the next one spends a search to learn
+// there is nothing more (PR #353 review). The adapter drops a candidate it
+// cannot credit, so a short page can, rarely, hide a further one — a photo
+// missed is cheaper than a press that always spends quota.
+const PAGE = 12;
 
 const UNAVAILABLE = "Cover photos aren't available here yet.";
 
-type Failure = "unavailable" | "quota" | "other";
+/** Which call failed: the copy differs, because the quotas do. */
+type Call = "search" | "pick" | "remove";
 
-function failureOf(error: ApiError): Failure {
-  if (error.status === 503) return "unavailable";
+type Failure = "unavailable" | "quota" | "upstream-limit" | "other";
+
+function failureOf(error: CoverRefusal): Failure {
+  // By the body, not the status alone: the rate limiter's own outage is a 503
+  // too, and that is not "covers are not set up here".
+  if (error.status === 503 && error.message === "covers-unavailable") return "unavailable";
+  // Unsplash's own limit, which the search route passes on with when it ends;
+  // our quota's 429 says who is over it instead.
+  if (error.status === 429 && error.message === "covers-rate-limited") return "upstream-limit";
   if (error.status === 429) return "quota";
   return "other";
 }
 
-const FAILURE_COPY: Record<Exclude<Failure, "unavailable">, string> = {
-  quota: "That's a lot of photo searches for now. Give it a few minutes and try again.",
-  other: "That didn't work. Try again.",
-};
+/** The line a failed call shows. */
+function failureCopy(failure: Exclude<Failure, "unavailable">, call: Call, retryAfterSeconds?: number): string {
+  if (failure === "upstream-limit") {
+    const minutes = retryAfterSeconds === undefined ? null : Math.max(1, Math.ceil(retryAfterSeconds / 60));
+    return `Unsplash is taking no more searches from here for now. Try again in ${
+      minutes === null ? "a few minutes" : `about ${minutes} minute${minutes === 1 ? "" : "s"}`
+    }.`;
+  }
+  if (failure === "quota") {
+    return call === "pick"
+      ? "That's a lot of cover changes for now. Give it a few minutes and try again."
+      : "That's a lot of photo searches for now. Give it a few minutes and try again.";
+  }
+  return "That didn't work. Try again.";
+}
 
-const LINK = "text-slate underline-offset-2 hover:text-brand-pressed hover:underline";
+// The 44px phone floor on an inline link, released at `md` (§13.1, as the
+// tiles' credits take it). Inline-flex so the link stays in its sentence.
+const LINK = "inline-flex min-h-11 items-center text-slate underline-offset-2 hover:text-brand-pressed hover:underline md:min-h-0";
 
 /**
  * The trip's cover, with its credit, and — for an editor — a search of
@@ -51,11 +76,30 @@ const LINK = "text-slate underline-offset-2 hover:text-brand-pressed hover:under
  * sees the cover and its credit, read-only. `canEdit` is advisory: the routes
  * refuse a viewer and a suggester regardless.
  */
-export function CoverSection({ tripId, canEdit }: { tripId: string; canEdit: boolean }) {
+export function CoverSection({
+  tripId,
+  canEdit,
+  onSettled,
+}: {
+  tripId: string;
+  canEdit: boolean;
+  /**
+   * Called once, when the section's opening reads have landed and its height
+   * has stopped changing — so a sheet opened at a section below it can land
+   * there again (`SettingsSheet`).
+   */
+  onSettled?: () => void;
+}) {
   const headingId = useId();
-  // `undefined` until the first read lands; `null` is "no cover".
+  // `undefined` until the first read lands; `null` is "no cover". A failed
+  // read leaves it `undefined` and sets `readFailed`: not knowing is not "no
+  // cover", and must not hide *Remove cover* from a trip that has one.
   const [cover, setCover] = useState<TripCover | null | undefined>(undefined);
+  const [readFailed, setReadFailed] = useState(false);
+  const [readAttempt, setReadAttempt] = useState(0);
   const [unavailable, setUnavailable] = useState(false);
+  // Whether the editor's opening probe has answered; a reader makes none.
+  const [probed, setProbed] = useState(!canEdit);
   const [query, setQuery] = useState("");
   // The search the results are for, so "More results" continues it even if
   // the field has since been edited.
@@ -66,30 +110,64 @@ export function CoverSection({ tripId, canEdit }: { tripId: string; canEdit: boo
   const [exhausted, setExhausted] = useState(false);
   const [searching, setSearching] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [failure, setFailure] = useState<Exclude<Failure, "unavailable"> | null>(null);
+  const [failure, setFailure] = useState<string | null>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const headingRef = useRef<HTMLSpanElement>(null);
+  const noMoreRef = useRef<HTMLSpanElement>(null);
+  // Where focus goes once the control that had it is gone: *Remove cover*
+  // and *More results* both unmount under the press that used them.
+  const refocus = useRef<"after-remove" | "no-more" | null>(null);
+  const settled = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
     void fetchTripCover(tripId).then((result) => {
       if (cancelled) return;
-      // A failed read shows no cover rather than a broken one; picking still works.
-      setCover(result.ok ? result.value : null);
+      if (result.ok) setCover(result.value);
+      else setReadFailed(true);
     });
-    if (canEdit) {
-      void searchTripCovers(tripId, "").then((result) => {
-        if (!cancelled && !result.ok && failureOf(result.error) === "unavailable") setUnavailable(true);
-      });
-    }
+    return () => {
+      cancelled = true;
+    };
+  }, [tripId, readAttempt]);
+
+  // Covers are unavailable on a deployment with no Unsplash key. An empty
+  // query is how to ask: the route answers it before the quota, so it spends
+  // nothing, and a 503 replaces the search row before anyone types into it.
+  useEffect(() => {
+    if (!canEdit) return;
+    let cancelled = false;
+    void searchTripCovers(tripId, "").then((result) => {
+      if (cancelled) return;
+      if (!result.ok && failureOf(result.error) === "unavailable") setUnavailable(true);
+      setProbed(true);
+    });
     return () => {
       cancelled = true;
     };
   }, [tripId, canEdit]);
 
+  useEffect(() => {
+    if (settled.current || !probed || (cover === undefined && !readFailed)) return;
+    settled.current = true;
+    onSettled?.();
+  }, [probed, cover, readFailed, onSettled]);
+
+  useEffect(() => {
+    if (refocus.current === "no-more" && noMoreRef.current) {
+      refocus.current = null;
+      noMoreRef.current.focus();
+    } else if (refocus.current === "after-remove" && cover === null) {
+      refocus.current = null;
+      (searchRef.current ?? headingRef.current)?.focus();
+    }
+  });
+
   /** Records a failed call: "unavailable" replaces the search row; the rest say so in a line. */
-  function fail(error: ApiError) {
+  function fail(error: CoverRefusal, call: Call) {
     const kind = failureOf(error);
     if (kind === "unavailable") setUnavailable(true);
-    else setFailure(kind);
+    else setFailure(failureCopy(kind, call, error.retryAfterSeconds));
   }
 
   async function readPage(q: string, page: number): Promise<CoverCandidate[] | null> {
@@ -98,7 +176,7 @@ export function CoverSection({ tripId, canEdit }: { tripId: string; canEdit: boo
     const result = await searchTripCovers(tripId, q, page);
     setSearching(false);
     if (!result.ok) {
-      fail(result.error);
+      fail(result.error, "search");
       return null;
     }
     return result.value;
@@ -110,10 +188,10 @@ export function CoverSection({ tripId, canEdit }: { tripId: string; canEdit: boo
     const page = await readPage(q, 1);
     if (page === null) return;
     setSearched(q);
-    setResults(page);
+    setResults(uniqueById([], page));
     setPagesRead(1);
     setStart(0);
-    setExhausted(page.length === 0);
+    setExhausted(page.length < PAGE);
   }
 
   async function more() {
@@ -121,17 +199,26 @@ export function CoverSection({ tripId, canEdit }: { tripId: string; canEdit: boo
     const next = start + GRID;
     if (next < results.length) {
       setStart(next);
+      if (next + GRID >= results.length && exhausted) refocus.current = "no-more";
       return;
     }
     const page = await readPage(searched, pagesRead + 1);
     if (page === null) return;
-    if (page.length === 0) {
-      setExhausted(true);
+    // Unsplash can repeat a photo across pages; one already shown would be a
+    // duplicate React key and a tile offered twice.
+    const fresh = uniqueById(results, page);
+    const last = page.length < PAGE || fresh.length === 0;
+    setExhausted(last);
+    setPagesRead(pagesRead + 1);
+    if (fresh.length === 0) {
+      refocus.current = "no-more";
       return;
     }
-    setResults([...results, ...page]);
-    setPagesRead(pagesRead + 1);
-    setStart(next);
+    setResults([...results, ...fresh]);
+    // From the first new photo, not `next`: a short screen before it (a page
+    // of 11) would otherwise skip what fell between.
+    setStart(results.length);
+    if (last && fresh.length <= GRID) refocus.current = "no-more";
   }
 
   async function pick(candidate: CoverCandidate) {
@@ -139,8 +226,10 @@ export function CoverSection({ tripId, canEdit }: { tripId: string; canEdit: boo
     setFailure(null);
     const result = await setTripCover(tripId, candidate);
     setBusy(false);
-    if (result.ok) setCover(result.value);
-    else fail(result.error);
+    if (result.ok) {
+      setCover(result.value);
+      setReadFailed(false);
+    } else fail(result.error, "pick");
   }
 
   async function remove() {
@@ -148,8 +237,10 @@ export function CoverSection({ tripId, canEdit }: { tripId: string; canEdit: boo
     setFailure(null);
     const result = await clearTripCover(tripId);
     setBusy(false);
-    if (result.ok) setCover(null);
-    else fail(result.error);
+    if (result.ok) {
+      refocus.current = "after-remove";
+      setCover(null);
+    } else fail(result.error, "remove");
   }
 
   const shown = results.slice(start, start + GRID);
@@ -158,9 +249,15 @@ export function CoverSection({ tripId, canEdit }: { tripId: string; canEdit: boo
   return (
     <section aria-labelledby={headingId} className="flex flex-col gap-3">
       <div className="flex items-center justify-between gap-3">
-        <Text as="span" id={headingId} className="block text-xs font-semibold uppercase tracking-wider text-slate">
+        {/* Focusable: where focus lands once *Remove cover* is gone and there is no search to land in. */}
+        <span
+          id={headingId}
+          ref={headingRef}
+          tabIndex={-1}
+          className="block text-xs font-semibold uppercase tracking-wider text-slate outline-none"
+        >
           Cover photo
-        </Text>
+        </span>
         {canEdit && cover && (
           <Button
             variant="ghost"
@@ -174,7 +271,21 @@ export function CoverSection({ tripId, canEdit }: { tripId: string; canEdit: boo
         )}
       </div>
 
-      {cover === undefined ? (
+      {readFailed && cover === undefined ? (
+        <div className="flex items-center justify-between gap-3">
+          <Text variant="secondary">Couldn&apos;t load the cover photo.</Text>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setReadFailed(false);
+              setReadAttempt((n) => n + 1);
+            }}
+          >
+            Try again
+          </Button>
+        </div>
+      ) : cover === undefined ? (
         <Skeleton className="h-33 w-full" />
       ) : cover !== null ? (
         <div className="flex flex-col gap-2">
@@ -203,6 +314,7 @@ export function CoverSection({ tripId, canEdit }: { tripId: string; canEdit: boo
               }}
             >
               <Input
+                ref={searchRef}
                 aria-label="Search photos"
                 type="search"
                 value={query}
@@ -217,7 +329,7 @@ export function CoverSection({ tripId, canEdit }: { tripId: string; canEdit: boo
 
             {failure !== null && (
               <p role="status" className="text-sm text-danger-ink">
-                {FAILURE_COPY[failure]}
+                {failure}
               </p>
             )}
 
@@ -258,9 +370,11 @@ export function CoverSection({ tripId, canEdit }: { tripId: string; canEdit: boo
                           More results
                         </Button>
                       ) : (
-                        <Text as="span" variant="muted">
+                        // Focusable so *More results*, gone under the press that
+                        // emptied it, hands focus here rather than to the page.
+                        <span ref={noMoreRef} tabIndex={-1} className="text-xs text-slate outline-none">
                           No more photos.
-                        </Text>
+                        </span>
                       ))}
                   </div>
                 </>
@@ -323,10 +437,16 @@ function ResultTile({
         href={unsplashCreditHref(candidate.photographerUrl)}
         target="_blank"
         rel="noopener"
-        className={cn("flex min-h-11 items-center truncate text-xs md:min-h-0", LINK)}
+        className={cn("flex truncate text-xs", LINK)}
       >
         <span className="truncate">{candidate.photographerName}</span>
       </a>
     </li>
   );
+}
+
+/** `page`'s candidates that are not already in `seen`, nor repeated within `page`. */
+function uniqueById(seen: CoverCandidate[], page: CoverCandidate[]): CoverCandidate[] {
+  const ids = new Set(seen.map((c) => c.id));
+  return page.filter((c) => !ids.has(c.id) && ids.add(c.id));
 }

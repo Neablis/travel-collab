@@ -26,8 +26,9 @@ describe("CoverImage", () => {
     expect(coverSrc("/offline-covers/dunes.svg", 800)).toBe("/offline-covers/dunes.svg?w=800&q=80&fm=jpg&fit=crop");
   });
 
-  it("says who took the photo when Unsplash gave no description", () => {
-    render(<CoverImage photo={{ ...unsplash, alt: null }} sizes="100vw" />);
+  // Unsplash sends both `null` and `""` for a photo nobody described.
+  it.each([null, ""])("says who took the photo when Unsplash's description is %j", (alt) => {
+    render(<CoverImage photo={{ ...unsplash, alt }} sizes="100vw" />);
     expect(screen.getByRole("img", { name: "Photo by Aiko Tanaka" })).toBeTruthy();
   });
 
