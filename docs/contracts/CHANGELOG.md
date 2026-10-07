@@ -13,7 +13,7 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
-## 2026-10-07 — `TripSummaryMember`: Home's cards name their people (M38 part 3)
+## 2026-10-07 — `TripSummaryMember`: Home's cards name their people (M38 part 4)
 
 - **Added:** in `trip.ts`:
   - `MemberPersona`: `displayName`, `avatar` and `color`, each nullable and defaulting to null.
@@ -45,7 +45,7 @@ Format:
   `TripMember` only.
 - Breaking? no. Every new field is defaulted, so a summary from before parses.
 
-## 2026-10-07 — `TripPreview`: the trip as an invite's holder sees it before joining (M38 part 4)
+## 2026-10-07 — `TripPreview`: the trip as an invite's holder sees it before joining (M38 part 3)
 
 - **Added:** `invitePreview.ts`, exported from the index: `TripPreview` and its parts
   `PreviewDay`, `PreviewStop`, `PreviewPlace` and `PreviewPerson`. Every object is `.strict()`.
