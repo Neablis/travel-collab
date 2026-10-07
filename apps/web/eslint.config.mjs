@@ -38,6 +38,45 @@ const gatewayWallZones = [
   },
 ];
 
+// THE UNSPLASH WALL (M37 D2): no page view calls Unsplash. The cover routes
+// are the only code that may reach `server/external/unsplash` — the port, its
+// key and its offline fake — so a trip read, a card or an AI tool cannot
+// start spending the vendor's 50-an-hour demo limit by importing it. The int
+// test that spies on the port across `GET /api/trips` and `GET
+// /api/trips/:id` is the other half of the claim.
+//
+// Enforced by the gateway block below, which already covers all of `src` with
+// both rules; the importers listed here are its `ignores`, and the block after
+// it re-asserts the gateway wall for them alone. `[` is escaped because a glob
+// reads `[tripId]` as a character class. Part 5 of the M37 plan adds the saved
+// day's cover routes here; the path is listed ahead of them.
+// The assistant-kernel block restates the gateway wall and not this one; it
+// needs no copy, because its allowlist already refuses all of `@/server`
+// outside the kernel.
+const UNSPLASH_IMPORTERS = [
+  "src/server/external/unsplash/**",
+  "src/app/api/trips/\\[tripId\\]/cover/**",
+  "src/app/api/saved-days/\\[savedDayId\\]/cover/**",
+];
+
+const UNSPLASH_WALL_MESSAGE =
+  "Only the cover routes (app/api/trips/[tripId]/cover/**) may import the Unsplash port — no page view calls Unsplash (M37 D2). A page reads the stored cover from TripSummary.cover.";
+
+const unsplashWallPatterns = [
+  {
+    group: ["@/server/external/unsplash", "@/server/external/unsplash/*"],
+    message: UNSPLASH_WALL_MESSAGE,
+  },
+];
+
+const unsplashWallZones = [
+  {
+    target: "./src",
+    from: "./src/server/external/unsplash",
+    message: `${UNSPLASH_WALL_MESSAGE} This still applies via a relative import.`,
+  },
+];
+
 // THE ASSISTANT KERNEL ALLOWLIST (ADR-043, corrected 2026-09-10). Everything
 // the kernel may import from `@/server`, and nothing else — see the long
 // comment on the block that uses it for why this is an allowlist and not a
@@ -251,7 +290,29 @@ export default [
       "src/server/ai/gateway.test.ts",
       "src/proxy.ts",
       "src/lib/authConfig.ts",
+      // The Unsplash wall's importers: the block below is theirs.
+      ...UNSPLASH_IMPORTERS,
     ],
+    plugins: {
+      import: importPlugin,
+    },
+    rules: {
+      // The Unsplash wall rides here (see `UNSPLASH_IMPORTERS`): this block
+      // already reaches every file it must, with both rules. The five files
+      // ignored above for the gateway's sake are outside it — two are UI,
+      // where the domain/server wall already refuses `@/server/*`, and three
+      // are the model chokepoint and its tests.
+      "no-restricted-imports": ["error", { patterns: [...gatewayWallPatterns, ...unsplashWallPatterns] }],
+      "import/no-restricted-paths": ["error", { zones: [...gatewayWallZones, ...unsplashWallZones] }],
+    },
+  },
+  {
+    // THE UNSPLASH WALL's exemption: the cover routes and the port's own
+    // files. **This block is the exemption**, the admin block's mechanism —
+    // flat config replaces a rule's options for the last matching block, so
+    // these files get the gateway wall restated and nothing of the Unsplash
+    // one. `check-lint-wall.mjs` holds it to exactly these paths.
+    files: UNSPLASH_IMPORTERS,
     plugins: {
       import: importPlugin,
     },

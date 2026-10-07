@@ -491,6 +491,32 @@ export const tripAccessRevs = pgTable("trip_access_revs", {
   rev: integer("rev").notNull(),
 });
 
+// A trip's cover photo (M37 D1): one row per trip, set and cleared by an
+// editor through `server/tripCovers.ts`. Ordinary CRUD, NOT a projection — a
+// cover is a decoration, not a plan fact, so it is never an event and
+// `rebuildProjections` never touches it.
+//
+// **No foreign key**, on `trip_travellers`' terms, and here it is not only
+// precedent: the only table keyed by trip id is `trip_summaries`, a projection
+// that a rebuild deletes and re-inserts, so `ON DELETE CASCADE` to it would
+// wipe every cover on every rebuild. A soft-deleted trip keeps its cover, so a
+// restore brings it back. The images are hotlinked, never copied (D3); the
+// credit is stored with them so no page asks Unsplash for it (D2).
+export const tripCovers = pgTable("trip_covers", {
+  tripId: uuid("trip_id").primaryKey(),
+  unsplashId: text("unsplash_id").notNull(),
+  urlRaw: text("url_raw").notNull(),
+  urlRegular: text("url_regular").notNull(),
+  urlSmall: text("url_small").notNull(),
+  alt: text("alt"),
+  photographerName: text("photographer_name").notNull(),
+  photographerUrl: text("photographer_url").notNull(),
+  photoPageUrl: text("photo_page_url").notNull(),
+  // A `users.id`, on the same no-foreign-key terms as `trip_memberships`.
+  setBy: text("set_by").notNull(),
+  setAt: timestamp("set_at", { withTimezone: true, mode: "string" }).notNull(),
+});
+
 // Pinned read-only shares (M11 link 4, ADR-027). `seq` is the pin: the read
 // replays the trip's first `seq` events instead of serving the materialized
 // `trip_details` projection, which is what makes a link keep showing the trip

@@ -295,6 +295,13 @@
       "when": 1791292216269,
       "tag": "0041_command_receipts",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1791299766371,
+      "tag": "0042_trip_covers",
+      "breakpoints": true
     }
   ]
 }

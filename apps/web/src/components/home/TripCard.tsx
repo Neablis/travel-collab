@@ -30,8 +30,10 @@ export type TripCardProps = {
   plannedOfBudget?: string;
   // Who is reading, so an unplanned trip offers its owner next steps and a
   // reader it was shared with only a line (M37 D6). The caller already knows
-  // it for the menu (`useSessionUser`); `undefined` while that probe is in
-  // flight, which reads as "not the owner", as the menu does.
+  // it for the menu (`useSessionUser`). `undefined` while that probe is in
+  // flight: the steps slot then holds the owner-alone rows' height, hidden,
+  // so the card does not grow when the answer lands (`UnplannedTripSteps`).
+  // `null` is a resolved nobody.
   viewerId?: string | null;
 };
 
@@ -209,9 +211,10 @@ export function TripCard({ trip, menuSlot, plannedOfBudget, viewerId }: TripCard
             because its own slot IS monotonic below `lg` — 402px already at a
             500px viewport, 542px at 640px — so it has no such band. */}
         {/* M37 D6: an unplanned trip's next steps take this slot. There is
-            nothing planned to cost, and the rows are static, so this state
-            never grows when the caller's fetch lands — KI-28's reason for the
-            reservation does not arise. */}
+            nothing planned to cost, so the caller's fetch landing never grows
+            it — KI-28's reason for the reservation does not arise. The session
+            probe landing is the one thing that could, and
+            `UnplannedTripSteps` holds the height for that. */}
         {unplanned ? (
           <div className="mt-1">
             <UnplannedTripSteps trip={trip} viewerId={viewerId} />

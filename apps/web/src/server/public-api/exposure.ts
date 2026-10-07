@@ -90,6 +90,10 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
   "trips/[tripId]/membership": PLANNED("Undecided — leaving a trip"),
   // M34 D15: an internal route first; features ship before their endpoints.
   "trips/[tripId]/nearby-stops": PLANNED("Undecided — library stops near a trip day (M34)"),
+  // M37: a cover on the internal API first; its search spends an Unsplash
+  // quota, so publishing it is a decision, not a default.
+  "trips/[tripId]/cover": PLANNED("Undecided — a trip's cover photo (M37)"),
+  "trips/[tripId]/cover/search": PLANNED("Undecided — searching Unsplash for a cover; spends the vendor's quota (M37)"),
 
   // ── Never ────────────────────────────────────────────────────────────────
   "trips/[tripId]/ask": {

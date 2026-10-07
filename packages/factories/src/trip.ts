@@ -1,6 +1,6 @@
 import { Factory } from "fishery";
 import { rollupCosts } from "@tc/domain";
-import { travellerIds, type ActivityView, type Location, type Money, type TimeWindow, type TripDetail, type TripMember, type TripSummary } from "@tc/contracts";
+import { travellerIds, type ActivityView, type Location, type Money, type TimeWindow, type TripDetail, type TripCover, type TripMember, type TripSummary } from "@tc/contracts";
 import { faker } from "./seed";
 import { uuidFrom } from "./ids";
 
@@ -230,9 +230,10 @@ export const tripDetailFactory = Factory.define<TripDetail, TripTransient>(
   },
 );
 
-// A home-grid row. Zero days and zero stops by default — what `CreateTrip`
+// Zero days, stops and ideas, and no cover, by default — what `CreateTrip`
 // leaves, so the default is the trip M37's empty card is for; a test about a
-// planned trip states its counts.
+// planned trip states its counts, and one about a cover its cover.
+/** A home-grid row (`TripSummary`), as `GET /api/trips` returns one. */
 export const tripSummaryFactory = Factory.define<TripSummary>(({ sequence }) => ({
   tripId: uuidFrom(sequence),
   name: `${faker.helpers.arrayElement(["Rome", "Kyoto", "Paris", "Barcelona"])} ${2027 + (sequence % 3)}`,
@@ -243,4 +244,21 @@ export const tripSummaryFactory = Factory.define<TripSummary>(({ sequence }) => 
   endDate: null,
   dayCount: 0,
   stopCount: 0,
+  ideaCount: 0,
+  cover: null,
 }));
+
+// A trip's cover as the list carries it (M37), on Unsplash's hosts, so a card
+// test renders what production would. A summary with one is
+// `tripSummaryFactory.build({ cover: tripCoverFactory.build() })`.
+export const tripCoverFactory = Factory.define<TripCover>(({ sequence }) => {
+  const raw = `https://images.unsplash.com/photo-${1500000000000 + sequence}?ixid=factory`;
+  return {
+    unsplashId: `factory${sequence}`,
+    urls: { raw, regular: `${raw}&w=1080`, small: `${raw}&w=400` },
+    alt: "A street of tiled houses",
+    photographerName: faker.person.fullName(),
+    photographerUrl: `https://unsplash.com/@factory${sequence}`,
+    photoPageUrl: `https://unsplash.com/photos/factory${sequence}`,
+  };
+});

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TripCover } from "./cover.ts";
 import {
   ActivityAddedV1,
   ActivityMovedV1,
@@ -396,6 +397,16 @@ export const TripSummary = z.object({
   // not exist. `.default(0)` for the same version skew as `startDate`.
   dayCount: z.number().int().nonnegative().default(0),
   stopCount: z.number().int().nonnegative().default(0),
+  // How many activities are in the backlog — the trip's unscheduled ideas. Not
+  // stops, for the reason above, but not nothing either: the trip header's
+  // *Add stop* puts a stop there, so a trip built that way has no stops and is
+  // still not a blank trip. A card reads "4 ideas, none on a day yet" for it.
+  ideaCount: z.number().int().nonnegative().default(0),
+  // The trip's cover photo, or null for none (M37 D1): a row in the
+  // `trip_covers` side table, LEFT JOINed into the same listing query, so a
+  // card never fetches it and no page view asks Unsplash for it (D2).
+  // `.default(null)` for the same version skew as `startDate`.
+  cover: TripCover.nullable().default(null),
 });
 export type TripSummary = z.infer<typeof TripSummary>;
 
@@ -403,6 +414,11 @@ export type TripSummary = z.infer<typeof TripSummary>;
  * What the `trip_summaries` projection itself holds, and what
  * `projectTripSummaries` folds from the log: a `TripSummary` without the
  * fields the list query reads from the trip's document instead of storing a
- * second copy — `endDate` (KI-2026-09-24-e), and the day and stop counts (M37).
+ * second copy — `endDate` (KI-2026-09-24-e), and the day, stop and idea counts
+ * (M37) — and the cover, which is not planning state at all and lives in its
+ * own CRUD table (M37 D1).
  */
-export type StoredTripSummary = Omit<TripSummary, "endDate" | "dayCount" | "stopCount">;
+export type StoredTripSummary = Omit<
+  TripSummary,
+  "endDate" | "dayCount" | "stopCount" | "ideaCount" | "cover"
+>;

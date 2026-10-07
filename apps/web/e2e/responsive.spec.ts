@@ -303,7 +303,7 @@ test.describe("responsive (narrow viewport)", () => {
         .post("/api/trips", { data: { name: e2eTripName("Narrow cost") } })
         .then((r) => r.json());
       for (const command of commandsFor("threeDayTrip", tripId)) {
-        await page.request.post(`/api/trips/${tripId}/commands`, { data: command });
+        expect((await page.request.post(`/api/trips/${tripId}/commands`, { data: command })).ok()).toBe(true);
       }
       // A second trip, so there is a CARD to measure even on an otherwise
       // empty account: one of the two is the hero, and since SPEC §35.2 the
@@ -314,7 +314,7 @@ test.describe("responsive (narrow viewport)", () => {
         .post("/api/trips", { data: { name: e2eTripName("Narrow cost hero") } })
         .then((r) => r.json());
       for (const command of commandsFor("threeDayTrip", heroId)) {
-        await page.request.post(`/api/trips/${heroId}/commands`, { data: command });
+        expect((await page.request.post(`/api/trips/${heroId}/commands`, { data: command })).ok()).toBe(true);
       }
 
       await page.setViewportSize({ width, height: 900 });

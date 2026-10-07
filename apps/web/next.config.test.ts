@@ -267,6 +267,14 @@ describe("the four counter-probed CSP surfaces (KI-2026-09-12-d)", () => {
     );
   });
 
+  // M37 D3: covers hotlink Unsplash's image CDN, in every environment, and
+  // nothing else of Unsplash's — its API is the server's to call.
+  it.each(["production", "preview", undefined])("img-src admits Unsplash's image CDN and no other new origin (%o)", async (env) => {
+    expect(directive(await cspFor(env, "production"), "img-src")).toBe(
+      `img-src 'self' data: blob: https://tiles.openfreemap.org https://images.unsplash.com${env === "preview" ? " https://vercel.live https://vercel.com" : ""}`,
+    );
+  });
+
   it("the dev server's policy carries the dev-only relaxations", async () => {
     const dev = await cspFor(undefined, "development");
     expect(directive(dev, "script-src")).toBe(
