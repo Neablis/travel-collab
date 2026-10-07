@@ -191,6 +191,43 @@ a **solid** for the rare emphatic use. Text-on-tint pairs are AA-checked below.
 | `success` | `#2E7D43` | `#E4F0E7` | `#22603A` |
 | `info` | `#2B6CB0` | `#E1EBF7` | `#1F5187` |
 
+### Person colours
+
+M38's eight chip colours, one per `PersonColor` key in `@tc/contracts`, and
+the ink that sits on them. Tokens are `--color-person-<key>` plus
+`--color-person-on` (utilities `bg-person-<key>`, `text-person-on`). The
+`person-` prefix is required: `moss` and `slate` are already neutrals above.
+Only `PersonChip` reads them, through a static class map. A person colour is
+identity, not meaning — it never stands in for a semantic colour, and an
+invite that has no person yet never takes one.
+
+**Palette order is the clash shift order.** The order is `PersonColor`'s
+(this table, and the tokens in `globals.css`, follow it). When two travellers
+on a trip chose the same colour, the later joiner takes the first free colour
+from theirs onward, wrapping at the end (`resolveTripColors` in
+`packages/domain/src/trip/personas.ts`). Reordering the enum changes who gets
+which colour on existing trips.
+
+Only the light column ships (Mitchell, 2026-10-07). The dark column is
+recorded here so a dark look adopts the approved values rather than picking
+new ones; light chips are deep and carry white, dark chips are light and
+carry near-black.
+
+| Key | Light | `on` (white) contrast | Dark | `on` dark (`#12161F`) contrast |
+|---|---|---|---|---|
+| `moss` | `#56703A` | 5.56 | `#AAC383` | 9.35 |
+| `clay` | `#A1512D` | 5.63 | `#E7A07A` | 8.37 |
+| `sky` | `#33619F` | 6.27 | `#86B4EC` | 8.41 |
+| `plum` | `#76457D` | 7.20 | `#CDA2D6` | 8.39 |
+| `ochre` | `#86600E` | 5.69 | `#DDBA5A` | 9.69 |
+| `rose` | `#A33B5C` | 6.29 | `#EC9BB0` | 8.52 |
+| `slate` | `#535B68` | 6.85 | `#B3B8C1` | 9.09 |
+| `teal` | `#17707A` | 5.78 | `#74C9C1` | 9.37 |
+| `on` | `#FFFFFF` | — | `#12161F` | — |
+
+Every pair clears 4.5:1 for the 12px initials. `color: null` draws
+`person-slate`.
+
 ### When to use what
 
 - **Brand teal never carries state meaning.** It marks *actions and location*
@@ -226,6 +263,7 @@ Normal text needs ≥ 4.5:1; non-text UI boundaries ≥ 3:1. All pass:
 | white on danger solid (destructive button) | 6.00 |
 | danger / warning / success / info text on own tint | 6.72 / 4.77 / 6.39 / 6.74 |
 | border-input vs white (non-text) | 3.16 |
+| person-on on each person colour (lowest: moss) | 5.56 — full table under "Person colours" |
 
 Any new text/background combination added later must be computed and appended
 here before use.
@@ -250,7 +288,8 @@ these tokens, plus our own additions). **UI code outside `ui/` never renders raw
 | `NativeSelect` | Styled native `<select>` — **not** Radix Select (keeps e2e `selectOption` semantics) |
 | `Badge` | Semantic variants (danger/warning/success/info/neutral), pill |
 | `Card` | Surface + hairline border + `rounded-md` |
-| `Avatar` | Round initials (or an `icon`, for a pending invite); `sm` a People row, `md` a stacked crew, `lg` the invite landing's inviter, with 12px initials below `lg` (the front-door crew stack passes `text-2xs`); `moss`/`info` tones. Decorative (`aria-hidden`): every use prints the name beside it |
+| `Avatar` | Round initials (or an `icon`, for a pending invite); `xs` (20px) inside a pill or a History line, `sm` a People row, `md` a stacked crew, `lg` the invite landing's inviter, with 12px initials below `lg` (the front-door crew stack passes `text-2xs`); `moss`/`info` tones. Decorative (`aria-hidden`): every use prints the name beside it |
+| `PersonChip` | A person: their avatar glyph (lucide, `lib/avatarGlyphs.ts`) or initials on their person colour, drawn through `Avatar` at `xs`/`sm`/`md`/`lg`; one initial at `xs`; `color: null` is `person-slate`; `ring` for stacks, `title` for the shifted-colour tooltip. Decorative, like `Avatar` |
 
 ### Composites
 
