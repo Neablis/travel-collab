@@ -33,7 +33,7 @@ original numbers: *Part 3* below is the persona UI, and *Part 4* is the preview 
 ## The design (approved before any UI is built)
 
 Parts 4 and 5 change screens, so a design canvas goes to Mitchell before either is built, the way
-M37's did. **The canvas: https://claude.ai/artifact/S5AsuePX2Yqqq8ifQWNoS1** (awaiting approval). It covers four things:
+M37's did. **The canvas: https://claude.ai/artifact/S5AsuePX2Yqqq8ifQWNoS1** (**approved as drawn by Mitchell, 2026-10-07**). It covers four things:
 - the avatar set and colour palette on Account;
 - a `PersonChip` at each size it renders;
 - two travellers with the same colour on one trip (the gate's walk);
@@ -99,12 +99,28 @@ Surveyed 2026-10-07. Re-check the line numbers before trusting them. The app is 
   `@tc/pages`' renderers and `MacroView`.
 - **The next migration is `0044`.** Merge `main` before taking the number.
 
-## Open question for Mitchell (raised in part 1, needed before part 5)
+## Answered 2026-10-07 (Mitchell)
 
-**Does *Have a look first* keep showing the whole board?** It predates M38, and it shows every
-stop's cost. That is exactly what D4 says an invitee should not see. *Recommended:* once the
-preview exists, the look page renders the same cost-stripped preview, so there is one
-pre-accept view. The alternative is to keep it as it is, and say so in D4.
+Approving the canvas as drawn accepted all eight of its recommendations:
+1. **_Have a look first_ renders the same cost-free preview** as the invite page, so there is one
+   pre-accept view. It no longer mounts the board.
+2. **A new `trip.people` widget** in `@tc/pages` draws who's going: chips and names in a sentence.
+   `person.share` is about money and is not used.
+3. **A person who never picks a colour gets one derived from their user id**, then the clash rule
+   applies. The stored value stays empty.
+4. **The shifted person is told by a tooltip** on their own People row, plus one line on Account.
+   Nobody else sees a hint.
+5. **`Avatar` and `PersonChip` gain an `xs` size** (20px).
+6. **The public-name control is a `CheckboxField`.**
+7. **Only light person tokens ship.** The dark values are recorded in the design-system doc.
+8. **Person colours sitting near the city colours is accepted.**
+
+Separately, **`/v1` names nobody**. `GET /v1/trips` keeps returning members as bare
+`{userId, role, travelling}`, and only the app's own trip list carries personas.
+
+**Colours are resolved on the server.** Invariant 6 keeps UI from importing `@tc/domain`, so
+`withProfiles`, the trip list and the invite preview each send the colour to render on that trip,
+plus `colorShifted`.
 
 ## Part 2 — personas on the server
 
