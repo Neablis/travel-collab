@@ -20,6 +20,12 @@
  *
  * Plain data and no imports: `server/access/trip-access.ts` reads the header
  * NAME from here, so both sides spell it once.
+ *
+ * **No screen calls `beginInviteLook` since M38 part 5.** The look screen now
+ * draws the token-scoped preview (`InvitePlanCard`), because the board prints
+ * stop costs an invitee may not see (D4). The registry, the header and the
+ * server's synthetic viewer are still here and still answer; retiring them is
+ * its own change, not this one.
  */
 
 export const INVITE_TOKEN_HEADER = "x-invite-token";

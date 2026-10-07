@@ -4,7 +4,7 @@ import { NOINDEX } from "@/lib/siteMetadata";
 
 export const metadata = { title: "Having a look", robots: NOINDEX };
 
-// *Have a look first* (M27 D12): the real trip, read-only, for the holder of a
+// *Have a look first* (M27 D12): the trip's cost-free preview (M38), for the holder of a
 // pending invite. Public for the same reason the landing above it is, and
 // under the same `/invite/:path*` matcher, which re-banks the token for M11a's
 // gate so a Join pressed from here still admits a brand-new account.

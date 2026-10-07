@@ -26,6 +26,7 @@ import {
   TripEventsPage,
   TripHistory,
   TripInvite,
+  TripPreview,
   TripShare,
   TripSuggestionsResponse,
   TripSummary,
@@ -544,6 +545,20 @@ export async function fetchInviteLanding(token: string): Promise<ApiResult<Invit
     }
     const data = (await res.json().catch(() => ({}))) as { error?: string };
     return { ok: false, error: { status: res.status, message: data.error ?? res.statusText } };
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+/**
+ * What a pending invite lets its holder see of the trip before joining (M38
+ * D4). A refusal is 404 or 410 with an empty body — the landing beside it says
+ * which state the invite is in, so this only reports that there is nothing.
+ */
+export async function fetchInvitePreview(token: string): Promise<ApiResult<TripPreview>> {
+  try {
+    const res = await fetch(apiUrl(`/api/invites/${encodeURIComponent(token)}/preview`), { cache: "no-store" });
+    return await readJson(res, (data) => TripPreview.parse(data));
   } catch (err) {
     return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
   }

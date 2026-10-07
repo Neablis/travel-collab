@@ -9,7 +9,7 @@ import type { WidgetContext } from "@tc/pages";
 // `invite-renders-shared-widgets-only` keeps it that way.
 //
 // It builds exactly what the fixed set (D5) reads: `dates` and
-// `trip.countdown`, `trip.strip`, `city.rows` and `cost`. Everything else on a
+// `trip.countdown`, `trip.people`, `trip.strip`, `city.rows` and `cost`. Everything else on a
 // `TripDetail` is the zero value of its type, and no widget outside the set is
 // promised anything.
 //
@@ -88,6 +88,11 @@ export function previewContext(preview: TripPreview, today: string): WidgetConte
     globals: globalsOf(preview),
     today,
     people: Object.fromEntries(preview.people.map((person, i) => [personId(i), person.name])),
+    // Who is really going, and how each looks, for `trip.people` — which reads
+    // `travelling` here and never off the members above (`WidgetContext.personas`).
+    personas: Object.fromEntries(
+      preview.people.map(({ name, avatar, color, travelling }, i) => [personId(i), { name, avatar, color, travelling }]),
+    ),
   };
 }
 

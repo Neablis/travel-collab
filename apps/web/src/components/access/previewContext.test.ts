@@ -101,6 +101,14 @@ describe("previewContext — the fixed widget set (D5) reads the preview", () =>
     expect(ctx.trip?.members.map((m) => m.userId)).toEqual(["p0", "p1", "p2"]);
     expect(ctx.people).toEqual({ p0: "Mitchell", p1: "Priya", p2: "Sam" });
   });
+
+  // Every synthesized member is `travelling: false` (below), so who is going
+  // has to come from the preview's own people.
+  it("trip.people: who the preview says is going, with the owner, and not who only plans", () => {
+    const out = rendered(renderMacro(ctx, "trip.people", {}));
+    if (out.kind !== "block" || out.block.kind !== "trip-people") throw new Error(`expected who's going, got ${out.kind}`);
+    expect(out.block.sentence).toBe("Priya is going with Mitchell.");
+  });
 });
 
 describe("previewContext — what D4 hides stays hidden", () => {
