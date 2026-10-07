@@ -21,17 +21,17 @@ general setup.
 
 ## Where the work is right now
 
-**M37 — A TRIP LOOKS LIKE SOMEWHERE BEFORE IT HAS A PLAN — IS THE CURRENT MILESTONE AS OF
-2026-10-06**, by **M35's gate closing at 12 of 12**. Order: `… M36 ✓ → M35 ✓ → M37 → M38 … M47`.
-It is built as a five-part draft stack, #350 → #354, from
-`docs/plans/2026-10-06-M37-trip-cards-and-covers.md`. Its gate is **10 of 12**, with the
-preview `[walk]` and the retro open. Tier 3 ran once, on #354:
-- `pnpm check` exit 0;
-- ci-like e2e: 243 passed, 1 flaky, filed as KI-2026-10-06-a;
-- `seed:verify`: 108/108.
-**Migrations `0042` and `0043` must be dispatched after the stack merges.** Nothing merges without
-Mitchell.
-(`docs/milestones/M37-trips-look-like-somewhere.md`)
+**M38 — YOU CAN TELL PEOPLE APART, AND SEE A TRIP BEFORE YOU JOIN IT — IS THE CURRENT MILESTONE
+AS OF 2026-10-07**, by **M37's gate closing at 11 of 11**. Order: `… M35 ✓ → M37 ✓ → M38 → M39 …
+M47`. **M38 is not scoped**: its decisions are recommendations, and none has been answered.
+(`docs/milestones/M38-people-you-can-tell-apart.md`)
+
+**M37 closed 2026-10-07.** Trip cards show length and stops, and an unplanned trip is designed.
+Trips and playbook days get Unsplash covers. It shipped as #350 → #354, merged 2026-10-07, with a
+self-review and a CodeRabbit review on every code part. Its retro is at the end of
+`docs/milestones/M37-trips-look-like-somewhere.md`. **Migrations `0042_trip_covers` and
+`0043_saved_day_covers` must be dispatched with `migrate-production`.** The code is live on `main`,
+and the trip list and Discover read both tables.
 
 **M35 closed 2026-10-06.** Migration `0039` is confirmed applied from `migrate-production` run #37
 on #335's merge. CodeRabbit never reviewed #335, so there was nothing to work. The eval re-run is
@@ -233,8 +233,9 @@ half, the model guessing a coordinate rather than citing one, is M9 scope.
 
 ## Next action
 
-**M37's gate**, built from `docs/plans/2026-10-06-M37-trip-cards-and-covers.md`
-(`docs/milestones/M37-trips-look-like-somewhere.md`). Separately,
+**Dispatch `migrate-production`** for `0042` and `0043`, if it has not run since #354 merged. Then
+**scope M38** by answering its decisions (`docs/milestones/M38-people-you-can-tell-apart.md`).
+Separately,
 `KI-2026-10-04-c` resolves on query 8 of `ledger.sql` over a few days of cheap-tier step durations.
 
 **Carried out of M24, not gating:** `KI-2026-09-25-q`. About a dozen
