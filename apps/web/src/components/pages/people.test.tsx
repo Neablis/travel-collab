@@ -2,9 +2,9 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
-import { tripDetailFactory } from "@tc/factories";
+import { tripAccessFixture, tripDetailFactory, tripMemberProfileFactory } from "@tc/factories";
 import { MacroView } from "./MacroView";
-import { PeopleProvider, peopleNamesOf } from "./people";
+import { PeopleProvider, peopleNamesOf, usePersonas } from "./people";
 
 // The names "Who owes what" and "What one person is in for" print (M19 part 2)
 // come from the People section's access read, through `PeopleProvider`, into the
@@ -69,5 +69,47 @@ describe("PeopleProvider", () => {
       { userId: "u-ana", role: "owner", name: "Ana Lima", email: "ana@example.com", image: null, displayName: null, avatar: null, color: null },
       { userId: "u-ben-4f2a91", role: "editor", name: null, email: "ben@example.com", image: null, displayName: null, avatar: null, color: null },
     ])).toEqual({ "u-ana": "Ana Lima", "u-ben-4f2a91": "Traveler 4f2a91" });
+  });
+
+  // M38: a trip names a person by what they chose, ahead of the name their
+  // sign-in provider overwrites on every sign-in.
+  it("names a member by the name they chose, ahead of their sign-in name", () => {
+    expect(peopleNamesOf([
+      tripMemberProfileFactory.build({ userId: "u-ana", name: "Ana Lima", displayName: "Nana" }),
+    ])).toEqual({ "u-ana": "Nana" });
+  });
+
+  // M38: what a person chip will draw — the name, and the stored avatar and
+  // colour — by userId, from the same read the names come from. No address.
+  it("hands each member's persona to whoever asks for it", async () => {
+    const tripId = crypto.randomUUID();
+    server.use(
+      http.get("/api/trips/:tripId/access", () =>
+        HttpResponse.json({
+          access: tripAccessFixture({
+            tripId,
+            members: [
+              tripMemberProfileFactory.build({ userId: "u-ana", role: "owner", name: "Ana Lima", email: "ana@example.com", displayName: "Nana", avatar: "compass", color: "plum" }),
+              tripMemberProfileFactory.build({ userId: "u-ben-4f2a91", email: "ben@example.com" }),
+            ],
+          }),
+        }),
+      ),
+    );
+    let seen: ReturnType<typeof usePersonas> = null;
+    function Probe() {
+      seen = usePersonas();
+      return seen === null ? null : <p>ready</p>;
+    }
+    render(
+      <PeopleProvider tripId={tripId}>
+        <Probe />
+      </PeopleProvider>,
+    );
+    await screen.findByText("ready");
+    expect(seen).toEqual({
+      "u-ana": { name: "Nana", avatar: "compass", color: "plum" },
+      "u-ben-4f2a91": { name: "Traveler 4f2a91", avatar: null, color: null },
+    });
   });
 });

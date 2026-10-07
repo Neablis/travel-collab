@@ -1344,16 +1344,20 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
         </div>
       ) : lensAcceptsDrops(view) && (
         <div ref={rackWrapperRef} inert={preview.seq !== null ? true : undefined}>
-          <UnscheduledRack
-            items={rackItems}
-            dayOptions={rackDayOptions}
-            open={rack.open}
-            onToggle={() => onRackEvent({ type: "toggle" })}
-            onAssign={canEditBoard ? assignFromRack : undefined}
-            onEdit={canEditBoard ? openEdit : undefined}
-            onRemove={canEditBoard ? (activityId) => void dispatch({ type: "RemoveActivity", tripId, activityId }) : undefined}
-            reveal={rackReveal}
-          />
+          {/* Names a card's "Parked by" (M38), from the same cached access
+              read as the editor's provider above — no second request. */}
+          <PeopleProvider tripId={tripId}>
+            <UnscheduledRack
+              items={rackItems}
+              dayOptions={rackDayOptions}
+              open={rack.open}
+              onToggle={() => onRackEvent({ type: "toggle" })}
+              onAssign={canEditBoard ? assignFromRack : undefined}
+              onEdit={canEditBoard ? openEdit : undefined}
+              onRemove={canEditBoard ? (activityId) => void dispatch({ type: "RemoveActivity", tripId, activityId }) : undefined}
+              reveal={rackReveal}
+            />
+          </PeopleProvider>
         </div>
       )}
     </>

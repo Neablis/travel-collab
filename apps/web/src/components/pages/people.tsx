@@ -19,15 +19,40 @@ import { displayNameFor } from "@/lib/displayName";
 // the same way, with `email: null`, and `attribute`'s `account.name` states the
 // rule for a page. A member with no name reads as their handle instead.
 
+/**
+ * What a person surface draws for one member (M38): the name to print, and the
+ * avatar and colour they chose. The STORED colour — the per-trip clash shift
+ * (D3) is not applied here.
+ */
+export type Persona = { name: string } & Pick<TripMemberProfile, "avatar" | "color">;
+
+/** userId → their persona, for every member `TripAccess` lists. */
+export function personasOf(members: readonly TripMemberProfile[]): Readonly<Record<string, Persona>> {
+  return Object.fromEntries(
+    members.map((m) => [
+      m.userId,
+      {
+        name: displayNameFor({ userId: m.userId, displayName: m.displayName, name: m.name, email: null }),
+        avatar: m.avatar,
+        color: m.color,
+      },
+    ]),
+  );
+}
+
 /** userId → what to call them, for every member `TripAccess` lists. */
 export function peopleNamesOf(members: readonly TripMemberProfile[]): Readonly<Record<string, string>> {
-  return Object.fromEntries(
-    members.map((m) => [m.userId, displayNameFor({ userId: m.userId, name: m.name, email: null })]),
-  );
+  return namesOf(personasOf(members));
+}
+
+function namesOf(personas: Readonly<Record<string, Persona>>): Readonly<Record<string, string>> {
+  return Object.fromEntries(Object.entries(personas).map(([userId, p]) => [userId, p.name]));
 }
 
 type People = {
   names: Readonly<Record<string, string>> | null;
+  /** The same members as `names`, with what a chip draws for each (M38). */
+  personas: Readonly<Record<string, Persona>> | null;
   /** Ids a fresh read was made for, and answered: one still missing has left. */
   rechecked: ReadonlySet<string>;
   /** Read the members again, once per id, for one the names do not hold. */
@@ -35,7 +60,7 @@ type People = {
 };
 
 const NO_ONE: ReadonlySet<string> = new Set();
-const PeopleContext = createContext<People>({ names: null, rechecked: NO_ONE, recheck: () => {} });
+const PeopleContext = createContext<People>({ names: null, personas: null, rechecked: NO_ONE, recheck: () => {} });
 
 /**
  * Hands every widget under it the trip's member names. `null` until the access
@@ -43,13 +68,13 @@ const PeopleContext = createContext<People>({ names: null, rechecked: NO_ONE, re
  * notebook that will not open over a name.
  */
 export function PeopleProvider({ tripId, children }: { tripId: string; children: ReactNode }) {
-  const [names, setNames] = useState<Readonly<Record<string, string>> | null>(null);
+  const [personas, setPersonas] = useState<Readonly<Record<string, Persona>> | null>(null);
   const [rechecked, setRechecked] = useState<ReadonlySet<string>>(NO_ONE);
   const asked = useRef(new Set<string>());
   useEffect(() => {
     let cancelled = false;
     void cachedRead(tripKeys.access(tripId), () => fetchTripAccess(tripId)).then((access) => {
-      if (!cancelled && access.ok) setNames(peopleNamesOf(access.value.members));
+      if (!cancelled && access.ok) setPersonas(personasOf(access.value.members));
     });
     return () => {
       cancelled = true;
@@ -72,20 +97,27 @@ export function PeopleProvider({ tripId, children }: { tripId: string; children:
           asked.current.delete(userId);
           return;
         }
-        setNames(peopleNamesOf(access.value.members));
+        setPersonas(personasOf(access.value.members));
         setRechecked((prev) => new Set(prev).add(userId));
       });
     },
     [tripId],
   );
 
-  const value = useMemo(() => ({ names, rechecked, recheck }), [names, rechecked, recheck]);
+  // Derived, so the names and the personas can never come from different reads.
+  const names = useMemo(() => (personas === null ? null : namesOf(personas)), [personas]);
+  const value = useMemo(() => ({ names, personas, rechecked, recheck }), [names, personas, rechecked, recheck]);
   return <PeopleContext.Provider value={value}>{children}</PeopleContext.Provider>;
 }
 
 /** The member names `PeopleProvider` handed down; `null` outside one or before they land. */
 export function usePeople(): Readonly<Record<string, string>> | null {
   return useContext(PeopleContext).names;
+}
+
+/** Each member's persona by userId (M38); `null` outside a `PeopleProvider` or before it lands. */
+export function usePersonas(): Readonly<Record<string, Persona>> | null {
+  return useContext(PeopleContext).personas;
 }
 
 /** The names, plus the means to ask about a member they do not hold yet. */

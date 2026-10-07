@@ -1,6 +1,5 @@
 import { z } from "zod";
-import { TripMember, TripRole } from "./trip.ts";
-import { AvatarKey, PersonColor } from "./identity.ts";
+import { MemberPersona, TripMember, TripRole } from "./trip.ts";
 
 // The Access & Membership module's cross-boundary types (AGENTS.md module map).
 //
@@ -90,9 +89,7 @@ export const TripMemberProfile = z.object({
   // M38: the persona. `displayName` is what the person chose (trip surfaces
   // show it first, before `name`); `avatar` and `color` are their stored
   // choices, before any per-trip clash shift. Defaulted for version skew.
-  displayName: z.string().nullable().default(null),
-  avatar: AvatarKey.nullable().default(null),
-  color: PersonColor.nullable().default(null),
+  ...MemberPersona.shape,
 });
 export type TripMemberProfile = z.infer<typeof TripMemberProfile>;
 

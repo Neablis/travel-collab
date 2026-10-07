@@ -1,6 +1,6 @@
 import { Factory } from "fishery";
 import { rollupCosts } from "@tc/domain";
-import { travellerIds, type ActivityView, type Location, type Money, type TimeWindow, type TripDetail, type TripCover, type TripMember, type TripSummary } from "@tc/contracts";
+import { travellerIds, type ActivityView, type Location, type Money, type TimeWindow, type TripDetail, type TripCover, type TripMember, type TripSummary, type TripSummaryMember } from "@tc/contracts";
 import { faker } from "./seed";
 import { uuidFrom } from "./ids";
 
@@ -233,12 +233,28 @@ export const tripDetailFactory = Factory.define<TripDetail, TripTransient>(
 // Zero days, stops and ideas, and no cover, by default — what `CreateTrip`
 // leaves, so the default is the trip M37's empty card is for; a test about a
 // planned trip states its counts, and one about a cover its cover.
+/**
+ * A member as the trips list carries one (M38), signed in the way dev login
+ * signs a `dev-*` id in — its username as the sign-in name ("dev-bob" → "bob"),
+ * no persona chosen. A test about a chosen name, avatar or colour states it.
+ */
+export const tripSummaryMemberFactory = Factory.define<TripSummaryMember>(({ params }) => {
+  const member = { ...tripMemberFactory.build(), ...params };
+  return {
+    ...member,
+    name: /^dev-(.+)$/.exec(member.userId)?.[1] ?? null,
+    displayName: null,
+    avatar: null,
+    color: null,
+  };
+});
+
 /** A home-grid row (`TripSummary`), as `GET /api/trips` returns one. */
 export const tripSummaryFactory = Factory.define<TripSummary>(({ sequence }) => ({
   tripId: uuidFrom(sequence),
   name: `${faker.helpers.arrayElement(["Rome", "Kyoto", "Paris", "Barcelona"])} ${2027 + (sequence % 3)}`,
   status: "active",
-  members: [tripMemberFactory.build()],
+  members: [tripSummaryMemberFactory.build()],
   createdAt: "2026-07-08T12:00:00.000Z",
   startDate: null,
   endDate: null,

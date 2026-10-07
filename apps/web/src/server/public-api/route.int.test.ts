@@ -13,7 +13,7 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { executeTripCommand } from "@/server/commands";
-import { upsertUser } from "@/server/users";
+import { upsertUser, writePreferences } from "@/server/users";
 import { allGrantsFor, issueGrant, revokeGrant } from "@/server/entitlements/grants";
 import { livePlanVersion } from "@/server/entitlements/planVersions";
 import { mintToken, revokeToken } from "@/server/api-tokens";
@@ -333,6 +333,25 @@ describe("the two gates, in order", () => {
     const res = await LIST_TRIPS(get("http://localhost/api/v1/trips", secret), NO_PARAMS);
     expect(res.status).toBe(403);
     expect((await res.json()).error.code).toBe("trip-out-of-scope");
+  });
+});
+
+// M38 part 3 (API 1.10.0): `/v1/trips` publishes `TripSummary`, so it fills the
+// members' personas as `GET /api/trips` does. Without the overlay the response
+// validator would default every field to null and the doc would be a lie.
+describe("GET /v1/trips names the members", () => {
+  it("carries each member's sign-in name and persona, and no address", async () => {
+    const owner = await entitled();
+    await writePreferences(owner, { displayName: "Kit", avatar: "tent", color: "teal" });
+    const tripId = await seedTrip(owner);
+    const res = await LIST_TRIPS(get("http://localhost/api/v1/trips", await tokenFor(owner)), NO_PARAMS);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    const trip = body.items.find((t: { tripId: string }) => t.tripId === tripId);
+    expect(trip.members).toEqual([
+      { userId: owner, role: "owner", travelling: true, name: null, displayName: "Kit", avatar: "tent", color: "teal" },
+    ]);
+    expect(JSON.stringify(trip)).not.toContain("@example.test");
   });
 });
 

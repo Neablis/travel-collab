@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { inArray } from "drizzle-orm";
-import type { TripMember } from "@tc/contracts";
+import type { TripSummaryMember } from "@tc/contracts";
 import { db } from "@/server/db/client";
 import {
   events,
@@ -13,8 +13,10 @@ import {
   tripShares,
   tripSummaries,
   tripTravellers,
+  users,
 } from "@/server/db/schema";
 import { executeTripCommand } from "@/server/commands";
+import { upsertUser, writePreferences } from "@/server/users";
 import { acceptInvite, createInvite } from "@/server/access/invites";
 import { setTravelling } from "@/server/access/travellers";
 import { createShare } from "@/server/access/shares";
@@ -36,9 +38,14 @@ vi.mock("@/server/auth", () => ({
 // Import after the mock so the route picks up the mocked `auth`.
 const { GET } = await import("./route");
 
-type Summary = { tripId: string; name: string; members: TripMember[] };
+type Summary = { tripId: string; name: string; members: TripSummaryMember[] };
+
+// The persona of a member with no `users` row — every id this file mints that
+// the naming test below does not sign in.
+const UNNAMED = { name: null, displayName: null, avatar: null, color: null };
 
 const seeded: string[] = [];
+const signedIn: string[] = [];
 
 async function seedTrip(name: string, owner = OWNER): Promise<string> {
   const tripId = randomUUID();
@@ -53,6 +60,7 @@ async function seedTrip(name: string, owner = OWNER): Promise<string> {
 // slow-motion version of the e2e trip leak (PR #71 review §9). Scoped to the
 // ids this file minted, so it cannot disturb a sibling suite.
 afterAll(async () => {
+  if (signedIn.length > 0) await db.delete(users).where(inArray(users.id, signedIn));
   if (seeded.length === 0) return;
   await db.delete(tripShares).where(inArray(tripShares.tripId, seeded));
   await db.delete(tripInvites).where(inArray(tripInvites.tripId, seeded));
@@ -104,7 +112,7 @@ describe("GET /api/trips visibility", () => {
     const mine = (await grid()).find((t) => t.tripId === tripId);
     expect(mine).toBeDefined();
     expect(mine!.name).toBe("Projection only");
-    expect(mine!.members).toEqual([{ userId: OWNER, role: "owner", travelling: true }]);
+    expect(mine!.members).toEqual([{ userId: OWNER, role: "owner", travelling: true, ...UNNAMED }]);
   });
 
   // M11 exit gate, SPEC R4: shared trips appear in the same grid, and the
@@ -120,8 +128,8 @@ describe("GET /api/trips visibility", () => {
     // The avatar stack counts travellers: the effective list, not the
     // projection's owner-only one, and the owner still heads it.
     expect(shared!.members).toEqual([
-      { userId: OWNER, role: "owner", travelling: true },
-      { userId: GUEST, role: "editor", travelling: true },
+      { userId: OWNER, role: "owner", travelling: true, ...UNNAMED },
+      { userId: GUEST, role: "editor", travelling: true, ...UNNAMED },
     ]);
   });
 
@@ -135,11 +143,11 @@ describe("GET /api/trips visibility", () => {
     const a = trips.find((t) => t.tripId === own)!;
     const b = trips.find((t) => t.tripId === shared)!;
     expect(Object.keys(a).sort()).toEqual(Object.keys(b).sort());
-    expect(a.members).toEqual([{ userId: GUEST, role: "owner", travelling: true }]);
+    expect(a.members).toEqual([{ userId: GUEST, role: "owner", travelling: true, ...UNNAMED }]);
     // A viewer joins not travelling unless the invite said otherwise (D3).
     expect(b.members).toEqual([
-      { userId: OWNER, role: "owner", travelling: true },
-      { userId: GUEST, role: "viewer", travelling: false },
+      { userId: OWNER, role: "owner", travelling: true, ...UNNAMED },
+      { userId: GUEST, role: "viewer", travelling: false, ...UNNAMED },
     ]);
   });
 
@@ -156,13 +164,36 @@ describe("GET /api/trips visibility", () => {
 
     const trips = await grid();
     expect(trips.find((t) => t.tripId === both)!.members).toEqual([
-      { userId: OWNER, role: "owner", travelling: true },
-      { userId: GUEST, role: "editor", travelling: true },
+      { userId: OWNER, role: "owner", travelling: true, ...UNNAMED },
+      { userId: GUEST, role: "editor", travelling: true, ...UNNAMED },
     ]);
     expect(trips.find((t) => t.tripId === ownerStays)!.members).toEqual([
-      { userId: OWNER, role: "owner", travelling: false },
-      { userId: GUEST, role: "editor", travelling: true },
+      { userId: OWNER, role: "owner", travelling: false, ...UNNAMED },
+      { userId: GUEST, role: "editor", travelling: true, ...UNNAMED },
     ]);
+  });
+
+  // M38 part 3: a card names its people, so each member carries who they are —
+  // the owner from the projection and the guest from a membership row alike,
+  // since both halves of the list are named in the one users read. The
+  // address is never on it: a card is read by everyone on the trip.
+  it("names every member by their persona, and never by their address", async () => {
+    const owner = `trips-named-owner-${randomUUID()}`;
+    const guest = `trips-named-guest-${randomUUID()}`;
+    signedIn.push(owner, guest);
+    await upsertUser({ id: owner, email: `${owner}@example.test`, name: "Dana Reyes", image: null });
+    await upsertUser({ id: guest, email: `${guest}@example.test`, name: "Sam Okafor", image: null });
+    await writePreferences(owner, { displayName: "Dee", avatar: "compass", color: "plum" });
+    const tripId = await seedTrip("Named", owner);
+    await join(tripId, "editor", guest, owner);
+    currentUserId = guest;
+
+    const trip = (await grid()).find((t) => t.tripId === tripId)!;
+    expect(trip.members).toEqual([
+      { userId: owner, role: "owner", travelling: true, name: "Dana Reyes", displayName: "Dee", avatar: "compass", color: "plum" },
+      { userId: guest, role: "editor", travelling: true, name: "Sam Okafor", displayName: null, avatar: null, color: null },
+    ]);
+    expect(JSON.stringify(trip)).not.toContain("@example.test");
   });
 
   // THE security assertion (project review L3). The predicate now lives in
@@ -230,8 +261,10 @@ describe("GET /api/trips cost", () => {
 
     expect(sixCards.length).toBe(6); // 1 owned + 5 joined as viewer
     expect(fiveCards.length).toBe(5);
-    // The summaries query, one batched members read, one batched travellers read.
-    expect(forSixTrips).toBe(3);
+    // The summaries query, then one batched read each of the granted members,
+    // who is travelling, and every member's persona (M38; M37 D5: in one read,
+    // never per card).
+    expect(forSixTrips).toBe(4);
     expect(forFiveTrips).toBe(forSixTrips);
   });
 });

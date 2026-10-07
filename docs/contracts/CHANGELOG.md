@@ -13,6 +13,38 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-07 — `TripSummaryMember`: Home's cards name their people (M38 part 3)
+
+- **Added:** in `trip.ts`:
+  - `MemberPersona`: `displayName`, `avatar` and `color`, each nullable and defaulting to null.
+    `TripMemberProfile` (`access.ts`) now spreads it in place of its own three copies; its shape
+    is unchanged.
+  - `TripSummaryMember`: `TripMember` plus `name` (the sign-in name, nullable, default null) and
+    `MemberPersona`. No `email`: a card is read by everyone on the trip.
+- **Changed:** `TripSummary.members` is `z.array(TripSummaryMember)` (was `TripMember`).
+  `StoredTripSummary` keeps `members: TripMember[]`, so the `trip_summaries` projection and
+  `projectTripSummaries` are untouched.
+- Why: M38 part 3 item 4. A card's initials came from the member's id handle, because the list
+  carried no name. **Not a name in a planning read model:** `TripMember` stays planning's, and the
+  persona is overlaid at the list's read boundary from `users`, the way the granted members and
+  `travelling` already are (ADR-026, ADR-065). That is why it is a separate schema rather than a
+  wider `TripMember`.
+- Consumers updated:
+  - `withListedMembers` (`server/access/members.ts`) is the trips list's whole member overlay:
+    granted members, who is travelling, and one `users` read for every member on the page, run
+    together. `GET /api/trips` and `GET /v1/trips` both call it; it replaces the two copies of the
+    merge they each carried. The statement count is constant at 4 (was 3), per M37 D5.
+  - `withProfiles` and the list share one `personaOf`, which re-validates the stored keys.
+  - `TripCard` and `NextTripHero` needed no change: they already pass the member to
+    `displayNameFor`, which now finds a name on it.
+  - `@tc/factories` gains `tripSummaryMemberFactory`, and `tripSummaryFactory` uses it. Home's test
+    literals build members with it.
+- Public API: `GET /v1/trips` items' `members` gain `name`, `displayName`, `avatar` and `color`.
+  `API_VERSION` 1.9.0 → 1.10.0 (additive), `API_FINGERPRINT` and `openapi.json` regenerated. This is
+  the first `/v1` response that names a co-member; `GET /v1/trips/:id/members` still returns
+  `TripMember` only.
+- Breaking? no. Every new field is defaulted, so a summary from before parses.
+
 ## 2026-10-07 — personas: `AvatarKey`, `PersonColor`, and who a person is on a trip (M38 part 2)
 
 - **Added:** in `identity.ts`:
