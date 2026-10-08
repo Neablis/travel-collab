@@ -1,5 +1,4 @@
 import { eq } from "drizzle-orm";
-import { defaultPersonColor } from "@tc/domain";
 import {
   AvatarKey,
   DistanceUnit,
@@ -263,16 +262,6 @@ function toPreferences(row: UserRow): UserPreferences {
 export async function readPreferences(userId: string): Promise<UserPreferences> {
   const rows = await db.select().from(users).where(eq(users.id, userId)).limit(1);
   return rows[0] === undefined ? PREFERENCE_DEFAULTS : toPreferences(rows[0]);
-}
-
-/**
- * The colour a trip gives this person while they have stored none
- * (`PreferencesResponse.defaultColor`): the domain's own derivation from their
- * id, the one `resolveTripColors` starts from, so Account draws what a trip
- * draws rather than slate. Pure, so a session whose row has gone gets one too.
- */
-export function defaultColorFor(userId: string): PersonColor {
-  return defaultPersonColor(userId);
 }
 
 /**

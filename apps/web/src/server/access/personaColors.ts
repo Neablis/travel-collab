@@ -1,5 +1,5 @@
 import type { PersonColor } from "@tc/contracts";
-import { resolveTripColors } from "@tc/domain";
+import { defaultPersonColor, resolveTripColors } from "@tc/domain";
 
 /**
  * One trip's members with the colour to render each in ON THAT TRIP (M38 D3):
@@ -24,4 +24,15 @@ export function withTripColors<M extends { userId: string; color: PersonColor | 
     const color = resolved.get(m.userId)!;
     return { ...m, color, colorShifted: m.color !== null && m.color !== color };
   });
+}
+
+/**
+ * The colour a trip gives this person while they have stored none, before any
+ * clash on that trip (`PreferencesResponse.defaultColor`): the derivation
+ * `resolveTripColors` starts from, so Account draws what a trip draws rather
+ * than slate. Here and not in `users.ts`, which is Identity and may not know
+ * the planning domain (the module map, `identity-knows-no-trips`).
+ */
+export function defaultColorFor(userId: string): PersonColor {
+  return defaultPersonColor(userId);
 }

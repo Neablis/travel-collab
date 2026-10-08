@@ -26,8 +26,9 @@ Format:
   it, and `UpdateUserPreferences` is a partial of `UserPreferences`, so a field there would be one
   a PATCH could name. A patch naming only `defaultColor` is refused as empty (pinned in
   `identity.test.ts`). `isAdmin` stays outside this schema, as before.
-- Consumers updated: `server/users.ts` (`defaultColorFor`, the domain function of the id), the
-  preferences route (both verbs), `apiClient` (`fetchPreferences` parses the schema and keeps
+- Consumers updated: `server/access/personaColors.ts` (`defaultColorFor`, the domain function of
+  the id — not `users.ts`, which is Identity and may not import the planning domain,
+  `identity-knows-no-trips`), the preferences route (both verbs), `apiClient` (`fetchPreferences` parses the schema and keeps
   `isAdmin` beside it; `updatePreferences` parses it and returns `preferences`, as before),
   `PreferencesProvider` (`defaultColor`, `useShownColor`), `AccountMenu` and `ProfileSection`
   (`color ?? defaultColor`). The swatch picker still checks only a stored choice.

@@ -1,6 +1,7 @@
 import { PreferencesResponse, UpdateUserPreferences } from "@tc/contracts";
 import { auth } from "@/server/auth";
-import { defaultColorFor, readPreferences, writePreferences } from "@/server/users";
+import { readPreferences, writePreferences } from "@/server/users";
+import { defaultColorFor } from "@/server/access/personaColors";
 import { callerIsAdmin } from "@/server/entitlements/admin";
 
 // The Identity module's only read/write surface outside the sign-in callback
