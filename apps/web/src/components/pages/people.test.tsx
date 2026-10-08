@@ -1,5 +1,6 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
+import type { TripAccess } from "@tc/contracts";
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
 import { tripAccessFixture, tripDetailFactory, tripMemberProfileFactory } from "@tc/factories";
@@ -10,6 +11,11 @@ import { PeopleProvider, peopleNamesOf, usePersonas } from "./people";
 // come from the People section's access read, through `PeopleProvider`, into the
 // widget's context. Each test takes its own trip id: the read goes through the
 // shared cache, which would otherwise carry one test's members into the next.
+
+// What `useOptionalTrip` answers: `null` (no trip around this notebook) unless
+// a test puts a `TripProvider`'s live access in place.
+let liveTrip: { tripId: string; access: TripAccess | null } | null = null;
+vi.mock("@/components/trip/context/TripProvider", () => ({ useOptionalTrip: () => liveTrip }));
 
 const server = setupServer(
   http.get("/api/trips/:tripId/access", ({ params }) =>
@@ -30,6 +36,7 @@ const server = setupServer(
 );
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => {
+  liveTrip = null;
   cleanup();
   server.resetHandlers();
 });
@@ -112,5 +119,34 @@ describe("PeopleProvider", () => {
       "u-ana": { name: "Nana", avatar: "compass", color: "plum", colorShifted: true, travelling: true },
       "u-ben-4f2a91": { name: "Traveler 4f2a91", avatar: null, color: null, colorShifted: false, travelling: true },
     });
+  });
+
+  // Inside the trip's own `TripProvider`, which re-reads access whenever the
+  // poll's `accessRev` moves: a name changed since this provider's own cached
+  // read reaches History and the suggestion chips along with everything else.
+  it("follows the trip's live access when it is newer than its own read", async () => {
+    const tripId = crypto.randomUUID();
+    const read = (accessRev: string, name: string) =>
+      tripAccessFixture({ tripId, accessRev, members: [tripMemberProfileFactory.build({ userId: "u-ana", role: "owner", name })] });
+    server.use(http.get("/api/trips/:tripId/access", () => HttpResponse.json({ access: read("1", "Ana Lima") })));
+    function Probe() {
+      const personas = usePersonas();
+      return <p>{personas?.["u-ana"]?.name ?? "loading"}</p>;
+    }
+    liveTrip = { tripId, access: null };
+    const view = render(
+      <PeopleProvider tripId={tripId}>
+        <Probe />
+      </PeopleProvider>,
+    );
+    expect(await screen.findByText("Ana Lima")).toBeTruthy();
+
+    liveTrip = { tripId, access: read("2", "Nana") };
+    view.rerender(
+      <PeopleProvider tripId={tripId}>
+        <Probe />
+      </PeopleProvider>,
+    );
+    expect(await screen.findByText("Nana")).toBeTruthy();
   });
 });

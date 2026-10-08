@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import type { DistanceUnit, TimeFormat, UpdateUserPreferences, UserPreferences } from "@tc/contracts";
+import type { DistanceUnit, PersonColor, TimeFormat, UpdateUserPreferences, UserPreferences } from "@tc/contracts";
 import { fetchPreferences, updatePreferences, type ApiResult } from "@/lib/apiClient";
 
 /**
@@ -68,6 +68,13 @@ type PreferencesValue = {
    * lands and after one that failed; see `useIsAdmin`.
    */
   isAdmin: boolean;
+  /**
+   * The colour a trip gives this person while `preferences.color` is `null`
+   * (`PreferencesResponse.defaultColor`). Not a preference either, and from the
+   * same read; `null` until it lands, after one that failed, and from a server
+   * older than the field. See `useShownColor`.
+   */
+  defaultColor: PersonColor | null;
 };
 
 const Context = createContext<PreferencesValue | null>(null);
@@ -86,6 +93,7 @@ export function PreferencesProvider({
 }) {
   const [preferences, setPreferences] = useState<UserPreferences>(DEFAULTS);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [defaultColor, setDefaultColor] = useState<PersonColor | null>(null);
   const [loaded, setLoaded] = useState(noSessionCookie);
 
   useEffect(() => {
@@ -101,6 +109,7 @@ export function PreferencesProvider({
       if (result.ok) {
         setPreferences(result.value.preferences);
         setIsAdmin(result.value.isAdmin);
+        setDefaultColor(result.value.defaultColor);
       }
       setLoaded(true);
     });
@@ -143,8 +152,8 @@ export function PreferencesProvider({
   }, []);
 
   const value = useMemo(
-    () => ({ preferences, loaded, save, isAdmin }),
-    [preferences, loaded, save, isAdmin],
+    () => ({ preferences, loaded, save, isAdmin, defaultColor }),
+    [preferences, loaded, save, isAdmin, defaultColor],
   );
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }
@@ -187,6 +196,17 @@ export function usePreferences(): UserPreferences {
  */
 export function useIsAdmin(): boolean {
   return useContext(Context)?.isAdmin ?? false;
+}
+
+/**
+ * The colour this person's own chip draws on Account and in the header: the
+ * one they chose, or the one a trip derives for them (M38). Never a guess on
+ * the client — the derivation is the domain's, and the server sends it. `null`
+ * (the chip's slate) only while neither is known.
+ */
+export function useShownColor(): PersonColor | null {
+  const value = useContext(Context);
+  return value?.preferences.color ?? value?.defaultColor ?? null;
 }
 
 /** The common case, named for what the call sites are asking. */

@@ -22,6 +22,7 @@ export type JapanTripExpectations = {
   pendingReasons: Record<PendingReason, number>;
   rosterRoles: Record<TripRole, number>;
   notTravelling: number;
+  colorShifted: string[];
   untaggedCount: number;
   withCoordinates: number;
   withCost: number;
@@ -74,6 +75,10 @@ export const JAPAN_TRIP_EXPECTATIONS: JapanTripExpectations = {
   // "Not travelling" group and the totals below are the other four's.
   rosterRoles: { owner: 1, editor: 2, suggester: 2, viewer: 0 },
   notTravelling: 1,
+  // M38 D3: Priya chose Sam's plum, and Sam joined first, so `/demo` shows her
+  // shifted (`JAPAN_ROSTER_PERSONAS`). Empty would mean the demo no longer
+  // shows a clash at all.
+  colorShifted: ["Priya"],
 
   // All 72, including the 21 the geocoder could not pin to the right venue
   // (KI-39) and which carry hand-authored coordinates instead. The Map and
@@ -217,6 +222,7 @@ export function diffAgainstExpectations(
   scalar("pendingReasons", report.pendingReasons, expected.pendingReasons);
   scalar("rosterRoles", report.rosterRoles, expected.rosterRoles);
   scalar("notTravelling", report.notTravelling, expected.notTravelling);
+  scalar("colorShifted", report.colorShifted, expected.colorShifted);
   scalar("untaggedCount", report.untaggedCount, expected.untaggedCount);
   scalar("withCoordinates", report.withCoordinates, expected.withCoordinates);
   scalar("withCost", report.withCost, expected.withCost);

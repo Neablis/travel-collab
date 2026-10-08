@@ -22,27 +22,30 @@ function roleLine(member: TripMemberProfile): string {
  * row), a role line, and the row's single `⋯` control. `min-h-11` because the
  * row is the phone's touch target, not the chip (SPEC §13.1).
  *
- * `chipTitle` is the reader's own "why am I this colour here" (M38, open
+ * `colorNote` is the reader's own "why am I this colour here" (M38, open
  * question 4): set only on their row, and only when the trip shifted them.
+ * **Printed under the role line, not only on the chip's `title`** — the chip is
+ * `aria-hidden` and a tooltip needs a mouse, so a tooltip alone told nobody on
+ * a phone, a keyboard or a screen reader (self-review of pull request 359).
  */
 export function PersonRow({
   member,
   name,
   isYou,
-  chipTitle,
+  colorNote,
   menu,
 }: {
   member: TripMemberProfile;
   name: string;
   isYou: boolean;
-  chipTitle?: string;
+  colorNote?: string;
   menu: React.ReactNode;
 }) {
   return (
     // `data-user-id` lets a test assert identity AND role together; the role
     // words alone are on invite rows too (CodeRabbit, PR #70).
     <li data-testid="person-row" data-user-id={member.userId} className="flex min-h-11 items-center gap-2.5 py-1">
-      <PersonChip name={name} avatar={member.avatar} color={member.color} size="sm" title={chipTitle} />
+      <PersonChip name={name} avatar={member.avatar} color={member.color} size="sm" title={colorNote} />
       <div className="flex min-w-0 flex-1 flex-col">
         <span className="flex min-w-0 items-center gap-1.5">
           <Text as="span" className="truncate text-sm text-ink">
@@ -60,6 +63,11 @@ export function PersonRow({
             <Crown data-testid="owner-crown" className="size-3 text-brand" aria-hidden />
           ) : null}
         </Text>
+        {colorNote === undefined ? null : (
+          <Text as="span" variant="muted">
+            {colorNote}
+          </Text>
+        )}
       </div>
       {menu}
     </li>

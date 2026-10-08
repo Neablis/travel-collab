@@ -564,9 +564,11 @@ function personaOf(
  *
  * One batched read of each for the whole list, run together — never one per
  * trip (M37 D5). A read overlay: the stored projection keeps the log's bare
- * `TripMember` and nothing here writes back (invariant 2).
+ * `TripMember` and nothing here writes back (invariant 2). `ByTrip` because
+ * `trip-access.ts`'s `withEffectiveMembers` is a different overlay, of one
+ * `TripDetail`.
  */
-export async function withEffectiveMembers<T extends { tripId: string; members: TripMember[] }>(
+export async function withEffectiveMembersByTrip<T extends { tripId: string; members: TripMember[] }>(
   tx: Queryable,
   rows: readonly T[],
 ): Promise<(Omit<T, "members"> & { members: TripMember[] })[]> {
@@ -580,7 +582,7 @@ export async function withEffectiveMembers<T extends { tripId: string; members: 
 }
 
 /**
- * **The trips list's members** for `GET /api/trips`: `withEffectiveMembers`,
+ * **The trips list's members** for `GET /api/trips`: `withEffectiveMembersByTrip`,
  * plus each person's persona so a card can name them (M38 part 3), with each
  * trip's colours resolved over that trip's members (`withTripColors`).
  *
@@ -599,7 +601,7 @@ export async function withListedMembers<T extends { tripId: string; members: Tri
   const tripIds = rows.map((r) => r.tripId);
   const projectedIds = [...new Set(rows.flatMap((r) => r.members.map((m) => m.userId)))];
   const [merged, profiles] = await Promise.all([
-    withEffectiveMembers(tx, rows),
+    withEffectiveMembersByTrip(tx, rows),
     tx
       .select({ id: users.id, name: users.name, displayName: users.displayName, avatar: users.avatar, color: users.color })
       .from(users)

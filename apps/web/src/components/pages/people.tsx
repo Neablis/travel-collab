@@ -1,6 +1,7 @@
 "use client";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { travellerIds, type TripMemberProfile } from "@tc/contracts";
+import { travellerIds, type TripAccess, type TripMemberProfile } from "@tc/contracts";
+import { useOptionalTrip } from "@/components/trip/context/TripProvider";
 import { fetchTripAccess } from "@/lib/apiClient";
 import { cachedRead, invalidate } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
@@ -71,18 +72,40 @@ const NO_ONE: ReadonlySet<string> = new Set();
 const PeopleContext = createContext<People>({ names: null, personas: null, rechecked: NO_ONE, recheck: () => {} });
 
 /**
+ * The newer of two access reads, by `accessRev`; `held` on a tie or when
+ * either carries none. The rev is a per-trip counter (`TripAccess.accessRev`).
+ */
+function newerAccess(held: TripAccess | null, other: TripAccess | null): TripAccess | null {
+  if (held === null) return other;
+  if (other === null) return held;
+  return Number(other.accessRev) > Number(held.accessRev) ? other : held;
+}
+
+/**
  * Hands every widget under it the trip's member names. `null` until the access
  * read lands, and if it fails — a widget then says "Traveler 2", which beats a
  * notebook that will not open over a name.
+ *
+ * **Inside the trip's own `TripProvider`, its live `access` is the source**
+ * (self-review of pull request 359). This provider's read is the cached one at
+ * mount, and nothing re-made it: a role change, a join or a colour the trip
+ * re-resolved moved the People section and the header's avatars and left
+ * every History row and suggestion chip on the mount's answer. `TripProvider`
+ * re-reads access whenever the poll's `accessRev` moves, so following it is
+ * what keeps the chips with the rest. Its own read stays, for a notebook
+ * rendered outside a trip and for `recheck` below; whichever read is newer by
+ * `accessRev` wins.
  */
 export function PeopleProvider({ tripId, children }: { tripId: string; children: ReactNode }) {
-  const [personas, setPersonas] = useState<Readonly<Record<string, Persona>> | null>(null);
+  const trip = useOptionalTrip();
+  const live = trip !== null && trip.tripId === tripId ? trip.access : null;
+  const [read, setRead] = useState<TripAccess | null>(null);
   const [rechecked, setRechecked] = useState<ReadonlySet<string>>(NO_ONE);
   const asked = useRef(new Set<string>());
   useEffect(() => {
     let cancelled = false;
     void cachedRead(tripKeys.access(tripId), () => fetchTripAccess(tripId)).then((access) => {
-      if (!cancelled && access.ok) setPersonas(personasOf(access.value.members));
+      if (!cancelled && access.ok) setRead(access.value);
     });
     return () => {
       cancelled = true;
@@ -105,7 +128,7 @@ export function PeopleProvider({ tripId, children }: { tripId: string; children:
           asked.current.delete(userId);
           return;
         }
-        setPersonas(personasOf(access.value.members));
+        setRead(access.value);
         setRechecked((prev) => new Set(prev).add(userId));
       });
     },
@@ -113,6 +136,8 @@ export function PeopleProvider({ tripId, children }: { tripId: string; children:
   );
 
   // Derived, so the names and the personas can never come from different reads.
+  const access = newerAccess(live, read);
+  const personas = useMemo(() => (access === null ? null : personasOf(access.members)), [access]);
   const names = useMemo(() => (personas === null ? null : namesOf(personas)), [personas]);
   const value = useMemo(() => ({ names, personas, rechecked, recheck }), [names, personas, rechecked, recheck]);
   return <PeopleContext.Provider value={value}>{children}</PeopleContext.Provider>;

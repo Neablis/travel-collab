@@ -1,7 +1,7 @@
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { UserPreferences } from "@tc/contracts";
+import type { PersonColor, UserPreferences } from "@tc/contracts";
 import { AccountMenu, HeaderSessionChrome } from "./AccountMenu";
 import { PreferencesProvider } from "@/components/account/PreferencesProvider";
 
@@ -34,6 +34,22 @@ beforeEach(() => {
   });
 });
 
+// The colour a chip is GIVEN, read off a wrapper rather than off its class:
+// the test-quality wall keeps classes out of this file, and colour to class is
+// `person-chip.test.tsx`'s claim. What this file owns is which colour the
+// surface hands the chip.
+vi.mock("@/components/ui/person-chip", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/components/ui/person-chip")>();
+  return {
+    ...actual,
+    PersonChip: (props: React.ComponentProps<typeof actual.PersonChip>) => (
+      <span data-testid="person-chip" data-color={props.color ?? "none"}>
+        <actual.PersonChip {...props} />
+      </span>
+    ),
+  };
+});
+
 const resetDemoDataMock = vi.fn();
 // Typed as the helper's real return so a `{ ok: false }` case can be driven —
 // `ApiResult`, like every other apiClient helper (its totality witness is what
@@ -44,7 +60,7 @@ const resetDemoDataMock = vi.fn();
 // test written before the console keeps describing the menu it was written for.
 const fetchPreferencesMock = vi.fn<
   () => Promise<
-    | { ok: true; value: { preferences: UserPreferences; isAdmin: boolean } }
+    | { ok: true; value: { preferences: UserPreferences; isAdmin: boolean; defaultColor?: PersonColor | null } }
     | { ok: false; error: { status: number; message: string } }
   >
 >(async () => ({
@@ -314,6 +330,30 @@ describe("HeaderSessionChrome's account menu", () => {
     cleanup();
     render(<AccountMenu name="Sam K" email="sam@example.com" />);
     expect(screen.getByRole("button", { name: "Account menu" }).textContent).toBe("SK");
+  });
+
+  // With no colour stored, the header chip is the colour every trip draws for
+  // this person (the server's `defaultColor`), not slate.
+  it("draws the colour trips derive on the account button until one is chosen", async () => {
+    const { getSession } = await import("next-auth/react");
+    vi.mocked(getSession).mockResolvedValueOnce({ user: { name: "Sam K", email: "sam@example.com" }, expires: "" });
+    fetchPreferencesMock.mockResolvedValueOnce({
+      ok: true,
+      value: {
+        preferences: { displayName: null, homeAirport: null, distanceUnit: "km", timeFormat: "12h", avatar: null, color: null, publicDisplayName: false },
+        isAdmin: false,
+        defaultColor: "sky",
+      },
+    });
+
+    render(
+      <PreferencesProvider>
+        <HeaderSessionChrome />
+      </PreferencesProvider>,
+    );
+
+    const button = await screen.findByRole("button", { name: "Account menu" });
+    await waitFor(() => expect(within(button).getByTestId("person-chip").getAttribute("data-color")).toBe("sky"));
   });
 
   it("defaults demoResetEnabled to off, so no reset item appears without an explicit prop", async () => {

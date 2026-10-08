@@ -194,6 +194,8 @@ export const useTrip = () => {
   if (!v) throw new Error("useTrip outside TripProvider");
   return v;
 };
+/** `useTrip` for a component that also renders outside a trip (a notebook's `PeopleProvider`): `null` there. */
+export const useOptionalTrip = (): TripCtx | null => useContext(Ctx);
 
 // History commands (undo/redo/revert) are NOT optimistically predicted — they
 // depend on the full event log, which the client does not hold. They're sent

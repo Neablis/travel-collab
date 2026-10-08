@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { TripDetail, TripMember, TripSummary } from "@tc/contracts";
 import { db } from "@/server/db/client";
-import { withEffectiveMembers } from "@/server/access/members";
+import { withEffectiveMembersByTrip } from "@/server/access/members";
 import { listTripSummariesPage } from "@/server/projections";
 import { orThrow, runCreation, tripDatesCommand } from "@/server/public-api/commands";
 import { route } from "@/server/public-api/route";
@@ -49,7 +49,7 @@ export const { GET, POST } = route({
       // `members` array would be a wrong answer rather than a lean one. It is
       // `GET /api/trips`' merge, batched for the whole page, not per trip, with
       // who is travelling (travellers spec W21) — and without the personas.
-      return withEffectiveMembers(db, rows);
+      return withEffectiveMembersByTrip(db, rows);
     },
   },
   // **The first planning write, and the shape every other one follows.**
