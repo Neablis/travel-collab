@@ -14,7 +14,6 @@ import { useTrip } from "@/components/trip/context/TripProvider";
 import { useEditor } from "@/components/trip/context/EditorHost";
 import { tripSpend } from "@/lib/cost";
 import { isDemoTripId } from "@/lib/demoTrip";
-import { isInviteLook } from "@/lib/inviteLook";
 import { cn } from "@/lib/cn";
 import { displayNameFor } from "@/lib/displayName";
 import { settingsSectionFrom, withoutSettingsParam, type SettingsSection } from "@/lib/tripSettingsLink";
@@ -167,8 +166,7 @@ export function TripHeader({
       // FrontDoorHeader instead, which does not stick — so there, offsetting by
       // 56px pins this header 56px down from the top and leaves a see-through
       // strip of scrolled content above it (Mitchell, preview comment on
-      // `/demo`). Nothing is sticky above it there, so it pins to the top. The
-      // same holds for an invite's look screen (M27 D12).
+      // `/demo`). Nothing is sticky above it there, so it pins to the top.
       //
       // `z-20`, not `z-10`: a hovered or lifted river block is `z-10`
       // (RiverBlock.tsx — its tag reveal hangs out of it), and at equal z the
@@ -177,7 +175,7 @@ export function TripHeader({
       // `z-30`; the phone tab bar's `z-20` never meets it.
       className={cn(
         "sticky z-20 border-b border-hairline bg-surface px-6 pt-3.5",
-        isDemoTripId(tripId) || isInviteLook(tripId) ? "top-0" : "top-14",
+        isDemoTripId(tripId) ? "top-0" : "top-14",
       )}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -199,7 +197,7 @@ export function TripHeader({
               have an account. `DemoTripScreen` renders the front door's own
               header above this one, which is where a signed-out reader's way
               onward belongs. */}
-          {!isDemoTripId(tripId) && !isInviteLook(tripId) && (
+          {!isDemoTripId(tripId) && (
             <nav className="flex w-full items-center justify-between gap-3">
               {/* `min-h-11` and the inline-flex that makes it apply: §22 made
                   this link load-bearing on a phone. Scoping the tab bar removed
@@ -651,10 +649,10 @@ function TravellerStack({ access, onOpen }: { access: TripAccess | null; onOpen:
  * `scrollIntoView` aligns with the scrollport's top edge and knows nothing
  * about what is pinned there, so a day header picked with the page scrolled
  * down landed under this header. The margin cannot be a constant: this header
- * wraps at narrow widths, and `AppHeader` is absent on `/demo` and an invite's
- * look screen. So it is measured — this header's resolved `top` (0 or 56px,
- * which is exactly the part of the stack above it) plus its own height,
- * re-read by a ResizeObserver whenever it wraps.
+ * wraps at narrow widths, and `AppHeader` is absent on `/demo`. So it is
+ * measured — this header's resolved `top` (0 or 56px, which is exactly the
+ * part of the stack above it) plus its own height, re-read by a
+ * ResizeObserver whenever it wraps.
  *
  * A callback ref rather than `useRef` + effect because the header renders
  * `null` until the trip is ready, and an effect that ran first would find the

@@ -170,10 +170,10 @@ export type NearbyStopsQuery = {
   anchor: { lat: number; lng: number } | null;
   /**
    * Whose days are left out (D6): the access seam's `userId`. The route opts
-   * into neither the demo nor an invite token, so this is always a signed-in
-   * account — never `demo-visitor` or `invite-visitor`. Were either ever let
-   * in, excluding it would be harmless: neither owns a saved day a reader can
-   * see, so the reader would get the whole public library.
+   * does not opt into the demo, so this is always a signed-in account — never
+   * `demo-visitor`. Were it ever let in, excluding it would be harmless: it
+   * owns no saved day a reader can see, so the reader would get the whole
+   * public library.
    */
   readerId: string;
 };

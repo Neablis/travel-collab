@@ -7,6 +7,7 @@ import { CostsTableBlock } from "./blocks/CostsTableBlock";
 import { CityDetailBlock } from "./blocks/CityDetailBlock";
 import { CountryFactsBlock } from "./blocks/CountryFactsBlock";
 import { TripStripBlock } from "./blocks/TripStripBlock";
+import { TripPeopleBlock } from "./blocks/TripPeopleBlock";
 import { SpendByDayBlock } from "./blocks/SpendByDayBlock";
 import { SpendBreakdownBlock } from "./blocks/SpendBreakdownBlock";
 import { WeatherBlock } from "./blocks/WeatherBlock";
@@ -76,6 +77,8 @@ export function BlockView({
       return <CountryFactsBlock payload={block} />;
     case "trip-strip":
       return <TripStripBlock payload={block} accents={accents} />;
+    case "trip-people":
+      return <TripPeopleBlock payload={block} />;
     case "spend-by-day":
       return <SpendByDayBlock payload={block} />;
     case "spend-breakdown":

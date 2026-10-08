@@ -2,7 +2,8 @@
 
 **Status:** Proposed (M11 link 4, 2026-08-27). Open to reversal. The
 *"Look around a real trip"* section is **superseded by ADR-031** — the demo
-trip is no longer a configured share row.
+trip is no longer a configured share row. Amended 2026-10-08 (see the
+Amendment): the invite preview is held to the same explicit-field-list rule.
 
 **Depends on:** ADR-003 (event sourcing is scoped to planning), ADR-005
 (history commands are appended, never destructive), ADR-026 (Access is CRUD,
@@ -123,3 +124,18 @@ deploy step no test can enforce. Worth revisiting if M12 slips further.
   `auth()`. That is the feature. It is covered by an integration test that
   asserts it works with no session at all, so a future "just add auth() to
   every route" sweep fails loudly instead of silently killing sharing.
+
+## Amendment — 2026-10-08: the invite preview follows "What a stranger is served"
+
+This ADR's rule for a public read is an explicit field list, so that a new
+`TripDetail` field has to be opted in rather than arriving by spread. The
+invite flow broke that rule until M38: *Have a look first* (M27 D12) served a
+pending invite's holder the whole `TripDetail` through a synthetic viewer in
+`requireTripAccess`, stop costs included.
+
+That viewer has been retired (ADR-026's amendment of the same date). Before
+accepting, a token holder now reads `TripPreview` from
+`GET /api/invites/:token/preview`. Like `SharedTripView`, it is written as its
+own field list in `packages/contracts`. It carries dates, cities, stop titles
+and coordinates, personas and the trip total, and has no field for a per-stop
+or per-person cost. Pinned shares are unaffected.

@@ -79,11 +79,45 @@ Candidates absorbed (each deleted by this gate):
       name its owner has not opted in to publishing* reads the board, the profile, Discover and the
       published day's page. Seen red with the gate removed: `expected [ 'Pip Q.', 'Pip Q.', 'Pip
       Q.' ] to deeply equal [ 'Paula H.', 'Paula H.', 'Paula H.' ]`.)*
-- [ ] **The invite page shows the trip before accepting, using the notebook widgets'
+- [x] **The invite page shows the trip before accepting, using the notebook widgets'
       components**. A grep or architecture-wall rule shows no invite-only copy of a widget.
-- [ ] **The token-scoped read returns nothing that decision 4 hides**: an integration test asserts
+      *(Ticked 2026-10-08, part 5. The landing and *Have a look first* both draw `InvitePlanCard`
+      through `MacroView`, with `trip.countdown`, `trip.people` (new and shared with notebooks),
+      `trip.strip`, `city.rows`, `cost` and `SharedDayMap`. The only invite-specific widget code is
+      the `previewContext` adapter. The depcruise rule `invite-renders-shared-widgets-only` was
+      seen firing on stub files (`error invite-renders-shared-widgets-only: …StubInviteWidget.ts →
+      packages/pages/src/macros/primitives/single.ts`). `noInviteWidget.test.ts` catches a
+      `MacroDef` built through the public index, which depcruise cannot see. It was seen red
+      with `Received: ["components/access/StubInviteWidget.ts"]`.)*
+- [x] **The token-scoped read returns nothing that decision 4 hides**: an integration test asserts
       per-person and per-stop costs are absent, and an expired or revoked token returns nothing.
-- [ ] **The e2e spec passes on `pnpm --filter web test:e2e:ci-like`**: set an avatar, invite
+      *(Ticked 2026-10-08, parts 3 and 5. `preview/route.int.test.ts` walks the body for any money
+      key or number except the total. It was seen red twice: a stop `cost`, `expected [
+      'days[0].stops[0].cost', …(6) ] to deeply equal [ 'total', 'total.amountMinor' ]`, and a
+      disguised `fee`. A revoked or accepted token returns 410 with an empty body. Invites never
+      expire (ADR-026), so "expired" is read as accepted. The old invite-token viewer, which
+      served the whole `TripDetail` to a token holder, is retired. `trip-access.int.test.ts` ›
+      *a pending invite's token opens no trip read* covers five routes. Against the old code it
+      failed with `expected 200 to be 401`.)*
+- [x] **The e2e spec passes on `pnpm --filter web test:e2e:ci-like`**: set an avatar, invite
       someone, open the invite as them, see the trip, accept, and see the avatar in People.
-- [ ] **[walk]** On the PR preview, a two-person trip where both chose the same colour is walked.
+      *(Ticked 2026-10-08, part 5. `e2e/m38-personas.spec.ts` passes on ci-like: `2 passed
+      (15.4s)`. The owner sets *Rowan Persona*, Tent and Plum, and they survive a reload. The
+      signed-out invitee sees the plan, *Who's going* with the tent chip, and the $60.50 total,
+      with no stop's $42.50 or $18.00, on the landing and on *Have a look first*. The guest picks
+      Bike and also Plum, then joins. In People the owner's tent shows, and the guest's own chip
+      reads "Rowan Persona chose plum first, so you're … on this trip." The owner then sees the
+      guest's bike. Seen red with `PersonRow` passing `avatar={null}`: `Expected: 1 / Received: 0`
+      at `ownerRow.locator(".lucide-tent")`.)*
+- [x] **[walk]** On the PR preview, a two-person trip where both chose the same colour is walked.
+      *(Ticked 2026-10-08. The walk ran on Neablis/travel-collab#360's Vercel preview (deployed
+      `8a03de1`) with two live browser sessions. A set Tent and Plum, and they were kept after a
+      reload. The signed-out invite and *Have a look first* showed only the total, `$97.75`; none of
+      the stop prices ($42.50, $18.00, $37.25) appeared in the text or the HTML. B chose Bike and
+      also Plum, then joined. In B's People, A is plum with a tent and B is **ochre** with a bike,
+      and B's own chip reads "Sam Walker chose plum first, so you're ochre on this trip." The header
+      stack, the home card, *Who is in* and *Booked by* agree. A's People, opened before B joined
+      and not reloaded, showed B in ochre 3.3 s after Join, with no tooltip on B's row. The only
+      console error was the sandbox's blocked `vercel.live` feedback widget. The screenshots are in
+      the session scratchpad.)*
 - [ ] A retro is appended at gate close.

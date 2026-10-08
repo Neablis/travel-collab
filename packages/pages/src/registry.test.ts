@@ -30,11 +30,12 @@ describe("registry", () => {
     // and so is `day.weather`, which also declares `needs` (ADR-052), and
     // `cost.breakdown` ("Spend by kind" / "Spend by tag"), a stop primitive
     // drawn as a pie. `cost.balances` and `person.share` (M19 part 2) are stop
-    // primitives over `balances`.
+    // primitives over `balances`. `trip.people` ("Who's going", M38) is on
+    // `trip.strip`'s terms: the whole crew, nothing to narrow.
     expect([...MACRO_NAMES].sort()).toEqual([
       "attribute", "city", "city.detail", "city.rows", "cost", "cost.balances", "cost.breakdown", "cost.chart", "cost.rows",
       "count", "country.facts", "dates", "day.detail", "day.fromHome", "day.rows", "day.sun", "day.weather", "field", "hours",
-      "link.external", "link.internal", "open", "person.share", "stop.rows", "trip.strip",
+      "link.external", "link.internal", "open", "person.share", "stop.rows", "trip.people", "trip.strip",
     ]);
     for (const name of MACRO_NAMES) expect(getMacro(name)!.name).toBe(name);
   });
@@ -436,7 +437,7 @@ describe("every primitive declares a legal selection (ADR-039 decision 3)", () =
     // registered widget without a selection is not a primitive.
     expect([...MACRO_NAMES].sort()).toEqual(expect.arrayContaining([...PRIMITIVE_NAMES].sort()));
     expect(MACRO_NAMES.filter((n) => getMacro(n)!.selection === undefined).sort()).toEqual([
-      "country.facts", "link.external", "link.internal", "open", "trip.strip",
+      "country.facts", "link.external", "link.internal", "open", "trip.people", "trip.strip",
     ]);
   });
 

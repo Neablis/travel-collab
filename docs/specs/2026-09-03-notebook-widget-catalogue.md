@@ -64,7 +64,18 @@ Root-account notebooks (no trip) are the stated direction but explicitly out of 
 | `w-name` | Trip name | single | `trip` | ✅ | Exists as `trip.name`. Note the design gives it a **`trip` input**; the built one takes none, because a page is already trip-bound |
 | `w-dates` | Trip dates | single | `trip` | ✅ | Exists as `trip.dates`; same input discrepancy |
 | `w-left` | Budget left | single | `trip` | ✅ | `TripDetail.budget` + `budgetRemaining` |
-| `w-people` | Everyone on a trip | block | `trip` | ⚠️ | `members` is `{ userId, role }` — **no display name**. Needs `TripMember` to carry one |
+| `w-people` | Everyone on a trip | block | `trip` | ✅ **Built 2026-10-07 as `trip.people`, "Who's going" (M38)** | See below |
+
+**`w-people` is `trip.people`** (M38, canvas artboard 5; Mitchell approved it 2026-10-07 as
+open question 2). It is a block with no inputs: an `md` chip stack of the people it names
+(up to four), then one sentence, *"Sam, Priya, Kenji and Mei are going with Dana."* Only the
+people travelling are named, by first name, ending with the owner; whoever is only helping plan
+is left out, the owner included (*"Sam and Mei are going."*). It reads `WidgetContext.personas`
+(name, avatar, colour, travelling — the People section's own read in a notebook, the preview's
+people on the invite page), and `travelling` comes from there rather than from `trip.members`.
+A member with no persona falls back to `personNames` and `travellerIds`. The invite page draws
+it in place of its old crew line (D6), which is why it divides no money: `person.share` is one
+person's money and, with the money removed for an invitee (D4), had nothing left to say.
 | `w-cityline` | A line for every city | repeat | `trip` | ✅ | City is derivable — `Location.city`, and `cityFor()` already exists in `DayChips.tsx`. Needs `repeat` |
 
 ### Day scope

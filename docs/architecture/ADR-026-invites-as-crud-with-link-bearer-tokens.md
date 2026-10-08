@@ -2,6 +2,8 @@
 
 **Status:** Proposed (M11 link 3, 2026-08-27). Open to reversal; two of the
 three decisions below are the ones most likely to be overturned in review.
+Amended 2026-10-08 (see the Amendment): a pending token no longer reads the
+trip itself.
 
 **Supersedes nothing. Depends on:** ADR-003 (event sourcing is scoped to
 planning), ADR-025 (a users table under JWT sessions).
@@ -107,3 +109,26 @@ hashed column is a real alternative, at the cost of a link the owner can lose.
   terms ADR-025 set for `events.actor_id`. The reference is upheld at the
   sign-in seam instead — accepting an invite requires a session, and a session
   cannot exist without a user row.
+
+## Amendment — 2026-10-08: a pending token reads the preview, never the trip
+
+M27 D12 (*Have a look first*) stretched Decision 2 further than this ADR
+argued for: the link stayed the credential for *accepting*, and also became
+one for *reading* the trip before accepting. `requireTripAccess` took an
+`inviteToken` option, and the `x-invite-token` header made its holder a
+synthetic viewer of nine trip reads (`GET /api/trips/:id`, `/history`,
+`/history/:seq`, `/access`, `/globals`, `/weather`, `/events`, `/pages`,
+`/pages/:id`). Those answered with the whole `TripDetail`, every stop's cost
+included.
+
+M38 decision 4 says an invitee sees no per-person or per-stop costs before
+accepting, so that read was retired. What a pending token reads now is
+`GET /api/invites/:token/preview`, a `TripPreview` whose contract has no field
+that could carry a per-stop or per-person cost. The look page renders that
+preview and does not mount the board. The access seam knows no invite token at
+all, and `trip-access.int.test.ts` asserts that a pending token sent to the
+trip reads is refused exactly as a request without it is.
+
+Decision 2 itself is unchanged: anyone holding the link can still accept it,
+and accepting is the only thing the token grants beyond the landing and the
+preview.

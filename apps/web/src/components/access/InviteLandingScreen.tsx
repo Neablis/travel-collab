@@ -1,23 +1,26 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { CalendarClock } from "lucide-react";
 import type { InviteLanding } from "@tc/contracts";
 import { FrontDoorHeader } from "@/components/front/FrontDoorHeader";
-import { Avatar } from "@/components/ui/avatar";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Heading } from "@/components/ui/heading";
+import { PersonChip } from "@/components/ui/person-chip";
 import { Text } from "@/components/ui/text";
 import { fetchInviteLanding } from "@/lib/apiClient";
 import { cn } from "@/lib/cn";
-import { dayAccents, type AccentFamily } from "@/lib/dayAccent";
 import { firstNameOf } from "@/lib/displayName";
 import { addDaysIso } from "@/lib/dates";
 import { formatRelativeInstant, formatTripDateWithYear } from "@/lib/formatDate";
 import { takeInviteJoin } from "@/lib/pendingInviteJoin";
+import { useToday } from "@/lib/today";
 import { SUGGESTER_APPROVAL } from "@/lib/tripRole";
+import { InvitePlanCard, PlanUnavailable, PreviewScope, PreviewWidget } from "./InvitePlanCard";
+import { previewContext } from "./previewContext";
 import { useInviteJoin } from "./useInviteJoin";
+import { type PreviewRead, useInvitePreview } from "./useInvitePreview";
 
 // The screen an invite link opens (M27 link 6, SPEC §35.6). It answers, before
 // anything else: who asked, what the trip is, who is already in it, and what
@@ -28,21 +31,32 @@ import { useInviteJoin } from "./useInviteJoin";
 // plus the two §35.10 owes that the design did not draw: the read failing
 // (offline) and Join failing after sign-in. `expired` is not here — invites do
 // not expire (M27 D9).
+//
+// A pending invite shows the trip before anyone joins (M38, canvas artboard
+// 5), drawn by the notebook's own widgets from `GET /api/invites/:token/preview`
+// (D4, D6): the countdown and who's going on the left, the plan card on the
+// right. The preview is optional to the page: the invite, and Join, are drawn
+// from the landing alone, so a preview that will not load costs the picture of
+// the trip and never the way into it. Every other state is unchanged.
 
 type ValidLanding = Extract<InviteLanding, { state: "valid" }>;
 
-type Phase = { kind: "loading" } | { kind: "failed"; message: string } | { kind: "ready"; landing: InviteLanding };
+type Phase =
+  | { kind: "loading" }
+  | { kind: "failed"; message: string }
+  | { kind: "ready"; landing: InviteLanding };
 
 /**
- * The invite landing: reads `GET /api/invites/:token` and draws the state it
- * answers, or a retry when the read itself failed.
+ * The invite landing: reads `GET /api/invites/:token` and, for a pending
+ * invite, its preview, and draws the state they answer — or a retry when the
+ * landing read itself failed.
  */
 export function InviteLandingScreen({ token, googleAvailable }: { token: string; googleAvailable: boolean }) {
   const [phase, setPhase] = useState<Phase>({ kind: "loading" });
 
   const load = useCallback(async () => {
-    const result = await fetchInviteLanding(token);
-    setPhase(result.ok ? { kind: "ready", landing: result.value } : { kind: "failed", message: result.error.message });
+    const landing = await fetchInviteLanding(token);
+    setPhase(landing.ok ? { kind: "ready", landing: landing.value } : { kind: "failed", message: landing.error.message });
   }, [token]);
 
   useEffect(() => {
@@ -50,6 +64,7 @@ export function InviteLandingScreen({ token, googleAvailable }: { token: string;
   }, [load]);
 
   const landing = phase.kind === "ready" ? phase.landing : null;
+  const preview = useInvitePreview(token, landing?.state === "valid");
 
   return (
     <>
@@ -80,7 +95,14 @@ export function InviteLandingScreen({ token, googleAvailable }: { token: string;
           />
         )}
         {landing?.state === "valid" && (
-          <ValidInvite landing={landing} token={token} googleAvailable={googleAvailable} reload={load} />
+          <ValidInvite
+            landing={landing}
+            preview={preview.read}
+            retryPreview={preview.retry}
+            token={token}
+            googleAvailable={googleAvailable}
+            reload={load}
+          />
         )}
         {landing?.state === "revoked" && (
           <Elsewhere
@@ -157,15 +179,25 @@ function Elsewhere({
 
 function ValidInvite({
   landing,
+  preview,
+  retryPreview,
   token,
   googleAvailable,
   reload,
 }: {
   landing: ValidLanding;
+  preview: PreviewRead;
+  retryPreview: () => void;
   token: string;
   googleAvailable: boolean;
   reload: () => Promise<void>;
 }) {
+  // The reader's own day, for the countdown (`WidgetContext.today`).
+  const today = useToday();
+  const context = useMemo(
+    () => (preview.kind === "ready" ? previewContext(preview.preview, today) : null),
+    [preview, today],
+  );
   const { join, joining, error } = useInviteJoin({
     token,
     signedIn: landing.signedIn,
@@ -188,153 +220,84 @@ function ValidInvite({
   const joinLabel = landing.signedIn ? "Join the trip" : googleAvailable ? "Join with Google" : "Sign in to join";
   const inviter = firstNameOf(landing.inviterName);
 
+  // Only an owner can invite, and the owner is the preview's first person, so
+  // the inviter's chip is theirs, as they look on this trip (D3) — initials on
+  // slate until the preview says otherwise.
+  const owner = preview.kind === "ready" ? preview.preview.people[0]! : null;
+
   return (
-    <div className="grid w-full max-w-content grid-cols-1 items-start gap-8 lg:grid-cols-2 lg:gap-16">
-      <div className="flex flex-col gap-5.5 pt-2">
-        <div className="flex items-center gap-3">
-          <Avatar name={landing.inviterName} initials={initials(landing.inviterName)} size="lg" tone="info" />
-          <span className="flex min-w-0 flex-col gap-px">
-            <Text as="span" className="text-md font-semibold">
-              {landing.inviterName} invited you
-            </Text>
-            <Text as="span" variant="secondary">
-              {sentLine(landing)}
-            </Text>
-          </span>
-        </div>
-
-        <div className="flex flex-col gap-2.5">
-          <Heading level={1} className="text-balance leading-tight tracking-tight">
-            {landing.trip.name}
-          </Heading>
-          <Text as="span" className="font-mono text-sm text-slate">
-            {metaLine(landing)}
-          </Text>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <span aria-hidden className="flex shrink-0">
-            {landing.crew.slice(0, CREW_AVATARS).map((name, index) => (
-              <Avatar
-                key={`${name}-${index}`}
-                name={name}
-                initials={initials(name)}
-                title={name}
-                size="md"
-                // The handoff's 11px, which only the front door may use.
-                className={cn("border-2 border-paper text-2xs", index > 0 && "-ml-2")}
-              />
-            ))}
-          </span>
-          <Text as="span" className="text-pretty text-slate">
-            {crewLine(landing)}
-          </Text>
-        </div>
-
-        <div className="flex max-w-95 flex-col gap-2.5">
-          <Button variant="primary" size="touch" className="w-full" disabled={joining} onClick={() => void join()}>
-            {joining ? "Joining…" : joinLabel}
-          </Button>
-          {error !== null && (
-            <Text as="span" role="alert" className="text-sm text-danger-ink">
-              {error} Your invite is still open — try again.
-            </Text>
-          )}
-          <Link
-            href={`/invite/${encodeURIComponent(token)}/look`}
-            className={cn(buttonVariants({ variant: "ghost", size: "touch" }), "w-full no-underline")}
-          >
-            Have a look first
-          </Link>
-          <Text as="span" className="text-pretty text-xs text-slate">
-            Joining is free — {inviter}&apos;s plan covers everyone on the trip.
-          </Text>
-        </div>
-      </div>
-
-      <PlanSoFar landing={landing} />
-    </div>
-  );
-}
-
-/** How many faces the crew stack draws before the sentence carries the rest. */
-const CREW_AVATARS = 4;
-
-/** The right-hand card: a ribbon of days, then one row per leg. */
-function PlanSoFar({ landing }: { landing: ValidLanding }) {
-  // The board's own derivation, fed the board's own input — one city per day,
-  // in day order — so a city here wears the colour it wears on the board.
-  const accents = dayAccents(landing.days.map((d) => d.city));
-  const familyOf = new Map<string | null, AccentFamily>();
-  landing.days.forEach((day, index) => familyOf.set(day.city, accents[index]!.solid));
-  return (
-    <Card raised className="overflow-hidden p-0">
-      <div className="flex flex-col gap-3 border-b border-hairline px-5 pb-3.5 pt-4.5">
-        <Text as="span" className="text-2xs font-semibold uppercase tracking-wider text-slate">
-          The plan so far
-        </Text>
-        {landing.days.length > 0 && (
-          <div aria-hidden className="flex h-2.5 gap-0.5">
-            {landing.days.map((day, index) => (
-              <span
-                key={index}
-                className={cn("flex-1 rounded-xs", SOLID_BG[accents[index]!.solid], day.stopCount === 0 && "opacity-35")}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-      <ul aria-label="Legs of the trip" className="flex flex-col">
-        {landing.legs.map((leg) => (
-          <li key={leg.dayFrom} className="flex items-start gap-3 border-b border-hairline px-5 py-3.5">
-            <span aria-hidden className={cn("mt-1.5 size-2.5 shrink-0 rounded-full", SOLID_BG[familyOf.get(leg.city) ?? "neutral"])} />
-            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+    <PreviewScope context={context}>
+      <div className="grid w-full max-w-content grid-cols-1 items-start gap-8 lg:grid-cols-2 lg:gap-16">
+        <div className="flex flex-col gap-5.5 pt-2">
+          <div className="flex items-center gap-3">
+            <PersonChip name={landing.inviterName} avatar={owner?.avatar ?? null} color={owner?.color ?? null} size="lg" />
+            <span className="flex min-w-0 flex-col gap-px">
               <Text as="span" className="text-md font-semibold">
-                {leg.city ?? "Not placed yet"}
+                {landing.inviterName} invited you
               </Text>
-              <Text as="span" variant="secondary" className="text-pretty">
-                {highlightLine(leg)}
+              <Text as="span" variant="secondary">
+                {sentLine(landing)}
               </Text>
             </span>
-            <Text as="span" className="shrink-0 whitespace-nowrap pt-0.5 font-mono text-xs text-slate">
-              {leg.dayFrom === leg.dayTo ? `Day ${leg.dayFrom}` : `Days ${leg.dayFrom}–${leg.dayTo}`}
+          </div>
+
+          <div className="flex flex-col gap-2.5">
+            <Heading level={1} className="text-balance leading-tight tracking-tight">
+              {landing.trip.name}
+            </Heading>
+            <Text as="span" className="font-mono text-sm text-slate">
+              {metaLine(landing)}
             </Text>
-          </li>
-        ))}
-      </ul>
-      <Text className="px-5 pb-4 pt-3 text-sm text-slate">
-        {landing.trip.stopCount === 1 ? "1 stop" : `${landing.trip.stopCount} stops`} so far, and plenty of room
-        left.
-      </Text>
-    </Card>
+          </div>
+
+          {/* `trip.countdown`. Its value reads "in 17 days", "starts today",
+              "day 3 of 9" or "ended 2 days ago", so no one lead-in word fits
+              them all; the calendar mark says what the value is about. */}
+          {context !== null && (
+            <Text className="flex items-center gap-2 text-md">
+              <CalendarClock aria-hidden className="size-4 shrink-0 text-slate" />
+              <PreviewWidget context={context} name="attribute" params={COUNTDOWN} />
+            </Text>
+          )}
+
+          {/* Straight before the actions, so on a phone Join follows who's
+              going rather than the map (the plan card comes after). */}
+          <div className="flex flex-col gap-1.5">
+            {context !== null && <PreviewWidget context={context} name="trip.people" />}
+            <Text as="span" className="text-pretty text-slate">
+              {CREW_CAN[landing.role]}
+            </Text>
+          </div>
+
+          <div className="flex max-w-95 flex-col gap-2.5">
+            <Button variant="primary" size="touch" className="w-full" disabled={joining} onClick={() => void join()}>
+              {joining ? "Joining…" : joinLabel}
+            </Button>
+            {error !== null && (
+              <Text as="span" role="alert" className="text-sm text-danger-ink">
+                {error} Your invite is still open — try again.
+              </Text>
+            )}
+            <Link
+              href={`/invite/${encodeURIComponent(token)}/look`}
+              className={cn(buttonVariants({ variant: "ghost", size: "touch" }), "w-full no-underline")}
+            >
+              Have a look first
+            </Link>
+            <Text as="span" className="text-pretty text-xs text-slate">
+              Joining is free — {inviter}&apos;s plan covers everyone on the trip.
+            </Text>
+          </div>
+        </div>
+
+        {preview.kind === "ready" && context !== null && <InvitePlanCard preview={preview.preview} context={context} />}
+        {preview.kind === "failed" && <PlanUnavailable onRetry={retryPreview} />}
+      </div>
+    </PreviewScope>
   );
 }
 
-// A static map, never a template string: Tailwind only emits utilities it can
-// see as literal text (same pattern as `MapHoverCard`'s DOT_BG).
-const SOLID_BG: Record<AccentFamily, string> = {
-  brand: "bg-brand",
-  info: "bg-info",
-  success: "bg-success",
-  warning: "bg-warning",
-  danger: "bg-danger",
-  neutral: "bg-slate",
-};
-
-function highlightLine(leg: ValidLanding["legs"][number]): string {
-  if (leg.stopCount === 0) return "Nothing planned yet — open for ideas";
-  if (leg.highlights.length > 0) return leg.highlights.join(" · ");
-  return leg.stopCount === 1 ? "1 stop" : `${leg.stopCount} stops`;
-}
-
-/** "Dana Reyes" → "DR", "Alice" → "A". From a NAME — the landing carries no ids. */
-function initials(name: string): string {
-  const words = name.trim().split(/\s+/).filter(Boolean);
-  return words
-    .slice(0, 2)
-    .map((w) => w[0]!.toUpperCase())
-    .join("") || "?";
-}
+const COUNTDOWN = { field: "trip.countdown" };
 
 function sentLine(landing: ValidLanding): string {
   const when = formatRelativeInstant(landing.sentAt);
@@ -356,25 +319,6 @@ function metaLine(landing: ValidLanding): string {
   parts.push(dayCount === 1 ? "1 day" : `${dayCount} days`);
   parts.push(cityCount === 1 ? "1 city" : `${cityCount} cities`);
   return parts.join(" · ");
-}
-
-/**
- * "Dana, Mei, Priya and Kenji are planning. You can add stops, vote and
- * comment." The second sentence is the ROLE on offer, so a viewer invite does
- * not promise what it cannot give.
- */
-function crewLine(landing: ValidLanding): string {
-  const names = landing.crew;
-  const shown = names.length > CREW_AVATARS ? names.slice(0, CREW_AVATARS - 1) : names;
-  const rest = names.length - shown.length;
-  const list =
-    rest > 0
-      ? `${shown.join(", ")} and ${rest} ${rest === 1 ? "other" : "others"}`
-      : shown.length === 1
-        ? shown[0]!
-        : `${shown.slice(0, -1).join(", ")} and ${shown[shown.length - 1]}`;
-  const verb = names.length === 1 ? "is" : "are";
-  return `${list} ${verb} planning. ${CREW_CAN[landing.role]}`;
 }
 
 // A `Record`, so a new invite role does not compile until the landing says

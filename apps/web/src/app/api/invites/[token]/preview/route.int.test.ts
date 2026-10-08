@@ -9,7 +9,7 @@ import { upsertUser, writePreferences } from "@/server/users";
 import { idAvoidingColors } from "@/server/test-support/personaIds";
 import { defaultPersonColor, resolveTripColors } from "@tc/domain";
 import { acceptInvite, createInvite, inviteByToken, revokeInvite } from "@/server/access/invites";
-import { requireTripAccess } from "@/server/access/trip-access";
+import { tripAccessFor } from "@/server/access/trip-access";
 import { entitleAccounts } from "@/server/test-support/entitledAccount";
 import { displayNameFor } from "@/lib/displayName";
 
@@ -19,7 +19,7 @@ import { displayNameFor } from "@/lib/displayName";
 // what actually leaves.
 
 // Never signed in: the token is the whole authority here. Mocked rather than
-// left real because `next-auth` does not load under vitest, and the look read
+// left real because `next-auth` does not load under vitest, and the board read
 // below imports the seam that would call it.
 vi.mock("@/server/auth", () => ({ auth: vi.fn(async () => null) }));
 // The real lookup, watched: an oversized token is refused before it runs.
@@ -103,12 +103,12 @@ describe("GET /api/invites/:token/preview — a pending invite", () => {
     const body = JSON.parse(raw) as TripPreview;
 
     // 1500 × 1 picked + 4000 × 2 travellers + 1000 × 2 in the backlog. And it
-    // is the board's number, not a second sum: the same figure *Have a look
-    // first* reads through the trip-access seam.
-    const look = await requireTripAccess(tripId, "viewer", { inviteToken: invite.token });
-    if (!("detail" in look)) throw new Error("the look read refused a pending token");
+    // is the board's number, not a second sum: the same figure the owner's
+    // board reads through the trip-access seam.
+    const board = await tripAccessFor(OWNER, tripId, "viewer");
+    if (!board.ok) throw new Error(`the owner's read was refused: ${board.denial}`);
     expect(body.total).toEqual(usd(11_500));
-    expect(body.total.amountMinor).toBe(look.detail.tripCostTotal);
+    expect(body.total.amountMinor).toBe(board.detail.tripCostTotal);
 
     const meiShows = resolveTripColors([
       { userId: OWNER, color: "moss" },

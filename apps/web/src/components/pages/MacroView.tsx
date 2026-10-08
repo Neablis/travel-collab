@@ -4,7 +4,7 @@ import type { TripDetail, PageContext, TripGlobals, UserPreferences } from "@tc/
 import { renderMacro, getMacro, UNBOUND_GHOSTS, type ExternalInputs, type ExternalNeed, type Seg } from "@tc/pages";
 import { cn } from "@/lib/cn";
 import { useToday } from "@/lib/today";
-import { usePeople } from "./people";
+import { usePeople, usePersonas } from "./people";
 import { cityAccents, CITY_INK, type CityAccents } from "./cityAccents";
 import { EmptyChip } from "./EmptyChip";
 import { BlockView } from "./BlockView";
@@ -153,7 +153,9 @@ export function MacroView({ detail, context, user = null, globals = null, extern
   // Member names, for the widgets that say who (`WidgetContext.people`).
   // `null` outside a `PeopleProvider` — the widget then says "Traveler 2".
   const people = usePeople();
-  const outcome = renderMacro({ trip: detail, page: context, user, globals, today, external, people }, name, params);
+  // How each looks and whether they are going, for `trip.people` (M38).
+  const personas = usePersonas();
+  const outcome = renderMacro({ trip: detail, page: context, user, globals, today, external, people, personas }, name, params);
   // Never the stored name: that is raw syntax on the screen (M14 gate box, `noRawSyntax.test.tsx`).
   if (outcome.status === "unknown") return <EmptyChip tone="error" label="this widget isn't available in this version" />;
   if (outcome.status === "bad-params") return <EmptyChip tone="error" label="this widget's settings no longer fit it" />;

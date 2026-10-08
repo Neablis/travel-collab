@@ -10,7 +10,6 @@ import { grantMembership } from "@/server/access/members";
 import { createSuggestion } from "@/server/suggestions/create";
 import { entitleAccounts } from "@/server/test-support/entitledAccount";
 import { DEMO_TRIP_ID } from "@/lib/demoTrip";
-import { INVITE_TOKEN_HEADER } from "@/lib/inviteLook";
 
 const OWNER = "events-owner";
 const GUEST = "events-guest";
@@ -264,21 +263,6 @@ describe("GET /api/trips/:id/events — suggestionsRev", () => {
     const after = (await pollBody(tripId, 0)).suggestionsRev;
     expect(after).toEqual(expect.any(String));
     expect(after).not.toBe(before);
-  });
-
-  // The token is the only thing that seam consults when it is sent, so even the
-  // trip's own owner reading through one is a viewer here.
-  it("is absent from an invite-token read, even with the owner signed in", async () => {
-    const tripId = await seedTrip();
-    const invite = await createInvite(tripId, OWNER, { email: null, role: "editor" });
-    const res = await GET(
-      new Request(`http://test/api/trips/${tripId}/events?after=0`, {
-        headers: { [INVITE_TOKEN_HEADER]: invite.token },
-      }),
-      params(tripId),
-    );
-    expect(res.status).toBe(200);
-    expect(await res.json()).not.toHaveProperty("suggestionsRev");
   });
 
   // Every owner's and editor's poll runs the revision query. Its failure must

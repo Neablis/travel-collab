@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { SavedStop } from "@tc/contracts";
+import type { PreviewStop, SavedStop } from "@tc/contracts";
 import {
   allLegs,
   allPoints,
@@ -69,6 +69,21 @@ describe("one day's geometry", () => {
     const g = dayGeometry([nowhere(), nowhere()], 0);
     expect(g.points).toEqual([]);
     expect(g.legs).toEqual([]);
+  });
+
+  // The invite page draws its preview through this map (M38 part 5), and a
+  // preview stop is a title and a place and nothing else. Typed as the
+  // contract's, not `SavedStop`, so narrowing what the map takes back to a
+  // whole saved stop fails the typecheck here.
+  it("draws an invite preview's stops, which carry only a title and a place", () => {
+    const stops: PreviewStop[] = [
+      { title: "a", location: { name: "a", lat: 1, lng: 1 } },
+      { title: "b", location: null },
+      { title: "c", location: { name: "c", lat: 3, lng: 3 } },
+    ];
+    const g = dayGeometry(stops, 0);
+    expect(g.points.map((p) => [p.number, p.title])).toEqual([[1, "a"], [3, "c"]]);
+    expect(g.legs.map((l) => l.contiguous)).toEqual([false]);
   });
 });
 

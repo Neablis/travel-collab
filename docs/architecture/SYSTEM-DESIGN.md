@@ -230,6 +230,8 @@ A new feature owes the API an *exposure line*, not an endpoint (`docs/guidelines
 - **Invite**: a 32-byte token stored as issued. `/invite/<token>` is public; the proxy banks the token in a
   short-lived cookie across the OAuth round trip. Accept flips status and inserts the membership in one
   transaction, conditioned on the row still being pending. Inviting needs the owner's `trip.collaborators`.
+  Before accepting, the landing and "Have a look first" both draw `InvitePlanCard` from the token-scoped
+  preview (`TripPreview`), never the board.
 - **Pinned share**: a `trip_shares` row holding the trip's `seq` at creation. Reading it replays the first `seq`
   events (ADR-027). Re-pinning is a new row.
 - **Sign-up is open** (ADR-063, signup). Invite codes now only track referrals.
@@ -256,8 +258,10 @@ dispatched workflow. Details: `docs/guidelines/content-bundles.md`.
   (ADR-064).
 - **Tokens**: invite and share tokens are plaintext by recorded decision, so the owner can re-show the link
   (ADR-026). API tokens are hashed with a pepper, shown once, and must expire.
-- **Anonymous readers**: the demo trip, invite "look first", pinned shares, and the public playbook library
-  (ADR-061), each opt-in per route.
+- **Anonymous readers**: the demo trip, pinned shares, and the public playbook library (ADR-061), each opt-in
+  per route. A pending invite's holder reads only its landing and `GET /api/invites/:token/preview`, which
+  carries no per-stop or per-person cost (M38 D4). "Have a look first" renders that preview, and a pending
+  token opens no trip read (ADR-026 amendment, 2026-10-08).
 - **Admin**: `users.is_admin`, checked in the route or server page, behind the `admin-console` flag.
 
 ## 7. External services

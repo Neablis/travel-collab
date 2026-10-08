@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TripEventsPage } from "@tc/contracts";
-import { inviteTokenOf, requireTripAccess } from "@/server/access/trip-access";
+import { requireTripAccess } from "@/server/access/trip-access";
 import { getTripEventsAfter } from "@/server/broadcast";
 import { suggestionsRevForRole } from "@/server/suggestions/rev";
 import { accessRevFor } from "@/server/access/members";
@@ -27,7 +27,7 @@ const AfterParam = z.coerce.number().int().nonnegative();
 
 export async function GET(request: Request, { params }: { params: Promise<{ tripId: string }> }) {
   const { tripId } = await params;
-  const access = await requireTripAccess(tripId, "viewer", { allowDemo: true, inviteToken: inviteTokenOf(request) });
+  const access = await requireTripAccess(tripId, "viewer", { allowDemo: true });
   if ("error" in access) return access.error;
 
   const raw = new URL(request.url).searchParams.get("after");
@@ -41,8 +41,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ trip
 
   // Spec W6. The role is the one `requireTripAccess` already resolved, so the
   // poll pays one more query, not the trip and membership reads again. The demo
-  // and an invite-token read are answered as `viewer` by that seam, whatever
-  // session is present, and a viewer is given no revision.
+  // is answered as `viewer` by that seam, whatever session is present, and a
+  // viewer is given no revision.
   //
   // Every owner's and editor's poll runs that query, suggestions or none, so its
   // failure is caught here: the reader loses the revision for one poll (the

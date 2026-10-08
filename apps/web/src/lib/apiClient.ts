@@ -26,6 +26,7 @@ import {
   TripEventsPage,
   TripHistory,
   TripInvite,
+  TripPreview,
   TripShare,
   TripSuggestionsResponse,
   TripSummary,
@@ -48,7 +49,6 @@ import { z } from "zod";
 import { BASE_URL } from "@/config";
 import { ALL_KEYS, beginWrite, clearQueryCache, endWrite } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
-import { inviteLookHeaders } from "@/lib/inviteLook";
 import { CitySearchResponse, PlaceSearchResponse, type CityMatch, type PlaceMatch } from "@/lib/cities";
 import {
   DiscoverResponse,
@@ -182,7 +182,7 @@ export async function fetchTrips(): Promise<ApiResult<TripSummary[]>> {
 
 export async function fetchTripDetail(tripId: string): Promise<ApiResult<TripDetail>> {
   try {
-    const res = await fetch(apiUrl(`/api/trips/${tripId}`), { headers: inviteLookHeaders(tripId) });
+    const res = await fetch(apiUrl(`/api/trips/${tripId}`));
     if (!res.ok) {
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       return { ok: false, error: { status: res.status, message: data.error ?? res.statusText } };
@@ -196,7 +196,7 @@ export async function fetchTripDetail(tripId: string): Promise<ApiResult<TripDet
 
 export async function fetchTripHistory(tripId: string): Promise<ApiResult<TripHistory>> {
   try {
-    const res = await fetch(apiUrl(`/api/trips/${tripId}/history`), { headers: inviteLookHeaders(tripId) });
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/history`));
     if (!res.ok) {
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       return { ok: false, error: { status: res.status, message: data.error ?? res.statusText } };
@@ -220,9 +220,7 @@ export async function fetchTripEvents(
   after: number,
 ): Promise<ApiResult<TripEventsPage>> {
   try {
-    const res = await fetch(apiUrl(`/api/trips/${tripId}/events?after=${after}`), {
-      headers: inviteLookHeaders(tripId),
-    });
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/events?after=${after}`));
     if (!res.ok) {
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       return { ok: false, error: { status: res.status, message: data.error ?? res.statusText } };
@@ -235,7 +233,7 @@ export async function fetchTripEvents(
 
 export async function fetchTripDetailAt(tripId: string, seq: number): Promise<ApiResult<TripDetail>> {
   try {
-    const res = await fetch(apiUrl(`/api/trips/${tripId}/history/${seq}`), { headers: inviteLookHeaders(tripId) });
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/history/${seq}`));
     if (!res.ok) {
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       return { ok: false, error: { status: res.status, message: data.error ?? res.statusText } };
@@ -435,7 +433,7 @@ async function readJson<T>(res: Response, parse: (data: unknown) => T): Promise<
 
 export async function fetchTripAccess(tripId: string): Promise<ApiResult<TripAccess>> {
   try {
-    const res = await fetch(apiUrl(`/api/trips/${tripId}/access`), { headers: inviteLookHeaders(tripId) });
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/access`));
     return await readJson(res, (data) => TripAccess.parse((data as { access: unknown }).access));
   } catch (err) {
     return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
@@ -545,6 +543,20 @@ export async function fetchInviteLanding(token: string): Promise<ApiResult<Invit
     }
     const data = (await res.json().catch(() => ({}))) as { error?: string };
     return { ok: false, error: { status: res.status, message: data.error ?? res.statusText } };
+  } catch (err) {
+    return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
+  }
+}
+
+/**
+ * What a pending invite lets its holder see of the trip before joining (M38
+ * D4). A refusal is 404 or 410 with an empty body — the landing beside it says
+ * which state the invite is in, so this only reports that there is nothing.
+ */
+export async function fetchInvitePreview(token: string): Promise<ApiResult<TripPreview>> {
+  try {
+    const res = await fetch(apiUrl(`/api/invites/${encodeURIComponent(token)}/preview`), { cache: "no-store" });
+    return await readJson(res, (data) => TripPreview.parse(data));
   } catch (err) {
     return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
   }
@@ -853,7 +865,7 @@ export async function cloneSharedTrip(token: string): Promise<ApiResult<{ tripId
  */
 export async function fetchTripGlobals(tripId: string): Promise<ApiResult<TripGlobals>> {
   try {
-    const res = await fetch(apiUrl(`/api/trips/${tripId}/globals`), { headers: inviteLookHeaders(tripId) });
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/globals`));
     return await readJson(res, (data) => TripGlobals.parse((data as { globals: unknown }).globals));
   } catch (err) {
     return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
@@ -869,7 +881,7 @@ export async function fetchTripGlobals(tripId: string): Promise<ApiResult<TripGl
  */
 export async function fetchTripWeather(tripId: string): Promise<ApiResult<TripWeather>> {
   try {
-    const res = await fetch(apiUrl(`/api/trips/${tripId}/weather`), { headers: inviteLookHeaders(tripId) });
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/weather`));
     return await readJson(res, (data) => TripWeatherResponse.parse(data).weather);
   } catch (err) {
     return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
@@ -1127,7 +1139,6 @@ export async function fetchNearbyStops(
     params.set("lng", String(query.lng));
   }
   try {
-    // No `inviteLookHeaders`: the route serves members only (see its comment).
     const res = await fetch(apiUrl(`/api/trips/${tripId}/nearby-stops?${params.toString()}`));
     return await readJson(res, (data) => NearbyStopsResponse.parse(data));
   } catch (err) {

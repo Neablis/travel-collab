@@ -358,7 +358,7 @@ describe("Home trip cards' planned-of-budget line", () => {
     // from its own real TripDetail fetch, not something threaded through
     // NextTripHero (which never renders or calls TripCard).
     expect(await screen.findByText(`${formatMoney(12_500, "USD")} planned of ${formatMoney(50_000, "USD")}`)).toBeTruthy();
-    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining(`/api/trips/${secondTripId}`), expect.anything());
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining(`/api/trips/${secondTripId}`));
   });
 
   it("renders a grid card without a planned-of-budget line while its own TripDetail fetch is still pending or has failed (no fabricated or stale line)", async () => {
@@ -402,7 +402,7 @@ describe("Home trip cards' planned-of-budget line", () => {
 
     // Resolving with an error afterward must not retroactively fabricate one.
     resolveSecond!(jsonResponse({ error: "boom" }, 500));
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining(`/api/trips/${secondTripId}`), expect.anything()));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining(`/api/trips/${secondTripId}`)));
     expect(within(peruBlock!).queryByText(/planned of/)).toBeNull();
     expect(within(peruBlock!).queryByText("No budget yet")).toBeNull();
   });

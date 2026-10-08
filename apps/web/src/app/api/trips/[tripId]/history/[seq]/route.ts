@@ -1,14 +1,14 @@
 import { TripDetail } from "@tc/contracts";
-import { inviteTokenOf, requireTripAccess } from "@/server/access/trip-access";
+import { requireTripAccess } from "@/server/access/trip-access";
 import { getTripDetailAt } from "@/server/history";
 import { overlayMembers } from "@/server/access/overlay";
 
 export async function GET(
-  request: Request,
+  _request: Request,
   { params }: { params: Promise<{ tripId: string; seq: string }> },
 ) {
   const { tripId, seq } = await params;
-  const access = await requireTripAccess(tripId, "viewer", { allowDemo: true, inviteToken: inviteTokenOf(request) });
+  const access = await requireTripAccess(tripId, "viewer", { allowDemo: true });
   if ("error" in access) return access.error;
   const at = await getTripDetailAt(tripId, Number(seq));
   if (at === null) return Response.json({ error: "not-found" }, { status: 404 });

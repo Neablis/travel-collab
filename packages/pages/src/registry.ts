@@ -14,6 +14,7 @@ import { dayRows, cityRows, stopRows, costRows } from "./macros/primitives/rows"
 import { open } from "./macros/primitives/open";
 import { countryFactsWidget } from "./macros/primitives/countryFacts";
 import { tripStripWidget } from "./macros/primitives/tripStrip";
+import { tripPeopleWidget } from "./macros/primitives/tripPeople";
 import { costChart } from "./macros/primitives/spendByDay";
 import { costBreakdown } from "./macros/primitives/spendBreakdown";
 import { costBalances, personShare } from "./macros/primitives/balances";
@@ -50,6 +51,9 @@ const DEFS: AnyMacroDef[] = [
   countryFactsWidget,
   // "Trip strip" (M14 link 11), on the same terms. See `tripStrip.ts`.
   tripStripWidget,
+  // "Who's going" (M38), on the same terms: the invite page draws it, and so
+  // can any notebook. See `tripPeople.ts`.
+  tripPeopleWidget,
   // "Spend by day" (M14 link 11): a primitive, `stop` + filters drawn as a chart.
   costChart,
   // "Spend by kind" / "Spend by tag" (2026-09-26): the same stops and money

@@ -1,5 +1,5 @@
 import { TripGlobals } from "@tc/contracts";
-import { inviteTokenOf, requireTripAccess } from "@/server/access/trip-access";
+import { requireTripAccess } from "@/server/access/trip-access";
 import { auth } from "@/server/auth";
 import { buildTripGlobals } from "@/server/tripGlobals";
 import { readPreferences } from "@/server/users";
@@ -15,13 +15,13 @@ import { readPreferences } from "@/server/users";
 // Same guard as the detail route, deliberately: this is derived entirely from
 // `TripDetail`, so anyone who may read the trip may read this, and anyone who
 // may not must not be able to count its cities either.
-export async function GET(request: Request, { params }: { params: Promise<{ tripId: string }> }) {
+export async function GET(_request: Request, { params }: { params: Promise<{ tripId: string }> }) {
   const { tripId } = await params;
-  const access = await requireTripAccess(tripId, "viewer", { allowDemo: true, inviteToken: inviteTokenOf(request) });
+  const access = await requireTripAccess(tripId, "viewer", { allowDemo: true });
   if ("error" in access) return access.error;
   // The home zone is the READER's (M14 link 11), so it comes from the session,
-  // not from `access.userId`: a signed-in person looking at the demo or an
-  // invite is `demo-visitor` / `invite-visitor` there, and still has a home.
+  // not from `access.userId`: a signed-in person looking at the demo is
+  // `demo-visitor` there, and still has a home.
   // Nobody signed in has none, and costs no query.
   const session = await auth();
   const reader = session?.user?.id ? await readPreferences(session.user.id) : undefined;

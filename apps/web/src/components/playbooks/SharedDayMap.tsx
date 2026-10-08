@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { SavedStop } from "@tc/contracts";
+import type { MapStop } from "./sharedDayGeometry";
 import { createBaseMap } from "@/components/lenses/mapBootstrap";
 import { mapPaintColor } from "@/components/lenses/mapColor";
 import { MapOfflineState } from "@/components/lenses/MapOfflineState";
@@ -121,7 +121,7 @@ export function SharedDayMap({
   pinning = false,
 }: {
   savedDayId: string;
-  days: readonly { dayIndex: number; stops: readonly SavedStop[] }[];
+  days: readonly { dayIndex: number; stops: readonly MapStop[] }[];
   /** `"all"`, or the 0-based day the reader has scoped to (§33.1). */
   scope: "all" | number;
   /**

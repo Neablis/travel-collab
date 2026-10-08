@@ -16,6 +16,14 @@ import { MIN_POINTS_TO_DRAW } from "@tc/contracts";
 //   3. **The cache key includes the day**, or switching tabs leaves the
 //      previous day's line on screen.
 
+/**
+ * What the map reads off a stop: its title and where it is. A Playbook's
+ * `SavedStop` is one, and so is an invite preview's stop (M38 part 5), which
+ * carries nothing else — `StopsTheMapCanDraw` in `@tc/contracts` holds the
+ * two shapes together.
+ */
+export type MapStop = Pick<SavedStop, "title" | "location">;
+
 /** A stop that actually has somewhere to be drawn. */
 export type MapPoint = {
   /** Its number in the current scope — the same number the list shows. */
@@ -47,7 +55,7 @@ export type DayGeometry = { dayIndex: number; points: readonly MapPoint[]; legs:
 // while `@tc/contracts` stays the one place the NUMBER is written down.
 export { MIN_POINTS_TO_DRAW };
 
-function hasCoords(stop: SavedStop): stop is SavedStop & { location: { lat: number; lng: number } } {
+function hasCoords(stop: MapStop): stop is MapStop & { location: { lat: number; lng: number } } {
   return (
     // `Number.isFinite`, not `typeof === "number"`: `typeof NaN` is `"number"`,
     // so the weaker check called a stop located and handed NaN straight to
@@ -71,7 +79,7 @@ function hasCoords(stop: SavedStop): stop is SavedStop & { location: { lat: numb
  * picture of a walk nobody took. They are drawn as a city instead
  * (`cityMarkers`).
  */
-function located(stop: SavedStop): stop is SavedStop & { location: { lat: number; lng: number } } {
+function located(stop: MapStop): stop is MapStop & { location: { lat: number; lng: number } } {
   return hasCoords(stop) && stop.location.precision !== "city";
 }
 
@@ -87,7 +95,7 @@ function located(stop: SavedStop): stop is SavedStop & { location: { lat: number
  * beside the list's stop 5 would be worse than one with a gap in its numbers.
  */
 export function dayGeometry(
-  stops: readonly SavedStop[],
+  stops: readonly MapStop[],
   dayIndex: number,
   startNumber = 1,
 ): DayGeometry {
@@ -126,7 +134,7 @@ export function dayGeometry(
  * every other leg.
  */
 export function playbookGeometry(
-  days: readonly { dayIndex: number; stops: readonly SavedStop[] }[],
+  days: readonly { dayIndex: number; stops: readonly MapStop[] }[],
   { continuousNumbering = true }: { continuousNumbering?: boolean } = {},
 ): readonly DayGeometry[] {
   let running = 1;
@@ -171,7 +179,7 @@ export type CityMarker = { city: string; lat: number; lng: number; stops: number
  * the same one.
  */
 export function cityMarkers(
-  days: readonly { dayIndex: number; stops: readonly SavedStop[] }[],
+  days: readonly { dayIndex: number; stops: readonly MapStop[] }[],
   scope: "all" | number,
 ): readonly CityMarker[] {
   const byCity = new Map<string, CityMarker>();
@@ -238,7 +246,7 @@ export function geometryKey(
  * to prevent.
  */
 export function scopedGeometry(
-  days: readonly { dayIndex: number; stops: readonly SavedStop[] }[],
+  days: readonly { dayIndex: number; stops: readonly MapStop[] }[],
   scope: "all" | number,
 ): readonly DayGeometry[] {
   const geometry = playbookGeometry(days, { continuousNumbering: scope === "all" });

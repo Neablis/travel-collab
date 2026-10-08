@@ -363,7 +363,7 @@ test("a revoked link stops working", async ({ page, browser }) => {
 });
 
 // M27 link 6's walk, in a browser: somebody with no account opens the link,
-// reads the landing, has a look at the real trip read-only, and joins from
+// reads the landing, has a look at the trip's preview, and joins from
 // the look — through sign-in, and back to a finished join. This is the whole
 // path `useInviteJoin`'s marker and `proxy.ts`'s cookie exist for, which no
 // lower layer can walk: it leaves the site and comes back.
@@ -385,17 +385,17 @@ test("a signed-out visitor reads the invite, has a look first, and joins from th
     // The landing, not a sign-in redirect: who asked, and what the trip is.
     await expect(visitor.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
     await expect(visitor.getByText(/ invited you$/)).toBeVisible();
+    // The trip before joining (M38), drawn from the token-scoped preview.
+    await expect(visitor.getByRole("region", { name: "The plan so far" })).toBeVisible();
 
     await visitor.getByRole("link", { name: "Have a look first" }).click();
     await expect(visitor).toHaveURL(/\/invite\/[^/]+\/look$/);
     await expect(visitor.getByText(/invited you to plan this trip$/)).toBeVisible();
-    // The real board, read-only: the trip's own heading and its stop, and none
-    // of the controls that would change it (SPEC §27 — absent, not disabled).
-    await expect(visitor.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
-    await openPlan(visitor);
-    await expect(visitor.locator('[data-testid^="activity-card-"]')).toHaveCount(1);
-    await expect(visitor.getByRole("button", { name: "Add stop" })).toHaveCount(0);
-    await expect(visitor.getByTestId("one-more-day-column")).toHaveCount(0);
+    // The landing's plan card, not the board (M38): the board prints every
+    // stop's cost, which an invitee does not see before joining (D4).
+    await expect(visitor.getByRole("region", { name: "The plan so far" })).toBeVisible();
+    await expect(visitor.getByRole("heading", { name: tripName, level: 2 })).toHaveCount(0);
+    await expect(visitor.locator('[data-testid^="activity-card-"]')).toHaveCount(0);
 
     // Join from the banner: no session, so it goes to sign in — there is no
     // Google provider in this lane — with the invite as the way back.

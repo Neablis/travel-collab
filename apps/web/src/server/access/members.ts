@@ -496,11 +496,11 @@ export async function changeMemberRole(
  *
  * **An email goes only to the OWNER, and to each person for their own row**
  * (KI-2026-09-05-f item 3, F-A04). A viewer can be a stranger: an invite link
- * is a bearer token (ADR-026) and the look-first view serves the trip to
- * whoever holds one, so sending every traveller's address to every reader was a
- * leak. The owner invited people by address and needs it to tell two unnamed
- * travellers apart; everyone else gets `null`, which `displayNameFor` already
- * falls through to the name or the handle. `viewerId` is required so no caller
+ * is a bearer token (ADR-026), and whoever accepts one is on the trip, so
+ * sending every traveller's address to every reader was a leak. The owner
+ * invited people by address and needs it to tell two unnamed travellers apart;
+ * everyone else gets `null`, which `displayNameFor` already falls through to
+ * the name or the handle. `viewerId` is required so no caller
  * can forget to decide.
  *
  * **"The owner" is `members[0]`, the projection's head — never the viewer's

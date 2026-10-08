@@ -8,11 +8,9 @@ import { nearbyStopsFor } from "@/server/nearbyStops";
 // is why the route checks trip access at all (D13) — anyone who may read the
 // trip may ask, and anyone who may not must not learn where it goes.
 //
-// Signed-in members only: no `allowDemo`, no invite token. The demo's board and
-// a *Have a look first* board are both read-only, so neither ever opens the
-// add-stop sheet — and the reads an invite token opens are exactly the demo's,
-// by M27 D12 (`inviteTokenRoutes.test.ts` holds the two lists equal). Opening
-// either here would widen what an anonymous caller can run for no reader.
+// Signed-in members only: no `allowDemo`. The demo's board is read-only, so it
+// never opens the add-stop sheet, and opening the route to it would widen what
+// an anonymous caller can run for no reader.
 
 // A coordinate is a finite number or absent. Not `z.coerce.number()` alone:
 // it maps "" to 0, and `?lat=&lng=` would then be a point off the coast of

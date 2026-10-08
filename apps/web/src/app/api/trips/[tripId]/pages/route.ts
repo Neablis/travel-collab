@@ -1,15 +1,14 @@
 import { CreatePageInput, serializePageDoc } from "@tc/contracts";
 import { randomUUID } from "node:crypto";
 import { guard } from "@/server/pages-guard";
-import { inviteTokenOf } from "@/server/access/trip-access";
 import { MAX_PAGE_BODY_BYTES, listPageEntries } from "@/server/pages";
 import { executePageCommand } from "@/server/pageCommands";
 import { readBody } from "@/server/readBody";
 
-export async function GET(req: Request, { params }: { params: Promise<{ tripId: string }> }) {
+export async function GET(_req: Request, { params }: { params: Promise<{ tripId: string }> }) {
   const { tripId } = await params;
   // A viewer may read the Notebook; only an editor may add to it.
-  const g = await guard(tripId, "viewer", { allowDemo: true, inviteToken: inviteTokenOf(req) });
+  const g = await guard(tripId, "viewer", { allowDemo: true });
   if ("error" in g) return g.error;
   // `viewerId` rides along so the index's provenance line can say "Yours"
   // truthfully. `actorId` alone only proves a PERSON wrote a notebook, not that

@@ -23,6 +23,7 @@ import {
   clearSavedDayCover,
   clearTripCover,
   fetchInviteLanding,
+  fetchInvitePreview,
   fetchPreferences,
   fetchSavedDay,
   fetchSavedDayCover,
@@ -68,7 +69,6 @@ import {
 } from "@/lib/apiClient";
 import { cachedRead, clearQueryCache } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
-import { INVITE_TOKEN_HEADER, beginInviteLook } from "@/lib/inviteLook";
 import { ASK_FAILED_MESSAGE, CURRENT_PAGE_DOC_VERSION } from "@tc/contracts";
 import { historyFixture, tripDetailFixture } from "@tc/factories";
 import { makeTripHandlers } from "@/mocks/handlers";
@@ -265,6 +265,7 @@ const FETCHING_HELPERS: Record<string, () => Promise<ApiResult<unknown>>> = {
   fetchTripSuggestions: () => fetchTripSuggestions(TRIP_ID),
   resolveSuggestionChange: () => resolveSuggestionChange(TRIP_ID, UUID, "accept"),
   fetchInviteLanding: () => fetchInviteLanding("tok"),
+  fetchInvitePreview: () => fetchInvitePreview("tok"),
   acceptInvite: () => acceptInvite("tok"),
   fetchTripShares: () => fetchTripShares(TRIP_ID),
   createTripShare: () => createTripShare(TRIP_ID),
@@ -502,39 +503,6 @@ describe("fetchSavedDay carries publishedAt without inventing one", () => {
     answer({});
     const older = await fetchSavedDay(UUID);
     expect(older.ok && older.value.moderation).toBeNull();
-  });
-});
-
-// *Have a look first* (M27 D12): the look screen registers its token for one
-// trip, and that trip's READS carry it. The server refuses the header on any
-// write and on any other trip regardless (`requireTripAccess`), so this is
-// about not sending a credential where it is not needed — a token on a write
-// request is one more place it can be logged.
-describe("an invite look carries its token on that trip's reads only", () => {
-  const OTHER_TRIP = "33333333-3333-4333-8333-333333333333";
-
-  it("attaches the header to a read of the looked-at trip, and nowhere else", async () => {
-    const seen: { url: string; token: string | null }[] = [];
-    const record = ({ request }: { request: Request }) => {
-      seen.push({ url: new URL(request.url).pathname, token: request.headers.get(INVITE_TOKEN_HEADER) });
-      return HttpResponse.json({ error: "not-under-test" }, { status: 500 });
-    };
-    server.use(http.get("*/api/trips/:tripId", record), http.post("*/api/trips/:tripId/commands", record));
-
-    const end = beginInviteLook(TRIP_ID, "tok-123");
-    await fetchTripDetail(TRIP_ID);
-    await fetchTripDetail(OTHER_TRIP);
-    await sendTripCommand({ type: "AddDay", tripId: TRIP_ID, dayId: UUID });
-    end();
-    await fetchTripDetail(TRIP_ID);
-
-    expect(seen).toEqual([
-      { url: `/api/trips/${TRIP_ID}`, token: "tok-123" },
-      { url: `/api/trips/${OTHER_TRIP}`, token: null },
-      { url: `/api/trips/${TRIP_ID}/commands`, token: null },
-      // Ended with the screen: the next read of the trip is an ordinary one.
-      { url: `/api/trips/${TRIP_ID}`, token: null },
-    ]);
   });
 });
 

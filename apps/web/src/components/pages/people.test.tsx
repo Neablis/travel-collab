@@ -116,8 +116,8 @@ describe("PeopleProvider", () => {
     );
     await screen.findByText("ready");
     expect(seen).toEqual({
-      "u-ana": { name: "Nana", avatar: "compass", color: "plum", colorShifted: true },
-      "u-ben-4f2a91": { name: "Traveler 4f2a91", avatar: null, color: null, colorShifted: false },
+      "u-ana": { name: "Nana", avatar: "compass", color: "plum", colorShifted: true, travelling: true },
+      "u-ben-4f2a91": { name: "Traveler 4f2a91", avatar: null, color: null, colorShifted: false, travelling: true },
     });
   });
 

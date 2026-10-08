@@ -1,5 +1,5 @@
 import { TripWeather } from "@tc/contracts";
-import { inviteTokenOf, requireTripAccess } from "@/server/access/trip-access";
+import { requireTripAccess } from "@/server/access/trip-access";
 import { pgCacheStore } from "@/server/external/cache";
 import { getClimate, getForecast, type Forecast } from "@/server/external/weather";
 import { buildTripWeather } from "@/server/external/weather/tripWeather";
@@ -39,9 +39,9 @@ function forecastOrNull(): Forecast | null {
 }
 
 /** Answers `{ weather }` (a `TripWeatherResponse`) for a trip the caller may read; 401/403/404 as `globals` does. */
-export async function GET(request: Request, { params }: { params: Promise<{ tripId: string }> }) {
+export async function GET(_request: Request, { params }: { params: Promise<{ tripId: string }> }) {
   const { tripId } = await params;
-  const access = await requireTripAccess(tripId, "viewer", { allowDemo: true, inviteToken: inviteTokenOf(request) });
+  const access = await requireTripAccess(tripId, "viewer", { allowDemo: true });
   if ("error" in access) return access.error;
 
   const started = Date.now();
@@ -49,8 +49,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ trip
     forecast: forecastOrNull(),
     climate: getClimate(),
     store: pgCacheStore(),
-    // Per actor: a demo or invite visitor is `demo-visitor` / `invite-visitor`,
-    // one shared bucket each, which is the conservative direction.
+    // Per actor: every demo visitor is `demo-visitor`, one shared bucket,
+    // which is the conservative direction.
     charge: async () => (await consumeQuota(weatherQuota(), access.userId)).allowed,
     now: new Date(started),
     outOfTime: () => Date.now() - started > START_BUDGET_MS,

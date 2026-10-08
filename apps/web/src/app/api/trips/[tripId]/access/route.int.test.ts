@@ -11,7 +11,7 @@ import { upsertUser, writePreferences } from "@/server/users";
 import { idAvoidingColors } from "@/server/test-support/personaIds";
 import { defaultPersonColor } from "@tc/domain";
 import type { PersonColor } from "@tc/contracts";
-import { INVITE_TOKEN_HEADER } from "@/lib/inviteLook";
+import { DEMO_TRIP_ID } from "@/lib/demoTrip";
 
 const OWNER = "access-owner";
 const GUEST = "access-guest";
@@ -127,26 +127,25 @@ describe("GET /api/trips/:id/access", () => {
 
   // The People section marks "You" from this, so a failed session probe does
   // not cost a member the menu on their own row (the Leave trip door).
-  it("names the reader when they are on the trip, and nobody for a look through an invite link", async () => {
+  it("names the reader when they are on the trip, and nobody for the demo's visitor", async () => {
     const tripId = await seedTrip();
-    const invite = await createInvite(tripId, OWNER, { email: null, role: "viewer" });
     await join(tripId, "editor");
-    const read = async (headers: Record<string, string> = {}) =>
-      ((await (await GET(new Request("http://test/x", { headers }), params(tripId))).json()) as {
+    const read = async (id: string) =>
+      ((await (await GET(new Request("http://test/x"), params(id))).json()) as {
         access: { viewerId?: string };
       }).access;
 
     currentUserId = GUEST;
-    expect((await read()).viewerId).toBe(GUEST);
-    currentUserId = STRANGER;
-    expect((await read({ [INVITE_TOKEN_HEADER]: invite.token })).viewerId).toBeUndefined();
+    expect((await read(tripId)).viewerId).toBe(GUEST);
+    currentUserId = "";
+    expect((await read(DEMO_TRIP_ID)).viewerId).toBeUndefined();
   });
 });
 
 // KI-2026-09-05-f item 3 (F-A04). A viewer can be a stranger — an invite link
-// is a bearer token (ADR-026) and the look-first view serves the trip before
-// anyone joins — so a member's email is the OWNER's to see (they invited
-// people by it) and each person's own, and nobody else's.
+// is a bearer token (ADR-026), and whoever accepts one is on the trip — so a
+// member's email is the OWNER's to see (they invited people by it) and each
+// person's own, and nobody else's.
 describe("member emails in GET /access", () => {
   type Body = { access: { members: { userId: string; email: string | null }[] } };
   const emailsIn = (body: Body) => Object.fromEntries(body.access.members.map((m) => [m.userId, m.email]));
@@ -186,17 +185,16 @@ describe("member emails in GET /access", () => {
     expect(emailsIn(body)).toEqual({ [OWNER]: null, [GUEST]: "guest@example.com" });
   });
 
-  it("shows a stranger holding an invite link no email at all", async () => {
+  it("shows a stranger who joined through a viewer link nobody's email but their own", async () => {
     const tripId = await seedNamedTrip();
+    await upsertUser({ id: STRANGER, email: "stranger@example.com", name: "Stan", image: null });
     const invite = await createInvite(tripId, OWNER, { email: null, role: "viewer" });
+    expect((await acceptInvite(invite.token, STRANGER)).ok).toBe(true);
     currentUserId = STRANGER;
-    const response = await GET(
-      new Request("http://test/x", { headers: { [INVITE_TOKEN_HEADER]: invite.token } }),
-      params(tripId),
-    );
+    const response = await GET(new Request("http://test/x"), params(tripId));
     expect(response.status).toBe(200);
     const body = (await response.json()) as Body;
-    expect(Object.values(emailsIn(body))).toEqual([null, null]);
+    expect(emailsIn(body)).toEqual({ [OWNER]: null, [GUEST]: null, [STRANGER]: "stranger@example.com" });
   });
 });
 

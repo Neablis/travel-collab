@@ -143,6 +143,14 @@ module.exports = {
       from: { path: "^apps/web/src/server/(users|auth|api-tokens)(/|\\.ts$)" },
       to: { path: PLANNING_AND_ACCESS },
     },
+    {
+      name: "invite-renders-shared-widgets-only",
+      comment:
+        "M38 D6 and its gate box: the invite page shows the trip through the notebook's own widgets, and there is no invite-only copy of one. The invite screens and route reach `@tc/pages` through its public index — `renderMacro`, the context types — and never into `src/macros/**`, the result and selection helpers, or any other module a widget is BUILT from. Their one adapter, `components/access/previewContext.ts`, builds inputs and nothing else. Naming `MacroDef` through the index is the half this tool cannot see; `components/access/noInviteWidget.test.ts` holds it.",
+      severity: "error",
+      from: { path: "^apps/web/src/(components/access/|app/\\(front\\)/invite/)" },
+      to: { path: "^packages/pages/src/(?!index\\.ts$)" },
+    },
   ],
   options: {
     doNotFollow: { path: "node_modules" },

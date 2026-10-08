@@ -1,50 +1,47 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { InviteLanding } from "@tc/contracts";
-import { TripBoardScreen } from "@/components/board/TripBoardScreen";
+import type { InviteLanding, TripPreview } from "@tc/contracts";
 import { FrontDoorHeader } from "@/components/front/FrontDoorHeader";
-import { EditorHost } from "@/components/trip/context/EditorHost";
-import { FocusProvider } from "@/components/trip/context/FocusProvider";
-import { LensRouter } from "@/components/trip/context/LensRouter";
-import { TripProvider } from "@/components/trip/context/TripProvider";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { PageContainer } from "@/components/ui/page-container";
 import { Text } from "@/components/ui/text";
 import { fetchInviteLanding } from "@/lib/apiClient";
 import { cn } from "@/lib/cn";
 import { firstNameOf } from "@/lib/displayName";
-import { beginInviteLook } from "@/lib/inviteLook";
-import { invalidate } from "@/lib/queryCache";
-import { tripKeys } from "@/lib/queryKeys";
+import { useToday } from "@/lib/today";
 import { SUGGESTER_APPROVAL } from "@/lib/tripRole";
+import { InvitePlanCard, PlanUnavailable, PreviewScope } from "./InvitePlanCard";
+import { previewContext } from "./previewContext";
 import { useInviteJoin } from "./useInviteJoin";
+import { useInvitePreview } from "./useInvitePreview";
 
-// *Have a look first* (M27 D12, SPEC §35.6 and §27): the real trip, read-only,
-// for somebody holding a pending invite — signed in or not.
+// *Have a look first* (M27 D12, SPEC §35.6 and §27), for somebody holding a
+// pending invite — signed in or not.
 //
-// The same provider stack `/demo` and `/trips/:id` mount, around the same
-// board (`DemoTripScreen.tsx` is the template). Read-only is not enforced in
-// this file, for the reason it is not enforced in the demo's: the server
-// answers these reads as a synthetic VIEWER (`requireTripAccess`'s
-// `inviteToken`), and `TripProvider` already withholds a viewer's writes. The
-// only things this screen adds are the banner and the scope that makes the
-// board's reads carry the token.
+// **The landing's own plan card, not the board** (M38, canvas open question 1,
+// approved 2026-10-07). It used to mount the whole `TripBoardScreen` read-only
+// as a synthetic viewer, and the board prints every stop's cost, which D4 hides
+// from somebody who has not joined. So there is one pre-accept view of a trip,
+// `InvitePlanCard` over the token-scoped preview, and this screen is that card
+// under the look banner. As on the landing, the preview is optional: the
+// banner and its Join come from the landing alone.
 
 type ValidLanding = Extract<InviteLanding, { state: "valid" }>;
 
 /**
- * *Have a look first*: resolves the invite, then mounts the ordinary board
- * read-only under the look banner — or returns to the landing when the invite
- * is no longer pending.
+ * *Have a look first*: resolves the invite and its preview, then draws the plan
+ * card under the look banner — or returns to the landing when the invite is no
+ * longer pending.
  */
 export function InviteLookScreen({ token, googleAvailable }: { token: string; googleAvailable: boolean }) {
   const router = useRouter();
   const landingHref = `/invite/${encodeURIComponent(token)}`;
   const [landing, setLanding] = useState<ValidLanding | null>(null);
   const [failed, setFailed] = useState(false);
+  const preview = useInvitePreview(token, landing !== null);
 
   useEffect(() => {
     let live = true;
@@ -70,6 +67,12 @@ export function InviteLookScreen({ token, googleAvailable }: { token: string; go
   return (
     <>
       <FrontDoorHeader />
+      {/* The landing's own line, so the two doors open alike. */}
+      {landing === null && !failed && (
+        <PageContainer>
+          <Text variant="secondary">Opening this invite…</Text>
+        </PageContainer>
+      )}
       {failed && (
         <PageContainer>
           <Text variant="secondary">
@@ -81,22 +84,9 @@ export function InviteLookScreen({ token, googleAvailable }: { token: string; go
       {landing !== null && (
         <>
           <LookBanner landing={landing} token={token} googleAvailable={googleAvailable} />
-          <PageContainer as="main" width="full" className="px-0">
-            <InviteLookScope tripId={landing.tripId} token={token}>
-              {/* `LensRouter` reads `useSearchParams()`; see DemoTripScreen for why
-                  that needs a Suspense boundary. */}
-              <Suspense fallback={null}>
-                <TripProvider tripId={landing.tripId}>
-                  <FocusProvider>
-                    <EditorHost>
-                      <LensRouter>
-                        <TripBoardScreen tripId={landing.tripId} />
-                      </LensRouter>
-                    </EditorHost>
-                  </FocusProvider>
-                </TripProvider>
-              </Suspense>
-            </InviteLookScope>
+          <PageContainer as="main" width="measure" className="py-6 sm:py-8">
+            {preview.read.kind === "ready" && <LookCard preview={preview.read.preview} />}
+            {preview.read.kind === "failed" && <PlanUnavailable onRetry={preview.retry} />}
           </PageContainer>
         </>
       )}
@@ -104,31 +94,15 @@ export function InviteLookScreen({ token, googleAvailable }: { token: string; go
   );
 }
 
-/**
- * Makes this trip's reads carry the invite token, for exactly as long as the
- * board is mounted — and renders nothing until that is true.
- *
- * The gate is the point. A child's effects run BEFORE its parent's, so
- * registering in an effect here while rendering `TripProvider` alongside would
- * let the provider's first reads leave without the header and come back 401.
- *
- * The trip's cache is dropped on the way in and on the way out. In, because a
- * member's cached reads of this trip (an editor's `access`, say) must not
- * answer a surface built to be read-only; out, because the viewer role cached
- * here must not answer the writable board this person lands on after joining.
- */
-function InviteLookScope({ tripId, token, children }: { tripId: string; token: string; children: React.ReactNode }) {
-  const [ready, setReady] = useState(false);
-  useEffect(() => {
-    invalidate(tripKeys.all(tripId));
-    const end = beginInviteLook(tripId, token);
-    setReady(true);
-    return () => {
-      end();
-      invalidate(tripKeys.all(tripId));
-    };
-  }, [tripId, token]);
-  return ready ? <>{children}</> : null;
+/** The plan card, against the reader's own day. */
+function LookCard({ preview }: { preview: TripPreview }) {
+  const today = useToday();
+  const context = useMemo(() => previewContext(preview, today), [preview, today]);
+  return (
+    <PreviewScope context={context}>
+      <InvitePlanCard preview={preview} context={context} />
+    </PreviewScope>
+  );
 }
 
 // What joining gives, by the role on offer. A `Record`, so a new invite role
