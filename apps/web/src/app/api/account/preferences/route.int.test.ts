@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { defaultPersonColor } from "@tc/domain";
 import { upsertUser, writePreferences } from "@/server/users";
 
 let currentUserId = "";
@@ -23,7 +24,7 @@ async function seedUser(): Promise<string> {
 const patch = (body: unknown) =>
   PATCH(new Request("http://test/x", { method: "PATCH", body: JSON.stringify(body) }));
 
-type Body = { preferences?: unknown; error?: string };
+type Body = { preferences?: unknown; defaultColor?: unknown; error?: string };
 
 beforeEach(() => {
   currentUserId = "";
@@ -65,6 +66,20 @@ describe("GET /api/account/preferences", () => {
       color: null,
       publicDisplayName: false,
     });
+  });
+});
+
+// M38: the colour a trip derives for someone who stored none, so Account can
+// draw it instead of slate. The domain's function of the SESSION's id, on both
+// verbs, and for a session whose row has gone as well.
+describe("defaultColor", () => {
+  it("answers the trip's derived colour for the signed-in person", async () => {
+    currentUserId = await seedUser();
+    expect(((await (await GET()).json()) as Body).defaultColor).toBe(defaultPersonColor(currentUserId));
+    expect(((await (await patch({ color: "plum" })).json()) as Body).defaultColor).toBe(defaultPersonColor(currentUserId));
+
+    currentUserId = newUserId();
+    expect(((await (await GET()).json()) as Body).defaultColor).toBe(defaultPersonColor(currentUserId));
   });
 });
 

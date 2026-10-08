@@ -13,6 +13,27 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-08 — `PreferencesResponse.defaultColor`: Account draws the colour trips derive (M38 part 4)
+
+- **Added:** `PreferencesResponse` (`identity.ts`), `{ preferences: UserPreferences, defaultColor:
+  PersonColor.nullable().default(null) }` — what `GET` and `PATCH /api/account/preferences`
+  answer. `defaultColor` is `defaultPersonColor(userId)` for the session's user: the colour a trip
+  gives someone whose `color` is `null`, before any clash on that trip shifts it.
+- Why: with no colour stored, every trip drew the derived colour and Account (the header chip and
+  the Profile preview) drew slate, because the UI may not import `@tc/domain` to derive it
+  (invariant 6). #359 self-review.
+- **Beside `preferences`, not inside `UserPreferences`**, for the reason `isAdmin` is: nobody chooses
+  it, and `UpdateUserPreferences` is a partial of `UserPreferences`, so a field there would be one
+  a PATCH could name. A patch naming only `defaultColor` is refused as empty (pinned in
+  `identity.test.ts`). `isAdmin` stays outside this schema, as before.
+- Consumers updated: `server/users.ts` (`defaultColorFor`, the domain function of the id), the
+  preferences route (both verbs), `apiClient` (`fetchPreferences` parses the schema and keeps
+  `isAdmin` beside it; `updatePreferences` parses it and returns `preferences`, as before),
+  `PreferencesProvider` (`defaultColor`, `useShownColor`), `AccountMenu` and `ProfileSection`
+  (`color ?? defaultColor`). The swatch picker still checks only a stored choice.
+- Breaking? No. `defaultColor` defaults to `null`, so an older server's `{ preferences }` parses;
+  the chip then draws slate, as it did.
+
 ## 2026-10-07 — `colorShifted`: a member's `color` is the trip's, resolved on the server (M38 part 4)
 
 - **Added:** `MemberPersona.colorShifted` (`trip.ts`), `z.boolean().default(false)`, so

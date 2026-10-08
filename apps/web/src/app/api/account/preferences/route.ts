@@ -1,6 +1,6 @@
-import { UpdateUserPreferences, UserPreferences } from "@tc/contracts";
+import { PreferencesResponse, UpdateUserPreferences } from "@tc/contracts";
 import { auth } from "@/server/auth";
-import { readPreferences, writePreferences } from "@/server/users";
+import { defaultColorFor, readPreferences, writePreferences } from "@/server/users";
 import { callerIsAdmin } from "@/server/entitlements/admin";
 
 // The Identity module's only read/write surface outside the sign-in callback
@@ -46,7 +46,12 @@ export async function GET() {
     readPreferences(session.user.id),
     callerIsAdmin(session.user.id),
   ]);
-  return Response.json({ preferences, isAdmin: admin });
+  // `defaultColor` beside them for the same reason, on both verbs: see
+  // `PreferencesResponse`.
+  return Response.json({
+    ...PreferencesResponse.parse({ preferences, defaultColor: defaultColorFor(session.user.id) }),
+    isAdmin: admin,
+  });
 }
 
 /**
@@ -115,5 +120,7 @@ export async function PATCH(request: Request) {
       { status: 404 },
     );
   }
-  return Response.json({ preferences: UserPreferences.parse(preferences) });
+  return Response.json(
+    PreferencesResponse.parse({ preferences, defaultColor: defaultColorFor(session.user.id) }),
+  );
 }

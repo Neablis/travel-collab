@@ -87,7 +87,7 @@ export function ProfileSection({
   signIn: { userId: string; name: string | null } | undefined;
   onOpenTokens: () => void;
 }) {
-  const { preferences, loaded, save } = useAccountPreferences();
+  const { preferences, loaded, save, defaultColor } = useAccountPreferences();
   // A pick shows at once, before its save answers (optimistic), and falls back
   // to the stored value when it fails. Keyed per field so a colour save
   // landing cannot drop an avatar pick still in flight.
@@ -199,7 +199,7 @@ export function ProfileSection({
             because the chip is `aria-hidden` beside the printed name, so the
             line has no accessible identity of its own to be found by. */}
         <div className="mt-3 flex items-center gap-3 rounded-lg bg-moss px-3 py-2.5" data-testid="persona-preview">
-          <PersonChip name={shownName} avatar={avatar} color={color} size="lg" />
+          <PersonChip name={shownName} avatar={avatar} color={color ?? defaultColor} size="lg" />
           <span className="flex min-w-0 flex-col">
             <Text as="span" className="truncate text-sm font-semibold text-ink">
               {shownName}
@@ -286,9 +286,10 @@ export function ProfileSection({
           </div>
         </SettingsRow>
 
-        {/* The stored choice only. With none stored no swatch is checked and
-            the preview is slate: the colour each trip shows is the server's
-            to derive (canvas question 3), and Account does not guess it. */}
+        {/* The stored choice only: with none stored no swatch is checked, and
+            the preview draws the colour a trip derives, which the server
+            sends as `defaultColor` (canvas question 3) — Account does not
+            guess it, and no longer draws slate where every trip does not. */}
         <SettingsRow
           label="Colour"
           description="If someone on a trip chose it first, you show in another colour there."

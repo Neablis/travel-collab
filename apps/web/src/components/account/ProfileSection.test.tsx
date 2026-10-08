@@ -47,10 +47,26 @@ let holdFetch: (() => void) | null = null;
 vi.mock("@/lib/apiClient", () => ({
   fetchPreferences: async () => {
     if (holdFetch !== null) await new Promise<void>((go) => (holdFetch = go));
-    return { ok: true as const, value: { preferences: stored, isAdmin: false } };
+    return { ok: true as const, value: { preferences: stored, isAdmin: false, defaultColor: "rose" as const } };
   },
   updatePreferences: (patch: UpdateUserPreferences) => updatePreferencesMock(patch),
 }));
+
+// The colour a chip is GIVEN, read off a wrapper rather than off its class:
+// the test-quality wall keeps classes out of this file, and colour to class is
+// `person-chip.test.tsx`'s claim. What this file owns is which colour the
+// surface hands the chip.
+vi.mock("@/components/ui/person-chip", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/components/ui/person-chip")>();
+  return {
+    ...actual,
+    PersonChip: (props: React.ComponentProps<typeof actual.PersonChip>) => (
+      <span data-testid="person-chip" data-color={props.color ?? "none"}>
+        <actual.PersonChip {...props} />
+      </span>
+    ),
+  };
+});
 
 /** Make the next `updatePreferences` hang until the returned function is called. */
 function pendSave() {
@@ -285,6 +301,19 @@ describe("ProfileSection", () => {
         expect(within(avatar).getByRole("radio", { name: "Initials" }).getAttribute("aria-checked")).toBe("true"),
       );
       expect(within(screen.getByTestId("persona-preview")).getByText("SK")).toBeTruthy();
+    });
+
+    // A trip draws someone who stored no colour in the server's derived one
+    // (`defaultColor`, here rose); the preview must not draw slate instead.
+    it("previews the colour trips derive until one is chosen", async () => {
+      mount();
+      const colour = await screen.findByRole("radiogroup", { name: "Colour" });
+      const chip = within(screen.getByTestId("persona-preview")).getByTestId("person-chip");
+      await waitFor(() => expect(chip.getAttribute("data-color")).toBe("rose"));
+
+      const teal = within(colour).getByRole("radio", { name: "Teal" });
+      await userEvent.click(teal);
+      await waitFor(() => expect(chip.getAttribute("data-color")).toBe("teal"));
     });
 
     it("saves a picked colour", async () => {
