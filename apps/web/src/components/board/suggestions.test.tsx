@@ -322,6 +322,9 @@ describe("the suggestions chip", () => {
 
     const onBoard = await screen.findByRole("list", { name: "Suggestions on the board" });
     expect((await within(onBoard).findByText(/Suggested by Sammy/)).innerHTML).toContain("lucide-sailboat");
+    // Immediately before the by-line, not before the day ahead of it: the
+    // element holding exactly "Suggested by Sammy" is the one the chip is in.
+    expect(within(onBoard).getByText("Suggested by Sammy").innerHTML).toContain("lucide-sailboat");
   });
 });
 

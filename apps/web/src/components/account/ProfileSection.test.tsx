@@ -342,6 +342,46 @@ describe("ProfileSection", () => {
       expect(plum.getAttribute("aria-checked")).toBe("false");
     });
 
+    // Initials is "no glyph": with none chosen, choosing it again asks the
+    // server for nothing.
+    it("sends nothing when Initials is chosen again", async () => {
+      mount();
+      const avatar = await screen.findByRole("radiogroup", { name: "Avatar" });
+      const initials = within(avatar).getByRole("radio", { name: "Initials" });
+      await waitFor(() => expect(initials).toHaveProperty("disabled", false));
+
+      await userEvent.click(initials);
+      expect(updatePreferencesMock).not.toHaveBeenCalled();
+      expect(initials.getAttribute("aria-checked")).toBe("true");
+    });
+
+    // A refusal arriving for a pick the person has already replaced is about
+    // a colour nobody chose any more; it must not appear under the newer one.
+    it("drops the error of a pick a newer pick has replaced", async () => {
+      mount();
+      const colour = await screen.findByRole("radiogroup", { name: "Colour" });
+      const plum = within(colour).getByRole("radio", { name: "Plum" });
+      await waitFor(() => expect(plum).toHaveProperty("disabled", false));
+      let refusePlum: () => void = () => {};
+      updatePreferencesMock.mockImplementationOnce(async (patch) => {
+        patches.push(patch);
+        await new Promise<void>((go) => (refusePlum = go));
+        return { ok: false as const, error: { status: 500, message: "Plum did not save." } };
+      });
+
+      await userEvent.click(plum);
+      const teal = within(colour).getByRole("radio", { name: "Teal" });
+      await userEvent.click(teal);
+      await waitFor(() => expect(teal.getAttribute("aria-checked")).toBe("true"));
+      await act(async () => {
+        refusePlum();
+      });
+
+      expect(patches).toEqual([{ color: "plum" }, { color: "teal" }]);
+      expect(screen.queryByText("Plum did not save.")).toBeNull();
+      expect(teal.getAttribute("aria-checked")).toBe("true");
+    });
+
     it("turns the display name on for public pages", async () => {
       mount();
       const box = await screen.findByRole("checkbox", { name: /show my display name on public pages/i });

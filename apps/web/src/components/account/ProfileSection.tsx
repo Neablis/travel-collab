@@ -108,6 +108,8 @@ export function ProfileSection({
   // reverted. It is what stops the resync below from overwriting an edit in
   // progress — see the comment there.
   const editing = useRef({ name: false, airport: false });
+  // The newest persona pick per field, by issue order — `choose` below.
+  const picks = useRef<{ issued: number; latest: Partial<Record<keyof PersonaPatch, number>> }>({ issued: 0, latest: {} });
 
   // Controlled fields seeded from stored state, resynced whenever it moves.
   // The server NORMALIZES `homeAirport` (trim + uppercase) and refuses a
@@ -168,8 +170,17 @@ export function ProfileSection({
   // failure surfaced — plus the optimistic pick above. The pick is dropped
   // only if it is still this call's: a second pick made while the first was in
   // flight must not flash back to the first one's answer.
+  //
+  // The same holds for its error: a refusal answering a pick that a newer pick
+  // of the same field has since replaced is about a choice nobody holds any
+  // more, so it is dropped rather than shown under the newer one (#359
+  // self-review). The newer pick clears the old message as it starts.
   async function choose(patch: PersonaPatch, setError: (message: string | null) => void) {
     if (!loaded) return;
+    const keys = Object.keys(patch) as (keyof PersonaPatch)[];
+    const ticket = ++picks.current.issued;
+    for (const key of keys) picks.current.latest[key] = ticket;
+    setError(null);
     setPicked((current) => ({ ...current, ...patch }));
     const result = await save(patch);
     setPicked((current) => {
@@ -179,7 +190,7 @@ export function ProfileSection({
       }
       return next;
     });
-    setError(result.ok ? null : result.error.message);
+    if (keys.every((key) => picks.current.latest[key] === ticket)) setError(result.ok ? null : result.error.message);
   }
 
   // As trips print it (`displayNameFor`, the one seam), following the field as
