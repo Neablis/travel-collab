@@ -55,7 +55,12 @@ export function AvatarPicker({
             aria-label={label}
             title={option === null ? "No avatar: show initials" : label}
             disabled={disabled}
-            onClick={() => onValueChange(on ? null : option)}
+            onClick={() => {
+              // Initials is "no glyph", so choosing it again changes nothing
+              // and sends nothing; a chosen glyph clicked again clears it.
+              if (on && option === null) return;
+              onValueChange(on ? null : option);
+            }}
             className={cn("size-11 md:size-10", option === null && "text-xs font-semibold", option === null && !on && "text-slate")}
           >
             {Glyph ? <Glyph className="size-4.5" aria-hidden /> : <span aria-hidden>{initials}</span>}

@@ -873,6 +873,18 @@ describe("PeopleSection — a colour the trip shifted", () => {
     expect(within(personRow("dev-mei")).queryByTitle(/on this trip/)).toBeNull();
   });
 
+  // The chip is `aria-hidden` and its title needs a mouse, so the sentence is
+  // printed on the row too — what a phone, a keyboard or a screen reader gets.
+  it("prints the same sentence on the reader's row, not only as a tooltip", async () => {
+    chosenColor = "plum";
+    render(<PeopleSection tripId={tripId} />);
+    await screen.findByText("Priya");
+
+    expect(within(personRow("dev-priya")).getByText("Sam chose plum first, so you're ochre on this trip.")).toBeTruthy();
+    expect(within(personRow("dev-mei")).queryByText(/on this trip/)).toBeNull();
+    expect(within(personRow("dev-sam")).queryByText(/on this trip/)).toBeNull();
+  });
+
   // Before the reader's own preferences land there is no stored colour to
   // find the holder of, so the line names nobody rather than guessing.
   it("says only what the trip shows while it does not know the reader's choice", async () => {

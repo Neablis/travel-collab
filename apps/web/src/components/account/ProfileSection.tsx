@@ -87,7 +87,7 @@ export function ProfileSection({
   signIn: { userId: string; name: string | null } | undefined;
   onOpenTokens: () => void;
 }) {
-  const { preferences, loaded, save } = useAccountPreferences();
+  const { preferences, loaded, save, defaultColor } = useAccountPreferences();
   // A pick shows at once, before its save answers (optimistic), and falls back
   // to the stored value when it fails. Keyed per field so a colour save
   // landing cannot drop an avatar pick still in flight.
@@ -108,6 +108,8 @@ export function ProfileSection({
   // reverted. It is what stops the resync below from overwriting an edit in
   // progress — see the comment there.
   const editing = useRef({ name: false, airport: false });
+  // The newest persona pick per field, by issue order — `choose` below.
+  const picks = useRef<{ issued: number; latest: Partial<Record<keyof PersonaPatch, number>> }>({ issued: 0, latest: {} });
 
   // Controlled fields seeded from stored state, resynced whenever it moves.
   // The server NORMALIZES `homeAirport` (trim + uppercase) and refuses a
@@ -168,8 +170,17 @@ export function ProfileSection({
   // failure surfaced — plus the optimistic pick above. The pick is dropped
   // only if it is still this call's: a second pick made while the first was in
   // flight must not flash back to the first one's answer.
+  //
+  // The same holds for its error: a refusal answering a pick that a newer pick
+  // of the same field has since replaced is about a choice nobody holds any
+  // more, so it is dropped rather than shown under the newer one (self-review
+  // of pull request 359). The newer pick clears the old message as it starts.
   async function choose(patch: PersonaPatch, setError: (message: string | null) => void) {
     if (!loaded) return;
+    const keys = Object.keys(patch) as (keyof PersonaPatch)[];
+    const ticket = ++picks.current.issued;
+    for (const key of keys) picks.current.latest[key] = ticket;
+    setError(null);
     setPicked((current) => ({ ...current, ...patch }));
     const result = await save(patch);
     setPicked((current) => {
@@ -179,7 +190,7 @@ export function ProfileSection({
       }
       return next;
     });
-    setError(result.ok ? null : result.error.message);
+    if (keys.every((key) => picks.current.latest[key] === ticket)) setError(result.ok ? null : result.error.message);
   }
 
   // As trips print it (`displayNameFor`, the one seam), following the field as
@@ -199,7 +210,7 @@ export function ProfileSection({
             because the chip is `aria-hidden` beside the printed name, so the
             line has no accessible identity of its own to be found by. */}
         <div className="mt-3 flex items-center gap-3 rounded-lg bg-moss px-3 py-2.5" data-testid="persona-preview">
-          <PersonChip name={shownName} avatar={avatar} color={color} size="lg" />
+          <PersonChip name={shownName} avatar={avatar} color={color ?? defaultColor} size="lg" />
           <span className="flex min-w-0 flex-col">
             <Text as="span" className="truncate text-sm font-semibold text-ink">
               {shownName}
@@ -286,9 +297,10 @@ export function ProfileSection({
           </div>
         </SettingsRow>
 
-        {/* The stored choice only. With none stored no swatch is checked and
-            the preview is slate: the colour each trip shows is the server's
-            to derive (canvas question 3), and Account does not guess it. */}
+        {/* The stored choice only: with none stored no swatch is checked, and
+            the preview draws the colour a trip derives, which the server
+            sends as `defaultColor` (canvas question 3) — Account does not
+            guess it, and no longer draws slate where every trip does not. */}
         <SettingsRow
           label="Colour"
           description="If someone on a trip chose it first, you show in another colour there."

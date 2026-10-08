@@ -133,6 +133,16 @@ describe("the demo trip's travellers", () => {
     }
   });
 
+  // M38: the roster's own avatars and colours, resolved as a real trip's are.
+  // Priya chose Sam's plum and joined after him, so `/demo` shows her shifted
+  // — the one place a visitor without an account sees a clash.
+  it("wear what they chose, with the later of two plums shifted", () => {
+    const byName = new Map(demoTripMembers().map((m) => [m.name, m]));
+    expect(byName.get("Sam")).toMatchObject({ avatar: "mountain", color: "plum", colorShifted: false });
+    expect(byName.get("Priya")).toMatchObject({ avatar: "camera", color: "ochre", colorShifted: true });
+    expect(byName.get("Kenji")).toMatchObject({ avatar: null, color: "teal", colorShifted: false });
+  });
+
   it("are overlaid onto the detail too, not just the access read", () => {
     // The board renders `detail.members` in three places — the meta pill's
     // count, the timeline's attribution chip, the map card's. With the fold's

@@ -10,7 +10,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { Dialog, DialogFooter } from "@/components/ui/dialog";
 import { Text } from "@/components/ui/text";
-import { useIsAdmin, usePreferences } from "@/components/account/PreferencesProvider";
+import { useIsAdmin, usePreferences, useShownColor } from "@/components/account/PreferencesProvider";
 import { useSessionUser, type SessionUser } from "@/components/account/useSessionUser";
 import { PersonChip } from "@/components/ui/person-chip";
 import { displayNameFor } from "@/lib/displayName";
@@ -370,6 +370,7 @@ function AccountMenuFor({
   // Read tolerantly (defaults outside a provider), because this component is
   // rendered bare in its own tests and a name is display, not an operation.
   const preferences = usePreferences();
+  const color = useShownColor();
   // A hard reload, not a router.push: this can be confirmed from any page
   // (a trip page whose own trip was just deleted included), and the freshly
   // seeded trip needs every client-fetched view — Home's trip list, any open
@@ -396,7 +397,8 @@ function AccountMenuFor({
       })}
       email={user.email ?? null}
       avatar={preferences.avatar}
-      color={preferences.color}
+      // The colour trips show, chosen or derived; slate only while unknown.
+      color={color}
       // `/welcome`, not `/` — sign-out must not depend on a redirect it races.
       // `signOut` POSTs to /api/auth/signout (whose response clears the session
       // cookie) and then sets `window.location.href`. Pointed at `/`, the

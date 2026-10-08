@@ -36,7 +36,7 @@
 // here, extend `expectations.ts` so every value of a new enum is covered, and
 // `pnpm seed:verify` will tell you what you missed.
 
-import type { ActivityKind, ActivityMode, ActivityTag, PendingReason, TripRole } from "@tc/contracts";
+import type { ActivityKind, ActivityMode, ActivityTag, AvatarKey, PendingReason, PersonColor, TripRole } from "@tc/contracts";
 
 /** One scheduled stop, placed on a numbered day. */
 export type JapanStop = {
@@ -171,8 +171,32 @@ export const JAPAN_TRAVELLER_ROLES: Record<JapanTraveller, TripRole> = {
   Mei: "suggester",
 };
 
-/** One person on `/demo`'s roster: a member, travelling or not. */
-export type JapanRosterEntry = { name: string; role: TripRole; travelling: boolean };
+/** One person on `/demo`'s roster: a member, travelling or not, and what they chose to look like (M38). */
+export type JapanRosterEntry = {
+  name: string;
+  role: TripRole;
+  travelling: boolean;
+  avatar: AvatarKey | null;
+  color: PersonColor | null;
+};
+
+/**
+ * What each roster member chose on their own Account (M38), as the design
+ * canvas draws this crew: Sam's mountain on plum, Priya's camera, Mei's
+ * sailboat on rose, Kenji's initials on teal. Jonah is not on the canvas.
+ *
+ * **Priya chose plum too.** Sam joined first and keeps it, so `/demo` shows
+ * Priya in ochre — the clash shift (D3) on the one page a visitor sees without
+ * an account, and the canvas's own artboard-4 example. Kenji chose no glyph,
+ * so the demo also shows initials.
+ */
+const JAPAN_ROSTER_PERSONAS: Record<string, Pick<JapanRosterEntry, "avatar" | "color">> = {
+  Sam: { avatar: "mountain", color: "plum" },
+  Priya: { avatar: "camera", color: "plum" },
+  Jonah: { avatar: "bike", color: "clay" },
+  Mei: { avatar: "sailboat", color: "rose" },
+  Kenji: { avatar: null, color: "teal" },
+};
 
 /**
  * Everyone `/demo` overlays as a member: the four travellers, and Kenji, who
@@ -188,8 +212,13 @@ export type JapanRosterEntry = { name: string; role: TripRole; travelling: boole
  * total where the four travellers put it.
  */
 export const JAPAN_DEMO_ROSTER: readonly JapanRosterEntry[] = [
-  ...JAPAN_TRAVELLERS.map((name) => ({ name, role: JAPAN_TRAVELLER_ROLES[name], travelling: true })),
-  { name: "Kenji", role: "suggester", travelling: false },
+  ...JAPAN_TRAVELLERS.map((name) => ({
+    name,
+    role: JAPAN_TRAVELLER_ROLES[name],
+    travelling: true,
+    ...JAPAN_ROSTER_PERSONAS[name]!,
+  })),
+  { name: "Kenji", role: "suggester", travelling: false, ...JAPAN_ROSTER_PERSONAS.Kenji! },
 ];
 /** Every location this trip creates sits in Japan. */
 export const JAPAN_COUNTRY_CODE = "JP";
