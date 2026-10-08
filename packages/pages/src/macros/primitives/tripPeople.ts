@@ -22,7 +22,7 @@ import { personNames } from "./balances";
 const TripPeopleParams = z.object({});
 type TripPeopleParams = z.infer<typeof TripPeopleParams>;
 
-/** How many chips the stack draws before the sentence counts the rest (the canvas's four). */
+/** How many people the sentence names outright; past this it names one fewer and counts the rest (the canvas's four). */
 const STACK = 4;
 
 interface Member extends TripPeoplePerson {
@@ -125,7 +125,10 @@ export const tripPeopleWidget: MacroDef<TripPeopleParams, TripPeoplePayload> = {
     }
     const verb = others.length === 1 ? "is" : "are";
     const sentence = sentenceOf(`${listOf(others.map((m) => m.short))} ${verb} going${owner?.going ? ` with ${owner.short}` : ""}`);
-    return ok({ kind: "trip-people", stack: others.slice(0, STACK).map(chipOf), sentence });
+    // The chips are the sentence's subjects: an overflowing list names
+    // `STACK - 1` and counts the rest, so the stack stops where the names do.
+    const named = others.length > STACK ? others.slice(0, STACK - 1) : others;
+    return ok({ kind: "trip-people", stack: named.map(chipOf), sentence });
   },
   render: blockOf,
 };

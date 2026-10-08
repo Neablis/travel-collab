@@ -50,12 +50,14 @@ describe("trip.people", () => {
     ]);
   });
 
-  it("stacks four and counts the rest, as the landing's crew line did", () => {
+  // The chips are the sentence's subjects: when the list overflows, the stack
+  // holds only the three it names, not a fourth the sentence counts as "other".
+  it("names three, counts the rest, and stacks only the three it names", () => {
     const ids = ["o", "a", "b", "c", "d", "e"];
     const names = ["Dana", "Sam", "Priya", "Kenji", "Mei", "Tom"];
     const out = peopleOf(ctx(tripOf(ids), Object.fromEntries(ids.map((id, i) => [id, persona(names[i]!)]))));
     expect(out.sentence).toBe("Sam, Priya, Kenji and 2 others are going with Dana.");
-    expect(out.stack.map((p) => p.name)).toEqual(["Sam", "Priya", "Kenji", "Mei"]);
+    expect(out.stack.map((p) => p.name)).toEqual(["Sam", "Priya", "Kenji"]);
   });
 
   it("leaves out whoever is only helping plan, the owner included", () => {
