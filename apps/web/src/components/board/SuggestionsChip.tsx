@@ -8,7 +8,7 @@ import { acceptAllOrder } from "@/lib/acceptAll";
 import { dayLabel } from "@/lib/dates";
 import type { Ghost } from "@/lib/suggestionOverlay";
 import { useTrip } from "@/components/trip/context/TripProvider";
-import { SuggestionActions, useAuthorNames } from "./SuggestionActions";
+import { AuthorChip, SuggestionActions, useAuthorNames } from "./SuggestionActions";
 
 /**
  * The header's pending-suggestion count (spec §2.4) — the only notification
@@ -157,8 +157,16 @@ function Item({ ghost, stale = false, detail = null, byLine }: { ghost: Ghost; s
         {ghost.description}
       </Text>
       {(detail !== null || byLine !== null) && (
-        <Text as="span" variant="muted">
-          {[detail, byLine].filter((part) => part !== null).join(" · ")}
+        // The chip leads the by-line it belongs to, not the day before it.
+        <Text as="span" variant="muted" className="flex flex-wrap items-center gap-x-1.5">
+          {detail}
+          {detail !== null && byLine !== null && <span aria-hidden>·</span>}
+          {byLine !== null && (
+            <span className="inline-flex items-center gap-1.5">
+              <AuthorChip authorId={ghost.authorId} />
+              {byLine}
+            </span>
+          )}
         </Text>
       )}
       <SuggestionActions ghost={ghost} stale={stale} />

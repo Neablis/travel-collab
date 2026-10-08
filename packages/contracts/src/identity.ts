@@ -137,6 +137,28 @@ export const UserPreferences = z.object({
 export type UserPreferences = z.infer<typeof UserPreferences>;
 
 /**
+ * What `/api/account/preferences` answers, on GET and on PATCH.
+ *
+ * `defaultColor` is the colour a trip gives this person while `color` is
+ * `null` — `defaultPersonColor(userId)`, computed on the server because the UI
+ * may not import the domain (invariant 6). Without it Account drew slate where
+ * every trip drew the derived colour (M38, self-review of pull request 359).
+ * It rides beside `preferences`, not inside it, for the reason `isAdmin` does:
+ * nobody chooses it, so it does not belong in a shape that
+ * `UpdateUserPreferences` is a partial of. A clash on one trip can still shift
+ * it there; this is the colour before any trip. `null` from a server older
+ * than the field.
+ *
+ * GET also carries `isAdmin`, parsed by `fetchPreferences` and deliberately
+ * not part of this schema (M20 link 7).
+ */
+export const PreferencesResponse = z.object({
+  preferences: UserPreferences,
+  defaultColor: PersonColor.nullable().default(null),
+});
+export type PreferencesResponse = z.infer<typeof PreferencesResponse>;
+
+/**
  * A partial update. Absent means "leave it alone"; an explicit `null` means
  * "clear it" — which is why the fields are nullable rather than optional in
  * `UserPreferences` above, and why this cannot simply be a `Partial<>` of a

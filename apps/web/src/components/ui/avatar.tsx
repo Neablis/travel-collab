@@ -12,6 +12,10 @@ import { initialsFor } from "../../lib/initials";
 const avatarVariants = cva("grid shrink-0 place-items-center rounded-full font-semibold", {
   variants: {
     size: {
+      // M38: inside a pill or a History line, where 28px is taller than the
+      // line. Still `text-xs` — the canvas drew 11px, but 12px is the floor
+      // and a 20px circle holds one 12px letter.
+      xs: "size-5 text-xs",
       // A People row. Under the row's 44px touch floor on purpose: the ROW is
       // the target, the circle only identifies it.
       sm: "size-7 text-xs",

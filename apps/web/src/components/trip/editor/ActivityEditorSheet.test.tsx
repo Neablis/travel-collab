@@ -3,9 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NearbyStop } from "@tc/contracts";
-import { activityFactory, historyFixture, locationFactory, tripDetailFixture } from "@tc/factories";
+import { activityFactory, historyFixture, locationFactory, tripDetailFixture, tripMemberProfileFactory } from "@tc/factories";
 import { ActivityEditorSheet } from "./ActivityEditorSheet";
 import { formatMoney } from "@/lib/formatMoney";
+import { accessibleNames } from "@/test-support/accessibleNames";
 
 // Same mocking pattern TripHeader.test.tsx uses for a component that reads
 // everything through useTrip()/useEditor(): a real TripProvider/EditorHost
@@ -633,9 +634,9 @@ describe("ActivityEditorSheet — who a stop is for, by name", () => {
     vi.mocked(fetchTripDetail).mockResolvedValue({ ok: true, value: trip });
   };
   const labels = () => {
-    const toggles = within(screen.getByRole("group", { name: "Who is going" })).getAllByRole("button");
+    const toggles = accessibleNames(screen.getByRole("group", { name: "Who is going" }), "button");
     const options = [...(screen.getByLabelText("Booked by") as HTMLSelectElement).options].slice(1);
-    return { toggles: toggles.map((b) => b.textContent), bookedBy: options.map((o) => o.text) };
+    return { toggles, bookedBy: options.map((o) => o.text) };
   };
 
   it("names members from the trip's access list", async () => {
@@ -659,6 +660,28 @@ describe("ActivityEditorSheet — who a stop is for, by name", () => {
     const { toggles, bookedBy } = labels();
     expect(toggles).toEqual(["Dana Reyes", "Traveler 000002"]);
     expect(bookedBy).toEqual(toggles);
+  });
+
+  // M38: the pills draw each member's chip, so the sheet hands the editor the
+  // avatar from the same access read the names come from.
+  it("gives each member's pill their chosen avatar", async () => {
+    withTwoMembers();
+    fetchTripAccessMock.mockResolvedValue({
+      ok: true,
+      value: {
+        tripId: TRIP_ID,
+        myRole: "owner",
+        members: [
+          tripMemberProfileFactory.build({ userId: U1, role: "owner", displayName: "Dana Reyes", avatar: "compass", color: "sky" }),
+          tripMemberProfileFactory.build({ userId: U2, displayName: "Sam Lee", avatar: "bike", color: "moss" }),
+        ],
+        invites: [],
+      },
+    });
+    renderEditorSheet({ mode: "edit", activityId: SCHEDULED_ACTIVITY_ID });
+
+    expect((await screen.findByRole("button", { name: "Dana Reyes" })).innerHTML).toContain("lucide-compass");
+    expect(screen.getByRole("button", { name: "Sam Lee" }).innerHTML).toContain("lucide-bike");
   });
 
   // Browser walk of PR #335: someone who joined after the page loaded was
@@ -739,6 +762,6 @@ describe("ActivityEditorSheet — who a stop is for, by name", () => {
 
     await screen.findByDisplayValue("Existing stop");
     expect(screen.getByTestId("activity-cost-total").textContent).toBe(`× 1 person = ${formatMoney(15_00, trip.currency)}`);
-    expect(within(screen.getByRole("group", { name: "Not travelling" })).getByRole("button").textContent).toBe("Traveler 2");
+    expect(accessibleNames(screen.getByRole("group", { name: "Not travelling" }), "button")).toEqual(["Traveler 2"]);
   });
 });

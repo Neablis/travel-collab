@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { TripAccess, TripMemberProfile } from "@tc/contracts";
+import type { PersonColor, TripAccess, TripMemberProfile } from "@tc/contracts";
 import { tripAccessFixture, tripInviteFactory, tripMemberProfileFactory } from "@tc/factories";
 
 const fetchTripAccessMock = vi.fn();
@@ -31,6 +31,14 @@ let meId: string | undefined = "dev-alice";
 vi.mock("@/components/account/useSessionUser", () => ({
   useSessionUser: () => (meId === undefined ? undefined : { id: meId }),
 }));
+
+// The colour the reader stored on their account (M38), which the shifted
+// tooltip reads to say what they chose. None by default.
+let chosenColor: PersonColor | null = null;
+vi.mock("@/components/account/PreferencesProvider", async (orig) => {
+  const actual = await orig<typeof import("@/components/account/PreferencesProvider")>();
+  return { ...actual, usePreferences: () => ({ ...actual.usePreferences(), color: chosenColor }) };
+});
 
 import { PeopleSection } from "./PeopleSection";
 
@@ -68,6 +76,7 @@ function menuItems(): string[] {
 afterEach(cleanup);
 beforeEach(() => {
   meId = "dev-alice";
+  chosenColor = null;
   fetchTripAccessMock.mockReset().mockResolvedValue({ ok: true, value: access() });
   createTripInviteMock.mockReset();
   revokeTripInviteMock.mockReset().mockResolvedValue({ ok: true, value: { ...invite, status: "revoked" } });
@@ -125,6 +134,19 @@ describe("PeopleSection", () => {
     expect(screen.getByText("cara@example.com")).toBeTruthy();
   });
 
+  // M38: a row draws the person's chip — the glyph they picked — beside the
+  // name they chose, not initials from their sign-in name.
+  it("draws each member's chosen avatar beside their display name", async () => {
+    fetchTripAccessMock.mockResolvedValue({
+      ok: true,
+      value: access({ members: [alice, { ...bob, displayName: "Bobby", avatar: "mountain", color: "plum" }] }),
+    });
+    render(<PeopleSection tripId={tripId} />);
+
+    expect(await screen.findByText("Bobby")).toBeTruthy();
+    expect(personRow("dev-bob").innerHTML).toContain("lucide-mountain");
+  });
+
   it("marks the reader's own row, and crowns the owner's", async () => {
     render(<PeopleSection tripId={tripId} />);
     await screen.findByText("Alice");
@@ -142,7 +164,7 @@ describe("PeopleSection", () => {
     fetchTripAccessMock.mockResolvedValue({
       ok: true,
       value: access({
-        members: [{ userId: "dev-carol", role: "owner", name: null, email: null, image: null, displayName: null, avatar: null, color: null }],
+        members: [{ userId: "dev-carol", role: "owner", name: null, email: null, image: null, displayName: null, avatar: null, color: null, colorShifted: false }],
         invites: [],
       }),
     });
@@ -156,7 +178,7 @@ describe("PeopleSection", () => {
     fetchTripAccessMock.mockResolvedValue({
       ok: true,
       value: access({
-        members: [{ userId: sub, role: "owner", name: null, email: null, image: null, displayName: null, avatar: null, color: null }],
+        members: [{ userId: sub, role: "owner", name: null, email: null, image: null, displayName: null, avatar: null, color: null, colorShifted: false }],
         invites: [],
       }),
     });
@@ -200,7 +222,7 @@ describe("PeopleSection", () => {
           members: [
             alice,
             { ...bob, travelling: false },
-            { userId: "dev-dan", role: "suggester", name: "Dan", email: null, image: null, displayName: null, avatar: null, color: null },
+            { userId: "dev-dan", role: "suggester", name: "Dan", email: null, image: null, displayName: null, avatar: null, color: null, colorShifted: false },
           ],
         }),
       });
@@ -815,5 +837,62 @@ describe("PeopleSection", () => {
       expect(screen.queryByTestId("collaborators-gate")).toBeNull();
       expect(screen.queryByRole("status")).toBeNull();
     });
+  });
+});
+
+// M38 open question 4 (artboard 4): Sam and Priya both chose plum, and Sam
+// joined first, so the server shows Priya in ochre on this trip. She alone is
+// told why, on her own chip; nobody else sees a hint, because nothing about
+// them changed.
+describe("PeopleSection — a colour the trip shifted", () => {
+  const sam = tripMemberProfileFactory.build({ userId: "dev-sam", name: "Sam", avatar: "mountain", color: "plum" });
+  const priya = tripMemberProfileFactory.build({
+    userId: "dev-priya",
+    name: "Priya",
+    avatar: "camera",
+    color: "ochre",
+    colorShifted: true,
+  });
+  // Shifted too, but not the reader: the hint is about the reader's own colour.
+  const mei = tripMemberProfileFactory.build({ userId: "dev-mei", name: "Mei", color: "rose", colorShifted: true });
+
+  beforeEach(() => {
+    meId = "dev-priya";
+    fetchTripAccessMock.mockResolvedValue({
+      ok: true,
+      value: access({ myRole: "editor", invites: [], members: [alice, sam, priya, mei] }),
+    });
+  });
+
+  it("tells the reader who chose their colour first, on their own row only", async () => {
+    chosenColor = "plum";
+    render(<PeopleSection tripId={tripId} />);
+    await screen.findByText("Priya");
+
+    expect(within(personRow("dev-priya")).getByTitle("Sam chose plum first, so you're ochre on this trip.")).toBeTruthy();
+    expect(within(personRow("dev-mei")).queryByTitle(/on this trip/)).toBeNull();
+  });
+
+  // The chip is `aria-hidden` and its title needs a mouse, so the sentence is
+  // printed on the row too — what a phone, a keyboard or a screen reader gets.
+  it("prints the same sentence on the reader's row, not only as a tooltip", async () => {
+    chosenColor = "plum";
+    render(<PeopleSection tripId={tripId} />);
+    await screen.findByText("Priya");
+
+    expect(within(personRow("dev-priya")).getByText("Sam chose plum first, so you're ochre on this trip.")).toBeTruthy();
+    expect(within(personRow("dev-mei")).queryByText(/on this trip/)).toBeNull();
+    expect(within(personRow("dev-sam")).queryByText(/on this trip/)).toBeNull();
+  });
+
+  // Before the reader's own preferences land there is no stored colour to
+  // find the holder of, so the line names nobody rather than guessing.
+  it("says only what the trip shows while it does not know the reader's choice", async () => {
+    render(<PeopleSection tripId={tripId} />);
+    await screen.findByText("Priya");
+
+    expect(
+      within(personRow("dev-priya")).getByTitle("You show in ochre on this trip, because someone chose your colour first."),
+    ).toBeTruthy();
   });
 });

@@ -7,7 +7,10 @@ import { executeTripCommand } from "@/server/commands";
 import { acceptInvite, createInvite } from "@/server/access/invites";
 import { accessRevFor } from "@/server/access/members";
 import { entitleAccounts } from "@/server/test-support/entitledAccount";
-import { upsertUser } from "@/server/users";
+import { upsertUser, writePreferences } from "@/server/users";
+import { idAvoidingColors } from "@/server/test-support/personaIds";
+import { defaultPersonColor } from "@tc/domain";
+import type { PersonColor } from "@tc/contracts";
 import { INVITE_TOKEN_HEADER } from "@/lib/inviteLook";
 
 const OWNER = "access-owner";
@@ -194,6 +197,40 @@ describe("member emails in GET /access", () => {
     expect(response.status).toBe(200);
     const body = (await response.json()) as Body;
     expect(Object.values(emailsIn(body))).toEqual([null, null]);
+  });
+});
+
+// M38 D3: a colour clash is resolved on the server, so the colour a member
+// carries is the one to render on THIS trip. Two people who both chose ochre:
+// the owner keeps it, the later joiner shows the next free colour and is told
+// why (`colorShifted`), and someone who chose nothing gets their deterministic
+// default rather than a null. Nobody's stored choice is changed.
+describe("member colours in GET /access", () => {
+  it("shifts the later of two members who chose the same colour, and fills one for a member who chose none", async () => {
+    const owner = `access-colour-owner-${randomUUID()}`;
+    const clasher = `access-colour-clasher-${randomUUID()}`;
+    const unchosen = idAvoidingColors("access-colour-unchosen", ["ochre", "rose"]);
+    await entitleAccounts([owner]);
+    for (const id of [clasher, unchosen]) await upsertUser({ id, email: null, name: null, image: null });
+    await writePreferences(owner, { color: "ochre" });
+    await writePreferences(clasher, { color: "ochre" });
+    const tripId = randomUUID();
+    if (!(await executeTripCommand({ type: "CreateTrip", tripId, name: "Colours" }, owner)).ok) throw new Error("seed");
+    for (const id of [clasher, unchosen]) {
+      const accepted = await acceptInvite((await createInvite(tripId, owner, { email: null, role: "editor" })).token, id);
+      if (!accepted.ok) throw new Error(`failed to accept: ${accepted.error.message}`);
+    }
+
+    currentUserId = unchosen;
+    const body = (await (await GET(new Request("http://test/x"), params(tripId))).json()) as {
+      access: { members: { userId: string; color: PersonColor | null; colorShifted: boolean }[] };
+    };
+    expect(body.access.members.map(({ userId, color, colorShifted }) => ({ userId, color, colorShifted }))).toEqual([
+      { userId: owner, color: "ochre", colorShifted: false },
+      // Ochre's successor in the palette.
+      { userId: clasher, color: "rose", colorShifted: true },
+      { userId: unchosen, color: defaultPersonColor(unchosen), colorShifted: false },
+    ]);
   });
 });
 

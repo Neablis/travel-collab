@@ -28,6 +28,7 @@ import {
   decideTripCommand,
   evolveTrip,
   recostDetail,
+  resolveTripColors,
   tripDetailFromState,
   type TripState,
 } from "@tc/domain";
@@ -72,6 +73,12 @@ export type JapanTripReport = {
   rosterRoles: Record<TripRole, number>;
   /** Members on `/demo`'s roster who are not travelling, so not in any total. */
   notTravelling: number;
+  /**
+   * M38 D3: roster members `/demo` shows in a colour other than the one they
+   * chose, because someone earlier in join order chose it first — the
+   * resolver `withTripColors` runs, over the roster in its own order.
+   */
+  colorShifted: string[];
   untaggedCount: number;
   withCoordinates: number;
   withCost: number;
@@ -425,6 +432,10 @@ export function verifyJapanTrip(startDate: string = REFERENCE_START_DATE): Japan
   // `/demo` overlays, so a role nobody on it holds reads 0.
   const rosterRoles = Object.fromEntries(TripRole.options.map((r) => [r, 0])) as Record<TripRole, number>;
   for (const { role } of JAPAN_DEMO_ROSTER) rosterRoles[role] += 1;
+  const shown = resolveTripColors(JAPAN_DEMO_ROSTER.map(({ name, color }) => ({ userId: name, color })));
+  const colorShifted = JAPAN_DEMO_ROSTER.filter(({ name, color }) => color !== null && shown.get(name) !== color).map(
+    ({ name }) => name,
+  );
 
   return {
     dayCount: state.days.length,
@@ -438,6 +449,7 @@ export function verifyJapanTrip(startDate: string = REFERENCE_START_DATE): Japan
     pendingReasons,
     rosterRoles,
     notTravelling: JAPAN_DEMO_ROSTER.length - travellerCount,
+    colorShifted,
     untaggedCount,
     withCoordinates,
     withCost,
@@ -491,6 +503,7 @@ export function formatReport(report: JapanTripReport, findings: readonly string[
   row("travel modes", `${histogram(report.modes)} / with a destination ${report.withEndLocation}`);
   row("pending reasons", histogram(report.pendingReasons));
   row("roster roles", `${histogram(report.rosterRoles)} / not travelling ${report.notTravelling}`);
+  row("colour shifted", report.colorShifted.join(", ") || "—");
   row("with coordinates", `${report.withCoordinates}/${report.activityCount}`);
   row("with a cost", `${report.withCost}/${report.activityCount}`);
   row("cities", report.cities.join(", "));

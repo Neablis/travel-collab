@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import { TripDetail, TripSummary } from "@tc/contracts";
+import { TripDetail, TripMember, TripSummary } from "@tc/contracts";
 import { db } from "@/server/db/client";
-import { grantedMembersByTrip, mergeMembers, travellingByTrip, withTravelling } from "@/server/access/members";
+import { withEffectiveMembersByTrip } from "@/server/access/members";
 import { listTripSummariesPage } from "@/server/projections";
 import { orThrow, runCreation, tripDatesCommand } from "@/server/public-api/commands";
 import { route } from "@/server/public-api/route";
@@ -11,6 +11,17 @@ import { route } from "@/server/public-api/route";
 // exercises pagination, and the whole of its pagination cost is the `cursorOf`
 // line below.
 //
+// A trip as `/v1` lists it: `TripSummary` with the bare planning members it
+// published in 1.9.0, not the app's `TripSummaryMember`. **`/v1` does not name
+// co-members** (M38, Mitchell's decision 2026-10-07): a token is a third
+// party's, and the list is the read that would tell it who else is on every
+// trip at once. Derived from the contract, so every other field stays the
+// app's; the handler builds members without a persona rather than trusting
+// this schema to strip one, because the wrapper validates items and sends what
+// the handler returned.
+const PublicTripSummary = TripSummary.extend({ members: z.array(TripMember).min(1) });
+type PublicTripSummary = z.infer<typeof PublicTripSummary>;
+
 // Everything this file does NOT contain is the point: no `auth()`, no bearer
 // parsing, no scope check, no 401 shape, no `WWW-Authenticate`, no rate limit,
 // no `last_used_at`, no error envelope, no `?limit=` bounds, no cursor
@@ -21,11 +32,11 @@ export const { GET, POST } = route({
     summary: "List the trips you own or are a member of",
     scope: "trips:read",
     collection: {
-      item: TripSummary,
+      item: PublicTripSummary,
       // Keyset, matching `listTripSummariesPage`'s ORDER BY. `tripId` is in the
       // key because `createdAt` alone ties, and a tied order is a pager that
       // silently loses rows.
-      cursorOf: (trip: TripSummary) => `${trip.createdAt}|${trip.tripId}`,
+      cursorOf: (trip: PublicTripSummary) => `${trip.createdAt}|${trip.tripId}`,
     },
     handle: async ({ actor, page }) => {
       const rows = await listTripSummariesPage(actor.userId, page);
@@ -35,21 +46,10 @@ export const { GET, POST } = route({
       // true about its motive, and not a reason to publish a members list that
       // omits real members. This query already returns trips someone reaches
       // through a `trip_memberships` row; answering those with an owner-only
-      // `members` array would be a wrong answer rather than a lean one. It costs
-      // one batched read for the whole page, not one per trip — and one more
-      // for who is travelling, as `GET /api/trips` does (travellers spec W21).
-      const tripIds = rows.map((r) => r.tripId);
-      const [granted, travelling] = await Promise.all([
-        grantedMembersByTrip(db, tripIds),
-        travellingByTrip(db, tripIds),
-      ]);
-      return rows.map((r) => ({
-        ...r,
-        members: withTravelling(
-          mergeMembers(r.members, granted.get(r.tripId) ?? []),
-          travelling.get(r.tripId) ?? new Map(),
-        ),
-      }));
+      // `members` array would be a wrong answer rather than a lean one. It is
+      // `GET /api/trips`' merge, batched for the whole page, not per trip, with
+      // who is travelling (travellers spec W21) — and without the personas.
+      return withEffectiveMembersByTrip(db, rows);
     },
   },
   // **The first planning write, and the shape every other one follows.**

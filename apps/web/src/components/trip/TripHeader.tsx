@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Clock } from "lucide-react";
 import { travellerIds, type TripAccess } from "@tc/contracts";
-import { Avatar } from "@/components/ui/avatar";
+import { PersonChip } from "@/components/ui/person-chip";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataText } from "@/components/ui/data-text";
@@ -626,11 +626,14 @@ function TravellerStack({ access, onOpen }: { access: TripAccess | null; onOpen:
       {/* Its own row, so the overlap is not undone by the button's gap. */}
       <span className="flex">
         {travellers.slice(0, STACK_AVATARS).map((member, index) => (
-          <Avatar
+          <PersonChip
             key={member.userId}
             name={displayNameFor(member)}
+            avatar={member.avatar}
+            color={member.color}
             size="md"
-            className={cn("border-2 border-surface", index > 0 && "-ml-2")}
+            ring
+            className={cn(index > 0 && "-ml-2")}
           />
         ))}
       </span>

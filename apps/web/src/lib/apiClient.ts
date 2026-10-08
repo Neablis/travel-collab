@@ -29,6 +29,7 @@ import {
   TripShare,
   TripSuggestionsResponse,
   TripSummary,
+  PreferencesResponse,
   UpdateUserPreferences,
   UserPreferences,
   type AssistantProposal,
@@ -876,8 +877,9 @@ export async function fetchTripWeather(tripId: string): Promise<ApiResult<TripWe
 }
 
 /**
- * What `GET /api/account/preferences` answers: the person's preferences, and
- * whether the account is an operator (M20 link 7).
+ * What `GET /api/account/preferences` answers: the person's preferences, the
+ * colour a trip derives for them (`PreferencesResponse`, M38), and whether the
+ * account is an operator (M20 link 7).
  *
  * `isAdmin` rides ALONGSIDE `preferences` rather than inside it, because it is
  * not a preference — widening `UserPreferences` would put an authorisation fact
@@ -885,7 +887,7 @@ export async function fetchTripWeather(tripId: string): Promise<ApiResult<TripWe
  * is **advisory, and it decides one link**: the console's layout, its page and
  * every admin endpoint answer 404 to a non-admin regardless.
  */
-export type AccountPreferencesRead = { preferences: UserPreferences; isAdmin: boolean };
+export type AccountPreferencesRead = PreferencesResponse & { isAdmin: boolean };
 
 /**
  * The account's preferences and its operator flag, in ONE request.
@@ -905,8 +907,8 @@ export async function fetchPreferences(): Promise<ApiResult<AccountPreferencesRe
   try {
     const res = await fetch(apiUrl("/api/account/preferences"));
     return await readJson(res, (data) => {
-      const body = data as { preferences: unknown; isAdmin?: unknown };
-      return { preferences: UserPreferences.parse(body.preferences), isAdmin: body.isAdmin === true };
+      const body = data as { isAdmin?: unknown };
+      return { ...PreferencesResponse.parse(data), isAdmin: body.isAdmin === true };
     });
   } catch (err) {
     return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
@@ -931,9 +933,7 @@ export async function updatePreferences(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(patch),
     });
-    return await readJson(res, (data) =>
-      UserPreferences.parse((data as { preferences: unknown }).preferences),
-    );
+    return await readJson(res, (data) => PreferencesResponse.parse(data).preferences);
   } catch (err) {
     return { ok: false, error: { status: 0, message: err instanceof Error ? err.message : "Network error" } };
   }

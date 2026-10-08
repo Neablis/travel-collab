@@ -4,7 +4,15 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
-import { travellerIds, type InviteRole, type TripAccess, type TripInvite, type TripMemberProfile } from "@tc/contracts";
+import {
+  travellerIds,
+  type InviteRole,
+  type PersonColor,
+  type TripAccess,
+  type TripInvite,
+  type TripMemberProfile,
+} from "@tc/contracts";
+import { usePreferences } from "@/components/account/PreferencesProvider";
 import { useSessionUser } from "@/components/account/useSessionUser";
 import { Banner } from "@/components/ui/banner";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -75,6 +83,33 @@ function isOlder(next: TripAccess, held: TripAccess | null): boolean {
 /** How long a row says "Copied" after its link went to the clipboard. */
 const COPIED_FOR_MS = 3_000;
 
+/**
+ * The reader's own chip tooltip when this trip shows them in a colour other
+ * than the one they chose (M38 D3, open question 4). `members` is the access
+ * read's join order, owner first — the order the server resolved colours in —
+ * and the first to have stored a colour keeps it, so whoever before the reader
+ * now holds their stored colour is the one who chose it first.
+ *
+ * When nobody earlier holds it — preferences not read yet, or a choice
+ * changed since this read — the line says only what the trip shows rather
+ * than guess at a name. (A changed choice that someone earlier happens to
+ * hold names them until the next read; the colours on screen are that read's
+ * too.)
+ */
+function shiftedColorTitle(
+  me: TripMemberProfile,
+  members: readonly TripMemberProfile[],
+  chosen: PersonColor | null,
+): string | undefined {
+  if (!me.colorShifted || me.color === null) return undefined;
+  const first = members
+    .slice(0, members.findIndex((m) => m.userId === me.userId))
+    .find((m) => chosen !== null && m.color === chosen);
+  return first === undefined
+    ? `You show in ${me.color} on this trip, because someone chose your colour first.`
+    : `${displayNameFor(first)} chose ${chosen} first, so you're ${me.color} on this trip.`;
+}
+
 function travellersLine(count: number): string {
   // D5: totals floor at one person, so a trip with nobody travelling is still
   // priced for one — said, rather than "split across 0".
@@ -125,6 +160,7 @@ export function PeopleSection({
   reportInvites.current = onInvitesChanged;
   const router = useRouter();
   const me = useSessionUser();
+  const chosenColor = usePreferences().color;
   const [access, setAccess] = useState<TripAccess | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -290,12 +326,14 @@ export function PeopleSection({
 
   function renderMember(member: TripMemberProfile) {
     const name = displayNameFor(member);
+    const you = isYou(member);
     return (
       <PersonRow
         key={member.userId}
         member={member}
         name={name}
-        isYou={isYou(member)}
+        isYou={you}
+        colorNote={you ? shiftedColorTitle(member, members, chosenColor) : undefined}
         menu={<PersonMenu label={name} actions={memberActions(member, name)} />}
       />
     );

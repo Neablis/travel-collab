@@ -3,7 +3,7 @@ import { z } from "zod";
 import { auth } from "@/server/auth";
 import { readBody } from "@/server/readBody";
 import { executeTripCommand } from "@/server/commands";
-import { grantedMembersByTrip, mergeMembers, travellingByTrip, withTravelling } from "@/server/access/members";
+import { withListedMembers } from "@/server/access/members";
 import { db } from "@/server/db/client";
 import { listTripSummariesVisibleTo } from "@/server/projections";
 
@@ -21,22 +21,13 @@ export async function GET() {
   // request and put the tenant boundary one deleted `.filter()` away from a
   // cross-tenant dump (project review L3, PR #71 review §6).
   const rows = await listTripSummariesVisibleTo(userId);
-  // The avatar stack on a card counts travellers, so each summary carries the
-  // effective member list rather than the projection's owner-only one, with
-  // who is travelling on it (travellers spec W17). One batched read of each
-  // for all of them — this was an `effectiveMembers` per trip. The stored
-  // projection is untouched (invariant 2): this is a read overlay, both
-  // helpers are pure, and nothing here writes back.
-  const tripIds = rows.map((r) => r.tripId);
-  const [granted, travelling] = await Promise.all([grantedMembersByTrip(db, tripIds), travellingByTrip(db, tripIds)]);
-  const trips = rows.map((r) => ({
-    ...r,
-    members: withTravelling(
-      mergeMembers(r.members, granted.get(r.tripId) ?? []),
-      travelling.get(r.tripId) ?? new Map(),
-    ),
-  }));
-  return Response.json({ trips });
+  // The avatar stack on a card counts travellers and names them, so each
+  // summary carries the effective member list rather than the projection's
+  // owner-only one, with who is travelling (travellers spec W17) and each
+  // person's persona (M38) on it. One batched read of each for all of them —
+  // this was an `effectiveMembers` per trip. The stored projection is
+  // untouched (invariant 2): this is a read overlay and nothing writes back.
+  return Response.json({ trips: await withListedMembers(db, rows) });
 }
 
 // **The client may mint the id** (KI-2026-09-12-e). `CreateTrip` in

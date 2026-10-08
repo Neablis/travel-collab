@@ -13,7 +13,7 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { executeTripCommand } from "@/server/commands";
-import { upsertUser } from "@/server/users";
+import { upsertUser, writePreferences } from "@/server/users";
 import { allGrantsFor, issueGrant, revokeGrant } from "@/server/entitlements/grants";
 import { livePlanVersion } from "@/server/entitlements/planVersions";
 import { mintToken, revokeToken } from "@/server/api-tokens";
@@ -333,6 +333,27 @@ describe("the two gates, in order", () => {
     const res = await LIST_TRIPS(get("http://localhost/api/v1/trips", secret), NO_PARAMS);
     expect(res.status).toBe(403);
     expect((await res.json()).error.code).toBe("trip-out-of-scope");
+  });
+});
+
+// M38, Mitchell's decision 2026-10-07: `/v1` does not name co-members. A token
+// is a third party's, and the trips list is the one read where it would learn
+// who else is on every trip at once. `GET /api/trips` carries the personas for
+// Home; this list keeps the bare `{ userId, role, travelling }` it published in
+// 1.9.0, even when every member has chosen a persona.
+describe("GET /v1/trips does not name the members", () => {
+  it("carries each member's id, role and travelling, and no name or persona", async () => {
+    const owner = await entitled();
+    await upsertUser({ id: owner, email: `${owner}@example.test`, name: "Kit Marlowe", image: null });
+    await writePreferences(owner, { displayName: "Kit", avatar: "tent", color: "teal" });
+    const tripId = await seedTrip(owner);
+    const res = await LIST_TRIPS(get("http://localhost/api/v1/trips", await tokenFor(owner)), NO_PARAMS);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    const trip = body.items.find((t: { tripId: string }) => t.tripId === tripId);
+    expect(trip.members).toEqual([{ userId: owner, role: "owner", travelling: true }]);
+    const raw = JSON.stringify(trip);
+    for (const leak of ["Kit", "tent", "teal", "@example.test"]) expect(raw).not.toContain(leak);
   });
 });
 

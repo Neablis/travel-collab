@@ -30,6 +30,11 @@ const updatePreferencesMock = vi.fn(async (patch: UpdateUserPreferences) => {
       : {}),
     ...("distanceUnit" in patch && patch.distanceUnit ? { distanceUnit: patch.distanceUnit } : {}),
     ...("timeFormat" in patch && patch.timeFormat ? { timeFormat: patch.timeFormat } : {}),
+    ...("avatar" in patch ? { avatar: patch.avatar ?? null } : {}),
+    ...("color" in patch ? { color: patch.color ?? null } : {}),
+    ...("publicDisplayName" in patch && patch.publicDisplayName !== undefined
+      ? { publicDisplayName: patch.publicDisplayName }
+      : {}),
   };
   return { ok: true as const, value: stored };
 });
@@ -42,10 +47,26 @@ let holdFetch: (() => void) | null = null;
 vi.mock("@/lib/apiClient", () => ({
   fetchPreferences: async () => {
     if (holdFetch !== null) await new Promise<void>((go) => (holdFetch = go));
-    return { ok: true as const, value: { preferences: stored, isAdmin: false } };
+    return { ok: true as const, value: { preferences: stored, isAdmin: false, defaultColor: "rose" as const } };
   },
   updatePreferences: (patch: UpdateUserPreferences) => updatePreferencesMock(patch),
 }));
+
+// The colour a chip is GIVEN, read off a wrapper rather than off its class:
+// the test-quality wall keeps classes out of this file, and colour to class is
+// `person-chip.test.tsx`'s claim. What this file owns is which colour the
+// surface hands the chip.
+vi.mock("@/components/ui/person-chip", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/components/ui/person-chip")>();
+  return {
+    ...actual,
+    PersonChip: (props: React.ComponentProps<typeof actual.PersonChip>) => (
+      <span data-testid="person-chip" data-color={props.color ?? "none"}>
+        <actual.PersonChip {...props} />
+      </span>
+    ),
+  };
+});
 
 /** Make the next `updatePreferences` hang until the returned function is called. */
 function pendSave() {
@@ -75,10 +96,14 @@ function pendFetch() {
 // file would have been written without them.
 const openTokens = vi.fn();
 
+// The sign-in name is the provider's, and the fallback both persona
+// descriptions name: "Sam Keller" on trips, "Sam K." on public pages.
+const SIGN_IN = { userId: "dev-sam", name: "Sam Keller" };
+
 function mount() {
   return render(
     <PreferencesProvider>
-      <ProfileSection email="sam@example.com" onOpenTokens={openTokens} />
+      <ProfileSection email="sam@example.com" signIn={SIGN_IN} onOpenTokens={openTokens} />
     </PreferencesProvider>,
   );
 }
@@ -115,7 +140,7 @@ describe("ProfileSection", () => {
   it("does not claim the sign-in gave no address before the session has answered", async () => {
     render(
       <PreferencesProvider>
-        <ProfileSection email={undefined} onOpenTokens={openTokens} />
+        <ProfileSection email={undefined} signIn={undefined} onOpenTokens={openTokens} />
       </PreferencesProvider>,
     );
     expect(await screen.findByText("…")).toBeTruthy();
@@ -125,7 +150,7 @@ describe("ProfileSection", () => {
   it("does say so once the session has answered with no address", async () => {
     render(
       <PreferencesProvider>
-        <ProfileSection email="" onOpenTokens={openTokens} />
+        <ProfileSection email="" signIn={SIGN_IN} onOpenTokens={openTokens} />
       </PreferencesProvider>,
     );
     expect(await screen.findByText("Not provided by your sign-in")).toBeTruthy();
@@ -133,7 +158,7 @@ describe("ProfileSection", () => {
 
   it("saves a name on blur, once", async () => {
     mount();
-    const field = await screen.findByLabelText("Your name");
+    const field = await screen.findByLabelText("Display name");
     await userEvent.type(field, "Mitchell");
     await userEvent.tab();
 
@@ -143,7 +168,7 @@ describe("ProfileSection", () => {
   it("sends an explicit null to clear a name, not an omitted field", async () => {
     stored = { displayName: "Mitchell", homeAirport: null, distanceUnit: "km", timeFormat: "12h", avatar: null, color: null, publicDisplayName: false };
     mount();
-    const field = await screen.findByLabelText("Your name");
+    const field = await screen.findByLabelText("Display name");
     await waitFor(() => expect((field as HTMLInputElement).value).toBe("Mitchell"));
     await userEvent.clear(field);
     await userEvent.tab();
@@ -155,7 +180,7 @@ describe("ProfileSection", () => {
   it("sends nothing when the value has not changed", async () => {
     stored = { displayName: "Mitchell", homeAirport: null, distanceUnit: "km", timeFormat: "12h", avatar: null, color: null, publicDisplayName: false };
     mount();
-    const field = await screen.findByLabelText("Your name");
+    const field = await screen.findByLabelText("Display name");
     await waitFor(() => expect((field as HTMLInputElement).value).toBe("Mitchell"));
     await userEvent.click(field);
     await userEvent.tab();
@@ -230,6 +255,145 @@ describe("ProfileSection", () => {
     );
   });
 
+  // M38 part 4, artboard 1. The chip itself is `aria-hidden` — the name is
+  // printed beside it — so the preview is found by its testid and read for
+  // what a sighted person sees: the glyph, or the initials. Its colour exists
+  // only as a class, which the test-quality wall keeps out of this file;
+  // `person-chip.test.tsx` owns colour to class, and the swatch's own
+  // `aria-checked` is what says the choice landed.
+  describe("how you appear", () => {
+    it("names the sign-in name each description falls back to", async () => {
+      mount();
+      expect(
+        await screen.findByText("What people on your trips see. Empty, it is your sign-in name, Sam Keller."),
+      ).toBeTruthy();
+      // `publicNameFor`'s short form, never the address.
+      expect(screen.getByText("While this is off, days you publish say Sam K.")).toBeTruthy();
+    });
+
+    it("previews the sign-in name's initials until a glyph is chosen", async () => {
+      mount();
+      const preview = await screen.findByTestId("persona-preview");
+      expect(within(preview).getByText("Sam Keller")).toBeTruthy();
+      expect(within(preview).getByText("SK")).toBeTruthy();
+      // Nothing chosen is the Initials radio, not a group with nothing checked.
+      const avatar = screen.getByRole("radiogroup", { name: "Avatar" });
+      expect(within(avatar).getByRole("radio", { name: "Initials" }).getAttribute("aria-checked")).toBe("true");
+    });
+
+    it("saves a picked glyph, and clears it when the same glyph is picked again", async () => {
+      mount();
+      const avatar = await screen.findByRole("radiogroup", { name: "Avatar" });
+      const compass = within(avatar).getByRole("radio", { name: "Compass" });
+      await waitFor(() => expect(compass).toHaveProperty("disabled", false));
+
+      await userEvent.click(compass);
+      await waitFor(() => expect(patches).toEqual([{ avatar: "compass" }]));
+      await waitFor(() => expect(compass.getAttribute("aria-checked")).toBe("true"));
+      // The preview draws the glyph in place of the initials.
+      const preview = screen.getByTestId("persona-preview");
+      expect(preview.innerHTML).toContain("lucide-compass");
+      expect(within(preview).queryByText("SK")).toBeNull();
+
+      await userEvent.click(compass);
+      await waitFor(() => expect(patches).toEqual([{ avatar: "compass" }, { avatar: null }]));
+      await waitFor(() =>
+        expect(within(avatar).getByRole("radio", { name: "Initials" }).getAttribute("aria-checked")).toBe("true"),
+      );
+      expect(within(screen.getByTestId("persona-preview")).getByText("SK")).toBeTruthy();
+    });
+
+    // A trip draws someone who stored no colour in the server's derived one
+    // (`defaultColor`, here rose); the preview must not draw slate instead.
+    it("previews the colour trips derive until one is chosen", async () => {
+      mount();
+      const colour = await screen.findByRole("radiogroup", { name: "Colour" });
+      const chip = within(screen.getByTestId("persona-preview")).getByTestId("person-chip");
+      await waitFor(() => expect(chip.getAttribute("data-color")).toBe("rose"));
+
+      const teal = within(colour).getByRole("radio", { name: "Teal" });
+      await userEvent.click(teal);
+      await waitFor(() => expect(chip.getAttribute("data-color")).toBe("teal"));
+    });
+
+    it("saves a picked colour", async () => {
+      mount();
+      const colour = await screen.findByRole("radiogroup", { name: "Colour" });
+      const teal = within(colour).getByRole("radio", { name: "Teal" });
+      await waitFor(() => expect(teal).toHaveProperty("disabled", false));
+      // No stored colour checks no swatch: Account shows the stored choice
+      // only, and the colour a trip derives is the server's to decide.
+      expect(within(colour).queryByRole("radio", { checked: true })).toBeNull();
+
+      await userEvent.click(teal);
+      await waitFor(() => expect(patches).toEqual([{ color: "teal" }]));
+      await waitFor(() => expect(teal.getAttribute("aria-checked")).toBe("true"));
+    });
+
+    it("shows a refused pick, and does not leave it looking chosen", async () => {
+      mount();
+      const colour = await screen.findByRole("radiogroup", { name: "Colour" });
+      const plum = within(colour).getByRole("radio", { name: "Plum" });
+      await waitFor(() => expect(plum).toHaveProperty("disabled", false));
+      refuse = "Something went wrong saving that.";
+
+      await userEvent.click(plum);
+      expect(await screen.findByText("Something went wrong saving that.")).toBeTruthy();
+      expect(plum.getAttribute("aria-checked")).toBe("false");
+    });
+
+    // Initials is "no glyph": with none chosen, choosing it again asks the
+    // server for nothing.
+    it("sends nothing when Initials is chosen again", async () => {
+      mount();
+      const avatar = await screen.findByRole("radiogroup", { name: "Avatar" });
+      const initials = within(avatar).getByRole("radio", { name: "Initials" });
+      await waitFor(() => expect(initials).toHaveProperty("disabled", false));
+
+      await userEvent.click(initials);
+      expect(updatePreferencesMock).not.toHaveBeenCalled();
+      expect(initials.getAttribute("aria-checked")).toBe("true");
+    });
+
+    // A refusal arriving for a pick the person has already replaced is about
+    // a colour nobody chose any more; it must not appear under the newer one.
+    it("drops the error of a pick a newer pick has replaced", async () => {
+      mount();
+      const colour = await screen.findByRole("radiogroup", { name: "Colour" });
+      const plum = within(colour).getByRole("radio", { name: "Plum" });
+      await waitFor(() => expect(plum).toHaveProperty("disabled", false));
+      let refusePlum: () => void = () => {};
+      updatePreferencesMock.mockImplementationOnce(async (patch) => {
+        patches.push(patch);
+        await new Promise<void>((go) => (refusePlum = go));
+        return { ok: false as const, error: { status: 500, message: "Plum did not save." } };
+      });
+
+      await userEvent.click(plum);
+      const teal = within(colour).getByRole("radio", { name: "Teal" });
+      await userEvent.click(teal);
+      await waitFor(() => expect(teal.getAttribute("aria-checked")).toBe("true"));
+      await act(async () => {
+        refusePlum();
+      });
+
+      expect(patches).toEqual([{ color: "plum" }, { color: "teal" }]);
+      expect(screen.queryByText("Plum did not save.")).toBeNull();
+      expect(teal.getAttribute("aria-checked")).toBe("true");
+    });
+
+    it("turns the display name on for public pages", async () => {
+      mount();
+      const box = await screen.findByRole("checkbox", { name: /show my display name on public pages/i });
+      await waitFor(() => expect(box).toHaveProperty("disabled", false));
+      expect(box).toHaveProperty("checked", false);
+
+      await userEvent.click(box);
+      await waitFor(() => expect(patches).toEqual([{ publicDisplayName: true }]));
+      await waitFor(() => expect(box).toHaveProperty("checked", true));
+    });
+  });
+
   // Both fixes came from review on pull request 112, and both were shipped as
   // comments describing a guard with nothing enforcing it — the defect class
   // AGENTS.md names (KI-1, KI-14) and the one I insisted on covering for the
@@ -275,7 +439,7 @@ describe("ProfileSection", () => {
     it("keeps a newer draft when an earlier name save lands", async () => {
       const release = pendSave();
       mount();
-      const name = await screen.findByLabelText(/your name/i);
+      const name = await screen.findByLabelText("Display name");
 
       await userEvent.type(name, "Sam");
       (name as HTMLInputElement).blur();
@@ -293,7 +457,7 @@ describe("ProfileSection", () => {
         release();
       });
 
-      expect((screen.getByLabelText(/your name/i) as HTMLInputElement).value).toBe("Sam Smith");
+      expect((screen.getByLabelText("Display name") as HTMLInputElement).value).toBe("Sam Smith");
     });
   });
 });

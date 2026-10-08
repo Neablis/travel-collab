@@ -133,6 +133,7 @@ export function AccountScreen() {
           {tab === "profile" && (
             <ProfileSection
               email={user === undefined ? undefined : (user?.email ?? "")}
+              signIn={user ? { userId: user.id ?? "", name: user.name ?? null } : undefined}
               onOpenTokens={() => router.push("/account?tab=tokens")}
             />
           )}

@@ -1,6 +1,10 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { setupServer } from "msw/node";
+import { http, HttpResponse } from "msw";
+import { tripAccessFixture, tripMemberProfileFactory } from "@tc/factories";
+import { PeopleProvider } from "@/components/pages/people";
 import { UnscheduledRack } from "./UnscheduledRack";
 
 afterEach(cleanup);
@@ -217,5 +221,51 @@ describe("UnscheduledRack — a viewer's drawer", () => {
 
     expect(screen.getByText("Nothing parked.")).toBeTruthy();
     expect(screen.queryByText(/Drag a stop down here/)).toBeNull();
+  });
+});
+
+// M38 part 3: "Parked by" printed the parker's raw user id. It names them the
+// way every person surface does, from the trip's members (`PeopleProvider`).
+describe("UnscheduledRack — who parked a stop", () => {
+  const server = setupServer();
+  beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
+  afterEach(() => server.resetHandlers());
+  afterAll(() => server.close());
+
+  const parker = "6b1f0c7e-2d4a-4c8e-9f1a-3e5d7c9b4f2a";
+  const parked = [{ ...items[0]!, bookedBy: parker }];
+
+  // M38: and beside the name, their chip — the glyph they picked.
+  it("names the person who parked it, by the name and chip they chose", async () => {
+    const tripId = crypto.randomUUID();
+    server.use(
+      http.get("/api/trips/:tripId/access", () =>
+        HttpResponse.json({
+          access: tripAccessFixture({
+            tripId,
+            members: [
+              tripMemberProfileFactory.build({ userId: parker, role: "owner", name: "Dana Reyes", displayName: "Dee", avatar: "tent", color: "teal" }),
+            ],
+          }),
+        }),
+      ),
+    );
+    render(
+      <PeopleProvider tripId={tripId}>
+        <UnscheduledRack items={parked} dayOptions={dayOptions} open onToggle={vi.fn()} />
+      </PeopleProvider>,
+    );
+
+    expect(await screen.findByText("Parked by Dee")).toBeTruthy();
+    expect(screen.queryByText(new RegExp(parker))).toBeNull();
+    expect(screen.getByTestId("rack-card").innerHTML).toContain("lucide-tent");
+  });
+
+  // Before the members land, or for someone who has left: a handle, never the id.
+  it("never prints the raw id while it does not know the name", () => {
+    renderRack({ open: true, items: parked });
+
+    expect(screen.getByText("Parked by Traveler 9b4f2a")).toBeTruthy();
+    expect(screen.queryByText(new RegExp(parker))).toBeNull();
   });
 });

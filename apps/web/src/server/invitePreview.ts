@@ -79,7 +79,9 @@ export async function readInvitePreview(
           email: null,
         }),
         avatar: p.avatar,
+        // This trip's colour: `withProfiles` resolved it while it had the ids.
         color: p.color,
+        colorShifted: p.colorShifted,
         travelling: travellers.has(p.userId),
       })),
       total: { amountMinor: costed.tripCostTotal, currency: costed.currency },

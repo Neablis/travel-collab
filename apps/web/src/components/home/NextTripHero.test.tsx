@@ -1,7 +1,7 @@
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TripSummary } from "@tc/contracts";
-import { costedTripDetailFixture, tripCoverFactory, tripDetailFixture, tripSummaryFactory } from "@tc/factories";
+import { costedTripDetailFixture, tripCoverFactory, tripDetailFixture, tripSummaryFactory, tripSummaryMemberFactory } from "@tc/factories";
 
 const fetchTripDetailMock = vi.fn();
 
@@ -29,8 +29,8 @@ function tripSummaryFixture(overrides: Partial<TripSummary> = {}): TripSummary {
     tripId: "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f",
     name: "Japan: Tokyo to Kyoto",
     members: [
-      { userId: "dev-alice", role: "owner" },
-      { userId: "dev-bob", role: "owner" },
+      tripSummaryMemberFactory.build({ userId: "dev-alice", role: "owner" }),
+      tripSummaryMemberFactory.build({ userId: "dev-bob", role: "owner" }),
     ],
     // A planned trip, as `tripDetailWithDays` below is: every test here but
     // the unplanned ones is about a trip with something on it.
@@ -477,7 +477,7 @@ describe("NextTripHero", () => {
   // even for a solo trip. It is the avatar stack's name now that the tile
   // that printed it is gone (§35.2).
   it("says one traveler, not one travelers", async () => {
-    const trip = tripSummaryFixture({ members: [{ userId: "dev-alice", role: "owner" }] });
+    const trip = tripSummaryFixture({ members: [tripSummaryMemberFactory.build({ userId: "dev-alice", role: "owner" })] });
     fetchTripDetailMock.mockResolvedValue({ ok: true, value: tripDetailWithDays(trip.tripId) });
     render(<NextTripHero trip={trip} />);
 
@@ -488,7 +488,7 @@ describe("NextTripHero", () => {
   // Travellers spec §5: an adviser who is not going is not a traveler here.
   it("counts and shows the travelers, not every member", async () => {
     const trip = tripSummaryFixture({
-      members: [{ userId: "dev-alice", role: "owner" }, { userId: "dev-bob", role: "suggester", travelling: false }],
+      members: [tripSummaryMemberFactory.build({ userId: "dev-alice", role: "owner" }), tripSummaryMemberFactory.build({ userId: "dev-bob", role: "suggester", travelling: false })],
     });
     fetchTripDetailMock.mockResolvedValue({ ok: true, value: tripDetailWithDays(trip.tripId) });
     render(<NextTripHero trip={trip} />);
@@ -497,6 +497,37 @@ describe("NextTripHero", () => {
     const group = await screen.findByRole("group", { name: "1 traveler" });
     expect(within(group).getByText("AL")).toBeTruthy();
     expect(within(group).queryByText("BO")).toBeNull();
+  });
+
+  // M38 part 3: the initials are the person's — the name they chose, then the
+  // sign-in name — not their id's handle.
+  it("draws each traveler's initials from their name, not their id", async () => {
+    const trip = tripSummaryFixture({
+      members: [
+        tripSummaryMemberFactory.build({ userId: "6b1f0c7e-2d4a-4c8e-9f1a-3e5d7c9b4f2a", role: "owner", name: "Dana Reyes", displayName: "Mo Tanaka" }),
+        tripSummaryMemberFactory.build({ userId: "0a9e8d7c-6b5a-4f3e-8d2c-1b0a9f8e7d6c", role: "editor", name: "Sam Okafor" }),
+      ],
+    });
+    fetchTripDetailMock.mockResolvedValue({ ok: true, value: tripDetailWithDays(trip.tripId) });
+    render(<NextTripHero trip={trip} />);
+
+    const group = await screen.findByRole("group", { name: "2 travelers" });
+    expect(within(group).getByText("MT")).toBeTruthy();
+    expect(within(group).getByText("SO")).toBeTruthy();
+  });
+
+  // M38: a face is the person's chip, so the glyph they picked stands in for
+  // their initials.
+  it("draws a traveler's chosen avatar in place of their initials", async () => {
+    const trip = tripSummaryFixture({
+      members: [tripSummaryMemberFactory.build({ userId: "dev-dana", role: "owner", displayName: "Dana Reyes", avatar: "compass", color: "sky" })],
+    });
+    fetchTripDetailMock.mockResolvedValue({ ok: true, value: tripDetailWithDays(trip.tripId) });
+    render(<NextTripHero trip={trip} />);
+
+    const group = await screen.findByRole("group", { name: "1 traveler" });
+    expect(group.innerHTML).toContain("lucide-compass");
+    expect(within(group).queryByText("DR")).toBeNull();
   });
 
   // Since §35.2 filters the hero out of *Other trips*, this is the only place
@@ -641,7 +672,7 @@ describe("NextTripHero — the countdown", () => {
 describe("NextTripHero — length, stops and the unplanned trip", () => {
   const unplanned = (overrides: Partial<TripSummary> = {}) =>
     tripSummaryFixture({
-      members: [{ userId: "dev-alice", role: "owner" }],
+      members: [tripSummaryMemberFactory.build({ userId: "dev-alice", role: "owner" })],
       dayCount: 0,
       stopCount: 0,
       ideaCount: 0,
@@ -736,8 +767,8 @@ describe("NextTripHero — length, stops and the unplanned trip", () => {
     fetchTripDetailMock.mockReturnValue(new Promise(() => {}));
     const trip = unplanned({
       members: [
-        { userId: "dev-alice", role: "owner" },
-        { userId: "dev-bob", role: "viewer" },
+        tripSummaryMemberFactory.build({ userId: "dev-alice", role: "owner" }),
+        tripSummaryMemberFactory.build({ userId: "dev-bob", role: "viewer" }),
       ],
     });
     render(<NextTripHero trip={trip} viewerId="dev-alice" />);
@@ -764,8 +795,8 @@ describe("NextTripHero — length, stops and the unplanned trip", () => {
     fetchTripDetailMock.mockReturnValue(new Promise(() => {}));
     const trip = unplanned({
       members: [
-        { userId: "dev-alice", role: "owner" },
-        { userId: "dev-bob", role },
+        tripSummaryMemberFactory.build({ userId: "dev-alice", role: "owner" }),
+        tripSummaryMemberFactory.build({ userId: "dev-bob", role }),
       ],
     });
     render(<NextTripHero trip={trip} viewerId="dev-bob" />);

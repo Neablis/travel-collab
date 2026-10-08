@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DistanceUnit, TimeFormat, UpdateUserPreferences, UserPreferences } from "../src";
+import { DistanceUnit, PreferencesResponse, TimeFormat, UpdateUserPreferences, UserPreferences } from "../src";
 
 const preferences = {
   displayName: "Mitchell",
@@ -141,5 +141,22 @@ describe("UpdateUserPreferences", () => {
     expect(UpdateUserPreferences.safeParse({ displayName: "" }).success).toBe(false);
     expect(UpdateUserPreferences.safeParse({ displayName: "a".repeat(81) }).success).toBe(false);
     expect(UpdateUserPreferences.safeParse({ distanceUnit: "furlongs" }).success).toBe(false);
+  });
+});
+
+describe("PreferencesResponse", () => {
+  it("carries the colour a trip derives beside what was chosen", () => {
+    expect(PreferencesResponse.parse({ preferences, defaultColor: "teal" })).toEqual({ preferences, defaultColor: "teal" });
+  });
+
+  // A server from before the field answered `{ preferences }` alone.
+  it("reads an older server's answer as no default colour", () => {
+    expect(PreferencesResponse.parse({ preferences }).defaultColor).toBeNull();
+  });
+
+  // Nobody chooses it, so a patch naming it asks for nothing and is refused
+  // like any other empty patch.
+  it("is not something a patch can set", () => {
+    expect(UpdateUserPreferences.safeParse({ defaultColor: "teal" }).success).toBe(false);
   });
 });

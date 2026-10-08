@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { travellerIds, type ActivityKind, type ActivityMode, type ActivityTag, type ActivityView, type Anchor, type DistanceUnit, type Location, type Money, type NearbyStop, type PendingReason, type TimeWindow } from "@tc/contracts";
+import { travellerIds, type ActivityKind, type ActivityMode, type ActivityTag, type ActivityView, type Anchor, type AvatarKey, type DistanceUnit, type Location, type Money, type NearbyStop, type PendingReason, type PersonColor, type TimeWindow } from "@tc/contracts";
 import { Button } from "@/components/ui/button";
+import { PersonChip } from "@/components/ui/person-chip";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -67,9 +68,16 @@ const KIND_HELP: Record<ActivityKind, string> = {
 /**
  * A trip member as the attribution controls show them: the id is the value,
  * `name` the label. `travelling` is `TripMember`'s, absent meaning travelling
- * (travellers spec D2).
+ * (travellers spec D2). `avatar` and `color` are what their chip draws (M38),
+ * absent until the trip's personas land — the chip is then their initials.
  */
-export type NamedMember = { userId: string; name: string; travelling?: boolean };
+export type NamedMember = {
+  userId: string;
+  name: string;
+  travelling?: boolean;
+  avatar?: AvatarKey | null;
+  color?: PersonColor | null;
+};
 
 export type ActivityDayOption = { dayId: string; label: string; existing: Slot[] };
 
@@ -222,13 +230,16 @@ export function ActivityEditor({
         variant={on ? "primary" : "secondary"}
         size="sm"
         aria-pressed={on}
-        className="rounded-full px-3"
+        className="rounded-full pr-3 pl-1"
         onClick={() =>
           setParticipants((current) =>
             current.includes(member.userId) ? current.filter((id) => id !== member.userId) : [...current, member.userId],
           )
         }
       >
+        {/* The chip says who; the pill's own fill still says "in" (M38,
+            artboard 3). Ringed so it holds on the brand fill. */}
+        <PersonChip name={member.name} avatar={member.avatar ?? null} color={member.color ?? null} size="xs" ring />
         {member.name}
         {on && !travelling.has(member.userId) && (
           <>
@@ -251,6 +262,7 @@ export function ActivityEditor({
   const departedIds =
     members.length === 0 ? [] : [...new Set(initial?.participants ?? [])].filter((id) => !memberIds.has(id));
   const departedBookedBy = members.length > 0 && bookedBy !== null && !memberIds.has(bookedBy) ? bookedBy : null;
+  const booker = members.find((member) => member.userId === bookedBy);
   // Kept while the kind is switched away, so switching back does not lose
   // them; only what is SAVED is cleared (see submit).
   const [travelMode, setTravelMode] = useState<ActivityMode | null>(initial?.mode ?? null);
@@ -575,21 +587,29 @@ export function ActivityEditor({
               id="activity-booked-by"
               label="Booked by"
             >
-              <NativeSelect
-                id="activity-booked-by"
-                value={bookedBy ?? ""}
-                onChange={(e) => setBookedBy(e.target.value === "" ? null : e.target.value)}
-              >
-                <option value="">Nobody yet</option>
-                {/* Shown only while it is the value, so choosing anything else
-                    drops it for good — same rule as Who is in above. */}
-                {departedBookedBy !== null && <option value={departedBookedBy}>Former member (left the trip)</option>}
-                {members.map((member) => (
-                  <option key={member.userId} value={member.userId}>
-                    {member.name}
-                  </option>
-                ))}
-              </NativeSelect>
+              {/* Still a native select (ADR-010): an option cannot hold an
+                  icon, so the chosen person's chip sits beside it (M38). */}
+              <div data-testid="booked-by" className="flex items-center gap-2">
+                {booker !== undefined && (
+                  <PersonChip name={booker.name} avatar={booker.avatar ?? null} color={booker.color ?? null} size="sm" />
+                )}
+                <NativeSelect
+                  id="activity-booked-by"
+                  className="min-w-0 flex-1"
+                  value={bookedBy ?? ""}
+                  onChange={(e) => setBookedBy(e.target.value === "" ? null : e.target.value)}
+                >
+                  <option value="">Nobody yet</option>
+                  {/* Shown only while it is the value, so choosing anything else
+                      drops it for good — same rule as Who is in above. */}
+                  {departedBookedBy !== null && <option value={departedBookedBy}>Former member (left the trip)</option>}
+                  {members.map((member) => (
+                    <option key={member.userId} value={member.userId}>
+                      {member.name}
+                    </option>
+                  ))}
+                </NativeSelect>
+              </div>
             </FormField>
           </>
         )}

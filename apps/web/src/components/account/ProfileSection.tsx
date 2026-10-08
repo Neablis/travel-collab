@@ -1,14 +1,27 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { DistanceUnit, TimeFormat, UpdateUserPreferences } from "@tc/contracts";
+import type { DistanceUnit, TimeFormat, UpdateUserPreferences, UserPreferences } from "@tc/contracts";
 import { Button } from "@/components/ui/button";
+import { CheckboxField } from "@/components/ui/checkbox";
 import { Text } from "@/components/ui/text";
 import { Input } from "@/components/ui/input";
 import { DataText } from "@/components/ui/data-text";
+import { PersonChip } from "@/components/ui/person-chip";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { SettingsCard, SettingsRow } from "@/components/ui/settings-card";
+import { displayNameFor, publicNameFor } from "@/lib/displayName";
+import { initialsFor } from "@/lib/initials";
+import { AvatarPicker, ColorPicker } from "./PersonaPickers";
 import { useAccountPreferences } from "./PreferencesProvider";
+
+/** A full stop, unless the text already ends in one — "Dana R." does, a one-word name does not. */
+function sentence(text: string): string {
+  return text.endsWith(".") ? text : `${text}.`;
+}
+
+/** The M38 choices, each saved the moment it is made. */
+type PersonaPatch = Partial<Pick<UserPreferences, "avatar" | "color" | "publicDisplayName">>;
 
 // One setting for every unit, not only distance: temperature and rain are
 // derived from it (ADR-052's 2026-09-24 amendment), and "Distance" hid that
@@ -58,17 +71,33 @@ const TIME_FORMAT_OPTIONS = [
  * three are deliberately distinct: "Not provided by your sign-in" is a claim
  * about the reader's own account, and it must not be made before anyone knows.
  *
+ * `signIn` is the identity provider's side of the name, `undefined` until the
+ * session answers: what an empty display name falls back to on trips, and
+ * what public pages say while the display name is kept off them (M38).
+ *
  * `onOpenTokens` opens the API tokens sub-view. The URL is `AccountScreen`'s to
  * own (`?tab=`), so the section asks rather than navigating itself.
  */
 export function ProfileSection({
   email,
+  signIn,
   onOpenTokens,
 }: {
   email: string | undefined;
+  signIn: { userId: string; name: string | null } | undefined;
   onOpenTokens: () => void;
 }) {
-  const { preferences, loaded, save } = useAccountPreferences();
+  const { preferences, loaded, save, defaultColor } = useAccountPreferences();
+  // A pick shows at once, before its save answers (optimistic), and falls back
+  // to the stored value when it fails. Keyed per field so a colour save
+  // landing cannot drop an avatar pick still in flight.
+  const [picked, setPicked] = useState<PersonaPatch>({});
+  const [avatarError, setAvatarError] = useState<string | null>(null);
+  const [colorError, setColorError] = useState<string | null>(null);
+  const [publicError, setPublicError] = useState<string | null>(null);
+  const avatar = picked.avatar !== undefined ? picked.avatar : preferences.avatar;
+  const color = picked.color !== undefined ? picked.color : preferences.color;
+  const publicDisplayName = picked.publicDisplayName ?? preferences.publicDisplayName;
   const [name, setName] = useState(preferences.displayName ?? "");
   const [airport, setAirport] = useState(preferences.homeAirport ?? "");
   const [nameError, setNameError] = useState<string | null>(null);
@@ -79,6 +108,8 @@ export function ProfileSection({
   // reverted. It is what stops the resync below from overwriting an edit in
   // progress — see the comment there.
   const editing = useRef({ name: false, airport: false });
+  // The newest persona pick per field, by issue order — `choose` below.
+  const picks = useRef<{ issued: number; latest: Partial<Record<keyof PersonaPatch, number>> }>({ issued: 0, latest: {} });
 
   // Controlled fields seeded from stored state, resynced whenever it moves.
   // The server NORMALIZES `homeAirport` (trim + uppercase) and refuses a
@@ -135,10 +166,70 @@ export function ProfileSection({
     revert();
   }
 
+  // The units control's shape — saved at once, the same pre-fetch guard, the
+  // failure surfaced — plus the optimistic pick above. The pick is dropped
+  // only if it is still this call's: a second pick made while the first was in
+  // flight must not flash back to the first one's answer.
+  //
+  // The same holds for its error: a refusal answering a pick that a newer pick
+  // of the same field has since replaced is about a choice nobody holds any
+  // more, so it is dropped rather than shown under the newer one (self-review
+  // of pull request 359). The newer pick clears the old message as it starts.
+  async function choose(patch: PersonaPatch, setError: (message: string | null) => void) {
+    if (!loaded) return;
+    const keys = Object.keys(patch) as (keyof PersonaPatch)[];
+    const ticket = ++picks.current.issued;
+    for (const key of keys) picks.current.latest[key] = ticket;
+    setError(null);
+    setPicked((current) => ({ ...current, ...patch }));
+    const result = await save(patch);
+    setPicked((current) => {
+      const next = { ...current };
+      for (const key of Object.keys(patch) as (keyof PersonaPatch)[]) {
+        if (next[key] === patch[key]) delete next[key];
+      }
+      return next;
+    });
+    if (keys.every((key) => picks.current.latest[key] === ticket)) setError(result.ok ? null : result.error.message);
+  }
+
+  // As trips print it (`displayNameFor`, the one seam), following the field as
+  // it is typed — the canvas's preview is live. `initialsFor` is what the chip
+  // and the Initials option both draw from the same name.
+  const shownName = displayNameFor({
+    userId: signIn?.userId ?? "",
+    displayName: name.trim() === "" ? null : name.trim(),
+    name: signIn?.name,
+    email: email === "" ? null : email,
+  });
+
   return (
     <div className="flex flex-col gap-4">
       <SettingsCard heading="You">
-        <SettingsRow label="Your name" htmlFor="account-display-name">
+        {/* The only place you see yourself (M38 canvas, artboard 1). A testid
+            because the chip is `aria-hidden` beside the printed name, so the
+            line has no accessible identity of its own to be found by. */}
+        <div className="mt-3 flex items-center gap-3 rounded-lg bg-moss px-3 py-2.5" data-testid="persona-preview">
+          <PersonChip name={shownName} avatar={avatar} color={color ?? defaultColor} size="lg" />
+          <span className="flex min-w-0 flex-col">
+            <Text as="span" className="truncate text-sm font-semibold text-ink">
+              {shownName}
+            </Text>
+            <Text as="span" variant="muted">
+              How you appear on your trips
+            </Text>
+          </span>
+        </div>
+
+        <SettingsRow
+          label="Display name"
+          htmlFor="account-display-name"
+          description={
+            signIn?.name
+              ? `What people on your trips see. Empty, it is your sign-in name, ${signIn.name}.`
+              : "What people on your trips see."
+          }
+        >
           {/* 240px, because a name is not a paragraph (§34.5: controls are
               sized to their content). `w-full` inside the fixed box so it
               shrinks with the measure on a narrow window rather than
@@ -185,6 +276,44 @@ export function ProfileSection({
             {nameError !== null && (
               <Text id="account-display-name-error" variant="muted" className="mt-1.5 text-danger-ink">
                 {nameError}
+              </Text>
+            )}
+          </div>
+        </SettingsRow>
+
+        <SettingsRow label="Avatar" description="Shown beside your name. Initials if you choose none.">
+          <div className="flex flex-col items-start gap-2">
+            <AvatarPicker
+              value={avatar}
+              initials={initialsFor(shownName)}
+              disabled={!loaded}
+              onValueChange={(next) => void choose({ avatar: next }, setAvatarError)}
+            />
+            {avatarError !== null && (
+              <Text variant="muted" className="text-danger-ink">
+                {avatarError}
+              </Text>
+            )}
+          </div>
+        </SettingsRow>
+
+        {/* The stored choice only: with none stored no swatch is checked, and
+            the preview draws the colour a trip derives, which the server
+            sends as `defaultColor` (canvas question 3) — Account does not
+            guess it, and no longer draws slate where every trip does not. */}
+        <SettingsRow
+          label="Colour"
+          description="If someone on a trip chose it first, you show in another colour there."
+        >
+          <div className="flex flex-col items-start gap-2">
+            <ColorPicker
+              value={color}
+              disabled={!loaded}
+              onValueChange={(next) => void choose({ color: next }, setColorError)}
+            />
+            {colorError !== null && (
+              <Text variant="muted" className="text-danger-ink">
+                {colorError}
               </Text>
             )}
           </div>
@@ -254,6 +383,32 @@ export function ProfileSection({
               {airportError}
             </Text>
           )}
+        </SettingsRow>
+      </SettingsCard>
+
+      {/* Its own card so it reads as a privacy choice (canvas, artboard 1),
+          off by default. The description names the exact fallback a stranger
+          gets — `publicNameFor` of the sign-in name, the server's own rule. */}
+      <SettingsCard heading="Public pages">
+        <SettingsRow label="Your name in the library">
+          <div className="flex flex-col items-start gap-2">
+            <CheckboxField
+              checked={publicDisplayName}
+              disabled={!loaded}
+              onCheckedChange={(next) => void choose({ publicDisplayName: next }, setPublicError)}
+              title="Show my display name on public pages"
+              description={
+                signIn === undefined
+                  ? "While this is off, days you publish say your sign-in name, shortened."
+                  : sentence(`While this is off, days you publish say ${publicNameFor({ userId: signIn.userId, name: signIn.name })}`)
+              }
+            />
+            {publicError !== null && (
+              <Text variant="muted" className="text-danger-ink">
+                {publicError}
+              </Text>
+            )}
+          </div>
         </SettingsRow>
       </SettingsCard>
 

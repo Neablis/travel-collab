@@ -25,14 +25,14 @@
  * thing M17 is going to build. So those callers pass `{ userId }` alone and get
  * the identifier back, honestly, until M17 has something better to return.
  *
- * **M17 filled the front of the chain in, and stopped one link short.**
- * `displayName` is now first, and the account menu passes it. The People
- * section does not yet: its members arrive as `TripMemberProfile`, which is a
- * `packages/contracts` schema, so giving it the chosen name means adding a
- * field there — a contract change, which AGENTS.md invariant 5 reserves for its
- * own reviewed PR with a changelog entry and every consumer updated. It is a
- * one-field follow-up, not a design problem: `withProfiles` already reads the
- * whole `users` row and the column it needs is now on it.
+ * **M17 filled the front of the chain in, and M38 carried it onto the trip.**
+ * `displayName` is first, and every trip surface now has it to pass: the
+ * People section and the header stack hand over a whole `TripMemberProfile`,
+ * which carries it since M38 part 2; `PeopleProvider` (`components/pages/
+ * people.tsx`) passes it for every notebook widget, suggestion author, history
+ * row and the rack's "Parked by"; and Home's cards hand over a
+ * `TripSummaryMember`, which the trips list fills from `users` in the one
+ * batched read (M38 part 3). None of those carries an address.
  *
  * **The public library no longer shows only the handle** (Mitchell,
  * 2026-10-02; ADR-061 decision 4, amended). Until then a Playbook's author and
