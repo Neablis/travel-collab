@@ -105,6 +105,23 @@ describe("referrerFirstNameFor", () => {
     expect(await referrerFirstNameFor(minted.code)).toBe("Dana");
   });
 
+  // M38 D2: a chosen name reaches this public card only when its owner opted
+  // in; until then the card names them by their sign-in name, as the library
+  // does. A fresh code per case, because the card is cached per code.
+  it("uses a chosen name only when its owner opted in to publishing it", async () => {
+    const pseudonym = `dev-og-pseudonym-${run}`;
+    await upsertUser({ id: pseudonym, name: "Paula Hart", email: "paula@example.com", image: null });
+    await db.update(users).set({ displayName: "Pip Quill", publicDisplayName: false }).where(eq(users.id, pseudonym));
+    const privately = await mintReferralCode(pseudonym);
+    if (!privately.ok) throw new Error(privately.reason);
+    expect(await referrerFirstNameFor(privately.code)).toBe("Paula");
+
+    await db.update(users).set({ publicDisplayName: true }).where(eq(users.id, pseudonym));
+    const publicly = await mintReferralCode(pseudonym);
+    if (!publicly.ok) throw new Error(publicly.reason);
+    expect(await referrerFirstNameFor(publicly.code)).toBe("Pip");
+  });
+
   it("answers null for a code nobody minted", async () => {
     expect(await referrerFirstNameFor(`NOPE${run}`)).toBeNull();
   });

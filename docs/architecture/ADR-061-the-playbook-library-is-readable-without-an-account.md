@@ -59,6 +59,14 @@ saw only the site card.
    > "A traveler" (`publicAuthor`), so a typed URL cannot learn whether an account exists or
    > what it is called. The public REST API (`GET /v1/discover/playbooks`) does not carry the
    > name.
+
+   > **Amended 2026-10-08 (M38 D2, Mitchell).** The chosen display name is used only when its
+   > owner has opted in (`users.public_display_name`, *Show my display name on public pages* on
+   > Account). Otherwise the safe public name comes from the sign-in name. The opt-in is
+   > selected in the read (`ownerNames` and `publicNamesOf` in `server/playbooks.ts`, and the
+   > referral card's lookup), so no resolver downstream can forget it. Migration `0044` opted in
+   > everyone who already had a display name, because the library printed it before the column
+   > existed. No public name changed at deploy, and a name chosen afterwards starts private.
 5. **Signed-out readers do not see controls they could only fail at** (ADR-031). That means no
    Yours/Saved scopes, no Report, no review composer and no tab bar. **Add to a trip** is the
    exception and stays. It is the thing the page exists to sell, so it opens a sign-in or
