@@ -89,8 +89,10 @@ export type PreviewPerson = z.infer<typeof PreviewPerson>;
 export const TripPreview = z
   .object({
     name: z.string(),
-    // The first and last days' dates, as the landing and the home cards read
-    // them — null for an undated trip.
+    // `startDate` is the first day's date, else the trip's own start date.
+    // `endDate` is the last day's date and nothing else — `TripSummary`'s rule
+    // for the home cards (KI-2026-09-24-e) — so it is null for an undated trip
+    // AND for a dated one with no days yet: a start with no end, not a guess.
     startDate: z.string().nullable(),
     endDate: z.string().nullable(),
     days: z.array(PreviewDay),

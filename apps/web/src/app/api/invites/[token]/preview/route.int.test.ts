@@ -8,9 +8,10 @@ import { executeTripCommand } from "@/server/commands";
 import { upsertUser, writePreferences } from "@/server/users";
 import { idAvoidingColors } from "@/server/test-support/personaIds";
 import { defaultPersonColor, resolveTripColors } from "@tc/domain";
-import { acceptInvite, createInvite, revokeInvite } from "@/server/access/invites";
+import { acceptInvite, createInvite, inviteByToken, revokeInvite } from "@/server/access/invites";
 import { requireTripAccess } from "@/server/access/trip-access";
 import { entitleAccounts } from "@/server/test-support/entitledAccount";
+import { displayNameFor } from "@/lib/displayName";
 
 // `GET /api/invites/:token/preview` — M38's gate box for D4: *the token-scoped
 // read returns nothing that decision 4 hides*. Through the ROUTE, because the
@@ -21,6 +22,11 @@ import { entitleAccounts } from "@/server/test-support/entitledAccount";
 // left real because `next-auth` does not load under vitest, and the look read
 // below imports the seam that would call it.
 vi.mock("@/server/auth", () => ({ auth: vi.fn(async () => null) }));
+// The real lookup, watched: an oversized token is refused before it runs.
+vi.mock("@/server/access/invites", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/server/access/invites")>();
+  return { ...actual, inviteByToken: vi.fn(actual.inviteByToken) };
+});
 
 const { GET } = await import("./route");
 
@@ -180,6 +186,45 @@ describe("GET /api/invites/:token/preview — people's colours", () => {
   });
 });
 
+describe("GET /api/invites/:token/preview — names and dates at the edges", () => {
+  it("names a member whose chosen name is an address by the next link, never the address", async () => {
+    const tripId = randomUUID();
+    await command({ type: "CreateTrip", tripId, name: "Kyoto in autumn" });
+    // One whose sign-in name is usable, and one whose every name is an address.
+    const KIM = `dev-preview-kim-${run}`;
+    const LEE = `dev-preview-lee-${run}`;
+    await upsertUser({ id: KIM, name: "Kim Park", email: "kim@example.com", image: null });
+    await upsertUser({ id: LEE, name: "lee@example.com", email: "lee@example.com", image: null });
+    await db.update(users).set({ displayName: "kim@example.com" }).where(eq(users.id, KIM));
+    await db.update(users).set({ displayName: "Lee <lee@example.com>" }).where(eq(users.id, LEE));
+    for (const who of [KIM, LEE]) {
+      const { token } = await createInvite(tripId, OWNER, { email: null, role: "editor" });
+      expect((await acceptInvite(token, who)).ok).toBe(true);
+    }
+
+    const { status, raw } = await preview((await createInvite(tripId, OWNER, { email: null, role: "viewer" })).token);
+    expect(status).toBe(200);
+    expect((JSON.parse(raw) as TripPreview).people.map((p) => p.name)).toEqual([
+      "Dana",
+      "Kim Park",
+      displayNameFor({ userId: LEE }),
+    ]);
+    expect(raw).not.toContain("@");
+  });
+
+  // `TripSummary`'s convention (KI-2026-09-24-e): the start is the trip's own
+  // date, the end is its last day's — so dated with no days has no end.
+  it("gives a dated trip with no days yet its start date and no end date", async () => {
+    const tripId = randomUUID();
+    await command({ type: "CreateTrip", tripId, name: "Kyoto in autumn" });
+    await command({ type: "SetTripStartDate", tripId, startDate: "2026-11-02" });
+
+    const { status, raw } = await preview((await createInvite(tripId, OWNER, { email: null, role: "viewer" })).token);
+    expect(status).toBe(200);
+    expect(JSON.parse(raw)).toMatchObject({ startDate: "2026-11-02", endDate: null, days: [] });
+  });
+});
+
 describe("GET /api/invites/:token/preview — a refused link carries nothing", () => {
   async function pendingInvite() {
     const tripId = randomUUID();
@@ -201,6 +246,16 @@ describe("GET /api/invites/:token/preview — a refused link carries nothing", (
 
   it("answers an unknown token 404 with an empty body", async () => {
     expect(await preview("no-such-token")).toEqual({ status: 404, raw: "" });
+  });
+
+  it("answers an oversized token 404 without looking it up", async () => {
+    const lookup = vi.mocked(inviteByToken);
+    lookup.mockClear();
+    expect(await preview("x".repeat(257))).toEqual({ status: 404, raw: "" });
+    expect(lookup).not.toHaveBeenCalled();
+    // The bound itself still reaches the read: the guard is `>`, not `>=`.
+    expect(await preview("x".repeat(256))).toEqual({ status: 404, raw: "" });
+    expect(lookup).toHaveBeenCalledTimes(1);
   });
 
   it("answers a deleted trip's invite 410", async () => {
