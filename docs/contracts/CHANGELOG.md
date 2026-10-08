@@ -137,9 +137,10 @@ Format:
     defaults.
 - Public API: unchanged. Neither schema is published under `/v1`, and the OpenAPI fingerprint
   test passes as it was.
-- Breaking? **Behaviour, not shape.** Every new field is defaulted, so a body from before parses.
-  An author who had set a display name is shown in the library by their sign-in name until they
-  opt in. That is D2 as answered.
+- Breaking? **No.** Every new field is defaulted, so a body from before parses. Migration
+  `0044` opts in everyone who already had a display name (Mitchell, 2026-10-08), so no public
+  name changes at deploy. A display name chosen from now on starts private (D2). The referral
+  link's preview card follows the same rule.
 
 ## 2026-10-07 — `TripSummary.ideaCount`: a trip with only ideas is not blank
 
