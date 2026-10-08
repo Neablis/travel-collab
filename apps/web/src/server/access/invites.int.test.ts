@@ -11,7 +11,6 @@ import {
   acceptInvite,
   createInvite,
   inviteByToken,
-  isPendingInviteFor,
   listInvites,
   revokeInvite,
 } from "./invites";
@@ -573,24 +572,6 @@ describe("an invite by its token", () => {
     expect(found).toMatchObject({ tripId, role: "editor", status: "pending", email: "bob@example.com" });
     expect(found).not.toHaveProperty("token");
     expect(await inviteByToken("no-such-token")).toBeNull();
-  });
-
-  it("is pending for exactly its own trip, and stops being pending once spent or revoked", async () => {
-    const tripId = await seedTrip();
-    const other = await seedTrip("Elsewhere");
-    const spent = await createInvite(tripId, OWNER, { email: null, role: "viewer" });
-    const revoked = await createInvite(tripId, OWNER, { email: null, role: "viewer" });
-    const live = await createInvite(tripId, OWNER, { email: null, role: "viewer" });
-
-    expect(await isPendingInviteFor(live.token, tripId)).toBe(true);
-    expect(await isPendingInviteFor(live.token, other)).toBe(false);
-    // A malformed trip id is a refusal, not a `22P02` out of the driver.
-    expect(await isPendingInviteFor(live.token, "not-a-uuid")).toBe(false);
-
-    await acceptInvite(spent.token, GUEST);
-    await revokeInvite(tripId, revoked.inviteId);
-    expect(await isPendingInviteFor(spent.token, tripId)).toBe(false);
-    expect(await isPendingInviteFor(revoked.token, tripId)).toBe(false);
   });
 });
 

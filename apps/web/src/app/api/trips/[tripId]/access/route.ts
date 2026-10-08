@@ -1,5 +1,5 @@
 import { TripAccess } from "@tc/contracts";
-import { inviteTokenOf, requireTripAccess } from "@/server/access/trip-access";
+import { requireTripAccess } from "@/server/access/trip-access";
 import { accessRevForRead, withProfiles } from "@/server/access/members";
 import { listInvites } from "@/server/access/invites";
 import { demoTripMembers } from "@/server/demoTrip";
@@ -8,7 +8,7 @@ import { accountCan } from "@/server/entitlements/resolver";
 
 // The People section's one read: who is on this trip, what am I, and (owner
 // only) which links are outstanding.
-export async function GET(request: Request, { params }: { params: Promise<{ tripId: string }> }) {
+export async function GET(_request: Request, { params }: { params: Promise<{ tripId: string }> }) {
   const { tripId } = await params;
   // First, before anything that reads the members: `requireTripAccess` reads
   // them, and `listInvites` reads the invites. A rev read first is never newer
@@ -17,7 +17,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ trip
   // before the auth check, so a refused caller pays one primary-key read. The
   // rev is served only to a caller who passes the check.
   const accessRev = await accessRevForRead(tripId);
-  const access = await requireTripAccess(tripId, "viewer", { allowDemo: true, inviteToken: inviteTokenOf(request) });
+  const access = await requireTripAccess(tripId, "viewer", { allowDemo: true });
   if ("error" in access) return access.error;
   // Any member may see who else is here. Only the owner sees invites, because
   // a `TripInvite` carries its token — an editor who could list them could
@@ -50,8 +50,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ trip
       ? true
       : await accountCan(owner, "trip.collaborators");
   // Who is reading, so the People section marks "You" without waiting on the
-  // session probe. Only a reader on the list: the demo visitor and an
-  // invite-link look carry stand-in ids that name nobody.
+  // session probe. Only a reader on the list: the demo visitor carries a
+  // stand-in id that names nobody.
   const viewerId = members.some((m) => m.userId === access.userId) ? access.userId : undefined;
   return Response.json({
     access: TripAccess.parse({

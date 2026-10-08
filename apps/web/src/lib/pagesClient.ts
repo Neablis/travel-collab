@@ -12,7 +12,6 @@ import { apiUrl, networkError, refusal, type ApiResult } from "@/lib/apiClient";
 import { beginWrite, endWrite } from "@/lib/queryCache";
 import { fitsKeepalive } from "@/lib/keepalive";
 import { tripKeys } from "@/lib/queryKeys";
-import { inviteLookHeaders } from "@/lib/inviteLook";
 
 // INVARIANT: every helper below RESOLVES an ApiResult and never rejects —
 // the same invariant `apiClient.ts` states for its own helpers, and for the
@@ -72,7 +71,7 @@ export interface NotebookList {
 
 export async function fetchPages(tripId: string): Promise<ApiResult<NotebookList>> {
   try {
-    const res = await fetch(apiUrl(`/api/trips/${tripId}/pages`), { headers: inviteLookHeaders(tripId) });
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/pages`));
     if (!res.ok) return await refusal(res);
     const data = (await res.json()) as { pages: unknown[]; viewerId?: unknown };
     return {
@@ -89,7 +88,7 @@ export async function fetchPages(tripId: string): Promise<ApiResult<NotebookList
 
 export async function fetchPage(tripId: string, pageId: string): Promise<ApiResult<Page>> {
   try {
-    const res = await fetch(apiUrl(`/api/trips/${tripId}/pages/${pageId}`), { headers: inviteLookHeaders(tripId) });
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/pages/${pageId}`));
     if (!res.ok) return await refusal(res);
     const data = (await res.json()) as { page: unknown };
     return { ok: true, value: Page.parse(data.page) };

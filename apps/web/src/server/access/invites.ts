@@ -243,34 +243,6 @@ export async function inviteByToken(
 }
 
 /**
- * Whether `token` is a PENDING invite to exactly `tripId` — the whole of the
- * check behind *Have a look first* (M27 D12, `requireTripAccess`'s
- * `inviteToken`).
- *
- * All three conditions are in the one WHERE, so there is no row to misread: an
- * accepted or revoked token, or a pending token for a different trip, simply
- * matches nothing. A token longer than any this module mints is refused before
- * the query — it arrives in a request header anyone can set.
- */
-export async function isPendingInviteFor(token: string, tripId: string): Promise<boolean> {
-  if (token.length === 0 || token.length > MAX_TOKEN_LENGTH || !isUuid(tripId)) return false;
-  const rows = await db
-    .select({ id: tripInvites.id })
-    .from(tripInvites)
-    .where(
-      and(
-        eq(tripInvites.token, token),
-        eq(tripInvites.tripId, tripId),
-        eq(tripInvites.status, "pending"),
-      ),
-    );
-  return rows.length > 0;
-}
-
-/** `mintToken`'s 32 bytes are 43 base64url characters; this is generous headroom. */
-const MAX_TOKEN_LENGTH = 256;
-
-/**
  * Single-use by construction: the status flip and the membership grant happen
  * in one transaction, and the flip is conditioned on the row still being
  * `pending`, so two simultaneous accepts cannot both win.
