@@ -239,7 +239,8 @@ describe("InviteLandingScreen — every other state", () => {
     expect(await screen.findByRole("heading", { level: 1, name: "This invite was taken back" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Join/ })).toBeNull();
     expect(screen.queryByRole("link", { name: "Sign in" })).toBeNull();
-    expect(screen.getByRole("link", { name: "What is Caesura?" }).getAttribute("href")).toBe("/welcome");
+    expect(screen.getByRole("link", { name: "What is Caesura?" }).getAttribute("href")).toBe("/welcome");    // Only a pending invite has a preview to read.
+    expect(fetchInvitePreviewMock).not.toHaveBeenCalled();
   });
 
   // The server answers `member` for ANY current member — the owner opening
@@ -265,14 +266,22 @@ describe("InviteLandingScreen — every other state", () => {
     expect(screen.queryByRole("button", { name: /Join/ })).toBeNull();
   });
 
-  // The landing says pending and the preview did not come: nothing to show the
-  // trip with, so the same retry as a landing that did not come.
-  it("offers a retry when the trip's preview could not be read", async () => {
-    fetchInvitePreviewMock.mockResolvedValueOnce({ ok: false, error: { status: 0, message: "Network error" } });
+  // The preview is the trip's picture, not the invite. With it unread the
+  // invite still says who asked and what for, and Join still works; the retry
+  // re-reads the plan alone.
+  it("keeps the invite and its Join when the trip's preview cannot be read, and retries just the plan", async () => {
+    fetchInvitePreviewMock.mockResolvedValue({ ok: false, error: { status: 0, message: "Network error" } });
     const user = userEvent.setup();
     render(<InviteLandingScreen token="tok" googleAvailable />);
-    await user.click(await screen.findByRole("button", { name: "Try again" }));
+    expect(await screen.findByRole("button", { name: "Join with Google" })).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 1, name: "Japan: food and temples" })).toBeTruthy();
+    const retry = await screen.findByRole("button", { name: "Try again" });
+    expect(screen.queryByRole("region", { name: "The plan so far" })).toBeNull();
+
+    fetchInvitePreviewMock.mockResolvedValue({ ok: true, value: preview });
+    await user.click(retry);
     expect(await screen.findByRole("region", { name: "The plan so far" })).toBeTruthy();
+    expect(fetchInviteLandingMock).toHaveBeenCalledTimes(1);
   });
 
   // SPEC §35.10's other undrawn state: the landing read itself failing.

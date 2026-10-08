@@ -16,10 +16,6 @@ vi.mock("@/lib/apiClient", () => ({
 
 vi.mock("@/components/playbooks/SharedDayMap", () => ({ SharedDayMap: () => null }));
 
-// The board prints every stop's cost, which D4 hides before joining (M38). It
-// is a marker here so that mounting it again is a failure, not a quiet extra.
-vi.mock("@/components/board/TripBoardScreen", () => ({ TripBoardScreen: () => <div data-testid="trip-board" /> }));
-
 import { InviteLookScreen } from "./InviteLookScreen";
 
 const landing: Extract<InviteLanding, { state: "valid" }> = {
@@ -62,12 +58,26 @@ describe("InviteLookScreen", () => {
     ).toBeTruthy();
   });
 
-  it("shows the landing's plan card, with the trip's total, and not the board", async () => {
+  it("shows the landing's plan card, with the trip's total, under the banner's Join", async () => {
     render(<InviteLookScreen token="tok" googleAvailable />);
     const plan = await screen.findByRole("region", { name: "The plan so far" });
     expect(plan.textContent).toContain("The trip so far comes to $45.00.");
-    expect(screen.queryByTestId("trip-board")).toBeNull();
     expect(screen.getByRole("button", { name: "Join the trip" })).toBeTruthy();
+  });
+
+  it("says it is opening the invite while the reads resolve", () => {
+    fetchInviteLandingMock.mockReturnValue(new Promise(() => {}));
+    render(<InviteLookScreen token="tok" googleAvailable />);
+    expect(screen.getByText("Opening this invite…")).toBeTruthy();
+  });
+
+  // As on the landing: the preview is the picture, not the invite.
+  it("keeps the banner's Join when the trip's preview cannot be read", async () => {
+    fetchInvitePreviewMock.mockResolvedValue({ ok: false, error: { status: 0, message: "Network error" } });
+    render(<InviteLookScreen token="tok" googleAvailable />);
+    expect(await screen.findByRole("button", { name: "Join the trip" })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "Try again" })).toBeTruthy();
+    expect(screen.queryByRole("region", { name: "The plan so far" })).toBeNull();
   });
 
   it("sends a holder whose invite is no longer pending back to the landing", async () => {

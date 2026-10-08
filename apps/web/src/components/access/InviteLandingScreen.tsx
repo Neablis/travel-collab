@@ -3,13 +3,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { CalendarClock } from "lucide-react";
-import type { InviteLanding, TripPreview } from "@tc/contracts";
+import type { InviteLanding } from "@tc/contracts";
 import { FrontDoorHeader } from "@/components/front/FrontDoorHeader";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Heading } from "@/components/ui/heading";
 import { PersonChip } from "@/components/ui/person-chip";
 import { Text } from "@/components/ui/text";
-import { fetchInviteLanding, fetchInvitePreview } from "@/lib/apiClient";
+import { fetchInviteLanding } from "@/lib/apiClient";
 import { cn } from "@/lib/cn";
 import { firstNameOf } from "@/lib/displayName";
 import { addDaysIso } from "@/lib/dates";
@@ -17,9 +17,10 @@ import { formatRelativeInstant, formatTripDateWithYear } from "@/lib/formatDate"
 import { takeInviteJoin } from "@/lib/pendingInviteJoin";
 import { useToday } from "@/lib/today";
 import { SUGGESTER_APPROVAL } from "@/lib/tripRole";
-import { InvitePlanCard, PreviewScope, PreviewWidget } from "./InvitePlanCard";
+import { InvitePlanCard, PlanUnavailable, PreviewScope, PreviewWidget } from "./InvitePlanCard";
 import { previewContext } from "./previewContext";
 import { useInviteJoin } from "./useInviteJoin";
+import { type PreviewRead, useInvitePreview } from "./useInvitePreview";
 
 // The screen an invite link opens (M27 link 6, SPEC §35.6). It answers, before
 // anything else: who asked, what the trip is, who is already in it, and what
@@ -34,32 +35,28 @@ import { useInviteJoin } from "./useInviteJoin";
 // A pending invite shows the trip before anyone joins (M38, canvas artboard
 // 5), drawn by the notebook's own widgets from `GET /api/invites/:token/preview`
 // (D4, D6): the countdown and who's going on the left, the plan card on the
-// right. Every other state is unchanged.
+// right. The preview is optional to the page: the invite, and Join, are drawn
+// from the landing alone, so a preview that will not load costs the picture of
+// the trip and never the way into it. Every other state is unchanged.
 
 type ValidLanding = Extract<InviteLanding, { state: "valid" }>;
 
 type Phase =
   | { kind: "loading" }
   | { kind: "failed"; message: string }
-  // `preview` is present exactly when `landing` is `valid`.
-  | { kind: "ready"; landing: InviteLanding; preview: TripPreview | null };
+  | { kind: "ready"; landing: InviteLanding };
 
 /**
  * The invite landing: reads `GET /api/invites/:token` and, for a pending
- * invite, its preview, and draws the state they answer — or a retry when a read
- * itself failed.
+ * invite, its preview, and draws the state they answer — or a retry when the
+ * landing read itself failed.
  */
 export function InviteLandingScreen({ token, googleAvailable }: { token: string; googleAvailable: boolean }) {
   const [phase, setPhase] = useState<Phase>({ kind: "loading" });
 
   const load = useCallback(async () => {
-    // Both at once. The preview refuses (404/410) any invite that is not
-    // pending, and the landing is what says why, so that refusal is ignored.
-    const [landing, preview] = await Promise.all([fetchInviteLanding(token), fetchInvitePreview(token)]);
-    if (!landing.ok) setPhase({ kind: "failed", message: landing.error.message });
-    else if (landing.value.state !== "valid") setPhase({ kind: "ready", landing: landing.value, preview: null });
-    else if (!preview.ok) setPhase({ kind: "failed", message: preview.error.message });
-    else setPhase({ kind: "ready", landing: landing.value, preview: preview.value });
+    const landing = await fetchInviteLanding(token);
+    setPhase(landing.ok ? { kind: "ready", landing: landing.value } : { kind: "failed", message: landing.error.message });
   }, [token]);
 
   useEffect(() => {
@@ -67,7 +64,7 @@ export function InviteLandingScreen({ token, googleAvailable }: { token: string;
   }, [load]);
 
   const landing = phase.kind === "ready" ? phase.landing : null;
-  const preview = phase.kind === "ready" ? phase.preview : null;
+  const preview = useInvitePreview(token, landing?.state === "valid");
 
   return (
     <>
@@ -97,8 +94,15 @@ export function InviteLandingScreen({ token, googleAvailable }: { token: string;
             }
           />
         )}
-        {landing?.state === "valid" && preview !== null && (
-          <ValidInvite landing={landing} preview={preview} token={token} googleAvailable={googleAvailable} reload={load} />
+        {landing?.state === "valid" && (
+          <ValidInvite
+            landing={landing}
+            preview={preview.read}
+            retryPreview={preview.retry}
+            token={token}
+            googleAvailable={googleAvailable}
+            reload={load}
+          />
         )}
         {landing?.state === "revoked" && (
           <Elsewhere
@@ -176,19 +180,24 @@ function Elsewhere({
 function ValidInvite({
   landing,
   preview,
+  retryPreview,
   token,
   googleAvailable,
   reload,
 }: {
   landing: ValidLanding;
-  preview: TripPreview;
+  preview: PreviewRead;
+  retryPreview: () => void;
   token: string;
   googleAvailable: boolean;
   reload: () => Promise<void>;
 }) {
   // The reader's own day, for the countdown (`WidgetContext.today`).
   const today = useToday();
-  const context = useMemo(() => previewContext(preview, today), [preview, today]);
+  const context = useMemo(
+    () => (preview.kind === "ready" ? previewContext(preview.preview, today) : null),
+    [preview, today],
+  );
   const { join, joining, error } = useInviteJoin({
     token,
     signedIn: landing.signedIn,
@@ -212,15 +221,16 @@ function ValidInvite({
   const inviter = firstNameOf(landing.inviterName);
 
   // Only an owner can invite, and the owner is the preview's first person, so
-  // the inviter's chip is theirs, as they look on this trip (D3).
-  const owner = preview.people[0]!;
+  // the inviter's chip is theirs, as they look on this trip (D3) — initials on
+  // slate until the preview says otherwise.
+  const owner = preview.kind === "ready" ? preview.preview.people[0]! : null;
 
   return (
     <PreviewScope context={context}>
       <div className="grid w-full max-w-content grid-cols-1 items-start gap-8 lg:grid-cols-2 lg:gap-16">
         <div className="flex flex-col gap-5.5 pt-2">
           <div className="flex items-center gap-3">
-            <PersonChip name={landing.inviterName} avatar={owner.avatar} color={owner.color} size="lg" />
+            <PersonChip name={landing.inviterName} avatar={owner?.avatar ?? null} color={owner?.color ?? null} size="lg" />
             <span className="flex min-w-0 flex-col gap-px">
               <Text as="span" className="text-md font-semibold">
                 {landing.inviterName} invited you
@@ -243,15 +253,17 @@ function ValidInvite({
           {/* `trip.countdown`. Its value reads "in 17 days", "starts today",
               "day 3 of 9" or "ended 2 days ago", so no one lead-in word fits
               them all; the calendar mark says what the value is about. */}
-          <Text className="flex items-center gap-2 text-md">
-            <CalendarClock aria-hidden className="size-4 shrink-0 text-slate" />
-            <PreviewWidget context={context} name="attribute" params={COUNTDOWN} />
-          </Text>
+          {context !== null && (
+            <Text className="flex items-center gap-2 text-md">
+              <CalendarClock aria-hidden className="size-4 shrink-0 text-slate" />
+              <PreviewWidget context={context} name="attribute" params={COUNTDOWN} />
+            </Text>
+          )}
 
           {/* Straight before the actions, so on a phone Join follows who's
               going rather than the map (the plan card comes after). */}
           <div className="flex flex-col gap-1.5">
-            <PreviewWidget context={context} name="trip.people" />
+            {context !== null && <PreviewWidget context={context} name="trip.people" />}
             <Text as="span" className="text-pretty text-slate">
               {CREW_CAN[landing.role]}
             </Text>
@@ -278,7 +290,8 @@ function ValidInvite({
           </div>
         </div>
 
-        <InvitePlanCard preview={preview} context={context} />
+        {preview.kind === "ready" && context !== null && <InvitePlanCard preview={preview.preview} context={context} />}
+        {preview.kind === "failed" && <PlanUnavailable onRetry={retryPreview} />}
       </div>
     </PreviewScope>
   );

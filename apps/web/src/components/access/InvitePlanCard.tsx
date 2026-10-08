@@ -7,6 +7,7 @@ import type { WidgetContext } from "@tc/pages";
 import { MacroView } from "@/components/pages/MacroView";
 import { FixedPeopleProvider } from "@/components/pages/people";
 import { SharedDayMap } from "@/components/playbooks/SharedDayMap";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Text } from "@/components/ui/text";
 
@@ -27,8 +28,10 @@ import { Text } from "@/components/ui/text";
  * The people `previewContext` built, handed to every widget under it — what
  * `trip.people` draws, and the names any person widget would read.
  */
-export function PreviewScope({ context, children }: { context: WidgetContext; children: React.ReactNode }) {
-  return <FixedPeopleProvider personas={context.personas ?? NO_ONE}>{children}</FixedPeopleProvider>;
+export function PreviewScope({ context, children }: { context: WidgetContext | null; children: React.ReactNode }) {
+  // `null` while the preview is unread, so the page around it keeps one tree
+  // (and Join keeps its focus) when the preview arrives.
+  return <FixedPeopleProvider personas={context?.personas ?? NO_ONE}>{children}</FixedPeopleProvider>;
 }
 
 const NO_ONE = {};
@@ -72,6 +75,18 @@ export function InvitePlanCard({ preview, context }: { preview: TripPreview; con
         </Text>
       </Section>
     </Card>
+  );
+}
+
+/** Where the plan card goes when the preview could not be read: say so, and read it again. */
+export function PlanUnavailable({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="flex flex-wrap items-center gap-3 py-2">
+      <Text variant="secondary">The plan didn&apos;t load.</Text>
+      <Button variant="secondary" size="sm" onClick={onRetry}>
+        Try again
+      </Button>
+    </div>
   );
 }
 

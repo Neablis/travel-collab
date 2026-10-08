@@ -28,6 +28,10 @@ const { GET: GET_HISTORY } = await import("@/app/api/trips/[tripId]/history/rout
 const { GET: GET_ACCESS } = await import("@/app/api/trips/[tripId]/access/route");
 const { GET: GET_GLOBALS } = await import("@/app/api/trips/[tripId]/globals/route");
 const { GET: GET_PAGES } = await import("@/app/api/trips/[tripId]/pages/route");
+const { GET: GET_HISTORY_AT } = await import("@/app/api/trips/[tripId]/history/[seq]/route");
+const { GET: GET_EVENTS } = await import("@/app/api/trips/[tripId]/events/route");
+const { GET: GET_WEATHER } = await import("@/app/api/trips/[tripId]/weather/route");
+const { GET: GET_PAGE } = await import("@/app/api/trips/[tripId]/pages/[pageId]/route");
 const { POST: POST_COMMAND } = await import("@/app/api/trips/[tripId]/commands/route");
 const { POST: POST_BATCH } = await import("@/app/api/trips/[tripId]/commands/batch/route");
 
@@ -215,22 +219,27 @@ describe("withEffectiveMembers", () => {
 const RETIRED_INVITE_HEADER = "x-invite-token";
 
 describe("a pending invite's token opens no trip read", () => {
-  const reads = [
-    ["GET /api/trips/:id", GET_TRIP],
-    ["GET /api/trips/:id/history", GET_HISTORY],
-    ["GET /api/trips/:id/access", GET_ACCESS],
-    ["GET /api/trips/:id/globals", GET_GLOBALS],
-    ["GET /api/trips/:id/pages", GET_PAGES],
-  ] as const;
+  // Every trip read the retired viewer reached. A path with a segment past
+  // `:tripId` gets a well-formed one, so were the token to open the read, the
+  // answer would be a 200 or that read's own 404, not the refusal asserted below.
+  type Read = (request: Request, tripId: string) => Promise<Response>;
+  const at = <T extends object>(tripId: string, rest: T) => ({ params: Promise.resolve({ tripId, ...rest }) });
+  const getTrip: Read = (r, id) => GET_TRIP(r, at(id, {}));
+  const reads: [string, Read][] = [
+    ["GET /api/trips/:id", getTrip],
+    ["GET /api/trips/:id/history", (r, id) => GET_HISTORY(r, at(id, {}))],
+    ["GET /api/trips/:id/history/:seq", (r, id) => GET_HISTORY_AT(r, at(id, { seq: "1" }))],
+    ["GET /api/trips/:id/events", (r, id) => GET_EVENTS(r, at(id, {}))],
+    ["GET /api/trips/:id/access", (r, id) => GET_ACCESS(r, at(id, {}))],
+    ["GET /api/trips/:id/globals", (r, id) => GET_GLOBALS(r, at(id, {}))],
+    ["GET /api/trips/:id/weather", (r, id) => GET_WEATHER(r, at(id, {}))],
+    ["GET /api/trips/:id/pages", (r, id) => GET_PAGES(r, at(id, {}))],
+    ["GET /api/trips/:id/pages/:pageId", (r, id) => GET_PAGE(r, at(id, { pageId: randomUUID() }))],
+  ];
 
-  async function statusOf(
-    handler: (typeof reads)[number][1],
-    tripId: string,
-    headers: Record<string, string> = {},
-  ): Promise<number> {
-    const response = await handler(new Request("http://test/x", { headers }), {
-      params: Promise.resolve({ tripId }),
-    });
+  async function statusOf(handler: Read, tripId: string, headers: Record<string, string> = {}): Promise<number> {
+    // `after` is what the events read requires; the others ignore it.
+    const response = await handler(new Request("http://test/x?after=0", { headers }), tripId);
     return response.status;
   }
 
@@ -264,11 +273,11 @@ describe("a pending invite's token opens no trip read", () => {
     const { tripId } = await seedDay();
     const invite = await createInvite(tripId, OWNER, { email: null, role: "viewer" });
     currentUserId = "";
-    expect(await statusOf(GET_TRIP, tripId, { [RETIRED_INVITE_HEADER]: invite.token })).toBe(401);
+    expect(await statusOf(getTrip, tripId, { [RETIRED_INVITE_HEADER]: invite.token })).toBe(401);
 
     expect((await acceptInvite(invite.token, GUEST)).ok).toBe(true);
     currentUserId = GUEST;
-    expect(await statusOf(GET_TRIP, tripId)).toBe(200);
+    expect(await statusOf(getTrip, tripId)).toBe(200);
   });
 });
 
