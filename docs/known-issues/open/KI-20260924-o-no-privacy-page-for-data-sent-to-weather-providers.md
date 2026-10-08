@@ -23,8 +23,8 @@
   with a located stop, never for a trip with none. **Quota:** a default page
   means the `weather-daily` ceilings (`server/quota.ts`, 200 per user and 5,000
   global a day, charged only on a cache miss) now meet ordinary traffic rather
-  than opt-in use; the demo and invite visitors share one bucket each
-  (`demo-visitor`, `invite-visitor`), so a busy demo day could exhaust its bucket
+  than opt-in use; the demo visitors share one bucket (`demo-visitor`; the
+  `invite-visitor` bucket went with the invite-token viewer, retired 2026-10-08 by M38), so a busy demo day could exhaust its bucket
   and read "Monthly averages" or "Weather unavailable" until the next window.
   The disclosure is still owed and still Mitchell's wording; it now describes
   the default, not an opt-in.

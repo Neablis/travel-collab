@@ -134,7 +134,7 @@ interface WidgetContext { /* …existing… */ external: { weather: Slot<TripWea
 
 **How the client obtains it.** `GET /api/trips/[tripId]/weather`, its own route for the same
 reason `globals` has one (only the Notebook pays for it), with the **same guard**
-(`requireTripAccess(tripId, "viewer", { allowDemo, inviteToken })`): anyone who may read the
+(`requireTripAccess(tripId, "viewer", { allowDemo })`; the `inviteToken` option was retired on 2026-10-08, see ADR-026's amendment): anyone who may read the
 trip may read its weather. **The client sends only the trip id.** The server derives the
 points from `TripDetail`: for each dated day, for each city of that day, the first stop (in
 time order) in that city with coordinates, rounded. A day with no located stop has no point,

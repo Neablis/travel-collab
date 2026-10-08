@@ -79,10 +79,26 @@ Candidates absorbed (each deleted by this gate):
       name its owner has not opted in to publishing* reads the board, the profile, Discover and the
       published day's page. Seen red with the gate removed: `expected [ 'Pip Q.', 'Pip Q.', 'Pip
       Q.' ] to deeply equal [ 'Paula H.', 'Paula H.', 'Paula H.' ]`.)*
-- [ ] **The invite page shows the trip before accepting, using the notebook widgets'
+- [x] **The invite page shows the trip before accepting, using the notebook widgets'
       components**. A grep or architecture-wall rule shows no invite-only copy of a widget.
-- [ ] **The token-scoped read returns nothing that decision 4 hides**: an integration test asserts
+      *(Ticked 2026-10-08, part 5. The landing and *Have a look first* both draw `InvitePlanCard`
+      through `MacroView`, with `trip.countdown`, `trip.people` (new and shared with notebooks),
+      `trip.strip`, `city.rows`, `cost` and `SharedDayMap`. The only invite-specific widget code is
+      the `previewContext` adapter. The depcruise rule `invite-renders-shared-widgets-only` was
+      seen firing on stub files (`error invite-renders-shared-widgets-only: …StubInviteWidget.ts →
+      packages/pages/src/macros/primitives/single.ts`). `noInviteWidget.test.ts` catches a
+      `MacroDef` built through the public index, which depcruise cannot see. It was seen red
+      with `Received: ["components/access/StubInviteWidget.ts"]`.)*
+- [x] **The token-scoped read returns nothing that decision 4 hides**: an integration test asserts
       per-person and per-stop costs are absent, and an expired or revoked token returns nothing.
+      *(Ticked 2026-10-08, parts 3 and 5. `preview/route.int.test.ts` walks the body for any money
+      key or number except the total. It was seen red twice: a stop `cost`, `expected [
+      'days[0].stops[0].cost', …(6) ] to deeply equal [ 'total', 'total.amountMinor' ]`, and a
+      disguised `fee`. A revoked or accepted token returns 410 with an empty body. Invites never
+      expire (ADR-026), so "expired" is read as accepted. The old invite-token viewer, which
+      served the whole `TripDetail` to a token holder, is retired. `trip-access.int.test.ts` ›
+      *a pending invite's token opens no trip read* covers five routes. Against the old code it
+      failed with `expected 200 to be 401`.)*
 - [ ] **The e2e spec passes on `pnpm --filter web test:e2e:ci-like`**: set an avatar, invite
       someone, open the invite as them, see the trip, accept, and see the avatar in People.
 - [ ] **[walk]** On the PR preview, a two-person trip where both chose the same colour is walked.
