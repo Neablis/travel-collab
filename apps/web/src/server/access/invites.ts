@@ -268,7 +268,7 @@ export async function isPendingInviteFor(token: string, tripId: string): Promise
 }
 
 /** `mintToken`'s 32 bytes are 43 base64url characters; this is generous headroom. */
-const MAX_TOKEN_LENGTH = 256;
+export const MAX_TOKEN_LENGTH = 256;
 
 /**
  * Single-use by construction: the status flip and the membership grant happen

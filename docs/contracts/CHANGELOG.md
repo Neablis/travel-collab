@@ -13,6 +13,31 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-07 — `TripPreview`: the trip as an invite's holder sees it before joining (M38 part 4)
+
+- **Added:** `invitePreview.ts`, exported from the index: `TripPreview` and its parts
+  `PreviewDay`, `PreviewStop`, `PreviewPlace` and `PreviewPerson`. Every object is `.strict()`.
+  - `TripPreview`: `name`, `startDate`, `endDate`, `days` in trip order, `people` (min 1) and
+    `total` (`Money`).
+  - `PreviewDay`: `date`, `city` (by `cityFor`), `stops`.
+  - `PreviewStop`: `title` and `location` (`PreviewPlace`, nullable). `PreviewPlace` is the part of
+    `Location` the read-only map reads: `name`, and optional `city`, `lat`/`lng` and `precision`.
+    A type assertion (`StopsTheMapCanDraw`) holds a `PreviewStop` assignable to
+    `Pick<SavedStop, "title" | "location">`, so part 5 can hand it to `SharedDayMap`.
+  - `PreviewPerson`: `name`, `avatar`, `color`, `travelling`. There is **no user id**, as there is
+    none in `InviteLanding` (ADR-027). `people` is in join order, which is the order a colour
+    clash is resolved in (D3).
+- Why: M38 D4 and D6. An invitee sees the dates, the route, the map, who is going and the trip's
+  total before accepting. Per-person amounts and per-stop costs stay hidden, and no schema here
+  has a field that could carry one. The route's parse throws on a key it does not name.
+- Consumers updated: new `GET /api/invites/:token/preview`
+  (`app/api/invites/[token]/preview/route.ts`), composed by `server/invitePreview.ts`. `total` is
+  `TripDetail.tripCostTotal` after `overlayMembers` (the board's recost for the effective
+  travellers), so it includes the backlog, as the board's total does. `exposure.ts` lists the
+  route as planned-undecided, beside its siblings. Nothing in the UI reads it yet (part 5).
+- Public API: unchanged. Nothing is published under `/v1`.
+- Breaking? no. These schemas are new.
+
 ## 2026-10-07 — personas: `AvatarKey`, `PersonColor`, and who a person is on a trip (M38 part 2)
 
 - **Added:** in `identity.ts`:

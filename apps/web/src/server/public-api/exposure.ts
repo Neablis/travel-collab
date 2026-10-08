@@ -85,6 +85,7 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
   "trips/[tripId]/events": PLANNED("Undecided — the live event stream"),
   "invites/[token]": PLANNED("Undecided — reading an invite by its token"),
   "invites/[token]/accept": PLANNED("Undecided — accepting an invite"),
+  "invites/[token]/preview": PLANNED("Undecided — the trip as an invite's holder sees it before joining (M38 D4)"),
   "shares/[token]": PLANNED("Undecided — reading a share link"),
   "shares/[token]/clone": PLANNED("Undecided — cloning from a share link"),
   "trips/[tripId]/membership": PLANNED("Undecided — leaving a trip"),
