@@ -21,18 +21,24 @@ general setup.
 
 ## Where the work is right now
 
-**M38 — YOU CAN TELL PEOPLE APART, AND SEE A TRIP BEFORE YOU JOIN IT — IS THE CURRENT MILESTONE
-AS OF 2026-10-07**, by **M37's gate closing at 11 of 11**. Order: `… M35 ✓ → M37 ✓ → M38 → M39 …
-M47`. **M38 was scoped 2026-10-07**: all six decisions answered as recommended. It is built as a
-stack from `docs/plans/2026-10-07-M38-personas-and-invite-preview.md`.
-(`docs/milestones/M38-people-you-can-tell-apart.md`)
+**M39 — THE PHONE LAYOUT IS DECIDED ONCE, AND CAESURA INSTALLS LIKE AN APP — IS THE CURRENT
+MILESTONE AS OF 2026-10-08**, by **M38's gate closing at 8 of 8**. Order: `… M37 ✓ → M38 ✓ → M39 →
+M40 … M47`. It opens with a design critique whose output is its scope.
+(`docs/milestones/M39-the-phone-is-decided.md`)
+
+**M38 closed 2026-10-08.** People carry a chosen avatar, colour and display name on every person
+surface. A clash within a trip shifts the later joiner. A chosen name reaches public pages only
+when its owner opts in. An invitee sees the plan, who is going and the total before joining, drawn
+by the shared notebook widgets. It shipped as #356 → #360, merged 2026-10-08, and every code part
+was reviewed by CodeRabbit. Its retro is at the end of
+`docs/milestones/M38-people-you-can-tell-apart.md`. **Migration `0044_personas` must be dispatched
+with `migrate-production`.** The code is live on `main` and reads the new `users` columns.
 
 **M37 closed 2026-10-07.** Trip cards show length and stops, and an unplanned trip is designed.
 Trips and playbook days get Unsplash covers. It shipped as #350 → #354, merged 2026-10-07, with a
 self-review and a CodeRabbit review on every code part. Its retro is at the end of
-`docs/milestones/M37-trips-look-like-somewhere.md`. **Migrations `0042_trip_covers` and
-`0043_saved_day_covers` must be dispatched with `migrate-production`.** The code is live on `main`,
-and the trip list and Discover read both tables.
+`docs/milestones/M37-trips-look-like-somewhere.md`. Migrations `0042_trip_covers` and
+`0043_saved_day_covers` are applied: `migrate-production` ran on `eeef6cc`.
 
 **M35 closed 2026-10-06.** Migration `0039` is confirmed applied from `migrate-production` run #37
 on #335's merge. CodeRabbit never reviewed #335, so there was nothing to work. The eval re-run is
@@ -234,8 +240,8 @@ half, the model guessing a coordinate rather than citing one, is M9 scope.
 
 ## Next action
 
-**Build M38** from `docs/plans/2026-10-07-M38-personas-and-invite-preview.md`, part by part.
-(`0042` and `0043` are applied: `migrate-production` ran on `eeef6cc`.)
+**Dispatch `migrate-production` from `main` for `0044_personas`**, then **scope M39**: its
+design critique comes first (`docs/milestones/M39-the-phone-is-decided.md`).
 Separately,
 `KI-2026-10-04-c` resolves on query 8 of `ledger.sql` over a few days of cheap-tier step durations.
 

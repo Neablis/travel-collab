@@ -58,31 +58,6 @@ here two days later.
     Retention when a trip is soft-deleted (ADR-016).
   *Placed 2026-10-06 → `docs/milestones/M46-a-trip-has-a-conversation.md` (proposed, not yet scoped). M46's gate deletes this entry at close.*
 
-- **The invite-accept page uses notebook widgets to say what the trip is (asked 2026-10-04).**
-  Mitchell: *"leveraging the notebook widgets for the accept joining trip page so it shares code
-  and tells you more about the trip before accepting"*.
-  - **The idea.** The accept page (`app/(front)/invite/[token]`, with a `look` preview) is where an
-    invitee decides, and Mitchell wants it to say more. Render a read-only slice of the
-    trip (dates, route, who is going, cost per person, a map) with the same widgets notebooks use,
-    so there is one implementation, not an invite-only copy. ADR-035 says a widget is a function
-    of declared inputs, which is what makes this feasible.
-  - **Decisions it needs.** What an invitee may see before accepting, since the token holder is
-    not yet a member (ADR-026) and costs are the sensitive part. Which widgets, and whether the
-    owner chooses. How a read-only render with no membership gets its inputs.
-  *Placed 2026-10-06 → `docs/milestones/M38-people-you-can-tell-apart.md` (proposed, not yet scoped). M38's gate deletes this entry at close.*
-
-- **Avatars and personas: a picture, a colour and a name you choose (asked 2026-10-04).**
-  Mitchell: *"avatars and better personas for your account so you can see who's in a activity or
-  invited easier, they can select a avatar and a color, along with there custom name"*.
-  - **The idea.** A per-account avatar (from a fixed set) and colour, plus a chosen display
-    name, shown wherever a person appears: stop attendees, "Who is in", "Booked by", the
-    Travelers panel, pending invites, suggestion authors, History.
-  - **Decisions it needs.** Display name versus the sign-in name, and what an invitee sees
-    before they have an account. Whether a colour is unique within a trip so people are told
-    apart, or purely personal. A fixed avatar set versus uploads (uploads bring storage and
-    moderation). Public-library profiles (ADR-061) must not leak a private name.
-  *Placed 2026-10-06 → `docs/milestones/M38-people-you-can-tell-apart.md` (proposed, not yet scoped). M38's gate deletes this entry at close.*
-
 - **The assistant can move around the site (asked 2026-10-04).** Mitchell: *"give the AI agent
   the ability to move around the website, go to notebooks, change to map view, etc"*.
   - **The idea.** Navigation tools the assistant calls: open a notebook, switch the trip lens
