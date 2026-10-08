@@ -31,8 +31,8 @@ surface. A clash within a trip shifts the later joiner. A chosen name reaches pu
 when its owner opts in. An invitee sees the plan, who is going and the total before joining, drawn
 by the shared notebook widgets. It shipped as #356 → #360, merged 2026-10-08, and every code part
 was reviewed by CodeRabbit. Its retro is at the end of
-`docs/milestones/M38-people-you-can-tell-apart.md`. **Migration `0044_personas` must be dispatched
-with `migrate-production`.** The code is live on `main` and reads the new `users` columns.
+`docs/milestones/M38-people-you-can-tell-apart.md`. Migration `0044_personas` is applied:
+`migrate-production` ran on `b10f513`.
 
 **M37 closed 2026-10-07.** Trip cards show length and stops, and an unplanned trip is designed.
 Trips and playbook days get Unsplash covers. It shipped as #350 → #354, merged 2026-10-07, with a
@@ -240,8 +240,7 @@ half, the model guessing a coordinate rather than citing one, is M9 scope.
 
 ## Next action
 
-**Dispatch `migrate-production` from `main` for `0044_personas`**, then **scope M39**: its
-design critique comes first (`docs/milestones/M39-the-phone-is-decided.md`).
+**Scope M39**: its design critique comes first (`docs/milestones/M39-the-phone-is-decided.md`).
 Separately,
 `KI-2026-10-04-c` resolves on query 8 of `ledger.sql` over a few days of cheap-tier step durations.
 

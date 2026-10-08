@@ -164,10 +164,9 @@ Candidates absorbed (each deleted by this gate):
   - Running prettier with its defaults reformatted 30 files: the repo is not prettier-formatted.
   - The colour wall read the PR reference `#359` in a comment as a hex colour, and `#ff0000` in a test.
   - The container was OOM-killed once when heavy suites ran in parallel. Run them one at a time.
-- **The merge again reached production before its migration.** `0044` had not been dispatched when the stack merged (14:06 UTC), despite the hand-off saying to dispatch right after part 2. That is M37's finding, repeated. The automatic-gating question raised on #357 is still Mitchell's decision.
+- **The merge again reached production before its migration.** `0044` had not been dispatched when the stack merged (14:06 UTC), despite the hand-off saying to dispatch right after part 2. It ran afterwards, on `b10f513`. That is M37's finding, repeated. The automatic-gating question raised on #357 is still Mitchell's decision.
 
 **Left open, not gating.**
-- **Migration `0044_personas` still needs `migrate-production` dispatched from `main`.**
 - CodeRabbit's summary on #358 still shows a "merge risk" about a malformed stored currency. The finding was withdrawn on its thread: `SetTripCurrency` and `TripCurrencySetV1` both enforce `^[A-Z]{3}$`.
 - `SuggestionsChip`'s by-line separator is now an `aria-hidden` "·", so a screen reader hears "Day 2 Suggested by …" with no pause.
 - Agent briefs and `ADAPTER.md` point at `apps/web/.env.example`, which does not exist; only the root one does.
