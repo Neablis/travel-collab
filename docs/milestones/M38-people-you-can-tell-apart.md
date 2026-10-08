@@ -99,7 +99,15 @@ Candidates absorbed (each deleted by this gate):
       served the whole `TripDetail` to a token holder, is retired. `trip-access.int.test.ts` ›
       *a pending invite's token opens no trip read* covers five routes. Against the old code it
       failed with `expected 200 to be 401`.)*
-- [ ] **The e2e spec passes on `pnpm --filter web test:e2e:ci-like`**: set an avatar, invite
+- [x] **The e2e spec passes on `pnpm --filter web test:e2e:ci-like`**: set an avatar, invite
       someone, open the invite as them, see the trip, accept, and see the avatar in People.
+      *(Ticked 2026-10-08, part 5. `e2e/m38-personas.spec.ts` passes on ci-like: `2 passed
+      (15.4s)`. The owner sets *Rowan Persona*, Tent and Plum, and they survive a reload. The
+      signed-out invitee sees the plan, *Who's going* with the tent chip, and the $60.50 total,
+      with no stop's $42.50 or $18.00, on the landing and on *Have a look first*. The guest picks
+      Bike and also Plum, then joins. In People the owner's tent shows, and the guest's own chip
+      reads "Rowan Persona chose plum first, so you're … on this trip." The owner then sees the
+      guest's bike. Seen red with `PersonRow` passing `avatar={null}`: `Expected: 1 / Received: 0`
+      at `ownerRow.locator(".lucide-tent")`.)*
 - [ ] **[walk]** On the PR preview, a two-person trip where both chose the same colour is walked.
 - [ ] A retro is appended at gate close.
