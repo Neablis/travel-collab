@@ -153,8 +153,9 @@ export async function upsertUser(
   // absence would mean a deploy that forgot the variable locking every operator
   // out of the console.
   const bootstrapAdmin = isBootstrapAdmin(identity.id);
-  // The sign-in name is what the library shows when no display name is set
-  // (ADR-061 decision 4), so a change to it clears the cached library; read
+  // The sign-in name is what the library shows when no display name is set,
+  // or its owner has not opted in to publishing one (ADR-061 decision 4, M38
+  // D2), so a change to it clears the cached library; read
   // first, because the upsert cannot say what it replaced.
   const before = await db.select({ name: users.name }).from(users).where(eq(users.id, identity.id)).limit(1);
   await db

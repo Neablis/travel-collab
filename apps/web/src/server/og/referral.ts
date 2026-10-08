@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { displayNameFor, firstNameOf } from "@/lib/displayName";
 import { REFERRAL_CARD_TTL_SECONDS, referralCardKey } from "../cache/keys";
 import { getCache, type CachePort } from "../cache/redis";
@@ -39,7 +39,13 @@ export async function referrerFirstNameFor(code: string, cache: CachePort = getC
 
 async function lookUp(code: string): Promise<string | null> {
   const [row] = await db
-    .select({ userId: inviteCodes.createdBy, name: users.name, displayName: users.displayName })
+    .select({
+      userId: inviteCodes.createdBy,
+      name: users.name,
+      // The chosen name only when its owner opted in (M38 D2): an unfurl is a
+      // public page, so it follows the library's rule rather than the trip's.
+      displayName: sql<string | null>`case when ${users.publicDisplayName} then ${users.displayName} end`,
+    })
     .from(inviteCodes)
     .innerJoin(users, eq(users.id, inviteCodes.createdBy))
     .where(eq(inviteCodes.code, code))
