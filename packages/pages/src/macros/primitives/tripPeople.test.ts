@@ -72,6 +72,22 @@ describe("trip.people", () => {
     expect(out.stack.map((p) => p.name)).toEqual(["Dana Reyes"]);
   });
 
+  // Two Sams read as one person in a sentence. A shared first word takes the
+  // last initial, and where that still clashes (or there is no last name) the
+  // whole name; everyone else keeps the short form.
+  it("tells apart people who share a first name", () => {
+    const out = peopleOf(
+      ctx(tripOf(["o", "a", "b", "c", "d"]), {
+        o: persona("Sam Reyes"),
+        a: persona("Sam Okafor"),
+        b: persona("Sam"),
+        c: persona("Priya Shah"),
+        d: persona("Sam Orr"),
+      }),
+    );
+    expect(out.sentence).toBe("Sam Okafor, Sam, Priya and Sam Orr are going with Sam R.");
+  });
+
   it("is empty when nobody is going", () => {
     expect(renderMacro(ctx(tripOf(["o"]), { o: persona("Dana", false) }), "trip.people", {}).status).toBe("empty");
   });

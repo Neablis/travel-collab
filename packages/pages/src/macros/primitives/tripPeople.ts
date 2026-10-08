@@ -28,6 +28,8 @@ const STACK = 4;
 interface Member extends TripPeoplePerson {
   /** What the sentence calls them: a real name's first word, a placeholder whole. */
   short: string;
+  /** The name they chose, if any — what a clashing `short` is lengthened from. */
+  real: string | undefined;
   going: boolean;
 }
 
@@ -43,7 +45,7 @@ function membersOf({ trip, people, personas }: WidgetContext & { trip: TripDetai
   const ids = trip.members.map((m) => m.userId);
   const fallback = personNames(trip, people, ids);
   const travelling = new Set(travellerIds(trip.members));
-  return ids.map((id) => {
+  const members = ids.map((id) => {
     const persona = personas?.[id];
     const real = persona?.name ?? people?.[id];
     const name = real ?? fallback.get(id)!;
@@ -53,12 +55,37 @@ function membersOf({ trip, people, personas }: WidgetContext & { trip: TripDetai
       color: persona?.color ?? null,
       // "Traveler 2" is a placeholder, and its first word is not a name.
       short: real === undefined ? name : firstWord(real),
+      real,
       going: persona ? persona.travelling : travelling.has(id),
     };
   });
+  // Two Sams read as one person in a sentence. Those sharing a first word take
+  // their last initial ("Sam R."), and those still sharing one, or with no last
+  // name to take it from, their whole name.
+  for (const longer of [withInitial, (real: string) => real.trim()]) {
+    const clashing = clashesOf(members);
+    for (const m of members) if (m.real !== undefined && clashing.has(m.short)) m.short = longer(m.real);
+  }
+  return members;
 }
 
 const firstWord = (name: string) => name.trim().split(/\s+/)[0] || name;
+
+function withInitial(name: string): string {
+  const words = name.trim().split(/\s+/);
+  return words.length < 2 ? name.trim() : `${words[0]} ${words.at(-1)![0]}.`;
+}
+
+/** The short names more than one member answers to. */
+function clashesOf(members: readonly { short: string }[]): Set<string> {
+  const seen = new Set<string>();
+  const twice = new Set<string>();
+  for (const { short } of members) (seen.has(short) ? twice : seen).add(short);
+  return twice;
+}
+
+/** "… with Sam R." ends on the initial's full stop rather than gaining a second one. */
+const sentenceOf = (text: string) => (text.endsWith(".") ? text : `${text}.`);
 
 /** "Sam", "Sam and Priya", "Sam, Priya and Kenji", "Sam, Priya, Kenji and 2 others". */
 function listOf(names: readonly string[]): string {
@@ -97,7 +124,7 @@ export const tripPeopleWidget: MacroDef<TripPeopleParams, TripPeoplePayload> = {
       return ok({ kind: "trip-people", stack: [chipOf(owner)], sentence: `${owner.short} is going.` });
     }
     const verb = others.length === 1 ? "is" : "are";
-    const sentence = `${listOf(others.map((m) => m.short))} ${verb} going${owner?.going ? ` with ${owner.short}` : ""}.`;
+    const sentence = sentenceOf(`${listOf(others.map((m) => m.short))} ${verb} going${owner?.going ? ` with ${owner.short}` : ""}`);
     return ok({ kind: "trip-people", stack: others.slice(0, STACK).map(chipOf), sentence });
   },
   render: blockOf,
