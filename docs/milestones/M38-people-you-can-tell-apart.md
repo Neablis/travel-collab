@@ -109,5 +109,15 @@ Candidates absorbed (each deleted by this gate):
       reads "Rowan Persona chose plum first, so you're … on this trip." The owner then sees the
       guest's bike. Seen red with `PersonRow` passing `avatar={null}`: `Expected: 1 / Received: 0`
       at `ownerRow.locator(".lucide-tent")`.)*
-- [ ] **[walk]** On the PR preview, a two-person trip where both chose the same colour is walked.
+- [x] **[walk]** On the PR preview, a two-person trip where both chose the same colour is walked.
+      *(Ticked 2026-10-08. The walk ran on Neablis/travel-collab#360's Vercel preview (deployed
+      `8a03de1`) with two live browser sessions. A set Tent and Plum, and they were kept after a
+      reload. The signed-out invite and *Have a look first* showed only the total, `$97.75`; none of
+      the stop prices ($42.50, $18.00, $37.25) appeared in the text or the HTML. B chose Bike and
+      also Plum, then joined. In B's People, A is plum with a tent and B is **ochre** with a bike,
+      and B's own chip reads "Sam Walker chose plum first, so you're ochre on this trip." The header
+      stack, the home card, *Who is in* and *Booked by* agree. A's People, opened before B joined
+      and not reloaded, showed B in ochre 3.3 s after Join, with no tooltip on B's row. The only
+      console error was the sandbox's blocked `vercel.live` feedback widget. The screenshots are in
+      the session scratchpad.)*
 - [ ] A retro is appended at gate close.
