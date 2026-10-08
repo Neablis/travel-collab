@@ -84,13 +84,14 @@ Surveyed 2026-10-07. Re-check the line numbers before trusting them. The app is 
   days or legs with cities, and the crew's first names.
 - **"Have a look first"** (`invite/[token]/look`) mounts the whole `TripBoardScreen` read-only,
   with a synthetic viewer (`server/access/trip-access.ts:106-158`). **That shows stop costs, which
-  D4 hides.** See *Open question* below.
+  D4 hides.** See *Open question* below. *(Answered below, answer 1; the viewer was retired in
+  Part 5, item 3.)*
 - **Widgets** (ADR-035): `packages/pages/src/registry.ts` (`renderMacro`, `inputsFor`) over
   `WidgetContext` (`registry-types.ts:453`: `trip, page, user, globals, today, external, people`).
   `MacroView.tsx` and `editor/ReadOnlyPageDoc.tsx` feed them. D4 maps to existing widgets:
   - dates: `dates`, or the `trip.countdown` preset;
   - route: `trip.strip` and `city.rows`;
-  - who is going: `person.share`, without its cost column;
+  - who is going: `person.share`, without its cost column *(superseded by answer 2: `trip.people`)*;
   - the total: `cost`.
 - **There is no map widget.** `components/playbooks/SharedDayMap.tsx` is the read-only map
   that public playbook days use. The invite page reuses it, and builds no new map.
@@ -184,15 +185,24 @@ plus `colorShifted`.
 1. A `previewContext(TripPreview): WidgetContext` adapter, the only invite-specific code (D6).
    The landing renders the fixed set (D5) through `MacroView`, read-only:
    - `trip.countdown`;
+   - `trip.people`, who's going (answer 2 above: it replaced `person.share`, which is about money);
    - `trip.strip`;
    - `city.rows`;
-   - `person.share`, without its cost column;
    - `cost`.
 
-   Then `SharedDayMap` renders the stops' coordinates.
+   Then `SharedDayMap` renders the stops' coordinates. The strip, cities, map and total are one
+   `InvitePlanCard`.
 2. A depcruise rule: `components/access/**` may not import from `packages/pages/src/macros/**`
    internals or define a `MacroDef`. It is seen red by adding a stub widget there.
-3. The look page follows the answer to the open question.
+3. The look page follows answer 1 above: it renders the same `InvitePlanCard` from
+   `GET /api/invites/:token/preview` under the look banner, and no longer mounts the board.
+   **The board's synthetic viewer is retired with it** (2026-10-08): `requireTripAccess` lost
+   its `inviteToken` option, no route reads `x-invite-token`, and `lib/inviteLook.ts` is gone.
+   It answered nine trip reads with the whole `TripDetail`, stop costs included, to anyone holding
+   a pending token, so D4 was not met while it stood. `trip-access.int.test.ts` holds the door
+   shut: a pending token sent to `GET /api/trips/:id`, `/history`, `/access`, `/globals` and
+   `/pages` is refused exactly as a request without it is (seen red against the old seam: `200`
+   where `401`/`403` was expected).
 4. **The e2e spec, `m38-personas.spec.ts`**: set an avatar, invite someone, open the invite as
    them, see the trip, accept, and see the avatar in People. It passes on
    `pnpm --filter web test:e2e:ci-like`.
