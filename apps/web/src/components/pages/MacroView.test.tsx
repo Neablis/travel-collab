@@ -497,7 +497,7 @@ pendingReason: null,
     cities: [{ name: "Kyoto", dayIndexes: [0], activityCount: 2 }],
     tags: [], homeTimeZone: "America/Los_Angeles",
   };
-  const richUser: UserPreferences = { displayName: "Priya", homeAirport: "SFO", distanceUnit: "km", timeFormat: "12h" };
+  const richUser: UserPreferences = { displayName: "Priya", homeAirport: "SFO", distanceUnit: "km", timeFormat: "12h", avatar: null, color: null, publicDisplayName: false };
   // Weather for the day, as the route would hand it in (ADR-052); without it
   // "Weather" answers `unavailable` and skips the nesting walk. Both sources
   // are up, so whichever mode the day lands in has something to render.

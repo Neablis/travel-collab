@@ -50,6 +50,9 @@ const DEFAULTS: UserPreferences = {
   homeAirport: null,
   distanceUnit: "km",
   timeFormat: "12h",
+  avatar: null,
+  color: null,
+  publicDisplayName: false,
 };
 
 type PreferencesValue = {

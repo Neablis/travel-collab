@@ -10,4 +10,7 @@ export const readerOn = (timeFormat: TimeFormat): UserPreferences => ({
   homeAirport: null,
   distanceUnit: "km",
   timeFormat,
+  avatar: null,
+  color: null,
+  publicDisplayName: false,
 });

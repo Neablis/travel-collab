@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { beforeAll, expect, it, describe, vi } from "vitest";
 import type { DiscoverResponse, LeaderboardResponse, PublicProfileResponse } from "@/lib/playbooks";
 import { executeTripCommand } from "@/server/commands";
+import { sharedDayView } from "@/server/sharedDayView";
 import { db } from "@/server/db/client";
 import { savedDays, users } from "@/server/db/schema";
 import { entitleAccounts } from "@/server/test-support/entitledAccount";
@@ -392,13 +393,19 @@ describe("what the library calls a person", () => {
   const SIGNED_IN = `board-signed-in-${RUN}`;
   const ADDRESS = `board-address-${RUN}`;
   const SILENT = `board-silent-${RUN}`;
+  // M38 D2: chose a name, and did not opt in to publishing it.
+  const PRIVATE = `board-private-${RUN}`;
   const NAMES_CITY = city("names");
+  let privateDay = "";
 
   beforeAll(async () => {
-    await entitleAccounts([CHOSEN, SIGNED_IN, ADDRESS, SILENT]);
-    const named = async (id: string, set: { name: string | null; displayName: string | null }) =>
-      db.update(users).set({ ...set, email: `${id}@example.com` }).where(eq(users.id, id));
-    await named(CHOSEN, { displayName: "Dee Ray", name: "Dana Reyes" });
+    await entitleAccounts([CHOSEN, SIGNED_IN, ADDRESS, SILENT, PRIVATE]);
+    const named = async (
+      id: string,
+      set: { name: string | null; displayName: string | null; publicDisplayName?: boolean },
+    ) => db.update(users).set({ ...set, email: `${id}@example.com` }).where(eq(users.id, id));
+    await named(CHOSEN, { displayName: "Dee Ray", name: "Dana Reyes", publicDisplayName: true });
+    await named(PRIVATE, { displayName: "Pip Quill", name: "Paula Hart", publicDisplayName: false });
     await named(SIGNED_IN, { displayName: null, name: "Sam Ortiz" });
     await named(ADDRESS, { displayName: null, name: `${ADDRESS}@example.com` });
     await named(SILENT, { displayName: "Nora Quist", name: "Nora Quist" });
@@ -406,6 +413,9 @@ describe("what the library calls a person", () => {
       currentUserId = id;
       await publish(await saveDay(`Named ${id}`, NAMES_CITY));
     }
+    currentUserId = PRIVATE;
+    privateDay = await saveDay(`Named ${PRIVATE}`, NAMES_CITY);
+    await publish(privateDay);
   });
 
   /**
@@ -425,10 +435,22 @@ describe("what the library calls a person", () => {
     };
   }
 
-  it("prefers the name they chose, cut to its first word and last initial", async () => {
+  it("prefers the name they chose and opted in to publishing, cut to its first word and last initial", async () => {
     const { names, wire } = await everywhere(CHOSEN);
     expect(names).toEqual(["Dee R.", "Dee R.", "Dee R."]);
     for (const leak of ["Reyes", "Ray", "Dana", "@example.com"]) expect(wire).not.toContain(leak);
+  });
+
+  // M38's gate: a display name is chosen for the people on a trip, and a
+  // public page shows it only when its owner opts in (D2). Until then every
+  // library surface — the board, the profile, Discover and the published
+  // day's page — uses the sign-in name, and the chosen one is nowhere on the wire.
+  it("never shows a chosen name its owner has not opted in to publishing", async () => {
+    const { names, wire } = await everywhere(PRIVATE);
+    expect(names).toEqual(["Paula H.", "Paula H.", "Paula H."]);
+    const dayPage = await sharedDayView(privateDay, null);
+    expect(dayPage?.author.displayName).toBe("Paula H.");
+    for (const leak of ["Pip", "Quill"]) expect(wire + JSON.stringify(dayPage)).not.toContain(leak);
   });
 
   it("uses the sign-in name when nothing was chosen", async () => {

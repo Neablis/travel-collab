@@ -13,6 +13,38 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-07 — personas: `AvatarKey`, `PersonColor`, and who a person is on a trip (M38 part 2)
+
+- **Added:** in `identity.ts`:
+  - `AvatarKey`: a closed enum of twelve glyph keys (M38 D1, no uploads).
+  - `PersonColor`: a closed enum of eight palette keys (D3). These are token names, never hex.
+  - `UserPreferences` gains `avatar` and `color`, each nullable and defaulting to null, and
+    `publicDisplayName`, a boolean defaulting to false (D2). `UpdateUserPreferences` takes all
+    three through its existing `partial()`.
+- **Added:** `TripMemberProfile` (`access.ts`) gains `displayName`, `avatar` and `color`, each
+  nullable and defaulting to null. They are the member's stored choices. A per-trip colour shift
+  (D3) is applied at render time and is never part of this record.
+- Why: M38. A trip surface can now name a person by the name they chose. `lib/displayName.ts`
+  called this the "one-field follow-up". People can also be told apart by avatar and colour.
+  The opt-in decides whether the public library may print the chosen name.
+- Consumers updated:
+  - **Migration `0044_personas`** adds `users.avatar`, `users.color` and
+    `users.public_display_name` (not null, default false).
+  - `server/users.ts` reads and writes the three columns and re-validates the keys on read.
+    Toggling the opt-in clears the author cache, as a display-name change does.
+  - `withProfiles` fills the new member fields.
+  - `server/playbooks.ts` selects `display_name` only when `public_display_name` is set, in both
+    `ownerNames` and `publicNamesOf`. A library page therefore shows the sign-in name's short form
+    until its owner opts in.
+  - `@tc/factories`' `tripMemberProfileFactory`, the demo roster and test literals now carry the
+    defaults.
+- Public API: unchanged. Neither schema is published under `/v1`, and the OpenAPI fingerprint
+  test passes as it was.
+- Breaking? **No.** Every new field is defaulted, so a body from before parses. Migration
+  `0044` opts in everyone who already had a display name (Mitchell, 2026-10-08), so no public
+  name changes at deploy. A display name chosen from now on starts private (D2). The referral
+  link's preview card follows the same rule.
+
 ## 2026-10-07 — `TripSummary.ideaCount`: a trip with only ideas is not blank
 
 - **Added:** `TripSummary.ideaCount`, `z.number().int().nonnegative().default(0)`, in `trip.ts`:

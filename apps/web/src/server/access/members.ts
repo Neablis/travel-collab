@@ -1,5 +1,12 @@
 import { and, eq, exists, inArray, sql, type Column, type SQL } from "drizzle-orm";
-import type { InviteRole, TripMember, TripMemberProfile, TripRole } from "@tc/contracts";
+import {
+  AvatarKey,
+  PersonColor,
+  type InviteRole,
+  type TripMember,
+  type TripMemberProfile,
+  type TripRole,
+} from "@tc/contracts";
 import { db, type Queryable } from "../db/client";
 import { memberRole, RANK } from "../accessPolicy";
 import { tripAccessRevs, tripMemberships, tripTravellers, users } from "../db/schema";
@@ -518,6 +525,11 @@ export async function withProfiles(
       email: mayReadEmail ? (profile?.email ?? null) : null,
       image: profile?.image ?? null,
       travelling: m.travelling ?? true,
+      // M38: the persona. The keys are re-validated as `toPreferences` does —
+      // the columns are plain text, and a key outside the set reads as unset.
+      displayName: profile?.displayName ?? null,
+      avatar: AvatarKey.safeParse(profile?.avatar).data ?? null,
+      color: PersonColor.safeParse(profile?.color).data ?? null,
     };
   });
 }

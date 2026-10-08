@@ -12,7 +12,7 @@ vi.mock("@/lib/apiClient", () => ({
   fetchPreferences: async () => (preferencesRead(), {
     ok: true as const,
     value: {
-      preferences: { displayName: null, homeAirport: null, distanceUnit: "km", timeFormat: "12h" } satisfies UserPreferences,
+      preferences: { displayName: null, homeAirport: null, distanceUnit: "km", timeFormat: "12h", avatar: null, color: null, publicDisplayName: false } satisfies UserPreferences,
       isAdmin: false,
     },
   }),
@@ -65,12 +65,12 @@ describe("PreferencesProvider", () => {
     await waitFor(() => expect(pending).toHaveLength(2));
 
     // The NEWER one lands first…
-    pending[1]!.settle({ displayName: "Sam", homeAirport: null, distanceUnit: "mi", timeFormat: "12h" });
+    pending[1]!.settle({ displayName: "Sam", homeAirport: null, distanceUnit: "mi", timeFormat: "12h", avatar: null, color: null, publicDisplayName: false });
     await waitFor(() => expect(screen.getByTestId("unit").textContent).toBe("mi"));
 
     // …and the older one lands second, carrying the world as it was before the
     // unit changed. Adopting it would put the unit back to km.
-    pending[0]!.settle({ displayName: "Sam", homeAirport: null, distanceUnit: "km", timeFormat: "12h" });
+    pending[0]!.settle({ displayName: "Sam", homeAirport: null, distanceUnit: "km", timeFormat: "12h", avatar: null, color: null, publicDisplayName: false });
 
     await waitFor(() => expect(screen.getByTestId("name").textContent).toBe("Sam"));
     expect(screen.getByTestId("unit").textContent).toBe("mi");
@@ -90,12 +90,12 @@ describe("PreferencesProvider", () => {
 
     void save({ displayName: "Sam" });
     await waitFor(() => expect(pending).toHaveLength(1));
-    pending[0]!.settle({ displayName: "Sam", homeAirport: null, distanceUnit: "km", timeFormat: "12h" });
+    pending[0]!.settle({ displayName: "Sam", homeAirport: null, distanceUnit: "km", timeFormat: "12h", avatar: null, color: null, publicDisplayName: false });
     await waitFor(() => expect(screen.getByTestId("name").textContent).toBe("Sam"));
 
     void save({ distanceUnit: "mi" });
     await waitFor(() => expect(pending).toHaveLength(2));
-    pending[1]!.settle({ displayName: "Sam", homeAirport: null, distanceUnit: "mi", timeFormat: "12h" });
+    pending[1]!.settle({ displayName: "Sam", homeAirport: null, distanceUnit: "mi", timeFormat: "12h", avatar: null, color: null, publicDisplayName: false });
     await waitFor(() => expect(screen.getByTestId("unit").textContent).toBe("mi"));
   });
 

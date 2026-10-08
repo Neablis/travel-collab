@@ -1,5 +1,12 @@
 import { eq } from "drizzle-orm";
-import { DistanceUnit, TimeFormat, UserPreferences, type UpdateUserPreferences } from "@tc/contracts";
+import {
+  AvatarKey,
+  DistanceUnit,
+  PersonColor,
+  TimeFormat,
+  UserPreferences,
+  type UpdateUserPreferences,
+} from "@tc/contracts";
 import {
   cookiePendingAdmission,
   normalizeCredential,
@@ -146,8 +153,9 @@ export async function upsertUser(
   // absence would mean a deploy that forgot the variable locking every operator
   // out of the console.
   const bootstrapAdmin = isBootstrapAdmin(identity.id);
-  // The sign-in name is what the library shows when no display name is set
-  // (ADR-061 decision 4), so a change to it clears the cached library; read
+  // The sign-in name is what the library shows when no display name is set,
+  // or its owner has not opted in to publishing one (ADR-061 decision 4, M38
+  // D2), so a change to it clears the cached library; read
   // first, because the upsert cannot say what it replaced.
   const before = await db.select({ name: users.name }).from(users).where(eq(users.id, identity.id)).limit(1);
   await db
@@ -188,6 +196,9 @@ const PREFERENCE_DEFAULTS: UserPreferences = {
   homeAirport: null,
   distanceUnit: DistanceUnit.enum.km,
   timeFormat: TimeFormat.enum["12h"],
+  avatar: null,
+  color: null,
+  publicDisplayName: false,
 };
 
 type UserRow = typeof users.$inferSelect;
@@ -218,6 +229,9 @@ function toPreferences(row: UserRow): UserPreferences {
     homeAirport: row.homeAirport,
     distanceUnit: row.distanceUnit,
     timeFormat: row.timeFormat,
+    avatar: row.avatar,
+    color: row.color,
+    publicDisplayName: row.publicDisplayName,
   });
   if (parsed.success) return parsed.data;
   console.error("users preference columns failed UserPreferences parse", {
@@ -229,6 +243,9 @@ function toPreferences(row: UserRow): UserPreferences {
     homeAirport: UserPreferences.shape.homeAirport.safeParse(row.homeAirport).data ?? null,
     distanceUnit: DistanceUnit.safeParse(row.distanceUnit).data ?? PREFERENCE_DEFAULTS.distanceUnit,
     timeFormat: TimeFormat.safeParse(row.timeFormat).data ?? PREFERENCE_DEFAULTS.timeFormat,
+    avatar: AvatarKey.safeParse(row.avatar).data ?? null,
+    color: PersonColor.safeParse(row.color).data ?? null,
+    publicDisplayName: row.publicDisplayName,
   };
 }
 
@@ -268,10 +285,15 @@ export async function writePreferences(
   now: string = new Date().toISOString(),
 ): Promise<UserPreferences | null> {
   // The display name is the library's name for this person (ADR-061 decision
-  // 4); only a real change clears the cached library.
+  // 4) once they opt in (M38 D2); only a real change to either clears the
+  // cached library.
   const before =
-    "displayName" in patch
-      ? await db.select({ displayName: users.displayName }).from(users).where(eq(users.id, userId)).limit(1)
+    "displayName" in patch || "publicDisplayName" in patch
+      ? await db
+          .select({ displayName: users.displayName, publicDisplayName: users.publicDisplayName })
+          .from(users)
+          .where(eq(users.id, userId))
+          .limit(1)
       : [];
   const updated = await db
     .update(users)
@@ -280,12 +302,20 @@ export async function writePreferences(
       ...("homeAirport" in patch ? { homeAirport: patch.homeAirport } : {}),
       ...("distanceUnit" in patch ? { distanceUnit: patch.distanceUnit } : {}),
       ...("timeFormat" in patch ? { timeFormat: patch.timeFormat } : {}),
+      ...("avatar" in patch ? { avatar: patch.avatar } : {}),
+      ...("color" in patch ? { color: patch.color } : {}),
+      ...("publicDisplayName" in patch ? { publicDisplayName: patch.publicDisplayName } : {}),
       updatedAt: now,
     })
     .where(eq(users.id, userId))
     .returning();
   if (updated[0] === undefined) return null;
-  if (before[0] !== undefined && before[0].displayName !== updated[0].displayName) await invalidateAuthor(userId);
+  if (
+    before[0] !== undefined &&
+    (before[0].displayName !== updated[0].displayName ||
+      before[0].publicDisplayName !== updated[0].publicDisplayName)
+  )
+    await invalidateAuthor(userId);
   return toPreferences(updated[0]);
 }
 

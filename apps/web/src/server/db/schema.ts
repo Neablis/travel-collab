@@ -18,11 +18,13 @@ import {
 } from "drizzle-orm/pg-core";
 import type {
   ApiScope,
+  AvatarKey,
   BatchableCommand,
   DistanceUnit,
   GrantSource,
   PlanId,
   Origin,
+  PersonColor,
   ReportReason,
   ReportStatus,
   ReportTargetKind,
@@ -72,6 +74,14 @@ export const users = pgTable("users", {
   // database holds the default ("12h", the design's clock) and every existing
   // row reads as it did before the setting existed.
   timeFormat: text("time_format").$type<TimeFormat>().notNull().default("12h"),
+  // M38: the persona. Keys into `AvatarKey` / `PersonColor`, re-validated at
+  // the read boundary like the columns above (`$type` is a compile-time cast).
+  // Like them, absent from `upsertUser`'s `set` list, so sign-in never clobbers
+  // a choice. `public_display_name` gates whether a public page may print
+  // `display_name` (M38 D2); off until the person opts in.
+  avatar: text("avatar").$type<AvatarKey>(),
+  color: text("color").$type<PersonColor>(),
+  publicDisplayName: boolean("public_display_name").notNull().default(false),
   // M20 link 2 — WHAT THIS ACCOUNT HOLDS. The Entitlements module's second
   // store (ADR-045 rule 1): the committed plan file says what a plan *is*,
   // these two columns say which one this account *has*.

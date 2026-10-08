@@ -8,7 +8,7 @@ import { PreferencesProvider } from "./PreferencesProvider";
 // The server is what normalizes `homeAirport` (the contract carries no
 // transform), so the stub does too — otherwise these tests would prove the
 // field displays whatever it was handed, which is not the claim.
-let stored: UserPreferences = { displayName: null, homeAirport: null, distanceUnit: "km", timeFormat: "12h" };
+let stored: UserPreferences = { displayName: null, homeAirport: null, distanceUnit: "km", timeFormat: "12h", avatar: null, color: null, publicDisplayName: false };
 let refuse: string | null = null;
 const patches: UpdateUserPreferences[] = [];
 
@@ -86,7 +86,7 @@ function mount() {
 beforeEach(() => {
   holdFetch = null;
   holdSave = null;
-  stored = { displayName: null, homeAirport: null, distanceUnit: "km", timeFormat: "12h" };
+  stored = { displayName: null, homeAirport: null, distanceUnit: "km", timeFormat: "12h", avatar: null, color: null, publicDisplayName: false };
   refuse = null;
   patches.length = 0;
   updatePreferencesMock.mockClear();
@@ -141,7 +141,7 @@ describe("ProfileSection", () => {
   });
 
   it("sends an explicit null to clear a name, not an omitted field", async () => {
-    stored = { displayName: "Mitchell", homeAirport: null, distanceUnit: "km", timeFormat: "12h" };
+    stored = { displayName: "Mitchell", homeAirport: null, distanceUnit: "km", timeFormat: "12h", avatar: null, color: null, publicDisplayName: false };
     mount();
     const field = await screen.findByLabelText("Your name");
     await waitFor(() => expect((field as HTMLInputElement).value).toBe("Mitchell"));
@@ -153,7 +153,7 @@ describe("ProfileSection", () => {
   });
 
   it("sends nothing when the value has not changed", async () => {
-    stored = { displayName: "Mitchell", homeAirport: null, distanceUnit: "km", timeFormat: "12h" };
+    stored = { displayName: "Mitchell", homeAirport: null, distanceUnit: "km", timeFormat: "12h", avatar: null, color: null, publicDisplayName: false };
     mount();
     const field = await screen.findByLabelText("Your name");
     await waitFor(() => expect((field as HTMLInputElement).value).toBe("Mitchell"));
@@ -177,7 +177,7 @@ describe("ProfileSection", () => {
   });
 
   it("shows a refusal and puts the field back to what is stored", async () => {
-    stored = { displayName: null, homeAirport: "SFO", distanceUnit: "km", timeFormat: "12h" };
+    stored = { displayName: null, homeAirport: "SFO", distanceUnit: "km", timeFormat: "12h", avatar: null, color: null, publicDisplayName: false };
     mount();
     const field = await screen.findByLabelText("Home airport");
     await waitFor(() => expect((field as HTMLInputElement).value).toBe("SFO"));

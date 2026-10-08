@@ -195,7 +195,7 @@ describe("what a review calls people", () => {
       .where(eq(users.id, AUTHOR));
     await db
       .update(users)
-      .set({ displayName: "Dee Ray", name: "Dana Reyes", email: `${READER}@example.com` })
+      .set({ displayName: "Dee Ray", name: "Dana Reyes", publicDisplayName: true, email: `${READER}@example.com` })
       .where(eq(users.id, READER));
   });
 

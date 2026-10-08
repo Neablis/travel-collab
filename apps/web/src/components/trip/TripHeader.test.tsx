@@ -552,6 +552,9 @@ const person = (userId: string, name: string, travelling = true): TripMemberProf
   email: null,
   image: null,
   travelling,
+  displayName: null,
+  avatar: null,
+  color: null,
 });
 
 // Travellers spec D10: the header's door to People. Who is travelling, as
