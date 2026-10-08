@@ -23,7 +23,8 @@ general setup.
 
 **M38 — YOU CAN TELL PEOPLE APART, AND SEE A TRIP BEFORE YOU JOIN IT — IS THE CURRENT MILESTONE
 AS OF 2026-10-07**, by **M37's gate closing at 11 of 11**. Order: `… M35 ✓ → M37 ✓ → M38 → M39 …
-M47`. **M38 is not scoped**: its decisions are recommendations, and none has been answered.
+M47`. **M38 was scoped 2026-10-07**: all six decisions answered as recommended. It is built as a
+stack from `docs/plans/2026-10-07-M38-personas-and-invite-preview.md`.
 (`docs/milestones/M38-people-you-can-tell-apart.md`)
 
 **M37 closed 2026-10-07.** Trip cards show length and stops, and an unplanned trip is designed.
@@ -40,7 +41,7 @@ ticked on Mitchell's word and was **not** run. Its retro is at the end of
 
 **M37 to M47 were proposed on 2026-10-06** by grouping the candidates file, and placed after M35 in
 that order. The order was confirmed the same day, and **M37 is scoped**: its six decisions were answered as
-recommended. M38–M47 are not scoped yet. Grouping and order:
+recommended. M38 was scoped 2026-10-07; M39–M47 are not scoped yet. Grouping and order:
 `docs/milestones/README.md`, *2026-10-06 — proposed: M37 to M47*.
 
 **M36 closed 2026-10-06** on Mitchell's word that the admin console works; its two walk boxes are
@@ -233,8 +234,8 @@ half, the model guessing a coordinate rather than citing one, is M9 scope.
 
 ## Next action
 
-**Dispatch `migrate-production`** for `0042` and `0043`, if it has not run since #354 merged. Then
-**scope M38** by answering its decisions (`docs/milestones/M38-people-you-can-tell-apart.md`).
+**Build M38** from `docs/plans/2026-10-07-M38-personas-and-invite-preview.md`, part by part.
+(`0042` and `0043` are applied: `migrate-production` ran on `eeef6cc`.)
 Separately,
 `KI-2026-10-04-c` resolves on query 8 of `ledger.sql` over a few days of cheap-tier step durations.
 
