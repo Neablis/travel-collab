@@ -26,7 +26,7 @@ function roleLine(member: TripMemberProfile): string {
  * question 4): set only on their row, and only when the trip shifted them.
  * **Printed under the role line, not only on the chip's `title`** — the chip is
  * `aria-hidden` and a tooltip needs a mouse, so a tooltip alone told nobody on
- * a phone, a keyboard or a screen reader (#359 self-review).
+ * a phone, a keyboard or a screen reader (self-review of pull request 359).
  */
 export function PersonRow({
   member,

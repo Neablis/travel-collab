@@ -173,8 +173,8 @@ export function ProfileSection({
   //
   // The same holds for its error: a refusal answering a pick that a newer pick
   // of the same field has since replaced is about a choice nobody holds any
-  // more, so it is dropped rather than shown under the newer one (#359
-  // self-review). The newer pick clears the old message as it starts.
+  // more, so it is dropped rather than shown under the newer one (self-review
+  // of pull request 359). The newer pick clears the old message as it starts.
   async function choose(patch: PersonaPatch, setError: (message: string | null) => void) {
     if (!loaded) return;
     const keys = Object.keys(patch) as (keyof PersonaPatch)[];

@@ -80,13 +80,14 @@ function newerAccess(held: TripAccess | null, other: TripAccess | null): TripAcc
  * notebook that will not open over a name.
  *
  * **Inside the trip's own `TripProvider`, its live `access` is the source**
- * (#359 self-review). This provider's read is the cached one at mount, and
- * nothing re-made it: a role change, a join or a colour the trip re-resolved
- * moved the People section and the header's avatars and left every History
- * row and suggestion chip on the mount's answer. `TripProvider` re-reads
- * access whenever the poll's `accessRev` moves, so following it is what keeps
- * the chips with the rest. Its own read stays, for a notebook rendered outside
- * a trip and for `recheck` below; whichever read is newer by `accessRev` wins.
+ * (self-review of pull request 359). This provider's read is the cached one at
+ * mount, and nothing re-made it: a role change, a join or a colour the trip
+ * re-resolved moved the People section and the header's avatars and left
+ * every History row and suggestion chip on the mount's answer. `TripProvider`
+ * re-reads access whenever the poll's `accessRev` moves, so following it is
+ * what keeps the chips with the rest. Its own read stays, for a notebook
+ * rendered outside a trip and for `recheck` below; whichever read is newer by
+ * `accessRev` wins.
  */
 export function PeopleProvider({ tripId, children }: { tripId: string; children: ReactNode }) {
   const trip = useOptionalTrip();

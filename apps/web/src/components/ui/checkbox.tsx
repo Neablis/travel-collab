@@ -11,13 +11,15 @@ import { cn } from "../../lib/cn";
 // the accessibility tree that a div-with-a-role reimplements badly.
 //
 // **The input is the 44px hit target on a phone; the 16px box is drawn beside
-// it** (SPEC §13.1, #359's CI). A native checkbox cannot be a small glyph in a
-// large box — Chromium ignores its padding and scales the glyph to fill
-// whatever size it is given, measured — so the real input is laid transparent
-// over the drawn box, centred on it, 44px square below `md` and the box's own
-// 16px above it (`PHONE_TOUCH`'s line). It overflows the box rather than
-// growing it, so neither the label's layout nor the desktop moves. The drawn
-// box follows the input through `peer-*`: checked, focus-visible, disabled.
+// it** (SPEC §13.1). The public-name checkbox on `/account` failed
+// `m26-phone-targets` at 16px on pull request 359. A native checkbox cannot be
+// a small glyph in a large box — Chromium ignores its padding and scales the
+// glyph to fill whatever size it is given, measured — so the real input is
+// laid transparent over the drawn box, centred on it, 44px square below `md`
+// and the box's own 16px above it (`PHONE_TOUCH`'s line). It overflows the box
+// rather than growing it, so neither the label's layout nor the desktop moves.
+// The drawn box follows the input through `peer-*`: checked, focus-visible,
+// disabled.
 export function Checkbox({ className, ...props }: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <span className={cn("relative inline-grid size-4 shrink-0 place-items-center", className)}>
