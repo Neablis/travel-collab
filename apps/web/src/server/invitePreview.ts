@@ -3,7 +3,7 @@ import { travellerIds, type Location, type PreviewPlace, type TripDetail, type T
 import { cityFor } from "@/lib/dayChips";
 import { displayNameFor } from "@/lib/displayName";
 import { db } from "./db/client";
-import { inviteByToken } from "./access/invites";
+import { inviteByToken, MAX_TOKEN_LENGTH } from "./access/invites";
 import { effectiveMembers, withProfiles } from "./access/members";
 import { overlayMembers } from "./access/overlay";
 import { getTripDetail } from "./projections";
@@ -26,6 +26,9 @@ import { getTripDetail } from "./projections";
 export async function readInvitePreview(
   token: string,
 ): Promise<{ ok: true; preview: TripPreview } | { ok: false; reason: "not-found" | "gone" }> {
+  // Longer than any token `mintToken` makes, so it names nothing — answered as
+  // an unknown token is, before a request anyone can send reaches the database.
+  if (token.length > MAX_TOKEN_LENGTH) return { ok: false, reason: "not-found" };
   const invite = await inviteByToken(token);
   if (invite === null) return { ok: false, reason: "not-found" };
   if (invite.status !== "pending") return { ok: false, reason: "gone" };
@@ -66,8 +69,15 @@ export async function readInvitePreview(
       })),
       people: profiles.map((p) => ({
         // `email: null` for `inviteLanding.ts`'s `namesFor` reason: the chain
-        // ends `?? email ?? handle`, and this is a stranger's page.
-        name: displayNameFor({ userId: p.userId, displayName: p.displayName, name: p.name, email: null }),
+        // ends `?? email ?? handle`, and this is a stranger's page. An address
+        // typed as a name is dropped too, as `publicNameFor` drops it, so the
+        // chain falls through to the next link instead of printing it.
+        name: displayNameFor({
+          userId: p.userId,
+          displayName: unlessAddress(p.displayName),
+          name: unlessAddress(p.name),
+          email: null,
+        }),
         avatar: p.avatar,
         // This trip's colour: `withProfiles` resolved it while it had the ids.
         color: p.color,
@@ -77,6 +87,10 @@ export async function readInvitePreview(
       total: { amountMinor: costed.tripCostTotal, currency: costed.currency },
     },
   };
+}
+
+function unlessAddress(name: string | null | undefined): string | null {
+  return name == null || name.includes("@") ? null : name;
 }
 
 /** The map's fields of a location, copied by name so nothing else rides along. */

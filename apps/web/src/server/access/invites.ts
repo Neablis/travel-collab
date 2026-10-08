@@ -243,6 +243,14 @@ export async function inviteByToken(
 }
 
 /**
+/**
+ * The longest token any lookup will try (`mintToken`'s 32 bytes are 43 base64url
+ * characters, so this is generous headroom). A longer one is refused before
+ * the query, because the preview reads it straight from the path.
+ */
+export const MAX_TOKEN_LENGTH = 256;
+
+/**
  * Single-use by construction: the status flip and the membership grant happen
  * in one transaction, and the flip is conditioned on the row still being
  * `pending`, so two simultaneous accepts cannot both win.
