@@ -8,14 +8,15 @@ import { FrontDoorHeader } from "@/components/front/FrontDoorHeader";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { PageContainer } from "@/components/ui/page-container";
 import { Text } from "@/components/ui/text";
-import { fetchInviteLanding, fetchInvitePreview } from "@/lib/apiClient";
+import { fetchInviteLanding } from "@/lib/apiClient";
 import { cn } from "@/lib/cn";
 import { firstNameOf } from "@/lib/displayName";
 import { useToday } from "@/lib/today";
 import { SUGGESTER_APPROVAL } from "@/lib/tripRole";
-import { InvitePlanCard, PreviewScope } from "./InvitePlanCard";
+import { InvitePlanCard, PlanUnavailable, PreviewScope } from "./InvitePlanCard";
 import { previewContext } from "./previewContext";
 import { useInviteJoin } from "./useInviteJoin";
+import { useInvitePreview } from "./useInvitePreview";
 
 // *Have a look first* (M27 D12, SPEC §35.6 and §27), for somebody holding a
 // pending invite — signed in or not.
@@ -25,7 +26,8 @@ import { useInviteJoin } from "./useInviteJoin";
 // as a synthetic viewer, and the board prints every stop's cost, which D4 hides
 // from somebody who has not joined. So there is one pre-accept view of a trip,
 // `InvitePlanCard` over the token-scoped preview, and this screen is that card
-// under the look banner.
+// under the look banner. As on the landing, the preview is optional: the
+// banner and its Join come from the landing alone.
 
 type ValidLanding = Extract<InviteLanding, { state: "valid" }>;
 
@@ -37,28 +39,25 @@ type ValidLanding = Extract<InviteLanding, { state: "valid" }>;
 export function InviteLookScreen({ token, googleAvailable }: { token: string; googleAvailable: boolean }) {
   const router = useRouter();
   const landingHref = `/invite/${encodeURIComponent(token)}`;
-  const [look, setLook] = useState<{ landing: ValidLanding; preview: TripPreview } | null>(null);
+  const [landing, setLanding] = useState<ValidLanding | null>(null);
   const [failed, setFailed] = useState(false);
+  const preview = useInvitePreview(token, landing !== null);
 
   useEffect(() => {
     let live = true;
-    void Promise.all([fetchInviteLanding(token), fetchInvitePreview(token)]).then(([landing, preview]) => {
+    void fetchInviteLanding(token).then((result) => {
       if (!live) return;
-      if (!landing.ok) {
+      if (!result.ok) {
         setFailed(true);
         return;
       }
       // Anything but a pending invite has nothing to look at — and the landing
       // is the screen that explains why (withdrawn, used, already a member).
-      if (landing.value.state !== "valid") {
+      if (result.value.state !== "valid") {
         router.replace(landingHref);
         return;
       }
-      if (!preview.ok) {
-        setFailed(true);
-        return;
-      }
-      setLook({ landing: landing.value, preview: preview.value });
+      setLanding(result.value);
     });
     return () => {
       live = false;
@@ -68,6 +67,12 @@ export function InviteLookScreen({ token, googleAvailable }: { token: string; go
   return (
     <>
       <FrontDoorHeader />
+      {/* The landing's own line, so the two doors open alike. */}
+      {landing === null && !failed && (
+        <PageContainer>
+          <Text variant="secondary">Opening this invite…</Text>
+        </PageContainer>
+      )}
       {failed && (
         <PageContainer>
           <Text variant="secondary">
@@ -76,11 +81,12 @@ export function InviteLookScreen({ token, googleAvailable }: { token: string; go
           </Text>
         </PageContainer>
       )}
-      {look !== null && (
+      {landing !== null && (
         <>
-          <LookBanner landing={look.landing} token={token} googleAvailable={googleAvailable} />
+          <LookBanner landing={landing} token={token} googleAvailable={googleAvailable} />
           <PageContainer as="main" width="measure" className="py-6 sm:py-8">
-            <LookCard preview={look.preview} />
+            {preview.read.kind === "ready" && <LookCard preview={preview.read.preview} />}
+            {preview.read.kind === "failed" && <PlanUnavailable onRetry={preview.retry} />}
           </PageContainer>
         </>
       )}
