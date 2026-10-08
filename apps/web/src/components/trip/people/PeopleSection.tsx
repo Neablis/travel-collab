@@ -333,7 +333,7 @@ export function PeopleSection({
         member={member}
         name={name}
         isYou={you}
-        chipTitle={you ? shiftedColorTitle(member, members, chosenColor) : undefined}
+        colorNote={you ? shiftedColorTitle(member, members, chosenColor) : undefined}
         menu={<PersonMenu label={name} actions={memberActions(member, name)} />}
       />
     );
