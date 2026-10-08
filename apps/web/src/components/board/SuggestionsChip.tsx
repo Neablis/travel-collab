@@ -8,7 +8,7 @@ import { acceptAllOrder } from "@/lib/acceptAll";
 import { dayLabel } from "@/lib/dates";
 import type { Ghost } from "@/lib/suggestionOverlay";
 import { useTrip } from "@/components/trip/context/TripProvider";
-import { SuggestionActions, useAuthorNames } from "./SuggestionActions";
+import { AuthorChip, SuggestionActions, useAuthorNames } from "./SuggestionActions";
 
 /**
  * The header's pending-suggestion count (spec §2.4) — the only notification
@@ -157,7 +157,8 @@ function Item({ ghost, stale = false, detail = null, byLine }: { ghost: Ghost; s
         {ghost.description}
       </Text>
       {(detail !== null || byLine !== null) && (
-        <Text as="span" variant="muted">
+        <Text as="span" variant="muted" className="flex items-center gap-1.5">
+          {byLine !== null && <AuthorChip authorId={ghost.authorId} />}
           {[detail, byLine].filter((part) => part !== null).join(" · ")}
         </Text>
       )}

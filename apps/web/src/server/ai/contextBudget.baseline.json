@@ -109,10 +109,10 @@
         "insert_widget",
         "switch_intent"
       ],
-      "toolChars": 4708,
+      "toolChars": 4722,
       "instructionChars": 3277,
-      "totalChars": 7985,
-      "approxTokens": 2412
+      "totalChars": 7999,
+      "approxTokens": 2417
     },
     "page · question": {
       "tools": [
@@ -150,8 +150,8 @@
       "approxTokens": 374
     },
     "insert_widget": {
-      "chars": 1106,
-      "approxTokens": 334
+      "chars": 1120,
+      "approxTokens": 338
     },
     "search_places": {
       "chars": 950,

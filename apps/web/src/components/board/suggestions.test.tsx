@@ -1,10 +1,10 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { http, HttpResponse } from "msw";
+import { http, HttpResponse, type RequestHandler } from "msw";
 import { setupServer } from "msw/node";
 import type { BatchableCommand, SuggestionChange, TripDetail, TripRole } from "@tc/contracts";
-import { activityFactory, tripDetailFixture, uuidFrom } from "@tc/factories";
+import { activityFactory, tripAccessFixture, tripDetailFixture, tripMemberProfileFactory, uuidFrom } from "@tc/factories";
 import { TripBoardScreen } from "@/components/board/TripBoardScreen";
 import { TripProvider } from "@/components/trip/context/TripProvider";
 import { EditorHost } from "@/components/trip/context/EditorHost";
@@ -88,11 +88,12 @@ const addGelato = (tripId: string) =>
     { type: "AddActivity", tripId, activityId: GELATO, dayId: DAY_2, title: "Gelato", timeWindow: { start: "14:00", end: "15:00" } },
   ]);
 
-function mount(myRole: TripRole, changes: (tripId: string) => SuggestionChange[]) {
+/** `before` is matched ahead of the trip's own handlers, to answer one route differently. */
+function mount(myRole: TripRole, changes: (tripId: string) => SuggestionChange[], before: RequestHandler[] = []) {
   const fixture = trip();
   const seeded = changes(fixture.tripId);
   const resolved: { changeId: string; action: string }[] = [];
-  server.use(...makeTripHandlers(fixture, { myRole, suggestions: seeded }));
+  server.use(...before, ...makeTripHandlers(fixture, { myRole, suggestions: seeded }));
   server.events.on("request:start", ({ request }) => {
     const match = /\/suggestions\/changes\/([^/]+)$/.exec(new URL(request.url).pathname);
     if (match && request.method === "POST") {
@@ -298,6 +299,29 @@ describe("the suggestions chip", () => {
 
     const note = await screen.findByRole("figure", { name: /^Note from / });
     expect(within(note).getByText("Shorter, please")).toBeTruthy();
+  });
+
+  // M38: an author's line leads with their chip — the glyph they picked —
+  // beside the name they chose.
+  it("draws the author's chip beside the name they chose", async () => {
+    const tripId = trip().tripId;
+    const access = http.get("/api/trips/:tripId/access", () =>
+      HttpResponse.json({
+        access: tripAccessFixture({
+          tripId,
+          viewerId: "dev-alice",
+          members: [
+            tripMemberProfileFactory.build({ userId: "dev-alice", role: "owner", name: "Alice" }),
+            tripMemberProfileFactory.build({ userId: "dev-sam", role: "suggester", name: "Sam", displayName: "Sammy", avatar: "sailboat", color: "rose" }),
+          ],
+        }),
+      }),
+    );
+    mount("owner", (id) => [addGelato(id)], [access]);
+    fireEvent.click(await screen.findByRole("button", { name: "1 suggestion" }));
+
+    const onBoard = await screen.findByRole("list", { name: "Suggestions on the board" });
+    expect((await within(onBoard).findByText(/Suggested by Sammy/)).innerHTML).toContain("lucide-sailboat");
   });
 });
 

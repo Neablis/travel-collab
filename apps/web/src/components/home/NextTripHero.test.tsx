@@ -516,6 +516,20 @@ describe("NextTripHero", () => {
     expect(within(group).getByText("SO")).toBeTruthy();
   });
 
+  // M38: a face is the person's chip, so the glyph they picked stands in for
+  // their initials.
+  it("draws a traveler's chosen avatar in place of their initials", async () => {
+    const trip = tripSummaryFixture({
+      members: [tripSummaryMemberFactory.build({ userId: "dev-dana", role: "owner", displayName: "Dana Reyes", avatar: "compass", color: "sky" })],
+    });
+    fetchTripDetailMock.mockResolvedValue({ ok: true, value: tripDetailWithDays(trip.tripId) });
+    render(<NextTripHero trip={trip} />);
+
+    const group = await screen.findByRole("group", { name: "1 traveler" });
+    expect(group.innerHTML).toContain("lucide-compass");
+    expect(within(group).queryByText("DR")).toBeNull();
+  });
+
   // Since §35.2 filters the hero out of *Other trips*, this is the only place
   // on Home its name appears — and on a card the name is the way in.
   it("makes the trip's name a way into the trip", async () => {

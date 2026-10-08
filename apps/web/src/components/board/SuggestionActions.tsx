@@ -3,9 +3,10 @@
 import { type ReactElement, useCallback, useEffect, useId, useMemo, useState } from "react";
 import type { ResolveSuggestionChangeInput } from "@tc/contracts";
 import { useSessionUser } from "@/components/account/useSessionUser";
-import { usePeopleRecheck } from "@/components/pages/people";
+import { usePeopleRecheck, usePersonas } from "@/components/pages/people";
 import { useTrip } from "@/components/trip/context/TripProvider";
 import { Button } from "@/components/ui/button";
+import { PersonChip } from "@/components/ui/person-chip";
 import { Popover } from "@/components/ui/popover";
 import { Text } from "@/components/ui/text";
 import type { Ghost } from "@/lib/suggestionOverlay";
@@ -118,6 +119,17 @@ export function useAuthorNames(authorIds: readonly string[]): (authorId: string)
     for (const id of ids.split(" ")) if (id !== "" && !(id in names)) recheck(id);
   }, [names, ids, recheck]);
   return useCallback((authorId: string) => authorName(names, rechecked, authorId), [names, rechecked]);
+}
+
+/**
+ * An author's `xs` chip (M38), drawn beside the name `useAuthorNames` gives.
+ * Nothing for someone the members do not hold — "a former traveler" has no
+ * persona to draw, and a chip of its initials would name nobody.
+ */
+export function AuthorChip({ authorId }: { authorId: string }) {
+  const persona = usePersonas()?.[authorId];
+  if (persona === undefined) return null;
+  return <PersonChip name={persona.name} avatar={persona.avatar} color={persona.color} size="xs" />;
 }
 
 /**

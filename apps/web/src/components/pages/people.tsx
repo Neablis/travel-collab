@@ -21,10 +21,14 @@ import { displayNameFor } from "@/lib/displayName";
 
 /**
  * What a person surface draws for one member (M38): the name to print, the
- * avatar they chose and the colour `TripAccess` resolved for this trip (D3), and
- * whether they are going — what `trip.people` reads (`WidgetContext.personas`).
+ * avatar they chose, the colour this trip shows them in — already clash-resolved
+ * by the server (D3), so a chip renders it as given — and whether they are going,
+ * which is what `trip.people` reads (`WidgetContext.personas`).
  */
-export type Persona = { name: string; travelling: boolean } & Pick<TripMemberProfile, "avatar" | "color">;
+export type Persona = { name: string; travelling: boolean } & Pick<
+  TripMemberProfile,
+  "avatar" | "color" | "colorShifted"
+>;
 
 /** userId → their persona, for every member `TripAccess` lists. */
 export function personasOf(members: readonly TripMemberProfile[]): Readonly<Record<string, Persona>> {
@@ -37,6 +41,7 @@ export function personasOf(members: readonly TripMemberProfile[]): Readonly<Reco
         name: displayNameFor({ userId: m.userId, displayName: m.displayName, name: m.name, email: null }),
         avatar: m.avatar,
         color: m.color,
+        colorShifted: m.colorShifted,
         travelling: going.has(m.userId),
       },
     ]),

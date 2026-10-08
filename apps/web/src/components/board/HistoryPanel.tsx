@@ -9,7 +9,7 @@ import { coalesceHistory } from "./coalesceHistory";
 import { DataText } from "@/components/ui/data-text";
 import { Text } from "@/components/ui/text";
 import { formatTripDate } from "@/lib/formatDate";
-import { useAuthorNames } from "./SuggestionActions";
+import { AuthorChip, useAuthorNames } from "./SuggestionActions";
 
 // "Suggested" alone until the names land: a name guessed wrong, or "a former
 // traveler" said of a member, is worse than none.
@@ -96,8 +96,9 @@ export function HistoryPanel({
                   {entry.undone ? <s>{entry.description}</s> : entry.description}
                 </span>
                 {entry.origin.kind === "suggestion" && (
-                  <span className="max-w-full truncate text-xs text-slate">
-                    {suggestedBy(nameOf(entry.origin.authorId))}
+                  <span className="flex max-w-full min-w-0 items-center gap-1.5 text-xs text-slate">
+                    <AuthorChip authorId={entry.origin.authorId} />
+                    <span className="truncate">{suggestedBy(nameOf(entry.origin.authorId))}</span>
                   </span>
                 )}
               </span>
