@@ -68,7 +68,7 @@ uses both Part 1's batch accept and Part 2's snapshots.
 |---|---|---|---|
 | 1 | A server *accept these changes* action (all-or-nothing, one `batchId`, an `Origin` that lists the authors); *Accept all* moved onto it | 1, 2, 3 | 2, 3 |
 | 2 | Named snapshots: `trip_snapshots` (migration), save, rename, delete, a list above the History scroll, preview by `seq`, restore through `RevertToState` | 4, 5 | 4 |
-| 3 | Editors (and the assistant for them) may suggest; a planning turn of more than one change stores a suggestion `via: assistant`, after saving a snapshot; evals; the e2e | 6, 7 | 5, 6 |
+| 3 | Editors (and the assistant for them) may suggest; a planning turn of more than one change stores a suggestion `via: assistant`, after saving a snapshot; the eval grader updated (not re-run); the e2e | 6, 7 | 5, 6 |
 
 Then the gate: the ci-like e2e on the top part, the two-editor walk on its preview, the retro.
 
@@ -90,8 +90,10 @@ Then the gate: the ci-like e2e on the top part, the two-editor walk on its previ
 - [ ] **A snapshot saves, previews and restores**, and the restore undoes in one step. A trip whose
       snapshot `seq` predates a deleted day restores that day.
 - [ ] **An assistant planning turn on an editor's trip produces stored suggestions** that survive
-      a reload and that a second editor can see. Covered by an integration test and the eval suite
-      (M33); the eval re-run's numbers are pasted here.
+      a reload and that a second editor can see. Covered by an integration test against
+      a mocked model, and the eval grader (M33) passes a stored suggestion in its own free tests.
+      *The live eval re-run was dropped from this box by Mitchell on 2026-10-09: Parts 1 and 2 do
+      not touch the assistant, and a paid eval run is never started without asking him first.*
 - [ ] **The e2e spec passes on `pnpm --filter web test:e2e:ci-like`**: ask for a day, see its
       suggestions on the board, accept all, see one History entry, restore the snapshot.
 - [ ] **[walk]** The same flow on the PR preview with two editors.
