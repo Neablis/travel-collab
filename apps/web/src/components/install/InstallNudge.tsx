@@ -78,7 +78,7 @@ export function InstallNudge({ eligible }: { eligible: boolean }) {
       {candidate && settled && !surfaceOpen && (
         <section
           aria-label={`Install ${SITE_NAME}`}
-          className="flex items-center gap-2 border-b border-hairline bg-surface py-1 pr-1 pl-3 md:hidden"
+          className="flex items-center gap-2 border-b border-hairline bg-surface py-1 px-3 md:hidden"
         >
           <BrandMark size={20} />
           <span className="min-w-0 flex-1 text-sm text-ink">Keep {SITE_NAME} on your home screen</span>
