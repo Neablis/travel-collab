@@ -221,7 +221,11 @@ jobs:
     timeout-minutes: 15
     services:
       postgres:
-        image: postgres:17
+        # Google's Docker Hub mirror, not Docker Hub itself: anonymous pulls
+        # from shared GitHub runners hit Docker Hub's rate limit
+        # (`toomanyrequests`) and fail the job before any test runs (#378,
+        # 2026-10-09). Same official image.
+        image: mirror.gcr.io/library/postgres:17
         env:
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: travel
@@ -264,7 +268,11 @@ jobs:
     timeout-minutes: 20
     services:
       postgres:
-        image: postgres:17
+        # Google's Docker Hub mirror, not Docker Hub itself: anonymous pulls
+        # from shared GitHub runners hit Docker Hub's rate limit
+        # (`toomanyrequests`) and fail the job before any test runs (#378,
+        # 2026-10-09). Same official image.
+        image: mirror.gcr.io/library/postgres:17
         env:
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: travel
