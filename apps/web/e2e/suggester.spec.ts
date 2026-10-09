@@ -225,5 +225,13 @@ test("a suggester's move waits for the owner, and Accept makes it", async ({ pag
   // One History entry for both, which says who asked for them, by name — not
   // "Suggested" alone, and not "a former traveler" (W49, M40 D1/D3).
   await openHistory(page);
-  await expect(page.getByTestId("history-entry-description").filter({ hasText: `Accepted 2 suggestions from ${suggesterName}` })).toHaveCount(1);
+  const entry = page.getByTestId("history-entry").filter({ hasText: `from ${suggesterName}` });
+  await expect(entry).toHaveCount(1);
+  const description = entry.getByTestId("history-entry-description");
+  await expect(description).toHaveText("Accepted 2 suggestions");
+  // One entry for the batch, not one per change, each with its own by-line.
+  await expect(page.getByText(/^Suggested by /)).toHaveCount(0);
+  // jsdom has no layout, so this is measured here: overflow on a `truncate`
+  // span is the ellipsis (PR #311's preview walk read `Moved "St…`).
+  await expect.poll(() => description.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(0);
 });

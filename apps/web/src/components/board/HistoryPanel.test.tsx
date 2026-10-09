@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
@@ -6,7 +6,7 @@ import type { TripHistory } from "@tc/contracts";
 import { tripAccessFixture, tripMemberProfileFactory } from "@tc/factories";
 import { PeopleProvider } from "@/components/pages/people";
 import { clearQueryCache } from "@/lib/queryCache";
-import { HistoryPanel } from "./HistoryPanel";
+import { fromAuthors, HistoryPanel } from "./HistoryPanel";
 
 const TRIP = "7d9a1f8e-0000-4000-8000-00000000000a";
 const history: TripHistory = {
@@ -269,7 +269,18 @@ describe("HistoryPanel — accepted suggestions", () => {
         />
       </PeopleProvider>,
     );
-    expect(await screen.findByRole("button", { name: "Accepted 7 suggestions from Sam and Ana" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Accepted 3 suggestions from Sam" })).toBeTruthy();
+    // Two lines, as a single accept's by-line is: the count, then who.
+    const seven = await screen.findByRole("button", { name: /^Accepted 7 suggestions\s*from Sam and Ana$/ });
+    expect(within(seven).getByTestId("history-entry-description").textContent).toBe("Accepted 7 suggestions");
+    expect(screen.getByRole("button", { name: /^Accepted 3 suggestions\s*from Sam$/ })).toBeTruthy();
+  });
+});
+
+describe("fromAuthors", () => {
+  it("names each author once, and waits for every name", () => {
+    expect(fromAuthors(["Sam"])).toBe("from Sam");
+    expect(fromAuthors(["Sam", "Ana"])).toBe("from Sam and Ana");
+    expect(fromAuthors(["a former traveler", "Sam", "a former traveler"])).toBe("from a former traveler and Sam");
+    expect(fromAuthors(["Sam", null])).toBeNull();
   });
 });
