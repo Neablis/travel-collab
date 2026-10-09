@@ -85,3 +85,4 @@
   (B14).
   **Resolved:** 2026-10-08 (M39 Part 1, PR #363) — A7 and B14 fixed,
   as above; every item is now struck.
+- **Decided 2026-10-08 (M39 critique, decisions 4 and 5):** items 3 and 5 as built above. Record: `docs/design-feedback/2026-10-08-M39-phone-tablet-critique.md` §4–5, and `docs/milestones/M39-the-phone-is-decided.md` D7–D8.

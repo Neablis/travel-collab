@@ -75,10 +75,12 @@ iPhone and Android (sign-in, an emailed invite link, long-press drag), and the r
 
 ## Exit gate
 
-- [ ] **The critique is held and every bullet has a recorded decision**, with links from each KI
-      entry.
+- [x] **The critique is held and every bullet has a recorded decision**, with links from each KI
+      entry. *Ticked 2026-10-09: the decision table is in the critique (PR #362), and
+      `KI-2026-09-24-i`, `-25-f`, `-24-j` and resolved KI-048 each carry a* Decided *line citing it.*
 - [ ] **`KI-2026-09-24-i`, `KI-2026-09-25-f`, `KI-2026-09-24-j` and `KI-048` items 3 and 5 are
-      resolved** (moved to `resolved/`) or explicitly re-scoped by the critique.
+      resolved** (moved to `resolved/`) or explicitly re-scoped by the critique. *Progress
+      2026-10-09: KI-048 resolved by Part 1 (PR #363); the other three wait on Parts 2, 3 and 5.*
 - [ ] **The phone shows a conflict state**, with a test seen red without it.
 - [ ] **Caesura passes Chrome's installability check**: a manifest with icons, a service worker
       and a viewport. An e2e or a Lighthouse assertion records this.

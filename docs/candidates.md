@@ -744,6 +744,7 @@ here two days later.
   - `KI-048` items 3 and 5 — the day-chip row gives no sign it scrolls, and
     the trip-settings date editor opens as a popover over "Total for the trip"
     (inline is already the settled answer; it needs building and an e2e).
+    *Built 2026-10-09 in M39 Part 1 (PR #363); KI-048 is resolved.*
   - Worth walking in the same session, already fixed but new on screen:
     the Plan board's sticky stand-in scrollbar (`resolved/KI-20260922-b-…`,
     never looked at on a Windows mouse), the Calendar's hidden-days control
