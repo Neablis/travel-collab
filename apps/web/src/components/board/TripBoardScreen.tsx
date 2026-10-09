@@ -1034,6 +1034,9 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             onOpenAssistant={isDemo ? undefined : assistant.show}
             pinned={pinsDayRail ? dayChips : undefined}
             conflicts={conflictsChip}
+            // The two views a returning phone reader spends time on; /demo's
+            // visitor is signed out and has nothing to keep yet.
+            installNudge={!isDemo && (view === "Overview" || view === "Plan")}
           >
             {/* "Beside the view tabs" (SPEC §11), so one row — and the design
                 keeps it one row at every width by SCROLLING it
