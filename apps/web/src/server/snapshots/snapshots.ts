@@ -29,6 +29,9 @@ export type SnapshotErrorCode =
   | "too-many-snapshots"
   // Restoring a snapshot the trip already matches: nothing to append.
   | "no-op"
+  // Someone else changed the trip while the restore was decided. Retryable:
+  // the same request against the new head may well succeed.
+  | "concurrency-conflict"
   // The pipeline refused the revert for any other reason; its message is kept.
   | "restore-refused"
   // The trip's stored document does not parse: the access seam's own denial.
@@ -179,6 +182,11 @@ export async function restoreSnapshot(
   // is the `no-op` every other "nothing to do" answer is.
   if (result.error.code === "already-at-that-state") {
     return refuse("no-op", "The trip already matches this snapshot.");
+  }
+  // The two pipeline refusals a caller acts on differently: a lost race is
+  // retried, and a role the pipeline refuses is the same 403 as ours.
+  if (result.error.code === "concurrency-conflict" || result.error.code === "forbidden") {
+    return refuse(result.error.code, result.error.message);
   }
   return refuse("restore-refused", result.error.message);
 }

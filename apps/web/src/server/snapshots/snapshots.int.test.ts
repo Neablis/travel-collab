@@ -18,6 +18,13 @@ import {
   saveSnapshot,
 } from "./snapshots";
 
+// The real pipeline, observable: one test hands the restore a lost race,
+// which cannot be timed against a real second writer.
+vi.mock("@/server/commands", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/server/commands")>();
+  return { ...actual, executeTripCommand: vi.fn(actual.executeTripCommand) };
+});
+
 // The module asks the access seam, whose file also holds the session-reading
 // wrapper. Nothing here reads a session; this keeps next-auth out of the run.
 vi.mock("@/server/auth", () => ({ auth: vi.fn(async () => null) }));
@@ -111,6 +118,19 @@ describe("restoring a snapshot", () => {
     expect(result).toMatchObject({ ok: false, error: { code: "no-op" } });
     expect(await readStreamHeadSeq(db, tripId)).toBe(head);
   });
+
+  it("passes a lost race through as concurrency-conflict, so the caller can retry", async () => {
+    const snapshot = await saved("Raced");
+    expect((await executeTripCommand({ type: "AddDay", tripId, dayId: randomUUID() }, OWNER)).ok).toBe(true);
+    vi.mocked(executeTripCommand).mockResolvedValueOnce({
+      ok: false,
+      error: { code: "concurrency-conflict", message: "Someone else changed this trip. Retry." },
+    });
+    expect(await restoreSnapshot(tripId, snapshot.id, EDITOR)).toMatchObject({
+      ok: false,
+      error: { code: "concurrency-conflict" },
+    });
+  });
 });
 
 describe("the cap", () => {
@@ -179,6 +199,10 @@ describe("rename, delete and the list", () => {
     const other = randomUUID();
     expect((await executeTripCommand({ type: "CreateTrip", tripId: other, name: "Elsewhere" }, OWNER)).ok).toBe(true);
     expect(await deleteSnapshot(other, snapshot.id, OWNER)).toMatchObject({ ok: false, error: { code: "not-found" } });
+    expect(await renameSnapshot(other, snapshot.id, OWNER, { name: "Moved" })).toMatchObject({
+      ok: false,
+      error: { code: "not-found" },
+    });
     expect(await restoreSnapshot(other, snapshot.id, OWNER)).toMatchObject({ ok: false, error: { code: "not-found" } });
   });
 });
