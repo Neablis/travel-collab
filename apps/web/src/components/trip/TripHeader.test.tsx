@@ -579,6 +579,25 @@ describe("TripHeader — the phone's overflow menu (M39 D6)", () => {
     expect(await screen.findByRole("dialog", { name: /trip settings/i })).toBeTruthy();
   });
 
+  // History's own button is `display: none` on a phone, so closing the panel
+  // must hand focus back to the `⋯` it was opened from, not to that hidden
+  // button (where a browser drops it to <body>). PR #364's preview walk.
+  it("returns focus to the menu button when History closes", async () => {
+    await renderHeader();
+    await openMenu();
+    await userEvent.click(screen.getByRole("menuitem", { name: "History" }));
+    await screen.findAllByTestId("history-entry");
+
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryAllByTestId("history-entry")).toHaveLength(0));
+    // Said through the keyboard, as the Ask pill's order above is (the wall
+    // bans reading focus directly): Enter on `⋯` opens the menu, where Enter
+    // on History's own button would open History again.
+    await userEvent.keyboard("{Enter}");
+    expect(await screen.findByRole("menu")).toBeTruthy();
+    expect(screen.queryAllByTestId("history-entry")).toHaveLength(0);
+  });
+
   // Absent, not disabled, as the desktop's button is (KI-64).
   it("offers a viewer no Add stop", async () => {
     myRole = "viewer";

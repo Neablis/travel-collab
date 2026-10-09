@@ -103,6 +103,9 @@ export function TripHeader({
   // is always safe to call here.
   const { openCreate } = useEditor();
   const [historyOpen, setHistoryOpen] = useState(false);
+  // The phone's `⋯`, which History hands focus back to on close: its own
+  // button is `display: none` there, and focus sent to it falls to <body>.
+  const tripActions = useRef<HTMLButtonElement>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   // The phone's overflow menu opens what an item names only once it has
@@ -244,7 +247,7 @@ export function TripHeader({
     <span className="inline-flex md:hidden">
       <Menu open={menuOpen} onOpenChange={setMenuOpen}>
         <MenuTrigger>
-          <Button variant="ghost" aria-label="Trip actions">
+          <Button ref={tripActions} variant="ghost" aria-label="Trip actions">
             <MoreHorizontal className="size-4" aria-hidden />
           </Button>
         </MenuTrigger>
@@ -518,6 +521,14 @@ export function TripHeader({
                     // Hung from the overflow menu on a phone, where this
                     // popover's own button is not on screen.
                     anchor={isPhone ? overflowMenu : undefined}
+                    onCloseAutoFocus={
+                      isPhone
+                        ? (event) => {
+                            event.preventDefault();
+                            tripActions.current?.focus();
+                          }
+                        : undefined
+                    }
                     // #18: dismissing the popover (outside-click or Escape) while
                     // previewing a past state also exits the preview ("back to now"),
                     // so you never end up with a closed popover still pinned to an old

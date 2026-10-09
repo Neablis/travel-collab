@@ -15,6 +15,7 @@ export function Popover({
   contentClassName,
   collisionPadding,
   anchor,
+  onCloseAutoFocus,
   children,
 }: {
   open: boolean;
@@ -34,6 +35,12 @@ export function Popover({
    * to a `display: none` box at (0, 0). Absent, the trigger is the anchor.
    */
   anchor?: React.ReactNode;
+  /**
+   * Where focus goes when the content closes. Radix returns it to the
+   * trigger; a caller whose trigger is off screen (see `anchor`) calls
+   * `event.preventDefault()` and focuses what it opened from instead.
+   */
+  onCloseAutoFocus?: (event: Event) => void;
   children: React.ReactNode;
 }) {
   return (
@@ -45,6 +52,7 @@ export function Popover({
           align={align}
           sideOffset={6}
           collisionPadding={collisionPadding}
+          onCloseAutoFocus={onCloseAutoFocus}
           className={cn(
             "overlay-layer w-80 rounded-lg border border-hairline bg-surface p-3 shadow-overlay",
             contentClassName,
