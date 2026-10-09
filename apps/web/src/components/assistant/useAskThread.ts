@@ -100,12 +100,19 @@ export function useAskThread({
   tripId,
   scope,
   onEvent,
+  onTurnEnd,
   errorMessage,
   persistAs,
 }: {
   tripId: string;
   scope: AskScope;
   onEvent?: AskEventHandler;
+  /**
+   * Called once a turn's request settles — answered, failed, stopped or
+   * cancelled. The board re-reads its suggestions here: a planning turn may
+   * have stored some (ADR-067) even when no `suggested` event reached it.
+   */
+  onTurnEnd?: () => void;
   /** How this surface words a transport failure. */
   errorMessage: (error: ApiError) => string;
   /**
@@ -157,6 +164,8 @@ export function useAskThread({
   // on a callback identity every caller would then have to memoise.
   const onEventRef = useRef(onEvent);
   onEventRef.current = onEvent;
+  const onTurnEndRef = useRef(onTurnEnd);
+  onTurnEndRef.current = onTurnEnd;
   const errorMessageRef = useRef(errorMessage);
   errorMessageRef.current = errorMessage;
 
@@ -338,6 +347,9 @@ export function useAskThread({
       },
       controller.signal,
     );
+    // Before the identity guard: a turn abandoned by `cancel` or "New
+    // conversation" may still have stored something server-side.
+    onTurnEndRef.current?.();
     // **Identity, not a bare clear.** `abort.current = null` unconditionally
     // meant a turn that had already been abandoned — by "New conversation", or
     // by `cancel` below — could resolve LATER and clear the controller of the

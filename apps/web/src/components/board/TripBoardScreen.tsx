@@ -300,13 +300,13 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     // the restored transcript carries no Approve button: `askThreadStore`
     // drops the proposal, keeping the prose that made the answer readable.
     persistAs: `trip:${tripId}`,
+    // ADR-067: a turn may have stored suggestions. Re-read the list when it
+    // ends — answered, failed or stopped, announced or not — rather than on
+    // the poll's next revision, which a solo trip never runs (W73).
+    onTurnEnd: () => void refreshSuggestions.current?.(),
     onEvent: (event, patchAnswer) => {
       if (event.type === "suggested") {
-        // ADR-067: the turn's changes are already stored. Re-read the list now
-        // rather than on the poll's next revision, so the ghosts are on the
-        // board by the time the note says they are.
         patchAnswer((turn) => ({ ...turn, suggested: event.suggested }));
-        void refreshSuggestions.current?.();
         return;
       }
       if (event.type !== "proposal") return;
