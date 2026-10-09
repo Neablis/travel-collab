@@ -21,7 +21,7 @@
     drop a saved day onto it" occur nowhere in `apps/web/src`.
   - ~~**The day-chip rail clips its last chip mid-card** at 1440px with no
     scroll affordance (`DayChips.tsx`) — reads as a rendering error rather
-    than as "scroll me".~~ — **FIXED** (M39 Part 1, PR #PRNUM, decision 7:
+    than as "scroll me".~~ — **FIXED** (M39 Part 1, PR #363, decision 7:
     an edge fade plus snap). The row tracks which edges have chips past them
     (scroll + `ResizeObserver`), exposes it as `data-fade-start` /
     `data-fade-end`, and masks that edge 2rem; `snap-x snap-mandatory` with
@@ -48,7 +48,7 @@
     length of +0 but got 1`), green after; re-broken by dropping the guard,
     red again for the same reason.
   - ~~**Trip settings' date editor covers "Total for the trip".**~~ —
-    **FIXED** (M39 Part 1, PR #PRNUM, decision 8): the Popover is gone; the
+    **FIXED** (M39 Part 1, PR #363, decision 8): the Popover is gone; the
     Dates row is a disclosure (`aria-expanded` / `aria-controls`) that
     expands `TripDateControl` inline beneath it, and the sheet closing resets
     `datesOpen`. **Proof:** `SettingsSheet.test.tsx` "expands the date editor
@@ -83,5 +83,5 @@
   **Narrowed:** 2026-09-25 (overnight KI sweep) — four of six items struck;
   open are the day-chip scroll affordance (A7) and the inline date editor
   (B14).
-  **Resolved:** 2026-10-08 (M39 Part 1, PR #PRNUM) — A7 and B14 fixed,
+  **Resolved:** 2026-10-08 (M39 Part 1, PR #363) — A7 and B14 fixed,
   as above; every item is now struck.
