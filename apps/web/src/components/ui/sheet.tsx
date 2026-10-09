@@ -81,17 +81,19 @@ export function Sheet({
         <RadixDialog.Overlay className="overlay-layer fixed inset-0 bg-ink/40" />
         <RadixDialog.Content
           className={cn(
-            "overlay-layer fixed flex w-full flex-col bg-surface p-5 shadow-overlay",
+            "overlay-layer fixed flex w-full flex-col bg-surface shadow-overlay",
             // `max-w-measure` is what makes the rail a rail; dropping it for
             // `inset-x-0` is what makes `full` full. `bottom` anchors to the
             // other edge entirely, so it opts out of `inset-y-0` as well —
             // `top-24` is the ~92px §19 asks for, on the spacing scale rather
             // than as an arbitrary value the design wall would reject.
+            // `sheet-*` is `p-5` plus the safe-area insets of the edges each
+            // size touches (globals.css).
             size === "bottom"
-              ? "inset-x-0 bottom-0 top-24 rounded-t-lg"
+              ? "sheet-bottom inset-x-0 bottom-0 top-24 rounded-t-lg"
               : size === "rail"
-                ? "inset-y-0 right-0 max-w-measure"
-                : "inset-y-0 right-0 inset-x-0",
+                ? "sheet-rail inset-y-0 right-0 max-w-measure"
+                : "sheet-full inset-y-0 right-0 inset-x-0",
           )}
         >
           {/* One inner column, so `full`'s readable cap is applied ONCE rather

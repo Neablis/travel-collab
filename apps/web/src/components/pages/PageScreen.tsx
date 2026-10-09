@@ -1206,9 +1206,11 @@ export function PageScreen({
           Below `md` this stays in normal flow — SPEC §13.5 rules out a
           floating control on a phone, and §19's phone Notebook keeps the
           toggle exactly where it already sits, at the top of the page it is
-          reading or editing. `md:top-14` pins it directly under `AppHeader`
-          (`sticky top-0 h-14` — `TripHeader`'s own comment names it the same
-          way), so the two sticky bars stack rather than overlap. `md:bg-paper`
+          reading or editing. `below-app-header` pins it directly under
+          `AppHeader` — its 56px row plus the top safe-area inset since M39
+          (globals.css) — so the two sticky bars stack rather than overlap.
+          Unprefixed because `top` does nothing below `md`, where the row is
+          not sticky, and a named rule takes no `md:` variant. `md:bg-paper`
           is the page's own background (`body`'s `bg-paper`), not the card's:
           without it the document's prose would show through and scroll
           underneath a see-through bar. The `mt-3 mb-3` MARGIN that spaces this
@@ -1217,7 +1219,7 @@ export function PageScreen({
           sticky element's own painted box, so the background above would not
           cover it and the document would show through that strip while
           pinned. */}
-      <div className="mt-3 mb-3 flex flex-wrap items-center justify-between gap-3 md:sticky md:top-14 md:z-10 md:my-0 md:bg-paper md:py-3">
+      <div className="mt-3 mb-3 flex flex-wrap items-center justify-between gap-3 below-app-header md:sticky md:z-10 md:my-0 md:bg-paper md:py-3">
         {backLink}
         <div className="flex flex-wrap items-center gap-2">
           {/* Absent for a viewer, and until the role is known — see
@@ -1487,13 +1489,13 @@ export function PageScreen({
           `sticky` so the settings stay beside the widget on a long page rather
           than scrolling away from the thing they configure.
 
-          **`top-29`, not `top-6`.** This column shares the page scroll, and
-          24px put it under both bars that are already pinned there: `AppHeader`
-          (`sticky top-0 h-14`, 56px) and the editing toolbar above
-          (`md:sticky md:top-14 md:py-3` around an `h-9` button — 12 + 36 + 12,
-          so 60px). 116px is where those two stop, and `top-29` is that number
-          on the spacing scale rather than an arbitrary value the colour wall
-          would refuse (CodeRabbit, PR 170).
+          **`below-notebook-toolbar`, not `top-6`.** This column shares the
+          page scroll, and 24px put it under both bars that are already pinned
+          there: `AppHeader` (56px, plus the top safe-area inset since M39) and
+          the editing toolbar above (`md:sticky md:py-3` around an `h-9`
+          button — 12 + 36 + 12, so 60px). The rule in `globals.css` is where
+          those two stop; it was `top-29`, 116px, until the header could grow
+          (CodeRabbit, PR 170; KI-2026-10-09-a).
 
           The toolbar row can wrap, which would make it taller — but only at
           widths this column does not exist at: it renders on `!isPhone`, and a
@@ -1501,14 +1503,14 @@ export function PageScreen({
       {editing && !isPhone ? (
         <aside
           data-widget-panel
-          className="sticky top-29 w-80 shrink-0"
+          className="below-notebook-toolbar sticky w-80 shrink-0"
           aria-label={selectedWidget === null ? "Insert a widget" : "Widget settings"}
         >
           {/* **`tc-widget-rail` bounds the rail's height so its LIST scrolls,
               not the page.** The design gives the column
               `max-height: calc(100vh - 120px)` (`Trip Planner Redesign.dc.html:3956`)
               — 120px being what `AppHeader` and the editing toolbar already
-              occupy, the same two bars `top-29` clears. `calc()` of a viewport
+              occupy, the same two bars `below-notebook-toolbar` clears. `calc()` of a viewport
               unit is an arbitrary Tailwind value the colour wall refuses and no
               token names a viewport-relative height, so it is a named utility in
               `globals.css` beside `.hero-grid`, which exists for exactly this.
