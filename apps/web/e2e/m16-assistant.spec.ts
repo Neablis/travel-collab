@@ -94,10 +94,11 @@ test("a multi-turn conversation, scoped by the focused day and started from a de
   // Deliberately the BUTTON, not Enter. The unscheduled rack is `position:
   // fixed` across the bottom of the viewport and its right-inset compensation
   // silently matched nothing, so its bar covered the Ask button while the
-  // keyboard path kept working — a defect only a real click can catch.
+  // keyboard path kept working — a defect only a real click can catch. By its
+  // full name: the header's `Ask` pill stays beside an open rail (M39 D3).
   const [secondAsk] = await Promise.all([
     page.waitForRequest((r) => /\/api\/trips\/[^/]+\/ask$/.test(new URL(r.url()).pathname)),
-    page.getByRole("button", { name: "Ask" }).click(),
+    page.getByRole("button", { name: "Ask the assistant" }).click(),
   ]);
   const secondBody = JSON.parse(secondAsk.postData() ?? "{}") as {
     messages: { role: string; parts: { text: string }[] }[];

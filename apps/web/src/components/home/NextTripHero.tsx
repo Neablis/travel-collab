@@ -455,7 +455,7 @@ export function NextTripHero({ trip, menuSlot, viewerId }: NextTripHeroProps) {
                   `PhoneTabBar`'s Plan tab and `MapLens` already use. Not
                   `/plans`: that route is the billing plans page (SPEC §29). */}
               {(detailLoading || hasDecisions || hasUnbooked) && (
-                <div className="flex min-h-11 basis-full flex-wrap items-center gap-x-4.5 gap-y-3 md:min-h-0 md:basis-auto">
+                <div className="flex min-h-11 basis-full flex-wrap items-center gap-x-4.5 gap-y-3 fine:min-h-0 md:basis-auto">
                   {detailLoading ? (
                     <Skeleton circle className="h-3 w-32" delay={3} />
                   ) : (

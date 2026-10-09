@@ -74,9 +74,9 @@ export function MenuContent({
 }
 
 const menuItemVariants = cva(
-  // `min-h-11 md:min-h-0`: SPEC §13.1's phone floor, released at the same
-  // 768px line `Button`'s base uses.
-  "flex min-h-11 w-full cursor-pointer select-none items-center gap-2 rounded-md px-2.5 py-2 text-sm outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 md:min-h-0",
+  // `min-h-11 fine:min-h-0`: SPEC §13.1's floor, released for a mouse at `md`
+  // and up exactly where `Button`'s base releases it (M39 D3).
+  "flex min-h-11 w-full cursor-pointer select-none items-center gap-2 rounded-md px-2.5 py-2 text-sm outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 fine:min-h-0",
   {
     variants: {
       variant: {

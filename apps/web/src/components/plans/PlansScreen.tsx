@@ -607,7 +607,7 @@ function Chooser({
             </ul>
             {/* **44px on a phone** (§13.1 "44px targets, always", repeated by
                 §34.3 for this screen). `touch` is `min-h-11 min-w-11`, so
-                `md:min-h-7` puts the desktop back on the `sm` height the three
+                `fine:min-h-7` puts the desktop back on the `sm` height the three
                 cards are drawn at rather than leaving every plan card 44px tall
                 on a wide screen.
 

@@ -81,8 +81,9 @@ test("an AI plan reaches the board only once it is approved", async ({ page }) =
   await page.getByPlaceholder("Ask about this trip…").fill("add a coffee stop to day 1");
   // Deliberately the BUTTON, not Enter. The Ask control has been covered by
   // the fixed unscheduled rack before, and every keyboard-driven test missed
-  // it — a defect only a real click can catch.
-  await page.getByRole("button", { name: "Ask" }).click();
+  // it — a defect only a real click can catch. By its full name, because the
+  // header's `Ask` pill stays on screen beside an open rail (M39 D3).
+  await page.getByRole("button", { name: "Ask the assistant" }).click();
 
   // Every "is it on the board?" assertion is scoped to the plan column. The
   // proposal card names the same stops ("Add “Sample: coffee stop” to day 1")
@@ -147,7 +148,7 @@ test("rejecting an AI plan leaves the trip exactly as it was", async ({ page }) 
 
   await openAssistantRail(page);
   await page.getByPlaceholder("Ask about this trip…").fill("add a coffee stop to day 1");
-  await page.getByRole("button", { name: "Ask" }).click();
+  await page.getByRole("button", { name: "Ask the assistant" }).click();
 
   const card = page.getByRole("group", { name: "Suggested change" });
   await expect(card).toBeVisible();
@@ -269,7 +270,7 @@ test("a playbook day the assistant found reaches the board once it is approved",
 
   await openAssistantRail(finder);
   await finder.getByPlaceholder("Ask about this trip…").fill("find me a ready-made day");
-  await finder.getByRole("button", { name: "Ask" }).click();
+  await finder.getByRole("button", { name: "Ask the assistant" }).click();
 
   const card = finder.getByRole("group", { name: "Suggested change" });
   await expect(card).toBeVisible();

@@ -117,7 +117,7 @@ export function firstStepLabel(trip: TripSummary): string {
   return trip.dayCount === 0 ? "Add the first day" : "Add the first stop";
 }
 
-const ROW = "flex min-h-11 items-center gap-2 text-sm no-underline hover:underline md:min-h-9";
+const ROW = "flex min-h-11 items-center gap-2 text-sm no-underline hover:underline fine:min-h-9";
 
 /**
  * An unplanned card's next steps, one row each: `firstStepLabel`, and
@@ -162,7 +162,7 @@ export function UnplannedTripSteps({
   if (!viewerOwnsTrip(trip.members, viewerId)) {
     return (
       <>
-        <p className="flex min-h-11 items-center text-sm text-slate md:min-h-9">Nothing planned yet.</p>
+        <p className="flex min-h-11 items-center text-sm text-slate fine:min-h-9">Nothing planned yet.</p>
         {cover && (
           <ul className="flex flex-col">
             <CoverStep trip={trip} describedBy={describedBy} />

@@ -773,18 +773,20 @@ test.describe("responsive (trip header on a phone)", () => {
     // sheet's alone now, which the phone test above already reads there.
     await expect(page.getByTestId("trip-meta-row").getByRole("button", { name: /^Trip dates:/ })).toBeVisible();
 
-    // The CONVERSE, and it had no coverage until now. The two controls SPEC
-    // §23 adds are phone-only by CSS (`md:hidden`), and the unit tests that
-    // used to assert those class strings were deleted on PR #148 as
-    // presentation assertions — correctly, since jsdom cannot evaluate a media
-    // query, so they only ever checked that a string was in an attribute.
-    // Which left the property unasserted anywhere. It is real: if the date
-    // line leaked onto desktop it would print the range a second time, right
-    // above the meta pill that already carries it (project rule 4), and a
-    // leaked Ask pill would put two entry points to one assistant on screen at
-    // once — the exact thing §23 collapses.
+    // The CONVERSE, and it had no coverage until now. The date line SPEC §23
+    // adds is phone-only by CSS (`md:hidden`), and the unit tests that used to
+    // assert those class strings were deleted on PR #148 as presentation
+    // assertions — correctly, since jsdom cannot evaluate a media query, so
+    // they only ever checked that a string was in an attribute. It is real: if
+    // the date line leaked onto desktop it would print the range a second
+    // time, right above the meta pill that already carries it (project rule 4).
     await expect(page.getByTestId("trip-date-line")).toBeHidden();
-    await expect(page.locator('header[aria-label="Trip"]').getByRole("button", { name: "Ask", exact: true })).toBeHidden();
+    // The Ask pill is NOT phone-only any more (M39 D3, KI-2026-09-24-j): it is
+    // the entry point at every width, and the floating launcher it replaces
+    // is gone, because that one sat over the right-hand column's costs (SPEC
+    // §13.5, "nothing floats over data"). One entry point, in the header.
+    await expect(page.locator('header[aria-label="Trip"]').getByRole("button", { name: "Ask", exact: true })).toBeVisible();
+    await expect(page.getByTestId("assistant-launcher")).toHaveCount(0);
 
     // M39 D6's converse: the phone row's `⋯` is not drawn here, and the two
     // actions it holds on a phone are still buttons in the header.

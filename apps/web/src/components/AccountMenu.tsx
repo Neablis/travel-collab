@@ -6,7 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { Popover } from "@/components/ui/popover";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants, PHONE_TOUCH } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { Dialog, DialogFooter } from "@/components/ui/dialog";
 import { Text } from "@/components/ui/text";
@@ -299,14 +299,18 @@ export function HeaderSessionChrome({ demoResetEnabled = false }: { demoResetEna
           exactly the duplication this removes. Same reason
           `AssistantBubble.tsx:38` uses `max-md:`. `hidden md:flex` rather
           than `md:hidden` inverted, because this element's shown state is
-          `flex`. */}
+          `flex`.
+
+          `PHONE_TOUCH` is for the tablet these DO show on (M39 D3): 32px
+          under a finger at 820px (KI-2026-09-24-j), 44px now, and released for
+          a mouse. */}
       <nav className="hidden items-center gap-1 pl-2 md:flex">
-        <Link href="/" className="rounded-sm px-2.5 py-1.5 text-base font-medium text-slate no-underline hover:text-ink">
+        <Link href="/" className={cn(PHONE_TOUCH, "inline-flex items-center rounded-sm px-2.5 py-1.5 text-base font-medium text-slate no-underline hover:text-ink")}>
           Trips
         </Link>
         <Link
           href="/playbooks"
-          className="rounded-sm px-2.5 py-1.5 text-base font-medium text-slate no-underline hover:text-ink"
+          className={cn(PHONE_TOUCH, "inline-flex items-center rounded-sm px-2.5 py-1.5 text-base font-medium text-slate no-underline hover:text-ink")}
         >
           Playbooks
         </Link>

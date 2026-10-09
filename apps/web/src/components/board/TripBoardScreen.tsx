@@ -13,7 +13,7 @@ import { DayChips } from "@/components/trip/DayChips";
 import { MapLens } from "@/components/lenses/MapLens";
 import { CalendarLens } from "@/components/lenses/CalendarLens";
 import { OverviewLens } from "@/components/lenses/OverviewLens";
-import { useIsPhone } from "@/lib/useIsPhone";
+import { useIsPhone, useIsTabletWidth } from "@/lib/useIsPhone";
 import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
 import { buttonVariants } from "@/components/ui/button";
@@ -39,7 +39,6 @@ import { isDemoTripId } from "@/lib/demoTrip";
 import { dayLabel } from "@/lib/dates";
 import { useAssistantShape } from "@/components/assistant/useAssistantShape";
 import { AssistantRail } from "@/components/assistant/AssistantRail";
-import { AssistantBubble } from "@/components/assistant/AssistantBubble";
 import type { AssistantTurn } from "@/components/assistant/Transcript";
 import { proposalUndoFor, type ProposalState } from "@/components/assistant/ProposalCard";
 import { useAskThread } from "@/components/assistant/useAskThread";
@@ -142,6 +141,14 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // SPEC §9's "and the user picks" (M26 link 10a). Per surface and per
   // device — see `useAssistantShape` for why neither is one global setting.
   const [assistantShape, chooseAssistantShape] = useAssistantShape("board");
+  // **From 768 to 1099px the board keeps its width and Ask comes up over it**,
+  // whatever the reader chose (M39 D3; Mitchell, 2026-10-09: "the band
+  // wins"). Docked at 820px left the board about 440px, one and a half day
+  // columns (KI-2026-09-24-j); the sheet costs it nothing. The reader's choice
+  // is honoured from 1100px up, and is not offered where it cannot be.
+  // Decided after the first paint by the same argument as `isPhone` above.
+  const isTabletWidth = useIsTabletWidth();
+  const assistantPresentation = isPhone || isTabletWidth ? "sheet" : assistantShape;
 
   /**
    * Arriving at the phone's plan with nothing selected picks the first day.
@@ -312,7 +319,9 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // slice of the rack — collapsed, and worse once open, since the rack's own
   // height then grows with its card row. Measuring the rack's actual
   // rendered height and clearing it is the only offset that survives both
-  // the open/collapsed toggle and the item count changing.
+  // the open/collapsed toggle and the item count changing. (That launcher is
+  // gone since M39 D3 — Ask is in the trip header at every width — and the
+  // measurement now feeds `--rack-height` alone.)
   //
   // `node.firstElementChild`, not the wrapper div itself: the rack's own root
   // is `position: fixed` (UnscheduledRack/globals.css), so it never
@@ -928,14 +937,9 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
       <div
         className={cn(
           "flex items-start",
-          !isDemo && assistant.open && "assistant-open",
-          // `assistant-launcher` marks the row while the closed-state pill is
-          // actually on screen — the same condition that renders it below.
-          // The Map lens reserves canvas for it (globals.css), and keying that
-          // off "not .assistant-open" was wrong on /demo, where the launcher
-          // never renders at all and the reservation was pure empty gap
-          // (CodeRabbit, PR #98).
-          !isDemo && !assistant.open && "assistant-launcher",
+          // Not for the sheet: it takes no width from this row, so the rack
+          // has none to give back (the 768–1099px band, M39 D3).
+          !isDemo && assistant.open && assistantPresentation !== "sheet" && "assistant-open",
         )}
       >
         {/* .trip-board-content (globals.css): gives lens content a bottom
@@ -962,14 +966,12 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           // already-measured rack height in as a custom property lets
           // `.trip-board-content` keep its 24px gap *above the bar* instead,
           // and it tracks the rack opening, closing and changing item count
-          // for free — the same measurement the assistant launcher's `bottom`
-          // offset reads.
+          // for free.
           // There WAS a second property here, `--launcher-height`, measured
           // the same way and spent by MapLens's canvas. It is gone with the
           // thing it measured: the assistant's phone entry point is now the
-          // header's Ask pill (SPEC §23), so the launcher below is a
-          // `position: fixed` desktop pill and nothing else — flow footprint
-          // zero at every width, by construction rather than by measurement.
+          // header's Ask pill (SPEC §23), and since M39 D3 at every width —
+          // there is no launcher left below to measure.
           // A variable that can only ever publish `0px` is not a smaller
           // version of this one; it is a reader-facing claim that something is
           // still being measured.
@@ -1202,56 +1204,6 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
               </PageContainer>
             )}
           </div>
-          {!isDemo && !assistant.open && (
-            // The closed-rail launcher — DESKTOP ONLY as of SPEC §23. It used
-            // to have two presentations, split at the same 768px the rail
-            // itself turns on; the phone half is gone, because §23 gives the
-            // phone a permanent entry point instead of a launcher that only
-            // exists while the assistant is closed: the `Ask` pill in the trip
-            // header's top row (`AskPill`, mounted by `TripHeader` above).
-            //
-            // What the phone half WAS, and why deleting it is not a regression
-            // against the issue that produced it: KI-2026-08-30 moved this
-            // control out of the viewport's bottom-right and into normal flow
-            // as a full-width button at the end of the plan column, because
-            // SPEC §13.5 is categorical — "Nothing floats over data. No
-            // floating action button." — and this pill had been sitting on top
-            // of right-aligned stop costs at 402x874. The header pill honours
-            // §13.5 harder than the in-flow button did: it is in the header's
-            // own normal flow, above the data rather than after it, and it does
-            // not disappear the moment the assistant opens. Two entry points to
-            // the same panel on one 411px screen is what §23 removes.
-            //
-            // >=768px is the design's minimized launcher
-            // (`Trip Planner Redesign.dc.html:1058-1063`), pinned bottom-right
-            // by `position: fixed`, not the edge-tab treatment this used to
-            // have (variant="secondary", rounded-r-none, vertically centred
-            // against the right edge) — the design has no bordered edge-tab
-            // state for the assistant.
-            //
-            // **It is `AssistantBubble` now, not a button written here.** The
-            // same control existed twice — this pill and the notebook's bubble
-            // — and SPEC §28 changes both in the same two ways (92×44, labelled
-            // `Ask`, no mark). Two copies of one control is how they drifted
-            // apart in the first place; the offset that was genuinely local to
-            // this screen is passed in instead.
-            //
-            // `hidden md:inline-flex` on the Button itself, and the `flow-root`
-            // wrapper, the `PageContainer` and the measured `--launcher-height`
-            // that went with them are all gone. They existed for the in-flow
-            // presentation only: the wrapper was a block formatting context so
-            // the button's own top margin could be MEASURED as flow footprint,
-            // and the measurement was published for MapLens to subtract from a
-            // canvas sized to the whole viewport. A `position: fixed` element
-            // costs no flow space, so with the phone half removed that whole
-            // chain measures a constant zero and is deleted rather than left
-            // publishing one.
-            //
-            // Still deliberately outside the `inert` wrapper above (as before):
-            // asking a question about a previewed history state is a read, not
-            // a write, so it stays available while the board is inert.
-            <AssistantBubble open={assistant.open} onOpen={assistant.show} bottom={rackHeight > 0 ? rackHeight + 24 : 24} />
-          )}
         </div>
         {/* The assistant rail — a real streaming conversation against
             /api/trips/:id/ask (see runAsk above). Mounted here, as the row's
@@ -1277,13 +1229,14 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             "tabs are not tappable behind an open sheet" e2e test. */}
         {!isDemo && assistant.open && (
           <AssistantRail
-            // **The reader's own choice above 768px** (SPEC §9, M26 link 10a):
-            // this hardcoded `docked`, which is now only the DEFAULT. The phone
-            // is not offered the choice — §23 gives it a sheet and only a
-            // sheet, and `onShapeChange` is withheld there so the rail draws
-            // no control it cannot honour.
-            presentation={isPhone ? "sheet" : assistantShape}
-            {...(isPhone ? {} : { onShapeChange: chooseAssistantShape })}
+            // **The reader's own choice from 1100px up** (SPEC §9, M26 link
+            // 10a; M39 D3): this hardcoded `docked`, which is now only the
+            // DEFAULT. Below 1100px it is not offered — §23 gives the phone a
+            // sheet and only a sheet, and the tablet band gets the same sheet
+            // so the board keeps its width — and `onShapeChange` is withheld
+            // there so the rail draws no control it cannot honour.
+            presentation={assistantPresentation}
+            {...(assistantPresentation === "sheet" ? {} : { onShapeChange: chooseAssistantShape })}
             // **§29's "hidden, not unmounted", delivered the only way this
             // tree allows** (M26 link 10c). `/plans` is an account-scope route
             // that renders neither this screen nor the trip, so there is
@@ -1305,7 +1258,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             suggestions={isPhone ? phoneAsk.quickAsks : assistantSuggestions}
             // Undefined on the desktop, which leaves the rail's own trip-wide
             // sentence — §23 changes the phone and nothing above 768px.
-            emptyHint={isPhone ? phoneAsk.emptyHint : undefined}
+            emptyHint={assistantPresentation === "sheet" ? phoneAsk.emptyHint : undefined}
             asksRemaining={ask.asksRemaining}
             restoreDraft={ask.restoredDraft}
             onNewConversation={ask.startNewConversation}

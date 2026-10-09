@@ -8,7 +8,7 @@ import { monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/element/ad
 import { autoScrollForElements, autoScrollWindowForElements } from "@atlaskit/pragmatic-drag-and-drop-auto-scroll/element";
 import type { ActivityTag, TimeWindow, TripDetail } from "@tc/contracts";
 import { dayLabel } from "@/lib/dates";
-import { Button } from "@/components/ui/button";
+import { Button, PHONE_TOUCH } from "@/components/ui/button";
 import { Toast } from "@/components/ui/toast";
 import { useTimeFormat } from "@/components/account/PreferencesProvider";
 import { toClockLabel } from "@/lib/time";
@@ -94,9 +94,10 @@ function OneMoreDayColumn({ onAddDay, addSavedDay, fullWidth = false }: { onAddD
           trip, that navigates to the Playbooks page to browse — so R4 ("no
           duplicated information") does not reach it. */}
       {addSavedDay}
+      {/* `PHONE_TOUCH`: 26px under a finger on a tablet (KI-2026-09-24-j). */}
       <Link
         href="/playbooks"
-        className="rounded-md px-2 py-1 text-center text-sm text-slate hover:underline"
+        className={cn(PHONE_TOUCH, "inline-flex items-center justify-center rounded-md px-2 py-1 text-center text-sm text-slate hover:underline")}
       >
         Take a day from the library
       </Link>

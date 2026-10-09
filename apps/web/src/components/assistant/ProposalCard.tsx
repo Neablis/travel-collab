@@ -163,9 +163,12 @@ export function ProposalCard({
 
   const { title, detail } = proposalWords(proposal);
   const applying = status === "applying";
-  // `min-h` on both sides of the breakpoint: `Button`'s base releases its
-  // phone floor at `md`, and this card's target is its own at every width.
-  const target = touch ? "min-h-11 md:min-h-11" : "min-h-8.5 md:min-h-8.5";
+  // `min-h` on both sides of the release: `Button`'s base lets its phone floor
+  // go under a mouse at `md` (`fine:`, M39 D3), and this card's target is its
+  // own either way. The smaller target is a mouse's only: a wide touch screen
+  // shows the docked rail (`touch` false) and still needs 44px (CodeRabbit,
+  // PR #365).
+  const target = touch ? "min-h-11 fine:min-h-11" : "min-h-11 fine:min-h-8.5";
 
   return (
     <div

@@ -362,14 +362,16 @@ export function TripHeader({
                     to this file. The row was already clear, so the pill just
                     goes in.
 
-                    Phone-only by `md:hidden` inside `AskPill` itself, not by a
-                    branch here: the desktop entry point is `TripBoardScreen`'s
-                    own fixed launcher and the two must never both be on screen.
-                    See that component for why the breakpoint is CSS. */}
-                {/* The wrapper is only the phone row's `order`: a box that is
-                    not displayed at `md`, where the pill is not either. */}
+                    **At every width since M39 D3** (KI-2026-09-24-j). Above
+                    768px the entry point was a fixed launcher bottom-right,
+                    over the right-hand column's stop costs (SPEC §13.5,
+                    "nothing floats over data"); it is this pill now, at the
+                    end of the row `← Your trips` starts. That row is already
+                    44px tall for the link, so the desktop header does not grow.
+                    See `AskPill`. */}
+                {/* The wrapper is only the phone row's `order`. */}
                 {onOpenAssistant !== undefined && (
-                  <span className="hidden max-md:order-1 max-md:flex">
+                  <span className="flex max-md:order-1">
                     <AskPill open={assistantOpen} onOpen={onOpenAssistant} />
                   </span>
                 )}

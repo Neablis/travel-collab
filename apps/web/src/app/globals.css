@@ -1,5 +1,34 @@
 @import "tailwindcss";
 
+/* **Where SPEC §13.1's 44px floor is released: a mouse, at `md` and up** (M39
+   D3, KI-2026-09-24-j). The floor used to be released by width alone
+   (`md:min-h-0`), so a tablet at 820px got the desktop's 28px controls under a
+   finger — 244 of 287 under 32px on Plan, measured. Keyed on the POINTER
+   instead, a touchscreen at any width keeps 44px, and a desktop with a mouse
+   keeps the density it was drawn at.
+
+   `and (min-width: 48rem)` keeps the phone out of it whatever it reports: a
+   phone with a stylus or a mouse plugged in still gets the phone layout, and
+   the phone layout is drawn at 44px. Every `md:min-h-0` that released the
+   floor is `fine:min-h-0` now, and every re-assertion layered over one
+   (`touch`'s `fine:min-h-11`, a plan card's `fine:min-h-7`) is spelled with
+   this same variant, so the two meet in one media query rather than racing
+   across two.
+
+   **And no coarse pointer anywhere on the device** (`any-pointer`). A
+   touchscreen laptop's primary pointer is its trackpad, so `(pointer: fine)`
+   alone released the floor under a finger that can still reach the screen
+   (CodeRabbit, PR #365); the critique chose the pointer over width precisely
+   so such a laptop keeps 44px. `not all and (…)` is the long-supported spelling
+   of a negated media feature. */
+@custom-variant fine {
+  @media (pointer: fine) and (min-width: 48rem) {
+    @media not all and (any-pointer: coarse) {
+      @slot;
+    }
+  }
+}
+
 /* Field Kit tokens — THE single source of truth (design-system.md is the
    human contract; the two change together). The only file in apps/web/src
    where raw color literals may appear. */
@@ -1034,37 +1063,6 @@ html[data-look="ledger"] .shadow-raised {
     padding-bottom: var(--phone-tab-bar-height, 0px);
   }
 
-  /* MapLibre puts its attribution in the canvas's bottom-right corner (which
-     is why MapLegend sits top-right instead — see that file). The assistant
-     launcher is a `position: fixed` pill in the *viewport's* bottom-right,
-     and the Map lens is full-bleed, so the two corners are the same corner:
-     the pill sat on top of the attribution links, reported on the preview
-     (Mitchell, 2026-08-30 design pass) and, being a fixed element over a
-     canvas, it made them unclickable rather than merely untidy.
-     Moving the attribution left of the pill keeps both on the same baseline,
-     which reads better than stacking them. 158px is the pill's own footprint:
-     `right-6` (24px) plus its measured ~134px width at the default text size.
-     Keyed on `.assistant-launcher`, which TripBoardScreen sets under exactly
-     the condition that renders the pill (`!isDemo && !assistant.open`). An
-     earlier version keyed on the *absence* of `.assistant-open` instead, which
-     is not the same predicate: on /demo no launcher is rendered at all, and
-     that version still reserved 158px of canvas for it — a gap in front of
-     nothing (CodeRabbit, PR #98).
-     Scoped to >=768px (KI-2026-08-30): below that the launcher is no longer a
-     `position: fixed` pill in the viewport's bottom-right at all — SPEC §13.5
-     forbids one on a phone, so it is an in-flow button at the end of the plan
-     column (TripBoardScreen.tsx). The two corners stop being the same corner,
-     and an unscoped rule here reserves 158px of a 402px-wide canvas for a pill
-     that is not there: exactly the "gap in front of nothing" the /demo case
-     above describes, wrapping the attribution onto three lines. Same 768px
-     `.unscheduled-rack`'s own compensation rule above is scoped to, and the
-     same one `.assistant-rail` turns on. */
-  @media (min-width: 768px) {
-    .assistant-launcher .map-lens-canvas .maplibregl-ctrl-bottom-right {
-      padding-right: 158px;
-    }
-  }
-
   /* UnscheduledRack (Phase 3, Task 3.2): the design specifies
      `position: sticky; bottom: 0; margin-top: auto` — which only pins when the
      drawer is the last child of a full-height flex column that is itself
@@ -1082,7 +1080,9 @@ html[data-look="ledger"] .shadow-raised {
      (M16 Wave 1, Task 4) — a fixed element ignores normal-flow siblings
      entirely — so it needs the same 356px compensation the docked rail's
      width calls for, independently, keyed off `.assistant-open`
-     (TripBoardScreen.tsx sets it on the row while the rail is mounted). The
+     (TripBoardScreen.tsx sets it on the row while the rail is mounted beside
+     the board — not for the 768–1099px overlay sheet, which takes no width,
+     M39 D3). The
      upward shadow is `--shadow-raised` mirrored (this is the one file where
      a color literal may appear); z-index is the design's own 20, applied as
      a plain `z-20` utility on the element. */

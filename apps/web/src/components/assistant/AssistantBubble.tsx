@@ -20,10 +20,13 @@ import { Button } from "@/components/ui/button";
 // the instruction, and it is the reason `BrandMark` is not imported here even
 // though every other assistant surface now draws one.
 //
-// **It is also the only collapsed launcher now.** `TripBoardScreen` had a
-// second one — a fixed `◎ Assistant` pill with its own geometry, its own label
-// and its own bottom offset — so the same control existed twice, differing in
-// both of the things §28 changes. It mounts this instead and passes its offset.
+// **The notebook page's launcher, and only the notebook's, since M39 D3.**
+// The trip board mounted it too, and there it sat over the right-hand day
+// column's stop costs (KI-2026-09-24-j) — SPEC §13.5's "nothing floats over
+// data". The board's way in is the header's `AskPill` at every width now. A
+// page has no costs to cover, and Mitchell asked for this corner there by
+// name (below), so it stays; the `bottom` offset that cleared the board's
+// unscheduled rack went with the board.
 //
 // The corner is the load-bearing part: §9 says expanding and collapsing keep it
 // planted "so the panel grows out of the bubble rather than jumping across the
@@ -45,20 +48,7 @@ import { Button } from "@/components/ui/button";
 // Dragging is the half of §9 not built. The bubble can be "dragged anywhere"
 // there; nothing here forecloses that, and where the panel OPENS is what was
 // actually reported.
-export function AssistantBubble({
-  open,
-  onOpen,
-  bottom,
-}: {
-  open: boolean;
-  onOpen: () => void;
-  /**
-   * Distance in px from the viewport bottom. Defaults to §9's 16px pad; the
-   * trip board passes a larger value so the bar clears the unscheduled rack,
-   * whose height changes with its open state and item count.
-   */
-  bottom?: number;
-}) {
+export function AssistantBubble({ open, onOpen }: { open: boolean; onOpen: () => void }) {
   return (
     <Button
       variant="primary"
@@ -68,9 +58,8 @@ export function AssistantBubble({
       // correctly: an arbitrary value is how a one-off number escapes the
       // scale.) `p-0` clears the size variant's padding so the label centres in
       // the fixed box.
-      className="fixed right-4 z-30 h-11 w-23 rounded-full p-0 text-base font-semibold shadow-overlay transition-transform hover:scale-105 max-md:hidden"
-      // eslint-disable-next-line no-restricted-syntax -- the bottom offset clears the unscheduled rack's measured height, which changes with its open state and item count; not expressible as a static token. Carried over from TripBoardScreen's launcher, which this replaces.
-      style={{ bottom: bottom ?? 16 }}
+      // `bottom-4` is §9's 16px pad.
+      className="fixed right-4 bottom-4 z-30 h-11 w-23 rounded-full p-0 text-base font-semibold shadow-overlay transition-transform hover:scale-105 max-md:hidden"
       aria-expanded={open}
       // Both this and `AskPill` are named "Ask" now — §28 labels the desktop
       // launcher and §23 labels the phone pill, and they are the same control

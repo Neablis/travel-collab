@@ -1028,7 +1028,7 @@ function CityLink({ city, overPhoto }: { city: string; overPhoto: boolean }) {
   ) : (
     // Over a cover, the band's small caps measured 15px tall at 390px (PR
     // #354's preview walk): the 44px phone floor, as `CoverCredit` takes it.
-    <Link href={href} className={cn("hover:underline", overPhoto && "inline-flex min-h-11 items-center md:min-h-0")}>
+    <Link href={href} className={cn("hover:underline", overPhoto && "inline-flex min-h-11 items-center fine:min-h-0")}>
       {city}
     </Link>
   );

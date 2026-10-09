@@ -216,7 +216,7 @@ export function DayGrid({
             // shows through it (a background paints under its own border), so
             // it looks the same and measures the same.
             className={cn(
-              "h-auto min-h-11 flex-col gap-0 border px-1 py-1 text-xs font-normal md:min-h-9",
+              "h-auto min-h-11 flex-col gap-0 border px-1 py-1 text-xs font-normal fine:min-h-9",
               on && "border-transparent",
             )}
             onClick={(e) => onPick(index, e.shiftKey)}

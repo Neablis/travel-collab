@@ -734,7 +734,7 @@ export function DayRiver({
                     variant="ghost"
                     aria-label={`Suggested: ${ghost.description}`}
                     data-provisional="suggested"
-                    className="tc-river-hatch h-full w-full min-w-0 flex-col items-start justify-start gap-0.5 overflow-hidden rounded-md border-2 border-dashed border-brand bg-surface px-2 py-0.5 text-left md:min-h-0"
+                    className="tc-river-hatch h-full w-full min-w-0 flex-col items-start justify-start gap-0.5 overflow-hidden rounded-md border-2 border-dashed border-brand bg-surface px-2 py-0.5 text-left fine:min-h-0"
                   >
                     <span aria-hidden className="w-full min-w-0 truncate text-xs font-semibold text-brand-pressed">
                       {ghost.activity?.title}

@@ -23,6 +23,8 @@ const PHONE_ONLY_SPECS = ["m16-mobile-assistant", "m14-mobile-notebook", "m26-ph
 // belongs in the project that has both widths to compare rather than the one
 // pinned to 411px.
 const PHONE_ONLY = new RegExp(`(${PHONE_ONLY_SPECS.join("|")})\\.spec\\.ts`);
+// The tablet's, on the same terms: in "tablet" and nowhere else.
+const TABLET_ONLY = /m39-tablet\.spec\.ts/;
 
 export default defineConfig({
   testDir: "./e2e",
@@ -142,7 +144,7 @@ export default defineConfig({
       // runs them too — at 1280px, where the phone branch they are about does
       // not exist. **Both sides come from `PHONE_ONLY_SPECS` above**, so the
       // two lists cannot fall out of step; they are one list.
-      testIgnore: [/responsive\.spec\.ts/, PHONE_ONLY],
+      testIgnore: [/responsive\.spec\.ts/, PHONE_ONLY, TABLET_ONLY],
     },
     {
       name: "narrow",
@@ -168,6 +170,25 @@ export default defineConfig({
       // is open, and a test written over a state everyone agrees is temporary is
       // one that has to be argued with later.
       testMatch: PHONE_ONLY,
+    },
+    {
+      // M39 D3 (KI-2026-09-24-j): 820×1180, an iPad Air in portrait, and a
+      // FINGER. The 44px floor is keyed on `pointer: coarse` rather than on
+      // width, so the width alone measures a small desktop window, not a
+      // tablet. `hasTouch` is what makes Chromium answer `(pointer: coarse)`
+      // — probed 2026-10-09, no CDP call needed. `isMobile` stays false: an
+      // iPad asks for the desktop site, and a mobile viewport meta would
+      // measure a different layout.
+      name: "tablet",
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 820, height: 1180 },
+        hasTouch: true,
+        isMobile: false,
+        storageState: ".auth/alice.json",
+      },
+      dependencies: ["setup"],
+      testMatch: TABLET_ONLY,
     },
   ],
   webServer: {

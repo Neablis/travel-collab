@@ -307,9 +307,9 @@ export function AssistantRail({
    *
    * 1. **A CSS breakpoint**, where the choice is never in JavaScript's hands
    *    at all. This is what a control that is on screen at first paint has to
-   *    use — `AskPill`'s `md:hidden`, `AssistantBubble` and `PhoneTabBar` all
-   *    record the same constraint and all answer it this way. For them
-   *    `useIsPhone()` remains simply wrong.
+   *    use — the notebook's `md:hidden` on `AskPill`, `AssistantBubble` and
+   *    `PhoneTabBar` all record the same constraint and all answer it this
+   *    way. For them `useIsPhone()` remains simply wrong.
    * 2. **A mount point that provably cannot exist at first paint**, where
    *    there is no frame to flash in. `TripBoardScreen` is the worked example:
    *    the rail mounts only while the assistant is open, `useAssistantVisibility`
