@@ -183,6 +183,17 @@ test.describe("M39 Part 7 — the pinned and fixed layers clear the safe area", 
       const card = (await page.getByRole("complementary", { name: "Assistant" }).boundingBox())!;
       expect.soft(card.x + card.width, "card right").toBe(1280 - 16 - wide.right);
       expect.soft(card.y + card.height, "card bottom").toBe(900 - 16 - wide.bottom);
+
+      // Dragged hard into the corner, the card stops where it opened: the clamp
+      // keeps the same pad from the same insets as the CSS.
+      const header = (await page.getByTestId("assistant-header").boundingBox())!;
+      await page.mouse.move(header.x + 40, header.y + header.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(header.x + 2000, header.y + 2000, { steps: 4 });
+      await page.mouse.up();
+      const dragged = (await page.getByRole("complementary", { name: "Assistant" }).boundingBox())!;
+      expect.soft(dragged.x + dragged.width, "dragged card right").toBe(1280 - 16 - wide.right);
+      expect.soft(dragged.y + dragged.height, "dragged card bottom").toBe(900 - 16 - wide.bottom);
     });
 
     test(`the Unscheduled rack, and the side sheet (${label})`, async ({ page }) => {

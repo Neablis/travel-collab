@@ -18,10 +18,35 @@ import {
   clampToViewport,
   floatHome,
   isMeasuredViewport,
+  type Insets,
 } from "./assistantPosition";
 import { useAssistantPosition } from "./useAssistantShape";
 import { usePinToBottom } from "./usePinToBottom";
 import { useAiEntitled } from "./useAiEntitled";
+
+/**
+ * The device's safe-area insets in px, for clamping a dragged card to the
+ * corner `.assistant-float` plants it in (M39 Part 7).
+ *
+ * Read off a probe's computed padding rather than `--safe-area-*` directly:
+ * Chromium resolves the `env()` inside a computed custom property to px, but
+ * a computed padding is px in every engine, and the engine that matters here
+ * — Safari, on the devices that have insets — could not be checked.
+ */
+function safeAreaInsets(): Insets {
+  const probe = document.createElement("div");
+  probe.className = "safe-area-probe";
+  document.body.append(probe);
+  const style = getComputedStyle(probe);
+  const insets = {
+    top: parseFloat(style.paddingTop) || 0,
+    right: parseFloat(style.paddingRight) || 0,
+    bottom: parseFloat(style.paddingBottom) || 0,
+    left: parseFloat(style.paddingLeft) || 0,
+  };
+  probe.remove();
+  return insets;
+}
 
 /**
  * What a gated composer says above itself, when the account has NOT yet been
@@ -357,7 +382,7 @@ export function AssistantRail({
    * **Where a dragged floating panel sits** — SPEC §9, M26 link 10b.
    *
    * `null` means nobody has moved it, and the panel keeps `.assistant-float`'s
-   * own `right: 16px; bottom: 16px`. That is not laziness about a default: §9
+   * own 16px from the safe area's bottom-right corner. That is not laziness about a default: §9
    * says *"expanding and collapsing keep the bottom-right corner planted, so
    * the panel grows out of the bubble rather than jumping across the screen"*,
    * and a CSS-pinned corner keeps that true through a resize with no JavaScript
@@ -386,7 +411,7 @@ export function AssistantRail({
         // laid out would clamp the panel into the top-left pad and leave it
         // there, because every later re-clamp finds an already-clamped point.
         if (!isMeasuredViewport(viewport)) return current;
-        return clampToViewport(current, ASSISTANT_FLOAT_SIZE, viewport);
+        return clampToViewport(current, ASSISTANT_FLOAT_SIZE, viewport, safeAreaInsets());
       });
     };
     window.addEventListener("resize", reclamp);
@@ -414,7 +439,9 @@ export function AssistantRail({
     const viewport = { width: window.innerWidth, height: window.innerHeight };
     if (!isMeasuredViewport(viewport)) return;
     const box = panelRef.current?.getBoundingClientRect();
-    const start = position ?? (box === undefined ? floatHome(viewport) : { x: box.left, y: box.top });
+    // Read once per drag: the insets change with orientation, not mid-drag.
+    const insets = safeAreaInsets();
+    const start = position ?? (box === undefined ? floatHome(viewport, ASSISTANT_FLOAT_SIZE, insets) : { x: box.left, y: box.top });
     dragFrom.current = { pointerX: event.clientX, pointerY: event.clientY, x: start.x, y: start.y };
 
     const move = (moveEvent: PointerEvent) => {
@@ -428,6 +455,7 @@ export function AssistantRail({
           },
           ASSISTANT_FLOAT_SIZE,
           { width: window.innerWidth, height: window.innerHeight },
+          insets,
         ),
       );
     };

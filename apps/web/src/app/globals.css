@@ -1333,7 +1333,8 @@ html[data-look="ledger"] .shadow-raised {
   /* The 16px pad is measured from the safe area's corner, not the screen's
      (M39 Part 7), and the clamp gives up the insets above and below it. The
      launcher it grows out of, `.assistant-bubble`, is planted in the same
-     place for the same reason. */
+     place for the same reason, and a drag clamps to the same pad from the
+     same insets (`assistantPosition.ts`). */
   .assistant-float {
     position: fixed;
     right: calc(16px + var(--safe-area-right));
@@ -1346,6 +1347,15 @@ html[data-look="ledger"] .shadow-raised {
   .assistant-bubble {
     right: calc(1rem + var(--safe-area-right));
     bottom: calc(1rem + var(--safe-area-bottom));
+  }
+  /* What `AssistantRail.tsx`'s `safeAreaInsets()` measures: a computed
+     padding is px in every engine, so the drag clamp reads the same four
+     numbers the rules above are built from. Appended and removed in one
+     task, so it never paints. */
+  .safe-area-probe {
+    position: fixed;
+    visibility: hidden;
+    padding: var(--safe-area-top) var(--safe-area-right) var(--safe-area-bottom) var(--safe-area-left);
   }
 
   /* SPEC §23's SHEET presentation — the phone's, and a deliberate REVERSAL of
