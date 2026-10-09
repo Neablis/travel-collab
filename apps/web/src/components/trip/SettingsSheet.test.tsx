@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Money, TripCommand, TripDetail } from "@tc/contracts";
@@ -106,11 +106,11 @@ function renderSheet(
   } = {},
 ) {
   const onCommand = overrides.onCommand ?? vi.fn();
-  render(
+  const sheet = (open: boolean) => (
     <SettingsSheet
       tripId={overrides.tripId ?? tripId}
       tripName="Japan"
-      open
+      open={open}
       onOpenChange={vi.fn()}
       startDate={null}
       endDate={null}
@@ -124,9 +124,12 @@ function renderSheet(
       canEditBoard={overrides.canEditBoard ?? !(overrides.readOnly ?? false)}
       scrollTo={overrides.scrollTo ?? null}
       onCommand={onCommand}
-    />,
+    />
   );
-  return { onCommand };
+  const { rerender } = render(sheet(true));
+  // The parent closing and reopening the sheet, with SettingsSheet itself
+  // staying mounted throughout — which is how TripHeader holds it.
+  return { onCommand, setOpen: (open: boolean) => rerender(sheet(open)) };
 }
 
 // New helper for the redesign's own coverage (brief's Step 1 snippets) — a
@@ -266,8 +269,8 @@ describe("SettingsSheet redesign (Task 4.2)", () => {
 });
 
 describe("SettingsSheet Dates row (restored, M10 Phase 4)", () => {
-  // Not asserting Popover/TripDateControl's own mechanics — those are
-  // Popover's and TripDateControl.test.tsx's tested territory — just that
+  // Not asserting TripDateControl's own mechanics — those are
+  // TripDateControl.test.tsx's tested territory — just that
   // the wiring here is real: clicking the row actually mounts
   // TripDateControl.
   it("opens TripDateControl when the Dates row is clicked", async () => {
@@ -280,10 +283,47 @@ describe("SettingsSheet Dates row (restored, M10 Phase 4)", () => {
     expect(await screen.findByLabelText("Trip start date")).toBeTruthy();
   });
 
+  // M39 decision 8 (KI-048 item 5): the editor opens in the sheet's own flow,
+  // not in a popover laid over "Total for the trip". jsdom has no layout, so
+  // "does not cover" is asserted in e2e (m3-place-and-time); this pins the
+  // structure — a disclosure that names the region it expands, inside the
+  // sheet rather than portalled out of it.
+  it("expands the date editor inline, as a disclosure", async () => {
+    renderSheet();
+    const row = screen.getByRole("button", { name: "Dates" });
+    expect(row.getAttribute("aria-expanded")).toBe("false");
+
+    await userEvent.click(row);
+
+    expect(row.getAttribute("aria-expanded")).toBe("true");
+    // The region the row names holds the editor, and it is in the sheet's own
+    // dialog rather than portalled out of it the way a popover is.
+    const editor = screen.getByTestId("trip-dates-editor");
+    expect(row.getAttribute("aria-controls")).toBe(editor.id);
+    expect(within(editor).getByLabelText("Trip start date")).toBeTruthy();
+    expect(within(screen.getByRole("dialog")).getByTestId("trip-dates-editor")).toBe(editor);
+  });
+
+  // A popover closed itself on an outside click, so leaving the sheet always
+  // left it shut. Inline has no such dismiss: without the reset, reopening the
+  // sheet would find the editor still open and the first click on "Dates"
+  // would close it (KI-048's note on m3-place-and-time).
+  it("collapses the editor when the sheet closes", async () => {
+    const { setOpen } = renderSheet();
+    await userEvent.click(screen.getByRole("button", { name: "Dates" }));
+    expect(screen.getByLabelText("Trip start date")).toBeTruthy();
+
+    setOpen(false);
+    setOpen(true);
+
+    expect(screen.getByRole("button", { name: "Dates" }).getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByLabelText("Trip start date")).toBeNull();
+  });
+
   // Task 8b.6: the end is derived, never picked — TripDateControl commits
   // the start alone, via SetTripStartDate, not SetTripDates. Selecting a
   // date now commits immediately (feedback fix, 2026-08-24) — no Done click,
-  // and the commit closes the Dates popover itself (same onCommand wrapper
+  // and the commit collapses the Dates editor itself (same onCommand wrapper
   // the Clear-date X used before this change).
   it("forwards a committed date change to the sheet's own onCommand as SetTripStartDate", async () => {
     const { onCommand } = renderSheet({ onCommand: vi.fn() });

@@ -37,21 +37,37 @@ test("place & time: dates, geocoded pin, shift/clear/undo", async ({ page }) => 
 
   // -- start date: calendar shows the derived dates --
   // P2 surface move (#15): TripDateControl moved into the Settings sheet —
-  // open it via the header's gear button, then click the Dates row to open
-  // the popover that mounts TripDateControl (restored, M10 Phase 4). The
+  // open it via the header's gear button, then click the Dates row to expand
+  // TripDateControl inline beneath it (M39 decision 8; a popover until then,
+  // restored in M10 Phase 4). The
   // sheet is a full-height overlay (RadixDialog.Overlay covers the
   // viewport), so it has to be closed again before interacting with
   // anything behind it (tabs, board).
   // 2026-10-10 is a Saturday.
   await page.getByRole("button", { name: "Trip settings" }).click();
-  await page.getByRole("button", { name: "Dates", exact: true }).click();
+  // KI-048 item 5: the popover opened over "Total for the trip". Inline, the
+  // editor takes its own space in the sheet's column, so opening it pushes the
+  // total down by the editor's height. A popover moves nothing, which is the
+  // property this pins: at 1280px the popover happened to miss the total (it
+  // was right-aligned, ~300px above it), so "is the total covered?" alone
+  // passes against the popover too, and was seen to.
+  const datesRow = page.getByRole("button", { name: "Dates", exact: true });
+  const total = page.getByLabel("Total for the trip");
+  const totalTopBefore = (await total.boundingBox())!.y;
+  await datesRow.click();
+  const editor = page.locator(`[id="${await datesRow.getAttribute("aria-controls")}"]`);
+  await expect(editor.getByLabel("Trip start date")).toBeVisible();
+  const editorBox = (await editor.boundingBox())!;
+  const totalTopAfter = (await total.boundingBox())!.y;
+  expect(totalTopAfter - totalTopBefore).toBeGreaterThanOrEqual(editorBox.height);
+  expect(editorBox.y + editorBox.height).toBeLessThanOrEqual(totalTopAfter);
   // TripDateControl (Task 8b.6: the end is derived, never picked) commits
   // SetTripStartDate as soon as a complete date is selected (feedback fix,
   // 2026-08-24: "you shouldnt have to hit done") — fill() sets the whole
   // value in one go, same as a real picker selection. Wait for that
   // command's POST to resolve before closing the sheet — later assertions
   // (the day column's date label) depend on the commit having landed.
-  // Filling also closes the Dates popover itself (SettingsSheet's onCommand
+  // Filling also collapses the Dates editor itself (SettingsSheet's onCommand
   // wrapper), same as the Clear-date X below.
   await Promise.all([
     page.waitForResponse(
@@ -128,11 +144,11 @@ test("place & time: dates, geocoded pin, shift/clear/undo", async ({ page }) => 
   await expect(day1.getByText(/day 1.*oct 10/i)).toBeVisible();
   // 2026-10-12 is a Monday.
   await page.getByRole("button", { name: "Trip settings" }).click();
-  // The Dates popover closes itself after every committed change (see
-  // SettingsSheet.tsx) and that closed state survives the Sheet's own
-  // close/reopen (the popover's open/closed state lives in SettingsSheet,
-  // which stays mounted) — so it needs a fresh click here too, not just
-  // before the very first date set above.
+  // The Dates editor collapses itself after every committed change, and
+  // SettingsSheet collapses it whenever the sheet closes (an inline editor has
+  // no outside-click dismiss to do that for it) — so every visit below opens
+  // it with a fresh click, and that click must expand rather than toggle a
+  // stale-open editor shut.
   await page.getByRole("button", { name: "Dates", exact: true }).click();
   // Task 8b.6: there is no end field to race — the end is always derived
   // from the plan's own day count, so shifting the start alone can never
@@ -152,8 +168,8 @@ test("place & time: dates, geocoded pin, shift/clear/undo", async ({ page }) => 
   // #19: a one-item "Date options" popover was replaced by a direct "Clear
   // date" X next to the date in Settings (only shown when a date is set) —
   // that's TripDateControl's own Clear-date X, not a second popover. It
-  // still lives inside the Dates row's popover (restored, M10 Phase 4), so
-  // that popover needs opening first, same as every other access below.
+  // lives inside the Dates row's inline editor, so that needs expanding
+  // first, same as every other access below.
   await page.getByRole("button", { name: "Trip settings" }).click();
   await page.getByRole("button", { name: "Dates", exact: true }).click();
   await page.getByRole("button", { name: "Clear date" }).click();
