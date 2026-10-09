@@ -450,6 +450,7 @@ export function Board({
     return autoScrollForElements({ element: row });
   }, [oneDay]);
 
+  const endOfDayRef = useRef<HTMLDivElement>(null);
   const onKeyDown = useCallback(
     (event: React.KeyboardEvent) => {
       if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
@@ -461,6 +462,10 @@ export function Board({
       const target = event.target as HTMLElement | null;
       const tag = target?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target?.isContentEditable) return;
+      // The phone's end-of-day row (the Unscheduled rack, M39 Part 2) lives in
+      // this subtree, and its card strip scrolls sideways: an arrow there is
+      // the strip's (CodeRabbit, PR #364).
+      if (target !== null && endOfDayRef.current?.contains(target)) return;
 
       const next = stepDay(focusedDay, event.key === "ArrowRight" ? 1 : -1, trip.days.length);
       if (next === null) return;
@@ -843,7 +848,7 @@ export function Board({
               }
             />
           ))}
-          {oneDay && endOfDay}
+          {oneDay && endOfDay !== undefined && <div ref={endOfDayRef}>{endOfDay}</div>}
           {/* "One more day?" is an invitation to change the trip, so it is the
               reader's cue that they are looking at somebody else's — or, on the
               demo, at one that is not theirs yet.
