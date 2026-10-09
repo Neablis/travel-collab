@@ -261,11 +261,14 @@ export function DayChips({ days, focusedDay, onSelect, readOnly = false, sync }:
       // snapped chip lands flush on the scroll origin and its ring is clipped
       // again, which is what the padding exists to prevent.
       //
-      // The classes key off the data attributes, so which edge is faded is
-      // readable state rather than something a test has to parse a class for.
+      // The mask is a named rule in `globals.css` (`[data-day-chips]`) keyed
+      // off the data attributes, because the colour wall bans the bracketed
+      // value a `mask-r-from-[calc(100%-2rem)]` class would need. So which
+      // edge is faded is readable state rather than a class to parse.
+      data-day-chips=""
       data-fade-start={overflow.before || undefined}
       data-fade-end={overflow.after || undefined}
-      className="-mx-1 flex snap-x snap-mandatory scroll-px-1 gap-2 overflow-x-auto px-1 pt-1 pb-1 data-fade-end:mask-r-from-[calc(100%-2rem)] data-fade-start:mask-l-from-[calc(100%-2rem)]"
+      className="-mx-1 flex snap-x snap-mandatory scroll-px-1 gap-2 overflow-x-auto px-1 pt-1 pb-1"
     >
       {days.map((day, index) => {
         const accent = accents[index] ?? { tint: "neutral", ink: "neutral", solid: "neutral" };
