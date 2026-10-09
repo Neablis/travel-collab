@@ -33,8 +33,12 @@ const OPEN_SURFACE = '[role="dialog"], [role="alertdialog"], [role="menu"]';
  *    someone is reading and shoves it down;
  *  - never while a sheet, dialog or menu is open over the page.
  *
- * **Not now** hides it on this device for good; the account menu's *Install
- * app* row is still there. Storage that throws reads as "never ask".
+ * **Not now** hides it on this device for good, and so does **Install**,
+ * whatever comes of it: Chromium offers again on the next load after a
+ * cancelled dialog, and Safari never says whether the steps were followed, so
+ * an Install that only hid the row for this page would ask on every trip. The
+ * account menu's *Install app* row is still there. Storage that throws reads
+ * as "never ask".
  */
 export function InstallNudge({ eligible }: { eligible: boolean }) {
   const { route, install, steps } = useInstallApp();
@@ -97,6 +101,7 @@ export function InstallNudge({ eligible }: { eligible: boolean }) {
             size="touch"
             onClick={() => {
               setAnswered(true);
+              dismissInstallNudge();
               install();
             }}
           >

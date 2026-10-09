@@ -40,12 +40,14 @@ export type InstallPrompt = {
  * Safari only. Chrome, Firefox and Edge on iOS name themselves in the agent
  * (`CriOS`, `FxiOS`, `EdgiOS`), and their Share menus put Add to Home Screen
  * in a different place, so the steps sheet would describe a browser they are
- * not using.
+ * not using. An app's own browser — Instagram's, Facebook's, an emailed link
+ * opened in the Google app — cannot add to the home screen at all: most drop
+ * the `Safari/` token, and the Google app names itself (`GSA`).
  */
 export function isIosSafari(navigator: Pick<Navigator, "userAgent" | "maxTouchPoints">): boolean {
   const ua = navigator.userAgent;
   const ios = /iPhone|iPad|iPod/.test(ua) || (ua.includes("Macintosh") && navigator.maxTouchPoints > 1);
-  return ios && !/CriOS|FxiOS|EdgiOS|OPiOS/.test(ua);
+  return ios && ua.includes("Safari/") && !/CriOS|FxiOS|EdgiOS|OPiOS|GSA\//.test(ua);
 }
 
 /**

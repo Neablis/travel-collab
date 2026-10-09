@@ -167,6 +167,42 @@ describe("InstallNudge", () => {
     expect(nudge()).toBeNull();
   });
 
+  // Chromium fires a fresh offer on the next load after a cancelled dialog, so
+  // an Install that only hid the row for this page asked again on every trip.
+  it("Install answers the question for good, whatever the dialog's outcome", () => {
+    returning();
+    render(<InstallNudge eligible />);
+    fireInstallable();
+    waitOut();
+    fireEvent.click(screen.getByRole("button", { name: "Install" }));
+    cleanup();
+
+    // The next page load, with the browser offering again.
+    store = createInstallPrompt(window);
+    render(<InstallNudge eligible />);
+    fireInstallable();
+    waitOut();
+    expect(nudge()).toBeNull();
+  });
+
+  it("a dialog that refuses to open is not an unhandled rejection", async () => {
+    const unhandled = vi.fn();
+    process.on("unhandledRejection", unhandled);
+    try {
+      returning();
+      render(<InstallNudge eligible />);
+      fireInstallable();
+      prompt.mockRejectedValueOnce(new DOMException("already shown", "InvalidStateError"));
+      waitOut();
+      fireEvent.click(screen.getByRole("button", { name: "Install" }));
+      vi.useRealTimers();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(unhandled).not.toHaveBeenCalled();
+    } finally {
+      process.off("unhandledRejection", unhandled);
+    }
+  });
+
   it("asks for nothing when storage throws", () => {
     returning();
     vi.spyOn(window, "localStorage", "get").mockImplementation(() => {

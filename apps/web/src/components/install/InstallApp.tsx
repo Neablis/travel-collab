@@ -23,7 +23,9 @@ export function useInstallApp() {
     route,
     install: () => {
       if (route === "ios") setStepsOpen(true);
-      else void prompt();
+      // A dialog Chromium will not show (an offer already spent elsewhere)
+      // rejects; there is nothing to tell the reader, so it ends here.
+      else prompt().catch(() => {});
     },
     steps: <InstallStepsSheet open={stepsOpen} onOpenChange={setStepsOpen} />,
   };

@@ -131,6 +131,10 @@ describe("isIosSafari", () => {
     ["a Mac (no touch)", IPAD_AS_MAC, 0, false],
     ["Chrome on an iPhone", IPHONE.replace("Version/18.0", "CriOS/129.0"), 5, false],
     ["Firefox on an iPhone", IPHONE.replace("Version/18.0", "FxiOS/131.0"), 5, false],
+    // In-app browsers cannot add to the home screen at all.
+    ["the Google app on an iPhone", IPHONE.replace("Version/18.0", "Version/18.0 GSA/350.0"), 5, false],
+    ["Instagram's browser on an iPhone", IPHONE.replace(" Safari/604.1", " Instagram 350.0"), 5, false],
+    ["Facebook's browser on an iPhone", IPHONE.replace(" Safari/604.1", " [FBAN/FBIOS;FBAV/480.0]"), 5, false],
     ["Android Chrome", "Mozilla/5.0 (Linux; Android 14) Chrome/129 Mobile Safari/537.36", 5, false],
   ])("%s", (_label, userAgent, maxTouchPoints, expected) => {
     expect(isIosSafari({ userAgent, maxTouchPoints })).toBe(expected);
