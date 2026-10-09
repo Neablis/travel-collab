@@ -1290,6 +1290,10 @@ html[data-look="ledger"] .shadow-raised {
     top: var(--app-header-height);
     width: 356px;
     height: calc(100vh - var(--app-header-height));
+    /* Docked, it runs to the bottom of the screen, so its composer stops
+       above an iPad's home indicator (M39 Part 7). Not the right inset: the
+       rail is in flow, and `body`'s padding has already moved it in. */
+    padding-bottom: var(--safe-area-bottom);
   }
   @media (max-width: 767px) {
     .assistant-rail {

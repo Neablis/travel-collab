@@ -223,6 +223,27 @@ test.describe("M39 Part 7 — the pinned and fixed layers clear the safe area", 
       expect.soft(await px(sheet, "paddingLeft"), "rail sheet left").toBe(20);
     });
 
+    // Docked (>=768px) the rail runs to the bottom of the screen, so an iPad's
+    // home indicator sits over its composer unless the rail stops above it. It
+    // is in flow, so `body`'s padding is what keeps it off the right edge.
+    test(`the docked Ask rail (${label})`, async ({ page }) => {
+      await emulateInsets(page, wide);
+      const tripId = await createMappedTrip(page, e2eTripName("InsetsDocked"), 1);
+      await page.goto(`/trips/${tripId}?view=Plan`);
+      await page.getByRole("button", { name: "Ask" }).click();
+      const rail = page.getByRole("complementary", { name: "Assistant" });
+      await expect(rail).toBeVisible();
+      // Scrolled to the end, so the sticky rail is pinned under AppHeader and
+      // its box reaches the bottom of the viewport.
+      await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+      const box = (await rail.boundingBox())!;
+      expect.soft(box.x + box.width, "rail right").toBe(1280 - wide.right);
+      expect.soft(box.y + box.height, "rail bottom").toBe(900);
+      const composer = (await rail.getByRole("button", { name: "Ask the assistant" }).boundingBox())!;
+      expect.soft(composer.y + composer.height, "composer bottom").toBeLessThanOrEqual(900 - wide.bottom);
+      expect.soft(await px(rail, "paddingBottom"), "rail inset").toBe(wide.bottom);
+    });
+
     test(`a toast with nothing else at the bottom (${label})`, async ({ page }) => {
       await emulateInsets(page, wide);
       const tripName = e2eTripName("InsetsToast");
