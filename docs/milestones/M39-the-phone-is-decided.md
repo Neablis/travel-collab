@@ -1,8 +1,12 @@
 # M39 — The phone layout is decided once, and Caesura installs like an app
 
-**Status:** **Proposed 2026-10-06, placed after M38. Not scoped yet**: it opens with a design
-critique whose output is its scope. Minted from `docs/candidates.md` (see
-`docs/milestones/README.md`, *2026-10-06 — proposed: M37 to M47*).
+**Status:** **Scoped 2026-10-08.** The critique was held as a decision table rather than a
+live design-sync session (`docs/design-feedback/2026-10-08-M39-phone-tablet-critique.md`, PR #362),
+and Mitchell answered every row on 2026-10-08: all as recommended **except the phone landing**,
+where a trip keeps opening on Overview and Overview gets a phone-sized design. Two parts (the phone
+Overview and the phone conflict state) need a design-sync artboard before they are built. Placed
+after M38; minted from `docs/candidates.md` (see `docs/milestones/README.md`, *2026-10-06 —
+proposed: M37 to M47*).
 
 ## Why this exists
 
@@ -22,29 +26,47 @@ Candidates absorbed (each deleted by this gate):
   **installable** and **feels like an app** tiers only
 - *The phone has no conflict state* (2026-09-01)
 
-## Decisions it needs (recommendations; none answered)
+## Decisions (answered 2026-10-08)
 
-1. **The critique comes first and is a design-sync session.** Its output is one decision per bullet
-   of the critique entry, recorded in the KI entries or as a SPEC amendment through the design
-   sync. `.design-sync/**` is a build input. Nothing is built until those decisions exist.
-2. **What a trip opens to on a phone** (`KI-2026-09-25-f`). *Recommended:* Plan, not the Overview
-   document. SPEC §24 says Overview and makes no phone exception, so this is a SPEC change.
-3. **Do tablets keep the 44px touch floor?** (`KI-2026-09-24-j`). *Recommended:* yes, for any
-   pointer-coarse device, whatever its width.
-4. **The service worker caches static assets only.** It never caches `/api/**`, `/s/**`,
-   `/invite/**` or `/monitoring`. It is hand-written because the build is Turbopack (the MapLibre
-   worker in `scripts/copy-maplibre-worker.mjs` is the precedent). Offline trip data reverses
-   ADR-012 and ADR-046 and stays out of this milestone.
-5. **Push notifications stay out.** Nothing generates a notification yet. M46's chat is the first
-   feature that would, so push belongs there or after it.
+The full table, options and trade-offs are in the critique document; this is the answer only.
 
-## Scope
+1. **The critique** was held as a decision table (above). The two parts that need a design get it
+   through design sync before they are built; `.design-sync/**` is a build input.
+2. **A trip opens on Overview on a phone, too**, and Overview gets a **phone-sized design**
+   (`KI-2026-09-25-f`). *Not* the recommendation (Plan). SPEC §24 is unchanged; a phone rendering of
+   Overview is added to it through the design sync. The `phoneAskContext` mapping
+   (`TripBoardScreen.tsx:856`) is fixed in the same part.
+3. **Tablets keep the 44px floor on any `pointer: coarse` device**, whatever its width; at 768–1100px
+   the board stays desktop and **Ask opens as an overlay sheet**, moved off the stop costs
+   (`KI-2026-09-24-j`, §13.5).
+4. **The service worker caches static assets only**, never `/api/**`, `/s/**`, `/invite/**` or
+   `/monitoring`. Hand-written (Turbopack). Offline trip data stays out.
+5. **Push notifications stay out** until M46's chat.
+6. **Phone header** (`KI-2026-09-24-i`): one pinned ~56px row (short title, overflow menu holding Add
+   stop and History) with the day rail under it; status and dates scroll away; Unscheduled becomes a
+   row at the end of the day instead of a fixed rack.
+7. **Day chips** (`KI-048` item 3): an edge fade on the side with more, plus snap to whole chips.
+8. **Trip-settings date editor** (`KI-048` item 5): inline, confirmed, with an e2e.
+9. **Phone conflict state**: a count chip in the pinned row that opens a sheet, plus a marker on the
+   affected stop card.
+10. **`viewport-fit=cover`** ships together with the top-inset fix on the pinned header.
 
-- The critique and its recorded decisions.
-- The phone and tablet fixes those decisions call for, closing the KIs above.
-- The phone conflict state, built to whatever design the critique produces.
-- `app/manifest.ts`, PNG icons from `scripts/generate-og-assets.mjs`, a `viewport` export with
-  `viewport-fit=cover` and both insets handled, and a static-asset service worker.
+## Scope — the build, as six parts
+
+Each part is one PR in a stack (`docs/guidelines/stacked-prs.md`). Sizes are the critique's
+estimates. **Parts 1–4 can be built now; 5 and 6 wait on a design-sync artboard.**
+
+| Part | What | Closes | Size | Needs |
+|---|---|---|---|---|
+| 1 | Day-chip fade + snap; inline date editor with its e2e | `KI-048` items 3, 5 | ~1 day | — |
+| 2 | Phone header: one pinned row + day rail; Unscheduled as an end-of-day row | `KI-2026-09-24-i` | 2–3 days | — |
+| 3 | Touch floor on `pointer: coarse`; tablet Ask as an overlay sheet, off the stop costs; a tablet e2e project with `hasTouch` | `KI-2026-09-24-j` | ~3 days | — |
+| 4 | Installable: `app/manifest.ts`, PNG icons, `viewport` export with `viewport-fit=cover` and the top inset, static-asset service worker with a route-matcher unit test seen red | PWA gate boxes | ~1.5 days | Part 2 (the inset lands on its header) |
+| 5 | Phone-sized Overview; `phoneAskContext` fix | `KI-2026-09-25-f` | ~2 days after design | Design-sync artboard |
+| 6 | Phone conflict chip + sheet + stop-card marker, with a test seen red without it | conflict gate box | ~2 days after design | Design-sync artboard; Part 2's pinned row |
+
+Then the gate: the e2e specs on `test:e2e:ci-like` including `phone`, Mitchell's walk on a real
+iPhone and Android (sign-in, an emailed invite link, long-press drag), and the retro.
 
 ## Out of scope
 
