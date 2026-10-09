@@ -853,6 +853,11 @@ html[data-look="ledger"] .shadow-raised {
      makes this an under-estimate for one paint, never a permanent one. */
   .phone-tab-bar {
     padding-bottom: max(8px, env(safe-area-inset-bottom));
+    /* Fixed, so `body`'s side insets (M39 Part 4) do not reach it. Padding,
+       not `left`/`right`: the bar still runs edge to edge and only its tabs
+       move clear of a landscape notch (CodeRabbit, PR #366). */
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
   }
   /* The active tab's pill — SPEC §22's 46x26, behind the glyph only. Neither
      number is on the spacing scale (Tailwind's nearest are 44/48 and 24/28),

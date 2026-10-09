@@ -101,6 +101,27 @@ test.describe("M39 Part 4 — installable", () => {
     );
     expect.soft(stack).toBeCloseTo(top + box.height, 0);
   });
+
+  // The phone's tab bar is `position: fixed`, which `body`'s inset padding does
+  // not reach (CodeRabbit, PR #366). Landscape on a notched phone puts the
+  // notch on a side: the bar still runs edge to edge — a gap there would show
+  // the page behind it — and its tabs clear both insets.
+  test("the phone tab bar keeps its tabs clear of a side notch", async ({ page }) => {
+    await page.setViewportSize({ width: 600, height: 400 });
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send("Emulation.setSafeAreaInsetsOverride", { insets: { left: 30, right: 20 } });
+    await page.goto("/");
+
+    const bar = page.getByRole("navigation", { name: "Phone navigation" });
+    const barBox = (await bar.boundingBox())!;
+    expect.soft(barBox.x).toBe(0);
+    expect.soft(barBox.width).toBe(600);
+    const tabs = bar.getByRole("link");
+    const first = (await tabs.first().boundingBox())!;
+    const last = (await tabs.last().boundingBox())!;
+    expect.soft(first.x).toBeGreaterThanOrEqual(30);
+    expect.soft(last.x + last.width).toBeLessThanOrEqual(600 - 20);
+  });
 });
 
 async function controlled(page: Page): Promise<boolean> {

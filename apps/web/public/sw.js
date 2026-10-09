@@ -61,6 +61,11 @@ self.addEventListener("fetch", (event) => {
   event.respondWith(cacheFirst(event, request));
 });
 
+/**
+ * Answers `request` from this worker's cache, or fetches it and keeps a copy.
+ * Only a successful same-origin response is stored, so a failure is retried on
+ * the next request rather than served from cache.
+ */
 async function cacheFirst(event, request) {
   const cache = await caches.open(CACHE_NAME);
   const hit = await cache.match(request);
@@ -74,6 +79,10 @@ async function cacheFirst(event, request) {
   return response;
 }
 
+/**
+ * Drops the oldest entries past `MAX_ENTRIES`. Hashed chunks change name on
+ * every deploy, so without this the cache only ever grows.
+ */
 async function trim(cache) {
   const keys = await cache.keys();
   for (const key of keys.slice(0, Math.max(0, keys.length - MAX_ENTRIES))) {
