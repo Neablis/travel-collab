@@ -259,6 +259,21 @@ test.describe("M39 Part 7 — the pinned and fixed layers clear the safe area", 
     });
   }
 
+  // The rack's inset is padding, so an inset that changes under an open page
+  // (a rotation) grows the rack without changing its content box — and the
+  // board's `--rack-height` has to follow the rack's whole height.
+  test("the board's gap above the rack follows an inset that changes after load", async ({ page }) => {
+    const tripId = await createMappedTrip(page, e2eTripName("InsetsRotate"), 1);
+    await page.goto(`/trips/${tripId}?view=Plan`);
+    const content = page.getByTestId("trip-board-content");
+    const rackHeight = () => content.evaluate((el) => parseFloat(el.style.getPropertyValue("--rack-height")));
+    await expect.poll(rackHeight).toBeGreaterThan(0);
+    const before = await rackHeight();
+
+    await emulateInsets(page, { ...NONE, bottom: 34 });
+    await expect.poll(rackHeight).toBe(before + 34);
+  });
+
   for (const [label, tall] of [["no insets", NONE], ["insets", PORTRAIT]] as const) {
     test.describe(`on a phone (${label})`, () => {
       test.beforeEach(async ({ page }) => {
