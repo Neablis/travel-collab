@@ -1,51 +1,32 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import vm from "node:vm";
-import fc from "fast-check";
 import { describe, expect, it, vi } from "vitest";
-import { witness } from "@/test-support/witness";
 
-// M39 D4, and the exit gate's box: *the service worker never caches an API or
-// token route*. Run against `public/sw.js` itself — the bytes the browser
-// installs — in a sandbox with a stand-in `self`, so there is no second copy of
-// the matcher to drift from the one that ships.
-const ORIGIN = "https://caesura.example";
-
-type Strategy = "cache-first" | "network";
-type FetchEvent = { request: { url: string; method: string }; respondWith: (response: unknown) => void };
+// Run against `public/sw.js` itself — the bytes the browser installs — in a
+// sandbox with a stand-in `self`, so there is no second copy to drift from the
+// one that ships.
 
 type LifecycleEvent = { waitUntil: (work: Promise<unknown>) => void };
 
-/** Evaluates the worker script and hands back its matcher and its listeners. */
+/** Evaluates the worker script and hands back the listeners it registered. */
 function loadWorker() {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- each event type's listener takes its own event shape
-  const listeners = new Map<string, (event: any) => void>();
+  const listeners = new Map<string, (event: LifecycleEvent) => void>();
   const skipWaiting = vi.fn();
   const claim = vi.fn(async () => undefined);
   const self = {
-    location: new URL(ORIGIN),
-    addEventListener: (type: string, listener: (event: FetchEvent) => void) => listeners.set(type, listener),
+    addEventListener: (type: string, listener: (event: LifecycleEvent) => void) => listeners.set(type, listener),
     skipWaiting,
     clients: { claim },
   };
-  // A cache that always hits, so a request the worker does take over resolves
-  // without a network; this file is about WHICH requests it takes, not how.
   const deleted: string[] = [];
   const caches = {
-    open: async () => ({ match: async () => "cached response" }),
-    keys: async () => ["caesura-static-v0", "caesura-static-v1"],
+    keys: async () => ["caesura-static-v0", "caesura-static-v1", "someone-elses-cache"],
     delete: async (key: string) => deleted.push(key),
   };
   const sandbox = vm.createContext({ self, URL, caches });
   vm.runInContext(readFileSync(join(process.cwd(), "public/sw.js"), "utf8"), sandbox);
-  return {
-    cacheStrategyFor: (path: string) => (sandbox.cacheStrategyFor as (url: URL) => Strategy)(new URL(path, ORIGIN)),
-    onFetch: listeners.get("fetch")!,
-    listeners,
-    skipWaiting,
-    claim,
-    deleted,
-  };
+  return { listeners, skipWaiting, claim, deleted };
 }
 
 /** Runs `type`'s listener, if the worker has one, and waits for its work. */
@@ -56,80 +37,28 @@ async function dispatchLifecycle(w: ReturnType<typeof loadWorker>, type: "instal
   await Promise.all(work);
 }
 
-const worker = loadWorker();
-
-/** Whether the worker's fetch listener takes over a GET for `path`. */
-function intercepts(path: string): boolean {
-  const respondWith = vi.fn();
-  worker.onFetch({ request: { url: new URL(path, ORIGIN).href, method: "GET" }, respondWith });
-  return respondWith.mock.calls.length > 0;
-}
-
-describe("the service worker's routes (M39 D4)", () => {
-  it.each([
-    "/api/trips/x",
-    "/api/auth/session",
-    "/api/trips/x/history?cursor=2",
-    "/s/abc",
-    "/invite/tok",
-    "/monitoring",
-    "/monitoring?o=1&p=2",
-    "/trips/123",
-    "/",
-    "/welcome",
-    "/manifest.webmanifest",
-    "/sw.js",
-    "https://tiles.openfreemap.org/planet/1/2/3.pbf",
-  ])("leaves %s to the network, untouched", (path) => {
-    expect(worker.cacheStrategyFor(path)).toBe("network");
-    expect(intercepts(path)).toBe(false);
-  });
-
-  it.each([
-    "/_next/static/chunks/a.js",
-    "/_next/static/css/b.css",
-    "/icons/icon-192.png",
-    "/icons/icon-maskable-512.png",
-    "/apple-icon.png",
-    "/icon.svg?c8b1d3",
-  ])("serves %s cache-first", (path) => {
-    expect(worker.cacheStrategyFor(path)).toBe("cache-first");
-    expect(intercepts(path)).toBe(true);
-  });
-
-  it("caches nothing under /api, /s, /invite or /monitoring, whatever follows", () => {
-    // `fc.webSegment()` includes "_next" and "static", so a path like
-    // `/api/_next/static/x` is generated too: a prefix test that forgot its
-    // leading slash would be caught here.
-    const w = witness("sw never caches a token or API route");
-    fc.assert(
-      fc.property(
-        fc.constantFrom("/api", "/s", "/invite", "/monitoring"),
-        fc.array(fc.oneof(fc.webSegment(), fc.constantFrom("_next", "static", "icons")), { maxLength: 4 }),
-        (prefix, segments) => {
-          const path = [prefix, ...segments].join("/");
-          expect(worker.cacheStrategyFor(path)).toBe("network");
-          w.tick();
-        },
-      ),
-    );
-    // No guard clause: every generated case asserts, so the floor is numRuns.
-    w.atLeast(100);
+// KI-2026-10-09-e. A fetch listener puts the worker in the path of every
+// request, even the ones it declines without `respondWith` — and the unload
+// flush lost edits there. So the guarantee is that there is no listener at all,
+// not that some route is left alone.
+describe("the service worker's request path", () => {
+  it("registers no fetch listener, so no request ever goes through it", () => {
+    const { listeners } = loadWorker();
+    expect([...listeners.keys()].sort()).toEqual(["activate", "install"]);
   });
 });
 
 // A worker that waits for every old page to close never updates an installed
-// standalone window, which is rarely closed — so a fixed allowlist would never
-// reach it. Install skips the wait; activate drops other cache versions and
-// claims the open pages (the trade-off is in `public/sw.js`'s header).
+// standalone window, which is rarely closed — and this worker's whole job is to
+// replace one with a fetch listener in windows already open.
 describe("the service worker's lifecycle", () => {
-  it("installs by skipping the wait, and activates by dropping old caches and claiming", async () => {
+  it("installs by skipping the wait, and activates by dropping its old caches and claiming", async () => {
     const w = loadWorker();
     await dispatchLifecycle(w, "install");
     expect(w.skipWaiting).toHaveBeenCalledOnce();
 
     await dispatchLifecycle(w, "activate");
-    expect(w.deleted).toEqual(["caesura-static-v0"]);
+    expect(w.deleted).toEqual(["caesura-static-v0", "caesura-static-v1"]);
     expect(w.claim).toHaveBeenCalledOnce();
   });
 });

@@ -10,8 +10,8 @@ afterEach(() => {
   register.mockClear();
 });
 
-// The component's doc says production only, and why: a dev server's chunks
-// keep their names across edits, and a cache-first worker would pin them.
+// The component's doc says production only: installing is what the worker is
+// for, and the dev lane has no use for it.
 describe("ServiceWorkerRegistration", () => {
   it("registers /sw.js in a production build", () => {
     vi.stubEnv("NODE_ENV", "production");

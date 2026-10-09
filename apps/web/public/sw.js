@@ -1,56 +1,33 @@
 // Caesura's service worker (M39 Part 4, D4). Hand-written, because the build is
-// Turbopack and no PWA plugin supports it; served as a plain public file.
+// Turbopack and no PWA plugin supports it; served as a plain public file. It
+// exists so the app can be installed, and does nothing else.
 //
-// **It caches static assets and nothing else.** `/_next/static/**` is
-// content-hashed, so a URL there names the same bytes forever and cache-first
-// can never serve something stale. The app icons are the only other entries.
-// Every other request — every page, `/api/**`, the share and invite links
-// (`/s/**`, `/invite/**`, whose URL is a bearer token), Sentry's `/monitoring`
-// tunnel — is not intercepted at all and goes to the network exactly as it
-// would with no worker installed. A page can carry trip data, so no page is
-// cached either: offline trip data reverses ADR-012 and ADR-046 and needs its
-// own ADR (M39 D4).
+// **It has no `fetch` listener, deliberately — do not add one.** A worker with
+// a fetch listener sits in the path of EVERY request its pages make, including
+// the ones the listener declines by returning without `respondWith`: the
+// browser still dispatches the event to the worker and only then falls back to
+// the network. Part 4 shipped a listener that cached `/_next/static/**` and
+// declined the rest, and that fall-back is what lost edits: the `pagehide`
+// keepalive flush (`POST /commands/batch`, KI-5, ADR-066) went through the
+// worker, whose fall-back often ran after the page was gone, and the batch never
+// reached the server — 13 of 20 reloads on a 400ms network lost queued edits,
+// 0 of 20 with the worker blocked (KI-2026-10-09-e). Chrome's static routing
+// (`addRoutes`) could exempt the API in Chrome 123+ only; Safari and Firefox
+// would still route through the listener. Caching static assets is not worth
+// that, and offline trip data needs its own ADR anyway (ADR-012, ADR-046,
+// M39 D4). `src/lib/serviceWorker.test.ts` runs THIS file and fails if a fetch
+// listener appears.
 //
-// `cacheStrategyFor` is the whole decision, and it is an allowlist: a path is
-// cached only by being named here. `src/lib/serviceWorker.test.ts` runs THIS
-// file in a sandbox and asserts the routes D4 names are never cached.
-//
-// Bump CACHE_VERSION when an icon changes: icons are not content-hashed, and
-// activating a new version is what drops the old cache.
+// Activation deletes every `caesura-static-*` cache: the worker that filled
+// them is gone, and nothing reads them now.
 //
 // **A new version skips the wait.** Without `skipWaiting()` a changed worker
 // activates only once no page uses the old one — and an installed standalone
 // window is rarely closed, while Next's client navigation never unloads a tab,
-// so a fixed route allowlist would never reach the people it matters most to.
-// The price is paid on a CACHE_VERSION bump only: activating then deletes the
-// old cache under any tab still open, and that tab re-fetches what it needs
-// from the network, where a chunk its deploy has since removed is gone
-// (CodeRabbit, PR #366). Bumps are rare and a reload heals it; a worker that
-// cannot update does not heal. An ordinary deploy keeps the version, so its
-// activation deletes nothing. `clients.claim()` on activate takes the open
-// pages, the one that installed a first worker included.
-const CACHE_VERSION = 1;
-const CACHE_NAME = `caesura-static-v${CACHE_VERSION}`;
-
-// Hashed chunks accumulate across deploys under one cache version, so the cache
-// is trimmed, oldest first, past this many entries. A trimmed chunk the page
-// still uses is fetched again on its next request; nothing breaks.
-const MAX_ENTRIES = 400;
-
-const CACHED_FILES = new Set(["/icon.svg", "/apple-icon.png"]);
-
-/**
- * How this worker treats a request for `url`: `"cache-first"` for a static
- * asset of this origin, `"network"` — left alone entirely — for anything else.
- */
-function cacheStrategyFor(url) {
-  if (url.origin !== self.location.origin) return "network";
-  const path = url.pathname;
-  if (path.startsWith("/_next/static/")) return "cache-first";
-  if (path.startsWith("/icons/") || CACHED_FILES.has(path)) return "cache-first";
-  return "network";
-}
-
+// so a fix here would never reach the people it matters most to. This one is
+// exactly that fix: it has to replace the listener-carrying worker in windows
+// that are already open. `clients.claim()` on activate takes the open pages,
+// the one that installed a first worker included.
 self.addEventListener("install", () => {
   self.skipWaiting();
 });
@@ -59,45 +36,9 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(
     (async () => {
       for (const key of await caches.keys()) {
-        if (key !== CACHE_NAME) await caches.delete(key);
+        if (key.startsWith("caesura-static-")) await caches.delete(key);
       }
       await self.clients.claim();
     })(),
   );
 });
-
-self.addEventListener("fetch", (event) => {
-  const { request } = event;
-  if (request.method !== "GET") return;
-  if (cacheStrategyFor(new URL(request.url)) !== "cache-first") return;
-  event.respondWith(cacheFirst(event, request));
-});
-
-/**
- * Answers `request` from this worker's cache, or fetches it and keeps a copy.
- * Only a successful same-origin response is stored, so a failure is retried on
- * the next request rather than served from cache.
- */
-async function cacheFirst(event, request) {
-  const cache = await caches.open(CACHE_NAME);
-  const hit = await cache.match(request);
-  if (hit) return hit;
-  const response = await fetch(request);
-  // `basic` is a same-origin response the page could read; an error or a
-  // redirect is not stored, so a failed fetch is retried next time.
-  if (response.ok && response.type === "basic") {
-    event.waitUntil(cache.put(request, response.clone()).then(() => trim(cache)));
-  }
-  return response;
-}
-
-/**
- * Drops the oldest entries past `MAX_ENTRIES`. Hashed chunks change name on
- * every deploy, so without this the cache only ever grows.
- */
-async function trim(cache) {
-  const keys = await cache.keys();
-  for (const key of keys.slice(0, Math.max(0, keys.length - MAX_ENTRIES))) {
-    await cache.delete(key);
-  }
-}

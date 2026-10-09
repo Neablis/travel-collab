@@ -5,14 +5,14 @@ import { serveMapTiles } from "./fixtures/mapTiles";
 import { createMappedTrip, homeTrip, openAssistantRail } from "./helpers";
 import { e2eTripName, escapeForRegExp } from "./tripNames";
 
-// **M39 Part 4 — Caesura installs like an app** (D4, D10). Two exit-gate boxes
-// are proven here: Chrome's own installability check passes, and the service
-// worker answers static assets while every API call still reaches the server.
-// The route matcher's exhaustive half is `src/lib/serviceWorker.test.ts`; this
-// is the half only a browser can say — that the worker installs, and what it
-// actually serves.
+// **M39 Part 4 — Caesura installs like an app** (D4, D10). Proven here:
+// Chrome's own installability check passes, and the service worker, once in
+// control, answers nothing — every request goes straight to the network
+// (KI-2026-10-09-e: a worker in the request path lost the unload flush).
+// `src/lib/serviceWorker.test.ts` holds the script to having no fetch
+// listener; this is the half only a browser can say.
 test.describe("M39 Part 4 — installable", () => {
-  test("Chrome finds nothing stopping an install, and the worker leaves the API alone", async ({ baseURL }, testInfo) => {
+  test("Chrome finds nothing stopping an install, and the worker answers no request", async ({ baseURL }, testInfo) => {
     // Its own browser, for two reasons Chrome itself gives. The default
     // headless shell answers `getInstallabilityErrors` with [] for a page with
     // no manifest at all, so it can never fail; the full build in new headless
@@ -56,19 +56,17 @@ test.describe("M39 Part 4 — installable", () => {
       const sw = await context.request.get("/sw.js");
       expect(sw.headers()["cache-control"]).toMatch(/max-age=0|no-cache/);
 
-      // Controlled now: a reload sends requests through the worker. Static
-      // chunks come back from it (the control — it proves `fromServiceWorker`
-      // can say yes here; `some`, because Chrome's memory cache may answer a
-      // chunk before the worker sees it), an API call does not.
+      // Controlled now, and still nothing comes back from the worker: not the
+      // page, not a static chunk, not an API call. Controlled is asserted, so
+      // a `false` below is the worker declining, not a page it never saw.
       const answeredByWorker = new Map<string, boolean>();
       page.on("response", (r) => answeredByWorker.set(new URL(r.url()).pathname, r.fromServiceWorker()));
       await page.reload();
       await expect.poll(() => controlled(page)).toBe(true);
       const api = await page.evaluate(async () => (await fetch("/api/auth/session")).status);
       expect(api).toBe(200);
-      const statics = [...answeredByWorker].filter(([path]) => path.startsWith("/_next/static/"));
-      expect(statics.some(([, fromWorker]) => fromWorker)).toBe(true);
-      expect(answeredByWorker.get("/api/auth/session")).toBe(false);
+      expect([...answeredByWorker.keys()].some((path) => path.startsWith("/_next/static/"))).toBe(true);
+      expect([...answeredByWorker].filter(([, fromWorker]) => fromWorker)).toEqual([]);
     } finally {
       await context.close();
     }
