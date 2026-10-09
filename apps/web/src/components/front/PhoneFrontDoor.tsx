@@ -434,7 +434,7 @@ export function PhoneFrontDoor() {
           <div aria-hidden className="front-door-veil pointer-events-none absolute inset-0" />
 
           {/* The headline holds still while the claims pass underneath. */}
-          <div className="phone-front-door-stage relative px-6">
+          <div className="phone-front-door-stage relative px-6" data-testid="front-door-stage">
             <Text variant="muted" className="uppercase tracking-widest">
               Days worth reliving
             </Text>

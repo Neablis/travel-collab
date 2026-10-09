@@ -168,13 +168,11 @@ test.describe("M39 Part 7 — the pinned and fixed layers clear the safe area", 
 
       // The toolbar pins under AppHeader's whole height, the widget rail under
       // the toolbar's 60px, and the rail's list is bounded by both.
-      const toolbar = page
-        .getByRole("button", { name: "Done editing" })
-        .locator("xpath=ancestor::div[contains(@class,'md:sticky')][1]");
+      const toolbar = page.getByTestId("notebook-toolbar");
       expect.soft(await px(toolbar, "top"), "toolbar top").toBe(56 + wide.top);
-      const rail = page.locator("aside[data-widget-panel]");
+      const rail = page.getByRole("complementary", { name: "Insert a widget" });
       expect.soft(await px(rail, "top"), "widget rail top").toBe(116 + wide.top);
-      expect.soft(await px(rail.locator(".tc-widget-rail"), "maxHeight"), "widget list").toBe(900 - 120 - wide.top);
+      expect.soft(await px(rail.getByTestId("widget-rail"), "maxHeight"), "widget list").toBe(900 - 120 - wide.top);
 
       // §9's 16px pad, measured from the safe area's corner.
       const launcher = page.getByTestId("assistant-launcher");
@@ -238,9 +236,9 @@ test.describe("M39 Part 7 — the pinned and fixed layers clear the safe area", 
 
       test("the front door's header and headline sit below the status bar", async ({ page }) => {
         await page.goto("/welcome");
-        const header = page.getByTestId("phone-front-door").locator("header").first();
+        const header = page.getByTestId("phone-front-door").getByRole("banner");
         expect.soft(await px(header, "paddingTop"), "header").toBe(24 + tall.top);
-        const headline = page.getByTestId("front-door-pin").locator(".relative.px-6").first();
+        const headline = page.getByTestId("front-door-stage");
         expect.soft(await px(headline, "paddingTop"), "headline").toBe(64 + tall.top);
       });
 
