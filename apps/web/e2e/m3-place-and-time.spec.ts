@@ -90,6 +90,7 @@ test("place & time: dates, geocoded pin, shift/clear/undo", async ({ page }) => 
     ),
     page.getByLabel("Trip start date").fill("2026-10-10"),
   ]);
+  await expect(datesRow).toHaveAttribute("aria-expanded", "false");
   await page.getByRole("button", { name: "Close" }).click();
   // TripViewTabs.tsx (M10 redesign-feedback follow-up): Calendar is its own
   // top-level tab now, matching the design handoff's 3-tab strip — no more

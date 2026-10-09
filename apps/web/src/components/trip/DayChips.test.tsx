@@ -656,6 +656,22 @@ describe("DayChips day-sync", () => {
     expect(fades()).toEqual({ start: true, end: false });
   });
 
+  // The measure on mount: a row that overflows from its first paint, with no
+  // scroll or resize yet to prompt one, fades its far edge straight away.
+  it("fades the far edge of a row that overflows on mount", () => {
+    const widths = [
+      vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockReturnValue(300),
+      vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(200),
+    ];
+    try {
+      render(<DayChips days={chips} focusedDay={null} onSelect={() => {}} />);
+      const row = screen.getByRole("group", { name: "Days" });
+      expect([row.hasAttribute("data-fade-start"), row.hasAttribute("data-fade-end")]).toEqual([false, true]);
+    } finally {
+      for (const spy of widths) spy.mockRestore();
+    }
+  });
+
   it("does not fade a row that fits", () => {
     render(<DayChips days={chips} focusedDay={null} onSelect={() => {}} />);
     const row = screen.getByRole("group", { name: "Days" });
