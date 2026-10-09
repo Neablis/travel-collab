@@ -23,7 +23,8 @@ general setup.
 
 **M39 — THE PHONE LAYOUT IS DECIDED ONCE, AND CAESURA INSTALLS LIKE AN APP — IS THE CURRENT
 MILESTONE AS OF 2026-10-08**, by **M38's gate closing at 8 of 8**. Order: `… M37 ✓ → M38 ✓ → M39 →
-M40 … M47`. It opens with a design critique whose output is its scope.
+M40 … M47`. **Scoped 2026-10-08** from the critique in PR #362: six parts, 1–4 buildable now,
+5–6 waiting on a design-sync artboard (the milestone file's *Scope* table).
 (`docs/milestones/M39-the-phone-is-decided.md`)
 
 **M38 closed 2026-10-08.** People carry a chosen avatar, colour and display name on every person
@@ -47,7 +48,7 @@ ticked on Mitchell's word and was **not** run. Its retro is at the end of
 
 **M37 to M47 were proposed on 2026-10-06** by grouping the candidates file, and placed after M35 in
 that order. The order was confirmed the same day, and **M37 is scoped**: its six decisions were answered as
-recommended. M38 was scoped 2026-10-07; M39–M47 are not scoped yet. Grouping and order:
+recommended. M38 was scoped 2026-10-07 and M39 on 2026-10-08; M40–M47 are not scoped yet. Grouping and order:
 `docs/milestones/README.md`, *2026-10-06 — proposed: M37 to M47*.
 
 **M36 closed 2026-10-06** on Mitchell's word that the admin console works; its two walk boxes are
