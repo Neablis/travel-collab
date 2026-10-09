@@ -179,12 +179,10 @@ The app is under `apps/web/src/`.
 1. **Part 2, the History popover in an overflow menu.** *Answered 2026-10-09 (Mitchell): behind
    the menu*, as recommended. The pinned row is the title, Ask and the menu; undo and redo stay in
    History, and the post-change toast still offers undo.
-2. **Part 3, the overlay band versus the reader's choice.** D3 says Ask opens as an overlay sheet
-   at 768–1100px. `useAssistantShape` currently lets the reader pin it docked at any width.
-   Recommendation: the band wins, and the docked choice applies from 1100px.
-3. **Part 3, the launcher on desktop.** 3c moves the launcher off the costs "into the header or
-   tab row". Should that apply at every width ≥768px, or only in the tablet band?
-   Recommendation: every width. The bubble covers the right-hand column at 1280 too, and one
-   placement is less to test.
+2. **Part 3, the overlay band versus the reader's choice.** *Answered 2026-10-09 (Mitchell): the
+   band wins.* At 768–1100px Ask always opens as an overlay sheet; the reader's docked or floating
+   choice applies from 1100px up.
+3. **Part 3, the launcher on desktop.** *Answered 2026-10-09 (Mitchell): every width ≥768px.*
+   The floating bubble goes; Ask lives in the header or tab row at every desktop width.
 4. **Parts 5 and 6** need a design-sync artboard (`.design-sync/**` is a build input). Who opens
    that session, and when?
