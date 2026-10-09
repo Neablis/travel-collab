@@ -78,10 +78,10 @@ iPhone and Android (sign-in, an emailed invite link, long-press drag), and the r
 - [x] **The critique is held and every bullet has a recorded decision**, with links from each KI
       entry. *Ticked 2026-10-09: the decision table is in the critique (PR #362), and
       `KI-2026-09-24-i`, `-25-f`, `-24-j` and resolved KI-048 each carry a* Decided *line citing it.*
-- [ ] **`KI-2026-09-24-i`, `KI-2026-09-25-f`, `KI-2026-09-24-j` and `KI-048` items 3 and 5 are
-      resolved** (moved to `resolved/`) or explicitly re-scoped by the critique. *Progress
-      2026-10-09: KI-048 resolved by Part 1 (PR #363), `-24-i` by Part 2 (PR #364), `-24-j` by
-      Part 3 (PR #365), all merged. `-25-f` is resolved in Part 5 (PR #367), not yet merged.*
+- [x] **`KI-2026-09-24-i`, `KI-2026-09-25-f`, `KI-2026-09-24-j` and `KI-048` items 3 and 5 are
+      resolved** (moved to `resolved/`) or explicitly re-scoped by the critique. *Ticked
+      2026-10-09: KI-048 resolved by Part 1 (PR #363), `-24-i` by Part 2 (PR #364),
+      `-24-j` by Part 3 (PR #365) and `-25-f` by Part 5 (PR #367), all merged.*
 - [ ] **The phone shows a conflict state**, with a test seen red without it. *Progress
       2026-10-09: built in Part 6 (PR #368, `e2e/m39-phone-conflicts.spec.ts` and
       `ConflictsChip.test.tsx`, each seen red), not yet merged.*

@@ -28,6 +28,12 @@ export interface MacroEditorContextValue {
   // traveller's view and shows no chrome, so the chrome row reads this rather
   // than each widget guessing.
   editing: boolean;
+  /**
+   * The phone Overview's density (M39 D2): blocks that have a phone form —
+   * the artboard's `phoneNbDoc` — render it. Absent everywhere else, so the
+   * Notebook and every desktop page are unchanged.
+   */
+  compact?: boolean;
   onBindDay?: () => void;
   /**
    * SPEC §26: a widget reports when it becomes the selected one, so the

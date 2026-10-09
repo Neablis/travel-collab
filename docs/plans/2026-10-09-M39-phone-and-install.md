@@ -19,7 +19,7 @@ its inset on Part 2's header.
 | 2 | `claude/m39-part2-phone-header` | phone header: one pinned row plus the day rail; Unscheduled as an end-of-day row (D6) | 2 | #364, merged |
 | 3 | `claude/m39-part3-tablet` | touch floor on `pointer: coarse`; tablet Ask; a touch tablet e2e project (D3) | 2 | #365, merged |
 | 4 | `claude/m39-part4-installable` | manifest, icons, `viewport` with `cover` and both insets, a static-asset service worker (D4, D10) | 2, then 3 on the top | #366, merged |
-| 5 | `claude/m39-part5-phone-overview` | phone-sized Overview; the `phoneAskContext` fix (D2) | 2 | #367, built from the existing §19 artboard |
+| 5 | `claude/m39-part5-phone-overview` | phone-sized Overview; the `phoneAskContext` fix (D2) | 2 | #367, merged; built from the existing §19 artboard |
 | 6 | `claude/m39-part6-phone-conflicts` | phone conflict chip, sheet and stop marker (D9) | 2 | #368, built from the existing components |
 | 7 | `claude/m39-part7-insets` | the layers `KI-2026-10-09-a` left without safe-area insets; review carry-overs | 2 | #369 |
 

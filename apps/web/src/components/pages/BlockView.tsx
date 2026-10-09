@@ -13,7 +13,7 @@ import { SpendBreakdownBlock } from "./blocks/SpendBreakdownBlock";
 import { WeatherBlock } from "./blocks/WeatherBlock";
 import { SunBlock } from "./blocks/SunBlock";
 import { LinkCardBlock, MissingNotebookBlock } from "./blocks/LinkCardBlock";
-import { ItineraryScheduleBlock } from "./blocks/ItineraryScheduleBlock";
+import { ItineraryScheduleBlock, ItineraryScheduleCompact } from "./blocks/ItineraryScheduleBlock";
 
 // The one place a block payload becomes a component, and the reason ADR-037
 // decision 1's "no switch case" is satisfied by a file that plainly contains a
@@ -58,11 +58,14 @@ export function BlockView({
   accents,
   tripId,
   interactive = true,
+  compact = false,
 }: {
   block: BlockPayload;
   accents: CityAccents;
   tripId: string;
   interactive?: boolean;
+  /** The phone Overview's density (M39 D2) — only the schedule has a phone form so far. */
+  compact?: boolean;
 }) {
   switch (block.kind) {
     case "itinerary-day":
@@ -92,7 +95,11 @@ export function BlockView({
     case "link-missing":
       return <MissingNotebookBlock payload={block} tripId={tripId} interactive={interactive} />;
     case "itinerary-schedule":
-      return <ItineraryScheduleBlock payload={block} accents={accents} />;
+      return compact ? (
+        <ItineraryScheduleCompact payload={block} accents={accents} />
+      ) : (
+        <ItineraryScheduleBlock payload={block} accents={accents} />
+      );
     default: {
       // Not dead code and not defensive: this line is the enforcement. If
       // `block` is ever not `never` here, the assignment fails to compile and

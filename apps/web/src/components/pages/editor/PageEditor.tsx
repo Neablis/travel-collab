@@ -31,6 +31,8 @@ export interface PageEditorProps {
   // Reading mode. ADR-037 decision 4 and §18: Reading is the traveller's view
   // and shows no insert affordance and no chrome.
   editable?: boolean;
+  // The phone Overview's density (M39 D2) — see `MacroEditorContextValue`.
+  compact?: boolean;
   // SPEC §26: the surface's side channel subscribes here, so a widget's
   // settings can live outside the document. Omitted by surfaces that have no
   // side channel to put them in — the Overview tab (§25) mounts this read-only
@@ -90,7 +92,7 @@ function needsKeyOf(doc: unknown): string {
   return [...externalNeedsOf([doc], getMacro)].sort().join(",");
 }
 
-export function PageEditor({ detail, context, user = null, globals = null, value, onChange, onBindDay, onEditorReady, editable = true, onWidgetSelected }: PageEditorProps) {
+export function PageEditor({ detail, context, user = null, globals = null, value, onChange, onBindDay, onEditorReady, editable = true, compact = false, onWidgetSelected }: PageEditorProps) {
   // The slash menu's keydown handler has to be installed at editor creation
   // (`editorProps` is read once), but the menu itself only exists after the
   // editor does. A ref breaks that circle; nothing reads it before the first
@@ -264,7 +266,7 @@ export function PageEditor({ detail, context, user = null, globals = null, value
 
   return (
     <MacroEditorContext.Provider
-      value={{ detail, context, user, globals, external, editing: editable, onBindDay, onWidgetSelected }}
+      value={{ detail, context, user, globals, external, editing: editable, compact, onBindDay, onWidgetSelected }}
     >
       <EditorContent editor={editor} className="tc-page-editor" />
       <SlashMenu state={slash.state} onPick={slash.onPick} />

@@ -16,6 +16,11 @@ import { suggestedQuestions } from "./suggestedQuestions";
  */
 export type PhoneAskSurface =
   | { tab: "plan" | "map" }
+  // SPEC §24's two whole-trip tabs. A focused day survives onto them (one
+  // `focus` per trip), but neither is showing it, so neither is asked about
+  // it. Calendar has no phone tab (§10) and is here because `?view=Calendar`
+  // still renders below 768px.
+  | { tab: "overview" | "calendar" }
   // Both Notebook screens are the same tab; `page` is what separates the index
   // from an open page, and it is the only thing that does.
   | { tab: "notebook"; page: PhoneAskPage | null };
@@ -93,6 +98,11 @@ const NOTEBOOK_INDEX_HINT =
 const PAGE_HINT =
   "Ask it to add to this page and what it writes lands in the document. " +
   "It reads this trip’s itinerary, not the page you have open.";
+// The day sentence widened to the trip. Its second half is as true here:
+// proposals land in Plan from any scope (§24).
+const TRIP_HINT =
+  "It reads the whole trip — every day, its stops, what is booked and what is not. " +
+  "Ask it to move something and you get a proposal to keep or discard.";
 const DAY_HINT =
   "It reads the day you have open — the stops, their times, what is booked and what is not. " +
   "Ask it to move something and you get a proposal to keep or discard.";
@@ -123,6 +133,15 @@ export function phoneAskContext(
       contextLine: page === null ? "Asking about this trip’s Notebook" : `Asking about “${page.title}”`,
       emptyHint: page === null ? NOTEBOOK_INDEX_HINT : PAGE_HINT,
       quickAsks: notebookQuickAsks(page),
+    };
+  }
+
+  if (surface.tab === "overview" || surface.tab === "calendar") {
+    return {
+      scope: { kind: "trip" },
+      contextLine: `Asking about ${trip.name}`,
+      emptyHint: TRIP_HINT,
+      quickAsks: suggestedQuestions(trip, null),
     };
   }
 
