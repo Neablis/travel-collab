@@ -94,9 +94,14 @@ iPhone and Android (sign-in, an emailed invite link, long-press drag), and the r
 - [x] **The service worker never caches an API or token route**: a unit test over its route
       matcher was seen red with `/api/` allowed. *Ticked 2026-10-09: Part 4 (PR #366, merged).
       `src/lib/serviceWorker.test.ts` runs the real `public/sw.js`; with `/api/` allowed it
-      failed with `expected 'cache-first' to be 'network'`.*
-- [ ] **The e2e specs pass on `pnpm --filter web test:e2e:ci-like`**, including the `phone`
-      project.
+      failed with `expected 'cache-first' to be 'network'`. Since the hotfix #374 (merged
+      2026-10-09, `KI-2026-10-09-e`) the worker has no `fetch` listener at all, so it answers no
+      request: `serviceWorker.test.ts` now holds "registers no fetch listener", and
+      `m39-installable.spec.ts` checks the worker answers nothing.*
+- [x] **The e2e specs pass on `pnpm --filter web test:e2e:ci-like`**, including the `phone`
+      project. *Ticked 2026-10-09: on `main` at `814f469` (#373's merge, the merged top of every
+      M39 PR), 290 passed in 7.5m, none failed, flaky or skipped; 40 of them in the `phone`
+      project.*
 - [ ] **[walk]** Installed to a real iPhone and a real Android home screen. Sign-in, opening an
       emailed invite link, and long-press drag on the board are each walked and recorded. These are
       the open questions from the PWA entry, and none of them has been walked on a device yet.
