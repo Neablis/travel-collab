@@ -7,6 +7,7 @@ import { Bricolage_Grotesque, IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/goo
 import "maplibre-gl/dist/maplibre-gl.css";
 import "./globals.css";
 import { SaveLightProvider } from "@/components/SaveLight";
+import { ServiceWorkerRegistration } from "@/components/ServiceWorkerRegistration";
 import { appColors } from "@/lib/appColors.generated";
 import { SITE_DESCRIPTION, SITE_NAME, siteRobots } from "@/lib/siteMetadata";
 import { deploymentOrigin } from "@/lib/deploymentOrigin";
@@ -91,6 +92,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             client component — `children` is still passed through as an
             already-rendered server tree. */}
         <SaveLightProvider>{children}</SaveLightProvider>
+        <ServiceWorkerRegistration />
         {/* Only on Vercel. Both packages gate themselves on `isDevelopment()`
             alone, so any production build — `next start` locally, CI's
             ci-like e2e lane, a self-hosted deploy — mounted them and then
