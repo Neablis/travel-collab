@@ -65,6 +65,7 @@ export function Sheet({
   title,
   size = "rail",
   actions,
+  onCloseAutoFocus,
   children,
 }: {
   open: boolean;
@@ -73,6 +74,12 @@ export function Sheet({
   side?: "right";
   size?: SheetSize;
   actions?: SheetActions;
+  /**
+   * Where focus goes on close, as on `Dialog`: with no `Dialog.Trigger` Radix
+   * has nothing to return it to, so absent this a keyboard reader lands on
+   * `<body>`. `preventDefault()` the event and focus the opener yourself.
+   */
+  onCloseAutoFocus?: (event: Event) => void;
   children: React.ReactNode;
 }) {
   return (
@@ -80,6 +87,7 @@ export function Sheet({
       <RadixDialog.Portal>
         <RadixDialog.Overlay className="overlay-layer fixed inset-0 bg-ink/40" />
         <RadixDialog.Content
+          onCloseAutoFocus={onCloseAutoFocus}
           className={cn(
             "overlay-layer fixed flex w-full flex-col bg-surface p-5 shadow-overlay",
             // `max-w-measure` is what makes the rail a rail; dropping it for

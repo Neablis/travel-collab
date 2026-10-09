@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import type { ActivityView, Conflict } from "@tc/contracts";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,7 @@ export function ConflictsChip({
   onDismiss,
   onJump,
   readOnly = false,
+  neighbour,
 }: {
   conflicts: Conflict[];
   dismissedConflictIds: string[];
@@ -34,8 +35,14 @@ export function ConflictsChip({
   onJump: (activityId: string) => void;
   /** Drops Dismiss, as on the banner: dismissing is a command. */
   readOnly?: boolean;
+  /**
+   * Where focus goes when dismissing the last conflict takes the chip away
+   * with its sheet. The row's owner holds it; absent, focus is left to Radix.
+   */
+  neighbour?: React.RefObject<HTMLElement | null>;
 }) {
   const [open, setOpen] = useState(false);
+  const chip = useRef<HTMLButtonElement>(null);
   const visible = visibleConflicts(conflicts, dismissedConflictIds);
   // Dismissing the last one unmounts the sheet with it. Without the reset, the
   // next conflict to arrive would bring the chip back with its sheet open.
@@ -50,6 +57,7 @@ export function ConflictsChip({
         variant="ghost"
         size="touch"
         aria-label={label}
+        ref={chip}
         aria-haspopup="dialog"
         onClick={() => setOpen(true)}
         // The Ask pill's shape in the banner's colours: a pill that sits in
@@ -59,7 +67,21 @@ export function ConflictsChip({
         <AlertTriangle className="size-4" aria-hidden />
         {count}
       </Button>
-      <Sheet open={open} onOpenChange={setOpen} title="Things to look at" size="bottom">
+      <Sheet
+        open={open}
+        onOpenChange={setOpen}
+        title="Things to look at"
+        size="bottom"
+        // The sheet is state-controlled, so Radix has no trigger to return
+        // focus to and a keyboard reader closing it landed on <body>. Only
+        // focus that was lost is rescued: a jump has opened the stop's editor
+        // by now, and focus belongs in that.
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          if (document.activeElement !== null && document.activeElement !== document.body) return;
+          (chip.current ?? neighbour?.current)?.focus();
+        }}
+      >
         <div className="grid gap-1.5">
           {visible.map((c) => (
             <ConflictRow

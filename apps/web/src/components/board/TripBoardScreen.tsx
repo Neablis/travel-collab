@@ -929,7 +929,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // A viewer still gets the day: finding a stop on a one-day board is reading.
   // Dismiss follows the banner's rule, and a past version on screen (history
   // preview) takes it away too, as it does the meta pill's date editor.
-  const conflictsChip = (
+  const conflictsChip = (neighbour: React.RefObject<HTMLButtonElement | null>) => (
     <ConflictsChip
       conflicts={activeTrip.conflicts}
       dismissedConflictIds={activeTrip.dismissedConflictIds}
@@ -942,6 +942,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
         if (canEditBoard && preview.seq === null) openEdit(activityId);
       }}
       readOnly={!canEditBoard || boardMode === "suggest" || preview.seq !== null}
+      neighbour={neighbour}
     />
   );
 

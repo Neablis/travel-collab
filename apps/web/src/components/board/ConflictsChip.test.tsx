@@ -1,5 +1,6 @@
+import { useEffect, useRef, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ActivityView, Conflict } from "@tc/contracts";
 import { tripDetailFixture } from "@tc/factories";
@@ -114,5 +115,85 @@ describe("ConflictsChip", () => {
     rerender(<ConflictsChip conflicts={[overlap, overBudget]} dismissedConflictIds={[overlap.id]} {...props} />);
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(screen.getByRole("button", { name: "1 thing to look at" })).toBeTruthy();
+  });
+
+  // The sheet has no `Dialog.Trigger` (it is state-controlled), so Radix had
+  // nothing to hand focus back to and a keyboard reader landed on <body>.
+  // Said through the keyboard, as TripHeader.test's History case is (the wall
+  // bans reading focus directly): Enter reopens the sheet only if the chip has it.
+  it("returns focus to the chip when the sheet closes", async () => {
+    mount();
+    await userEvent.tab();
+    await userEvent.keyboard("{Enter}");
+    await screen.findByRole("dialog", { name: "Things to look at" });
+
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await userEvent.keyboard("{Enter}");
+    expect(await screen.findByRole("dialog", { name: "Things to look at" })).toBeTruthy();
+  });
+
+  it("hands focus to the row's neighbour when the last dismiss takes the chip away", async () => {
+    const onNeighbour = vi.fn();
+    function Row() {
+      const [dismissed, setDismissed] = useState<string[]>([]);
+      const neighbour = useRef<HTMLButtonElement>(null);
+      return (
+        <>
+          <ConflictsChip
+            conflicts={[overlap]}
+            dismissedConflictIds={dismissed}
+            activities={activities}
+            onDismiss={(id) => setDismissed((d) => [...d, id])}
+            onJump={vi.fn()}
+            neighbour={neighbour}
+          />
+          <button ref={neighbour} type="button" onClick={onNeighbour}>
+            Trip actions
+          </button>
+        </>
+      );
+    }
+    render(<Row />);
+    await userEvent.tab();
+    await userEvent.keyboard("{Enter}");
+    await userEvent.click(await screen.findByRole("button", { name: `Dismiss: ${overlap.description}` }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+    await userEvent.keyboard("{Enter}");
+    expect(onNeighbour).toHaveBeenCalledTimes(1);
+  });
+
+  // A jump opens the stop's editor, which takes focus in an effect of the
+  // commit that closes the sheet — as a mounting Radix FocusScope does — and so
+  // before the sheet's close hands focus out: the chip must not take it back.
+  it("leaves focus where a jump put it", async () => {
+    function Editor() {
+      const field = useRef<HTMLInputElement>(null);
+      useEffect(() => field.current?.focus(), []);
+      return <input ref={field} aria-label="What or where" />;
+    }
+    function Board() {
+      const [editing, setEditing] = useState(false);
+      return (
+        <>
+          <ConflictsChip
+            conflicts={[overlap]}
+            dismissedConflictIds={[]}
+            activities={activities}
+            onDismiss={vi.fn()}
+            onJump={() => setEditing(true)}
+          />
+          {editing && <Editor />}
+        </>
+      );
+    }
+    render(<Board />);
+    await userEvent.click(screen.getByRole("button", { name: "1 thing to look at" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Jump to Colosseum" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+    await userEvent.keyboard("Rome");
+    expect(screen.getByRole<HTMLInputElement>("textbox", { name: "What or where" }).value).toBe("Rome");
   });
 });
