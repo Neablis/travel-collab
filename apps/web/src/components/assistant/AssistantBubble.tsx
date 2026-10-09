@@ -58,8 +58,8 @@ export function AssistantBubble({ open, onOpen }: { open: boolean; onOpen: () =>
       // correctly: an arbitrary value is how a one-off number escapes the
       // scale.) `p-0` clears the size variant's padding so the label centres in
       // the fixed box.
-      // `bottom-4` is §9's 16px pad.
-      className="fixed right-4 bottom-4 z-30 h-11 w-23 rounded-full p-0 text-base font-semibold shadow-overlay transition-transform hover:scale-105 max-md:hidden"
+      // `.assistant-bubble` is §9's 16px pad from the safe area's corner.
+      className="assistant-bubble fixed z-30 h-11 w-23 rounded-full p-0 text-base font-semibold shadow-overlay transition-transform hover:scale-105 max-md:hidden"
       aria-expanded={open}
       // Both this and `AskPill` are named "Ask" now — §28 labels the desktop
       // launcher and §23 labels the phone pill, and they are the same control

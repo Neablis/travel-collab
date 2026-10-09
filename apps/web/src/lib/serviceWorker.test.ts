@@ -14,22 +14,46 @@ const ORIGIN = "https://caesura.example";
 type Strategy = "cache-first" | "network";
 type FetchEvent = { request: { url: string; method: string }; respondWith: (response: unknown) => void };
 
-/** Evaluates the worker script and hands back its matcher and its fetch listener. */
+type LifecycleEvent = { waitUntil: (work: Promise<unknown>) => void };
+
+/** Evaluates the worker script and hands back its matcher and its listeners. */
 function loadWorker() {
-  const listeners = new Map<string, (event: FetchEvent) => void>();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- each event type's listener takes its own event shape
+  const listeners = new Map<string, (event: any) => void>();
+  const skipWaiting = vi.fn();
+  const claim = vi.fn(async () => undefined);
   const self = {
     location: new URL(ORIGIN),
     addEventListener: (type: string, listener: (event: FetchEvent) => void) => listeners.set(type, listener),
+    skipWaiting,
+    clients: { claim },
   };
   // A cache that always hits, so a request the worker does take over resolves
   // without a network; this file is about WHICH requests it takes, not how.
-  const caches = { open: async () => ({ match: async () => "cached response" }) };
+  const deleted: string[] = [];
+  const caches = {
+    open: async () => ({ match: async () => "cached response" }),
+    keys: async () => ["caesura-static-v0", "caesura-static-v1"],
+    delete: async (key: string) => deleted.push(key),
+  };
   const sandbox = vm.createContext({ self, URL, caches });
   vm.runInContext(readFileSync(join(process.cwd(), "public/sw.js"), "utf8"), sandbox);
   return {
     cacheStrategyFor: (path: string) => (sandbox.cacheStrategyFor as (url: URL) => Strategy)(new URL(path, ORIGIN)),
     onFetch: listeners.get("fetch")!,
+    listeners,
+    skipWaiting,
+    claim,
+    deleted,
   };
+}
+
+/** Runs `type`'s listener, if the worker has one, and waits for its work. */
+async function dispatchLifecycle(w: ReturnType<typeof loadWorker>, type: "install" | "activate"): Promise<void> {
+  const work: Promise<unknown>[] = [];
+  const event: LifecycleEvent = { waitUntil: (p) => work.push(p) };
+  w.listeners.get(type)?.(event);
+  await Promise.all(work);
 }
 
 const worker = loadWorker();
@@ -91,5 +115,21 @@ describe("the service worker's routes (M39 D4)", () => {
     );
     // No guard clause: every generated case asserts, so the floor is numRuns.
     w.atLeast(100);
+  });
+});
+
+// CodeRabbit, PR #366. A new worker that skips waiting activates over pages
+// the old one still controls, and activation deletes the old cache — while an
+// old tab may still lazy-load a chunk from it, which its deploy has since
+// removed from the server. So a new version waits until every old tab closes.
+describe("the service worker's lifecycle", () => {
+  it("installs without skipping the wait, and activates by dropping old caches and claiming", async () => {
+    const w = loadWorker();
+    await dispatchLifecycle(w, "install");
+    expect(w.skipWaiting).not.toHaveBeenCalled();
+
+    await dispatchLifecycle(w, "activate");
+    expect(w.deleted).toEqual(["caesura-static-v0"]);
+    expect(w.claim).toHaveBeenCalledOnce();
   });
 });
