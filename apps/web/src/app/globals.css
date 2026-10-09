@@ -274,15 +274,22 @@
      **Left and right**, on the body: a phone in landscape has its notch on one
      side, and padding the body moves every page gutter, header and full-bleed
      board in from it in one place, where a rule per gutter would miss the
-     next one written. `position: fixed` layers (the rack, Ask's floating card,
-     toasts) sit outside that padding and are not inset yet. */
+     next one written. `position: fixed` layers sit outside that padding, so
+     each takes the insets of the edges it touches in its own rule (the rack,
+     toasts, sheets, Ask's bubble, card and sheet — M39 Part 7,
+     KI-2026-10-09-a). */
+  /* One name per edge, and every rule that takes an inset reads it from
+     here rather than calling `env()` itself. */
   :root {
     --safe-area-top: env(safe-area-inset-top, 0px);
+    --safe-area-right: env(safe-area-inset-right, 0px);
+    --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-area-left: env(safe-area-inset-left, 0px);
     --app-header-height: calc(3.5rem + var(--safe-area-top));
   }
   body {
-    padding-left: env(safe-area-inset-left, 0px);
-    padding-right: env(safe-area-inset-right, 0px);
+    padding-left: var(--safe-area-left);
+    padding-right: var(--safe-area-right);
   }
 }
 
@@ -624,9 +631,10 @@ html[data-look="ledger"] .shadow-raised {
      SPEC §26 puts the insert rail in the desktop right column, and the design
      (`Trip Planner Redesign.dc.html:3956`) bounds it at
      `max-height: calc(100vh - 120px)`. 120px is what the two already-pinned
-     bars occupy — `AppHeader` (`sticky top-0 h-14`, 56px) and the editing
-     toolbar (12 + 36 + 12 = 60px) — which is the same pair `top-29` clears,
-     with 4px of breathing room at the bottom.
+     bars occupy — `AppHeader` (56px, plus the top safe-area inset since M39)
+     and the editing toolbar (12 + 36 + 12 = 60px) — which is the same pair
+     `.below-notebook-toolbar` clears, with 4px of breathing room at the
+     bottom.
 
      A named utility rather than `max-h-[calc(100vh-7.5rem)]` for the reason
      `.hero-grid` right below gives: `check-color-wall.mjs` rejects arbitrary
@@ -638,7 +646,7 @@ html[data-look="ledger"] .shadow-raised {
      whole column grows past the viewport with the header scrolling away at the
      top of the page instead. */
   .tc-widget-rail {
-    max-height: calc(100vh - 120px);
+    max-height: calc(100vh - 120px - var(--safe-area-top));
     min-height: 0;
   }
 
@@ -756,8 +764,14 @@ html[data-look="ledger"] .shadow-raised {
      `--rack-height`, and at >=768px there is no tab bar. The variables are
      inherited, so a toast rendered anywhere inside `.trip-board-content`
      clears the rack; one rendered outside it clears only the tab bar. */
+  /* `max()` with the bottom inset (M39 Part 7): the rack and the tab bar each
+     clear the home indicator inside their own measured height, so where
+     either is on screen the sum is already past it, and where neither is the
+     inset is what the toast has to stand above. */
   .toast-dock {
-    bottom: calc(1rem + var(--rack-height, 0px) + var(--phone-tab-bar-height, 0px));
+    bottom: calc(
+      1rem + max(var(--safe-area-bottom), var(--rack-height, 0px) + var(--phone-tab-bar-height, 0px))
+    );
   }
 
   /* The day-sync scroll targets — a day column's header, a calendar cell —
@@ -784,6 +798,13 @@ html[data-look="ledger"] .shadow-raised {
      than padding itself by it, so at rest it does not grow a gap mid-page.
      `.front-door-header` — the front door's non-sticky header, the top of
      every `(front)` page: `py-4`'s top half plus the inset.
+     `.below-notebook-toolbar` — the notebook editor's widget column, sticky
+     under AppHeader and the editing toolbar under it (60px: `md:py-3` around
+     an `h-9` button). It was `top-29`, 116px, with the 56 hard-coded.
+     `.phone-front-door-header` / `.phone-front-door-stage` — the phone front
+     door, which is its own scroller with no AppHeader above it: its sticky
+     header's `pt-6` and the pinned stage's `pt-16`, each plus the inset. The
+     stage's headline clears the header because the two numbers move together.
 
      TripHeader's `--sticky-stack-height` needs no rule: it is measured from
      the header's resolved `top`, which already includes the inset. */
@@ -799,6 +820,21 @@ html[data-look="ledger"] .shadow-raised {
   }
   .front-door-header {
     padding-top: calc(1rem + var(--safe-area-top));
+  }
+  .below-notebook-toolbar {
+    top: calc(var(--app-header-height) + 3.75rem);
+  }
+  .phone-front-door-header {
+    padding-top: calc(1.5rem + var(--safe-area-top));
+  }
+  .phone-front-door-stage {
+    padding-top: calc(4rem + var(--safe-area-top));
+  }
+  /* The front door's footer, the end of its own `h-dvh` scroller: `py-5`'s
+     bottom half plus the bottom inset (M39 Part 7). Not a top-inset rule —
+     it is here because it is the same screen's other edge. */
+  .phone-front-door-footer {
+    padding-bottom: calc(1.25rem + var(--safe-area-bottom));
   }
 
   /* PhoneTabBar (SPEC §16, handoff `…dc.html:863-871`). Two rules, and they
@@ -852,12 +888,12 @@ html[data-look="ledger"] .shadow-raised {
      measurement overwrites it. A wrapped label or a larger OS text size
      makes this an under-estimate for one paint, never a permanent one. */
   .phone-tab-bar {
-    padding-bottom: max(8px, env(safe-area-inset-bottom));
+    padding-bottom: max(8px, var(--safe-area-bottom));
     /* Fixed, so `body`'s side insets (M39 Part 4) do not reach it. Padding,
        not `left`/`right`: the bar still runs edge to edge and only its tabs
        move clear of a landscape notch (CodeRabbit, PR #366). */
-    padding-left: env(safe-area-inset-left, 0px);
-    padding-right: env(safe-area-inset-right, 0px);
+    padding-left: var(--safe-area-left);
+    padding-right: var(--safe-area-right);
   }
   /* The active tab's pill — SPEC §22's 46x26, behind the glyph only. Neither
      number is on the spacing scale (Tailwind's nearest are 44/48 and 24/28),
@@ -896,7 +932,7 @@ html[data-look="ledger"] .shadow-raised {
   }
   @media (max-width: 767px) {
     :root {
-      --phone-tab-bar-height: calc(8px + 44px + 1px + max(8px, env(safe-area-inset-bottom)));
+      --phone-tab-bar-height: calc(8px + 44px + 1px + max(8px, var(--safe-area-bottom)));
     }
   }
   /* A repeat widget's table (MacroView's `rows` case, 2026-09-06).
@@ -1171,6 +1207,19 @@ html[data-look="ledger"] .shadow-raised {
        this lifts only the suggester's draft bar, which shares the class. */
     bottom: var(--phone-tab-bar-height, 0px);
     box-shadow: 0 -1px 2px rgb(21 29 46 / 0.06);
+    /* The safe area (M39 Part 7), as padding for the reason `.phone-tab-bar`
+       gives: the bar still runs edge to edge and only its row moves in. The
+       bottom inset only from 768px: below that the tab bar owns the bottom
+       edge and has already cleared the home indicator. `--rack-height` is
+       measured from this box, so everything that clears the rack clears the
+       inset with it. */
+    padding-left: var(--safe-area-left);
+    padding-right: var(--safe-area-right);
+  }
+  @media (min-width: 768px) {
+    .unscheduled-rack {
+      padding-bottom: var(--safe-area-bottom);
+    }
   }
   /* Both forms, because the rack is mounted inside a wrapper <div> (it needs
      one for the launcher's height measurement, TripBoardScreen's
@@ -1193,6 +1242,8 @@ html[data-look="ledger"] .shadow-raised {
     .assistant-open ~ .unscheduled-rack,
     .assistant-open ~ * .unscheduled-rack {
       right: 356px;
+      /* The docked rail holds the right edge now, not the rack. */
+      padding-right: 0;
     }
   }
 
@@ -1245,6 +1296,10 @@ html[data-look="ledger"] .shadow-raised {
     top: var(--app-header-height);
     width: 356px;
     height: calc(100vh - var(--app-header-height));
+    /* Docked, it runs to the bottom of the screen, so its composer stops
+       above an iPad's home indicator (M39 Part 7). Not the right inset: the
+       rail is in flow, and `body`'s padding has already moved it in. */
+    padding-bottom: var(--safe-area-bottom);
   }
   @media (max-width: 767px) {
     .assistant-rail {
@@ -1253,6 +1308,8 @@ html[data-look="ledger"] .shadow-raised {
       width: 100%;
       height: 100dvh;
       z-index: 30;
+      /* It owns the whole screen, so it clears all four insets (M39 Part 7). */
+      padding: var(--safe-area-top) var(--safe-area-right) var(--safe-area-bottom) var(--safe-area-left);
     }
   }
 
@@ -1283,14 +1340,32 @@ html[data-look="ledger"] .shadow-raised {
      the full-screen rail there. A named class rather than Tailwind utilities
      for the reason `.assistant-rail` gives above: both presentations have to
      live in the same layer or one silently outranks the other. */
+  /* The 16px pad is measured from the safe area's corner, not the screen's
+     (M39 Part 7), and the clamp gives up the insets above and below it. The
+     launcher it grows out of, `.assistant-bubble`, is planted in the same
+     place for the same reason, and a drag clamps to the same pad from the
+     same insets (`assistantPosition.ts`). */
   .assistant-float {
     position: fixed;
-    right: 16px;
-    bottom: 16px;
+    right: calc(16px + var(--safe-area-right));
+    bottom: calc(16px + var(--safe-area-bottom));
     width: 364px;
     height: 476px;
-    max-height: calc(100dvh - 5.5rem);
+    max-height: calc(100dvh - 5.5rem - var(--safe-area-top) - var(--safe-area-bottom));
     z-index: 30;
+  }
+  .assistant-bubble {
+    right: calc(1rem + var(--safe-area-right));
+    bottom: calc(1rem + var(--safe-area-bottom));
+  }
+  /* What `AssistantRail.tsx`'s `safeAreaInsets()` measures: a computed
+     padding is px in every engine, so the drag clamp reads the same four
+     numbers the rules above are built from. Appended and removed in one
+     task, so it never paints. */
+  .safe-area-probe {
+    position: fixed;
+    visibility: hidden;
+    padding: var(--safe-area-top) var(--safe-area-right) var(--safe-area-bottom) var(--safe-area-left);
   }
 
   /* SPEC §23's SHEET presentation — the phone's, and a deliberate REVERSAL of
@@ -1344,6 +1419,9 @@ html[data-look="ledger"] .shadow-raised {
     border-radius: 18px 18px 0 0;
     box-shadow: 0 -14px 44px rgb(21 29 46 / 0.22);
     z-index: 31;
+    /* It touches the bottom and both sides (M39 Part 7); the surface still
+       paints under the home indicator, the composer stops above it. */
+    padding: 0 var(--safe-area-right) var(--safe-area-bottom) var(--safe-area-left);
   }
   /* The design's own `rgba(21, 29, 46, 0.34)` — `--color-ink` at 34%. It could
      have been `bg-ink/34` on the element (`ui/sheet.tsx`'s Radix overlay uses
@@ -1366,6 +1444,27 @@ html[data-look="ledger"] .shadow-raised {
      class. Every dialog/sheet/popover surface uses it. */
   .overlay-layer {
     z-index: 60;
+  }
+
+  /* `ui/sheet.tsx`'s padding (M39 Part 7, KI-2026-10-09-a). `p-5`, plus the
+     safe-area inset on each edge the size touches: `full` all four, the rail
+     all but the left, `bottom` all but the top — that edge is `top-24`, well
+     below any status bar. The inset is ADDED to the 20px rather than
+     `max()`ed with it: 20px is the sheet's own breathing room, not clearance
+     for hardware, so it stays between the content and the safe area's edge.
+     Here rather than as `p-5` on the element because a utility would outrank
+     these. */
+  .sheet-rail,
+  .sheet-full,
+  .sheet-bottom {
+    padding: calc(1.25rem + var(--safe-area-top)) calc(1.25rem + var(--safe-area-right))
+      calc(1.25rem + var(--safe-area-bottom)) calc(1.25rem + var(--safe-area-left));
+  }
+  .sheet-rail {
+    padding-left: 1.25rem;
+  }
+  .sheet-bottom {
+    padding-top: 1.25rem;
   }
 
   /* ActivityEditor (Phase 7, Task 7.1): the add-stop sheet's Day/Start/How-long

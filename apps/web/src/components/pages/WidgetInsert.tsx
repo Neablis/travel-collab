@@ -116,7 +116,7 @@ export function WidgetInsert({
   // measure still by hiding the list behind a click, and paid for it by making
   // the widgets a thing you open rather than a thing you have.
   //
-  // `PageScreen` owns the column (`aside.sticky.top-29.w-80`, Editing only) and
+  // `PageScreen` owns the column (`aside.below-notebook-toolbar.w-80`, Editing only) and
   // its two states; this fills the rail state. So there is nothing to open and
   // nothing to close, and the component that used to manage `open` now manages
   // it on the phone alone.

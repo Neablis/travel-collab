@@ -361,8 +361,10 @@ export function PhoneFrontDoor() {
           it in the document: without it the map's own stacking context would
           paint over the one control on this screen for somebody who already has
           an account. The headline below clears it without a spacer — the
-          stage's `pt-16` is 64px and this bar is 64 (24 + a 28px mark + 12). */}
-      <header className="sticky top-0 z-10 flex items-center justify-between px-6 pt-6 pb-3">
+          stage's top padding is 64px and this bar is 64 (24 + a 28px mark +
+          12). Both add the top safe-area inset (`.phone-front-door-header`,
+          `.phone-front-door-stage`), so they still match under a status bar. */}
+      <header className="phone-front-door-header sticky top-0 z-10 flex items-center justify-between px-6 pb-3">
         <span className="flex items-center gap-2.5">
           <BrandMark size={28} />
           <Text as="span" className="font-display text-md font-semibold text-ink">
@@ -432,7 +434,7 @@ export function PhoneFrontDoor() {
           <div aria-hidden className="front-door-veil pointer-events-none absolute inset-0" />
 
           {/* The headline holds still while the claims pass underneath. */}
-          <div className="relative px-6 pt-16">
+          <div className="phone-front-door-stage relative px-6" data-testid="front-door-stage">
             <Text variant="muted" className="uppercase tracking-widest">
               Days worth reliving
             </Text>
@@ -507,8 +509,11 @@ export function PhoneFrontDoor() {
         </Link>
       </section>
 
-      {/* The desktop landing's footer, same five items (see LandingScreen). */}
-      <footer className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-hairline bg-paper px-6 py-5">
+      {/* The desktop landing's footer, same five items (see LandingScreen).
+          It ends this screen's own scroller, so its bottom padding adds the
+          home indicator's inset (`.phone-front-door-footer`): the last line
+          stops above the indicator rather than under it. */}
+      <footer className="phone-front-door-footer flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-hairline bg-paper px-6 pt-5">
         <Text as="span" variant="muted">&copy; 2026 Caesura</Text>
         <Text as="span" variant="muted" aria-hidden>&middot;</Text>
         <Text as="span" variant="muted">Privacy</Text>

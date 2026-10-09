@@ -109,7 +109,11 @@ export function ItineraryScheduleCompact({ payload, accents }: { payload: Itiner
                 <span className={cn("text-xs", CITY_INK[family])}>{day.cities.join(" – ")}</span>
               ) : null}
             </span>
-            <span className={cn("text-sm", day.stops.length === 0 ? "text-slate" : "text-ink")}>
+            {/* `break-words` so a title with no break in it wraps rather than
+                running under the list's `overflow-hidden` (CodeRabbit, PR #367).
+                The editor's `.ProseMirror` rule wraps it today; this block
+                should not depend on its host for it. */}
+            <span className={cn("break-words text-sm", day.stops.length === 0 ? "text-slate" : "text-ink")}>
               {day.stops.length === 0
                 ? "Nothing planned yet"
                 : day.stops.map((stop, i) => (

@@ -130,3 +130,62 @@ test("edits still queued when you navigate away inside the app are each saved on
   await expect.poll(async () => (await addedDayEntries()).length).toBe(4);
   expect((await addedDayEntries()).filter((d) => d.includes(";"))).toEqual([]);
 });
+
+// KI-2026-10-09-e: the unload flush with the service worker in control and no
+// Playwright route anywhere. M39's worker had a `fetch` listener, and a listener
+// that declines a request still pulls every request through the worker — the
+// flush included. During unload the worker's fall-back to the network often ran
+// after the page was gone, and the batch never reached the server (13 of 20
+// reloads lost edits; 0 of 20 with the worker blocked). The other tests here
+// route `/commands`, which Playwright serves before any worker sees it, so none
+// of them could show it.
+//
+// The slow network is the browser's own (CDP latency), so the queue is still
+// full at the reload exactly as on a slow phone connection.
+test("edits queued at a reload reach the server with the service worker in control", async ({ page }) => {
+  const created = await page.request.post("/api/trips", { data: { name: e2eTripName("Alta") } });
+  const tripId = ((await created.json()) as { tripId: string }).tripId;
+
+  // Production builds register the worker after hydration, and `claim()` on
+  // activate hands it the open page; the trip page is then loaded under it.
+  await page.goto("/");
+  await page.evaluate(async () => {
+    await navigator.serviceWorker.ready;
+  });
+  await page.goto(`/trips/${tripId}?view=Plan`);
+  expect(await page.evaluate(() => navigator.serviceWorker.controller !== null)).toBe(true);
+
+  const days = page.getByTestId("day-column");
+  await expect(page.getByRole("button", { name: "Add a day", exact: true })).toBeVisible();
+  const before = await days.count();
+
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Network.enable");
+  await cdp.send("Network.emulateNetworkConditions", {
+    offline: false,
+    latency: 400,
+    downloadThroughput: -1,
+    uploadThroughput: -1,
+  });
+
+  const addDay = page.getByRole("button", { name: "Add a day", exact: true });
+  for (let i = 0; i < 6; i++) await addDay.click();
+  await expect(days).toHaveCount(before + 6);
+
+  const persistedDays = async () => {
+    // `page.request` is not the page's network, so the CDP latency above does
+    // not slow this read.
+    const res = await page.request.get(`/api/trips/${tripId}`);
+    return ((await res.json()) as { trip: { days: unknown[] } }).trip.days.length;
+  };
+  // The witness: had the queue drained before the reload, the poll below would
+  // pass with no flush at all. Something must still be unsent on the client
+  // AND missing on the server, or this run proves nothing. The server read is
+  // the one that bites — with the latency removed the light still read
+  // "Saving…" while the server already held all six.
+  await expect(page.getByRole("status")).toHaveAttribute("aria-label", "Saving…");
+  expect(await persistedDays()).toBeLessThan(before + 6);
+  await page.reload();
+
+  await expect.poll(persistedDays).toBe(before + 6);
+});
