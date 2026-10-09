@@ -23,8 +23,10 @@ general setup.
 
 **M40 — A BIG CHANGE IS REVIEWED WHOLE, TAKEN WHOLE, AND UNDONE WHOLE — IS THE CURRENT MILESTONE
 AS OF 2026-10-09**, by **M39's gate closing at 8 of 8**. Order: `… M38 ✓ → M39 ✓ → M40 → M41 …
-M47`. It is proposed but **not scoped**: its decisions are recommendations Mitchell has not yet
-answered. (`docs/milestones/M40-a-big-change-is-one-change.md`)
+M47`. **Scoped 2026-10-09**: Mitchell answered all seven decisions as recommended (ADR-067).
+It builds as a phase-0 PR that tracks the gate, then three parts — *Accept all* as one batch,
+named snapshots, the assistant writing suggestions — per
+`docs/plans/2026-10-09-M40-big-change.md`. (`docs/milestones/M40-a-big-change-is-one-change.md`)
 
 **M39 closed 2026-10-09.** The phone layout was decided once, in the critique (#362). It shipped
 as Parts 1–7 (#363–#369, plus #371 for Part 7's self-review), all merged 2026-10-09:
@@ -61,7 +63,7 @@ ticked on Mitchell's word and was **not** run. Its retro is at the end of
 
 **M37 to M47 were proposed on 2026-10-06** by grouping the candidates file, and placed after M35 in
 that order. The order was confirmed the same day, and **M37 is scoped**: its six decisions were answered as
-recommended. M38 was scoped 2026-10-07 and M39 on 2026-10-08; M40–M47 are not scoped yet. Grouping and order:
+recommended. M38 was scoped 2026-10-07, M39 on 2026-10-08 and M40 on 2026-10-09; M41–M47 are not scoped yet. Grouping and order:
 `docs/milestones/README.md`, *2026-10-06 — proposed: M37 to M47*.
 
 **M36 closed 2026-10-06** on Mitchell's word that the admin console works; its two walk boxes are
@@ -254,8 +256,9 @@ half, the model guessing a coordinate rather than citing one, is M9 scope.
 
 ## Next action
 
-**Scope M40** (`docs/milestones/M40-a-big-change-is-one-change.md`): Mitchell answers its
-decisions, then a plan is written. M39 added no migrations; all 45 are applied.
+**Build M40 Part 1** (`docs/plans/2026-10-09-M40-big-change.md`): *Accept all* as one batch.
+The phase-0 PR tracks the gate. M39 added no migrations; all 45 are applied. M40 Part 2 adds
+`0045`, Part 3 `0046`.
 Separately,
 `KI-2026-10-04-c` resolves on query 8 of `ledger.sql` over a few days of cheap-tier step durations.
 

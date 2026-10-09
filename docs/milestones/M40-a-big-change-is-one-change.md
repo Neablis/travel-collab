@@ -1,8 +1,10 @@
 # M40 — A big change is reviewed whole, taken whole, and undone whole
 
-**Status:** **Proposed 2026-10-06, placed after M39. Not scoped yet**: the decisions below are
-recommendations and none has been answered. Minted from `docs/candidates.md` (see
-`docs/milestones/README.md`, *2026-10-06 — proposed: M37 to M47*).
+**Status:** **Scoped 2026-10-09.** Mitchell answered all seven decisions as recommended, after a
+plain-language walk-through of each, and confirmed Decision 2 on its own (undo leaves the
+suggestions accepted-then-undone). Built as three parts after a phase-0 PR that tracks this gate
+(`docs/plans/2026-10-09-M40-big-change.md`). Placed after M39; minted from `docs/candidates.md`
+(see `docs/milestones/README.md`, *2026-10-06 — proposed: M37 to M47*).
 
 ## Why this exists
 
@@ -30,36 +32,45 @@ Candidates absorbed (each deleted by this gate):
 - *The assistant proposes through suggestions, so a big change is reviewed on the board*
   (2026-10-03)
 
-## Decisions it needs (recommendations; none answered)
+## Decisions (answered 2026-10-09, all as recommended)
 
-1. **Accept-all is all-or-nothing.** *Recommended:* one batch under one `batchId` (ADR-013),
+1. **Accept-all is all-or-nothing.** One batch under one `batchId` (ADR-013),
    replayed in dependency order inside one transaction. If any change is refused, nothing lands
    and the refusal names the change. Today's loop keeps whatever landed before the first refusal,
-   which is the behaviour a single undo cannot reverse cleanly.
+   which is the behaviour a single undo cannot reverse cleanly. This reverses the suggester
+   spec's rejection of a batch-accept endpoint (`docs/specs/2026-10-03-suggester-role-design.md`,
+   W77), at Mitchell's request.
 2. **Undoing an accept-all leaves the suggestions accepted-then-undone**, not pending. Undo stays
    ordinary compensating events (ADR-005), and does not also write suggestion state.
-3. **Several suggesters in one batch.** *Recommended:* `Origin` gains a list of authors, and the
+3. **Several suggesters in one batch.** `Origin` gains a list of authors, and the
    History entry reads *"Accepted 7 suggestions from Sam and Ana"*.
-4. **A snapshot is a side table, not an event.** *Recommended:* `trip_snapshots(trip_id, seq,
+4. **A snapshot is a side table, not an event.** `trip_snapshots(trip_id, seq,
    name, created_by, created_at)`. It labels a position in the log and never occupies a `seq`.
    ADR-005 rejected marker events and a movable head, and this is neither. Restoring is today's
    revert-to-state, so it can already be undone.
 5. **Who may snapshot:** editors and the owner. Suggesters cannot edit the plan, so they cannot
    restore it either. Deletion is a hard delete. The cap is 20 per trip.
 6. **How the assistant authors suggestions.** Invariant 7 says the assistant takes only paths its
-   user could take. *Recommended:* editors may create suggestions too (this relaxes spec W25), and
+   user could take. Editors may create suggestions too (this relaxes spec W25), and
    an assistant suggestion records the editor as its author with `via: assistant`. It does not
    count against the 50-per-author pending cap.
 7. **This supersedes ADR-022's ephemeral proposals for planning turns** that make more than one
-   change. A one-change answer can still apply in place. That needs a new ADR.
+   change. A one-change answer can still apply in place. Recorded as
+   `docs/architecture/ADR-067-a-multi-change-assistant-turn-is-stored-as-suggestions.md`.
 
-## Scope
+## Scope — the build, as three parts
 
-- A server *accept these changes* action, and *Accept all* moved onto it.
-- Snapshots: save, rename, delete, a list above the History scroll, preview by `seq`, and restore.
-  The assistant can save one before a proposal.
-- The assistant's planning turns write suggestions, which the board's ghost overlay already
-  draws (W46).
+Each part is one PR in a stack (`docs/guidelines/stacked-prs.md`), after the phase-0 PR that
+carries this file, the plan and ADR-067. The order is the decisions' dependency order: Part 3
+uses both Part 1's batch accept and Part 2's snapshots.
+
+| Part | What | Decisions | Gate boxes |
+|---|---|---|---|
+| 1 | A server *accept these changes* action (all-or-nothing, one `batchId`, an `Origin` that lists the authors); *Accept all* moved onto it | 1, 2, 3 | 2, 3 |
+| 2 | Named snapshots: `trip_snapshots` (migration), save, rename, delete, a list above the History scroll, preview by `seq`, restore through `RevertToState` | 4, 5 | 4 |
+| 3 | Editors (and the assistant for them) may suggest; a planning turn of more than one change stores a suggestion `via: assistant`, after saving a snapshot; evals; the e2e | 6, 7 | 5, 6 |
+
+Then the gate: the ci-like e2e on the top part, the two-editor walk on its preview, the retro.
 
 ## Out of scope
 
@@ -69,7 +80,9 @@ Candidates absorbed (each deleted by this gate):
 
 ## Exit gate
 
-- [ ] **Decisions 1–7 are answered and recorded here**, and the new ADR is written.
+- [x] **Decisions 1–7 are answered and recorded here**, and the new ADR is written. *Ticked
+      2026-10-09: answered by Mitchell in session, all as recommended; ADR-067 written in the
+      phase-0 PR.*
 - [ ] **Accepting ten changes writes one History entry and is undone by one undo**, in an
       integration test against real Postgres. The test was seen red against today's per-change
       loop.
