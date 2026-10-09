@@ -362,8 +362,12 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
       setRackHeight(0);
       return;
     }
+    // `border-box`: the rack's bottom safe-area inset is padding (M39 Part
+    // 7), and the default content box does not change when only the inset
+    // does — a rotation, say — so `--rack-height` would keep the old number.
+    // `getBoundingClientRect` already reports the border box.
     const observer = new ResizeObserver(() => setRackHeight(el.getBoundingClientRect().height));
-    observer.observe(el);
+    observer.observe(el, { box: "border-box" });
     rackObserverRef.current = observer;
   }, []);
   useEffect(() => () => rackObserverRef.current?.disconnect(), []);

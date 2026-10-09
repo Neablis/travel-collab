@@ -122,15 +122,15 @@ describe("the service worker's routes (M39 D4)", () => {
   });
 });
 
-// CodeRabbit, PR #366. A new worker that skips waiting activates over pages
-// the old one still controls, and activation deletes the old cache — while an
-// old tab may still lazy-load a chunk from it, which its deploy has since
-// removed from the server. So a new version waits until every old tab closes.
+// A worker that waits for every old page to close never updates an installed
+// standalone window, which is rarely closed — so a fixed allowlist would never
+// reach it. Install skips the wait; activate drops other cache versions and
+// claims the open pages (the trade-off is in `public/sw.js`'s header).
 describe("the service worker's lifecycle", () => {
-  it("installs without skipping the wait, and activates by dropping old caches and claiming", async () => {
+  it("installs by skipping the wait, and activates by dropping old caches and claiming", async () => {
     const w = loadWorker();
     await dispatchLifecycle(w, "install");
-    expect(w.skipWaiting).not.toHaveBeenCalled();
+    expect(w.skipWaiting).toHaveBeenCalledOnce();
 
     await dispatchLifecycle(w, "activate");
     expect(w.deleted).toEqual(["caesura-static-v0"]);

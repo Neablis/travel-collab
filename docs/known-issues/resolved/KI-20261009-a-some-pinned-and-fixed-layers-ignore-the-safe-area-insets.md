@@ -65,6 +65,28 @@
   - After the fix, on a fresh build: `16 passed`, with `--retries=0`.
   - `.assistant-rail`'s full-screen phone form is read from a probe element. After hydration every
     phone surface asks for the sheet, so no real panel reaches that form.
+- **Follow-up, the same day (self-review of PR #369):**
+  - The insets are named once, `--safe-area-{top,right,bottom,left}` on `:root`, and every rule
+    reads those rather than calling `env()` itself. The three sheet sizes share one rule.
+  - A dragged floating card is clamped to the safe area as well, not the viewport:
+    `assistantPosition.ts` takes the insets, which `AssistantRail.tsx` reads off a probe element's
+    computed padding (`.safe-area-probe`). A computed padding is px in every engine; Chromium also
+    resolves `env()` inside a computed custom property, but Safari could not be checked here.
+  - The docked Ask rail (768px and up) pads its bottom, so its composer clears an iPad's home
+    indicator. Not its right: it is in flow, and `body`'s padding already moves it in.
+  - The phone front door's footer, the end of its own scroller, pads its bottom
+    (`.phone-front-door-footer`).
+  - `--rack-height` observes the rack's border box, so an inset that changes under an open page (a
+    rotation) reaches the board's gap above the rack.
+  - The Part 7 e2e cases find elements by role or test id (`notebook-toolbar`, `widget-rail`,
+    `front-door-stage`) rather than by CSS or XPath.
+  - Red first, on one build with each of those fixes undone (and the toolbar's `below-app-header`
+    dropped): `toolbar top 103/NaN`, `widget rail top 163/116`, `widget list 733/780`, `dragged
+    card right 1220/1264`, `dragged card bottom 850/884`, `composer bottom <= 866/888`, `rail inset
+    34/0`, `--rack-height` after the inset changed `73.1875/39.1875`, front door `header 71/24`,
+    `headline 111/64`, `footer inset 54/20`. The clamp's unit tests went red with the right and left
+    insets dropped (`x 46/16`, `x 1016/1060`).
 - **Left for the device walk:** where a sheet's content sits relative to the home indicator (20px
-  above the safe area, not at it). A dragged floating card is clamped to the viewport, not the safe
-  area. Centred dialogs (`ui/dialog.tsx`) take no inset.
+  above the safe area, not at it). Centred dialogs (`ui/dialog.tsx`) take no inset. The notebook
+  toolbar's 60px (`.below-notebook-toolbar`, `.tc-widget-rail`) is still a hard-coded height, as
+  `top-29` was before it.

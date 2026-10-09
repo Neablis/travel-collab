@@ -8,6 +8,9 @@ import {
 } from "./assistantPosition";
 
 const DESKTOP = { width: 1440, height: 900 };
+// An iPad in landscape with a notch-side inset: every edge different, so a
+// swapped pair (left for right, top for bottom) shows.
+const INSETS = { top: 24, right: 44, bottom: 20, left: 30 };
 
 describe("clampToViewport", () => {
   it("leaves a point that is already inside alone", () => {
@@ -41,6 +44,19 @@ describe("clampToViewport", () => {
     });
   });
 
+  // `.assistant-float` sits 16px in from the safe area's corner (M39 Part 7);
+  // a drag must not park the card nearer the edge than the undragged card.
+  it("measures the pad from the safe area's edge on every side", () => {
+    expect(clampToViewport({ x: -500, y: -500 }, ASSISTANT_FLOAT_SIZE, DESKTOP, INSETS)).toEqual({
+      x: 16 + 30,
+      y: 16 + 24,
+    });
+    expect(clampToViewport({ x: 99999, y: 99999 }, ASSISTANT_FLOAT_SIZE, DESKTOP, INSETS)).toEqual({
+      x: 1440 - 364 - 16 - 44,
+      y: 900 - 476 - 16 - 20,
+    });
+  });
+
   it("is idempotent — re-clamping an already clamped point changes nothing", () => {
     const once = clampToViewport({ x: 99999, y: -40 }, ASSISTANT_FLOAT_SIZE, DESKTOP);
     expect(clampToViewport(once, ASSISTANT_FLOAT_SIZE, DESKTOP)).toEqual(once);
@@ -53,6 +69,10 @@ describe("floatHome", () => {
   // top-left point a dragged panel is positioned by, so the two cannot disagree.
   it("is the bottom-right corner, one pad in", () => {
     expect(floatHome(DESKTOP)).toEqual({ x: 1440 - 364 - 16, y: 900 - 476 - 16 });
+  });
+
+  it("is the bottom-right corner of the safe area, one pad in", () => {
+    expect(floatHome(DESKTOP, ASSISTANT_FLOAT_SIZE, INSETS)).toEqual({ x: 1440 - 364 - 16 - 44, y: 900 - 476 - 16 - 20 });
   });
 
   it("is still on screen on a viewport too small to hold the panel", () => {

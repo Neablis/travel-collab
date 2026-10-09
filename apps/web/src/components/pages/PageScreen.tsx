@@ -1219,7 +1219,10 @@ export function PageScreen({
           sticky element's own painted box, so the background above would not
           cover it and the document would show through that strip while
           pinned. */}
-      <div className="mt-3 mb-3 flex flex-wrap items-center justify-between gap-3 below-app-header md:sticky md:z-10 md:my-0 md:bg-paper md:py-3">
+      <div
+        className="mt-3 mb-3 flex flex-wrap items-center justify-between gap-3 below-app-header md:sticky md:z-10 md:my-0 md:bg-paper md:py-3"
+        data-testid="notebook-toolbar"
+      >
         {backLink}
         <div className="flex flex-wrap items-center gap-2">
           {/* Absent for a viewer, and until the role is known — see
@@ -1521,6 +1524,7 @@ export function PageScreen({
           <Card
             raised
             className={cn("p-4", selectedWidget === null && "tc-widget-rail flex flex-col")}
+            data-testid="widget-rail"
           >
             {selectedWidget === null ? (
               <>

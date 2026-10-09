@@ -434,7 +434,7 @@ export function PhoneFrontDoor() {
           <div aria-hidden className="front-door-veil pointer-events-none absolute inset-0" />
 
           {/* The headline holds still while the claims pass underneath. */}
-          <div className="phone-front-door-stage relative px-6">
+          <div className="phone-front-door-stage relative px-6" data-testid="front-door-stage">
             <Text variant="muted" className="uppercase tracking-widest">
               Days worth reliving
             </Text>
@@ -509,8 +509,11 @@ export function PhoneFrontDoor() {
         </Link>
       </section>
 
-      {/* The desktop landing's footer, same five items (see LandingScreen). */}
-      <footer className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-hairline bg-paper px-6 py-5">
+      {/* The desktop landing's footer, same five items (see LandingScreen).
+          It ends this screen's own scroller, so its bottom padding adds the
+          home indicator's inset (`.phone-front-door-footer`): the last line
+          stops above the indicator rather than under it. */}
+      <footer className="phone-front-door-footer flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-hairline bg-paper px-6 pt-5">
         <Text as="span" variant="muted">&copy; 2026 Caesura</Text>
         <Text as="span" variant="muted" aria-hidden>&middot;</Text>
         <Text as="span" variant="muted">Privacy</Text>
