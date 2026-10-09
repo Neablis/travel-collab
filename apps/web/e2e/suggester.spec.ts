@@ -239,3 +239,57 @@ test("a suggester's move waits for the owner, and Accept makes it", async ({ pag
   await expect(description).toContainText(stop);
   await expect.poll(() => description.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(0);
 });
+
+// Mitchell's walk, 2026-10-09: a suggested new day was never drawn, so what
+// was added to it fell into the chip and what was moved onto it showed only
+// where it was. The owner sees the day itself, its stop on it, and decides it
+// from its header.
+test("a suggester's new day shows on the owner's board as a suggested day", async ({ page, browser }) => {
+  test.slow();
+  const tripName = e2eTripName("SuggestDay");
+  const tripId = await createMappedTrip(page, tripName, 2);
+  const walk = "Sunrise walk";
+  await page.goto(`/trips/${tripId}?view=Plan`);
+  await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
+  const link = await inviteLinkFor(page, tripName, "Can suggest");
+
+  const sam = await signedInAs(browser, newcomer("sam"), link);
+  try {
+    await sam.goto(link);
+    await sam.getByRole("button", { name: "Join the trip" }).click();
+    await expect(sam.getByText("Suggester", { exact: true })).toBeVisible();
+    await openPlan(sam);
+
+    await sam.getByRole("button", { name: "Add a day" }).click();
+    const tray = sam.getByRole("region", { name: "Suggestion draft" });
+    await expect(tray).toContainText("1 change not sent");
+    await sam.getByRole("button", { name: "Add stop" }).click();
+    await sam.getByLabel("What or where").fill(walk);
+    // The third day: the one just added.
+    await sam.getByLabel("Day", { exact: true }).selectOption({ index: 2 });
+    await sam.getByLabel("Start", { exact: true }).fill("07:00");
+    await sam.getByRole("button", { name: "Add stop" }).last().click();
+    await expect(tray).toContainText("2 changes not sent");
+    await Promise.all([
+      sam.waitForResponse(
+        (r) => new URL(r.url()).pathname === `/api/trips/${tripId}/suggestions` && r.request().method() === "POST" && r.ok(),
+      ),
+      tray.getByRole("button", { name: "Send suggestion" }).click(),
+    ]);
+  } finally {
+    await sam.context().close();
+  }
+
+  await page.reload();
+  const day3 = page.getByRole("region", { name: /^Day 3\b.* · suggested$/ });
+  await expect(day3).toBeVisible();
+  await expect(day3.getByRole("button", { name: new RegExp(`^Suggested: .*${walk}`) })).toBeVisible();
+  await expect(page.getByTestId("day-column")).toHaveCount(2);
+
+  // Accepting the day makes it a day; its stop is still only suggested, now
+  // on the real Day 3.
+  await day3.getByRole("button", { name: /^Accept: / }).click();
+  await expect(page.getByTestId("day-column")).toHaveCount(3);
+  await expect(day3).toHaveCount(0);
+  await expect(page.getByTestId("day-column").nth(2).getByRole("button", { name: new RegExp(`^Suggested: .*${walk}`) })).toBeVisible();
+});
