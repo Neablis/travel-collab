@@ -89,7 +89,8 @@ console.log("wrote src/app/icon.svg");
 // installed Android app picks up a changed icon through Chrome's periodic
 // manifest check, and a new URL makes the change unambiguous where a same-named
 // file relies on byte comparison. Bump it whenever the mark changes, with
-// `app/manifest.ts` and `public/sw.js`'s CACHE_VERSION. `apple-icon.png` and
+// `app/manifest.ts` (the service worker caches nothing, KI-2026-10-09-e, so
+// there is no cache to bump). `apple-icon.png` and
 // `icon.svg` use App Router file conventions, which add their own cache-busting
 // query, so they keep their names.
 const ICON_VERSION = "v2";

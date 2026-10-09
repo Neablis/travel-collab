@@ -6,11 +6,10 @@ import { useEffect } from "react";
  * Registers `/sw.js` (M39 Part 4, D4) once the page has hydrated. Renders
  * nothing.
  *
- * **Production builds only.** The worker serves `/_next/static/**` cache-first
- * on the promise that a URL there never changes its bytes, which is true of a
- * build and not of `next dev`, whose chunks keep their names across edits — a
- * registered worker would serve yesterday's code to the dev lane. Next inlines
- * `NODE_ENV` at build time, so the dev bundle carries no registration at all.
+ * **Production builds only**, where installing is the point. The worker has no
+ * fetch listener (KI-2026-10-09-e), so it serves nothing in either lane; Next
+ * inlines `NODE_ENV` at build time, so the dev bundle carries no registration
+ * at all.
  *
  * `updateViaCache: "none"` makes every update check fetch `sw.js` past the HTTP
  * cache, whatever headers it was served with, so a fixed worker reaches every
