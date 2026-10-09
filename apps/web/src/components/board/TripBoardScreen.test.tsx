@@ -1456,6 +1456,25 @@ describe("the day-chips row belongs to Plan", () => {
     await userEvent.click(screen.getByRole("tab", { name: "Plan" }));
     expect(screen.getByRole("group", { name: "Days" })).toBeTruthy();
   });
+
+  // M39 D6 (KI-2026-09-24-i): a phone pins the rail with the header's one row,
+  // so it is in the box `--sticky-stack-height` measures. One copy: two would
+  // be two sets of focusable chips and two owners of the chips' day-sync.
+  it("pins in the trip header on a phone's Plan, and is still Plan's alone", async () => {
+    setViewportMatches({ "(max-width: 767px)": true });
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    renderScreen(fixture.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+
+    navigateToView("Plan");
+    const header = screen.getByRole("banner", { name: "Trip" });
+    await waitFor(() => expect(header.contains(screen.getByRole("group", { name: "Days" }))).toBe(true));
+    expect(screen.getAllByRole("group", { name: "Days" })).toHaveLength(1);
+
+    navigateToView("Overview");
+    await waitFor(() => expect(screen.queryByRole("group", { name: "Days" })).toBeNull());
+  });
 });
 
 // Preview review fix: lens content gets a bottom margin against the page via

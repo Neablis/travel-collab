@@ -66,6 +66,7 @@ import { EditorHost, useEditor } from "@/components/trip/context/EditorHost";
 import { TripHeader } from "./TripHeader";
 import { tripCounts } from "./TripMetaPill";
 import { clearQueryCache } from "@/lib/queryCache";
+import { setViewportMatches } from "../../../vitest.setup";
 
 // A15-fix regression probe: mounted alongside TripHeader under the same
 // TripProvider so the test can observe trip.status directly (there's no
@@ -400,13 +401,10 @@ describe("TripHeader on a phone", () => {
     expect(screen.getByTestId("trip-meta-row").className).toMatch(/md:flex/);
 
     // The other half of the decision, and the half a "hide it all" regression
-    // would quietly break: actions and navigation are NOT in the cut. "Add
-    // stop" and History have no home in Trip settings, and the tab strip is
-    // navigation. (The day chips are no longer the header's — SPEC §35.3.)
-    for (const name of ["Add stop", "History"]) {
-      // eslint-disable-next-line testing-library/no-node-access, testing-library/prefer-presence-queries -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
-      expect(screen.getByRole("button", { name }).closest("[class*='hidden']")).toBeNull();
-    }
+    // would quietly break: navigation is NOT in the cut. "Add stop" and
+    // History used to be asserted here too; M39 D6 moved them into the phone's
+    // overflow menu on purpose, which the menu's own tests below reach by
+    // using it. (The day chips are no longer the header's — SPEC §35.3.)
     // eslint-disable-next-line testing-library/no-node-access, testing-library/prefer-presence-queries -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
     expect(screen.getByRole("tablist", { name: "Trip view" }).closest("[class*='hidden']")).toBeNull();
     // And the door to everything that IS hidden.
@@ -542,6 +540,73 @@ describe("TripHeader — the phone date line (SPEC §23)", () => {
     // First day to last day, en dash, and no year — `formatTripDate`'s shape,
     // reached through the pill's function rather than restated here.
     expect(screen.getByTestId("trip-date-line").textContent).toBe("Sat, Oct 9 – Mon, Oct 11");
+  });
+});
+
+// M39 D6 (KI-2026-09-24-i): below 768px the pinned header is one row, and what
+// the desktop lays out beside the title is behind its `⋯`. Driven through the
+// menu, because the claim is that each item reaches what it names. Where the
+// row is drawn, and that it stays on screen, is measured at 411px in a browser
+// by e2e/m39-phone-header.spec.ts; jsdom has no layout to ask.
+describe("TripHeader — the phone's overflow menu (M39 D6)", () => {
+  beforeEach(() => setViewportMatches({ "(max-width: 767px)": true }));
+  afterEach(() => setViewportMatches({}));
+
+  const openMenu = async () => {
+    await userEvent.click(screen.getByRole("button", { name: "Trip actions" }));
+    return screen.findByRole("menu");
+  };
+  const itemNames = (menu: HTMLElement) => within(menu).getAllByRole("menuitem").map((item) => item.textContent);
+
+  it("holds Add stop, History and Trip settings, and each opens what it names", async () => {
+    const { getEditorState } = await renderHeader();
+
+    expect(itemNames(await openMenu())).toEqual(["Add stop", "History", "Trip settings"]);
+    await userEvent.click(screen.getByRole("menuitem", { name: "Add stop" }));
+    await waitFor(() => expect(getEditorState()).toEqual({ mode: "create", prefill: undefined }));
+
+    // History with its undo and redo, which stay in it (Mitchell, 2026-10-09).
+    await openMenu();
+    await userEvent.click(screen.getByRole("menuitem", { name: "History" }));
+    expect((await screen.findAllByTestId("history-entry")).length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "Undo" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Redo" })).toBeTruthy();
+
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryAllByTestId("history-entry")).toHaveLength(0));
+    await openMenu();
+    await userEvent.click(screen.getByRole("menuitem", { name: "Trip settings" }));
+    expect(await screen.findByRole("dialog", { name: /trip settings/i })).toBeTruthy();
+  });
+
+  // Absent, not disabled, as the desktop's button is (KI-64).
+  it("offers a viewer no Add stop", async () => {
+    myRole = "viewer";
+    await renderHeader();
+    await screen.findByText("Viewer");
+
+    expect(itemNames(await openMenu())).toEqual(["History", "Trip settings"]);
+  });
+
+  it("puts the badges and the dates under the pinned header, where they scroll away", async () => {
+    myRole = "viewer";
+    await renderHeader();
+
+    const header = screen.getByRole("banner", { name: "Trip" });
+    const viewer = await screen.findByText("Viewer");
+    expect(header.contains(viewer)).toBe(false);
+    expect(header.contains(screen.getByText("Active"))).toBe(false);
+    expect(header.contains(screen.getByTestId("trip-date-line"))).toBe(false);
+  });
+
+  it("keeps the badges beside the title above the breakpoint", async () => {
+    setViewportMatches({});
+    myRole = "viewer";
+    await renderHeader();
+
+    const header = screen.getByRole("banner", { name: "Trip" });
+    expect(header.contains(await screen.findByText("Viewer"))).toBe(true);
+    expect(screen.getAllByText("Active")).toHaveLength(1);
   });
 });
 

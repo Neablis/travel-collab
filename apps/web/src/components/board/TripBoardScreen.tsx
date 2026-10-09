@@ -855,6 +855,28 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // function's note in `phoneAskContext`.
   const phoneAsk = phoneAskContext(activeTrip, scopedDay, { tab: view === "Map" ? "map" : "plan" });
 
+  // Plan's day rail, built once and mounted in one of two places (below).
+  const dayChips = (
+    <DayChips
+      days={chipModel(activeTrip)}
+      focusedDay={focusedDay}
+      // Named so the chips row knows a day was picked HERE rather
+      // than handed to it — which is what lets its own scroll spy
+      // be held off a pick it cannot centre. See `jumpTo`.
+      onSelect={(index) => setFocusedDay(index, "chips")}
+      readOnly={!canEditBoard}
+      sync={chipsSync}
+    />
+  );
+  // **On a phone the day rail pins** (M39 D6, SPEC §13.4: "the day rail
+  // never collapses"). It goes into the trip header's pinned box, which
+  // measures it into `--sticky-stack-height`, so the day's sticky offsets and
+  // the day-sync scroll margin clear it. Above 768px it stays in Plan's body,
+  // for the reason given there. `useIsPhone`, not CSS: two copies would be two
+  // sets of focusable chips and two owners of `chipsSync`. Its first frame
+  // draws the rail one row lower, below the header rather than in it.
+  const pinsDayRail = isPhone && view === "Plan";
+
   // How many more questions this thread has room for.
   //
   // `runAsk` posts the whole thread plus the new question, and the server
@@ -944,6 +966,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             tripId={tripId}
             assistantOpen={assistant.open}
             onOpenAssistant={isDemo ? undefined : assistant.show}
+            pinned={pinsDayRail ? dayChips : undefined}
           >
             {/* "Beside the view tabs" (SPEC §11), so one row — and the design
                 keeps it one row at every width by SCROLLING it
@@ -951,7 +974,9 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                 build wrapped, so on a phone the Notebooks pill dropped onto a
                 second line and pushed the day chips down; nothing here is
                 worth a row of its own. */}
-            <div className="flex flex-nowrap items-center gap-4 overflow-x-auto">
+            {/* `max-md:hidden`: nothing in it is shown on a phone, and an
+                empty row would still cost the pinned header a gap. */}
+            <div className="flex flex-nowrap items-center gap-4 overflow-x-auto max-md:hidden">
               {/* `shrink-0` on the wrapper, not inside TabStrip: TabStrip is a
                   primitive with no className seam, and under `nowrap` an
                   unpinned child squeezes instead of scrolling — which is the
@@ -1061,21 +1086,10 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
 
                     `pt-2.5` rather than the design's 14px because the row's own
                     `pt-1` (ring clearance, see `DayChips`) makes up the rest;
-                    its `pb-1` is the design's 4px below. */}
-                {view === "Plan" && (
-                  <div className="pt-2.5">
-                    <DayChips
-                      days={chipModel(activeTrip)}
-                      focusedDay={focusedDay}
-                      // Named so the chips row knows a day was picked HERE rather
-                      // than handed to it — which is what lets its own scroll spy
-                      // be held off a pick it cannot centre. See `jumpTo`.
-                      onSelect={(index) => setFocusedDay(index, "chips")}
-                      readOnly={!canEditBoard}
-                      sync={chipsSync}
-                    />
-                  </div>
-                )}
+                    its `pb-1` is the design's 4px below.
+
+                    A phone pins it in the header instead (`pinsDayRail`). */}
+                {view === "Plan" && !pinsDayRail && <div className="pt-2.5">{dayChips}</div>}
                 {view === "Plan" && (
                   <Board
                     trip={activeTrip}

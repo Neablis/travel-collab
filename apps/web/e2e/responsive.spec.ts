@@ -647,16 +647,20 @@ test.describe("responsive (trip header on a phone)", () => {
     // What deliberately stays. Actions are not information: "Add stop" and
     // History have no equivalent in Trip settings, and the tab strip and day
     // chips are the phone's primary navigation.
-    // Scoped to the trip header, which is the copy this spec means — "Add stop
-    // and History have no equivalent in Trip settings" is a claim about the
-    // HEADER's actions. Unscoped it was fine only while the phone landed on Day
-    // columns; SPEC §10 now sends a bare trip URL to Timeline, which renders an
-    // "Add stop" per day, so the bare locator resolves to four elements and
-    // trips strict mode. The ambiguity is the point being avoided, not a
-    // rename.
+    //
+    // **Reachable, not laid out** (M39 D6, KI-2026-09-24-i): they were two
+    // visible buttons in the header, and they moved into its one row's `⋯` on
+    // purpose, so the pinned header is ~56px. The claim is unchanged — the
+    // header still offers both — and is asserted through the menu.
+    // Scoped to the trip header, which is the copy this spec means.
     const tripHeader = page.getByLabel("Trip", { exact: true });
-    await expect(tripHeader.getByRole("button", { name: "Add stop" })).toBeVisible();
-    await expect(tripHeader.getByRole("button", { name: "History", exact: true })).toBeVisible();
+    await expect(tripHeader.getByRole("button", { name: "Add stop" })).toBeHidden();
+    await expect(tripHeader.getByRole("button", { name: "History", exact: true })).toBeHidden();
+    await tripHeader.getByRole("button", { name: "Trip actions" }).click();
+    await expect(page.getByRole("menuitem", { name: "Add stop" })).toBeVisible();
+    await expect(page.getByRole("menuitem", { name: "History" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("menu")).toBeHidden();
     // The lens strip is no longer "the phone's primary navigation" — SPEC §16's
     // bottom tab bar is, and §10 keeps Day columns and Calendar off the phone
     // entirely, so a four-tab strip here has nothing left to offer. It is
@@ -781,6 +785,13 @@ test.describe("responsive (trip header on a phone)", () => {
     // once — the exact thing §23 collapses.
     await expect(page.getByTestId("trip-date-line")).toBeHidden();
     await expect(page.locator('header[aria-label="Trip"]').getByRole("button", { name: "Ask", exact: true })).toBeHidden();
+
+    // M39 D6's converse: the phone row's `⋯` is not drawn here, and the two
+    // actions it holds on a phone are still buttons in the header.
+    const tripHeader = page.locator('header[aria-label="Trip"]');
+    await expect(tripHeader.getByRole("button", { name: "Trip actions" })).toBeHidden();
+    await expect(tripHeader.getByRole("button", { name: "Add stop" })).toBeVisible();
+    await expect(tripHeader.getByRole("button", { name: "History", exact: true })).toBeVisible();
   });
 });
 
