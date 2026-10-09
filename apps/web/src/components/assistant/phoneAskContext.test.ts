@@ -9,6 +9,11 @@ import { witness } from "@/test-support/witness";
 const PLAN: PhoneAskSurface = { tab: "plan" };
 const MAP: PhoneAskSurface = { tab: "map" };
 const NOTEBOOK_INDEX: PhoneAskSurface = { tab: "notebook", page: null };
+const OVERVIEW: PhoneAskSurface = { tab: "overview" };
+const CALENDAR: PhoneAskSurface = { tab: "calendar" };
+const TRIP_HINT =
+  "It reads the whole trip — every day, its stops, what is booked and what is not. " +
+  "Ask it to move something and you get a proposal to keep or discard.";
 
 function tripWith(transient: {
   dayCount?: number;
@@ -93,6 +98,34 @@ describe("phoneAskContext", () => {
       const trip = tripWith({ dayCount: 3, activitiesPerDay: 2 });
       expect(phoneAskContext(trip, 1, PLAN).quickAsks).toEqual(suggestedQuestions(trip, 1));
       expect(phoneAskContext(trip, null, PLAN).quickAsks).toEqual(suggestedQuestions(trip, null));
+    });
+  });
+
+  // SPEC §24 gives each tab its scope, and Overview's and Calendar's is the
+  // whole trip. The board used to hand this `plan` for both
+  // (KI-2026-09-25-f), so a phone reading the Overview was asked about
+  // whichever day the arrival default had focused — a day the screen behind
+  // the sheet was not showing.
+  describe("Overview and Calendar", () => {
+    it("is trip-scoped whatever day is focused, and names the trip", () => {
+      const trip = inCity(tripWith({ dayCount: 3, activitiesPerDay: 2, startDate: "2026-06-26" }), 0, "Kyoto");
+      const ctx = phoneAskContext(trip, 0, OVERVIEW);
+      expect(ctx.scope).toEqual({ kind: "trip" });
+      expect(ctx.contextLine).toBe(`Asking about ${trip.name}`);
+      expect(ctx.emptyHint).toBe(TRIP_HINT);
+    });
+
+    it("offers the trip's questions, not the focused day's", () => {
+      const trip = tripWith({ dayCount: 3, activitiesPerDay: 2 });
+      expect(phoneAskContext(trip, 1, OVERVIEW).quickAsks).toEqual(suggestedQuestions(trip, null));
+    });
+
+    // Calendar has no phone tab (§10), but `?view=Calendar` still renders it
+    // below 768px — a link held from a desktop, or a window narrowed under it.
+    // §24 scopes it to the trip exactly as it does Overview.
+    it("reads Calendar the way it reads Overview", () => {
+      const trip = tripWith({ dayCount: 3, activitiesPerDay: 1 });
+      expect(phoneAskContext(trip, 2, CALENDAR)).toEqual(phoneAskContext(trip, 2, OVERVIEW));
     });
   });
 
@@ -215,6 +248,8 @@ describe("phoneAskContext", () => {
       fc.constant(PLAN),
       fc.constant(MAP),
       fc.constant(NOTEBOOK_INDEX),
+      fc.constant(OVERVIEW),
+      fc.constant(CALENDAR),
       fc
         .record({
           title: fc.string({ minLength: 1 }),
@@ -259,7 +294,9 @@ describe("phoneAskContext", () => {
           // of its own trip-wide default — a hint that is merely present, but
           // describes the wrong surface, is the whole defect.
           expect(ctx.emptyHint).toBe(
-            surface.tab !== "notebook"
+            surface.tab === "overview" || surface.tab === "calendar"
+              ? TRIP_HINT
+              : surface.tab !== "notebook"
               ? "It reads the day you have open — the stops, their times, what is booked and what is not. " +
                   "Ask it to move something and you get a proposal to keep or discard."
               : page === null

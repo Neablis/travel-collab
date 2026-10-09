@@ -1445,6 +1445,42 @@ describe("TripBoardScreen", () => {
     expect(within(panel).getByText("Asking about Rome 2027")).toBeTruthy();
   });
 
+  // KI-2026-09-25-f: the board handed `phoneAskContext` "plan" on every tab
+  // but Map, so the arrival default above made the phone's Overview — §24's
+  // whole-trip tab — ask about day 1. The line AND the wire, for the reason
+  // the test above checks both: fixing the sheet's words alone would leave a
+  // sheet saying "the trip" over a day-scoped turn.
+  it("asks about the whole trip from a phone's Overview, with a day focused", async () => {
+    setViewportMatches({ "(max-width: 767px)": true });
+    const fixture = tripDetailFixture({
+      days: [
+        { dayId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1", activityIds: [], date: null, costSubtotal: 0 },
+        { dayId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2", activityIds: [], date: null, costSubtotal: 0 },
+      ],
+    });
+    server.use(...makeTripHandlers(fixture));
+    askAssistantMock.mockImplementation(answers("Nothing yet."));
+    renderScreen(fixture.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+    // On Plan first, so day 1 is focused by the arrival default before the
+    // Overview is opened — the state a reader is in after one tap of the bar.
+    const dayOne = screen.getByRole("button", { name: "Day 1, 0 stops" });
+    await waitFor(() => expect(dayOne.getAttribute("aria-pressed")).toBe("true"));
+
+    navigateToView("Overview");
+    fireEvent.click(await within(screen.getByRole("navigation")).findByTestId("ask-pill"));
+    const panel = assistantPanel();
+    expect(within(panel).getByText("Asking about Rome 2027")).toBeTruthy();
+    expect(within(panel).getByText(/It reads the whole trip/)).toBeTruthy();
+
+    fireEvent.change(within(panel).getByPlaceholderText(/ask about this (?:day|trip)/i), {
+      target: { value: "What's here?" },
+    });
+    fireEvent.click(askButton());
+    await waitFor(() => expect(askAssistantMock).toHaveBeenCalledTimes(1));
+    expect(askCall(0).scope).toEqual({ kind: "trip" });
+  });
+
   it("stays a docked rail above the breakpoint", async () => {
     const fixture = tripDetailFixture();
     server.use(...makeTripHandlers(fixture));
