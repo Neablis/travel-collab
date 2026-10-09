@@ -72,7 +72,7 @@ function loadFonts() {
 }
 
 // The static site card's language (`scripts/generate-og-assets.mjs`): moss
-// ground, the contour grid and its river, the ◎ mark on a brand square, and
+// ground, the contour grid and its river, the caesura mark on a brand square, and
 // the display face for the headline.
 /** Draw one preview card as a 1200×630 PNG response carrying `cacheControl`, and the CDN tags it is purged by. */
 export async function renderCard(
@@ -131,9 +131,11 @@ export async function renderCard(
                 justifyContent: "center",
               }}
             >
-              <svg width="30" height="30" viewBox="0 0 32 32" fill="none">
-                <circle cx="16" cy="16" r="10" stroke={c.surface} strokeWidth="2.4" />
-                <circle cx="16" cy="16" r="4.4" stroke={c.surface} strokeWidth="2.4" />
+              {/* The caesura (SPEC §28, `BrandMark.tsx`): two upright strokes, width and
+                  gap 1/8 of the tile, 0.5625 of it tall, centred. */}
+              <svg width="56" height="56" viewBox="0 0 32 32">
+                <rect x="10" y="7" width="4" height="18" fill={c.surface} />
+                <rect x="18" y="7" width="4" height="18" fill={c.surface} />
               </svg>
             </div>
             <div style={{ fontSize: 28, fontWeight: 500, color: c.slate }}>{copy.label}</div>
