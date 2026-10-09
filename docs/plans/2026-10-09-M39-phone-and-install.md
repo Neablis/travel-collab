@@ -19,8 +19,8 @@ its inset on Part 2's header.
 | 2 | `claude/m39-part2-phone-header` | phone header: one pinned row plus the day rail; Unscheduled as an end-of-day row (D6) | 2 | not started |
 | 3 | `claude/m39-part3-tablet` | touch floor on `pointer: coarse`; tablet Ask; a touch tablet e2e project (D3) | 2 | not started |
 | 4 | `claude/m39-part4-installable` | manifest, icons, `viewport` with `cover` and both insets, a static-asset service worker (D4, D10) | 2, then 3 on the top | not started |
-| 5 | `claude/m39-part5-phone-overview` | phone-sized Overview; the `phoneAskContext` fix (D2) | 2 | building, from the existing §19 artboard |
-| 6 | (later) | phone conflict chip, sheet and stop marker (D9) | 2 | **blocked on an artboard, and on Part 2's row** |
+| 5 | `claude/m39-part5-phone-overview` | phone-sized Overview; the `phoneAskContext` fix (D2) | 2 | #367, built from the existing §19 artboard |
+| 6 | `claude/m39-part6-phone-conflicts` | phone conflict chip, sheet and stop marker (D9) | 2 | building, from the existing components |
 
 **What a person clicks on the preview to see each part:**
 - Part 2: open a trip's Plan at 390px and scroll. The title row and the day chips stay pinned.
@@ -189,4 +189,9 @@ The app is under `apps/web/src/`.
    committed.* The handoff draws no phone Overview tab, but SPEC §19's phone page (`phoneNbDoc`)
    draws the Overview's widgets at phone density. The phone Overview tab renders that page
    read-only; Edit opens it in the Notebook, which keeps §25. Choices the artboard does not cover
-   are listed in Part 5's PR for Mitchell. Part 6 still needs an artboard.
+   are listed in Part 5's PR for Mitchell. *Part 6, 2026-10-09:* Mitchell asked for the rest of
+   the milestone to be worked through. The handoff draws no phone conflict state, so Part 6 builds
+   D9's shape (a count chip in the pinned row, a bottom sheet, the card's marker) from the
+   components that already exist: `ConflictBanner`'s rows, `SuggestionsChip`'s pattern, `Sheet`
+   and `RiverBlock`'s triangle. That follows SPEC's "mobile is a variant layer". Its visual choices
+   are listed in Part 6's PR for Mitchell.
