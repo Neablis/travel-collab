@@ -222,20 +222,8 @@ test("a suggester's move waits for the owner, and Accept makes it", async ({ pag
   await expect(page.getByRole("button", { name: /^\d+ suggestions?$/ })).toHaveCount(0);
   await expect(day2.getByRole("button", { name: /^Suggested: / })).toHaveCount(0);
 
-  // History says who asked for it, by name — not "Suggested" alone, and not
-  // "a former traveler" (W49).
+  // One History entry for both, which says who asked for them, by name — not
+  // "Suggested" alone, and not "a former traveler" (W49, M40 D1/D3).
   await openHistory(page);
-  await expect(page.getByText(`Suggested by ${suggesterName}`).first()).toBeVisible();
-
-  // ...and says it beside the description rather than in place of it. On one
-  // line, the attribution took the width and the row read `Moved "St…`
-  // (PR #311's preview walk). jsdom has no layout, so this is measured here:
-  // overflow on a `truncate` span is the ellipsis.
-  const description = page
-    .getByTestId("history-entry")
-    .filter({ hasText: `Suggested by ${suggesterName}` })
-    .filter({ hasText: stop })
-    .getByTestId("history-entry-description");
-  await expect(description).toContainText(stop);
-  await expect.poll(() => description.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(0);
+  await expect(page.getByTestId("history-entry-description").filter({ hasText: `Accepted 2 suggestions from ${suggesterName}` })).toHaveCount(1);
 });

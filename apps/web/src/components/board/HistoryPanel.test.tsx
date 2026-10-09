@@ -91,6 +91,7 @@ describe("HistoryPanel — accepted suggestions", () => {
           members: [
             { userId: "u1", role: "owner", name: "Alice", email: null, image: null },
             { userId: "u-sam", role: "suggester", name: "Sam", email: null, image: null },
+            { userId: "u-ana", role: "suggester", name: "Ana", email: null, image: null },
           ],
           invites: [],
           collaboratorsEntitled: true,
@@ -242,5 +243,33 @@ describe("HistoryPanel — accepted suggestions", () => {
     // asks about no one new, so only Nia being asked again can name her.
     rerender(panel([accepted("u1", "Added Pasta", 5), accepted("u-nia", "Added Gelato", 4)]));
     expect(await screen.findByRole("button", { name: /Added Gelato.*Suggested by Nia/ })).toBeTruthy();
+  });
+
+  // M40 D3: an accept-all is one entry, which names every author.
+  it("reads an accept-all as the count and every author, by name", async () => {
+    clearQueryCache();
+    const acceptedAll = (authorIds: string[], n: number, seq: number): TripHistory["entries"][number] => ({
+      batchId: `7d9a1f8e-0000-4000-8000-0000000000f${seq}`,
+      fromSeq: seq, toSeq: seq, actorId: "u1", occurredAt: "2026-10-09T00:00:00.000Z",
+      origin: {
+        kind: "suggestions",
+        changes: [{ suggestionId: "7d9a1f8e-0000-4000-8000-0000000000d1", changeId: `7d9a1f8e-0000-4000-8000-0000000000e${seq}` }],
+        authorIds,
+      },
+      description: `Accepted ${n} suggestions`, undone: false,
+    });
+    render(
+      <PeopleProvider tripId={TRIP}>
+        <HistoryPanel
+          history={{ ...history, entries: [acceptedAll(["u-sam", "u-ana"], 7, 5), acceptedAll(["u-sam"], 3, 4), ...history.entries] }}
+          previewSeq={null}
+          onPreview={() => {}}
+          onExitPreview={() => {}}
+          onRevert={() => {}}
+        />
+      </PeopleProvider>,
+    );
+    expect(await screen.findByRole("button", { name: "Accepted 7 suggestions from Sam and Ana" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Accepted 3 suggestions from Sam" })).toBeTruthy();
   });
 });

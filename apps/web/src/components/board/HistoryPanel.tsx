@@ -17,6 +17,14 @@ function suggestedBy(name: string | null): string {
   return name === null ? "Suggested" : `Suggested by ${name}`;
 }
 
+// M40 D3: an accept-all's entry reads "Accepted 7 suggestions from Sam and
+// Ana". The domain's description is the count; the names are only here. Left
+// at the count until every name lands, for `suggestedBy`'s reason.
+const AND = new Intl.ListFormat("en", { type: "conjunction" });
+function acceptedFrom(description: string, names: readonly (string | null)[]): string {
+  return names.some((n) => n === null) ? description : `${description} from ${AND.format(names as string[])}`;
+}
+
 // Bounded page size for the History popover's entries list (#1): only the
 // most recent PAGE_SIZE entries render up front, with a "Show older"
 // affordance to reveal more in PAGE_SIZE steps. Paired with the popover
@@ -51,7 +59,9 @@ export function HistoryPanel({
   // Null names outside a `PeopleProvider` (TripHeader mounts one) or before
   // it lands.
   const nameOf = useAuthorNames(
-    history?.entries.flatMap((e) => (e.origin.kind === "suggestion" ? [e.origin.authorId] : [])) ?? [],
+    history?.entries.flatMap((e) =>
+      e.origin.kind === "suggestion" ? [e.origin.authorId] : e.origin.kind === "suggestions" ? e.origin.authorIds : [],
+    ) ?? [],
   );
 
   if (history === null) return null;
@@ -60,6 +70,8 @@ export function HistoryPanel({
   // reader can count rather than another PAGE_SIZE batches that might collapse
   // into three lines.
   const rows = coalesceHistory(history.entries);
+  const describe = (entry: (typeof history.entries)[number]) =>
+    entry.origin.kind === "suggestions" ? acceptedFrom(entry.description, entry.origin.authorIds.map(nameOf)) : entry.description;
   const visible = rows.slice(0, visibleCount);
   const hasMore = rows.length > visibleCount;
 
@@ -93,7 +105,7 @@ export function HistoryPanel({
                   and the row read `Moved "St…` (PR #311's preview walk). */}
               <span className="flex min-w-0 flex-col items-start text-left">
                 <span data-testid="history-entry-description" className="max-w-full truncate">
-                  {entry.undone ? <s>{entry.description}</s> : entry.description}
+                  {entry.undone ? <s>{describe(entry)}</s> : describe(entry)}
                 </span>
                 {entry.origin.kind === "suggestion" && (
                   <span className="flex max-w-full min-w-0 items-center gap-1.5 text-xs text-slate">
