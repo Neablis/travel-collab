@@ -4,7 +4,7 @@ import type { BatchableCommand, SuggestionChange, TripDetail } from "@tc/contrac
 import { tripDetailFactory, uuidFrom } from "@tc/factories";
 import { predictBatch } from "@tc/predict";
 import { witness } from "@/test-support/witness";
-import { suggestionOverlay } from "./suggestionOverlay";
+import { placeGhosts, suggestionOverlay } from "./suggestionOverlay";
 
 // A pass-through spy, so the overlay's cost can be counted in predictions.
 vi.mock("@tc/predict", async (orig) => {
@@ -121,11 +121,16 @@ describe("suggestionOverlay", () => {
     expect(overlay.byDay.size).toBe(0);
   });
 
-  it("an empty new day is trip-level", () => {
+  // Drawn as a ghost day of its own, so the chip need not carry it.
+  it("an empty new day is a suggested day, not trip-level", () => {
     const trip = confirmedTrip();
-    const c = change(trip, [{ type: "AddDay", tripId: trip.tripId, dayId: uuidFrom(8003, 7) }]);
+    const dayId = uuidFrom(8003, 7);
+    const c = change(trip, [{ type: "AddDay", tripId: trip.tripId, dayId }]);
 
-    expect(suggestionOverlay(trip, [c]).tripLevel.map((g) => g.kind)).toEqual(["add"]);
+    const overlay = suggestionOverlay(trip, [c]);
+
+    expect(overlay.newDays).toMatchObject([{ changeId: c.id, kind: "add", dayId }]);
+    expect(overlay.tripLevel).toEqual([]);
   });
 
   it("a change whose target is gone no longer applies", () => {
@@ -210,6 +215,45 @@ describe("suggestionOverlay", () => {
     const child = change(trip, [{ type: "SetTripName", tripId: trip.tripId, name: "x" }], { dependsOn: [parent.id] });
 
     expect(suggestionOverlay(trip, [parent, child]).stale.map((g) => g.changeId)).toEqual([parent.id, child.id]);
+  });
+});
+
+// Mitchell's walk, 2026-10-09: one suggestion added Day 15 to a 14-day trip,
+// two stops on it, and moved the last day's transfer and flight onto it. No
+// Day 15 was drawn, so the adds fell into the chip's "Not on the board" and
+// the moves showed only where the stops are now.
+describe("a suggested new day", () => {
+  it("is a ghost day holding the stops added to it and moved onto it, none of them off the board", () => {
+    const trip = tripDetailFactory.build({}, { transient: { dayCount: 14, activitiesPerDay: 2 } });
+    const tripId = trip.tripId;
+    const [transfer, flight] = trip.days[13]!.activityIds as [string, string];
+    const D = uuidFrom(8201, 7);
+    const breakfast = uuidFrom(8202, 7);
+    const shrine = uuidFrom(8203, 7);
+    const addDay = change(trip, [{ type: "AddDay", tripId, dayId: D }]);
+    const after = { dependsOn: [addDay.id] };
+    const changes = [
+      addDay,
+      change(trip, [{ type: "AddActivity", tripId, activityId: breakfast, dayId: D, title: "Breakfast near Omotesandō", timeWindow: { start: "08:00", end: "09:15" } }], after),
+      change(trip, [{ type: "AddActivity", tripId, activityId: shrine, dayId: D, title: "Meiji Jingu shrine visit", timeWindow: { start: "09:30", end: "11:15" } }], after),
+      change(trip, [{ type: "MoveActivity", tripId, activityId: transfer, toDayId: D, position: 2 }], after),
+      change(trip, [{ type: "MoveActivity", tripId, activityId: flight, toDayId: D, position: 3 }], after),
+      change(trip, [{ type: "UpdateActivity", tripId, activityId: flight, timeWindow: { start: "15:10", end: "16:00" } }]),
+    ];
+
+    const ghosts = placeGhosts(trip, changes);
+
+    expect(ghosts.offBoard.map((g) => g.description)).toEqual([]);
+    expect(ghosts.newDays.map((g) => [g.changeId, g.dayId])).toEqual([[addDay.id, D]]);
+    expect(ghosts.board.days.get(D)?.map((g) => [g.kind, g.activityId])).toEqual([
+      ["add", breakfast],
+      ["add", shrine],
+      ["move", transfer],
+      ["move", flight],
+    ]);
+    expect(ghosts.stale).toEqual([]);
+    // A move is also a marker where the stop is now (W47), as onto any day.
+    expect(ghosts.board.stops.get(transfer)?.map((g) => g.changeId)).toEqual([changes[3]!.id]);
   });
 });
 
