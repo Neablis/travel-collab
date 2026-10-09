@@ -23,11 +23,15 @@ general setup.
 
 **M39 — THE PHONE LAYOUT IS DECIDED ONCE, AND CAESURA INSTALLS LIKE AN APP — IS THE CURRENT
 MILESTONE AS OF 2026-10-08**, by **M38's gate closing at 8 of 8**. Order: `… M37 ✓ → M38 ✓ → M39 →
-M40 … M47`. **Scoped 2026-10-08** from the critique in PR #362: six parts, 1–4 buildable now,
-5–6 waiting on a design-sync artboard (the milestone file's *Scope* table).
+M40 … M47`. **Scoped 2026-10-08** from the critique in PR #362: six parts, 1–4 buildable then,
+5–6 thought to need a design-sync artboard (the milestone file's *Scope* table).
 (`docs/milestones/M39-the-phone-is-decided.md`)
-Part 1 merged 2026-10-09 (PR #363; gate 1/8). The build plan for Parts 2–4, with four open questions for Mitchell, is
-`docs/plans/2026-10-09-M39-phone-and-install.md`.
+**Parts 1–4 merged 2026-10-09** (PRs #363–#366; gate 3/8). Parts 5–7 are open and stacked:
+#367 (phone Overview), #368 (phone conflict state) and #369 (the safe-area insets
+`KI-2026-10-09-a` left). Mitchell answered every open question. Parts 5 and 6 were built from
+committed components rather than new artboards, on his word, and their PRs list the choices for
+him to confirm. Left after the merges: the ci-like e2e box on the merged top, Mitchell's
+real-device walk, and the retro. The plan is `docs/plans/2026-10-09-M39-phone-and-install.md`.
 
 **M38 closed 2026-10-08.** People carry a chosen avatar, colour and display name on every person
 surface. A clash within a trip shifts the later joiner. A chosen name reaches public pages only

@@ -80,12 +80,20 @@ iPhone and Android (sign-in, an emailed invite link, long-press drag), and the r
       `KI-2026-09-24-i`, `-25-f`, `-24-j` and resolved KI-048 each carry a* Decided *line citing it.*
 - [ ] **`KI-2026-09-24-i`, `KI-2026-09-25-f`, `KI-2026-09-24-j` and `KI-048` items 3 and 5 are
       resolved** (moved to `resolved/`) or explicitly re-scoped by the critique. *Progress
-      2026-10-09: KI-048 resolved by Part 1 (PR #363); the other three wait on Parts 2, 3 and 5.*
-- [ ] **The phone shows a conflict state**, with a test seen red without it.
-- [ ] **Caesura passes Chrome's installability check**: a manifest with icons, a service worker
-      and a viewport. An e2e or a Lighthouse assertion records this.
-- [ ] **The service worker never caches an API or token route**: a unit test over its route
-      matcher was seen red with `/api/` allowed.
+      2026-10-09: KI-048 resolved by Part 1 (PR #363), `-24-i` by Part 2 (PR #364), `-24-j` by
+      Part 3 (PR #365), all merged. `-25-f` is resolved in Part 5 (PR #367), not yet merged.*
+- [ ] **The phone shows a conflict state**, with a test seen red without it. *Progress
+      2026-10-09: built in Part 6 (PR #368, `e2e/m39-phone-conflicts.spec.ts` and
+      `ConflictsChip.test.tsx`, each seen red), not yet merged.*
+- [x] **Caesura passes Chrome's installability check**: a manifest with icons, a service worker
+      and a viewport. An e2e or a Lighthouse assertion records this. *Ticked 2026-10-09: Part 4
+      (PR #366, merged). `e2e/m39-installable.spec.ts` asks Chromium for
+      `Page.getInstallabilityErrors` and expects none; it was seen red without `manifest.ts`
+      (`no-manifest`). CI was green on the merged head.*
+- [x] **The service worker never caches an API or token route**: a unit test over its route
+      matcher was seen red with `/api/` allowed. *Ticked 2026-10-09: Part 4 (PR #366, merged).
+      `src/lib/serviceWorker.test.ts` runs the real `public/sw.js`; with `/api/` allowed it
+      failed with `expected 'cache-first' to be 'network'`.*
 - [ ] **The e2e specs pass on `pnpm --filter web test:e2e:ci-like`**, including the `phone`
       project.
 - [ ] **[walk]** Installed to a real iPhone and a real Android home screen. Sign-in, opening an
