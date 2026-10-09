@@ -276,12 +276,14 @@ export function TripHeader({
       <header
         ref={publishStickyStack}
         aria-label="Trip"
-        // `top-14` is the height of AppHeader, which is `sticky top-0 h-14` and
-        // sits above this one on every `(app)` route. `/demo` draws
+        // `.below-app-header` is the height of AppHeader, which is sticky at the
+        // top and sits above this one on every `(app)` route: 56px plus the
+        // device's top safe-area inset (globals.css, M39 D10). `/demo` draws
         // FrontDoorHeader instead, which does not stick — so there, offsetting by
-        // 56px pins this header 56px down from the top and leaves a see-through
-        // strip of scrolled content above it (Mitchell, preview comment on
-        // `/demo`). Nothing is sticky above it there, so it pins to the top.
+        // AppHeader's height pins this header that far down and leaves a
+        // see-through strip of scrolled content above it (Mitchell, preview
+        // comment on `/demo`). Nothing is sticky above it there, so it pins to
+        // the top, under the inset (`.pinned-at-top`).
         //
         // `z-20`, not `z-10`: a hovered or lifted river block is `z-10`
         // (RiverBlock.tsx — its tag reveal hangs out of it), and at equal z the
@@ -295,7 +297,7 @@ export function TripHeader({
           // ~305px pinned. Every `max-md:` class below is that row; the
           // desktop classes beside them are untouched.
           "max-md:px-3 max-md:pt-1.5 max-md:pb-1.5",
-          isDemoTripId(tripId) ? "top-0" : "top-14",
+          isDemoTripId(tripId) ? "pinned-at-top" : "below-app-header",
         )}
       >
         {/* On a phone the two columns and the nav row dissolve (`contents`)
@@ -764,7 +766,8 @@ function TravellerStack({ access, onOpen }: { access: TripAccess | null; onOpen:
 
 /**
  * Publishes the height of the sticky stack this header ends — `AppHeader`'s
- * 56px above it where there is one, plus this header's own height — as
+ * height above it where there is one (56px plus the top safe-area inset), plus
+ * this header's own height — as
  * `--sticky-stack-height` on the document element, for the scroll margin on the
  * day-sync scroll targets (`.day-sync-target`, globals.css, KI-2026-09-13-a).
  *
@@ -773,9 +776,9 @@ function TravellerStack({ access, onOpen }: { access: TripAccess | null; onOpen:
  * down landed under this header. The margin cannot be a constant: this header
  * wraps at narrow widths, carries the day rail on a phone's Plan (`pinned`),
  * and `AppHeader` is absent on `/demo`. So it is
- * measured — this header's resolved `top` (0 or 56px, which is exactly the
- * part of the stack above it) plus its own height, re-read by a
- * ResizeObserver whenever it wraps.
+ * measured — this header's resolved `top` (AppHeader's height, or the bare
+ * inset on `/demo`: exactly the part of the stack above it) plus its own
+ * height, re-read by a ResizeObserver whenever it wraps.
  *
  * A callback ref rather than `useRef` + effect because the header renders
  * `null` until the trip is ready, and an effect that ran first would find the

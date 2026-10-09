@@ -23,7 +23,7 @@ import { isDemoDataResetEnabled } from "@/lib/demoDataReset";
 export function AppHeader() {
   const demoResetEnabled = isDemoDataResetEnabled();
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b border-hairline bg-surface px-6">
+    <header className="app-header sticky top-0 z-30 flex items-center gap-4 border-b border-hairline bg-surface px-6">
       {/* The logo mark is also the save light (SPEC "The logo is the save
           light", RULES.md 4 — the trip header carried a second dot saying the
           same thing). It is a client island for the same reason the account

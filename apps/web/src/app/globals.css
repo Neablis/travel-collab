@@ -259,6 +259,31 @@
   body {
     @apply bg-paper font-sans text-base text-ink antialiased;
   }
+
+  /* **The device's safe area** (M39 D10). `layout.tsx`'s `viewport-fit=cover`
+     lets an installed app draw edge to edge — under the status bar, a notch,
+     the home indicator — and these are what keep the chrome out from under
+     them. Every inset is 0 on a device with none, and on every device until
+     `cover` is set, so nothing here moves a desktop or a test by a pixel.
+
+     **Top.** AppHeader is the top of every `(app)` page, so it absorbs the
+     inset (`.app-header` below) and everything sticky under it offsets by
+     `--app-header-height` instead of a bare 3.5rem. The bottom inset was
+     already on the phone tab bar (`.phone-tab-bar`).
+
+     **Left and right**, on the body: a phone in landscape has its notch on one
+     side, and padding the body moves every page gutter, header and full-bleed
+     board in from it in one place, where a rule per gutter would miss the
+     next one written. `position: fixed` layers (the rack, Ask's floating card,
+     toasts) sit outside that padding and are not inset yet. */
+  :root {
+    --safe-area-top: env(safe-area-inset-top, 0px);
+    --app-header-height: calc(3.5rem + var(--safe-area-top));
+  }
+  body {
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+  }
 }
 
 /* ───────────────────────────────────────────────────────────────────────────
@@ -747,6 +772,35 @@ html[data-look="ledger"] .shadow-raised {
     scroll-margin-top: var(--sticky-stack-height, 0px);
   }
 
+  /* The top safe-area inset (see `--safe-area-top` in the base layer). Named
+     rules rather than `h-14`/`top-14` plus an arbitrary `calc()` value, which
+     the colour wall rejects; the utilities they replace are gone from the
+     elements, so no layer order decides between the two.
+
+     `.app-header` — AppHeader's 56px row, under the inset rather than in it.
+     `.below-app-header` — sticky directly under AppHeader (TripHeader).
+     `.pinned-at-top` — sticky with nothing above it (TripHeader on `/demo`,
+     whose front-door header scrolls away). It pins under the inset rather
+     than padding itself by it, so at rest it does not grow a gap mid-page.
+     `.front-door-header` — the front door's non-sticky header, the top of
+     every `(front)` page: `py-4`'s top half plus the inset.
+
+     TripHeader's `--sticky-stack-height` needs no rule: it is measured from
+     the header's resolved `top`, which already includes the inset. */
+  .app-header {
+    height: var(--app-header-height);
+    padding-top: var(--safe-area-top);
+  }
+  .below-app-header {
+    top: var(--app-header-height);
+  }
+  .pinned-at-top {
+    top: var(--safe-area-top);
+  }
+  .front-door-header {
+    padding-top: calc(1rem + var(--safe-area-top));
+  }
+
   /* PhoneTabBar (SPEC §16, handoff `…dc.html:863-871`). Two rules, and they
      are the same `--rack-height` bargain one level up: the bar is
      `position: fixed`, so it reserves no flow space, and a page's last row
@@ -1171,7 +1225,7 @@ html[data-look="ledger"] .shadow-raised {
         submitting with Enter. `dvh` tracks the browser's actual visible
         viewport instead.
      A named class rather than a Tailwind `md:` variant on the element
-     because the desktop geometry (356px width, `100vh - 3.5rem` height) is
+     because the desktop geometry (356px width, `100vh` less AppHeader's height) is
      an inline-style computed-geometry exception (AssistantRail.tsx) and an
      inline style beats any later Tailwind utility without `!important` — the
      override has no effect unless both states live in the same rule, so both
@@ -1183,9 +1237,9 @@ html[data-look="ledger"] .shadow-raised {
      width, docked included. */
   .assistant-rail {
     position: sticky;
-    top: 3.5rem;
+    top: var(--app-header-height);
     width: 356px;
-    height: calc(100vh - 3.5rem);
+    height: calc(100vh - var(--app-header-height));
   }
   @media (max-width: 767px) {
     .assistant-rail {
