@@ -21,27 +21,32 @@ general setup.
 
 ## Where the work is right now
 
-**M39 — THE PHONE LAYOUT IS DECIDED ONCE, AND CAESURA INSTALLS LIKE AN APP — IS THE CURRENT
-MILESTONE AS OF 2026-10-08**, by **M38's gate closing at 8 of 8**. Order: `… M37 ✓ → M38 ✓ → M39 →
-M40 … M47`. **Scoped 2026-10-08** from the critique in PR #362: six parts, 1–4 buildable then,
-5–6 thought to need a design-sync artboard (the milestone file's *Scope* table).
-(`docs/milestones/M39-the-phone-is-decided.md`)
-**Parts 1–7 merged 2026-10-09** (PRs #363–#369, then #371 for Part 7's self-review; gate 6/8).
-Also merged: #372 (the icons draw the two-stroke caesura, not the old ◎) and the hotfix #374. Part 4's
-service worker had a `fetch` listener, and it lost edits queued at a reload in production
-(`KI-2026-10-09-e`, resolved). And #373: an *Install app* row in the account menu and a one-time
-phone nudge (Mitchell's option B). Mitchell answered every open question. Parts 5 and 6 were built from
-committed components rather than new artboards, on his word, and their PRs list the choices for
-him to confirm. The ci-like e2e box is ticked (290 passed on `814f469`). Left: Mitchell's
-real-device walk and the retro. The plan is `docs/plans/2026-10-09-M39-phone-and-install.md`.
+**M40 — A BIG CHANGE IS REVIEWED WHOLE, TAKEN WHOLE, AND UNDONE WHOLE — IS THE CURRENT MILESTONE
+AS OF 2026-10-09**, by **M39's gate closing at 8 of 8**. Order: `… M38 ✓ → M39 ✓ → M40 → M41 …
+M47`. It is proposed but **not scoped**: its decisions are recommendations Mitchell has not yet
+answered. (`docs/milestones/M40-a-big-change-is-one-change.md`)
+
+**M39 closed 2026-10-09.** The phone layout was decided once, in the critique (#362). It shipped
+as Parts 1–7 (#363–#369, plus #371 for Part 7's self-review), all merged 2026-10-09:
+- one pinned header row with the day rail;
+- a touch floor on touch screens;
+- a phone Overview and a phone conflicts chip;
+- safe-area insets;
+- an installable app, with the two-stroke icons (#372) and an *Install app* row and one-time
+  phone nudge (#373).
+
+The hotfix #374 removed the service worker's `fetch` listener, which had lost edits queued at a
+reload in production (`KI-2026-10-09-e`). The ci-like e2e passed 290 of 290 on `814f469`. The
+device walk was **Android only**, by Mitchell's call: the iPhone half is open as
+`KI-2026-10-09-f`. Its retro is at the end of `docs/milestones/M39-the-phone-is-decided.md`.
 
 **M38 closed 2026-10-08.** People carry a chosen avatar, colour and display name on every person
 surface. A clash within a trip shifts the later joiner. A chosen name reaches public pages only
 when its owner opts in. An invitee sees the plan, who is going and the total before joining, drawn
 by the shared notebook widgets. It shipped as #356 → #360, merged 2026-10-08, and every code part
 was reviewed by CodeRabbit. Its retro is at the end of
-`docs/milestones/M38-people-you-can-tell-apart.md`. **Migration `0044_personas` must be dispatched
-with `migrate-production`.** The code is live on `main` and reads the new `users` columns.
+`docs/milestones/M38-people-you-can-tell-apart.md`. Migration `0044_personas` is applied:
+`migrate-production` ran on `b10f513`.
 
 **M37 closed 2026-10-07.** Trip cards show length and stops, and an unplanned trip is designed.
 Trips and playbook days get Unsplash covers. It shipped as #350 → #354, merged 2026-10-07, with a
@@ -249,8 +254,8 @@ half, the model guessing a coordinate rather than citing one, is M9 scope.
 
 ## Next action
 
-**Dispatch `migrate-production` from `main` for `0044_personas`**, then **scope M39**: its
-design critique comes first (`docs/milestones/M39-the-phone-is-decided.md`).
+**Scope M40** (`docs/milestones/M40-a-big-change-is-one-change.md`): Mitchell answers its
+decisions, then a plan is written. M39 added no migrations; all 45 are applied.
 Separately,
 `KI-2026-10-04-c` resolves on query 8 of `ledger.sql` over a few days of cheap-tier step durations.
 
