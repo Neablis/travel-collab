@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ActivityView } from "@tc/contracts";
@@ -629,6 +629,54 @@ describe("DayChips day-sync", () => {
     vi.spyOn(row, "getBoundingClientRect").mockReturnValue({ top: -300, bottom: -200 } as DOMRect);
     rerender(<DayChips days={chips} focusedDay={2} onSelect={() => {}} sync={sync} />);
     expect(jumped).toEqual([null]);
+  });
+
+  // M39 decision 7 (KI-048 item 3): a row with nothing past its edge looked
+  // like a rendering error when the last chip was cut. The fade sits on
+  // whichever edge still has chips behind it. jsdom has no layout, so the
+  // scroll box is stated here — the same thing the spy above reads.
+  it("fades only the edges that have chips beyond them", () => {
+    render(<DayChips days={chips} focusedDay={null} onSelect={() => {}} />);
+    const row = screen.getByRole("group", { name: "Days" });
+    const scrollTo = (scrollLeft: number) => {
+      Object.defineProperties(row, {
+        scrollWidth: { configurable: true, value: 300 },
+        clientWidth: { configurable: true, value: 200 },
+        scrollLeft: { configurable: true, value: scrollLeft },
+      });
+      fireEvent.scroll(row);
+    };
+    const fades = () => ({ start: row.hasAttribute("data-fade-start"), end: row.hasAttribute("data-fade-end") });
+
+    scrollTo(0);
+    expect(fades()).toEqual({ start: false, end: true });
+    scrollTo(50);
+    expect(fades()).toEqual({ start: true, end: true });
+    scrollTo(100);
+    expect(fades()).toEqual({ start: true, end: false });
+  });
+
+  // The measure on mount: a row that overflows from its first paint, with no
+  // scroll or resize yet to prompt one, fades its far edge straight away.
+  it("fades the far edge of a row that overflows on mount", () => {
+    const widths = [
+      vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockReturnValue(300),
+      vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(200),
+    ];
+    try {
+      render(<DayChips days={chips} focusedDay={null} onSelect={() => {}} />);
+      const row = screen.getByRole("group", { name: "Days" });
+      expect([row.hasAttribute("data-fade-start"), row.hasAttribute("data-fade-end")]).toEqual([false, true]);
+    } finally {
+      for (const spy of widths) spy.mockRestore();
+    }
+  });
+
+  it("does not fade a row that fits", () => {
+    render(<DayChips days={chips} focusedDay={null} onSelect={() => {}} />);
+    const row = screen.getByRole("group", { name: "Days" });
+    // jsdom's default box: scrollWidth === clientWidth === 0.
+    expect([row.hasAttribute("data-fade-start"), row.hasAttribute("data-fade-end")]).toEqual([false, false]);
   });
 
   it("renders and selects with no sync at all", async () => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useCallback, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useId, useMemo, useRef, useState } from "react";
 import type { Money, TripAccess, TripCommand, TripDetail } from "@tc/contracts";
 import { Sheet } from "@/components/ui/sheet";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -10,7 +10,6 @@ import { FormField } from "@/components/ui/form-field";
 import { DataText } from "@/components/ui/data-text";
 import { BudgetMeter } from "@/components/ui/budget-meter";
 import { Banner } from "@/components/ui/banner";
-import { Popover } from "@/components/ui/popover";
 import { PeopleSection } from "@/components/trip/people/PeopleSection";
 import { CoverSection } from "@/components/trip/cover/CoverSection";
 import { ShareButton } from "@/components/trip/ShareButton";
@@ -81,9 +80,9 @@ function datesLabel(startDate: string | null, endDate: string | null): string {
 // with no mount point anywhere in the app — an unintentional capability loss,
 // not a deliberate deferral (product-owner ruling, 2026-08-22, superseding
 // the D-2 known-issues entry). Fix: the Dates row is now a real trigger —
-// clicking it opens a Popover containing TripDateControl, the same
-// click-a-row/open-a-small-control idiom TripHeader's own History popover
-// uses (TripHeader.tsx, ~line 181). TripMoneySettings keeps its existing
+// clicking it expands TripDateControl inline beneath the row (M39 decision 8;
+// it was a Popover until then, which opened over "Total for the trip" —
+// KI-048 item 5). TripMoneySettings keeps its existing
 // handlers/aria-labels and dispatch logic byte-identical — this task only
 // touches the Dates row.
 //
@@ -183,6 +182,17 @@ export function SettingsSheet({
   // about not offering them.
   const dispatch = canEditBoard ? onCommand : () => undefined;
   const [datesOpen, setDatesOpen] = useState(false);
+  const datesEditorId = useId();
+  // The popover this replaced shut itself on any outside click, so leaving the
+  // sheet always left it closed. Inline has no such dismiss, and SettingsSheet
+  // stays mounted while the sheet is shut — so without this, reopening the
+  // sheet finds the editor still expanded. Reset during render, on the edge,
+  // rather than in an effect, so the stale editor never paints.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (!open) setDatesOpen(false);
+  }
 
   // Opened at a section, the sheet lands there when it mounts — but Cover
   // photo changes height when its reads land (a skeleton becomes a photo, or
@@ -280,42 +290,46 @@ export function SettingsSheet({
 
         {/* Clickable dates row (this task, restoring TripDateControl's mount
             point) — same 1px hairline border, 8px radius, 10px/12px padding
-            the read-only row had, now as a Popover trigger Button so the row
-            looks unchanged except for the added interactive affordance.
+            the read-only row had, as a disclosure Button so the row looks
+            unchanged except for the added interactive affordance.
             aria-label is set explicitly (not derived from datesLabel) so the
             e2e specs' getByRole("button", { name: "Dates" }) stays stable
-            regardless of the displayed date value. */}
-        <Popover
-          open={datesOpen}
-          onOpenChange={setDatesOpen}
-          align="end"
-          trigger={
-            <Button
-              variant="ghost"
-              aria-label="Dates"
-              disabled={!canEditBoard}
-              className="w-full justify-between rounded-lg border border-hairline px-3 py-2.5 text-left"
-            >
-              <Text as="span" className="text-xs text-slate">
-                Dates
-              </Text>
-              <DataText size="sm" className="text-ink">
-                {datesLabel(startDate, endDate)}
-              </DataText>
-            </Button>
-          }
+            regardless of the displayed date value.
+
+            Inline, not a Popover (M39 decision 8, KI-048 item 5): the
+            popover opened downward over "Total for the trip", hiding the
+            figure a date change is most likely to be weighed against. The
+            design's row expands in place and pushes what follows down. */}
+        <Button
+          variant="ghost"
+          aria-label="Dates"
+          aria-expanded={datesOpen}
+          aria-controls={datesEditorId}
+          disabled={!canEditBoard}
+          onClick={() => setDatesOpen((was) => !was)}
+          className="w-full justify-between rounded-lg border border-hairline px-3 py-2.5 text-left"
         >
-          <TripDateControl
-            tripId={tripId}
-            startDate={startDate}
-            endDate={endDate}
-            onCommand={(command) => {
-              dispatch(command);
-              setDatesOpen(false);
-            }}
-            onClose={() => setDatesOpen(false)}
-          />
-        </Popover>
+          <Text as="span" className="text-xs text-slate">
+            Dates
+          </Text>
+          <DataText size="sm" className="text-ink">
+            {datesLabel(startDate, endDate)}
+          </DataText>
+        </Button>
+        {datesOpen && (
+          <div id={datesEditorId} data-testid="trip-dates-editor" className="-mt-2 rounded-lg border border-hairline p-3">
+            <TripDateControl
+              tripId={tripId}
+              startDate={startDate}
+              endDate={endDate}
+              onCommand={(command) => {
+                dispatch(command);
+                setDatesOpen(false);
+              }}
+              onClose={() => setDatesOpen(false)}
+            />
+          </div>
+        )}
 
         {/* The header's meta pill, in words rather than as a pill. The pill is
             hidden below 768px (TripHeader), and Mitchell's question about

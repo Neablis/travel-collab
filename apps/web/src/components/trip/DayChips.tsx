@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { centralDayIndex, READING_LINE, stepDay } from "@/components/trip/centralDay";
 import {
@@ -128,7 +128,7 @@ export function DayChips({ days, focusedDay, onSelect, readOnly = false, sync }:
   // control. The horizontal twin of the timeline's spy — the row scrolls inside
   // its OWN box, so the viewport is that box and the reading line is its true
   // centre (see `READING_LINE` for why the two axes differ).
-  const onScroll = useDayScrollSpy(sync, () => {
+  const onSpyScroll = useDayScrollSpy(sync, () => {
     const row = rowRef.current;
     if (row === null) return null;
     const rowRect = row.getBoundingClientRect();
@@ -152,6 +152,32 @@ export function DayChips({ days, focusedDay, onSelect, readOnly = false, sync }:
       atEnd: row.scrollLeft >= maxScroll - 1,
     });
   });
+
+  // M39 decision 7 (KI-048 item 3): which edges still have chips past them.
+  // A bare scroll row whose last chip happened to be cut mid-card read as a
+  // rendering error, not as "there is more". State rather than a CSS class
+  // because only scroll position knows which side is hidden; same 1px slack as
+  // the spy's `atStart`/`atEnd` above, for sub-pixel layout.
+  const [overflow, setOverflow] = useState({ before: false, after: false });
+  const measureOverflow = () => {
+    const row = rowRef.current;
+    if (row === null) return;
+    const before = row.scrollLeft > 1;
+    const after = row.scrollLeft < row.scrollWidth - row.clientWidth - 1;
+    setOverflow((prev) => (prev.before === before && prev.after === after ? prev : { before, after }));
+  };
+  const measureRef = useRef(measureOverflow);
+  measureRef.current = measureOverflow;
+  // A resize, or a day added, changes whether the row overflows at all with no
+  // scroll event to say so.
+  useEffect(() => {
+    const row = rowRef.current;
+    if (row === null) return;
+    measureRef.current();
+    const observer = new ResizeObserver(() => measureRef.current());
+    observer.observe(row);
+    return () => observer.disconnect();
+  }, [days.length]);
 
   // Contract clauses 2 and 3: a day picked in a column, a cell or the timeline
   // brings its chip back into view here, and switching lenses does the same on
@@ -221,8 +247,28 @@ export function DayChips({ days, focusedDay, onSelect, readOnly = false, sync }:
       role="group"
       aria-label="Days"
       onKeyDown={onKeyDown}
-      onScroll={onScroll}
-      className="-mx-1 flex gap-2 overflow-x-auto px-1 pt-1 pb-1"
+      onScroll={() => {
+        onSpyScroll();
+        measureOverflow();
+      }}
+      // The fade is a mask on the scroller's own box, so it stays at the edge
+      // while the chips move under it, and fades the chips rather than painting
+      // a page colour over them (the row sits on more than one background).
+      // 2rem is the Calendar's fade width (`CalendarLens` MonthBlock).
+      //
+      // Snapping to chip starts, so a scroll comes to rest on a whole chip at
+      // the leading edge. `scroll-px-1` matches `px-1` above: without it the
+      // snapped chip lands flush on the scroll origin and its ring is clipped
+      // again, which is what the padding exists to prevent.
+      //
+      // The mask is a named rule in `globals.css` (`[data-day-chips]`) keyed
+      // off the data attributes, because the colour wall bans the bracketed
+      // value a `mask-r-from-[calc(100%-2rem)]` class would need. So which
+      // edge is faded is readable state rather than a class to parse.
+      data-day-chips=""
+      data-fade-start={overflow.before || undefined}
+      data-fade-end={overflow.after || undefined}
+      className="-mx-1 flex snap-x snap-mandatory scroll-px-1 gap-2 overflow-x-auto px-1 pt-1 pb-1"
     >
       {days.map((day, index) => {
         const accent = accents[index] ?? { tint: "neutral", ink: "neutral", solid: "neutral" };
@@ -246,7 +292,7 @@ export function DayChips({ days, focusedDay, onSelect, readOnly = false, sync }:
             data-day-index={index}
             onClick={() => onSelect(isFocused ? null : index)}
             className={cn(
-              "h-auto shrink-0 flex-col items-start justify-start gap-1 rounded-lg p-2 text-left hover:opacity-90",
+              "h-auto shrink-0 snap-start flex-col items-start justify-start gap-1 rounded-lg p-2 text-left hover:opacity-90",
               CHIP_BG[accent.solid],
               isFocused && "ring-2 ring-brand",
             )}
