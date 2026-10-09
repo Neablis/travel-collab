@@ -46,6 +46,7 @@ export function TripHeader({
   onOpenAssistant,
   children,
   pinned,
+  conflicts,
 }: {
   tripId: string;
   /**
@@ -71,6 +72,15 @@ export function TripHeader({
    * the board's sticky offsets clear it. The caller decides when there is one.
    */
   pinned?: React.ReactNode;
+  /**
+   * The phone's conflict count (M39 D9), beside Suggestions in the pinned row,
+   * below 768px only: above it the banner over Plan's columns is the surface.
+   * Built by the caller, which owns where a jump to a stop goes; handed the
+   * row's `⋯`, which is where focus goes once the last conflict is dismissed.
+   * The `⋯` rather than Ask: it is the next control in the row, and on a phone
+   * it is always there, where Ask is withheld on /demo.
+   */
+  conflicts?: (neighbour: React.RefObject<HTMLButtonElement | null>) => React.ReactNode;
 }) {
   // Render from `activeTrip`, not `trip`: `trip` is the server-confirmed
   // detail only, while `activeTrip` folds in TripProvider's optimistic
@@ -515,6 +525,7 @@ export function TripHeader({
                     something and a count behind a menu is a count nobody sees,
                     and History moves into the overflow menu. */}
                 <div className="flex items-center gap-0.5 max-md:order-2">
+                  <span className="contents md:hidden">{conflicts?.(tripActions)}</span>
                   <SuggestionsChip />
                   {/* The Popover stays mounted during preview (not gated on
                       preview.seq === null like undo/redo/settings) — HistoryPanel's

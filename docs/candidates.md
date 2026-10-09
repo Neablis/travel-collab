@@ -568,6 +568,8 @@ here two days later.
   by `docs/milestones/M26-design-parity.md` as design-owed rather than built:
   it needs a design before it needs a build.
   *Placed 2026-10-06 → `docs/milestones/M39-the-phone-is-decided.md` (proposed, not yet scoped). M39's gate deletes this entry at close.*
+  *Built 2026-10-09 by M39 part 6 (decision 9): the count in the pinned row, its sheet, and the
+  stop card's marker, held by `apps/web/e2e/m39-phone-conflicts.spec.ts`. Kept until the gate prunes it.*
 
 - **Save light: move Retry out of the mark and into a popover on it
   (2026-08-26, Mitchell, PR #55 — "nice to have, to do later").** SPEC's "The
