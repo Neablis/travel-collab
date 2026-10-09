@@ -877,6 +877,28 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // draws the rail one row lower, below the header rather than in it.
   const pinsDayRail = isPhone && view === "Plan";
 
+  // The rack, in either of its places: the drawer fixed to the bottom, or on a
+  // phone the row at the end of the day (M39 D6), where it covers nothing and
+  // so publishes no `--rack-height`.
+  const unscheduledRack = (placement: "dock" | "row") => (
+    // Names a card's "Parked by" (M38), from the same cached access
+    // read as the editor's provider above — no second request.
+    <PeopleProvider tripId={tripId}>
+      <UnscheduledRack
+        placement={placement}
+        items={rackItems}
+        dayOptions={rackDayOptions}
+        open={rack.open}
+        onToggle={() => onRackEvent({ type: "toggle" })}
+        onAssign={canEditBoard ? assignFromRack : undefined}
+        onEdit={canEditBoard ? openEdit : undefined}
+        onRemove={canEditBoard ? (activityId) => void dispatch({ type: "RemoveActivity", tripId, activityId }) : undefined}
+        reveal={rackReveal}
+      />
+    </PeopleProvider>
+  );
+  const rackIsRow = isPhone && draft === null;
+
   // How many more questions this thread has room for.
   //
   // `runAsk` posts the whole thread plus the new question, and the server
@@ -1136,6 +1158,8 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                     // `Board` because it reads `useTrip()` and `Board` is
                     // props-only; this screen is inside the provider.
                     addSavedDay={<AddSavedDayButton />}
+                    // A suggester's bar stays fixed where the rack was (below).
+                    endOfDay={rackIsRow ? unscheduledRack("row") : undefined}
                     suggestions={suggestions}
                     callbacks={{
                       // "columns", for the same reason the chips row names
@@ -1354,22 +1378,11 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
         <div ref={rackWrapperRef}>
           <SuggestionTray draft={draft} />
         </div>
-      ) : lensAcceptsDrops(view) && (
+      ) : lensAcceptsDrops(view) && !rackIsRow && (
+        // Unmounted on a phone, where the rack is the board's end-of-day row:
+        // the ref's `null` is what puts `--rack-height` back to 0.
         <div ref={rackWrapperRef} inert={preview.seq !== null ? true : undefined}>
-          {/* Names a card's "Parked by" (M38), from the same cached access
-              read as the editor's provider above — no second request. */}
-          <PeopleProvider tripId={tripId}>
-            <UnscheduledRack
-              items={rackItems}
-              dayOptions={rackDayOptions}
-              open={rack.open}
-              onToggle={() => onRackEvent({ type: "toggle" })}
-              onAssign={canEditBoard ? assignFromRack : undefined}
-              onEdit={canEditBoard ? openEdit : undefined}
-              onRemove={canEditBoard ? (activityId) => void dispatch({ type: "RemoveActivity", tripId, activityId }) : undefined}
-              reveal={rackReveal}
-            />
-          </PeopleProvider>
+          {unscheduledRack("dock")}
         </div>
       )}
     </>

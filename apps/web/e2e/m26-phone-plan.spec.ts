@@ -268,8 +268,10 @@ test.describe("M29 — the river on a phone", () => {
     await context.close();
   });
 
-  // The rack is fixed above the tab bar and is still a place to land: a mouse
-  // drop on it unschedules, and so does a finger letting go on it.
+  // The rack is still a place to land: a mouse drop on it unschedules, and so
+  // does a finger letting go on it. **On a phone it is the row after the day**
+  // (M39 D6), not a bar fixed above the tab bar, so the page is centred at
+  // 7 pm: the 4:30 block and the row below 10 pm are on screen together.
   test("a held block let go on the rack is parked there", async ({ browser }) => {
     const { context, page, river } = await phone(browser, "PhoneRiverPark");
     const finger = await fingerOn(page);
@@ -277,10 +279,16 @@ test.describe("M29 — the river on a phone", () => {
     const rack = page.getByTestId("unscheduled-rack");
     await expect(rack.getByRole("button", { name: /^Unscheduled 0\b/ })).toBeVisible();
 
-    const from = await pointAt(page, river, 16.5);
+    const from = await pointAt(page, river, 16.5, 19);
+    const box = (await rack.boundingBox())!;
+    // Below the river, and above the tab bar: a finger let go under the bar
+    // would be over the bar.
+    const riverBox = (await river.boundingBox())!;
+    expect(box.y).toBeGreaterThanOrEqual(riverBox.y + riverBox.height);
+    const tabBarTop = (await page.getByRole("navigation", { name: "Phone navigation" }).boundingBox())!.y;
+    expect(box.y + box.height).toBeLessThanOrEqual(tabBarTop);
     await finger.down(from.x, from.y);
     await expect(walk).toHaveAttribute("data-lifted", "true");
-    const box = (await rack.boundingBox())!;
     await finger.move(box.x + box.width / 2, box.y + box.height / 2, 12);
     await finger.up();
 

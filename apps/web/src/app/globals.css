@@ -1105,7 +1105,11 @@ html[data-look="ledger"] .shadow-raised {
        Lifting rather than restacking: under the bar the rack is hidden, over it
        the rack covers navigation. Both are bottom-anchored and the bar owns the
        bottom, so the rack takes the space above it. The variable is 0px at
-       >=768px, where the bar is not rendered, so desktop is unchanged. */
+       >=768px, where the bar is not rendered, so desktop is unchanged.
+
+       Since M39 D6 the rack is not docked on a phone at all: it is a row at
+       the end of the day (`UnscheduledRack`'s `placement="row"`). Below 768px
+       this lifts only the suggester's draft bar, which shares the class. */
     bottom: var(--phone-tab-bar-height, 0px);
     box-shadow: 0 -1px 2px rgb(21 29 46 / 0.06);
   }

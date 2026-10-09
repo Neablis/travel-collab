@@ -166,6 +166,7 @@ export type BoardCallbacks = {
  * @param sync - Optional handle for synchronizing scrolling with day selection
  * @param keepFlag - Optional "keep this day" pennant, rendered in each day's header
  * @param addSavedDay - Optional control for inserting a saved day, after the last column
+ * @param endOfDay - Optional row after the one day a phone shows (the Unscheduled row)
  * @param suggestions - Optional pending suggestions, drawn as ghosts
  */
 export function Board({
@@ -179,6 +180,7 @@ export function Board({
   sync,
   addSavedDay,
   oneDay = false,
+  endOfDay,
   suggestions,
 }: {
   trip: TripDetail;
@@ -208,6 +210,12 @@ export function Board({
    * props-only by design and its tests render it with no provider.
    */
   oneDay?: boolean;
+  /**
+   * What follows the day on the one-day board: the phone's Unscheduled row
+   * (M39 D6), which was a drawer fixed over the list. A slot for the reason
+   * `addSavedDay` is one. Not drawn on the desktop row, which has the drawer.
+   */
+  endOfDay?: ReactNode;
   /**
    * The "Add a saved day" control for the trailing "One more day?" column.
    *
@@ -835,6 +843,7 @@ export function Board({
               }
             />
           ))}
+          {oneDay && endOfDay}
           {/* "One more day?" is an invitation to change the trip, so it is the
               reader's cue that they are looking at somebody else's — or, on the
               demo, at one that is not theirs yet.

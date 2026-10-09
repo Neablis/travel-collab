@@ -1661,6 +1661,39 @@ describe("TripBoardScreen — a day's untimed stops", () => {
     ]);
   });
 
+  // M39 D6: on a phone the rack is no drawer fixed over the list but a row
+  // after the day the phone shows, collapsed to its count and opening where it
+  // is. That it covers nothing and still takes a finger's drop is measured in
+  // a browser, by e2e/m39-phone-header.spec.ts and m26-phone-plan.spec.ts.
+  it("is a row after the day on a phone, collapsed to its count, that opens in place", async () => {
+    setViewportMatches({ "(max-width: 767px)": true });
+    const fixture = trip();
+    server.use(...makeTripHandlers(fixture));
+    renderScreen(fixture.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+
+    const columns = screen.getByRole("group", { name: "Day columns" });
+    const rack = await within(columns).findByTestId("unscheduled-rack");
+    expect(screen.getAllByTestId("unscheduled-rack")).toHaveLength(1);
+    const toggle = within(rack).getByRole("button", { name: /^Unscheduled/ });
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(within(toggle).getByText("2")).toBeTruthy();
+    expect(within(rack).queryAllByTestId("rack-card")).toHaveLength(0);
+
+    fireEvent.click(toggle);
+    expect(within(rack).getAllByTestId("rack-card")).toHaveLength(2);
+  });
+
+  it("stays the drawer below the board above the breakpoint", async () => {
+    const fixture = trip();
+    server.use(...makeTripHandlers(fixture));
+    renderScreen(fixture.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+
+    expect(screen.getAllByTestId("unscheduled-rack")).toHaveLength(1);
+    expect(within(screen.getByRole("group", { name: "Day columns" })).queryByTestId("unscheduled-rack")).toBeNull();
+  });
+
   // Mitchell, 2026-09-30 (option "B"): a leg's destination shows wherever the
   // stop does. The badge already says the mode; the area line says where.
   it("names a parked leg by both its ends", async () => {

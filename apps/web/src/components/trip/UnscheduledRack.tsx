@@ -80,10 +80,17 @@ function groupByDay(items: RackItem[]): RackGroup[] {
 // untimed stop keeps its day in the trip — the assistant, exports and widgets
 // still read "any time on Day 3" — and only where it is DRAWN moved: here,
 // under its day's heading, after the stops that have no day at all.
+//
+// **On a phone it is a row at the end of the day, not a drawer** (M39 D6,
+// KI-2026-09-24-i). Fixed above the tab bar it was ~45px of control floating
+// over the list, against SPEC §13.5's "nothing floats over data". The same
+// component, contents and drop target, placed in the flow after the focused
+// day's last stop and opening there.
 /**
- * The Unscheduled drawer pinned to the bottom of the board: the stops with no
- * day, then each day's untimed stops under that day's heading. A drop target
- * (a drop unschedules) and, for an editor, a source of draggable cards.
+ * The Unscheduled drawer: the stops with no day, then each day's untimed stops
+ * under that day's heading. Pinned to the bottom of the board, or on a phone a
+ * row after the day (`placement="row"`). A drop target (a drop unschedules)
+ * and, for an editor, a source of draggable cards.
  */
 export function UnscheduledRack({
   items,
@@ -94,7 +101,13 @@ export function UnscheduledRack({
   onEdit,
   onRemove,
   reveal = null,
+  placement = "dock",
 }: {
+  /**
+   * `dock` is the drawer fixed to the bottom of the viewport (`.unscheduled-rack`);
+   * `row` sits in the page's flow, where the caller puts it, and covers nothing.
+   */
+  placement?: "dock" | "row";
   items: RackItem[];
   dayOptions: { value: string; label: string }[];
   open: boolean;
@@ -179,7 +192,8 @@ export function UnscheduledRack({
       // report for why this is the honest simple version of the design's
       // "cross-fade the drag proxy" note.
       className={cn(
-        "unscheduled-rack z-20 border-t border-hairline transition-colors duration-200",
+        "border-hairline transition-colors duration-200",
+        placement === "dock" ? "unscheduled-rack z-20 border-t" : "overflow-hidden rounded-2xl border",
         isOver ? "bg-brand-tint" : "bg-surface",
       )}
     >
@@ -191,7 +205,11 @@ export function UnscheduledRack({
         variant="ghost"
         aria-expanded={open}
         onClick={onToggle}
-        className="h-auto w-full justify-start gap-3 rounded-none px-0 py-0 hover:bg-moss"
+        // The row clips to its rounded border, so its focus ring is drawn inside.
+        className={cn(
+          "h-auto w-full justify-start gap-3 rounded-none px-0 py-0 hover:bg-moss",
+          placement === "row" && "focus-visible:-outline-offset-2",
+        )}
         // eslint-disable-next-line no-restricted-syntax -- 9px/26px toggle-row padding is design-fixed geometry with no token equivalent, matching DayChips/TimelineLens' computed-geometry pattern
         style={{ padding: "9px 26px" }}
       >
@@ -228,7 +246,11 @@ export function UnscheduledRack({
             alike — because it is the number of cards you will find when you
             open it. The hint says both halves for the same reason (it said "no
             day yet" until PR #269 moved untimed stops in here). */}
-        <span className="text-xs font-normal normal-case text-slate">Stops with no day or no time yet</span>
+        {/* The row is collapsed to its count: on a phone the hint wraps the
+            bar to two lines, and the bar sits in a list it should not crowd. */}
+        {placement === "dock" && (
+          <span className="text-xs font-normal normal-case text-slate">Stops with no day or no time yet</span>
+        )}
       </Button>
       {/* Collapsed means *not rendered*, not merely hidden: nothing parked
           should be reachable by keyboard or by a text query while the drawer
