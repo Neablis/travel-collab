@@ -8,6 +8,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import "./globals.css";
 import { SaveLightProvider } from "@/components/SaveLight";
 import { ServiceWorkerRegistration } from "@/components/ServiceWorkerRegistration";
+import { InstallPromptRegistration } from "@/components/install/InstallPromptRegistration";
 import { appColors } from "@/lib/appColors.generated";
 import { SITE_DESCRIPTION, SITE_NAME, siteRobots } from "@/lib/siteMetadata";
 import { deploymentOrigin } from "@/lib/deploymentOrigin";
@@ -93,6 +94,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             already-rendered server tree. */}
         <SaveLightProvider>{children}</SaveLightProvider>
         <ServiceWorkerRegistration />
+        <InstallPromptRegistration />
         {/* Only on Vercel. Both packages gate themselves on `isDevelopment()`
             alone, so any production build — `next start` locally, CI's
             ci-like e2e lane, a self-hosted deploy — mounted them and then
