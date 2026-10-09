@@ -42,6 +42,41 @@ test.describe("M39 D3 — a tablet", () => {
     expect(offenders).toEqual([]);
   });
 
+  // The block's Remove keeps its 44px reach under a finger, and a short stop
+  // must still show its title: the margin that hands that reach back used to be
+  // gated by width while the floor was gated by pointer, so a 30-minute block
+  // on a touch tablet laid its title out below its own clipped edge (PR #365's
+  // preview walk: 7 of 68 blocks, "Check in at Trunk Hotel" cut in half).
+  test("a short stop keeps its title inside its block", async ({ page }) => {
+    const tripId = await tabletPlan(page, "TabletShortStop");
+    const detail = (await (await page.request.get(`/api/trips/${tripId}`)).json()) as {
+      trip: { days: { dayId: string }[] };
+    };
+    const added = await page.request.post(`/api/trips/${tripId}/commands`, {
+      data: {
+        type: "AddActivity",
+        tripId,
+        activityId: crypto.randomUUID(),
+        dayId: detail.trip.days[0]!.dayId,
+        title: "Quick check-in",
+        timeWindow: { start: "17:00", end: "17:30" },
+      },
+    });
+    expect(added.ok()).toBe(true);
+    await page.reload();
+
+    const title = page.getByRole("button", { name: /^Edit Quick check-in, / });
+    await title.scrollIntoViewIfNeeded();
+    // What a tap at the title's middle lands on: the title itself when it is
+    // laid out inside the block, the column behind it when the block clips it.
+    const hit = await title.evaluate((el) => {
+      const box = el.getBoundingClientRect();
+      const at = document.elementFromPoint(box.left + Math.min(box.width / 2, 40), box.top + box.height / 2);
+      return at !== null && el.contains(at);
+    });
+    expect(hit).toBe(true);
+  });
+
   // The reader's docked choice applies from 1100px up; below it the board
   // keeps every pixel and Ask comes up over it. Stored as `docked` explicitly,
   // so this is the band overriding a choice and not the default happening to

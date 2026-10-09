@@ -54,13 +54,16 @@ const TONE_CLASS: Record<Exclude<RiverTone, "planned">, string> = {
 // hit area, four pixels out on every side, so the title row keeps its density
 // and the target still meets WCAG 2.5.8's 24px minimum.
 //
-// **On a phone the reach is SPEC §13.1's 44px** (M29 phone), the way a tag
-// chip gets it: the button keeps `buttonVariants`' phone floor (`min-h-11
-// min-w-11`, released at `md`) and `-m-3.5` hands back the 28px it adds, so
-// the row still lays the mark out at 16px. The block's box stops clipping on a
-// phone for the same reason (below): a reach cut off by the block's edge is not
-// a reach.
-const CONTROL_CLASS = "relative size-4 hover:bg-transparent after:absolute after:-inset-1 max-md:-m-3.5";
+// **Under a finger the reach is SPEC §13.1's 44px** (M29 phone; M39 D3 for a
+// touch tablet), the way a tag chip gets it: the button keeps `buttonVariants`'
+// floor (`min-h-11 min-w-11`, released by `fine:`) and `-m-3.5` hands back the
+// 28px it adds, so the row still lays the mark out at 16px. Released by the
+// same `fine:` as the floor, never by width: a width-gated margin left a touch
+// tablet with the 44px button and nothing absorbing it, and a short block's
+// title fell below its clipped edge (PR #365). The block's box stops clipping
+// under a finger for the same reason (below): a reach cut off by the block's
+// edge is not a reach.
+const CONTROL_CLASS = "relative size-4 hover:bg-transparent after:absolute after:-inset-1 -m-3.5 fine:m-0";
 
 const TAG_INK: Record<RiverTone, string> = {
   planned: "text-slate",
@@ -353,8 +356,8 @@ export function RiverBlock({
     >
       <div
         className={cn(
-          // `md:` — see CONTROL_CLASS: a phone lets the controls' reach out.
-          "relative flex h-full flex-col gap-px rounded-md px-2 py-0.5 group-hover:shadow-raised md:overflow-hidden",
+          // `fine:` — see CONTROL_CLASS: under a finger the controls' reach gets out.
+          "relative flex h-full flex-col gap-px rounded-md px-2 py-0.5 group-hover:shadow-raised fine:overflow-hidden",
           overlapping
             ? cn("border-2 border-solid border-warning-ink", look.tone === "transit" ? "bg-info-tint" : "bg-surface", (look.tone === "maybe" || placeholder) && "tc-river-hatch")
             : placeholder
@@ -408,10 +411,10 @@ export function RiverBlock({
               always, as a phone does. */}
           <span
             className={cn(
-              // `max-md:gap-7`: two 44px reaches, each 14px past its mark,
-              // would overlap at `gap-1`, and the one on top would take a tap
-              // meant for the other (Remove taking Dismiss's).
-              "pointer-events-auto flex shrink-0 items-center gap-1 max-md:gap-7",
+              // `gap-7` under a finger: two 44px reaches, each 14px past its
+              // mark, would overlap at `gap-1`, and the one on top would take
+              // a tap meant for the other (Remove taking Dismiss's).
+              "pointer-events-auto flex shrink-0 items-center gap-7 fine:gap-1",
               narrow &&
                 "absolute top-0 right-0 rounded-sm bg-surface pointer-fine:pointer-events-none pointer-fine:opacity-0 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100",
             )}
