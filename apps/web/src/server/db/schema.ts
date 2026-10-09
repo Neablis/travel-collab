@@ -548,6 +548,38 @@ export const tripShares = pgTable(
   (t) => [uniqueIndex("trip_shares_token").on(t.token), index("trip_shares_trip").on(t.tripId)],
 );
 
+// Named snapshots (M40 D4): a label on a position in a trip's log. CRUD with
+// audit fields, **never an event** — a snapshot occupies no `seq`, and the only
+// way one reaches the trip is a restore, which is `RevertToState { toSeq: seq }`
+// through the pipeline. `server/snapshots/` is the sole writer.
+//
+// **No foreign key to the trip**, on `trip_covers`' terms and for its reason:
+// the only table keyed by trip id is `trip_summaries`, a projection
+// `rebuildProjections` deletes and re-inserts, so `ON DELETE CASCADE` to it
+// would wipe every snapshot on every rebuild (invariant 2). A trip is only
+// ever soft-deleted, and a restored trip keeps its snapshots.
+// `snapshots.int.test.ts` rebuilds and counts them.
+//
+// `created_by` is a `users.id` on ADR-025's no-foreign-key terms.
+export const tripSnapshots = pgTable(
+  "trip_snapshots",
+  {
+    id: uuid("id").primaryKey(),
+    tripId: uuid("trip_id").notNull(),
+    seq: integer("seq").notNull(),
+    name: text("name").notNull(),
+    createdBy: text("created_by").notNull(),
+    // `mode: "date"` — see the note above `savedDays` (KI-53).
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (t) => [
+    // The list reads a trip's snapshots newest first, and the cap counts them.
+    index("trip_snapshots_trip_created").on(t.tripId, t.createdAt),
+    check("trip_snapshots_name_length", sql`char_length(${t.name}) between 1 and 80`),
+    check("trip_snapshots_seq_positive", sql`${t.seq} > 0`),
+  ],
+);
+
 // Suggestions (ADR-064): a `suggester`'s board edits, held for an editor or the
 // owner to accept or dismiss one change at a time. CRUD with audit fields, and
 // **never planning state** — nothing here is on the trip's stream, and the only
