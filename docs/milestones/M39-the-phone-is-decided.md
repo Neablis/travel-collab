@@ -82,9 +82,10 @@ iPhone and Android (sign-in, an emailed invite link, long-press drag), and the r
       resolved** (moved to `resolved/`) or explicitly re-scoped by the critique. *Ticked
       2026-10-09: KI-048 resolved by Part 1 (PR #363), `-24-i` by Part 2 (PR #364),
       `-24-j` by Part 3 (PR #365) and `-25-f` by Part 5 (PR #367), all merged.*
-- [ ] **The phone shows a conflict state**, with a test seen red without it. *Progress
-      2026-10-09: built in Part 6 (PR #368, `e2e/m39-phone-conflicts.spec.ts` and
-      `ConflictsChip.test.tsx`, each seen red), not yet merged.*
+- [x] **The phone shows a conflict state**, with a test seen red without it. *Ticked
+      2026-10-09: Part 6 (PR #368, merged). A count chip in the pinned row opens a sheet of the
+      trip's conflicts; `e2e/m39-phone-conflicts.spec.ts` failed with the chip removed
+      (`Expected: "2 things to look at"`, element(s) not found), as did `ConflictsChip.test.tsx`.*
 - [x] **Caesura passes Chrome's installability check**: a manifest with icons, a service worker
       and a viewport. An e2e or a Lighthouse assertion records this. *Ticked 2026-10-09: Part 4
       (PR #366, merged). `e2e/m39-installable.spec.ts` asks Chromium for
