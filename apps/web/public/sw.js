@@ -17,6 +17,13 @@
 //
 // Bump CACHE_VERSION when an icon changes: icons are not content-hashed, and
 // activating a new version is what drops the old cache.
+//
+// **A new version waits; it does not `skipWaiting()`.** Activating drops every
+// other cache, and a tab the old version still controls may yet lazy-load a
+// chunk from it that its deploy has since taken off the server (CodeRabbit,
+// PR #366). So a new worker installs and waits until no page uses the old
+// one. A first install has nothing to wait for, and `clients.claim()` on
+// activate takes the page that installed it.
 const CACHE_VERSION = 1;
 const CACHE_NAME = `caesura-static-v${CACHE_VERSION}`;
 
@@ -38,10 +45,6 @@ function cacheStrategyFor(url) {
   if (path.startsWith("/icons/") || CACHED_FILES.has(path)) return "cache-first";
   return "network";
 }
-
-self.addEventListener("install", () => {
-  self.skipWaiting();
-});
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
