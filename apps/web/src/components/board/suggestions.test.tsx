@@ -93,10 +93,16 @@ function mount(myRole: TripRole, changes: (tripId: string) => SuggestionChange[]
   const fixture = trip();
   const seeded = changes(fixture.tripId);
   const resolved: { changeId: string; action: string }[] = [];
+  // Each accept-all call's body: M40 D1 makes it one call, not one per change.
+  const acceptedAll: string[][] = [];
   server.use(...before, ...makeTripHandlers(fixture, { myRole, suggestions: seeded }));
   server.events.on("request:start", ({ request }) => {
     const match = /\/suggestions\/changes\/([^/]+)$/.exec(new URL(request.url).pathname);
     if (match && request.method === "POST") {
+      if (match[1] === "accept") {
+        void request.clone().json().then((body: { changeIds: string[] }) => acceptedAll.push(body.changeIds));
+        return;
+      }
       void request.clone().json().then((body: { action: string }) => resolved.push({ changeId: match[1]!, action: body.action }));
     }
   });
@@ -111,7 +117,7 @@ function mount(myRole: TripRole, changes: (tripId: string) => SuggestionChange[]
       </FocusProvider>
     </TripProvider>,
   );
-  return { fixture, seeded, resolved };
+  return { fixture, seeded, resolved, acceptedAll };
 }
 
 afterEach(() => server.events.removeAllListeners());
@@ -343,11 +349,11 @@ describe("the suggestions chip", () => {
 });
 
 // Mitchell's preview comment, 2026-10-04 (W77): a bulk accept at the top of the
-// chip. One change at a time through the same accept as the per-change button,
-// parents first; the first refusal stops it and leaves the rest pending.
+// chip. M40 D1 makes it one call for every change that applies, so one History
+// entry and one undo, and a refusal lands nothing.
 describe("Accept all", () => {
-  it("accepts every change that applies, parents first, and skips one that no longer applies", async () => {
-    const { resolved, seeded } = mount("owner", (tripId) => {
+  it("accepts every change that applies in one call, parents first, and skips one that no longer applies", async () => {
+    const { resolved, acceptedAll, seeded } = mount("owner", (tripId) => {
       // In creation order, as the list always is; that a parent goes first
       // whatever the order is `acceptAll.test.ts`'s.
       const add = addGelato(tripId);
@@ -365,14 +371,10 @@ describe("Accept all", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Accept all" }));
 
     const [add, rename, , roma] = seeded;
-    await waitFor(() => expect(resolved).toHaveLength(3));
-    expect(resolved).toEqual([
-      { changeId: add!.id, action: "accept" },
-      { changeId: rename!.id, action: "accept" },
-      { changeId: roma!.id, action: "accept" },
-    ]);
     // The stale one is still there for the reviewer to dismiss.
     expect(await screen.findByRole("button", { name: "1 suggestion" })).toBeTruthy();
+    expect(acceptedAll).toEqual([[add!.id, rename!.id, roma!.id]]);
+    expect(resolved).toEqual([]);
   });
 
   it("is a reviewer's: the author is not offered it", async () => {
@@ -386,49 +388,46 @@ describe("Accept all", () => {
     expect(screen.queryByRole("button", { name: "Accept all" })).toBeNull();
   });
 
-  it("stops at the first refusal, says which and why, and leaves the rest pending", async () => {
-    const { resolved, seeded } = mount("owner", (tripId) => [
+  it("shows the server's refusal, which names the change, and leaves every change pending", async () => {
+    const { acceptedAll } = mount("owner", (tripId) => [
       change(tripId, 'Renamed the trip to "Roma"', [{ type: "SetTripName", tripId, name: "Roma" }]),
       change(tripId, "Set the currency to EUR", [{ type: "SetTripCurrency", tripId, currency: "EUR" }]),
       change(tripId, "Set the start date", [{ type: "SetTripStartDate", tripId, startDate: "2027-05-01" }]),
     ]);
-    const refused = seeded[1]!.id;
+    const message = "“Set the currency to EUR” no longer applies: This change would have no effect. Nothing was accepted.";
     server.use(
-      http.post("/api/trips/:tripId/suggestions/changes/:changeId", ({ params }) =>
-        params.changeId === refused
-          ? HttpResponse.json({ error: "This change no longer applies to the trip.", code: "does-not-apply" }, { status: 422 })
-          : undefined,
+      http.post("/api/trips/:tripId/suggestions/changes/accept", () =>
+        HttpResponse.json({ error: message, code: "no-longer-applies" }, { status: 409 }),
       ),
     );
     fireEvent.click(await screen.findByRole("button", { name: "3 suggestions" }));
     fireEvent.click(await screen.findByRole("button", { name: "Accept all" }));
 
-    expect((await screen.findByRole("alert")).textContent).toBe(
-      "“Set the currency to EUR” was not accepted: This change no longer applies to the trip. The rest are still pending.",
-    );
-    expect(resolved.map((r) => r.changeId)).toEqual([seeded[0]!.id, refused]);
-    expect(screen.getByRole("button", { name: "2 suggestions" })).toBeTruthy();
+    expect((await screen.findByRole("alert")).textContent).toBe(message);
+    expect(acceptedAll).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "3 suggestions" })).toBeTruthy();
   });
 
-  // The #314 preview walk only ever saw "Accepting 1 of 2…": each accept
-  // shrinks the list, and the button went with it before the last one.
-  it("counts up to the last change while it runs", async () => {
-    const { seeded } = mount("owner", (tripId) => [
+  // One call, so one pending state rather than "N of M": the button stays,
+  // disabled, until the answer arrives.
+  it("reads Accepting… while the call is in flight", async () => {
+    mount("owner", (tripId) => [
       change(tripId, 'Renamed the trip to "Roma"', [{ type: "SetTripName", tripId, name: "Roma" }]),
       change(tripId, "Set the currency to EUR", [{ type: "SetTripCurrency", tripId, currency: "EUR" }]),
     ]);
     let release!: () => void;
     const held = new Promise<void>((r) => (release = r));
     server.use(
-      http.post("/api/trips/:tripId/suggestions/changes/:changeId", async ({ params }) => {
-        if (params.changeId === seeded[1]!.id) await held;
+      http.post("/api/trips/:tripId/suggestions/changes/accept", async () => {
+        await held;
         return undefined;
       }),
     );
     fireEvent.click(await screen.findByRole("button", { name: "2 suggestions" }));
     fireEvent.click(await screen.findByRole("button", { name: "Accept all" }));
 
-    expect(await screen.findByRole("button", { name: "Accepting 2 of 2…" })).toBeTruthy();
+    const pending = await screen.findByRole("button", { name: "Accepting…" });
+    expect(pending.hasAttribute("disabled")).toBe(true);
     release();
   });
 });

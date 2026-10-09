@@ -17,6 +17,16 @@ export const Origin = z.discriminatedUnion("kind", [
     changeId: z.string().uuid(),
     authorId: z.string().min(1),
   }),
+  // Several accepted at once, as one batch (M40 D1, D3): "Accept all". The
+  // changes in the order they were replayed, and every person who asked for
+  // one, each once, so history can say "Accepted 7 suggestions from Sam and
+  // Ana". A single accept keeps `suggestion`, and so does every stored
+  // envelope. The domain treats it exactly like `user`.
+  z.object({
+    kind: z.literal("suggestions"),
+    changes: z.array(z.object({ suggestionId: z.string().uuid(), changeId: z.string().uuid() })).min(1),
+    authorIds: z.array(z.string().min(1)).min(1),
+  }),
 ]);
 export type Origin = z.infer<typeof Origin>;
 

@@ -19,6 +19,22 @@ function suggestedBy(name: string | null): string {
   return name === null ? "Suggested" : `Suggested by ${name}`;
 }
 
+// M40 D3: an accept-all reads "Accepted 7 suggestions / from Sam and Ana".
+// The domain's description is the count; the names are only here, on the
+// second line for the reason W11's by-line is (on one line the sentence ran
+// 69px past the popover in the e2e walk). Null until every name lands, for
+// `suggestedBy`'s reason. Deduplicated: two authors who have both left are
+// each "a former traveler", and saying it twice reads as a stutter.
+const AND = new Intl.ListFormat("en", { type: "conjunction" });
+/**
+ * The second line of an accept-all History row, "from Sam and Ana", each name
+ * once; null while any name is still loading.
+ */
+export function fromAuthors(names: readonly (string | null)[]): string | null {
+  if (names.some((n) => n === null)) return null;
+  return `from ${AND.format([...new Set(names as string[])])}`;
+}
+
 // Bounded page size for the History popover's entries list (#1): only the
 // most recent PAGE_SIZE entries render up front, with a "Show older"
 // affordance to reveal more in PAGE_SIZE steps. Paired with the popover
@@ -57,7 +73,9 @@ export function HistoryPanel({
   // Null names outside a `PeopleProvider` (TripHeader mounts one) or before
   // it lands.
   const nameOf = useAuthorNames(
-    history?.entries.flatMap((e) => (e.origin.kind === "suggestion" ? [e.origin.authorId] : [])) ?? [],
+    history?.entries.flatMap((e) =>
+      e.origin.kind === "suggestion" ? [e.origin.authorId] : e.origin.kind === "suggestions" ? e.origin.authorIds : [],
+    ) ?? [],
   );
 
   if (history === null) return null;
@@ -99,7 +117,7 @@ export function HistoryPanel({
                 // `h-auto` because a suggestion row is two lines and `md`'s
                 // fixed `h-9` would clip the second; the base's phone floor
                 // still holds, being `min-h`.
-                entry.origin.kind === "suggestion" && "h-auto py-1",
+                (entry.origin.kind === "suggestion" || entry.origin.kind === "suggestions") && "h-auto py-1",
                 entry.undone && "opacity-50",
                 previewSeq === entry.toSeq && "font-bold",
               )}
@@ -117,6 +135,9 @@ export function HistoryPanel({
                     <AuthorChip authorId={entry.origin.authorId} />
                     <span className="truncate">{suggestedBy(nameOf(entry.origin.authorId))}</span>
                   </span>
+                )}
+                {entry.origin.kind === "suggestions" && (
+                  <AuthorsLine names={entry.origin.authorIds.map(nameOf)} />
                 )}
               </span>
               {/* The count is shown rather than implied, because one undo
@@ -154,4 +175,10 @@ export function HistoryPanel({
       )}
     </div>
   );
+}
+
+// An accept-all's second line; nothing until every name has landed.
+function AuthorsLine({ names }: { names: readonly (string | null)[] }) {
+  const from = fromAuthors(names);
+  return from === null ? null : <span className="max-w-full truncate text-xs text-slate">{from}</span>;
 }

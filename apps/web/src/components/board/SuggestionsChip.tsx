@@ -24,29 +24,22 @@ export function SuggestionsChip() {
   const { suggestionGhosts: ghosts, trip, boardMode, suggestions } = useTrip();
   const nameOf = useAuthorNames(ghosts?.pending.map((c) => c.authorId) ?? []);
   const [open, setOpen] = useState(false);
-  const [progress, setProgress] = useState<{ at: number; of: number } | null>(null);
+  const [accepting, setAccepting] = useState(false);
   const [refusal, setRefusal] = useState<string | null>(null);
   const noteId = useId();
   if (ghosts === null || ghosts.pending.length === 0) return null;
 
-  // W77: every change that still applies, parents first, one at a time
-  // through the same accept as each change's own button. The first refusal
-  // stops it: what follows may build on the change that was refused, and the
-  // reviewer should see why before anything else lands.
+  // W77, as M40 D1 amends it: every change that still applies, in ONE call,
+  // so one History entry and one undo. All or nothing: the server's refusal
+  // names the change it is about and says nothing landed.
   const acceptable = acceptAllOrder(ghosts.pending, new Set(ghosts.stale.map((g) => g.changeId)));
   const acceptAll = async () => {
     if (suggestions === null) return;
     setRefusal(null);
-    for (const [at, change] of acceptable.entries()) {
-      setProgress({ at: at + 1, of: acceptable.length });
-      const result = await suggestions.resolve(change.id, "accept");
-      if (!result.ok) {
-        const rest = at + 1 < acceptable.length ? " The rest are still pending." : "";
-        setRefusal(`“${change.description}” was not accepted: ${result.error.message}${rest}`);
-        break;
-      }
-    }
-    setProgress(null);
+    setAccepting(true);
+    const result = await suggestions.acceptMany(acceptable.map((c) => c.id));
+    setAccepting(false);
+    if (!result.ok) setRefusal(result.error.message);
   };
 
   const count = ghosts.pending.length;
@@ -106,11 +99,9 @@ export function SuggestionsChip() {
     >
       <div className="flex flex-col gap-3">
         {/* Two or more: with one, its own Accept below is the same button. */}
-        {/* Kept while a run is going: each accept shrinks `acceptable`, and the
-            button would vanish before its "N of M" reached the last change. */}
-        {boardMode === "write" && (acceptable.length > 1 || progress !== null) && (
-          <Button variant="primary" size="sm" className="self-start" disabled={progress !== null} onClick={() => void acceptAll()}>
-            {progress === null ? "Accept all" : `Accepting ${progress.at} of ${progress.of}…`}
+        {boardMode === "write" && (acceptable.length > 1 || accepting) && (
+          <Button variant="primary" size="sm" className="self-start" disabled={accepting} onClick={() => void acceptAll()}>
+            {accepting ? "Accepting…" : "Accept all"}
           </Button>
         )}
         {refusal !== null && (

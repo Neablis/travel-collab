@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ResolveSuggestionChangeInput, SuggestionChange } from "@tc/contracts";
-import { fetchTripSuggestions, resolveSuggestionChange, type ApiResult } from "@/lib/apiClient";
+import { acceptSuggestionChanges, fetchTripSuggestions, resolveSuggestionChange, type ApiResult } from "@/lib/apiClient";
 
 /** The trip's suggestion changes as the context exposes them (spec §2.4). */
 export type TripSuggestions = {
@@ -21,6 +21,11 @@ export type TripSuggestions = {
    * refetches the trip, so the change shows as confirmed.
    */
   resolve: (changeId: string, action: ResolveSuggestionChangeInput["action"]) => Promise<ApiResult<SuggestionChange[]>>;
+  /**
+   * Accept these changes as one batch, all or nothing (M40 D1), then re-read
+   * the list as `resolve` does. One History entry and one undo.
+   */
+  acceptMany: (changeIds: string[]) => Promise<ApiResult<SuggestionChange[]>>;
 };
 
 type Args = {
@@ -106,10 +111,20 @@ export function useTripSuggestions({ tripId, enabled, onAccepted }: Args): {
     [tripId, refresh],
   );
 
+  const acceptMany = useCallback(
+    async (changeIds: string[]) => {
+      const result = await acceptSuggestionChanges(tripId, changeIds);
+      if (result.ok) onAcceptedRef.current();
+      await refresh();
+      return result;
+    },
+    [tripId, refresh],
+  );
+
   const loading = inFlight > 0;
   const suggestions = useMemo<TripSuggestions | null>(
-    () => (enabled ? { changes, rev, loading, error, refresh, resolve } : null),
-    [enabled, changes, rev, loading, error, refresh, resolve],
+    () => (enabled ? { changes, rev, loading, error, refresh, resolve, acceptMany } : null),
+    [enabled, changes, rev, loading, error, refresh, resolve, acceptMany],
   );
   return { suggestions, onRevision };
 }

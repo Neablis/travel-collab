@@ -46,6 +46,7 @@ import {
   type PutReviewInput,
   type RenameSnapshotInput,
   type ResolveSuggestionChangeInput,
+  type AcceptSuggestionChangesInput,
   type SetTravellingInput,
   type TripCommand,
 } from "@tc/contracts";
@@ -655,6 +656,32 @@ export async function resolveSuggestionChange(
       body: JSON.stringify({ action }),
     });
     if (!res.ok) return await refusal(res);
+    return { ok: true, value: CreatedSuggestion.parse(await res.json()).changes };
+  } catch (err) {
+    return networkError(err);
+  } finally {
+    endWrite(scope);
+  }
+}
+
+/**
+ * Accept these changes as ONE batch, all or nothing (M40 D1): one History
+ * entry, one undo. Resolves the changes accepted, parents first. A refusal
+ * accepted nothing, and its `changeId` names the change it is about.
+ */
+export async function acceptSuggestionChanges(
+  tripId: string,
+  changeIds: AcceptSuggestionChangesInput["changeIds"],
+): Promise<{ ok: true; value: SuggestionChange[] } | { ok: false; error: ApiError & { changeId?: string } }> {
+  const scope = tripKeys.all(tripId);
+  beginWrite(scope);
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/suggestions/changes/accept`), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ changeIds }),
+    });
+    if (!res.ok) return await refusal(res, (body) => (typeof body.changeId === "string" ? { changeId: body.changeId } : {}));
     return { ok: true, value: CreatedSuggestion.parse(await res.json()).changes };
   } catch (err) {
     return networkError(err);

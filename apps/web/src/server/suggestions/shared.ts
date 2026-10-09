@@ -32,6 +32,8 @@ export type SuggestionError = {
   message: string;
   /** For `does-not-apply`: the index of the first unit that did not apply. */
   index?: number;
+  /** For an accept of several changes (M40 D1): the change the refusal is about. */
+  changeId?: string;
 };
 
 export type SuggestionResult<T> = { ok: true; value: T } | { ok: false; error: SuggestionError };

@@ -18,6 +18,7 @@ import {
   renameTripSnapshot,
   deleteTripSnapshot,
   restoreTripSnapshot,
+  acceptSuggestionChanges,
   createTripShare,
   deleteSavedDay,
   duplicateTrip,
@@ -274,6 +275,7 @@ const FETCHING_HELPERS: Record<string, () => Promise<ApiResult<unknown>>> = {
   renameTripSnapshot: () => renameTripSnapshot(TRIP_ID, UUID, { name: "After" }),
   deleteTripSnapshot: () => deleteTripSnapshot(TRIP_ID, UUID),
   restoreTripSnapshot: () => restoreTripSnapshot(TRIP_ID, UUID),
+  acceptSuggestionChanges: () => acceptSuggestionChanges(TRIP_ID, [UUID]),
   fetchInviteLanding: () => fetchInviteLanding("tok"),
   fetchInvitePreview: () => fetchInvitePreview("tok"),
   acceptInvite: () => acceptInvite("tok"),
@@ -712,6 +714,8 @@ const TRIP_WRITERS: Record<string, () => Promise<ApiResult<unknown>>> = {
   resolveSuggestionChange: () => resolveSuggestionChange(TRIP_ID, UUID, "accept"),
   // A restore appends a revert batch.
   restoreTripSnapshot: () => restoreTripSnapshot(TRIP_ID, UUID),
+  // M40: one batch for every change it names.
+  acceptSuggestionChanges: () => acceptSuggestionChanges(TRIP_ID, [UUID]),
   applyAssistantProposal: () =>
     applyAssistantProposal(TRIP_ID, {
       proposalId: "p1",
@@ -1315,6 +1319,21 @@ describe("resolveSuggestionChange", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error).toMatchObject({ status: 409, code: "dependency-pending" });
+  });
+});
+
+// M40 D1: an accept-all refusal accepted nothing, and names which change.
+describe("acceptSuggestionChanges", () => {
+  it("passes a refusal's code and the change it names through", async () => {
+    server.use(
+      http.post("*/api/trips/:tripId/suggestions/changes/accept", () =>
+        HttpResponse.json({ error: "No longer applies.", code: "no-longer-applies", changeId: UUID }, { status: 409 }),
+      ),
+    );
+    const result = await acceptSuggestionChanges(TRIP_ID, [UUID]);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatchObject({ status: 409, code: "no-longer-applies", changeId: UUID });
   });
 });
 

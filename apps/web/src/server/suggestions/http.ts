@@ -43,7 +43,13 @@ export const MAX_SUGGESTION_BODY_BYTES = 4 * 1024 * 1024;
  */
 export const MAX_RESOLVE_BODY_BYTES = 1024;
 
-/** A module refusal as the wire carries it: the message, the code, and the failing unit's index when there is one. */
-export function refused({ code, message, index }: SuggestionError): Response {
-  return Response.json({ error: message, code, index }, { status: SUGGESTION_STATUS[code] });
+/**
+ * The accept-all route's body is at most `SUGGESTION_ACCEPT_MAX` uuids: 200 ×
+ * 39 bytes is under 8 KiB. Twice that, so the ceiling is never the contract.
+ */
+export const MAX_ACCEPT_BODY_BYTES = 16 * 1024;
+
+/** A module refusal as the wire carries it: the message, the code, and the failing unit's index or change when there is one. */
+export function refused({ code, message, index, changeId }: SuggestionError): Response {
+  return Response.json({ error: message, code, index, changeId }, { status: SUGGESTION_STATUS[code] });
 }

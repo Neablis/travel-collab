@@ -1,13 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   CreateSuggestionInput,
+  SUGGESTION_ACCEPT_MAX,
   SUGGESTION_NOTE_MAX,
   SUGGESTION_UNIT_COMMANDS_MAX,
   SUGGESTION_UNITS_MAX,
   type BatchableCommand,
 } from "@tc/contracts";
 import { japanTripCommandsFor, uuidFrom } from "@tc/factories";
-import { MAX_SUGGESTION_BODY_BYTES } from "./http";
+import { MAX_ACCEPT_BODY_BYTES, MAX_SUGGESTION_BODY_BYTES } from "./http";
 
 const tripId = uuidFrom(1, 910);
 
@@ -33,5 +34,12 @@ describe("MAX_SUGGESTION_BODY_BYTES", () => {
 
     const bytes = new TextEncoder().encode(JSON.stringify(draft)).byteLength;
     expect(bytes).toBeLessThanOrEqual(MAX_SUGGESTION_BODY_BYTES);
+  });
+});
+
+describe("MAX_ACCEPT_BODY_BYTES", () => {
+  it("admits an accept of the most changes the contract allows", () => {
+    const body = { changeIds: Array.from({ length: SUGGESTION_ACCEPT_MAX }, (_, i) => uuidFrom(i, 913)) };
+    expect(new TextEncoder().encode(JSON.stringify(body)).length).toBeLessThan(MAX_ACCEPT_BODY_BYTES);
   });
 });
