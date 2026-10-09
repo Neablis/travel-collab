@@ -124,8 +124,9 @@ export function ItineraryScheduleCompact({ payload, accents }: { payload: Itiner
                         </>
                       ) : null}
                       {stop.title}
+                      {/* Nowrap for the same reason: "(To" / "book)" is two fragments, not a standing. */}
                       {stop.status ? (
-                        <span className={stop.status === "To book" ? "text-warning-ink" : "text-slate"}> ({stop.status})</span>
+                        <span className={cn("whitespace-nowrap", stop.status === "To book" ? "text-warning-ink" : "text-slate")}> ({stop.status})</span>
                       ) : null}
                     </span>
                   ))}

@@ -56,6 +56,26 @@ test.describe("M39 D2 — the Overview on a phone", () => {
 
     const height = await page.evaluate(() => document.documentElement.scrollHeight);
     expect(height).toBeLessThan(4_000);
+
+    // A standing is one word to the eye: "Tea ceremony (To" / "book)" was the
+    // preview walk's Day 1. Where a line ends depends on the width, and at
+    // 390 none of the demo's four standings happens to sit at one — so sweep
+    // the phone widths, and at each one every standing's text must share one
+    // line (React splits " (", "To book", ")" into three text nodes, so a span
+    // has three client rects even unbroken; it is their tops that must agree).
+    const standings = page.getByRole("list", { name: "Day by day" }).getByText("(To book)");
+    expect(await standings.count()).toBeGreaterThan(0);
+    const broken: string[] = [];
+    for (let width = 320; width <= 430; width += 2) {
+      await page.setViewportSize({ width, height: 844 });
+      const tops = await standings.evaluateAll((spans) =>
+        spans.map((s) => new Set([...s.getClientRects()].map((r) => Math.round(r.top))).size),
+      );
+      tops.forEach((lines, n) => {
+        if (lines !== 1) broken.push(`standing ${n} on ${lines} lines at ${width}px`);
+      });
+    }
+    expect(broken).toEqual([]);
     await context.close();
   });
 
@@ -69,6 +89,24 @@ test.describe("M39 D2 — the Overview on a phone", () => {
     await letter(page).getByRole("link", { name: "Edit" }).click();
     await expect(page).toHaveURL(new RegExp(`/trips/${tripId}/pages/[^/?]+\\?from=overview$`));
     await expect(page.getByRole("heading", { name: "Overview", level: 1 })).toBeVisible();
+  });
+
+  // The preview walk on PR #367: a 52-character trip name made the crumb
+  // "← <name> overview" 419px of unbreakable text, and the page scrolled
+  // sideways (scrollWidth 532 at 390) — the fixed tab bar stretched with it.
+  // Edit is how a phone reaches this page now, so the crumb has to fit.
+  test("a long trip name does not push the page wider than the screen after Edit", async ({ page }) => {
+    const tripId = await overviewOf(page, "Phone crumb Kyoto–Osaka–Tokyo (verifier, delete me)");
+    await letter(page).getByRole("link", { name: "Edit" }).click();
+    await expect(page).toHaveURL(new RegExp(`/trips/${tripId}/pages/[^/?]+\\?from=overview$`));
+    const crumb = page.getByRole("navigation", { name: "Breadcrumb" }).getByRole("link", { name: /Phone crumb.* overview$/ });
+    await expect(crumb).toBeVisible();
+
+    const { scroll, client } = await page.evaluate(() => ({
+      scroll: document.documentElement.scrollWidth,
+      client: document.documentElement.clientWidth,
+    }));
+    expect(scroll).toBeLessThanOrEqual(client);
   });
 });
 
