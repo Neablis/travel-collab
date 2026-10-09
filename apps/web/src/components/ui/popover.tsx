@@ -14,6 +14,7 @@ export function Popover({
   align = "end",
   contentClassName,
   collisionPadding,
+  anchor,
   children,
 }: {
   open: boolean;
@@ -26,11 +27,19 @@ export function Popover({
   // it through unset leaves Radix on its own default, so every caller that
   // does not ask for it renders exactly as before.
   collisionPadding?: number;
+  /**
+   * Somewhere else to hang the content from, while the trigger is not on
+   * screen. The phone's trip header hides History's own button and opens it
+   * from its overflow menu, so the panel is anchored to that menu instead of
+   * to a `display: none` box at (0, 0). Absent, the trigger is the anchor.
+   */
+  anchor?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
     <RadixPopover.Root open={open} onOpenChange={onOpenChange}>
       <RadixPopover.Trigger asChild>{trigger}</RadixPopover.Trigger>
+      {anchor !== undefined && <RadixPopover.Anchor asChild>{anchor}</RadixPopover.Anchor>}
       <RadixPopover.Portal>
         <RadixPopover.Content
           align={align}
