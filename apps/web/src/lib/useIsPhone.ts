@@ -22,16 +22,39 @@ const PHONE_MAX_WIDTH_PX = 767;
  * always ship it — the same guard `LandingHeroArt` uses.
  */
 export function useIsPhone(): boolean {
-  const [isPhone, setIsPhone] = useState(false);
+  return useMatches(`(max-width: ${PHONE_MAX_WIDTH_PX}px)`);
+}
+
+// Where the trip board stops being wide enough to give the assistant a column.
+// KI-2026-09-24-j measured it: docked at 820px, the board kept about 440px —
+// one and a half day columns. 1100 is the line M39 D3 draws (critique §3b,
+// "two columns at 820, three at 1024"), and the `narrow` e2e project already
+// sits on it as the narrowest width the docked contract is held at.
+const DOCK_MIN_WIDTH_PX = 1100;
+
+/**
+ * `true` from 768px up to 1099px — the band where the trip board keeps its
+ * full width and the assistant comes up OVER it, whatever shape the reader
+ * chose (M39 D3; Mitchell, 2026-10-09: "the band wins"). Same first-paint
+ * rule as `useIsPhone`, for the same reason: starts `false`, corrects in an
+ * effect, so only a mount point that cannot exist at first paint may branch
+ * on it (`AssistantRail`'s `presentation` note).
+ */
+export function useIsTabletWidth(): boolean {
+  return useMatches(`(min-width: ${PHONE_MAX_WIDTH_PX + 1}px) and (max-width: ${DOCK_MIN_WIDTH_PX - 1}px)`);
+}
+
+function useMatches(media: string): boolean {
+  const [matches, setMatches] = useState(false);
 
   useEffect(() => {
     if (typeof window.matchMedia !== "function") return;
-    const query = window.matchMedia(`(max-width: ${PHONE_MAX_WIDTH_PX}px)`);
-    const sync = () => setIsPhone(query.matches);
+    const query = window.matchMedia(media);
+    const sync = () => setMatches(query.matches);
     sync();
     query.addEventListener("change", sync);
     return () => query.removeEventListener("change", sync);
-  }, []);
+  }, [media]);
 
-  return isPhone;
+  return matches;
 }

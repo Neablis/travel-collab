@@ -14,6 +14,8 @@ export function Popover({
   align = "end",
   contentClassName,
   collisionPadding,
+  anchor,
+  onCloseAutoFocus,
   children,
 }: {
   open: boolean;
@@ -26,16 +28,31 @@ export function Popover({
   // it through unset leaves Radix on its own default, so every caller that
   // does not ask for it renders exactly as before.
   collisionPadding?: number;
+  /**
+   * Somewhere else to hang the content from, while the trigger is not on
+   * screen. The phone's trip header hides History's own button and opens it
+   * from its overflow menu, so the panel is anchored to that menu instead of
+   * to a `display: none` box at (0, 0). Absent, the trigger is the anchor.
+   */
+  anchor?: React.ReactNode;
+  /**
+   * Where focus goes when the content closes. Radix returns it to the
+   * trigger; a caller whose trigger is off screen (see `anchor`) calls
+   * `event.preventDefault()` and focuses what it opened from instead.
+   */
+  onCloseAutoFocus?: (event: Event) => void;
   children: React.ReactNode;
 }) {
   return (
     <RadixPopover.Root open={open} onOpenChange={onOpenChange}>
       <RadixPopover.Trigger asChild>{trigger}</RadixPopover.Trigger>
+      {anchor !== undefined && <RadixPopover.Anchor asChild>{anchor}</RadixPopover.Anchor>}
       <RadixPopover.Portal>
         <RadixPopover.Content
           align={align}
           sideOffset={6}
           collisionPadding={collisionPadding}
+          onCloseAutoFocus={onCloseAutoFocus}
           className={cn(
             "overlay-layer w-80 rounded-lg border border-hairline bg-surface p-3 shadow-overlay",
             contentClassName,

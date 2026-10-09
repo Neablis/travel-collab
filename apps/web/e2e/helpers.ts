@@ -377,12 +377,16 @@ export function watchMapWorker(page: Page): { outcome: () => string } {
  * By testid rather than by its new name, and that is not laziness about roles:
  * the rail's own SEND button is also called "Ask" (m10-simulated-ai types a
  * question and presses it), so a spec that names the launcher by text has a
- * second control with the same name one click later. `assistant-launcher` is
- * the handle `AssistantBubble` publishes for exactly this — see its comment on
- * why two controls legitimately share the word.
+ * second control with the same name one click later.
+ *
+ * **Whichever entry point the surface shows, since M39 D3.** The trip board's
+ * floating launcher sat over the right-hand column's costs and is gone: there
+ * the header's `ask-pill` is the way in at every width. A notebook page keeps
+ * its `assistant-launcher` above 768px and hides its pill, so exactly one of
+ * the two is visible on either surface.
  */
 export async function openAssistantRail(page: Page): Promise<void> {
-  await page.getByTestId("assistant-launcher").click();
+  await page.locator('[data-testid="ask-pill"]:visible, [data-testid="assistant-launcher"]:visible').click();
   await expect(page.getByRole("complementary", { name: "Assistant" })).toBeVisible();
 }
 
@@ -551,4 +555,28 @@ export async function forget(page: Page, savedDayId: string): Promise<void> {
   await page.request.delete(`/api/saved-days/${savedDayId}/publish`);
   const res = await page.request.delete(`/api/saved-days/${savedDayId}`);
   expect(res.ok(), `forget -> ${res.status()}`).toBe(true);
+}
+
+/**
+ * Every visible control on the page whose rendered box is under SPEC §13.1's
+ * 44px, as `{ h, name }`. Rendered heights in a browser, never a class scan —
+ * KI-046's counts came from boxes, and counting `min-h-11` in the source would
+ * be a different claim wearing the same number. Shared by the phone
+ * (`m26-phone-targets`) and the tablet (`m39-tablet`) counts so the two
+ * measure the same thing.
+ */
+export async function controlsUnderFloor(page: Page): Promise<{ h: number; name: string }[]> {
+  return page.evaluate(() =>
+    [...document.querySelectorAll("button, a[href], [role='button'], input, select, textarea")]
+      .filter((el) => {
+        const box = el.getBoundingClientRect();
+        const style = getComputedStyle(el);
+        return box.width > 0 && box.height > 0 && style.visibility !== "hidden" && style.display !== "none";
+      })
+      .map((el) => ({
+        h: Math.round(el.getBoundingClientRect().height),
+        name: (el.getAttribute("aria-label") ?? el.textContent?.trim() ?? "(unnamed)").slice(0, 40),
+      }))
+      .filter((c) => c.h < 44),
+  );
 }

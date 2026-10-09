@@ -7,7 +7,7 @@ import { BrandMark } from "@/components/BrandMark";
 // LandingScreen nor AuthScreen has to modify this file.
 export function FrontDoorHeader({ actions }: { actions?: React.ReactNode }) {
   return (
-    <header className="flex items-center gap-3 px-7 py-4">
+    <header className="front-door-header flex items-center gap-3 px-7 pb-4">
       <Link href="/welcome" className="flex items-center gap-2.5 no-underline">
         <BrandMark size={32} />
         <span className="font-display text-md font-semibold text-ink">Caesura</span>

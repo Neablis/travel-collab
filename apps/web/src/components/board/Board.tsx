@@ -8,7 +8,7 @@ import { monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/element/ad
 import { autoScrollForElements, autoScrollWindowForElements } from "@atlaskit/pragmatic-drag-and-drop-auto-scroll/element";
 import type { ActivityTag, TimeWindow, TripDetail } from "@tc/contracts";
 import { dayLabel } from "@/lib/dates";
-import { Button } from "@/components/ui/button";
+import { Button, PHONE_TOUCH } from "@/components/ui/button";
 import { Toast } from "@/components/ui/toast";
 import { useTimeFormat } from "@/components/account/PreferencesProvider";
 import { toClockLabel } from "@/lib/time";
@@ -94,9 +94,10 @@ function OneMoreDayColumn({ onAddDay, addSavedDay, fullWidth = false }: { onAddD
           trip, that navigates to the Playbooks page to browse — so R4 ("no
           duplicated information") does not reach it. */}
       {addSavedDay}
+      {/* `PHONE_TOUCH`: 26px under a finger on a tablet (KI-2026-09-24-j). */}
       <Link
         href="/playbooks"
-        className="rounded-md px-2 py-1 text-center text-sm text-slate hover:underline"
+        className={cn(PHONE_TOUCH, "inline-flex items-center justify-center rounded-md px-2 py-1 text-center text-sm text-slate hover:underline")}
       >
         Take a day from the library
       </Link>
@@ -166,6 +167,7 @@ export type BoardCallbacks = {
  * @param sync - Optional handle for synchronizing scrolling with day selection
  * @param keepFlag - Optional "keep this day" pennant, rendered in each day's header
  * @param addSavedDay - Optional control for inserting a saved day, after the last column
+ * @param endOfDay - Optional row after the one day a phone shows (the Unscheduled row)
  * @param suggestions - Optional pending suggestions, drawn as ghosts
  */
 export function Board({
@@ -179,6 +181,7 @@ export function Board({
   sync,
   addSavedDay,
   oneDay = false,
+  endOfDay,
   suggestions,
 }: {
   trip: TripDetail;
@@ -208,6 +211,12 @@ export function Board({
    * props-only by design and its tests render it with no provider.
    */
   oneDay?: boolean;
+  /**
+   * What follows the day on the one-day board: the phone's Unscheduled row
+   * (M39 D6), which was a drawer fixed over the list. A slot for the reason
+   * `addSavedDay` is one. Not drawn on the desktop row, which has the drawer.
+   */
+  endOfDay?: ReactNode;
   /**
    * The "Add a saved day" control for the trailing "One more day?" column.
    *
@@ -442,6 +451,7 @@ export function Board({
     return autoScrollForElements({ element: row });
   }, [oneDay]);
 
+  const endOfDayRef = useRef<HTMLDivElement>(null);
   const onKeyDown = useCallback(
     (event: React.KeyboardEvent) => {
       if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
@@ -453,6 +463,10 @@ export function Board({
       const target = event.target as HTMLElement | null;
       const tag = target?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target?.isContentEditable) return;
+      // The phone's end-of-day row (the Unscheduled rack, M39 Part 2) lives in
+      // this subtree, and its card strip scrolls sideways: an arrow there is
+      // the strip's (CodeRabbit, PR #364).
+      if (target !== null && endOfDayRef.current?.contains(target)) return;
 
       const next = stepDay(focusedDay, event.key === "ArrowRight" ? 1 : -1, trip.days.length);
       if (next === null) return;
@@ -835,6 +849,7 @@ export function Board({
               }
             />
           ))}
+          {oneDay && endOfDay !== undefined && <div ref={endOfDayRef}>{endOfDay}</div>}
           {/* "One more day?" is an invitation to change the trip, so it is the
               reader's cue that they are looking at somebody else's — or, on the
               demo, at one that is not theirs yet.

@@ -11,8 +11,9 @@ import { cn } from "../../lib/cn";
  * the front door's controls are.
  *
  * **It lives here rather than in `NewTripWizard`, and it releases at `md`
- * rather than `sm`.** It was `NewTripWizard`'s exported `TOUCH`, owned by a
- * wizard and imported by anything that needed a floor — and it released at
+ * rather than `sm` — and, since M39 D3, only for a mouse.** It was
+ * `NewTripWizard`'s exported `TOUCH`, owned by a wizard and imported by
+ * anything that needed a floor — and it released at
  * `sm` (640px), which left **640–767px with no floor at all** while every other
  * phone rule in this app draws the line at 767 (`useIsPhone`'s
  * `PHONE_MAX_WIDTH_PX`, `.assistant-rail`, `.unscheduled-rack`, `md:hidden` on
@@ -35,8 +36,13 @@ import { cn } from "../../lib/cn";
  *
  * Costs the labelled call sites nothing: a button with words in it already
  * exceeds 44px wide, so `min-w-11` never binds there.
+ *
+ * **`fine:`, not `md:`, since M39 D3** (KI-2026-09-24-j). Released by width
+ * alone, a tablet at 820px got the desktop's 28px controls under a finger. The
+ * `fine` variant (globals.css) is "a fine pointer, at `md` and up", so a
+ * touchscreen keeps the floor at any width and a mouse keeps today's density.
  */
-export const PHONE_TOUCH = "min-h-11 min-w-11 md:min-h-0 md:min-w-0";
+export const PHONE_TOUCH = "min-h-11 min-w-11 fine:min-h-0 fine:min-w-0";
 
 export const buttonVariants = cva(
   // **SPEC §13.1's floor, on the base and not on 48 call sites** — M26 link 14's
@@ -49,10 +55,10 @@ export const buttonVariants = cva(
   // existed and between them covered five call sites.
   //
   // §13.1 is "44px targets, ALWAYS", so the floor belongs where every button
-  // inherits it rather than where somebody remembers it. `md:min-h-0
-  // md:min-w-0` releases it at the same 768px line `useIsPhone` draws, so the
-  // desktop's density — a 28px `sm` in a row of three plan cards — is
-  // unchanged. `min-*`, never `h-*`: a wrapped label must push the control
+  // inherits it rather than where somebody remembers it. `fine:min-h-0
+  // fine:min-w-0` releases it for a mouse from the same 768px line
+  // `useIsPhone` draws, so the desktop's density — a 28px `sm` in a row of
+  // three plan cards — is unchanged, and a tablet keeps 44px (M39 D3). `min-*`, never `h-*`: a wrapped label must push the control
   // taller rather than spill out of it, and it wins over the size variants'
   // fixed `h-*` without restating them.
   //
@@ -61,7 +67,7 @@ export const buttonVariants = cva(
   // EVERY width, which the sheet header and the Ask pill want, and
   // `PHONE_TOUCH` is what an `<a>` styled by `buttonVariants` still needs when
   // it is not a `Button`. `phoneTouch.test.tsx` holds the relationship.
-  "inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center gap-1.5 rounded-md font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:pointer-events-none disabled:opacity-50 md:min-h-0 md:min-w-0",
+  "inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center gap-1.5 rounded-md font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:pointer-events-none disabled:opacity-50 fine:min-h-0 fine:min-w-0",
   {
     variants: {
       variant: {
@@ -88,14 +94,14 @@ export const buttonVariants = cva(
         // there is no fifth one to keep in sync. `text-base` is `md`'s on
         // purpose: the control grows, the font does not, and the type scale
         // stays shared with desktop.
-        // **`md:min-h-11 md:min-w-11` re-asserts the floor the BASE now
+        // **`fine:min-h-11 fine:min-w-11` re-asserts the floor the BASE now
         // releases.** Since M26 link 14's sweep the base carries §13.1's phone
-        // floor and `md:min-h-0 md:min-w-0` lets the desktop's own density
+        // floor and `fine:min-h-0 fine:min-w-0` lets the desktop's own density
         // through — which would have silently turned this size, whose whole
         // meaning is "44px at EVERY width", into a phone-only one. The sheet
         // header, the Ask pill and the front door are drawn at 44px on both
         // surfaces. `phoneTouch.test.tsx` caught it, and holds it here.
-        touch: "min-h-11 min-w-11 px-3.5 text-base md:min-h-11 md:min-w-11",
+        touch: "min-h-11 min-w-11 px-3.5 text-base fine:min-h-11 fine:min-w-11",
       },
     },
     defaultVariants: { variant: "secondary", size: "md" },

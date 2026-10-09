@@ -1,5 +1,34 @@
 @import "tailwindcss";
 
+/* **Where SPEC §13.1's 44px floor is released: a mouse, at `md` and up** (M39
+   D3, KI-2026-09-24-j). The floor used to be released by width alone
+   (`md:min-h-0`), so a tablet at 820px got the desktop's 28px controls under a
+   finger — 244 of 287 under 32px on Plan, measured. Keyed on the POINTER
+   instead, a touchscreen at any width keeps 44px, and a desktop with a mouse
+   keeps the density it was drawn at.
+
+   `and (min-width: 48rem)` keeps the phone out of it whatever it reports: a
+   phone with a stylus or a mouse plugged in still gets the phone layout, and
+   the phone layout is drawn at 44px. Every `md:min-h-0` that released the
+   floor is `fine:min-h-0` now, and every re-assertion layered over one
+   (`touch`'s `fine:min-h-11`, a plan card's `fine:min-h-7`) is spelled with
+   this same variant, so the two meet in one media query rather than racing
+   across two.
+
+   **And no coarse pointer anywhere on the device** (`any-pointer`). A
+   touchscreen laptop's primary pointer is its trackpad, so `(pointer: fine)`
+   alone released the floor under a finger that can still reach the screen
+   (CodeRabbit, PR #365); the critique chose the pointer over width precisely
+   so such a laptop keeps 44px. `not all and (…)` is the long-supported spelling
+   of a negated media feature. */
+@custom-variant fine {
+  @media (pointer: fine) and (min-width: 48rem) {
+    @media not all and (any-pointer: coarse) {
+      @slot;
+    }
+  }
+}
+
 /* Field Kit tokens — THE single source of truth (design-system.md is the
    human contract; the two change together). The only file in apps/web/src
    where raw color literals may appear. */
@@ -229,6 +258,31 @@
 @layer base {
   body {
     @apply bg-paper font-sans text-base text-ink antialiased;
+  }
+
+  /* **The device's safe area** (M39 D10). `layout.tsx`'s `viewport-fit=cover`
+     lets an installed app draw edge to edge — under the status bar, a notch,
+     the home indicator — and these are what keep the chrome out from under
+     them. Every inset is 0 on a device with none, and on every device until
+     `cover` is set, so nothing here moves a desktop or a test by a pixel.
+
+     **Top.** AppHeader is the top of every `(app)` page, so it absorbs the
+     inset (`.app-header` below) and everything sticky under it offsets by
+     `--app-header-height` instead of a bare 3.5rem. The bottom inset was
+     already on the phone tab bar (`.phone-tab-bar`).
+
+     **Left and right**, on the body: a phone in landscape has its notch on one
+     side, and padding the body moves every page gutter, header and full-bleed
+     board in from it in one place, where a rule per gutter would miss the
+     next one written. `position: fixed` layers (the rack, Ask's floating card,
+     toasts) sit outside that padding and are not inset yet. */
+  :root {
+    --safe-area-top: env(safe-area-inset-top, 0px);
+    --app-header-height: calc(3.5rem + var(--safe-area-top));
+  }
+  body {
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
   }
 }
 
@@ -718,6 +772,35 @@ html[data-look="ledger"] .shadow-raised {
     scroll-margin-top: var(--sticky-stack-height, 0px);
   }
 
+  /* The top safe-area inset (see `--safe-area-top` in the base layer). Named
+     rules rather than `h-14`/`top-14` plus an arbitrary `calc()` value, which
+     the colour wall rejects; the utilities they replace are gone from the
+     elements, so no layer order decides between the two.
+
+     `.app-header` — AppHeader's 56px row, under the inset rather than in it.
+     `.below-app-header` — sticky directly under AppHeader (TripHeader).
+     `.pinned-at-top` — sticky with nothing above it (TripHeader on `/demo`,
+     whose front-door header scrolls away). It pins under the inset rather
+     than padding itself by it, so at rest it does not grow a gap mid-page.
+     `.front-door-header` — the front door's non-sticky header, the top of
+     every `(front)` page: `py-4`'s top half plus the inset.
+
+     TripHeader's `--sticky-stack-height` needs no rule: it is measured from
+     the header's resolved `top`, which already includes the inset. */
+  .app-header {
+    height: var(--app-header-height);
+    padding-top: var(--safe-area-top);
+  }
+  .below-app-header {
+    top: var(--app-header-height);
+  }
+  .pinned-at-top {
+    top: var(--safe-area-top);
+  }
+  .front-door-header {
+    padding-top: calc(1rem + var(--safe-area-top));
+  }
+
   /* PhoneTabBar (SPEC §16, handoff `…dc.html:863-871`). Two rules, and they
      are the same `--rack-height` bargain one level up: the bar is
      `position: fixed`, so it reserves no flow space, and a page's last row
@@ -770,6 +853,11 @@ html[data-look="ledger"] .shadow-raised {
      makes this an under-estimate for one paint, never a permanent one. */
   .phone-tab-bar {
     padding-bottom: max(8px, env(safe-area-inset-bottom));
+    /* Fixed, so `body`'s side insets (M39 Part 4) do not reach it. Padding,
+       not `left`/`right`: the bar still runs edge to edge and only its tabs
+       move clear of a landscape notch (CodeRabbit, PR #366). */
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
   }
   /* The active tab's pill — SPEC §22's 46x26, behind the glyph only. Neither
      number is on the spacing scale (Tailwind's nearest are 44/48 and 24/28),
@@ -1034,37 +1122,6 @@ html[data-look="ledger"] .shadow-raised {
     padding-bottom: var(--phone-tab-bar-height, 0px);
   }
 
-  /* MapLibre puts its attribution in the canvas's bottom-right corner (which
-     is why MapLegend sits top-right instead — see that file). The assistant
-     launcher is a `position: fixed` pill in the *viewport's* bottom-right,
-     and the Map lens is full-bleed, so the two corners are the same corner:
-     the pill sat on top of the attribution links, reported on the preview
-     (Mitchell, 2026-08-30 design pass) and, being a fixed element over a
-     canvas, it made them unclickable rather than merely untidy.
-     Moving the attribution left of the pill keeps both on the same baseline,
-     which reads better than stacking them. 158px is the pill's own footprint:
-     `right-6` (24px) plus its measured ~134px width at the default text size.
-     Keyed on `.assistant-launcher`, which TripBoardScreen sets under exactly
-     the condition that renders the pill (`!isDemo && !assistant.open`). An
-     earlier version keyed on the *absence* of `.assistant-open` instead, which
-     is not the same predicate: on /demo no launcher is rendered at all, and
-     that version still reserved 158px of canvas for it — a gap in front of
-     nothing (CodeRabbit, PR #98).
-     Scoped to >=768px (KI-2026-08-30): below that the launcher is no longer a
-     `position: fixed` pill in the viewport's bottom-right at all — SPEC §13.5
-     forbids one on a phone, so it is an in-flow button at the end of the plan
-     column (TripBoardScreen.tsx). The two corners stop being the same corner,
-     and an unscoped rule here reserves 158px of a 402px-wide canvas for a pill
-     that is not there: exactly the "gap in front of nothing" the /demo case
-     above describes, wrapping the attribution onto three lines. Same 768px
-     `.unscheduled-rack`'s own compensation rule above is scoped to, and the
-     same one `.assistant-rail` turns on. */
-  @media (min-width: 768px) {
-    .assistant-launcher .map-lens-canvas .maplibregl-ctrl-bottom-right {
-      padding-right: 158px;
-    }
-  }
-
   /* UnscheduledRack (Phase 3, Task 3.2): the design specifies
      `position: sticky; bottom: 0; margin-top: auto` — which only pins when the
      drawer is the last child of a full-height flex column that is itself
@@ -1082,7 +1139,9 @@ html[data-look="ledger"] .shadow-raised {
      (M16 Wave 1, Task 4) — a fixed element ignores normal-flow siblings
      entirely — so it needs the same 356px compensation the docked rail's
      width calls for, independently, keyed off `.assistant-open`
-     (TripBoardScreen.tsx sets it on the row while the rail is mounted). The
+     (TripBoardScreen.tsx sets it on the row while the rail is mounted beside
+     the board — not for the 768–1099px overlay sheet, which takes no width,
+     M39 D3). The
      upward shadow is `--shadow-raised` mirrored (this is the one file where
      a color literal may appear); z-index is the design's own 20, applied as
      a plain `z-20` utility on the element. */
@@ -1105,7 +1164,11 @@ html[data-look="ledger"] .shadow-raised {
        Lifting rather than restacking: under the bar the rack is hidden, over it
        the rack covers navigation. Both are bottom-anchored and the bar owns the
        bottom, so the rack takes the space above it. The variable is 0px at
-       >=768px, where the bar is not rendered, so desktop is unchanged. */
+       >=768px, where the bar is not rendered, so desktop is unchanged.
+
+       Since M39 D6 the rack is not docked on a phone at all: it is a row at
+       the end of the day (`UnscheduledRack`'s `placement="row"`). Below 768px
+       this lifts only the suggester's draft bar, which shares the class. */
     bottom: var(--phone-tab-bar-height, 0px);
     box-shadow: 0 -1px 2px rgb(21 29 46 / 0.06);
   }
@@ -1167,7 +1230,7 @@ html[data-look="ledger"] .shadow-raised {
         submitting with Enter. `dvh` tracks the browser's actual visible
         viewport instead.
      A named class rather than a Tailwind `md:` variant on the element
-     because the desktop geometry (356px width, `100vh - 3.5rem` height) is
+     because the desktop geometry (356px width, `100vh` less AppHeader's height) is
      an inline-style computed-geometry exception (AssistantRail.tsx) and an
      inline style beats any later Tailwind utility without `!important` — the
      override has no effect unless both states live in the same rule, so both
@@ -1179,9 +1242,9 @@ html[data-look="ledger"] .shadow-raised {
      width, docked included. */
   .assistant-rail {
     position: sticky;
-    top: 3.5rem;
+    top: var(--app-header-height);
     width: 356px;
-    height: calc(100vh - 3.5rem);
+    height: calc(100vh - var(--app-header-height));
   }
   @media (max-width: 767px) {
     .assistant-rail {

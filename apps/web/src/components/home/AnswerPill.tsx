@@ -23,7 +23,7 @@ import { Button } from "@/components/ui/button";
  */
 const PLACE = {
   sheet: "md:px-3 md:py-1.25 md:text-sm",
-  page: "md:min-h-8.5 md:px-3.25 md:text-sm",
+  page: "fine:min-h-8.5 md:px-3.25 md:text-sm",
 } as const;
 
 /**

@@ -68,7 +68,7 @@ export function StopTagChips({
             // A NAMED group: the river block is itself a `group`, and a bare
             // `group-hover` below would fade every chip whenever the block
             // under the pointer was hovered rather than the chip.
-            className="group/chip inline-flex min-h-11 -my-3 cursor-pointer items-center md:my-0 md:min-h-0"
+            className="group/chip inline-flex min-h-11 -my-3 cursor-pointer items-center fine:my-0 fine:min-h-0"
           >
             {/* `relative` so that when the chips wrap, a visible chip paints —
                 and so hit-tests — above the next row's invisible reach. */}

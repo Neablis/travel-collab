@@ -1,5 +1,5 @@
 import { expect, test } from "./fixtures/test";
-import { createMappedTrip } from "./helpers";
+import { controlsUnderFloor, createMappedTrip } from "./helpers";
 import { e2eTripName } from "./tripNames";
 
 // **SPEC §13.1's floor, counted the way KI-046 counted it** — M26 link 14's
@@ -51,19 +51,7 @@ test.describe("M26 — SPEC §13.1's 44px floor on a phone", () => {
     // data paints it first. Measured without this, the Plan route had rendered
     // no stop card yet, so neither its chips nor its Edit/Remove were counted.
     if (readyTestId) await page.getByTestId(readyTestId).first().waitFor();
-    return page.evaluate(() =>
-      [...document.querySelectorAll("button, a[href], [role='button'], input, select, textarea")]
-        .filter((el) => {
-          const box = el.getBoundingClientRect();
-          const style = getComputedStyle(el);
-          return box.width > 0 && box.height > 0 && style.visibility !== "hidden" && style.display !== "none";
-        })
-        .map((el) => ({
-          h: Math.round(el.getBoundingClientRect().height),
-          name: (el.getAttribute("aria-label") ?? el.textContent?.trim() ?? "(unnamed)").slice(0, 40),
-        }))
-        .filter((c) => c.h < 44),
-    );
+    return controlsUnderFloor(page);
   }
 
   test("every control a phone offers clears 44px, bar a named few", async ({ page }) => {

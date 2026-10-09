@@ -10,14 +10,14 @@ export function Input({ className, ...props }: React.ComponentProps<"input">) {
         // is the whole of what was left under the floor once the buttons and
         // the nav items had it.
         //
-        // `min-h-11` over `h-9`, released at 768px so the desktop keeps its own
-        // density — exactly as the button base does, and at the same breakpoint
-        // every other phone rule in this app draws.
+        // `min-h-11` over `h-9`, released for a mouse at `md` and up so the
+        // desktop keeps its own density — exactly as the button base does
+        // (`fine:`, M39 D3), so a tablet's fields keep the floor too.
         //
         // `disabled:` as `Button` draws it. `:disabled` also matches a field
         // disabled by an enclosing `fieldset disabled`, which is how the gated
         // invite form greys out (travellers spec W8).
-        "h-9 min-h-11 w-full rounded-sm border border-border-input bg-surface px-3 text-base text-ink placeholder:text-slate focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-50 md:min-h-0",
+        "h-9 min-h-11 w-full rounded-sm border border-border-input bg-surface px-3 text-base text-ink placeholder:text-slate focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-50 fine:min-h-0",
         className,
       )}
       {...props}
