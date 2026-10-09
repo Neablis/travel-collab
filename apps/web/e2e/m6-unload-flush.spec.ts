@@ -171,11 +171,21 @@ test("edits queued at a reload reach the server with the service worker in contr
   const addDay = page.getByRole("button", { name: "Add a day", exact: true });
   for (let i = 0; i < 6; i++) await addDay.click();
   await expect(days).toHaveCount(before + 6);
-  await page.reload();
 
   const persistedDays = async () => {
+    // `page.request` is not the page's network, so the CDP latency above does
+    // not slow this read.
     const res = await page.request.get(`/api/trips/${tripId}`);
     return ((await res.json()) as { trip: { days: unknown[] } }).trip.days.length;
   };
+  // The witness: had the queue drained before the reload, the poll below would
+  // pass with no flush at all. Something must still be unsent on the client
+  // AND missing on the server, or this run proves nothing. The server read is
+  // the one that bites — with the latency removed the light still read
+  // "Saving…" while the server already held all six.
+  await expect(page.getByRole("status")).toHaveAttribute("aria-label", "Saving…");
+  expect(await persistedDays()).toBeLessThan(before + 6);
+  await page.reload();
+
   await expect.poll(persistedDays).toBe(before + 6);
 });
