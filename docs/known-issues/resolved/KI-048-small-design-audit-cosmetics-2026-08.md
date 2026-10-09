@@ -1,4 +1,4 @@
-### KI-48 — Small design-audit cosmetics (2026-08-26)
+### KI-48 — Small design-audit cosmetics (2026-08-26) — RESOLVED
 
 - **Severity:** cosmetic
 - **Area:** `apps/web/src` (various)
@@ -19,9 +19,19 @@
     and Overview only). An empty day column (`board/Column.tsx:280-290`) draws
     one dashed `+ Add` and nothing else; "Add the first stop" and "add one, or
     drop a saved day onto it" occur nowhere in `apps/web/src`.
-  - **The day-chip rail clips its last chip mid-card** at 1440px with no
+  - ~~**The day-chip rail clips its last chip mid-card** at 1440px with no
     scroll affordance (`DayChips.tsx`) — reads as a rendering error rather
-    than as "scroll me". `MapRail`'s gearing already solves this shape.
+    than as "scroll me".~~ — **FIXED** (M39 Part 1, PR #363, decision 7:
+    an edge fade plus snap). The row tracks which edges have chips past them
+    (scroll + `ResizeObserver`), exposes it as `data-fade-start` /
+    `data-fade-end`, and masks that edge 2rem; `snap-x snap-mandatory` with
+    `snap-start` chips brings a scroll to rest on a whole chip.
+    **Proof:** `DayChips.test.tsx` "fades only the edges that have chips
+    beyond them" and "does not fade a row that fits" — with the `data-fade-end`
+    attribute wired to the wrong side, red: `expected { start: false, end:
+    false } to deeply equal { start: false, end: true }`; with the end test
+    off by one, red: `expected [ false, true ] to deeply equal [ false, false
+    ]`; green restored. The history of this item, kept: `MapRail`'s gearing already solves this shape.
     **Still holds** (2026-09-25 overnight sweep): `DayChips.tsx`'s row is a
     bare `overflow-x-auto` of fixed 92px chips with no fade, arrow or snap.
     **Left open:** the affordance is a design choice (edge fade that tracks
@@ -37,7 +47,20 @@
     email" — red on the old render (`expected [ <span …(2)></span> ] to have a
     length of +0 but got 1`), green after; re-broken by dropping the guard,
     red again for the same reason.
-  - **Trip settings' date editor covers "Total for the trip".** The Popover
+  - ~~**Trip settings' date editor covers "Total for the trip".**~~ —
+    **FIXED** (M39 Part 1, PR #363, decision 8): the Popover is gone; the
+    Dates row is a disclosure (`aria-expanded` / `aria-controls`) that
+    expands `TripDateControl` inline beneath it, and the sheet closing resets
+    `datesOpen`. **Proof:** `SettingsSheet.test.tsx` "expands the date editor
+    inline, as a disclosure" — red on the popover (`Unable to find an element
+    by: [data-testid="trip-dates-editor"]`); "collapses the editor when the
+    sheet closes" — with the reset removed, red: `expected 'true' to be
+    'false'`. `e2e/m3-place-and-time.spec.ts` now asserts opening the editor
+    pushes the total down by at least the editor's height — on the popover,
+    red: `Expected: >= 62, Received: 0`. (Its first version asked whether the
+    total was covered at all, and passed on the popover: at 1280px the
+    right-aligned popover misses the total. That is why it measures the push.)
+    See the PR for which e2e lane that ran on. The history of this item, kept: The Popover
     is deliberate (`SettingsSheet.tsx:59` — the read-only dates row opens
     `TripDateControl` in one), but it opens downward over the budget input
     rather than expanding inline the way the design's row does. The editor
@@ -60,3 +83,5 @@
   **Narrowed:** 2026-09-25 (overnight KI sweep) — four of six items struck;
   open are the day-chip scroll affordance (A7) and the inline date editor
   (B14).
+  **Resolved:** 2026-10-08 (M39 Part 1, PR #363) — A7 and B14 fixed,
+  as above; every item is now struck.

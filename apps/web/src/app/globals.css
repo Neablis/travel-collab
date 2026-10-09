@@ -2015,3 +2015,30 @@ html[data-look="ledger"] .shadow-raised {
     }
   }
 }
+
+/* ── M39 Part 1: the day-chip row's edge fades (KI-048 item 3). A named rule
+   rather than `data-fade-end:mask-r-from-[calc(100%-2rem)]`: the colour wall
+   bans arbitrary-value brackets in a className. `DayChips` sets
+   `data-fade-start` / `data-fade-end` on whichever side has chips past it,
+   and the mask fades the chips themselves over 2rem, the Calendar's fade
+   width. A mask, not an overlay, because the row sits on more than one
+   background. */
+@layer components {
+  [data-day-chips][data-fade-start] {
+    mask-image: linear-gradient(to right, transparent, black 2rem);
+  }
+
+  [data-day-chips][data-fade-end] {
+    mask-image: linear-gradient(to left, transparent, black 2rem);
+  }
+
+  [data-day-chips][data-fade-start][data-fade-end] {
+    mask-image: linear-gradient(
+      to right,
+      transparent,
+      black 2rem,
+      black calc(100% - 2rem),
+      transparent
+    );
+  }
+}
