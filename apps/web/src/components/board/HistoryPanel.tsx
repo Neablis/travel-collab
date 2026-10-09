@@ -10,6 +10,8 @@ import { DataText } from "@/components/ui/data-text";
 import { Text } from "@/components/ui/text";
 import { formatTripDate } from "@/lib/formatDate";
 import { AuthorChip, useAuthorNames } from "./SuggestionActions";
+import { SnapshotList } from "./SnapshotList";
+import type { CommandOutcome } from "@/lib/apiClient";
 
 // "Suggested" alone until the names land: a name guessed wrong, or "a former
 // traveler" said of a member, is worse than none.
@@ -35,6 +37,7 @@ export function HistoryPanel({
   onPreview,
   onExitPreview,
   onRevert,
+  snapshots,
 }: {
   history: TripHistory | null;
   previewSeq: number | null;
@@ -46,6 +49,9 @@ export function HistoryPanel({
   onPreview: (seq: number) => void;
   onExitPreview: () => void;
   onRevert: (toSeq: number) => void;
+  // Named snapshots (M40 part 2), listed above the scroll. Optional so a panel
+  // with no trip to ask about (the demo, a test of the entries) shows none.
+  snapshots?: { tripId: string; busy: boolean; onRestored: (outcome: CommandOutcome) => void };
 }) {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   // Null names outside a `PeopleProvider` (TripHeader mounts one) or before
@@ -65,6 +71,17 @@ export function HistoryPanel({
 
   return (
     <div className="flex flex-col gap-2">
+      {snapshots && (
+        <SnapshotList
+          tripId={snapshots.tripId}
+          canEdit={!readOnly}
+          busy={snapshots.busy}
+          previewSeq={previewSeq}
+          onPreview={onPreview}
+          onExitPreview={onExitPreview}
+          onRestored={snapshots.onRestored}
+        />
+      )}
       <ol reversed className="m-0 max-h-80 list-none divide-y divide-hairline overflow-y-auto p-0">
         {visible.map(({ entry, count }) => (
           <li

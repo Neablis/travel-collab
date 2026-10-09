@@ -13,6 +13,11 @@ import {
   createTripSuggestion,
   fetchTripSuggestions,
   resolveSuggestionChange,
+  fetchTripSnapshots,
+  saveTripSnapshot,
+  renameTripSnapshot,
+  deleteTripSnapshot,
+  restoreTripSnapshot,
   createTripShare,
   deleteSavedDay,
   duplicateTrip,
@@ -264,6 +269,11 @@ const FETCHING_HELPERS: Record<string, () => Promise<ApiResult<unknown>>> = {
     createTripSuggestion(TRIP_ID, { units: [{ commands: [{ type: "AddDay", tripId: TRIP_ID, dayId: UUID }] }] }),
   fetchTripSuggestions: () => fetchTripSuggestions(TRIP_ID),
   resolveSuggestionChange: () => resolveSuggestionChange(TRIP_ID, UUID, "accept"),
+  fetchTripSnapshots: () => fetchTripSnapshots(TRIP_ID),
+  saveTripSnapshot: () => saveTripSnapshot(TRIP_ID, { name: "Before" }),
+  renameTripSnapshot: () => renameTripSnapshot(TRIP_ID, UUID, { name: "After" }),
+  deleteTripSnapshot: () => deleteTripSnapshot(TRIP_ID, UUID),
+  restoreTripSnapshot: () => restoreTripSnapshot(TRIP_ID, UUID),
   fetchInviteLanding: () => fetchInviteLanding("tok"),
   fetchInvitePreview: () => fetchInvitePreview("tok"),
   acceptInvite: () => acceptInvite("tok"),
@@ -700,6 +710,8 @@ const TRIP_WRITERS: Record<string, () => Promise<ApiResult<unknown>>> = {
   removeMember: () => removeMember(TRIP_ID, "u-2"),
   // An accept appends a batch; see the helper for why every action clears.
   resolveSuggestionChange: () => resolveSuggestionChange(TRIP_ID, UUID, "accept"),
+  // A restore appends a revert batch.
+  restoreTripSnapshot: () => restoreTripSnapshot(TRIP_ID, UUID),
   applyAssistantProposal: () =>
     applyAssistantProposal(TRIP_ID, {
       proposalId: "p1",
