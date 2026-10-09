@@ -52,6 +52,7 @@ import {
   type AskScope,
 } from "@/lib/apiClient";
 import { Board } from "./Board";
+import { ConflictsChip } from "./ConflictsChip";
 import { cn } from "@/lib/cn";
 
 // Closed until asked for, at every width (Mitchell, walking the #71 preview:
@@ -98,7 +99,7 @@ function useAssistantVisibility() {
 
 export function TripBoardScreen({ tripId }: { tripId: string }) {
   const { trip, activeTrip, history, status, error, dispatch, dispatchBatch, applyOutcome, preview, pending, readOnly, myRole, canEditBoard, boardMode, draft, remoteRevision, confirmedSeq } = useTrip();
-  const { view } = useLens();
+  const { view, setView } = useLens();
   const { openEdit } = useEditor();
   const suggestions = useBoardSuggestions();
   // Task 4's FocusProvider is mounted around this whole tree (trips/[tripId]/
@@ -922,6 +923,28 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   );
   const rackIsRow = isPhone && draft === null;
 
+  // **The phone's conflict state** (M39 D9). A jump lands on Plan, on the
+  // stop's day, with its editor open for anyone who could open it from the
+  // card, which is the banner's jump with the day the phone has to pick first.
+  // A viewer still gets the day: finding a stop on a one-day board is reading.
+  // Dismiss follows the banner's rule, and a past version on screen (history
+  // preview) takes it away too, as it does the meta pill's date editor.
+  const conflictsChip = (
+    <ConflictsChip
+      conflicts={activeTrip.conflicts}
+      dismissedConflictIds={activeTrip.dismissedConflictIds}
+      activities={activeTrip.activities}
+      onDismiss={(conflictId) => void dispatch({ type: "DismissConflict", tripId, conflictId })}
+      onJump={(activityId) => {
+        const day = activeTrip.days.findIndex((d) => d.activityIds.includes(activityId));
+        if (day !== -1) setFocusedDay(day);
+        setView("Plan");
+        if (canEditBoard && preview.seq === null) openEdit(activityId);
+      }}
+      readOnly={!canEditBoard || boardMode === "suggest" || preview.seq !== null}
+    />
+  );
+
   // How many more questions this thread has room for.
   //
   // `runAsk` posts the whole thread plus the new question, and the server
@@ -1005,6 +1028,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             assistantOpen={assistant.open}
             onOpenAssistant={isDemo ? undefined : assistant.show}
             pinned={pinsDayRail ? dayChips : undefined}
+            conflicts={conflictsChip}
           >
             {/* "Beside the view tabs" (SPEC §11), so one row — and the design
                 keeps it one row at every width by SCROLLING it
