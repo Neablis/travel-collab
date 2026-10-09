@@ -13,6 +13,24 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-09 — `TripSnapshot`: named snapshots of a trip (M40 part 2)
+
+- **Added** (`snapshot.ts`): `TripSnapshot { id, tripId, seq, name, createdBy, createdAt }`,
+  `TripSnapshotsResponse { snapshots }` (newest first), `CreateSnapshotInput { name }`,
+  `RenameSnapshotInput { name }` and `SNAPSHOT_NAME_MAX` (80). A name is trimmed, then 1–80
+  characters; `trip_snapshots`' CHECK (migration 0045) holds the same bound. Deleting takes no body,
+  so it has no schema.
+- Why: M40 D4 and D5. A snapshot labels a position in the trip's log so a person can get back to it
+  without scrolling History. It is a CRUD row, **not an event**, and occupies no `seq`. Restoring
+  one is the existing `RevertToState { toSeq: seq }`, so no command or event changed, and the
+  restore route answers the command routes' `{ detail, history }`.
+- Consumers updated: `server/snapshots/` (the module and its status table), the routes under
+  `api/trips/[tripId]/snapshots/`, `server/public-api/exposure.ts` (three `planned` lines),
+  `apiClient` (`fetchTripSnapshots`, `saveTripSnapshot`, `renameTripSnapshot`,
+  `deleteTripSnapshot`, `restoreTripSnapshot`), `mocks/handlers.ts`, and the History panel's
+  `SnapshotList`.
+- Breaking? No. Additive only.
+
 ## 2026-10-08 — `PreferencesResponse.defaultColor`: Account draws the colour trips derive (M38 part 4)
 
 - **Added:** `PreferencesResponse` (`identity.ts`), `{ preferences: UserPreferences, defaultColor:
