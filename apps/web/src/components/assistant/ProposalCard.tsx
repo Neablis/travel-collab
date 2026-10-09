@@ -165,8 +165,10 @@ export function ProposalCard({
   const applying = status === "applying";
   // `min-h` on both sides of the release: `Button`'s base lets its phone floor
   // go under a mouse at `md` (`fine:`, M39 D3), and this card's target is its
-  // own either way.
-  const target = touch ? "min-h-11 fine:min-h-11" : "min-h-8.5 fine:min-h-8.5";
+  // own either way. The smaller target is a mouse's only: a wide touch screen
+  // shows the docked rail (`touch` false) and still needs 44px (CodeRabbit,
+  // PR #365).
+  const target = touch ? "min-h-11 fine:min-h-11" : "min-h-11 fine:min-h-8.5";
 
   return (
     <div

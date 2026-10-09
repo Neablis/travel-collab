@@ -13,8 +13,21 @@
    floor is `fine:min-h-0` now, and every re-assertion layered over one
    (`touch`'s `fine:min-h-11`, a plan card's `fine:min-h-7`) is spelled with
    this same variant, so the two meet in one media query rather than racing
-   across two. */
-@custom-variant fine (@media (pointer: fine) and (min-width: 48rem));
+   across two.
+
+   **And no coarse pointer anywhere on the device** (`any-pointer`). A
+   touchscreen laptop's primary pointer is its trackpad, so `(pointer: fine)`
+   alone released the floor under a finger that can still reach the screen
+   (CodeRabbit, PR #365); the critique chose the pointer over width precisely
+   so such a laptop keeps 44px. `not all and (…)` is the long-supported spelling
+   of a negated media feature. */
+@custom-variant fine {
+  @media (pointer: fine) and (min-width: 48rem) {
+    @media not all and (any-pointer: coarse) {
+      @slot;
+    }
+  }
+}
 
 /* Field Kit tokens — THE single source of truth (design-system.md is the
    human contract; the two change together). The only file in apps/web/src

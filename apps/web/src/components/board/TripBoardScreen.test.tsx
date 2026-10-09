@@ -1310,6 +1310,10 @@ describe("TripBoardScreen", () => {
     fireEvent.click(screen.getByTestId("ask-pill"));
     expect(await screen.findByRole("dialog")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Float it free" })).toBeNull();
+    // The sheet asks about the day in view, so it says so, as the phone's does
+    // — not the docked rail's trip-wide line (CodeRabbit, PR #365).
+    expect(screen.getByText(/It reads the day you have open/)).toBeTruthy();
+    expect(screen.queryByText("Ask about this trip and the conversation stays here.")).toBeNull();
   });
 
   // The other side of the band: from 1100px up the stored choice is the

@@ -37,6 +37,21 @@ function renderCard(overrides: Partial<React.ComponentProps<typeof ProposalCard>
 const card = () => screen.getByRole("group", { name: "Suggested change" });
 
 describe("ProposalCard", () => {
+  // Off the sheet (`touch` false) the card is the docked rail's — which a wide
+  // touch screen shows too. The smaller 34px target is a mouse's only, behind
+  // `fine:`; unprefixed it beat `Button`'s 44px floor under a finger
+  // (CodeRabbit, PR #365). jsdom matches no media query, so this reads the one
+  // thing it can: that the unconditional floor is 44px.
+  it("keeps its actions at 44px unless the pointer is a mouse", () => {
+    renderCard();
+    for (const action of within(card()).getAllByRole("button")) {
+      const classes = action.className.split(/\s+/);
+      expect(classes).toContain("min-h-11");
+      expect(classes).not.toContain("min-h-8.5");
+      expect(classes).toContain("fine:min-h-8.5");
+    }
+  });
+
   // M27 D16: the words are derived from the proposal — the contract carries
   // only the server's sentence per change, and is not widened for a title.
   it("counts several changes in the title and lists every one under it", () => {

@@ -1,4 +1,8 @@
 import { render, screen } from "@testing-library/react";
+import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { Button, PHONE_TOUCH, buttonVariants } from "./button";
 import { TOUCH } from "../home/NewTripWizard";
@@ -74,5 +78,43 @@ describe("PHONE_TOUCH", () => {
     // `min-h-11` beats `sm`'s fixed `h-7` without the caller restating it.
     expect(button.className).toContain("min-h-11");
     expect(button.className).toContain("h-7");
+  });
+});
+
+// What `fine:` compiles to, from the REAL globals.css with the REAL Tailwind
+// compiler (the PageEditor typography test's method; jsdom matches no media
+// query). A touchscreen laptop's PRIMARY pointer is its trackpad, so
+// `(pointer: fine)` alone released the floor under a finger that can still
+// reach the screen (CodeRabbit, PR #365) — the critique's own reason for
+// choosing the pointer over width was that such a laptop keeps 44px. Chromium
+// cannot emulate "fine primary, coarse also present" (touch emulation flips the
+// primary pointer too), so this is the layer that can hold it.
+describe("the fine: variant", () => {
+  async function compiled(candidate: string): Promise<string> {
+    const here = path.dirname(fileURLToPath(import.meta.url));
+    const cssPath = path.resolve(here, "../../app/globals.css");
+    const require = createRequire(cssPath);
+    const { compile } = require("tailwindcss") as typeof import("tailwindcss");
+    const compiler = await compile(readFileSync(cssPath, "utf8"), {
+      base: path.dirname(cssPath),
+      loadStylesheet: async (id: string, base: string) => {
+        const resolved = require.resolve(id === "tailwindcss" ? "tailwindcss/index.css" : id, { paths: [base] });
+        return { path: resolved, base: path.dirname(resolved), content: readFileSync(resolved, "utf8") };
+      },
+      loadModule: async () => {
+        throw new Error("globals.css loads no JS plugins");
+      },
+    });
+    return compiler.build([candidate]);
+  }
+
+  it("releases the floor only when no pointer on the device is coarse", async () => {
+    const css = await compiled("fine:min-h-0");
+    const rule = css.slice(css.indexOf(".fine\\:min-h-0"));
+    // The at-rules wrapping the rule, outermost first.
+    const conditions = css.slice(0, css.indexOf(".fine\\:min-h-0")).match(/@media[^{]*/g) ?? [];
+    expect(rule).toContain("min-height: 0");
+    expect(conditions.join(" ")).toMatch(/pointer: fine/);
+    expect(conditions.join(" ")).toMatch(/not all and \(any-pointer: coarse\)/);
   });
 });

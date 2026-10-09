@@ -1258,7 +1258,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             suggestions={isPhone ? phoneAsk.quickAsks : assistantSuggestions}
             // Undefined on the desktop, which leaves the rail's own trip-wide
             // sentence — §23 changes the phone and nothing above 768px.
-            emptyHint={isPhone ? phoneAsk.emptyHint : undefined}
+            emptyHint={assistantPresentation === "sheet" ? phoneAsk.emptyHint : undefined}
             asksRemaining={ask.asksRemaining}
             restoreDraft={ask.restoredDraft}
             onNewConversation={ask.startNewConversation}
