@@ -24,7 +24,7 @@
 // PR #366). So a new worker installs and waits until no page uses the old
 // one. A first install has nothing to wait for, and `clients.claim()` on
 // activate takes the page that installed it.
-const CACHE_VERSION = 1;
+const CACHE_VERSION = 2;
 const CACHE_NAME = `caesura-static-v${CACHE_VERSION}`;
 
 // Hashed chunks accumulate across deploys under one cache version, so the cache
