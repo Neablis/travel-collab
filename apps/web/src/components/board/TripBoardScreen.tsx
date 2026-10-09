@@ -263,8 +263,17 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // The clamp is real and was a bug: focusing the last day and then deleting it
   // left a scope pointing past the end, and every answer came back
   // `this trip has N days, so day N+1 is out of range` with no way back.
+  //
+  // **A phone on Overview or Calendar asks about the trip** (SPEC §24 scopes
+  // both to it; KI-2026-09-25-f). The focus survives onto them and the sheet
+  // states the surface's scope (§23), so the wire has to drop the day too or
+  // the line and the turn disagree. Phone only: above 768px the rail's own
+  // "Looking at Day N" scope is unchanged.
+  const tripWideOnPhone = isPhone && (view === "Overview" || view === "Calendar");
   const scopedDay =
-    focusedDay !== null && activeTrip !== null && focusedDay < activeTrip.days.length ? focusedDay : null;
+    !tripWideOnPhone && focusedDay !== null && activeTrip !== null && focusedDay < activeTrip.days.length
+      ? focusedDay
+      : null;
   // `dayIndex` is 0-based, matching TripDetail.days and /ask's scope; the day
   // NUMBER a human reads is +1, and that conversion happens in one place.
   const askScope: AskScope = scopedDay !== null ? { kind: "day", dayIndex: scopedDay } : { kind: "trip" };
@@ -847,8 +856,11 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
 
   // The same three things again, derived for the PHONE sheet (SPEC §23). Not a
   // second set of rules: `phoneAskContext` is where "which phone tab, and is a
-  // page open" becomes a scope, and this screen is two of its four surfaces —
-  // Plan and Map, which §23 treats as one because they show the same day.
+  // page open" becomes a scope, and this screen is four of its surfaces — Plan
+  // and Map, which §23 treats as one because they show the same day, and
+  // Overview and Calendar, which show the whole trip (§24). The trip-wide pair
+  // is keyed on `tripWideOnPhone` rather than on `view` alone: the tablet's
+  // sheet reads this hint too, over the day scope it keeps.
   //
   // Fed `scopedDay`, the clamped index `askScope` is built from, so the sheet's
   // first line and the scope actually posted cannot disagree — the bug the
@@ -862,7 +874,9 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // can see, in the day rail's own words (`chipModel`). The quick asks are
   // literally `suggestedQuestions` either way, which is deliberate — see that
   // function's note in `phoneAskContext`.
-  const phoneAsk = phoneAskContext(activeTrip, scopedDay, { tab: view === "Map" ? "map" : "plan" });
+  const phoneAsk = phoneAskContext(activeTrip, scopedDay, {
+    tab: tripWideOnPhone ? (view === "Calendar" ? "calendar" : "overview") : view === "Map" ? "map" : "plan",
+  });
 
   // Plan's day rail, built once and mounted in one of two places (below).
   const dayChips = (

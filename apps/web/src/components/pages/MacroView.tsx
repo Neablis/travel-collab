@@ -132,12 +132,13 @@ const EXTERNAL_NOUN: Record<ExternalNeed, string> = { weather: "weather", notebo
  * @param external - Outside data slots (ADR-052); absent means every slot is still pending
  * @param onBindDay - Optional handler for rebinding a widget whose selected day was removed
  * @param editing - Editing mode: an unbound widget renders its ghost rather than its placeholder
+ * @param compact - The phone Overview's density: a block with a phone form renders it
  * @returns The rendered macro widget or an appropriate status chip
  */
-export function MacroView({ detail, context, user = null, globals = null, external, name, params, onBindDay, editing = false }: {
+export function MacroView({ detail, context, user = null, globals = null, external, name, params, onBindDay, editing = false, compact = false }: {
   detail: TripDetail; context: PageContext; user?: UserPreferences | null;
   globals?: TripGlobals | null; external?: ExternalInputs; name: string;
-  params: Record<string, unknown>; onBindDay?: () => void; editing?: boolean;
+  params: Record<string, unknown>; onBindDay?: () => void; editing?: boolean; compact?: boolean;
 }) {
   const def = getMacro(name);
   // One derivation per render of one widget, memoised on the trip: `cityAccents`
@@ -258,7 +259,7 @@ export function MacroView({ detail, context, user = null, globals = null, extern
     case "inline":
       return <Segs segs={rendered.segs} accents={accents} />;
     case "block":
-      return <BlockView block={rendered.block} accents={accents} tripId={context.tripId} interactive={!editing} />;
+      return <BlockView block={rendered.block} accents={accents} tripId={context.tripId} interactive={!editing} compact={compact} />;
     // A repeat's rows.
     //
     // **`span`, not `div`, and that is not a style preference.** A widget node

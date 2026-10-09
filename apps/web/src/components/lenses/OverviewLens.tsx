@@ -17,6 +17,7 @@ import { RegionError, Skeleton, SkeletonRegion } from "@/components/ui/skeleton"
 import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/cn";
 import { PeopleProvider } from "@/components/pages/people";
+import { useIsPhone } from "@/lib/useIsPhone";
 
 // SPEC §25: **Overview IS a notebook page.**
 //
@@ -104,6 +105,14 @@ export function OverviewLens({
   // "home airport" empty. Defaults, not a throw, outside a provider.
   const user = usePreferences();
   const pathname = usePathname();
+  // **A phone reads the same page at phone density** (M39 D2, Mitchell
+  // 2026-10-09: the artboard's `phoneNbDoc`, read-only). The frame is CSS
+  // (`.tc-overview-letter`'s phone block); this is the other half, the blocks
+  // that have a phone FORM and render it. A hook rather than a media query
+  // because a form is a different tree, not a restyle of this one. `false` on
+  // the first paint, so a phone sees the desktop form for a frame — the same
+  // first-paint trade every `useIsPhone` mount makes.
+  const isPhone = useIsPhone();
   const [globals, setGlobals] = useState<TripGlobals | null>(null);
   const [state, setState] = useState<
     | { status: "loading" }
@@ -351,6 +360,7 @@ export function OverviewLens({
           // than a missing prop.
           onChange={() => {}}
           editable={false}
+          compact={isPhone}
         />
       </PeopleProvider>
     );
@@ -362,7 +372,7 @@ export function OverviewLens({
   // `min-h-7` holds the letterhead's height for a viewer, who has no Edit, so
   // the rule sits in the same place for everyone.
   return (
-    <div className="pt-8 pb-22">
+    <div className="pt-8 pb-22 max-md:pt-0">
       <div className="tc-overview-letter">
         <div className="mb-6.5 flex min-h-7 items-center justify-between gap-4 border-b border-hairline pb-4.5">
           {linkedPageId === null ? (

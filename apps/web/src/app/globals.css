@@ -2034,6 +2034,30 @@ html[data-look="ledger"] .shadow-raised {
     font-size: 18px;
     @apply mt-8;
   }
+  /* **Below 768px the letter is the phone notebook page instead** (M39 D2,
+     KI-2026-09-25-f): the artboard's `phoneNbDoc`, which has no sheet — the
+     page is the surface, edge to edge. So the frame goes, and the sheet's
+     ground reaches the screen's edges by undoing `PageContainer`'s `px-6`
+     (24px) rather than leaving a strip of paper either side of it. The
+     clamped padding was 22–27px a side inside that 24px, about a seventh of a
+     390px screen spent on margins. The artboard's type: 16/1.66 prose, 17px
+     headings. Blocks swap to their phone form in `OverviewLens`
+     (`compact`), which is a layout change rather than a restyle. */
+  @media (max-width: 767px) {
+    .tc-overview-letter {
+      max-width: none;
+      @apply -mx-6 w-auto border-0 px-6 pt-5.5 pb-8;
+      border-radius: 0;
+      box-shadow: none;
+    }
+    .tc-overview-letter .tc-page-editor p {
+      line-height: 1.66;
+    }
+    .tc-overview-letter .tc-page-editor h2 {
+      font-size: 17px;
+      @apply mt-6;
+    }
+  }
 }
 
 /* ── M27 link 8: Cass's typing row (SPEC §35.8, D14). Its own block, apart

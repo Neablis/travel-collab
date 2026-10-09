@@ -153,6 +153,11 @@ function LockedNotice({ children }: { children: ReactNode }) {
 // Overview is what a bare trip URL opens on. Before the trip has loaded (only
 // the error branch can be reached that way) it says "Trip", which is true and
 // still leads out.
+//
+// The trip crumb is the one that gives way on a narrow screen: a long trip
+// name was one unbreakable run, and at 390px it pushed the page 140px wide
+// and the fixed tab bar with it (PR #367's preview walk). It truncates; the
+// link's text — so its accessible name — stays whole, and `title` shows it.
 function PageBreadcrumb({
   tripId,
   tripName,
@@ -168,13 +173,13 @@ function PageBreadcrumb({
   const first = from === "overview" && tripName !== null ? `${name} overview` : name;
   return (
     <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1.5 text-sm">
-      <Link href={`/trips/${tripId}`} className="py-1.5 font-semibold whitespace-nowrap text-brand no-underline">
+      <Link href={`/trips/${tripId}`} title={first} className="min-w-0 truncate py-1.5 font-semibold text-brand no-underline">
         {`← ${first}`}
       </Link>
       <span aria-hidden className="text-border-strong">
         /
       </span>
-      <Link href={`/trips/${tripId}/pages`} className="whitespace-nowrap text-slate no-underline hover:text-ink">
+      <Link href={`/trips/${tripId}/pages`} className="shrink-0 whitespace-nowrap text-slate no-underline hover:text-ink">
         Notebook
       </Link>
       {title !== null && (
