@@ -83,7 +83,7 @@ describe("POST /api/trips/:id/suggestions", () => {
 
   it.each([
     ["not-found", 404, () => `sugg-route-stranger-${randomUUID()}`, () => [rename("x")]],
-    ["forbidden", 403, () => OWNER, () => [rename("x")]],
+    ["forbidden", 403, () => VIEWER, () => [rename("x")]],
     ["invalid", 400, () => SUGGESTER, () => [rename("x", randomUUID())]],
   ] as const)("maps %s to %i", async (code, status, actor, commands) => {
     currentUserId = actor();

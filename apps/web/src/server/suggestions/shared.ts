@@ -136,7 +136,10 @@ export type SuggestionRow = typeof tripSuggestions.$inferSelect;
  * and so `no-longer-applies`. The revision is taken over the rows, not over
  * what was served, so the list and the poll still agree.
  */
-export function toChange(row: ChangeRow, suggestion: Pick<SuggestionRow, "authorId" | "note">): SuggestionChange | null {
+export function toChange(
+  row: ChangeRow,
+  suggestion: Pick<SuggestionRow, "authorId" | "note" | "via">,
+): SuggestionChange | null {
   const parsed = SuggestionChange.safeParse({
     id: row.id,
     suggestionId: row.suggestionId,
@@ -150,6 +153,8 @@ export function toChange(row: ChangeRow, suggestion: Pick<SuggestionRow, "author
     dependsOn: row.dependsOn,
     resolvedBy: row.resolvedBy,
     resolvedAt: row.resolvedAt === null ? null : row.resolvedAt.toISOString(),
+    // Absent, not null, for a person's draft: the contract's field is optional.
+    ...(suggestion.via === null ? {} : { via: suggestion.via }),
   });
   if (parsed.success) return parsed.data;
   // The issues, not the row: the trip and change ids are what make it findable.
@@ -162,7 +167,10 @@ export function toChange(row: ChangeRow, suggestion: Pick<SuggestionRow, "author
 }
 
 /** {@link toChange} over rows of one suggestion, leaving out any that do not parse. */
-export function toChanges(rows: readonly ChangeRow[], suggestion: Pick<SuggestionRow, "authorId" | "note">): SuggestionChange[] {
+export function toChanges(
+  rows: readonly ChangeRow[],
+  suggestion: Pick<SuggestionRow, "authorId" | "note" | "via">,
+): SuggestionChange[] {
   return rows.flatMap((row) => toChange(row, suggestion) ?? []);
 }
 

@@ -108,6 +108,8 @@ export async function acceptSuggestionChanges(
     kind: "suggestions",
     changes: ordered.map((r) => ({ suggestionId: r.suggestion.id, changeId: r.change.id })),
     authorIds: [...new Set(ordered.map((r) => r.suggestion.authorId))],
+    // Only when it is true of every change, so the line is never wrong about one (ADR-067).
+    ...(ordered.every((r) => r.suggestion.via === "assistant") ? { via: "assistant" as const } : {}),
   };
 
   // Conditional on `pending`, as a single accept's is (W10): one change lost

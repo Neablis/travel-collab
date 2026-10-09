@@ -601,6 +601,10 @@ export const tripSuggestions = pgTable(
     baseSeq: integer("base_seq").notNull(),
     // `mode: "date"` — see the note above `savedDays` (KI-53).
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull(),
+    // `'assistant'` when the asking editor's assistant turn stored it (ADR-067
+    // decision 2); null for one a person sent. No CHECK: like `status` below,
+    // the contract's enum is what a row is parsed against on the way out.
+    via: text("via"),
   },
   // No index on `trip_id`: every read goes through the changes table below.
 );
