@@ -204,6 +204,13 @@ export const AssistantSuggested = z.object({
   snapshotId: z.string().uuid().nullable(),
   snapshotName: z.string().min(1).nullable(),
   snapshotSkipped: z.string().min(1).optional(),
+  /**
+   * The proposal's `skipped`, carried across: changes the resolver could not
+   * match to this trip, as sentences. They are in no stored change, so the
+   * chat note is the only place they are said. Defaulted, like the
+   * proposal's, so an outcome from before this field still parses.
+   */
+  skipped: z.string().array().default([]),
 });
 export type AssistantSuggested = z.infer<typeof AssistantSuggested>;
 

@@ -190,8 +190,10 @@ One entry point, `POST /api/trips/:id/ask` → `src/server/ai/handleAskRequest.t
    through the functions an editor's own buttons use. The final chunk then carries `suggested { suggestionId,
    changeCount, snapshotId, snapshotName, snapshotSkipped? }` in place of `proposal`; the board re-reads its
    suggestion list on it, and the ghosts, the chip and *Accept all* are the review. A refused store (a cap,
-   more than 50 changes) deletes the snapshot and returns the card with `notSuggested`, so nothing is stored
-   and nothing is lost. Nothing is appended to the trip's stream either way.
+   more than 50 changes, a command no suggestion holds, a throw) deletes the snapshot and returns the card with
+   `notSuggested`, so nothing is stored and nothing is lost. Nothing is appended to the trip's stream either
+   way. How each proposing turn ended is its own log line and metric, `ai.ask.outcome`, joined to `ai.ask` by
+   `turnId`; the board re-reads its suggestions whenever a turn ends, announced or not.
 8. **Apply**: the human approves → `POST …/ask/apply` → `executeTripCommandBatch` as that user. No model call.
    Still the path for one-command and insert turns.
 9. **Ledger**: one `TurnCost` per turn on every end path (done, error, abort) via `after()`, into the three

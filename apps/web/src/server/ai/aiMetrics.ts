@@ -316,3 +316,24 @@ export function recordProposalApplyMetrics(record: ProposalApplyMetricsRecord): 
     // Telemetry never breaks a write that already committed.
   }
 }
+
+/** What one planning turn's outcome contributes — the `ai.ask.outcome` record, in metric form. */
+export interface AskOutcomeMetricsRecord {
+  /** `card`, `suggested`, or `notSuggested:<code>` — a bounded set of refusal codes. */
+  outcome: string;
+  commandCount: number;
+}
+
+/**
+ * Card / stored suggestion / refused-to-card counts for planning turns
+ * (ADR-067): how often a big change reaches the board, and why it does not.
+ */
+export function recordAskOutcomeMetrics(record: AskOutcomeMetricsRecord): void {
+  try {
+    const attributes: MetricAttributes = { outcome: record.outcome };
+    Sentry.metrics.count("ai.ask.outcome", 1, { attributes });
+    Sentry.metrics.distribution("ai.ask.outcome.commands", record.commandCount, { attributes });
+  } catch {
+    // Telemetry never breaks a turn.
+  }
+}

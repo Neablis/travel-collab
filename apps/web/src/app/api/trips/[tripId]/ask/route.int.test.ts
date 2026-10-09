@@ -2,7 +2,7 @@ import { ASK_FAILED_MESSAGE, ASK_INTERNAL_ERROR_MESSAGE, WidgetShape, newPageDoc
 import { MACRO_NAMES, getMacro } from "@tc/pages";
 import { APICallError, ToolLoopAgent } from "ai";
 import { randomUUID } from "node:crypto";
-import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { executeTripCommand } from "@/server/commands";
 import { executePageCommand } from "@/server/pageCommands";
 import { saveDay, setSavedDayVisibility } from "@/server/savedDays";
@@ -1729,6 +1729,18 @@ describe("POST /api/trips/:id/ask", () => {
       }
     }
 
+    // `ai.ask.outcome` (suggestProposal.ts): written after the store, so the
+    // turn's own `ai.ask` record cannot carry it. Read off the console it
+    // goes to, as Vercel does.
+    let logged: { outcome: string; turnId: string; changeCount: number | null; snapshot: string | null }[] = [];
+    beforeEach(() => {
+      logged = [];
+      vi.spyOn(console, "info").mockImplementation((event: unknown, record: unknown) => {
+        if (event === "ai.ask.outcome") logged.push(record as (typeof logged)[number]);
+      });
+    });
+    afterEach(() => vi.restoreAllMocks());
+
     function outcomeOf(chunks: Record<string, unknown>[]): Record<string, unknown> | undefined {
       return (chunks.find((c) => c.type === "finish") as { messageMetadata?: Record<string, unknown> } | undefined)
         ?.messageMetadata;
@@ -1765,6 +1777,9 @@ describe("POST /api/trips/:id/ask", () => {
       expect(snapshots.ok && snapshots.value).toEqual([
         expect.objectContaining({ id: suggested.snapshotId, seq: head, name: "Before: add a day in Kyoto", createdBy: ASKER }),
       ]);
+      expect(logged).toEqual([
+        expect.objectContaining({ outcome: "suggested", changeCount: 3, snapshot: "saved", turnId: expect.any(String) }),
+      ]);
       // Still nothing on the trip: a suggestion is not planning state.
       expect(JSON.stringify(await getTripDetail(tripId))).toBe(JSON.stringify(before));
       expect(JSON.stringify(await getTripHistory(tripId))).toBe(JSON.stringify(beforeHistory));
@@ -1776,6 +1791,7 @@ describe("POST /api/trips/:id/ask", () => {
       const outcome = outcomeOf(await turn(tripId, "add a coffee stop to day 1"));
       expect((outcome?.proposal as { commands: unknown[] }).commands).toHaveLength(1);
       expect(outcome).not.toHaveProperty("suggested");
+      expect(logged).toEqual([expect.objectContaining({ outcome: "card", changeCount: null })]);
       const listed = await listSuggestionChanges(tripId, SECOND_EDITOR);
       expect(listed.ok && listed.value.changes).toEqual([]);
       const snapshots = await listSnapshots(tripId, SECOND_EDITOR);
@@ -1792,6 +1808,8 @@ describe("POST /api/trips/:id/ask", () => {
       const proposal = outcome?.proposal as { commands: unknown[]; notSuggested: string };
       expect(proposal.commands).toHaveLength(3);
       expect(proposal.notSuggested).toContain(`holds up to ${SUGGESTION_TRIP_PENDING_MAX}`);
+      // A refusal is logged with its code, not only a throw.
+      expect(logged).toEqual([expect.objectContaining({ outcome: "notSuggested:too-many-pending" })]);
       const listed = await listSuggestionChanges(tripId, SECOND_EDITOR);
       expect(listed.ok && listed.value.changes).toHaveLength(SUGGESTION_TRIP_PENDING_MAX - 1);
       // The snapshot saved for it is gone again.
@@ -1812,6 +1830,7 @@ describe("POST /api/trips/:id/ask", () => {
         snapshotName: null,
         snapshotSkipped: expect.stringContaining(`at most ${SNAPSHOT_TRIP_MAX} snapshots`),
       });
+      expect(logged).toEqual([expect.objectContaining({ outcome: "suggested", snapshot: "skipped" })]);
     });
   });
 

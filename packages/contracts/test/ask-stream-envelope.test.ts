@@ -159,6 +159,14 @@ describe("a stored suggestion on the wire (ADR-067)", () => {
     expect(AskStreamMetadata.safeParse(metadata).success).toBe(false);
   });
 
+  it("carries what the resolver skipped, and reads an outcome from before that field as none", () => {
+    const skipped = ["“Dinner” is not on this trip, so it was left out."];
+    const carried = AskStreamMetadata.safeParse({ suggested: { ...SUGGESTED, skipped } });
+    expect(carried.success && "suggested" in carried.data && carried.data.suggested.skipped).toEqual(skipped);
+    const older = AskStreamMetadata.safeParse({ suggested: SUGGESTED });
+    expect(older.success && "suggested" in older.data && older.data.suggested.skipped).toEqual([]);
+  });
+
   it("refuses a proposal whose reason for not being stored is blank", () => {
     expect(AskStreamMetadata.safeParse({ proposal: { ...PROPOSAL, notSuggested: "" } }).success).toBe(false);
   });

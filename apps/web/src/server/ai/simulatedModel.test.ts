@@ -752,7 +752,7 @@ describe("simulatedModel — proposing a change", () => {
     expect(callsOf(result)).toEqual([]);
     const text = textOf(result);
     expect(text).toContain("I've drafted 2 changes for day 3. Nothing is applied yet.");
-    expect(text).toContain("They go on the board as suggestions");
+    expect(text).toContain("They usually go on the board as suggestions, or below when they cannot");
     expect(text).toContain("AI is switched off on this deployment");
     // The words that would be a lie.
     expect(text).not.toMatch(/\bI (added|moved|removed|applied)\b/);

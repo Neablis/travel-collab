@@ -1030,6 +1030,7 @@ describe("a stored suggestion on the wire", () => {
       changeCount: 3,
       snapshotId: "7d9a1f8e-0000-4000-8000-000000000002",
       snapshotName: "Before: add a day in Kyoto",
+      skipped: [],
     };
     server.use(
       http.post("*/api/trips/:tripId/ask", () =>

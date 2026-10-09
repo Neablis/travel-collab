@@ -419,6 +419,7 @@ describe("Transcript — changes stored as suggestions", () => {
           changeCount: 3,
           snapshotId: "7d9a1f8e-0000-4000-8000-000000000002",
           snapshotName: "Before: add a day in Kyoto",
+          skipped: [],
         })}
       />,
     );
@@ -427,6 +428,24 @@ describe("Transcript — changes stored as suggestions", () => {
     expect(note.textContent).toContain("Open the suggestions in the trip header");
     expect(screen.queryByRole("group", { name: "Suggested change" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Make the change" })).toBeNull();
+  });
+
+  // What the resolver could not match is in no stored change, so the note is
+  // the only place it is said — as the card says it (`proposalWords`).
+  it("says what was left out, as the card would", () => {
+    render(
+      <Transcript
+        turns={answered({
+          suggestionId: SUGGESTION_ID,
+          changeCount: 2,
+          snapshotId: null,
+          snapshotName: null,
+          skipped: ["“Dinner” is not on this trip, so it was left out.", "Day 9 does not exist."],
+        })}
+      />,
+    );
+    const note = screen.getByRole("group", { name: "Suggestions on the board" });
+    expect(note.textContent).toContain("“Dinner” is not on this trip, so it was left out. · Day 9 does not exist.");
   });
 
   it("says why there is no snapshot when one was skipped", () => {
@@ -438,6 +457,7 @@ describe("Transcript — changes stored as suggestions", () => {
           snapshotId: null,
           snapshotName: null,
           snapshotSkipped: "A trip keeps at most 20 snapshots. Delete one to save another.",
+          skipped: [],
         })}
       />,
     );

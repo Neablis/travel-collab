@@ -80,7 +80,13 @@ import {
   parseApprovedCommands,
 } from "@/server/ai/writeTools";
 import { pageInsertsMetadata, pageOutcomeOf } from "@/server/ai/pageTools";
-import { storesAsSuggestion, suggestProposal } from "@/server/ai/suggestProposal";
+import {
+  askOutcomeRecord,
+  recordAskOutcome,
+  storesAsSuggestion,
+  suggestProposal,
+  type ProposalOutcome,
+} from "@/server/ai/suggestProposal";
 import { notebookDirectory, placeSearchPort, playbookLibrary, savedDayLibrary } from "@/server/ai/assistantPorts";
 import { typedAddressesIn } from "@/server/assistant/typedAddresses";
 import {
@@ -821,7 +827,7 @@ export async function handleAskRequest(
     // ADR-067 stores on the board instead. `messageMetadata` is synchronous and
     // storing is not, so the swap happens one stage downstream, in
     // `suggestOnFinish`, on the same chunk.
-    let toSuggest: AssistantProposal | null = null;
+    let finalProposal: AssistantProposal | null = null;
     const stream = result.toUIMessageStream({
       originalMessages: validated.data,
       // **The proposal rides out on the run's final chunk.**
@@ -879,7 +885,7 @@ export async function handleAskRequest(
           proposalBuffer.inserts(),
         );
         if (proposal === null) return undefined;
-        if (storesAsSuggestion(proposal)) toSuggest = proposal;
+        finalProposal = proposal;
         return { proposal };
       },
       onError: (error) => {
@@ -910,7 +916,11 @@ export async function handleAskRequest(
     });
     return createUIMessageStreamResponse({
       stream: stream.pipeThrough(
-        suggestOnFinish(() => toSuggest, (proposal) => suggestProposal(proposal, { tripId, userId, question })),
+        suggestOnFinish(
+          () => finalProposal,
+          (proposal) => suggestProposal(proposal, { tripId, userId, question }),
+          (proposal, outcome) => recordAskOutcome(askOutcomeRecord({ turnId, tripId, userId }, proposal.commands.length, outcome)),
+        ),
       ),
       // Ruling B. Set once, before a byte of the stream, so it is readable on
       // the failure path too — a half-written simulated answer still gets
@@ -939,7 +949,9 @@ export async function handleAskRequest(
 
 /**
  * The stage that turns a multi-change proposal into a stored suggestion
- * (ADR-067 decision 4), on the stream's `finish` chunk and nowhere else.
+ * (ADR-067 decision 4), on the stream's `finish` chunk and nowhere else, and
+ * records how every proposing turn ended (`ai.ask.outcome`) — here because
+ * only here is it known; `ai.ask` was finished before anything was stored.
  *
  * The `finish` chunk is the one `messageMetadata` put the proposal on, and it
  * is the last chunk the client reads, so awaiting the store here holds back
@@ -949,14 +961,21 @@ export async function handleAskRequest(
  * itself with `notSuggested` when storing was refused.
  */
 function suggestOnFinish(
-  pending: () => AssistantProposal | null,
-  store: (proposal: AssistantProposal) => Promise<AskStreamMetadata>,
+  finalProposal: () => AssistantProposal | null,
+  store: (proposal: AssistantProposal) => Promise<{ metadata: AskStreamMetadata; outcome: ProposalOutcome }>,
+  record: (proposal: AssistantProposal, outcome: ProposalOutcome) => void,
 ): TransformStream<UIMessageChunk, UIMessageChunk> {
   return new TransformStream({
     async transform(chunk, controller) {
-      const proposal = chunk.type === "finish" ? pending() : null;
+      const proposal = chunk.type === "finish" ? finalProposal() : null;
       if (chunk.type !== "finish" || proposal === null) return controller.enqueue(chunk);
-      controller.enqueue({ ...chunk, messageMetadata: await store(proposal) });
+      if (!storesAsSuggestion(proposal)) {
+        record(proposal, { kind: "card" });
+        return controller.enqueue(chunk);
+      }
+      const { metadata, outcome } = await store(proposal);
+      record(proposal, outcome);
+      controller.enqueue({ ...chunk, messageMetadata: metadata });
     },
   });
 }
@@ -1266,7 +1285,7 @@ const ACCESS_LINE: Record<AskToolPosture, string> = {
   // model that says "approve it below" over a turn stored on the board sends
   // the reader looking for a card that is not there.
   propose:
-    "You can read this trip, and you can PROPOSE changes to it. A change tool call is not applied: every call you make this turn is collected into one proposal the user reviews and approves or rejects — one change on a card under your answer, several as suggestions on the trip's board. So never say you have added, moved or removed anything — say what you would change, and that it is waiting for them.",
+    "You can read this trip, and you can PROPOSE changes to it. A change tool call is not applied: every call you make this turn is collected into one proposal the user reviews and approves or rejects — one change, or a library day, on a card under your answer; several changes usually as suggestions on the trip's board, else on the card. So never say you have added, moved or removed anything — say what you would change, and that it is waiting for them.",
   withheld:
     `You can read this trip. You were NOT given the change tools this turn, because this message was read as a question — and if that reading is wrong, call ${ESCALATE_TOOL_NAME} and your next step will have them. Do that rather than telling them to ask again: they can change this trip, and they should never have to rephrase to get a change made. Never tell them the assistant cannot make changes.`,
   "read-only":

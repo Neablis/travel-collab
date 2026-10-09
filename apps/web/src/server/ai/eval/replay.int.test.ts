@@ -166,7 +166,8 @@ async function replay(transcript: AskTranscript): Promise<ReplayResult> {
     reviewed: {
       changes: stored.map((change) => ({ text: change.description })),
       commands: stored.flatMap((change) => change.commands as unknown as Record<string, unknown>[]),
-      skipped: [],
+      // What the turn could not match rides on the outcome, not on a change.
+      skipped: suggested.skipped,
     },
     landed: "board",
   };
@@ -184,9 +185,9 @@ function proposalOf(chunks: Record<string, unknown>[]): ProposalShape | undefine
     .find((meta) => meta?.proposal)?.proposal;
 }
 
-function suggestedOf(chunks: Record<string, unknown>[]): { suggestionId: string } | undefined {
+function suggestedOf(chunks: Record<string, unknown>[]): { suggestionId: string; skipped: string[] } | undefined {
   return chunks
-    .map((chunk) => (chunk as { messageMetadata?: { suggested?: { suggestionId: string } } }).messageMetadata)
+    .map((chunk) => (chunk as { messageMetadata?: { suggested?: { suggestionId: string; skipped: string[] } } }).messageMetadata)
     .find((meta) => meta?.suggested)?.suggested;
 }
 
@@ -294,7 +295,11 @@ describe.each(everyTranscript())("replaying $name", (transcript) => {
       .filter((chunk) => chunk.type === "text-delta")
       .map((chunk) => String(chunk.delta))
       .join("");
-    const shown = [spoken, ...(result.reviewed?.changes.map((change) => change.text) ?? [])].join("\n");
+    const shown = [
+      spoken,
+      ...(result.reviewed?.changes.map((change) => change.text) ?? []),
+      ...(result.reviewed?.skipped ?? []),
+    ].join("\n");
     expect(shown).not.toContain(UNTRUSTED_OPEN);
     expect(shown).not.toContain(UNTRUSTED_CLOSE);
   });

@@ -606,12 +606,13 @@ function proposalAnswer(scope: AskScope, results: readonly ToolResultLike[]): st
   // server on approval, and nothing in this turn knows how many there will be.
   const queued = results.filter(isQueued).length;
   const where = scope.kind === "day" ? `day ${scope.dayIndex + 1}` : "this trip";
-  // More than one change goes on the board as suggestions (ADR-067); the
-  // server decides that from the same count, so the sentence follows it.
+  // More than one change usually goes on the board as suggestions (ADR-067);
+  // a refused store falls back to the card, which this model cannot know, so
+  // the sentence says "usually" rather than promising either.
   return [
     `I've drafted ${queued} change${queued === 1 ? "" : "s"} for ${where}. Nothing is applied yet.`,
     queued > 1
-      ? "They go on the board as suggestions — accept the ones you want, or dismiss them to leave the trip exactly as it is."
+      ? "They usually go on the board as suggestions, or below when they cannot — accept the ones you want, or dismiss them to leave the trip exactly as it is."
       : "Review them below — approve to put them on the board, or reject to leave the trip exactly as it is.",
     SIMULATED_PROPOSAL_NOTICE,
   ];

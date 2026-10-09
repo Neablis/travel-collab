@@ -17,13 +17,18 @@ Format:
 
 - **Added** (`assistant.ts`): a fifth `AskStreamShape` member, `{ suggested: AssistantSuggested }`,
   with `AssistantSuggested { suggestionId, changeCount (≥ 1), snapshotId: uuid | null,
-  snapshotName: string | null, snapshotSkipped?: string }`. A planning turn whose proposal has more
+  snapshotName: string | null, snapshotSkipped?: string, skipped: string[] (default []) }`. `skipped`
+  is the proposal's own — what the resolver could not match to the trip — carried across because it
+  is in no stored change and the chat note is the only place it is said. A planning turn whose proposal has more
   than one command and no inserts is stored as ONE suggestion and its final chunk carries this
   instead of `proposal` (decision 4); one-command and insert turns keep `proposal` (decision 5). The
   one-outcome rule covers it: `{ proposal, suggested }` is refused. The empty branch stays strict.
 - **Added** (`assistant.ts`): `AssistantProposal.notSuggested?: string` (non-empty). Set when a
-  multi-change proposal could not be stored (a suggestion cap, more than 50 changes, a change the
-  dry run refused) and comes back as the ordinary card instead, saying why. Nothing is stored then.
+  multi-change proposal could not be stored (a suggestion cap, more than 50 changes, a command no
+  suggestion may hold such as `DismissConflict`, a change the dry run refused, a throw) and comes back
+  as the ordinary card instead, saying which. Nothing is stored then, the snapshot included. Each
+  planning turn's ending is logged as `ai.ask.outcome` (`card` / `suggested` /
+  `notSuggested:<code>`), a log line and a metric, not a contract.
 - **Added** (`history.ts`): `SuggestionVia = enum ["assistant"]`, and an optional `via` on the
   `Origin` members `suggestion` and `suggestions` — on `suggestions` only when every accepted change
   came via the assistant. History reads *"Suggested by Ana, via the assistant"*. Here rather than in

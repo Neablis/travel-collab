@@ -24,6 +24,10 @@ export function SuggestedNote({ suggested }: { suggested: AssistantSuggested }) 
   return (
     <div role="group" aria-label="Suggestions on the board" className="rounded-a-card border border-brand bg-brand-tint p-3">
       <p className="text-a-chat font-semibold text-pretty text-brand-pressed">{suggestedWords(suggested)}</p>
+      {/* What the resolver could not match, as the card says it. */}
+      {suggested.skipped.length > 0 && (
+        <p className="pt-0.5 text-a-note text-pretty text-brand-pressed">{suggested.skipped.join(" · ")}</p>
+      )}
       {suggested.snapshotSkipped !== undefined && (
         <p className="pt-0.5 text-a-note text-pretty text-slate">No snapshot this time: {suggested.snapshotSkipped}</p>
       )}
