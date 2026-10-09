@@ -49,11 +49,30 @@ export function isIosSafari(navigator: Pick<Navigator, "userAgent" | "maxTouchPo
 }
 
 /**
+ * An inline `<head>` script (root layout): holds a `beforeinstallprompt` fired
+ * before any of the app's code has run, for `createInstallPrompt` to adopt.
+ *
+ * No module can listen early enough on its own. The App Router evaluates a
+ * client module when React reaches it during hydration, after the document
+ * has loaded — and Chromium fires the event once, as soon as the page
+ * qualifies, which can be earlier. Measured on a production build, 2026-10-09,
+ * before this script existed: the module's listener attached once
+ * `document.readyState` was already `complete`, so an event fired at
+ * `DOMContentLoaded` — or even at `load` — never reached the menu
+ * (`e2e/m39-install-prompt.spec.ts` fires at `DOMContentLoaded` to hold this).
+ * The CSP already admits inline scripts (next.config.ts).
+ */
+export const EARLY_INSTALL_LISTENER =
+  'addEventListener("beforeinstallprompt",function(e){e.preventDefault();window.__caesuraInstallEvent=e});';
+
+/**
  * The install state for one window. A factory, so a test can hand it a window
  * of its own; the app holds one, through `installPromptStore()`.
  */
 export function createInstallPrompt(win: Window): InstallPrompt {
-  let deferred: BeforeInstallPromptEvent | null = null;
+  // Whatever `EARLY_INSTALL_LISTENER` caught before this ran.
+  let deferred: BeforeInstallPromptEvent | null =
+    (win as Window & { __caesuraInstallEvent?: BeforeInstallPromptEvent }).__caesuraInstallEvent ?? null;
   let installed = false;
   const listeners = new Set<() => void>();
   const emit = () => listeners.forEach((listener) => listener());
@@ -105,8 +124,8 @@ let store: InstallPrompt | null = null;
 
 /**
  * The app's one install store, created on first call — `null` on the server.
- * `InstallPromptRegistration` calls it as its module loads, so a
- * `beforeinstallprompt` fired before React has hydrated is still caught.
+ * `InstallPromptRegistration` calls it as its module loads; an event fired
+ * before that was held by `EARLY_INSTALL_LISTENER`, and is adopted here.
  */
 export function installPromptStore(): InstallPrompt | null {
   if (typeof window === "undefined") return null;

@@ -2,11 +2,11 @@
 
 import { installPromptStore, recordVisit } from "@/lib/installPrompt";
 
-// **At module scope, not in an effect.** Chromium fires `beforeinstallprompt`
-// once, as soon as the page qualifies — which can be before React has hydrated
-// and run a single effect, and a listener attached after it has fired never
-// hears it. This module is evaluated with the root layout's client chunk,
-// before hydration. The same load counts as today's visit for the phone nudge.
+// **At module scope, not in an effect** — the earliest the app's own code runs,
+// so the store is listening before anything renders that reads it. An install
+// offer fired earlier still is held by the root layout's inline head script
+// (`EARLY_INSTALL_LISTENER`) and adopted as the store is created here. The
+// same load counts as today's visit for the phone nudge.
 if (typeof window !== "undefined") {
   installPromptStore();
   recordVisit();

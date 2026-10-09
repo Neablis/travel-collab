@@ -1,5 +1,7 @@
+import { runInNewContext } from "node:vm";
 import { describe, expect, it, vi } from "vitest";
 import {
+  EARLY_INSTALL_LISTENER,
   createInstallPrompt,
   dismissInstallNudge,
   installNudgeDismissed,
@@ -96,6 +98,20 @@ describe("createInstallPrompt", () => {
   it("shows iOS Safari the steps, and an iOS home-screen app nothing", () => {
     expect(createInstallPrompt(fakeWindow({ userAgent: IPHONE }).win).route()).toBe("ios");
     expect(createInstallPrompt(fakeWindow({ userAgent: IPHONE, standalone: true }).win).route()).toBeNull();
+  });
+
+  it("adopts an event the head script caught before the app's code ran", () => {
+    const { win } = fakeWindow();
+    // The script as the root layout inlines it, run against this window.
+    runInNewContext(EARLY_INSTALL_LISTENER, { addEventListener: win.addEventListener.bind(win), window: win });
+    const { event, prompt } = installEvent();
+    win.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(true);
+
+    const store = createInstallPrompt(win);
+    expect(store.route()).toBe("prompt");
+    void store.prompt();
+    expect(prompt).toHaveBeenCalledTimes(1);
   });
 
   it("stops notifying a listener that unsubscribed", () => {

@@ -9,6 +9,7 @@ import "./globals.css";
 import { SaveLightProvider } from "@/components/SaveLight";
 import { ServiceWorkerRegistration } from "@/components/ServiceWorkerRegistration";
 import { InstallPromptRegistration } from "@/components/install/InstallPromptRegistration";
+import { EARLY_INSTALL_LISTENER } from "@/lib/installPrompt";
 import { appColors } from "@/lib/appColors.generated";
 import { SITE_DESCRIPTION, SITE_NAME, siteRobots } from "@/lib/siteMetadata";
 import { deploymentOrigin } from "@/lib/deploymentOrigin";
@@ -80,6 +81,11 @@ const LOOK = "ledger";
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" data-look={LOOK} className={`${display.variable} ${sans.variable} ${mono.variable}`}>
+      <head>
+        {/* Before any bundle, so an install offer fired early is held for
+            `InstallPromptRegistration` rather than lost (installPrompt.ts). */}
+        <script dangerouslySetInnerHTML={{ __html: EARLY_INSTALL_LISTENER }} />
+      </head>
       <body>
         {/* Above the header AND the page, because the header's logo is the
             save light and the state it shows is published from inside the
