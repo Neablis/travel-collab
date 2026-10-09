@@ -53,7 +53,22 @@ test("place & time: dates, geocoded pin, shift/clear/undo", async ({ page }) => 
   // passes against the popover too, and was seen to.
   const datesRow = page.getByRole("button", { name: "Dates", exact: true });
   const total = page.getByLabel("Total for the trip");
-  const totalTopBefore = (await total.boundingBox())!.y;
+  // Cover sits between Dates and the total and settles on its own reads (a
+  // 132px skeleton, then the picker), so a "before" taken too early saw the
+  // total 74px lower than after, with the editor open (ci-like, PR #363).
+  // Measure once Cover's skeleton is gone and the total has stopped moving.
+  const cover = page.getByRole("dialog", { name: "Trip settings" }).getByRole("region", { name: "Cover photo" });
+  await expect(cover.locator("[data-sk]")).toHaveCount(0);
+  let lastTop = Number.NaN;
+  await expect
+    .poll(async () => {
+      const top = (await total.boundingBox())!.y;
+      const still = top === lastTop;
+      lastTop = top;
+      return still;
+    })
+    .toBe(true);
+  const totalTopBefore = lastTop;
   await datesRow.click();
   const editor = page.locator(`[id="${await datesRow.getAttribute("aria-controls")}"]`);
   await expect(editor.getByLabel("Trip start date")).toBeVisible();
