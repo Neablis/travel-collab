@@ -133,8 +133,8 @@ export function AuthorChip({ authorId }: { authorId: string }) {
 }
 
 /**
- * `Board`'s `suggestions` prop: ghosts by day and by stop, plus the review
- * popover as a slot (it reads `useTrip()`, and `Board` is props-only).
+ * `Board`'s `suggestions` prop: ghosts by day and by stop, the days a change
+ * would add, plus the review popover and the inline actions as slots (it reads `useTrip()`, and `Board` is props-only).
  * Undefined while previewing a past version, whose board the changes were not
  * drafted against.
  */
@@ -145,7 +145,13 @@ export function useBoardSuggestions(): BoardSuggestions | undefined {
     if (preview.seq !== null || (ghosts === null && draftStops === undefined)) return undefined;
     // A draft is marked even before the suggestions list has been read.
     const board = ghosts?.board ?? { days: new Map(), stops: new Map() };
-    return { ...board, draft: draftStops, review: (list, trigger) => <SuggestionReview ghosts={list} trigger={trigger} /> };
+    return {
+      ...board,
+      newDays: ghosts?.newDays ?? [],
+      draft: draftStops,
+      review: (list, trigger) => <SuggestionReview ghosts={list} trigger={trigger} />,
+      actions: (ghost) => <SuggestionActions ghost={ghost} />,
+    };
   }, [ghosts, preview.seq, draftStops]);
 }
 

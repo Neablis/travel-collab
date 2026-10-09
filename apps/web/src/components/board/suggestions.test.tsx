@@ -155,6 +155,34 @@ describe("suggestions on the board", () => {
     await waitFor(() => expect(resolved).toEqual([{ changeId: seeded[0]!.id, action: "withdraw" }]));
   });
 
+  // Mitchell's walk, 2026-10-09: a suggested new day was never drawn, so
+  // nothing added to it or moved onto it had anywhere to appear.
+  it("draws a suggested new day after the trip's days, holding its stops, with the day's Accept and Dismiss", async () => {
+    const DAY_3 = uuidFrom(9105, 7);
+    const { seeded, resolved } = mount("owner", (tripId) => {
+      const addDay = change(tripId, "Added Day 3", [{ type: "AddDay", tripId, dayId: DAY_3 }]);
+      const after = { dependsOn: [addDay.id] };
+      return [
+        addDay,
+        change(tripId, "Added Gelato to Day 3", [
+          { type: "AddActivity", tripId, activityId: GELATO, dayId: DAY_3, title: "Gelato", timeWindow: { start: "14:00", end: "15:00" } },
+        ], after),
+        change(tripId, "Moved Colosseum tour to Day 3", [{ type: "MoveActivity", tripId, activityId: COLOSSEUM, toDayId: DAY_3, position: 1 }], after),
+      ];
+    });
+
+    const day = await screen.findByRole("region", { name: /^Day 3\b.* · suggested$/ });
+    const river = within(day).getByRole("list", { name: /^Day 3\b.* timeline$/ });
+    expect(within(river).getByRole("button", { name: "Suggested: Added Gelato to Day 3" })).toBeTruthy();
+    expect(within(river).getByRole("button", { name: "Suggested: Moved Colosseum tour to Day 3" })).toBeTruthy();
+    // Read-only: nothing on it can be edited.
+    expect(within(day).queryByRole("button", { name: /^Edit / })).toBeNull();
+
+    expect(within(day).getByRole("button", { name: "Dismiss: Added Day 3" })).toBeTruthy();
+    fireEvent.click(within(day).getByRole("button", { name: "Accept: Added Day 3" }));
+    await waitFor(() => expect(resolved).toEqual([{ changeId: seeded[0]!.id, action: "accept" }]));
+  });
+
   it("shows a viewer neither ghosts nor the chip", async () => {
     mount("viewer", (tripId) => [addGelato(tripId), change(tripId, 'Renamed the trip to "Roma"', [{ type: "SetTripName", tripId, name: "Roma" }])]);
 

@@ -72,6 +72,12 @@ export type DayChipsProps = {
    * not scroll-sync.
    */
   sync?: DaySync;
+  /**
+   * Days a pending suggestion would add ("Day 15"), drawn after the trip's
+   * own as dashed chips. Each selects index `days.length + k`, the index the
+   * board draws that ghost day at, and the one the day takes once accepted.
+   */
+  suggestedDays?: readonly string[];
 };
 
 // Handoff README §2 "Day chips row" + prototype `data-r` chips: a
@@ -115,13 +121,16 @@ export type DayChipsProps = {
  * @param sync - Optional synchronization configuration for related trip surfaces
  * @returns The rendered day-chip group
  */
-export function DayChips({ days, focusedDay, onSelect, readOnly = false, sync }: DayChipsProps) {
+export function DayChips({ days, focusedDay, onSelect, readOnly = false, sync, suggestedDays = [] }: DayChipsProps) {
   // One dayAccents() call over the whole trip's cities, so collisions
   // between two days of this trip get probed against each other rather than
   // each day resolving blind to every other one.
   const accents = dayAccents(days.map((d) => d.city));
   const chipRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const rowRef = useRef<HTMLDivElement>(null);
+  // Every chip in the row, a suggested day's included: each is somewhere the
+  // spy, the arrows and the follow can land.
+  const chipCount = days.length + suggestedDays.length;
 
   // Contract clause 1 (`FocusProvider`), and the surface Mitchell was actually
   // touching when he asked for it: on a phone this row is the primary day
@@ -133,7 +142,7 @@ export function DayChips({ days, focusedDay, onSelect, readOnly = false, sync }:
     if (row === null) return null;
     const rowRect = row.getBoundingClientRect();
     const spans: { start: number; size: number }[] = [];
-    for (let index = 0; index < days.length; index++) {
+    for (let index = 0; index < chipCount; index++) {
       const rect = chipRefs.current[index]?.getBoundingClientRect();
       // A chip that has not mounted: bail rather than measure a shorter list,
       // which would map positions onto the wrong indexes.
@@ -177,7 +186,7 @@ export function DayChips({ days, focusedDay, onSelect, readOnly = false, sync }:
     const observer = new ResizeObserver(() => measureRef.current());
     observer.observe(row);
     return () => observer.disconnect();
-  }, [days.length]);
+  }, [chipCount]);
 
   // Contract clauses 2 and 3: a day picked in a column, a cell or the timeline
   // brings its chip back into view here, and switching lenses does the same on
@@ -191,7 +200,7 @@ export function DayChips({ days, focusedDay, onSelect, readOnly = false, sync }:
   // means `jumpTo` does nothing. The price is that the row can come back into
   // view scrolled to a day other than the selected one; the columns and the
   // ring still agree, and nothing moves under the reader.
-  useFollowFocusedDay(sync, focusedDay, days.length, (index) => {
+  useFollowFocusedDay(sync, focusedDay, chipCount, (index) => {
     const row = rowRef.current?.getBoundingClientRect();
     if (row && (row.top < 0 || row.bottom > window.innerHeight)) return null;
     return chipRefs.current[index];
@@ -210,7 +219,7 @@ export function DayChips({ days, focusedDay, onSelect, readOnly = false, sync }:
   const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
     if (event.shiftKey || event.altKey || event.ctrlKey || event.metaKey) return;
-    const next = stepDay(focusedDay, event.key === "ArrowRight" ? 1 : -1, days.length);
+    const next = stepDay(focusedDay, event.key === "ArrowRight" ? 1 : -1, chipCount);
     if (next === null) return;
     // Claimed even when the index does not move (an arrow at either end): the
     // row scrolls horizontally, and letting the browser scroll it while the
@@ -365,6 +374,34 @@ export function DayChips({ days, focusedDay, onSelect, readOnly = false, sync }:
                 />
               ))}
             </div>
+          </Button>
+        );
+      })}
+      {suggestedDays.map((label, k) => {
+        const index = days.length + k;
+        const isFocused = focusedDay === index;
+        return (
+          <Button
+            key={`suggested-${index}`}
+            ref={(node) => {
+              chipRefs.current[index] = node;
+            }}
+            variant="ghost"
+            aria-label={`${label} · suggested`}
+            aria-pressed={isFocused}
+            data-day-index={index}
+            onClick={() => onSelect(isFocused ? null : index)}
+            // A placeholder, as the ghost day it selects is (W76): dashed, and
+            // saying "Suggested" in words rather than by colour alone.
+            className={cn(
+              "h-auto shrink-0 snap-start flex-col items-start justify-start gap-1 rounded-lg border-2 border-dashed border-brand bg-surface p-2 text-left hover:opacity-90",
+              isFocused && "ring-2 ring-brand",
+            )}
+            // eslint-disable-next-line no-restricted-syntax -- 92px chip width has no token equivalent, as the day chips above
+            style={{ width: "92px" }}
+          >
+            <span className="text-xs font-semibold text-brand-pressed">{label}</span>
+            <span className="text-xs text-slate">Suggested</span>
           </Button>
         );
       })}
