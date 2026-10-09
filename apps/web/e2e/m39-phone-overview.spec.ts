@@ -79,6 +79,31 @@ test.describe("M39 D2 — the Overview on a phone", () => {
     await context.close();
   });
 
+  // A title with no break in it is wider than the phone, and the list clips
+  // its overflow (CodeRabbit, PR #367). Today the editor's host rule
+  // (`.ProseMirror`'s `word-wrap: break-word`) happens to wrap it, and the
+  // block is only ever drawn inside one — so the host rule is switched off
+  // here, and the claim is that the block wraps by its own.
+  test("wraps a stop title wider than the screen inside the list", async ({ page }) => {
+    const title = "Fushimiinaritaishaandthethousandtoriigatesbeforethecrowdsarrive";
+    const tripId = await createMappedTrip(page, e2eTripName("PhoneLongTitle"), 1, {
+      title: (day, i) => (day === 0 && i === 0 ? title : `Stop ${day + 1}.${i + 1}`),
+    });
+    await page.goto(`/trips/${tripId}`);
+    await page.addStyleTag({ content: ".tc-page-editor .ProseMirror { overflow-wrap: normal; }" });
+    const list = page.getByRole("list", { name: "Day by day" });
+    await expect(list.getByText(title)).toBeVisible();
+    const { textRight, listRight } = await list.evaluate((el, t) => {
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      let node: Node | null;
+      while ((node = walker.nextNode()) && !node.textContent?.includes(t));
+      const range = document.createRange();
+      range.selectNodeContents(node!);
+      return { textRight: range.getBoundingClientRect().right, listRight: el.getBoundingClientRect().right };
+    }, title);
+    expect(textRight).toBeLessThanOrEqual(listRight);
+  });
+
   // At the project's own 411px, Mitchell's device: Edit is still the one
   // action, and it leaves the tab for the Notebook (§25) rather than editing
   // here.
