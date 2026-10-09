@@ -235,6 +235,10 @@ describe("buildHistoryEntries", () => {
     log = run(log, { type: "UndoLastChange", tripId: TRIP });
     expect(state(log).days).toHaveLength(1);
     expect(buildHistoryEntries(log).at(-1)!.description).toBe("Undid: Accepted 2 suggestions");
+
+    log = run(log, { type: "RedoChange", tripId: TRIP });
+    expect(state(log).days).toHaveLength(3);
+    expect(buildHistoryEntries(log).at(-1)!.description).toBe("Redid: Accepted 2 suggestions");
   });
 
   it("a revert renders as ONE entry, not an event burst", () => {
