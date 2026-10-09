@@ -49,6 +49,7 @@ import { z } from "zod";
 import {
   APICallError,
   convertToModelMessages,
+  createUIMessageStreamResponse,
   EmptyResponseBodyError,
   InvalidResponseDataError,
   InvalidToolInputError,
@@ -60,6 +61,7 @@ import {
   safeValidateUIMessages,
   StreamProviderError,
   ToolLoopAgent,
+  type UIMessageChunk,
 } from "ai";
 import { GatewayError } from "@ai-sdk/gateway";
 import { WIDGET_SHAPE_WORDS } from "@/server/assistant/tools/widgets";
@@ -78,6 +80,7 @@ import {
   parseApprovedCommands,
 } from "@/server/ai/writeTools";
 import { pageInsertsMetadata, pageOutcomeOf } from "@/server/ai/pageTools";
+import { storesAsSuggestion, suggestProposal } from "@/server/ai/suggestProposal";
 import { notebookDirectory, placeSearchPort, playbookLibrary, savedDayLibrary } from "@/server/ai/assistantPorts";
 import { typedAddressesIn } from "@/server/assistant/typedAddresses";
 import {
@@ -113,6 +116,7 @@ import {
   ASK_INTERNAL_ERROR_MESSAGE,
   SIMULATED_HEADER,
   type AskStreamMetadata,
+  type AssistantProposal,
   type Page,
   type TimeFormat,
   type TripDetail,
@@ -813,12 +817,13 @@ export async function handleAskRequest(
       // the client has already hung up.
       abortSignal: AbortSignal.any([request.signal, deadline.signal]),
     });
-    return result.toUIMessageStreamResponse({
+    // The proposal `messageMetadata` built for the final chunk, when it is one
+    // ADR-067 stores on the board instead. `messageMetadata` is synchronous and
+    // storing is not, so the swap happens one stage downstream, in
+    // `suggestOnFinish`, on the same chunk.
+    let toSuggest: AssistantProposal | null = null;
+    const stream = result.toUIMessageStream({
       originalMessages: validated.data,
-      // Ruling B. Set once, before a byte of the stream, so it is readable on
-      // the failure path too — a half-written simulated answer still gets
-      // badged, which sniffing the closing sentence could not manage.
-      headers: { [SIMULATED_HEADER]: String(grant.simulated) },
       // **The proposal rides out on the run's final chunk.**
       //
       // `messageMetadata` is called for every stream part; `finish` is the
@@ -830,11 +835,13 @@ export async function handleAskRequest(
       //
       // Nothing is committed here. `buildProposal` resolves and describes;
       // the only caller of `commitProposal` is the apply endpoint below, and
-      // it runs after a human clicked Approve.
+      // it runs after a human clicked Approve. A proposal of more than one
+      // command is noted for `suggestOnFinish`, which stores it as a pending
+      // suggestion (ADR-067) — still not a trip change until someone accepts.
       //
       // Typed `AskStreamMetadata` (`@tc/contracts`) since P6, so the keys are
       // the contract's rather than this literal's: a misspelled `pageInserts`
-      // or a fifth key now fails to compile here instead of arriving at a
+      // or a sixth key now fails to compile here instead of arriving at a
       // client that quietly ignores it.
       messageMetadata: ({ part }): AskStreamMetadata | undefined => {
         // **The turn failed: an `error` part, and only an `error` part, says
@@ -871,7 +878,9 @@ export async function handleAskRequest(
           { tripId, actorId: userId, placeCache },
           proposalBuffer.inserts(),
         );
-        return proposal === null ? undefined : { proposal };
+        if (proposal === null) return undefined;
+        if (storesAsSuggestion(proposal)) toSuggest = proposal;
+        return { proposal };
       },
       onError: (error) => {
         // **This only words an error; it does not decide the turn failed.**
@@ -899,6 +908,15 @@ export async function handleAskRequest(
         return askFailureMessage(error);
       },
     });
+    return createUIMessageStreamResponse({
+      stream: stream.pipeThrough(
+        suggestOnFinish(() => toSuggest, (proposal) => suggestProposal(proposal, { tripId, userId, question })),
+      ),
+      // Ruling B. Set once, before a byte of the stream, so it is readable on
+      // the failure path too — a half-written simulated answer still gets
+      // badged, which sniffing the closing sentence could not manage.
+      headers: { [SIMULATED_HEADER]: String(grant.simulated) },
+    });
   } catch (err) {
     // Nothing in the body is left to be wrong — the messages validated above
     // and the caps passed. What remains is the agent failing to start. When
@@ -917,6 +935,30 @@ export async function handleAskRequest(
       { status: modelSide ? 503 : 500 },
     );
   }
+}
+
+/**
+ * The stage that turns a multi-change proposal into a stored suggestion
+ * (ADR-067 decision 4), on the stream's `finish` chunk and nowhere else.
+ *
+ * The `finish` chunk is the one `messageMetadata` put the proposal on, and it
+ * is the last chunk the client reads, so awaiting the store here holds back
+ * nothing but the end of the stream. Every other chunk, and a `finish` with
+ * nothing to store, passes through untouched. The swap keeps the one-outcome
+ * rule: the chunk carries `suggested` INSTEAD of `proposal`, or the proposal
+ * itself with `notSuggested` when storing was refused.
+ */
+function suggestOnFinish(
+  pending: () => AssistantProposal | null,
+  store: (proposal: AssistantProposal) => Promise<AskStreamMetadata>,
+): TransformStream<UIMessageChunk, UIMessageChunk> {
+  return new TransformStream({
+    async transform(chunk, controller) {
+      const proposal = chunk.type === "finish" ? pending() : null;
+      if (chunk.type !== "finish" || proposal === null) return controller.enqueue(chunk);
+      controller.enqueue({ ...chunk, messageMetadata: await store(proposal) });
+    },
+  });
 }
 
 /**
@@ -1220,9 +1262,11 @@ const ACCESS_LINE: Record<AskToolPosture, string> = {
   // act on. It is not the mechanism — the write tools collect and commit
   // nothing, so a model that ignored every word of this still could not change
   // the trip (writeTools.ts) — it is what stops the answer CLAIMING an edit
-  // that has not happened yet.
+  // that has not happened yet. The clause on where it lands is ADR-067's: a
+  // model that says "approve it below" over a turn stored on the board sends
+  // the reader looking for a card that is not there.
   propose:
-    "You can read this trip, and you can PROPOSE changes to it. A change tool call is not applied: every call you make this turn is collected into one proposal the user reviews and approves or rejects. So never say you have added, moved or removed anything — say what you would change, and that it is waiting for them.",
+    "You can read this trip, and you can PROPOSE changes to it. A change tool call is not applied: every call you make this turn is collected into one proposal the user reviews and approves or rejects — one change on a card under your answer, several as suggestions on the trip's board. So never say you have added, moved or removed anything — say what you would change, and that it is waiting for them.",
   withheld:
     `You can read this trip. You were NOT given the change tools this turn, because this message was read as a question — and if that reading is wrong, call ${ESCALATE_TOOL_NAME} and your next step will have them. Do that rather than telling them to ask again: they can change this trip, and they should never have to rephrase to get a change made. Never tell them the assistant cannot make changes.`,
   "read-only":

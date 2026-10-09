@@ -47,9 +47,9 @@
         "insert_playbook_day"
       ],
       "toolChars": 20684,
-      "instructionChars": 3713,
-      "totalChars": 24397,
-      "approxTokens": 7371
+      "instructionChars": 3798,
+      "totalChars": 24482,
+      "approxTokens": 7396
     },
     "trip · plan": {
       "tools": [
@@ -70,9 +70,9 @@
         "insert_playbook_day"
       ],
       "toolChars": 19625,
-      "instructionChars": 4020,
-      "totalChars": 23645,
-      "approxTokens": 7144
+      "instructionChars": 4105,
+      "totalChars": 23730,
+      "approxTokens": 7169
     },
     "trip · unsure": {
       "tools": [
@@ -96,9 +96,9 @@
         "insert_playbook_day"
       ],
       "toolChars": 20684,
-      "instructionChars": 3713,
-      "totalChars": 24397,
-      "approxTokens": 7371
+      "instructionChars": 3798,
+      "totalChars": 24482,
+      "approxTokens": 7396
     },
     "page · compose": {
       "tools": [

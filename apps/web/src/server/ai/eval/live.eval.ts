@@ -30,7 +30,7 @@ import { rateLimitCounters } from "@/server/db/schema";
 import type { AskAnalyticsRecord } from "@/server/assistant/askAnalytics";
 import type { TurnLedger } from "@/server/assistant/ledger";
 import { expectationFor } from "./cases";
-import { grade, type EvalCheck, type EvalTurn } from "./grade";
+import { grade, reviewedChanges, type EvalCheck, type EvalTurn } from "./grade";
 import { capMicroUsdFrom, dollars, turnMicroUsd, unpricedModels } from "./spend";
 
 const ACTOR_ID = "eval-actor";
@@ -163,13 +163,11 @@ async function runTurn(
     .filter((chunk) => chunk.type === "text-delta" && typeof chunk.delta === "string")
     .map((chunk) => chunk.delta as string)
     .join("");
-  const proposal = chunks
-    .map((chunk) => (chunk as { messageMetadata?: { proposal?: { commands?: unknown[] } } }).messageMetadata?.proposal)
-    .find((found) => found !== undefined);
   return {
     record,
     text,
-    proposalCommands: proposal?.commands?.length ?? 0,
+    // A card's commands or a stored suggestion's changes (ADR-067).
+    proposalCommands: reviewedChanges(chunks),
     stepDurationsMs: ledgers[0]?.stepSpend.map((step) => step.durationMs) ?? [],
     providers: ledgers[0]?.stepSpend.map((step) => step.provider) ?? [],
     generationIds: ledgers[0]?.stepSpend.map((step) => step.gatewayGenerationId) ?? [],

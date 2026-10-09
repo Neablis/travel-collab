@@ -557,23 +557,31 @@ function isQueued(result: ToolResultLike): boolean {
  *     canned plan retired with the `board` surface (ADR-033), and the page it
  *     composes never carried a location at all.
  */
-function proposeCalls(scope: AskScope, results: readonly ToolResultLike[]): ToolCall[] {
+function proposeCalls(scope: AskScope, results: readonly ToolResultLike[], question: string): ToolCall[] {
   const trip = resultFor<TripReadout>(results, "read_trip");
-  // An empty trip gets a day to put them on, in the SAME batch — which is
-  // exactly the within-batch ref resolution `resolveBatch` exists for.
-  if (trip && trip.dayCount === 0) {
-    return [
-      call("AddDay", {}),
-      call("AddActivity", { title: "Sample: coffee stop", dayRef: "day 1" }),
-      call("AddActivity", { title: "Sample: evening stroll", dayRef: "day 1" }),
-    ];
+  const coffee = (dayRef: string) => call("AddActivity", { title: "Sample: coffee stop", dayRef });
+  const stroll = (dayRef: string) => call("AddActivity", { title: "Sample: evening stroll", dayRef });
+  // An empty trip, or a request for a new day, gets a day to put them on, in
+  // the SAME batch — which is exactly the within-batch ref resolution
+  // `resolveBatch` exists for.
+  if (trip && (trip.dayCount === 0 || ADD_A_DAY.test(question))) {
+    const dayRef = `day ${trip.dayCount + 1}`;
+    return [call("AddDay", {}), coffee(dayRef), stroll(dayRef)];
   }
   const dayRef = `day ${scope.kind === "day" ? scope.dayIndex + 1 : 1}`;
-  return [
-    call("AddActivity", { title: "Sample: coffee stop", dayRef }),
-    call("AddActivity", { title: "Sample: evening stroll", dayRef }),
-  ];
+  // **One stop for an ordinary change, two for a request to plan** (ADR-067).
+  // A turn of more than one change is stored as suggestions on the board and
+  // a single change keeps ADR-022's card, so this model has to be able to
+  // reach both on the deployment it is the whole assistant of.
+  return PLANNING_PROMPTS.test(question) || asksForAnItinerary(question)
+    ? [coffee(dayRef), stroll(dayRef)]
+    : [coffee(dayRef)];
 }
+
+// "add a day in Kyoto", "plan another day": the ADR-067 request a new day
+// filled with stops answers. One optional word between, so "add a full day"
+// matches and "add a coffee stop to day 1" — a stop, not a day — does not.
+const ADD_A_DAY = /\b(?:add|plan)\s+(?:a|an|another|one more)\s+(?:\w+\s+)?day\b/i;
 
 const SIMULATED_PROPOSAL_NOTICE =
   "AI is switched off on this deployment, so I drafted this from your trip data rather than from a model.";
@@ -598,9 +606,13 @@ function proposalAnswer(scope: AskScope, results: readonly ToolResultLike[]): st
   // server on approval, and nothing in this turn knows how many there will be.
   const queued = results.filter(isQueued).length;
   const where = scope.kind === "day" ? `day ${scope.dayIndex + 1}` : "this trip";
+  // More than one change goes on the board as suggestions (ADR-067); the
+  // server decides that from the same count, so the sentence follows it.
   return [
     `I've drafted ${queued} change${queued === 1 ? "" : "s"} for ${where}. Nothing is applied yet.`,
-    "Review them below — approve to put them on the board, or reject to leave the trip exactly as it is.",
+    queued > 1
+      ? "They go on the board as suggestions — accept the ones you want, or dismiss them to leave the trip exactly as it is."
+      : "Review them below — approve to put them on the board, or reject to leave the trip exactly as it is.",
     SIMULATED_PROPOSAL_NOTICE,
   ];
 }
@@ -946,7 +958,7 @@ function askTurn(options: CallOptionsLike): SimulatedStep {
   // — and `asksToWrite`'s own comment, two functions up, states the rule this
   // line was breaking. Caught by CodeRabbit on PR #184.
   if (!proposed && canPropose(options) && asksToWrite(question)) {
-    return { content: proposeCalls(scope, results), finishReason: { unified: "tool-calls", raw: undefined } };
+    return { content: proposeCalls(scope, results, question), finishReason: { unified: "tool-calls", raw: undefined } };
   }
   return speak(proposed ? proposalAnswer(scope, results) : askAnswer(scope, results));
 }

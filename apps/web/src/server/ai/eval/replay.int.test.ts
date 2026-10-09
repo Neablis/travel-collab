@@ -26,6 +26,7 @@ import { db } from "@/server/db/client";
 import { rateLimitCounters, tripMemberships } from "@/server/db/schema";
 import { UNTRUSTED_CLOSE, UNTRUSTED_OPEN } from "@/server/assistant/prompt";
 import type { AskAnalyticsRecord } from "@/server/assistant/askAnalytics";
+import { listSuggestionChanges } from "@/server/suggestions/list";
 import { replayTranscript, type AskTranscript } from "./transcript";
 
 const ACTOR_ID = "replay-actor";
@@ -128,6 +129,16 @@ interface ReplayResult {
   record: AskAnalyticsRecord;
   body: string;
   chunks: Record<string, unknown>[];
+  /**
+   * What the turn put up for review, wherever it went: the card's proposal,
+   * or — for a turn of more than one change, which ADR-067 stores on the board
+   * — the stored suggestion, read back as its changes' sentences and commands.
+   * Every shape assertion below reads this, so a multi-change transcript is
+   * still checked for fabricated costs and leaked citations.
+   */
+  reviewed: ProposalShape | undefined;
+  /** Where it went: `card`, `board`, or nowhere. */
+  landed: "card" | "board" | null;
 }
 
 async function replay(transcript: AskTranscript): Promise<ReplayResult> {
@@ -140,7 +151,25 @@ async function replay(transcript: AskTranscript): Promise<ReplayResult> {
     (record) => records.push(record),
   );
   const body = await res.text();
-  return { record: records[0]!, body, chunks: chunksOf(body) };
+  const chunks = chunksOf(body);
+  const proposal = proposalOf(chunks);
+  if (proposal !== undefined) return { record: records[0]!, body, chunks, reviewed: proposal, landed: "card" };
+  const suggested = suggestedOf(chunks);
+  if (suggested === undefined) return { record: records[0]!, body, chunks, reviewed: undefined, landed: null };
+  const listed = await listSuggestionChanges(tripId, ACTOR_ID);
+  if (!listed.ok) throw new Error(`reading the stored suggestion back: ${listed.error.message}`);
+  const stored = listed.value.changes.filter((change) => change.suggestionId === suggested.suggestionId);
+  return {
+    record: records[0]!,
+    body,
+    chunks,
+    reviewed: {
+      changes: stored.map((change) => ({ text: change.description })),
+      commands: stored.flatMap((change) => change.commands as unknown as Record<string, unknown>[]),
+      skipped: [],
+    },
+    landed: "board",
+  };
 }
 
 interface ProposalShape {
@@ -155,9 +184,15 @@ function proposalOf(chunks: Record<string, unknown>[]): ProposalShape | undefine
     .find((meta) => meta?.proposal)?.proposal;
 }
 
-/** Every command in the proposal, or none. */
-function commandsOf(chunks: Record<string, unknown>[]): Record<string, unknown>[] {
-  return proposalOf(chunks)?.commands ?? [];
+function suggestedOf(chunks: Record<string, unknown>[]): { suggestionId: string } | undefined {
+  return chunks
+    .map((chunk) => (chunk as { messageMetadata?: { suggested?: { suggestionId: string } } }).messageMetadata)
+    .find((meta) => meta?.suggested)?.suggested;
+}
+
+/** Every command the turn put up for review, on a card or on the board, or none. */
+function commandsOf(result: ReplayResult): Record<string, unknown>[] {
+  return result.reviewed?.commands ?? [];
 }
 
 function locationOf(command: Record<string, unknown>): Record<string, unknown> | null {
@@ -197,6 +232,9 @@ describe("the eval set", () => {
     expect(transcripts.filter((t) => t.expect.locationNames !== undefined).length).toBeGreaterThan(0);
     expect(transcripts.filter((t) => (t.expect.droppedCalls ?? 0) > 0).length).toBeGreaterThan(0);
     expect(transcripts.filter((t) => (t.expect.proposalChanges ?? 0) > 0).length).toBeGreaterThan(0);
+    // ...and one of more than one change, or the board half of ADR-067 is
+    // never replayed and the shape checks never read a stored suggestion.
+    expect(transcripts.filter((t) => (t.expect.proposalChanges ?? 0) > 1).length).toBeGreaterThan(0);
     // ...and at least one that does NOT end cleanly, or the outcome assertion
     // is a constant.
     expect(transcripts.filter((t) => (t.expect.outcome ?? "completed") !== "completed").length).toBeGreaterThan(0);
@@ -230,8 +268,7 @@ describe.each(everyTranscript())("replaying $name", (transcript) => {
   });
 
   it("resolves the turn into the proposal the recording justifies", () => {
-    const proposal = proposalOf(result.chunks);
-    expect(proposal?.changes.length ?? 0).toBe(transcript.expect.proposalChanges ?? 0);
+    expect(result.reviewed?.changes.length ?? 0).toBe(transcript.expect.proposalChanges ?? 0);
     if (transcript.expect.droppedCalls !== undefined) {
       expect(result.record.droppedCalls).toHaveLength(transcript.expect.droppedCalls);
     }
@@ -257,10 +294,16 @@ describe.each(everyTranscript())("replaying $name", (transcript) => {
       .filter((chunk) => chunk.type === "text-delta")
       .map((chunk) => String(chunk.delta))
       .join("");
-    const proposal = proposalOf(result.chunks);
-    const shown = [spoken, ...(proposal?.changes.map((change) => change.text) ?? [])].join("\n");
+    const shown = [spoken, ...(result.reviewed?.changes.map((change) => change.text) ?? [])].join("\n");
     expect(shown).not.toContain(UNTRUSTED_OPEN);
     expect(shown).not.toContain(UNTRUSTED_CLOSE);
+  });
+
+  // ADR-067 decisions 4 and 5, over every transcript: more than one command
+  // goes on the board, one stays a card (an insert is not in this set).
+  it("lands a change of several commands on the board and a single one on a card", () => {
+    const commands = commandsOf(result).length;
+    expect(result.landed === "board").toBe(commands > 1);
   });
 
   // **The gate box, asserted over every transcript rather than over the one
@@ -270,7 +313,7 @@ describe.each(everyTranscript())("replaying $name", (transcript) => {
   // again at the apply door; this is the first thing that watches a MODEL do it
   // on the shipped path.
   it("writes no fabricated cost, whatever the model asked for", () => {
-    for (const command of commandsOf(result.chunks)) {
+    for (const command of commandsOf(result)) {
       const cost = command.cost as { amountMinor?: number } | null | undefined;
       expect(cost?.amountMinor, JSON.stringify(command)).not.toBe(0);
     }
@@ -281,7 +324,7 @@ describe.each(everyTranscript())("replaying $name", (transcript) => {
   // the wire means the resolution stopped happening — and the stop would commit
   // with whatever the model typed.
   it("resolves every citation away before the proposal leaves", () => {
-    for (const command of commandsOf(result.chunks)) {
+    for (const command of commandsOf(result)) {
       expect(Object.keys(command), JSON.stringify(command)).not.toContain("placeRef");
     }
   });
@@ -292,7 +335,7 @@ describe.each(everyTranscript())("replaying $name", (transcript) => {
   // written — so a `precision` with no coordinates would mean both halves of
   // that broke at once.
   it("never writes a precision without the coordinates it describes", () => {
-    for (const command of commandsOf(result.chunks)) {
+    for (const command of commandsOf(result)) {
       const location = locationOf(command);
       if (location?.precision === undefined) continue;
       expect(location.lat, JSON.stringify(location)).toEqual(expect.any(Number));
@@ -302,7 +345,7 @@ describe.each(everyTranscript())("replaying $name", (transcript) => {
 
   it("commits the places the search returned, not the ones the model typed", () => {
     if (transcript.expect.locationNames === undefined) return;
-    const names = commandsOf(result.chunks)
+    const names = commandsOf(result)
       .map((command) => locationOf(command)?.name)
       .filter((name): name is string => typeof name === "string");
     expect(names).toEqual(transcript.expect.locationNames);
