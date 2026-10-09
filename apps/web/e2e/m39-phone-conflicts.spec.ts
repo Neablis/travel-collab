@@ -77,18 +77,24 @@ test.describe("M39 D9 — the phone's conflict state", () => {
     await page.goto(`/trips/${tripId}?view=Plan`);
     await expect(chip(page)).toHaveAccessibleName("2 things to look at");
 
-    await chip(page).click();
+    // From the keyboard, and back to it: the sheet has no Radix trigger, so
+    // closing it used to drop focus on <body> (preview walk, 390×844).
+    await chip(page).focus();
+    await page.keyboard.press("Enter");
     const sheet = page.getByRole("dialog", { name: "Things to look at" });
     await sheet.getByRole("button", { name: /^Dismiss: .*on day 1.* overlap in time/ }).click();
     await expect(sheet.getByText(/overlap in time/)).toHaveCount(1);
     // The sheet is modal, so the header is out of reach until it closes.
     await page.keyboard.press("Escape");
     await expect(chip(page)).toHaveAccessibleName("1 thing to look at");
+    await expect(chip(page)).toBeFocused();
 
-    await chip(page).click();
+    // The last Dismiss takes the chip with it; focus goes to the row's `⋯`.
+    await page.keyboard.press("Enter");
     await sheet.getByRole("button", { name: /^Dismiss: / }).click();
     await expect(sheet).toBeHidden();
     await expect(chip(page)).toHaveCount(0);
+    await expect(page.locator('header[aria-label="Trip"]').getByRole("button", { name: "Trip actions" })).toBeFocused();
 
     // A command, so it persists: still gone after a reload.
     await page.reload();
