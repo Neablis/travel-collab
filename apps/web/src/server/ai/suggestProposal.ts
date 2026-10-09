@@ -111,7 +111,16 @@ export async function suggestProposal(
     if (snapshot.ok) snapshotId = snapshot.value.id;
     const created = await createSuggestion(tripId, userId, input.data, undefined, { via: "assistant" });
     if (!created.ok) {
-      if (snapshotId !== null) await deleteSnapshot(tripId, snapshotId, userId);
+      // Cleared first, and its failure only logged: a cleanup that throws
+      // must not swap the refusal's own reason for the catch's generic one,
+      // nor be tried a second time there.
+      const saved = snapshotId;
+      snapshotId = null;
+      if (saved !== null) {
+        await deleteSnapshot(tripId, saved, userId).catch((cleanup: unknown) =>
+          console.error("ask: deleting the snapshot of a refused suggestion failed", { tripId, snapshotId: saved, cleanup }),
+        );
+      }
       return card(created.error.code, created.error.message);
     }
     const [first] = created.value;
