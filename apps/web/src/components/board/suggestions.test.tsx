@@ -224,6 +224,20 @@ describe("what is not on the trip yet reads as a placeholder", () => {
 });
 
 describe("the suggestions chip", () => {
+  // Both forms are in the DOM and CSS picks one at 768px (M39 D9): the phone's
+  // bulb and count, the desktop's words. jsdom applies neither, so what is
+  // held here is that both exist and the name is the phrase either way.
+  it("is named for its phrase, and carries the phone's count and the desktop's words", async () => {
+    mount("owner", (tripId) => [
+      change(tripId, 'Renamed the trip to "Roma"', [{ type: "SetTripName", tripId, name: "Roma" }]),
+      change(tripId, "Removed Pantheon", [{ type: "RemoveActivity", tripId, activityId: uuidFrom(9999, 7) }]),
+    ]);
+
+    const chip = await screen.findByRole("button", { name: "2 suggestions" });
+    expect(within(chip).getByText("2", { exact: true })).toBeTruthy();
+    expect(within(chip).getByText("2 suggestions", { exact: true })).toBeTruthy();
+  });
+
   it("counts every pending change and lists the ones the board cannot draw", async () => {
     mount("owner", (tripId) => {
       const add = addGelato(tripId);

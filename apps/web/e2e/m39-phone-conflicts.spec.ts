@@ -1,6 +1,8 @@
+import { randomUUID } from "node:crypto";
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures/test";
-import { createMappedTrip } from "./helpers";
+import { grantCollaborators } from "./adminBootstrap";
+import { createMappedTrip, signInAsDevUser } from "./helpers";
 import { e2eTripName } from "./tripNames";
 
 // **M39 D9 — the phone shows a conflict state**: a count in the pinned row that
@@ -92,6 +94,65 @@ test.describe("M39 D9 — the phone's conflict state", () => {
     await page.reload();
     await expect(page.getByTestId(/^activity-card-/).first()).toBeVisible();
     await expect(chip(page)).toHaveCount(0);
+  });
+
+  // Mitchell, 2026-10-09: with the conflict count AND "2 suggestions" in the
+  // pinned row, the title had no room left and slid under Ask (measured: a
+  // 44px title box at 60–104 against Ask at 64–130, at 360px). Below 768px
+  // Suggestions is a count too. What is held is what a person sees: no control
+  // in the row sits on another, at the two narrowest common phone widths.
+  test("fits the title, Ask and both counts in the pinned row", async ({ page, browser }) => {
+    test.slow();
+    await grantCollaborators(browser, "dev-alice");
+    const tripId = await overlappingTrip(page, "Phone fit, with a trip name long enough to truncate");
+
+    // Two pending suggestions from a real suggester, through the shipped
+    // endpoints: invited, joined, and sent — the suggester.spec walk's API.
+    const invited = await page.request.post(`/api/trips/${tripId}/invites`, { data: { email: null, role: "suggester" } });
+    expect(invited.status()).toBe(201);
+    const { invite } = (await invited.json()) as { invite: { token: string } };
+    const samContext = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+    try {
+      const sam = await samContext.newPage();
+      await signInAsDevUser(sam, `sam${randomUUID().replace(/-/g, "").slice(0, 12)}`);
+      expect((await sam.request.post(`/api/invites/${encodeURIComponent(invite.token)}/accept`)).ok()).toBe(true);
+      const sent = await sam.request.post(`/api/trips/${tripId}/suggestions`, {
+        data: {
+          units: [
+            { commands: [{ type: "SetTripName", tripId, name: "Roma" }] },
+            { commands: [{ type: "SetTripName", tripId, name: "Roma again" }] },
+          ],
+        },
+      });
+      expect(sent.status()).toBe(201);
+    } finally {
+      await samContext.close();
+    }
+
+    const header = page.locator('header[aria-label="Trip"]');
+    const row = [
+      header.getByRole("link", { name: /Your trips/ }),
+      header.getByRole("heading", { level: 2 }).getByRole("button"),
+      header.getByRole("button", { name: "Ask" }),
+      chip(page),
+      header.getByRole("button", { name: "2 suggestions" }),
+      header.getByRole("button", { name: "Trip actions" }),
+    ];
+    for (const width of [360, 390]) {
+      await page.setViewportSize({ width, height: 800 });
+      await page.goto(`/trips/${tripId}?view=Plan`);
+      for (const control of row) await expect(control).toBeVisible();
+      const boxes = await Promise.all(row.map(async (control) => (await control.boundingBox())!));
+      // Left to right in that order, each ending where the next begins or
+      // before: a title squeezed below its 44px floor overflows into Ask.
+      for (let i = 1; i < boxes.length; i++) {
+        expect(boxes[i - 1]!.x + boxes[i - 1]!.width, `at ${width}px, control ${i - 1} ends before control ${i} starts`).toBeLessThanOrEqual(
+          boxes[i]!.x + 0.5,
+        );
+      }
+      expect(boxes.at(-1)!.x + boxes.at(-1)!.width).toBeLessThanOrEqual(width);
+      test.info().annotations.push({ type: "title width", description: `${width}px: ${Math.round(boxes[1]!.width)}px` });
+    }
   });
 
   test("leaves the desktop as it was: the banner over the columns, no chip", async ({ page, browser }) => {
