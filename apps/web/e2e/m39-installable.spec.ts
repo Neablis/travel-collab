@@ -168,13 +168,11 @@ test.describe("M39 Part 7 — the pinned and fixed layers clear the safe area", 
 
       // The toolbar pins under AppHeader's whole height, the widget rail under
       // the toolbar's 60px, and the rail's list is bounded by both.
-      const toolbar = page
-        .getByRole("button", { name: "Done editing" })
-        .locator("xpath=ancestor::div[contains(@class,'md:sticky')][1]");
+      const toolbar = page.getByTestId("notebook-toolbar");
       expect.soft(await px(toolbar, "top"), "toolbar top").toBe(56 + wide.top);
-      const rail = page.locator("aside[data-widget-panel]");
+      const rail = page.getByRole("complementary", { name: "Insert a widget" });
       expect.soft(await px(rail, "top"), "widget rail top").toBe(116 + wide.top);
-      expect.soft(await px(rail.locator(".tc-widget-rail"), "maxHeight"), "widget list").toBe(900 - 120 - wide.top);
+      expect.soft(await px(rail.getByTestId("widget-rail"), "maxHeight"), "widget list").toBe(900 - 120 - wide.top);
 
       // §9's 16px pad, measured from the safe area's corner.
       const launcher = page.getByTestId("assistant-launcher");
@@ -185,6 +183,17 @@ test.describe("M39 Part 7 — the pinned and fixed layers clear the safe area", 
       const card = (await page.getByRole("complementary", { name: "Assistant" }).boundingBox())!;
       expect.soft(card.x + card.width, "card right").toBe(1280 - 16 - wide.right);
       expect.soft(card.y + card.height, "card bottom").toBe(900 - 16 - wide.bottom);
+
+      // Dragged hard into the corner, the card stops where it opened: the clamp
+      // keeps the same pad from the same insets as the CSS.
+      const header = (await page.getByTestId("assistant-header").boundingBox())!;
+      await page.mouse.move(header.x + 40, header.y + header.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(header.x + 2000, header.y + 2000, { steps: 4 });
+      await page.mouse.up();
+      const dragged = (await page.getByRole("complementary", { name: "Assistant" }).boundingBox())!;
+      expect.soft(dragged.x + dragged.width, "dragged card right").toBe(1280 - 16 - wide.right);
+      expect.soft(dragged.y + dragged.height, "dragged card bottom").toBe(900 - 16 - wide.bottom);
     });
 
     test(`the Unscheduled rack, and the side sheet (${label})`, async ({ page }) => {
@@ -214,6 +223,27 @@ test.describe("M39 Part 7 — the pinned and fixed layers clear the safe area", 
       expect.soft(await px(sheet, "paddingLeft"), "rail sheet left").toBe(20);
     });
 
+    // Docked (>=768px) the rail runs to the bottom of the screen, so an iPad's
+    // home indicator sits over its composer unless the rail stops above it. It
+    // is in flow, so `body`'s padding is what keeps it off the right edge.
+    test(`the docked Ask rail (${label})`, async ({ page }) => {
+      await emulateInsets(page, wide);
+      const tripId = await createMappedTrip(page, e2eTripName("InsetsDocked"), 1);
+      await page.goto(`/trips/${tripId}?view=Plan`);
+      await page.getByRole("button", { name: "Ask" }).click();
+      const rail = page.getByRole("complementary", { name: "Assistant" });
+      await expect(rail).toBeVisible();
+      // Scrolled to the end, so the sticky rail is pinned under AppHeader and
+      // its box reaches the bottom of the viewport.
+      await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+      const box = (await rail.boundingBox())!;
+      expect.soft(box.x + box.width, "rail right").toBe(1280 - wide.right);
+      expect.soft(box.y + box.height, "rail bottom").toBe(900);
+      const composer = (await rail.getByRole("button", { name: "Ask the assistant" }).boundingBox())!;
+      expect.soft(composer.y + composer.height, "composer bottom").toBeLessThanOrEqual(900 - wide.bottom);
+      expect.soft(await px(rail, "paddingBottom"), "rail inset").toBe(wide.bottom);
+    });
+
     test(`a toast with nothing else at the bottom (${label})`, async ({ page }) => {
       await emulateInsets(page, wide);
       const tripName = e2eTripName("InsetsToast");
@@ -229,6 +259,21 @@ test.describe("M39 Part 7 — the pinned and fixed layers clear the safe area", 
     });
   }
 
+  // The rack's inset is padding, so an inset that changes under an open page
+  // (a rotation) grows the rack without changing its content box — and the
+  // board's `--rack-height` has to follow the rack's whole height.
+  test("the board's gap above the rack follows an inset that changes after load", async ({ page }) => {
+    const tripId = await createMappedTrip(page, e2eTripName("InsetsRotate"), 1);
+    await page.goto(`/trips/${tripId}?view=Plan`);
+    const content = page.getByTestId("trip-board-content");
+    const rackHeight = () => content.evaluate((el) => parseFloat(el.style.getPropertyValue("--rack-height")));
+    await expect.poll(rackHeight).toBeGreaterThan(0);
+    const before = await rackHeight();
+
+    await emulateInsets(page, { ...NONE, bottom: 34 });
+    await expect.poll(rackHeight).toBe(before + 34);
+  });
+
   for (const [label, tall] of [["no insets", NONE], ["insets", PORTRAIT]] as const) {
     test.describe(`on a phone (${label})`, () => {
       test.beforeEach(async ({ page }) => {
@@ -236,12 +281,26 @@ test.describe("M39 Part 7 — the pinned and fixed layers clear the safe area", 
         await emulateInsets(page, tall);
       });
 
-      test("the front door's header and headline sit below the status bar", async ({ page }) => {
+      test("the front door's header and headline sit below the status bar, its footer above the home indicator", async ({ page }) => {
         await page.goto("/welcome");
-        const header = page.getByTestId("phone-front-door").locator("header").first();
+        const header = page.getByTestId("phone-front-door").getByRole("banner");
         expect.soft(await px(header, "paddingTop"), "header").toBe(24 + tall.top);
-        const headline = page.getByTestId("front-door-pin").locator(".relative.px-6").first();
+        const headline = page.getByTestId("front-door-stage");
         expect.soft(await px(headline, "paddingTop"), "headline").toBe(64 + tall.top);
+
+        // The screen is its own scroller, and its footer ends it: scrolled to
+        // the end, the footer's last line stops above the home indicator.
+        const door = page.getByTestId("phone-front-door");
+        await door.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+        const footer = door.getByRole("contentinfo");
+        const footerBox = (await footer.boundingBox())!;
+        // To the pixel: the scroller's height is fractional and `scrollTo`
+        // lands on a whole one, so the end sits a fraction past the screen.
+        const footerBottom = footerBox.y + footerBox.height;
+        expect.soft(footerBottom, "footer bottom").toBeCloseTo(852, 0);
+        expect.soft(await px(footer, "paddingBottom"), "footer inset").toBe(20 + tall.bottom);
+        const mail = (await footer.getByRole("link", { name: /@/ }).boundingBox())!;
+        expect.soft(mail.y + mail.height, "footer's last line").toBeLessThanOrEqual(footerBottom - 20 - tall.bottom);
       });
 
       test("Ask's sheet keeps its composer above the home indicator", async ({ page }) => {
