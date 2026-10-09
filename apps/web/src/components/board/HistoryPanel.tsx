@@ -24,6 +24,10 @@ function suggestedBy(name: string | null): string {
 // `suggestedBy`'s reason. Deduplicated: two authors who have both left are
 // each "a former traveler", and saying it twice reads as a stutter.
 const AND = new Intl.ListFormat("en", { type: "conjunction" });
+/**
+ * The second line of an accept-all History row, "from Sam and Ana", each name
+ * once; null while any name is still loading.
+ */
 export function fromAuthors(names: readonly (string | null)[]): string | null {
   if (names.some((n) => n === null)) return null;
   return `from ${AND.format([...new Set(names as string[])])}`;
