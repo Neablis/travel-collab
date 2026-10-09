@@ -26,7 +26,8 @@
   opens on Overview on a phone, so SPEC §24 is unchanged. Overview is built from
   the existing artboard rather than a new one: below 768px the tab renders
   §19's phone notebook page (`phoneNbDoc`) read-only, and Edit opens the page
-  in the Notebook (§25).
+  in the Notebook (§25). The critique's option B, recorded in
+  `docs/design-feedback/2026-10-08-M39-phone-tablet-critique.md` (decision 2).
 - **Fix (2026-10-09, M39 Part 5):** `0d6be82`. In `globals.css`, a phone block
   on `.tc-overview-letter` drops the sheet's border, shadow, radius and clamped
   padding, and runs its ground edge to edge. `OverviewLens` passes

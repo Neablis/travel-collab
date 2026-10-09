@@ -137,38 +137,6 @@ here two days later.
     - It is undecided whether assistant changes count against the 50-per-author pending cap.
     - Whether it supersedes ADR-022's ephemeral proposals or sits beside them is an ADR question.
   *Placed 2026-10-06 → `docs/milestones/M40-a-big-change-is-one-change.md` (proposed, not yet scoped). M40's gate deletes this entry at close.*
-- **Caesura installable as a phone app, as a PWA and not a store release (asked
-  2026-10-02).** Mitchell: *"what would be the lift to get Caesura working as a
-  mobile app? Not like a full on app store"*, then *"add the PWA to potential
-  future work"*. Nothing exists today: no manifest, no service worker, no PNG
-  icons, no `viewport` export (`apps/web/src/app/layout.tsx` exports `metadata`
-  only), and nothing blocks adding them. Sized by reading code on 2026-10-02,
-  not measured, in four tiers:
-  - **Installable, about a day.** `app/manifest.ts`, PNG icons (192, 512,
-    maskable, apple 180) from `scripts/generate-og-assets.mjs`, and a `viewport`
-    export. `viewport-fit=cover` turns on the tab bar's existing bottom inset
-    and exposes the missing top one, so it ships with that fix or waits for the
-    next tier.
-  - **Feels like an app, about a week.** The service worker is the small half:
-    hand-written, because the build is Turbopack (the MapLibre worker in
-    `apps/web/scripts/copy-maplibre-worker.mjs` is the precedent). It caches
-    static assets only and never `/api/**`, `/s/**`, `/invite/**` or
-    `/monitoring`. The large half is the phone layout already recorded in
-    KI-2026-09-24-i, KI-2026-09-24-j and KI-2026-09-25-f.
-  - **Push, one to two weeks; offline trip data, a milestone.** Nothing
-    generates a notification today. Offline reverses ADR-012 and ADR-046 (the
-    client holds no store), so it needs its own ADR; read-only offline is the
-    cheaper middle.
-  - **Store wrapper.** An Android TWA is days. iOS is weeks: Google blocks OAuth
-    in a webview, Apple requires Sign in with Apple, and Stripe subscriptions
-    meet both stores' billing rules.
-
-  Open questions, none walked on a device: an installed iOS app has its own
-  cookie jar, emailed invite links open in Safari and not in the app, and
-  long-press drag on the board is unverified (the `phone` e2e project is desktop
-  Chrome at 411px with no touch).
-  *Placed 2026-10-06 → `docs/milestones/M39-the-phone-is-decided.md` (proposed, not yet scoped). M39's gate deletes this entry at close.*
-
 - **The assistant on eve: the port, deferred until there are users (asked 2026-10-02,
   deferred 2026-10-03).** ADR-062 records the decision and the Phase 0 spike's evidence.
   Mitchell chose a full port onto Vercel's eve framework, with the ledger first. On
@@ -559,18 +527,6 @@ here two days later.
   route (`LandingScreen.tsx`) still has no section and no `#pricing` anchor.
   *Placed 2026-10-06 → `docs/milestones/M42-the-front-door-shows-more.md` (proposed, not yet scoped). M42's gate deletes this entry at close.*
 
-- **The phone has no conflict state (2026-09-01, DRIFT §8).** The remainder
-  of the "shared day gets a map, Playbooks becomes a fifth phone tab" entry,
-  audited 2026-09-25. Everything else in it shipped: the shared day's map
-  (`SharedDayMap.tsx`, #196/#197), the five-tab `PhoneTabBar` (#143), and where
-  the phone edits (M26 link 13's phone treatment of Plan). DRIFT §8's *"the
-  phone has no conflict state"* — which project rule 6 requires — is recorded
-  by `docs/milestones/M26-design-parity.md` as design-owed rather than built:
-  it needs a design before it needs a build.
-  *Placed 2026-10-06 → `docs/milestones/M39-the-phone-is-decided.md` (proposed, not yet scoped). M39's gate deletes this entry at close.*
-  *Built 2026-10-09 by M39 part 6 (decision 9): the count in the pinned row, its sheet, and the
-  stop card's marker, held by `apps/web/e2e/m39-phone-conflicts.spec.ts`. Kept until the gate prunes it.*
-
 - **Save light: move Retry out of the mark and into a popover on it
   (2026-08-26, Mitchell, PR #55 — "nice to have, to do later").** SPEC's "The
   logo is the save light" justifies putting trip-scoped save state in an
@@ -725,36 +681,6 @@ here two days later.
   activity (which replay would have to maintain) or something read back off
   the event log, and that is a real design question rather than a line.
   *Placed 2026-10-06 → `docs/milestones/M41-planning-without-friction.md` (proposed, not yet scoped). M41's gate deletes this entry at close.*
-
-- **Design critique: phone and tablet layout, decided once (2026-09-25).**
-  Mitchell, after the overnight KI sweep: *"I want to do a design critique
-  soon too, so we can combine those layout issues."* Five open entries are
-  one conversation, not five fixes — each was left by the sweep because it
-  says it needs a layout decision, and deciding them separately would give
-  three answers to "what does a phone show":
-  - `KI-2026-09-24-i` — the pinned phone trip header takes ~305 of 844px, so
-    Plan's first stop starts at the fold (what collapses, what pins; SPEC
-    §13.4–13.5).
-  - `KI-2026-09-25-f` — a trip opens on a phone into the desktop Overview
-    document in a padded card, ~8,560px tall (what Overview IS on a phone, or
-    whether a phone lands elsewhere — SPEC §24 says Overview, with no phone
-    exception; the phone tab bar now marks nothing current there, per
-    `resolved/KI-20260924-l-…`).
-  - `KI-2026-09-24-j` — tablets (768–1100px) get the desktop layout with
-    mouse-sized controls, and the Ask button covers stop costs (does a touch
-    tablet keep SPEC §13.1's 44px floor; what the tablet board looks like).
-  - `KI-048` items 3 and 5 — the day-chip row gives no sign it scrolls, and
-    the trip-settings date editor opens as a popover over "Total for the trip"
-    (inline is already the settled answer; it needs building and an e2e).
-  - Worth walking in the same session, already fixed but new on screen:
-    the Plan board's sticky stand-in scrollbar (`resolved/KI-20260922-b-…`,
-    never looked at on a Windows mouse), the Calendar's hidden-days control
-    (`resolved/KI-20260924-k-…`), and phone tag chips' 44px hit area
-    (`resolved/KI-20260924-m-…`).
-  **Output of the critique:** a decision per bullet recorded in the entries
-  (or a SPEC amendment through a design sync — `.design-sync/**` is a build
-  input), then one milestone or one PR per decision. **Not placed.**
-  *Placed 2026-10-06 → `docs/milestones/M39-the-phone-is-decided.md` (proposed, not yet scoped). M39's gate deletes this entry at close.*
 
 - **`/ask` survives a throw while building its proposal (2026-09-25,
   `KI-2026-09-24-w`).** A throw inside `buildProposal` (called from

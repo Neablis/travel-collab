@@ -75,18 +75,103 @@ iPhone and Android (sign-in, an emailed invite link, long-press drag), and the r
 
 ## Exit gate
 
-- [ ] **The critique is held and every bullet has a recorded decision**, with links from each KI
-      entry.
-- [ ] **`KI-2026-09-24-i`, `KI-2026-09-25-f`, `KI-2026-09-24-j` and `KI-048` items 3 and 5 are
-      resolved** (moved to `resolved/`) or explicitly re-scoped by the critique.
-- [ ] **The phone shows a conflict state**, with a test seen red without it.
-- [ ] **Caesura passes Chrome's installability check**: a manifest with icons, a service worker
-      and a viewport. An e2e or a Lighthouse assertion records this.
-- [ ] **The service worker never caches an API or token route**: a unit test over its route
-      matcher was seen red with `/api/` allowed.
-- [ ] **The e2e specs pass on `pnpm --filter web test:e2e:ci-like`**, including the `phone`
-      project.
-- [ ] **[walk]** Installed to a real iPhone and a real Android home screen. Sign-in, opening an
+- [x] **The critique is held and every bullet has a recorded decision**, with links from each KI
+      entry. *Ticked 2026-10-09: the decision table is in the critique (PR #362), and
+      `KI-2026-09-24-i`, `-25-f`, `-24-j` and resolved KI-048 each carry a* Decided *line citing it.*
+- [x] **`KI-2026-09-24-i`, `KI-2026-09-25-f`, `KI-2026-09-24-j` and `KI-048` items 3 and 5 are
+      resolved** (moved to `resolved/`) or explicitly re-scoped by the critique. *Ticked
+      2026-10-09: KI-048 resolved by Part 1 (PR #363), `-24-i` by Part 2 (PR #364),
+      `-24-j` by Part 3 (PR #365) and `-25-f` by Part 5 (PR #367), all merged.*
+- [x] **The phone shows a conflict state**, with a test seen red without it. *Ticked
+      2026-10-09: Part 6 (PR #368, merged). A count chip in the pinned row opens a sheet of the
+      trip's conflicts; `e2e/m39-phone-conflicts.spec.ts` failed with the chip removed
+      (`Expected: "2 things to look at"`, element(s) not found), as did `ConflictsChip.test.tsx`.*
+- [x] **Caesura passes Chrome's installability check**: a manifest with icons, a service worker
+      and a viewport. An e2e or a Lighthouse assertion records this. *Ticked 2026-10-09: Part 4
+      (PR #366, merged). `e2e/m39-installable.spec.ts` asks Chromium for
+      `Page.getInstallabilityErrors` and expects none; it was seen red without `manifest.ts`
+      (`no-manifest`). CI was green on the merged head.*
+- [x] **The service worker never caches an API or token route**: a unit test over its route
+      matcher was seen red with `/api/` allowed. *Ticked 2026-10-09: Part 4 (PR #366, merged).
+      `src/lib/serviceWorker.test.ts` runs the real `public/sw.js`; with `/api/` allowed it
+      failed with `expected 'cache-first' to be 'network'`. Since the hotfix #374 (merged
+      2026-10-09, `KI-2026-10-09-e`) the worker has no `fetch` listener at all, so it answers no
+      request: `serviceWorker.test.ts` now holds "registers no fetch listener", and
+      `m39-installable.spec.ts` checks the worker answers nothing.*
+- [x] **The e2e specs pass on `pnpm --filter web test:e2e:ci-like`**, including the `phone`
+      project. *Ticked 2026-10-09: on `main` at `814f469` (#373's merge, the merged top of every
+      M39 PR), 290 passed in 7.5m, none failed, flaky or skipped; 40 of them in the `phone`
+      project.*
+- [x] **[walk]** Installed to a real iPhone and a real Android home screen. Sign-in, opening an
       emailed invite link, and long-press drag on the board are each walked and recorded. These are
       the open questions from the PWA entry, and none of them has been walked on a device yet.
-- [ ] A retro is appended at gate close.
+      *Ticked 2026-10-09 on **Android only**, by Mitchell's call. On his Pixel, against production
+      with all of M39 merged, Caesura installed, and sign-in, an emailed invite link and long-press
+      drag on the board all worked. **The iPhone half was not walked**: there was no iPhone to walk
+      it on, and Mitchell accepted Android as enough to close. That half is open as
+      `KI-2026-10-09-f`.*
+- [x] A retro is appended at gate close. *Ticked 2026-10-09: below.*
+
+## Retro — gate closed 2026-10-09 (8 of 8)
+
+**What shipped.** The critique (#362), seven planned parts and four PRs the build turned up, all
+merged 2026-10-09:
+- **Part 1 (#363):** the day chips fade and snap, and dates are edited inline (KI-048 items 3 and 5).
+- **Part 2 (#364):** the phone header is one pinned row plus the day rail, and Unscheduled is the
+  day's last row (`-24-i`).
+- **Part 3 (#365):** a 44px touch floor on `pointer: coarse`, Ask opens over the board on a tablet,
+  and a touch-tablet e2e project (`-24-j`).
+- **Part 4 (#366):** a manifest, icons, a `viewport` with `cover` and both insets, and a service
+  worker. Chromium's installability check passes.
+- **Part 5 (#367):** a phone-sized Overview, built from the §19 artboard (`-25-f`).
+- **Part 6 (#368):** the phone shows conflicts as a count chip that opens a sheet. Suggestions
+  became a count to fit the row.
+- **Part 7 (#369, then #371):** safe-area insets on every pinned and fixed layer `-09-a` listed.
+  #371 holds its self-review's fixes.
+- **Found on the way:**
+  - #372: the icons, favicon and OG card drew the old ◎. Mitchell saw it on his Pixel.
+  - #374: a hotfix for lost edits, covered under *What did not* below.
+  - #373: an *Install app* row in the account menu and a one-time phone nudge, Mitchell's
+    option B. It came from his Pixel never offering to install.
+
+**What held.**
+- **The critique decided the layout once, and the build did not reopen it.** Where the plan had not
+  anticipated something, the choice went to Mitchell as a question with a recommendation: Part 5's
+  source, Part 6's row fit, the install entry points. Each PR lists the smaller choices for him to
+  confirm.
+- **Walking at 390px found what tests had not.**
+  - Part 5's breadcrumb pushed the page to 532px wide.
+  - Part 6's row squeezed the trip title to 44px.
+  - Both were fixed before review, and each now has an e2e assertion.
+- **"Flaky" was refused, and that found a data-loss bug.** `m6-unload-flush` started failing
+  intermittently once Part 4 merged. It was investigated rather than retried.
+  - The cause: the worker's `fetch` listener put the pagehide keepalive flush through the worker,
+    and edits queued at a reload were lost in production (`KI-2026-10-09-e`).
+  - #374 removed the listener. Its new test failed 9 of 10 runs on the old worker and passed 20 of
+    20 with the fix.
+
+**What did not.**
+- **Part 4 shipped a worker that lost edits, and nothing caught it before production.** The
+  worker's `fetch` listener never called `respondWith`. It looked inert, but it still put every
+  request through the worker, including the unload flush. The existing unload test ran without a
+  worker in control, so it could not see this.
+  - **Next time:** a service-worker change is a change to every request. Any test of unload or
+    offline behaviour runs with the worker controlling the page (`controller !== null`).
+- **A review suggestion was applied without being checked, and it was wrong.** On CodeRabbit's
+  suggestion, Part 7 removed `skipWaiting()`. Without it, an installed app never picks up an
+  update. The self-review restored it in #371.
+  - **Next time:** a bot finding is a claim to trace, not an order (`working-a-review.md`).
+- **#369 merged before its self-review's fixes were pushed,** so they shipped separately as #371.
+  - **Next time:** say on the PR that a self-review is in progress, so it isn't merged until the
+    fixes land.
+- **The icons drew a retired mark.** `scripts/generate-og-assets.mjs` still drew the ◎ in the old
+  `#0e7c66`. No test knew which mark was current, so Part 4 passed with it and Mitchell found it
+  on a device.
+  - `brandIcons.test.ts` now holds the two-stroke mark, in both `icon.svg` and the OG card.
+- **Parallel agents ran e2e on the same machine at once.** The install agent and the
+  investigation agent overlapped, and their results had to be re-run. Also, `pgrep` matched its
+  own command line until the `[p]laywright` pattern.
+  - **Next time:** check `pgrep -af "[p]laywright/test/cli|next start"` in its own command before
+    every e2e run.
+- **The device walk covered Android only.** There was no iPhone. The iOS half is open as
+  `KI-2026-10-09-f`, with what to walk.
