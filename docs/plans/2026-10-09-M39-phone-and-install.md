@@ -176,9 +176,9 @@ The app is under `apps/web/src/`.
 
 ## Open questions for Mitchell (before the part they block)
 
-1. **Part 2, the History popover in an overflow menu.** History holds undo and redo. Should undo
-   and redo stay one tap away in the pinned row (two 44px icons), or sit behind the menu with
-   History? Recommendation: behind the menu. The toast already offers undo after each change.
+1. **Part 2, the History popover in an overflow menu.** *Answered 2026-10-09 (Mitchell): behind
+   the menu*, as recommended. The pinned row is the title, Ask and the menu; undo and redo stay in
+   History, and the post-change toast still offers undo.
 2. **Part 3, the overlay band versus the reader's choice.** D3 says Ask opens as an overlay sheet
    at 768–1100px. `useAssistantShape` currently lets the reader pin it docked at any width.
    Recommendation: the band wins, and the docked choice applies from 1100px.
