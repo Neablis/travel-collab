@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Bricolage_Grotesque, IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
@@ -7,6 +7,8 @@ import { Bricolage_Grotesque, IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/goo
 import "maplibre-gl/dist/maplibre-gl.css";
 import "./globals.css";
 import { SaveLightProvider } from "@/components/SaveLight";
+import { ServiceWorkerRegistration } from "@/components/ServiceWorkerRegistration";
+import { appColors } from "@/lib/appColors.generated";
 import { SITE_DESCRIPTION, SITE_NAME, siteRobots } from "@/lib/siteMetadata";
 import { deploymentOrigin } from "@/lib/deploymentOrigin";
 
@@ -46,6 +48,21 @@ export const metadata: Metadata = {
   robots: siteRobots(),
 };
 
+// M39 D10: `viewport-fit=cover` lets the installed app draw under a notch, a
+// status bar and a home indicator, and ships together with the insets that keep
+// the chrome out from under them (globals.css, "The device's safe area"). With
+// `cover` and no insets an installed iPhone app draws its header under the
+// status bar; with insets and no `cover` they are all 0 and do nothing.
+// `width` and `initialScale` are Next's defaults, written out so this export
+// reads as the whole tag. `themeColor` colours the browser's bar, the
+// manifest's `theme_color` the installed app's — the same token.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: appColors.surface,
+};
+
 // SPEC §35.1: Ledger is the only look. The other three and the theme switch
 // were deleted, and no picker will ever exist — so this is a constant, not a
 // preference, and nothing reads or stores a look.
@@ -75,6 +92,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             client component — `children` is still passed through as an
             already-rendered server tree. */}
         <SaveLightProvider>{children}</SaveLightProvider>
+        <ServiceWorkerRegistration />
         {/* Only on Vercel. Both packages gate themselves on `isDevelopment()`
             alone, so any production build — `next start` locally, CI's
             ci-like e2e lane, a self-hosted deploy — mounted them and then

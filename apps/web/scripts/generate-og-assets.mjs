@@ -1,8 +1,9 @@
-// Regenerates the two committed brand assets the App Router serves via its
-// file conventions:
+// Regenerates the committed brand assets:
 //
 //   src/app/opengraph-image.png  (1200×630, og:image / twitter:image)
 //   src/app/icon.svg             (favicon)
+//   src/app/apple-icon.png       (180×180, iOS home screen)
+//   public/icons/icon-*.png      (192, 512 and maskable 512, app/manifest.ts)
 //
 // Run from apps/web:  node scripts/generate-og-assets.mjs
 //
@@ -25,7 +26,7 @@
 // embedded as data: URLs — the browser itself may sit behind a proxy it
 // doesn't trust, and a silent fallback-font render is exactly the failure
 // this avoids. If the fetch fails, the script fails; re-run with network.
-import { readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { chromium } from "@playwright/test";
 import { readOgColors } from "./lib/ogTokens.mjs";
@@ -50,6 +51,43 @@ const iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
 `;
 writeFileSync(fileURLToPath(new URL("src/app/icon.svg", root)), iconSvg);
 console.log("wrote src/app/icon.svg");
+
+// ---------------------------------------------------------------------------
+// The installed app's icons (M39 Part 4): the same mark as PNGs, because a
+// manifest needs raster icons at 192 and 512 for Chrome to offer an install,
+// and iOS takes its home-screen icon from `apple-icon.png` only.
+//
+// Two shapes. The `any` icons keep the favicon's rounded square with
+// transparent corners. The maskable one and Apple's are full-bleed squares:
+// the OS cuts its own shape out of them (a circle, a squircle), and a
+// transparent corner would show as black on iOS. The maskable spec keeps
+// everything that matters inside a circle of radius 40% of the icon; the
+// glyph's outer ring reaches 9/32 ≈ 28% from the centre, so the favicon's
+// geometry already sits inside that safe zone with no rescaling.
+//
+// The 192/512 set lives in `public/icons/` and is named by the manifest;
+// `apple-icon.png` uses the App Router file convention, like `icon.svg`.
+const squareIconSvg = iconSvg.replace(' rx="9"', "");
+const appIcons = [
+  ["public/icons/icon-192.png", 192, iconSvg],
+  ["public/icons/icon-512.png", 512, iconSvg],
+  ["public/icons/icon-maskable-512.png", 512, squareIconSvg],
+  ["src/app/apple-icon.png", 180, squareIconSvg],
+];
+{
+  mkdirSync(fileURLToPath(new URL("public/icons/", root)), { recursive: true });
+  const browser = await chromium.launch();
+  for (const [path, size, svg] of appIcons) {
+    const page = await browser.newPage({ viewport: { width: size, height: size }, deviceScaleFactor: 1 });
+    const src = `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
+    await page.setContent(`<body style="margin:0"><img src="${src}" width="${size}" height="${size}" style="display:block">`);
+    await page.locator("img").evaluate((img) => img.decode());
+    await page.screenshot({ path: fileURLToPath(new URL(path, root)), type: "png", omitBackground: true });
+    await page.close();
+    console.log(`wrote ${path}`);
+  }
+  await browser.close();
+}
 
 // ---------------------------------------------------------------------------
 // Fonts, matching layout.tsx's next/font loads (display + sans subsets the
