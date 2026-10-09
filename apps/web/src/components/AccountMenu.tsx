@@ -15,6 +15,8 @@ import { useSessionUser, type SessionUser } from "@/components/account/useSessio
 import { PersonChip } from "@/components/ui/person-chip";
 import { displayNameFor } from "@/lib/displayName";
 import { resetDemoData } from "@/lib/apiClient";
+import { BrandMark } from "@/components/BrandMark";
+import { useInstallApp } from "@/components/install/InstallApp";
 
 // Handoff `…dc.html:97`: the 30px round avatar sits between Tailwind's h-7
 // (28px) and h-8 (32px) steps — same computed-geometry escape hatch as
@@ -65,6 +67,7 @@ export function AccountMenu({
   // (KI-2026-09-14-f). `false` until that read lands, so the item never flashes
   // for a non-operator; any failure also reads as "not an operator".
   const isAdmin = useIsAdmin();
+  const installApp = useInstallApp();
 
   // Discards the caller's trips (via DeleteTrip — recoverable server-side,
   // but not from this dialog), so a single click must not do it — same
@@ -172,6 +175,26 @@ export function AccountMenu({
             Operator console
           </Link>
         )}
+        {/* **Install app** (M39; Mitchell chose option B, 2026-10-09). Only
+            where installing would work — a stashed `beforeinstallprompt`, or
+            Safari on iOS — and never inside the installed app, so a browser
+            that cannot install is never offered a row that does nothing.
+            The mark is the app's own, at the size of an app icon in a list:
+            this row is the one that puts it on a home screen. */}
+        {installApp.route !== null && (
+          <Button
+            variant="ghost"
+            className="mt-1 h-auto w-full justify-start gap-2 rounded-md px-2.5 py-2 text-sm font-normal text-ink"
+            onClick={() => {
+              // Closed first, as Reset is below: the iOS sheet opens over it.
+              setOpen(false);
+              installApp.install();
+            }}
+          >
+            <BrandMark size={16} />
+            Install app
+          </Button>
+        )}
         <Button
           variant="ghost"
           className="mt-1 h-auto w-full justify-start rounded-md px-2.5 py-2 text-sm font-normal text-ink"
@@ -196,6 +219,7 @@ export function AccountMenu({
           </Button>
         )}
       </Popover>
+      {installApp.steps}
       {demoResetEnabled && (
         <Dialog
           open={resetConfirmOpen}
