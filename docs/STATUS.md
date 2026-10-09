@@ -26,6 +26,8 @@ MILESTONE AS OF 2026-10-08**, by **M38's gate closing at 8 of 8**. Order: `… M
 M40 … M47`. **Scoped 2026-10-08** from the critique in PR #362: six parts, 1–4 buildable now,
 5–6 waiting on a design-sync artboard (the milestone file's *Scope* table).
 (`docs/milestones/M39-the-phone-is-decided.md`)
+Part 1 is PR #363. The build plan for Parts 2–4, with four open questions for Mitchell, is
+`docs/plans/2026-10-09-M39-phone-and-install.md`.
 
 **M38 closed 2026-10-08.** People carry a chosen avatar, colour and display name on every person
 surface. A clash within a trip shifts the later joiner. A chosen name reaches public pages only

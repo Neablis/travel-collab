@@ -22,3 +22,4 @@
 - **Cross-reference:** `resolved/KI-20260924-l-the-phone-tab-bar-marks-plan-current-on-overview.md`,
   KI-2026-09-24-i (the phone header), resolved KI-046.
 - **First noted:** 2026-09-24 (mobile check); filed separately 2026-09-25.
+- **Decided 2026-10-08 (M39 critique, decision 2):** option B, not the recommended C. A trip keeps opening on Overview on a phone, and Overview gets a phone-sized design through a design-sync artboard; SPEC §24 is unchanged. The `phoneAskContext` mapping above is fixed in the same part. Built as M39 Part 5, which waits on the artboard. Record: `docs/design-feedback/2026-10-08-M39-phone-tablet-critique.md`, and `docs/milestones/M39-the-phone-is-decided.md`.
