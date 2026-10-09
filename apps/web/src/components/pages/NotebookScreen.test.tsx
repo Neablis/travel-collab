@@ -736,6 +736,35 @@ describe("NotebookScreen", () => {
       // a refusal that reads as silence.)
       expect(await screen.findByText(/open Plan and ask again/i, { selector: "p:not(.sr-only)" })).toBeTruthy();
     });
+
+    // ADR-067: a trip-scoped turn of several changes is STORED as a suggestion
+    // on the plan, and its final chunk says so instead of carrying a proposal.
+    // Dropped, the user sees an answer and no trace of what was stored.
+    it("says the changes are on the plan as suggestions, and how to review them", async () => {
+      askAssistantMock.mockImplementation(
+        turnEmitting(
+          { type: "text", delta: "Here is a day in Kyoto." },
+          {
+            type: "suggested",
+            suggested: {
+              suggestionId: "8c2f1d4a-5e6b-4c7d-8e9f-0a1b2c3d4e5f",
+              changeCount: 3,
+              snapshotId: null,
+              snapshotName: null,
+              skipped: [],
+            },
+          },
+        ),
+      );
+      await openSheet();
+
+      await userEvent.type(screen.getByPlaceholderText(/Ask about this trip/i), "add a day in Kyoto{Enter}");
+
+      const said = await screen.findByText(/I put 3 suggestions on the board\. They are on the trip's plan — open Plan to review them/, {
+        selector: "p:not(.sr-only)",
+      });
+      expect(said.textContent).not.toMatch(/ask again/);
+    });
   });
 });
 
