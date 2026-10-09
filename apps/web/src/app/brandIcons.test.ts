@@ -60,3 +60,14 @@ describe("src/app/icon.svg", () => {
     for (const { x, y } of corners) expect(Math.hypot(x - c, y - c)).toBeLessThanOrEqual(0.4 * tile.width);
   });
 });
+
+// The public playbook share cards are drawn per request by satori in
+// `server/og/card.tsx`, not from `icon.svg`, so they kept their own copy of ◎
+// after the static assets were redrawn. No `<circle>` belongs in that file.
+describe("server/og/card.tsx", () => {
+  it("draws the caesura, not the old ◎", () => {
+    const card = readFileSync(join(process.cwd(), "src/server/og/card.tsx"), "utf8");
+    expect(card).not.toMatch(/<circle\b/);
+    expect(card.match(/<rect\b/g) ?? []).toHaveLength(2);
+  });
+});
