@@ -266,12 +266,26 @@ test.describe("M39 Part 7 — the pinned and fixed layers clear the safe area", 
         await emulateInsets(page, tall);
       });
 
-      test("the front door's header and headline sit below the status bar", async ({ page }) => {
+      test("the front door's header and headline sit below the status bar, its footer above the home indicator", async ({ page }) => {
         await page.goto("/welcome");
         const header = page.getByTestId("phone-front-door").getByRole("banner");
         expect.soft(await px(header, "paddingTop"), "header").toBe(24 + tall.top);
         const headline = page.getByTestId("front-door-stage");
         expect.soft(await px(headline, "paddingTop"), "headline").toBe(64 + tall.top);
+
+        // The screen is its own scroller, and its footer ends it: scrolled to
+        // the end, the footer's last line stops above the home indicator.
+        const door = page.getByTestId("phone-front-door");
+        await door.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+        const footer = door.getByRole("contentinfo");
+        const footerBox = (await footer.boundingBox())!;
+        // To the pixel: the scroller's height is fractional and `scrollTo`
+        // lands on a whole one, so the end sits a fraction past the screen.
+        const footerBottom = footerBox.y + footerBox.height;
+        expect.soft(footerBottom, "footer bottom").toBeCloseTo(852, 0);
+        expect.soft(await px(footer, "paddingBottom"), "footer inset").toBe(20 + tall.bottom);
+        const mail = (await footer.getByRole("link", { name: /@/ }).boundingBox())!;
+        expect.soft(mail.y + mail.height, "footer's last line").toBeLessThanOrEqual(footerBottom - 20 - tall.bottom);
       });
 
       test("Ask's sheet keeps its composer above the home indicator", async ({ page }) => {

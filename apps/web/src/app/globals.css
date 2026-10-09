@@ -830,6 +830,12 @@ html[data-look="ledger"] .shadow-raised {
   .phone-front-door-stage {
     padding-top: calc(4rem + var(--safe-area-top));
   }
+  /* The front door's footer, the end of its own `h-dvh` scroller: `py-5`'s
+     bottom half plus the bottom inset (M39 Part 7). Not a top-inset rule —
+     it is here because it is the same screen's other edge. */
+  .phone-front-door-footer {
+    padding-bottom: calc(1.25rem + var(--safe-area-bottom));
+  }
 
   /* PhoneTabBar (SPEC §16, handoff `…dc.html:863-871`). Two rules, and they
      are the same `--rack-height` bargain one level up: the bar is
