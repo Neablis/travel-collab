@@ -377,12 +377,16 @@ export function watchMapWorker(page: Page): { outcome: () => string } {
  * By testid rather than by its new name, and that is not laziness about roles:
  * the rail's own SEND button is also called "Ask" (m10-simulated-ai types a
  * question and presses it), so a spec that names the launcher by text has a
- * second control with the same name one click later. `assistant-launcher` is
- * the handle `AssistantBubble` publishes for exactly this — see its comment on
- * why two controls legitimately share the word.
+ * second control with the same name one click later.
+ *
+ * **Whichever entry point the surface shows, since M39 D3.** The trip board's
+ * floating launcher sat over the right-hand column's costs and is gone: there
+ * the header's `ask-pill` is the way in at every width. A notebook page keeps
+ * its `assistant-launcher` above 768px and hides its pill, so exactly one of
+ * the two is visible on either surface.
  */
 export async function openAssistantRail(page: Page): Promise<void> {
-  await page.getByTestId("assistant-launcher").click();
+  await page.locator('[data-testid="ask-pill"]:visible, [data-testid="assistant-launcher"]:visible').click();
   await expect(page.getByRole("complementary", { name: "Assistant" })).toBeVisible();
 }
 

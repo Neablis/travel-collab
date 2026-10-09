@@ -1260,7 +1260,10 @@ export function PageScreen({
               in is a control competing with the surface it opened. Closing
               still runs `closeAssistant`, so hanging up on a turn in flight is
               unchanged — `onHide` below is where it goes. */}
-          <AskPill open={assistantOpen} onOpen={() => setAssistantOpen(true)} />
+          {/* `md:hidden`: above 768px this page's launcher is still the
+              floating `AssistantBubble` below (M39 D3 moved the trip board's
+              off its stop costs; a page has none). */}
+          <AskPill className="md:hidden" open={assistantOpen} onOpen={() => setAssistantOpen(true)} />
         </div>
       </div>
       {/* Reading only, like the Reset it undoes: in Editing the session holds
