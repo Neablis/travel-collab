@@ -24,7 +24,7 @@ its inset on Part 2's header.
 | 7 | `claude/m39-part7-insets` | the layers `KI-2026-10-09-a` left without safe-area insets; review carry-overs | 2 | #369, merged; its self-review fixes shipped as #371, merged |
 | — | `claude/m39-brand-mark-icons` | the app icons, favicon and OG card draw the two-stroke caesura in Ledger colours, not the old ◎ (found on Mitchell's Pixel) | 2 | #372, merged |
 | — | `claude/m39-sw-no-fetch-handler` | **hotfix:** Part 4's worker had a `fetch` listener, which put the unload flush through the worker and lost edits queued at a reload (`KI-2026-10-09-e`, resolved) | 2 | #374, merged |
-| — | `claude/m39-install-prompt` | an *Install app* row in the account menu and a one-time phone nudge (Mitchell's option B) | 2 | #373, open |
+| — | `claude/m39-install-prompt` | an *Install app* row in the account menu and a one-time phone nudge (Mitchell's option B) | 2 | #373, merged |
 
 **What a person clicks on the preview to see each part:**
 - Part 2: open a trip's Plan at 390px and scroll. The title row and the day chips stay pinned.
