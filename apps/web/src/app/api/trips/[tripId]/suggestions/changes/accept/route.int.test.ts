@@ -9,6 +9,7 @@ import { users } from "@/server/db/schema";
 import { createSuggestion } from "@/server/suggestions/create";
 import { MAX_ACCEPT_BODY_BYTES } from "@/server/suggestions/http";
 import { entitleAccounts } from "@/server/test-support/entitledAccount";
+import { insertStoredSuggestion, unparseableCommands } from "@/server/test-support/storedSuggestion";
 
 let currentUserId = "";
 
@@ -96,5 +97,15 @@ describe("POST /api/trips/:id/suggestions/changes/accept", () => {
     const res = await accept({ changeIds: [change!.id, unknown] });
     expect(res.status).toBe(404);
     expect(await res.json()).toMatchObject({ code: "not-found", changeId: unknown });
+  });
+
+  // Review of #308's rule, for the set: a stored change whose commands no
+  // longer parse is refused as no longer applying, by name — never a 500.
+  it("409s a set holding a stored change whose commands no longer parse, and names it", async () => {
+    const [change] = await suggest([{ type: "SetTripName", tripId, name: "x" }]);
+    const [stale] = await insertStoredSuggestion({ tripId, authorId: SUGGESTER, commands: unparseableCommands(tripId) });
+    const res = await accept({ changeIds: [change!.id, stale!] });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ code: "no-longer-applies", changeId: stale });
   });
 });

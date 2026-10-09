@@ -1,5 +1,5 @@
 import { and, eq, inArray } from "drizzle-orm";
-import type { Origin, SuggestionChange, TripDetail } from "@tc/contracts";
+import { BatchableCommand, type Origin, type SuggestionChange, type TripDetail } from "@tc/contracts";
 import { predictBatch } from "@tc/domain/predict";
 import { roleAtLeast } from "../accessPolicy";
 import { executeTripCommandBatch } from "../commands";
@@ -88,6 +88,16 @@ export async function acceptSuggestionChanges(
     }
   }
 
+  // `commands` is stored verbatim and can outlive the release whose contract
+  // it was checked against (`toChange`'s note). Such a change can only be
+  // dismissed; here it is refused by name before anything is decided.
+  const commandsOf = new Map<string, BatchableCommand[]>();
+  for (const row of found) {
+    const parsed = BatchableCommand.array().min(1).safeParse(row.change.commands);
+    if (!parsed.success) return refuseFor("no-longer-applies", row, "no longer applies: this version of the app cannot read it.");
+    commandsOf.set(row.change.id, parsed.data);
+  }
+
   const ordered = [...found].sort(
     (a, b) =>
       a.suggestion.createdAt.getTime() - b.suggestion.createdAt.getTime() ||
@@ -117,7 +127,7 @@ export async function acceptSuggestionChanges(
   };
   try {
     const result = await executeTripCommandBatch(
-      ordered.flatMap((r) => r.change.commands),
+      ordered.flatMap((r) => commandsOf.get(r.change.id)!),
       reviewerId,
       mark,
       { origin, runOnNoOp: true },
@@ -126,7 +136,7 @@ export async function acceptSuggestionChanges(
     if (!result.ok && result.error.code !== "no-op") {
       // A lapse between the role read above and the pipeline's own check.
       if (result.error.code === "forbidden") return refuse("forbidden", result.error.message);
-      return await whichNoLongerApplies(tripId, ordered, result.error.message);
+      return await whichNoLongerApplies(tripId, ordered, commandsOf, result.error.message);
     }
   } catch (error) {
     if (error instanceof SuggestionAlreadyResolved) {
@@ -147,12 +157,13 @@ export async function acceptSuggestionChanges(
 async function whichNoLongerApplies(
   tripId: string,
   ordered: readonly Row[],
+  commandsOf: ReadonlyMap<string, BatchableCommand[]>,
   why: string,
 ): Promise<{ ok: false; error: SuggestionError }> {
   let detail: TripDetail | null = await getTripDetail(tripId);
   for (const row of ordered) {
     if (detail === null) break;
-    const predicted = predictBatch(detail, row.change.commands, { skipNoOps: true });
+    const predicted = predictBatch(detail, commandsOf.get(row.change.id)!, { skipNoOps: true });
     if (predicted.ok) detail = predicted.detail;
     else if (predicted.rejection.code !== "no-op") {
       return refuseFor("no-longer-applies", row, `no longer applies: ${predicted.rejection.message}`);
