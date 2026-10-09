@@ -39,7 +39,10 @@ Format:
     1.9.0 → 1.10.0 (minor, additive, as `suggestion` was in 1.4.0) and `API_FINGERPRINT` is new.
     No `/v1` endpoint was added.
 - Breaking? No. The union member is additive and every stored `origin` still parses. A client on
-  an old bundle meets the unknown origin only after someone uses the new *Accept all*.
+  an old bundle meets the unknown origin only after someone uses the new *Accept all*. That bundle
+  parses history and command outcomes strictly, so on a trip with a `suggestions` batch a stale tab
+  fails to parse those responses until it is reloaded. This is the same exposure `suggestion` had
+  in 1.4.0.
 
 ## 2026-10-08 — `PreferencesResponse.defaultColor`: Account draws the colour trips derive (M38 part 4)
 
