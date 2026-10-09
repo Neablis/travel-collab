@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, gt, inArray } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { commandsFor } from "@tc/factories";
 import { executeTripCommand } from "@/server/commands";
@@ -77,8 +77,7 @@ describe("restoring a snapshot", () => {
     const appended = await db
       .select({ batchId: events.batchId, origin: events.origin, actorId: events.actorId })
       .from(events)
-      .where(eq(events.streamId, tripId))
-      .then((rows) => rows.slice(headBefore));
+      .where(and(eq(events.streamId, tripId), gt(events.seq, headBefore)));
     expect(appended.length).toBeGreaterThan(0);
     expect(new Set(appended.map((e) => e.batchId)).size).toBe(1);
     expect(appended[0]).toMatchObject({ origin: { kind: "revert", toSeq: snapshot.seq }, actorId: EDITOR });

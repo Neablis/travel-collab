@@ -55,17 +55,17 @@ async function access(
   tripId: string,
   userId: string,
   write: boolean,
-): Promise<SnapshotResult<TripDetail["status"]>> {
+): Promise<SnapshotResult<null>> {
   const outcome = await tripAccessFor(userId, tripId, "viewer");
   if (!outcome.ok) {
     return outcome.denial === "malformed-trip" ? refuse("malformed-trip", "This trip could not be read.") : NOT_FOUND;
   }
-  if (!write) return { ok: true, value: outcome.detail.status };
+  if (!write) return { ok: true, value: null };
   if (!roleAtLeast(outcome.role, "editor")) {
     return refuse("forbidden", "Only an editor or the owner can change snapshots.");
   }
   if (outcome.detail.status === "deleted") return refuse("trip-deleted", "This trip has been deleted.");
-  return { ok: true, value: outcome.detail.status };
+  return { ok: true, value: null };
 }
 
 type Row = typeof tripSnapshots.$inferSelect;
