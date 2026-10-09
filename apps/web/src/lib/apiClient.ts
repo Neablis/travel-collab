@@ -807,8 +807,6 @@ export function clearSavedDayCover(savedDayId: string): Promise<ApiResult<null>>
   return deleteCover(savedDayCoverPath(savedDayId));
 }
 
-// ── Pinned read-only shares (M11 link 4) ─────────────────────────────────────
-
 // ── Named snapshots (M40 part 2) ─────────────────────────────────────────────
 // A snapshot is a row in its own table, not planning state (D4), so saving,
 // renaming and deleting one invalidate no trip read. A restore is a trip write:
@@ -885,6 +883,8 @@ export async function restoreTripSnapshot(tripId: string, snapshotId: string): P
     endWrite(scope);
   }
 }
+
+// ── Pinned read-only shares (M11 link 4) ─────────────────────────────────────
 
 export async function fetchTripShares(tripId: string): Promise<ApiResult<TripShare[]>> {
   try {

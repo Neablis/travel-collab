@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { SNAPSHOT_NAME_MAX, type TripSnapshot } from "@tc/contracts";
 import { Button } from "@/components/ui/button";
 import { DataText } from "@/components/ui/data-text";
@@ -16,11 +16,15 @@ import {
   type CommandOutcome,
 } from "@/lib/apiClient";
 import { cn } from "@/lib/cn";
-import { formatTripDate } from "@/lib/formatDate";
+import { formatInstantDateTime } from "@/lib/formatDate";
 
 // Which row is mid-rename or mid-delete. One at a time: a second row's control
 // replaces the first's rather than stacking two inline forms in a popover.
 type RowMode = { id: string; kind: "rename" | "delete" } | null;
+
+// A refusal the list can act on: the snapshot is gone (another editor deleted
+// it), so the row goes too rather than offering controls that cannot work.
+type Refusal = { message: string; code?: string };
 
 /**
  * Named snapshots (M40 part 2), above the History scroll. Anyone who may read
@@ -52,6 +56,19 @@ export function SnapshotList({
   const [mode, setMode] = useState<RowMode>(null);
   const [error, setError] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
+  // The inline rename and delete-confirm replace the row's own Rename and
+  // Delete buttons, so closing one would drop focus to <body>. Each trigger is
+  // kept here by `<id>:<kind>`, and focus goes back to the one that opened it;
+  // when that row is gone (deleted), to the name field.
+  const triggers = useRef(new Map<string, HTMLButtonElement>());
+  const nameField = useRef<HTMLInputElement>(null);
+  const returnTo = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (mode !== null || returnTo.current === null) return;
+    (triggers.current.get(returnTo.current) ?? nameField.current)?.focus();
+    returnTo.current = null;
+  }, [mode, snapshots]);
 
   useEffect(() => {
     let live = true;
@@ -66,15 +83,40 @@ export function SnapshotList({
 
   if (snapshots === null || (!canEdit && snapshots.length === 0)) return null;
 
+  // Saving takes the server's head, never the version on screen, so the form
+  // is closed while an old one is previewed rather than read as "save this".
+  const previewing = previewSeq !== null;
+  const keep = (key: string, el: HTMLButtonElement | null) => {
+    if (el) triggers.current.set(key, el);
+    else triggers.current.delete(key);
+  };
+
+  const close = () => {
+    if (mode !== null) returnTo.current = `${mode.id}:${mode.kind}`;
+    setMode(null);
+  };
+  const drop = (id: string) => setSnapshots((list) => (list ?? []).filter((s) => s.id !== id));
+
   // Every write goes through here: one at a time, and the server's refusal
   // (the cap's reason above all) is what the reader is told.
-  async function act<T>(run: () => Promise<{ ok: true; value: T } | { ok: false; error: { message: string } }>, then: (value: T) => void) {
+  async function act<T>(
+    run: () => Promise<{ ok: true; value: T } | { ok: false; error: Refusal }>,
+    then: (value: T) => void,
+    about?: string,
+  ) {
     setWorking(true);
     setError(null);
     const result = await run();
     setWorking(false);
-    if (!result.ok) return setError(result.error.message);
-    setMode(null);
+    if (!result.ok) {
+      setError(result.error.message);
+      if (about !== undefined && result.error.code === "not-found") {
+        close();
+        drop(about);
+      }
+      return;
+    }
+    close();
     then(result.value);
   }
 
@@ -90,11 +132,13 @@ export function SnapshotList({
     act(
       () => renameTripSnapshot(tripId, id, { name: draftName }),
       (renamed) => setSnapshots((list) => (list ?? []).map((s) => (s.id === id ? renamed : s))),
+      id,
     );
   const remove = (id: string) =>
     act(
       () => deleteTripSnapshot(tripId, id),
-      () => setSnapshots((list) => (list ?? []).filter((s) => s.id !== id)),
+      () => drop(id),
+      id,
     );
   const restore = (snapshot: TripSnapshot) =>
     act(
@@ -103,6 +147,7 @@ export function SnapshotList({
         if (previewSeq !== null) onExitPreview();
         onRestored(outcome);
       },
+      snapshot.id,
     );
 
   return (
@@ -121,6 +166,7 @@ export function SnapshotList({
           <div className="min-w-0 flex-1">
             <FormField id="snapshot-name" label="Snapshot name">
               <Input
+                ref={nameField}
                 id="snapshot-name"
                 value={name}
                 maxLength={SNAPSHOT_NAME_MAX}
@@ -129,10 +175,18 @@ export function SnapshotList({
               />
             </FormField>
           </div>
-          <Button type="submit" variant="secondary" size="sm" disabled={busy || working || name.trim() === ""}>
+          <Button
+            type="submit"
+            variant="secondary"
+            size="sm"
+            disabled={busy || working || previewing || name.trim() === ""}
+          >
             Save snapshot
           </Button>
         </form>
+      )}
+      {canEdit && previewing && (
+        <Text variant="muted">A snapshot saves the trip as it is now, not the version you are viewing.</Text>
       )}
       {error !== null && (
         <Text variant="muted" role="alert" className="text-danger-ink">
@@ -152,6 +206,7 @@ export function SnapshotList({
                   }}
                 >
                   <Input
+                    autoFocus
                     aria-label={`New name for ${snapshot.name}`}
                     value={draftName}
                     maxLength={SNAPSHOT_NAME_MAX}
@@ -160,7 +215,7 @@ export function SnapshotList({
                   <Button type="submit" size="sm" variant="secondary" disabled={working || draftName.trim() === ""}>
                     Save
                   </Button>
-                  <Button type="button" size="sm" variant="ghost" onClick={() => setMode(null)}>
+                  <Button type="button" size="sm" variant="ghost" onClick={close}>
                     Cancel
                   </Button>
                 </form>
@@ -174,17 +229,23 @@ export function SnapshotList({
                     <span className="truncate">{snapshot.name}</span>
                   </Button>
                   <DataText size="xs" className="shrink-0">
-                    {formatTripDate(snapshot.createdAt.slice(0, 10))}
+                    {formatInstantDateTime(snapshot.createdAt)}
                   </DataText>
                 </div>
               )}
               {canEdit && mode?.id === snapshot.id && mode.kind === "delete" && (
                 <div className="flex flex-wrap items-center gap-1.5">
                   <Text variant="muted" as="span">{`Delete “${snapshot.name}”? This cannot be undone.`}</Text>
-                  <Button size="sm" variant="destructive" disabled={working} onClick={() => void remove(snapshot.id)}>
+                  <Button
+                    autoFocus
+                    size="sm"
+                    variant="destructive"
+                    disabled={working}
+                    onClick={() => void remove(snapshot.id)}
+                  >
                     Delete
                   </Button>
-                  <Button size="sm" variant="ghost" onClick={() => setMode(null)}>
+                  <Button size="sm" variant="ghost" onClick={close}>
                     Keep
                   </Button>
                 </div>
@@ -201,6 +262,7 @@ export function SnapshotList({
                     Restore
                   </Button>
                   <Button
+                    ref={(el) => keep(`${snapshot.id}:rename`, el)}
                     size="sm"
                     variant="ghost"
                     aria-label={`Rename ${snapshot.name}`}
@@ -212,6 +274,7 @@ export function SnapshotList({
                     Rename
                   </Button>
                   <Button
+                    ref={(el) => keep(`${snapshot.id}:delete`, el)}
                     size="sm"
                     variant="ghost"
                     aria-label={`Delete ${snapshot.name}`}

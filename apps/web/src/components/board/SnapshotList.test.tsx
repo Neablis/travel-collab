@@ -5,6 +5,7 @@ import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { TripHistory, TripSnapshot } from "@tc/contracts";
 import { tripDetailFactory } from "@tc/factories";
+import { formatInstantDateTime } from "@/lib/formatDate";
 import { makeTripHandlers } from "@/mocks/handlers";
 import { HistoryPanel } from "./HistoryPanel";
 
@@ -27,11 +28,16 @@ afterEach(() => {
 });
 afterAll(() => server.close());
 
-function panel({ readOnly = false, onPreview = vi.fn(), onRestored = vi.fn() } = {}) {
+function panel({
+  readOnly = false,
+  previewSeq = null as number | null,
+  onPreview = vi.fn(),
+  onRestored = vi.fn(),
+} = {}) {
   render(
     <HistoryPanel
       history={history}
-      previewSeq={null}
+      previewSeq={previewSeq}
       readOnly={readOnly}
       onPreview={onPreview}
       onExitPreview={() => {}}
@@ -113,5 +119,68 @@ describe("HistoryPanel — snapshots", () => {
       expect(screen.queryByRole("button", { name })).toBeNull();
     }
     expect(screen.queryByLabelText("Snapshot name")).toBeNull();
+  });
+
+  it("dates each snapshot with the time it was saved, not only the day", async () => {
+    seeded([snapshot(1, 3)]);
+    panel();
+    const row = (await screen.findAllByTestId("snapshot"))[0]!;
+    expect(row.textContent).toContain(formatInstantDateTime("2026-10-09T00:00:00.000Z"));
+  });
+
+  it("closes the save form while an old version is previewed", async () => {
+    seeded([snapshot(1, 3)]);
+    panel({ previewSeq: 3 });
+    await userEvent.type(await screen.findByLabelText("Snapshot name"), "Which one?");
+    expect((screen.getByRole("button", { name: "Save snapshot" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByText(/not the version you are viewing/)).toBeTruthy();
+  });
+
+  it("drops a row the server no longer has", async () => {
+    seeded([snapshot(1, 3), snapshot(2, 5)]);
+    server.use(
+      http.post("/api/trips/:tripId/snapshots/:snapshotId/restore", () =>
+        HttpResponse.json({ error: "That snapshot does not exist.", code: "not-found" }, { status: 404 }),
+      ),
+    );
+    panel();
+    await userEvent.click(await screen.findByRole("button", { name: "Restore Snapshot 1" }));
+    await vi.waitFor(() => expect(screen.getAllByTestId("snapshot")).toHaveLength(1));
+    expect(screen.getByRole("alert").textContent).toContain("does not exist");
+  });
+
+  describe("focus", () => {
+    // `:focus` asked of the element a query found: Testing Library forbids
+    // reading `document.activeElement`, and there is no jest-dom here.
+    const hasFocus = (element: HTMLElement) => element.matches(":focus");
+
+    it("moves into the rename field, and back to Rename when it closes", async () => {
+      seeded([snapshot(1, 3)]);
+      panel();
+      await userEvent.click(await screen.findByRole("button", { name: "Rename Snapshot 1" }));
+      expect(hasFocus(screen.getByLabelText("New name for Snapshot 1"))).toBe(true);
+      await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+      expect(hasFocus(screen.getByRole("button", { name: "Rename Snapshot 1" }))).toBe(true);
+
+      await userEvent.click(screen.getByRole("button", { name: "Rename Snapshot 1" }));
+      await userEvent.type(screen.getByLabelText("New name for Snapshot 1"), " again{Enter}");
+      await vi.waitFor(() =>
+        expect(hasFocus(screen.getByRole("button", { name: "Rename Snapshot 1 again" }))).toBe(true),
+      );
+    });
+
+    it("moves to the confirming Delete, back to the row's Delete on Keep, and to the name field once deleted", async () => {
+      seeded([snapshot(1, 3)]);
+      panel();
+      await userEvent.click(await screen.findByRole("button", { name: "Delete Snapshot 1" }));
+      const confirm = screen.getByRole("button", { name: "Delete" });
+      expect(hasFocus(confirm)).toBe(true);
+      await userEvent.click(screen.getByRole("button", { name: "Keep" }));
+      expect(hasFocus(screen.getByRole("button", { name: "Delete Snapshot 1" }))).toBe(true);
+
+      await userEvent.click(screen.getByRole("button", { name: "Delete Snapshot 1" }));
+      await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+      await vi.waitFor(() => expect(hasFocus(screen.getByLabelText("Snapshot name"))).toBe(true));
+    });
   });
 });
