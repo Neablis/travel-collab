@@ -11,6 +11,7 @@ const SNAPSHOT_STATUS: Record<SnapshotErrorCode, number> = {
   "trip-deleted": 409,
   "too-many-snapshots": 409,
   "no-op": 409,
+  "concurrency-conflict": 409,
   "restore-refused": 409,
   // A row this server wrote is broken; no retry by the caller fixes it.
   "malformed-trip": 500,
