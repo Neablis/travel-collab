@@ -10,6 +10,10 @@ import { witness } from "@/test-support/witness";
 // installs — in a sandbox with a stand-in `self`, so there is no second copy of
 // the matcher to drift from the one that ships.
 const ORIGIN = "https://caesura.example";
+const SW_SOURCE = readFileSync(join(process.cwd(), "public/sw.js"), "utf8");
+// Read, not pinned: the header says to bump it whenever an icon changes, and a
+// fixture naming the live cache would turn every bump into a test edit.
+const CURRENT_CACHE = `caesura-static-v${SW_SOURCE.match(/const CACHE_VERSION = (\d+);/)![1]}`;
 
 type Strategy = "cache-first" | "network";
 type FetchEvent = { request: { url: string; method: string }; respondWith: (response: unknown) => void };
@@ -33,11 +37,11 @@ function loadWorker() {
   const deleted: string[] = [];
   const caches = {
     open: async () => ({ match: async () => "cached response" }),
-    keys: async () => ["caesura-static-v0", "caesura-static-v1"],
+    keys: async () => ["caesura-static-v0", CURRENT_CACHE],
     delete: async (key: string) => deleted.push(key),
   };
   const sandbox = vm.createContext({ self, URL, caches });
-  vm.runInContext(readFileSync(join(process.cwd(), "public/sw.js"), "utf8"), sandbox);
+  vm.runInContext(SW_SOURCE, sandbox);
   return {
     cacheStrategyFor: (path: string) => (sandbox.cacheStrategyFor as (url: URL) => Strategy)(new URL(path, ORIGIN)),
     onFetch: listeners.get("fetch")!,
@@ -88,8 +92,8 @@ describe("the service worker's routes (M39 D4)", () => {
   it.each([
     "/_next/static/chunks/a.js",
     "/_next/static/css/b.css",
-    "/icons/icon-192.png",
-    "/icons/icon-maskable-512.png",
+    "/icons/icon-192-v2.png",
+    "/icons/icon-maskable-512-v2.png",
     "/apple-icon.png",
     "/icon.svg?c8b1d3",
   ])("serves %s cache-first", (path) => {

@@ -29,7 +29,7 @@
 // cannot update does not heal. An ordinary deploy keeps the version, so its
 // activation deletes nothing. `clients.claim()` on activate takes the open
 // pages, the one that installed a first worker included.
-const CACHE_VERSION = 1;
+const CACHE_VERSION = 2;
 const CACHE_NAME = `caesura-static-v${CACHE_VERSION}`;
 
 // Hashed chunks accumulate across deploys under one cache version, so the cache
