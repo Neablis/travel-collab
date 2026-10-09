@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Clock } from "lucide-react";
+import { Clock, MoreHorizontal } from "lucide-react";
 import { travellerIds, type TripAccess } from "@tc/contracts";
 import { PersonChip } from "@/components/ui/person-chip";
 import { Badge } from "@/components/ui/badge";
@@ -10,11 +10,13 @@ import { Button } from "@/components/ui/button";
 import { DataText } from "@/components/ui/data-text";
 import { Heading } from "@/components/ui/heading";
 import { Popover } from "@/components/ui/popover";
+import { Menu, MenuContent, MenuItem, MenuTrigger } from "@/components/ui/menu";
 import { useTrip } from "@/components/trip/context/TripProvider";
 import { useEditor } from "@/components/trip/context/EditorHost";
 import { tripSpend } from "@/lib/cost";
 import { isDemoTripId } from "@/lib/demoTrip";
 import { cn } from "@/lib/cn";
+import { useIsPhone } from "@/lib/useIsPhone";
 import { displayNameFor } from "@/lib/displayName";
 import { settingsSectionFrom, withoutSettingsParam, type SettingsSection } from "@/lib/tripSettingsLink";
 import { HistoryPanel } from "@/components/board/HistoryPanel";
@@ -43,6 +45,7 @@ export function TripHeader({
   assistantOpen = false,
   onOpenAssistant,
   children,
+  pinned,
 }: {
   tripId: string;
   /**
@@ -62,6 +65,12 @@ export function TripHeader({
    */
   onOpenAssistant?: () => void;
   children?: React.ReactNode;
+  /**
+   * What pins under the phone's one row, below 768px only: Plan's day rail
+   * (M39 D6). Inside the header so `--sticky-stack-height` counts it, and so
+   * the board's sticky offsets clear it. The caller decides when there is one.
+   */
+  pinned?: React.ReactNode;
 }) {
   // Render from `activeTrip`, not `trip`: `trip` is the server-confirmed
   // detail only, while `activeTrip` folds in TripProvider's optimistic
@@ -94,7 +103,24 @@ export function TripHeader({
   // is always safe to call here.
   const { openCreate } = useEditor();
   const [historyOpen, setHistoryOpen] = useState(false);
+  // The phone's `⋯`, which History hands focus back to on close: its own
+  // button is `display: none` there, and focus sent to it falls to <body>.
+  const tripActions = useRef<HTMLButtonElement>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  // The phone's overflow menu opens what an item names only once it has
+  // closed. Radix hands focus back to the menu's trigger as it closes, and a
+  // popover or sheet opened in the same tick reads that focus as a click
+  // outside and shuts again. So the item names what to open, and the menu's
+  // close-focus handler opens it instead of moving focus.
+  const afterMenu = useRef<"add" | "history" | "settings" | null>(null);
+  // Which half of the header holds History and the trip's badges. CSS draws
+  // the rest of the phone row (the `max-md:` classes below); these two cannot
+  // be drawn twice and hidden once. A popover's open state would open both
+  // copies, and a second "Viewer" badge is a second match for every query
+  // that finds the first. `false` until the effect runs, so the first phone
+  // paint has no badges under the row for a frame, never a desktop header.
+  const isPhone = useIsPhone();
   // The section the sheet was opened at: People from the avatar stack, or
   // whatever a `?settings=` link named; null for the sheet's top.
   const [settingsAt, setSettingsAt] = useState<SettingsSection | null>(null);
@@ -157,437 +183,531 @@ export function TripHeader({
   // capitalized for display. Not a new capability, purely presentational.
   const statusLabel = activeTrip.status.charAt(0).toUpperCase() + activeTrip.status.slice(1);
 
-  return (
-    <header
-      ref={publishStickyStack}
-      aria-label="Trip"
-      // `top-14` is the height of AppHeader, which is `sticky top-0 h-14` and
-      // sits above this one on every `(app)` route. `/demo` draws
-      // FrontDoorHeader instead, which does not stick — so there, offsetting by
-      // 56px pins this header 56px down from the top and leaves a see-through
-      // strip of scrolled content above it (Mitchell, preview comment on
-      // `/demo`). Nothing is sticky above it there, so it pins to the top.
-      //
-      // `z-20`, not `z-10`: a hovered or lifted river block is `z-10`
-      // (RiverBlock.tsx — its tag reveal hangs out of it), and at equal z the
-      // later element paints on top, so a block scrolled under this header
-      // popped through it on hover (Mitchell, on the preview of pull request 257). Below AppHeader's
-      // `z-30`; the phone tab bar's `z-20` never meets it.
-      className={cn(
-        "sticky z-20 border-b border-hairline bg-surface px-6 pt-3.5",
-        isDemoTripId(tripId) ? "top-0" : "top-14",
-      )}
-    >
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        {/* `flex-auto` — `flex: 1 1 auto` — so this column absorbs the row's
-            free space and the nav below can be a real full-width row with
-            `‹ Trips` at one end and Ask at the other (SPEC §23). Deliberately
-            NOT `flex-1`, which is `flex: 1 1 0%`: a zero flex-basis takes this
-            column's content out of the wrap calculation entirely, so on a
-            phone the title would be squeezed beside "Add stop"/History instead
-            of the action cluster dropping to its own line as it does now.
-            `auto` keeps the content-sized basis, so where the row wrapped
-            before it still wraps. */}
-        <div className="flex flex-auto flex-col gap-1">
-          {/* Both links go to `(app)` routes behind middleware, so on the
-              demo board (`/demo`, ADR-031) — whose visitor has no session —
-              each one is a trip to /signin. The whole nav row drops rather
-              than the links being disabled: a disabled control still says
-              "there is something here for you", and there is not, until they
-              have an account. `DemoTripScreen` renders the front door's own
-              header above this one, which is where a signed-out reader's way
-              onward belongs. */}
-          {!isDemoTripId(tripId) && (
-            <nav className="flex w-full items-center justify-between gap-3">
-              {/* `min-h-11` and the inline-flex that makes it apply: §22 made
-                  this link load-bearing on a phone. Scoping the tab bar removed
-                  the Trips tab from inside a trip, so this is now the ONLY way
-                  out of Plan and Map — and SPEC §13.1's "44px targets, always"
-                  covers "every tag chip, nav item and row action". It was a
-                  bare `text-xs` anchor with no height or padding, about 17px.
-                  The type stays `text-xs`; §13.1 grows the box, never the font.
-                  Raised by Copilot on PR #143. */}
-              <Link href="/" className="inline-flex min-h-11 items-center text-xs text-slate no-underline hover:text-ink">
-                ← Your trips
-              </Link>
-              {/* The Notebook link that used to sit here is gone. It is now
-                  the Notebooks menu (SPEC §11) in the view row below, which
-                  `TripBoardScreen` renders as this header's child: a bordered
-                  pill that also lists the trip's notebooks, instead of a plain
-                  text link that read as a peer of "← Your trips" and could only
-                  take you to the index. Notebook is still a separate route
-                  subtree rather than a lens (design spec decision 11, refined
-                  2026-07-20) — that part did not change; only the affordance
-                  did. */}
-              {/* SPEC §23: the phone's entry point to the assistant, LAST in
-                  this row — "same pill, same label, same position, so it never
-                  moves as you change tabs". The row's `justify-between` is what
-                  pins it to the far end, so it stays there whatever the link
-                  beside it is called.
-
-                  §23 also moves the sync dot and avatar down to the title row,
-                  and that half is deliberately not built: in this app neither
-                  is in this row to begin with — the avatar lives in the global
-                  `AppHeader`, a separate sticky bar this header sits under —
-                  so honouring it would mean the phone dropping `AppHeader`
-                  entirely, which is a change to every `(app)` route rather than
-                  to this file. The row was already clear, so the pill just
-                  goes in.
-
-                  Phone-only by `md:hidden` inside `AskPill` itself, not by a
-                  branch here: the desktop entry point is `TripBoardScreen`'s
-                  own fixed launcher and the two must never both be on screen.
-                  See that component for why the breakpoint is CSS. */}
-              {onOpenAssistant !== undefined && <AskPill open={assistantOpen} onOpen={onOpenAssistant} />}
-            </nav>
-          )}
-          {/* The title IS the way into Trip settings, and the only way:
-              Mitchell, preview feedback on PR #55 — "In the designs, removed
-              the pencil, and made the trip title clickable to open the Trip
-              edit display the cog currently opens, already remove the cog".
-              Renaming therefore happens in that sheet's own "Trip name"
-              field, which already existed; the inline Input this replaced is
-              gone with the pencil.
-
-              The accessible name deliberately carries BOTH — a bare
-              aria-label="Trip settings" would announce the control and
-              swallow the trip's name, and the trip name alone never says
-              what the button does. Playwright's getByRole name matching is
-              substring-and-case-insensitive, so the e2e specs that click
-              { name: "Trip settings" } keep working against this. */}
-          {/* `flex-wrap` and `gap-y-1`: on a phone the trip name plus its
-              badges do not fit one line, and badges no longer wrap inside
-              themselves (see Badge). They have to be able to wrap as whole
-              items instead, or the row overflows — 2026-08-30 design pass. */}
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            {/* The button goes INSIDE the h2, not around it. The other way
-                round renders `<button><h2>…</h2></button>`, which is invalid
-                (a button's content model is phrasing content) and, worse,
-                silently costs the trip its heading: a button's descendants
-                are presentational in the accessibility tree, so the h2's role
-                is dropped and the name disappears from heading navigation
-                entirely. e2e caught it — m8-make-it-real asserts
-                getByRole("heading", { level: 2 }) on the trip name.
-
-                Nested this way both roles survive: h2 for structure, button
-                for the action. The type classes are restated on the button
-                because buttonVariants sets its own `font-medium` + size
-                `text-base`, which would otherwise shrink the title inside its
-                own heading. */}
-            <Heading level={2}>
-              <Button
-                variant="ghost"
-                onClick={() => setSettingsOpen(true)}
-                aria-label={`${activeTrip.name} — Trip settings`}
-                title="Trip settings"
-                className="h-auto justify-start p-0 text-left font-display text-xl font-semibold text-ink hover:bg-transparent hover:underline"
-              >
-                {activeTrip.name}
-              </Button>
-            </Heading>
-            <TravellerStack
-              access={access}
-              onOpen={() => {
-                setSettingsAt("people");
-                setSettingsOpen(true);
-              }}
-            />
-            <Badge variant="neutral">{statusLabel}</Badge>
-            {/* M11 link 3: a viewer's trip is theirs to read, not to change.
-                The server refuses their writes either way (accessPolicy.ts);
-                the badge plus the gates below are what stop them finding that
-                out by clicking. The badge ALONE was the whole of it until
-                CodeRabbit read PR #71 — Share, Add stop, undo/redo and Revert
-                were all still live for a viewer, so this comment was making a
-                promise the header did not keep. */}
-            {/* "Viewer", not "View only" — one word rather than two
-                (Mitchell, 2026-08-30 design pass: "dont use two words when
-                one will do, word wraps cause issues"). It also names the
-                role, which is what the badge stands in for, in the same word
-                the invite flow already uses. */}
-            {/* A suggester is `readOnly` too (W8) but not a viewer: their
-                badge is their role word (W24). */}
-            {readOnly && <Badge variant="info">{boardMode === "suggest" ? "Suggester" : "Viewer"}</Badge>}
-            {/* A suggester's unsent draft, said where it is seen from anywhere
-                on the board (W70; Mitchell's production test, 2026-10-04). The
-                save light cannot say it: it counts a draft as nothing (W38),
-                because nothing is trying to send one. The bottom bar holds the
-                Send; this is the reminder that there is something to send. */}
-            {draft !== null && draft.count > 0 && (
-              <Badge variant="warning" title="Your changes wait in the bar at the bottom until you send them">
-                {`${draft.count} not sent`}
-              </Badge>
-            )}
-            {/* The access read failed, so this board is live on an assumption
-                rather than on an answer (TripProvider's `load` explains why
-                that is the deliberate choice). Said out loud here, beside the
-                role badge it stands in for, so a write the server then refuses
-                reads as the consequence of a known-unknown rather than as the
-                app breaking. */}
-            {accessUnknown && (
-              <Badge
-                variant="warning"
-                title="We could not check your access to this trip. You can keep working, but the server may refuse changes."
-              >
-                Access unknown
-              </Badge>
-            )}
-          </div>
-
-          {/* SPEC §23's date meta line: "the date range only. Stops and cities
-              came out — the day rail and the trip below it already carry both."
-
-              ADDITIVE here, not a trim, and Mitchell has seen and approved it
-              as such. §23 is describing a meta line this build does not have on
-              a phone: `trip-meta-row` below is `hidden … md:flex`, cut whole on
-              his own report that the header was "really crowded and ugly on
-              mobile" (see that row's comment). So the range is not being
-              stripped of its counts — it is coming back on its own, which is
-              exactly the shape §23 arrives at from the other direction.
-
-              The date range and nothing else: no counts, no budget. Both are
-              still a tap away in Trip settings, where hiding the pill put them.
-
-              `tripDateRange` is the pill's own function, not a second one —
-              `SettingsSheet`'s `datesLabel` is already a second copy of these
-              rules and a third is where the header starts disagreeing with the
-              sheet about the same trip. */}
-          <div data-testid="trip-date-line" className="md:hidden">
-            <DataText size="xs">{tripDateRange(activeTrip)}</DataText>
-          </div>
-        </div>
-
-        {/* Right side: the handoff action cluster (ghost Trip settings · ghost
-            Share · primary Add stop), then the pre-existing sync/undo-redo/
-            history cluster, then the BudgetChip underneath — a column so the
-            outer row keeps its two-child justify-between split (info block vs.
-            everything else) as it wraps at narrow widths. "Add a saved day"
-            moved out of the header entirely (Task 1.4) — the design moved it
-            into the plan flow; Phase 6 rebuilds it there. */}
-        <div className="flex flex-col items-end gap-2">
-          {/* `sm:flex-nowrap`, not a bare flex-wrap removal: this row's own
-              content (settings/share/add-stop + sync/undo/history) never
-              needs more than ~433px, but a nested flex item's own content
-              width isn't what decides whether the OUTER row (the
-              title/right-cluster split above) wraps — that uses the right
-              cluster's unwrapped intrinsic size, so this row can still get
-              squeezed narrower than its content while staying on the
-              outer row's first line, and its own `flex-wrap` would then
-              split "settings/share/add stop" from "sync/undo/history"
-              internally rather than the whole cluster dropping below the
-              title (confirmed live by forcing this row's parent narrower
-              than its content). `flex-wrap` stays as the floor below `sm`
-              (640px) — comfortably above the ~480px this row's content
-              needs — so genuinely narrow viewports keep the old two-line
-              fallback instead of overflowing. */}
-          <div className="flex flex-wrap items-center gap-4 sm:flex-nowrap">
-            <div className="flex flex-wrap items-center gap-2">
-              {/* Handoff §2 action cluster: ghost "Share" · primary "Add stop".
-                  Real as of M11 link 4 — ShareButton was an inert
-                  <Preview id="share-button"> and is now a popover that mints,
-                  copies and turns off pinned share links. It needs the tripId
-                  it is sharing; everything else about this call site is
-                  unchanged. */}
-              {/* **Share is not in the header at all**, at any width.
-                  Mitchell, 2026-09-06: *"Put share in the trip settings under
-                  invite someone, both here and in mobile"*.
-
-                  It was `hidden md:block` first — off the phone only, because
-                  of an earlier report that these controls were "really crowded
-                  and ugly on mobile". Desktop kept it on the reasoning that
-                  there was room. Room is not the argument: sharing belongs with
-                  the other answer to "who can see this trip", and having it in
-                  two places meant a reader had to know which one this build
-                  put it in.
-
-                  `SettingsSheet` mounts the only `ShareButton` on a trip now,
-                  under "Invite someone". The header keeps the actions that have
-                  nowhere else to live — Add stop, History, undo/redo. */}
-              {/* HIDDEN for a reader, not greyed (KI-64). This was the one
-                  disabled control left on an otherwise quiet page: ADR-031 took
-                  every other write affordance away from a read-only board —
-                  card edit/remove, day remove, "+ Add", "One more day?",
-                  conflict "Dismiss", the timeline's Ask/Edit/Add-stop/Keep-day,
-                  the rack's day picker, Share, and undo/redo three blocks below
-                  — on the stated grounds that "a disabled control still says
-                  'there is something here for you'", and the header kept
-                  saying it. The nav row eight blocks up already writes that
-                  same sentence about itself.
-                  ADR-031's closing section left this one deliberately, as the
-                  argument for the other audience: for an INVITED viewer, a
-                  greyed button says what promotion would buy them. That reading
-                  needs the two audiences told apart — `readOnly` alone cannot,
-                  it is one flag over a member without the rank AND a stranger
-                  on /demo — and splitting it is the design decision that entry
-                  names. Consistency now, per the rule already written down; the
-                  split stays available if Trip settings → People wants it.
-                  The "Viewer" badge is what still explains the quiet page. */}
-              {/* `canEditBoard`: a suggester's new stop joins their draft. */}
-              {canEditBoard && (
-                <Button variant="primary" onClick={() => openCreate()}>
-                  Add stop
-                </Button>
-              )}
-            </div>
-
-            {/* The trip's member names, for "Suggested by …" in the chip and
-                in History (W15). Not a new read: the access response
-                `TripProvider` already cached. */}
-            <PeopleProvider tripId={tripId}>
-              <div className="flex items-center gap-0.5">
-                <SuggestionsChip />
-                {/* The Popover stays mounted during preview (not gated on
-                    preview.seq === null like undo/redo/settings) — HistoryPanel's
-                    "Viewing version N (read-only)" banner and its Revert/Back-to-now
-                    controls must remain reachable while previewing a past state. */}
-                <Popover
-                  open={historyOpen || preview.seq !== null}
-                  // #18: dismissing the popover (outside-click or Escape) while
-                  // previewing a past state also exits the preview ("back to now"),
-                  // so you never end up with a closed popover still pinned to an old
-                  // version. The wider content gives the entries + preview controls
-                  // room (#16/#17).
-                  onOpenChange={(open) => {
-                    setHistoryOpen(open);
-                    if (!open && preview.seq !== null) preview.exit();
-                  }}
-                  align="end"
-                  contentClassName="w-96"
-                  trigger={
-                    <Button variant="ghost" aria-label="History">
-                      <Clock className="size-3.5" aria-hidden />
-                      History
-                    </Button>
-                  }
-                >
-                  {/* Undo/redo live here now, not out in the header row —
-                      Mitchell, preview feedback on PR #55: "In the designs, the
-                      next/previous history button was moved into the history
-                      dropdown at the top". Hidden while previewing a past
-                      version, same gate they had in the header: the panel's own
-                      Revert / back-to-now controls are what act then. The ⌘Z
-                      shortcut does NOT live with them (see
-                      useUndoRedoShortcuts, called above) — popover content
-                      unmounts when closed, and undo must keep working. */}
-                  {preview.seq === null && !readOnly && (
-                    <div className="mb-2 flex justify-end border-b border-hairline pb-2">
-                      <UndoRedoControls
-                        canUndo={history?.canUndo ?? false}
-                        canRedo={history?.canRedo ?? false}
-                        onUndo={() => void dispatch({ type: "UndoLastChange", tripId })}
-                        onRedo={() => void dispatch({ type: "RedoChange", tripId })}
-                        isBusy={pending}
-                      />
-                    </div>
-                  )}
-                  <HistoryPanel
-                    history={history}
-                    previewSeq={preview.seq}
-                    readOnly={readOnly}
-                    onPreview={(seq) => void preview.enter(seq)}
-                    onExitPreview={preview.exit}
-                    onRevert={(toSeq) => void dispatch({ type: "RevertToState", tripId, toSeq })}
-                  />
-                </Popover>
-              </div>
-            </PeopleProvider>
-          </div>
-        </div>
-      </div>
-
-      {/* The meta pill and the budget chip are one row, not one-per-column:
-          Mitchell, preview feedback on PR #55 — "The Budget card should be
-          same height, and aligned with the left side Date / Days / Stops /
-          cities Card". `items-stretch` is what makes them equal height (the
-          budget chip is the taller of the two — it carries a progress bar
-          under its amount — so the meta pill grows to meet it rather than
-          either being pinned to a hardcoded height). This is also what the
-          2026-08-24 design does: both sit in its `grid-row: 2`, spread by a
-          justify-between. */}
-      {/* Hidden below 768px, same breakpoint and same report as Share above:
-          these two are the "trip overview to budget" half of "really crowded
-          and ugly on mobile". They are the right things to cut first because
-          they are pure INFORMATION — a phone loses a statement it can go and
-          read, not an action it can no longer perform. What is kept beside the
-          title is deliberately the opposite: "Add stop" and History are
-          actions with no equivalent in Trip settings (History is a different
-          surface entirely, and re-homing the primary write into a sheet would
-          make adding a stop a three-tap operation on the device most likely to
-          be adding one), and the tab bar is the phone's primary navigation.
-
-          Nothing here becomes unreachable. Dates and budget were already
-          editable in the sheet (its Dates row and TripMoneySettings); the day,
-          stop and city counts are now stated there under "Trip overview".
-          BudgetChip's no-budget state renders as a "Set a budget" button whose
-          only job is to open that same sheet, and the trip title is still the
-          door to it, so the one affordance that disappears on a phone is a
-          second doorbell on the same door. */}
-      <div data-testid="trip-meta-row" className="mt-2 hidden flex-wrap items-stretch justify-between gap-3 md:flex">
-        {/* `dispatch` straight in, as SettingsSheet's `onCommand` below does:
-            the pill's popover sends the same `SetTripStartDate` its Dates row
-            does, and the provider's viewer gate still refuses it for anyone
-            `readOnly` would have hidden it from. That gate knows nothing of
-            history preview, though — `runDispatch` enqueues against the live
-            trip — so the pill is text while an old seq is on screen, the same
-            `preview.seq` gate undo/redo use. */}
-        <TripMetaPill
-          detail={activeTrip}
-          readOnly={readOnly || preview.seq !== null}
-          onCommand={(command) => void dispatch(command)}
-        />
-        <BudgetChip spend={tripSpend(activeTrip)} currency={activeTrip.currency} onOpenSettings={() => setSettingsOpen(true)} />
-      </div>
-
-      {/* Handoff `current/…dc.html:249`: the tab strip lives INSIDE the sticky
-          container, not after it. Before this it scrolled away while the header
-          kept 147px of chrome pinned.
-
-          The day-chips row used to sit here too, above the tabs. SPEC §35.3
-          moved it into the Plan tab's body (TripBoardScreen) so that this
-          header is the same height on every tab; with nothing above the tabs,
-          this wrapper's 12px top and bottom are the design's `12px 26px 12px`
-          on its own. */}
-      {children !== undefined && <div className="flex flex-col gap-3 pt-3 pb-3">{children}</div>}
-
-      <SettingsSheet
-        tripId={tripId}
-        tripName={activeTrip.name}
-        open={settingsOpen}
-        onOpenChange={(open) => {
-          setSettingsOpen(open);
-          if (open) return;
-          setSettingsAt(null);
-          // Closing ends the link's instruction: the param goes, so a reload
-          // or a copied URL does not reopen a sheet the reader closed. The
-          // native call, which Next's router observes, keeps the view param.
-          const { pathname, search, hash } = window.location;
-          if (settingsSectionFrom(search) !== null) {
-            window.history.replaceState(window.history.state, "", `${pathname}${withoutSettingsParam(search)}${hash}`);
-          }
-        }}
-        scrollTo={settingsAt}
-        startDate={activeTrip.startDate}
-        endDate={activeTrip.days[activeTrip.days.length - 1]?.date ?? null}
-        // The pill's own three figures, derived by the pill's own function
-        // (TripMetaPill.tsx) — so what the sheet states below `md` and what
-        // the pill states above it are the same numbers by construction, not
-        // by two implementations agreeing.
-        counts={tripCounts(activeTrip)}
-        currency={activeTrip.currency}
-        budget={activeTrip.budget}
-        spend={tripSpend(activeTrip)}
-        forkedFrom={activeTrip.forkedFrom}
-        createdAt={activeTrip.createdAt}
-        readOnly={readOnly}
-        canEditBoard={canEditBoard}
-        onInvitesChanged={noteInvites}
+  // Who is travelling and what state the trip is in: beside the title on a
+  // desktop, and on the line under the phone's pinned row, which scrolls away
+  // (M39 D6). Built once so the two placements cannot drift; `isPhone` picks
+  // the one that renders.
+  const identity = (
+    <>
+      <TravellerStack
         access={access}
-        onAccessChanged={refreshAccess}
-        onCommand={(command) => {
-          if (command.type !== "CreateTrip") void dispatch(command);
+        onOpen={() => {
+          setSettingsAt("people");
+          setSettingsOpen(true);
         }}
       />
-    </header>
+      <Badge variant="neutral">{statusLabel}</Badge>
+      {/* M11 link 3: a viewer's trip is theirs to read, not to change.
+          The server refuses their writes either way (accessPolicy.ts);
+          the badge plus the gates below are what stop them finding that
+          out by clicking. The badge ALONE was the whole of it until
+          CodeRabbit read PR #71 — Share, Add stop, undo/redo and Revert
+          were all still live for a viewer, so this comment was making a
+          promise the header did not keep. */}
+      {/* "Viewer", not "View only" — one word rather than two
+          (Mitchell, 2026-08-30 design pass: "dont use two words when
+          one will do, word wraps cause issues"). It also names the
+          role, which is what the badge stands in for, in the same word
+          the invite flow already uses. */}
+      {/* A suggester is `readOnly` too (W8) but not a viewer: their
+          badge is their role word (W24). */}
+      {readOnly && <Badge variant="info">{boardMode === "suggest" ? "Suggester" : "Viewer"}</Badge>}
+      {/* A suggester's unsent draft, said where it is seen from anywhere
+          on the board (W70; Mitchell's production test, 2026-10-04). The
+          save light cannot say it: it counts a draft as nothing (W38),
+          because nothing is trying to send one. The bottom bar holds the
+          Send; this is the reminder that there is something to send. */}
+      {draft !== null && draft.count > 0 && (
+        <Badge variant="warning" title="Your changes wait in the bar at the bottom until you send them">
+          {`${draft.count} not sent`}
+        </Badge>
+      )}
+      {/* The access read failed, so this board is live on an assumption
+          rather than on an answer (TripProvider's `load` explains why
+          that is the deliberate choice). Said out loud here, beside the
+          role badge it stands in for, so a write the server then refuses
+          reads as the consequence of a known-unknown rather than as the
+          app breaking. */}
+      {accessUnknown && (
+        <Badge
+          variant="warning"
+          title="We could not check your access to this trip. You can keep working, but the server may refuse changes."
+        >
+          Access unknown
+        </Badge>
+      )}
+    </>
+  );
+
+  // The phone row's `⋯` (M39 D6): what the desktop header lays out beside the
+  // title. Undo and redo stay inside History (Mitchell, 2026-10-09), and the
+  // post-change toast still offers an undo. The `span` is what History's
+  // popover hangs from on a phone.
+  const overflowMenu = (
+    <span className="inline-flex md:hidden">
+      <Menu open={menuOpen} onOpenChange={setMenuOpen}>
+        <MenuTrigger>
+          <Button ref={tripActions} variant="ghost" aria-label="Trip actions">
+            <MoreHorizontal className="size-4" aria-hidden />
+          </Button>
+        </MenuTrigger>
+        <MenuContent
+          onCloseAutoFocus={(event) => {
+            const next = afterMenu.current;
+            afterMenu.current = null;
+            if (next === null) return;
+            event.preventDefault();
+            if (next === "add") openCreate();
+            else if (next === "history") setHistoryOpen(true);
+            else setSettingsOpen(true);
+          }}
+        >
+          {/* `canEditBoard`, as the desktop's button: a suggester's stop joins their draft. */}
+          {canEditBoard && <MenuItem onSelect={() => (afterMenu.current = "add")}>Add stop</MenuItem>}
+          <MenuItem onSelect={() => (afterMenu.current = "history")}>History</MenuItem>
+          <MenuItem onSelect={() => (afterMenu.current = "settings")}>Trip settings</MenuItem>
+        </MenuContent>
+      </Menu>
+    </span>
+  );
+
+  return (
+    <>
+      <header
+        ref={publishStickyStack}
+        aria-label="Trip"
+        // `top-14` is the height of AppHeader, which is `sticky top-0 h-14` and
+        // sits above this one on every `(app)` route. `/demo` draws
+        // FrontDoorHeader instead, which does not stick — so there, offsetting by
+        // 56px pins this header 56px down from the top and leaves a see-through
+        // strip of scrolled content above it (Mitchell, preview comment on
+        // `/demo`). Nothing is sticky above it there, so it pins to the top.
+        //
+        // `z-20`, not `z-10`: a hovered or lifted river block is `z-10`
+        // (RiverBlock.tsx — its tag reveal hangs out of it), and at equal z the
+        // later element paints on top, so a block scrolled under this header
+        // popped through it on hover (Mitchell, on the preview of pull request 257). Below AppHeader's
+        // `z-30`; the phone tab bar's `z-20` never meets it.
+        className={cn(
+          "sticky z-20 border-b border-hairline bg-surface px-6 pt-3.5",
+          // **One row on a phone** (M39 D6, KI-2026-09-24-i): back, title, Ask
+          // and the overflow menu, about 56px, where the stacked header was
+          // ~305px pinned. Every `max-md:` class below is that row; the
+          // desktop classes beside them are untouched.
+          "max-md:px-3 max-md:pt-1.5 max-md:pb-1.5",
+          isDemoTripId(tripId) ? "top-0" : "top-14",
+        )}
+      >
+        {/* On a phone the two columns and the nav row dissolve (`contents`)
+            into this one flex row, and `order` puts Ask and the menu after the
+            title. One tree for both widths, so nothing renders twice. */}
+        <div className="flex flex-wrap items-start justify-between gap-3 max-md:flex-nowrap max-md:items-center max-md:gap-1">
+          {/* `flex-auto` — `flex: 1 1 auto` — so this column absorbs the row's
+              free space and the nav below can be a real full-width row with
+              `‹ Trips` at one end and Ask at the other (SPEC §23). Deliberately
+              NOT `flex-1`, which is `flex: 1 1 0%`: a zero flex-basis takes this
+              column's content out of the wrap calculation entirely, so on a
+              phone the title would be squeezed beside "Add stop"/History instead
+              of the action cluster dropping to its own line as it does now.
+              `auto` keeps the content-sized basis, so where the row wrapped
+              before it still wraps. */}
+          <div className="flex flex-auto flex-col gap-1 max-md:contents">
+            {/* Both links go to `(app)` routes behind middleware, so on the
+                demo board (`/demo`, ADR-031) — whose visitor has no session —
+                each one is a trip to /signin. The whole nav row drops rather
+                than the links being disabled: a disabled control still says
+                "there is something here for you", and there is not, until they
+                have an account. `DemoTripScreen` renders the front door's own
+                header above this one, which is where a signed-out reader's way
+                onward belongs. */}
+            {!isDemoTripId(tripId) && (
+              <nav className="flex w-full items-center justify-between gap-3 max-md:contents">
+                {/* `min-h-11` and the inline-flex that makes it apply: §22 made
+                    this link load-bearing on a phone. Scoping the tab bar removed
+                    the Trips tab from inside a trip, so this is now the ONLY way
+                    out of Plan and Map — and SPEC §13.1's "44px targets, always"
+                    covers "every tag chip, nav item and row action". It was a
+                    bare `text-xs` anchor with no height or padding, about 17px.
+                    The type stays `text-xs`; §13.1 grows the box, never the font.
+                    Raised by Copilot on PR #143. */}
+                {/* An arrow alone on a phone, in a 44px box; the words stay in
+                    the accessible name. */}
+                <Link
+                  href="/"
+                  className="inline-flex min-h-11 items-center text-xs text-slate no-underline hover:text-ink max-md:min-w-11 max-md:shrink-0 max-md:justify-center max-md:text-base"
+                >
+                  ←<span className="max-md:sr-only"> Your trips</span>
+                </Link>
+                {/* The Notebook link that used to sit here is gone. It is now
+                    the Notebooks menu (SPEC §11) in the view row below, which
+                    `TripBoardScreen` renders as this header's child: a bordered
+                    pill that also lists the trip's notebooks, instead of a plain
+                    text link that read as a peer of "← Your trips" and could only
+                    take you to the index. Notebook is still a separate route
+                    subtree rather than a lens (design spec decision 11, refined
+                    2026-07-20) — that part did not change; only the affordance
+                    did. */}
+                {/* SPEC §23: the phone's entry point to the assistant, LAST in
+                    this row — "same pill, same label, same position, so it never
+                    moves as you change tabs". The row's `justify-between` is what
+                    pins it to the far end, so it stays there whatever the link
+                    beside it is called.
+
+                    §23 also moves the sync dot and avatar down to the title row,
+                    and that half is deliberately not built: in this app neither
+                    is in this row to begin with — the avatar lives in the global
+                    `AppHeader`, a separate sticky bar this header sits under —
+                    so honouring it would mean the phone dropping `AppHeader`
+                    entirely, which is a change to every `(app)` route rather than
+                    to this file. The row was already clear, so the pill just
+                    goes in.
+
+                    Phone-only by `md:hidden` inside `AskPill` itself, not by a
+                    branch here: the desktop entry point is `TripBoardScreen`'s
+                    own fixed launcher and the two must never both be on screen.
+                    See that component for why the breakpoint is CSS. */}
+                {/* The wrapper is only the phone row's `order`: a box that is
+                    not displayed at `md`, where the pill is not either. */}
+                {onOpenAssistant !== undefined && (
+                  <span className="hidden max-md:order-1 max-md:flex">
+                    <AskPill open={assistantOpen} onOpen={onOpenAssistant} />
+                  </span>
+                )}
+              </nav>
+            )}
+            {/* The title IS the way into Trip settings, and the only way:
+                Mitchell, preview feedback on PR #55 — "In the designs, removed
+                the pencil, and made the trip title clickable to open the Trip
+                edit display the cog currently opens, already remove the cog".
+                Renaming therefore happens in that sheet's own "Trip name"
+                field, which already existed; the inline Input this replaced is
+                gone with the pencil.
+
+                The accessible name deliberately carries BOTH — a bare
+                aria-label="Trip settings" would announce the control and
+                swallow the trip's name, and the trip name alone never says
+                what the button does. Playwright's getByRole name matching is
+                substring-and-case-insensitive, so the e2e specs that click
+                { name: "Trip settings" } keep working against this. */}
+            {/* `flex-wrap` and `gap-y-1`: on a phone the trip name plus its
+                badges do not fit one line, and badges no longer wrap inside
+                themselves (see Badge). They have to be able to wrap as whole
+                items instead, or the row overflows — 2026-08-30 design pass. */}
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 max-md:min-w-0 max-md:flex-1 max-md:flex-nowrap">
+              {/* The button goes INSIDE the h2, not around it. The other way
+                  round renders `<button><h2>…</h2></button>`, which is invalid
+                  (a button's content model is phrasing content) and, worse,
+                  silently costs the trip its heading: a button's descendants
+                  are presentational in the accessibility tree, so the h2's role
+                  is dropped and the name disappears from heading navigation
+                  entirely. e2e caught it — m8-make-it-real asserts
+                  getByRole("heading", { level: 2 }) on the trip name.
+
+                  Nested this way both roles survive: h2 for structure, button
+                  for the action. The type classes are restated on the button
+                  because buttonVariants sets its own `font-medium` + size
+                  `text-base`, which would otherwise shrink the title inside its
+                  own heading. */}
+              <Heading level={2} className="max-md:min-w-0">
+                <Button
+                  variant="ghost"
+                  onClick={() => setSettingsOpen(true)}
+                  aria-label={`${activeTrip.name} — Trip settings`}
+                  title="Trip settings"
+                  className="h-auto justify-start p-0 text-left font-display text-xl font-semibold text-ink hover:bg-transparent hover:underline max-md:max-w-full"
+                >
+                  {/* One line on a phone, cut with an ellipsis; the full name
+                      is in the button's accessible name and in Trip settings. */}
+                  <span className="max-md:min-w-0 max-md:truncate">{activeTrip.name}</span>
+                </Button>
+              </Heading>
+              {/* The phone's copy is on the line under the pinned row, where
+                  it scrolls away (M39 D6, below). `max-md:hidden` covers the
+                  one frame before `useIsPhone` has answered. */}
+              {!isPhone && <span className="contents max-md:hidden">{identity}</span>}
+            </div>
+          </div>
+
+          {/* Right side: the handoff action cluster (ghost Trip settings · ghost
+              Share · primary Add stop), then the pre-existing sync/undo-redo/
+              history cluster, then the BudgetChip underneath — a column so the
+              outer row keeps its two-child justify-between split (info block vs.
+              everything else) as it wraps at narrow widths. "Add a saved day"
+              moved out of the header entirely (Task 1.4) — the design moved it
+              into the plan flow; Phase 6 rebuilds it there. */}
+          <div className="flex flex-col items-end gap-2 max-md:contents">
+            {/* `sm:flex-nowrap`, not a bare flex-wrap removal: this row's own
+                content (settings/share/add-stop + sync/undo/history) never
+                needs more than ~433px, but a nested flex item's own content
+                width isn't what decides whether the OUTER row (the
+                title/right-cluster split above) wraps — that uses the right
+                cluster's unwrapped intrinsic size, so this row can still get
+                squeezed narrower than its content while staying on the
+                outer row's first line, and its own `flex-wrap` would then
+                split "settings/share/add stop" from "sync/undo/history"
+                internally rather than the whole cluster dropping below the
+                title (confirmed live by forcing this row's parent narrower
+                than its content). `flex-wrap` stays as the floor below `sm`
+                (640px) — comfortably above the ~480px this row's content
+                needs — so genuinely narrow viewports keep the old two-line
+                fallback instead of overflowing. */}
+            <div className="flex flex-wrap items-center gap-4 sm:flex-nowrap max-md:contents">
+              {/* Behind the overflow menu on a phone (M39 D6). */}
+              <div className="flex flex-wrap items-center gap-2 max-md:hidden">
+                {/* Handoff §2 action cluster: ghost "Share" · primary "Add stop".
+                    Real as of M11 link 4 — ShareButton was an inert
+                    <Preview id="share-button"> and is now a popover that mints,
+                    copies and turns off pinned share links. It needs the tripId
+                    it is sharing; everything else about this call site is
+                    unchanged. */}
+                {/* **Share is not in the header at all**, at any width.
+                    Mitchell, 2026-09-06: *"Put share in the trip settings under
+                    invite someone, both here and in mobile"*.
+
+                    It was `hidden md:block` first — off the phone only, because
+                    of an earlier report that these controls were "really crowded
+                    and ugly on mobile". Desktop kept it on the reasoning that
+                    there was room. Room is not the argument: sharing belongs with
+                    the other answer to "who can see this trip", and having it in
+                    two places meant a reader had to know which one this build
+                    put it in.
+
+                    `SettingsSheet` mounts the only `ShareButton` on a trip now,
+                    under "Invite someone". The header keeps the actions that have
+                    nowhere else to live — Add stop, History, undo/redo. */}
+                {/* HIDDEN for a reader, not greyed (KI-64). This was the one
+                    disabled control left on an otherwise quiet page: ADR-031 took
+                    every other write affordance away from a read-only board —
+                    card edit/remove, day remove, "+ Add", "One more day?",
+                    conflict "Dismiss", the timeline's Ask/Edit/Add-stop/Keep-day,
+                    the rack's day picker, Share, and undo/redo three blocks below
+                    — on the stated grounds that "a disabled control still says
+                    'there is something here for you'", and the header kept
+                    saying it. The nav row eight blocks up already writes that
+                    same sentence about itself.
+                    ADR-031's closing section left this one deliberately, as the
+                    argument for the other audience: for an INVITED viewer, a
+                    greyed button says what promotion would buy them. That reading
+                    needs the two audiences told apart — `readOnly` alone cannot,
+                    it is one flag over a member without the rank AND a stranger
+                    on /demo — and splitting it is the design decision that entry
+                    names. Consistency now, per the rule already written down; the
+                    split stays available if Trip settings → People wants it.
+                    The "Viewer" badge is what still explains the quiet page. */}
+                {/* `canEditBoard`: a suggester's new stop joins their draft. */}
+                {canEditBoard && (
+                  <Button variant="primary" onClick={() => openCreate()}>
+                    Add stop
+                  </Button>
+                )}
+              </div>
+
+              {/* The trip's member names, for "Suggested by …" in the chip and
+                  in History (W15). Not a new read: the access response
+                  `TripProvider` already cached. */}
+              <PeopleProvider tripId={tripId}>
+                {/* On a phone this is the end of the row: Suggestions stays out
+                    in it, since it only renders while someone has suggested
+                    something and a count behind a menu is a count nobody sees,
+                    and History moves into the overflow menu. */}
+                <div className="flex items-center gap-0.5 max-md:order-2">
+                  <SuggestionsChip />
+                  {/* The Popover stays mounted during preview (not gated on
+                      preview.seq === null like undo/redo/settings) — HistoryPanel's
+                      "Viewing version N (read-only)" banner and its Revert/Back-to-now
+                      controls must remain reachable while previewing a past state. */}
+                  <Popover
+                    open={historyOpen || preview.seq !== null}
+                    // Hung from the overflow menu on a phone, where this
+                    // popover's own button is not on screen.
+                    anchor={isPhone ? overflowMenu : undefined}
+                    onCloseAutoFocus={
+                      isPhone
+                        ? (event) => {
+                            event.preventDefault();
+                            tripActions.current?.focus();
+                          }
+                        : undefined
+                    }
+                    // #18: dismissing the popover (outside-click or Escape) while
+                    // previewing a past state also exits the preview ("back to now"),
+                    // so you never end up with a closed popover still pinned to an old
+                    // version. The wider content gives the entries + preview controls
+                    // room (#16/#17).
+                    onOpenChange={(open) => {
+                      setHistoryOpen(open);
+                      if (!open && preview.seq !== null) preview.exit();
+                    }}
+                    align="end"
+                    contentClassName="w-96"
+                    trigger={
+                      <Button variant="ghost" aria-label="History" className="max-md:hidden">
+                        <Clock className="size-3.5" aria-hidden />
+                        History
+                      </Button>
+                    }
+                  >
+                    {/* Undo/redo live here now, not out in the header row —
+                        Mitchell, preview feedback on PR #55: "In the designs, the
+                        next/previous history button was moved into the history
+                        dropdown at the top". Hidden while previewing a past
+                        version, same gate they had in the header: the panel's own
+                        Revert / back-to-now controls are what act then. The ⌘Z
+                        shortcut does NOT live with them (see
+                        useUndoRedoShortcuts, called above) — popover content
+                        unmounts when closed, and undo must keep working. */}
+                    {preview.seq === null && !readOnly && (
+                      <div className="mb-2 flex justify-end border-b border-hairline pb-2">
+                        <UndoRedoControls
+                          canUndo={history?.canUndo ?? false}
+                          canRedo={history?.canRedo ?? false}
+                          onUndo={() => void dispatch({ type: "UndoLastChange", tripId })}
+                          onRedo={() => void dispatch({ type: "RedoChange", tripId })}
+                          isBusy={pending}
+                        />
+                      </div>
+                    )}
+                    <HistoryPanel
+                      history={history}
+                      previewSeq={preview.seq}
+                      readOnly={readOnly}
+                      onPreview={(seq) => void preview.enter(seq)}
+                      onExitPreview={preview.exit}
+                      onRevert={(toSeq) => void dispatch({ type: "RevertToState", tripId, toSeq })}
+                    />
+                  </Popover>
+                  {!isPhone && overflowMenu}
+                </div>
+              </PeopleProvider>
+            </div>
+          </div>
+        </div>
+
+        {/* The meta pill and the budget chip are one row, not one-per-column:
+            Mitchell, preview feedback on PR #55 — "The Budget card should be
+            same height, and aligned with the left side Date / Days / Stops /
+            cities Card". `items-stretch` is what makes them equal height (the
+            budget chip is the taller of the two — it carries a progress bar
+            under its amount — so the meta pill grows to meet it rather than
+            either being pinned to a hardcoded height). This is also what the
+            2026-08-24 design does: both sit in its `grid-row: 2`, spread by a
+            justify-between. */}
+        {/* Hidden below 768px, same breakpoint and same report as Share above:
+            these two are the "trip overview to budget" half of "really crowded
+            and ugly on mobile". They are the right things to cut first because
+            they are pure INFORMATION — a phone loses a statement it can go and
+            read, not an action it can no longer perform. What is kept beside the
+            title is deliberately the opposite: "Add stop" and History are
+            actions with no equivalent in Trip settings (History is a different
+            surface entirely, and re-homing the primary write into a sheet would
+            make adding a stop a three-tap operation on the device most likely to
+            be adding one), and the tab bar is the phone's primary navigation.
+            (M39 D6 then moved both into the phone's overflow menu: one tap
+            more, for a pinned header a fifth of the height.)
+
+            Nothing here becomes unreachable. Dates and budget were already
+            editable in the sheet (its Dates row and TripMoneySettings); the day,
+            stop and city counts are now stated there under "Trip overview".
+            BudgetChip's no-budget state renders as a "Set a budget" button whose
+            only job is to open that same sheet, and the trip title is still the
+            door to it, so the one affordance that disappears on a phone is a
+            second doorbell on the same door. */}
+        <div data-testid="trip-meta-row" className="mt-2 hidden flex-wrap items-stretch justify-between gap-3 md:flex">
+          {/* `dispatch` straight in, as SettingsSheet's `onCommand` below does:
+              the pill's popover sends the same `SetTripStartDate` its Dates row
+              does, and the provider's viewer gate still refuses it for anyone
+              `readOnly` would have hidden it from. That gate knows nothing of
+              history preview, though — `runDispatch` enqueues against the live
+              trip — so the pill is text while an old seq is on screen, the same
+              `preview.seq` gate undo/redo use. */}
+          <TripMetaPill
+            detail={activeTrip}
+            readOnly={readOnly || preview.seq !== null}
+            onCommand={(command) => void dispatch(command)}
+          />
+          <BudgetChip spend={tripSpend(activeTrip)} currency={activeTrip.currency} onOpenSettings={() => setSettingsOpen(true)} />
+        </div>
+
+        {/* Handoff `current/…dc.html:249`: the tab strip lives INSIDE the sticky
+            container, not after it. Before this it scrolled away while the header
+            kept 147px of chrome pinned.
+
+            The day-chips row used to sit here too, above the tabs. SPEC §35.3
+            moved it into the Plan tab's body (TripBoardScreen) so that this
+            header is the same height on every tab; with nothing above the tabs,
+            this wrapper's 12px top and bottom are the design's `12px 26px 12px`
+            on its own. On a phone the tabs are the tab bar's, so the padding
+            goes and this holds only the tag-focus line, when there is one. */}
+        {children !== undefined && <div className="flex flex-col gap-3 pt-3 pb-3 max-md:py-0">{children}</div>}
+        {/* M39 D6: on a phone's Plan the day rail pins with the row above. */}
+        {pinned}
+
+        <SettingsSheet
+          tripId={tripId}
+          tripName={activeTrip.name}
+          open={settingsOpen}
+          onOpenChange={(open) => {
+            setSettingsOpen(open);
+            if (open) return;
+            setSettingsAt(null);
+            // Closing ends the link's instruction: the param goes, so a reload
+            // or a copied URL does not reopen a sheet the reader closed. The
+            // native call, which Next's router observes, keeps the view param.
+            const { pathname, search, hash } = window.location;
+            if (settingsSectionFrom(search) !== null) {
+              window.history.replaceState(window.history.state, "", `${pathname}${withoutSettingsParam(search)}${hash}`);
+            }
+          }}
+          scrollTo={settingsAt}
+          startDate={activeTrip.startDate}
+          endDate={activeTrip.days[activeTrip.days.length - 1]?.date ?? null}
+          // The pill's own three figures, derived by the pill's own function
+          // (TripMetaPill.tsx) — so what the sheet states below `md` and what
+          // the pill states above it are the same numbers by construction, not
+          // by two implementations agreeing.
+          counts={tripCounts(activeTrip)}
+          currency={activeTrip.currency}
+          budget={activeTrip.budget}
+          spend={tripSpend(activeTrip)}
+          forkedFrom={activeTrip.forkedFrom}
+          createdAt={activeTrip.createdAt}
+          readOnly={readOnly}
+          canEditBoard={canEditBoard}
+          onInvitesChanged={noteInvites}
+          access={access}
+          onAccessChanged={refreshAccess}
+          onCommand={(command) => {
+            if (command.type !== "CreateTrip") void dispatch(command);
+          }}
+        />
+      </header>
+      {/* **What scrolls away on a phone** (M39 D6): the trip's badges and its
+          dates, on a line under the pinned row and outside the sticky box. */}
+      {/* SPEC §23's date meta line: "the date range only. Stops and cities
+          came out — the day rail and the trip below it already carry both."
+
+          ADDITIVE here, not a trim, and Mitchell has seen and approved it
+          as such. §23 is describing a meta line this build does not have on
+          a phone: `trip-meta-row` below is `hidden … md:flex`, cut whole on
+          his own report that the header was "really crowded and ugly on
+          mobile" (see that row's comment). So the range is not being
+          stripped of its counts — it is coming back on its own, which is
+          exactly the shape §23 arrives at from the other direction.
+
+          The date range and nothing else: no counts, no budget. Both are
+          still a tap away in Trip settings, where hiding the pill put them.
+
+          `tripDateRange` is the pill's own function, not a second one —
+          `SettingsSheet`'s `datesLabel` is already a second copy of these
+          rules and a third is where the header starts disagreeing with the
+          sheet about the same trip. */}
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-6 pt-2 md:hidden">
+        {isPhone && identity}
+        <div data-testid="trip-date-line">
+          <DataText size="xs">{tripDateRange(activeTrip)}</DataText>
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -649,7 +769,8 @@ function TravellerStack({ access, onOpen }: { access: TripAccess | null; onOpen:
  * `scrollIntoView` aligns with the scrollport's top edge and knows nothing
  * about what is pinned there, so a day header picked with the page scrolled
  * down landed under this header. The margin cannot be a constant: this header
- * wraps at narrow widths, and `AppHeader` is absent on `/demo`. So it is
+ * wraps at narrow widths, carries the day rail on a phone's Plan (`pinned`),
+ * and `AppHeader` is absent on `/demo`. So it is
  * measured — this header's resolved `top` (0 or 56px, which is exactly the
  * part of the stack above it) plus its own height, re-read by a
  * ResizeObserver whenever it wraps.

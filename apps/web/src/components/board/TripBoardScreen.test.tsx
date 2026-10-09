@@ -1456,6 +1456,25 @@ describe("the day-chips row belongs to Plan", () => {
     await userEvent.click(screen.getByRole("tab", { name: "Plan" }));
     expect(screen.getByRole("group", { name: "Days" })).toBeTruthy();
   });
+
+  // M39 D6 (KI-2026-09-24-i): a phone pins the rail with the header's one row,
+  // so it is in the box `--sticky-stack-height` measures. One copy: two would
+  // be two sets of focusable chips and two owners of the chips' day-sync.
+  it("pins in the trip header on a phone's Plan, and is still Plan's alone", async () => {
+    setViewportMatches({ "(max-width: 767px)": true });
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    renderScreen(fixture.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+
+    navigateToView("Plan");
+    const header = screen.getByRole("banner", { name: "Trip" });
+    await waitFor(() => expect(header.contains(screen.getByRole("group", { name: "Days" }))).toBe(true));
+    expect(screen.getAllByRole("group", { name: "Days" })).toHaveLength(1);
+
+    navigateToView("Overview");
+    await waitFor(() => expect(screen.queryByRole("group", { name: "Days" })).toBeNull());
+  });
 });
 
 // Preview review fix: lens content gets a bottom margin against the page via
@@ -1640,6 +1659,39 @@ describe("TripBoardScreen — a day's untimed stops", () => {
       true,
       false,
     ]);
+  });
+
+  // M39 D6: on a phone the rack is no drawer fixed over the list but a row
+  // after the day the phone shows, collapsed to its count and opening where it
+  // is. That it covers nothing and still takes a finger's drop is measured in
+  // a browser, by e2e/m39-phone-header.spec.ts and m26-phone-plan.spec.ts.
+  it("is a row after the day on a phone, collapsed to its count, that opens in place", async () => {
+    setViewportMatches({ "(max-width: 767px)": true });
+    const fixture = trip();
+    server.use(...makeTripHandlers(fixture));
+    renderScreen(fixture.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+
+    const columns = screen.getByRole("group", { name: "Day columns" });
+    const rack = await within(columns).findByTestId("unscheduled-rack");
+    expect(screen.getAllByTestId("unscheduled-rack")).toHaveLength(1);
+    const toggle = within(rack).getByRole("button", { name: /^Unscheduled/ });
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(within(toggle).getByText("2")).toBeTruthy();
+    expect(within(rack).queryAllByTestId("rack-card")).toHaveLength(0);
+
+    fireEvent.click(toggle);
+    expect(within(rack).getAllByTestId("rack-card")).toHaveLength(2);
+  });
+
+  it("stays the drawer below the board above the breakpoint", async () => {
+    const fixture = trip();
+    server.use(...makeTripHandlers(fixture));
+    renderScreen(fixture.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+
+    expect(screen.getAllByTestId("unscheduled-rack")).toHaveLength(1);
+    expect(within(screen.getByRole("group", { name: "Day columns" })).queryByTestId("unscheduled-rack")).toBeNull();
   });
 
   // Mitchell, 2026-09-30 (option "B"): a leg's destination shows wherever the

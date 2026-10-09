@@ -622,6 +622,26 @@ describe("selecting a day from its column", () => {
     expect(fireEvent.keyDown(row, { key: "ArrowRight", altKey: true })).toBe(true);
   });
 
+  // On a phone the Unscheduled row (M39 Part 2) sits inside this handler's
+  // subtree. Its card strip scrolls sideways, so an arrow on one of its cards
+  // is the strip's to scroll, not a day change (CodeRabbit, PR #364).
+  it("leaves an arrow inside the end-of-day row to the browser", () => {
+    const callbacks = noopCallbacks();
+    render(
+      <EditorHost>
+        <Board
+          trip={twoDays()}
+          callbacks={callbacks}
+          focusedDay={0}
+          oneDay
+          endOfDay={<button type="button">Rack card</button>}
+        />
+      </EditorHost>,
+    );
+    expect(fireEvent.keyDown(screen.getByRole("button", { name: "Rack card" }), { key: "ArrowRight" })).toBe(true);
+    expect(callbacks.onSelectDay).not.toHaveBeenCalled();
+  });
+
   it("selects the next day when the arrow actually moves", async () => {
     const callbacks = noopCallbacks();
     renderBoard(twoDays(), callbacks, 0);
