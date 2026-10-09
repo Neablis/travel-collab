@@ -52,7 +52,7 @@ export function ConflictBanner({
    */
   readOnly?: boolean;
 }) {
-  const visible = conflicts.filter((c) => !dismissedConflictIds.includes(c.id));
+  const visible = visibleConflicts(conflicts, dismissedConflictIds);
   const collapsible = visible.length > COLLAPSE_ABOVE;
   const [expanded, setExpanded] = useState(false);
   if (visible.length === 0) return null;
@@ -95,58 +95,95 @@ export function ConflictBanner({
 
   // my-3 (not just mb-3) so the alert isn't flush against the tab strip above
   // it (#21).
+  //
+  // **Not below 768px** (M39 D9): there the header's `ConflictsChip` is the one
+  // conflict surface, on every tab and for every day, and its sheet lists these
+  // same rows. Above the phone's one day this banner showed only what Plan was
+  // on, and pushed the day down to do it.
   return (
-    <div className="my-3 grid gap-1.5">
+    <div className="my-3 grid gap-1.5 max-md:hidden">
       {collapsible ? summary : null}
       {collapsible && !expanded
         ? null
-        : visible.map((c) => {
-            // Mitchell (preview review): "clicking a alert should jump to the
-            // activity." A conflict can name two subjects (an overlap always
-            // does); jump to the first — there's no room in this one-line banner
-            // to pick a side, and the editor sheet it opens shows the full
-            // activity either way. A subject id the trip no longer has (deleted
-            // since this conflict was computed) does nothing rather than
-            // openEdit-ing a blank sheet.
-            const subject = c.subjects
-              .map((id) => activities[id])
-              .find((a): a is ActivityView => a !== undefined);
-            const jump =
-              subject !== undefined && onSelectActivity !== undefined
-                ? () => onSelectActivity(subject.activityId)
-                : undefined;
-            const description = <Text as="span">{c.description}</Text>;
-            return (
-              <Banner
-                key={c.id}
-                variant="warning"
-                actions={
-                  readOnly || !isDismissible(c.kind) ? undefined : (
-                    <Button
-                      variant="ghost"
-                      onClick={() => onDismiss(c.id)}
-                      aria-label={`Dismiss: ${c.description}`}
-                    >
-                      Dismiss
-                    </Button>
-                  )
-                }
-              >
-                {jump !== undefined ? (
-                  <Button
-                    variant="ghost"
-                    onClick={jump}
-                    aria-label={`Jump to ${subject!.title}`}
-                    className="h-auto justify-start gap-0 p-0 text-left font-normal hover:bg-transparent hover:underline"
-                  >
-                    {description}
-                  </Button>
-                ) : (
-                  description
-                )}
-              </Banner>
-            );
-          })}
+        : visible.map((c) => (
+            <ConflictRow
+              key={c.id}
+              conflict={c}
+              activities={activities}
+              onDismiss={onDismiss}
+              onSelectActivity={onSelectActivity}
+              readOnly={readOnly}
+            />
+          ))}
     </div>
+  );
+}
+
+/** The conflicts a reader has not dismissed: what the banner and the phone's chip both count. */
+export function visibleConflicts(conflicts: Conflict[], dismissedConflictIds: string[]): Conflict[] {
+  return conflicts.filter((c) => !dismissedConflictIds.includes(c.id));
+}
+
+/**
+ * One conflict: its description, a jump to the stop it names, and Dismiss.
+ * Shared by the banner above the desktop's columns and the phone's conflict
+ * sheet (M39 D9), so the two cannot disagree about what a row offers.
+ */
+export function ConflictRow({
+  conflict: c,
+  activities,
+  onDismiss,
+  onSelectActivity,
+  readOnly,
+}: {
+  conflict: Conflict;
+  activities: Record<string, ActivityView>;
+  onDismiss: (conflictId: string) => void;
+  onSelectActivity?: (activityId: string) => void;
+  readOnly: boolean;
+}) {
+  // Mitchell (preview review): "clicking a alert should jump to the
+  // activity." A conflict can name two subjects (an overlap always
+  // does); jump to the first — there's no room in one row to pick a
+  // side, and the editor sheet it opens shows the full
+  // activity either way. A subject id the trip no longer has (deleted
+  // since this conflict was computed) does nothing rather than
+  // openEdit-ing a blank sheet.
+  const subject = c.subjects
+    .map((id) => activities[id])
+    .find((a): a is ActivityView => a !== undefined);
+  const jump =
+    subject !== undefined && onSelectActivity !== undefined
+      ? () => onSelectActivity(subject.activityId)
+      : undefined;
+  const description = <Text as="span">{c.description}</Text>;
+  return (
+    <Banner
+      variant="warning"
+      actions={
+        readOnly || !isDismissible(c.kind) ? undefined : (
+          <Button
+            variant="ghost"
+            onClick={() => onDismiss(c.id)}
+            aria-label={`Dismiss: ${c.description}`}
+          >
+            Dismiss
+          </Button>
+        )
+      }
+    >
+      {jump !== undefined ? (
+        <Button
+          variant="ghost"
+          onClick={jump}
+          aria-label={`Jump to ${subject!.title}`}
+          className="h-auto justify-start gap-0 p-0 text-left font-normal hover:bg-transparent hover:underline"
+        >
+          {description}
+        </Button>
+      ) : (
+        description
+      )}
+    </Banner>
   );
 }

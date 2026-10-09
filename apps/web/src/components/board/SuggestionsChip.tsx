@@ -1,6 +1,7 @@
 "use client";
 
 import { type ReactNode, useId, useState } from "react";
+import { Lightbulb } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover } from "@/components/ui/popover";
 import { Text } from "@/components/ui/text";
@@ -49,6 +50,7 @@ export function SuggestionsChip() {
   };
 
   const count = ghosts.pending.length;
+  const phrase = count === 1 ? "1 suggestion" : `${count} suggestions`;
   // One note per suggestion, which every change sent with it carries.
   const notes = [...new Map(ghosts.pending.flatMap((c) => (c.note === null ? [] : [[c.suggestionId, c] as const]))).values()];
   // Mitchell's production test, 2026-10-04: this listed only what the board
@@ -85,7 +87,21 @@ export function SuggestionsChip() {
       trigger={
         // Add stop's size, beside it in the header (Mitchell's preview
         // comment, 2026-10-04).
-        <Button variant="secondary">{count === 1 ? "1 suggestion" : `${count} suggestions`}</Button>
+        //
+        // **Below 768px, a count** (Mitchell, 2026-10-09): the conflict chip's
+        // shape and size in the suggestion mark's brand tint and bulb
+        // (RiverBlock). Words and conflict chip together left the trip title no
+        // room in the phone's pinned row (M39 D9). The phrase is the name at
+        // every width, so it is the visible label wherever one is shown.
+        <Button
+          variant="secondary"
+          aria-label={phrase}
+          className="max-md:gap-1 max-md:rounded-full max-md:border-0 max-md:bg-brand-tint max-md:px-3 max-md:font-semibold max-md:text-brand-pressed max-md:hover:bg-brand-tint"
+        >
+          <Lightbulb className="size-4 md:hidden" aria-hidden />
+          <span className="md:hidden">{count}</span>
+          <span className="max-md:hidden">{phrase}</span>
+        </Button>
       }
     >
       <div className="flex flex-col gap-3">
