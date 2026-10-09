@@ -127,7 +127,7 @@ export function UnderlineTabs<T extends string>({
               // so a wrapped label pushes the row taller rather than
               // overflowing it (the same reason `button.tsx`'s `touch` size is
               // a min).
-              "-mb-px min-h-11 cursor-pointer border-b-2 px-px text-base transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand md:min-h-10",
+              "-mb-px min-h-11 cursor-pointer border-b-2 px-px text-base transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand fine:min-h-10",
               selected
                 ? "border-brand font-semibold text-ink"
                 : "border-transparent font-medium text-slate hover:text-ink",

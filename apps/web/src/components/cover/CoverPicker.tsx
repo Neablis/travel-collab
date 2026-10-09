@@ -82,7 +82,7 @@ function failureCopy(failure: Exclude<Failure, "unavailable">, call: Call, retry
 
 // The 44px phone floor on an inline link, released at `md` (§13.1, as the
 // tiles' credits take it). Inline-flex so the link stays in its sentence.
-const LINK = "inline-flex min-h-11 items-center text-slate underline-offset-2 hover:text-brand-pressed hover:underline md:min-h-0";
+const LINK = "inline-flex min-h-11 items-center text-slate underline-offset-2 hover:text-brand-pressed hover:underline fine:min-h-0";
 
 /**
  * The cover, with its credit, and — for whoever may change it — a search of

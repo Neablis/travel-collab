@@ -154,7 +154,7 @@ export function TripGridSkeleton() {
             <Skeleton className="size-6" />
           </div>
           <div>
-            <div className="flex min-h-11 items-center md:min-h-0">
+            <div className="flex min-h-11 items-center fine:min-h-0">
               <Skeleton className={`h-5 ${titleWidth}`} />
             </div>
             <Skeleton className="mt-1 h-3.5 w-2/5" delay={2} />

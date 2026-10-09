@@ -1,5 +1,6 @@
 "use client";
 import { cn } from "../../lib/cn";
+import { PHONE_TOUCH } from "./button";
 
 // The moss-pill tab look of ui/tabs.tsx applied to plain role="tab" buttons —
 // NOT Radix Tabs. Radix TabsTrigger is pointer-only, which silently breaks
@@ -28,10 +29,14 @@ export function TabStrip<T extends string>({
     // would give. The Notebooks pill beside it is 32px, and 1.8px of mismatch on
     // two controls sharing a row reads as a misalignment rather than as a
     // rounding error (Mitchell, 2026-09-03: "should be aligned with the tabs").
+    //
+    // **Pinned for a mouse only** (`fine:h-8`, M39 D3). Under a finger each tab
+    // carries SPEC §13.1's 44px floor (`PHONE_TOUCH`) and the strip grows to
+    // hold it: at 820px on a tablet these tabs measured 26px (KI-2026-09-24-j).
     <div
       role="tablist"
       aria-label={ariaLabel}
-      className="inline-flex h-8 items-center gap-0.5 rounded-md bg-moss p-0.5"
+      className="inline-flex items-center gap-0.5 rounded-md bg-moss p-0.5 fine:h-8"
     >
       {options.map((o) => (
         <button
@@ -41,6 +46,7 @@ export function TabStrip<T extends string>({
           aria-selected={value === o.value}
           onClick={() => onValueChange(o.value)}
           className={cn(
+            PHONE_TOUCH,
             "cursor-pointer rounded-sm px-2.5 py-1 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-brand",
             value === o.value ? "bg-surface font-semibold text-ink shadow-raised" : "text-slate hover:text-ink",
           )}

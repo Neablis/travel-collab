@@ -380,7 +380,7 @@ export function RiverBlock({
             variant="ghost"
             onClick={onEdit}
             aria-label={`Edit ${description}`}
-            className="absolute inset-0 h-auto min-w-0 rounded-md p-0 hover:bg-transparent focus-visible:outline-offset-0 md:min-h-0"
+            className="absolute inset-0 h-auto min-w-0 rounded-md p-0 hover:bg-transparent focus-visible:outline-offset-0 fine:min-h-0"
           />
         )}
         {/* Content paints above the button (later in the DOM, positioned) and
@@ -474,7 +474,7 @@ export function RiverBlock({
           variant="ghost"
           size="icon"
           aria-label={`Suggested change to ${activity.title}`}
-          className="absolute -top-1.5 -left-1.5 z-10 size-5 rounded-full border border-brand bg-brand-tint p-0 text-brand-pressed hover:bg-brand-tint md:min-h-0"
+          className="absolute -top-1.5 -left-1.5 z-10 size-5 rounded-full border border-brand bg-brand-tint p-0 text-brand-pressed hover:bg-brand-tint fine:min-h-0"
         >
           <Lightbulb className="size-3" aria-hidden />
         </Button>,

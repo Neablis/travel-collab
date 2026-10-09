@@ -61,13 +61,13 @@ describe("UnderlineTabs", () => {
   });
 
   // SPEC §13.1 — "44px targets, always" — and §34.3 repeats it for the phone
-  // account screen. The desktop artboard draws 40px, so the floor is phone-only
-  // and the desktop keeps the drawn height.
-  it("is 44px on a phone and the artboard's 40px from md up", () => {
+  // account screen. The desktop artboard draws 40px, so the floor is released
+  // for a mouse at md and up (`fine:`, M39 D3) — a tablet keeps 44px.
+  it("is 44px under a finger and the artboard's 40px for a mouse from md up", () => {
     renderTabs();
     const tab = screen.getByRole("tab", { name: "Profile" });
     expect(tab.className).toContain("min-h-11");
-    expect(tab.className).toContain("md:min-h-10");
+    expect(tab.className).toContain("fine:min-h-10");
     // `min-h`, not `h`: a wrapped label has to push the row taller rather than
     // overflow it.
     expect(tab.className).not.toMatch(/(^|\s)h-1[01](\s|$)/);

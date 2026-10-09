@@ -14,9 +14,14 @@ describe("PHONE_TOUCH", () => {
   // `.unscheduled-rack`, and `md:hidden` on the tab bar. A 28px control on a
   // 700px-wide phone in landscape sat inside KI-046's band and outside the only
   // rule meant to protect it.
-  it("releases at the same breakpoint the rest of the app calls a phone", () => {
-    expect(PHONE_TOUCH).toContain("md:min-h-0");
-    expect(PHONE_TOUCH).not.toContain("sm:");
+  //
+  // **And only for a mouse, since M39 D3** (KI-2026-09-24-j). Released by
+  // width alone (`md:min-h-0`), a tablet at 820px got 28px controls under a
+  // finger. `fine:` is "a fine pointer, at md and up" (globals.css).
+  it("releases for a mouse from the breakpoint the rest of the app calls a phone, never by width alone", () => {
+    expect(PHONE_TOUCH).toContain("fine:min-h-0");
+    expect(PHONE_TOUCH).toContain("fine:min-w-0");
+    expect(PHONE_TOUCH).not.toMatch(/(^|\s)(sm|md):min-/);
   });
 
   it("is a floor, not a height, so a wrapped label pushes the control taller", () => {
@@ -38,23 +43,25 @@ describe("PHONE_TOUCH", () => {
   // **This test caught the sweep breaking it.** M26 link 14 put §13.1's phone
   // floor on the BASE, with `md:min-h-0` releasing it above 768px — which
   // applied to `touch` too, quietly turning "44px at every width" into
-  // "44px on a phone". The size now re-asserts `md:min-h-11`, and what this
-  // holds is that re-assertion rather than the absence of the release.
+  // "44px on a phone". The size now re-asserts the floor under the SAME
+  // variant the base releases it with (`fine:`, since M39 D3): a re-assertion
+  // under a different one (`md:`) loses the cascade to the release whenever
+  // both match, which is what that variant swap would have done here.
   it("is not the same thing as the base's phone floor: touch is 44px at every width", () => {
     const always = buttonVariants({ size: "touch" });
     expect(always).toContain("min-h-11");
-    expect(always).toContain("md:min-h-11");
-    expect(always).toContain("md:min-w-11");
+    expect(always).toContain("fine:min-h-11");
+    expect(always).toContain("fine:min-w-11");
   });
 
   // The base's own floor, which is what makes §13.1 true by construction rather
   // than by 48 people remembering it.
-  it("is inherited by every button on a phone, and released above 768px", () => {
+  it("is inherited by every button under a finger, and released for a mouse above 768px", () => {
     const plain = buttonVariants({ size: "sm" });
     expect(plain).toContain("min-h-11");
-    expect(plain).toContain("md:min-h-0");
-    // Released at 768, like every other phone rule in this app — never at 640.
-    expect(plain).not.toContain("sm:min-h-0");
+    expect(plain).toContain("fine:min-h-0");
+    // Never by width alone: not at 640, and since M39 D3 not at 768 either.
+    expect(plain).not.toMatch(/(^|\s)(sm|md):min-h-0/);
   });
 
   it("applies to a real button without fighting its variant", () => {

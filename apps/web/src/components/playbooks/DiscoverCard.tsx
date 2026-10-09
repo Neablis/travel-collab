@@ -125,7 +125,7 @@ export function DiscoverCard({ day, origin }: { day: DiscoverDay; origin: BackOr
               ) : (
                 <Link
                   href={href}
-                  className="group/chip inline-flex min-h-11 -my-3 items-center md:my-0 md:min-h-0"
+                  className="group/chip inline-flex min-h-11 -my-3 items-center fine:my-0 fine:min-h-0"
                 >
                   {chip}
                 </Link>

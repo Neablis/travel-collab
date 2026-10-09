@@ -1,5 +1,21 @@
 @import "tailwindcss";
 
+/* **Where SPEC §13.1's 44px floor is released: a mouse, at `md` and up** (M39
+   D3, KI-2026-09-24-j). The floor used to be released by width alone
+   (`md:min-h-0`), so a tablet at 820px got the desktop's 28px controls under a
+   finger — 244 of 287 under 32px on Plan, measured. Keyed on the POINTER
+   instead, a touchscreen at any width keeps 44px, and a desktop with a mouse
+   keeps the density it was drawn at.
+
+   `and (min-width: 48rem)` keeps the phone out of it whatever it reports: a
+   phone with a stylus or a mouse plugged in still gets the phone layout, and
+   the phone layout is drawn at 44px. Every `md:min-h-0` that released the
+   floor is `fine:min-h-0` now, and every re-assertion layered over one
+   (`touch`'s `fine:min-h-11`, a plan card's `fine:min-h-7`) is spelled with
+   this same variant, so the two meet in one media query rather than racing
+   across two. */
+@custom-variant fine (@media (pointer: fine) and (min-width: 48rem));
+
 /* Field Kit tokens — THE single source of truth (design-system.md is the
    human contract; the two change together). The only file in apps/web/src
    where raw color literals may appear. */
