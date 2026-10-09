@@ -556,3 +556,27 @@ export async function forget(page: Page, savedDayId: string): Promise<void> {
   const res = await page.request.delete(`/api/saved-days/${savedDayId}`);
   expect(res.ok(), `forget -> ${res.status()}`).toBe(true);
 }
+
+/**
+ * Every visible control on the page whose rendered box is under SPEC §13.1's
+ * 44px, as `{ h, name }`. Rendered heights in a browser, never a class scan —
+ * KI-046's counts came from boxes, and counting `min-h-11` in the source would
+ * be a different claim wearing the same number. Shared by the phone
+ * (`m26-phone-targets`) and the tablet (`m39-tablet`) counts so the two
+ * measure the same thing.
+ */
+export async function controlsUnderFloor(page: Page): Promise<{ h: number; name: string }[]> {
+  return page.evaluate(() =>
+    [...document.querySelectorAll("button, a[href], [role='button'], input, select, textarea")]
+      .filter((el) => {
+        const box = el.getBoundingClientRect();
+        const style = getComputedStyle(el);
+        return box.width > 0 && box.height > 0 && style.visibility !== "hidden" && style.display !== "none";
+      })
+      .map((el) => ({
+        h: Math.round(el.getBoundingClientRect().height),
+        name: (el.getAttribute("aria-label") ?? el.textContent?.trim() ?? "(unnamed)").slice(0, 40),
+      }))
+      .filter((c) => c.h < 44),
+  );
+}
