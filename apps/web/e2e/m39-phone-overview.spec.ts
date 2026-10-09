@@ -79,6 +79,22 @@ test.describe("M39 D2 — the Overview on a phone", () => {
     await context.close();
   });
 
+  // The phone form keeps every stop's time and standing (CodeRabbit, PR #367):
+  // the letter's opening sentence promises "at what time, and anything still
+  // to book". Day 1 of the seeded Japan trip (`@tc/fixtures`' JAPAN_STOPS):
+  // two planned stops, one still to book and one maybe.
+  test("names /demo's stops with their times and standings", async ({ browser }) => {
+    const context = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+    const page = await context.newPage();
+    await page.goto("/demo");
+    const dayOne = page.getByRole("list", { name: "Day by day" }).getByTestId("itinerary-day").first();
+    await expect(dayOne).toContainText("2:30 pm Land at Haneda (Travel)");
+    await expect(dayOne).toContainText("5 pm Check in at Trunk Hotel");
+    await expect(dayOne).toContainText("7 pm Dinner at Gonpachi (To book)");
+    await expect(dayOne).toContainText("9 pm Nightcap at Bar Trench (To book)");
+    await context.close();
+  });
+
   // A title with no break in it is wider than the phone, and the list clips
   // its overflow (CodeRabbit, PR #367). Today the editor's host rule
   // (`.ProseMirror`'s `word-wrap: break-word`) happens to wrap it, and the
