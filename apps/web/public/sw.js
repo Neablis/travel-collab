@@ -18,12 +18,17 @@
 // Bump CACHE_VERSION when an icon changes: icons are not content-hashed, and
 // activating a new version is what drops the old cache.
 //
-// **A new version waits; it does not `skipWaiting()`.** Activating drops every
-// other cache, and a tab the old version still controls may yet lazy-load a
-// chunk from it that its deploy has since taken off the server (CodeRabbit,
-// PR #366). So a new worker installs and waits until no page uses the old
-// one. A first install has nothing to wait for, and `clients.claim()` on
-// activate takes the page that installed it.
+// **A new version skips the wait.** Without `skipWaiting()` a changed worker
+// activates only once no page uses the old one — and an installed standalone
+// window is rarely closed, while Next's client navigation never unloads a tab,
+// so a fixed route allowlist would never reach the people it matters most to.
+// The price is paid on a CACHE_VERSION bump only: activating then deletes the
+// old cache under any tab still open, and that tab re-fetches what it needs
+// from the network, where a chunk its deploy has since removed is gone
+// (CodeRabbit, PR #366). Bumps are rare and a reload heals it; a worker that
+// cannot update does not heal. An ordinary deploy keeps the version, so its
+// activation deletes nothing. `clients.claim()` on activate takes the open
+// pages, the one that installed a first worker included.
 const CACHE_VERSION = 1;
 const CACHE_NAME = `caesura-static-v${CACHE_VERSION}`;
 
@@ -45,6 +50,10 @@ function cacheStrategyFor(url) {
   if (path.startsWith("/icons/") || CACHED_FILES.has(path)) return "cache-first";
   return "network";
 }
+
+self.addEventListener("install", () => {
+  self.skipWaiting();
+});
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
