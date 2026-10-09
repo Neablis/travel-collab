@@ -9,7 +9,7 @@ import { acceptAllOrder } from "@/lib/acceptAll";
 import { dayLabel } from "@/lib/dates";
 import type { Ghost } from "@/lib/suggestionOverlay";
 import { useTrip } from "@/components/trip/context/TripProvider";
-import { AuthorChip, SuggestionActions, useAuthorNames } from "./SuggestionActions";
+import { AuthorChip, SuggestionActions, useAuthorNames, withVia } from "./SuggestionActions";
 
 /**
  * The header's pending-suggestion count (spec §2.4) — the only notification
@@ -64,9 +64,9 @@ export function SuggestionsChip() {
     ...ghosts.offBoard.map((ghost) => ({ ghost, stale: false })),
     ...ghosts.stale.map((ghost) => ({ ghost, stale: true })),
   ];
-  const byLine = (authorId: string) => {
-    const name = nameOf(authorId);
-    return name === null ? null : `Suggested by ${name}`;
+  const byLine = (ghost: Ghost) => {
+    const name = nameOf(ghost.authorId);
+    return name === null ? null : withVia(`Suggested by ${name}`, ghost.via);
   };
 
   return (
@@ -127,14 +127,14 @@ export function SuggestionsChip() {
         {onBoard.length > 0 && (
           <Group label="On the board">
             {onBoard.map((ghost) => (
-              <Item key={ghost.changeId} ghost={ghost} detail={where(ghost)} byLine={byLine(ghost.authorId)} />
+              <Item key={ghost.changeId} ghost={ghost} detail={where(ghost)} byLine={byLine(ghost)} />
             ))}
           </Group>
         )}
         {listed.length > 0 && (
           <Group label="Not on the board">
             {listed.map(({ ghost, stale }) => (
-              <Item key={ghost.changeId} ghost={ghost} stale={stale} byLine={byLine(ghost.authorId)} />
+              <Item key={ghost.changeId} ghost={ghost} stale={stale} byLine={byLine(ghost)} />
             ))}
           </Group>
         )}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { TripHistory } from "@tc/contracts";
+import type { SuggestionVia, TripHistory } from "@tc/contracts";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
@@ -9,7 +9,7 @@ import { coalesceHistory } from "./coalesceHistory";
 import { DataText } from "@/components/ui/data-text";
 import { Text } from "@/components/ui/text";
 import { formatTripDate } from "@/lib/formatDate";
-import { AuthorChip, useAuthorNames } from "./SuggestionActions";
+import { AuthorChip, useAuthorNames, withVia } from "./SuggestionActions";
 import { SnapshotList } from "./SnapshotList";
 import type { CommandOutcome } from "@/lib/apiClient";
 
@@ -133,11 +133,11 @@ export function HistoryPanel({
                 {entry.origin.kind === "suggestion" && (
                   <span className="flex max-w-full min-w-0 items-center gap-1.5 text-xs text-slate">
                     <AuthorChip authorId={entry.origin.authorId} />
-                    <span className="truncate">{suggestedBy(nameOf(entry.origin.authorId))}</span>
+                    <span className="truncate">{withVia(suggestedBy(nameOf(entry.origin.authorId)), entry.origin.via)}</span>
                   </span>
                 )}
                 {entry.origin.kind === "suggestions" && (
-                  <AuthorsLine names={entry.origin.authorIds.map(nameOf)} />
+                  <AuthorsLine names={entry.origin.authorIds.map(nameOf)} via={entry.origin.via} />
                 )}
               </span>
               {/* The count is shown rather than implied, because one undo
@@ -178,7 +178,7 @@ export function HistoryPanel({
 }
 
 // An accept-all's second line; nothing until every name has landed.
-function AuthorsLine({ names }: { names: readonly (string | null)[] }) {
+function AuthorsLine({ names, via }: { names: readonly (string | null)[]; via: SuggestionVia | undefined }) {
   const from = fromAuthors(names);
-  return from === null ? null : <span className="max-w-full truncate text-xs text-slate">{from}</span>;
+  return from === null ? null : <span className="max-w-full truncate text-xs text-slate">{withVia(from, via)}</span>;
 }

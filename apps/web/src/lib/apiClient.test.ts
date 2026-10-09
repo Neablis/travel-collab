@@ -1022,6 +1022,27 @@ const PROPOSAL = {
 
 const FINISH_WITH_PROPOSAL = `{"type":"finish","finishReason":"stop","messageMetadata":${JSON.stringify({ proposal: PROPOSAL })}}`;
 
+// ADR-067: a turn of several changes ends with them stored on the board.
+describe("a stored suggestion on the wire", () => {
+  it("arrives as one `suggested` event, in place of a proposal", async () => {
+    const suggested = {
+      suggestionId: "7d9a1f8e-0000-4000-8000-000000000001",
+      changeCount: 3,
+      snapshotId: "7d9a1f8e-0000-4000-8000-000000000002",
+      snapshotName: "Before: add a day in Kyoto",
+    };
+    server.use(
+      http.post("*/api/trips/:tripId/ask", () =>
+        sseResponse([...ANSWER_FRAMES, `{"type":"finish","finishReason":"stop","messageMetadata":${JSON.stringify({ suggested })}}`]),
+      ),
+    );
+    const events: apiClientModule.AskEvent[] = [];
+    await askAssistant(TRIP_ID, [], { kind: "trip" }, (e) => events.push(e));
+    expect(events.at(-1)).toEqual({ type: "suggested", suggested });
+    expect(events.some((e) => e.type === "proposal")).toBe(false);
+  });
+});
+
 describe("the proposal on the wire", () => {
   it("arrives as one event, on the stream's final chunk", async () => {
     server.use(

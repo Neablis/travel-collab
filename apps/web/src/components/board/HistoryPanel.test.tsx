@@ -118,6 +118,24 @@ describe("HistoryPanel — accepted suggestions", () => {
     description, undone: false,
   });
 
+  it("says a change was suggested via the assistant when it was (ADR-067)", async () => {
+    const viaAssistant = { ...accepted("u-sam", "Moved Ramen to Day 2", 3) };
+    viaAssistant.origin = { ...(viaAssistant.origin as Extract<typeof viaAssistant.origin, { kind: "suggestion" }>), via: "assistant" };
+    render(
+      <PeopleProvider tripId={TRIP}>
+        <HistoryPanel
+          history={{ ...history, entries: [viaAssistant, accepted("u-sam", "Added Gelato", 4), ...history.entries] }}
+          previewSeq={null}
+          onPreview={() => {}}
+          onExitPreview={() => {}}
+          onRevert={() => {}}
+        />
+      </PeopleProvider>,
+    );
+    expect(await screen.findByRole("button", { name: /Moved Ramen to Day 2.*Suggested by Sam, via the assistant/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Added Gelato/ }).textContent).not.toContain("via the assistant");
+  });
+
   it("says Suggested by the author, and a former traveler once they have left", async () => {
     render(
       <PeopleProvider tripId={TRIP}>

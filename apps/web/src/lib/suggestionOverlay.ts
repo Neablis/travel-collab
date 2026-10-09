@@ -1,4 +1,4 @@
-import type { ActivityView, BatchableCommand, SuggestionChange, TripDetail } from "@tc/contracts";
+import type { ActivityView, BatchableCommand, SuggestionChange, SuggestionVia, TripDetail } from "@tc/contracts";
 import { predictBatch } from "@tc/predict";
 
 // Spec W5: ghosts are a pure client overlay. Each pending change is predicted
@@ -28,6 +28,8 @@ export type Ghost = {
    */
   dayId?: string | null;
   dependsOn: string[];
+  /** `assistant` when an editor's assistant turn stored it (ADR-067); absent for a person's own draft. */
+  via?: SuggestionVia;
   /** The `dependsOn` changes still pending: this one cannot be accepted first (spec §2.7). */
   blockedBy: string[];
 };
@@ -94,6 +96,7 @@ export function suggestionOverlay(confirmed: TripDetail, changes: SuggestionChan
       description: change.description,
       dependsOn: change.dependsOn,
       blockedBy: change.dependsOn.filter((id) => byId.has(id)),
+      ...(change.via === undefined ? {} : { via: change.via }),
     };
 
     // The base this change was drafted on: confirmed, plus every pending change
@@ -183,7 +186,7 @@ function diff(base: TripDetail, predicted: TripDetail, commands: BatchableComman
   return out;
 }
 
-type GhostCommon = Pick<Ghost, "changeId" | "suggestionId" | "authorId" | "description" | "dependsOn" | "blockedBy">;
+type GhostCommon = Pick<Ghost, "changeId" | "suggestionId" | "authorId" | "description" | "dependsOn" | "blockedBy" | "via">;
 
 function ancestors(change: SuggestionChange, byId: Map<string, SuggestionChange>): Set<string> {
   const seen = new Set<string>();

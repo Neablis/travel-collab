@@ -2,7 +2,9 @@
 
 import { useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
+import type { AssistantSuggested } from "@tc/contracts";
 import { ProposalCard, type ProposalState, type ProposalUndo } from "./ProposalCard";
+import { SuggestedNote, suggestedWords } from "./SuggestedNote";
 
 /** One line of "showing its work" — a tool call, rendered as a sentence. */
 export type ToolNote = { id: string; label: string };
@@ -29,6 +31,12 @@ export type AssistantTurn =
        * one without the other.
        */
       proposal?: ProposalState | null;
+      /**
+       * Where a turn of several changes went instead of a card: one stored
+       * suggestion on the board (ADR-067). A turn carries this or a proposal,
+       * never both — the stream's final chunk is one or the other.
+       */
+      suggested?: AssistantSuggested | null;
     };
 
 /**
@@ -114,7 +122,9 @@ function announcementFor(turns: readonly AssistantTurn[], chat: boolean): string
   const proposal =
     last.proposal != null && last.proposal.status === "pending"
       ? " A suggested change is waiting below — make it, or leave it as it is."
-      : "";
+      : last.suggested != null
+        ? ` ${suggestedWords(last.suggested)}`
+        : "";
   return `Answer: ${last.text}${proposal}`;
 }
 
@@ -385,6 +395,7 @@ export function Transcript({
                 {...(onUndoProposal === undefined ? {} : { onUndo: () => onUndoProposal(turn.id) })}
               />
             )}
+            {turn.suggested != null && <SuggestedNote suggested={turn.suggested} />}
             {/* Visible only, and no `role` — a second live region nested
                 inside the log is what finding 4 was about. Once text is
                 arriving the text IS the progress indicator, so this drops away

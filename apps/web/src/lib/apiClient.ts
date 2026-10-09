@@ -36,6 +36,7 @@ import {
   UpdateUserPreferences,
   UserPreferences,
   type AssistantProposal,
+  type AssistantSuggested,
   type AdminReportAction,
   type ChangeRoleInput,
   type CreateInviteInput,
@@ -1485,6 +1486,11 @@ export type AskEvent =
   /** The turn's proposal, carried on the stream's final chunk. At most one. */
   | { type: "proposal"; proposal: AssistantProposal }
   /**
+   * A turn of several changes, already stored as one suggestion on the board
+   * (ADR-067) — on the same final chunk, in place of a proposal.
+   */
+  | { type: "suggested"; suggested: AssistantSuggested }
+  /**
    * What a `page`-scoped turn wants INSERTED, on that same final chunk. Already
    * validated against the macro registry server-side, so nodes that failed
    * validation arrive as `page-error` instead and never as content.
@@ -1613,6 +1619,7 @@ export function askEventFromFrame(frame: string): AskEvent | null {
     const metadata = AskStreamMetadata.safeParse(part.messageMetadata);
     if (!metadata.success) return null;
     if ("proposal" in metadata.data) return { type: "proposal", proposal: metadata.data.proposal };
+    if ("suggested" in metadata.data) return { type: "suggested", suggested: metadata.data.suggested };
     if ("pageInserts" in metadata.data) {
       return pageInsertsEvent(metadata.data.pageInserts.content, metadata.data.pageInserts.dropped ?? []);
     }

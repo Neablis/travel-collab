@@ -402,3 +402,48 @@ describe("Transcript proposals", () => {
     expect((screen.getByRole("button", { name: "Make the change" }) as HTMLButtonElement).disabled).toBe(true);
   });
 });
+
+// ADR-067: a turn whose changes went on the board says so, in place of a card.
+describe("Transcript — changes stored as suggestions", () => {
+  const answered = (suggested: NonNullable<Extract<AssistantTurn, { role: "assistant" }>["suggested"]>): AssistantTurn[] => [
+    { id: "u1", role: "user", text: "add a day in Kyoto" },
+    { id: "a1", role: "assistant", text: "I've drafted 3 changes.", tools: [], pending: false, suggested },
+  ];
+  const SUGGESTION_ID = "7d9a1f8e-0000-4000-8000-000000000001";
+
+  it("says how many went on the board and names the snapshot, with no card to approve", () => {
+    render(
+      <Transcript
+        turns={answered({
+          suggestionId: SUGGESTION_ID,
+          changeCount: 3,
+          snapshotId: "7d9a1f8e-0000-4000-8000-000000000002",
+          snapshotName: "Before: add a day in Kyoto",
+        })}
+      />,
+    );
+    const note = screen.getByRole("group", { name: "Suggestions on the board" });
+    expect(note.textContent).toContain("I put 3 suggestions on the board and saved a snapshot “Before: add a day in Kyoto”.");
+    expect(note.textContent).toContain("Open the suggestions in the trip header");
+    expect(screen.queryByRole("group", { name: "Suggested change" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Make the change" })).toBeNull();
+  });
+
+  it("says why there is no snapshot when one was skipped", () => {
+    render(
+      <Transcript
+        turns={answered({
+          suggestionId: SUGGESTION_ID,
+          changeCount: 2,
+          snapshotId: null,
+          snapshotName: null,
+          snapshotSkipped: "A trip keeps at most 20 snapshots. Delete one to save another.",
+        })}
+      />,
+    );
+    const note = screen.getByRole("group", { name: "Suggestions on the board" });
+    expect(note.textContent).toContain("I put 2 suggestions on the board.");
+    expect(note.textContent).not.toContain("saved a snapshot");
+    expect(note.textContent).toContain("No snapshot this time: A trip keeps at most 20 snapshots.");
+  });
+});

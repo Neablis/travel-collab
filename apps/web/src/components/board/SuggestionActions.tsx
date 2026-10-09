@@ -1,7 +1,7 @@
 "use client";
 
 import { type ReactElement, useCallback, useEffect, useId, useMemo, useState } from "react";
-import type { ResolveSuggestionChangeInput } from "@tc/contracts";
+import type { ResolveSuggestionChangeInput, SuggestionVia } from "@tc/contracts";
 import { useSessionUser } from "@/components/account/useSessionUser";
 import { usePeopleRecheck, usePersonas } from "@/components/pages/people";
 import { useTrip } from "@/components/trip/context/TripProvider";
@@ -88,6 +88,16 @@ export function SuggestionActions({ ghost, stale = false }: { ghost: Ghost; stal
       )}
     </div>
   );
+}
+
+/**
+ * A by-line, with how the suggestion came to be when an assistant turn stored
+ * it (ADR-067 decision 2): "Suggested by Ana, via the assistant". The author is
+ * still the person — the assistant only acted for them. One place, so the
+ * chip and History say it the same way.
+ */
+export function withVia(line: string, via: SuggestionVia | undefined): string {
+  return via === "assistant" ? `${line}, via the assistant` : line;
 }
 
 /**

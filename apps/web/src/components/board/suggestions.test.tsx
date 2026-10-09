@@ -321,6 +321,15 @@ describe("the suggestions chip", () => {
     expect(within(note).getByText("Shorter, please")).toBeTruthy();
   });
 
+  // ADR-067 decision 2: the author is the person who asked; the line says the
+  // assistant acted for them.
+  it("says a change came via the assistant, and says nothing of it for a person's own", async () => {
+    mount("owner", (id) => [addGelato(id), change(id, "Renamed the trip to Kyoto", [{ type: "SetTripName", tripId: id, name: "Kyoto" }], { via: "assistant", suggestionId: uuidFrom(9301, 7) })]);
+    fireEvent.click(await screen.findByRole("button", { name: "2 suggestions" }));
+    expect(await screen.findByText(/^Suggested by .+, via the assistant$/)).toBeTruthy();
+    expect(screen.getAllByText(/^Suggested by /)).toHaveLength(2);
+  });
+
   // M38: an author's line leads with their chip — the glyph they picked —
   // beside the name they chose.
   it("draws the author's chip beside the name they chose", async () => {

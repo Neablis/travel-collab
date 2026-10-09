@@ -98,7 +98,11 @@ function useAssistantVisibility() {
 }
 
 export function TripBoardScreen({ tripId }: { tripId: string }) {
-  const { trip, activeTrip, history, status, error, dispatch, dispatchBatch, applyOutcome, preview, pending, readOnly, myRole, canEditBoard, boardMode, draft, remoteRevision, confirmedSeq } = useTrip();
+  const { trip, activeTrip, history, status, error, dispatch, dispatchBatch, applyOutcome, preview, pending, readOnly, myRole, canEditBoard, boardMode, draft, remoteRevision, confirmedSeq, suggestions: tripSuggestions } = useTrip();
+  // Read by the assistant's `onEvent` when a turn's changes were stored as
+  // suggestions; a ref so the handler never holds a render-old list.
+  const refreshSuggestions = useRef(tripSuggestions?.refresh);
+  refreshSuggestions.current = tripSuggestions?.refresh;
   const { view, setView } = useLens();
   const { openEdit } = useEditor();
   const suggestions = useBoardSuggestions();
@@ -297,6 +301,14 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     // drops the proposal, keeping the prose that made the answer readable.
     persistAs: `trip:${tripId}`,
     onEvent: (event, patchAnswer) => {
+      if (event.type === "suggested") {
+        // ADR-067: the turn's changes are already stored. Re-read the list now
+        // rather than on the poll's next revision, so the ghosts are on the
+        // board by the time the note says they are.
+        patchAnswer((turn) => ({ ...turn, suggested: event.suggested }));
+        void refreshSuggestions.current?.();
+        return;
+      }
       if (event.type !== "proposal") return;
       patchAnswer((turn) => ({
         ...turn,

@@ -94,8 +94,9 @@ test("an AI plan reaches the board only once it is approved", async ({ page }) =
   const card = page.getByRole("group", { name: "Suggested change" });
   await expect(card).toBeVisible();
   await expect(card).toContainText("Ready when you are");
+  // One change, so a card (ADR-067 decision 5); a request to plan puts its
+  // several on the board instead, which `m40-big-change.spec.ts` walks.
   await expect(card).toContainText("Add “Sample: coffee stop” to day 1");
-  await expect(card).toContainText("Add “Sample: evening stroll” to day 1");
   // The prose above it does not claim an edit either.
   const log = page.getByRole("log", { name: "Conversation" });
   await expect(log).toContainText("Nothing is applied yet");
@@ -117,20 +118,17 @@ test("an AI plan reaches the board only once it is approved", async ({ page }) =
   // outside `.trip-board-content`, so it is located on its own, and the
   // proposal card cannot be mistaken for it.
   const day1 = page.getByTestId("day-column").first();
-  const anyTime = day1.getByRole("button", { name: /^2 Unscheduled/ });
+  const anyTime = day1.getByRole("button", { name: /^1 Unscheduled/ });
   await expect(anyTime).toBeVisible();
   await anyTime.click();
   const day1Group = page.getByTestId("unscheduled-rack").getByRole("group", { name: /^Day 1\b/ });
   await expect(day1Group.getByText("Sample: coffee stop")).toBeVisible();
-  await expect(day1Group.getByText("Sample: evening stroll")).toBeVisible();
   await expect(card).toContainText("✓ Done — added “Sample: coffee stop” to day 1");
 
-  // ONE atomic batch, so ONE undo takes the whole plan back off (ADR-013).
-  // Two commands committed separately would need two. Taken from the card
-  // itself (M27 D17): it is offered because nothing has changed since.
+  // Taken back from the card itself (M27 D17): it is offered because nothing
+  // has changed since.
   await card.getByRole("button", { name: "Undo" }).click();
   await expect(page.getByTestId("unscheduled-rack").getByText("Sample: coffee stop")).toHaveCount(0);
-  await expect(page.getByTestId("unscheduled-rack").getByText("Sample: evening stroll")).toHaveCount(0);
   await expect(day1.getByRole("button", { name: /Unscheduled/ })).toHaveCount(0);
   await expect(card).toContainText("Put back the way it was.");
 });
