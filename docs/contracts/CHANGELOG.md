@@ -13,6 +13,39 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-09 — The assistant suggests: `suggested` on the /ask stream, `via` on suggestions and their origin (M40 part 3, ADR-067); Public API 1.11.0
+
+- **Added** (`assistant.ts`): a fifth `AskStreamShape` member, `{ suggested: AssistantSuggested }`,
+  with `AssistantSuggested { suggestionId, changeCount (≥ 1), snapshotId: uuid | null,
+  snapshotName: string | null, snapshotSkipped?: string }`. A planning turn whose proposal has more
+  than one command and no inserts is stored as ONE suggestion and its final chunk carries this
+  instead of `proposal` (decision 4); one-command and insert turns keep `proposal` (decision 5). The
+  one-outcome rule covers it: `{ proposal, suggested }` is refused. The empty branch stays strict.
+- **Added** (`assistant.ts`): `AssistantProposal.notSuggested?: string` (non-empty). Set when a
+  multi-change proposal could not be stored (a suggestion cap, more than 50 changes, a change the
+  dry run refused) and comes back as the ordinary card instead, saying why. Nothing is stored then.
+- **Added** (`history.ts`): `SuggestionVia = enum ["assistant"]`, and an optional `via` on the
+  `Origin` members `suggestion` and `suggestions` — on `suggestions` only when every accepted change
+  came via the assistant. History reads *"Suggested by Ana, via the assistant"*. Here rather than in
+  `suggestion.ts` because `suggestion.ts` imports `trip.ts`, which imports `history.ts`.
+- **Added** (`suggestion.ts`): optional `SuggestionChange.via`, repeated from the suggestion like
+  `note`; absent for a person's own draft. Stored in `trip_suggestions.via` (migration 0046, nullable,
+  no CHECK — no enum column in this schema has one).
+- Why: ADR-067. A big assistant change is reviewed on the board (ghosts, the chip, *Accept all*),
+  survives a reload, and is seen by every editor. Editors and the owner may now create suggestions
+  (decision 1); an assistant suggestion is exempt from the 50-per-author cap but not the 200-per-trip
+  cap (decision 3).
+- Consumers updated: `server/ai/suggestProposal.ts` (new) and `handleAskRequest` (the stream's
+  `finish` chunk is swapped one stage downstream, `suggestOnFinish`, because `messageMetadata` is
+  synchronous); `server/suggestions/` (`create`, `shared`, `resolve`, `accept`); `apiClient`
+  (`AskEvent` `suggested`); the board's ask handler (re-reads the suggestion list); `Transcript`,
+  new `SuggestedNote`, `ProposalCard` (`notSuggested`); `SuggestionsChip` and `HistoryPanel`
+  (`withVia`); `lib/suggestionOverlay` (`Ghost.via`); the eval grader (`reviewedChanges`) and replay
+  lane; `openapi.json` regenerated, `API_VERSION` 1.10.0 → 1.11.0 (minor: `via` is an optional
+  property on the v1 `Origin` schemas).
+- Breaking? No. Additive only. An older client drops a `suggested` chunk as an unknown outcome, so
+  it shows the turn's prose without a card; the suggestions are still on the board.
+
 ## 2026-10-09 — `TripSnapshot`: named snapshots of a trip (M40 part 2)
 
 - **Added** (`snapshot.ts`): `TripSnapshot { id, tripId, seq, name, createdBy, createdAt }`,

@@ -184,7 +184,16 @@ One entry point, `POST /api/trips/:id/ask` → `src/server/ai/handleAskRequest.t
 6. **Loop**: up to `MAX_ASK_STEPS = 8`, 150 s per step, 240 s hard. Planning tools are derived from
    `BatchableCommand` (ADR-015), so the assistant's vocabulary is the command vocabulary.
 7. **Proposals, never writes.** Write tools fill a per-turn buffer that leaves on the stream's final chunk.
+   **A proposal of more than one command and no insert is stored instead** (ADR-067): `suggestOnFinish`, one
+   stage downstream of `messageMetadata` (which is synchronous), calls `server/ai/suggestProposal.ts`, which saves
+   a snapshot named `Before: <request>` and stores ONE suggestion `via: assistant` authored by the asker — both
+   through the functions an editor's own buttons use. The final chunk then carries `suggested { suggestionId,
+   changeCount, snapshotId, snapshotName, snapshotSkipped? }` in place of `proposal`; the board re-reads its
+   suggestion list on it, and the ghosts, the chip and *Accept all* are the review. A refused store (a cap,
+   more than 50 changes) deletes the snapshot and returns the card with `notSuggested`, so nothing is stored
+   and nothing is lost. Nothing is appended to the trip's stream either way.
 8. **Apply**: the human approves → `POST …/ask/apply` → `executeTripCommandBatch` as that user. No model call.
+   Still the path for one-command and insert turns.
 9. **Ledger**: one `TurnCost` per turn on every end path (done, error, abort) via `after()`, into the three
    `ai_usage*` tables, plus an `ai.ask` console record and Sentry metrics.
 
@@ -254,8 +263,16 @@ dispatched workflow. Details: `docs/guidelines/content-bundles.md`.
 - **The owner is not a membership row.** It comes from `TripCreated.createdBy` in the log.
 - **Read seams**: `requireTripAccess` (session routes) and `tripAccessFor` (public API). Forbidden is decided
   before parse, so a stranger learns nothing.
-- **Suggester**: drafts are stored commands, replayed by an editor or owner on accept with `origin: suggestion`
-  (ADR-064).
+- **Suggestions** (`src/server/suggestions/`, ADR-064): drafts are stored commands in two CRUD tables, never
+  events, replayed by an editor or owner on accept with `origin: suggestion`, or `suggestions` for *Accept all*,
+  which is one batch and one History entry (M40 D1). Since ADR-067 a suggester, an editor and the owner may all
+  create one; a viewer may not. Caps: 50 open changes per author (an assistant suggestion, `via: assistant`, is
+  exempt and not counted), 200 per trip, 50 per suggestion. `via` rides on the change and on the accept's
+  `Origin`, so the chip and History read *"Suggested by Ana, via the assistant"*.
+- **Named snapshots** (`src/server/snapshots/`, M40 D4–D5): a CRUD row labelling a `seq` — not an event, and
+  not the event-store snapshot §4 says does not exist. Editors and the owner save, rename and delete them, 20 per
+  trip; restoring is `RevertToState { toSeq }` through the ordinary pipeline, one undoable batch. The assistant
+  saves one before storing a multi-change suggestion, or says it skipped it at the cap.
 - **Tokens**: invite and share tokens are plaintext by recorded decision, so the owner can re-show the link
   (ADR-026). API tokens are hashed with a pepper, shown once, and must expire.
 - **Anonymous readers**: the demo trip, pinned shares, and the public playbook library (ADR-061), each opt-in
