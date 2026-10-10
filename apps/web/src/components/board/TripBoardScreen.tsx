@@ -98,7 +98,11 @@ function useAssistantVisibility() {
 }
 
 export function TripBoardScreen({ tripId }: { tripId: string }) {
-  const { trip, activeTrip, history, status, error, dispatch, dispatchBatch, applyOutcome, preview, pending, readOnly, myRole, canEditBoard, boardMode, draft, remoteRevision, confirmedSeq } = useTrip();
+  const { trip, activeTrip, history, status, error, dispatch, dispatchBatch, applyOutcome, preview, pending, readOnly, myRole, canEditBoard, boardMode, draft, remoteRevision, confirmedSeq, suggestions: tripSuggestions } = useTrip();
+  // Read by the assistant's `onEvent` when a turn's changes were stored as
+  // suggestions; a ref so the handler never holds a render-old list.
+  const refreshSuggestions = useRef(tripSuggestions?.refresh);
+  refreshSuggestions.current = tripSuggestions?.refresh;
   const { view, setView } = useLens();
   const { openEdit } = useEditor();
   const suggestions = useBoardSuggestions();
@@ -296,7 +300,15 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     // the restored transcript carries no Approve button: `askThreadStore`
     // drops the proposal, keeping the prose that made the answer readable.
     persistAs: `trip:${tripId}`,
+    // ADR-067: a turn may have stored suggestions. Re-read the list when it
+    // ends — answered, failed or stopped, announced or not — rather than on
+    // the poll's next revision, which a solo trip never runs (W73).
+    onTurnEnd: () => void refreshSuggestions.current?.(),
     onEvent: (event, patchAnswer) => {
+      if (event.type === "suggested") {
+        patchAnswer((turn) => ({ ...turn, suggested: event.suggested }));
+        return;
+      }
       if (event.type !== "proposal") return;
       patchAnswer((turn) => ({
         ...turn,

@@ -108,16 +108,28 @@ async function statusOf(changeId: string): Promise<string | undefined> {
 }
 
 describe("createSuggestion", () => {
-  it("is refused to everyone but a suggester, and stores nothing", async () => {
+  // ADR-067 decision 1 relaxed spec §2.7: an editor or the owner may suggest
+  // too, and is reviewed exactly like a suggester. A viewer still may not.
+  it("is refused to a viewer and a stranger, and stores nothing for either", async () => {
     const input = draft([rename("Kyoto in spring")]);
-    for (const actor of [VIEWER, EDITOR, OWNER]) {
-      expect(await createSuggestion(tripId, actor, input)).toMatchObject({ ok: false, error: { code: "forbidden" } });
-    }
+    expect(await createSuggestion(tripId, VIEWER, input)).toMatchObject({ ok: false, error: { code: "forbidden" } });
     expect(await createSuggestion(tripId, STRANGER, input)).toMatchObject({
       ok: false,
       error: { code: "not-found" },
     });
     expect(await storedChanges()).toBe(0);
+  });
+
+  it("takes a suggestion from an editor and from the owner, which another editor lists", async () => {
+    const fromEditor = await suggest(draft([rename("Kyoto in spring")]), EDITOR);
+    const fromOwner = await suggest(draft([rename("Kyoto in autumn")]), OWNER);
+    const listed = await listSuggestionChanges(tripId, OWNER);
+    expect(listed.ok && listed.value.changes.map((c) => [c.id, c.authorId])).toEqual([
+      [fromEditor[0]!.id, EDITOR],
+      [fromOwner[0]!.id, OWNER],
+    ]);
+    // A person's own draft says nothing about the assistant.
+    expect(listed.ok && listed.value.changes.every((c) => c.via === undefined)).toBe(true);
   });
 
   it("refuses a draft with a unit that does not apply, names it, and stores nothing", async () => {
@@ -381,6 +393,26 @@ describe("createSuggestion — caps", () => {
     });
   });
 
+  // ADR-067 decision 3: an assistant turn is one request, whatever it holds,
+  // and its author did not draft it change by change.
+  it("lets an assistant suggestion past the author's cap, and does not count it toward the author's own drafts", async () => {
+    await insertStoredSuggestion({ tripId, authorId: EDITOR, changes: SUGGESTION_AUTHOR_PENDING_MAX, via: "assistant" });
+    const viaAssistant = await createSuggestion(tripId, EDITOR, units(3), undefined, { via: "assistant" });
+    expect(viaAssistant.ok && viaAssistant.value.map((c) => c.via)).toEqual(["assistant", "assistant", "assistant"]);
+    // 53 open from the assistant, none drafted by hand: a draft of 50 still fits.
+    expect((await createSuggestion(tripId, EDITOR, units(SUGGESTION_AUTHOR_PENDING_MAX))).ok).toBe(true);
+    expect(await createSuggestion(tripId, EDITOR, units(1))).toMatchObject({ ok: false, error: { code: "too-many-pending" } });
+  });
+
+  it("holds an assistant suggestion to the trip's cap, and stores none of it", async () => {
+    await insertStoredSuggestion({ tripId, authorId: OTHER_SUGGESTER, changes: SUGGESTION_TRIP_PENDING_MAX - 1 });
+    expect(await createSuggestion(tripId, EDITOR, units(2), undefined, { via: "assistant" })).toMatchObject({
+      ok: false,
+      error: { code: "too-many-pending" },
+    });
+    expect(await storedChanges()).toBe(SUGGESTION_TRIP_PENDING_MAX - 1);
+  });
+
   it("does not count a resolved or an expired change", async () => {
     const [dismissed] = await insertStoredSuggestion({ tripId, authorId: SUGGESTER, changes: SUGGESTION_AUTHOR_PENDING_MAX });
     expect((await resolveSuggestionChange(tripId, dismissed!, OWNER, "dismiss")).ok).toBe(true);
@@ -451,6 +483,19 @@ describe("resolveSuggestionChange — accept", () => {
       authorId: SUGGESTER,
     });
     expect(await statusOf(change!.id)).toBe("accepted");
+  });
+
+  it("carries the assistant on the origin of a change it stored, so History can say so", async () => {
+    const created = await createSuggestion(tripId, EDITOR, draft([rename("Kyoto in spring")]), undefined, { via: "assistant" });
+    const [change] = created.ok ? created.value : [];
+    expect((await resolveSuggestionChange(tripId, change!.id, OWNER, "accept")).ok).toBe(true);
+    expect((await readStream(db, tripId)).at(-1)!.origin).toEqual({
+      kind: "suggestion",
+      suggestionId: change!.suggestionId,
+      changeId: change!.id,
+      authorId: EDITOR,
+      via: "assistant",
+    });
   });
 
   it("answers a second accept with already-resolved, and the trip gains exactly one batch", async () => {
@@ -635,6 +680,22 @@ describe("acceptSuggestionChanges", () => {
     expect(Object.keys(undone.activities)).toEqual([stopId]);
     // D2: undo is compensating events and nothing else.
     for (const change of all) expect(await statusOf(change.id)).toBe("accepted");
+  });
+
+  it("says the assistant on an accept-all only when every change in it came through the assistant", async () => {
+    const viaAssistant = async (title: string) => {
+      const created = await createSuggestion(tripId, EDITOR, draft(addStop(dayId, title)), undefined, { via: "assistant" });
+      if (!created.ok) throw new Error(JSON.stringify(created.error));
+      return created.value[0]!.id;
+    };
+    const both = [await viaAssistant("Nishiki market"), await viaAssistant("Kiyomizu-dera")];
+    expect((await acceptSuggestionChanges(tripId, both, OWNER)).ok).toBe(true);
+    expect((await getTripHistory(tripId))!.entries[0]!.origin).toMatchObject({ kind: "suggestions", via: "assistant" });
+
+    const [byHand] = await suggest(draft(addStop(dayId, "Gion")));
+    const mixed = [await viaAssistant("Ponto-cho"), byHand!.id];
+    expect((await acceptSuggestionChanges(tripId, mixed, OWNER)).ok).toBe(true);
+    expect((await getTripHistory(tripId))!.entries[0]!.origin).not.toHaveProperty("via");
   });
 
   // Mitchell, 2026-10-09: a stacked suggestion — a new day, a stop moved onto

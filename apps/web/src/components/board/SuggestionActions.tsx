@@ -1,7 +1,7 @@
 "use client";
 
 import { type ReactElement, useCallback, useEffect, useId, useMemo, useState } from "react";
-import type { ResolveSuggestionChangeInput } from "@tc/contracts";
+import type { ResolveSuggestionChangeInput, SuggestionVia } from "@tc/contracts";
 import { useSessionUser } from "@/components/account/useSessionUser";
 import { usePeopleRecheck, usePersonas } from "@/components/pages/people";
 import { useTrip } from "@/components/trip/context/TripProvider";
@@ -91,6 +91,16 @@ export function SuggestionActions({ ghost, stale = false }: { ghost: Ghost; stal
 }
 
 /**
+ * A by-line, with how the suggestion came to be when an assistant turn stored
+ * it (ADR-067 decision 2): "Suggested by Ana, via the assistant". The author is
+ * still the person — the assistant only acted for them. One place, so the
+ * chip and History say it the same way.
+ */
+export function withVia(line: string, via: SuggestionVia | undefined): string {
+  return via === "assistant" ? `${line}, via the assistant` : line;
+}
+
+/**
  * What to call a suggestion's author (W15): their name from the trip's member
  * profiles, "a former traveler" once a fresh read (`rechecked`) has not found
  * them, and `null` until then — a guess either way would be wrong for someone.
@@ -139,20 +149,35 @@ export function AuthorChip({ authorId }: { authorId: string }) {
  * drafted against.
  */
 export function useBoardSuggestions(): BoardSuggestions | undefined {
-  const { suggestionGhosts: ghosts, preview, draft } = useTrip();
+  const { suggestionGhosts: ghosts, preview, draft, trip } = useTrip();
   const draftStops = draft?.stops;
+  const days = trip?.days;
   return useMemo(() => {
     if (preview.seq !== null || (ghosts === null && draftStops === undefined)) return undefined;
     // A draft is marked even before the suggestions list has been read.
-    const board = ghosts?.board ?? { days: new Map(), stops: new Map() };
+    const board = ghosts?.board ?? { days: new Map(), stops: new Map(), movingTo: new Map() };
+    // "Day 16", numbered as the board draws it: a suggested day after the trip's.
+    const realDays = days?.length ?? 0;
+    const number = new Map([
+      ...(days ?? []).map((d, i) => [d.dayId, i + 1] as const),
+      ...(ghosts?.newDays ?? []).map((g, k) => [g.dayId!, realDays + k + 1] as const),
+    ]);
+    const movingTo = new Map(
+      [...board.movingTo].flatMap(([activityId, dayId]) => {
+        const n = number.get(dayId);
+        return n === undefined ? [] : [[activityId, `Day ${n}`] as const];
+      }),
+    );
     return {
-      ...board,
+      days: board.days,
+      stops: board.stops,
+      movingTo,
       newDays: ghosts?.newDays ?? [],
       draft: draftStops,
       review: (list, trigger) => <SuggestionReview ghosts={list} trigger={trigger} />,
       actions: (ghost) => <SuggestionActions ghost={ghost} />,
     };
-  }, [ghosts, preview.seq, draftStops]);
+  }, [ghosts, preview.seq, draftStops, days]);
 }
 
 // A popover rather than buttons on the block: a 30-minute block is 22px tall,

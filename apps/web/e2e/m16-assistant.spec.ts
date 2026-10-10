@@ -164,20 +164,20 @@ test("the chips that used to be dead ends are clickable and answered", async ({ 
   // A draft, not "the trip runs to 0 days and has no open time" — which is what
   // it said before, and which is the assistant refusing the question it offered.
   await expect(log).toContainText("Nothing is applied yet");
-  const card = page.getByRole("group", { name: "Suggested change" });
-  await expect(card).toBeVisible();
-  await expect(card).toContainText("Sample: coffee stop");
-  // The trip starts at 0 days — day 1 only exists once /ask/apply has landed
-  // and the board has taken the new state. Without waiting for the response,
-  // clicking "New conversation" then the first day chip is a race: the Days
-  // group can still be empty and `.first().click()` times out (m10-simulated-
-  // ai.spec.ts's Approve already waits for this response for the same reason).
+  // A day and two stops are three changes, so they go on the board as
+  // suggestions rather than on a card (ADR-067). The trip starts at 0 days —
+  // day 1 only exists once they are accepted and the board has taken the new
+  // state, so the accept's response is waited for before "New conversation"
+  // and the first day chip below.
+  const note = page.getByRole("group", { name: "Suggestions on the board" });
+  await expect(note).toContainText("I put 3 suggestions on the board");
+  // Accepted from the chat's own note (M40): the chip's Accept all is the
+  // same call, and with the note on screen a page-wide button name is two.
   const [applied] = await Promise.all([
-    page.waitForResponse((r) => /\/api\/trips\/[^/]+\/ask\/apply$/.test(new URL(r.url()).pathname)),
-    page.getByRole("button", { name: "Make the change" }).click(),
+    page.waitForResponse((r) => /\/suggestions\/changes\/accept$/.test(new URL(r.url()).pathname)),
+    note.getByRole("button", { name: "Accept all" }).click(),
   ]);
   expect(applied.status()).toBe(200);
-  await expect(card).toContainText("✓ Done");
 
   // M18 landed on `main` while this spec was in flight: a freshly-added
   // stop's default `kind` is `planned`, and `needsBooking` (KI-86) does not

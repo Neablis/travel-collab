@@ -96,6 +96,9 @@ function storable(turn: AssistantTurn): AssistantTurn {
   // round trip through JSON as the thing it was.
   const rest: Record<string, unknown> = { ...turn, pending: false };
   delete rest.proposal;
+  // Its note says where the board was when the turn ended. The suggestions
+  // themselves are on the board, and a reload shows them there, decided or not.
+  delete rest.suggested;
   return rest as unknown as AssistantTurn;
 }
 

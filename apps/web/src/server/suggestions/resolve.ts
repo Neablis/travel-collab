@@ -112,7 +112,13 @@ async function accept(
   };
   try {
     const result = await executeTripCommandBatch(change.commands, reviewerId, mark, {
-      origin: { kind: "suggestion", suggestionId: suggestion.id, changeId: change.id, authorId: suggestion.authorId },
+      origin: {
+        kind: "suggestion",
+        suggestionId: suggestion.id,
+        changeId: change.id,
+        authorId: suggestion.authorId,
+        ...(suggestion.via === "assistant" ? { via: "assistant" as const } : {}),
+      },
       // Authorized, and every command is already true — another change asked
       // for the same thing and was accepted first. What it asks for is done, so
       // it is accepted with nothing appended (W52); refusing would leave the

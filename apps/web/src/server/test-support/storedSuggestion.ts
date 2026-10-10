@@ -21,6 +21,8 @@ export type StoredSuggestion = {
   createdAt?: Date;
   /** The commands of every change. A placeholder rename by default. */
   commands?: unknown[];
+  /** `assistant` for a row an assistant turn stored (ADR-067). */
+  via?: "assistant";
 };
 
 /** Insert one suggestion and its changes; answers the change ids, in position order. */
@@ -30,10 +32,11 @@ export async function insertStoredSuggestion({
   changes = 1,
   createdAt = new Date(),
   commands = [{ type: "SetTripName", tripId, name: "Stored" }],
+  via,
 }: StoredSuggestion): Promise<string[]> {
   const suggestionId = randomUUID();
   const ids = Array.from({ length: changes }, () => randomUUID());
-  await db.insert(tripSuggestions).values({ id: suggestionId, tripId, authorId, note: null, baseSeq: 1, createdAt });
+  await db.insert(tripSuggestions).values({ id: suggestionId, tripId, authorId, note: null, baseSeq: 1, createdAt, via: via ?? null });
   await db.insert(tripSuggestionChanges).values(
     ids.map((id, position) => ({
       id,

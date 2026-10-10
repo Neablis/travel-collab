@@ -9,7 +9,7 @@ operating manual.
 
 | Question | Where | Why there |
 |---|---|---|
-| "What happened in *this* turn?" | Vercel runtime logs — the `ai.ask` / `ai.proposal.apply` JSON lines | One self-contained record: the question, the tool trace, the classifier's verdict, the failure cause. Read a week of them with the `ai-usage` skill. |
+| "What happened in *this* turn?" | Vercel runtime logs — the `ai.ask` / `ai.ask.outcome` / `ai.proposal.apply` JSON lines | One self-contained record: the question, the tool trace, the classifier's verdict, the failure cause. Read a week of them with the `ai-usage` skill. |
 | "Where did the four seconds go?" | Sentry → **AI Agents** (and Traces) | The `gen_ai.*` spans: the run, each model round-trip, each tool execution, with per-step token usage. |
 | "Is it getting more expensive / worse?" | Sentry → **Metrics** | Counters and distributions that aggregate over thousands of turns. |
 
@@ -87,6 +87,16 @@ gateway id carries no `provider/` prefix), `simulated`, `scope`, `turn` and
 | `ai.classify.turns` | counter | *narrower base, see below* + `intent`, `task_class`, `source`, `failed_open` |
 | `ai.classify.duration` | distribution | *narrower base, see below* |
 | `ai.proposal.apply` / `ai.proposal.commands` / `ai.proposal.apply.duration` | counter / distribution | **no base** — `outcome`, `code` only |
+| `ai.ask.outcome` / `ai.ask.outcome.commands` | counter / distribution | **no base** — `outcome` only: `card`, `suggested`, or `notSuggested:<code>` (ADR-067) |
+
+**`ai.ask.outcome` is its own line, not a field of `ai.ask`.** A planning
+turn's `ai.ask` record is finished in the agent's `onEnd`, before a
+multi-change proposal is stored as a suggestion, so how the turn ended is
+written afterwards by `suggestOnFinish` (`suggestProposal.ts`) — once per turn
+that proposed anything, joined to `ai.ask` by `turnId`. A refused store is
+logged with its code (`too-many-pending`, `too-many-changes`,
+`unsupported-command`, `error`, …), not only a throw. No ledger column carries
+it.
 
 **The two `ai.classify.*` metrics, and the token counters tagged
 `call: classifier`, carry a narrower base than the turn's** —

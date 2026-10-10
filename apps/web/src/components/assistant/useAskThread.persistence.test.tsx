@@ -340,3 +340,47 @@ describe("useAskThread — durability", () => {
     expect(() => act(() => result.current.startNewConversation())).not.toThrow();
   });
 });
+
+// ADR-067: a planning turn can store suggestions, and the board re-reads them
+// when the turn ends — however it ends, since a stopped or failed turn may
+// have stored them before the announcement was lost.
+describe("useAskThread — onTurnEnd", () => {
+  function mountWith(onTurnEnd: () => void) {
+    return renderHook(() =>
+      useAskThread({ tripId: TRIP, scope: { kind: "trip" }, errorMessage: (error: ApiError) => error.message, onTurnEnd }),
+    );
+  }
+
+  it("is called once when a turn is answered", async () => {
+    vi.stubGlobal("fetch", answeringFetch("Done."));
+    const onTurnEnd = vi.fn();
+    const { result } = mountWith(onTurnEnd);
+    await act(() => result.current.runAsk("add a day in Kyoto"));
+    expect(onTurnEnd).toHaveBeenCalledTimes(1);
+  });
+
+  it("is called when a turn fails, and when one is cancelled", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ error: "boom" }), { status: 500 })));
+    const onTurnEnd = vi.fn();
+    const { result } = mountWith(onTurnEnd);
+    await act(() => result.current.runAsk("add a day"));
+    expect(onTurnEnd).toHaveBeenCalledTimes(1);
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        (_url: string, init: RequestInit) =>
+          new Promise<Response>((_resolve, reject) =>
+            init.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError"))),
+          ),
+      ),
+    );
+    let asked: Promise<void> = Promise.resolve();
+    act(() => {
+      asked = result.current.runAsk("add another day");
+    });
+    act(() => result.current.cancel());
+    await act(() => asked);
+    await waitFor(() => expect(onTurnEnd).toHaveBeenCalledTimes(2));
+  });
+});

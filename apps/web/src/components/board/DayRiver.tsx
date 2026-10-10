@@ -77,6 +77,8 @@ export type BoardSuggestions = {
   days: ReadonlyMap<string, readonly SuggestionGhost[]>;
   stops: ReadonlyMap<string, readonly SuggestionGhost[]>;
   newDays: readonly SuggestionGhost[];
+  /** A stop a pending change moves to another day: that day's name ("Day 16"). */
+  movingTo?: ReadonlyMap<string, string>;
   review: (ghosts: readonly SuggestionGhost[], trigger: ReactElement) => ReactNode;
   actions: (ghost: SuggestionGhost) => ReactNode;
   draft?: DraftStops;
@@ -711,6 +713,7 @@ export function DayRiver({
               onTouchPress={live ? (e) => startLift(id, e) : undefined}
               lifted={lifted === id}
               suggestion={stopSuggestion(suggestions, id)}
+              movingTo={suggestions?.movingTo?.get(id)}
               draft={suggestions?.draft?.added.has(id) ? "added" : suggestions?.draft?.changed.has(id) ? "changed" : undefined}
             />
           );

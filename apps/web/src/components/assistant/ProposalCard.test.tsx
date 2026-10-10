@@ -37,6 +37,15 @@ function renderCard(overrides: Partial<React.ComponentProps<typeof ProposalCard>
 const card = () => screen.getByRole("group", { name: "Suggested change" });
 
 describe("ProposalCard", () => {
+  // ADR-067: several changes the server could not put on the board come back
+  // as this card, and it says why so the user knows where they did not go.
+  it("says why changes meant for the board are on a card instead", () => {
+    const why = "This trip already has 199 suggested changes waiting, and holds up to 200. Wait for a decision. So they are here to review instead of on the board.";
+    renderCard({ state: state({ proposal: { ...PROPOSAL, notSuggested: why } }) });
+    expect(card().textContent).toContain(why);
+    expect(within(card()).getByRole("button", { name: "Make the change" })).toBeTruthy();
+  });
+
   // Off the sheet (`touch` false) the card is the docked rail's — which a wide
   // touch screen shows too. The smaller 34px target is a mouse's only, behind
   // `fine:`; unprefixed it beat `Button`'s 44px floor under a finger

@@ -109,6 +109,23 @@ describe("the planning tools", () => {
     ]);
   });
 
+  // The trip's refusal reaches the model when it calls, not only the card at
+  // the end — and the call is still collected, which the ledger's per-name
+  // reconciliation depends on (askAnalytics.ts, `AskCollectedWrite`).
+  it("answers a call the trip would refuse with the refusal, and still collects it", async () => {
+    const proposalBuffer = newProposalBuffer((intents) =>
+      intents.flatMap((intent, index) =>
+        intent.type === "RemoveActivity" ? [{ index, noOp: false, message: "This trip has been deleted." }] : [],
+      ),
+    );
+    const removed = await byName("RemoveActivity").invoke({ activityRef: "Colosseum tour" }, { proposalBuffer } as never);
+    const added = await byName("AddDay").invoke({}, { proposalBuffer } as never);
+
+    expect(removed).toEqual({ error: expect.stringMatching(/^Not queued/), reason: expect.stringContaining("This trip has been deleted.") });
+    expect(added).toEqual({ queued: true, type: "AddDay" });
+    expect(proposalBuffer.collected().map((intent) => intent.type)).toEqual(["RemoveActivity", "AddDay"]);
+  });
+
   // ADR-060: a price is per person, and the model is told so where it writes
   // one. Derived, not hand-written: the text is the contract's `cost`
   // description, so a tool and the public API cannot describe it differently.

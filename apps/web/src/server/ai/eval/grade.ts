@@ -18,8 +18,28 @@ export interface EvalTurn {
   record: AskAnalyticsRecord;
   /** The assistant's answer: the stream's text, concatenated. */
   text: string;
-  /** Commands in the proposal the turn ended with; empty when it proposed nothing. */
+  /**
+   * Changes the turn put up for review, wherever they went: the card's
+   * commands, or the stored suggestion's change count for a turn ADR-067 put
+   * on the board. 0 when it proposed nothing. See `reviewedChanges`.
+   */
   proposalCommands: number;
+}
+
+/**
+ * How many changes a turn's final chunk put up for review: a card's commands,
+ * or a stored suggestion's `changeCount` (ADR-067 — a multi-change turn is a
+ * suggestion on the board, not a card, and is no less a proposal for that).
+ * Read from the stream's chunks so the runner and this file agree on it.
+ */
+export function reviewedChanges(chunks: readonly Record<string, unknown>[]): number {
+  for (const chunk of chunks) {
+    const meta = (chunk as { messageMetadata?: { proposal?: { commands?: unknown[] }; suggested?: { changeCount?: number } } })
+      .messageMetadata;
+    if (meta?.proposal !== undefined) return meta.proposal.commands?.length ?? 0;
+    if (meta?.suggested !== undefined) return meta.suggested.changeCount ?? 0;
+  }
+  return 0;
 }
 
 /** What one prompt expects. Every field is optional; an absent field is not checked. */

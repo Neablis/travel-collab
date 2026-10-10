@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { SuggestionVia } from "./history.ts";
 import { boundedNote } from "./review.ts";
 import { BatchableCommand } from "./trip.ts";
 
@@ -53,6 +54,10 @@ export const SuggestionChange = z.object({
   dependsOn: z.array(z.string().uuid()),
   resolvedBy: z.string().min(1).nullable(),
   resolvedAt: z.string().nullable(), // ISO 8601
+  // The suggestion's `via`, repeated like `note`. Absent for a draft a person
+  // sent; `assistant` for one an editor's assistant turn stored (ADR-067).
+  // Optional rather than nullable so a client older than it still parses.
+  via: SuggestionVia.optional(),
 });
 export type SuggestionChange = z.infer<typeof SuggestionChange>;
 

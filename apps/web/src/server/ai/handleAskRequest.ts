@@ -49,6 +49,7 @@ import { z } from "zod";
 import {
   APICallError,
   convertToModelMessages,
+  createUIMessageStreamResponse,
   EmptyResponseBodyError,
   InvalidResponseDataError,
   InvalidToolInputError,
@@ -60,6 +61,7 @@ import {
   safeValidateUIMessages,
   StreamProviderError,
   ToolLoopAgent,
+  type UIMessageChunk,
 } from "ai";
 import { GatewayError } from "@ai-sdk/gateway";
 import { WIDGET_SHAPE_WORDS } from "@/server/assistant/tools/widgets";
@@ -78,6 +80,13 @@ import {
   parseApprovedCommands,
 } from "@/server/ai/writeTools";
 import { pageInsertsMetadata, pageOutcomeOf } from "@/server/ai/pageTools";
+import {
+  askOutcomeRecord,
+  recordAskOutcome,
+  storesAsSuggestion,
+  suggestProposal,
+  type ProposalOutcome,
+} from "@/server/ai/suggestProposal";
 import { notebookDirectory, placeSearchPort, playbookLibrary, savedDayLibrary } from "@/server/ai/assistantPorts";
 import { typedAddressesIn } from "@/server/assistant/typedAddresses";
 import {
@@ -86,7 +95,9 @@ import {
   newPageBuffer,
   newPlaceCache,
   newProposalBuffer,
+  type PlaceCache,
 } from "@/server/assistant/deps";
+import type { RawToolIntent } from "@/server/assistant/batchResolver";
 import { MAX_PLACE_QUERIES } from "@/server/assistant/tools/places";
 import {
   data,
@@ -113,6 +124,7 @@ import {
   ASK_INTERNAL_ERROR_MESSAGE,
   SIMULATED_HEADER,
   type AskStreamMetadata,
+  type AssistantProposal,
   type Page,
   type TimeFormat,
   type TripDetail,
@@ -134,7 +146,7 @@ import { ESCALATE_TOOL_NAME } from "@/server/assistant/tools/escalate";
 import { ASK_HARD_DEADLINE_MS, ASK_STEP_DEADLINE_MS, AskDeadlineError, type AskDeadlines } from "@/server/ai/askDeadline";
 import { citiesOfDay } from "@tc/domain";
 import { newIntentLatch, type AskPivot } from "@/server/assistant/intents";
-import type { TaskClass } from "@/server/assistant/taskClass";
+import { REASONING_FOR, type TaskClass } from "@/server/assistant/taskClass";
 
 // The admission pipeline's public names, re-exported so that the one door has
 // one module to import: `route.ts`, the client-facing refusal codes and the two
@@ -273,14 +285,22 @@ export async function handleAskRequest(
     (escalation.escalated() !== null && grant.escalation !== null ? grant.escalation.grants : grant.grants)
       .itinerary === "propose";
   const proposesPage = grant.grants.pages === "propose";
-  const proposalBuffer = newProposalBuffer();
-  const pageBuffer = newPageBuffer();
   // **This turn's numbered search results, and the reason a `placeRef` means
   // anything** (M9 grounding). Minted per turn beside the two collectors and
   // never shared: a ref that outlived its turn would resolve to a place from a
   // different question. Read below by `buildProposal`, which turns each
   // citation into the location that actually commits.
   const placeCache = newPlaceCache();
+  // The dry run is the one the proposal is built with, so a write tool's
+  // answer and the card cannot disagree about what the trip refuses.
+  const proposalBuffer = newProposalBuffer((intents) =>
+    droppedWrites(intents, detail, { tripId, actorId: userId, placeCache }).map(({ index, noOp, call }) => ({
+      index,
+      noOp,
+      message: call.message,
+    })),
+  );
+  const pageBuffer = newPageBuffer();
   // **The turn's escalation latch** (M9 design §1b). Minted whether or not the
   // turn can escalate: a buffer nothing can reach costs one object, and making
   // it conditional would put "can this turn escalate?" in two places.
@@ -587,6 +607,10 @@ export async function handleAskRequest(
     // (our current model lists $0.028/MTok against $0.13 input), so this is
     // worth more the stronger the tier gets, not less.
     providerOptions: { gateway: { caching: "auto" } },
+    // The admitted tier's thinking budget (`REASONING_FOR`). A step escalated
+    // to another tier keeps it: escalation is about the tool set, and the
+    // stronger model does not need licence to over-think a bounded edit.
+    reasoning: REASONING_FOR[grant.tier],
     // **One malformed argument is not the end of a turn.** The SDK throws
     // `AI_InvalidToolInputError` and `ToolLoopAgent` aborts the run, so before
     // this the user got nothing at all — twice, on 2026-09-12's first two live
@@ -813,12 +837,13 @@ export async function handleAskRequest(
       // the client has already hung up.
       abortSignal: AbortSignal.any([request.signal, deadline.signal]),
     });
-    return result.toUIMessageStreamResponse({
+    // The proposal `messageMetadata` built for the final chunk, when it is one
+    // ADR-067 stores on the board instead. `messageMetadata` is synchronous and
+    // storing is not, so the swap happens one stage downstream, in
+    // `suggestOnFinish`, on the same chunk.
+    let finalProposal: AssistantProposal | null = null;
+    const stream = result.toUIMessageStream({
       originalMessages: validated.data,
-      // Ruling B. Set once, before a byte of the stream, so it is readable on
-      // the failure path too — a half-written simulated answer still gets
-      // badged, which sniffing the closing sentence could not manage.
-      headers: { [SIMULATED_HEADER]: String(grant.simulated) },
       // **The proposal rides out on the run's final chunk.**
       //
       // `messageMetadata` is called for every stream part; `finish` is the
@@ -830,11 +855,13 @@ export async function handleAskRequest(
       //
       // Nothing is committed here. `buildProposal` resolves and describes;
       // the only caller of `commitProposal` is the apply endpoint below, and
-      // it runs after a human clicked Approve.
+      // it runs after a human clicked Approve. A proposal of more than one
+      // command is noted for `suggestOnFinish`, which stores it as a pending
+      // suggestion (ADR-067) — still not a trip change until someone accepts.
       //
       // Typed `AskStreamMetadata` (`@tc/contracts`) since P6, so the keys are
       // the contract's rather than this literal's: a misspelled `pageInserts`
-      // or a fifth key now fails to compile here instead of arriving at a
+      // or a sixth key now fails to compile here instead of arriving at a
       // client that quietly ignores it.
       messageMetadata: ({ part }): AskStreamMetadata | undefined => {
         // **The turn failed: an `error` part, and only an `error` part, says
@@ -871,7 +898,9 @@ export async function handleAskRequest(
           { tripId, actorId: userId, placeCache },
           proposalBuffer.inserts(),
         );
-        return proposal === null ? undefined : { proposal };
+        if (proposal === null) return notAppliedMetadata(proposalBuffer.collected(), detail, { tripId, actorId: userId, placeCache });
+        finalProposal = proposal;
+        return { proposal };
       },
       onError: (error) => {
         // **This only words an error; it does not decide the turn failed.**
@@ -899,6 +928,19 @@ export async function handleAskRequest(
         return askFailureMessage(error);
       },
     });
+    return createUIMessageStreamResponse({
+      stream: stream.pipeThrough(
+        suggestOnFinish(
+          () => finalProposal,
+          (proposal) => suggestProposal(proposal, { tripId, userId, question }),
+          (proposal, outcome) => recordAskOutcome(askOutcomeRecord({ turnId, tripId, userId }, proposal.commands.length, outcome)),
+        ),
+      ),
+      // Ruling B. Set once, before a byte of the stream, so it is readable on
+      // the failure path too — a half-written simulated answer still gets
+      // badged, which sniffing the closing sentence could not manage.
+      headers: { [SIMULATED_HEADER]: String(grant.simulated) },
+    });
   } catch (err) {
     // Nothing in the body is left to be wrong — the messages validated above
     // and the caps passed. What remains is the agent failing to start. When
@@ -917,6 +959,58 @@ export async function handleAskRequest(
       { status: modelSide ? 503 : 500 },
     );
   }
+}
+
+/**
+ * The stage that turns a multi-change proposal into a stored suggestion
+ * (ADR-067 decision 4), on the stream's `finish` chunk and nowhere else, and
+ * records how every proposing turn ended (`ai.ask.outcome`) — here because
+ * only here is it known; `ai.ask` was finished before anything was stored.
+ *
+ * The `finish` chunk is the one `messageMetadata` put the proposal on, and it
+ * is the last chunk the client reads, so awaiting the store here holds back
+ * nothing but the end of the stream. Every other chunk, and a `finish` with
+ * nothing to store, passes through untouched. The swap keeps the one-outcome
+ * rule: the chunk carries `suggested` INSTEAD of `proposal`, or the proposal
+ * itself with `notSuggested` when storing was refused.
+ */
+function suggestOnFinish(
+  finalProposal: () => AssistantProposal | null,
+  store: (proposal: AssistantProposal) => Promise<{ metadata: AskStreamMetadata; outcome: ProposalOutcome }>,
+  record: (proposal: AssistantProposal, outcome: ProposalOutcome) => void,
+): TransformStream<UIMessageChunk, UIMessageChunk> {
+  return new TransformStream({
+    async transform(chunk, controller) {
+      const proposal = chunk.type === "finish" ? finalProposal() : null;
+      if (chunk.type !== "finish" || proposal === null) return controller.enqueue(chunk);
+      if (!storesAsSuggestion(proposal)) {
+        record(proposal, { kind: "card" });
+        return controller.enqueue(chunk);
+      }
+      const { metadata, outcome } = await store(proposal);
+      record(proposal, outcome);
+      controller.enqueue({ ...chunk, messageMetadata: metadata });
+    },
+  });
+}
+
+/**
+ * The final chunk of a planning turn that wrote and has no proposal: every
+ * write call it made was refused against the trip. Says why, in the domain's
+ * words, rather than ending on the model's prose alone — which was told each
+ * call was collected, and so may well say the changes were made.
+ *
+ * Nothing when the turn wrote nothing, or when every drop was a no-op (the
+ * trip already said what was asked: nothing to explain).
+ */
+function notAppliedMetadata(
+  intents: RawToolIntent[],
+  detail: TripDetail,
+  opts: { tripId: string; actorId: string; placeCache: PlaceCache },
+): AskStreamMetadata | undefined {
+  if (intents.length === 0) return undefined;
+  const skipped = [...new Set(diagnosticDrops(droppedWrites(intents, detail, opts)).map((drop) => drop.message))];
+  return skipped.length === 0 ? undefined : { notApplied: { skipped } };
 }
 
 /**
@@ -1220,9 +1314,11 @@ const ACCESS_LINE: Record<AskToolPosture, string> = {
   // act on. It is not the mechanism — the write tools collect and commit
   // nothing, so a model that ignored every word of this still could not change
   // the trip (writeTools.ts) — it is what stops the answer CLAIMING an edit
-  // that has not happened yet.
+  // that has not happened yet. The clause on where it lands is ADR-067's: a
+  // model that says "approve it below" over a turn stored on the board sends
+  // the reader looking for a card that is not there.
   propose:
-    "You can read this trip, and you can PROPOSE changes to it. A change tool call is not applied: every call you make this turn is collected into one proposal the user reviews and approves or rejects. So never say you have added, moved or removed anything — say what you would change, and that it is waiting for them.",
+    "You can read this trip, and you can PROPOSE changes to it. A change tool call is not applied: every call you make this turn is collected into one proposal the user reviews and approves or rejects — one change, or a library day, on a card under your answer; several changes usually as suggestions on the trip's board, else on the card. So never say you have added, moved or removed anything — say what you would change, and that it is waiting for them.",
   withheld:
     `You can read this trip. You were NOT given the change tools this turn, because this message was read as a question — and if that reading is wrong, call ${ESCALATE_TOOL_NAME} and your next step will have them. Do that rather than telling them to ask again: they can change this trip, and they should never have to rephrase to get a change made. Never tell them the assistant cannot make changes.`,
   "read-only":

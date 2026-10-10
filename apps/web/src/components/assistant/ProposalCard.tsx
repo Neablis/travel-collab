@@ -196,6 +196,11 @@ export function ProposalCard({
       {detail !== "" && (
         <p className="pt-0.5 text-a-note leading-normal text-pretty text-brand-pressed">{detail}</p>
       )}
+      {/* ADR-067: several changes meant for the board that could not be put
+          there. The server's sentence says why; the card is the fallback. */}
+      {proposal.notSuggested !== undefined && (
+        <p className="pt-1 text-a-note text-pretty text-slate">{proposal.notSuggested}</p>
+      )}
       {status === "failed" && note !== null && (
         <p role="status" className="pt-1 text-a-note text-danger-ink">
           {note}

@@ -156,8 +156,8 @@ export const ASK_INTENT_INSTRUCTION = [
   "You classify the LAST message sent to a trip-planning assistant. You do not answer it.",
   "Earlier messages are context only. A short reply like \"yes\" means whatever was just offered, so classify what it agrees to.",
   'Use "question" if it only asks about the trip as it already is.',
-  'Use "edit" if it asks to add, move, remove or replace something in an existing trip.',
-  'Use "plan" if it asks for a whole itinerary or several days, or agrees to one offered.',
+  'Use "edit" if it asks to add, move, remove or replace something, or agrees to listed changes.',
+  'Use "plan" if it asks for a whole itinerary or several days, or agrees to have one drafted.',
   // **Replaces the old tie-break line, never sits beside it** (design §1a).
   // That line was `If you are unsure, use "plan".` — the same bias, expressed
   // as a forced choice. Keeping both would count the bias twice: the model
@@ -289,6 +289,9 @@ export function intentOf(taskClass: TaskClass, certainty: AskCertainty = "sure")
  */
 const FAIL_OPEN_TASK_CLASS: AskTaskClass = "plan";
 
+/** What a bare agreement on the board resolves to — see `classifyAskIntent`. */
+const AFFIRMATION_TASK_CLASS: AskTaskClass = "edit";
+
 // The output budget, and it is NOT a one-word ceiling any more.
 //
 // The old value was 8 — one word plus slack — and that is precisely what
@@ -389,6 +392,12 @@ const AGREEMENT_WORDS = new Set([
   "lets",
   "let",
   "us",
+  // "Go ahead with those" (2026-10-10) reached the model, which read it as
+  // agreeing to a plan and sent it to the strong tier.
+  "with",
+  "those",
+  "these",
+  "this",
 ]);
 
 const MAX_AGREEMENT_WORDS = 6;
@@ -471,12 +480,16 @@ export async function classifyAskIntent(
   // (no round-trip at all on the turn that agrees).
   if (isBareAgreement(question)) {
     return {
-      // An agreement resolves upward, like every other uncertainty: "Yes go
-      // ahead" can be agreeing to a single stop or to a six-day itinerary, and
-      // this rule is deliberately not a parser. It spends nothing either way —
-      // no round-trip is made — so the only cost of resolving upward here is
-      // the tier the turn itself runs on.
-      taskClass: failOpen,
+      // **An agreement is `edit` on the board, not the fail-open `plan`.**
+      // What it agrees to has already been spelled out — by the user, or by
+      // the assistant offering it — so the turn executes rather than designs,
+      // and `unsure` (below) still lifts it to `mid` and keeps every write
+      // tool (`grantTools` never narrows an affirmation). Resolving to `plan`
+      // sent every "yes" to the strong tier: on 2026-10-10 a "go ahead" for six
+      // small, already-listed writes took 166 s and ~$0.07 there, against
+      // 36 s and ~$0.005 on `mid` for the request it agreed to. A page turn
+      // keeps its surface's own class.
+      taskClass: surface === "board" ? AFFIRMATION_TASK_CLASS : failOpen,
       // **`unsure`, and it is the truest use of the field in this module.**
       // This rule's own comment says so: "Yes go ahead" can be agreeing to a
       // single stop or to a six-day itinerary, and the rule is deliberately not
@@ -485,7 +498,7 @@ export async function classifyAskIntent(
       // `grantTools` has to special-case `source: "affirmation"` beside
       // `failedOpen` to avoid narrowing on it. The flag now says it directly.
       certainty: FAIL_OPEN_CERTAINTY,
-      intent: intentOf(failOpen, FAIL_OPEN_CERTAINTY),
+      intent: intentOf(surface === "board" ? AFFIRMATION_TASK_CLASS : failOpen, FAIL_OPEN_CERTAINTY),
       source: "affirmation",
       model: null,
       verdict: "bare agreement — no model call",

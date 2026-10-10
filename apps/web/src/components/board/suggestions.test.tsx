@@ -241,6 +241,30 @@ describe("what is not on the trip yet reads as a placeholder", () => {
     expect(within(colosseum).getByText("Suggested")).toBeTruthy();
   });
 
+  // Mitchell's preview comment, 2026-10-10: a stop moved to another day read
+  // "Suggested" where it is, as though it were the suggestion. It stays solid
+  // there — it is still planned — and says where it is going; the dashed
+  // block on the day it goes to is the suggestion.
+  it("says where a moved stop is going, on the solid stop it leaves, and Suggested only on the block where it lands", async () => {
+    const DAY_3 = uuidFrom(9105, 7);
+    mount("owner", (tripId) => {
+      const addDay = change(tripId, "Added Day 3", [{ type: "AddDay", tripId, dayId: DAY_3 }]);
+      return [
+        addDay,
+        change(tripId, "Moved Colosseum tour to Day 3", [{ type: "MoveActivity", tripId, activityId: COLOSSEUM, toDayId: DAY_3, position: 0 }], {
+          dependsOn: [addDay.id],
+        }),
+      ];
+    });
+
+    const landed = await screen.findByRole("button", { name: "Suggested: Moved Colosseum tour to Day 3" });
+    expect(within(landed).getByText("Suggested")).toBeTruthy();
+    const leaving = cardFor(/^Edit Colosseum tour,.*, suggested to move to Day 3$/);
+    expect(leaving.getAttribute("data-provisional")).toBe("suggested");
+    expect(within(leaving).getByText("Moving to Day 3")).toBeTruthy();
+    expect(within(leaving).queryByText("Suggested")).toBeNull();
+  });
+
   it("marks a suggester's unsent stop Not sent, and an unsent edit to an existing stop too", async () => {
     sessionUserId = "dev-sam";
     mount("suggester", () => []);
@@ -362,6 +386,15 @@ describe("the suggestions chip", () => {
 
     const note = await screen.findByRole("figure", { name: /^Note from / });
     expect(within(note).getByText("Shorter, please")).toBeTruthy();
+  });
+
+  // ADR-067 decision 2: the author is the person who asked; the line says the
+  // assistant acted for them.
+  it("says a change came via the assistant, and says nothing of it for a person's own", async () => {
+    mount("owner", (id) => [addGelato(id), change(id, "Renamed the trip to Kyoto", [{ type: "SetTripName", tripId: id, name: "Kyoto" }], { via: "assistant", suggestionId: uuidFrom(9301, 7) })]);
+    fireEvent.click(await screen.findByRole("button", { name: "2 suggestions" }));
+    expect(await screen.findByText(/^Suggested by .+, via the assistant$/)).toBeTruthy();
+    expect(screen.getAllByText(/^Suggested by /)).toHaveLength(2);
   });
 
   // M38: an author's line leads with their chip — the glyph they picked —

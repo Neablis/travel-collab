@@ -25,6 +25,7 @@ import { z } from "zod";
 import { BatchableCommand, type BatchableCommand as BatchableCommandType } from "@tc/contracts";
 import { ID_FIELDS, refParamName, type IdRole } from "@/server/assistant/idFields";
 import { defineTool, type AnyAssistantTool } from "@/server/assistant/defineTool";
+import { untrusted } from "@/server/assistant/prompt";
 import type { TaskClass } from "@/server/assistant/taskClass";
 
 // How to WRITE a money amount is said once per turn, in the instruction
@@ -169,7 +170,20 @@ function refSchemaFor(role: Extract<IdRole, { role: "ref" }>): z.ZodTypeAny {
 // is a `literal(true)`, not a boolean: "queued" is the only thing a collect-only
 // tool can truthfully say, and a schema that could also carry `false` would be
 // a schema that admits a tool having done something.
-const QueuedReceipt = z.object({ queued: z.literal(true), type: z.string() });
+//
+// **Or the trip's refusal, as a result the model can act on** — the shape
+// `insert_playbook_day` already answers with. A call the trip would refuse
+// (an activity it does not have, a deleted trip) used to be told "queued" like
+// any other, so the model went on as if it had worked and the proposal came
+// back without it. Six writes on a deleted trip, each "queued", and nothing
+// to show (2026-10-10).
+const QueuedReceipt = z.union([
+  z.object({ queued: z.literal(true), type: z.string() }),
+  z.object({ error: z.string(), reason: z.string() }),
+]);
+
+const REFUSED =
+  "Not queued: the trip refuses this change, for the reason given. Fix the call and try again, or tell the user why it can't be done.";
 
 /**
  * One `BatchableCommand` member as one tool — the derivation ADR-015
@@ -210,8 +224,20 @@ function planningToolFor(optionSchema: z.ZodObject<{ type: z.ZodLiteral<string> 
     minimumRole: "editor",
     taskClasses: TASK_CLASSES_FOR[type],
     hiddenFromModel: HIDDEN_FROM_MODEL[type],
+    // The reason names what the model asked for and what the trip holds —
+    // titles a collaborator wrote — so it reaches the model fenced, like every
+    // other read of the trip. The instruction beside it is ours, and is not.
+    taint: (result) => ("error" in result ? { ...result, reason: untrusted(result.reason) } : result),
     run: (args: Record<string, unknown>, deps) => {
+      // Asked before collecting, and collected either way: a call that always
+      // collects is what lets the ledger reconcile these calls by name
+      // (askAnalytics.ts, `AskCollectedWrite`), and a refused intent is
+      // dropped when the proposal is built, exactly as it always was.
+      const refusal = deps.proposalBuffer.refusalOf({ type, args });
       deps.proposalBuffer.collect({ type, args });
+      if (refusal !== null) {
+        return { error: REFUSED, reason: refusal };
+      }
       return { queued: true as const, type };
     },
   }) as unknown as AnyAssistantTool;

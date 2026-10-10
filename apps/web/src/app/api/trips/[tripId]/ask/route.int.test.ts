@@ -2,7 +2,7 @@ import { ASK_FAILED_MESSAGE, ASK_INTERNAL_ERROR_MESSAGE, WidgetShape, newPageDoc
 import { MACRO_NAMES, getMacro } from "@tc/pages";
 import { APICallError, ToolLoopAgent } from "ai";
 import { randomUUID } from "node:crypto";
-import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { executeTripCommand } from "@/server/commands";
 import { executePageCommand } from "@/server/pageCommands";
 import { saveDay, setSavedDayVisibility } from "@/server/savedDays";
@@ -18,6 +18,11 @@ import { UNTRUSTED_DATA_RULE } from "@/server/assistant/prompt";
 import { tripDetailFactory } from "@tc/factories";
 import type { AskAnalyticsRecord } from "@/server/assistant/askAnalytics";
 import type { TurnLedger } from "@/server/assistant/ledger";
+import { readStreamHeadSeq } from "@/server/eventStore";
+import { listSnapshots, saveSnapshot, SNAPSHOT_TRIP_MAX } from "@/server/snapshots/snapshots";
+import { listSuggestionChanges } from "@/server/suggestions/list";
+import { SUGGESTION_TRIP_PENDING_MAX } from "@/server/suggestions/shared";
+import { insertStoredSuggestion } from "@/server/test-support/storedSuggestion";
 
 const ACTOR_ID = "ask-owner";
 // A second author, so a published library day belongs to SOMEONE ELSE.
@@ -321,12 +326,14 @@ function req(tripId: string, body: unknown, signal?: AbortSignal) {
 function recordingModel() {
   const systems: string[] = [];
   const providerOptions: unknown[] = [];
+  const reasoning: unknown[] = [];
   const inner = simulatedModel() as unknown as {
     doGenerate: (o: unknown) => Promise<unknown>;
     doStream: (o: unknown) => Promise<unknown>;
   };
   const keep = (options: unknown) => {
     providerOptions.push((options as { providerOptions?: unknown }).providerOptions);
+    reasoning.push((options as { reasoning?: unknown }).reasoning);
     const prompt = (options as { prompt?: { role?: string; content?: unknown }[] }).prompt ?? [];
     systems.push(
       prompt
@@ -352,7 +359,7 @@ function recordingModel() {
   // The agent's own instruction, not the classifier's — the classification
   // call is a system message too, and it is not what this is about.
   const turnInstruction = () => systems.find((text) => text.includes("travel-collab trip assistant")) ?? "";
-  return { model, turnInstruction, providerOptions: () => providerOptions };
+  return { model, turnInstruction, providerOptions: () => providerOptions, reasoning: () => reasoning };
 }
 
 /**
@@ -557,7 +564,7 @@ function toolCall(toolName: string, input: unknown): Record<string, unknown> {
  * Records the tool names each turn step was offered, which is how a pivot and
  * the step deadline are observed from outside.
  */
-function scriptedPageModel(verdict: "compose" | "question", steps: (Record<string, unknown>[] | string)[]) {
+function scriptedPageModel(verdict: "compose" | "question" | "edit", steps: (Record<string, unknown>[] | string)[]) {
   const offers: string[][] = [];
   let next = 0;
   const usage = {
@@ -1288,6 +1295,23 @@ describe("POST /api/trips/:id/ask", () => {
       expect(providerOptions()).toContainEqual({ gateway: { caching: "auto" } });
     });
 
+    // Left at the provider's default, a reasoning model spent ~8,000 output
+    // tokens on one step of six small writes (2026-10-10). Each step asks for
+    // its tier's budget instead (`REASONING_FOR`); a question is the cheap tier.
+    it("asks the provider for the tier's reasoning budget, not its default", async () => {
+      const tripId = await seedTrip();
+      const { model, reasoning } = recordingModel();
+      const res = await handleAskRequest(
+        req(tripId, { messages: [userMessage("which day has the most free time?")], scope: { kind: "trip" } }),
+        tripId,
+        model,
+        () => {},
+      );
+      await res.text();
+
+      expect(reasoning()).toContain("low");
+    });
+
     it("keeps the true read-only copy for a viewer, who genuinely cannot edit", async () => {
       const tripId = await seedTrip();
       await grantViewer(tripId, VIEWER_ID);
@@ -1577,6 +1601,37 @@ describe("POST /api/trips/:id/ask", () => {
       expect(records[0]!.toolCalls.every((c) => (VIEWER_TOOL_NAMES as readonly string[]).includes(c.name))).toBe(true);
     });
 
+    // Every write refused against the trip leaves no proposal — and used to
+    // leave no word either, so the model's own "Done" was the whole answer
+    // (2026-10-10, a deleted trip). The refusal's reason rides out instead.
+    it("says why nothing changed when every write it made was refused", async () => {
+      const tripId = await seedTrip();
+      const { model } = scriptedPageModel("edit", [
+        [toolCall("RemoveActivity", { activityRef: "A stop this trip has never had" })],
+        "Done — I removed it.",
+      ]);
+      const res = await handleAskRequest(
+        req(tripId, { messages: [userMessage("remove the stop this trip has never had")], scope: { kind: "trip" } }),
+        tripId,
+        model,
+        () => {},
+      );
+      const chunks = await chunksOf(res);
+
+      const finish = chunks.find((c) => c.type === "finish") as
+        | { messageMetadata?: { proposal?: unknown; notApplied?: { skipped: string[] } } }
+        | undefined;
+      expect(finish?.messageMetadata?.proposal).toBeUndefined();
+      expect(finish?.messageMetadata?.notApplied?.skipped).toHaveLength(1);
+      expect(finish?.messageMetadata?.notApplied?.skipped[0]).toMatch(/A stop this trip has never had/);
+      // And the model heard it when it called, not only the user at the end.
+      const output = chunks.find((c) => c.type === "tool-output-available") as
+        | { output?: { error?: string; reason?: string } }
+        | undefined;
+      expect(output?.output?.error).toMatch(/^Not queued/);
+      expect(output?.output?.reason).toMatch(/A stop this trip has never had/);
+    });
+
     // The requirement in one test: a turn that PROPOSES commits nothing.
     it("proposes without committing — the trip is byte-identical afterwards", async () => {
       const tripId = await seedTrip();
@@ -1593,7 +1648,7 @@ describe("POST /api/trips/:id/ask", () => {
       const finish = chunks.find((c) => c.type === "finish") as
         | { messageMetadata?: { proposal?: { commands: unknown[]; changes: { text: string }[] } } }
         | undefined;
-      expect(finish?.messageMetadata?.proposal?.commands).toHaveLength(2);
+      expect(finish?.messageMetadata?.proposal?.commands).toHaveLength(1);
 
       // And the trip did not move. JSON equality over the whole projection,
       // not a spot check: a write anywhere in it fails this.
@@ -1615,10 +1670,7 @@ describe("POST /api/trips/:id/ask", () => {
 
       const proposal = (withMetadata[0] as { messageMetadata: { proposal: Record<string, unknown> } }).messageMetadata
         .proposal;
-      expect(proposal.changes).toEqual([
-        { type: "AddActivity", text: "Add “Sample: coffee stop” to day 1" },
-        { type: "AddActivity", text: "Add “Sample: evening stroll” to day 1" },
-      ]);
+      expect(proposal.changes).toEqual([{ type: "AddActivity", text: "Add “Sample: coffee stop” to day 1" }]);
       expect(typeof proposal.proposalId).toBe("string");
       // Resolved: real ids the server minted, never anything the model wrote.
       for (const command of proposal.commands as Record<string, unknown>[]) {
@@ -1703,6 +1755,132 @@ describe("POST /api/trips/:id/ask", () => {
       const res = await ask(tripId, { messages: [userMessage("what's planned?")], scope: { kind: "trip" } });
       expect(res.headers.get(SIMULATED_HEADER)).toBe("true");
       await res.text();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // ADR-067: a turn of more than one change is stored as suggestions
+  // -------------------------------------------------------------------------
+  describe("a multi-change turn", () => {
+    // Members other than the owner, so "authored by the person who asked" and
+    // "seen by a second editor" are about two different people.
+    const ASKER = "ask-editor-ana";
+    const SECOND_EDITOR = "ask-editor-ben";
+
+    async function editorsOn(tripId: string) {
+      for (const userId of [ASKER, SECOND_EDITOR]) {
+        await db.insert(tripMemberships).values({
+          tripId,
+          userId,
+          role: "editor",
+          invitedBy: ACTOR_ID,
+          createdAt: new Date().toISOString(),
+        });
+      }
+    }
+
+    // `ai.ask.outcome` (suggestProposal.ts): written after the store, so the
+    // turn's own `ai.ask` record cannot carry it. Read off the console it
+    // goes to, as Vercel does.
+    let logged: { outcome: string; turnId: string; changeCount: number | null; snapshot: string | null }[] = [];
+    beforeEach(() => {
+      logged = [];
+      vi.spyOn(console, "info").mockImplementation((event: unknown, record: unknown) => {
+        if (event === "ai.ask.outcome") logged.push(record as (typeof logged)[number]);
+      });
+    });
+    afterEach(() => vi.restoreAllMocks());
+
+    function outcomeOf(chunks: Record<string, unknown>[]): Record<string, unknown> | undefined {
+      return (chunks.find((c) => c.type === "finish") as { messageMetadata?: Record<string, unknown> } | undefined)
+        ?.messageMetadata;
+    }
+
+    async function turn(tripId: string, question: string) {
+      currentUserId = ASKER;
+      return chunksOf(await ask(tripId, { messages: [userMessage(question)], scope: { kind: "trip" } }));
+    }
+
+    it("stores ONE suggestion via the assistant, which a second editor lists, after a snapshot at the head it was asked at", async () => {
+      const tripId = await seedTrip();
+      await editorsOn(tripId);
+      const before = await getTripDetail(tripId);
+      const beforeHistory = await getTripHistory(tripId);
+      const head = await readStreamHeadSeq(db, tripId);
+
+      const outcome = outcomeOf(await turn(tripId, "add a day in Kyoto"));
+      expect(outcome).not.toHaveProperty("proposal");
+      const suggested = outcome?.suggested as { suggestionId: string; changeCount: number; snapshotId: string };
+      expect(suggested).toMatchObject({ changeCount: 3, snapshotName: "Before: add a day in Kyoto" });
+
+      // A fresh read, as someone else.
+      const listed = await listSuggestionChanges(tripId, SECOND_EDITOR);
+      const changes = listed.ok ? listed.value.changes : [];
+      expect(changes.map((c) => [c.suggestionId, c.authorId, c.via])).toEqual(
+        Array(3).fill([suggested.suggestionId, ASKER, "assistant"]),
+      );
+      expect(changes.map((c) => c.commands[0]!.type)).toEqual(["AddDay", "AddActivity", "AddActivity"]);
+      // The stops build on the day the same suggestion adds (spec W9).
+      expect(changes[1]!.dependsOn).toEqual([changes[0]!.id]);
+
+      const snapshots = await listSnapshots(tripId, SECOND_EDITOR);
+      expect(snapshots.ok && snapshots.value).toEqual([
+        expect.objectContaining({ id: suggested.snapshotId, seq: head, name: "Before: add a day in Kyoto", createdBy: ASKER }),
+      ]);
+      expect(logged).toEqual([
+        expect.objectContaining({ outcome: "suggested", changeCount: 3, snapshot: "saved", turnId: expect.any(String) }),
+      ]);
+      // Still nothing on the trip: a suggestion is not planning state.
+      expect(JSON.stringify(await getTripDetail(tripId))).toBe(JSON.stringify(before));
+      expect(JSON.stringify(await getTripHistory(tripId))).toBe(JSON.stringify(beforeHistory));
+    });
+
+    it("keeps the card for a one-change turn, and stores nothing", async () => {
+      const tripId = await seedTrip();
+      await editorsOn(tripId);
+      const outcome = outcomeOf(await turn(tripId, "add a coffee stop to day 1"));
+      expect((outcome?.proposal as { commands: unknown[] }).commands).toHaveLength(1);
+      expect(outcome).not.toHaveProperty("suggested");
+      expect(logged).toEqual([expect.objectContaining({ outcome: "card", changeCount: null })]);
+      const listed = await listSuggestionChanges(tripId, SECOND_EDITOR);
+      expect(listed.ok && listed.value.changes).toEqual([]);
+      const snapshots = await listSnapshots(tripId, SECOND_EDITOR);
+      expect(snapshots.ok && snapshots.value).toEqual([]);
+    });
+
+    it("falls back to the card, saying why, when the trip's suggestions are at their cap — and stores nothing", async () => {
+      const tripId = await seedTrip();
+      await editorsOn(tripId);
+      await insertStoredSuggestion({ tripId, authorId: SECOND_EDITOR, changes: SUGGESTION_TRIP_PENDING_MAX - 1 });
+
+      const outcome = outcomeOf(await turn(tripId, "add a day in Kyoto"));
+      expect(outcome).not.toHaveProperty("suggested");
+      const proposal = outcome?.proposal as { commands: unknown[]; notSuggested: string };
+      expect(proposal.commands).toHaveLength(3);
+      expect(proposal.notSuggested).toContain(`holds up to ${SUGGESTION_TRIP_PENDING_MAX}`);
+      // A refusal is logged with its code, not only a throw.
+      expect(logged).toEqual([expect.objectContaining({ outcome: "notSuggested:too-many-pending" })]);
+      const listed = await listSuggestionChanges(tripId, SECOND_EDITOR);
+      expect(listed.ok && listed.value.changes).toHaveLength(SUGGESTION_TRIP_PENDING_MAX - 1);
+      // The snapshot saved for it is gone again.
+      const snapshots = await listSnapshots(tripId, SECOND_EDITOR);
+      expect(snapshots.ok && snapshots.value).toEqual([]);
+    });
+
+    it("stores the suggestion without a snapshot at the snapshot cap, and says so", async () => {
+      const tripId = await seedTrip();
+      await editorsOn(tripId);
+      for (let i = 0; i < SNAPSHOT_TRIP_MAX; i++) {
+        expect((await saveSnapshot(tripId, SECOND_EDITOR, { name: `Kept ${i}` })).ok).toBe(true);
+      }
+      const outcome = outcomeOf(await turn(tripId, "add a day in Kyoto"));
+      expect(outcome?.suggested).toMatchObject({
+        changeCount: 3,
+        snapshotId: null,
+        snapshotName: null,
+        snapshotSkipped: expect.stringContaining(`at most ${SNAPSHOT_TRIP_MAX} snapshots`),
+      });
+      expect(logged).toEqual([expect.objectContaining({ outcome: "suggested", snapshot: "skipped" })]);
     });
   });
 
