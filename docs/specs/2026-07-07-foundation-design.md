@@ -81,7 +81,8 @@ permission checks route through the `AccessPolicy` seam.
 Initial conflict rule set (M1, expanded per milestone): time-window overlap
 within a day; same-day geographic infeasibility (distance/gap heuristic —
 "you can't visit Rome and NYC at the same time"); date-anchor violations
-(M3, when anchors land).
+(M3, when anchors land). *Amended 2026-10-10 (Mitchell): a `pending` stop takes
+part in no time-window overlap until it is no longer pending (ADR-055's amendment).*
 
 ## 5. Event-store mechanics (architect defaults)
 

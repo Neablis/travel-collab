@@ -13,6 +13,35 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-10 — A pending stop is in no `time-overlap` conflict (design feedback #8)
+
+- **No schema changed shape, and `openapi.json` did not either** — so no `API_VERSION` or
+  `API_FINGERPRINT` change. **What changed is which `Conflict`s exist:** `detectConflicts`
+  (`packages/domain/src/trip/conflicts.ts`) emits no `time-overlap` for a pair where either stop
+  has `kind: "pending"`. `TripDetail.conflicts` — the stored projection, every read of it, the
+  client's predicted detail, `GET /v1/trips/{tripId}` and the playbook-applications `warnings`
+  derived from it — no longer carries one. Confirming the stop (`planned` or `transit`) brings the
+  conflict back under the same id.
+- **Dismissals:** marking a stop pending stops its overlap being detected, so a dismissal of that
+  overlap lapses (`ConflictUndismissed`, KI-14) like any other; confirming the stop shows the
+  conflict again, undismissed. `DismissConflict` on such an overlap while the stop is pending is
+  refused `conflict-not-found`, because there is nothing to dismiss.
+- **Stored projections:** `trip_details.doc` is rebuilt from the log by the new rule (rebuild
+  equals stored, invariant 2). A doc projected before this change keeps its pending overlaps until
+  the trip's next command re-projects it; nothing is migrated. Replay of the log is unaffected —
+  no event changed, and `ConflictUndismissed` is only ever emitted by the decider.
+- Why: Mitchell, 2026-10-10 — *"Pending events shouldn't be an overlap till they are no longer
+  pending,"* first applied to the board only, then decided for the conflict list and counts too.
+  ADR-055 amended.
+- Consumers updated: `apps/web` — the board's own pending filter in `lenses/overlapData.ts`
+  (`overlapsForDay`, `badgeableConflictSubjects`) is removed as redundant; the e2e walks that build
+  an overlap from stops created in the editor (whose default kind is Pending) now pick Planned.
+  Every other reader (conflicts chip and sheet, `ConflictBanner`, Home's hero count, the stop
+  editor's list, the assistant's context and read tools, `@tc/pages`' `open` primitive, the public
+  API) reads `TripDetail.conflicts` and needed no change.
+- **Breaking?** No for any shape or stored data. **Yes for meaning:** a caller that read a
+  `time-overlap` naming a pending stop no longer gets one.
+
 ## 2026-10-10 — `notApplied` on the /ask stream: a turn whose every write was refused says why
 
 - **Added** (`assistant.ts`): a sixth `AskStreamShape` member, `{ notApplied: { skipped: string[] (≥ 1, each
