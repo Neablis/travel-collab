@@ -316,7 +316,7 @@ test("a shared day can start a new trip, as day 1, and the add still counts", as
   ]);
 
   // Named after the day, verbatim — there is no name field to have typed one in.
-  await expect(bob.getByRole("heading", { name: dayName, level: 2 })).toBeVisible();
+  await expect(bob.getByRole("heading", { name: dayName, level: 1 })).toBeVisible();
   // ONE day column, and the playbook day is it. The COUNT is what catches
   // `SetTripDates` being used instead of `SetTripStartDate`: that command
   // reconciles day count and would have minted an empty day 1, leaving the day
