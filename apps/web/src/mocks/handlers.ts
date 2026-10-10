@@ -17,6 +17,7 @@ import {
   PAGE_CHANGED_CODE,
   PutReviewInput,
   ResolveSuggestionChangeInput,
+  AcceptSuggestionChangesInput,
   RestorePageInput,
   SetCoverBody,
   SetTravellingInput,
@@ -297,6 +298,27 @@ export function makeTripHandlers(
         ? HttpResponse.json({ changes: pendingSuggestions(), rev: suggestionsRev() })
         : HttpResponse.json({ error: "Not found", code: "not-found" }, { status: 404 }),
     ),
+    // Accept-all's (M40 D1): all or nothing, parents first by creation order.
+    // Ahead of the resolve route below, whose `:changeId` would match `accept`.
+    http.post("/api/trips/:tripId/suggestions/changes/accept", async ({ request }) => {
+      const { changeIds } = AcceptSuggestionChangesInput.parse(await request.json());
+      const targets = suggestions.filter((c) => changeIds.includes(c.id));
+      const refuse = (changeId: string, error: string, code: string, status = 409) =>
+        HttpResponse.json({ error, code, changeId }, { status });
+      const missing = changeIds.find((id) => !targets.some((c) => c.id === id));
+      if (missing) return refuse(missing, "Not found", "not-found", 404);
+      for (const c of targets) {
+        if (c.status !== "pending") return refuse(c.id, "Already resolved", "already-resolved");
+        const blocked = c.dependsOn.some(
+          (id) => !changeIds.includes(id) && suggestions.find((p) => p.id === id)?.status !== "accepted",
+        );
+        if (blocked) return refuse(c.id, "Accept the change it builds on first", "dependency-pending");
+      }
+      const resolvedAt = new Date().toISOString();
+      for (const c of targets) for (const command of c.commands) detail = applyMock(detail, command);
+      for (const c of targets) Object.assign(c, { status: "accepted", resolvedBy: "dev-alice", resolvedAt });
+      return HttpResponse.json({ changes: targets });
+    }),
     // The resolve route's rules that a board test can reach (spec §2.7, W28,
     // W33), without its role checks: accept applies the commands to the mock
     // trip so a refetch shows them confirmed; dismiss and withdraw take the

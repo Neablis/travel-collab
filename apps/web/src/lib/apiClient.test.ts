@@ -13,6 +13,7 @@ import {
   createTripSuggestion,
   fetchTripSuggestions,
   resolveSuggestionChange,
+  acceptSuggestionChanges,
   createTripShare,
   deleteSavedDay,
   duplicateTrip,
@@ -264,6 +265,7 @@ const FETCHING_HELPERS: Record<string, () => Promise<ApiResult<unknown>>> = {
     createTripSuggestion(TRIP_ID, { units: [{ commands: [{ type: "AddDay", tripId: TRIP_ID, dayId: UUID }] }] }),
   fetchTripSuggestions: () => fetchTripSuggestions(TRIP_ID),
   resolveSuggestionChange: () => resolveSuggestionChange(TRIP_ID, UUID, "accept"),
+  acceptSuggestionChanges: () => acceptSuggestionChanges(TRIP_ID, [UUID]),
   fetchInviteLanding: () => fetchInviteLanding("tok"),
   fetchInvitePreview: () => fetchInvitePreview("tok"),
   acceptInvite: () => acceptInvite("tok"),
@@ -700,6 +702,8 @@ const TRIP_WRITERS: Record<string, () => Promise<ApiResult<unknown>>> = {
   removeMember: () => removeMember(TRIP_ID, "u-2"),
   // An accept appends a batch; see the helper for why every action clears.
   resolveSuggestionChange: () => resolveSuggestionChange(TRIP_ID, UUID, "accept"),
+  // M40: one batch for every change it names.
+  acceptSuggestionChanges: () => acceptSuggestionChanges(TRIP_ID, [UUID]),
   applyAssistantProposal: () =>
     applyAssistantProposal(TRIP_ID, {
       proposalId: "p1",
@@ -1303,6 +1307,21 @@ describe("resolveSuggestionChange", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error).toMatchObject({ status: 409, code: "dependency-pending" });
+  });
+});
+
+// M40 D1: an accept-all refusal accepted nothing, and names which change.
+describe("acceptSuggestionChanges", () => {
+  it("passes a refusal's code and the change it names through", async () => {
+    server.use(
+      http.post("*/api/trips/:tripId/suggestions/changes/accept", () =>
+        HttpResponse.json({ error: "No longer applies.", code: "no-longer-applies", changeId: UUID }, { status: 409 }),
+      ),
+    );
+    const result = await acceptSuggestionChanges(TRIP_ID, [UUID]);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatchObject({ status: 409, code: "no-longer-applies", changeId: UUID });
   });
 });
 

@@ -210,6 +210,37 @@ describe("buildHistoryEntries", () => {
     expect(buildHistoryEntries(log).at(-1)!.description).toBe("Undid: Added Day 2");
   });
 
+  // M40 D1-D3: "Accept all" is one batch whose origin lists the changes. One
+  // entry, counted rather than described per change, and one undo.
+  it("an accept-all is one entry, counted, and one undo takes all of it", () => {
+    let log = freshTrip();
+    const before = log.length;
+    log = run(log, { type: "AddDay", tripId: TRIP, dayId: uuid(911) });
+    log = run(log, { type: "AddDay", tripId: TRIP, dayId: uuid(912) });
+    const origin: Origin = {
+      kind: "suggestions",
+      changes: [
+        { suggestionId: uuid(913), changeId: uuid(914) },
+        { suggestionId: uuid(915), changeId: uuid(916) },
+      ],
+      authorIds: ["u2", "u3"],
+    };
+    // The two adds as the one batch an accept-all appends.
+    log = log.map((e, i) => (i >= before ? { ...e, batchId: uuid(917), origin } : e));
+
+    const last = buildHistoryEntries(log).at(-1)!;
+    expect(last.description).toBe("Accepted 2 suggestions");
+    expect(deriveUndoRedo(groupBatches(log)).undo?.batchId).toBe(uuid(917));
+
+    log = run(log, { type: "UndoLastChange", tripId: TRIP });
+    expect(state(log).days).toHaveLength(1);
+    expect(buildHistoryEntries(log).at(-1)!.description).toBe("Undid: Accepted 2 suggestions");
+
+    log = run(log, { type: "RedoChange", tripId: TRIP });
+    expect(state(log).days).toHaveLength(3);
+    expect(buildHistoryEntries(log).at(-1)!.description).toBe("Redid: Accepted 2 suggestions");
+  });
+
   it("a revert renders as ONE entry, not an event burst", () => {
     let log = freshTrip();
     log = run(log, { type: "RevertToState", tripId: TRIP, toSeq: 1 });

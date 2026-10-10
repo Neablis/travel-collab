@@ -10,7 +10,7 @@ export const EventEnvelope = z.object({
   actorId: z.string().min(1),
   occurredAt: z.string(), // ISO 8601
   batchId: z.string().uuid(), // one per command execution (M2)
-  origin: Origin, // provenance: user | undo | redo | revert | suggestion (M2, ADR-005, ADR-064)
+  origin: Origin, // provenance: user | undo | redo | revert | suggestion | suggestions (M2, ADR-005, ADR-064, M40)
 });
 export type EventEnvelope = z.infer<typeof EventEnvelope>;
 

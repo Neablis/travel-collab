@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  AcceptSuggestionChangesInput,
   CreateSuggestionInput,
   EventEnvelope,
   Origin,
   ResolveSuggestionChangeInput,
   SuggestionChange,
   TripEventsPage,
+  SUGGESTION_ACCEPT_MAX,
   TripSuggestionsResponse,
 } from "../src";
 
@@ -125,6 +127,31 @@ describe("Origin: suggestion", () => {
       expect(Origin.safeParse(missing).success).toBe(false);
     }
     expect(Origin.safeParse({ ...origin, authorId: "" }).success).toBe(false);
+  });
+});
+
+// M40 D3: an accept-all is one batch, and its origin names every change and
+// every person who asked for one.
+describe("Origin: suggestions", () => {
+  const origin = { kind: "suggestions", changes: [{ suggestionId, changeId }], authorIds: ["dev-bob", "dev-ana"] };
+
+  it("parses, and needs at least one change and one author", () => {
+    expect(Origin.parse(origin)).toEqual(origin);
+    expect(Origin.safeParse({ ...origin, changes: [] }).success).toBe(false);
+    expect(Origin.safeParse({ ...origin, authorIds: [] }).success).toBe(false);
+    expect(Origin.safeParse({ ...origin, authorIds: [""] }).success).toBe(false);
+  });
+});
+
+describe("AcceptSuggestionChangesInput", () => {
+  it("takes one to SUGGESTION_ACCEPT_MAX distinct change ids", () => {
+    const ids = (n: number) => Array.from({ length: n }, (_, i) => uuid(i + 1));
+    expect(AcceptSuggestionChangesInput.safeParse({ changeIds: ids(1) }).success).toBe(true);
+    expect(AcceptSuggestionChangesInput.safeParse({ changeIds: ids(SUGGESTION_ACCEPT_MAX) }).success).toBe(true);
+    expect(AcceptSuggestionChangesInput.safeParse({ changeIds: ids(SUGGESTION_ACCEPT_MAX + 1) }).success).toBe(false);
+    expect(AcceptSuggestionChangesInput.safeParse({ changeIds: [] }).success).toBe(false);
+    expect(AcceptSuggestionChangesInput.safeParse({ changeIds: [uuid(1), uuid(1)] }).success).toBe(false);
+    expect(AcceptSuggestionChangesInput.safeParse({ changeIds: ["not-a-uuid"] }).success).toBe(false);
   });
 });
 
