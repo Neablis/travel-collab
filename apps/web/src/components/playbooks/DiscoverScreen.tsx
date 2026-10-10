@@ -478,10 +478,22 @@ export function DiscoverScreen({
           the tap adds: city matching is containment, so adding a city widens
           the match and a tap can only ever return at least this many. Don't
           "improve" this to "Add N more"; that sentence is false in both
-          directions. */}
+          directions.
+
+          **One row on a phone, never a wrapped block** ("too many options on
+          busy right now really pushes down the page so the first trips arent
+          even visible. One row max", 375px). Below `md` the row scrolls
+          sideways instead of wrapping, so every city stays reachable without
+          spending the first screen on chips; at `md` and up there is room and
+          it wraps as before. `-mx-1 px-1 pt-1 pb-1` is DayChips' pairing: an
+          `overflow-x-auto` box clips on every side, and those four give a
+          focused chip's ring its gutter back. */}
       {siblings.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5" data-testid="sibling-cities">
-          <Text as="span" variant="muted" className="text-xs">
+        <div
+          className="-mx-1 flex flex-nowrap items-center gap-1.5 overflow-x-auto px-1 pt-1 pb-1 md:flex-wrap md:overflow-visible"
+          data-testid="sibling-cities"
+        >
+          <Text as="span" variant="muted" className="shrink-0 text-xs whitespace-nowrap">
             {askedForPlace ? "Also in these results" : "Busy right now"}
           </Text>
           {siblings.map((sibling) => (
@@ -490,7 +502,7 @@ export function DiscoverScreen({
               type="button"
               variant="secondary"
               size="sm"
-              className="rounded-full"
+              className="shrink-0 rounded-full whitespace-nowrap"
               aria-label={`Add ${sibling.city}`}
               onClick={() => set("cities", [...cities, sibling.city])}
             >
