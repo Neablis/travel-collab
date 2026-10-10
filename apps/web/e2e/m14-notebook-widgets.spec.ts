@@ -2,7 +2,7 @@ import type { Locator, Page } from "@playwright/test";
 import { expect, test } from "./fixtures/test";
 import { newPageDoc } from "@tc/contracts";
 import { e2eTripName } from "./tripNames";
-import { createEmptyTripViaWizard, createMappedTrip, signInAsDevUser, stripOverhang, TWENTY_DAYS_IN_JAPAN } from "./helpers";
+import { createEmptyTripViaWizard, createMappedTrip, signInAsDevUser, stripOverhang, TWENTY_DAYS_IN_JAPAN, openNewParkedStop } from "./helpers";
 import { E2E_SUPER_CODE } from "./admission";
 import { grantCollaborators } from "./adminBootstrap";
 
@@ -106,7 +106,7 @@ async function tripWithTwoDays(page: Page): Promise<string> {
 // counts every activity on the trip, not only the scheduled ones — which is
 // also the cheapest way to get a selectable tag without touching a day.
 async function addTaggedStop(page: Page, title: string, tagLabel: string): Promise<void> {
-  await page.getByRole("button", { name: "Add stop" }).click();
+  await openNewParkedStop(page);
   await page.getByLabel("What or where").fill(title);
   await page.getByRole("group", { name: "Tags" }).getByRole("button", { name: tagLabel }).click();
   await waitForConfirmedCommand(page, () => page.getByRole("button", { name: "Add stop" }).last().click());
@@ -137,7 +137,7 @@ async function addStopInCity(page: Page, title: string, cityName: string): Promi
       }),
     });
   });
-  await page.getByRole("button", { name: "Add stop" }).click();
+  await openNewParkedStop(page);
   await page.getByLabel("What or where").fill(title);
   await page.getByLabel("Place name").fill(cityName);
   await page.getByRole("button", { name: "Search" }).click();

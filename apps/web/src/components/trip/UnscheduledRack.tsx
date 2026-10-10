@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { draggable, dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
-import { ChevronDown, ChevronRight, Pencil, X } from "lucide-react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toClockRange } from "@/lib/time";
@@ -11,7 +11,6 @@ import { usePersonas } from "@/components/pages/people";
 import { PersonChip } from "@/components/ui/person-chip";
 import { displayNameFor } from "@/lib/displayName";
 import { Card } from "@/components/ui/card";
-import { NativeSelect } from "@/components/ui/native-select";
 import { cn } from "@/lib/cn";
 import { RACK_LIFT_OVER_EVENT } from "@/lib/touchLift";
 
@@ -94,12 +93,10 @@ function groupByDay(items: RackItem[]): RackGroup[] {
  */
 export function UnscheduledRack({
   items,
-  dayOptions,
   open,
   onToggle,
-  onAssign,
   onEdit,
-  onRemove,
+  onCreate,
   reveal = null,
   placement = "dock",
 }: {
@@ -109,19 +106,22 @@ export function UnscheduledRack({
    */
   placement?: "dock" | "row";
   items: RackItem[];
-  dayOptions: { value: string; label: string }[];
   open: boolean;
   onToggle: () => void;
   /**
-   * Absent on a read-only board (a viewer's, or the demo's — ADR-031): the
-   * parked ideas are part of the plan and stay visible; the picker that moves
-   * one onto a day is a command, and goes.
+   * Opens a card's stop in the editor, which is where it is moved, timed and
+   * removed (M41 D3, D4): a card carries no controls of its own. **Absent on a
+   * read-only board** (a viewer's, or the demo's — ADR-031), and that absence
+   * is the signal: the cards then neither open nor lift, since every change
+   * either would lead to is a command.
    */
-  onAssign?: (activityId: string, dayId: string) => void;
-  /** Opens a card's stop in the editor. Absent on a read-only board, like `onAssign`. */
   onEdit?: (activityId: string) => void;
-  /** Removes a card's stop from the trip. Absent on a read-only board, like `onAssign`. */
-  onRemove?: (activityId: string) => void;
+  /**
+   * A double-click on the drawer's empty space makes a parked stop (M41 D1):
+   * the gesture that adds a stop on a day's river, where a parked stop lives.
+   * Absent on a read-only board, like `onEdit`.
+   */
+  onCreate?: () => void;
   /**
    * A day column's "N Unscheduled" chip asking for its day's group: scrolled
    * into view and focused once the drawer is open. `seq` changes on every
@@ -257,6 +257,16 @@ export function UnscheduledRack({
           is shut. */}
       {open ? (
         <div
+          data-testid="rack-cards"
+          // A double-click on empty space here makes a parked stop (M41 D1).
+          // Only empty space: a double-click on a card is two opens of it.
+          onDoubleClick={
+            onCreate === undefined
+              ? undefined
+              : (event) => {
+                  if ((event.target as HTMLElement).closest("[data-testid='rack-card']") === null) onCreate();
+                }
+          }
           // `items-end`: the No day group keeps its label and the day groups
           // have none, so the card rows line up along the bottom.
           className="flex items-end gap-2.5 overflow-x-auto"
@@ -269,16 +279,16 @@ export function UnscheduledRack({
               // eslint-disable-next-line no-restricted-syntax -- 240px min width and 12.5px copy are design-fixed values with no token equivalent
               style={{ minWidth: "240px", fontSize: "12.5px" }}
             >
-              {onAssign === undefined
+              {onEdit === undefined
                 ? "Nothing parked."
-                : "Nothing parked. Drag a stop down here to take it off the schedule without losing it."}
+                : "Nothing parked. Drag a stop down here to take it off the schedule, or double-click to add one."}
             </p>
           ) : (
             groups.map((group) =>
               group.day === null ? (
-                <NoDayGroup key="no-day" editable={onAssign !== undefined}>
+                <NoDayGroup key="no-day" editable={onEdit !== undefined}>
                   {group.items.map((item) => (
-                    <RackCard key={item.activityId} item={item} dayOptions={dayOptions} onAssign={onAssign} onEdit={onEdit} onRemove={onRemove} />
+                    <RackCard key={item.activityId} item={item} onEdit={onEdit} />
                   ))}
                 </NoDayGroup>
               ) : (
@@ -296,7 +306,7 @@ export function UnscheduledRack({
                   className="flex shrink-0 gap-2.5 rounded-lg focus-visible:outline-2 focus-visible:outline-brand"
                 >
                   {group.items.map((item) => (
-                    <RackCard key={item.activityId} item={item} dayOptions={dayOptions} onAssign={onAssign} onEdit={onEdit} onRemove={onRemove} />
+                    <RackCard key={item.activityId} item={item} onEdit={onEdit} />
                   ))}
                 </div>
               ),
@@ -353,42 +363,25 @@ function NoDayGroup({ editable, children }: { editable: boolean; children: React
   );
 }
 
-function RackCard({
-  item,
-  dayOptions,
-  onAssign,
-  onEdit,
-  onRemove,
-}: {
-  item: RackItem;
-  dayOptions: { value: string; label: string }[];
-  /**
-   * Absent on a read-only board (a viewer's, or the demo's — ADR-031): the
-   * parked ideas are part of the plan and stay visible; the picker that moves
-   * one onto a day is a command, and goes.
-   */
-  onAssign?: (activityId: string, dayId: string) => void;
-  onEdit?: (activityId: string) => void;
-  onRemove?: (activityId: string) => void;
-}) {
+function RackCard({ item, onEdit }: { item: RackItem; onEdit?: (activityId: string) => void }) {
   const clock = useTimeFormat();
   const personas = usePersonas();
   const parker = item.bookedBy === null ? undefined : personas?.[item.bookedBy];
   const ref = useRef<HTMLDivElement>(null);
   const [dragging, setDragging] = useState(false);
 
-  // Same payload shape ActivityCard's draggable carries ({ activityId }), so
+  // Same payload shape a river block's draggable carries ({ activityId }), so
   // Board's monitor routes a card dragged out of the rack exactly like one
   // dragged between days — resolveDrop needs no rack-source special case.
-  // `onAssign` absent IS the viewer signal here — TripBoardScreen withholds it
+  // `onEdit` absent IS the viewer signal here — TripBoardScreen withholds it
   // rather than passing a flag (ADR-031) — so it gates the drag registration
-  // too, not just the "Add to day" select below. Registering `draggable` for a
-  // viewer is the precise failure the read-only work exists to stop: the card
-  // lifts, follows the cursor, and snaps back when the server refuses the
-  // MoveActivity it produced (docs/reviews/2026-08-28-m11-pr71-review.md §5).
-  // In the dep array for the same reason: a rack rendered before the access
-  // read resolves would otherwise keep the editor's registration.
-  const canDrag = onAssign !== undefined;
+  // too. Registering `draggable` for a viewer is the precise failure the
+  // read-only work exists to stop: the card lifts, follows the cursor, and
+  // snaps back when the server refuses the MoveActivity it produced
+  // (docs/reviews/2026-08-28-m11-pr71-review.md §5). In the dep array for the
+  // same reason: a rack rendered before the access read resolves would
+  // otherwise keep the editor's registration.
+  const canDrag = onEdit !== undefined;
   useEffect(() => {
     const el = ref.current;
     if (!el || !canDrag) return;
@@ -405,62 +398,42 @@ function RackCard({
       ref={ref}
       data-testid="rack-card"
       data-blstop=""
-      // Cursor follows the registration, matching ActivityCard's own
-      // `!readOnly && "cursor-grab"`: a grab cursor over a card that cannot be
-      // picked up is the same false promise the hidden controls exist to avoid.
+      // Cursor follows the registration, matching a river block's own: a grab
+      // cursor over a card that cannot be picked up is a false promise.
       className={cn(canDrag && "cursor-grab", "rounded-lg transition-opacity duration-200")}
-      // eslint-disable-next-line no-restricted-syntax -- 208px card width (same computed-geometry pattern as Column.tsx's DAY_COLUMN_WIDTH_PX), touch-action, and the per-frame drag opacity pragmatic-drag-and-drop drives (same as ActivityCard's)
+      // eslint-disable-next-line no-restricted-syntax -- 208px card width (same computed-geometry pattern as Column.tsx's DAY_COLUMN_WIDTH_PX), touch-action, and the per-frame drag opacity pragmatic-drag-and-drop drives (same as a river block's)
       style={{ flex: "0 0 208px", touchAction: "none", opacity: dragging ? 0.5 : 1 }}
     >
-      <Card className="flex h-full flex-col gap-2 rounded-lg p-3">
-        <div>
-          {(item.day !== null || item.badge !== null || onEdit !== undefined || onRemove !== undefined) && (
-            <div className="mb-1 flex items-start gap-1">
-              {/* `flex-wrap`, so two badges beside a phone's two 44px controls
-                  stack inside the 208px card instead of running out of it. */}
-              <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
-                {/* The day an untimed stop is on, on the card itself as well as
-                    over its group: a card lifted out of the group for a drag
-                    has left its heading behind (PR #269). */}
-                {item.day !== null && <Badge variant="neutral">{item.day.tag}</Badge>}
-                {/* The kind badge the board's card wore ("To book", "Maybe",
-                    "Train"). A pending stop is very often an untimed one, and
-                    since PR #269 the rack is where an untimed stop is drawn, so
-                    without it "To book" would have no surface on Plan at all. */}
-                {item.badge !== null && (
-                  <Badge variant={item.badge.variant} data-testid={`kind-badge-${item.activityId}`}>
-                    {item.badge.label}
-                  </Badge>
-                )}
-              </span>
-              {/* Edit and Remove, as the board's card had them. An untimed
-                  stop was edited from its card on the "Any time" shelf; drawn
-                  here now, it keeps the controls rather than becoming a stop
-                  you can only drag. Withheld on a read-only board. */}
-              <span className="flex shrink-0 gap-0.5">
-                {onEdit !== undefined && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-auto"
-                    onClick={() => onEdit(item.activityId)}
-                    aria-label={`Edit ${item.title}`}
-                  >
-                    <Pencil className="size-3.5" aria-hidden />
-                  </Button>
-                )}
-                {onRemove !== undefined && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-auto"
-                    onClick={() => onRemove(item.activityId)}
-                    aria-label={`Remove ${item.title}`}
-                  >
-                    <X className="size-3.5" aria-hidden />
-                  </Button>
-                )}
-              </span>
+      <Card className="relative flex h-full flex-col gap-2 rounded-lg p-3">
+        {/* **The card is the control** (M41 D4). Its Edit, Remove and *Add to
+            day…* went: the editor it opens moves, times and removes the stop,
+            and a drag places it. One button over the whole card, as a river
+            block has, so a tap or Enter opens it; the content paints above it
+            and lets clicks through. Withheld on a read-only board. */}
+        {onEdit !== undefined && (
+          <Button
+            variant="ghost"
+            onClick={() => onEdit(item.activityId)}
+            aria-label={`Edit ${item.title}`}
+            className="absolute inset-0 h-auto min-w-0 rounded-lg p-0 hover:bg-transparent focus-visible:outline-offset-0"
+          />
+        )}
+        <div className="pointer-events-none relative">
+          {(item.day !== null || item.badge !== null) && (
+            <div className="mb-1 flex flex-wrap items-center gap-1">
+              {/* The day an untimed stop is on, on the card itself as well as
+                  over its group: a card lifted out of the group for a drag
+                  has left its heading behind (PR #269). */}
+              {item.day !== null && <Badge variant="neutral">{item.day.tag}</Badge>}
+              {/* The kind badge the board's card wore ("To book", "Maybe",
+                  "Train"). A pending stop is very often an untimed one, and
+                  since PR #269 the rack is where an untimed stop is drawn, so
+                  without it "To book" would have no surface on Plan at all. */}
+              {item.badge !== null && (
+                <Badge variant={item.badge.variant} data-testid={`kind-badge-${item.activityId}`}>
+                  {item.badge.label}
+                </Badge>
+              )}
             </div>
           )}
           <div
@@ -496,13 +469,11 @@ function RackCard({
         </div>
         {/* M13 link 5 modelled HALF of what this line was drawn to say.
             `bookedBy` records who parked the stop, so that half is real now.
-            **Which day it came from is still not modelled** — a backlog stop
-            keeps no record of the day it was moved off — so the line shows the
-            half that exists rather than fabricating the other, and the missing
-            half is recorded in `docs/candidates.md` rather than left as a
-            placeholder that reads as a promise. */}
+            **Which day it came from is not modelled yet** (M41 part 3 adds
+            it), so the line shows the half that exists rather than
+            fabricating the other. */}
         {item.bookedBy !== null && (
-          <div className="flex items-center gap-1.5">
+          <div className="pointer-events-none relative flex items-center gap-1.5">
             {/* Their chip once the members land (M38); nothing before, or for
                 someone who has left, rather than the initials of a handle. */}
             {parker !== undefined && (
@@ -519,32 +490,6 @@ function RackCard({
               Parked by {parker?.name ?? displayNameFor({ userId: item.bookedBy })}
             </span>
           </div>
-        )}
-        {/* Accessible name is the bare "Add to day"; the first
-            option's "Add to day…" is the visible placeholder. The
-            select stays pinned to `value=""` so it reads as an
-            action, not a stored choice — assigning moves the stop
-            out of the rack entirely. For a stop already on a day that
-            holds for its own day too: assigning gives it a time, on
-            whichever day was picked (TripBoardScreen's
-            `assignFromRack`), which is what takes it off the rack. */}
-        {onAssign !== undefined && (
-        <NativeSelect
-          aria-label="Add to day"
-          className="mt-auto w-full"
-          value=""
-          onChange={(event) => {
-            const dayId = event.target.value;
-            if (dayId !== "") onAssign(item.activityId, dayId);
-          }}
-        >
-          <option value="">Add to day…</option>
-          {dayOptions.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </NativeSelect>
         )}
       </Card>
     </div>

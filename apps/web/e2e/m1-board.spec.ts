@@ -1,5 +1,5 @@
 import { expect, test } from "./fixtures/test";
-import { createMappedTrip, dragCardTo, createEmptyTripViaWizard } from "./helpers";
+import { createMappedTrip, dragCardTo, createEmptyTripViaWizard, openNewParkedStop, openRack } from "./helpers";
 import { e2eTripName } from "./tripNames";
 
 test("board: days, activities, drag, conflicts as data", async ({ page, browser }) => {
@@ -26,7 +26,7 @@ test("board: days, activities, drag, conflicts as data", async ({ page, browser 
   // Backlog column is gone (M10 Phase 3, Task 3.3) — the header's "Add stop"
   // is the openCreate() with no dayId that its "+ Add activity" button used to
   // be, and what it creates lands in the Unscheduled drawer.
-  await page.getByRole("button", { name: "Add stop" }).click();
+  await openNewParkedStop(page);
   await page.getByLabel("What or where").fill("Colosseum");
   await page.getByLabel("Start", { exact: true }).fill("09:00");
   await page.getByLabel("How long").selectOption("2 hours");
@@ -40,10 +40,10 @@ test("board: days, activities, drag, conflicts as data", async ({ page, browser 
   // open it (which also makes it the user's, not a drag's, for the rest of the
   // spec) before looking for what was parked in it.
   const rack = page.getByTestId("unscheduled-rack");
-  await rack.getByRole("button", { name: /unscheduled/i }).click();
+  await openRack(page);
   await expect(rack.getByTestId("rack-card").filter({ hasText: "Colosseum" })).toBeVisible();
 
-  await page.getByRole("button", { name: "Add stop" }).click();
+  await openNewParkedStop(page);
   await page.getByLabel("What or where").fill("Vatican Museums");
   await page.getByLabel("Start", { exact: true }).fill("10:00");
   await page.getByLabel("How long").selectOption("2 hours");

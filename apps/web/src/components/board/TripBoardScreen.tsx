@@ -31,7 +31,6 @@ import { SuggestionTray } from "./SuggestionTray";
 import { ActivityEditorSheet } from "@/components/trip/editor/ActivityEditorSheet";
 import { PeopleProvider } from "@/components/pages/people";
 import { type RackItem, UnscheduledRack } from "@/components/trip/UnscheduledRack";
-import { fitIntoDay } from "@/components/trip/fitIntoDay";
 import { moveCommands } from "./moveCommands";
 import { rackDropWindow } from "./rackDropWindow";
 import { kindBadge } from "./activityKind";
@@ -40,7 +39,6 @@ import { lensAcceptsDrops } from "./lensAcceptsDrops";
 import { rackDisclosure, type RackDisclosure, type RackEvent } from "@/components/trip/rackDisclosure";
 import { legRoute, shortPlace } from "@/lib/place";
 import { isDemoTripId } from "@/lib/demoTrip";
-import { dayLabel } from "@/lib/dates";
 import { useAssistantShape } from "@/components/assistant/useAssistantShape";
 import { AssistantRail } from "@/components/assistant/AssistantRail";
 import type { AssistantTurn } from "@/components/assistant/Transcript";
@@ -108,7 +106,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   const refreshSuggestions = useRef(tripSuggestions?.refresh);
   refreshSuggestions.current = tripSuggestions?.refresh;
   const { view, setView } = useLens();
-  const { openEdit } = useEditor();
+  const { openCreate, openEdit } = useEditor();
   const suggestions = useBoardSuggestions();
   // Task 4's FocusProvider is mounted around this whole tree (trips/[tripId]/
   // page.tsx), so this hook must run unconditionally before the early
@@ -555,39 +553,10 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
         .flatMap((activityId) => rackItem(activityId, owner));
     }),
   ];
-  const rackDayOptions = activeTrip.days.map((day, index) => ({
-    value: day.dayId,
-    label: dayLabel(activeTrip.startDate, index),
-  }));
-
-  // Scheduling from the rack is two commands, not one: MoveActivity puts the
-  // stop on the day (the backlog↔day move the store already models), then
-  // UpdateActivity gives it the real times fitIntoDay picks from the day's
-  // existing windows. Both go through dispatch, so both land in the existing
-  // undo history like every other mutation — no special-casing needed.
-  //
-  // **A stop already on a day** (an untimed one, in the rack under its day
-  // since PR #269) goes through the same picker with the same meaning: "put
-  // this on that day's timeline". So it is given a time on whichever day is
-  // picked, its own included — the time is what takes it out of the rack, as
-  // the day is for a parked stop. Picking its own day skips the move, which
-  // would change nothing and still cost an undo step. Moving it to another
-  // day while leaving it untimed is a drop on that day's "Unscheduled" chip.
-  const assignFromRack = (activityId: string, dayId: string) => {
-    const day = activeTrip.days.find((d) => d.dayId === dayId);
-    if (day === undefined) return;
-
-    const existing = day.activityIds
-      .map((id) => activeTrip.activities[id]?.timeWindow)
-      .filter((w): w is { start: string; end: string } => w !== null && w !== undefined);
-
-    for (const move of moveCommands(activeTrip, [activityId], dayId)) void dispatch(move);
-    void dispatch({ type: "UpdateActivity", tripId, activityId, timeWindow: fitIntoDay(existing) });
-  };
-
-  // Dragging a parked stop onto a day is the same two-command job
-  // assignFromRack does — MoveActivity, then a real time — but the drag knows
-  // something the day dropdown doesn't: WHERE in the day you dropped it
+  // Dragging a parked stop onto a day is the same two-command job the rack's
+  // *Add to day…* did (gone in M41: the editor's Day field is its non-drag
+  // path, `editActivityCommands`) — MoveActivity, then a real time — but the
+  // drag knows something the day dropdown didn't: WHERE in the day you dropped it
   // (Mitchell, preview feedback on PR #55: "dragging a unscheduled element
   // into the UI should set the time between the elements it was dropped
   // between"). Before this the drag dispatched a bare MoveActivity, so a stop
@@ -601,7 +570,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // overlapping its neighbours. Dropped at the top (position 0) there is no
   // stop above, so it falls back to the day's own default.
   //
-  // The drag's counterpart to assignFromRack: MoveActivity, then a real time.
+  // MoveActivity, then a real time.
   // The decision of WHICH time — and whether to set one at all — is
   // rackDropWindow, a pure function so it can be tested without a drag
   // (rackDropWindow.ts explains why, and carries the reasoning that used to
@@ -644,12 +613,11 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     void dispatch({ type: "UpdateActivity", tripId, activityId, timeWindow });
   };
 
-  // The mirror image of assignFromRack, and two commands for the same reason:
+  // The mirror image of a stop put on a day from the rack, and two commands:
   // MoveActivity(toDayId: null) parks the stop, then UpdateActivity clears the
   // window — the design's "unscheduling strips the times". They are two
   // separate dispatches, so they are two separate batches in the event log and
-  // therefore two separate undos (the same granularity assignFromRack already
-  // has). A batch would need dispatchBatch, which would make unscheduling
+  // therefore two separate undos (the same granularity a rack drop has). A batch would need dispatchBatch, which would make unscheduling
   // atomic in a way scheduling isn't; keeping the two symmetrical is the more
   // predictable of the two. Clearing an already-empty window is a server-side
   // no-op (harmlessly swallowed by TripProvider), so a stop that had no time
@@ -959,12 +927,11 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
       <UnscheduledRack
         placement={placement}
         items={rackItems}
-        dayOptions={rackDayOptions}
         open={rack.open}
         onToggle={() => onRackEvent({ type: "toggle" })}
-        onAssign={canEditBoard ? assignFromRack : undefined}
         onEdit={canEditBoard ? openEdit : undefined}
-        onRemove={canEditBoard ? (activityId) => void dispatch({ type: "RemoveActivity", tripId, activityId }) : undefined}
+        // Bare, like the phone's `⋯` *Add stop*: no day is a parked stop.
+        onCreate={canEditBoard ? () => openCreate() : undefined}
         reveal={rackReveal}
       />
     </PeopleProvider>
@@ -1399,10 +1366,10 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           The gate is a question about drop targets rather than a lens list so
           the drawer comes back on its own when Timeline and Calendar get
           theirs (TODO.md's four rack/lens gaps). */}
-      {/* The rack is a drop target and an "add to day" picker — both writes.
-          Its four parked ideas are still part of the plan a reader should see,
-          so on a read-only board it renders without the picker rather than
-          disappearing (UnscheduledRack drops it when `onAssign` is absent). */}
+      {/* The rack is a drop target and a set of cards that open and lift —
+          all writes. Its parked ideas are still part of the plan a reader
+          should see, so on a read-only board it renders inert rather than
+          disappearing (UnscheduledRack reads `onEdit`'s absence). */}
       {/* **A suggester's bar is their draft, not the rack** (W69, W71;
           Mitchell's production test, 2026-10-04). The tray used to sit in the
           page flow under the header, so an edit further down the board never

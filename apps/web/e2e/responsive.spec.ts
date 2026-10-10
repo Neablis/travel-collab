@@ -647,9 +647,10 @@ test.describe("responsive (trip header on a phone)", () => {
     // exists.
     await expect(page.getByLabel("Trip", { exact: true }).getByRole("button", { name: "Share", exact: true })).toHaveCount(0);
 
-    // What deliberately stays. Actions are not information: "Add stop" and
-    // History have no equivalent in Trip settings, and the tab strip and day
-    // chips are the phone's primary navigation.
+    // What deliberately stays. Actions are not information: "Add stop" (the
+    // phone's one door to a parked stop since M41) and History have no
+    // equivalent in Trip settings, and the tab strip and day chips are the
+    // phone's primary navigation.
     //
     // **Reachable, not laid out** (M39 D6, KI-2026-09-24-i): they were two
     // visible buttons in the header, and they moved into its one row's `⋯` on
@@ -791,22 +792,21 @@ test.describe("responsive (trip header on a phone)", () => {
     await expect(page.locator('header[aria-label="Trip"]').getByRole("button", { name: "Ask", exact: true })).toBeVisible();
     await expect(page.getByTestId("assistant-launcher")).toHaveCount(0);
 
-    // M39 D6's converse: the phone row's `⋯` is not drawn here, and the two
-    // actions it holds on a phone are still buttons in the header.
+    // M39 D6's converse: the phone row's `⋯` is not drawn here, and History
+    // is still a button in the header. *Add stop* is not: on desktop a stop is
+    // made where it will live, on a day's river or in the drawer (M41 D1).
     const tripHeader = page.locator('header[aria-label="Trip"]');
     await expect(tripHeader.getByRole("button", { name: "Trip actions" })).toBeHidden();
-    await expect(tripHeader.getByRole("button", { name: "Add stop" })).toBeVisible();
+    await expect(tripHeader.getByRole("button", { name: "Add stop" })).toHaveCount(0);
     await expect(tripHeader.getByRole("button", { name: "History", exact: true })).toBeVisible();
 
-    // Mitchell's preview comment (2026-10-10): "Ask is larger than add stop in
-    // height and looks weird. Lets also move this down a bit so its aligned
-    // with the trip title on the same row". Same height as Add stop, and on
-    // the title's row: the title's vertical centre falls inside Ask's box.
+    // Mitchell's preview comment: "Ask is larger than add stop in height and
+    // looks weird. Lets also move this down a bit so its aligned with the trip
+    // title on the same row". Add stop has gone from the row since (M41); the
+    // half that still applies is the row: the title's vertical centre falls
+    // inside Ask's box.
     const askBox = (await tripHeader.getByRole("button", { name: "Ask", exact: true }).boundingBox())!;
-    const addBox = (await tripHeader.getByRole("button", { name: "Add stop" }).boundingBox())!;
     const titleBox = (await tripHeader.getByRole("heading", { level: 1 }).boundingBox())!;
-    expect(askBox.height).toBe(addBox.height);
-    expect(Math.abs(askBox.y - addBox.y)).toBeLessThanOrEqual(1);
     const titleCentre = titleBox.y + titleBox.height / 2;
     expect(titleCentre).toBeGreaterThanOrEqual(askBox.y);
     expect(titleCentre).toBeLessThanOrEqual(askBox.y + askBox.height);

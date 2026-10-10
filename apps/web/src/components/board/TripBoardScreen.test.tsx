@@ -1876,21 +1876,20 @@ describe("TripBoardScreen — a day's untimed stops", () => {
     expect(within(card).getByText("Odawara → Kyoto")).toBeTruthy();
   });
 
-  it("gives one a time on its own day from Add to day, without moving it", async () => {
+  // M41 D4: the card is the control; its editor times, moves and removes it.
+  it("opens one in its editor when its card is tapped", async () => {
     const fixture = trip();
-    const onCommand = vi.fn<(command: TripCommand) => void>();
-    server.use(...makeTripHandlers(fixture, { onCommand }));
+    server.use(...makeTripHandlers(fixture));
     renderScreen(fixture.tripId);
 
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
     fireEvent.click(within(screen.getAllByTestId("day-column")[1]!).getByRole("button", { name: /^1 Unscheduled/ }));
     const group = screen.getByRole("group", { name: "Day 2" });
-    await userEvent.selectOptions(within(group).getByRole("combobox", { name: "Add to day" }), DAY_2);
+    await userEvent.click(within(group).getByRole("button", { name: "Edit Nishiki market" }));
 
-    await waitFor(() =>
-      expect(onCommand).toHaveBeenCalledWith(expect.objectContaining({ type: "UpdateActivity", activityId: UNTIMED })),
-    );
-    expect(onCommand).not.toHaveBeenCalledWith(expect.objectContaining({ type: "MoveActivity" }));
+    const sheet = await screen.findByRole("dialog");
+    expect((within(sheet).getByLabelText("What or where") as HTMLInputElement).value).toBe("Nishiki market");
+    expect((within(sheet).getByLabelText("Day") as HTMLSelectElement).value).toBe(DAY_2);
   });
 
   it("still shows a viewer where they are", async () => {
@@ -1904,7 +1903,6 @@ describe("TripBoardScreen — a day's untimed stops", () => {
     expect(within(group).getByText("Nishiki market")).toBeTruthy();
     // …and nothing on the card that would change it.
     expect(within(group).queryByRole("button", { name: /^(Edit|Remove) Nishiki market$/ })).toBeNull();
-    expect(within(group).queryByRole("combobox", { name: "Add to day" })).toBeNull();
   });
 });
 
@@ -1920,9 +1918,9 @@ describe("TripBoardScreen — a viewer's board", () => {
     expect(screen.queryByTestId("one-more-day-column")).toBeNull();
     expect(screen.queryByRole("button", { name: "Add a day" })).toBeNull();
     expect(screen.queryByRole("button", { name: /^Remove Day / })).toBeNull();
-    // The rack's day-assign select is the drawer's non-drag write path.
+    // A rack card opens its editor, the drawer's non-drag write path.
     fireEvent.click(screen.getByRole("button", { name: /unscheduled/i }));
-    expect(screen.queryAllByRole("combobox", { name: "Add to day" })).toHaveLength(0);
+    expect(within(screen.getByTestId("unscheduled-rack")).queryAllByRole("button", { name: /^Edit / })).toHaveLength(0);
   });
 
   it("offers all of them to an owner", async () => {
@@ -1970,15 +1968,16 @@ describe("TripBoardScreen — a viewer's board", () => {
 describe("TripBoardScreen — a suggester's board", () => {
   // The surfaces that opt in through `canEditBoard`, against the one that
   // must not (W13): undo and redo are history commands, which need "editor".
-  it("says Suggester, offers Add stop and the stop editor, and no undo or redo", async () => {
-    const fixture = tripDetailFixture();
+  it("says Suggester, offers the stop editor from the river, and no undo or redo", async () => {
+    const fixture = tripDetailFixture({ days: [{ dayId: "71111111-1111-4111-8111-111111111111", activityIds: [], date: null, costSubtotal: 0 }] });
     server.use(...makeTripHandlers(fixture, { myRole: "suggester" }));
     renderScreen(fixture.tripId);
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
     expect(screen.getByText("Suggester")).toBeTruthy();
     expect(screen.queryByText("Viewer")).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "Add stop" }));
+    // M41 D1: a stop is made on the day it lives on, with the river's gesture.
+    fireEvent.doubleClick(screen.getAllByTestId("day-river")[0]!, { clientY: 44 });
     const sheet = await screen.findByRole("dialog");
     expect(within(sheet).getByRole("heading", { name: "Add a stop" })).toBeTruthy();
     expect(within(sheet).getByLabelText("What or where")).toBeTruthy();
@@ -2032,7 +2031,7 @@ describe("TripBoardScreen — a suggester's board", () => {
     expect(within(column).getByText("1 Unscheduled")).toBeTruthy();
     expect(within(column).queryByRole("button", { name: /Unscheduled/ })).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "Add stop" }));
+    fireEvent.doubleClick(screen.getAllByTestId("day-river")[0]!, { clientY: 44 });
     const sheet = await screen.findByRole("dialog");
     const dayPicker = within(sheet).getByRole("combobox", { name: "Day" }) as HTMLSelectElement;
     await waitFor(() => expect(dayPicker.value).toBe(day.dayId));
@@ -2571,7 +2570,9 @@ describe("the add-a-stop sheet on a refused change", () => {
     renderScreen(fixture.tripId);
     await screen.findByRole("heading", { name: fixture.name });
 
-    await userEvent.click(screen.getAllByRole("button", { name: "Add stop" })[0]!);
+    // A trip with no days: a parked stop, from the drawer (M41 D1).
+    fireEvent.click(screen.getByRole("button", { name: /^Unscheduled/ }));
+    fireEvent.doubleClick(screen.getByTestId("rack-cards"));
     await screen.findByRole("heading", { name: "Add a stop" });
     await userEvent.type(screen.getByLabelText("What or where"), "Gelato{enter}");
 
@@ -2583,18 +2584,25 @@ describe("the add-a-stop sheet on a refused change", () => {
   });
 
   it("closes once the stop is accepted, with no refusal shown", async () => {
-    const fixture = tripDetailFixture();
+    // A day there to be wrongly prefilled: the drawer's stop must not take it.
+    const fixture = tripDetailFixture({ days: [{ dayId: "71111111-1111-4111-8111-111111111111", activityIds: [], date: null, costSubtotal: 0 }] });
     const onCommand = vi.fn<(command: TripCommand) => void>();
     server.use(...makeTripHandlers(fixture, { onCommand }));
     renderScreen(fixture.tripId);
     await screen.findByRole("heading", { name: fixture.name });
 
-    await userEvent.click(screen.getAllByRole("button", { name: "Add stop" })[0]!);
+    // A trip with no days: a parked stop, from the drawer (M41 D1).
+    fireEvent.click(screen.getByRole("button", { name: /^Unscheduled/ }));
+    fireEvent.doubleClick(screen.getByTestId("rack-cards"));
     await screen.findByRole("heading", { name: "Add a stop" });
     await userEvent.type(screen.getByLabelText("What or where"), "Gelato{enter}");
 
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(screen.queryByTestId("activity-save-refused")).toBeNull();
     await waitFor(() => expect(onCommand).toHaveBeenCalledWith(expect.objectContaining({ type: "AddActivity", title: "Gelato" })));
+    // The gate's capability (M41 D1): with no header button, the drawer's
+    // double-click still makes a stop that belongs to no day.
+    const added = onCommand.mock.calls.map(([c]) => c).find((c) => c.type === "AddActivity");
+    expect(added && "dayId" in added ? added.dayId : undefined).toBeUndefined();
   });
 });

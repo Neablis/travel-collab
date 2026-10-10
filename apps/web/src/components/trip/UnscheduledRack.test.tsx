@@ -16,11 +16,10 @@ const items = [
   { activityId: "a1", title: "Souvenir shopping", area: "Rochester", timeWindow: null, bookedBy: null, day: null, badge: null },
   { activityId: "a2", title: "Second breakfast", area: null, timeWindow: { start: "08:00", end: "09:00" }, bookedBy: null, day: null, badge: null },
 ];
-const dayOptions = [{ value: "d1", label: "Day 1 · Sep 5" }, { value: "d2", label: "Day 2 · Sep 6" }];
 
 function renderRack(over: Partial<React.ComponentProps<typeof UnscheduledRack>> = {}) {
   return render(
-    <UnscheduledRack items={items} dayOptions={dayOptions} open={false} onToggle={vi.fn()} onAssign={vi.fn()} {...over} />,
+    <UnscheduledRack items={items} open={false} onToggle={vi.fn()} onEdit={vi.fn()} onCreate={vi.fn()} {...over} />,
   );
 }
 
@@ -53,7 +52,7 @@ describe("UnscheduledRack", () => {
     renderRack({ open: true, items: [] });
 
     expect(
-      screen.getByText("Nothing parked. Drag a stop down here to take it off the schedule without losing it."),
+      screen.getByText("Nothing parked. Drag a stop down here to take it off the schedule, or double-click to add one."),
     ).toBeTruthy();
   });
 
@@ -73,14 +72,32 @@ describe("UnscheduledRack", () => {
     expect(screen.getAllByTestId("rack-card")).toHaveLength(2);
   });
 
-  it("assigns a stop to the chosen day", async () => {
-    const onAssign = vi.fn();
-    renderRack({ open: true, onAssign });
+  // M41 D4: the card is the control. Its editor moves, times and removes it.
+  it("opens a card's stop when the card is tapped, and carries no controls of its own", async () => {
+    const onEdit = vi.fn();
+    renderRack({ open: true, onEdit });
 
-    const selects = screen.getAllByRole("combobox", { name: "Add to day" });
-    await userEvent.selectOptions(selects[0]!, "d2");
+    const card = screen.getAllByTestId("rack-card")[0]!;
+    expect(within(card).getAllByRole("button").map((b) => b.getAttribute("aria-label"))).toEqual([
+      "Edit Souvenir shopping",
+    ]);
+    expect(within(card).queryByRole("combobox")).toBeNull();
+    // The button covers the card; jsdom does no hit-testing, so it is clicked
+    // by its name rather than through the text painted over it.
+    await userEvent.click(within(card).getByRole("button", { name: "Edit Souvenir shopping" }));
 
-    expect(onAssign).toHaveBeenCalledWith("a1", "d2");
+    expect(onEdit).toHaveBeenCalledWith("a1");
+  });
+
+  // M41 D1: a parked stop is made where it will live, with the river's gesture.
+  it("makes a parked stop on a double-click of its empty space, and not on a card", async () => {
+    const onCreate = vi.fn();
+    renderRack({ open: true, onCreate });
+
+    await userEvent.dblClick(screen.getAllByTestId("rack-card")[0]!);
+    expect(onCreate).not.toHaveBeenCalled();
+    await userEvent.dblClick(screen.getByTestId("rack-cards"));
+    expect(onCreate).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -137,20 +154,13 @@ describe("UnscheduledRack — a day's untimed stops", () => {
     expect(within(card).getByText("Day 3")).toBeTruthy();
   });
 
-  // What the board's card said and did for an untimed stop, kept now that the
-  // rack is where one is drawn: its kind, and a way to edit or remove it.
-  it("wears the stop's kind badge, and edits or removes that stop", async () => {
-    const onEdit = vi.fn();
-    const onRemove = vi.fn();
-    renderRack({ open: true, items: withDays, onEdit, onRemove });
+  // What the board's card said for an untimed stop, kept now that the rack is
+  // where one is drawn: its kind.
+  it("wears the stop's kind badge", () => {
+    renderRack({ open: true, items: withDays });
 
     const card = screen.getAllByTestId("rack-card").find((c) => c.textContent?.includes("Nishiki market"))!;
     expect(within(card).getByText("To book")).toBeTruthy();
-    await userEvent.click(within(card).getByRole("button", { name: "Edit Nishiki market" }));
-    await userEvent.click(within(card).getByRole("button", { name: "Remove Nishiki market" }));
-
-    expect(onEdit).toHaveBeenCalledWith("a3");
-    expect(onRemove).toHaveBeenCalledWith("a3");
   });
 
   it("counts every card it holds, day-less and untimed alike", () => {
@@ -182,20 +192,20 @@ describe("UnscheduledRack — a day's untimed stops", () => {
 // content, and reading it is not a write. Each absence is paired with its
 // editor mirror above, so these are statements about the role.
 //
-// A viewer is expressed as `onAssign: undefined`, not a `readOnly` flag:
+// A viewer is expressed as `onEdit: undefined`, not a `readOnly` flag:
 // TripBoardScreen withholds the callback rather than passing a flag (ADR-031),
 // so absent-callback IS the signal the component has to read. Passing a flag
 // here would test a mechanism the parent never uses.
 describe("UnscheduledRack — a viewer's drawer", () => {
   it("still lists what is parked", () => {
-    renderRack({ open: true, onAssign: undefined });
+    renderRack({ open: true, onEdit: undefined, onCreate: undefined });
 
     expect(screen.getByText("Souvenir shopping")).toBeTruthy();
     expect(screen.getAllByTestId("rack-card")).toHaveLength(2);
   });
 
   it("makes no card draggable", () => {
-    renderRack({ open: true, onAssign: undefined });
+    renderRack({ open: true, onEdit: undefined, onCreate: undefined });
     // pdnd's `draggable()` sets this attribute; its absence is the missing
     // registration, not a styling difference.
     for (const card of screen.getAllByTestId("rack-card")) {
@@ -210,14 +220,19 @@ describe("UnscheduledRack — a viewer's drawer", () => {
     }
   });
 
-  it("withholds Add to day", () => {
-    renderRack({ open: true, onAssign: undefined });
-    expect(screen.queryAllByRole("combobox", { name: "Add to day" })).toHaveLength(0);
+  // With no `onCreate` there is nothing to call, so what can go wrong is a
+  // handler that calls it anyway: a double-click that throws (CodeRabbit,
+  // PR 393, on this test claiming a double-click it never made).
+  it("opens no card, and makes nothing on a double-click", async () => {
+    renderRack({ open: true, onEdit: undefined, onCreate: undefined });
+    expect(screen.queryAllByRole("button", { name: /^Edit / })).toHaveLength(0);
+    await userEvent.dblClick(screen.getByTestId("rack-cards"));
+    expect(screen.getAllByTestId("rack-card")).toHaveLength(2);
   });
   // The empty state's instruction ("Drag a stop down here…") is only true for
   // someone who can drag, so a viewer gets the state without the instruction.
   it("drops the drag instruction from the empty state", () => {
-    renderRack({ open: true, items: [], onAssign: undefined });
+    renderRack({ open: true, items: [], onEdit: undefined, onCreate: undefined });
 
     expect(screen.getByText("Nothing parked.")).toBeTruthy();
     expect(screen.queryByText(/Drag a stop down here/)).toBeNull();
@@ -252,7 +267,7 @@ describe("UnscheduledRack — who parked a stop", () => {
     );
     render(
       <PeopleProvider tripId={tripId}>
-        <UnscheduledRack items={parked} dayOptions={dayOptions} open onToggle={vi.fn()} />
+        <UnscheduledRack items={parked} open onToggle={vi.fn()} />
       </PeopleProvider>,
     );
 

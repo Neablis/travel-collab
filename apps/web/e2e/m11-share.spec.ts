@@ -81,7 +81,7 @@ test("a share link keeps showing the trip as it was when it was shared", async (
     await expect(reader.getByText("2 days")).toBeVisible();
     await expect(reader.getByText(/this is the plan as it was then/)).toBeVisible();
     // Nothing on this page can change the trip.
-    await expect(reader.getByRole("button", { name: "Add stop" })).toHaveCount(0);
+    await expect(reader.getByRole("button", { name: "Add a day" })).toHaveCount(0);
 
     // Now alice keeps planning.
     await addDay(page, tripId);
