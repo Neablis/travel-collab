@@ -440,6 +440,12 @@ export async function handleAskRequest(
   // because `after()` throws when called from outside one.
   afterResponse?.(() => settled);
 
+  // Why the run wrapped up early — the step deadline or the input-token
+  // ceiling — for the record, which reads it. Declared BEFORE the recorder,
+  // not beside `wrapUpStep` below: a turn can end before the agent exists
+  // (the off-topic refusal finishes the recorder straight away), and reading
+  // a `let` declared further down is a TDZ throw on exactly that path.
+  let wrapUpReason: AskWrapUp | null = null;
   const recorder = createAskRecorder({
     turnId,
     // The request's own start, read before admission, so the turn's latency
@@ -611,8 +617,6 @@ export async function handleAskRequest(
   // one fired on; the hard one is a timer that aborts the run outright. Both
   // are measured from `startedAt`, so admission's own time counts.
   let wrapUpStep: number | null = null;
-  // And why — the step deadline or the input-token ceiling — for the record.
-  let wrapUpReason: AskWrapUp | null = null;
   const deadline = new AbortController();
   const untilHard = deadlines.hardMs - (Date.now() - startedAt);
   // Already past it — admission alone can take that long on a bad day — is an
