@@ -32,6 +32,7 @@ import { ActivityEditorSheet } from "@/components/trip/editor/ActivityEditorShee
 import { PeopleProvider } from "@/components/pages/people";
 import { type RackItem, UnscheduledRack } from "@/components/trip/UnscheduledRack";
 import { moveCommands } from "./moveCommands";
+import { type CopyDestination, copyCommands } from "./copyActivity";
 import type { resolveCalendarDrop } from "@/components/lenses/calendarDrop";
 
 type CalendarDropOutcome = NonNullable<ReturnType<typeof resolveCalendarDrop>>;
@@ -604,6 +605,23 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     const newDayIds = Array.from({ length: outcome.newDays }, () => crypto.randomUUID());
     const toDayId = outcome.toDayId ?? newDayIds.at(-1)!;
     const commands = moveCommands(activeTrip, outcome.activityIds, toDayId, { newDayIds });
+    if (commands.length > 0) void dispatchBatch(commands);
+  };
+
+  // A day's header dropped on another day (M41 D7): its stops move there as one
+  // batch, through the move every other drop builds (ADR-068 §3). Times kept.
+  const moveDay = (fromDayId: string, toDayId: string) => {
+    const from = activeTrip.days.find((d) => d.dayId === fromDayId);
+    if (from === undefined) return;
+    const commands = moveCommands(activeTrip, from.activityIds, toDayId);
+    if (commands.length > 0) void dispatchBatch(commands);
+  };
+
+  // A stop dropped with Option/Alt held (M41 D7): a copy lands where the drop
+  // would have moved it (`resolveCopy`), as ONE batch — the add, and the move
+  // that puts it in clock order on its day when appending would not.
+  const copyActivity = (to: CopyDestination) => {
+    const commands = copyCommands(activeTrip, to, crypto.randomUUID());
     if (commands.length > 0) void dispatchBatch(commands);
   };
 
@@ -1256,6 +1274,8 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                       onAnyTime: anyTimeActivity,
                       onRevealAnyTime: revealAnyTime,
                       onRetime: retimeActivity,
+                      onMoveDay: moveDay,
+                      onCopy: copyActivity,
                       onDragStart: () => onRackEvent({ type: "dragStart" }),
                       onDragEnd: () => onRackEvent({ type: "dragEnd" }),
                       onAddDay: () => void dispatch({ type: "AddDay", tripId, dayId: crypto.randomUUID() }),

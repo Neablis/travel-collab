@@ -165,6 +165,9 @@ export function UnscheduledRack({
     if (!el) return;
     return dropTargetForElements({
       element: el,
+      // A Plan day's header is no stop: dropped here it would do nothing, so
+      // the rack does not light up for it (PR 396 review).
+      canDrop: ({ source }) => source.data.kind !== "plan-day",
       getData: () => ({ rack: true }),
       onDragEnter: () => setIsOver(true),
       onDragLeave: () => setIsOver(false),
@@ -340,6 +343,9 @@ function NoDayGroup({ editable, children }: { editable: boolean; children: React
     if (!el || !editable) return;
     return dropTargetForElements({
       element: el,
+      // A Plan day's header is no stop: dropped here it would do nothing, so
+      // the rack does not light up for it (PR 396 review).
+      canDrop: ({ source }) => source.data.kind !== "plan-day",
       getData: () => ({ rack: true, noDay: true }),
       onDragEnter: () => setIsOver(true),
       onDragLeave: () => setIsOver(false),

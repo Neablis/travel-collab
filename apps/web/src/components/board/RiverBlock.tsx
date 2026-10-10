@@ -181,7 +181,7 @@ export function RiverBlock({
    * a move with no button down, or the river unmounting. Only the river sees
    * all of those, so only it can say when the grip stops being held.
    */
-  onResizeStart?: (release: () => void, press: { pointerType: string; clientY: number }) => void;
+  onResizeStart?: (release: () => void, press: { pointerType: string; clientY: number }, edge: "start" | "end") => void;
   /**
    * A finger pressed the block (M29 phone). The river decides whether it is
    * held long enough to lift the stop (`DayRiver`'s `startLift`); a tap goes
@@ -249,7 +249,7 @@ export function RiverBlock({
     });
   }, [activity.activityId, readOnly]);
 
-  function pressGrip(e: ReactPointerEvent) {
+  function pressGrip(e: ReactPointerEvent, edge: "start" | "end") {
     if (e.button !== 0 || !onResizeStart) return;
     // Not the river's sketch, not a touch lift of the block, and not the edit
     // button under the grip.
@@ -261,6 +261,7 @@ export function RiverBlock({
         gripHeld.current = false;
       },
       { pointerType: e.pointerType, clientY: e.clientY },
+      edge,
     );
   }
 
@@ -352,6 +353,7 @@ export function RiverBlock({
   return (
     <li
       ref={ref}
+      data-river-block
       data-testid={`activity-card-${activity.activityId}`}
       data-off-tag={dimOpacity !== 1 ? true : undefined}
       // `z-10` while hovered or focused: the tag reveal below hangs out of
@@ -400,6 +402,17 @@ export function RiverBlock({
           <Button
             variant="ghost"
             onClick={onEdit}
+            // Delete or Backspace on a focused stop removes it (M41 D7), the
+            // keyboard's half of its ✕; undone like any removal. Focus goes
+            // to a neighbour first (PR 396 review): the button that held it
+            // is about to leave the page, and focus would fall to <body>.
+            onKeyDown={(e) => {
+              if (e.key !== "Delete" && e.key !== "Backspace") return;
+              e.preventDefault();
+              if (ref.current) focusAfterRemoval(ref.current);
+              onRemove();
+            }}
+            data-river-edit
             aria-label={`Edit ${description}`}
             className="absolute inset-0 h-auto min-w-0 rounded-md p-0 hover:bg-transparent focus-visible:outline-offset-0 fine:min-h-0"
           />
@@ -506,8 +519,11 @@ export function RiverBlock({
         </Button>,
       )}
       {/* The bottom-edge grip (SPEC §36.9b: "a faint grip marks it"), the
-          design's 9px band straddling the edge with a 22×3 bar in it. Outside
-          the clipped box so it can hang 4px below it. Pointer-only and hidden
+          design's band on the edge with a 22×3 bar in it. Outside the clipped
+          box so it can hang 2px below it — across the gap to the next block
+          and no further (PR 396 review: a reach into the next block lies on
+          that block's top-edge band, and one of the two edges then takes the
+          other's press). Pointer-only and hidden
           from assistive technology: the keyboard's way to change when a stop
           ends is the editor's End time, one Enter away on the block itself.
 
@@ -518,13 +534,37 @@ export function RiverBlock({
           tap), while a reach into the next block would take that one's taps.
           The bar stays 22×3 and sits on the edge. `touch-none` because a
           press on the grip is always a resize, never the start of a scroll. */}
+      {/* The top edge, M41 D7: the mirror of the grip below, for when a stop
+          starts. A mouse's alone (`pointer-coarse:hidden`): a finger has the
+          bottom grip and the editor, and a second 44px reach at the top of a
+          short block would cover the block's own tap.
+
+          **Inside the block, never above it** (PR 396 review): back-to-back
+          stops are only RIVER_BLOCK_GAP_PX apart, and a band reaching up over
+          that gap lay on the bottom grip of the stop before — a later block
+          paints on top — so pulling one stop's end moved the next one's start.
+          **And short of the title row's controls** (`right-7`, `right-12`
+          with the overlap's ✕ beside Remove: each 16px with its 4px reach,
+          past the 8px padding), so a press on a ✕'s top edge is the ✕'s. */}
+      {onResizeStart && (
+        <span
+          aria-hidden
+          data-testid="river-resize-start"
+          title="Drag to change when it starts"
+          onPointerDown={(e) => pressGrip(e, "start")}
+          className={cn(
+            "absolute top-0 left-0 z-10 flex h-1.5 cursor-ns-resize touch-none items-center justify-center pointer-coarse:hidden",
+            overlap && !readOnly ? "right-12" : "right-7",
+          )}
+        />
+      )}
       {onResizeStart && (
         <span
           aria-hidden
           data-testid="river-resize"
           title="Drag to change when it ends"
-          onPointerDown={pressGrip}
-          className="absolute inset-x-0 -bottom-1 z-10 flex h-2.5 cursor-ns-resize touch-none items-center justify-center pointer-coarse:inset-x-auto pointer-coarse:-bottom-2.5 pointer-coarse:left-1/2 pointer-coarse:size-11 pointer-coarse:-translate-x-1/2 pointer-coarse:items-end pointer-coarse:pb-2"
+          onPointerDown={(e) => pressGrip(e, "end")}
+          className="absolute inset-x-0 -bottom-0.5 z-10 flex h-2 cursor-ns-resize touch-none items-center justify-center pointer-coarse:inset-x-auto pointer-coarse:-bottom-2.5 pointer-coarse:left-1/2 pointer-coarse:size-11 pointer-coarse:-translate-x-1/2 pointer-coarse:items-end pointer-coarse:pb-2"
         >
           <span className="h-0.75 w-5.5 rounded-full bg-ink opacity-30" />
         </span>
@@ -545,4 +585,26 @@ export function RiverBlock({
       )}
     </li>
   );
+}
+
+/**
+ * Where focus goes when a block's stop is removed from the keyboard (PR 396
+ * review): the next stop on the same river, else the one before it, else the
+ * day's header — never <body>, where a keyboard reader would have to Tab back
+ * in from the top of the page.
+ */
+function focusAfterRemoval(block: HTMLElement) {
+  const editOf = (el: Element | null) => (el?.matches("[data-river-block]") ? el.querySelector<HTMLElement>("[data-river-edit]") : null);
+  const sibling = (step: (el: Element) => Element | null) => {
+    for (let el = step(block); el !== null; el = step(el)) {
+      const edit = editOf(el);
+      if (edit) return edit;
+    }
+    return null;
+  };
+  const target =
+    sibling((el) => el.nextElementSibling) ??
+    sibling((el) => el.previousElementSibling) ??
+    block.closest("[data-day-column]")?.querySelector<HTMLElement>("[data-day-header] button");
+  target?.focus();
 }

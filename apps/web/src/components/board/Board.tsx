@@ -29,6 +29,7 @@ import { GhostDayColumn } from "./GhostDayColumn";
 import type { BoardSuggestions, RiverGestures } from "./DayRiver";
 import { ConflictBanner } from "./ConflictBanner";
 import { type AnyTimeOutcome, type PlaceOutcome, resolveDrop } from "./resolveDrop";
+import { type CopyDestination, resolveCopy } from "./copyActivity";
 import { riverAxis } from "./riverLayout";
 
 // Phase 6, Step 3 item 5: the trailing "One more day?" column, which replaces
@@ -125,8 +126,19 @@ export type BoardCallbacks = {
    * day's untimed stops. Called on a read-only board too — it only shows.
    */
   onRevealAnyTime: (dayId: string) => void;
-  /** A block's bottom edge was dragged: the stop's new window. */
+  /** A block's top or bottom edge was dragged: the stop's new window. */
   onRetime: (activityId: string, timeWindow: TimeWindow) => void;
+  /**
+   * A day's header dropped on another day (M41 D7): every stop on the first
+   * moves to the second, as one change. The same move a Calendar city card
+   * makes, for the whole day.
+   */
+  onMoveDay: (fromDayId: string, toDayId: string) => void;
+  /**
+   * A stop dropped with Option/Alt held (M41 D7): a copy lands where the drop
+   * would have moved it, and the stop stays where it was.
+   */
+  onCopy: (to: CopyDestination) => void;
   /** Raised for every drag, so the rack's disclosure reducer can auto-open. */
   onDragStart: () => void;
   /** Raised on drop *and* on an Escape-cancelled drag — pdnd runs the same path. */
@@ -614,7 +626,11 @@ export function Board({
   useEffect(() => {
     return combine(
       monitorForElements({
-        onDragStart: () => latest.current.callbacks.onDragStart(),
+        // Not for a day's header (M41 D7): the rack opens so a stop can be
+        // parked, and a whole day cannot be (PR 396 review).
+        onDragStart: ({ source }) => {
+          if (source.data.kind !== "plan-day") latest.current.callbacks.onDragStart();
+        },
         onDrop: ({ source, location }) => {
           const { trip: currentTrip, callbacks: current } = latest.current;
           // pdnd runs this same path for an Escape-cancelled drag (with no
@@ -622,7 +638,23 @@ export function Board({
           // before any routing decision — cancel and drop both re-close a
           // drawer the drag itself opened.
           current.onDragEnd();
-          const outcome = resolveDrop(currentTrip, source.data, location.current.dropTargets[0]?.data);
+          const target = location.current.dropTargets[0]?.data;
+          // A day's header (M41 D7): its stops move to the day it lands on.
+          if (source.data.kind === "plan-day") {
+            if (typeof source.data.dayId === "string" && typeof target?.dayId === "string" && target.dayId !== source.data.dayId) {
+              current.onMoveDay(source.data.dayId, target.dayId);
+            }
+            return;
+          }
+          // Option/Alt held at the drop: the same landing, as a copy (M41 D7).
+          // Read before `resolveDrop`, whose "nothing changes" answers are a
+          // move's: a copy onto the stop's own slot is a real copy (PR 396).
+          if (location.current.input.altKey) {
+            const copy = resolveCopy(currentTrip, source.data, target);
+            if (copy !== null) current.onCopy(copy);
+            return;
+          }
+          const outcome = resolveDrop(currentTrip, source.data, target);
           if (outcome === null) return;
           if (outcome.kind === "unschedule") {
             current.onUnschedule(outcome.activityId);
