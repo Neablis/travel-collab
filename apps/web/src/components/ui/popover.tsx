@@ -1,5 +1,5 @@
 "use client";
-import { useId } from "react";
+import { isValidElement, useId } from "react";
 import * as RadixPopover from "@radix-ui/react-popover";
 import { cn } from "@/lib/cn";
 
@@ -58,7 +58,13 @@ export function Popover({
   // labelled by it; Radix's `Slot` puts the id on the caller's own button.
   // `aria-labelledby` resolves the trigger's `aria-label` too, and still works
   // while the trigger is hidden behind an `anchor`.
-  const triggerId = useId();
+  //
+  // **The trigger's OWN id when it brings one** (PR #384 review). `Slot` merges
+  // with the child's props winning, so an id handed to `Trigger` loses to a
+  // `<Button id={id}>` (DaysFilter's) and the label would point at nothing.
+  const generatedId = useId();
+  const ownId = isValidElement<{ id?: unknown }>(trigger) ? trigger.props.id : undefined;
+  const triggerId = typeof ownId === "string" && ownId !== "" ? ownId : generatedId;
   return (
     <RadixPopover.Root open={open} onOpenChange={onOpenChange}>
       <RadixPopover.Trigger asChild id={triggerId}>

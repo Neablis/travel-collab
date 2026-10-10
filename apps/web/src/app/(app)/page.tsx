@@ -561,12 +561,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* A returning phone's one-time *Keep Caesura on your home screen*
-            card (Mitchell, 2026-10-10: install moved off the trip and out of
-            the desktop account menu). It renders nothing on a desktop, on a
-            first visit, where installing would not work, and once answered. */}
-        <InstallNudge />
-
         {/* The wizard's own createTrip/Create-empty failures render their own
             inline alert inside the Sheet (NewTripWizard.tsx) — this top-level
             `error` is now exclusively delete/duplicate-trip feedback, so no
@@ -778,6 +772,19 @@ export default function Home() {
             </>
           )}
         </div>
+
+        {/* A returning phone's one-time *Keep Caesura on your home screen*
+            card (Mitchell, 2026-10-10: install moved off the trip and out of
+            the desktop account menu). It renders nothing on a desktop, on a
+            first visit, where installing would not work, and once answered.
+
+            **Under the trips, last in the column** (PR #384 review). It was
+            above the hero, and since whether it shows is only known after its
+            effects read storage and the viewport, it arrived after the hero
+            had painted and pushed the hero and the list down about 130px.
+            Nothing follows it here, so its arrival moves nothing — and it is
+            still on *Your trips*, the list a returning reader opens to. */}
+        <InstallNudge />
       </div>
 
       {toast && (

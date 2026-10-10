@@ -7,6 +7,8 @@ import {
   endWrite,
   invalidate,
   peekCached,
+  primeCached,
+  subscribeQueryCache,
   writesSettled,
 } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
@@ -313,6 +315,48 @@ describe("peekCached", () => {
       Promise.resolve({ ok: false as const, error: { status: 500, message: "boom" } }),
     );
     expect(peekCached(tripKeys.access(TRIP))).toBeUndefined();
+  });
+});
+
+// `useSyncExternalStore`'s contract: whatever can change what `peekCached`
+// answers must notify, or a painter of the key keeps showing a dropped entry.
+describe("subscribeQueryCache", () => {
+  it("hears every change to a stored answer, and nothing that changes none", async () => {
+    const heard = vi.fn();
+    const stop = subscribeQueryCache(heard);
+    await cachedRead(tripKeys.access(TRIP), reader({ members: 1 }).read);
+    expect(heard).toHaveBeenCalledTimes(1);
+    primeCached(tripKeys.access(TRIP), { members: 2 });
+    expect(heard).toHaveBeenCalledTimes(2);
+    invalidate(tripKeys.all(OTHER));
+    expect(heard).toHaveBeenCalledTimes(2);
+    invalidate(tripKeys.all(TRIP));
+    expect(heard).toHaveBeenCalledTimes(3);
+    clearQueryCache();
+    expect(heard).toHaveBeenCalledTimes(4);
+    stop();
+  });
+});
+
+// The cover picker stores a write's answer straight in (PR #384 review), and a
+// read that left before the write must not land over it, or be joined after.
+describe("primeCached", () => {
+  it("supersedes a read already on the wire", async () => {
+    const key = tripKeys.access(TRIP);
+    const stale = deferredReader({ members: 1 });
+    const pending = cachedRead(key, stale.read);
+    primeCached(key, { members: 2 });
+    stale.release();
+    expect(await pending).toEqual({ ok: true, value: { members: 1 } });
+    expect(peekCached(key)).toEqual({ members: 2 });
+
+    const fresh = reader({ members: 3 });
+    const again = deferredReader({ members: 1 });
+    void cachedRead(key, again.read, { dedupeMs: 0 });
+    primeCached(key, { members: 2 });
+    const after = cachedRead(key, fresh.read, { dedupeMs: 0 });
+    again.release();
+    expect(await after).toEqual({ ok: true, value: { members: 3 } });
   });
 });
 

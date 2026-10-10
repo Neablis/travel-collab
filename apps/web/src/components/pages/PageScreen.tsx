@@ -4,7 +4,7 @@ import Link from "next/link";
 import { PAGE_CHANGED_CODE, type Page, type PageDoc, type ResetPageResult, type TripDetail, type TripGlobals } from "@tc/contracts";
 import { fetchPage, restorePageVersion, updatePage } from "@/lib/pagesClient";
 import { fetchTripAccess, fetchTripDetail, fetchTripGlobals, fetchTripHistory } from "@/lib/apiClient";
-import { cachedRead, invalidate } from "@/lib/queryCache";
+import { cachedRead, DEDUPE, invalidate } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
 import { PeopleProvider } from "./people";
 import { headSeqOf, useTripBroadcast } from "@/components/trip/context/broadcast";
@@ -504,7 +504,12 @@ export function PageScreen({
   const headSeq = useRef(0);
   useEffect(() => {
     let cancelled = false;
-    void fetchTripGlobals(tripId).then((r) => {
+    // Through the cache `OverviewLens` reads, at its window (PR #384 review):
+    // a page opened from the board's Overview finds the globals it just read,
+    // and the skeleton is not held for a second round trip.
+    void cachedRead(tripKeys.globals(tripId), () => fetchTripGlobals(tripId), {
+      dedupeMs: DEDUPE.DOCUMENT,
+    }).then((r) => {
       if (cancelled) return;
       if (r.ok) setGlobals(r.value);
       setGlobalsSettled(true);
@@ -963,9 +968,16 @@ export function PageScreen({
   // **A phone's Ask is the tab bar's** (Mitchell, 2026-10-10: "Dont forget this
   // 'Ask' element when moving ask to toolbar"). Offered only where the page's
   // own pill used to render — the mountable page, not the loading, error or
-  // locked branches, which never offered an assistant (decision 4).
+  // locked branches, which never offered an assistant (decision 4). Nor while
+  // the skeleton is held for the globals (PR #384 review): that is the loading
+  // branch too, with no assistant behind it yet.
   usePhoneAskEntry(
-    status !== "loading" && status !== "error" && page !== null && trip !== null && stored?.status === "mountable"
+    status !== "loading" &&
+      status !== "error" &&
+      globalsSettled &&
+      page !== null &&
+      trip !== null &&
+      stored?.status === "mountable"
       ? () => setAssistantOpen(true)
       : undefined,
     assistantOpen,

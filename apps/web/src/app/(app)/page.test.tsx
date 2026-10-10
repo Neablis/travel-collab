@@ -20,6 +20,13 @@ vi.mock("next-auth/react", () => ({
   signOut: vi.fn(async () => {}),
 }));
 
+// The install card's own rules (phone only, returning, once) are
+// `InstallNudge.test.tsx`'s. What only this file can say is WHERE Home puts it,
+// so here it is a marker that always renders.
+vi.mock("@/components/install/InstallNudge", () => ({
+  InstallNudge: () => <div data-testid="install-nudge-slot" />,
+}));
+
 import Home from "./page";
 import { DEMO_TRIP_ID } from "@/lib/demoTrip";
 import { rememberDemoClone } from "@/lib/pendingDemoClone";
@@ -511,6 +518,16 @@ describe("Home page head", () => {
   it("heads the page with today's date above the title", () => {
     renderHome();
     expect(screen.getByTestId("page-date-line")).toBeTruthy();
+  });
+
+  // PR #384 review: the install card sat above the hero and appeared after
+  // its effects ran, pushing the hero and the list down for a returning phone
+  // reader. Under the trips, nothing the reader is looking at moves.
+  it("puts the install card under the trips, where its arrival moves nothing", async () => {
+    renderHome([tripSummaryFixture(), tripSummaryFixture({ tripId: "7e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f", name: "Peru" })]);
+    const otherTrips = await screen.findByRole("heading", { name: "Other trips" });
+    const slot = screen.getByTestId("install-nudge-slot");
+    expect(otherTrips.compareDocumentPosition(slot) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   // CodeRabbit (PR #35): the date line used to compute `new Date()` inline

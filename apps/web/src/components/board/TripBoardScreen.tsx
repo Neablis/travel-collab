@@ -13,7 +13,7 @@ import { DayChips } from "@/components/trip/DayChips";
 import { MapLens } from "@/components/lenses/MapLens";
 import { CalendarLens } from "@/components/lenses/CalendarLens";
 import { OverviewLens } from "@/components/lenses/OverviewLens";
-import { useIsPhone, useIsTabletWidth } from "@/lib/useIsPhone";
+import { useIsAbovePhone, useIsPhone, useIsTabletWidth } from "@/lib/useIsPhone";
 import { Heading } from "@/components/ui/heading";
 import { Text } from "@/components/ui/text";
 import { buttonVariants } from "@/components/ui/button";
@@ -23,6 +23,7 @@ import { TagFocusLine } from "@/components/trip/TagFocusLine";
 import { PageContainer } from "@/components/ui/page-container";
 import { TripHeader } from "@/components/trip/TripHeader";
 import { TripHeaderSkeleton } from "@/components/trip/TripHeaderSkeleton";
+import { useTripCover } from "@/components/trip/cover/useTripCover";
 import { usePhoneAskEntry } from "@/components/nav/phoneAsk";
 import { AddSavedDayButton } from "@/components/trip/AddSavedDayButton";
 import { useBoardSuggestions } from "./SuggestionActions";
@@ -126,7 +127,29 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // The phone's way in is the tab bar's Ask item (Mitchell, 2026-10-10), which
   // lives in the layout, outside this tree: offer it the same opener the
   // header's desktop pill gets. Withheld on /demo for the pill's reason (KI-79).
-  usePhoneAskEntry(isDemoTripId(tripId) ? undefined : assistant.show, assistant.open);
+  //
+  // **Only once the board itself renders** (PR #384 review). This hook has to
+  // sit above the loading, signed-out and error returns below, but the
+  // `AssistantRail` it opens sits after them — so registering unconditionally
+  // gave a phone an Ask item on the skeleton, the sign-in prompt and the error
+  // that opened nothing. The condition is the one those returns test.
+  //
+  // **The header waits for the cover read, from 768px up** (PR #384 review).
+  // `TripHeader` draws the cover band above itself once the cover is known;
+  // when that read answered after the header had painted, the band pushed the
+  // whole board down 112px — a layout shift on every trip with a cover. Of the
+  // ways out, holding the skeleton is the one that never shifts: reserving the
+  // band's height only helps when a cover is already cached, and reserving it
+  // always leaves a gap that collapses on every trip without one. The read
+  // runs alongside `TripProvider`'s own, a failed one settles too (no band),
+  // and a phone never reads it, so the cost is the slower of two parallel
+  // reads, on desktop only. `undefined` from `useIsAbovePhone` is hydration,
+  // when the trip is still loading anyway.
+  const abovePhone = useIsAbovePhone();
+  const { settled: coverSettled } = useTripCover(tripId, abovePhone === true && !isDemoTripId(tripId));
+  const headerReady = abovePhone !== undefined && coverSettled;
+  const boardRenders = status === "ready" && trip !== null && activeTrip !== null && headerReady;
+  usePhoneAskEntry(boardRenders && !isDemoTripId(tripId) ? assistant.show : undefined, assistant.open);
   // Which of SPEC §9/§23's presentations the assistant opens as. `AssistantRail`
   // is emphatic that the caller must not reach for `useIsPhone()` — it returns
   // `false` on the server and on the first client paint, so a JS-gated swap
@@ -410,7 +433,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // region whose shape does not depend on the trip, so it is drawn at its real
   // height (`TripHeaderSkeleton`) in the same `.trip-board-content` column;
   // the body below still waits for its data, as before.
-  if (status === "loading") {
+  if (status === "loading" || (status === "ready" && !headerReady)) {
     return (
       <div className="flex items-start">
         <div className="trip-board-content min-w-0 flex-1">

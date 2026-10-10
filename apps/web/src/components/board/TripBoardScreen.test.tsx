@@ -11,7 +11,7 @@ import { EditorHost, useEditor } from "@/components/trip/context/EditorHost";
 import { FocusProvider } from "@/components/trip/context/FocusProvider";
 import { LensRouter } from "@/components/trip/context/LensRouter";
 import { PhoneAskTab } from "@/components/nav/PhoneTabBar";
-import { activityFactory, costedTripDetailFixture, historyFixture, locationFactory, tripDetailFixture } from "@tc/factories";
+import { activityFactory, costedTripDetailFixture, historyFixture, locationFactory, tripCoverFactory, tripDetailFixture } from "@tc/factories";
 import { makeTripHandlers, makeAccountPlanHandler, makeNearbyStopsHandler, makePagesHandlers } from "@/mocks/handlers";
 import { setViewportMatches, triggerResize } from "../../../vitest.setup";
 
@@ -201,6 +201,63 @@ describe("TripBoardScreen", () => {
     server.use(...makeTripHandlers(fixture));
     renderScreen("00000000-0000-4000-8000-000000000000");
     expect(await screen.findByRole("alert")).toBeTruthy();
+  });
+
+  // PR #384 review: the board registered the phone tab bar's Ask above its
+  // early returns, so the error state (and the skeleton, and the sign-in
+  // prompt) offered an Ask item with no assistant behind it.
+  // PR #384 review: the cover band mounted above the header when the cover
+  // read answered — after the board had painted — and pushed it all down
+  // 112px. From 768px up the header skeleton is held until that read answers,
+  // so the band and the header arrive in one paint.
+  it("holds the header skeleton until the cover read answers, then draws band and header together", async () => {
+    setViewportMatches({ "(min-width: 768px)": true, "(min-width: 1180px)": true });
+    const fixture = tripDetailFixture();
+    let release: () => void = () => {};
+    const held = new Promise<void>((resolve) => (release = resolve));
+    let tripServed = false;
+    server.use(
+      http.get("/api/trips/:tripId", () => {
+        tripServed = true;
+        return HttpResponse.json({ trip: fixture });
+      }),
+      http.get("/api/trips/:tripId/cover", async () => {
+        await held;
+        return HttpResponse.json({ cover: tripCoverFactory.build({ alt: "Rooftops at dusk" }) });
+      }),
+      ...makeTripHandlers(fixture),
+    );
+    renderScreen(fixture.tripId);
+    await waitFor(() => expect(tripServed).toBe(true));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.getByTestId("trip-header-skeleton")).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Rome 2027" })).toBeNull();
+
+    release();
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+    expect(screen.getByRole("img", { name: "Rooftops at dusk" })).toBeTruthy();
+  });
+
+  it("offers the phone tab bar no Ask while the board is not rendered", async () => {
+    setViewportMatches({ "(max-width: 767px)": true });
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    render(
+      <>
+        <TripProvider tripId="00000000-0000-4000-8000-000000000000">
+          <FocusProvider>
+            <EditorHost>
+              <LensRouter>
+                <TripBoardScreen tripId="00000000-0000-4000-8000-000000000000" />
+              </LensRouter>
+            </EditorHost>
+          </FocusProvider>
+        </TripProvider>
+        <PhoneAskTab />
+      </>,
+    );
+    expect(await screen.findByRole("alert")).toBeTruthy();
+    expect(screen.queryByTestId("ask-tab")).toBeNull();
   });
 
   // I3 (final review): this used to render a bare `<Heading>Caesura</Heading>`

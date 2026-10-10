@@ -13,6 +13,9 @@ import { PreferencesProvider } from "@/components/account/PreferencesProvider";
 import { SaveLightMark, SaveLightProvider } from "@/components/SaveLight";
 import { everyWidget, everyWidgetPage, rawSyntaxLeaks } from "@/test-support/rawSyntax";
 import { toStoredPageDoc } from "@/components/pages/editor/storedPageDoc";
+import { fetchTripGlobals } from "@/lib/apiClient";
+import { cachedRead, DEDUPE } from "@/lib/queryCache";
+import { tripKeys } from "@/lib/queryKeys";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
@@ -153,13 +156,49 @@ describe("PageScreen", () => {
       }),
     );
 
-    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    render(
+      <>
+        <PageScreen tripId={trip.tripId} pageId={page.id} />
+        <PhoneAskTab />
+      </>,
+    );
     await waitFor(() => expect(tripServed).toBe(true));
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(screen.queryByText("Hello notebook")).toBeNull();
+    // Nor does the phone tab bar offer an Ask while the skeleton is held: there
+    // is no assistant behind it yet (PR #384 review).
+    expect(screen.queryByTestId("ask-tab")).toBeNull();
 
     release();
     expect(await screen.findByText("Hello notebook")).toBeTruthy();
+    expect(screen.getByTestId("ask-tab")).toBeTruthy();
+  });
+
+  // PR #384 review: the skeleton waited on a bare `fetchTripGlobals`, so a
+  // page opened from the board's Overview — which had just read the same
+  // globals through the cache — held its skeleton for a second round trip.
+  it("reads the globals through the cache the board's Overview fills", async () => {
+    const trip = tripDetailFixture();
+    const page = pageFixture({
+      tripId: trip.tripId,
+      content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Hello notebook" }] }] },
+    });
+    let globalsReads = 0;
+    server.use(
+      ...makePagesHandlers([page]),
+      http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })),
+      http.get("/api/trips/:tripId/globals", () => {
+        globalsReads++;
+        return HttpResponse.json({ globals: { days: [], cities: [], tags: [] } });
+      }),
+    );
+    // As OverviewLens leaves it.
+    await cachedRead(tripKeys.globals(trip.tripId), () => fetchTripGlobals(trip.tripId), { dedupeMs: DEDUPE.DOCUMENT });
+    expect(globalsReads).toBe(1);
+
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    expect(await screen.findByText("Hello notebook")).toBeTruthy();
+    expect(globalsReads).toBe(1);
   });
 
   // M14 link 10. What a template keeps is the STORED document, and an open

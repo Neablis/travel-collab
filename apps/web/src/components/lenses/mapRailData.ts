@@ -229,18 +229,25 @@ export function dayHighlights(detail: TripDetail): (DayHighlight | null)[] {
       const activity = detail.activities[id];
       return activity ? [activity] : [];
     });
+    const visited = stops.filter((s) => s.kind !== "transit");
+    // What the note names: a stop's neighbourhood, else its city.
     const places = new Set(
-      stops.flatMap((s) => {
-        if (s.kind === "transit") return [];
+      visited.flatMap((s) => {
         const place = s.location?.area ?? s.location?.city;
         return place ? [place] : [];
       }),
+    );
+    // What the day is in, at EVERY level: a stop in Gion, Kyoto is in Kyoto
+    // too. Compared against, so a day known only as "Kyoto" is not called the
+    // only day in Kyoto beside a day in Gion (PR #384 review).
+    const covers = new Set(
+      visited.flatMap((s) => [s.location?.area, s.location?.city].filter((p): p is string => !!p)),
     );
     const windows = stops.flatMap((s) => (s.timeWindow ? [s.timeWindow] : []));
     // HH:MM strings sort as times.
     const starts = windows.map((w) => w.start).sort();
     const ends = windows.map((w) => w.end).sort();
-    return { titles: stops.map((s) => s.title), places, earliest: starts[0] ?? null, latest: ends.at(-1) ?? null };
+    return { titles: stops.map((s) => s.title), places, covers, earliest: starts[0] ?? null, latest: ends.at(-1) ?? null };
   });
   // On a one-day trip every place is "only here" and every number a record,
   // which says nothing; such a day gets its bookends.
@@ -256,7 +263,7 @@ export function dayHighlights(detail: TripDetail): (DayHighlight | null)[] {
     const ends: DayHighlight = day.titles.length === 1 ? { kind: "single", title: first } : { kind: "bookends", first, last };
     if (!multiDay) return ends;
 
-    const elsewhere = new Set(facts.flatMap((other, i) => (i === index ? [] : [...other.places])));
+    const elsewhere = new Set(facts.flatMap((other, i) => (i === index ? [] : [...other.covers])));
     const onlyHere = [...day.places].filter((place) => !elsewhere.has(place));
     if (onlyHere.length > 0) return { kind: "only-here", places: onlyHere };
     if (holdsOutright(day.titles.length, counts, (a, b) => a > b)) return { kind: "most-stops", stops: day.titles.length };
