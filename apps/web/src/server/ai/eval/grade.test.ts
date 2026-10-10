@@ -4,7 +4,9 @@ import { describe, expect, it } from "vitest";
 import { demoTripDetail } from "@/server/demoTrip";
 import { DAYTIME_END_MINUTES, DAYTIME_START_MINUTES, summarizeFreeDays } from "@tc/domain";
 import type { AskAnalyticsRecord } from "@/server/assistant/askAnalytics";
+import { OVERVIEW_ABOVE_DAYS } from "@/server/assistant/tools/read";
 import { expectationFor, mostFreeDays } from "./cases";
+import { EVAL_TRIPS, LONG_TRIP_DAYS, longTripCommands } from "./trips";
 import { grade, namesAmount, namesDayNumber, reviewedChanges, type EvalTurn } from "./grade";
 
 // The fields `grade` reads, on an otherwise ordinary completed turn.
@@ -131,6 +133,38 @@ describe("the cases", () => {
   it("has an expectation for every prompt in the live set", () => {
     const set = JSON.parse(readFileSync(join(import.meta.dirname, "live-set.json"), "utf8")) as { prompts: { id: string }[] };
     for (const prompt of set.prompts) expect(expectationFor(prompt.id, japan), prompt.id).toBeDefined();
+  });
+
+  // A prompt that names a trip the runner cannot seed would fail only on a
+  // paid run, after every prompt before it had spent; so would a "long" trip
+  // that was not long enough to get the overview it exists to test.
+  it("names only trips the runner can seed, and the long one is past the overview line", () => {
+    const set = JSON.parse(readFileSync(join(import.meta.dirname, "live-set.json"), "utf8")) as {
+      prompts: { id: string; trip?: string }[];
+    };
+    const named = set.prompts.filter((prompt) => prompt.trip !== undefined);
+    expect(named.map((prompt) => prompt.id)).toEqual(["q-summarise-long-trip"]);
+    for (const prompt of named) expect(EVAL_TRIPS as readonly string[], prompt.id).toContain(prompt.trip);
+
+    const dates = longTripCommands("00000000-0000-4000-8000-000000000000").find((c) => c.type === "SetTripDates");
+    expect(dates?.type === "SetTripDates" && dates.newDayIds.length).toBe(LONG_TRIP_DAYS);
+    expect(LONG_TRIP_DAYS).toBeGreaterThan(OVERVIEW_ABOVE_DAYS);
+  });
+
+  // The summary is the overview's job: one look at a stay is fine, a read of
+  // the whole trip is the failure, and the turn's tokens say which it was.
+  it("holds the long-trip summary to read_trip, one read_day call and a token ceiling", () => {
+    const expected = expectationFor("q-summarise-long-trip", japan)!;
+    const skimmed = turn({ toolCalls: [{ name: "read_trip", input: {} }, { name: "read_day", input: { days: [1, 16] } }] }, "100 days.");
+    expect(failing(grade(skimmed, expected))).toEqual([]);
+    const readEverything = turn(
+      {
+        toolCalls: [{ name: "read_trip", input: {} }, ...[1, 6, 11].map((d) => ({ name: "read_day", input: { days: [d] } }))],
+        usage: { inputTokens: 64_000, outputTokens: 400, totalTokens: 64_400 },
+      },
+      "100 days.",
+    );
+    expect(failing(grade(readEverything, expected))).toEqual(["≤ 1 × read_day", "≤ 30000 input tokens"]);
   });
 
   // Computed from the trip, never typed in: the right answer moves when the

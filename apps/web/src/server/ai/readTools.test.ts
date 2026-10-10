@@ -3,7 +3,8 @@ import { asSchema } from "ai";
 import { JAPAN_TRIP_DAY_COUNT, JAPAN_TRIP_NAME } from "@tc/fixtures";
 import { tripDetailFactory } from "@tc/factories";
 import type { TripDetail } from "@tc/contracts";
-import type { AssistantDeps } from "@/server/assistant/deps";
+import { newDayReadBudget, type AssistantDeps } from "@/server/assistant/deps";
+import { MAX_DAYS_READ_PER_TURN } from "@/server/assistant/limits";
 import { demoTripDetail } from "@/server/demoTrip";
 import {
   findFreeTime,
@@ -26,7 +27,7 @@ import { aiToolsFor } from "@/server/assistant/registry";
 // (readTools.int.test.ts), and a unit test over a stubbed query would assert
 // the stub.
 function readToolSet() {
-  return aiToolsFor(READ_TOOLS, { playbooks: { discover: async () => [] } });
+  return aiToolsFor(READ_TOOLS, { playbooks: { discover: async () => [] }, readBudget: newDayReadBudget(MAX_DAYS_READ_PER_TURN) });
 }
 
 // The canonical fixture (ADR-030) — the 14-day Japan trip, folded through the
@@ -175,7 +176,7 @@ describe("read_day", () => {
   it("keeps precision through the tool's own output parse", async () => {
     const { detail, cityStopIndex } = cityLevelTrip();
     const definition = READ_TOOLS.find((tool) => tool.name === "read_day")!;
-    const result = (await definition.invoke({ days: 1 }, { trip: detail } as unknown as AssistantDeps)) as DayReadout;
+    const result = (await definition.invoke({ days: 1 }, { trip: detail, readBudget: newDayReadBudget(MAX_DAYS_READ_PER_TURN) } as unknown as AssistantDeps)) as DayReadout;
     expect(result.stops[cityStopIndex]!.location!.precision).toBe("city");
   });
 

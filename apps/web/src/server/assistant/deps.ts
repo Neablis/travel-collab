@@ -235,6 +235,44 @@ export function newPageBuffer(): PageBuffer {
 }
 
 /**
+ * **How many days one turn may read in full, kept in the turn rather than in
+ * the model's head** — `EscalationBuffer`'s argument, applied to `read_day`.
+ *
+ * `MAX_READ_DAYS` bounds one call, and calls in one step run in parallel, so
+ * a model could read a 100-day trip in a single step (~44k tokens, ~160k at
+ * 366 days) and then re-send all of it on every step after. A per-turn count
+ * is the only bound that sees across calls, and it has to be state: no one
+ * call knows what the others read.
+ *
+ * Counted in DISTINCT days: a day re-read in the same turn was already paid
+ * for (and is already in the model's history), so admitting it again costs
+ * nothing new and refusing it would only make the model guess.
+ */
+export interface DayReadBudget {
+  /** The most distinct days this turn may read. */
+  readonly cap: number;
+  /** Whether `day` may be read: already read this turn, or room for one more. Admitting it records it. */
+  admit(day: number): boolean;
+  /** How many distinct days this turn has read. */
+  read(): number;
+}
+
+/** One turn's read budget, capped at `cap` distinct days. Never shared between turns. */
+export function newDayReadBudget(cap: number): DayReadBudget {
+  const read = new Set<number>();
+  return {
+    cap,
+    admit: (day) => {
+      if (read.has(day)) return true;
+      if (read.size >= cap) return false;
+      read.add(day);
+      return true;
+    },
+    read: () => read.size,
+  };
+}
+
+/**
  * The Playbook corpus, as much of it as one reader may see.
  *
  * **A port because the kernel reaches no database, and this is the hop that
@@ -536,6 +574,8 @@ export interface AssistantDeps {
   typedAddresses: TypedAddresses;
   /** The turn's intent, and the latch `switch_intent` moves it through (ADR-058). */
   intent: IntentLatch;
+  /** How many days `read_day` has read in full this turn, against the per-turn cap. */
+  readBudget: DayReadBudget;
 }
 
 export type DepKey = keyof AssistantDeps;
@@ -579,6 +619,7 @@ const TURN_DEP_KEY_SET: Record<TurnDepKey, true> = {
   notebooks: true,
   typedAddresses: true,
   intent: true,
+  readBudget: true,
 };
 export const TURN_DEP_KEYS = Object.keys(TURN_DEP_KEY_SET) as readonly TurnDepKey[];
 

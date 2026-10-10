@@ -32,6 +32,7 @@ import type { TurnLedger } from "@/server/assistant/ledger";
 import { expectationFor } from "./cases";
 import { grade, reviewedChanges, type EvalCheck, type EvalTurn } from "./grade";
 import { capMicroUsdFrom, dollars, turnMicroUsd, unpricedModels } from "./spend";
+import { longTripCommands, type EvalTripName } from "./trips";
 
 const ACTOR_ID = "eval-actor";
 
@@ -77,6 +78,8 @@ interface LivePrompt {
   id: string;
   intent: "change" | "question";
   text: string;
+  /** The trip it runs on (`trips.ts`); absent, the seeded Japan trip. */
+  trip?: EvalTripName;
 }
 
 const liveSet = JSON.parse(readFileSync(join(import.meta.dirname, "live-set.json"), "utf8")) as {
@@ -108,12 +111,18 @@ const plan =
 let spentMicroUsd = 0;
 let unpricedTurns = 0;
 
-/** A fresh copy of the Japan demo trip, through the real command path, as db:seed builds it. */
-async function seedJapanTrip(): Promise<{ tripId: string; detail: TripDetail }> {
+/**
+ * A fresh copy of the trip `prompt` runs on, through the real command path:
+ * the Japan demo trip as db:seed builds it, or a named one from `trips.ts`.
+ */
+async function seedTripFor(prompt: LivePrompt): Promise<{ tripId: string; detail: TripDetail }> {
   const tripId = randomUUID();
-  const created = await executeTripCommand({ type: "CreateTrip", tripId, name: "Japan (eval)" }, ACTOR_ID);
+  const name = prompt.trip === "long-100" ? "100 days in Japan (eval)" : "Japan (eval)";
+  const created = await executeTripCommand({ type: "CreateTrip", tripId, name }, ACTOR_ID);
   if (!created.ok) throw new Error(`seed: ${created.error.message}`);
-  const seeded = await executeTripCommandBatch(japanTripCommands(tripId, { startDate: "2027-04-01" }), ACTOR_ID);
+  const commands =
+    prompt.trip === "long-100" ? longTripCommands(tripId) : japanTripCommands(tripId, { startDate: "2027-04-01" });
+  const seeded = await executeTripCommandBatch(commands, ACTOR_ID);
   if (!seeded.ok) throw new Error(`seed: ${seeded.error.message}`);
   return { tripId, detail: seeded.detail };
 }
@@ -255,7 +264,7 @@ describe("the live set, on production's models", () => {
           context.skip();
           return;
         }
-        const { tripId, detail } = await seedJapanTrip();
+        const { tripId, detail } = await seedTripFor(prompt);
         const turn = await runTurn(prompt, tripId);
         if (turn.microUsd === null) unpricedTurns += 1;
         else spentMicroUsd += turn.microUsd;
