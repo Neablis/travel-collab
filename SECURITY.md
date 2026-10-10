@@ -20,6 +20,11 @@ Open a **private** GitHub security advisory on this repository
 (Security → Report a vulnerability), or contact the maintainer directly. Do
 not open a public issue for anything exploitable.
 
+A bug that is **not** a security problem goes to GitHub Issues
+(<https://github.com/Neablis/travel-collab/issues/new>): what you did, what
+you expected, what happened instead, and the page URL. The same two routes are
+published at `/.well-known/security.txt` (RFC 9116) on the production site.
+
 There is no SLA and no bounty — this is one maintainer's project. Expect a
 first response in days, not hours.
 
