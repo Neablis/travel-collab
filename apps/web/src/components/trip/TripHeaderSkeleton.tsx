@@ -1,6 +1,10 @@
+"use client";
+
 import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton";
 import { isDemoTripId } from "@/lib/demoTrip";
 import { cn } from "@/lib/cn";
+import { useIsAbovePhone } from "@/lib/useIsPhone";
+import { usePeekedTripCover } from "./cover/useTripCover";
 
 /**
  * **The trip header's own box while the trip is in flight** (Mitchell, Vercel
@@ -25,11 +29,21 @@ import { cn } from "@/lib/cn";
  * Kept out of `TripHeader.tsx` on purpose: that component's controls change
  * often, and a placeholder that only renders while there is no trip has no
  * reason to share its hooks.
+ *
+ * **The cover band's box, when a cover is already known** (PR #384 review).
+ * The board holds this skeleton until the cover read answers, so the band and
+ * the header arrive together; when the cover is in the cache already (a trip
+ * opened again), the band's 112px are drawn here too, so the header does not
+ * move when the real one replaces this. A first open cannot know, and draws
+ * none. Same rule as the band: from 768px up, never on /demo, and it reads
+ * nothing itself.
  */
 export function TripHeaderSkeleton({ tripId }: { tripId: string }) {
   const demo = isDemoTripId(tripId);
+  const cover = usePeekedTripCover(tripId, useIsAbovePhone() === true && !demo);
   return (
     <>
+      {cover != null && <Skeleton className="h-28 shrink-0 rounded-none" data-testid="trip-cover-skeleton" />}
       <div
         className={cn(
           "sticky z-20 border-b border-hairline bg-surface px-6 pt-3.5",

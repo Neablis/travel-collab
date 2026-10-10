@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import type { TripCover } from "@tc/contracts";
 import { fetchTripCover } from "@/lib/apiClient";
 import { cachedRead, DEDUPE, peekCached, subscribeQueryCache } from "@/lib/queryCache";
@@ -44,16 +44,34 @@ export function usePeekedTripCover(tripId: string, enabled: boolean): TripCover 
 
 /**
  * The trip's cover: `undefined` until known, `null` for none. Reads it through
- * the cache when `enabled`; `false` (the demo trip, whose visitor has no
- * session for the cover read) reads nothing and stays `undefined`. A failed
- * read also stays `undefined`, and the banner then shows nothing rather than
- * an *Add cover* that might sit over a cover that exists.
+ * the cache when `enabled`; `false` (a phone, which never shows the band, or
+ * the demo trip, whose visitor has no session for the cover read) reads
+ * nothing and stays `undefined`. A failed read also stays `undefined`, and the
+ * banner then shows nothing rather than an *Add cover* that might sit over a
+ * cover that exists.
+ *
+ * `settled` is whether there is nothing left to wait for: not enabled, a cover
+ * known, or the read answered either way. The board holds its header skeleton
+ * on it, so the band arrives in the same paint as the header under it rather
+ * than pushing it down afterwards (`TripBoardScreen`).
  */
-export function useTripCover(tripId: string, enabled: boolean): TripCover | null | undefined {
+export function useTripCover(
+  tripId: string,
+  enabled: boolean,
+): { cover: TripCover | null | undefined; settled: boolean } {
   const cover = usePeekedTripCover(tripId, enabled);
+  // Which trip's read has answered, ok or not: per id, so moving to another
+  // trip waits for that one's.
+  const [answered, setAnswered] = useState<string | null>(null);
   useEffect(() => {
     if (!enabled) return;
-    void readTripCover(tripId);
+    let live = true;
+    void readTripCover(tripId).then(() => {
+      if (live) setAnswered(tripId);
+    });
+    return () => {
+      live = false;
+    };
   }, [tripId, enabled]);
-  return cover;
+  return { cover, settled: !enabled || cover !== undefined || answered === tripId };
 }

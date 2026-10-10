@@ -28,6 +28,7 @@ import { EditorHost } from "@/components/trip/context/EditorHost";
 import { TripHeader } from "./TripHeader";
 import { cachedRead } from "@/lib/queryCache";
 import { coverKeys } from "@/lib/queryKeys";
+import { setViewportMatches } from "../../../vitest.setup";
 
 
 
@@ -35,6 +36,8 @@ const server = setupServer();
 beforeAll(() => server.listen({ onUnhandledRequest: "bypass" }));
 beforeEach(() => {
   myRole = "owner";
+  // The band is a desktop thing, decided in JS (`useIsAbovePhone`).
+  setViewportMatches({ "(min-width: 768px)": true });
 });
 afterEach(() => {
   cleanup();
@@ -145,6 +148,23 @@ describe("TripHeader — the cover band", () => {
       await cachedRead(coverKeys.trip(TRIP), () => Promise.resolve({ ok: true as const, value: newer }), { dedupeMs: 0 });
     });
     expect(await screen.findByRole("img", { name: "New harbour" })).toBeTruthy();
+    server.events.removeAllListeners();
+  });
+
+  // PR #384 review: the band was `hidden md:block`, so a phone still read the
+  // cover and downloaded a full-width eager photo it never showed.
+  it("neither reads the cover nor draws the band on a phone", async () => {
+    setViewportMatches({ "(max-width: 767px)": true });
+    let reads = 0;
+    server.events.on("request:start", ({ request }) => {
+      if (request.method === "GET" && new URL(request.url).pathname === `/api/trips/${TRIP}/cover`) reads++;
+    });
+    server.use(...makeCoverHandlers({ cover: tripCoverFactory.build({ alt: "Unseen roofs" }) }));
+    await renderHeader();
+    // Long enough for a read started on mount to have been answered.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(reads).toBe(0);
+    expect(screen.queryByRole("img", { name: "Unseen roofs" })).toBeNull();
     server.events.removeAllListeners();
   });
 

@@ -12,11 +12,17 @@ import { Button } from "@/components/ui/button";
  * 2026-10-10 preview: "the header of the trip on desktop should also have the
  * image in some way … clicking the image should allow you to change it").
  *
- * Above 768px only (`hidden md:block`). A phone keeps its one-row pinned
- * header and gets no band: 112px of photo above it would push the plan down
- * on the screen that has least room for it, and the cover is a tap away in
- * Trip settings. Outside the sticky header, so it scrolls away and the pinned
- * stack (`--sticky-stack-height`) does not grow.
+ * From 768px up only. A phone keeps its one-row pinned header and gets no
+ * band: 112px of photo above it would push the plan down on the screen that
+ * has least room for it, and the cover is a tap away in Trip settings. Decided
+ * by the caller in JS (`TripHeader`'s `useIsAbovePhone`), not here by a CSS
+ * `hidden`: hidden, it still cost a phone the cover read and a full-width eager
+ * download (PR #384 review). Outside the sticky header, so it scrolls away and
+ * the pinned stack (`--sticky-stack-height`) does not grow.
+ *
+ * It never pushes the board down after it paints: the board holds its header
+ * skeleton until the cover read has answered (`TripBoardScreen`), so the band
+ * arrives in the same paint as the header under it.
  *
  * The name here is decoration (`aria-hidden`): the header's own title below is
  * the page's h1 and the way into Trip settings, and a second copy in the
@@ -42,7 +48,7 @@ export function TripCoverBanner({
       photo={cover}
       eager
       sizes="100vw"
-      className="hidden h-28 shrink-0 md:block"
+      className="h-28 shrink-0"
     >
       <div aria-hidden className="cover-veil-title absolute inset-0" />
       {onChangeCover !== undefined && (

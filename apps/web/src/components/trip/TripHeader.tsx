@@ -16,7 +16,7 @@ import { useEditor } from "@/components/trip/context/EditorHost";
 import { tripSpend } from "@/lib/cost";
 import { isDemoTripId } from "@/lib/demoTrip";
 import { cn } from "@/lib/cn";
-import { useIsPhone } from "@/lib/useIsPhone";
+import { useIsAbovePhone, useIsPhone } from "@/lib/useIsPhone";
 import { displayNameFor } from "@/lib/displayName";
 import { settingsSectionFrom, withoutSettingsParam, type SettingsSection } from "@/lib/tripSettingsLink";
 import { HistoryPanel } from "@/components/board/HistoryPanel";
@@ -190,8 +190,13 @@ export function TripHeader({
   const publishStickyStack = useStickyStackHeight();
   // The cover band above the desktop header (Mitchell, 2026-10-10). Its own
   // read, through the same cache entry Trip settings' picker reads
-  // (`useTripCover`), so a pick there shows here at once. Not on /demo, which has no session for it.
-  const cover = useTripCover(tripId, !isDemoTripId(tripId));
+  // (`useTripCover`), so a pick there shows here at once. Not on /demo, which
+  // has no session for it, and **not on a phone at all** (PR #384 review): the
+  // band was only hidden there by CSS, so a phone still read the cover and
+  // downloaded a full-width eager photo it never showed. `useIsAbovePhone`, not
+  // `useIsPhone`, because the latter's first-paint guess would start the read.
+  const abovePhone = useIsAbovePhone();
+  const { cover } = useTripCover(tripId, abovePhone === true && !isDemoTripId(tripId));
 
   if (trip === null || activeTrip === null || status !== "ready") return null;
 
