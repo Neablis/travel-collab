@@ -1794,6 +1794,21 @@ describe("TripBoardScreen — a day's untimed stops", () => {
       },
     });
 
+  // M41 D6: the trip says which day a parked stop left; the card names it by
+  // where that day is now, and a stop the trip names no day for gets none.
+  it("names the day a parked stop left, from the trip's own record of it", async () => {
+    const fixture = { ...trip(), parkedFrom: { [PARKED]: DAY_2 } };
+    server.use(...makeTripHandlers(fixture));
+    renderScreen(fixture.tripId);
+
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /^Unscheduled/ }));
+    const parked = screen.getAllByTestId("rack-card").find((c) => c.textContent?.includes("Tea ceremony"))!;
+    expect(within(parked).getByText("From Day 2")).toBeTruthy();
+    const untimed = screen.getAllByTestId("rack-card").find((c) => c.textContent?.includes("Nishiki market"))!;
+    expect(within(untimed).queryByText(/^From /)).toBeNull();
+  });
+
   it("draws one in the rack under its day, after the stops with no day, and only counts it on its column", async () => {
     const fixture = trip();
     server.use(...makeTripHandlers(fixture));

@@ -13,6 +13,29 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-10 — `ActivityMoved.fromDayId` and `TripDetail.parkedFrom`: a parked stop knows which day it left (M41 D6)
+
+- **Added** `fromDayId: uuid | null`, optional, to `ActivityMovedV1`'s payload
+  (`packages/contracts/src/activity.ts`). The decider stamps it from state: the day the stop was on,
+  or `null` when it was already parked. It is never sent by a client, and `MoveActivity` is
+  unchanged. Revert's compensating moves (`diff.ts`) write `null`. It is still version 1: absent on
+  every stored envelope, and absent reads as `null`.
+- **Added** `parkedFrom: Record<activityId, dayId>`, optional, to `TripDetail`
+  (`packages/contracts/src/detail.ts`), and to `TripState` in the domain. Replay keeps it: a move
+  onto the rack with a `fromDayId` sets the entry, and a reorder inside the rack keeps it. A move
+  onto a day, a removal, or a removed origin day drops it. A move with no `fromDayId` (from a revert,
+  or written before this change) leaves none, so the rack never names a wrong day.
+- Why: the rack said who parked a stop but not where it came from (candidate *"A parked stop
+  remembers which day it came from"*, 2026-09-22). D6 chose to read the origin from the log rather
+  than store a field on the activity, and the moves' own `fromDayId` is that read.
+- Consumers updated: `packages/domain`: `decide.ts`, `evolve.ts`, `diff.ts`, `detail.ts`,
+  `hydrate.ts` (an unparsed doc without the key hydrates to `{}`). `apps/web`: the rack's cards
+  read *"From Day N"* (`TripBoardScreen.tsx`, `UnscheduledRack.tsx`). The public trip read carries
+  the new field, so `openapi.json` is regenerated: `API_VERSION` 1.11.0 → **1.12.0** (minor:
+  additive) and a new `API_FINGERPRINT`.
+- Breaking? no. Both fields are optional; no migration and no event rewrite. A `trip_details.doc`
+  written before this change has no `parkedFrom`, and reads as none until its trip next changes.
+
 ## 2026-10-10 — `AdminRevokeGrantInput`: the operator's revoke body is parsed, and a grant id is a uuid
 
 - **Added** `AdminRevokeGrantInput` (`packages/contracts/src/entitlement.ts`): `{ grantId: uuid }`, the

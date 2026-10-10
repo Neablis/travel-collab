@@ -166,7 +166,8 @@ export function diffTripStates(current: TripState, target: TripState): TripEvent
       push({
         type: "ActivityMoved",
         version: 1,
-        payload: { tripId: target.tripId, activityId: id, toDayId: day.dayId, position },
+        // Revert compensates rather than moves, so it names no origin.
+        payload: { tripId: target.tripId, activityId: id, toDayId: day.dayId, position, fromDayId: null },
       });
     });
   }
@@ -174,7 +175,7 @@ export function diffTripStates(current: TripState, target: TripState): TripEvent
     push({
       type: "ActivityMoved",
       version: 1,
-      payload: { tripId: target.tripId, activityId: id, toDayId: null, position },
+      payload: { tripId: target.tripId, activityId: id, toDayId: null, position, fromDayId: null },
     });
   });
 

@@ -13,8 +13,8 @@ afterEach(cleanup);
 // times, so a parked stop usually has none — but one created unscheduled can
 // still carry a window, and the card has to tell the truth about which.
 const items = [
-  { activityId: "a1", title: "Souvenir shopping", area: "Rochester", timeWindow: null, bookedBy: null, day: null, badge: null },
-  { activityId: "a2", title: "Second breakfast", area: null, timeWindow: { start: "08:00", end: "09:00" }, bookedBy: null, day: null, badge: null },
+  { activityId: "a1", title: "Souvenir shopping", area: "Rochester", timeWindow: null, bookedBy: null, from: null, day: null, badge: null },
+  { activityId: "a2", title: "Second breakfast", area: null, timeWindow: { start: "08:00", end: "09:00" }, bookedBy: null, from: null, day: null, badge: null },
 ];
 
 function renderRack(over: Partial<React.ComponentProps<typeof UnscheduledRack>> = {}) {
@@ -113,6 +113,7 @@ describe("UnscheduledRack — a day's untimed stops", () => {
       area: null,
       timeWindow: null,
       bookedBy: null,
+      from: null,
       day: day3,
       badge: { label: "To book", variant: "warning" as const },
     },
@@ -161,6 +162,15 @@ describe("UnscheduledRack — a day's untimed stops", () => {
 
     const card = screen.getAllByTestId("rack-card").find((c) => c.textContent?.includes("Nishiki market"))!;
     expect(within(card).getByText("To book")).toBeTruthy();
+  });
+
+  // M41 D6: the day a parked stop left, when its move recorded one.
+  it("says which day a parked stop left, and nothing when that is not known", () => {
+    renderRack({ open: true, items: [{ ...items[0]!, from: "Day 2" }, items[1]!] });
+
+    const [left, unknown] = screen.getAllByTestId("rack-card");
+    expect(within(left!).getByText("From Day 2")).toBeTruthy();
+    expect(within(unknown!).queryByText(/^From /)).toBeNull();
   });
 
   it("counts every card it holds, day-less and untimed alike", () => {
