@@ -416,21 +416,26 @@ export function TripHeader({
                 themselves (see Badge). They have to be able to wrap as whole
                 items instead, or the row overflows — 2026-08-30 design pass. */}
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 max-md:min-w-0 max-md:flex-1 max-md:flex-nowrap">
-              {/* The button goes INSIDE the h2, not around it. The other way
-                  round renders `<button><h2>…</h2></button>`, which is invalid
-                  (a button's content model is phrasing content) and, worse,
-                  silently costs the trip its heading: a button's descendants
-                  are presentational in the accessibility tree, so the h2's role
-                  is dropped and the name disappears from heading navigation
-                  entirely. e2e caught it — m8-make-it-real asserts
-                  getByRole("heading", { level: 2 }) on the trip name.
+              {/* The button goes INSIDE the heading, not around it. The other
+                  way round renders `<button><h1>…</h1></button>`, which is
+                  invalid (a button's content model is phrasing content) and,
+                  worse, silently costs the trip its heading: a button's
+                  descendants are presentational in the accessibility tree, so
+                  the heading's role is dropped and the name disappears from
+                  heading navigation entirely. e2e caught it — m8-make-it-real
+                  asserts getByRole("heading", { level: 1 }) on the trip name.
 
-                  Nested this way both roles survive: h2 for structure, button
-                  for the action. The type classes are restated on the button
-                  because buttonVariants sets its own `font-medium` + size
-                  `text-base`, which would otherwise shrink the title inside its
-                  own heading. */}
-              <Heading level={2} className="max-md:min-w-0">
+                  **h1, not h2** (2026-10): the trip page had no level-one
+                  heading at all, and axe failed `/demo` for it. The trip's
+                  name is what the page is about. `text-xl` holds the size the
+                  h2 had; the level is structure, not a request to grow.
+
+                  Nested this way both roles survive: heading for structure,
+                  button for the action. The type classes are restated on the
+                  button because buttonVariants sets its own `font-medium` +
+                  size `text-base`, which would otherwise shrink the title
+                  inside its own heading. */}
+              <Heading level={1} className="text-xl max-md:min-w-0">
                 <Button
                   variant="ghost"
                   onClick={() => setSettingsOpen(true)}

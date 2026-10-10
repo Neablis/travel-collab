@@ -11,7 +11,7 @@ test("money & lenses: currency, costs, rollups, budget conflict, dismiss, undo",
   await createEmptyTripViaWizard(page, tripName);
   await page.getByRole("link", { name: tripName }).click();
   // level:2 disambiguates TripHeader's h2 from TripCard's own h3 heading.
-  await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
   await openPlan(page);
 
   // -- set the trip currency to EUR --

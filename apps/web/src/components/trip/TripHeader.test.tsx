@@ -148,6 +148,13 @@ describe("TripHeader trip settings entry point", () => {
     // swallowed which trip it belongs to.
     expect(screen.getByRole("button", { name: /Japan/i })).toBeTruthy();
   });
+
+  // axe on `/demo`: the trip page had no h1. The trip's name is the page's
+  // title, so it is the one.
+  it("is the page's level-one heading", async () => {
+    await renderHeader();
+    expect(screen.getByRole("heading", { level: 1, name: /Japan/i })).toBeTruthy();
+  });
 });
 
 // **M26 link 6a: there is no delete on this screen, so there is no toast.**

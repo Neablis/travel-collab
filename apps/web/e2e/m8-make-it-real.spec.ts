@@ -38,7 +38,7 @@ test("create, name, date, build, reorder, rename, delete", async ({ page }) => {
   await createEmptyTripViaWizard(page, tripName);
   await page.getByRole("link", { name: tripName }).click();
   // level:2 disambiguates TripHeader's h2 from TripCard's own h3 heading.
-  await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
   await openPlan(page);
 
   // -- a start date, then 3 real days (Task 8b.6: the end is derived, never
@@ -115,7 +115,7 @@ test("create, name, date, build, reorder, rename, delete", async ({ page }) => {
   // now also contains the renamed trip's name as a substring — Playwright's
   // getByText matches substrings by default, so it resolves to both that
   // <div> and TripHeader's actual h2 unless scoped to the heading role.
-  await expect(page.getByRole("heading", { name: renamedTripName, level: 2 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: renamedTripName, level: 1 })).toBeVisible();
 
   // Task 8b.3: the saved state no longer renders visible text (a bare dot
   // only) — "All changes saved" lives on the status element's accessible

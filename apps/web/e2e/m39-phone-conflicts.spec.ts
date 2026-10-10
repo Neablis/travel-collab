@@ -138,7 +138,7 @@ test.describe("M39 D9 — the phone's conflict state", () => {
     const header = page.locator('header[aria-label="Trip"]');
     const row = [
       header.getByRole("link", { name: /Your trips/ }),
-      header.getByRole("heading", { level: 2 }).getByRole("button"),
+      header.getByRole("heading", { level: 1 }).getByRole("button"),
       header.getByRole("button", { name: "Ask" }),
       chip(page),
       header.getByRole("button", { name: "2 suggestions" }),

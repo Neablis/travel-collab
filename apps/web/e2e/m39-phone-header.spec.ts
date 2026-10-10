@@ -41,7 +41,7 @@ test.describe("M39 D6 — the phone trip header", () => {
     const firstStop = (await page.getByTestId(/^activity-card-/).first().boundingBox())!;
     expect(firstStop.y).toBeLessThan(320);
 
-    const title = header(page).getByRole("heading", { level: 2 });
+    const title = header(page).getByRole("heading", { level: 1 });
     const days = page.getByRole("group", { name: "Days" });
     await page.evaluate(() => window.scrollBy(0, window.innerHeight));
     // The page really moved, or the two assertions below prove nothing.

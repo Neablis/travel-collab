@@ -18,7 +18,7 @@ async function newTrip(page: Page, label: string): Promise<string> {
   await createEmptyTripViaWizard(page, tripName);
   await page.getByRole("link", { name: tripName }).click();
   await page.waitForURL(/\/trips\/[^/]+$/);
-  await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
   return tripName;
 }
 
