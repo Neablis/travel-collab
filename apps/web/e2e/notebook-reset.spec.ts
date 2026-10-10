@@ -35,7 +35,7 @@ test("the owner resets an edited Overview to its default, and adds back a missin
   await page.goto("/");
   await createEmptyTripViaWizard(page, tripName);
   await page.getByRole("link", { name: tripName }).click();
-  await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
 
   // -- edit the Overview: its opening letter becomes the owner's own words --
   await openNotebookIndex(page);

@@ -801,7 +801,7 @@ test.describe("responsive (trip header on a phone)", () => {
     // the title's row: the title's vertical centre falls inside Ask's box.
     const askBox = (await tripHeader.getByRole("button", { name: "Ask", exact: true }).boundingBox())!;
     const addBox = (await tripHeader.getByRole("button", { name: "Add stop" }).boundingBox())!;
-    const titleBox = (await tripHeader.getByRole("heading", { level: 2 }).boundingBox())!;
+    const titleBox = (await tripHeader.getByRole("heading", { level: 1 }).boundingBox())!;
     expect(askBox.height).toBe(addBox.height);
     expect(Math.abs(askBox.y - addBox.y)).toBeLessThanOrEqual(1);
     const titleCentre = titleBox.y + titleBox.height / 2;

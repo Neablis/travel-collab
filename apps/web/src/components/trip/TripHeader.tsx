@@ -334,7 +334,7 @@ export function TripHeader({
                 header above this one, which is where a signed-out reader's way
                 onward belongs. */}
             {!isDemoTripId(tripId) && (
-              <nav className="flex w-full items-center justify-between gap-3 max-md:contents">
+              <nav aria-label="Trip" className="flex w-full items-center justify-between gap-3 max-md:contents">
                 {/* `min-h-11` and the inline-flex that makes it apply: §22 made
                     this link load-bearing on a phone. Scoping the tab bar removed
                     the Trips tab from inside a trip, so this is now the ONLY way
@@ -384,21 +384,27 @@ export function TripHeader({
                 themselves (see Badge). They have to be able to wrap as whole
                 items instead, or the row overflows — 2026-08-30 design pass. */}
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 max-md:min-w-0 max-md:flex-1 max-md:flex-nowrap">
-              {/* The button goes INSIDE the h2, not around it. The other way
-                  round renders `<button><h2>…</h2></button>`, which is invalid
-                  (a button's content model is phrasing content) and, worse,
-                  silently costs the trip its heading: a button's descendants
-                  are presentational in the accessibility tree, so the h2's role
-                  is dropped and the name disappears from heading navigation
-                  entirely. e2e caught it — m8-make-it-real asserts
-                  getByRole("heading", { level: 2 }) on the trip name.
+              {/* **The trip page's h1** (2026-10-10, axe's page-has-heading-one
+                  on every trip view). It was an h2 under no h1 at all; the only
+                  h1 note on this screen (TripBoardScreen's signed-out branch)
+                  is about that branch's own heading and does not apply here.
+                  `text-xl` keeps the size it had as an h2.
 
-                  Nested this way both roles survive: h2 for structure, button
-                  for the action. The type classes are restated on the button
-                  because buttonVariants sets its own `font-medium` + size
-                  `text-base`, which would otherwise shrink the title inside its
-                  own heading. */}
-              <Heading level={2} className="max-md:min-w-0">
+                  The button goes INSIDE the heading, not around it. The other
+                  way round renders `<button><h1>…</h1></button>`, which is
+                  invalid (a button's content model is phrasing content) and,
+                  worse, silently costs the trip its heading: a button's
+                  descendants are presentational in the accessibility tree, so
+                  the heading role is dropped and the name disappears from
+                  heading navigation entirely. e2e caught it — m8-make-it-real
+                  asserts getByRole("heading", { level: 1 }) on the trip name.
+
+                  Nested this way both roles survive: heading for structure,
+                  button for the action. The type classes are restated on the
+                  button because buttonVariants sets its own `font-medium` +
+                  size `text-base`, which would otherwise shrink the title
+                  inside its own heading. */}
+              <Heading level={1} className="text-xl max-md:min-w-0">
                 <Button
                   variant="ghost"
                   onClick={() => setSettingsOpen(true)}

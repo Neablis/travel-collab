@@ -45,7 +45,7 @@ async function createTrip(page: Page, name: string): Promise<string> {
   expect(response.ok()).toBe(true);
   const { tripId } = (await response.json()) as { tripId: string };
   await page.goto(`/trips/${tripId}?view=Plan`);
-  await expect(page.getByRole("heading", { name, level: 2 })).toBeVisible();
+  await expect(page.getByRole("heading", { name, level: 1 })).toBeVisible();
   return tripId;
 }
 
@@ -178,7 +178,7 @@ test("an invited editor opens the trip and changes it; the owner sees them liste
 
     // Lands on the trip, editable, with no "Viewer" badge — and told so once
     // (SPEC §35.6's toast, carried across the navigation by `useInviteJoin`).
-    await expect(bob.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
+    await expect(bob.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
     await expect(bob.getByTestId("toast")).toContainText("can see you joined");
     await expect(bob.getByText("Viewer", { exact: true })).toHaveCount(0);
     // Joining lands him on the trip's default view — Overview since SPEC §24,
@@ -229,7 +229,7 @@ test("an invited viewer can read the trip but is told, and shown, that it is rea
   const tripId = await createMappedTrip(page, tripName, 1);
   const stopTitle = "Stop on day 1";
   await page.goto(`/trips/${tripId}?view=Plan`);
-  await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
   await openTripSettings(page, tripName);
   const link = await inviteLinkFor(page, "Can view");
 
@@ -239,7 +239,7 @@ test("an invited viewer can read the trip but is told, and shown, that it is rea
     await expect(carol.getByText(/You'll be able to look, but not change anything\./)).toBeVisible();
     await carol.getByRole("button", { name: "Join the trip" }).click();
 
-    await expect(carol.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
+    await expect(carol.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
     // `exact` matters here and nowhere else in this file: this test's own trip
     // is named "Viewer", so once the badge's copy became the single word
     // "Viewer" (2026-08-30 design pass, was "View only") a substring match
@@ -394,7 +394,7 @@ test("a signed-out visitor reads the invite, has a look first, and joins from th
     // The landing's plan card, not the board (M38): the board prints every
     // stop's cost, which an invitee does not see before joining (D4).
     await expect(visitor.getByRole("region", { name: "The plan so far" })).toBeVisible();
-    await expect(visitor.getByRole("heading", { name: tripName, level: 2 })).toHaveCount(0);
+    await expect(visitor.getByRole("heading", { name: tripName, level: 1 })).toHaveCount(0);
     await expect(visitor.locator('[data-testid^="activity-card-"]')).toHaveCount(0);
 
     // Join from the banner: no session, so it goes to sign in — there is no
@@ -406,7 +406,7 @@ test("a signed-out visitor reads the invite, has a look first, and joins from th
 
     // Admitted on the banked token, back on the landing, and the Join pressed
     // before sign-in finishes itself: the trip, editable, with the toast.
-    await expect(visitor.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
+    await expect(visitor.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
     await expect(visitor).toHaveURL(new RegExp(`/trips/${tripId}`));
     await expect(visitor.getByTestId("toast")).toContainText("can see you joined");
     await expect(visitor.getByText("Viewer", { exact: true })).toHaveCount(0);
