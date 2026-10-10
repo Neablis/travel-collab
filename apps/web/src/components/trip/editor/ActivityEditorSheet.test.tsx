@@ -36,10 +36,14 @@ vi.mock("@/lib/apiClient", async (orig) => {
     // asserted in TripProvider.test.tsx.
     sendTripCommand: (command: unknown) => sendTripCommandMock(command),
     sendTripCommandBatch: (...args: unknown[]) => sendTripCommandBatchMock(...args),
+    // A unit of more than one command (a day change's move and update, M41
+    // D3) goes out this way.
+    sendTripUnits: (...args: unknown[]) => sendTripUnitsMock(...args),
     fetchNearbyStops: (...args: unknown[]) => fetchNearbyStopsMock(...args),
   };
 });
 const fetchTripAccessMock = vi.fn();
+const sendTripUnitsMock = vi.fn();
 const fetchNearbyStopsMock = vi.fn();
 
 import { fetchTripDetail, fetchTripHistory } from "@/lib/apiClient";
@@ -147,6 +151,7 @@ function renderEditorSheet({
 beforeEach(() => {
   sendTripCommandMock.mockReset();
   sendTripCommandBatchMock.mockReset();
+  sendTripUnitsMock.mockReset().mockReturnValue(new Promise(() => {}));
   fetchTripAccessMock.mockReset().mockResolvedValue({
     ok: true,
     value: { tripId: TRIP_ID, myRole: "owner", members: [], invites: [] },
@@ -290,6 +295,65 @@ describe("ActivityEditorSheet", () => {
     expect(dispatch).toHaveBeenCalledWith(expect.objectContaining({
       timeWindow: { start: "09:00", end: "13:00" },
     }));
+  });
+
+  // M41 D3: the Day field is how a stop is moved without dragging it, so it
+  // must be live in edit mode and its change must reach the log as a move.
+  it("moves a stop to the day picked in its editor", async () => {
+    const dispatch = renderEditorSheet({ mode: "edit", activityId: SCHEDULED_ACTIVITY_ID });
+    await screen.findByDisplayValue("Existing stop");
+
+    await userEvent.selectOptions(screen.getByLabelText("Day"), DAY_2);
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "MoveActivity", activityId: SCHEDULED_ACTIVITY_ID, toDayId: DAY_2 }),
+    );
+  });
+
+  it("moves and edits a stop as one batch when more than the day changed", async () => {
+    renderEditorSheet({ mode: "edit", activityId: SCHEDULED_ACTIVITY_ID });
+    await screen.findByDisplayValue("Existing stop");
+
+    await userEvent.selectOptions(screen.getByLabelText("Day"), DAY_2);
+    await userEvent.type(screen.getByLabelText("What or where"), "!");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    // The queue drains in an effect after the save, not inside it.
+    await vi.waitFor(() => expect(sendTripUnitsMock).toHaveBeenCalledTimes(1));
+    const [, units] = sendTripUnitsMock.mock.calls[0]!;
+    expect(units[0].commands).toEqual([
+      expect.objectContaining({ type: "MoveActivity", activityId: SCHEDULED_ACTIVITY_ID, toDayId: DAY_2 }),
+      expect.objectContaining({ type: "UpdateActivity", activityId: SCHEDULED_ACTIVITY_ID }),
+    ]);
+  });
+
+  it("parks a stop when Unscheduled is picked in its editor", async () => {
+    const dispatch = renderEditorSheet({ mode: "edit", activityId: SCHEDULED_ACTIVITY_ID });
+    await screen.findByDisplayValue("Existing stop");
+
+    await userEvent.selectOptions(screen.getByLabelText("Day"), "");
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await vi.waitFor(() => expect(sendTripUnitsMock).toHaveBeenCalledTimes(1));
+    const [, units] = sendTripUnitsMock.mock.calls[0]!;
+    expect(units[0].commands).toEqual([
+      expect.objectContaining({ type: "MoveActivity", activityId: SCHEDULED_ACTIVITY_ID, toDayId: null }),
+      expect.objectContaining({ type: "UpdateActivity", timeWindow: null }),
+    ]);
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  it("removes the stop from its editor", async () => {
+    const dispatch = renderEditorSheet({ mode: "edit", activityId: SCHEDULED_ACTIVITY_ID });
+    await screen.findByDisplayValue("Existing stop");
+
+    await userEvent.click(screen.getByRole("button", { name: "Remove" }));
+
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "RemoveActivity", activityId: SCHEDULED_ACTIVITY_ID }),
+    );
+    expect(screen.queryByRole("heading", { name: "Edit activity" })).toBeNull();
   });
 
   it("keeps an explicit end time in edit mode", () => {

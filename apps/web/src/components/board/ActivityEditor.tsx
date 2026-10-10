@@ -128,6 +128,7 @@ export function ActivityEditor({
   nearbyStops = [],
   onSave,
   onCancel,
+  onRemove,
 }: {
   initial: ActivityView | null;
   mode: "create" | "edit";
@@ -159,6 +160,8 @@ export function ActivityEditor({
   nearbyStops?: readonly NearbyStop[];
   onSave: (value: ActivityFormValue) => void | Promise<void>;
   onCancel: () => void;
+  /** Edit mode's *Remove*; absent, the footer offers none (create mode). */
+  onRemove?: () => void;
 }) {
   const clock = useTimeFormat();
   const [title, setTitle] = useState(initial?.title ?? "");
@@ -276,6 +279,10 @@ export function ActivityEditor({
   );
   const [error, setError] = useState<string | null>(null);
   const [selectedDayId, setSelectedDayId] = useState(defaultDayId ?? "");
+  // Set once the user picks a day themselves, *Unscheduled* included, so the
+  // late-arriving default below never takes their choice back (M41 D3: in
+  // edit mode, "" is a real answer that parks the stop).
+  const [dayPicked, setDayPicked] = useState(false);
   // The title of the nearby stop last picked. The list stays out of the way
   // while the field still says exactly that, and comes back on the first edit.
   const [pickedTitle, setPickedTitle] = useState<string | null>(null);
@@ -312,9 +319,9 @@ export function ActivityEditor({
   // the resulting dayId: null / undefined round-trips through AddActivity
   // exactly as it did before this task.
   useEffect(() => {
-    if (selectedDayId !== "" || defaultDayId === undefined) return;
+    if (dayPicked || selectedDayId !== "" || defaultDayId === undefined) return;
     setSelectedDayId(defaultDayId);
-  }, [defaultDayId, selectedDayId]);
+  }, [defaultDayId, selectedDayId, dayPicked]);
 
   const selectedDay = days.find((d) => d.dayId === selectedDayId);
 
@@ -392,14 +399,15 @@ export function ActivityEditor({
           <NativeSelect
             id="activity-day"
             value={selectedDayId}
-            onChange={(e) => setSelectedDayId(e.target.value)}
-            // Edit mode has no command that moves a stop between days from
-            // this form (UpdateActivity carries no dayId — that's what
-            // MoveActivity/drag-and-drop already do). Shown for context, not
-            // editable here, rather than a control that silently no-ops.
-            disabled={mode === "edit"}
+            onChange={(e) => {
+              setDayPicked(true);
+              setSelectedDayId(e.target.value);
+            }}
           >
-            {selectedDayId === "" && <option value="">Unscheduled</option>}
+            {/* An edit can park a stop as well as move it (M41 D3), so the
+                rack is always on offer there. Create keeps it only while
+                nothing is picked: a stop made for a day is made for it. */}
+            {(mode === "edit" || selectedDayId === "") && <option value="">Unscheduled</option>}
             {days.map((day) => (
               <option key={day.dayId} value={day.dayId}>
                 {day.label}
@@ -632,7 +640,16 @@ export function ActivityEditor({
         </Text>
       )}
 
-      <div className="flex items-center justify-end gap-2 border-t border-hairline pt-4">
+      <div className="flex items-center justify-between gap-2 border-t border-hairline pt-4">
+        {/* Remove lives here rather than on each rack card (M41 D4). Undone
+            like any other change, so it asks nothing first. */}
+        {onRemove !== undefined ? (
+          <Button type="button" variant="ghost" className="text-danger-ink" onClick={onRemove}>
+            Remove
+          </Button>
+        ) : (
+          <span />
+        )}
         <div className="flex gap-2">
           <Button type="button" variant="ghost" onClick={onCancel}>
             Cancel
