@@ -22,6 +22,7 @@ import { NotebooksMenu } from "@/components/trip/NotebooksMenu";
 import { TagFocusLine } from "@/components/trip/TagFocusLine";
 import { PageContainer } from "@/components/ui/page-container";
 import { TripHeader } from "@/components/trip/TripHeader";
+import { TripHeaderSkeleton } from "@/components/trip/TripHeaderSkeleton";
 import { AddSavedDayButton } from "@/components/trip/AddSavedDayButton";
 import { useBoardSuggestions } from "./SuggestionActions";
 import { SuggestionTray } from "./SuggestionTray";
@@ -388,25 +389,31 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // PageContainer as="main" width="full" px-0 (Task L1) — this component owns
   // its own horizontal padding via PageContainer wrappers below, so these
   // early-return states need their own too.
-  // **No loading state at all**: the board is not there until its data is.
+  // **The header's shape, and nothing else**, while the trip is in flight.
   //
   // It used to render `Loading…`, and on the common path — Home's hero has
   // usually already cached this `TripDetail` (`TripProvider.tsx:109`) — that
   // painted for about one frame. Mitchell, 2026-09-20: *"just never do the
   // 'Loading', gate the preview behind a network request to get the data not
   // having returned, dont even have the loading state. KEep it simple."*
+  // `scripts/check-loading-wall.mjs` keeps the word from coming back anywhere
+  // (KI-2026-09-20-e).
   //
-  // Both fancier answers were considered and cost more than they return. A
-  // timed gate on the word is a second piece of timing state to own, for a
-  // word. A skeleton of the board's shape is what link 7 actually asks for,
-  // and that is real work rather than a line in a branch, weighed against a
-  // server-first read in KI-2026-09-20-f. `scripts/check-loading-wall.mjs`
-  // keeps the word from coming back anywhere (KI-2026-09-20-e).
-  //
-  // `null` and not an empty container: `trips/[tripId]/page.tsx` already owns
-  // the <main> landmark and its padding, so the chrome around this stays
-  // exactly where it was and nothing collapses.
-  if (status === "loading") return null;
+  // That left `null`, and on a cold load the header then arrived in one jump
+  // with the board. Mitchell, Vercel Toolbar on the trip preview: *"Header
+  // doesnt have a skeleton element on page loading"*. The header is the one
+  // region whose shape does not depend on the trip, so it is drawn at its real
+  // height (`TripHeaderSkeleton`) in the same `.trip-board-content` column;
+  // the body below still waits for its data, as before.
+  if (status === "loading") {
+    return (
+      <div className="flex items-start">
+        <div className="trip-board-content min-w-0 flex-1">
+          <TripHeaderSkeleton tripId={tripId} />
+        </div>
+      </div>
+    );
+  }
   if (status === "unauthenticated") {
     // I3 (final review): this used to be `<Heading level={1}>Caesura</Heading>`
     // plus a bare link to Auth.js's default `/api/auth/signin` — exactly the

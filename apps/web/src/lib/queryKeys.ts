@@ -35,3 +35,15 @@ export const tripKeys = {
   pages: (tripId: string) => `trip:${tripId}:pages`,
   page: (tripId: string, pageId: string) => `trip:${tripId}:page:${pageId}`,
 } as const;
+
+/**
+ * A trip's cover photo (M37), deliberately **outside** `tripKeys.all`'s family.
+ * A cover is trip metadata with its own routes, not a command (M37 D1), so no
+ * planning command or page edit can move it — and under `trip:<id>:` every
+ * stop added would drop it, and Trip settings would draw its skeleton again on
+ * the next open for a photo that had not changed. Its own writes invalidate it
+ * (`CoverSection`).
+ */
+export const coverKeys = {
+  trip: (tripId: string) => `cover:trip:${tripId}`,
+} as const;

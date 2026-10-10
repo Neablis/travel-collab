@@ -224,10 +224,16 @@ export function ProfileSection({
         <SettingsRow
           label="Display name"
           htmlFor="account-display-name"
+          // While the session probe is out, the long sentence with the name
+          // still to come ("…", as the email row below says it): the short
+          // one became the long one when the probe answered, wrapped, and
+          // pushed every row under it down (a layout-shift probe on /account).
           description={
-            signIn?.name
-              ? `What people on your trips see. Empty, it is your sign-in name, ${signIn.name}.`
-              : "What people on your trips see."
+            signIn === undefined
+              ? "What people on your trips see. Empty, it is your sign-in name, …"
+              : signIn.name
+                ? `What people on your trips see. Empty, it is your sign-in name, ${signIn.name}.`
+                : "What people on your trips see."
           }
         >
           {/* 240px, because a name is not a paragraph (§34.5: controls are

@@ -30,6 +30,12 @@ import { cn } from "@/lib/cn";
  */
 export type CoverApi = {
   read(): Promise<ApiResult<TripCover | null>>;
+  /**
+   * The last cover read, synchronously, to paint before `read` answers — or
+   * `undefined` for none known. Unlike `initial`, it does not stand in for the
+   * read: `read` still runs, and its answer replaces this one.
+   */
+  peek?(): TripCover | null | undefined;
   search(q: string, page: number): Promise<CoverResult<CoverCandidate[]>>;
   set(candidate: CoverCandidate): Promise<CoverResult<TripCover>>;
   clear(): Promise<ApiResult<null>>;
@@ -118,7 +124,9 @@ export function CoverPicker({
   // `undefined` until the first read lands; `null` is "no cover". A failed
   // read leaves it `undefined` and sets `readFailed`: not knowing is not "no
   // cover", and must not hide *Remove cover* from a cover that exists.
-  const [cover, setCover] = useState<TripCover | null | undefined>(initial);
+  const [cover, setCover] = useState<TripCover | null | undefined>(() =>
+    initial !== undefined ? initial : api.peek?.(),
+  );
   // Only the first read is skipped for a known cover: *Try again* still reads.
   const [known] = useState(initial !== undefined);
   const [readFailed, setReadFailed] = useState(false);
@@ -332,7 +340,16 @@ export function CoverPicker({
           </Button>
         </div>
       ) : cover === undefined ? (
-        <Skeleton className="h-33 w-full" />
+        // The loaded cover's own stack — the photo and its one-line credit —
+        // so a cover landing fills the space rather than pushing what is
+        // under it down by the credit (Mitchell, trip preview: Trip settings
+        // *"really reflows on loading"*). No cover still gives it back.
+        <div className="flex flex-col gap-2">
+          <Skeleton className="h-33 w-full" />
+          <span className="block text-xs">
+            <Skeleton circle delay={2} className="inline-block h-2.5 w-1/2 align-middle" />
+          </span>
+        </div>
       ) : cover !== null ? (
         <div className="flex flex-col gap-2">
           <CoverImage

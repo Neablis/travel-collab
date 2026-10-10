@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ChevronDown, NotebookText } from "lucide-react";
 import { newPageDoc } from "@tc/contracts";
 import type { PageSummary, TripRole } from "@tc/contracts";
+import { DEFAULT_TEMPLATES } from "@tc/pages";
 import { createPage, fetchPages } from "@/lib/pagesClient";
 import { provenanceLabel } from "@/lib/pageScope";
 import { cn } from "@/lib/cn";
@@ -218,10 +219,13 @@ export function NotebooksMenu({ tripId, myRole = null }: { tripId: string; myRol
         {status === "loading" ? (
           <SkeletonRegion label="Loading notebooks" className={LIST_AREA}>
             {/* As many rows as the list this read will replace: `notebooks`
-                survives a close, and the first open assumes one, because every
-                trip is created with its Overview (SPEC §25). Capped where the
-                list would scroll anyway. */}
-            {Array.from({ length: Math.min(Math.max(notebooks.length, 1), 6) }, (_, row) => (
+                survives a close, and the first open assumes the trip's default
+                notebooks — every trip is seeded with `DEFAULT_TEMPLATES`, the
+                Overview first (SPEC §25), so that is the likeliest list.
+                Mitchell, trip preview: *"We know we have 4 default notebooks,
+                so improve the skeleton to 4"*; it assumed one, the Overview
+                alone. Capped where the list would scroll anyway. */}
+            {Array.from({ length: Math.min(notebooks.length || DEFAULT_TEMPLATES.length, 6) }, (_, row) => (
               <div key={row} data-testid="notebook-row-skeleton" className={ROW}>
                 {/* Each line is a LINE BOX in the real row's type (`text-sm`
                     title; `text-xs` + `mt-px` second line) holding an

@@ -90,6 +90,30 @@ const okPageDoc = (text: string) => ({
   },
 });
 
+// The letter's widgets read places and zones from the globals, which are read
+// apart from the document. Mounted before them, those widgets drew twice, the
+// second time at another height — part of the layout shift a probe measured
+// on /demo and the Overview tab.
+describe("OverviewLens — the letter waits for the globals", () => {
+  it("holds the skeleton until the first globals read answers, then shows the letter", async () => {
+    let answer: (value: unknown) => void = () => {};
+    fetchTripGlobalsMock.mockReturnValue(new Promise((resolve) => (answer = resolve)));
+    fetchPagesMock.mockResolvedValue(okPages);
+    fetchPageMock.mockResolvedValue(okPageDoc("Dear crew"));
+    render(<OverviewLens detail={tripDetailFixture()} tripId={TRIP_ID} />);
+
+    await waitFor(() => expect(fetchPageMock).toHaveBeenCalled());
+    // A few turns for the document read to land and be set.
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(screen.queryByText("Dear crew")).toBeNull();
+    expect(screen.getByRole("status", { name: "Loading the Overview" })).toBeTruthy();
+
+    // A failed read settles it too: the letter is not held hostage.
+    answer(failed);
+    expect(await screen.findByText("Dear crew")).toBeTruthy();
+  });
+});
+
 // M26 link 7, §3b: **a failed region retries in place.** This had the message
 // and no control at all, so a reader whose Overview failed could only leave the
 // tab — the dead end §3b forbids.

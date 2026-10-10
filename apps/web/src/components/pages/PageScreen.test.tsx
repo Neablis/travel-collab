@@ -128,6 +128,39 @@ describe("PageScreen", () => {
     expect(await screen.findByText("Hello notebook")).toBeTruthy();
   });
 
+  // The widgets read places and zones from the globals, a read of its own;
+  // mounted before them, they drew twice at different heights — the notebook
+  // page's layout shift. The page holds its skeleton until they answer.
+  it("does not mount the document until the globals have answered", async () => {
+    const trip = tripDetailFixture();
+    const page = pageFixture({
+      tripId: trip.tripId,
+      content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Hello notebook" }] }] },
+    });
+    let release: () => void = () => {};
+    const held = new Promise<void>((resolve) => (release = resolve));
+    let tripServed = false;
+    server.use(
+      ...makePagesHandlers([page]),
+      http.get("/api/trips/:tripId", () => {
+        tripServed = true;
+        return HttpResponse.json({ trip });
+      }),
+      http.get("/api/trips/:tripId/globals", async () => {
+        await held;
+        return HttpResponse.json({ globals: { days: [], cities: [], tags: [] } });
+      }),
+    );
+
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    await waitFor(() => expect(tripServed).toBe(true));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.queryByText("Hello notebook")).toBeNull();
+
+    release();
+    expect(await screen.findByText("Hello notebook")).toBeTruthy();
+  });
+
   // M14 link 10. What a template keeps is the STORED document, and an open
   // edit session has not been committed (ADR-036) — so the control is offered
   // in Reading, where the screen and the store agree, and not in Editing.
