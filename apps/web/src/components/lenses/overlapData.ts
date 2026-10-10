@@ -5,7 +5,9 @@ import { DAY_END_MIN, toMinutes, toTimeString } from "@/lib/time";
 // here is a new rule: `time-overlap` conflicts are emitted by the domain
 // (packages/domain/src/trip/conflicts.ts) and arrive on TripDetail already —
 // this only decides which of the pair the warning hangs off and what the copy
-// needs to say about the other one.
+// needs to say about the other one. That includes "a pending stop is not in an
+// overlap" (Mitchell, 2026-10-10): the domain does not emit one, so nothing
+// here filters by kind.
 export type Overlap = {
   conflictId: string;
   laterActivityId: string; // the stop the warning attaches to
@@ -82,31 +84,17 @@ function startsLater(a: Timed, b: Timed): boolean {
 // lists every conflict naming the stop, dismissed ones included (KI-43). The
 // board is where dismissal buys quiet; the editor is where the full picture
 // always lives.
-//
-// An overlap with a pending stop is not badged either, for the reason
-// `overlapsForDay` skips it: until the stop is confirmed it is not a clash.
 export function badgeableConflictSubjects(
-  detail: Pick<TripDetail, "conflicts" | "dismissedConflictIds" | "activities">,
+  detail: Pick<TripDetail, "conflicts" | "dismissedConflictIds">,
   renderedOverlapIds: ReadonlySet<string>,
 ): Set<string> {
   const dismissed = new Set(detail.dismissedConflictIds);
   const renderedInline = (c: Conflict) => c.kind === OVERLAP_KIND && renderedOverlapIds.has(c.id);
-  const heldBack = (c: Conflict) => c.kind === OVERLAP_KIND && involvesPending(detail, c);
   return new Set(
     detail.conflicts
-      .filter((c) => !dismissed.has(c.id) && !renderedInline(c) && !heldBack(c))
+      .filter((c) => !dismissed.has(c.id) && !renderedInline(c))
       .flatMap((c) => c.subjects),
   );
-}
-
-// A pending stop (a "maybe", or one still "to book") is not a commitment, so
-// another stop sitting on top of it is not yet a clash: Mitchell, on the Plan
-// view, "Pending events shouldn't be an overlap till they are no longer
-// pending." The domain still emits the conflict and the board holds it back,
-// so confirming the stop (kind becomes planned) brings the warning back with
-// nothing else to do, and a dismissal made earlier still applies.
-function involvesPending(detail: Pick<TripDetail, "activities">, conflict: Conflict): boolean {
-  return conflict.subjects.some((id) => detail.activities[id]?.kind === "pending");
 }
 
 // The later stop's own duration, replayed from the suggested start: null as
@@ -139,7 +127,6 @@ export function overlapsForDay(detail: TripDetail, dayId: string): Overlap[] {
     // "rendered by the lens" the same set, which is the whole premise of
     // badgeableConflictSubjects. Found by CodeRabbit on PR #44.
     if (!conflict.subjects.every((id) => members.has(id))) continue;
-    if (involvesPending(detail, conflict)) continue;
 
     // A conflict can outlive the activity it names (a removal the client
     // hasn't reconciled yet), and an activity can lose its times without the

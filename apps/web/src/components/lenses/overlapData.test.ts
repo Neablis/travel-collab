@@ -72,24 +72,6 @@ describe("overlapsForDay", () => {
     expect(overlapsForDay(detail(), "d2")).toEqual([]);
   });
 
-  // Mitchell on the Plan view (2026-10, preview comment #8): "Pending events
-  // shouldn't be an overlap till they are no longer pending." A pending stop
-  // is a "maybe" or a "to book" — not a commitment yet — so sitting on top of
-  // another stop is not a clash to warn about. It becomes one the moment the
-  // stop is confirmed (kind flips to planned), which needs nothing here: the
-  // domain still emits the conflict throughout, so it reappears by itself.
-  it("ignores an overlap while either stop is still pending", () => {
-    const base = detail();
-    const pendingB = detail({
-      activities: { ...base.activities, b: { ...base.activities.b!, kind: "pending", pendingReason: "maybe" } },
-    });
-    expect(overlapsForDay(pendingB, "d1")).toEqual([]);
-    const pendingA = detail({
-      activities: { ...base.activities, a: { ...base.activities.a!, kind: "pending", pendingReason: null } },
-    });
-    expect(overlapsForDay(pendingA, "d1")).toEqual([]);
-  });
-
   it("ignores non-overlap conflict kinds", () => {
     const d = detail({
       conflicts: [{ id: "over-budget", kind: "over-budget", severity: "warn", subjects: [], description: "", resolutions: [] }],
@@ -189,16 +171,6 @@ describe("badgeableConflictSubjects", () => {
     // that still needs the triangle.
     const badged = badgeableConflictSubjects(d, new Set(["time-overlap:d1:a:b"]));
     expect([...badged].sort()).toEqual(["b", "c"]);
-  });
-
-  it("does not badge an overlap with a pending stop either", () => {
-    // The board draws no OVERLAP for it (overlapsForDay above), and a bare
-    // triangle in its place would be the same warning by another name.
-    const base = detail();
-    const d = detail({
-      activities: { ...base.activities, a: { ...base.activities.a!, kind: "pending", pendingReason: "book" } },
-    });
-    expect([...badgeableConflictSubjects(d, new Set())]).toEqual([]);
   });
 
   it("does not resurrect a triangle for a dismissed overlap", () => {
