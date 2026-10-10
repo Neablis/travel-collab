@@ -723,7 +723,7 @@ describe("pasting onto the plan", () => {
     });
   });
 
-  it("opens it on the day holding the keyboard focus, before the selected day", () => {
+  it("opens it on the day holding the keyboard focus when no day is selected", () => {
     const { getEditorState } = renderBoard(fixture(), noopCallbacks(), null);
     screen.getByRole("button", { name: /^Edit Colosseum/ }).focus();
     paste(document.body, "Gelato");
