@@ -178,6 +178,7 @@ export type BoardCallbacks = {
  * @param focusedTag - Tag used to focus matching activities
  * @param onToggleTag - Handler for toggling tag focus
  * @param readOnly - Whether to hide controls that modify the trip
+ * @param previewing - Whether a past version is previewed (a paste then adds nothing)
  * @param sync - Optional handle for synchronizing scrolling with day selection
  * @param keepFlag - Optional "keep this day" pennant, rendered in each day's header
  * @param addSavedDay - Optional control for inserting a saved day, after the last column
@@ -192,6 +193,7 @@ export function Board({
   onToggleTag,
   readOnly = false,
   suggesting = false,
+  previewing = false,
   sync,
   addSavedDay,
   oneDay = false,
@@ -262,6 +264,14 @@ export function Board({
    * `readOnly`.
    */
   suggesting?: boolean;
+  /**
+   * A past version is on screen (History's preview). The host makes the board
+   * `inert`, which stops every pointer and keyboard path but not the document
+   * `paste` listener below, so that one listener stands down on this. Not
+   * `readOnly`: the preview should look like the board it was, controls and
+   * all.
+   */
+  previewing?: boolean;
   /** Index of the focused day, or null. Owned by TripBoardScreen's useFocus,
       the same value the day chips read — passed in rather than read from
       context here so Board stays renderable on its own in tests. */
@@ -739,10 +749,13 @@ export function Board({
   // one. The editor is a dialog with its own fields, so a paste inside it is
   // never this.
   useEffect(() => {
-    if (readOnly) return;
+    if (readOnly || previewing) return;
     const onPaste = (event: ClipboardEvent) => {
       const target = event.target instanceof Element ? event.target : null;
       if (target?.closest("input, textarea, select, [contenteditable], [role='dialog']")) return;
+      // A copied file: Finder puts its name in text/plain beside it, and a
+      // photo's filename is not a stop.
+      if ((event.clipboardData?.files.length ?? 0) > 0) return;
       const text = event.clipboardData?.getData("text/plain") ?? "";
       if (text.trim() === "") return;
       const days = latest.current.trip.days;
@@ -755,7 +768,7 @@ export function Board({
     };
     document.addEventListener("paste", onPaste);
     return () => document.removeEventListener("paste", onPaste);
-  }, [readOnly, addFromText, focusedDay]);
+  }, [readOnly, previewing, addFromText, focusedDay]);
 
   const gesturesFor = (dayId: string): RiverGestures | undefined =>
     readOnly

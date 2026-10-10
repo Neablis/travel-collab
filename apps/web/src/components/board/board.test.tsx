@@ -710,7 +710,7 @@ describe("a read-only board", () => {
 // opens and when the board leaves a paste alone.
 describe("pasting onto the plan", () => {
   const paste = (target: Element, text: string) =>
-    fireEvent.paste(target, { clipboardData: { getData: (type: string) => (type === "text/plain" ? text : "") } });
+    fireEvent.paste(target, { clipboardData: { files: [], getData: (type: string) => (type === "text/plain" ? text : "") } });
 
   it("opens the editor on the selected day, prefilled from the text", () => {
     const { getEditorState } = renderBoard(fixture(), noopCallbacks(), 0);
@@ -748,6 +748,41 @@ describe("pasting onto the plan", () => {
   it("does nothing on a read-only board", () => {
     const { getEditorState } = renderBoard(fixture(), noopCallbacks(), 0, true);
     paste(document.body, "Gelato");
+    expect(getEditorState()?.mode).toBeNull();
+  });
+
+  // The editor and every other sheet is a dialog with its own fields; a paste
+  // anywhere in one belongs to it.
+  it("leaves a paste inside a dialog to the dialog", () => {
+    const { getEditorState } = renderBoard(fixture(), noopCallbacks(), 0);
+    const dialog = document.createElement("div");
+    dialog.setAttribute("role", "dialog");
+    const inside = document.createElement("p");
+    dialog.append(inside);
+    document.body.append(dialog);
+    paste(inside, "Gelato");
+    dialog.remove();
+    expect(getEditorState()?.mode).toBeNull();
+  });
+
+  it("leaves a paste into an editable element to the element", () => {
+    const { getEditorState } = renderBoard(fixture(), noopCallbacks(), 0);
+    const editable = document.createElement("div");
+    editable.setAttribute("contenteditable", "true");
+    document.body.append(editable);
+    paste(editable, "Gelato");
+    editable.remove();
+    expect(getEditorState()?.mode).toBeNull();
+  });
+
+  // macOS Finder puts a copied file's name in text/plain beside the file, so
+  // without this a copied photo opens an editor titled "IMG_1234.jpg".
+  it("does not make a stop of a copied file's name", () => {
+    const { getEditorState } = renderBoard(fixture(), noopCallbacks(), 0);
+    const file = new File(["x"], "IMG_1234.jpg", { type: "image/jpeg" });
+    fireEvent.paste(document.body, {
+      clipboardData: { files: [file], getData: (type: string) => (type === "text/plain" ? "IMG_1234.jpg" : "") },
+    });
     expect(getEditorState()?.mode).toBeNull();
   });
 });

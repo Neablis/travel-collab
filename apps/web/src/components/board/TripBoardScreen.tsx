@@ -1248,6 +1248,9 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                     // draft by that same provider (W8).
                     readOnly={!canEditBoard}
                     suggesting={boardMode === "suggest"}
+                    // `inert` above does not reach Board's document paste
+                    // listener, so the preview is said out loud (PR 397).
+                    previewing={preview.seq !== null}
                     // Focus is a view state, not a command, so it is threaded
                     // past the read-only gate deliberately: a viewer's board
                     // and `/demo`'s signed-out reader both get the whole
