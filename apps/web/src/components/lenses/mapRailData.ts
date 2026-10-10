@@ -57,11 +57,10 @@ export type MapDay = {
   // mutually exclusive by construction (no stops means nothing unlocated).
   flagText: string | null;
   /**
-   * The day's longest hop, or null when there is nothing to travel between
-   * (the drawn route has no lines). Feeds the hover card's third note — the one
-   * fact about a day's shape that "5 stops · 40 km" cannot carry.
+   * What sets this day apart from the trip's other days (`dayHighlights`) —
+   * the hover card's note. Null only for a day with no stops.
    */
-  longest: LongestLeg | null;
+  highlight: DayHighlight | null;
   /**
    * The day's travel legs that name a destination, in the day's order, each
    * as its mode and both ends ("Train · Odawara → Kyoto"). The focus and
@@ -117,7 +116,7 @@ type Hop = { a: Point; b: Point; from: MapStop; to: MapStop | null };
 
 /**
  * The day's route as the ordered lines it is made of — the ONE place the
- * pairing rule lives, walked by routeLegs to draw and by legKms/longestLeg to
+ * pairing rule lives, walked by routeLegs to draw and by legKms to
  * measure, so the rail's numbers cannot describe a different route from the
  * map's (they did: a day of one Odawara → Kyoto train drew ~300 km and read
  * "A single anchor").
@@ -173,39 +172,98 @@ export function monthEdges(days: readonly { date: string | null }[]): boolean[] 
 }
 
 /**
- * The longest single hop of a day: the two stops it runs between, or — when
- * it is a transit stop's own leg — that stop's title, which already names
- * both ends ("Shinkansen Odawara → Kyoto").
+ * What sets a day apart from the trip's other days — the hover card's note.
+ * Raw "HH:MM" times; the card formats them in the reader's clock.
  */
-export type LongestLeg = { km: number; from: string; to: string } | { km: number; leg: string };
+export type DayHighlight =
+  | { kind: "only-here"; places: string[] }
+  | { kind: "most-stops"; stops: number }
+  | { kind: "earliest"; time: string }
+  | { kind: "latest"; time: string }
+  | { kind: "bookends"; first: string; last: string }
+  | { kind: "single"; title: string };
 
 /**
- * The longest leg of a day, or `null` when there is nothing to travel between.
- *
- * M26 link 5c: *"`longest` — the longest leg and its endpoints — is pure
- * derivation from coordinates and titles already on `MapStop`"*. It is the
- * hover card's third note, and it is the one fact about a day's shape that the
- * rail's own row cannot show: a day of five close stops and a day with one
- * two-hour hop read identically as "5 stops · 40 km".
- *
- * **Ties go to the EARLIEST leg**, not the last. `>` rather than `>=` keeps the
- * note stable as a reader hovers back and forth over the same day — two legs of
- * equal length would otherwise pick whichever the loop saw last, which is an
- * implementation detail leaking into copy.
- *
- * A route with no hops — fewer than two located stops, none of them a leg — is
- * `null`, which is the caller's cue for the *"A single anchor. Nothing to
- * travel between."* note rather than an error.
+ * Whether `value` beats every other day's on `better`, and no other day ties
+ * it. A shared record is no record, so no two days ever claim the same one.
+ * Days with nothing to compare (`null`) are left out.
  */
-export function longestLeg(stops: readonly MapStop[]): LongestLeg | null {
-  let best: LongestLeg | null = null;
-  for (const hop of hops(stops)) {
-    const km = haversineKm(hop.a, hop.b);
-    if (best === null || km > best.km) {
-      best = hop.to === null ? { km, leg: hop.from.title } : { km, from: hop.from.title, to: hop.to.title };
-    }
+function holdsOutright<T>(value: T | null, all: readonly (T | null)[], better: (a: T, b: T) => boolean): value is T {
+  if (value === null) return false;
+  let ties = 0;
+  for (const other of all) {
+    if (other === null) continue;
+    if (other === value) ties++;
+    else if (!better(value, other)) return false;
   }
-  return best;
+  return ties === 1;
+}
+
+/**
+ * One note per day saying what sets it apart from the rest of the trip, or
+ * null for an empty day.
+ *
+ * Mitchell, desktop Map, of the "Longest hop" note it replaces: *"Is there
+ * something better we can put in the hover information? Show something truly
+ * unique about that day, or something else that we won't need AI to pull
+ * off."* Every rule here is a lookup over the plan, in this order:
+ *
+ * 1. **The places only this day goes to** — a stop's neighbourhood (`area`),
+ *    or its city when the geocoder found none, that no other day visits. On a
+ *    trip that spends several days in one city this is what tells them apart
+ *    ("Only day in Fushimi"), where the rail's city line reads the same on all
+ *    of them. A transit stop is left out: where a train leaves from is not a
+ *    place the day spends time in.
+ * 2. **A trip-wide record it holds outright** — the most stops, the earliest
+ *    start, the latest finish. A tie is no record, so no two days claim one.
+ * 3. **Where it starts and ends** — its first and last stop, which is about
+ *    that day and no other even when nothing above applies. One stop: that
+ *    stop.
+ *
+ * The longest hop it replaces (`longestLeg`, now gone) was unique only by
+ * accident, and said nothing on a day of walking.
+ */
+export function dayHighlights(detail: TripDetail): (DayHighlight | null)[] {
+  const facts = detail.days.map((day) => {
+    const stops = day.activityIds.flatMap((id) => {
+      const activity = detail.activities[id];
+      return activity ? [activity] : [];
+    });
+    const places = new Set(
+      stops.flatMap((s) => {
+        if (s.kind === "transit") return [];
+        const place = s.location?.area ?? s.location?.city;
+        return place ? [place] : [];
+      }),
+    );
+    const windows = stops.flatMap((s) => (s.timeWindow ? [s.timeWindow] : []));
+    // HH:MM strings sort as times.
+    const starts = windows.map((w) => w.start).sort();
+    const ends = windows.map((w) => w.end).sort();
+    return { titles: stops.map((s) => s.title), places, earliest: starts[0] ?? null, latest: ends.at(-1) ?? null };
+  });
+  // On a one-day trip every place is "only here" and every number a record,
+  // which says nothing; such a day gets its bookends.
+  const multiDay = facts.length > 1;
+  const counts = facts.map((f) => f.titles.length);
+  const earliests = facts.map((f) => f.earliest);
+  const latests = facts.map((f) => f.latest);
+
+  return facts.map((day, index): DayHighlight | null => {
+    const [first] = day.titles;
+    const last = day.titles.at(-1);
+    if (first === undefined || last === undefined) return null;
+    const ends: DayHighlight = day.titles.length === 1 ? { kind: "single", title: first } : { kind: "bookends", first, last };
+    if (!multiDay) return ends;
+
+    const elsewhere = new Set(facts.flatMap((other, i) => (i === index ? [] : [...other.places])));
+    const onlyHere = [...day.places].filter((place) => !elsewhere.has(place));
+    if (onlyHere.length > 0) return { kind: "only-here", places: onlyHere };
+    if (holdsOutright(day.titles.length, counts, (a, b) => a > b)) return { kind: "most-stops", stops: day.titles.length };
+    if (holdsOutright(day.earliest, earliests, (a, b) => a < b)) return { kind: "earliest", time: day.earliest };
+    if (holdsOutright(day.latest, latests, (a, b) => a > b)) return { kind: "latest", time: day.latest };
+    return ends;
+  });
 }
 
 /**
@@ -234,6 +292,7 @@ export function mapDays(detail: TripDetail): MapDay[] {
   // between two days of this trip get probed against each other rather than
   // each day resolving blind to every other one.
   const accents = dayAccents(cities.map((c) => c.city));
+  const highlights = dayHighlights(detail);
 
   return detail.days.map((day, index) => {
     const stops = locatedStops(day, detail.activities);
@@ -283,7 +342,7 @@ export function mapDays(detail: TripDetail): MapDay[] {
       bars,
       isEmpty: day.activityIds.length === 0,
       flagText,
-      longest: longestLeg(stops),
+      highlight: highlights[index] ?? null,
       legs: day.activityIds.flatMap((activityId) => {
         const activity = detail.activities[activityId];
         const label = activity === undefined ? null : legLabel(activity);

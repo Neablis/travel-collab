@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ActivityMode, type ActivityKind, type Location, type TripDetail } from "@tc/contracts";
-import { legVariant, longestLeg, mapArrivalDay, mapDays, markerGroups, monthEdges, routeLegs } from "./mapRailData";
-import type { MapStop } from "./mapRailData";
+import { dayHighlights, legVariant, mapArrivalDay, mapDays, markerGroups, monthEdges, routeLegs } from "./mapRailData";
 import { activityFactory, locationFactory } from "@tc/factories";
 import { haversineKm } from "@/lib/geo";
 
@@ -256,15 +255,14 @@ describe("mapDays distances — the same route routeLegs draws", () => {
     expect(km).toBeGreaterThan(250);
     expect(day.totalKm).toBeCloseTo(km, 6);
     expect(day.bars).toEqual([{ grow: 1, color: day.accent }]);
-    expect(day.longest).toEqual({ km, leg: "Shinkansen Odawara → Kyoto" });
   });
 
   it("measures the hop after a leg from its destination, not its origin", () => {
     const P = { lat: 35.25, lng: 139.15 };
     const N = { lat: 34.99, lng: 135.76 };
     // Three hops, not two: origin-pairing measured P → A → N, which drops the
-    // leg and measures the last hop from Odawara. N sits beside Kyoto so that
-    // B → N is short and the longest is plainly the train.
+    // leg and measures the last hop from Odawara. N sits beside Kyoto, so the
+    // last hop is short beside the train.
     const day = dayOf({
       p: at("Hotel", P.lat, P.lng),
       t: leg("Shinkansen Odawara → Kyoto", ODAWARA.lat, ODAWARA.lng, [KYOTO.lat, KYOTO.lng], "train"),
@@ -274,7 +272,6 @@ describe("mapDays distances — the same route routeLegs draws", () => {
     const total = hops.reduce((sum, km) => sum + km, 0);
     expect(day.totalKm).toBeCloseTo(total, 6);
     expect(day.bars.map((b) => b.grow)).toEqual(hops.map((km) => km / total));
-    expect(day.longest).toEqual({ km: hops[1], leg: "Shinkansen Odawara → Kyoto" });
   });
 
   // Regression pin: a day with no destination-bearing stop — including a
@@ -298,7 +295,6 @@ describe("mapDays distances — the same route routeLegs draws", () => {
     const total = kms.reduce((sum, km) => sum + km, 0);
     expect(day.totalKm).toBe(total);
     expect(day.bars).toEqual(kms.map((km) => ({ grow: km / total, color: day.accent })));
-    expect(day.longest).toEqual({ km: kms[1], from: "t", to: "p" });
   });
 });
 
@@ -397,42 +393,6 @@ describe("markerGroups", () => {
   });
 });
 
-// M26 link 5c. `longestLeg` is the hover card's third note, and the one fact
-// about a day's shape that the rail row cannot carry: "5 stops · 40 km" reads
-// identically for five close stops and for one long hop with four neighbours.
-describe("longestLeg", () => {
-  const at = (title: string, lat: number, lng: number): MapStop => ({
-    activityId: title,
-    title,
-    lat,
-    lng,
-    kind: "planned" as ActivityKind,
-    precision: undefined,
-  });
-
-  it("is null when there is nothing to travel between", () => {
-    expect(longestLeg([])).toBeNull();
-    expect(longestLeg([at("Only stop", 35, 135)])).toBeNull();
-  });
-
-  it("picks the longest hop and names both of its ends", () => {
-    // Three stops, and the LONG hop is in the middle of the list rather than at
-    // either end — a scan that only compared the first or last pair would pass
-    // a two-stop test and fail here.
-    const result = longestLeg([at("Near A", 35.0, 135.0), at("Near B", 35.01, 135.0), at("Far", 36.5, 135.0)]);
-    expect(result).toMatchObject({ from: "Near B", to: "Far" });
-    expect(result!.km).toBeGreaterThan(100);
-  });
-
-  // **Ties go to the EARLIEST leg.** Two legs of equal length would otherwise
-  // resolve to whichever the loop saw last, so the note would change as a
-  // reader hovered back and forth over one unchanged day.
-  it("keeps the earliest leg on a tie, so the note does not move", () => {
-    const result = longestLeg([at("First", 35.0, 135.0), at("Second", 36.0, 135.0), at("Third", 37.0, 135.0)]);
-    expect(result).toMatchObject({ from: "First", to: "Second" });
-  });
-});
-
 // M26 link 5b. The bar row is a picture of the day's TRAVEL, and travel happens
 // between stops — so N located stops make N-1 bars. It used to make N, giving
 // the first stop a bar with no leg under it: a phantom taking `1/stops.length`
@@ -528,5 +488,93 @@ describe("mapArrivalDay", () => {
 
   it("has nothing to select on a trip with no days", () => {
     expect(mapArrivalDay(null, "explicit", 0)).toBeNull();
+  });
+});
+
+// Mitchell, desktop Map, of the hover card's "Longest hop" note: "Is there
+// something better we can put in the hover information? Show something truly
+// unique about that day, or something else that we won't need AI to pull off."
+// So the note says what sets the day apart from the trip's other days, read
+// straight off the plan: the places only it visits, else a trip-wide record it
+// holds outright, else where it starts and ends.
+describe("dayHighlights", () => {
+  type Stop = { title: string; area?: string; city?: string; start?: string; end?: string; kind?: ActivityKind };
+  const trip = (...days: Stop[][]) => {
+    const activities: Record<string, unknown> = {};
+    const dayRows = days.map((stops, d) => ({
+      dayId: `d${d}`,
+      date: null,
+      activityIds: stops.map((s, i) => {
+        const id = `d${d}s${i}`;
+        activities[id] = {
+          activityId: id, title: s.title, notes: null, anchors: [], cost: null, kind: s.kind ?? "planned",
+          timeWindow: s.start && s.end ? { start: s.start, end: s.end } : null,
+          location: s.area || s.city ? { name: s.title, lat: 35, lng: 135, area: s.area, city: s.city } : null,
+        };
+        return id;
+      }),
+    }));
+    return dayHighlights(detailWith(dayRows, activities));
+  };
+
+  it("names the places only this day goes to", () => {
+    const [first, second] = trip(
+      [{ title: "Fushimi Inari", area: "Fushimi" }, { title: "Nishiki", area: "Nakagyō" }],
+      [{ title: "Kinkaku-ji", area: "Kita" }, { title: "Pontocho", area: "Nakagyō" }],
+    );
+    // Nakagyō is on both days, so it sets neither apart.
+    expect(first).toEqual({ kind: "only-here", places: ["Fushimi"] });
+    expect(second).toEqual({ kind: "only-here", places: ["Kita"] });
+  });
+
+  it("falls back to the city when a stop has no neighbourhood", () => {
+    const [first] = trip([{ title: "Art House", city: "Naoshima" }], [{ title: "Shibuya Sky", city: "Tokyo" }]);
+    expect(first).toEqual({ kind: "only-here", places: ["Naoshima"] });
+  });
+
+  it("does not count where a train leaves from as a place the day visits", () => {
+    const [first] = trip(
+      [{ title: "Shinkansen", area: "Shinagawa", kind: "transit" }, { title: "Temple", area: "Kita" }],
+      [{ title: "Lunch", area: "Kita" }],
+    );
+    expect(first).not.toEqual(expect.objectContaining({ places: expect.arrayContaining(["Shinagawa"]) }));
+  });
+
+  it("names the day with outright the most stops when no place sets it apart", () => {
+    const [busy, quiet] = trip(
+      [{ title: "A", area: "X" }, { title: "B", area: "X" }, { title: "C", area: "X" }],
+      [{ title: "D", area: "X" }, { title: "E", area: "X" }],
+    );
+    expect(busy).toEqual({ kind: "most-stops", stops: 3 });
+    expect(quiet).not.toEqual(expect.objectContaining({ kind: "most-stops" }));
+  });
+
+  it("names the trip's earliest start and its latest finish", () => {
+    const [early, late] = trip(
+      [{ title: "Market", area: "X", start: "06:30", end: "08:00" }, { title: "Lunch", area: "X", start: "12:00", end: "13:00" }],
+      [{ title: "Show", area: "X", start: "19:00", end: "22:30" }, { title: "Lunch", area: "X", start: "12:00", end: "13:00" }],
+    );
+    expect(early).toEqual({ kind: "earliest", time: "06:30" });
+    expect(late).toEqual({ kind: "latest", time: "22:30" });
+  });
+
+  it("holds no record it shares with another day", () => {
+    const days = trip(
+      [{ title: "A", area: "X", start: "09:00", end: "10:00" }, { title: "B", area: "X" }],
+      [{ title: "C", area: "X", start: "09:00", end: "10:00" }, { title: "D", area: "X" }],
+    );
+    expect(days[0]).toEqual({ kind: "bookends", first: "A", last: "B" });
+    expect(days[1]).toEqual({ kind: "bookends", first: "C", last: "D" });
+  });
+
+  it("names a one-stop day's stop, and has nothing for an empty day", () => {
+    const [one, none] = trip([{ title: "Onsen", area: "X" }], [], [{ title: "Ryokan", area: "X" }, { title: "Bath", area: "X" }]);
+    expect(one).toEqual({ kind: "single", title: "Onsen" });
+    expect(none).toBeNull();
+  });
+
+  it("says nothing about uniqueness on a one-day trip, where every place is the trip's only", () => {
+    const [only] = trip([{ title: "A", area: "X" }, { title: "B", area: "Y" }]);
+    expect(only).toEqual({ kind: "bookends", first: "A", last: "B" });
   });
 });

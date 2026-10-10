@@ -1473,7 +1473,7 @@ describe("MapLens — the hover card never repeats what the focus card says", ()
 
   // M27 (Mitchell, preview comment on PR 205): day 0 is focused by default, so
   // suppressing the card there left the first row with no hover state at all.
-  // The focused day gets a trimmed card instead: its label and the longest-hop
+  // The focused day gets a trimmed card instead: its label and the day's
   // note, never the city or the stops line the focus card already shows.
   it("gives the focused day a trimmed card that repeats nothing the focus card says", async () => {
     renderMap(detailWithTwoDays(), { focusedDay: 0 });
