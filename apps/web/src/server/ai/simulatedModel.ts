@@ -559,14 +559,22 @@ function isQueued(result: ToolResultLike): boolean {
  */
 function proposeCalls(scope: AskScope, results: readonly ToolResultLike[], question: string): ToolCall[] {
   const trip = resultFor<TripReadout>(results, "read_trip");
-  const coffee = (dayRef: string) => call("AddActivity", { title: "Sample: coffee stop", dayRef });
-  const stroll = (dayRef: string) => call("AddActivity", { title: "Sample: evening stroll", dayRef });
+  const coffee = (dayRef: string, timed = false) =>
+    call("AddActivity", { title: "Sample: coffee stop", dayRef, ...(timed && { timeWindow: COFFEE_TIME }) });
+  const stroll = (dayRef: string, timed = false) =>
+    call("AddActivity", { title: "Sample: evening stroll", dayRef, ...(timed && { timeWindow: STROLL_TIME }) });
   // An empty trip, or a request for a new day, gets a day to put them on, in
   // the SAME batch — which is exactly the within-batch ref resolution
   // `resolveBatch` exists for.
   if (trip && (trip.dayCount === 0 || ADD_A_DAY.test(question))) {
     const dayRef = `day ${trip.dayCount + 1}`;
-    return [call("AddDay", {}), coffee(dayRef), stroll(dayRef)];
+    // Timed only for a requested day: a suggested day draws a stop only on
+    // its river, and an untimed one has no place there and falls into the
+    // chip (`placeGhosts`) — so untimed, m40-big-change.spec.ts could not see
+    // the new day hold anything. An empty trip's first day keeps them
+    // untimed: m16-assistant.spec.ts walks them from the Unscheduled rack.
+    const timed = trip.dayCount > 0;
+    return [call("AddDay", {}), coffee(dayRef, timed), stroll(dayRef, timed)];
   }
   const dayRef = `day ${scope.kind === "day" ? scope.dayIndex + 1 : 1}`;
   // **One stop for an ordinary change, two for a request to plan** (ADR-067).
@@ -577,6 +585,10 @@ function proposeCalls(scope: AskScope, results: readonly ToolResultLike[], quest
     ? [coffee(dayRef), stroll(dayRef)]
     : [coffee(dayRef)];
 }
+
+// The times a requested day's two stops are given (see `proposeCalls`).
+const COFFEE_TIME = { start: "09:00", end: "09:30" };
+const STROLL_TIME = { start: "18:00", end: "19:00" };
 
 // "add a day in Kyoto", "plan another day": the ADR-067 request a new day
 // filled with stops answers. One optional word between, so "add a full day"

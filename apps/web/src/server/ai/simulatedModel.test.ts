@@ -645,8 +645,9 @@ describe("simulatedModel — proposing a change", () => {
       const result = await probe().doGenerate(askPrompt({ kind: "trip" }, READ_RESULTS, { question, writeTools: true }));
       expect(callsOf(result).map((c) => [c.toolName, JSON.parse(c.input)])).toEqual([
         ["AddDay", {}],
-        ["AddActivity", { title: "Sample: coffee stop", dayRef: "day 4" }],
-        ["AddActivity", { title: "Sample: evening stroll", dayRef: "day 4" }],
+        // Timed, so the suggested day draws them (m40-big-change.spec.ts).
+        ["AddActivity", { title: "Sample: coffee stop", dayRef: "day 4", timeWindow: { start: "09:00", end: "09:30" } }],
+        ["AddActivity", { title: "Sample: evening stroll", dayRef: "day 4", timeWindow: { start: "18:00", end: "19:00" } }],
       ]);
     },
   );

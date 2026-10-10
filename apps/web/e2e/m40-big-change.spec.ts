@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 import { expect, test } from "./fixtures/test";
 import { createMappedTrip, openAssistantRail, openHistory } from "./helpers";
 import { e2eTripName } from "./tripNames";
@@ -10,7 +10,16 @@ import { e2eTripName } from "./tripNames";
 //
 // The model is `simulatedModel.ts` — this lane's webServer runs with
 // `AI_LIVE=false` (m10-simulated-ai.spec.ts says why), and "add a day …" is the
-// request it answers with a new day and two stops.
+// request it answers with a new day and two stops, timed so the suggested day
+// draws them on its river.
+//
+// Mitchell's preview walk, 2026-10-09: the stored suggestion was right, but the
+// board never drew the new day (PR #381). So the day and what it holds are
+// asserted here BEFORE Accept all, not only the chip's count.
+//
+// Not covered: a stop MOVED onto the new day and retimed. The simulated model
+// cannot name an existing stop (`read_trip` carries no stop refs), so that is
+// suggester.spec.ts's and the overlay unit tests' to hold.
 
 async function dayCount(page: Page, tripId: string): Promise<number> {
   const { trip } = (await (await page.request.get(`/api/trips/${tripId}`)).json()) as { trip: { days: unknown[] } };
@@ -39,6 +48,12 @@ test("asked for a day, the assistant suggests it; Accept all lands it as one ent
 
   // On the board without a reload. A solo trip runs no poll (W73), so this is
   // the re-read the board makes when the turn's final chunk arrives.
+  const stops = ["Sample: coffee stop", "Sample: evening stroll"];
+  const ghostOf = (where: Locator, title: string) => where.getByRole("button", { name: new RegExp(`^Suggested: .*${title}`) });
+  const suggestedDay = page.getByRole("region", { name: /^Day 3\b.* · suggested$/ });
+  await expect(suggestedDay).toBeVisible();
+  for (const stop of stops) await expect(ghostOf(suggestedDay, stop)).toBeVisible();
+
   const chip = page.getByRole("button", { name: "3 suggestions", exact: true });
   await expect(chip).toBeVisible();
   await chip.click();
@@ -53,6 +68,11 @@ test("asked for a day, the assistant suggests it; Accept all lands it as one ent
   await expect(page.getByRole("button", { name: /^\d+ suggestions?$/ })).toHaveCount(0);
   await expect(page.getByTestId("day-column")).toHaveCount(3);
   expect(await dayCount(page, tripId)).toBe(3);
+  // Real now: no longer "· suggested", and the stops are its own.
+  await expect(suggestedDay).toHaveCount(0);
+  const day3 = page.getByTestId("day-column").nth(2);
+  for (const stop of stops) await expect(day3.getByTestId(/activity-card-/).filter({ hasText: stop })).toBeVisible();
+  await expect(day3.getByRole("button", { name: /^Suggested: / })).toHaveCount(0);
 
   // One History entry for all three, saying who asked and how (M40 D1).
   await openHistory(page);
