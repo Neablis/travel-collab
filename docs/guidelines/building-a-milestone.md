@@ -53,8 +53,9 @@ part:
 
 **6. Review each part.**
 - **CodeRabbit** allows about one review an hour. Trigger it with `@coderabbitai review` as each
-  slot frees up, lowest part first. Mitchell asked for this on 2026-10-09. Schedule a reminder for
-  the next slot rather than polling. Never push to a part while its review runs (`stacked-prs.md` §3).
+  slot frees up, lowest part first. Mitchell asked for this on 2026-10-09, and `AGENTS.md` allows
+  an agent to trigger a review once it is certain it has finished pushing to that part. Schedule a
+  reminder for the next slot rather than polling. Never push to a part while its review runs (`stacked-prs.md` §3).
 - **When CodeRabbit is rate-limited or unavailable**, review the part with a subagent (the
   `code-review` skill) instead of waiting.
 - Work every finding: fix it, or reply on its thread with why not (`working-a-review.md`). A bot
