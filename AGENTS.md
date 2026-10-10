@@ -60,6 +60,12 @@ new design choice the plan didn't anticipate — especially one where a
 competent engineer could reasonably choose differently — does, even under
 auto-mode license. Ask first; verify and report after.
 
+**Never run the live eval without asking Mitchell first** (2026-10-09).
+`pnpm --filter web eval` calls real models on a paid key, so a milestone gate or
+a plan that mentions an eval re-run is not permission to start one. The
+grader's own tests (`grade.test.ts`, `replay.int.test.ts`) are free and need no
+asking.
+
 ## The module map (structural law)
 
 Modules own their data and commands; they reference other modules by ID only.
