@@ -120,15 +120,14 @@ export function evolveTrip(state: TripState | null, event: TripEvent): TripState
       const { activityId, toDayId, position, fromDayId } = event.payload;
       const removed = removeEverywhere(state, activityId);
       if (toDayId === null) {
-        // The day it left (M41 D6). A reorder inside the rack records none and
-        // keeps the origin it had; a move with none from a day (a revert, or
-        // one written before M41) leaves it with none. `fromDayId` can be
-        // absent on an envelope read without parsing.
-        const origin = fromDayId ?? (state.backlog.includes(activityId) ? state.parkedFrom?.[activityId] : undefined);
+        // The day it left (M41 D6), exactly as the event says: the decider
+        // carries a parked stop's origin through a reorder, and the diff
+        // writes the target's, so `null` or an absent field (a move written
+        // before M41) means none, and clears one.
         return {
           ...removed,
           backlog: insertAt(removed.backlog, activityId, position),
-          parkedFrom: origin === undefined ? removed.parkedFrom : { ...removed.parkedFrom, [activityId]: origin },
+          parkedFrom: fromDayId == null ? removed.parkedFrom : { ...removed.parkedFrom, [activityId]: fromDayId },
         };
       }
       requireDay(state, toDayId, "ActivityMoved");

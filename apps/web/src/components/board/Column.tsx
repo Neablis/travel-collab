@@ -259,6 +259,9 @@ export function Column({
       ref={sectionRef}
       data-testid="day-column"
       data-day-id={dayId}
+      // What a river block's keyboard removal hands focus back to when it
+      // was the day's last stop (RiverBlock's `focusAfterRemoval`).
+      data-day-column
       // SPEC §28's city rule, and the ONLY thing this component does for it.
       // In Ledger a pale tint reads as grey on cream, so anything city-coded
       // also gets a 3px solid rule in its own city's colour. The rule itself
