@@ -268,7 +268,9 @@ test("a suggester's new day and its stops show as a suggested day, and Accept ma
     const tray = sam.getByRole("region", { name: "Suggestion draft" });
     await expect(tray).toContainText("1 change not sent");
     for (const [i, stop] of stops.entries()) {
-      await openNewStopOnDay(sam);
+      // On the day just added: the trip's own two are full rivers, one
+      // hour-long stop each, with no empty time to double-click.
+      await openNewStopOnDay(sam, 2);
       await sam.getByLabel("What or where").fill(stop.title);
       // The third day: the one just added.
       await sam.getByLabel("Day", { exact: true }).selectOption({ index: 2 });

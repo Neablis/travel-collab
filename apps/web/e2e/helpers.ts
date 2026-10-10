@@ -453,13 +453,27 @@ export async function openNewParkedStop(page: Page): Promise<void> {
 /**
  * **Open the editor for a new stop on a day**: a double-click on that day's
  * river (M29), the gesture that replaced the header's *Add stop* for a stop
- * that belongs to a day (M41 D1). Near the river's foot, where a walk's stops
- * seldom are; the caller fills in the Start it wants over the hour it gets.
+ * that belongs to a day (M41 D1). The caller fills in the Start it wants over
+ * the hour it gets.
+ *
+ * **On empty time, found rather than assumed.** A river is only as tall as its
+ * day's stops need, so a day of one hour-long stop has no empty time at all,
+ * and a double-click there lands on the stop instead. This measures the
+ * blocks and aims below them; it throws if the river has no room, so a walk
+ * picks another day rather than silently pressing a stop.
  */
 export async function openNewStopOnDay(page: Page, dayIndex = 0): Promise<void> {
   const river = page.getByTestId("day-river").nth(dayIndex);
   const box = (await river.boundingBox())!;
-  await river.dblclick({ position: { x: box.width - 20, y: box.height - 30 } });
+  const covered = await river.getByTestId(/^activity-card-/).evaluateAll((blocks) =>
+    blocks.map((b) => {
+      const r = b.getBoundingClientRect();
+      return { top: r.top, bottom: r.bottom };
+    }),
+  );
+  const free = [box.height - 8, 8, box.height / 2].find((y) => covered.every((b) => box.y + y < b.top - 4 || box.y + y > b.bottom + 4));
+  if (free === undefined) throw new Error(`openNewStopOnDay: day ${dayIndex + 1}'s river has no empty time to double-click`);
+  await river.dblclick({ position: { x: box.width - 20, y: free } });
   await expect(page.getByRole("heading", { name: "Add a stop" })).toBeVisible();
 }
 

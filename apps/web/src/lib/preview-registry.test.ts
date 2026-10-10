@@ -261,13 +261,13 @@ describe("preview registry ↔ usage", () => {
 
     // The witness, in two halves. A scanner that saw no `<option>` at all would
     // report an empty offender list forever, and a guard that never fired on a
-    // city option would too. The floor is measured, not guessed: 8 literal
-    // options in the tree today (Discover's sort and month controls, the share
-    // roles, the rack's day picker), so it sits at half.
+    // city option would too. The floor is measured, not guessed: 4 literal
+    // options in the tree since M41 took the rack's day picker out (Discover's
+    // sort and month controls, the share roles), so it sits at half.
     expect(
       sources.flatMap(([, src]) => optionLiteralsIn(src)).length,
       "no literal <option> found anywhere — the option scanner has broken",
-    ).toBeGreaterThan(4);
+    ).toBeGreaterThanOrEqual(2);
     expect(
       cityListOffences('<select aria-label="Where"><option value="Kyoto">Kyoto</option></select>'),
     ).toEqual(['<option> for "Kyoto"']);
