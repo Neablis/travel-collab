@@ -141,7 +141,23 @@ export const FAIL_OPEN_CERTAINTY: AskCertainty = "unsure";
 // cannot drift apart. Without it the flag-off path (which is every Vercel
 // environment) would answer a classification call with `read_trip`, fail open
 // on every turn, and quietly buy nothing.
-const ASK_INTENT_MARKER = "Set intent to question, edit or plan.";
+const ASK_INTENT_MARKER = "Set intent to question, edit, plan or off_topic.";
+
+/**
+ * **The off-topic line, the same on both surfaces** (decided 2026-10-10).
+ *
+ * In scope is this trip AND travel help for it — packing, visas, customs,
+ * getting around — because that is what people ask a trip app, and refusing
+ * it would be the worse mistake. What is out is a message with no bearing on
+ * travel at all: *"what's better, a Phillips or a flat head?"* was answered in
+ * full in production, on the mid tier with every write tool, because the
+ * classifier had no other place to put it.
+ *
+ * Only a `sure` verdict refuses (`classifyAskIntent`); an `unsure` one runs as
+ * a question and meets the instruction's own off-topic rule instead.
+ */
+const OFF_TOPIC_LINE =
+  'Use "off_topic" if it has nothing to do with this trip or with travel (packing, visas, customs and getting around are travel).';
 
 /**
  * The whole instruction. Deliberately short — it is re-sent on every turn, and
@@ -158,6 +174,7 @@ export const ASK_INTENT_INSTRUCTION = [
   'Use "question" if it only asks about the trip as it already is.',
   'Use "edit" if it asks to add, move, remove or replace something, or agrees to listed changes.',
   'Use "plan" if it asks for a whole itinerary or several days, or agrees to have one drafted.',
+  OFF_TOPIC_LINE,
   // **Replaces the old tie-break line, never sits beside it** (design §1a).
   // That line was `If you are unsure, use "plan".` — the same bias, expressed
   // as a forced choice. Keeping both would count the bias twice: the model
@@ -174,7 +191,8 @@ export function isAskIntentCall(instructions: string): boolean {
 
 // The page classifier's marker — the same trick as `ASK_INTENT_MARKER`, so the
 // simulated model can tell which of the two questions it is being asked.
-const PAGE_INTENT_MARKER = "Set intent to compose or question.";
+const PAGE_INTENT_MARKER = "Set intent to compose, question or off_topic.";
+
 
 /**
  * The page surface's classification instruction (ADR-058). Short for the same
@@ -186,6 +204,7 @@ export const PAGE_INTENT_INSTRUCTION = [
   "Earlier messages are context only. A short reply like \"yes\" means whatever was just offered, so classify what it agrees to.",
   'Use "compose" if it asks to build, add to, write or change something on the page — a notebook about a topic, a section, a widget, some text.',
   'Use "question" if it asks something about the trip and wants the answer in the chat, not on the page.',
+  OFF_TOPIC_LINE,
   'Still pick the closest one when it is ambiguous, and set certainty to "unsure" — otherwise "sure".',
   PAGE_INTENT_MARKER,
 ].join("\n");
@@ -211,6 +230,15 @@ export function isPageIntentCall(instructions: string): boolean {
 const INTENT_CHOICES: AskTaskClass[] = ["question", "edit", "plan"];
 
 /**
+ * **What the classifier may answer that is not a task class**: a message with
+ * no bearing on the trip or on travel. Kept out of `TaskClass` on purpose — a
+ * refused turn runs on no tier and is offered no tool, so it has no row in
+ * `TIER_FOR` or in any tool's `taskClasses` to need. It lives on the record as
+ * `offTopic` and on the ledger's `task_class` as `"off_topic"`.
+ */
+export const OFF_TOPIC = "off_topic";
+
+/**
  * **Two fields, not one, since M9's `certainty`** — which is why this is
  * `Output.object` rather than the `Output.choice` it was.
  *
@@ -221,14 +249,14 @@ const INTENT_CHOICES: AskTaskClass[] = ["question", "edit", "plan"];
  * downstream normalises anything, because nothing downstream sees prose.
  */
 const IntentVerdict = z.object({
-  intent: z.enum(INTENT_CHOICES as [AskTaskClass, ...AskTaskClass[]]),
+  intent: z.enum([OFF_TOPIC, ...INTENT_CHOICES] as [string, ...string[]]),
   certainty: z.enum(["sure", "unsure"]),
 });
 
 const PAGE_INTENT_CHOICES: TaskClass[] = ["compose", "question"];
 
 const PageIntentVerdict = z.object({
-  intent: z.enum(PAGE_INTENT_CHOICES as [TaskClass, ...TaskClass[]]),
+  intent: z.enum([OFF_TOPIC, ...PAGE_INTENT_CHOICES] as [string, ...string[]]),
   certainty: z.enum(["sure", "unsure"]),
 });
 
@@ -236,14 +264,14 @@ const PAGE_INTENT_OUTPUT = Output.object({
   schema: PageIntentVerdict,
   name: "verdict",
   description:
-    "Whether the last message asks to build or change something on the notebook page (compose) or asks a question about the trip to be answered in the chat (question) — and whether that reading is clear (sure) or could reasonably be the other (unsure).",
+    "Whether the last message asks to build or change something on the notebook page (compose), asks a question about the trip to be answered in the chat (question), or has nothing to do with the trip or travel (off_topic) — and whether that reading is clear (sure) or could reasonably be another (unsure).",
 });
 
 const INTENT_OUTPUT = Output.object({
   schema: IntentVerdict,
   name: "verdict",
   description:
-    "Whether the last message asks about the trip (question), asks for a bounded change to it (edit), or asks for a whole itinerary to be generated (plan) — and whether that reading is clear (sure) or could reasonably be another (unsure).",
+    "Whether the last message asks about the trip (question), asks for a bounded change to it (edit), asks for a whole itinerary to be generated (plan), or has nothing to do with the trip or travel (off_topic) — and whether that reading is clear (sure) or could reasonably be another (unsure).",
 });
 
 /**
@@ -255,7 +283,7 @@ const INTENT_OUTPUT = Output.object({
  * when `certainty` arrived and the simulated model needed no edit to keep
  * PARSING, which is the whole value of the rule.
  */
-export function askIntentVerdictText(taskClass: TaskClass, certainty: AskCertainty = "sure"): string {
+export function askIntentVerdictText(taskClass: TaskClass | typeof OFF_TOPIC, certainty: AskCertainty = "sure"): string {
   return JSON.stringify({ intent: taskClass, certainty });
 }
 
@@ -499,6 +527,7 @@ export async function classifyAskIntent(
       // `failedOpen` to avoid narrowing on it. The flag now says it directly.
       certainty: FAIL_OPEN_CERTAINTY,
       intent: intentOf(surface === "board" ? AFFIRMATION_TASK_CLASS : failOpen, FAIL_OPEN_CERTAINTY),
+      offTopic: false,
       source: "affirmation",
       model: null,
       verdict: "bare agreement — no model call",
@@ -553,11 +582,21 @@ export async function classifyAskIntent(
     // by reasoning tokens ends on `length` and lands here — so "the model
     // never filled it in" joins the throw, the timeout and the abort in one
     // fail-open branch rather than needing a second one.
-    const { intent: taskClass, certainty } = result.output;
+    const { intent: verdict, certainty } = result.output as { intent: TaskClass | typeof OFF_TOPIC; certainty: AskCertainty };
+    // **Off-topic is a question that will not be answered**, on every axis but
+    // one. `question` is the cheapest class and the read-only effect, so an
+    // off-topic verdict can never widen what a turn holds; `offTopic` is the
+    // one axis that says the turn is refused. Only a SURE verdict refuses: an
+    // unsure one is a question like any other, and the instruction's own rule
+    // declines it if it really is unrelated — a wrongly refused trip question
+    // is the worse mistake.
+    const offTopic = verdict === OFF_TOPIC;
+    const taskClass: TaskClass = offTopic ? "question" : verdict;
     return {
       taskClass,
       certainty,
       intent: intentOf(taskClass, certainty),
+      offTopic: offTopic && certainty === "sure",
       source: "model",
       model: modelIdOf(model),
       // The raw JSON the model returned, not the parsed enum: `intent` already
@@ -574,6 +613,7 @@ export async function classifyAskIntent(
       taskClass: failOpen,
       certainty: FAIL_OPEN_CERTAINTY,
       intent: intentOf(failOpen, FAIL_OPEN_CERTAINTY),
+      offTopic: false,
       source: "model",
       model: modelIdOf(model),
       verdict: failureVerdict(err, emitted),

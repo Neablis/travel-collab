@@ -22,6 +22,7 @@ function ledger(overrides: Partial<TurnLedger["cost"]> = {}): TurnLedger {
       endpoint: "ask",
       outcome: "completed",
       taskClass: "question",
+      classifierCertainty: "sure",
       turn: { model: TURN_MODEL, tokensIn: 3363, tokensOut: 512 },
       classifier: { model: CLASSIFIER_MODEL, tokensIn: 198, tokensOut: 49 },
       steps: 2,
@@ -254,6 +255,7 @@ describe("every AI request writes one row", () => {
       endpoint: "ask",
       outcome: "completed",
       taskClass: "question",
+      classifierCertainty: "sure",
       turnModel: TURN_MODEL,
       turnTokensIn: 3363,
       turnTokensOut: 512,
@@ -326,6 +328,7 @@ describe("the row carries no content", () => {
       [
         "classifierModel",
         "classifierTokensIn",
+        "classifierCertainty",
         "classifierTokensOut",
         "createdAt",
         "endpoint",

@@ -40,6 +40,7 @@ function turn(
       endpoint: "ask",
       outcome: options.outcome ?? "completed",
       taskClass: options.taskClass ?? "question",
+      classifierCertainty: null,
       turn: { model: "zai/glm-5.3-flash", tokensIn: 3000, tokensOut: 400 },
       classifier: null,
       steps: tokensIn.length,

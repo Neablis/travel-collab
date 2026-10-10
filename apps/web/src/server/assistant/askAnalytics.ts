@@ -20,6 +20,7 @@ import type { TaskClass } from "@/server/assistant/taskClass";
 import type { AskPivot } from "@/server/assistant/intents";
 import {
   NO_METER,
+  type LedgerTaskClass,
   type StepSpend,
   type TurnLedger,
   type TurnMeter,
@@ -129,6 +130,14 @@ export interface AskIntentRecord {
    * not say how sure it was is, by that fact, not sure.
    */
   certainty: "sure" | "unsure";
+  /**
+   * **The classifier was SURE the message has nothing to do with the trip or
+   * with travel** (2026-10-10), and the turn is refused without running.
+   * `taskClass` is then `question`, so nothing it reads can widen the turn; this
+   * is the one field that says it was refused. An `unsure` off-topic verdict is
+   * `false` here — it runs as a question.
+   */
+  offTopic: boolean;
   /**
    * What decided it. `affirmation` is the rule that never called a model at
    * all ("Yes go ahead"); `model` is the classification call.
@@ -590,7 +599,7 @@ export interface AskRecorderParams {
    * the admission pipeline, because `compose` is a fact about the surface and
    * not about the sentence.
    */
-  taskClass: TaskClass;
+  taskClass: LedgerTaskClass;
   /**
    * Which plan version was pinned when this turn ran (spec §7c-note). Null
    * until M20 has versions to pin; carried now so the ledger's shape is the one
@@ -894,6 +903,8 @@ export function createAskRecorder(params: AskRecorderParams): AskRecorder {
         endpoint: "ask",
         outcome,
         taskClass: params.taskClass,
+        classifierCertainty:
+          classification === null ? null : classification.failedOpen ? "failed" : classification.certainty,
         turn: {
           // The RESOLVED id of the model that actually answered — never a
           // compiled default (ledger.ts, `ModelSpend.model`).

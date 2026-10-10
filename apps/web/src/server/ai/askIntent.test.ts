@@ -17,6 +17,7 @@ import {
   isBareAgreement,
   type AskCertainty,
   type AskTaskClass,
+  OFF_TOPIC,
 } from "@/server/ai/askIntent";
 
 // The slice of a call the assertions below read. Structural for the same
@@ -76,7 +77,7 @@ function modelSaying(text: string, finishReason = "stop") {
  * `Output.choice`'s `{ result }` to an object, and the only edits needed here
  * were the two literals below.)
  */
-function modelReturning(taskClass: AskTaskClass, certainty: AskCertainty = "sure") {
+function modelReturning(taskClass: AskTaskClass | typeof OFF_TOPIC | "compose", certainty: AskCertainty = "sure") {
   return modelSaying(askIntentVerdictText(taskClass, certainty));
 }
 
@@ -208,9 +209,10 @@ describe("classifyAskIntent", () => {
     expect(call.tools ?? []).toEqual([]);
     const system = (call.prompt ?? []).filter((m) => m.role === "system").map((m) => String(m.content));
     // The instruction is re-sent on every turn; a ceiling on it is a ceiling
-    // on the saving. 600 characters is roughly 150 tokens — the budget the
-    // measurement in askIntent.ts assumes.
-    expect(system.join("\n").length).toBeLessThan(600);
+    // on the saving. 600 characters (~150 tokens) until 2026-10-10, raised to
+    // 800 (~200) for the off-topic line: still a twentieth of the ~4,200 tokens
+    // of tool schemas the call exists to keep off a question turn.
+    expect(system.join("\n").length).toBeLessThan(800);
   });
 
   // The Fix that closed KI-88, asserted on what the PROVIDER is handed rather
@@ -222,7 +224,7 @@ describe("classifyAskIntent", () => {
 
     const format = seen[0]!.responseFormat;
     expect(format?.type).toBe("json");
-    expect(JSON.stringify(format?.schema)).toContain('"enum":["question","edit","plan"]');
+    expect(JSON.stringify(format?.schema)).toContain('"enum":["off_topic","question","edit","plan"]');
   });
 
   // The budget has to hold a reasoning preamble AND the answer — an 8-token
@@ -352,6 +354,38 @@ function stepClock(): () => number {
 // `plan`, which took the strongest model and the full tool set for a turn the
 // classifier had merely hesitated over — and threw away what it actually
 // thought, so the guess rate was structurally unobservable.
+// The off-topic gate (2026-10-10). "What's better, a Phillips or a flat head
+// screwdriver?" was answered in full in production because the classifier had
+// no other place to put it. Only a SURE verdict refuses — a wrongly refused trip
+// question is the worse mistake — and either way the turn is a question, so the
+// verdict can never widen what a turn holds.
+describe("off-topic", () => {
+  it("refuses a message the classifier is sure has nothing to do with the trip", async () => {
+    const result = await classifyAskIntent(modelReturning(OFF_TOPIC, "sure").model, "Phillips or flat head?");
+    expect(result).toMatchObject({ offTopic: true, taskClass: "question", intent: "question", certainty: "sure" });
+  });
+
+  it("lets an unsure off-topic verdict through as a question", async () => {
+    const result = await classifyAskIntent(modelReturning(OFF_TOPIC, "unsure").model, "Is a multitool worth packing?");
+    expect(result).toMatchObject({ offTopic: false, taskClass: "question", certainty: "unsure" });
+  });
+
+  it("gates a notebook page the same way", async () => {
+    const page = await classifyAskIntent(modelReturning(OFF_TOPIC, "sure").model, "Write me a poem about cats", [], undefined, Date.now, "page");
+    expect(page).toMatchObject({ offTopic: true, taskClass: "question" });
+  });
+
+  it("tells both classifiers what off-topic means, travel help included", async () => {
+    for (const surface of ["board", "page"] as const) {
+      const { model, seen } = modelReturning("question");
+      await classifyAskIntent(model, "How is the trip looking?", [], undefined, Date.now, surface);
+      const system = (seen[0]!.prompt ?? []).filter((m) => m.role === "system").map((m) => String(m.content)).join("\n");
+      expect(system).toContain('"off_topic"');
+      expect(system).toContain("visas");
+    }
+  });
+});
+
 describe("certainty", () => {
   it("keeps the class the classifier chose, and still hands over the write tools", async () => {
     const { model } = modelReturning("question", "unsure");

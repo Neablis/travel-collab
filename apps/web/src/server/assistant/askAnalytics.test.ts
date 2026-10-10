@@ -479,6 +479,7 @@ const CLASSIFIED_BY_MODEL: AskIntentRecord = {
   context: null,
   model: "zai/glm-4.7-flash",
   verdict: '{"result":"plan"}',
+  offTopic: false,
   failedOpen: false,
   latencyMs: 180,
   usage: { inputTokens: 198, outputTokens: 49, totalTokens: 247 },

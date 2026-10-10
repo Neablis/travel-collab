@@ -94,6 +94,7 @@ export async function recordTurnLedger(ledger: TurnLedger, now: Date = new Date(
         classifierModel: cost.classifier?.model ?? null,
         classifierTokensIn: cost.classifier?.tokensIn ?? null,
         classifierTokensOut: cost.classifier?.tokensOut ?? null,
+        classifierCertainty: cost.classifierCertainty,
         steps: cost.steps,
         planVersionRef: cost.planVersionRef,
         latencyMs: cost.latencyMs,

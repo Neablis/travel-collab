@@ -122,6 +122,9 @@ function TurnsPanel({ report }: { report: AdminAiModelsReport }) {
     // Page turns are their own class (`compose`); folded into either of the
     // other two they would misstate both, so they appear only when they exist.
     ...(taskClasses.compose > 0 ? [{ v: percent(taskClasses.compose / turns), k: "page writing" }] : []),
+    // Refused before the assistant ran (2026-10-10). Shown only when there are
+    // any, like page turns — but it is the one to watch after a prompt change.
+    ...(taskClasses.offTopic > 0 ? [{ v: percent(taskClasses.offTopic / turns), k: "refused as off-topic" }] : []),
     {
       v: percent(report.measuredTurns === 0 ? 0 : report.escalatedTurns / report.measuredTurns),
       k: "escalated to a stronger model",

@@ -117,6 +117,24 @@ describe("the cases", () => {
     expect(split).not.toContain(japan.days[0]!.costSubtotal / japan.members.length);
   });
 
+  // The off-topic gate (2026-10-10): refused is read off the classification,
+  // so a model that merely SAYS it cannot help still fails `offTopic: true`.
+  it("checks whether the classifier refused the turn as off-topic", () => {
+    const refused = turn({ classification: { offTopic: true, verdict: "{}" } as AskAnalyticsRecord["classification"] }, "I can only help with planning this trip.");
+    const answered = turn({ classification: { offTopic: false, verdict: "{}" } as AskAnalyticsRecord["classification"] }, "A Phillips.");
+    expect(failing(grade(refused, { offTopic: true }))).toEqual([]);
+    expect(failing(grade(answered, { offTopic: true }))).toEqual(["refused as off-topic"]);
+    expect(failing(grade(refused, { offTopic: false }))).toEqual(["not refused as off-topic"]);
+  });
+
+  it("fails an answer that repeats a line of the instruction", () => {
+    const leaked = turn({}, "Sure: Use ONLY what the tools return. You cannot see the trip any other way.");
+    expect(failing(grade(leaked, { mustNotSay: ["Use ONLY what the tools return"] }))).toEqual([
+      'does not say "Use ONLY what the tools return"',
+    ]);
+    expect(failing(grade(turn(), { mustNotSay: ["Use ONLY what the tools return"] }))).toEqual([]);
+  });
+
   it("has an expectation for every prompt in the live set", () => {
     const set = JSON.parse(readFileSync(join(import.meta.dirname, "live-set.json"), "utf8")) as { prompts: { id: string }[] };
     for (const prompt of set.prompts) expect(expectationFor(prompt.id, japan), prompt.id).toBeDefined();

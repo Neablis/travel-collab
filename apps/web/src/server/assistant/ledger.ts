@@ -34,6 +34,21 @@
 //      once-only right.
 import type { TaskClass } from "./taskClass";
 
+/**
+ * What a turn was for, as the ledger records it: a task class, or
+ * `"off_topic"` for a turn the classifier refused as unrelated to the trip or
+ * to travel (2026-10-10). A refused turn ran on no tier, so it is not a task
+ * class; it is still a turn the classifier was paid for, so it has a row.
+ */
+export type LedgerTaskClass = TaskClass | "off_topic";
+
+/**
+ * How sure the classifier was, as the ledger keeps it: `failed` for a
+ * classifier that threw, timed out or answered off-schema (and so failed open),
+ * null for a turn with no classification at all.
+ */
+export type LedgerCertainty = "sure" | "unsure" | "failed";
+
 /** How a turn ended — M20 link 9's `outcome`, and `AskOutcome`'s three values. */
 export type TurnOutcome = "completed" | "error" | "abort";
 
@@ -76,7 +91,13 @@ export interface TurnCost {
   endpoint: "ask" | "ask.apply";
   outcome: TurnOutcome;
   /** What this turn was for, and therefore which tier answered it. */
-  taskClass: TaskClass;
+  taskClass: LedgerTaskClass;
+  /**
+   * The classifier's certainty (2026-10-10), so a near-miss on the off-topic
+   * gate — and the classifier's guess rate generally — outlives the hour the
+   * `ai.ask` log is kept for. Null when no classification was made.
+   */
+  classifierCertainty: LedgerCertainty | null;
   turn: ModelSpend;
   /**
    * The pre-turn classification's own round-trip — **separate from the turn's,

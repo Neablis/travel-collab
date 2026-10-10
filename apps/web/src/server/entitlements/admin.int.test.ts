@@ -53,6 +53,7 @@ function usage(userId: string): TurnLedger {
       endpoint: "ask",
       outcome: "completed",
       taskClass: "question",
+      classifierCertainty: "sure",
       turn: { model: "deepseek/deepseek-v4-flash-0731", tokensIn: 3363, tokensOut: 512 },
       classifier: { model: "zai/glm-4.7-flash", tokensIn: 198, tokensOut: 49 },
       steps: 2,

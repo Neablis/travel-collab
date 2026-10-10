@@ -31,7 +31,7 @@ function healthyReport(overrides: Partial<AdminAiModelsReport> = {}): AdminAiMod
       turns: 10,
       failed: i % 5 === 0 ? 1 : 0,
     })),
-    taskClasses: { question: 180, change: 120, compose: 0 },
+    taskClasses: { question: 180, change: 120, compose: 0, offTopic: 0 },
     escalatedTurns: 51,
     contextByStep: [
       { step: "1", median: 3100, p95: 5200, turns: 300 },

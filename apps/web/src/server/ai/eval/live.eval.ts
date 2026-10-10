@@ -75,7 +75,7 @@ const { issueGrant } = await import("@/server/entitlements/grants");
 
 interface LivePrompt {
   id: string;
-  intent: "change" | "question";
+  intent: "change" | "question" | "off-topic";
   text: string;
 }
 
