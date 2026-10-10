@@ -39,7 +39,8 @@ container with no local infra.
 **Skills** (`.claude/skills/`): `minimal-check-subset` (narrowest sufficient
 check), `ci-triage` (scoped failing-job logs), `worktree-hygiene` (read-only
 worktree audit), `write-a-test` (the testing guide as steps), `ai-usage` (the
-assistant's live cost and quality). The first three are symlinks into
+assistant's live cost and quality), `build-a-milestone` (a whole milestone, from
+Mitchell's decisions to the closed gate — `building-a-milestone.md` as steps). The first three are symlinks into
 `.agents/skills/`; edit them there.
 
 **Content check** (`pnpm content:verify`): parses every bundle under `content/`

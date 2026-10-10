@@ -6,7 +6,9 @@ did this: M14 on 2026-09-24, as #222 → #223 → #226 → #221. That session's 
 `docs/retros/2026-09-24-m14-stacked-prs-retro.md`, has the evidence for each rule below.
 
 `AGENTS.md` still owns the Definition of Done, the verification tiers and *CodeRabbit is Mitchell's
-step*. This file only adds what changes when there are several PRs instead of one.
+step*. This file only adds what changes when there are several PRs instead of one. The order of a
+whole milestone session — decisions, a prose-only part 0 that tracks the gate and merges last,
+review, the walk and the close — is `building-a-milestone.md`.
 
 ## 1. Plan the stack when you plan the scope
 
@@ -98,9 +100,11 @@ retarget the PR to `main`.
 
 A stack spreads final review over several merges, and none of them feels like the last. So:
 
-- Run the **Tier 3** checks from `AGENTS.md` on the **top** part, which contains everything, while
-  it is still unmerged: `pnpm check`, every ci-like spec the stack touches, and the preview walk.
-  Record the result in **part 1's** body.
+- The **top** part contains everything, so its checks stand for the stack while it is still
+  unmerged. Its PR's CI is the full lint and test run: read it green on the real head rather than
+  repeating `pnpm check` locally (`building-a-milestone.md` step 5). Locally, run every ci-like spec
+  the stack touches. Mitchell walks its preview. Record the results in the tracker PR's body: part 0
+  when the stack has one, otherwise part 1.
 - Tick the milestone gate boxes the stack satisfies at the same point, with evidence. A box the
   stack cannot satisfy stays open, and part 1's body says so.
 - Tell Mitchell, in chat, what is still owed **before** part 1 merges. Merging each part is his
