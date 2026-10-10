@@ -19,7 +19,7 @@ import { TripDateControl } from "@/components/lenses/TripDateControl";
 import { formatInstantLong, formatTripDate } from "@/lib/formatDate";
 import { isDemoTripId } from "@/lib/demoTrip";
 import { formatMoney } from "@/lib/formatMoney";
-import { committedLine, type TripSpend } from "@/lib/cost";
+import type { TripSpend } from "@/lib/cost";
 import type { SettingsSection } from "@/lib/tripSettingsLink";
 
 function SectionHeading({ children }: { children: React.ReactNode }) {
@@ -238,9 +238,6 @@ export function SettingsSheet({
       : spend.over
         ? `${formatMoney(Math.abs(spend.remaining ?? 0), currency)} over budget`
         : `${formatMoney(spend.remaining ?? 0, currency)} left`;
-  // Committed vs estimate is the stop's kind (ADR-060 decision 5): only a
-  // total with a pending stop's guess in it earns the line.
-  const split = committedLine(spend, currency);
 
   return (
     <Sheet title="Trip settings" open={open} onOpenChange={onOpenChange}>
@@ -413,15 +410,15 @@ export function SettingsSheet({
             {/* The mocked breakdown by kind that sat here (`budget-breakdown`,
                 M19) is gone: Mitchell, 2026-09-26, *"Lets remove it there, and
                 implement it as a PIE chart widget for notebooks"* — it is the
-                "Spend by kind" widget (`cost.breakdown`) now, on real kinds. */}
-            {split !== null && (
-              <Text as="span" className="text-xs text-slate" data-testid="budget-committed">
-                {split}
-              </Text>
-            )}
-            <Text as="span" className="text-xs text-slate">
-              {spend.unpriced} stop{spend.unpriced === 1 ? "" : "s"} with no cost yet
-            </Text>
+                "Spend by kind" widget (`cost.breakdown`) now, on real kinds.
+
+                So are the two lines that followed it, on his Vercel Toolbar
+                comments on the trip preview: the committed/estimated split
+                (ADR-060 decision 5, `committedLine`) — *"more of a aspect for a
+                notebook to show"* — and the count of stops with no cost —
+                *"more for the trip plan page"*. Settings keeps what you SET
+                here, the budget and how the plan stands against it; the
+                figures are still `tripSpend`'s, for those surfaces to show. */}
           </div>
         </div>
 
