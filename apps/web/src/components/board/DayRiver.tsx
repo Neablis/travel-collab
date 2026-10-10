@@ -32,6 +32,7 @@ import {
   type MinuteWindow,
   placeWindow,
   resizeEnd,
+  resizeStart,
   RIVER_DRAG_THRESHOLD_PX,
   RIVER_TOUCH_HOLD_MS,
   RIVER_TOUCH_SLOP_PX,
@@ -213,7 +214,9 @@ export function DayRiver({
   const listRef = useRef<HTMLUListElement>(null);
   const [ghost, setGhost] = useState<Ghost | null>(null);
   // The block whose bottom edge is being dragged, and where its end is now.
-  const [resizing, setResizing] = useState<{ activityId: string; end: number } | null>(null);
+  // A block being resized, previewed as the window it would take: either edge
+  // moves (the top since M41 D7), so the preview holds both.
+  const [resizing, setResizing] = useState<{ activityId: string; start: number; end: number } | null>(null);
   // When the last sketch ended. The release of a sketch is also a click, and a
   // click soon after another is a double-click — which must not ALSO open the
   // add sheet at the release point.
@@ -240,7 +243,7 @@ export function DayRiver({
         // held, laid out with everything else — so it takes the lane it will
         // have when it lands, and its own time line reads the new end.
         const window =
-          resizing?.activityId === id ? toTimeWindow({ start: toMinutes(activity.timeWindow.start), end: resizing.end }) : activity.timeWindow;
+          resizing?.activityId === id ? toTimeWindow({ start: resizing.start, end: resizing.end }) : activity.timeWindow;
         return [{ activity, window }];
       }),
     [activityIds, activities, resizing],
@@ -547,14 +550,20 @@ export function DayRiver({
   // Under a finger the grip needs no hold: it is its own 44px target with
   // `touch-action: none`, so it never starts a scroll. A tap on it, though, is
   // a tap on the block, and opens the editor as the rest of the block does.
-  function startResize(activityId: string, stored: TimeWindow, release: () => void, press: { pointerType: string; clientY: number }) {
+  function startResize(
+    activityId: string,
+    stored: TimeWindow,
+    release: () => void,
+    press: { pointerType: string; clientY: number },
+    edge: "start" | "end" = "end",
+  ) {
     lastPointer.current = press.pointerType;
     if (!live) {
       release();
       return;
     }
     const touch = press.pointerType === "touch";
-    const start = toMinutes(stored.start);
+    let start = toMinutes(stored.start);
     let end = toMinutes(stored.end);
     let moved = false;
     if (touch) touchHeld.current = true;
@@ -562,8 +571,10 @@ export function DayRiver({
       (ev) => {
         if (!moved && Math.abs(ev.clientY - press.clientY) < RIVER_DRAG_THRESHOLD_PX) return;
         moved = true;
-        end = resizeEnd(axis, start, yOf(ev.clientY));
-        setResizing({ activityId, end });
+        // One edge moves, the other holds (M41 D7 added the top).
+        if (edge === "end") end = resizeEnd(axis, start, yOf(ev.clientY));
+        else start = resizeStart(axis, end, yOf(ev.clientY));
+        setResizing({ activityId, start, end });
       },
       (commit) => {
         touchHeld.current = false;
@@ -574,7 +585,7 @@ export function DayRiver({
           return;
         }
         const next = toTimeWindow({ start, end });
-        if (commit && next.end !== stored.end) live.onResize(activityId, next);
+        if (commit && (next.end !== stored.end || next.start !== stored.start)) live.onResize(activityId, next);
       },
       { scroll: touch },
     );
@@ -718,7 +729,7 @@ export function DayRiver({
               // The stop's STORED window, not the one being previewed: a
               // resize always runs from where the stop really starts and ends.
               onResizeStart={
-                live && activity.timeWindow ? (release, press) => startResize(id, activity.timeWindow!, release, press) : undefined
+                live && activity.timeWindow ? (release, press, edge) => startResize(id, activity.timeWindow!, release, press, edge) : undefined
               }
               onTouchPress={live ? (e) => startLift(id, e) : undefined}
               lifted={lifted === id}

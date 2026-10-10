@@ -164,6 +164,16 @@ export function resizeEnd(axis: RiverAxis, start: number, pointerY: number): num
 }
 
 /**
+ * **Drag a block's top edge** (M41 D7), the mirror of `resizeEnd`: the new
+ * start is the quarter hour under the pointer, never less than a quarter hour
+ * before the stop's end and never before the river's first hour. The end is
+ * not moved.
+ */
+export function resizeStart(axis: RiverAxis, end: number, pointerY: number): number {
+  return clamp(snapMinute(minuteAtPx(axis, pointerY)), axis.t0, end - RIVER_MIN_MINUTES);
+}
+
+/**
  * How long a stop is, for placing it somewhere else: its own length, or the
  * add sheet's default hour when it has no time at all. A stop that runs to
  * midnight (stored ending 23:59) keeps its whole last minute when it moves.

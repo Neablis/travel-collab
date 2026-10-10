@@ -104,6 +104,8 @@ function noopCallbacks(): BoardCallbacks {
     onAnyTime: vi.fn(),
     onRevealAnyTime: vi.fn(),
     onRetime: vi.fn(),
+    onMoveDay: vi.fn(),
+    onCopy: vi.fn(),
     onUnschedule: vi.fn(),
     onDragStart: vi.fn(),
     onDragEnd: vi.fn(),

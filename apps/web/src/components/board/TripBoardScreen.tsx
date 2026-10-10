@@ -32,12 +32,13 @@ import { ActivityEditorSheet } from "@/components/trip/editor/ActivityEditorShee
 import { PeopleProvider } from "@/components/pages/people";
 import { type RackItem, UnscheduledRack } from "@/components/trip/UnscheduledRack";
 import { moveCommands } from "./moveCommands";
+import { copyActivityCommand } from "./copyActivity";
 import type { resolveCalendarDrop } from "@/components/lenses/calendarDrop";
 
 type CalendarDropOutcome = NonNullable<ReturnType<typeof resolveCalendarDrop>>;
 import { rackDropWindow } from "./rackDropWindow";
 import { kindBadge } from "./activityKind";
-import { type AnyTimeOutcome, anyTimeCommands, type PlaceOutcome, placeCommands } from "./resolveDrop";
+import { type AnyTimeOutcome, anyTimeCommands, type DropOutcome, type PlaceOutcome, placeCommands } from "./resolveDrop";
 import { lensAcceptsDrops } from "./lensAcceptsDrops";
 import { rackDisclosure, type RackDisclosure, type RackEvent } from "@/components/trip/rackDisclosure";
 import { legRoute, shortPlace } from "@/lib/place";
@@ -605,6 +606,31 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     const toDayId = outcome.toDayId ?? newDayIds.at(-1)!;
     const commands = moveCommands(activeTrip, outcome.activityIds, toDayId, { newDayIds });
     if (commands.length > 0) void dispatchBatch(commands);
+  };
+
+  // A day's header dropped on another day (M41 D7): its stops move there as one
+  // batch, through the move every other drop builds (ADR-068 §3). Times kept.
+  const moveDay = (fromDayId: string, toDayId: string) => {
+    const from = activeTrip.days.find((d) => d.dayId === fromDayId);
+    if (from === undefined) return;
+    const commands = moveCommands(activeTrip, from.activityIds, toDayId);
+    if (commands.length > 0) void dispatchBatch(commands);
+  };
+
+  // A stop dropped with Option/Alt held (M41 D7): a copy lands where the drop
+  // would have moved it. A drop on a river names the time; anywhere else the
+  // copy keeps the stop's own, and on the rack it has none.
+  const copyActivity = (outcome: DropOutcome) => {
+    const to =
+      outcome.kind === "unschedule"
+        ? { dayId: null, timeWindow: null }
+        : outcome.kind === "place"
+          ? { dayId: outcome.toDayId, timeWindow: outcome.timeWindow ?? undefined }
+          : outcome.kind === "anyTime"
+            ? { dayId: outcome.toDayId, timeWindow: null }
+            : { dayId: outcome.toDayId };
+    const command = copyActivityCommand(activeTrip, outcome.activityId, crypto.randomUUID(), to);
+    if (command !== null) void dispatch(command);
   };
 
   // A drop at a time on a day's river (M29 part 3): the day AND the time, as
@@ -1256,6 +1282,8 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                       onAnyTime: anyTimeActivity,
                       onRevealAnyTime: revealAnyTime,
                       onRetime: retimeActivity,
+                      onMoveDay: moveDay,
+                      onCopy: copyActivity,
                       onDragStart: () => onRackEvent({ type: "dragStart" }),
                       onDragEnd: () => onRackEvent({ type: "dragEnd" }),
                       onAddDay: () => void dispatch({ type: "AddDay", tripId, dayId: crypto.randomUUID() }),

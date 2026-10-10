@@ -27,7 +27,13 @@ vi.mock("@atlaskit/pragmatic-drag-and-drop/element/adapter", async (importOrigin
 // person can tell apart without it: the word in the block's corner, and the
 // kind in the name a screen reader hears. The geometry is `riverLayout.test.ts`.
 
-function renderRiver(stops: ActivityView[], readOnly = false, gestures?: RiverGestures, onEditActivity: (id: string) => void = vi.fn()) {
+function renderRiver(
+  stops: ActivityView[],
+  readOnly = false,
+  gestures?: RiverGestures,
+  onEditActivity: (id: string) => void = vi.fn(),
+  onRemoveActivity: (id: string) => void = vi.fn(),
+) {
   const activities = Object.fromEntries(stops.map((s) => [s.activityId, s]));
   return render(
     <DayRiver
@@ -42,7 +48,7 @@ function renderRiver(stops: ActivityView[], readOnly = false, gestures?: RiverGe
       overlapPartners={new Map()}
       currency="EUR"
       onEditActivity={onEditActivity}
-      onRemoveActivity={vi.fn()}
+      onRemoveActivity={onRemoveActivity}
       onDismissOverlap={vi.fn()}
       focusedTag={null}
       onToggleTag={vi.fn()}
@@ -346,6 +352,30 @@ describe("gestures on empty time", () => {
 
     renderRiver([], true);
     expect(screen.queryByTestId("empty-day-hint")).toBeNull();
+  });
+
+  // M41 D7: the top edge, the mirror of the bottom one.
+  it("dragging a block's top edge changes when it starts, and leaves when it ends", () => {
+    const g = gestures();
+    renderRiver([morning, evening], false, g);
+
+    fireEvent.pointerDown(block(evening.activityId).getByTitle("Drag to change when it starts"), { button: 0, clientY: hour(17) });
+    fireEvent.pointerMove(window, { buttons: 1, clientY: hour(16.5) });
+    fireEvent.pointerUp(window, { clientY: hour(16.5) });
+
+    expect(g.onResize).toHaveBeenCalledExactlyOnceWith(evening.activityId, { start: "16:30", end: "18:00" });
+  });
+
+  // M41 D7: the keyboard's half of a block's ✕.
+  it("Delete or Backspace on a focused block removes its stop", () => {
+    const onRemove = vi.fn();
+    renderRiver([morning, evening], false, gestures(), vi.fn(), onRemove);
+
+    fireEvent.keyDown(screen.getByRole("button", { name: /^Edit Dinner/ }), { key: "Delete" });
+    fireEvent.keyDown(screen.getByRole("button", { name: /^Edit Museum/ }), { key: "Backspace" });
+    fireEvent.keyDown(screen.getByRole("button", { name: /^Edit Museum/ }), { key: "Enter" });
+
+    expect(onRemove.mock.calls).toEqual([[evening.activityId], [morning.activityId]]);
   });
 
   it("a read-only river offers none of it: no grip, and a double-click does nothing", () => {

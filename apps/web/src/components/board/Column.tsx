@@ -1,7 +1,7 @@
 "use client";
 
-import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
-import { dropTargetForElements, monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { draggable, dropTargetForElements, monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import type { DragLocationHistory } from "@atlaskit/pragmatic-drag-and-drop/types";
 import { X } from "lucide-react";
 import type { ActivityTag, ActivityView } from "@tc/contracts";
@@ -171,6 +171,18 @@ export function Column({
     },
     [columnRef],
   );
+  // **The header lifts the whole day** (M41 D7): dropped on another day, every
+  // stop on this one moves there (Board's monitor, `onMoveDay`). Only on an
+  // editable board, and only a day with stops on it: there is nothing to move
+  // otherwise, and a header that lifts and does nothing is a false promise.
+  const headerRef = useRef<HTMLElement>(null);
+  const liftable = gestures !== undefined && activityIds.length > 0;
+  useEffect(() => {
+    const el = headerRef.current;
+    if (!el || !liftable) return;
+    return draggable({ element: el, getInitialData: () => ({ kind: "plan-day", dayId }) });
+  }, [dayId, liftable]);
+
   // Whether this column itself — not its river or its chip — is the innermost
   // drop target, which is exactly where resolveDrop.ts's "dropped on a column"
   // branch fires. No hover tint on the column itself (Task 3.3).
@@ -275,7 +287,11 @@ export function Column({
       {/* One grid item for the first of the two rows every column shares: the
           header, and the "this day" drop line under it. */}
       <div className="flex min-w-0 flex-col gap-1">
-        <header data-day-header className="day-sync-target flex items-baseline justify-between gap-1">
+        <header
+          ref={headerRef}
+          data-day-header
+          className={cn("day-sync-target flex items-baseline justify-between gap-1", liftable && "cursor-grab")}
+        >
           {/* The title and the day's "Unscheduled" chip, together at the start of
               the header, so `justify-between` keeps meaning "the day at one
               end, its controls at the other". */}

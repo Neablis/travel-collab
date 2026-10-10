@@ -181,7 +181,7 @@ export function RiverBlock({
    * a move with no button down, or the river unmounting. Only the river sees
    * all of those, so only it can say when the grip stops being held.
    */
-  onResizeStart?: (release: () => void, press: { pointerType: string; clientY: number }) => void;
+  onResizeStart?: (release: () => void, press: { pointerType: string; clientY: number }, edge: "start" | "end") => void;
   /**
    * A finger pressed the block (M29 phone). The river decides whether it is
    * held long enough to lift the stop (`DayRiver`'s `startLift`); a tap goes
@@ -249,7 +249,7 @@ export function RiverBlock({
     });
   }, [activity.activityId, readOnly]);
 
-  function pressGrip(e: ReactPointerEvent) {
+  function pressGrip(e: ReactPointerEvent, edge: "start" | "end") {
     if (e.button !== 0 || !onResizeStart) return;
     // Not the river's sketch, not a touch lift of the block, and not the edit
     // button under the grip.
@@ -261,6 +261,7 @@ export function RiverBlock({
         gripHeld.current = false;
       },
       { pointerType: e.pointerType, clientY: e.clientY },
+      edge,
     );
   }
 
@@ -400,6 +401,13 @@ export function RiverBlock({
           <Button
             variant="ghost"
             onClick={onEdit}
+            // Delete or Backspace on a focused stop removes it (M41 D7), the
+            // keyboard's half of its ✕; undone like any removal.
+            onKeyDown={(e) => {
+              if (e.key !== "Delete" && e.key !== "Backspace") return;
+              e.preventDefault();
+              onRemove();
+            }}
             aria-label={`Edit ${description}`}
             className="absolute inset-0 h-auto min-w-0 rounded-md p-0 hover:bg-transparent focus-visible:outline-offset-0 fine:min-h-0"
           />
@@ -518,12 +526,25 @@ export function RiverBlock({
           tap), while a reach into the next block would take that one's taps.
           The bar stays 22×3 and sits on the edge. `touch-none` because a
           press on the grip is always a resize, never the start of a scroll. */}
+      {/* The top edge, M41 D7: the mirror of the grip below, for when a stop
+          starts. A mouse's alone (`pointer-coarse:hidden`): a finger has the
+          bottom grip and the editor, and a second 44px reach at the top of a
+          short block would cover the block's own tap. */}
+      {onResizeStart && (
+        <span
+          aria-hidden
+          data-testid="river-resize-start"
+          title="Drag to change when it starts"
+          onPointerDown={(e) => pressGrip(e, "start")}
+          className="absolute inset-x-0 -top-1 z-10 flex h-2.5 cursor-ns-resize touch-none items-center justify-center pointer-coarse:hidden"
+        />
+      )}
       {onResizeStart && (
         <span
           aria-hidden
           data-testid="river-resize"
           title="Drag to change when it ends"
-          onPointerDown={pressGrip}
+          onPointerDown={(e) => pressGrip(e, "end")}
           className="absolute inset-x-0 -bottom-1 z-10 flex h-2.5 cursor-ns-resize touch-none items-center justify-center pointer-coarse:inset-x-auto pointer-coarse:-bottom-2.5 pointer-coarse:left-1/2 pointer-coarse:size-11 pointer-coarse:-translate-x-1/2 pointer-coarse:items-end pointer-coarse:pb-2"
         >
           <span className="h-0.75 w-5.5 rounded-full bg-ink opacity-30" />
