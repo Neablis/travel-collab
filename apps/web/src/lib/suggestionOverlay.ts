@@ -30,6 +30,13 @@ export type Ghost = {
   dependsOn: string[];
   /** The `dependsOn` changes still pending: this one cannot be accepted first (spec §2.7). */
   blockedBy: string[];
+  /**
+   * On a move: later updates to the same stop from the same suggestion, already
+   * applied to `activity`, so the stop lands as it would end up (W79).
+   */
+  layered?: Ghost[];
+  /** On an update shown on a move (`layered`): that move's change. */
+  layeredOnto?: string;
 };
 
 /** Every pending change, filed by where the board shows it. */
@@ -46,13 +53,19 @@ export type SuggestionOverlay = {
   tripLevel: Ghost[];
   /** One ghost per change that no longer predicts: "no longer applies" (§2.7). */
   stale: Ghost[];
+  /**
+   * One ghost per day a change adds, `dayId` the new day, in creation order —
+   * the order they would be appended in. The board draws each as a ghost day.
+   */
+  newDays: Ghost[];
 };
 
 const ACCEPT_LIKE = { skipNoOps: true };
 
 // Commands that change the trip rather than a stop. AddDay is not here: a new
-// day with stops in it shows as those stops, and an empty one falls to
-// tripLevel anyway for having nothing else to show.
+// day is drawn as a ghost day, which its stops and its header sit on
+// (`newDays`). SetTripDates can add days too, but it is a range edit and stays
+// in the chip, its days with it.
 const TRIP_LEVEL = new Set<BatchableCommand["type"]>([
   "SetTripName",
   "SetTripDates",
@@ -68,7 +81,7 @@ const TRIP_LEVEL = new Set<BatchableCommand["type"]>([
  * order; anything not pending is ignored.
  */
 export function suggestionOverlay(confirmed: TripDetail, changes: SuggestionChange[]): SuggestionOverlay {
-  const overlay: SuggestionOverlay = { byActivity: new Map(), byDay: new Map(), tripLevel: [], stale: [] };
+  const overlay: SuggestionOverlay = { byActivity: new Map(), byDay: new Map(), tripLevel: [], stale: [], newDays: [] };
   // Stable sort: the server already orders by creation and position, and a
   // tie on `createdAt` (one suggestion's changes share it) keeps that order.
   const pending = changes
@@ -79,12 +92,16 @@ export function suggestionOverlay(confirmed: TripDetail, changes: SuggestionChan
   const order = new Map(pending.map((c, i) => [c.id, i]));
   const byId = new Map(pending.map((c) => [c.id, c]));
   const confirmedPlacement = placements(confirmed);
+  // Days a pending change adds. A change that lands on one depends on the change
+  // that adds it (W9), which is older, so the day is here by the time it asks.
+  const suggestedDays = new Set<string>();
   // Per change, in creation order: its ancestors sorted oldest first, and the
   // trip once it and all of them are applied (`null` if any is stale). Every
   // ancestor is older than its dependent (W9), so both are known by the time a
   // dependent asks.
   const lineage = new Map<string, string[]>();
   const outcome = new Map<string, TripDetail | null>();
+  const ghostsOf = new Map<string, Ghost[]>();
 
   for (const change of pending) {
     const common = {
@@ -128,21 +145,69 @@ export function suggestionOverlay(confirmed: TripDetail, changes: SuggestionChan
     }
 
     const ghosts = diff(base, predicted.detail, change.commands).map((g): Ghost => ({ ...common, ...g }));
+    ghostsOf.set(change.id, ghosts);
+    const tripLevel = change.commands.some((c) => TRIP_LEVEL.has(c.type));
+    const baseDays = new Set(base.days.map((d) => d.dayId));
+    const newDays = change.commands.some((c) => c.type === "AddDay") && !tripLevel
+      ? predicted.detail.days.filter((d) => !baseDays.has(d.dayId)).map((d): Ghost => ({ ...common, kind: "add", dayId: d.dayId }))
+      : [];
+    for (const day of newDays) {
+      overlay.newDays.push(day);
+      suggestedDays.add(day.dayId!);
+    }
     for (const ghost of ghosts) {
       push(overlay.byActivity, ghost.activityId!, ghost);
       if (ghost.kind === "add") push(overlay.byDay, ghost.dayId ?? null, ghost);
     }
-    // "Anchored" means a stop or a day the reviewer can see on the board now.
-    const anchored = ghosts.some((g) =>
-      g.kind === "add"
-        ? g.dayId === null || confirmedPlacement.days.has(g.dayId!)
-        : confirmedPlacement.of.has(g.activityId!),
-    );
-    if (!anchored || change.commands.some((c) => TRIP_LEVEL.has(c.type))) {
+    // "Anchored" means a stop or a day the reviewer can see on the board now,
+    // a suggested day included: it is drawn, and so is the change that adds it.
+    const anchored =
+      newDays.length > 0 ||
+      ghosts.some((g) =>
+        g.kind === "add"
+          ? g.dayId === null || confirmedPlacement.days.has(g.dayId!) || suggestedDays.has(g.dayId!)
+          : confirmedPlacement.of.has(g.activityId!),
+      );
+    if (!anchored || tripLevel) {
       overlay.tripLevel.push({ ...common, kind: tripKind(change.commands) });
     }
   }
+  layerUpdatesOntoMoves(pending, ghostsOf, outcome, lineage);
   return overlay;
+}
+
+// W79, Mitchell's walk, 2026-10-09: one suggestion moved "Flight home" to a
+// new day and, as a separate change that depends on nothing, retimed it. Each
+// change is predicted on its own base (W5), so the moved ghost carried the old
+// time and the flight "isn't in the right place". For display only, a move
+// takes every later update to the same stop from the same suggestion, predicted
+// on top of the move's outcome, in order. Neither change's prediction, staleness
+// nor acceptance moves: the update is still its own change.
+function layerUpdatesOntoMoves(
+  pending: SuggestionChange[],
+  ghostsOf: Map<string, Ghost[]>,
+  outcome: Map<string, TripDetail | null>,
+  lineage: Map<string, string[]>,
+): void {
+  pending.forEach((change, i) => {
+    for (const move of ghostsOf.get(change.id) ?? []) {
+      if (move.kind !== "move") continue;
+      let shown = outcome.get(change.id)!;
+      for (const later of pending.slice(i + 1)) {
+        // A descendant was already predicted on top of the move.
+        if (later.suggestionId !== change.suggestionId || lineage.get(later.id)!.includes(change.id)) continue;
+        const update = ghostsOf.get(later.id)?.find((g) => g.activityId === move.activityId);
+        if (update?.kind !== "update" || update.layeredOnto !== undefined) continue;
+        const step = predictBatch(shown, later.commands, ACCEPT_LIKE);
+        const activity = step.ok ? step.detail.activities[move.activityId!] : undefined;
+        if (!step.ok || activity === undefined) continue;
+        shown = step.detail;
+        move.activity = activity;
+        (move.layered ??= []).push(update);
+        update.layeredOnto = change.id;
+      }
+    }
+  });
 }
 
 type Placement = { of: Map<string, { dayId: string | null; index: number }>; days: Set<string> };
@@ -253,6 +318,12 @@ export type SuggestionGhosts = {
   offBoard: Ghost[];
   /** One ghost per change that no longer applies. */
   stale: Ghost[];
+  /**
+   * One ghost per day a pending change adds, in the order they would be
+   * appended after the trip's days. Each is drawn as a read-only ghost day,
+   * its header carrying that change's actions.
+   */
+  newDays: Ghost[];
   /** Every pending change this reader may see. */
   pending: SuggestionChange[];
 };
@@ -271,12 +342,21 @@ export function placeGhosts(trip: TripDetail, changes: SuggestionChange[]): Sugg
   const days = new Map<string, Ghost[]>();
   const stops = new Map<string, Ghost[]>();
   const drawn = new Set<string>();
-  const dayIds = new Set(trip.days.map((d) => d.dayId));
+  // A suggested day is somewhere to land, as a day on the trip is.
+  const dayIds = new Set([...trip.days.map((d) => d.dayId), ...overlay.newDays.map((g) => g.dayId!)]);
   const onRiver = new Set(trip.days.flatMap((d) => d.activityIds.filter((id) => trip.activities[id]?.timeWindow)));
   const first = new Map<string, Ghost>();
   // The ghost each drawn change was first drawn by: a move is a marker where
   // the stop is and a block where it lands, and the chip lists it once.
   const drawnBy = new Map<string, Ghost>();
+  // Where each move drawn as a block landed, keyed `changeId activityId`: an
+  // update shown on it (W79) is drawn there, not as a marker on the stop it
+  // only moves away from.
+  const landedAt = new Map<string, string>();
+  for (const day of overlay.newDays) {
+    drawn.add(day.changeId);
+    if (!drawnBy.has(day.changeId)) drawnBy.set(day.changeId, day);
+  }
 
   for (const [activityId, ghosts] of overlay.byActivity) {
     for (const ghost of ghosts) {
@@ -290,6 +370,14 @@ export function placeGhosts(trip: TripDetail, changes: SuggestionChange[]): Sugg
         push(days, ghost.dayId, ghost);
         drawn.add(ghost.changeId);
         if (!drawnBy.has(ghost.changeId)) drawnBy.set(ghost.changeId, ghost);
+        if (ghost.kind === "move") landedAt.set(`${ghost.changeId} ${activityId}`, ghost.dayId);
+      }
+      // An update shown on a move's block: reviewed there, listed by its day.
+      const host = ghost.layeredOnto === undefined ? undefined : landedAt.get(`${ghost.layeredOnto} ${activityId}`);
+      if (host !== undefined) {
+        drawn.add(ghost.changeId);
+        if (!drawnBy.has(ghost.changeId)) drawnBy.set(ghost.changeId, { ...ghost, dayId: host });
+        continue;
       }
       // A timed stop that is there now: a marker on it.
       if (ghost.kind !== "add" && onRiver.has(activityId)) {
@@ -312,6 +400,7 @@ export function placeGhosts(trip: TripDetail, changes: SuggestionChange[]): Sugg
     onBoard: [...drawnBy.values()].sort((a, b) => (order.get(a.changeId) ?? 0) - (order.get(b.changeId) ?? 0)),
     offBoard,
     stale: overlay.stale,
+    newDays: overlay.newDays,
     pending: changes.filter((c) => c.status === "pending"),
   };
 }

@@ -66,15 +66,19 @@ export type RiverGestures = {
 
 /**
  * The pending suggestions the board draws (spec §2.4): ghost stops by the day
- * they land in, and the stops a change would alter. `review` wraps a trigger in
- * the popover holding Accept / Dismiss / Withdraw — a slot, as `addSavedDay` is,
- * because those read `useTrip()` and the board is props-only. `draft` is a
+ * they land in, the stops a change would alter, and the days a change would
+ * add (`newDays`, drawn after the trip's own as ghost days). `review` wraps a
+ * trigger in the popover holding Accept / Dismiss / Withdraw, and `actions` is
+ * those buttons inline, for a ghost day's header — slots, as `addSavedDay` is,
+ * because they read `useTrip()` and the board is props-only. `draft` is a
  * suggester's unsent edits, whose stops are marked "Not sent" (W76).
  */
 export type BoardSuggestions = {
   days: ReadonlyMap<string, readonly SuggestionGhost[]>;
   stops: ReadonlyMap<string, readonly SuggestionGhost[]>;
+  newDays: readonly SuggestionGhost[];
   review: (ghosts: readonly SuggestionGhost[], trigger: ReactElement) => ReactNode;
+  actions: (ghost: SuggestionGhost) => ReactNode;
   draft?: DraftStops;
 };
 
@@ -723,7 +727,9 @@ export function DayRiver({
                 style={{ top: placement.topPx, height: placement.heightPx, ...laneStyle(placement) }}
               >
                 {suggestions.review(
-                  [ghost],
+                  // With any update shown on this move (W79), so it can be
+                  // decided where it is seen.
+                  [ghost, ...(ghost.layered ?? [])],
                   // A placeholder until it is accepted (W76): dashed, hatched,
                   // and saying "Suggested" in words, so it never reads as a
                   // planned stop by its colour alone. The pill goes under the

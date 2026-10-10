@@ -25,6 +25,7 @@ import { dayAccents } from "@/lib/dayAccent";
 import { stopsForDay } from "@/lib/savedStops";
 import { KeepDayFlag } from "@/components/trip/KeepDayFlag";
 import { Column, DAY_COLUMN_WIDTH_PX } from "./Column";
+import { GhostDayColumn } from "./GhostDayColumn";
 import type { BoardSuggestions, RiverGestures } from "./DayRiver";
 import { ConflictBanner } from "./ConflictBanner";
 import { type AnyTimeOutcome, type PlaceOutcome, resolveDrop } from "./resolveDrop";
@@ -420,7 +421,7 @@ export function Board({
     const observer = new ResizeObserver(measure);
     observer.observe(row);
     return () => observer.disconnect();
-  }, [oneDay, readOnly, trip.days.length, mirrorRowIntoBar]);
+  }, [oneDay, readOnly, trip.days.length, suggestions?.newDays.length, mirrorRowIntoBar]);
 
   // **Dragging a card toward an off-screen day scrolls the row**
   // (KI-2026-09-25-c). The window was the only thing registered for
@@ -849,6 +850,25 @@ export function Board({
               }
             />
           ))}
+          {/* **The days a pending change would add**, after the trip's own, in
+              the order they would be appended — so a ghost day is numbered as
+              it would be once accepted. On a phone each is one more stop on
+              the day rail: its index runs on past the last real day's. */}
+          {suggestions?.newDays.map((day, k) => {
+            const index = trip.days.length + k;
+            if (oneDay && (focusedDay ?? 0) !== index) return null;
+            return (
+              <GhostDayColumn
+                key={day.dayId}
+                title={`${dayLabel(trip.startDate, index)} · suggested`}
+                day={day}
+                suggestions={suggestions}
+                axis={axis}
+                currency={trip.currency}
+                fullWidth={oneDay}
+              />
+            );
+          })}
           {oneDay && endOfDay !== undefined && <div ref={endOfDayRef}>{endOfDay}</div>}
           {/* "One more day?" is an invitation to change the trip, so it is the
               reader's cue that they are looking at somebody else's — or, on the

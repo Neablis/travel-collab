@@ -894,6 +894,10 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
       onSelect={(index) => setFocusedDay(index, "chips")}
       readOnly={!canEditBoard}
       sync={chipsSync}
+      // A suggested day is a stop on the phone's rail, which is how a phone
+      // reaches any day it does not show. Above 768px the board draws every
+      // day, ghost days included, and the rail stays the trip's own.
+      suggestedDays={isPhone ? suggestions?.newDays.map((_, k) => `Day ${activeTrip.days.length + k + 1}`) : undefined}
     />
   );
   // **On a phone the day rail pins** (M39 D6, SPEC §13.4: "the day rail
