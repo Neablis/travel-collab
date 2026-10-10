@@ -13,6 +13,14 @@ import { e2eTripName } from "./tripNames";
 
 const column = (page: Page, i: number) => page.getByTestId("day-column").nth(i);
 
+// The column's day, failing here rather than comparing against "" when the
+// attribute is missing (an empty Day select would match that).
+async function dayIdOf(page: Page, i: number): Promise<string> {
+  const dayId = await column(page, i).getAttribute("data-day-id");
+  if (dayId === null || dayId === "") throw new Error(`day column ${i} carries no data-day-id`);
+  return dayId;
+}
+
 test("a line of text pasted with the pointer over a day opens the editor there, and saves a stop on it", async ({ page }) => {
   const tripId = await createMappedTrip(page, e2eTripName("Paste"), 3);
   await page.goto(`/trips/${tripId}?view=Plan`);
@@ -28,7 +36,7 @@ test("a line of text pasted with the pointer over a day opens the editor there, 
   const sheet = page.getByRole("dialog");
   await expect(sheet.getByLabel("What or where")).toHaveValue("Ramen at Ichiran");
   await expect(sheet.getByLabel("Notes")).toHaveValue("Cash only");
-  await expect(sheet.getByLabel("Day")).toHaveValue(await column(page, 1).getAttribute("data-day-id") ?? "");
+  await expect(sheet.getByLabel("Day")).toHaveValue(await dayIdOf(page, 1));
   await sheet.getByRole("button", { name: "Add stop" }).last().click();
 
   await expect(column(page, 1).getByText("Ramen at Ichiran")).toBeVisible();
@@ -52,5 +60,8 @@ test("a Maps link dropped on a day from outside the app opens the editor on that
 
   const sheet = page.getByRole("dialog");
   await expect(sheet.getByLabel("What or where")).toHaveValue("Kinkaku-ji");
-  await expect(sheet.getByLabel("Day")).toHaveValue(await target.getAttribute("data-day-id") ?? "");
+  await expect(sheet.getByLabel("Day")).toHaveValue(await dayIdOf(page, 1));
+  await sheet.getByRole("button", { name: "Add stop" }).last().click();
+
+  await expect(target.getByRole("button", { name: /^Edit Kinkaku-ji,/ })).toBeVisible();
 });

@@ -10,13 +10,16 @@ describe("pasteToStop", () => {
     expect(pasteToStop(link)).toEqual({
       title: "Ichiran Shibuya",
       location: { name: "Ichiran Shibuya", lat: 35.6613, lng: 139.7008 },
+      notes: link,
     });
   });
 
   it("falls back to the map's centre when the link has no pinned place", () => {
-    expect(pasteToStop("https://www.google.com/maps/place/Kinkaku-ji/@35.0394,135.7292,15z")).toEqual({
+    const link = "https://www.google.com/maps/place/Kinkaku-ji/@35.0394,135.7292,15z";
+    expect(pasteToStop(link)).toEqual({
       title: "Kinkaku-ji",
       location: { name: "Kinkaku-ji", lat: 35.0394, lng: 135.7292 },
+      notes: link,
     });
   });
 
@@ -25,33 +28,34 @@ describe("pasteToStop", () => {
     expect(pasteToStop(link)).toEqual({
       title: "Ichiran Shibuya",
       location: { name: "Ichiran Shibuya, 1 Chome-22-7 Jinnan, Shibuya City", lat: 35.66, lng: 139.7 },
+      notes: link,
     });
   });
 
   it("reads a search link's query, with no coordinates to give", () => {
-    expect(pasteToStop("https://www.google.com/maps/search/?api=1&query=Fushimi%20Inari")).toEqual({
-      title: "Fushimi Inari",
-      location: { name: "Fushimi Inari" },
-    });
-    expect(pasteToStop("https://maps.google.com/?q=Nishiki+Market")).toEqual({
-      title: "Nishiki Market",
-      location: { name: "Nishiki Market" },
-    });
+    const search = "https://www.google.com/maps/search/?api=1&query=Fushimi%20Inari";
+    expect(pasteToStop(search)).toEqual({ title: "Fushimi Inari", location: { name: "Fushimi Inari" }, notes: search });
+    const q = "https://maps.google.com/?q=Nishiki+Market";
+    expect(pasteToStop(q)).toEqual({ title: "Nishiki Market", location: { name: "Nishiki Market" }, notes: q });
   });
 
   // A dropped pin has coordinates and no name, as a Map double-click does,
   // and the editor treats it the same way: a place, and no title.
   it("makes a dropped pin a place with no title", () => {
-    expect(pasteToStop("https://www.google.com/maps?q=35.0116,135.7681")).toEqual({
+    const link = "https://www.google.com/maps?q=35.0116,135.7681";
+    expect(pasteToStop(link)).toEqual({
       title: "",
       location: { name: "35.0116, 135.7681", lat: 35.0116, lng: 135.7681 },
+      notes: link,
     });
   });
 
   it("reads an Apple Maps link's name and coordinates", () => {
-    expect(pasteToStop("https://maps.apple.com/?q=Tsukiji%20Outer%20Market&ll=35.6655,139.7707")).toEqual({
+    const link = "https://maps.apple.com/?q=Tsukiji%20Outer%20Market&ll=35.6655,139.7707";
+    expect(pasteToStop(link)).toEqual({
       title: "Tsukiji Outer Market",
       location: { name: "Tsukiji Outer Market", lat: 35.6655, lng: 139.7707 },
+      notes: link,
     });
   });
 
@@ -73,7 +77,7 @@ describe("pasteToStop", () => {
   });
 
   it("clips a title to what AddActivity accepts", () => {
-    expect(pasteToStop("x".repeat(250))?.title).toHaveLength(200);
+    expect(pasteToStop("x".repeat(250))).toEqual({ title: "x".repeat(200), notes: "x".repeat(50) });
   });
 
   it("gives nothing for blank text", () => {
@@ -93,6 +97,7 @@ describe("pasteToStop", () => {
     expect(pasteToStop(link)).toEqual({
       title: "Tsukiji Outer Market",
       location: { name: "Tsukiji Outer Market", lat: 35.6655, lng: 139.7707 },
+      notes: link,
     });
   });
 
@@ -103,13 +108,16 @@ describe("pasteToStop", () => {
     expect(pasteToStop(link)).toEqual({
       title: "",
       location: { name: "35.0116, 135.7681", lat: 35.0116, lng: 135.7681 },
+      notes: link,
     });
   });
 
   it("reads a dropped pin's place from its degrees and minutes when the link has no other", () => {
-    expect(pasteToStop("https://www.google.com/maps/place/35%C2%B000'41.8%22S+135%C2%B046'05.2%22W")).toEqual({
+    const link = "https://www.google.com/maps/place/35%C2%B000'41.8%22S+135%C2%B046'05.2%22W";
+    expect(pasteToStop(link)).toEqual({
       title: "",
       location: { name: "-35.0116, -135.7681", lat: -35.011611, lng: -135.768111 },
+      notes: link,
     });
   });
 
@@ -123,5 +131,26 @@ describe("pasteToStop", () => {
   it("keeps a bare map view in the notes", () => {
     const link = "https://www.google.com/maps/@35.0116,135.7681,15z";
     expect(pasteToStop(link)).toEqual({ title: "", notes: link });
+  });
+  // A search link's `@` pair is only where the map sat when the search was
+  // run, so the results it found may be anywhere around it.
+  it("does not take a search link's map centre as the place's coordinates", () => {
+    const link = "https://www.google.com/maps/search/ramen/@35.66,139.70,15z";
+    expect(pasteToStop(link)).toEqual({ title: "ramen", location: { name: "ramen" }, notes: link });
+  });
+
+  it("reads only Google's own hosts as Google Maps", () => {
+    const link = "https://maps.google.evil.com/maps/place/Kinkaku-ji/@35.0394,135.7292,15z";
+    expect(pasteToStop(link)).toEqual({ title: "", notes: link });
+    for (const host of ["www.google.com.au", "www.google.co.jp", "www.google.de", "maps.google.com"]) {
+      expect(pasteToStop(`https://${host}/maps/place/Kinkaku-ji/@35.0394,135.7292,15z`)?.location?.name).toBe("Kinkaku-ji");
+    }
+  });
+
+  it("keeps what a too-long line loses to the title at the front of the notes", () => {
+    expect(pasteToStop(`${"x".repeat(200)}${"y".repeat(50)}\nCash only`)).toEqual({
+      title: "x".repeat(200),
+      notes: `${"y".repeat(50)}\nCash only`,
+    });
   });
 });

@@ -343,7 +343,6 @@ describe("TripBoardScreen", () => {
     await screen.findByText("Viewing version 2 (read-only)");
 
     fireEvent.paste(document.body, { clipboardData: { files: [], getData: (type: string) => (type === "text/plain" ? "Gelato" : "") } });
-    await new Promise((resolve) => setTimeout(resolve, 50));
     expect(screen.queryByRole("heading", { name: "Add a stop" })).toBeNull();
   });
 

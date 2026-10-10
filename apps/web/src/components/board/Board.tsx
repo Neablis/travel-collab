@@ -751,16 +751,18 @@ export function Board({
     [openCreate],
   );
 
-  // ⌘V anywhere on Plan that is not a text field. The day is the column the
-  // pointer is over or that holds the keyboard focus, then the selected day;
-  // with none of those, the stop is parked, as the drawer's double-click parks
-  // one. The editor is a dialog with its own fields, so a paste inside it is
-  // never this.
+  // ⌘V anywhere on Plan that is not a text field. The day is the column that
+  // holds the keyboard focus, then the column the pointer is over, then the
+  // selected day; with none of those, the stop is parked, as the drawer's
+  // double-click parks one. Focus comes before the pointer because a keyboard
+  // user put it there on purpose, and the pointer may only be resting where
+  // it was last left. The editor is a dialog with its own fields, so a paste
+  // inside it is never this.
   useEffect(() => {
     if (readOnly || previewing) return;
     const onPaste = (event: ClipboardEvent) => {
       const target = event.target instanceof Element ? event.target : null;
-      if (target?.closest("input, textarea, select, [contenteditable], [role='dialog']")) return;
+      if (target?.closest("input, textarea, select, [contenteditable]:not([contenteditable='false']), [role='dialog']")) return;
       // A copied file: Finder puts its name in text/plain beside it, and a
       // photo's filename is not a stop.
       if ((event.clipboardData?.files.length ?? 0) > 0) return;
@@ -768,8 +770,8 @@ export function Board({
       if (text.trim() === "") return;
       const days = latest.current.trip.days;
       const columns = columnRefs.current.slice(0, days.length);
-      let index = columns.findIndex((el) => el?.matches(":hover") === true);
-      if (index < 0) index = columns.findIndex((el) => el?.contains(document.activeElement) === true);
+      let index = columns.findIndex((el) => el?.contains(document.activeElement) === true);
+      if (index < 0) index = columns.findIndex((el) => el?.matches(":hover") === true);
       const day = index >= 0 ? days[index] : focusedDay === null ? undefined : days[focusedDay];
       event.preventDefault();
       addFromText(text, day?.dayId);
