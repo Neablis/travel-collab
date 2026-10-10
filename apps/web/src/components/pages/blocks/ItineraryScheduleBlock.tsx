@@ -88,7 +88,7 @@ export function ItineraryScheduleBlock({ payload, accents }: { payload: Itinerar
  * phone does not get to make it false. What goes is the layout — a timed column
  * and a place line per stop measured ~420px a day at 390px, so the demo's
  * fourteen days were a 5,848px block (KI-2026-09-25-f). Here a day is its
- * label, date and cities over one wrapped line, `time title · time title`.
+ * label, date and cities over one short line per stop: its time and title.
  */
 export function ItineraryScheduleCompact({ payload, accents }: { payload: ItineraryPayload; accents: CityAccents }) {
   return (
@@ -113,28 +113,34 @@ export function ItineraryScheduleCompact({ payload, accents }: { payload: Itiner
                 running under the list's `overflow-hidden` (CodeRabbit, PR #367).
                 The editor's `.ProseMirror` rule wraps it today; this block
                 should not depend on its host for it. */}
-            <span className={cn("break-words text-sm", day.stops.length === 0 ? "text-slate" : "text-ink")}>
-              {day.stops.length === 0
-                ? "Nothing planned yet"
-                : day.stops.map((stop, i) => (
-                    <span key={i}>
-                      {i > 0 ? " · " : null}
-                      {/* Nowrap: "9 pm" broken across two lines reads as a 9 and a stray "pm". */}
-                      {stop.time ? (
-                        <>
-                          <DataText size="xs" className="whitespace-nowrap text-ink">
-                            {stop.time}
-                          </DataText>{" "}
-                        </>
-                      ) : null}
+            {/* **One line per stop** (Mitchell, phone Overview: "too run on
+                sentence … more newlines between activities so it's actually
+                readable"). It was one wrapped line a day, `time title · time
+                title`. Still no place line and no per-stop list, which is the
+                density this form exists for — only a line break per stop, with
+                the time in a narrow column so the titles start together. */}
+            {day.stops.length === 0 ? (
+              <span className="text-sm text-slate">Nothing planned yet</span>
+            ) : (
+              <span className="mt-0.5 flex flex-col gap-1">
+                {day.stops.map((stop, i) => (
+                  <span key={i} data-testid="itinerary-stop" className="flex items-baseline gap-2 text-sm text-ink">
+                    {/* Nowrap: "9 pm" broken across two lines reads as a 9 and a stray "pm". */}
+                    <DataText size="xs" className="w-16 shrink-0 whitespace-nowrap text-ink">
+                      {stop.time}
+                    </DataText>
+                    {stop.time ? " " : null}
+                    <span className="min-w-0 break-words">
                       {stop.title}
                       {/* Nowrap for the same reason: "(To" / "book)" is two fragments, not a standing. */}
                       {stop.status ? (
                         <span className={cn("whitespace-nowrap", stop.status === "To book" ? "text-warning-ink" : "text-slate")}> ({stop.status})</span>
                       ) : null}
                     </span>
-                  ))}
-            </span>
+                  </span>
+                ))}
+              </span>
+            )}
           </span>
         );
       })}
