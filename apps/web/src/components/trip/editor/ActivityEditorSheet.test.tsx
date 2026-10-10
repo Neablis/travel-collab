@@ -168,6 +168,37 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("ActivityEditorSheet", () => {
+  // KI-2026-10-09-b, for the editor: it opens from state with no trigger, so
+  // Radix sent focus to <body> on close. Said through the keyboard (the wall
+  // bans reading focus): Enter reopens it only if the opener has focus back.
+  it("hands focus back to what opened it when it closes", async () => {
+    function EditButton() {
+      const { openEdit } = useEditor();
+      return (
+        <button type="button" onClick={() => openEdit(SCHEDULED_ACTIVITY_ID)}>
+          Open the stop
+        </button>
+      );
+    }
+    render(
+      <TripProvider tripId={TRIP_ID}>
+        <EditorHost>
+          <EditButton />
+          <PeopleProvider tripId={TRIP_ID}>
+            <ActivityEditorSheet />
+          </PeopleProvider>
+        </EditorHost>
+      </TripProvider>,
+    );
+    await userEvent.tab();
+    await userEvent.keyboard("{Enter}");
+    await screen.findByDisplayValue("Existing stop");
+    await userEvent.keyboard("{Escape}");
+    await vi.waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await userEvent.keyboard("{Enter}");
+    expect(await screen.findByDisplayValue("Existing stop")).toBeTruthy();
+  });
+
   it("is titled Add a stop in create mode", () => {
     renderEditorSheet({ mode: "create" });
     expect(screen.getByRole("heading", { name: "Add a stop" })).toBeTruthy();

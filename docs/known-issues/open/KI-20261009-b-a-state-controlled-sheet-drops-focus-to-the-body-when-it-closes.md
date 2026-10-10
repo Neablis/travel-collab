@@ -4,7 +4,10 @@
   tab from the top of the page to get back to where they were.
 - **Area:** `apps/web/src/components/ui/sheet.tsx` and its callers that open it from state, with
   no `Dialog.Trigger` and no `onCloseAutoFocus`:
-  - `components/trip/editor/ActivityEditorSheet.tsx` (~:212), including after a conflicts-sheet Jump
+  - ~~`components/trip/editor/ActivityEditorSheet.tsx`~~ fixed by M41 part 7: `EditorHost` keeps
+    what had focus when `openCreate`/`openEdit` ran, and the sheet's `onCloseAutoFocus` hands it
+    back (`ActivityEditorSheet.test.tsx`, *hands focus back to what opened it*). Opened from a
+    double-click on a river, focus was nowhere in particular, and still falls to `<body>`.
   - `components/trip/SettingsSheet.tsx` (~:246), opened from the title or the ⋯ menu
   - `components/playbooks/DiscoverScreen.tsx` (~:533)
   - `components/home/NewTripWizard.tsx` (~:148)
@@ -20,4 +23,7 @@
 - **Fix direction:** pass `onCloseAutoFocus` from each caller and focus the control that opened
   the sheet. The keyboard-driven tests in `ConflictsChip.test.tsx` and `TripHeader.test.tsx`
   show how to test this, because the lint wall bans reading `document.activeElement`.
+- **Progress:** M41 part 7's ⌘K palette restores focus itself before running a command, so a
+  sheet a command opens closes back onto the control the person was on, for the editor today
+  and for the others once each is fixed.
 - **First noted:** 2026-10-09, M39 Part 6's fix for its own sheet.

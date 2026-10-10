@@ -221,7 +221,7 @@ export function SettingsSheet({
         sections.current[section] = null;
       };
     };
-    return { cover: at("cover"), people: at("people") };
+    return { cover: at("cover"), people: at("people"), share: at("share") };
   }, [scrollTo]);
   const onCoverSettled = useCallback(() => {
     if (scrollTo !== null) scrollIntoView(sections.current[scrollTo] ?? null);
@@ -456,7 +456,7 @@ export function SettingsSheet({
             `viewer`, so they lose Share here as everywhere. The heading goes
             with it — a heading over nothing is a promise of a control. */}
         {!readOnly && (
-          <div>
+          <div id="share" ref={landing.share} className="scroll-mt-4">
             <SectionHeading>Read-only snapshots</SectionHeading>
             <Text as="span" variant="muted" className="mb-2 block">
               A snapshot is the plan as it is now, for anyone with the link to read. Unlike an invite, it adds nobody

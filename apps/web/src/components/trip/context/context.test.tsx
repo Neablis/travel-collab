@@ -142,4 +142,33 @@ describe("trip context spine", () => {
     expect(second.openEdit).toBe(first.openEdit);
     expect(second.close).toBe(first.close);
   });
+
+  // PR 398 review: ⌘K over an open sheet reopens it with focus on the sheet's
+  // own field, which is gone once it closes. The control that first opened it
+  // is where focus goes back to; after a close, the next opening records anew.
+  it("remembers where focus was only when the editor opens from outside it", () => {
+    let api: ReturnType<typeof useEditor> | undefined;
+    function Probe() {
+      api = useEditor();
+      return null;
+    }
+    render(
+      <EditorHost>
+        <Probe />
+        <button>opener</button>
+        <button>in the sheet</button>
+      </EditorHost>,
+    );
+    const opener = screen.getByRole("button", { name: "opener" });
+    const inSheet = screen.getByRole("button", { name: "in the sheet" });
+    act(() => opener.focus());
+    act(() => api!.openEdit("a-1"));
+    act(() => inSheet.focus());
+    act(() => api!.openCreate({ dayId: "d1" }));
+    expect(api!.returnFocus.current).toBe(opener);
+
+    act(() => api!.close());
+    act(() => api!.openCreate());
+    expect(api!.returnFocus.current).toBe(inSheet);
+  });
 });

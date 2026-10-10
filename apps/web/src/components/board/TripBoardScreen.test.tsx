@@ -1,16 +1,19 @@
 import { useSyncExternalStore, type ComponentProps } from "react";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { ASK_FAILED_MESSAGE, TripCommand, type TripDetail } from "@tc/contracts";
 import { TripBoardScreen } from "@/components/board/TripBoardScreen";
+import { moveCommands } from "@/components/board/moveCommands";
 import { TripProvider } from "@/components/trip/context/TripProvider";
 import { EditorHost, useEditor } from "@/components/trip/context/EditorHost";
 import { FocusProvider } from "@/components/trip/context/FocusProvider";
 import { LensRouter } from "@/components/trip/context/LensRouter";
 import { PhoneAskTab } from "@/components/nav/PhoneTabBar";
+import { usePhoneAsk } from "@/components/nav/phoneAsk";
+import { type PaletteCommand, usePaletteCommands } from "@/components/palette/paletteRegistry";
 import { activityFactory, costedTripDetailFixture, historyFixture, locationFactory, tripCoverFactory, tripDetailFixture } from "@tc/factories";
 import { makeTripHandlers, makeAccountPlanHandler, makeNearbyStopsHandler, makePagesHandlers } from "@/mocks/handlers";
 import { setViewportMatches, triggerResize } from "../../../vitest.setup";
@@ -2638,5 +2641,185 @@ describe("the add-a-stop sheet on a refused change", () => {
     // double-click still makes a stop that belongs to no day.
     const added = onCommand.mock.calls.map(([c]) => c).find((c) => c.type === "AddActivity");
     expect(added && "dayId" in added ? added.dayId : undefined).toBeUndefined();
+  });
+});
+
+// ADR-068 §2, on the real screen: what the trip registers for ⌘K runs the
+// page's own controls' functions. Each case does the thing both ways and
+// compares, so a command that re-implemented its action, or a control that
+// stopped using the shared one, fails here. The palette's own behaviour is
+// `CommandPalette.test.tsx`; this reads the registry it lists from.
+describe("⌘K runs the trip page's own actions", () => {
+  function renderWithPalette(tripId: string) {
+    let commands: readonly PaletteCommand[] = [];
+    let ask: ReturnType<typeof usePhoneAsk> = null;
+    function PaletteSpy() {
+      commands = usePaletteCommands();
+      ask = usePhoneAsk();
+      return null;
+    }
+    render(
+      <TripProvider tripId={tripId}>
+        <FocusProvider>
+          <EditorHost>
+            <LensRouter>
+              <TripBoardScreen tripId={tripId} />
+              <PaletteSpy />
+            </LensRouter>
+          </EditorHost>
+        </FocusProvider>
+      </TripProvider>,
+    );
+    return {
+      run: (id: string) => {
+        const command = commands.find((c) => c.id === id);
+        if (command === undefined) throw new Error(`no palette command "${id}" in ${commands.map((c) => c.id).join(", ")}`);
+        act(() => command.run());
+      },
+      openAssistant: () => act(() => ask?.onOpen()),
+      ids: () => commands.map((c) => c.id),
+    };
+  }
+
+  it("goes to a lens by the URL the lens's tab goes by", async () => {
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    const { run } = renderWithPalette(fixture.tripId);
+    await screen.findByRole("heading", { name: "Rome 2027" });
+
+    fireEvent.click(screen.getByRole("tab", { name: "Calendar" }));
+    const byTab = replaceSpy.mock.calls.at(-1);
+    navigateToView("Plan");
+    replaceSpy.mockClear();
+
+    run("view:Calendar");
+    expect(replaceSpy.mock.calls.at(-1)).toEqual(byTab);
+  });
+
+  it("opens Trip settings, as the trip's title does", async () => {
+    const fixture = tripDetailFixture();
+    // The sheet asks who is reading (`useSessionUser`).
+    server.use(...makeTripHandlers(fixture), http.get("/api/auth/session", () => HttpResponse.json({ user: { id: "dev-alice" } })));
+    const { run } = renderWithPalette(fixture.tripId);
+    await screen.findByRole("heading", { name: "Rome 2027" });
+
+    run("settings");
+    expect(await screen.findByRole("dialog", { name: /trip settings/i })).toBeTruthy();
+  });
+
+  it("undoes through the History control's own UndoLastChange", async () => {
+    const fixture = tripDetailFixture();
+    const sent: string[] = [];
+    server.use(
+      ...makeTripHandlers(fixture, {
+        history: { tripId: fixture.tripId, entries: [], canUndo: true, canRedo: false },
+        onCommand: (command) => sent.push(command.type),
+      }),
+    );
+    const { run } = renderWithPalette(fixture.tripId);
+    await screen.findByRole("heading", { name: "Rome 2027" });
+
+    await waitFor(() => run("undo"));
+    await waitFor(() => expect(sent).toEqual(["UndoLastChange"]));
+  });
+
+  it("opens the assistant by the opener the header's Ask uses", async () => {
+    setViewportMatches({ "(min-width: 1180px)": true });
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    const { openAssistant } = renderWithPalette(fixture.tripId);
+    await screen.findByRole("heading", { name: "Rome 2027" });
+    expect(screen.queryByRole("complementary", { name: "Assistant" })).toBeNull();
+
+    openAssistant();
+    expect(await screen.findByRole("complementary", { name: "Assistant" })).toBeTruthy();
+  });
+
+  it("opens New stop on the selected day, as a paste onto it does", async () => {
+    const fixture = tripDetailFixture({
+      days: [{ dayId: "9f1c2b7e-5d3a-4c8b-9e2f-7a6d4b1c8e35", activityIds: [], date: null, costSubtotal: 0 }],
+      activities: {},
+    });
+    server.use(...makeTripHandlers(fixture));
+    const { run } = renderWithPalette(fixture.tripId);
+    await screen.findByRole("heading", { name: "Rome 2027" });
+    const column = screen.getAllByTestId("day-column")[0]!;
+    await userEvent.click(within(column).getByRole("button", { name: /^Day 1/ }));
+
+    run("new-stop");
+    const sheet = await screen.findByRole("dialog", { name: "Add a stop" });
+    expect((within(sheet).getByLabelText("Day") as HTMLSelectElement).value).toBe(fixture.days[0]!.dayId);
+  });
+
+  // PR 395 review: a day's stops moved only by Plan's day-header drag. The
+  // command is that drag's `moveDay`, so it sends what the drag sends: the
+  // day's stops through `moveCommands`, as ONE batch (one History entry).
+  it("moves the selected day's stops to another day as one batch, as the day header's drag does", async () => {
+    const costed = costedTripDetailFixture();
+    const day2 = "9f1c2b7e-5d3a-4c8b-9e2f-7a6d4b1c8e35";
+    const fixture = { ...costed, days: [...costed.days, { dayId: day2, activityIds: [], date: "2027-06-02", costSubtotal: 0 }] };
+    const batches: unknown[][] = [];
+    server.use(
+      // First, so it sees each batch and hands it on to the trip's own mock.
+      http.post("/api/trips/:tripId/commands/batch", async ({ request }) => {
+        const body = (await request.clone().json()) as { commands?: unknown[]; units?: { commands: unknown[] }[] };
+        batches.push(body.units ? body.units.flatMap((u) => u.commands) : (body.commands ?? []));
+        return undefined;
+      }),
+      ...makeTripHandlers(fixture),
+    );
+    const { run } = renderWithPalette(fixture.tripId);
+    await screen.findByRole("heading", { name: "Rome 2027" });
+    const column = screen.getAllByTestId("day-column")[0]!;
+    await userEvent.click(within(column).getByRole("button", { name: /^Day 1/ }));
+
+    run(`move:day:${fixture.days[0]!.dayId}:${day2}`);
+    await waitFor(() => expect(batches).toEqual([moveCommands(fixture, fixture.days[0]!.activityIds, day2)]));
+    expect(batches[0]).toHaveLength(2);
+  });
+
+  // PR 398 review: while a past version is previewed, `inert` on the board is
+  // the only guard against a real command built from the preview's state, and
+  // ⌘K needs no click. New stop and both kinds of move go; lenses stay.
+  it("offers nothing that changes the trip while a past version is previewed", async () => {
+    const costed = costedTripDetailFixture();
+    const day2 = "9f1c2b7e-5d3a-4c8b-9e2f-7a6d4b1c8e35";
+    const fixture = { ...costed, days: [...costed.days, { dayId: day2, activityIds: [], date: "2027-06-02", costSubtotal: 0 }] };
+    server.use(...makeTripHandlers(fixture, { history: historyFixture(fixture.tripId), detailAt: { 2: fixture } }));
+    const { ids } = renderWithPalette(fixture.tripId);
+    await screen.findByRole("heading", { name: "Rome 2027" });
+    const column = screen.getAllByTestId("day-column")[0]!;
+    await userEvent.click(within(column).getByRole("button", { name: /^Day 1/ }));
+    expect(ids()).toContain("new-stop");
+    expect(ids()).toContain(`move:day:${fixture.days[0]!.dayId}:${day2}`);
+
+    fireEvent.click(screen.getByRole("button", { name: "History" }));
+    fireEvent.click(await screen.findByRole("button", { name: /Undid: Added "Colosseum" to the backlog/ }));
+    await screen.findByText("Viewing version 2 (read-only)");
+    expect(ids()).toContain("view:Calendar");
+    expect(ids().filter((id) => id === "new-stop" || id.startsWith("move:"))).toEqual([]);
+
+    // Calendar's city-card moves, for a cell focus is in (jsdom does not keep
+    // focus out of an `inert` subtree, which is the point: ⌘K would not either).
+    act(() => navigateToView("Calendar"));
+    const cell = (await screen.findAllByTestId("calendar-cell")).find((el) => el.dataset.dayIndex === "0")!;
+    act(() => cell.focus());
+    expect(ids().filter((id) => id.startsWith("move:"))).toEqual([]);
+  });
+
+  // PR 398 review: a create sheet keeps its draft, so New stop over an open
+  // editor would drop its prefill (and focus would go back into the sheet).
+  it("offers no New stop while the editor is open", async () => {
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    const { run, ids } = renderWithPalette(fixture.tripId);
+    await screen.findByRole("heading", { name: "Rome 2027" });
+
+    run("new-stop");
+    await screen.findByRole("dialog", { name: "Add a stop" });
+    expect(ids()).not.toContain("new-stop");
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Add a stop" })).toBeNull());
+    expect(ids()).toContain("new-stop");
   });
 });

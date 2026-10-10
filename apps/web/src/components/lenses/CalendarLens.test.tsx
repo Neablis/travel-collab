@@ -1,9 +1,11 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { act, cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { tripDetailFixture } from "@tc/factories";
 import { FocusProvider, useFocus } from "../trip/context/FocusProvider";
+import { type PaletteCommand, usePaletteCommands } from "../palette/paletteRegistry";
 import { CalendarLens } from "./CalendarLens";
+import { resolveCalendarDrop } from "./calendarDrop";
 
 afterEach(cleanup);
 
@@ -640,5 +642,70 @@ describe("CalendarLens tag focus", () => {
 
     expect(screen.getByTestId("focused-day").textContent).toBe("0");
     expect(screen.getAllByTestId("calendar-tag-match").length).toBeGreaterThan(0);
+  });
+});
+
+// PR 395 review: a city card moved only by a drag. ⌘K offers the same move
+// from the keyboard, for the cards in the cell focus is on, and it is the
+// drag's own `onDrop` with the outcome a drag onto that cell resolves to
+// (ADR-068 §2), so the board makes it one batch either way.
+describe("CalendarLens ⌘K moves a city card", () => {
+  const day2 = "55555555-5555-4555-8555-555555555555";
+  function twoDays() {
+    const detail = detailFixture();
+    return { ...detail, days: [...detail.days, { dayId: day2, activityIds: [], date: "2027-06-02", costSubtotal: 0 }] };
+  }
+
+  function renderWithPalette(detail: ReturnType<typeof tripDetailFixture>, onDrop?: (outcome: unknown) => void) {
+    let commands: readonly PaletteCommand[] = [];
+    function PaletteSpy() {
+      commands = usePaletteCommands();
+      return null;
+    }
+    render(
+      <FocusProvider>
+        <CalendarLens detail={detail} onDrop={onDrop} />
+        <button>elsewhere</button>
+        <PaletteSpy />
+      </FocusProvider>,
+    );
+    return { commands: () => commands };
+  }
+  const cell = (dayIndex: number) => screen.getAllByTestId("calendar-cell").find((el) => el.dataset.dayIndex === String(dayIndex))!;
+
+  it("offers the focused cell's cards to every other day, and runs the drag's own drop", () => {
+    const detail = twoDays();
+    const onDrop = vi.fn();
+    const { commands } = renderWithPalette(detail, onDrop);
+    expect(commands()).toEqual([]);
+
+    act(() => cell(0).focus());
+    expect(commands().map((c) => c.label)).toEqual([
+      "Move Rome to Day 2",
+      "Move Rome to a new day after Day 2",
+      "Move Day 1's stops with no city to Day 2",
+      "Move Day 1's stops with no city to a new day after Day 2",
+    ]);
+
+    act(() => commands()[0]!.run());
+    const dragged = resolveCalendarDrop(detail, { kind: "city-card", activityIds: [rome, forum], fromDayIndex: 0 }, { kind: "calendar-day", dayIndex: 1 });
+    expect(dragged).toEqual({ kind: "stops", activityIds: [rome, forum], toDayId: day2, newDays: 0 });
+    expect(onDrop).toHaveBeenCalledExactlyOnceWith(dragged);
+
+    act(() => commands()[1]!.run());
+    expect(onDrop).toHaveBeenLastCalledWith({ kind: "stops", activityIds: [rome, forum], toDayId: null, newDays: 1 });
+  });
+
+  it("lets the cell go when focus moves elsewhere, and offers nothing read-only", () => {
+    const { commands } = renderWithPalette(twoDays(), vi.fn());
+    act(() => cell(0).focus());
+    expect(commands()).not.toEqual([]);
+    act(() => screen.getByRole("button", { name: "elsewhere" }).focus());
+    expect(commands()).toEqual([]);
+    cleanup();
+
+    const readOnly = renderWithPalette(twoDays());
+    act(() => cell(0).focus());
+    expect(readOnly.commands()).toEqual([]);
   });
 });

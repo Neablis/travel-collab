@@ -7,6 +7,9 @@ import type { TimeWindow } from "@tc/contracts";
 import { useTrip } from "@/components/trip/context/TripProvider";
 import { useEditor } from "@/components/trip/context/EditorHost";
 import { useDaySync, useFocus } from "@/components/trip/context/FocusProvider";
+import { lensCommands, moveStopsCommands, newStopCommand } from "@/components/palette/commands";
+import { usePaletteSource } from "@/components/palette/paletteRegistry";
+import { newStopPrefill } from "@/components/trip/newStopPrefill";
 import { useLens } from "@/components/trip/context/LensRouter";
 import { chipModel, cityFor } from "@/lib/dayChips";
 import { DayChips } from "@/components/trip/DayChips";
@@ -110,7 +113,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   const refreshSuggestions = useRef(tripSuggestions?.refresh);
   refreshSuggestions.current = tripSuggestions?.refresh;
   const { view, setView } = useLens();
-  const { openCreate, openEdit } = useEditor();
+  const { openCreate, openEdit, state: editor } = useEditor();
   const suggestions = useBoardSuggestions();
   // Task 4's FocusProvider is mounted around this whole tree (trips/[tripId]/
   // page.tsx), so this hook must run unconditionally before the early
@@ -153,6 +156,47 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   const headerReady = abovePhone !== undefined && coverSettled;
   const boardRenders = status === "ready" && trip !== null && activeTrip !== null && headerReady;
   usePhoneAskEntry(boardRenders && !isDemoTripId(tripId) ? assistant.show : undefined, assistant.open);
+  // **⌘K's lenses and *New stop*** (M41 D9, ADR-068): the lens switcher's
+  // own `setView`, and the editor opened on the selected day with a fitted
+  // time (`newStopPrefill`, what a paste onto a day opens), else parked. The
+  // assistant needs nothing here: the palette offers the opener registered
+  // just above, the one the phone's tab bar uses.
+  const focusedDayId = focusedDay === null ? undefined : activeTrip?.days[focusedDay]?.dayId;
+  // A day's header dropped on another day (M41 D7): its stops move there as one
+  // batch, through the move every other drop builds (ADR-068 §3). Times kept.
+  // Up here, above the early returns, because ⌘K's *Move Day N's stops*
+  // below is this same function (PR 395 review: a day moved only by a drag).
+  const moveDay = (fromDayId: string, toDayId: string) => {
+    const from = activeTrip?.days.find((d) => d.dayId === fromDayId);
+    if (activeTrip == null || from === undefined) return;
+    const commands = moveCommands(activeTrip, from.activityIds, toDayId);
+    if (commands.length > 0) void dispatchBatch(commands);
+  };
+  // **Nothing that changes the trip while a past version is on screen** (PR 398
+  // review). The board and rack are `inert` then, which is the only thing
+  // standing between a click and a real command built from the preview's
+  // state (`dispatch` has no preview guard: see the rack's wrapper below), and
+  // ⌘K runs these without a click. The lenses stay: switching is reading.
+  const canChangeTrip = canEditBoard && preview.seq === null;
+  const dayToMove = canChangeTrip && focusedDay !== null ? activeTrip?.days[focusedDay] : undefined;
+  usePaletteSource(
+    "trip-board",
+    boardRenders && activeTrip !== null
+      ? [
+          ...lensCommands(setView),
+          // Not over an open editor (PR 398 review): a create sheet keeps its
+          // draft, so a second *New stop* would drop its prefill.
+          ...(canChangeTrip && editor.mode === null ? [newStopCommand(() => openCreate(newStopPrefill(activeTrip, focusedDayId)))] : []),
+          ...(dayToMove !== undefined && dayToMove.activityIds.length > 0
+            ? moveStopsCommands(
+                { id: `day:${dayToMove.dayId}`, name: `Day ${activeTrip.days.indexOf(dayToMove) + 1}'s stops` },
+                activeTrip.days.flatMap((day, index) => (day.dayId === dayToMove.dayId ? [] : [{ key: day.dayId, label: `Day ${index + 1}` }])),
+                (toDayId) => moveDay(dayToMove.dayId, toDayId),
+              )
+            : []),
+        ]
+      : [],
+  );
   // Which of SPEC §9/§23's presentations the assistant opens as. `AssistantRail`
   // is emphatic that the caller must not reach for `useIsPhone()` — it returns
   // `false` on the server and on the first client paint, so a JS-gated swap
@@ -605,15 +649,6 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     const newDayIds = Array.from({ length: outcome.newDays }, () => crypto.randomUUID());
     const toDayId = outcome.toDayId ?? newDayIds.at(-1)!;
     const commands = moveCommands(activeTrip, outcome.activityIds, toDayId, { newDayIds });
-    if (commands.length > 0) void dispatchBatch(commands);
-  };
-
-  // A day's header dropped on another day (M41 D7): its stops move there as one
-  // batch, through the move every other drop builds (ADR-068 §3). Times kept.
-  const moveDay = (fromDayId: string, toDayId: string) => {
-    const from = activeTrip.days.find((d) => d.dayId === fromDayId);
-    if (from === undefined) return;
-    const commands = moveCommands(activeTrip, from.activityIds, toDayId);
     if (commands.length > 0) void dispatchBatch(commands);
   };
 
@@ -1302,7 +1337,9 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                   />
                 )}
                 {view === "Calendar" && (
-                  <CalendarLens detail={activeTrip} onSelectActivity={canEditBoard ? openEdit : undefined} onDrop={canEditBoard ? calendarDrop : undefined} />
+                  // No drop while previewing: the lens offers its moves to ⌘K too,
+                  // which `inert` does not reach (PR 398 review).
+                  <CalendarLens detail={activeTrip} onSelectActivity={canEditBoard ? openEdit : undefined} onDrop={canChangeTrip ? calendarDrop : undefined} />
                 )}
               </PageContainer>
             )}
