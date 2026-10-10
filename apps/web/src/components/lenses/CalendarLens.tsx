@@ -450,7 +450,7 @@ export function CalendarLens({
           // A date after the trip's end takes a city card (M41 D2). The ISO
           // strings compare in date order.
           data-drop-after={editable && lastTripDate !== null && cell.date > lastTripDate ? cell.date : undefined}
-          className="bg-surface data-[drop-over]:bg-moss"
+          className="bg-surface data-drop-over:bg-moss"
           // eslint-disable-next-line no-restricted-syntax -- dc.html:665's 116px min height / 8px-9px padding has no token equivalent
           style={CELL_STYLE}
         >
@@ -507,7 +507,7 @@ export function CalendarLens({
           // `day-sync-target`: the clause-2/3 follow above scrolls this cell
           // into view, and the class keeps it clear of the sticky header
           // stack when it does (globals.css, KI-2026-09-13-a).
-          "day-sync-target h-full w-full flex-col items-stretch justify-start rounded-none bg-surface text-left hover:opacity-90 data-[drop-over]:bg-moss",
+          "day-sync-target h-full w-full flex-col items-stretch justify-start rounded-none bg-surface text-left hover:opacity-90 data-drop-over:bg-moss",
           // Mitchell, preview feedback on PR #55: "There should be a border on
           // the day card when i click, and the day is selected, either on the
           // day cards at top, or the clicking here." The click already set
