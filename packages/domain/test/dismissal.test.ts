@@ -191,6 +191,36 @@ describe("conflict dismissal lapses when the conflict stops being detected (KI-1
     expect(next.dismissedConflictIds).toEqual([conflictId]);
   });
 
+  // Mitchell, 2026-10-10 (feedback #8): an overlap with a pending stop is not a
+  // conflict until the stop is no longer pending. Marking a stop pending is
+  // therefore one more way a conflict stops being detected, and confirming it
+  // one more way the same conflict comes back.
+  const setKind = (kind: "pending" | "planned"): TripCommand => ({
+    type: "UpdateActivity",
+    tripId: TRIP,
+    activityId: A2,
+    kind,
+    pendingReason: null,
+  });
+
+  it("brings the overlap back when a pending stop is confirmed", () => {
+    const pending = apply(conflictedState(), setKind("pending"));
+    expect(detectConflicts(pending)).toEqual([]);
+
+    const confirmed = apply(pending, setKind("planned"));
+    expect(detectConflicts(confirmed).map((c) => c.subjects)).toEqual([[A1, A2]]);
+  });
+
+  it("lapses a dismissal when a stop goes pending, so confirming it shows the conflict again", () => {
+    const { state, conflictId } = dismissed();
+    const pending = apply(state, setKind("pending"));
+    expect(pending.dismissedConflictIds).toEqual([]);
+
+    const confirmed = apply(pending, setKind("planned"));
+    expect(detectConflicts(confirmed).map((c) => c.id)).toEqual([conflictId]);
+    expect(confirmed.dismissedConflictIds).toEqual([]);
+  });
+
   it("does not lapse the dismissal it just created", () => {
     const base = conflictedState();
     const conflictId = detectConflicts(base)[0]!.id;
