@@ -566,6 +566,14 @@ export async function classifyAskIntent(
       // tokens, not thousands.
       output: variant.output,
       maxOutputTokens: MAX_VERDICT_TOKENS,
+      // **The least thinking a verdict needs.** A reasoning model left at its
+      // provider's default spends the output budget thinking before it answers
+      // — KI-88, which failed every turn open to the full tool set and the
+      // strong tier. Haiku 5.5 (the classifier from 2026-10-10) thinks by
+      // default at medium effort. `low` rather than `none`: a provider that
+      // cannot turn thinking off would refuse `none`, and a refused classifier
+      // fails open on every turn, which is the expensive direction.
+      reasoning: "low",
       abortSignal: signal ? AbortSignal.any([signal, timeout]) : timeout,
       // Names this call in Sentry's AI Agents view (ADR-032). It matters more
       // here than anywhere else in the app: this is a SECOND round-trip on
