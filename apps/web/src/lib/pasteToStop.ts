@@ -23,25 +23,34 @@ const NOTES_MAX = 2000;
  * nothing in it.
  *
  * - A Google Maps place or search link gives a title and a place, with the
- *   place's own coordinates when the link carries them.
+ *   place's own coordinates when the link carries them (a search link's map
+ *   centre is not the place's). The link itself goes into the notes.
  * - An Apple Maps link with `name` (or `q`, or `address`) and `coordinate`
  *   (or `ll`) gives the same.
  * - A Google directions link or bare map view is a link, not a place.
  * - A short link or any other web link goes into the notes, and the title is
  *   left empty.
  * - Plain text: its first line is the title, and any further lines are the
- *   notes.
+ *   notes, after whatever of the first line did not fit in the title.
  */
 export function pasteToStop(text: string): PastedStop | null {
   const trimmed = text.trim();
   if (trimmed === "") return null;
 
   const url = asWebUrl(trimmed);
-  if (url !== null) return googleMaps(url) ?? appleMaps(url) ?? { title: "", notes: clip(trimmed, NOTES_MAX) };
+  if (url !== null) {
+    // A place keeps its link in the notes too, so what was pasted is not lost
+    // when the name or the coordinates were read wrong.
+    const found = googleMaps(url) ?? appleMaps(url);
+    return { ...(found ?? { title: "" }), notes: clip(trimmed, NOTES_MAX) };
+  }
 
+  // Whatever of the first line does not fit in the title leads the notes.
   const [first = "", ...rest] = trimmed.split(/\r?\n/).filter((line) => line.trim() !== "");
-  const notes = rest.join("\n").trim();
-  return { title: clip(first.trim(), TITLE_MAX), ...(notes !== "" && { notes: clip(notes, NOTES_MAX) }) };
+  const line = first.trim();
+  const title = clip(line, TITLE_MAX);
+  const notes = [line.slice(title.length).trim(), ...rest].join("\n").trim();
+  return { title, ...(notes !== "" && { notes: clip(notes, NOTES_MAX) }) };
 }
 
 function asWebUrl(text: string): URL | null {
@@ -55,12 +64,16 @@ function asWebUrl(text: string): URL | null {
 
 function googleMaps(url: URL): PastedStop | null {
   const host = url.hostname.toLowerCase();
-  const isGoogle = /(^|\.)google\.[a-z.]+$/.test(host);
+  // `google.com`, a country's `google.de`, or `google.co.jp` / `google.com.au`,
+  // and nothing after it, so `maps.google.evil.com` is not Google.
+  const isGoogle = /(^|\.)google\.(com|[a-z]{2})(\.[a-z]{2})?$/.test(host);
   if (!isGoogle || !(host.startsWith("maps.") || url.pathname.startsWith("/maps"))) return null;
 
   // `/maps/place/<name>/@lat,lng,zoom/data=…!3d<lat>!4d<lng>…`. The `@` pair
   // is where the map was centred when the link was copied, and the `!3d…!4d`
-  // pair is the place itself, so that one wins when both are there.
+  // pair is the place itself, so that one wins when both are there. A place
+  // link's map is centred on the place, but a search link's is wherever the
+  // map sat when the search ran, so only a place's `@` pair is used.
   //
   // Only a place or a search names somewhere. Directions (`/maps/dir/…`) and
   // a bare map view (`/maps/@lat,lng,zoom`) carry an `@` too, but that is
@@ -78,7 +91,7 @@ function googleMaps(url: URL): PastedStop | null {
   const name = dms === undefined ? rawName : "";
 
   const pinned = /!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/.exec(url.pathname);
-  const centred = /@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/.exec(url.pathname);
+  const centred = segments[named] === "place" ? /@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/.exec(url.pathname) : null;
   const coords =
     coordsFrom(pinned) ?? coordsFrom(centred) ?? coordsFrom(/^(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)$/.exec(name)) ?? dms ?? null;
   return place(name, coords);

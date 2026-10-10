@@ -284,9 +284,9 @@ export function Column({
         fullWidth ? "w-full" : "shrink-0",
         TINT_BG[accent],
         // Same ring the focused chip wears (DayChips), so "this day" reads the
-        // same whichever of the two you picked it from.
-        isFocused && "ring-2 ring-brand",
-        isTextOver && "ring-2 ring-brand",
+        // same whichever of the two you picked it from. A link or text dragged
+        // over the day wears it too, as where the drop will land.
+        (isFocused || isTextOver) && "ring-2 ring-brand",
       )}
       // **268px is a DESKTOP constant, and link 13 is what it cost.** Measured
       // 2026-09-20 at 390x844: a phone was rendering this fixed column inside a

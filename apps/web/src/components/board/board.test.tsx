@@ -730,6 +730,25 @@ describe("pasting onto the plan", () => {
     expect(getEditorState()?.prefill).toMatchObject({ dayId: DAY, title: "Gelato" });
   });
 
+  // jsdom has no pointer, so `:hover` never matches; the second day's column
+  // answers it as a column under the pointer would.
+  it("opens it on the day holding the keyboard focus, not the day under the pointer", () => {
+    const DAY2 = "55555555-5555-4555-8555-555555555555";
+    const trip = fixture();
+    const { getEditorState } = renderBoard(
+      { ...trip, days: [...trip.days, { dayId: DAY2, activityIds: [], date: null, costSubtotal: 0 }] },
+      noopCallbacks(),
+      null,
+    );
+    const hovered = screen.getAllByTestId("day-column").find((el) => el.getAttribute("data-day-id") === DAY2);
+    if (hovered === undefined) throw new Error("no column for the second day");
+    const matches = hovered.matches.bind(hovered);
+    vi.spyOn(hovered, "matches").mockImplementation((selector) => selector === ":hover" || matches(selector));
+    screen.getByRole("button", { name: /^Edit Colosseum/ }).focus();
+    paste(document.body, "Gelato");
+    expect(getEditorState()?.prefill).toMatchObject({ dayId: DAY, title: "Gelato" });
+  });
+
   it("parks the stop when no day is selected or focused", () => {
     const { getEditorState } = renderBoard(fixture(), noopCallbacks(), null);
     paste(document.body, "Gelato");
