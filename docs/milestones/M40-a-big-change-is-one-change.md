@@ -158,7 +158,9 @@ up. Everything merged 2026-10-10:
     Only the two specs I had edited were run.
   - The folder cycle (`assistant` → `board`) was caught only because the full `pnpm lint` was run.
   - **Next time:** before a push that adds a control, `grep -rn '"<its name>"' apps/web/e2e/`
-    finds every spec that would now see two. Run the full `pnpm lint`, not the changed files.
+    finds every spec that would now see two. Run lint and tests over the changed files *and their
+    neighbours*, and leave the full runs to the PR's CI (Mitchell, 2026-10-10;
+    `building-a-milestone.md` step 5). A red CI round is then a fix to push, not a surprise.
 - **Conflict markers were committed once** in a stack merge. `tail -5` had hidden git's conflict
   output. They were caught before the push.
   - **Next time:** run `git diff --check` before committing a merge.
