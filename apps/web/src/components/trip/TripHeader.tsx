@@ -27,7 +27,6 @@ import { AskPill } from "@/components/assistant/AskPill";
 import { SettingsSheet } from "./SettingsSheet";
 import { TripMetaPill, tripCounts, tripDateRange } from "./TripMetaPill";
 import { BudgetChip } from "./BudgetChip";
-import { InstallNudge } from "@/components/install/InstallNudge";
 
 // The bounded chrome surface (design-system.md surface vocabulary, Pattern 4):
 // trip identity (name + status) on one row with Share / Add stop / sync /
@@ -48,7 +47,6 @@ export function TripHeader({
   children,
   pinned,
   conflicts,
-  installNudge = false,
 }: {
   tripId: string;
   /**
@@ -83,11 +81,6 @@ export function TripHeader({
    * it is always there, where Ask is withheld on /demo.
    */
   conflicts?: (neighbour: React.RefObject<HTMLButtonElement | null>) => React.ReactNode;
-  /**
-   * Whether this view may carry the phone's install nudge (Overview and Plan
-   * of a signed-in trip). The nudge applies every other rule itself.
-   */
-  installNudge?: boolean;
 }) {
   // Render from `activeTrip`, not `trip`: `trip` is the server-confirmed
   // detail only, while `activeTrip` folds in TripProvider's optimistic
@@ -695,11 +688,6 @@ export function TripHeader({
           }}
         />
       </header>
-      {/* Under the pinned header, outside it: in the flow, so it covers
-          nothing, and it scrolls away with the line below rather than adding
-          a row to the pinned stack (`--sticky-stack-height` measures the
-          header alone). */}
-      <InstallNudge eligible={installNudge} />
       {/* **What scrolls away on a phone** (M39 D6): the trip's badges and its
           dates, on a line under the pinned row and outside the sticky box. */}
       {/* SPEC §23's date meta line: "the date range only. Stops and cities

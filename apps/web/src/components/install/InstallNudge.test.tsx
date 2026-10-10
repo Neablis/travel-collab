@@ -1,8 +1,7 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createInstallPrompt, recordVisit, type InstallPrompt } from "@/lib/installPrompt";
-import { Sheet } from "@/components/ui/sheet";
-import { INSTALL_NUDGE_DELAY_MS, InstallNudge } from "./InstallNudge";
+import { InstallNudge } from "./InstallNudge";
 
 // A fresh store per test, as in AccountMenu.install.test.tsx.
 let store: InstallPrompt;
@@ -36,16 +35,9 @@ function returning() {
   recordVisit(new Date(2026, 9, 2));
 }
 
-function waitOut() {
-  act(() => {
-    vi.advanceTimersByTime(INSTALL_NUDGE_DELAY_MS);
-  });
-}
-
-const nudge = () => screen.queryByRole("region", { name: "Install Caesura" });
+const card = () => screen.queryByRole("region", { name: "Install Caesura" });
 
 beforeEach(() => {
-  vi.useFakeTimers();
   phone = true;
   stubMedia();
   window.localStorage.clear();
@@ -53,154 +45,95 @@ beforeEach(() => {
 });
 afterEach(() => {
   cleanup();
-  vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
-describe("InstallNudge", () => {
-  it("appears on a returning phone once the trip has been open a few seconds", () => {
+// The trips list's card (Mitchell, 2026-10-10: install moved off the trip
+// page). It asks once, on a returning phone where installing would work.
+describe("InstallNudge — the trips list's install card", () => {
+  it("appears on a returning phone that can install", () => {
     returning();
-    render(<InstallNudge eligible />);
+    render(<InstallNudge />);
     fireInstallable();
-    act(() => {
-      vi.advanceTimersByTime(INSTALL_NUDGE_DELAY_MS - 1);
-    });
-    expect(nudge()).toBeNull();
-    act(() => {
-      vi.advanceTimersByTime(1);
-    });
-    expect(nudge()?.textContent).toContain("Keep Caesura on your home screen");
+    expect(card()?.textContent).toContain("Keep Caesura on your home screen");
   });
 
   it("never appears on a first visit", () => {
     recordVisit(new Date(2026, 9, 2));
     recordVisit(new Date(2026, 9, 2, 23));
-    render(<InstallNudge eligible />);
+    render(<InstallNudge />);
     fireInstallable();
-    waitOut();
-    expect(nudge()).toBeNull();
+    expect(card()).toBeNull();
   });
 
-  it.each([
-    ["a view the caller ruled out", () => render(<InstallNudge eligible={false} />)],
-    [
-      "a desktop",
-      () => {
-        phone = false;
-        render(<InstallNudge eligible />);
-      },
-    ],
-  ])("never appears on %s", (_label, mount) => {
+  it("never appears on a desktop, whose way in is the top nav's Get the app", () => {
+    phone = false;
     returning();
-    mount();
+    render(<InstallNudge />);
     fireInstallable();
-    waitOut();
-    expect(nudge()).toBeNull();
+    expect(card()).toBeNull();
   });
 
   it("never appears where the browser cannot install", () => {
     returning();
-    render(<InstallNudge eligible />);
-    waitOut();
-    expect(nudge()).toBeNull();
-  });
-
-  it("stays away while a sheet is open over the page, and comes back after", async () => {
-    returning();
-    const page = (open: boolean) => (
-      <>
-        <InstallNudge eligible />
-        <Sheet open={open} onOpenChange={() => {}} title="Edit stop">
-          editing
-        </Sheet>
-      </>
-    );
-    const { rerender } = render(page(true));
-    fireInstallable();
-    waitOut();
-    // `hidden: true`: a modal sheet marks everything outside it `aria-hidden`,
-    // which would make the row unfindable by role whether it rendered or not.
-    expect(screen.queryByRole("region", { name: "Install Caesura", hidden: true })).toBeNull();
-    rerender(page(false));
-    // The observer reports a microtask after the sheet's DOM goes.
-    await vi.waitFor(() => expect(nudge()).not.toBeNull());
-  });
-
-  it("waits for the page to be back at its top before pushing anything down", () => {
-    returning();
-    render(<InstallNudge eligible />);
-    fireInstallable();
-    vi.stubGlobal("scrollY", 600);
-    waitOut();
-    expect(nudge()).toBeNull();
-    vi.stubGlobal("scrollY", 0);
-    act(() => {
-      window.dispatchEvent(new Event("scroll"));
-    });
-    expect(nudge()).not.toBeNull();
+    render(<InstallNudge />);
+    expect(card()).toBeNull();
   });
 
   it("Not now hides it on this device for good", () => {
     returning();
-    render(<InstallNudge eligible />);
+    render(<InstallNudge />);
     fireInstallable();
-    waitOut();
     fireEvent.click(screen.getByRole("button", { name: "Not now" }));
-    expect(nudge()).toBeNull();
+    expect(card()).toBeNull();
     cleanup();
 
     // The next page load.
     store = createInstallPrompt(window);
-    render(<InstallNudge eligible />);
+    render(<InstallNudge />);
     fireInstallable();
-    waitOut();
-    expect(nudge()).toBeNull();
+    expect(card()).toBeNull();
   });
 
-  it("Install asks the browser, and gets out of the way", () => {
+  // The same storage key the trip page's row used: a reader who said Not now
+  // to that is not asked again by its replacement.
+  it("stays away for a reader who dismissed the old trip-page row", () => {
     returning();
-    render(<InstallNudge eligible />);
+    window.localStorage.setItem("caesura_install_nudge_dismissed", "1");
+    render(<InstallNudge />);
     fireInstallable();
-    waitOut();
+    expect(card()).toBeNull();
+  });
+
+  it("Install asks the browser, and answers the question for good", () => {
+    returning();
+    render(<InstallNudge />);
+    fireInstallable();
     fireEvent.click(screen.getByRole("button", { name: "Install" }));
     expect(prompt).toHaveBeenCalledTimes(1);
-    expect(nudge()).toBeNull();
-  });
-
-  // Chromium fires a fresh offer on the next load after a cancelled dialog, so
-  // an Install that only hid the row for this page asked again on every trip.
-  it("Install answers the question for good, whatever the dialog's outcome", () => {
-    returning();
-    render(<InstallNudge eligible />);
-    fireInstallable();
-    waitOut();
-    fireEvent.click(screen.getByRole("button", { name: "Install" }));
+    expect(card()).toBeNull();
     cleanup();
 
-    // The next page load, with the browser offering again.
+    // The next load, with the browser offering again after a cancelled dialog.
     store = createInstallPrompt(window);
-    render(<InstallNudge eligible />);
+    render(<InstallNudge />);
     fireInstallable();
-    waitOut();
-    expect(nudge()).toBeNull();
+    expect(card()).toBeNull();
   });
 
-  it("a dialog that refuses to open is not an unhandled rejection", async () => {
-    const unhandled = vi.fn();
-    process.on("unhandledRejection", unhandled);
-    try {
-      returning();
-      render(<InstallNudge eligible />);
-      fireInstallable();
-      prompt.mockRejectedValueOnce(new DOMException("already shown", "InvalidStateError"));
-      waitOut();
-      fireEvent.click(screen.getByRole("button", { name: "Install" }));
-      vi.useRealTimers();
-      await new Promise((resolve) => setTimeout(resolve, 0));
-      expect(unhandled).not.toHaveBeenCalled();
-    } finally {
-      process.off("unhandledRejection", unhandled);
-    }
+  it("shows Safari on an iPhone the two steps", async () => {
+    returning();
+    const iphone = Object.assign(new EventTarget(), {
+      navigator: {
+        userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1",
+        maxTouchPoints: 5,
+      },
+    });
+    store = createInstallPrompt(iphone as unknown as Window);
+    render(<InstallNudge />);
+    fireEvent.click(screen.getByRole("button", { name: "Install" }));
+    const steps = await screen.findByRole("dialog", { name: "Add Caesura to your Home Screen" });
+    expect(steps.textContent).toContain("Choose Add to Home Screen.");
   });
 
   it("asks for nothing when storage throws", () => {
@@ -209,10 +142,9 @@ describe("InstallNudge", () => {
       throw new DOMException("denied", "SecurityError");
     });
     try {
-      render(<InstallNudge eligible />);
+      render(<InstallNudge />);
       fireInstallable();
-      waitOut();
-      expect(nudge()).toBeNull();
+      expect(card()).toBeNull();
     } finally {
       vi.restoreAllMocks();
     }

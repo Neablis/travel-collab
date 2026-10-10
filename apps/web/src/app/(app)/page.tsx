@@ -14,6 +14,7 @@ import { Toast } from "@/components/ui/toast";
 import { PageContainer } from "@/components/ui/page-container";
 import { formatTripDateLong } from "@/lib/formatDate";
 import { NextTripHero } from "@/components/home/NextTripHero";
+import { InstallNudge } from "@/components/install/InstallNudge";
 import { NextTripHeroSkeleton, TripGridSkeleton } from "@/components/home/HomeSkeletons";
 import { RegionError } from "@/components/ui/skeleton";
 import { TripCard } from "@/components/home/TripCard";
@@ -555,6 +556,12 @@ export default function Home() {
             </Button>
           </div>
         </div>
+
+        {/* A returning phone's one-time *Keep Caesura on your home screen*
+            card (Mitchell, 2026-10-10: install moved off the trip and out of
+            the desktop account menu). It renders nothing on a desktop, on a
+            first visit, where installing would not work, and once answered. */}
+        <InstallNudge />
 
         {/* The wizard's own createTrip/Create-empty failures render their own
             inline alert inside the Sheet (NewTripWizard.tsx) — this top-level
