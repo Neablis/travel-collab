@@ -31,6 +31,7 @@ practice. Read the one that matches your task:
 | `billing-without-spending-money.md` | I need to walk checkout, a failed payment, the grace window or a lapse — how, in Stripe test mode, for $0.00, and what would cost real money? |
 | `stacked-prs.md` | This work is too big for one PR — how do I plan the stack, merge it without conflicts, get it reviewed inside CodeRabbit's limits, and finish it? |
 | `third-party-services-on-a-preview.md` | My feature depends on a third-party service — what do the automated tests stub instead, and what do I check by hand on a Vercel preview? |
+| `repo-automation.md` | What scripts, commands, subagents, skills and hooks already exist, and why each one does — before I hand-roll a workflow |
 | `retiring-a-rule.md` | A first-read file is near its surface budget — what may leave it, where it goes, and how to bring it back? |
 
 Document map for orientation:
