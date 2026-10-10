@@ -393,6 +393,11 @@ export function PeopleSection({
           <Text as="span" variant="muted">
             {travellersLine(travelling.size)}
           </Text>
+        ) : error === null ? (
+          // Its line, held while the list loads (see the skeleton below).
+          <span className="block text-xs">
+            <Skeleton circle className="inline-block h-2.5 w-48 align-middle" />
+          </span>
         ) : null}
       </div>
 
@@ -445,21 +450,44 @@ export function PeopleSection({
           *"Need a skeleton placeholder here, so it doesnt pop in magically"*.
           Two member rows (the owner and one more is the commonest trip) and
           one invite row, in the section's own order. Only while nothing has
-          answered — a failure is said below, not left breathing. */}
+          answered — a failure is said below, not left breathing.
+
+          **Each group as the loaded one draws it** (Mitchell, trip preview:
+          Trip settings *"really reflows on loading"*): its `Travelling · 2`
+          heading line over its rows, the rows at `PersonRow`'s own `min-h-11
+          py-1` with no gap between them, and the groups at the section's
+          `gap-3` — with the travellers line above held too. It was three rows
+          at `gap-2` and no headings, so the list grew when it landed. */}
       {access === null && error === null ? (
-        <SkeletonRegion label="Loading people" className="flex flex-col gap-2">
-          {([1, 2] as const).map((row) => (
-            <div key={row} className="flex min-h-11 items-center gap-2.5">
-              <Skeleton circle className="size-7" delay={row} />
-              <div className="flex flex-1 flex-col gap-1">
-                <Skeleton className="h-3 w-28" delay={row} />
-                <Skeleton className="h-2.5 w-20" delay={row} />
+        <SkeletonRegion label="Loading people" className="flex flex-col gap-3">
+          <div className="flex flex-col">
+            <span className="block text-xs">
+              <Skeleton circle className="inline-block h-2.5 w-24 align-middle" />
+            </span>
+            {([1, 2] as const).map((row) => (
+              <div key={row} className="flex min-h-11 items-center gap-2.5 py-1">
+                <Skeleton circle className="size-7" delay={row} />
+                <div className="flex flex-1 flex-col">
+                  <span className="block text-sm">
+                    <Skeleton className="inline-block h-3 w-28 align-middle" delay={row} />
+                  </span>
+                  <span className="block text-xs">
+                    <Skeleton className="inline-block h-2.5 w-20 align-middle" delay={row} />
+                  </span>
+                </div>
               </div>
+            ))}
+          </div>
+          <div data-testid="people-skeleton-invites" className="flex flex-col">
+            <span className="block text-xs">
+              <Skeleton circle className="inline-block h-2.5 w-20 align-middle" delay={3} />
+            </span>
+            <div className="flex min-h-11 items-center gap-2.5 py-1">
+              <Skeleton circle className="size-7" delay={3} />
+              <span className="block text-sm">
+                <Skeleton className="inline-block h-3 w-32 align-middle" delay={3} />
+              </span>
             </div>
-          ))}
-          <div data-testid="people-skeleton-invites" className="flex min-h-11 items-center gap-2.5">
-            <Skeleton circle className="size-7" delay={3} />
-            <Skeleton className="h-3 w-32" delay={3} />
           </div>
         </SkeletonRegion>
       ) : null}

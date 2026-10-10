@@ -340,7 +340,16 @@ export function CoverPicker({
           </Button>
         </div>
       ) : cover === undefined ? (
-        <Skeleton className="h-33 w-full" />
+        // The loaded cover's own stack — the photo and its one-line credit —
+        // so a cover landing fills the space rather than pushing what is
+        // under it down by the credit (Mitchell, trip preview: Trip settings
+        // *"really reflows on loading"*). No cover still gives it back.
+        <div className="flex flex-col gap-2">
+          <Skeleton className="h-33 w-full" />
+          <span className="block text-xs">
+            <Skeleton circle delay={2} className="inline-block h-2.5 w-1/2 align-middle" />
+          </span>
+        </div>
       ) : cover !== null ? (
         <div className="flex flex-col gap-2">
           <CoverImage
