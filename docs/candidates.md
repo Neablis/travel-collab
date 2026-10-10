@@ -658,3 +658,23 @@ here two days later.
     totals show guests (a contract change, `docs/contracts/CHANGELOG.md`). How the assistant
     and notebook widgets that count heads see them.
   **Not placed.**
+
+- **Reposition a cover: drag the photo to choose what the band shows (asked 2026-10-10).**
+  Mitchell, on the trip page's cover: *"i want to do the adjusted photo crop like notion option
+  later"*. The desktop trip page now shows the cover as a 384px band that fades into the page
+  under the header (`TripCoverBanner`, the playbook day's treatment). It is still a center crop,
+  and the fade hides the bottom third, so a photo whose subject sits low (a beach, a street,
+  people) can lose it. Unsplash gives no focal point to aim at.
+  - **What exists.** `TripCover` (`packages/contracts/src/cover.ts`) holds the photo's URLs and
+    credit, stored in the CRUD side table `trip_covers`, not in the event log. `CoverImage`
+    renders it with `object-cover` and no `object-position`.
+  - **The idea.** Notion's *Reposition*: from the band, an editor drags the photo up or down and
+    saves. Store one vertical position (0–100%) with the cover and render it as
+    `object-position: center <y>%`. A playbook day's cover could use the same thing.
+  - **Decisions it needs.** The field and its default (50%, today's crop) in `TripCover`, a
+    `trip_covers` migration, and a contract change logged in `docs/contracts/CHANGELOG.md`.
+    Whether a horizontal position is worth storing too (the home card's crop is the other
+    shape). Where the control lives: on the band itself, or in Trip settings' Cover photo
+    preview. Whether choosing a new photo resets the position. Keyboard and phone handling for
+    the drag. Whether the stored position also applies to the card on Home.
+  **Not placed.**

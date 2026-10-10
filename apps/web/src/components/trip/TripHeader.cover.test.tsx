@@ -82,7 +82,7 @@ const addCover = () => screen.queryByRole("button", { name: "Add cover" });
 // image in some way … clicking the image should allow you to change it (or
 // maybe set it if we have a obvious way to set a header when unset)".
 describe("TripHeader — the cover band", () => {
-  it("shows the trip's cover as a band with the trip's name, credited, which opens the picker", async () => {
+  it("shows the trip's cover as a band, credited, which opens the picker", async () => {
     const cover = tripCoverFactory.build({ alt: "Maples over a temple roof", photographerName: "Aiko Tanaka" });
     server.use(...makeCoverHandlers({ cover }));
     await renderHeader();
@@ -166,6 +166,37 @@ describe("TripHeader — the cover band", () => {
     expect(reads).toBe(0);
     expect(screen.queryByRole("img", { name: "Unseen roofs" })).toBeNull();
     server.events.removeAllListeners();
+  });
+
+  // Mitchell, 2026-10-10: the header sits on the photo's faded foot, as a
+  // playbook day's title does. See-through there, so the photo shows under
+  // it; once it pins, the board scrolls under it, so it must be solid again.
+  it("lets the photo show through the header until the header pins, then paints its own background", async () => {
+    const watched: { notify?: (entry: Partial<IntersectionObserverEntry>) => void } = {};
+    vi.stubGlobal(
+      "IntersectionObserver",
+      class {
+        constructor(callback: IntersectionObserverCallback) {
+          watched.notify = (entry) => callback([entry as IntersectionObserverEntry], this as never);
+        }
+        observe() {}
+        disconnect() {}
+      },
+    );
+    server.use(...makeCoverHandlers({ cover: tripCoverFactory.build() }));
+    await renderHeader();
+    await waitFor(() => expect(band()).not.toBeNull());
+    const header = screen.getByRole("banner", { name: "Trip" });
+    const seeThrough = () => header.classList.contains("bg-transparent");
+
+    expect(seeThrough()).toBe(true);
+    // The header's top line scrolls above the header's sticky `top` (0 in jsdom).
+    act(() => watched.notify!({ isIntersecting: false, boundingClientRect: { top: -40 } as DOMRectReadOnly }));
+    expect(seeThrough()).toBe(false);
+    expect(header.classList.contains("bg-surface")).toBe(true);
+    act(() => watched.notify!({ isIntersecting: true, boundingClientRect: { top: 200 } as DOMRectReadOnly }));
+    expect(seeThrough()).toBe(true);
+    vi.unstubAllGlobals();
   });
 
   it("gives a reader the band but no way to change it, and no Add cover", async () => {
