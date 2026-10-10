@@ -112,16 +112,53 @@ function droppedNotice(dropped: readonly DroppedInsert[]): string {
  * when the real page replaces it. No widget rail: it only exists in Editing,
  * which a notebook does not open in.
  */
-function NotebookSkeleton() {
+/**
+ * **The page's own toolbar and card, row for row** (Mitchell, Vercel Toolbar
+ * on a phone: *"The skeleton for a notebook page looks nothing like the real
+ * page … the header and breadcrumbs, can fit more"*).
+ *
+ * The toolbar is the loaded one's classes and its controls' boxes: the
+ * breadcrumb as three crumbs — the trip's name a bone, *Notebook* written out
+ * (it is the same words and the same destination on every page, so it is
+ * chrome, not data), the page's title a bone — then *Edit page* and, on a
+ * phone, the Ask pill, both at the 44px floor they have there. The card is
+ * `Card`'s raised box with the title row (an `h1` line box and the pennant's
+ * square) and the document's lines under it.
+ */
+function NotebookSkeleton({ tripId }: { tripId: string }) {
   return (
     <PageContainer>
       <SkeletonRegion label="Loading this notebook" className="flex flex-col">
-        <div className="mt-3 mb-3 flex items-center justify-between gap-3 md:my-0 md:py-3" data-testid="notebook-skeleton">
-          <Skeleton className="h-3.5 w-32" />
-          <Skeleton className="h-10 w-28 rounded-lg" />
+        <div className="mt-3 mb-3 flex flex-wrap items-center justify-between gap-3 md:my-0 md:py-3" data-testid="notebook-skeleton">
+          <div className="flex min-w-0 items-center gap-1.5 text-sm">
+            <span className="flex min-w-0 items-center py-1.5">
+              <Skeleton circle className="h-3 w-20" />
+            </span>
+            <span aria-hidden className="text-border-strong">
+              /
+            </span>
+            <Link href={`/trips/${tripId}/pages`} className="shrink-0 whitespace-nowrap text-slate no-underline hover:text-ink">
+              Notebook
+            </Link>
+            <span aria-hidden className="text-border-strong">
+              /
+            </span>
+            <Skeleton circle className="h-3 w-16" delay={2} />
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Skeleton className="h-11 w-24 fine:h-9" delay={2} />
+            <Skeleton circle className="h-11 w-18 md:hidden" delay={2} />
+          </div>
         </div>
-        <div className="rounded-md border border-hairline px-5 py-6 sm:px-12 sm:py-10">
-          <Skeleton className="h-8 w-1/2" delay={2} />
+        <div className="rounded-md border border-hairline bg-surface px-5 py-6 shadow-raised sm:px-12 sm:py-10">
+          <div className="flex items-start gap-3">
+            <span className="block min-w-0 flex-1 font-display text-2xl">
+              <Skeleton className="inline-block h-7 w-1/2 align-middle" delay={2} />
+            </span>
+            <span className="flex size-11 shrink-0 items-center justify-center fine:size-7.5">
+              <Skeleton circle className="size-7.5" delay={2} />
+            </span>
+          </div>
           <div className="mt-6 flex flex-col gap-3">
             {["w-full", "w-11/12", "w-4/5", "w-full", "w-2/3"].map((width, line) => (
               <Skeleton key={line} className={`h-3.5 ${width}`} delay={3} data-testid="notebook-skeleton-line" />
@@ -1005,7 +1042,7 @@ export function PageScreen({
   // still no word. The chrome cannot stand in for it: the breadcrumb's first
   // crumb is the trip's name and every button acts on a page that is not here
   // yet, so the toolbar row is outlined too.
-  if (status === "loading" || (status === "ready" && !globalsSettled)) return <NotebookSkeleton />;
+  if (status === "loading" || (status === "ready" && !globalsSettled)) return <NotebookSkeleton tripId={tripId} />;
   if (status === "error" || page === null || trip === null || stored === null) {
     return (
       <PageContainer>
