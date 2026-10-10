@@ -241,6 +241,30 @@ describe("what is not on the trip yet reads as a placeholder", () => {
     expect(within(colosseum).getByText("Suggested")).toBeTruthy();
   });
 
+  // Mitchell's preview comment, 2026-10-10: a stop moved to another day read
+  // "Suggested" where it is, as though it were the suggestion. It stays solid
+  // there — it is still planned — and says where it is going; the dashed
+  // block on the day it goes to is the suggestion.
+  it("says where a moved stop is going, on the solid stop it leaves, and Suggested only on the block where it lands", async () => {
+    const DAY_3 = uuidFrom(9105, 7);
+    mount("owner", (tripId) => {
+      const addDay = change(tripId, "Added Day 3", [{ type: "AddDay", tripId, dayId: DAY_3 }]);
+      return [
+        addDay,
+        change(tripId, "Moved Colosseum tour to Day 3", [{ type: "MoveActivity", tripId, activityId: COLOSSEUM, toDayId: DAY_3, position: 0 }], {
+          dependsOn: [addDay.id],
+        }),
+      ];
+    });
+
+    const landed = await screen.findByRole("button", { name: "Suggested: Moved Colosseum tour to Day 3" });
+    expect(within(landed).getByText("Suggested")).toBeTruthy();
+    const leaving = cardFor(/^Edit Colosseum tour,.*, suggested to move to Day 3$/);
+    expect(leaving.getAttribute("data-provisional")).toBe("suggested");
+    expect(within(leaving).getByText("Moving to Day 3")).toBeTruthy();
+    expect(within(leaving).queryByText("Suggested")).toBeNull();
+  });
+
   it("marks a suggester's unsent stop Not sent, and an unsent edit to an existing stop too", async () => {
     sessionUserId = "dev-sam";
     mount("suggester", () => []);

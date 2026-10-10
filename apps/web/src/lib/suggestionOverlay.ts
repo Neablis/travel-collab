@@ -310,7 +310,17 @@ function deepEqual(a: unknown, b: unknown): boolean {
 /** Where every pending change shows: on the board, or in the header chip. */
 export type SuggestionGhosts = {
   /** Ghosts by the day they land on and by the stop they mark — `Board`'s `suggestions`, less its review slot. */
-  board: { days: Map<string, Ghost[]>; stops: Map<string, Ghost[]> };
+  board: {
+    days: Map<string, Ghost[]>;
+    stops: Map<string, Ghost[]>;
+    /**
+     * A stop a pending change moves to ANOTHER day, drawn as a block there:
+     * the day it goes to (Mitchell's preview comment, 2026-10-10). The stop
+     * stays solid where it is — it is still on the confirmed plan — and says
+     * where it is going, so it never reads as the suggestion itself.
+     */
+    movingTo: Map<string, string>;
+  };
   /**
    * One ghost per change the board does draw, in creation order — the first it
    * was drawn by, so `dayId` is a day on the board. The header chip lists these
@@ -356,6 +366,8 @@ export function placeGhosts(trip: TripDetail, changes: SuggestionChange[]): Sugg
   // update shown on it (W79) is drawn there, not as a marker on the stop it
   // only moves away from.
   const landedAt = new Map<string, string>();
+  const dayOf = new Map(trip.days.flatMap((d) => d.activityIds.map((id) => [id, d.dayId] as const)));
+  const movingTo = new Map<string, string>();
   for (const day of overlay.newDays) {
     drawn.add(day.changeId);
     if (!drawnBy.has(day.changeId)) drawnBy.set(day.changeId, day);
@@ -373,7 +385,10 @@ export function placeGhosts(trip: TripDetail, changes: SuggestionChange[]): Sugg
         push(days, ghost.dayId, ghost);
         drawn.add(ghost.changeId);
         if (!drawnBy.has(ghost.changeId)) drawnBy.set(ghost.changeId, ghost);
-        if (ghost.kind === "move") landedAt.set(`${ghost.changeId} ${activityId}`, ghost.dayId);
+        if (ghost.kind === "move") {
+          landedAt.set(`${ghost.changeId} ${activityId}`, ghost.dayId);
+          if (dayOf.get(activityId) !== ghost.dayId && !movingTo.has(activityId)) movingTo.set(activityId, ghost.dayId);
+        }
       }
       // An update shown on a move's block: reviewed there, listed by its day.
       const host = ghost.layeredOnto === undefined ? undefined : landedAt.get(`${ghost.layeredOnto} ${activityId}`);
@@ -399,7 +414,7 @@ export function placeGhosts(trip: TripDetail, changes: SuggestionChange[]): Sugg
   ];
   const order = new Map(changes.map((c, i) => [c.id, i]));
   return {
-    board: { days, stops },
+    board: { days, stops, movingTo },
     onBoard: [...drawnBy.values()].sort((a, b) => (order.get(a.changeId) ?? 0) - (order.get(b.changeId) ?? 0)),
     offBoard,
     stale: overlay.stale,

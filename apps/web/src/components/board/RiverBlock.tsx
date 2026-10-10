@@ -149,6 +149,7 @@ export function RiverBlock({
   onTouchPress,
   lifted = false,
   suggestion,
+  movingTo,
   draft,
 }: {
   activity: ActivityView;
@@ -193,6 +194,13 @@ export function RiverBlock({
    * "Suggested change" marker in its review popover. Absent, no marker.
    */
   suggestion?: (trigger: ReactElement) => ReactNode;
+  /**
+   * A pending change moves this stop to another day, where it is drawn as a
+   * dashed block: that day's name. This block stays solid, because it is still
+   * on the confirmed plan, and its pill says "Moving to Day 16" rather than
+   * "Suggested" (Mitchell's preview comment, 2026-10-10).
+   */
+  movingTo?: string;
   /**
    * A suggester's unsent draft adds this stop, or changes it (W76). An added
    * stop is drawn as a placeholder, as a suggestion's ghost is; a changed one
@@ -276,7 +284,7 @@ export function RiverBlock({
     activity.tags.length > 0 ? `tagged ${activity.tags.map((t) => TAG_LABEL[t]).join(" and ")}` : null,
     overlapping ? `overlaps ${overlapPartners.join(" and ")}` : null,
     hasConflict ? "has conflicts" : null,
-    suggestion ? "has a suggested change" : null,
+    suggestion ? (movingTo === undefined ? "has a suggested change" : `suggested to move to ${movingTo}`) : null,
     draft ? "not sent" : null,
   ]
     .filter((part): part is string => part !== null)
@@ -286,7 +294,7 @@ export function RiverBlock({
   const provisional = draft
     ? { hook: draft === "added" ? "draft" : "draft-change", word: "Not sent" }
     : suggestion
-      ? { hook: "suggested", word: "Suggested" }
+      ? { hook: "suggested", word: movingTo === undefined ? "Suggested" : `Moving to ${movingTo}` }
       : null;
   const placeholder = draft === "added";
   // Beside the title, or — in a shared lane, where it would leave the title no

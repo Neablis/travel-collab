@@ -149,20 +149,35 @@ export function AuthorChip({ authorId }: { authorId: string }) {
  * drafted against.
  */
 export function useBoardSuggestions(): BoardSuggestions | undefined {
-  const { suggestionGhosts: ghosts, preview, draft } = useTrip();
+  const { suggestionGhosts: ghosts, preview, draft, trip } = useTrip();
   const draftStops = draft?.stops;
+  const days = trip?.days;
   return useMemo(() => {
     if (preview.seq !== null || (ghosts === null && draftStops === undefined)) return undefined;
     // A draft is marked even before the suggestions list has been read.
-    const board = ghosts?.board ?? { days: new Map(), stops: new Map() };
+    const board = ghosts?.board ?? { days: new Map(), stops: new Map(), movingTo: new Map() };
+    // "Day 16", numbered as the board draws it: a suggested day after the trip's.
+    const realDays = days?.length ?? 0;
+    const number = new Map([
+      ...(days ?? []).map((d, i) => [d.dayId, i + 1] as const),
+      ...(ghosts?.newDays ?? []).map((g, k) => [g.dayId!, realDays + k + 1] as const),
+    ]);
+    const movingTo = new Map(
+      [...board.movingTo].flatMap(([activityId, dayId]) => {
+        const n = number.get(dayId);
+        return n === undefined ? [] : [[activityId, `Day ${n}`] as const];
+      }),
+    );
     return {
-      ...board,
+      days: board.days,
+      stops: board.stops,
+      movingTo,
       newDays: ghosts?.newDays ?? [],
       draft: draftStops,
       review: (list, trigger) => <SuggestionReview ghosts={list} trigger={trigger} />,
       actions: (ghost) => <SuggestionActions ghost={ghost} />,
     };
-  }, [ghosts, preview.seq, draftStops]);
+  }, [ghosts, preview.seq, draftStops, days]);
 }
 
 // A popover rather than buttons on the block: a 30-minute block is 22px tall,
