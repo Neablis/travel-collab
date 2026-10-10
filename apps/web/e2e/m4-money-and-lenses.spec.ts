@@ -1,5 +1,5 @@
 import { expect, test } from "./fixtures/test";
-import { dragCardTo, openHistory, openPlan, createEmptyTripViaWizard } from "./helpers";
+import { dragCardTo, openHistory, openPlan, createEmptyTripViaWizard, openNewParkedStop, openRack } from "./helpers";
 import { e2eTripName } from "./tripNames";
 
 test("money & lenses: currency, costs, rollups, budget conflict, dismiss, undo", async ({ page }) => {
@@ -40,13 +40,13 @@ test("money & lenses: currency, costs, rollups, budget conflict, dismiss, undo",
   // "Add stop" (TripHeader) creates with no dayId — the Backlog column and its
   // "+ Add activity" button were deleted in Task 3.3, so a stop created this
   // way is parked in the Unscheduled drawer until it is dragged onto a day.
-  await page.getByRole("button", { name: "Add stop" }).click();
+  await openNewParkedStop(page);
   await page.getByLabel("What or where").fill("Flight to Rome");
   await page.getByLabel("Cost").fill("420.00");
   await page.getByRole("button", { name: "Add stop" }).last().click();
 
   const rack = page.getByTestId("unscheduled-rack");
-  await rack.getByRole("button", { name: /unscheduled/i }).click();
+  await openRack(page);
   const flight = rack.getByTestId("rack-card").filter({ hasText: "Flight to Rome" });
   await expect(flight).toBeVisible();
 
@@ -55,7 +55,7 @@ test("money & lenses: currency, costs, rollups, budget conflict, dismiss, undo",
   await expect(day1.getByText("Flight to Rome")).toBeVisible();
 
   // -- add an unscheduled (trip-level) costed activity: stays parked --
-  await page.getByRole("button", { name: "Add stop" }).click();
+  await openNewParkedStop(page);
   await page.getByLabel("What or where").fill("Travel insurance");
   await page.getByLabel("Cost").fill("99.00");
   await page.getByRole("button", { name: "Add stop" }).last().click();

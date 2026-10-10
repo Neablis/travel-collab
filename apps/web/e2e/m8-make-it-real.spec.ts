@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures/test";
-import { dragCardTo, openPlan, createEmptyTripViaWizard, homeTrip } from "./helpers";
+import { dragCardTo, openPlan, createEmptyTripViaWizard, homeTrip, openNewParkedStop, openRack } from "./helpers";
 import { e2eTripName, escapeForRegExp } from "./tripNames";
 
 // KI-5 (C4): every command below is optimistic-first, so waiting for its
@@ -65,15 +65,15 @@ test("create, name, date, build, reorder, rename, delete", async ({ page }) => {
   // openCreate() with no dayId. What it creates is parked
   // in the Unscheduled drawer, which starts collapsed. --
   const rack = page.getByTestId("unscheduled-rack");
-  await page.getByRole("button", { name: "Add stop" }).click();
+  await openNewParkedStop(page);
   await page.getByLabel("What or where").fill("Coffee");
   await Promise.all([waitForCommand(page), page.getByRole("button", { name: "Add stop" }).last().click()]);
-  await rack.getByRole("button", { name: /unscheduled/i }).click();
+  await openRack(page);
   await expect(rack.getByTestId("rack-card").filter({ hasText: "Coffee" })).toBeVisible();
 
   // Existing location search (LocationInput.tsx), same pattern as
   // m3-place-and-time.spec.ts — no dedicated AddPlaceButton exists.
-  await page.getByRole("button", { name: "Add stop" }).click();
+  await openNewParkedStop(page);
   await page.getByLabel("What or where").fill("Niagara Falls");
   await page.getByLabel("Place name").fill("Niagara Falls");
   await page.getByRole("button", { name: "Search" }).click();

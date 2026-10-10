@@ -115,10 +115,10 @@ test.describe("the demo trip", () => {
     await expect(page.getByRole("button", { name: "Share", exact: true })).toHaveCount(0);
     // Needs a session and is a write; it has no read-only half to fall back to.
     await expect(page.getByRole("button", { name: "Ask" })).toHaveCount(0);
-    // Withheld, exactly as it is for an invited viewer. This asserted
-    // `toBeDisabled()` until KI-64: the header was the one place still
-    // offering a greyed control on a board ADR-031 had otherwise gone quiet.
-    await expect(page.getByRole("button", { name: "Add stop" })).toHaveCount(0);
+    // Withheld, exactly as it is for an invited viewer: the dates pill moves
+    // the trip, so a reader gets its text only (M27 D5). This was the header's
+    // "Add stop" until M41 took that button off the header for everyone.
+    await expect(page.getByRole("button", { name: /^Trip dates:/ })).toHaveCount(0);
 
     // The export is a session-authenticated `v1` route, so on the demo it was
     // a 401 posing as a download (Mitchell, 2026-10-01). Withheld here only:
@@ -209,7 +209,7 @@ test.describe("the demo trip", () => {
     await expect(page).toHaveURL(/\/trips\/[0-9a-f-]{36}/, { timeout: 30_000 });
     await expect(page.getByRole("heading", { name: "Japan: Tokyo → Kyoto → Osaka" })).toBeVisible();
     await expect(page.getByText("Viewer", { exact: true })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Add stop" })).toBeEnabled();
+    await expect(page.getByRole("button", { name: /^Trip dates:/ })).toBeEnabled();
   });
 });
 
@@ -229,5 +229,5 @@ test("a signed-in visitor makes the demo trip theirs, and can edit it", async ({
   // Now it is theirs: the same 14 days, and the read-only badge is gone.
   await expect(page.getByRole("heading", { name: "Japan: Tokyo → Kyoto → Osaka" })).toBeVisible();
   await expect(page.getByText("Viewer", { exact: true })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Add stop" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: /^Trip dates:/ })).toBeEnabled();
 });

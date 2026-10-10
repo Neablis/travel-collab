@@ -166,15 +166,19 @@ export function diffTripStates(current: TripState, target: TripState): TripEvent
       push({
         type: "ActivityMoved",
         version: 1,
-        payload: { tripId: target.tripId, activityId: id, toDayId: day.dayId, position },
+        // Onto a day: a stop on a day has no origin to carry.
+        payload: { tripId: target.tripId, activityId: id, toDayId: day.dayId, position, fromDayId: null },
       });
     });
   }
+  // A parked stop takes the target's origin with it (M41 D6), so undo, redo
+  // and revert put back "From Day N" as well as the stop; `push` keeps a move
+  // that only sets or clears it, since equality compares `parkedFrom`.
   target.backlog.forEach((id, position) => {
     push({
       type: "ActivityMoved",
       version: 1,
-      payload: { tripId: target.tripId, activityId: id, toDayId: null, position },
+      payload: { tripId: target.tripId, activityId: id, toDayId: null, position, fromDayId: target.parkedFrom?.[id] ?? null },
     });
   });
 

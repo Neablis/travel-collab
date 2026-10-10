@@ -3,6 +3,9 @@ import { createContext, useCallback, useContext, useMemo, useState } from "react
 
 export type ActivityPrefill = {
   dayId?: string;
+  /** A paste or a drop's title and notes (M41 D8, `pasteToStop`). */
+  title?: string;
+  notes?: string;
   location?: { name: string; lat?: number; lng?: number };
   timeWindow?: { start: string; end: string };
 };

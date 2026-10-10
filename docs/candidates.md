@@ -16,6 +16,29 @@ not by anybody remembering. That automation exists because the rule was being
 skipped: M23's entry survived its own gate closing on 2026-09-19 and was still
 here two days later.
 
+- **Quick-add and search-to-add (cut from M41 at its scoping, 2026-10-10).** What was left of the
+  M8 trim's C1 and C2. M41 judged both redundant with the gestures it builds. The river's
+  double-click and drag already add a stop on a day, and M41's paste-to-add turns a Maps link or a
+  line of text into one (D8). Place search already lives in the editor, and M34 suggests nearby
+  stops there. A header input was never in the prototype either (`SPEC.md` §11 calls quick add
+  "the in-trip FAB"). Revisit only if people are seen typing stops one after another and the
+  editor is the friction.
+
+- **Gesture and keyboard follow-ups left out of M41 (2026-10-10).** Considered while scoping M41
+  and left for later, in rough order of value:
+  - **Multi-select drag:** shift-click several stops and drag them as one batch.
+  - **Resize by keyboard:** M41 gives moving a keyboard path (the editor's Day field) but not
+    changing a stop's length.
+  - **⌘K hands unmatched text to the assistant:** "Ask: …". ADR-068 §5 keeps the palette off the
+    model in v1, so this needs a decision.
+  - **Pinch or ⌘-scroll to zoom the river's time scale:** the scale is tuned, and pinch already
+    zooms the page on a phone.
+  - **Follow Google Maps short links on paste:** a `maps.app.goo.gl` link is what the Maps app's
+    Share button gives on a phone. M41's paste-to-add (`lib/pasteToStop.ts`) puts it in the notes
+    and leaves the title empty, because reading the place out of it needs a server request to
+    Google per paste, against a redirect that is not a documented API. Worth it if people are seen
+    pasting short links and retyping the place.
+
 - **Accounts by tier, week by week, on the operator console (split out of M36, 2026-10-06).**
   The 2026-10-05 handoff draws one area chart per tier on the Users tab — accounts holding the tier
   at the end of each week for 26 weeks, with *+N added* and *−N lost* over 30 days
@@ -284,7 +307,7 @@ here two days later.
   Not guessed at in the M21 branch — RULES.md 2 ("no purposeless UI") and RULES.md
   4 ("challenge to simplify") point opposite ways here until someone picks.
   *(Filed 2026-09-15 from PR #177's preview feedback.)*
-  *Placed 2026-10-06 → `docs/milestones/M41-planning-without-friction.md` (proposed, not yet scoped). M41's gate deletes this entry at close.*
+  *Placed 2026-10-06 → `docs/milestones/M41-planning-without-friction.md` (scoped 2026-10-10). M41's gate deletes this entry at close.*
 - **A capability `premium` does not grant would make M20's fourth-plan proof
   unconditional.** `studio` grants `trip.collaborators` without `ai.command`,
   which makes it incomparable with `plus` — but it is still a *subset of
@@ -526,7 +549,7 @@ here two days later.
   "Move to…" menu for a *scheduled* stop (the editor's Day select is disabled
   in edit mode; only the rack's dropdown moves anything, and only off the
   rack), and empty states for the day column, the rack and History.
-  *Placed 2026-10-06 → `docs/milestones/M41-planning-without-friction.md` (proposed, not yet scoped). M41's gate deletes this entry at close.*
+  *Placed 2026-10-06 → `docs/milestones/M41-planning-without-friction.md` (scoped 2026-10-10): C3 is built as the editor's Day field (D3) and the empty states as D4/D5. C1 and C2 were cut and are re-filed as their own entry, *Quick-add and search-to-add*. M41's gate deletes this entry at close.*
 
 - **Duplicate and the undo-toast's Restore: no optimistic update yet (Mitchell,
   2026-08-01, from M8 dogfooding).** Delete's optimism (page.tsx's
@@ -536,7 +559,7 @@ here two days later.
   redirect fires) and Undo (`page.tsx`'s `undoDelete` does a full `load()`
   refetch rather than re-inserting the row locally) are lower-value/more work
   for now — deferred rather than done reflexively.
-  *Placed 2026-10-06 → `docs/milestones/M41-planning-without-friction.md` (proposed, not yet scoped). M41's gate deletes this entry at close.*
+  *Placed into M41 on 2026-10-06, and cut at its scoping on 2026-10-10: it is a Home trip-list item, off M41's theme. Unplaced again.*
 
 - **Contained activities: a meal inside a day-long activity is not a conflict
   (Mitchell, 2026-08-02, from M8 dogfooding).** Every day of the Rochester run
@@ -602,7 +625,7 @@ here two days later.
      perform. Wiring them needs a drop target in the calendar lens itself and
      reuses `MoveActivity`, the command Board's `ActivityCard` drag already
      dispatches.
-  *Placed 2026-10-06 → `docs/milestones/M41-planning-without-friction.md` (proposed, not yet scoped). M41's gate deletes this entry at close.*
+  *Placed 2026-10-06 → `docs/milestones/M41-planning-without-friction.md` (scoped 2026-10-10). M41's gate deletes this entry at close.*
 
 - **A parked stop remembers which day it came from (2026-09-22).** Half of the
   `rack-provenance` preview M13 link 5 retired. That link modelled **who**
@@ -614,7 +637,7 @@ here two days later.
   placed** — it needs a decision about whether the origin is a field on the
   activity (which replay would have to maintain) or something read back off
   the event log, and that is a real design question rather than a line.
-  *Placed 2026-10-06 → `docs/milestones/M41-planning-without-friction.md` (proposed, not yet scoped). M41's gate deletes this entry at close.*
+  *Placed 2026-10-06 → `docs/milestones/M41-planning-without-friction.md` (scoped 2026-10-10). M41's gate deletes this entry at close.*
 
 - **`/ask` survives a throw while building its proposal (2026-09-25,
   `KI-2026-09-24-w`).** A throw inside `buildProposal` (called from

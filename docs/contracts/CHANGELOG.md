@@ -13,6 +13,32 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-10 — `ActivityMoved.fromDayId` and `TripDetail.parkedFrom`: a parked stop knows which day it left (M41 D6)
+
+- **Added** `fromDayId: uuid | null`, optional, to `ActivityMovedV1`'s payload
+  (`packages/contracts/src/activity.ts`). The decider stamps it from state: the day the stop was on,
+  or, for a stop already parked, the day it left before. It is never sent by a client, and
+  `MoveActivity` is unchanged. Undo, redo and revert (`diff.ts`) write the target state's origin, so
+  ⌘Z puts back *"From Day N"* with the stop. It is still version 1: absent on every stored
+  envelope, and absent reads as `null`.
+- **Added** `parkedFrom: Record<activityId, dayId>`, optional, to `TripDetail`
+  (`packages/contracts/src/detail.ts`), and to `TripState` in the domain. Replay takes each move
+  onto the rack as it says: a `fromDayId` sets the entry, and none clears it. A move onto a day, a
+  removal, or a removed origin day drops it. A move written before this change names none, so the
+  rack never names a wrong day. `tripStatesEqual` compares it, so the diff and the rebuild check see
+  it. *(Corrected after part 3 merged, on review: undo's diff wrote `null` and dropped the origin,
+  and equality did not compare it, so nothing noticed.)*
+- Why: the rack said who parked a stop but not where it came from (candidate *"A parked stop
+  remembers which day it came from"*, 2026-09-22). D6 chose to read the origin from the log rather
+  than store a field on the activity, and the moves' own `fromDayId` is that read.
+- Consumers updated: `packages/domain`: `decide.ts`, `evolve.ts`, `diff.ts`, `detail.ts`,
+  `hydrate.ts` (an unparsed doc without the key hydrates to `{}`). `apps/web`: the rack's cards
+  read *"From Day N"* (`TripBoardScreen.tsx`, `UnscheduledRack.tsx`). The public trip read carries
+  the new field, so `openapi.json` is regenerated: `API_VERSION` 1.11.0 → **1.12.0** (minor:
+  additive) and a new `API_FINGERPRINT`.
+- Breaking? no. Both fields are optional; no migration and no event rewrite. A `trip_details.doc`
+  written before this change has no `parkedFrom`, and reads as none until its trip next changes.
+
 ## 2026-10-10 — `AdminRevokeGrantInput`: the operator's revoke body is parsed, and a grant id is a uuid
 
 - **Added** `AdminRevokeGrantInput` (`packages/contracts/src/entitlement.ts`): `{ grantId: uuid }`, the

@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { Browser, Locator, Page } from "@playwright/test";
 import { expect, test } from "./fixtures/test";
 import { grantCollaborators } from "./adminBootstrap";
-import { createMappedTrip, dragCardTo, openAssistantRail, openHistory, openPlan } from "./helpers";
+import { createMappedTrip, dragCardTo, openAssistantRail, openHistory, openPlan, openNewStopOnDay } from "./helpers";
 import { e2eTripName } from "./tripNames";
 import { SUGGESTER_APPROVAL } from "../src/lib/tripRole";
 
@@ -105,7 +105,7 @@ test("a suggester's move waits for the owner, and Accept makes it", async ({ pag
     // W75 (Mitchell's production test, 2026-10-04): a stop added and then
     // moved read "2 changes not sent". The move joins the change that added
     // it. Timed, because a suggester's board draws no untimed stop (W71).
-    await sam.getByRole("button", { name: "Add stop" }).click();
+    await openNewStopOnDay(sam);
     await sam.getByLabel("What or where").fill("Gelato");
     await sam.getByLabel("Start", { exact: true }).fill("13:00");
     await sam.getByRole("button", { name: "Add stop" }).last().click();
@@ -268,7 +268,9 @@ test("a suggester's new day and its stops show as a suggested day, and Accept ma
     const tray = sam.getByRole("region", { name: "Suggestion draft" });
     await expect(tray).toContainText("1 change not sent");
     for (const [i, stop] of stops.entries()) {
-      await sam.getByRole("button", { name: "Add stop" }).click();
+      // On the day just added: the trip's own two are full rivers, one
+      // hour-long stop each, with no empty time to double-click.
+      await openNewStopOnDay(sam, 2);
       await sam.getByLabel("What or where").fill(stop.title);
       // The third day: the one just added.
       await sam.getByLabel("Day", { exact: true }).selectOption({ index: 2 });

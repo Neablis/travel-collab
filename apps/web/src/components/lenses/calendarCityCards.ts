@@ -10,6 +10,11 @@ export type CityCard = {
   /** Null only when no stop in the group has a location at all. */
   city: string | null;
   stops: number;
+  /**
+   * The stops on this card, in the day's order: what a drag of the card moves
+   * (M41 D2). The card is the unit at this zoom, so it is the unit that moves.
+   */
+  activityIds: string[];
   /** Minor units, summed over this group's stops. Null when none carry a cost. */
   costMinor: number | null;
   /** This group's earliest start and latest end, or null if nothing is timed. */
@@ -165,6 +170,7 @@ function summarise(city: string | null, stops: ActivityView[], focusedTag: Activ
   return {
     city,
     stops: stops.length,
+    activityIds: stops.map((s) => s.activityId),
     costMinor: costs.length === 0 ? null : costs.reduce((a, c) => a + c, 0),
     window,
     span: window === null ? null : { from: clamp(toMinutes(window.start)), to: clamp(toMinutes(window.end)) },

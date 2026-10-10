@@ -1,6 +1,6 @@
 import type { Locator, Page } from "@playwright/test";
 import { expect, test } from "./fixtures/test";
-import { centreOnPoint, createMappedTrip, dragCardTo, fingerOn, openHistory, reaim, riverPoint } from "./helpers";
+import { centreOnPoint, createMappedTrip, dragCardTo, fingerOn, openHistory, reaim, riverPoint, openNewParkedStop, openRack } from "./helpers";
 import { e2eTripName } from "./tripNames";
 
 // M29 part 3 — the river's gestures (SPEC §36.9b), in a real browser because
@@ -195,13 +195,13 @@ test("dragging a stop off the rack onto a day's river lands it at that time with
   await riverTrip(page, "RiverRack");
 
   // Created with no day, so it is parked — with a time of its own, 9–11 am.
-  await page.getByRole("button", { name: "Add stop" }).click();
+  await openNewParkedStop(page);
   await page.getByLabel("What or where").fill("Tea house");
   await page.getByLabel("Start", { exact: true }).fill("09:00");
   await page.getByLabel("How long").selectOption("2 hours");
   await page.getByRole("button", { name: "Add stop" }).last().click();
   const rack = page.getByTestId("unscheduled-rack");
-  await rack.getByRole("button", { name: /unscheduled/i }).click();
+  await openRack(page);
   const parked = rack.getByTestId("rack-card").filter({ hasText: "Tea house" });
   await expect(parked).toContainText("9 am – 11 am");
 

@@ -108,10 +108,8 @@ export function TripHeader({
     access,
     refreshAccess,
   } = useTrip();
-  // Task 9: "Add stop" is a real trigger for the same portable activity
-  // editor Board's own "+ Add activity" button opens (Board.tsx) — no
-  // dayId prefill, identical to that button's own openCreate() call.
-  // TripHeader now renders inside EditorHost (trips/[tripId]/page.tsx wraps
+  // The phone menu's "Add stop" opens the portable activity editor with no
+  // day: a parked stop. TripHeader renders inside EditorHost (trips/[tripId]/page.tsx wraps
   // TripBoardScreen, which mounts TripHeader, in <EditorHost>), so this hook
   // is always safe to call here.
   const { openCreate } = useEditor();
@@ -306,7 +304,7 @@ export function TripHeader({
             else setSettingsOpen(true);
           }}
         >
-          {/* `canEditBoard`, as the desktop's button: a suggester's stop joins their draft. */}
+          {/* `canEditBoard`: a suggester's stop joins their draft. The one header door to a parked stop left, for a touch screen (M41 D1). */}
           {canEditBoard && <MenuItem onSelect={() => (afterMenu.current = "add")}>Add stop</MenuItem>}
           <MenuItem onSelect={() => (afterMenu.current = "history")}>History</MenuItem>
           <MenuItem onSelect={() => (afterMenu.current = "settings")}>Trip settings</MenuItem>
@@ -555,12 +553,12 @@ export function TripHeader({
                     draws it here: there it is the tab bar's. `undefined` on
                     /demo withholds it (KI-79). */}
                 {onOpenAssistant !== undefined && <AskPill open={assistantOpen} onOpen={onOpenAssistant} />}
-                {/* `canEditBoard`: a suggester's new stop joins their draft. */}
-                {canEditBoard && (
-                  <Button variant="primary" onClick={() => openCreate()}>
-                    Add stop
-                  </Button>
-                )}
+                {/* **No "Add stop" here** (M41 D1). A stop is made where it
+                    will live: double-click or drag across a day's river, or
+                    double-click the Unscheduled drawer for a parked one, and
+                    ⌘K's *New stop* from the keyboard. Each calls the same
+                    `openCreate`. The phone keeps its `⋯` item, the one door a
+                    touch screen has for a parked stop (ADR-068 §4). */}
               </div>
 
               {/* The trip's member names, for "Suggested by …" in the chip and
