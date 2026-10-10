@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatRelativeInstant, formatTripDate, formatTripDateLong, ordinalDayOfMonth } from "./formatDate";
+import { formatInstantDateTime, formatRelativeInstant, formatTripDate, formatTripDateLong, ordinalDayOfMonth } from "./formatDate";
 
 describe("formatTripDate", () => {
   it("renders a short human date without a year", () => {
@@ -78,5 +78,17 @@ describe("formatRelativeInstant", () => {
 
   it("returns null for something that is not an instant, rather than Invalid Date", () => {
     expect(formatRelativeInstant("not-a-date", NOW)).toBeNull();
+  });
+});
+
+describe("formatInstantDateTime", () => {
+  // Built from a LOCAL wall-clock time, so the expectation holds in any zone
+  // the suite runs in: the helper must render the reader's zone, not UTC.
+  it("renders an instant as the reader's local date and time", () => {
+    const iso = new Date(2026, 9, 9, 15, 4).toISOString();
+    expect(formatInstantDateTime(iso)).toBe("Fri, Oct 9, 3:04 PM");
+  });
+  it("answers null for a string that is not an instant", () => {
+    expect(formatInstantDateTime("not a date")).toBeNull();
   });
 });

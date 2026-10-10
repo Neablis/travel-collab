@@ -28,6 +28,8 @@ import {
   TripInvite,
   TripPreview,
   TripShare,
+  TripSnapshot,
+  TripSnapshotsResponse,
   TripSuggestionsResponse,
   TripSummary,
   PreferencesResponse,
@@ -39,8 +41,10 @@ import {
   type CreateInviteInput,
   type CreateReportInput,
   type CreateSavedDayInput,
+  type CreateSnapshotInput,
   type CreateSuggestionInput,
   type PutReviewInput,
+  type RenameSnapshotInput,
   type ResolveSuggestionChangeInput,
   type AcceptSuggestionChangesInput,
   type SetTravellingInput,
@@ -801,6 +805,83 @@ export function setSavedDayCover(savedDayId: string, candidate: CoverCandidate):
 /** Removes the day's cover (its author only). */
 export function clearSavedDayCover(savedDayId: string): Promise<ApiResult<null>> {
   return deleteCover(savedDayCoverPath(savedDayId));
+}
+
+// ── Named snapshots (M40 part 2) ─────────────────────────────────────────────
+// A snapshot is a row in its own table, not planning state (D4), so saving,
+// renaming and deleting one invalidate no trip read. A restore is a trip write:
+// it appends a revert batch, and answers `{ detail, history }` like a command.
+
+const snapshotsPath = (tripId: string) => `/api/trips/${tripId}/snapshots`;
+const SnapshotBody = z.object({ snapshot: TripSnapshot });
+
+/** The trip's snapshots, newest first. */
+export async function fetchTripSnapshots(tripId: string): Promise<ApiResult<TripSnapshot[]>> {
+  try {
+    const res = await fetch(apiUrl(snapshotsPath(tripId)), { cache: "no-store" });
+    return await readJson(res, (data) => TripSnapshotsResponse.parse(data).snapshots);
+  } catch (err) {
+    return networkError(err);
+  }
+}
+
+/** Save the trip as it stands on the server now. A refusal carries `too-many-snapshots` at the cap. */
+export async function saveTripSnapshot(tripId: string, input: CreateSnapshotInput): Promise<ApiResult<TripSnapshot>> {
+  try {
+    const res = await fetch(apiUrl(snapshotsPath(tripId)), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    return await readJson(res, (data) => SnapshotBody.parse(data).snapshot);
+  } catch (err) {
+    return networkError(err);
+  }
+}
+
+/** Rename a snapshot; answers it as stored. */
+export async function renameTripSnapshot(
+  tripId: string,
+  snapshotId: string,
+  input: RenameSnapshotInput,
+): Promise<ApiResult<TripSnapshot>> {
+  try {
+    const res = await fetch(apiUrl(`${snapshotsPath(tripId)}/${snapshotId}`), {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    return await readJson(res, (data) => SnapshotBody.parse(data).snapshot);
+  } catch (err) {
+    return networkError(err);
+  }
+}
+
+/** Delete a snapshot for good. */
+export async function deleteTripSnapshot(tripId: string, snapshotId: string): Promise<ApiResult<null>> {
+  try {
+    const res = await fetch(apiUrl(`${snapshotsPath(tripId)}/${snapshotId}`), { method: "DELETE" });
+    return await readJson(res, () => null);
+  } catch (err) {
+    return networkError(err);
+  }
+}
+
+/**
+ * Restore a snapshot: one revert batch on the server, answered as the trip and
+ * its history. A refusal carries `no-op` when the trip already matches.
+ */
+export async function restoreTripSnapshot(tripId: string, snapshotId: string): Promise<ApiResult<CommandOutcome>> {
+  const scope = tripKeys.all(tripId);
+  beginWrite(scope);
+  try {
+    const res = await fetch(apiUrl(`${snapshotsPath(tripId)}/${snapshotId}/restore`), { method: "POST" });
+    return await readJson(res, (data) => parseOutcome(data as { detail: unknown; history: unknown }));
+  } catch (err) {
+    return networkError(err);
+  } finally {
+    endWrite(scope);
+  }
 }
 
 // ── Pinned read-only shares (M11 link 4) ─────────────────────────────────────

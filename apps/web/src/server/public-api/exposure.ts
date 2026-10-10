@@ -100,6 +100,10 @@ export const EXPOSURE: Readonly<Record<string, Exposure>> = {
   // M37 part 5: the trip cover routes' terms, for a playbook day's author.
   "saved-days/[savedDayId]/cover": PLANNED("Undecided — a playbook day's cover photo (M37)"),
   "saved-days/[savedDayId]/cover/search": PLANNED("Undecided — searching Unsplash for a day's cover; spends the vendor's quota (M37)"),
+  // M40 part 2: named snapshots on the internal API first.
+  "trips/[tripId]/snapshots": PLANNED("Undecided — a trip's named snapshots (M40)"),
+  "trips/[tripId]/snapshots/[snapshotId]": PLANNED("Undecided — renaming and deleting a snapshot (M40)"),
+  "trips/[tripId]/snapshots/[snapshotId]/restore": PLANNED("Undecided — restoring a snapshot, one revert batch (M40)"),
 
   // ── Never ────────────────────────────────────────────────────────────────
   "trips/[tripId]/ask": {
