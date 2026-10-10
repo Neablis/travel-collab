@@ -140,9 +140,13 @@ export function PeopleSection({
   tripId: string;
   /**
    * The trip provider's latest `TripAccess`. Adopted each time it changes
-   * after this section mounts; the one already there at mount is not, because
-   * the section's own read is fresher than a provider read that may have
-   * been answered from the cache.
+   * after this section mounts. The one already there at mount is PAINTED,
+   * not trusted: the section still makes its own read, which is fresher than
+   * a provider read that may have been answered from the cache, and replaces
+   * it (`isOlder` keeps a late, older answer from winning back). Before, the
+   * section drew its skeleton on every open of Trip settings — the sheet's
+   * content unmounts when it closes — for a list the provider was already
+   * holding (Mitchell, trip preview: *"it really reflows on loading"*).
    */
   access?: TripAccess | null;
   /**
@@ -161,7 +165,7 @@ export function PeopleSection({
   const router = useRouter();
   const me = useSessionUser();
   const chosenColor = usePreferences().color;
-  const [access, setAccess] = useState<TripAccess | null>(null);
+  const [access, setAccess] = useState<TripAccess | null>(provided ?? null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [inviting, setInviting] = useState(false);
@@ -186,7 +190,7 @@ export function PeopleSection({
 
   // The value on screen, read synchronously: two reads in flight can land in
   // either order, and the one to compare against is the last one adopted.
-  const held = useRef<TripAccess | null>(null);
+  const held = useRef<TripAccess | null>(provided ?? null);
   const adopt = useCallback((value: TripAccess) => {
     if (isOlder(value, held.current)) return;
     held.current = value;
