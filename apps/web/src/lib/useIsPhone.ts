@@ -44,6 +44,17 @@ export function useIsTabletWidth(): boolean {
   return useMatches(`(min-width: ${PHONE_MAX_WIDTH_PX + 1}px) and (max-width: ${DOCK_MIN_WIDTH_PX - 1}px)`);
 }
 
+/**
+ * `true` under a finger (`pointer: coarse`) — the same line the CSS
+ * `pointer-coarse:` variant draws, for a surface that has to put something in
+ * a different PLACE rather than restyle it (the river block's tag chips: a
+ * hover reveal under a mouse, part of the title row under a finger). Same
+ * first-paint rule as `useIsPhone`: starts `false`, corrects in an effect.
+ */
+export function useIsCoarsePointer(): boolean {
+  return useMatches("(pointer: coarse)");
+}
+
 function useMatches(media: string): boolean {
   const [matches, setMatches] = useState(false);
 
