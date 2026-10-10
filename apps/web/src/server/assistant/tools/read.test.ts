@@ -172,6 +172,22 @@ describe("read_trip on a long trip", () => {
     expect(sum("costSubtotal")).toBe(LONG.tripCostTotal);
   });
 
+  // A conflict on no day — over-budget's subject is the trip — has no
+  // `read_day` to be read from, so the overview is the only place it can be.
+  it("carries in full the conflicts that touch no day, and counts the rest", () => {
+    const trip = structuredClone(LONG);
+    const [onDay8] = trip.days[7]!.activityIds;
+    trip.conflicts = [
+      { id: "c1", kind: "time-overlap", severity: "warn", subjects: [onDay8!], description: "clash", resolutions: [] },
+      { id: "c2", kind: "over-budget", severity: "warn", subjects: [trip.tripId], description: "Trip total exceeds the budget by ¥9,000.", resolutions: ["Raise the budget"] },
+    ];
+    const overview = readTripForModel(trip) as TripOverviewReadout;
+    expect(overview.conflicts).toEqual({ "time-overlap": 1, "over-budget": 1 });
+    expect(overview.tripWideConflicts.map(({ kind, description }) => ({ kind, description }))).toEqual([
+      { kind: "over-budget", description: "Trip total exceeds the budget by ¥9,000." },
+    ]);
+  });
+
   it("tells the model where to go next, in a field nobody can type into", () => {
     const overview = readTripForModel(LONG) as TripOverviewReadout;
     expect(overview.overview).toMatch(/find_days/);

@@ -284,8 +284,15 @@ export interface TripOverviewReadout {
   stopKinds: Record<string, number>;
   /** Stops in the backlog, on no day. */
   backlog: number;
-  /** Active conflicts by kind. The conflicts themselves are on each day's `read_day`. */
+  /** Active conflicts by kind. Those on a day are on that day's `read_day`. */
   conflicts: Record<string, number>;
+  /**
+   * The active conflicts that touch no day, in full — over-budget, whose
+   * subject is the trip, and any whose stops sit in the backlog. No `read_day`
+   * carries them (`conflictsOnDay`), so without this a long trip's "am I over
+   * budget?" had a count and nothing to say.
+   */
+  tripWideConflicts: AiConflictSummary[];
 }
 
 export const TripOverviewReadoutSchema: z.ZodType<TripOverviewReadout> = z.object({
@@ -316,6 +323,7 @@ export const TripOverviewReadoutSchema: z.ZodType<TripOverviewReadout> = z.objec
   stopKinds: z.record(z.string(), z.number()),
   backlog: z.number(),
   conflicts: z.record(z.string(), z.number()),
+  tripWideConflicts: z.array(ConflictSummarySchema),
 });
 
 /**
@@ -412,7 +420,13 @@ export function readTripOverview(detail: TripDetail): TripOverviewReadout {
     }
   }
   const conflicts: Record<string, number> = {};
-  for (const conflict of activeConflicts(detail)) countInto(conflicts, conflict.kind);
+  const onSomeDay = new Set(detail.days.flatMap((day) => day.activityIds));
+  const subjectsById = new Map(detail.conflicts.map((c) => [c.id, c.subjects]));
+  const tripWideConflicts: AiConflictSummary[] = [];
+  for (const { id, ...conflict } of activeConflicts(detail)) {
+    countInto(conflicts, conflict.kind);
+    if (!(subjectsById.get(id) ?? []).some((subject) => onSomeDay.has(subject))) tripWideConflicts.push(conflict);
+  }
 
   return {
     // Worded for both kinds of turn: a viewer's is not handed `find_days`, and
@@ -435,6 +449,7 @@ export function readTripOverview(detail: TripDetail): TripOverviewReadout {
     stopKinds,
     backlog: detail.backlog.length,
     conflicts,
+    tripWideConflicts,
   };
 }
 
@@ -691,7 +706,7 @@ export function readDays(detail: TripDetail, days: readonly number[], budget?: D
       const readout = readDay(detail, day);
       if ("error" in readout || budget === undefined || budget.admit(day)) return readout;
       return {
-        error: `Day ${day} was not read: this turn has already read ${budget.cap} days in full, the most one turn may. Answer from read_trip and find_days, or ask the user to narrow the question to fewer days.`,
+        error: `Day ${day} was not read: this turn has already read ${budget.cap} days in full, the most one turn may. Answer from read_trip (and find_days, if this turn has it), or ask the user to narrow the question to fewer days.`,
       };
     }),
   };
@@ -1170,6 +1185,7 @@ function fencedTrip(readout: TripReadout | TripOverviewReadout): TripReadout | T
         city: untrustedOrNull(segment.city),
         alsoTouches: untrustedAll(segment.alsoTouches),
       })),
+      tripWideConflicts: fencedConflicts(readout.tripWideConflicts),
     };
   }
   return {
@@ -1248,7 +1264,7 @@ const STOP_LEVEL_CLASSES = ["question", "edit", "plan"] as const satisfies reado
 export const readTripTool = defineTool({
   name: "read_trip",
   description:
-    `Read this trip's shape: name, currency, start date, how many days, how many members and how many of them are travelling (a member can be on the trip and not travelling; a stop nobody is picked for is priced for the travellers, and for at least one person when nobody is travelling), each day's date, which city (or cities, on a travel day) it touches, stop count, how many of its stops still need booking and cost subtotal, the trip cost total, and any active conflicts. Start here — the \`cities\` field is how you find which days are near a place without reading every day. Past ${OVERVIEW_ABOVE_DAYS} days it returns an overview instead (city segments with their days, and counts): find the days you need there or with find_days, then read only those.`,
+    `Read this trip's shape: name, currency, start date, how many days, how many members and how many of them are travelling (a member can be on the trip and not travelling; a stop nobody is picked for is priced for the travellers, and for at least one person when nobody is travelling), each day's date, which city (or cities, on a travel day) it touches, stop count, how many of its stops still need booking and cost subtotal, the trip cost total, and any active conflicts. Start here — the \`cities\` field is how you find which days are near a place without reading every day. Past ${OVERVIEW_ABOVE_DAYS} days it returns an overview instead (city segments with their days, and counts): find the days you need there (or with find_days, if you have it), then read only those.`,
   domain: "itinerary",
   effect: "read",
   spend: "none",
