@@ -21,12 +21,26 @@ general setup.
 
 ## Where the work is right now
 
-**M40 — A BIG CHANGE IS REVIEWED WHOLE, TAKEN WHOLE, AND UNDONE WHOLE — IS THE CURRENT MILESTONE
-AS OF 2026-10-09**, by **M39's gate closing at 8 of 8**. Order: `… M38 ✓ → M39 ✓ → M40 → M41 …
-M47`. **Scoped 2026-10-09**: Mitchell answered all seven decisions as recommended (ADR-067).
-It builds as a phase-0 PR that tracks the gate, then three parts — *Accept all* as one batch,
-named snapshots, the assistant writing suggestions — per
-`docs/plans/2026-10-09-M40-big-change.md`. (`docs/milestones/M40-a-big-change-is-one-change.md`)
+**M40 — A BIG CHANGE IS REVIEWED WHOLE, TAKEN WHOLE, AND UNDONE WHOLE — IS AT 7 OF 8 (2026-10-10).**
+Every part is merged and both migrations are applied. The one box left is the full
+`test:e2e:ci-like` run on merged `main` (`b8fb9aa`), then `pnpm milestone close M40`; M41 follows.
+The milestones README records M41 as scoped 2026-10-07, but its `TODO.md` row still says "not
+scoped", so confirm the decisions before building. (`docs/milestones/M41-planning-without-friction.md`)
+
+**M40, as built.** A big change is reviewed, taken and undone whole:
+- *Accept all* is one batch, so one History entry and one undo (#376).
+- Named snapshots save, preview and restore in one undoable step (#377).
+- An assistant turn of several changes is stored as one suggestion on the board, after a
+  "Before: …" snapshot. Its note in the chat offers *Accept all* too (#378, ADR-067).
+
+Found on the way:
+- #379 moved CI's Postgres image to ECR Public.
+- #381 draws a suggested new day as a ghost day.
+- #382 refuses a turn on a deleted trip.
+
+Migrations `0045_trip_snapshots` and `0046_suggestions_via` are applied (`migrate-production` runs
+43 and 44, on #377's and #378's merges). Its retro is at the end of
+`docs/milestones/M40-a-big-change-is-one-change.md`.
 
 **M39 closed 2026-10-09.** The phone layout was decided once, in the critique (#362). It shipped
 as Parts 1–7 (#363–#369, plus #371 for Part 7's self-review), all merged 2026-10-09:

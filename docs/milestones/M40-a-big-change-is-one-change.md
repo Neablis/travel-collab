@@ -83,18 +83,31 @@ Then the gate: the ci-like e2e on the top part, the two-editor walk on its previ
 - [x] **Decisions 1–7 are answered and recorded here**, and the new ADR is written. *Ticked
       2026-10-09: answered by Mitchell in session, all as recommended; ADR-067 written in the
       phase-0 PR.*
-- [ ] **Accepting ten changes writes one History entry and is undone by one undo**, in an
+- [x] **Accepting ten changes writes one History entry and is undone by one undo**, in an
       integration test against real Postgres. The test was seen red against today's per-change
-      loop.
-- [ ] **A refused change in an accept-all lands nothing.**
-- [ ] **A snapshot saves, previews and restores**, and the restore undoes in one step. A trip whose
-      snapshot `seq` predates a deleted day restores that day.
-- [ ] **An assistant planning turn on an editor's trip produces stored suggestions** that survive
+      loop. *Ticked 2026-10-10: #376, seen red against the loop as `expected … to have a length of
+      3 but got 12`. Mitchell's stacked case (add a day, move a stop onto it, retime it) is one
+      entry applied in order and one undo, seen red with the position sort reversed.*
+- [x] **A refused change in an accept-all lands nothing.** *Ticked 2026-10-10: #376, seen red as
+      `expected 5 to be 4`.*
+- [x] **A snapshot saves, previews and restores**, and the restore undoes in one step. A trip whose
+      snapshot `seq` predates a deleted day restores that day. *Ticked 2026-10-10: #377, seen red as
+      `expected 2 to be 1` and `expected [] to deeply equal [ Array(1) ]`. `0045` applied by
+      `migrate-production` run 43.*
+- [x] **An assistant planning turn on an editor's trip produces stored suggestions** that survive
       a reload and that a second editor can see. Covered by an integration test against
       a mocked model, and the eval grader (M33) passes a stored suggestion in its own free tests.
       *The live eval re-run was dropped from this box by Mitchell on 2026-10-09: Parts 1 and 2 do
       not touch the assistant, and a paid eval run is never started without asking him first.*
+      *Ticked 2026-10-10: #378, a second editor lists the suggestion after a fresh read; seen red
+      with storing turned off as `expected { proposal: {…} } to not have property "proposal"`.
+      `grade.test.ts` and `replay.int.test.ts` pass a stored suggestion.*
 - [ ] **The e2e spec passes on `pnpm --filter web test:e2e:ci-like`**: ask for a day, see its
       suggestions on the board, accept all, see one History entry, restore the snapshot.
-- [ ] **[walk]** The same flow on the PR preview with two editors.
+- [x] **[walk]** The same flow on the PR preview with two editors. *Ticked 2026-10-10: Mitchell
+      walked #378's preview. The walk found that a suggested new day was not drawn (fixed by #381,
+      for the assistant and a suggester alike), asked for Accept all in the chat (`3539b7a`) and
+      for a moved stop to say where it is going (`2d6a7b8`). He resolved both threads and merged.
+      A second person seeing the suggestions is held by the integration test and `suggester.spec.ts`
+      rather than by hand.*
 - [ ] A retro is appended at gate close.
