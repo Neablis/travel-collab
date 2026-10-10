@@ -193,7 +193,7 @@ Placement notes (decided 2026-07-07):
   questions stay open — start-only trip dates, first-run vs. the four-step
   wizard, and whether the landing copy may sell M11/M12 — see the review's §8.
 
-Current milestone: M40 — A big change is reviewed whole, taken whole, and undo…
+Current milestone: M41 — Moving and adding stops takes one gesture wherever yo…
 **M34 became current 2026-10-05, by M33's gate closing** at **6 of 6**, the day it was minted.
 Scope and gate: `docs/milestones/M34-nearby-stops.md`; build plan
 `docs/plans/2026-10-05-M34-nearby-stops.md`.

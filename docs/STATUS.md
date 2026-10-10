@@ -21,13 +21,12 @@ general setup.
 
 ## Where the work is right now
 
-**M40 — A BIG CHANGE IS REVIEWED WHOLE, TAKEN WHOLE, AND UNDONE WHOLE — IS AT 7 OF 8 (2026-10-10).**
-Every part is merged and both migrations are applied. The one box left is the full
-`test:e2e:ci-like` run on merged `main` (`b8fb9aa`), then `pnpm milestone close M40`; M41 follows.
+**M41 — MOVING AND ADDING STOPS TAKES ONE GESTURE WHEREVER YOU ARE — IS THE CURRENT MILESTONE AS
+OF 2026-10-10**, by **M40's gate closing at 8 of 8**. Order: `… M39 ✓ → M40 ✓ → M41 → M42 … M47`.
 The milestones README records M41 as scoped 2026-10-07, but its `TODO.md` row still says "not
 scoped", so confirm the decisions before building. (`docs/milestones/M41-planning-without-friction.md`)
 
-**M40, as built.** A big change is reviewed, taken and undone whole:
+**M40 closed 2026-10-10.** A big change is reviewed, taken and undone whole:
 - *Accept all* is one batch, so one History entry and one undo (#376).
 - Named snapshots save, preview and restore in one undoable step (#377).
 - An assistant turn of several changes is stored as one suggestion on the board, after a
@@ -39,7 +38,8 @@ Found on the way:
 - #382 refuses a turn on a deleted trip.
 
 Migrations `0045_trip_snapshots` and `0046_suggestions_via` are applied (`migrate-production` runs
-43 and 44, on #377's and #378's merges). Its retro is at the end of
+43 and 44, on #377's and #378's merges). The ci-like e2e passed 292 of 292, with no retries, on merged
+`main` (`b8fb9aa`). Its retro is at the end of
 `docs/milestones/M40-a-big-change-is-one-change.md`.
 
 **M39 closed 2026-10-09.** The phone layout was decided once, in the critique (#362). It shipped
@@ -270,10 +270,10 @@ half, the model guessing a coordinate rather than citing one, is M9 scope.
 
 ## Next action
 
-**Build M40 Part 1** (`docs/plans/2026-10-09-M40-big-change.md`): *Accept all* as one batch.
-The phase-0 PR tracks the gate. M39 added no migrations; all 45 are applied. M40 Part 2 adds
-`0045`, Part 3 `0046`.
-Separately,
+**Confirm M41's decisions, then plan its build** (`docs/milestones/M41-planning-without-friction.md`).
+The README says it was scoped 2026-10-07 and its `TODO.md` row says it was not, so read the milestone
+file's decisions with Mitchell before writing a plan. All 47 migrations are applied (M40 added
+`0045` and `0046`). Separately,
 `KI-2026-10-04-c` resolves on query 8 of `ledger.sql` over a few days of cheap-tier step durations.
 
 **Carried out of M24, not gating:** `KI-2026-09-25-q`. About a dozen
