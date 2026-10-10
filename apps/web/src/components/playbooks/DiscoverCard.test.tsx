@@ -205,3 +205,12 @@ describe("a Discover card's cover", () => {
     );
   });
 });
+
+// axe on `/playbooks`, heading-order: every list of these cards sits straight
+// under its screen's h1, and the card title was an h4.
+describe("a Discover card's title", () => {
+  it("is a level-two heading, the next level under the screen's h1", () => {
+    render(<DiscoverCard day={day()} origin={{ from: "playbooks" }} />);
+    expect(screen.getByRole("heading", { level: 2, name: "Kyoto temples on foot" })).toBeTruthy();
+  });
+});
