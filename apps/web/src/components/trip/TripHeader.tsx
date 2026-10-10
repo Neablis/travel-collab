@@ -720,7 +720,12 @@ export function TripHeader({
           `SettingsSheet`'s `datesLabel` is already a second copy of these
           rules and a third is where the header starts disagreeing with the
           sheet about the same trip. */}
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-6 pt-2 md:hidden">
+      {/* A real row, not a sliver (Mitchell, 2026-10-10 on a phone's Overview:
+          "too skinny and the text is against the bottom bar"). It had `pt-2`
+          and nothing under it, so the dates sat on whatever came next. Padded
+          both ways and at least 44px — the row height of the pinned header
+          above — so the line reads as its own band. */}
+      <div className="flex min-h-11 flex-wrap items-center gap-x-2 gap-y-1.5 px-6 py-2.5 md:hidden">
         {isPhone && identity}
         <div data-testid="trip-date-line">
           <DataText size="xs">{tripDateRange(activeTrip)}</DataText>
