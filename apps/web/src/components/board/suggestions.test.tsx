@@ -144,6 +144,21 @@ describe("suggestions on the board", () => {
     expect(within(review).getByRole("button", { name: "Dismiss: Moved Colosseum tour to Day 2" })).toBeTruthy();
   });
 
+  // W79: a retime from the same suggestion is shown on the move, and decided there.
+  it("draws a moved stop at the time a later change from its suggestion gives it, and offers that change on it", async () => {
+    mount("owner", (tripId) => [
+      change(tripId, "Moved Colosseum tour to Day 2", [{ type: "MoveActivity", tripId, activityId: COLOSSEUM, toDayId: DAY_2, position: 0 }]),
+      change(tripId, "Changed the time of Colosseum tour", [
+        { type: "UpdateActivity", tripId, activityId: COLOSSEUM, timeWindow: { start: "16:00", end: "17:00" } },
+      ]),
+    ]);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Suggested: Moved Colosseum tour to Day 2" }));
+    const review = await screen.findByRole("list", { name: "Suggested changes" });
+    expect(within(review).getByRole("button", { name: "Accept: Changed the time of Colosseum tour" })).toBeTruthy();
+    expect(within(review).getByRole("button", { name: "Dismiss: Changed the time of Colosseum tour" })).toBeTruthy();
+  });
+
   it("shows a suggester Withdraw on their own change, and no Accept or Dismiss", async () => {
     sessionUserId = "dev-sam";
     const { seeded, resolved } = mount("suggester", (tripId) => [addGelato(tripId)]);
@@ -153,6 +168,34 @@ describe("suggestions on the board", () => {
     expect(screen.queryByRole("button", { name: /^Accept:/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /^Dismiss:/ })).toBeNull();
     await waitFor(() => expect(resolved).toEqual([{ changeId: seeded[0]!.id, action: "withdraw" }]));
+  });
+
+  // Mitchell's walk, 2026-10-09: a suggested new day was never drawn, so
+  // nothing added to it or moved onto it had anywhere to appear.
+  it("draws a suggested new day after the trip's days, holding its stops, with the day's Accept and Dismiss", async () => {
+    const DAY_3 = uuidFrom(9105, 7);
+    const { seeded, resolved } = mount("owner", (tripId) => {
+      const addDay = change(tripId, "Added Day 3", [{ type: "AddDay", tripId, dayId: DAY_3 }]);
+      const after = { dependsOn: [addDay.id] };
+      return [
+        addDay,
+        change(tripId, "Added Gelato to Day 3", [
+          { type: "AddActivity", tripId, activityId: GELATO, dayId: DAY_3, title: "Gelato", timeWindow: { start: "14:00", end: "15:00" } },
+        ], after),
+        change(tripId, "Moved Colosseum tour to Day 3", [{ type: "MoveActivity", tripId, activityId: COLOSSEUM, toDayId: DAY_3, position: 1 }], after),
+      ];
+    });
+
+    const day = await screen.findByRole("region", { name: /^Day 3\b.* · suggested$/ });
+    const river = within(day).getByRole("list", { name: /^Day 3\b.* timeline$/ });
+    expect(within(river).getByRole("button", { name: "Suggested: Added Gelato to Day 3" })).toBeTruthy();
+    expect(within(river).getByRole("button", { name: "Suggested: Moved Colosseum tour to Day 3" })).toBeTruthy();
+    // Read-only: nothing on it can be edited.
+    expect(within(day).queryByRole("button", { name: /^Edit / })).toBeNull();
+
+    expect(within(day).getByRole("button", { name: "Dismiss: Added Day 3" })).toBeTruthy();
+    fireEvent.click(within(day).getByRole("button", { name: "Accept: Added Day 3" }));
+    await waitFor(() => expect(resolved).toEqual([{ changeId: seeded[0]!.id, action: "accept" }]));
   });
 
   it("shows a viewer neither ghosts nor the chip", async () => {
