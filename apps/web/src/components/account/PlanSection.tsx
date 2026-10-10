@@ -375,7 +375,10 @@ export function PlanSection() {
           environment's global ceiling is deliberately never shown, because it
           was never sold to anyone. */}
       <div className="flex flex-col gap-2 rounded-lg border border-hairline bg-surface p-3">
-        <Heading level={4}>Assistant use today</Heading>
+        {/* h2, not h4: the Plan panel is named by its tab and has no heading
+            of its own, so these cards sit straight under the page's h1 and an
+            h4 skipped two levels (axe heading-order). Same h4 type. */}
+        <Heading level={2} className="text-md font-medium">Assistant use today</Heading>
         <Meter label="Questions" standing={plan.questions} testId="meter-questions" />
         <Text variant="secondary" className="text-xs">
           Every question you ask the assistant, across all your trips.
@@ -403,7 +406,7 @@ export function PlanSection() {
           reward that resolves to zero. */}
       {plan.canRefer ? (
         <div className="flex flex-col gap-2 rounded-lg border border-hairline bg-surface p-3" data-testid="referral-row">
-          <Heading level={4}>Bring someone in, get a month</Heading>
+          <Heading level={2} className="text-md font-medium">Bring someone in, get a month</Heading>
           <Text variant="secondary" className="text-xs">
             When someone new signs up with your link you get a month of whatever you hold the moment
             they join. A free plan earns nothing, so there is nothing to farm.

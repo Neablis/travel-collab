@@ -21,7 +21,7 @@ export default function AccountPage() {
   return (
     <Suspense
       fallback={
-        <PageContainer width="content">
+        <PageContainer as="main" width="content">
           <Heading level={1}>Account</Heading>
         </PageContainer>
       }

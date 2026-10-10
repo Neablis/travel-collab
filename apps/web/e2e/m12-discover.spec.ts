@@ -88,7 +88,7 @@ async function forget(page: Page, savedDayId: string): Promise<void> {
 }
 
 /** The card titles in the order Discover shows them. */
-const cardTitles = (page: Page) => page.getByTestId("discover-results").getByRole("heading", { level: 4 });
+const cardTitles = (page: Page) => page.getByTestId("discover-results").getByRole("heading", { level: 2 });
 
 test("highest rated and most reviewed order by the reviews, and the floor narrows by them", async ({
   page,

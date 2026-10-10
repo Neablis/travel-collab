@@ -20,7 +20,7 @@ import { e2eTripName } from "./tripNames";
 async function openNotebookIndex(page: Page): Promise<void> {
   await page.getByRole("button", { name: "Notebooks" }).click();
   await page.getByRole("link", { name: /Browse all notebooks/ }).click();
-  await expect(page.getByRole("heading", { name: "Notebooks", exact: true, level: 2 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Notebooks", exact: true, level: 1 })).toBeVisible();
 }
 
 // The edit session writes once, when it ends (ADR-036).

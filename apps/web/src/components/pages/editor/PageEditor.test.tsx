@@ -81,6 +81,17 @@ describe("PageEditor", () => {
     expect(JSON.stringify(lastCall)).toContain('"macro"');
     expect(JSON.stringify(lastCall)).toContain("cost.trip");
   });
+
+  // axe on `/demo`: the document is a `contenteditable` exposed as a textbox,
+  // and it had no accessible name. Every mount gets one by default.
+  it("names the document, by default and when the surface says what it is", async () => {
+    const value = newPageDoc([{ type: "paragraph", content: [] }]);
+    const { unmount } = render(<PageEditor detail={detail} context={context} value={value} onChange={() => {}} />);
+    expect(await screen.findByRole("textbox", { name: "Notebook page" })).toBeTruthy();
+    unmount();
+    render(<PageEditor detail={detail} context={context} value={value} onChange={() => {}} label="Trip overview" />);
+    expect(await screen.findByRole("textbox", { name: "Trip overview" })).toBeTruthy();
+  });
 });
 
 // ADR-038 asked an open empirical question and refused to design around a guess:

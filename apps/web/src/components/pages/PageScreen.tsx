@@ -114,7 +114,7 @@ function droppedNotice(dropped: readonly DroppedInsert[]): string {
  */
 function NotebookSkeleton() {
   return (
-    <PageContainer>
+    <PageContainer as="main">
       <SkeletonRegion label="Loading this notebook" className="flex flex-col">
         <div className="mt-3 mb-3 flex items-center justify-between gap-3 md:my-0 md:py-3" data-testid="notebook-skeleton">
           <Skeleton className="h-3.5 w-32" />
@@ -1002,7 +1002,7 @@ export function PageScreen({
   if (status === "loading") return <NotebookSkeleton />;
   if (status === "error" || page === null || trip === null || stored === null) {
     return (
-      <PageContainer>
+      <PageContainer as="main">
         <p role="alert">{error ?? "Something went wrong"}</p>
         <PageBreadcrumb tripId={tripId} tripName={trip?.name ?? null} from={from} title={page?.title ?? null} />
       </PageContainer>
@@ -1162,7 +1162,7 @@ export function PageScreen({
   // control that promises editing would be a button that cannot keep its word.
   if (stored.status !== "mountable") {
     return (
-      <PageContainer>
+      <PageContainer as="main">
         <div className="mb-2">{backLink}</div>
         {/* Plain, not a `PageTitle`: this branch exists precisely so nothing
             here can write to a document the app cannot safely read, and a
@@ -1192,7 +1192,10 @@ export function PageScreen({
     // Member names for every widget on the page, its settings and its insert
     // sheet alike — from the access read the effect above already makes.
     <PeopleProvider tripId={tripId}>
-    <PageContainer>
+    {/* `main` on every branch's container (skeleton, error, locked, this):
+        each returns exactly one, and nothing above this route draws one, so
+        a notebook page has exactly one main landmark (axe landmark-one-main). */}
+    <PageContainer as="main">
       {/* The row above the container: where you came from on the left, the one
           mode toggle on the right (dc.html:2326). Everything that acts on the
           document itself is inside the container with it. */}

@@ -329,7 +329,11 @@ export function HeaderSessionChrome({ demoResetEnabled = false }: { demoResetEna
           `PHONE_TOUCH` is for the tablet these DO show on (M39 D3): 32px
           under a finger at 820px (KI-2026-09-24-j), 44px now, and released for
           a mouse. */}
-      <nav className="hidden items-center gap-1 pl-2 md:flex">
+      {/* `aria-label="Main"`: a trip page carries a second `nav` (the trip
+          header's), and two unnamed navigation landmarks are
+          indistinguishable in a screen reader's landmark list (axe
+          `landmark-unique`). */}
+      <nav aria-label="Main" className="hidden items-center gap-1 pl-2 md:flex">
         <Link href="/" className={cn(PHONE_TOUCH, "inline-flex items-center rounded-sm px-2.5 py-1.5 text-base font-medium text-slate no-underline hover:text-ink")}>
           Trips
         </Link>

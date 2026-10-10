@@ -70,6 +70,7 @@ export function ProfileScreen({ userId, back }: { userId: string; back: BackTarg
         // Nothing ever arrived. The Retry lives in the banner above rather than
         // being duplicated here, so there is one control and not two.
         <EmptyState
+          level={2}
           title="This profile could not be loaded"
           body="Nothing has been shown yet. Retry above, or go back to Discover."
         />
@@ -140,6 +141,7 @@ export function ProfileScreen({ userId, back }: { userId: string; back: BackTarg
 
           {feed.data.days.length === 0 ? (
             <EmptyState
+              level={2}
               title="Nothing shared yet"
               body="This person has not published any days. A private day never appears here — not even to its own author."
             />

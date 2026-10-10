@@ -334,3 +334,17 @@ describe("OverviewLens — the reader's preferences", () => {
     expect(screen.queryByText("9 am – 5 pm")).toBeNull();
   });
 });
+
+// axe on `/demo`: the Overview's document is a textbox, and it had no name.
+describe("OverviewLens — the document's name", () => {
+  it("names the read-only document Trip overview", async () => {
+    const tripId = "0b7c3d2e-1f4a-4c5b-9e6d-7a8b9c0d1e2f";
+    fetchPagesMock.mockResolvedValue({
+      ok: true as const,
+      value: { ...okPages.value, pages: okPages.value.pages.map((p) => ({ ...p, tripId })) },
+    });
+    fetchPageMock.mockResolvedValue(okPageDoc("Dear crew"));
+    render(<OverviewLens detail={tripDetailFixture()} tripId={tripId} readOnly />);
+    expect(await screen.findByRole("textbox", { name: "Trip overview" })).toBeTruthy();
+  });
+});

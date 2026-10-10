@@ -22,7 +22,7 @@ import { ACCENT_INK_TEXT, type AccentFamily } from "@/lib/dayAccent";
 // removed is worse than one whose control greys out. `title` says why.
 
 /**
- * Provides a flag control for saving a trip day and displays save confirmation feedback.
+ * Provides a share pennant for saving a trip day and displays save confirmation feedback.
  *
  * @param dayIndex - The zero-based index of the day.
  * @param accent - The accent family used to style the control.

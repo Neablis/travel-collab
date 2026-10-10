@@ -391,123 +391,132 @@ export function PhoneFrontDoor() {
           </Link>
         </span>
       </header>
-      {/* The pinned block. It is three viewports tall, and the sticky stage
-          inside it is one — so scrolling it moves `scrollTop` without moving
-          what you are looking at, which is the whole mechanic. */}
-      <div ref={pinRef} data-testid="front-door-pin" className="front-door-pin relative">
-        <div className="sticky top-0 flex h-dvh flex-col overflow-hidden">
-          <svg
-            ref={mapRef}
-            viewBox="0 0 160 210"
-            preserveAspectRatio="xMidYMid slice"
-            aria-hidden
-            data-testid="front-door-map"
-            className="pointer-events-none absolute inset-0 h-full w-full"
-          >
-            <rect x="-10" y="-10" width="180" height="230" className="fill-moss" />
-            {[34, 76, 120, 164].map((y) => (
-              <path key={`ew${y}`} d={`M-6 ${y} L 166 ${y - 7}`} strokeWidth="0.6" className="fill-none stroke-hairline" />
-            ))}
-            {[[44, 50], [108, 114]].map(([top, bottom]) => (
-              <path key={`ns${top}`} d={`M${top} -6 L ${bottom} 216`} strokeWidth="0.6" className="fill-none stroke-hairline" />
-            ))}
-            <rect x="52" y="30" width="22" height="17" opacity="0.55" className="fill-surface" />
-            <rect x="116" y="80" width="19" height="28" opacity="0.45" className="fill-surface" />
-            <rect x="18" y="126" width="24" height="20" opacity="0.5" className="fill-surface" />
-            {/* The route: one line through the city, with a stop on it. */}
-            <path
-              d="M30 6 C 52 34, 44 66, 68 92 S 104 126, 96 166 S 118 196, 128 214"
-              strokeWidth="2.2"
-              strokeLinecap="round"
-              opacity="0.55"
-              className="fill-none stroke-brand"
-            />
-            {[[30, 6], [68, 92], [96, 166], [128, 214]].map(([cx, cy]) => (
-              <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r="3.4" className="fill-brand" />
-            ))}
-          </svg>
-          {/* The paper veil (`dc.html:3401`): opaque where the headline and the
-              claims sit, clear through the middle where the route shows. Without
-              it the map is a flat block of moss behind text rather than ground
-              the words are standing on. The gradient itself is in `globals.css`
-              — see `.front-door-veil` for why it cannot be a class attribute. */}
-          <div aria-hidden className="front-door-veil pointer-events-none absolute inset-0" />
+      {/* **`main` around everything between the bar and the footer.** axe on
+          `/` at phone width: no `main` landmark, and the stage, the claims and
+          the call to action sat outside every landmark. The desktop tree has
+          its own `main`; the two are never shown together (`hidden` is
+          `display: none`, out of the accessibility tree), so a reader meets
+          exactly one. A bare element with no classes, so neither the pin's
+          sticky mechanics nor the sections' heights notice it. */}
+      <main>
+        {/* The pinned block. It is three viewports tall, and the sticky stage
+            inside it is one — so scrolling it moves `scrollTop` without moving
+            what you are looking at, which is the whole mechanic. */}
+        <div ref={pinRef} data-testid="front-door-pin" className="front-door-pin relative">
+          <div className="sticky top-0 flex h-dvh flex-col overflow-hidden">
+            <svg
+              ref={mapRef}
+              viewBox="0 0 160 210"
+              preserveAspectRatio="xMidYMid slice"
+              aria-hidden
+              data-testid="front-door-map"
+              className="pointer-events-none absolute inset-0 h-full w-full"
+            >
+              <rect x="-10" y="-10" width="180" height="230" className="fill-moss" />
+              {[34, 76, 120, 164].map((y) => (
+                <path key={`ew${y}`} d={`M-6 ${y} L 166 ${y - 7}`} strokeWidth="0.6" className="fill-none stroke-hairline" />
+              ))}
+              {[[44, 50], [108, 114]].map(([top, bottom]) => (
+                <path key={`ns${top}`} d={`M${top} -6 L ${bottom} 216`} strokeWidth="0.6" className="fill-none stroke-hairline" />
+              ))}
+              <rect x="52" y="30" width="22" height="17" opacity="0.55" className="fill-surface" />
+              <rect x="116" y="80" width="19" height="28" opacity="0.45" className="fill-surface" />
+              <rect x="18" y="126" width="24" height="20" opacity="0.5" className="fill-surface" />
+              {/* The route: one line through the city, with a stop on it. */}
+              <path
+                d="M30 6 C 52 34, 44 66, 68 92 S 104 126, 96 166 S 118 196, 128 214"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                opacity="0.55"
+                className="fill-none stroke-brand"
+              />
+              {[[30, 6], [68, 92], [96, 166], [128, 214]].map(([cx, cy]) => (
+                <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r="3.4" className="fill-brand" />
+              ))}
+            </svg>
+            {/* The paper veil (`dc.html:3401`): opaque where the headline and the
+                claims sit, clear through the middle where the route shows. Without
+                it the map is a flat block of moss behind text rather than ground
+                the words are standing on. The gradient itself is in `globals.css`
+                — see `.front-door-veil` for why it cannot be a class attribute. */}
+            <div aria-hidden className="front-door-veil pointer-events-none absolute inset-0" />
 
-          {/* The headline holds still while the claims pass underneath. */}
-          <div className="phone-front-door-stage relative px-6" data-testid="front-door-stage">
-            <Text variant="muted" className="uppercase tracking-widest">
-              Days worth reliving
-            </Text>
-            {/* An <h2> that announces as level 1. The desktop tree holds this
-                headline as the document's one <h1>; CSS shows one tree per
-                breakpoint, and a crawler reads both. */}
-            <Heading level={2} aria-level={1} className="mt-2 text-3xl">
-              Put the best day on repeat.
-            </Heading>
-          </div>
+            {/* The headline holds still while the claims pass underneath. */}
+            <div className="phone-front-door-stage relative px-6" data-testid="front-door-stage">
+              <Text variant="muted" className="uppercase tracking-widest">
+                Days worth reliving
+              </Text>
+              {/* An <h2> that announces as level 1. The desktop tree holds this
+                  headline as the document's one <h1>; CSS shows one tree per
+                  breakpoint, and a crawler reads both. */}
+              <Heading level={2} aria-level={1} className="mt-2 text-3xl">
+                Put the best day on repeat.
+              </Heading>
+            </div>
 
-          <div className="relative mt-8 flex-1">
-            {CLAIMS.map((claim, i) => (
-              <div
-                key={claim.label}
-                ref={(el) => {
-                  chunkRefs.current[i] = el;
-                }}
-                data-testid="front-door-claim"
-                // The authored rest state's other half: the three claims that
-                // start invisible start unannounced too, so the server's HTML
-                // and the paint above agree before any effect has run.
-                aria-hidden={i !== 0}
-                className="absolute inset-0 flex flex-col justify-center px-6"
-                // Note 2: the rest state is AUTHORED, not applied by the
-                // effect. Without it a cold load — or a browser that fires no
-                // scroll event because the page opens at the top — stacks all
-                // four claims on top of each other.
-                // eslint-disable-next-line no-restricted-syntax -- the authored rest state of a scroll-driven sequence; it is overwritten per scroll event and has no token equivalent.
-                style={{ opacity: i === 0 ? 1 : 0, willChange: "transform, opacity" }}
-              >
-                {/* **The plate, which Mitchell reported missing by name** —
-                    *"The mobile homepage styling is missing the background box
-                    with gradiant"*. It is what keeps a claim legible while the
-                    map moves under it. `-mx-1.5` is the design's `margin: 0
-                    -6px`: the plate bleeds past the text's own gutter so the
-                    words are never near its edge. */}
-                <span className="front-door-plate -mx-1.5 flex flex-col gap-3 px-4 py-5">
-                  <Text variant="muted" className="uppercase tracking-widest">
-                    {claim.label}
-                  </Text>
-                  <Text className="text-lg text-ink">{claim.body}</Text>
-                  {claim.example}
-                </span>
-              </div>
-            ))}
+            <div className="relative mt-8 flex-1">
+              {CLAIMS.map((claim, i) => (
+                <div
+                  key={claim.label}
+                  ref={(el) => {
+                    chunkRefs.current[i] = el;
+                  }}
+                  data-testid="front-door-claim"
+                  // The authored rest state's other half: the three claims that
+                  // start invisible start unannounced too, so the server's HTML
+                  // and the paint above agree before any effect has run.
+                  aria-hidden={i !== 0}
+                  className="absolute inset-0 flex flex-col justify-center px-6"
+                  // Note 2: the rest state is AUTHORED, not applied by the
+                  // effect. Without it a cold load — or a browser that fires no
+                  // scroll event because the page opens at the top — stacks all
+                  // four claims on top of each other.
+                  // eslint-disable-next-line no-restricted-syntax -- the authored rest state of a scroll-driven sequence; it is overwritten per scroll event and has no token equivalent.
+                  style={{ opacity: i === 0 ? 1 : 0, willChange: "transform, opacity" }}
+                >
+                  {/* **The plate, which Mitchell reported missing by name** —
+                      *"The mobile homepage styling is missing the background box
+                      with gradiant"*. It is what keeps a claim legible while the
+                      map moves under it. `-mx-1.5` is the design's `margin: 0
+                      -6px`: the plate bleeds past the text's own gutter so the
+                      words are never near its edge. */}
+                  <span className="front-door-plate -mx-1.5 flex flex-col gap-3 px-4 py-5">
+                    <Text variant="muted" className="uppercase tracking-widest">
+                      {claim.label}
+                    </Text>
+                    <Text className="text-lg text-ink">{claim.body}</Text>
+                    {claim.example}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Empty paper. §28: "then the map clears out and the call to action
-          arrives on empty paper" — so this sits AFTER the pin, in ordinary
-          flow, with nothing behind it. */}
-      <section className="flex min-h-dvh flex-col justify-center gap-4 bg-paper px-6">
-        <Heading level={2} className="text-2xl">
-          Start the plan, then send the link.
-        </Heading>
-        <Text variant="secondary">
-          A trip takes about a minute to set up. Everything after that is easier with company.
-        </Text>
-        <Link
-          href="/signup"
-          className={cn(buttonVariants({ variant: "primary", size: "touch" }), "justify-center no-underline")}
-        >
-          Start a trip
-        </Link>
-        <Link
-          href="/demo"
-          className={cn(buttonVariants({ variant: "secondary", size: "touch" }), "justify-center no-underline")}
-        >
-          Look around a real trip
-        </Link>
-      </section>
+        {/* Empty paper. §28: "then the map clears out and the call to action
+            arrives on empty paper" — so this sits AFTER the pin, in ordinary
+            flow, with nothing behind it. */}
+        <section className="flex min-h-dvh flex-col justify-center gap-4 bg-paper px-6">
+          <Heading level={2} className="text-2xl">
+            Start the plan, then send the link.
+          </Heading>
+          <Text variant="secondary">
+            A trip takes about a minute to set up. Everything after that is easier with company.
+          </Text>
+          <Link
+            href="/signup"
+            className={cn(buttonVariants({ variant: "primary", size: "touch" }), "justify-center no-underline")}
+          >
+            Start a trip
+          </Link>
+          <Link
+            href="/demo"
+            className={cn(buttonVariants({ variant: "secondary", size: "touch" }), "justify-center no-underline")}
+          >
+            Look around a real trip
+          </Link>
+        </section>
+      </main>
 
       {/* The desktop landing's footer, same five items (see LandingScreen).
           It ends this screen's own scroller, so its bottom padding adds the

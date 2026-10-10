@@ -73,12 +73,36 @@ describe("UnderlineTabs", () => {
     expect(tab.className).not.toMatch(/(^|\s)h-1[01](\s|$)/);
   });
 
-  it("wires each tab to its panel, namespaced so two strips cannot collide", () => {
+  it("namespaces its tab ids so two strips cannot collide", () => {
     renderTabs();
     const tab = screen.getByRole("tab", { name: "API tokens" });
     expect(tab.id).toBe(tabId("account", "tokens"));
-    expect(tab.getAttribute("aria-controls")).toBe(tabPanelId("account", "tokens"));
     expect(tabId("discover", "tokens")).not.toBe(tabId("account", "tokens"));
+  });
+
+  // axe `aria-valid-attr-value` (critical) on /playbooks: every tab pointed
+  // `aria-controls` at a panel id nothing rendered. A tab points at a panel
+  // only when the caller says it renders one, and only the selected tab,
+  // because callers mount one panel at a time.
+  it("points only the selected tab at its panel, and only when the caller renders one", () => {
+    const { unmount } = render(
+      <UnderlineTabs
+        value="plan"
+        onValueChange={() => {}}
+        options={OPTIONS}
+        idPrefix="account"
+        hasPanel
+        aria-label="Account sections"
+      />,
+    );
+    expect(screen.getByRole("tab", { name: "Plan & usage" }).getAttribute("aria-controls")).toBe(
+      tabPanelId("account", "plan"),
+    );
+    expect(screen.getByRole("tab", { name: "API tokens" }).hasAttribute("aria-controls")).toBe(false);
+    unmount();
+
+    renderTabs("plan");
+    for (const tab of screen.getAllByRole("tab")) expect(tab.hasAttribute("aria-controls")).toBe(false);
   });
 
   // A `role="tablist"` owes arrow-key movement. Without these the tabs are a row

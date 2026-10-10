@@ -51,11 +51,16 @@ export function DemoTripScreen() {
           </>
         }
       />
-      <DemoBanner />
       {/* `.phone-tab-bar-inset` for the reason `(app)/layout.tsx` gives: the
           bar below is `position: fixed`, so without it the board's last row
           sits under the bar. 0px at >=768px, where the bar is not rendered. */}
       <PageContainer as="main" width="full" className="phone-tab-bar-inset px-0">
+        {/* The banner is the page's first content, so it is inside `main`.
+            It used to sit between the header and `main`, in no landmark at
+            all, and axe flagged it on `/demo`. `main` has no padding here
+            (`px-0`), so it draws exactly where it did. Still outside the
+            Suspense boundary, so it stays in the first paint. */}
+        <DemoBanner />
         {/* `LensRouter` reads `useSearchParams()` — which lens you are looking
             at is URL state, so a link to `/demo?lens=Map` opens the map. That
             makes this subtree opt out of static prerendering, and Next.js

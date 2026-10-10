@@ -190,6 +190,8 @@ describe("PageScreen", () => {
     // Still a heading, and now the page's `h1`. Reading owns no chrome (§18),
     // so the title takes a caret only in Editing.
     const heading = await screen.findByRole("heading", { name: page.title, level: 1 });
+    // ...and inside the page's `main` (axe landmark-one-main on notebook pages).
+    expect(within(screen.getByRole("main")).getByRole("heading", { name: page.title, level: 1 })).toBe(heading);
     // `getAttribute`, not `isContentEditable`: jsdom does not implement the
     // property, and it reads `undefined` rather than `false` — which is how the
     // first cut of this test passed its own "not editable yet" assertion by

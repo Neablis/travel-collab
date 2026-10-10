@@ -1,4 +1,5 @@
 "use client";
+import { useId } from "react";
 import * as RadixPopover from "@radix-ui/react-popover";
 import { cn } from "@/lib/cn";
 
@@ -16,6 +17,7 @@ export function Popover({
   collisionPadding,
   anchor,
   onCloseAutoFocus,
+  label,
   children,
 }: {
   open: boolean;
@@ -41,11 +43,27 @@ export function Popover({
    * `event.preventDefault()` and focuses what it opened from instead.
    */
   onCloseAutoFocus?: (event: Event) => void;
+  /**
+   * The open panel's accessible name, when its trigger's name is not the
+   * right one. Absent, the panel is named BY its trigger (see below).
+   */
+  label?: string;
   children: React.ReactNode;
 }) {
+  // **Every popover is a named dialog.** Radix gives the content
+  // `role="dialog"` and no name, and an unnamed dialog fails axe
+  // `aria-dialog-name` — the desktop Notebooks menu did, and so did every
+  // other caller of this primitive. The trigger already says what the panel
+  // is ("Notebooks", "History", "Filters · 2"), so by default the content is
+  // labelled by it; Radix's `Slot` puts the id on the caller's own button.
+  // `aria-labelledby` resolves the trigger's `aria-label` too, and still works
+  // while the trigger is hidden behind an `anchor`.
+  const triggerId = useId();
   return (
     <RadixPopover.Root open={open} onOpenChange={onOpenChange}>
-      <RadixPopover.Trigger asChild>{trigger}</RadixPopover.Trigger>
+      <RadixPopover.Trigger asChild id={triggerId}>
+        {trigger}
+      </RadixPopover.Trigger>
       {anchor !== undefined && <RadixPopover.Anchor asChild>{anchor}</RadixPopover.Anchor>}
       <RadixPopover.Portal>
         <RadixPopover.Content
@@ -53,6 +71,8 @@ export function Popover({
           sideOffset={6}
           collisionPadding={collisionPadding}
           onCloseAutoFocus={onCloseAutoFocus}
+          aria-label={label}
+          aria-labelledby={label === undefined ? triggerId : undefined}
           className={cn(
             "overlay-layer w-80 rounded-lg border border-hairline bg-surface p-3 shadow-overlay",
             contentClassName,
