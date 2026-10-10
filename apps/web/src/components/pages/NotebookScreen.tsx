@@ -622,6 +622,7 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
           />
         ) : pages.length === 0 ? (
           <EmptyState
+            level={3}
             title="No notebooks yet"
             body={
               reader

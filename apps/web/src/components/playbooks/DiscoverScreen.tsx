@@ -725,6 +725,7 @@ export function DiscoverScreen({
            "Drop the filters is a bad experience, drop that button all
            together"). */
         <EmptyState
+          level={2}
           title={feed.error !== null ? "Nothing to show yet" : "No days match"}
           body={
             scope === "saved"
