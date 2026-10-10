@@ -31,6 +31,7 @@ import { ConflictBanner } from "./ConflictBanner";
 import { type AnyTimeOutcome, type DropOutcome, type PlaceOutcome, resolveDrop } from "./resolveDrop";
 import { riverAxis } from "./riverLayout";
 import { pasteToStop } from "@/lib/pasteToStop";
+import { fitIntoDay } from "@/components/trip/fitIntoDay";
 
 // Phase 6, Step 3 item 5: the trailing "One more day?" column, which replaces
 // the loose "+ Add day" button that used to trail the row. Shaped like a day
@@ -713,10 +714,21 @@ export function Board({
   // **A paste or a drop of a link or a line of text makes a stop** (M41 D8).
   // Both come here, so both open the same editor the same way: prefilled by
   // `pasteToStop`, on the day it landed on, reviewed before anything is sent.
+  //
+  // **On a day, it gets a time**, fitted after the day's last stop as the
+  // rack's *Add to day…* fitted one: an untimed stop is drawn in the rack and
+  // not on its day, so a paste onto Day 2 would seem to land nowhere.
   const addFromText = useCallback(
     (text: string, dayId?: string) => {
       const prefill = pasteToStop(text);
-      if (prefill !== null) openCreate({ ...prefill, ...(dayId !== undefined && { dayId }) });
+      if (prefill === null) return;
+      const day = dayId === undefined ? undefined : latest.current.trip.days.find((d) => d.dayId === dayId);
+      if (day === undefined) return openCreate(prefill);
+      const windows = day.activityIds.flatMap((id) => {
+        const window = latest.current.trip.activities[id]?.timeWindow;
+        return window ? [window] : [];
+      });
+      openCreate({ ...prefill, dayId: day.dayId, timeWindow: fitIntoDay(windows) });
     },
     [openCreate],
   );

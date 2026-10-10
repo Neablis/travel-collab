@@ -715,14 +715,19 @@ describe("pasting onto the plan", () => {
   it("opens the editor on the selected day, prefilled from the text", () => {
     const { getEditorState } = renderBoard(fixture(), noopCallbacks(), 0);
     paste(document.body, "Ramen at Ichiran\nCash only");
-    expect(getEditorState()).toEqual({ mode: "create", prefill: { dayId: DAY, title: "Ramen at Ichiran", notes: "Cash only" } });
+    // After the day's last stop (noon), so it is drawn on the day and not in
+    // the rack, where an untimed stop goes.
+    expect(getEditorState()).toEqual({
+      mode: "create",
+      prefill: { dayId: DAY, title: "Ramen at Ichiran", notes: "Cash only", timeWindow: { start: "12:30", end: "13:30" } },
+    });
   });
 
   it("opens it on the day holding the keyboard focus, before the selected day", () => {
     const { getEditorState } = renderBoard(fixture(), noopCallbacks(), null);
     screen.getByRole("button", { name: /^Edit Colosseum/ }).focus();
     paste(document.body, "Gelato");
-    expect(getEditorState()?.prefill).toEqual({ dayId: DAY, title: "Gelato" });
+    expect(getEditorState()?.prefill).toMatchObject({ dayId: DAY, title: "Gelato" });
   });
 
   it("parks the stop when no day is selected or focused", () => {
