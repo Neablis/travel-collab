@@ -551,6 +551,19 @@ html[data-look="ledger"] .shadow-raised {
       );
     }
   }
+  /* The trip page's cover band (`TripCoverBanner`): the trip's name sits ON
+     the photo at the band's foot, in `text-surface`, so the photo darkens
+     toward the words rather than fading into the page. Ink under surface-
+     coloured text, both tokens, so the pair keeps its contrast in dark mode
+     (where the two swap) without a second rule. */
+  .cover-veil-title {
+    background: linear-gradient(
+      0deg,
+      color-mix(in srgb, var(--color-ink) 65%, transparent) 0%,
+      color-mix(in srgb, var(--color-ink) 25%, transparent) 55%,
+      transparent 100%
+    );
+  }
   /* Light text laid on a photo (the hero's countdown): a soft shadow keeps it
      readable on a bright sky, where the photo is not yet veiled. */
   .cover-over-text {

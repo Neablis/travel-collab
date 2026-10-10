@@ -27,6 +27,8 @@ import { AskPill } from "@/components/assistant/AskPill";
 import { SettingsSheet } from "./SettingsSheet";
 import { TripMetaPill, tripCounts, tripDateRange } from "./TripMetaPill";
 import { BudgetChip } from "./BudgetChip";
+import { AddCoverButton, TripCoverBanner } from "./cover/TripCoverBanner";
+import { useTripCover } from "./cover/tripCoverStore";
 
 // The bounded chrome surface (design-system.md surface vocabulary, Pattern 4):
 // trip identity (name + status) on one row with Share / Add stop / sync /
@@ -186,6 +188,10 @@ export function TripHeader({
   });
 
   const publishStickyStack = useStickyStackHeight();
+  // The cover band above the desktop header (Mitchell, 2026-10-10). Its own
+  // read, shared with Trip settings' picker through `tripCoverStore`, so a
+  // pick there shows here at once. Not on /demo, which has no session for it.
+  const cover = useTripCover(tripId, !isDemoTripId(tripId));
 
   if (trip === null || activeTrip === null || status !== "ready") return null;
 
@@ -193,6 +199,15 @@ export function TripHeader({
   // display of activeTrip.status ("active" | "deleted", contracts/trip.ts),
   // capitalized for display. Not a new capability, purely presentational.
   const statusLabel = activeTrip.status.charAt(0).toUpperCase() + activeTrip.status.slice(1);
+
+  // Who may change the cover: the picker's own rule (SettingsSheet passes it
+  // `canEdit={!readOnly}`), and never on /demo. The band and *Add cover* both
+  // open Trip settings at its Cover photo section.
+  const coverEditable = !readOnly && !isDemoTripId(tripId);
+  const openCoverPicker = () => {
+    setSettingsAt("cover");
+    setSettingsOpen(true);
+  };
 
   // Who is travelling and what state the trip is in: beside the title on a
   // desktop, and on the line under the phone's pinned row, which scrolls away
@@ -284,6 +299,15 @@ export function TripHeader({
 
   return (
     <>
+      {/* The cover band, desktop only, above the sticky header so it scrolls
+          away (see `TripCoverBanner`). */}
+      {cover != null && (
+        <TripCoverBanner
+          cover={cover}
+          tripName={activeTrip.name}
+          onChangeCover={coverEditable ? openCoverPicker : undefined}
+        />
+      )}
       <header
         ref={publishStickyStack}
         aria-label="Trip"
@@ -362,7 +386,11 @@ export function TripHeader({
                     did. */}
                 {/* Ask used to end this row. It is on the title's row now,
                     beside Add stop, and on a phone it is the tab bar's — see
-                    the action cluster below. */}
+                    the action cluster below. What ends it instead, on a
+                    desktop with no cover yet, is the cover band's stand-in:
+                    a quiet *Add cover* for whoever may set one. Only once the
+                    read has said "none" (`null`), never while unknown. */}
+                {cover === null && coverEditable && <AddCoverButton onClick={openCoverPicker} />}
               </nav>
             )}
             {/* The title IS the way into Trip settings, and the only way:
