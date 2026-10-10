@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { registerPhoneAsk } from "@/components/nav/phoneAsk";
 import { CommandPalette } from "./CommandPalette";
@@ -20,12 +20,8 @@ const taken: Array<() => void> = [];
 function offer(commands: PaletteCommand[]) {
   taken.push(registerPaletteCommands("test", commands));
 }
-const command = (label: string, run: () => void, group: PaletteCommand["group"] = "Go to"): PaletteCommand => ({
-  id: label,
-  label,
-  group,
-  run,
-});
+// A lens, as the trip registers one: Go to › View › <label>.
+const command = (label: string, run: () => void): PaletteCommand => ({ id: label, action: "Go to", type: "View", target: { label }, run });
 
 // What the palette reads to tell a Mac (⌘K) from anything else (Ctrl+K).
 // jsdom's own is "", so each test says which it is: a Mac unless it says not.
@@ -99,7 +95,7 @@ describe("CommandPalette", () => {
     offer([command("Plan", vi.fn()), command("Calendar", calendar)]);
     render(<CommandPalette />);
     await userEvent.keyboard("{Meta>}k{/Meta}");
-    await userEvent.keyboard("cal{Enter}");
+    await userEvent.keyboard("calendar{Enter}");
     await waitFor(() => expect(calendar).toHaveBeenCalledTimes(1));
     expect(seen).toEqual([true]);
   });
@@ -109,7 +105,7 @@ describe("CommandPalette", () => {
     const calendar = vi.fn();
     offer([command("Plan", plan), command("Calendar", calendar)]);
     render(<CommandPalette />);
-    await userEvent.keyboard("{Meta>}k{/Meta}{ArrowDown}{Enter}");
+    await userEvent.keyboard("{Meta>}k{/Meta}view{ArrowDown}{Enter}");
     await waitFor(() => expect(calendar).toHaveBeenCalledTimes(1));
     expect(plan).not.toHaveBeenCalled();
   });
@@ -144,9 +140,9 @@ describe("CommandPalette", () => {
   it("goes to one of your trips by name", async () => {
     fetchTrips.mockResolvedValue({ ok: true, value: [{ tripId: "t1", name: "Kyoto in spring", status: "active" }] });
     render(<CommandPalette />);
-    await userEvent.keyboard("{Meta>}k{/Meta}");
+    await userEvent.keyboard("{Meta>}k{/Meta}kyo");
     await screen.findByRole("option", { name: /Kyoto in spring/ });
-    await userEvent.keyboard("kyo{Enter}");
+    await userEvent.keyboard("{Enter}");
     await waitFor(() => expect(push).toHaveBeenCalledWith("/trips/t1"));
   });
 
@@ -155,13 +151,13 @@ describe("CommandPalette", () => {
   it("shows none of the last opening's trips before this opening's arrive", async () => {
     fetchTrips.mockResolvedValue({ ok: true, value: [{ tripId: "t1", name: "Kyoto in spring", status: "active" }] });
     render(<CommandPalette />);
-    await userEvent.keyboard("{Meta>}k{/Meta}");
+    await userEvent.keyboard("{Meta>}k{/Meta}kyo");
     await screen.findByRole("option", { name: /Kyoto in spring/ });
     await userEvent.keyboard("{Escape}");
     await waitFor(() => expect(palette()).toBeNull());
 
     fetchTrips.mockResolvedValue({ ok: false, error: { code: "network" } });
-    await userEvent.keyboard("{Meta>}k{/Meta}");
+    await userEvent.keyboard("{Meta>}k{/Meta}kyo");
     expect(palette()).toBeTruthy();
     await waitFor(() => expect(fetchTrips).toHaveBeenCalledTimes(2));
     expect(screen.queryByRole("option", { name: /Kyoto in spring/ })).toBeNull();
@@ -172,8 +168,9 @@ describe("CommandPalette", () => {
     signedIn = false;
     offer([command("Alpha", vi.fn()), command("Beta", vi.fn())]);
     render(<CommandPalette />);
-    await userEvent.keyboard("{Meta>}k{/Meta}{ArrowDown}{ArrowDown}");
-    expect(screen.getByRole("option", { selected: true }).textContent).toBe("PlaybooksGo to");
+    // Go to › Alpha, Beta (views), then Playbooks (a page), under one heading.
+    await userEvent.keyboard("{Meta>}k{/Meta}go{ArrowDown}{ArrowDown}");
+    expect(screen.getByRole("option", { selected: true }).textContent).toBe("Go to › Page › Playbooks");
 
     act(() => offer([command("Alpha", vi.fn())]));
     const box = screen.getByRole("combobox", { name: "Go to or do" });
@@ -185,9 +182,101 @@ describe("CommandPalette", () => {
   it("offers a reader with no account only what is open to them", async () => {
     signedIn = false;
     render(<CommandPalette />);
-    await userEvent.keyboard("{Meta>}k{/Meta}");
-    expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual(["PlaybooksGo to"]);
+    await userEvent.keyboard("{Meta>}k{/Meta}{Enter}{Enter}");
+    expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual(["Playbooks"]);
     expect(fetchTrips).not.toHaveBeenCalled();
+  });
+
+  // ADR-069 §2.
+  describe("drilling in", () => {
+    const leaves = () => {
+      const ramenToDay3 = vi.fn();
+      offer([
+        { id: "rm", action: "Remove", type: "Stop", target: { label: "Ramen" }, run: vi.fn() },
+        { id: "m3", action: "Move", type: "Stop", target: { label: "Ramen" }, destination: { label: "Day 3" }, run: ramenToDay3 },
+        { id: "mu", action: "Move", type: "Stop", target: { label: "Ramen" }, destination: { label: "Unscheduled" }, run: vi.fn() },
+        { id: "undo", action: "Undo", run: vi.fn() },
+      ]);
+      return { ramenToDay3 };
+    };
+    const optionNames = () => screen.getAllByRole("option").map((o) => o.textContent);
+    const box = () => screen.getByRole("combobox", { name: "Go to or do" });
+
+    it("lists only the actions when nothing is typed", async () => {
+      signedIn = false;
+      leaves();
+      render(<CommandPalette />);
+      await userEvent.keyboard("{Meta>}k{/Meta}");
+      expect(optionNames()).toEqual(["Go to›", "Move›", "Remove›", "Undo"]);
+    });
+
+    it("opens a branch on Enter, shows the path, and runs a leaf at the end of it", async () => {
+      signedIn = false;
+      const { ramenToDay3 } = leaves();
+      render(<CommandPalette />);
+      await userEvent.keyboard("{Meta>}k{/Meta}{ArrowDown}{Enter}");
+      expect(screen.getByTestId("palette-path").textContent).toBe("Move ›");
+      expect(optionNames()).toEqual(["Stop›"]);
+      await userEvent.keyboard("{Enter}{Enter}");
+      expect(screen.getByTestId("palette-path").textContent).toBe("Move › Stop › Ramen ›");
+      expect(optionNames()).toEqual(["Day 3", "Unscheduled"]);
+      await userEvent.keyboard("{Enter}");
+      await waitFor(() => expect(ramenToDay3).toHaveBeenCalledTimes(1));
+    });
+
+    it("opens a branch on Tab too", async () => {
+      signedIn = false;
+      leaves();
+      render(<CommandPalette />);
+      await userEvent.keyboard("{Meta>}k{/Meta}{ArrowDown}{Tab}");
+      expect(screen.getByTestId("palette-path").textContent).toBe("Move ›");
+    });
+
+    it("climbs back out one level on Backspace in an empty box, and only then", async () => {
+      signedIn = false;
+      leaves();
+      render(<CommandPalette />);
+      await userEvent.keyboard("{Meta>}k{/Meta}{ArrowDown}{Enter}{Enter}");
+      expect(screen.getByTestId("palette-path").textContent).toBe("Move › Stop ›");
+      await userEvent.keyboard("x{Backspace}");
+      expect(screen.getByTestId("palette-path").textContent).toBe("Move › Stop ›");
+      await userEvent.keyboard("{Backspace}");
+      expect(screen.getByTestId("palette-path").textContent).toBe("Move ›");
+      await userEvent.keyboard("{Backspace}");
+      expect(screen.queryByTestId("palette-path")).toBeNull();
+      expect(box()).toBeTruthy();
+    });
+
+    it("searches every leaf from the top, under each action's heading", async () => {
+      signedIn = false;
+      const { ramenToDay3 } = leaves();
+      render(<CommandPalette />);
+      await userEvent.keyboard("{Meta>}k{/Meta}ramen");
+      const move = screen.getByRole("group", { name: "Move" });
+      expect(within(move).getAllByRole("option").map((o) => o.textContent)).toEqual(["Move › Stop › Ramen › Day 3", "Move › Stop › Ramen › Unscheduled"]);
+      expect(screen.getByRole("group", { name: "Remove" })).toBeTruthy();
+      await userEvent.keyboard("{ArrowDown}{Enter}");
+      await waitFor(() => expect(ramenToDay3).toHaveBeenCalledTimes(1));
+    });
+
+    it("searches only under the branch it is in", async () => {
+      signedIn = false;
+      leaves();
+      render(<CommandPalette />);
+      await userEvent.keyboard("{Meta>}k{/Meta}{ArrowDown}{Enter}ramen");
+      expect(optionNames()).toEqual(["Stop › Ramen › Day 3", "Stop › Ramen › Unscheduled"]);
+    });
+
+    // The focused day's commands go when focus does, while the palette is open on them.
+    it("stands at the nearest level still there when the one it is in empties", async () => {
+      signedIn = false;
+      leaves();
+      render(<CommandPalette />);
+      await userEvent.keyboard("{Meta>}k{/Meta}{ArrowDown}{Enter}{Enter}");
+      act(() => offer([{ id: "undo", action: "Undo", run: vi.fn() }]));
+      expect(screen.queryByTestId("palette-path")).toBeNull();
+      expect(optionNames()).toEqual(["Go to›", "Undo"]);
+    });
   });
 
   // KI-2026-10-09-b. Said through the keyboard, as ConflictsChip.test's is

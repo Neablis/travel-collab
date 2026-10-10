@@ -9,6 +9,7 @@ import {
   tripSettingsCommands,
   undoRedoCommands,
 } from "./commands";
+import { pathText } from "./grammar";
 
 // ADR-068 §2: a command runs the page's own function. Where the action takes
 // no argument the command holds the very same reference; where it takes one,
@@ -37,9 +38,9 @@ describe("palette commands hold the page's own actions", () => {
   it("each lens is the lens switcher's setView, with that lens", () => {
     const setView = vi.fn();
     const commands = lensCommands(setView);
-    commands.find((c) => c.label === "Calendar")?.run();
+    commands.find((c) => c.target?.label === "Calendar")?.run();
     expect(setView).toHaveBeenCalledExactlyOnceWith("Calendar");
-    expect(commands.map((c) => c.label)).toEqual(["Overview", "Plan", "Calendar", "Map"]);
+    expect(commands.map((c) => pathText(c))).toEqual(["Go to › View › Overview", "Go to › View › Plan", "Go to › View › Calendar", "Go to › View › Map"]);
   });
 
   it("Trip settings and Share are the header's one opener, at the top and at Share", () => {
@@ -60,7 +61,7 @@ describe("palette commands hold the page's own actions", () => {
   it("a block of stops moves by the drag's own move, to the destination named", () => {
     const move = vi.fn();
     const commands = moveStopsCommands({ id: "card", name: "Rome" }, [{ key: "1", label: "Day 2" }, { key: "after", label: "a new day after Day 3" }], move);
-    expect(commands.map((c) => c.label)).toEqual(["Move Rome to Day 2", "Move Rome to a new day after Day 3"]);
+    expect(commands.map((c) => pathText(c))).toEqual(["Move › Day › Rome › Day 2", "Move › Day › Rome › a new day after Day 3"]);
     commands[1]?.run();
     commands[0]?.run();
     expect(move.mock.calls).toEqual([["after"], ["1"]]);

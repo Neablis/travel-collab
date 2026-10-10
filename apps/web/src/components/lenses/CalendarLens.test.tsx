@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { tripDetailFixture } from "@tc/factories";
 import { FocusProvider, useFocus } from "../trip/context/FocusProvider";
+import { pathText } from "../palette/grammar";
 import { type PaletteCommand, usePaletteCommands } from "../palette/paletteRegistry";
 import { CalendarLens } from "./CalendarLens";
 import { resolveCalendarDrop } from "./calendarDrop";
@@ -680,11 +681,11 @@ describe("CalendarLens ⌘K moves a city card", () => {
     expect(commands()).toEqual([]);
 
     act(() => cell(0).focus());
-    expect(commands().map((c) => c.label)).toEqual([
-      "Move Rome to Day 2",
-      "Move Rome to a new day after Day 2",
-      "Move Day 1's stops with no city to Day 2",
-      "Move Day 1's stops with no city to a new day after Day 2",
+    expect(commands().map((c) => pathText(c))).toEqual([
+      "Move › Day › Rome › Day 2",
+      "Move › Day › Rome › a new day after Day 2",
+      "Move › Day › Day 1's stops with no city › Day 2",
+      "Move › Day › Day 1's stops with no city › a new day after Day 2",
     ]);
 
     act(() => commands()[0]!.run());

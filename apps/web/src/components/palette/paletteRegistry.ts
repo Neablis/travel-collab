@@ -14,16 +14,48 @@ import { useEffect, useRef, useSyncExternalStore } from "react";
 // A screen never writes a command's behaviour here: it hands over the function
 // its button calls (ADR-068 §1), so a palette command cannot drift from the
 // control it stands for.
+//
+// What a screen registers is a flat list of leaves, each carrying its whole
+// path (ADR-069). The drill-in tree is derived from their shared prefixes
+// (`grammar.ts`), so no screen owns a branch and none can leave one empty.
 
-/** One thing the palette can do. `run` is the page control's own function. */
+/** The palette's verbs (ADR-069 §1), a closed set: every path starts with one. */
+export type PaletteAction = "Go to" | "Add" | "Edit" | "Move" | "Remove";
+/** The only commands with no Type or Target (ADR-069 §1). */
+export type PaletteSingleton = "Undo" | "Redo" | "Ask the assistant";
+/** What kind of thing a path's Target is (ADR-069 §1). */
+export type PaletteType = "Trip" | "Day" | "Stop" | "View" | "Page";
+
+/** A Target or Destination: what it is called, and any other words it answers to. */
+export type PaletteSegment = {
+  label: string;
+  /** Tells apart two segments with one label (two stops called Ramen) so they are two branches; the label when absent. */
+  key?: string;
+  aliases?: readonly string[];
+};
+
+/**
+ * How near a command's thing is to where you are, nearest first (ADR-069 §5):
+ * the focused stop or day, the selected day, the current trip, anywhere.
+ */
+export type PaletteNearness = "focused" | "selected" | "trip" | "global";
+
+/**
+ * One thing the palette can do: a path, *Action › Type › Target [›
+ * Destination]*, or a singleton. `run` is the page control's own function
+ * (ADR-068 §1). `nearness` (default `"global"`) and `order` (the natural
+ * order — days in day order, trips as Home lists them; default 0, then the
+ * order registered) only break ties between equally good matches.
+ */
 export type PaletteCommand = {
   id: string;
-  label: string;
-  /** "Go to" moves somewhere; "Do" changes or opens something where you are. */
-  group: "Go to" | "Do";
-  keywords?: readonly string[];
+  nearness?: PaletteNearness;
+  order?: number;
   run: () => void;
-};
+} & (
+  | { action: PaletteAction; type: PaletteType; target?: PaletteSegment; destination?: PaletteSegment }
+  | { action: PaletteSingleton; type?: never; target?: never; destination?: never }
+);
 
 const sources = new Map<string, readonly PaletteCommand[]>();
 let snapshot: readonly PaletteCommand[] = [];
@@ -69,14 +101,14 @@ export function usePaletteCommands(): readonly PaletteCommand[] {
  * Offers `commands` under `source` while the calling component is mounted.
  * They may be fresh objects every render: each registered `run` calls the
  * latest command with its id, so the list is re-registered only when which
- * commands are on offer, or what they are called, changes.
+ * commands are on offer, or what they are called or how near, changes.
  */
 export function usePaletteSource(source: string, commands: readonly PaletteCommand[]): void {
   const latest = useRef(commands);
   useEffect(() => {
     latest.current = commands;
   });
-  const shape = commands.map((c) => `${c.id}\u0000${c.label}\u0000${c.group}\u0000${(c.keywords ?? []).join(" ")}`).join("\u0001");
+  const shape = JSON.stringify(commands.map((c) => [c.id, c.action, c.type, c.target, c.destination, c.nearness, c.order]));
   useEffect(() => {
     const offered = latest.current.map((command) => ({
       ...command,
