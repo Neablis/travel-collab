@@ -105,7 +105,14 @@ function addMonths(dt: Date, n: number): Date {
 // §4 warns day-of-month matching scattered a Nov 27 → Dec 10 trip's December
 // days onto November's 1st–10th; that was the design's own bug, and this never
 // reproduces it.
-export function calendarMonths(detail: TripDetail): CalendarMonth[] {
+/**
+ * The trip's days laid out as stacked month blocks of whole weeks.
+ *
+ * @param options.roomAfterEnd - Guarantee at least one rendered date after the
+ *   trip's last day, for an editable board where a drop there grows the trip
+ *   (M41 D2). Off by default, so a read-only Calendar is unchanged.
+ */
+export function calendarMonths(detail: TripDetail, { roomAfterEnd = false }: { roomAfterEnd?: boolean } = {}): CalendarMonth[] {
   if (detail.startDate === null) return [];
 
   const tripDays = detail.days.filter(
@@ -124,7 +131,11 @@ export function calendarMonths(detail: TripDetail): CalendarMonth[] {
 
   // Rule 1: the grid's own start/end, walked out to whole weeks.
   const gridStart = parseIsoDateUtc(addDaysIso(sortedDates[0]!, -sundayWeekday(firstDate)));
-  const gridEnd = parseIsoDateUtc(addDaysIso(sortedDates[sortedDates.length - 1]!, 6 - sundayWeekday(lastDate)));
+  // An editable board needs a date past the end to drop on (CodeRabbit, PR
+  // 395): a Saturday end already closes its week, so it gets the next one.
+  const lastWeekday = sundayWeekday(lastDate);
+  const daysAfterEnd = 6 - lastWeekday + (roomAfterEnd && lastWeekday === 6 ? 7 : 0);
+  const gridEnd = parseIsoDateUtc(addDaysIso(sortedDates[sortedDates.length - 1]!, daysAfterEnd));
 
   const byDate = new Map<string, { ordinal: number; activityIds: string[] }>();
   detail.days.forEach((day, index) => {
@@ -134,7 +145,10 @@ export function calendarMonths(detail: TripDetail): CalendarMonth[] {
   });
 
   const months: CalendarMonth[] = [];
-  const lastMonthStart = startOfMonth(lastDate);
+  // Read from gridEnd when there must be room after the end: a trip ending on
+  // a month's last day has its after-trip days in the next month, whose block
+  // would otherwise never render.
+  const lastMonthStart = startOfMonth(roomAfterEnd ? gridEnd : lastDate);
   let monthCursor = startOfMonth(firstDate);
 
   while (monthCursor.getTime() <= lastMonthStart.getTime()) {
