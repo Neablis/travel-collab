@@ -17,8 +17,9 @@ have (see below).
 ## Reporting a vulnerability
 
 Open a **private** GitHub security advisory on this repository
-(Security → Report a vulnerability), or contact the maintainer directly. Do
-not open a public issue for anything exploitable.
+(Security → Report a vulnerability), or email the maintainer at
+<mitchell@demarcosoftware.com> — the only route for anyone without access to
+this private repository. Do not open a public issue for anything exploitable.
 
 A bug that is **not** a security problem goes to GitHub Issues
 (<https://github.com/Neablis/travel-collab/issues/new>): what you did, what

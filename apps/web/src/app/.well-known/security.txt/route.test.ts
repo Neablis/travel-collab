@@ -23,9 +23,10 @@ describe("security.txt", () => {
     expect(Number.isNaN(Date.parse(expires ?? ""))).toBe(false);
   });
 
-  it("sends vulnerabilities to a private advisory first, and other bugs to GitHub Issues", async () => {
+  it("sends vulnerabilities to email, then a private advisory, and other bugs to GitHub Issues", async () => {
     const doc = await fields("https://caesura.example");
     expect(doc.get("Contact")).toEqual([
+      "mailto:mitchell@demarcosoftware.com",
       "https://github.com/Neablis/travel-collab/security/advisories/new",
       "https://github.com/Neablis/travel-collab/issues/new",
     ]);
