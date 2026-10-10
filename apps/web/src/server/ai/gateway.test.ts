@@ -73,3 +73,52 @@ describe("aiClassifierModel", () => {
     expect(() => aiClassifierModel()).toThrow("AI_GATEWAY_API_KEY not set");
   });
 });
+
+// The BYOK pin (2026-10-10): our key is an Anthropic key, and a Claude call the
+// Gateway routes to Vertex or Bedrock runs on Vercel's credits instead. Asserted
+// on what the provider is HANDED, through a recording model, so the merge with
+// a call's own options is part of what is tested.
+describe("pinnedToOwnKey", () => {
+  function recording(modelId: string) {
+    const seen: { providerOptions?: unknown }[] = [];
+    const model = {
+      specificationVersion: "v4",
+      provider: "gateway",
+      modelId,
+      supportedUrls: {},
+      doGenerate: async (options: { providerOptions?: unknown }) => {
+        seen.push(options);
+        return {
+          content: [{ type: "text", text: "ok" }],
+          finishReason: { unified: "stop", raw: undefined },
+          usage: {
+            inputTokens: { total: 1, noCache: 1, cacheRead: undefined, cacheWrite: undefined },
+            outputTokens: { total: 1, text: undefined, reasoning: undefined },
+          },
+          warnings: [],
+        };
+      },
+    };
+    return { model, seen };
+  }
+
+  it("pins an Anthropic model to Anthropic, keeping the call's own gateway options", async () => {
+    const { generateText } = await import("ai");
+    const { pinnedToOwnKey } = await import("./gateway");
+    const { model, seen } = recording("anthropic/claude-haiku-5.5");
+    const pinned = pinnedToOwnKey(model as never);
+    await generateText({ model: pinned, prompt: "hi", providerOptions: { gateway: { caching: "auto" } } });
+
+    expect(seen[0]!.providerOptions).toEqual({ gateway: { only: ["anthropic"], caching: "auto" } });
+    expect((pinned as { modelId: string }).modelId).toBe("anthropic/claude-haiku-5.5");
+  });
+
+  it("leaves any other model to the Gateway's own routing", async () => {
+    const { generateText } = await import("ai");
+    const { pinnedToOwnKey } = await import("./gateway");
+    const { model, seen } = recording("zai/glm-5.3-flash");
+    await generateText({ model: pinnedToOwnKey(model as never), prompt: "hi" });
+
+    expect(seen[0]!.providerOptions).toBeUndefined();
+  });
+});

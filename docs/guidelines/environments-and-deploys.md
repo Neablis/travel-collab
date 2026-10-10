@@ -460,6 +460,12 @@ an unpriced row in the cost console.
 | `AI_MODEL_STRONG` | `anthropic/claude-opus-5.5` |
 
 Gateway ids use dots (`claude-sonnet-5.5`), not the Anthropic API's dashes.
+The code pins every `anthropic/*` model to the Anthropic provider
+(`pinnedToOwnKey`, `apps/web/src/server/ai/gateway.ts`): the Gateway otherwise
+also serves Claude through Vertex and Bedrock, on Vercel's credits rather than
+the key's. To check a request was paid by the key, look its generation id up —
+`GET https://ai-gateway.vercel.sh/v1/generation?id=gen_…` — and read
+`data.is_byok` (true) and `data.provider_name` (`anthropic`).
 The switch, in order:
 
 1. **Anthropic Console** — create an API key in its own workspace, and set that
