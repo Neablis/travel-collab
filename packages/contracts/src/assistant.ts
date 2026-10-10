@@ -259,6 +259,14 @@ const AskStreamShape = z.union([
    */
   z.object({ suggested: AssistantSuggested }),
   /**
+   * A planning turn that called write tools and had EVERY one refused when
+   * resolved against the trip, so there is no proposal to show — with the
+   * server's reason for each (deduplicated, never empty). Without it such a
+   * turn ended on the model's own prose, which reads as if the changes were
+   * made (2026-10-10: a deleted trip, three turns, nothing changed, no word why).
+   */
+  z.object({ notApplied: z.object({ skipped: z.array(z.string().min(1)).min(1) }) }),
+  /**
    * What a `page`-scoped turn wants INSERTED. Validated server-side against the
    * macro registry before a byte leaves — which this side cannot see — so this
    * is the other half of the same rule, not a substitute for it.

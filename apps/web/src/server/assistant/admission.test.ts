@@ -34,6 +34,7 @@ import {
   taskClassFor,
   DEMO_TRIP_UNSUPPORTED_CODE,
   PAGE_NOT_ON_TRIP_CODE,
+  TRIP_DELETED_CODE,
   evaluateAiGrant,
   type AdmissionPorts,
   type AdmissionStageName,
@@ -314,6 +315,27 @@ describe("a refusal costs the caller nothing it should not", () => {
     expect(admission.refusal.code).toBe(DEMO_TRIP_UNSUPPORTED_CODE);
     expect(admission.refusal.response.status).toBe(403);
     expect(calls).toEqual([]);
+  });
+
+  // A deleted trip is served (200, so the page can offer a restore), and every
+  // write on one is refused by the domain — so before this, a turn on one paid
+  // for the classifier and every agent step to change nothing (2026-10-10).
+  // Refused once the guard has read the trip, before any port that costs.
+  it("refuses a deleted trip before a model is chosen, charged or asked", async () => {
+    const { ports, calls } = spyPorts({
+      identifyActor: async () => {
+        calls.push("identifyActor");
+        return { userId: EDITOR, detail: { ...detailFor("editor", EDITOR), status: "deleted" } };
+      },
+    });
+    const admission = await evaluateAiGrant({ request: askFor(TRIP_TURN), tripId: TRIP_ID, ports });
+
+    expect(admission.ok).toBe(false);
+    if (admission.ok) return;
+    expect(admission.refusal.stage).toBe("identifyActor");
+    expect(admission.refusal.code).toBe(TRIP_DELETED_CODE);
+    expect(admission.refusal.response.status).toBe(409);
+    expect(calls).toEqual(["identifyActor"]);
   });
 });
 

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { isDemoDataResetEnabled } from "./demoDataReset";
+import { isDemoDataResetEnabled, pathAfterDemoReset } from "./demoDataReset";
 
 // The gate POST /api/dev/reset-demo-data and AppHeader both check (see
 // AGENTS.md invariant: contracts/permission checks fail closed). Exercised
@@ -41,5 +41,16 @@ describe("isDemoDataResetEnabled", () => {
     process.env.VERCEL_ENV = "preview";
     process.env.SEED_DEMO_DATA = "true";
     expect(isDemoDataResetEnabled()).toBe(true);
+  });
+});
+
+describe("pathAfterDemoReset", () => {
+  it("swaps a trip page for the reseeded trip, keeping its view", () => {
+    expect(pathAfterDemoReset("/trips/old-id", "?view=Plan", "new-id")).toBe("/trips/new-id?view=Plan");
+  });
+
+  it("reloads anywhere else, so Home's list just refetches", () => {
+    expect(pathAfterDemoReset("/", "", "new-id")).toBeNull();
+    expect(pathAfterDemoReset("/trips/old-id/pages/p1", "", "new-id")).toBeNull();
   });
 });

@@ -191,9 +191,10 @@ export interface AskToolCallRecord {
  * first cut shipped.
  *
  * Counting by name is exact only while a tool cannot be OBSERVED without also
- * collecting. Every planning command satisfies that — `collect()` is the first
- * statement of its `run` (planning.ts), with no branch in front of it — so for
- * those, "observed more than collected" is impossible and the counts line up.
+ * collecting. Every planning command satisfies that — its `run` (planning.ts)
+ * collects unconditionally, even a call it answers with the trip's refusal —
+ * so for those, "observed more than collected" is impossible and the counts
+ * line up.
  *
  * `insert_playbook_day` does NOT: it returns an error before `addInsert` when
  * the proposal is already at `MAX_PROPOSAL_INSERTS`, or when `savedDays

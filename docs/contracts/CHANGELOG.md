@@ -13,6 +13,21 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-10 — `notApplied` on the /ask stream: a turn whose every write was refused says why
+
+- **Added** (`assistant.ts`): a sixth `AskStreamShape` member, `{ notApplied: { skipped: string[] (≥ 1, each
+  non-empty) } }`. A planning turn that called write tools and had every one refused when resolved
+  against the trip has no proposal, and used to end on the model's own prose — which could say the
+  changes were made. Its final chunk now carries the server's reasons instead (deduplicated). The
+  one-outcome rule covers it like the others.
+- Why: 2026-10-10, a preview trip deleted by *Reset to demo data* and left open: three turns, six
+  writes each refused `trip-deleted`, nothing changed and nothing said. `/ask` now also refuses a
+  deleted trip at admission (409 `trip-deleted`, not a contract type — a refusal code beside
+  `demo-trip-unsupported`).
+- Consumers updated: `apps/web` — `askAssistant` (`apiClient.ts`) maps it to a `not-applied` event, and
+  `useAskThread` appends *"Nothing was changed: …"* to the answer.
+- Breaking? no — an older client drops the unrecognised chunk, as it would before.
+
 ## 2026-10-09 — The assistant suggests: `suggested` on the /ask stream, `via` on suggestions and their origin (M40 part 3, ADR-067); Public API 1.11.0
 
 - **Added** (`assistant.ts`): a fifth `AskStreamShape` member, `{ suggested: AssistantSuggested }`,

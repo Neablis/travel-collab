@@ -326,12 +326,14 @@ function req(tripId: string, body: unknown, signal?: AbortSignal) {
 function recordingModel() {
   const systems: string[] = [];
   const providerOptions: unknown[] = [];
+  const reasoning: unknown[] = [];
   const inner = simulatedModel() as unknown as {
     doGenerate: (o: unknown) => Promise<unknown>;
     doStream: (o: unknown) => Promise<unknown>;
   };
   const keep = (options: unknown) => {
     providerOptions.push((options as { providerOptions?: unknown }).providerOptions);
+    reasoning.push((options as { reasoning?: unknown }).reasoning);
     const prompt = (options as { prompt?: { role?: string; content?: unknown }[] }).prompt ?? [];
     systems.push(
       prompt
@@ -357,7 +359,7 @@ function recordingModel() {
   // The agent's own instruction, not the classifier's — the classification
   // call is a system message too, and it is not what this is about.
   const turnInstruction = () => systems.find((text) => text.includes("travel-collab trip assistant")) ?? "";
-  return { model, turnInstruction, providerOptions: () => providerOptions };
+  return { model, turnInstruction, providerOptions: () => providerOptions, reasoning: () => reasoning };
 }
 
 /**
@@ -562,7 +564,7 @@ function toolCall(toolName: string, input: unknown): Record<string, unknown> {
  * Records the tool names each turn step was offered, which is how a pivot and
  * the step deadline are observed from outside.
  */
-function scriptedPageModel(verdict: "compose" | "question", steps: (Record<string, unknown>[] | string)[]) {
+function scriptedPageModel(verdict: "compose" | "question" | "edit", steps: (Record<string, unknown>[] | string)[]) {
   const offers: string[][] = [];
   let next = 0;
   const usage = {
@@ -1293,6 +1295,23 @@ describe("POST /api/trips/:id/ask", () => {
       expect(providerOptions()).toContainEqual({ gateway: { caching: "auto" } });
     });
 
+    // Left at the provider's default, a reasoning model spent ~8,000 output
+    // tokens on one step of six small writes (2026-10-10). Each step asks for
+    // its tier's budget instead (`REASONING_FOR`); a question is the cheap tier.
+    it("asks the provider for the tier's reasoning budget, not its default", async () => {
+      const tripId = await seedTrip();
+      const { model, reasoning } = recordingModel();
+      const res = await handleAskRequest(
+        req(tripId, { messages: [userMessage("which day has the most free time?")], scope: { kind: "trip" } }),
+        tripId,
+        model,
+        () => {},
+      );
+      await res.text();
+
+      expect(reasoning()).toContain("low");
+    });
+
     it("keeps the true read-only copy for a viewer, who genuinely cannot edit", async () => {
       const tripId = await seedTrip();
       await grantViewer(tripId, VIEWER_ID);
@@ -1580,6 +1599,37 @@ describe("POST /api/trips/:id/ask", () => {
       // No proposal on the wire, and no write tool call in it either.
       expect(chunks.some((c) => c.type === "finish" && c.messageMetadata !== undefined)).toBe(false);
       expect(records[0]!.toolCalls.every((c) => (VIEWER_TOOL_NAMES as readonly string[]).includes(c.name))).toBe(true);
+    });
+
+    // Every write refused against the trip leaves no proposal — and used to
+    // leave no word either, so the model's own "Done" was the whole answer
+    // (2026-10-10, a deleted trip). The refusal's reason rides out instead.
+    it("says why nothing changed when every write it made was refused", async () => {
+      const tripId = await seedTrip();
+      const { model } = scriptedPageModel("edit", [
+        [toolCall("RemoveActivity", { activityRef: "A stop this trip has never had" })],
+        "Done — I removed it.",
+      ]);
+      const res = await handleAskRequest(
+        req(tripId, { messages: [userMessage("remove the stop this trip has never had")], scope: { kind: "trip" } }),
+        tripId,
+        model,
+        () => {},
+      );
+      const chunks = await chunksOf(res);
+
+      const finish = chunks.find((c) => c.type === "finish") as
+        | { messageMetadata?: { proposal?: unknown; notApplied?: { skipped: string[] } } }
+        | undefined;
+      expect(finish?.messageMetadata?.proposal).toBeUndefined();
+      expect(finish?.messageMetadata?.notApplied?.skipped).toHaveLength(1);
+      expect(finish?.messageMetadata?.notApplied?.skipped[0]).toMatch(/A stop this trip has never had/);
+      // And the model heard it when it called, not only the user at the end.
+      const output = chunks.find((c) => c.type === "tool-output-available") as
+        | { output?: { error?: string; reason?: string } }
+        | undefined;
+      expect(output?.output?.error).toMatch(/^Not queued/);
+      expect(output?.output?.reason).toMatch(/A stop this trip has never had/);
     });
 
     // The requirement in one test: a turn that PROPOSES commits nothing.

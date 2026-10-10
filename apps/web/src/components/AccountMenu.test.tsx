@@ -396,6 +396,34 @@ describe("HeaderSessionChrome's account menu", () => {
     await waitFor(() => expect(reloadSpy).toHaveBeenCalled());
     Object.defineProperty(window, "location", { configurable: true, value: originalLocation });
   });
+
+  // The reset deletes the trip a trip page shows. Reloading it kept a deleted
+  // trip on screen, looking live, and the assistant was asked to edit it.
+  it("goes to the reseeded trip when the reset was confirmed on a trip page", async () => {
+    const { getSession } = await import("next-auth/react");
+    vi.mocked(getSession).mockResolvedValueOnce({
+      user: { name: "Sam K", email: "sam@example.com" },
+      expires: "",
+    });
+    resetDemoDataMock.mockResolvedValueOnce({ ok: true, value: { tripId: "new-trip" } });
+    const originalLocation = window.location;
+    const reloadSpy = vi.fn();
+    const assignSpy = vi.fn();
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: { ...originalLocation, pathname: "/trips/old-trip", search: "?view=Plan", reload: reloadSpy, assign: assignSpy },
+    });
+
+    render(<HeaderSessionChrome demoResetEnabled />);
+
+    await userEvent.click(await screen.findByRole("button", { name: "Account menu" }));
+    await userEvent.click(screen.getByRole("button", { name: "Reset to demo data" }));
+    await userEvent.click(screen.getByRole("button", { name: "Reset" }));
+
+    await waitFor(() => expect(assignSpy).toHaveBeenCalledWith("/trips/new-trip?view=Plan"));
+    expect(reloadSpy).not.toHaveBeenCalled();
+    Object.defineProperty(window, "location", { configurable: true, value: originalLocation });
+  });
 });
 
 // **The operator console's entry point** (M20 link 7). Advisory only — the
