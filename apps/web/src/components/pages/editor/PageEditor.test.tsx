@@ -91,7 +91,7 @@ describe("PageEditor", () => {
     );
     // userEvent's `{` starts a special-key escape sequence (e.g. `{enter}`),
     // so a literal `{` is written `{{` — two literal braces is `{{{{`.
-    await userEvent.type(screen.getByRole("textbox"), "{{{{");
+    await userEvent.type(await screen.findByRole("textbox"), "{{{{");
     expect(screen.queryByRole("listbox")).toBeNull();
   });
 
@@ -103,7 +103,7 @@ describe("PageEditor", () => {
     ]);
     render(<PageEditor detail={detail} context={context} value={content} onChange={onChange} />);
 
-    await userEvent.type(screen.getByRole("textbox"), "hello");
+    await userEvent.type(await screen.findByRole("textbox"), "hello");
 
     expect(onChange).toHaveBeenCalled();
     const lastCall = onChange.mock.calls[onChange.mock.calls.length - 1]![0];
@@ -147,7 +147,7 @@ describe("PageEditor given a node type the schema does not know (ADR-038)", () =
     try {
       render(<PageEditor detail={detail} context={context} value={withUnknownNode} onChange={onChange} />);
 
-      await userEvent.type(screen.getByRole("textbox"), "x");
+      await userEvent.type(await screen.findByRole("textbox"), "x");
 
       // Not a throw: the editor mounted and is editable. TipTap swallowed it.
       expect(warn).toHaveBeenCalled();
@@ -272,6 +272,9 @@ describe("PageEditor typography (KI-44)", () => {
       </div>,
     );
 
+    // Both documents are out of the tree until TipTap's `create`.
+    await within(screen.getByTestId("letter")).findAllByRole("paragraph");
+    await within(screen.getByTestId("notebook")).findAllByRole("paragraph");
     const rules = pageEditorRules(await compileGlobalsCss()).filter((r) => r.selector.includes(".tc-overview-letter"));
     expect(rules.length).toBeGreaterThan(0);
     const declarationsFor = (el: Element) =>
@@ -442,7 +445,7 @@ describe("PageEditor given a macro at block position (KI-2026-09-03-d)", () => {
     try {
       render(<PageEditor detail={detail} context={context} value={topLevelMacro} onChange={onChange} />);
 
-      await userEvent.type(screen.getByRole("textbox"), "x");
+      await userEvent.type(await screen.findByRole("textbox"), "x");
 
       // Not the unknown-node path: `Node.fromJSON` does not content-check, so
       // there is no `RangeError` for TipTap to swallow and no fallback to an
@@ -506,6 +509,8 @@ describe("the slash menu", () => {
       ({ length: 1, item: () => caretRect, 0: caretRect }) as unknown as DOMRectList;
   });
 
+  // `find`: the document is out of the tree until TipTap's `create` (see
+  // "is never displayed with a widget not yet drawn" above).
   const editorFor = (onChange = vi.fn()) => {
     render(
       <PageEditor
@@ -515,11 +520,11 @@ describe("the slash menu", () => {
         onChange={onChange}
       />,
     );
-    return screen.getByRole("textbox");
+    return screen.findByRole("textbox");
   };
 
   it("opens at the caret when you type a slash, listing widgets by their title", async () => {
-    await userEvent.type(editorFor(), "/");
+    await userEvent.type(await editorFor(), "/");
     const menu = await screen.findByRole("listbox", { name: "Insert a widget" });
     const shown = within(menu).getAllByRole("option");
     expect(shown.length).toBeGreaterThan(0);
@@ -533,7 +538,7 @@ describe("the slash menu", () => {
   });
 
   it("narrows as you keep typing, and closes when nothing matches", async () => {
-    const textbox = editorFor();
+    const textbox = await editorFor();
     // **A query that matches FEWER widgets than the menu can show.** "trip"
     // does not: seven widgets match it, the menu caps at six, and the first six
     // registry entries all match — so an unfiltered menu renders the identical
@@ -583,7 +588,7 @@ describe("the slash menu", () => {
   // The one that matters: the typed `/query` is REPLACED, not left behind.
   it("inserts the highlighted widget on Enter, and takes the typed query with it", async () => {
     const onChange = vi.fn();
-    const textbox = editorFor(onChange);
+    const textbox = await editorFor(onChange);
     await userEvent.type(textbox, "/trip.name");
     await screen.findByRole("listbox");
     await userEvent.type(textbox, "{Enter}");
@@ -611,7 +616,7 @@ describe("the slash menu", () => {
       scrolled.push(this.id);
     };
     try {
-      const textbox = editorFor();
+      const textbox = await editorFor();
       await userEvent.type(textbox, "/");
       await screen.findByRole("listbox");
       await userEvent.type(textbox, "{Tab}");
@@ -624,7 +629,7 @@ describe("the slash menu", () => {
 
   it("moves the highlight on Tab rather than inserting, and Enter takes what Tab landed on", async () => {
     const onChange = vi.fn();
-    const textbox = editorFor(onChange);
+    const textbox = await editorFor(onChange);
     await userEvent.type(textbox, "/");
     const menu = await screen.findByRole("listbox");
     const options = within(menu).getAllByRole("option");
@@ -664,7 +669,7 @@ describe("the slash menu", () => {
   // `aria-activedescendant` naming an id no option carries is exactly as silent
   // as none at all, and is what a renamed id would leave behind.
   it("names the highlighted option on the focused editor, and keeps naming it as Tab moves", async () => {
-    const textbox = editorFor(vi.fn());
+    const textbox = await editorFor(vi.fn());
     await userEvent.type(textbox, "/");
     const menu = await screen.findByRole("listbox");
     expect(textbox.getAttribute("aria-expanded")).toBe("true");
@@ -701,7 +706,7 @@ describe("the slash menu", () => {
   // transaction — and scrolling is not a transaction, so the document slid away
   // underneath a menu parked where the caret used to be.
   it("follows the caret when the page scrolls", async () => {
-    await userEvent.type(editorFor(), "/");
+    await userEvent.type(await editorFor(), "/");
     const menu = await screen.findByRole("listbox");
     expect(menu.style.top).toBe("25px");
 
@@ -714,7 +719,7 @@ describe("the slash menu", () => {
 
   it("closes on Escape without inserting anything", async () => {
     const onChange = vi.fn();
-    const textbox = editorFor(onChange);
+    const textbox = await editorFor(onChange);
     await userEvent.type(textbox, "/trip");
     await screen.findByRole("listbox");
     await userEvent.type(textbox, "{Escape}");
@@ -725,7 +730,7 @@ describe("the slash menu", () => {
   // `and/or`, a date, a URL. A menu that opens mid-word is the reason people
   // turn this feature off.
   it("stays shut for a slash inside a word", async () => {
-    await userEvent.type(editorFor(), "and/or");
+    await userEvent.type(await editorFor(), "and/or");
     expect(screen.queryByRole("listbox")).toBeNull();
   });
 });
@@ -796,7 +801,7 @@ describe("PageEditor — a document that changes underneath a reader", () => {
     // updates. Without it the two still agree, the broken implementation
     // returns early, and the test passes against the bug — which is exactly
     // what the first draft of it did.
-    await userEvent.type(screen.getByRole("textbox"), " and more");
+    await userEvent.type(await screen.findByRole("textbox"), " and more");
     expect(screen.getByText(/and more/)).toBeTruthy();
 
     // The SAME value object, which is what really happens: the mode changes and
