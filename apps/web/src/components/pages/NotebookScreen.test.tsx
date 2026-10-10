@@ -125,6 +125,8 @@ describe("NotebookScreen", () => {
     // Scoped to the list: the gallery above offers a card called "Trip
     // Overview" too, because a seeded notebook is named after its template.
     const list = await screen.findByRole("region", { name: "Your notebooks" });
+    // The list is the page's `main` content (axe landmark-one-main).
+    expect(within(screen.getByRole("main")).getByRole("region", { name: "Your notebooks" })).toBe(list);
     expect(within(list).getByText("Trip Overview")).toBeTruthy();
     expect(within(list).getByText("Day Sheet")).toBeTruthy();
     // A notebook has no scope to name (SPEC §18), so the badge #126 shipped

@@ -1,4 +1,4 @@
-import { cleanup, render, screen, fireEvent } from "@testing-library/react";
+import { cleanup, render, screen, fireEvent, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AccountScreen, accountTabFrom } from "./AccountScreen";
 
@@ -64,7 +64,8 @@ describe("accountTabFrom", () => {
 describe("AccountScreen", () => {
   it("is a page with two tabs, Profile first", () => {
     mount();
-    expect(screen.getByRole("heading", { name: "Account", level: 1 })).toBeTruthy();
+    // Inside the page's `main` (axe landmark-one-main on every /account view).
+    expect(within(screen.getByRole("main")).getByRole("heading", { name: "Account", level: 1 })).toBeTruthy();
     expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Profile", "Plan & usage"]);
     expect(screen.getByTestId("profile-panel")).toBeTruthy();
   });

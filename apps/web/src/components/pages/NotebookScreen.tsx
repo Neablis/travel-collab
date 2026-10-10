@@ -486,7 +486,7 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
   const phoneAsk = trip === null ? null : phoneAskContext(trip, null, { tab: "notebook", page: null });
 
   return (
-    <PageContainer>
+    <PageContainer as="main">
       <div className="mb-6">
         {/* SPEC §22 asks for this by name. Once the phone tab bar became
             scoped — Plan / Map / Notebook inside a trip, with Trips and

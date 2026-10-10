@@ -67,7 +67,7 @@ export function AccountScreen() {
   const tab = accountTabFrom(searchParams.get("tab"));
 
   return (
-    <PageContainer width="content">
+    <PageContainer as="main" width="content">
       <div className="flex flex-col gap-5 pt-1 pb-20">
         {/* **The phone's way out** (SPEC §34.3: *"Done returns you to Trips"*).
             Account is a TASK on a phone — the tab bar steps aside for it
