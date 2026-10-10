@@ -35,11 +35,14 @@ test.describe("M39 D6 — the phone trip header", () => {
     // Before scrolling: the first stop is in the top third of the screen, not
     // at its foot. Measured 305 on the production build (AppHeader 56, the
     // row 50, the rail 84, the scrolling date line, then the day's own
-    // header), against ~691 before. The plan said "≈300"; 320 holds the order
-    // of magnitude without pinning a pixel a padding token would move. The
-    // old header measures 691 here and fails it.
+    // header), against ~691 before. The plan said "≈300"; the bound holds the
+    // order of magnitude without pinning a pixel a padding token would move.
+    // It was 320 until 2026-10-10, when the scrolling date line got a 44px
+    // floor and real padding (Mitchell's preview comment: "too skinny and the
+    // text is against the bottom bar"), which put the first stop at ~321.
+    // 340 still fails the old header's 691 by a wide margin.
     const firstStop = (await page.getByTestId(/^activity-card-/).first().boundingBox())!;
-    expect(firstStop.y).toBeLessThan(320);
+    expect(firstStop.y).toBeLessThan(340);
 
     const title = header(page).getByRole("heading", { level: 1 });
     const days = page.getByRole("group", { name: "Days" });
