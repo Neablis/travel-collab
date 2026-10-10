@@ -45,6 +45,7 @@ function securityTxt(origin: string): string {
   ].join("\n");
 }
 
+/** The security.txt document as plain text, its Canonical naming the request's origin. */
 export function GET(request: Request) {
   return new Response(securityTxt(new URL(request.url).origin), {
     headers: {
