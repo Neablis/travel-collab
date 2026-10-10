@@ -187,7 +187,7 @@ a **solid** for the rare emphatic use. Text-on-tint pairs are AA-checked below.
 | Role | Solid | Tint | Text on tint |
 |---|---|---|---|
 | `danger` | `#B3372E` | `#F8E3E0` | `#8F2B23` |
-| `warning` | `#B07C10` | `#F6EBD4` | `#8A5F0B` |
+| `warning` | `#B07C10` | `#F6EBD4` | `#845B0A` |
 | `success` | `#2E7D43` | `#E4F0E7` | `#22603A` |
 | `info` | `#2B6CB0` | `#E1EBF7` | `#1F5187` |
 
@@ -263,7 +263,8 @@ Normal text needs ≥ 4.5:1; non-text UI boundaries ≥ 3:1. All pass:
 | white on brand (primary button) | 5.13 |
 | brand on white / paper (links) | 5.13 / 4.82 |
 | white on danger solid (destructive button) | 6.00 |
-| danger / warning / success / info text on own tint | 6.72 / 4.77 / 6.39 / 6.74 |
+| danger / warning / success / info text on own tint | 6.72 / 5.10 / 6.39 / 6.74 |
+| warning text on every other tint (city-accented day columns), Ledger look — lowest: danger-tint `#F4DEDB` | 4.69 (was 4.38 at `#8A5F0B`, the axe failure that moved it) |
 | border-input vs white (non-text) | 3.16 |
 | person-on on each person colour (lowest: moss) | 5.56 — full table under "Person colours" |
 

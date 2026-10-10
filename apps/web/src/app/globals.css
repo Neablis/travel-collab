@@ -56,7 +56,12 @@
   --color-danger-ink: #8f2b23;
   --color-warning: #b07c10;
   --color-warning-tint: #f6ebd4;
-  --color-warning-ink: #8a5f0b;
+  /* #8a5f0b until 2026-10: it cleared its own tint but not the OTHER tints it
+     sits on — a pending/overlap note inside a danger-accented day column was
+     4.38:1 on Ledger's danger-tint (axe, /demo phone), and 4.46:1 on its
+     info-tint. Darkened just enough to clear every Ledger tint: lowest is now
+     danger-tint at 4.69:1. design-system.md's AA table carries the numbers. */
+  --color-warning-ink: #845b0a;
   --color-success: #2e7d43;
   --color-success-tint: #e4f0e7;
   --color-success-ink: #22603a;
