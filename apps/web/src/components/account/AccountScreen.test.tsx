@@ -128,7 +128,7 @@ describe("AccountScreen", () => {
 
     it("has its own way back to Profile and its own heading", () => {
       mount("tokens");
-      expect(screen.getByRole("heading", { name: "API tokens", level: 3 })).toBeTruthy();
+      expect(screen.getByRole("heading", { name: "API tokens", level: 2 })).toBeTruthy();
       fireEvent.click(screen.getByRole("button", { name: "← Profile" }));
       expect(push).toHaveBeenCalledWith("/account");
     });
@@ -140,7 +140,7 @@ describe("AccountScreen", () => {
       mount("tokens");
       expect(screen.queryByRole("tabpanel")).toBeNull();
       const region = screen.getByRole("region", { name: "API tokens" });
-      const heading = screen.getByRole("heading", { name: "API tokens", level: 3 });
+      const heading = screen.getByRole("heading", { name: "API tokens", level: 2 });
       expect(region.getAttribute("aria-labelledby")).toBe(heading.id);
       expect(region.contains(screen.getByTestId("tokens-panel"))).toBe(true);
     });

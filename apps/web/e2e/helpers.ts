@@ -500,7 +500,7 @@ export async function openAccountPage(page: Page, tab?: "profile" | "plan" | "to
   if (tab === undefined) return;
   if (tab === "tokens") {
     await page.getByRole("button", { name: "API tokens →" }).click();
-    await expect(page.getByRole("heading", { name: "API tokens", level: 3 })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "API tokens", level: 2 })).toBeVisible();
     return;
   }
   const label = { profile: "Profile", plan: "Plan & usage" }[tab];
