@@ -63,6 +63,8 @@ export type RiverGestures = {
   onDropAt: (activityId: string, dayId: string, window: TimeWindow) => void;
   /** A block lifted by touch was let go over the unscheduled rack: park it, as a mouse drop there does. */
   onUnschedule: (activityId: string) => void;
+  /** A link or a line of text was dropped on this day: open the editor prefilled from it (M41 D8). */
+  onAddFromText: (text: string) => void;
 };
 
 /**

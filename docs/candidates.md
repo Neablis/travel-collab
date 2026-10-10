@@ -33,6 +33,11 @@ here two days later.
     model in v1, so this needs a decision.
   - **Pinch or ⌘-scroll to zoom the river's time scale:** the scale is tuned, and pinch already
     zooms the page on a phone.
+  - **Follow Google Maps short links on paste:** a `maps.app.goo.gl` link is what the Maps app's
+    Share button gives on a phone. M41's paste-to-add (`lib/pasteToStop.ts`) puts it in the notes
+    and leaves the title empty, because reading the place out of it needs a server request to
+    Google per paste, against a redirect that is not a documented API. Worth it if people are seen
+    pasting short links and retyping the place.
 
 - **Accounts by tier, week by week, on the operator console (split out of M36, 2026-10-06).**
   The 2026-10-05 handoff draws one area chart per tier on the Users tab — accounts holding the tier

@@ -30,6 +30,7 @@ import type { BoardSuggestions, RiverGestures } from "./DayRiver";
 import { ConflictBanner } from "./ConflictBanner";
 import { type AnyTimeOutcome, type DropOutcome, type PlaceOutcome, resolveDrop } from "./resolveDrop";
 import { riverAxis } from "./riverLayout";
+import { pasteToStop } from "@/lib/pasteToStop";
 
 // Phase 6, Step 3 item 5: the trailing "One more day?" column, which replaces
 // the loose "+ Add day" button that used to trail the row. Shaped like a day
@@ -708,6 +709,42 @@ export function Board({
   // `place` outcome. "Now ends at …" is the design's own flash for a resize.
   const clock = useTimeFormat();
   const [notice, setNotice] = useState<string | null>(null);
+
+  // **A paste or a drop of a link or a line of text makes a stop** (M41 D8).
+  // Both come here, so both open the same editor the same way: prefilled by
+  // `pasteToStop`, on the day it landed on, reviewed before anything is sent.
+  const addFromText = useCallback(
+    (text: string, dayId?: string) => {
+      const prefill = pasteToStop(text);
+      if (prefill !== null) openCreate({ ...prefill, ...(dayId !== undefined && { dayId }) });
+    },
+    [openCreate],
+  );
+
+  // ⌘V anywhere on Plan that is not a text field. The day is the column the
+  // pointer is over or that holds the keyboard focus, then the selected day;
+  // with none of those, the stop is parked, as the drawer's double-click parks
+  // one. The editor is a dialog with its own fields, so a paste inside it is
+  // never this.
+  useEffect(() => {
+    if (readOnly) return;
+    const onPaste = (event: ClipboardEvent) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (target?.closest("input, textarea, select, [contenteditable], [role='dialog']")) return;
+      const text = event.clipboardData?.getData("text/plain") ?? "";
+      if (text.trim() === "") return;
+      const days = latest.current.trip.days;
+      const columns = columnRefs.current.slice(0, days.length);
+      let index = columns.findIndex((el) => el?.matches(":hover") === true);
+      if (index < 0) index = columns.findIndex((el) => el?.contains(document.activeElement) === true);
+      const day = index >= 0 ? days[index] : focusedDay === null ? undefined : days[focusedDay];
+      event.preventDefault();
+      addFromText(text, day?.dayId);
+    };
+    document.addEventListener("paste", onPaste);
+    return () => document.removeEventListener("paste", onPaste);
+  }, [readOnly, addFromText, focusedDay]);
+
   const gesturesFor = (dayId: string): RiverGestures | undefined =>
     readOnly
       ? undefined
@@ -727,6 +764,7 @@ export function Board({
             if (outcome?.kind === "place") latest.current.callbacks.onPlace(outcome);
           },
           onUnschedule: (activityId) => latest.current.callbacks.onUnschedule(activityId),
+          onAddFromText: (text) => addFromText(text, dayId),
         };
 
   return (

@@ -704,3 +704,45 @@ describe("a read-only board", () => {
     expect(screen.getAllByRole("button", { name: /^Dismiss:/ }).length).toBeGreaterThan(0);
   });
 });
+
+// M41 D8. A paste lands as a jsdom `paste` event with clipboard text; the
+// parser itself is `pasteToStop.test.ts`, so these are about where the stop
+// opens and when the board leaves a paste alone.
+describe("pasting onto the plan", () => {
+  const paste = (target: Element, text: string) =>
+    fireEvent.paste(target, { clipboardData: { getData: (type: string) => (type === "text/plain" ? text : "") } });
+
+  it("opens the editor on the selected day, prefilled from the text", () => {
+    const { getEditorState } = renderBoard(fixture(), noopCallbacks(), 0);
+    paste(document.body, "Ramen at Ichiran\nCash only");
+    expect(getEditorState()).toEqual({ mode: "create", prefill: { dayId: DAY, title: "Ramen at Ichiran", notes: "Cash only" } });
+  });
+
+  it("opens it on the day holding the keyboard focus, before the selected day", () => {
+    const { getEditorState } = renderBoard(fixture(), noopCallbacks(), null);
+    screen.getByRole("button", { name: /^Edit Colosseum/ }).focus();
+    paste(document.body, "Gelato");
+    expect(getEditorState()?.prefill).toEqual({ dayId: DAY, title: "Gelato" });
+  });
+
+  it("parks the stop when no day is selected or focused", () => {
+    const { getEditorState } = renderBoard(fixture(), noopCallbacks(), null);
+    paste(document.body, "Gelato");
+    expect(getEditorState()).toEqual({ mode: "create", prefill: { title: "Gelato" } });
+  });
+
+  it("leaves a paste into a text field to the field", () => {
+    const { getEditorState } = renderBoard(fixture(), noopCallbacks(), 0);
+    const field = document.createElement("input");
+    document.body.append(field);
+    paste(field, "Gelato");
+    field.remove();
+    expect(getEditorState()?.mode).toBeNull();
+  });
+
+  it("does nothing on a read-only board", () => {
+    const { getEditorState } = renderBoard(fixture(), noopCallbacks(), 0, true);
+    paste(document.body, "Gelato");
+    expect(getEditorState()?.mode).toBeNull();
+  });
+});

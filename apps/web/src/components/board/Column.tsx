@@ -2,6 +2,9 @@
 
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { draggable, dropTargetForElements, monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
+import { dropTargetForExternal } from "@atlaskit/pragmatic-drag-and-drop/external/adapter";
+import { containsText, getText } from "@atlaskit/pragmatic-drag-and-drop/external/text";
+import { containsURLs, getURLs } from "@atlaskit/pragmatic-drag-and-drop/external/url";
 import type { DragLocationHistory } from "@atlaskit/pragmatic-drag-and-drop/types";
 import { X } from "lucide-react";
 import type { ActivityTag, ActivityView } from "@tc/contracts";
@@ -219,10 +222,34 @@ export function Column({
     });
   }, [dayId, section]);
 
+  // **A link or a line of text dragged in from outside the app** (M41 D8) —
+  // a place from Maps, a line from a note. Dropped anywhere on the day, it
+  // opens the editor on this day prefilled from it, as a paste does. The
+  // link wins over the text, which for a dragged link is only its label.
+  const onAddFromText = gestures?.onAddFromText;
+  const [isTextOver, setIsTextOver] = useState(false);
+  useEffect(() => {
+    const el = section;
+    if (!el || onAddFromText === undefined) return;
+    return dropTargetForExternal({
+      element: el,
+      canDrop: ({ source }) => containsURLs({ source }) || containsText({ source }),
+      getDropEffect: () => "copy",
+      onDragEnter: () => setIsTextOver(true),
+      onDragLeave: () => setIsTextOver(false),
+      onDrop: ({ source }) => {
+        setIsTextOver(false);
+        const text = getURLs({ source })[0] ?? getText({ source });
+        if (text !== null) onAddFromText(text);
+      },
+    });
+  }, [section, onAddFromText]);
+
   return (
     <section
       ref={sectionRef}
       data-testid="day-column"
+      data-day-id={dayId}
       // SPEC §28's city rule, and the ONLY thing this component does for it.
       // In Ledger a pale tint reads as grey on cream, so anything city-coded
       // also gets a 3px solid rule in its own city's colour. The rule itself
@@ -247,6 +274,7 @@ export function Column({
         // Same ring the focused chip wears (DayChips), so "this day" reads the
         // same whichever of the two you picked it from.
         isFocused && "ring-2 ring-brand",
+        isTextOver && "ring-2 ring-brand",
       )}
       // **268px is a DESKTOP constant, and link 13 is what it cost.** Measured
       // 2026-09-20 at 390x844: a phone was rendering this fixed column inside a
