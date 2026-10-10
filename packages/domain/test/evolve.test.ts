@@ -282,8 +282,12 @@ describe("evolveTrip — the day a parked stop left (M41 D6)", () => {
     expect(back.parkedFrom).toEqual({});
   });
 
-  it("keeps it through a reorder inside the rack, which records no day", () => {
-    expect(fold([...days, park(DAY_A), park(null)]).parkedFrom).toEqual({ [ACT]: DAY_A });
+  // A reorder inside the rack carries the origin in its own event (the
+  // decider stamps it; `commands.test.ts`), so replay reads only the event:
+  // the same day keeps it, and none clears it, which undo's diff relies on.
+  it("reads a move within the rack as its event says: the origin kept, or cleared", () => {
+    expect(fold([...days, park(DAY_A), park(DAY_A)]).parkedFrom).toEqual({ [ACT]: DAY_A });
+    expect(fold([...days, park(DAY_A), park(null)]).parkedFrom).toEqual({});
   });
 
   it("names none for a move written before M41, or by a revert", () => {

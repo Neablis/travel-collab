@@ -69,17 +69,21 @@ Returned to `docs/candidates.md` rather than built (D10): quick-add, search-to-a
    drop target, and double-click on its empty space makes a parked stop (D1).
 5. **An empty day says how to fill it**, in a line of text in the river (*"Double-click or drag
    to add a stop"*; on touch, *"Hold to add a stop"*). It is text, not a control.
-6. **A parked stop shows the day it left, read from the log, not stored.** `MoveActivity` and
-   `ActivityMovedV1` gain `fromDayId` (additive, nullable, default `null`; no migration, no
-   version bump). The rack card reads the stop's last move: *"from Day 3"*. Stops moved before
-   the change, and moves made by revert or clone without an origin, show nothing rather than a
-   wrong day.
+6. **A parked stop shows the day it left, read from the log, not stored.** The event
+   `ActivityMovedV1` gains `fromDayId` (optional, nullable; no migration), which `decide` stamps
+   from state, so a client cannot send one and `MoveActivity` is unchanged. The detail read
+   carries it as `parkedFrom` (optional), and the public API's version takes a minor bump (1.12.0)
+   with it. The rack card reads the stop's last move: *"from Day 3"*. Stops moved before the
+   change, and moves made by revert or clone without an origin, show nothing rather than a wrong
+   day. *(Corrected at build time, part 3: this said `MoveActivity` gained the field and there
+   was no version bump.)*
 7. **Plan gets the same direct gestures** (Mitchell agreed 2026-10-10):
    - drag a **day** from Plan's day rail onto another day, which moves that day's stops with the
      same function as D2 (a city block is a subset of a day);
    - **Option/Alt-drag** a stop to drop a copy;
    - drag a stop's **top edge** to change when it starts, beside the bottom edge's end;
-   - **Delete/Backspace** on a focused stop removes it, with the existing undo toast.
+   - **Delete/Backspace** on a focused stop removes it, undone as any removal is (⌘Z, History).
+     *(Corrected at build time, part 5: no removal has an undo toast.)*
 8. **Paste onto a day makes a stop.** With a day focused, ⌘V of a Google Maps link or a line of
    text, or dropping either onto a day, opens the editor on that day prefilled with the title and
    place. It goes through the editor and `AddActivity`, never the model. This is what replaces
@@ -108,7 +112,7 @@ Returned to `docs/candidates.md` rather than built (D10): quick-add, search-to-a
 - The editor's Day field for every stop (D3); the drawer as just cards, with double-click to
   create (D1, D4); the header's *Add stop* removed on desktop (D1).
 - The empty-day hint (D5).
-- `fromDayId` on `MoveActivity`, and *"from Day N"* on the rack card (D6).
+- `fromDayId` on the `ActivityMovedV1` event, `parkedFrom` on the detail read, and *"from Day N"* on the rack card (D6).
 - Plan's day drag, Option-drag to copy, top-edge resize, Delete to remove (D7).
 - Paste-to-add (D8).
 - ⌘K v1 (D9), and the duplication check (D11).
