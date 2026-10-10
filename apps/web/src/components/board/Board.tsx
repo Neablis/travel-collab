@@ -28,7 +28,8 @@ import { Column, DAY_COLUMN_WIDTH_PX } from "./Column";
 import { GhostDayColumn } from "./GhostDayColumn";
 import type { BoardSuggestions, RiverGestures } from "./DayRiver";
 import { ConflictBanner } from "./ConflictBanner";
-import { type AnyTimeOutcome, type DropOutcome, type PlaceOutcome, resolveDrop } from "./resolveDrop";
+import { type AnyTimeOutcome, type PlaceOutcome, resolveDrop } from "./resolveDrop";
+import { type CopyDestination, resolveCopy } from "./copyActivity";
 import { riverAxis } from "./riverLayout";
 
 // Phase 6, Step 3 item 5: the trailing "One more day?" column, which replaces
@@ -137,7 +138,7 @@ export type BoardCallbacks = {
    * A stop dropped with Option/Alt held (M41 D7): a copy lands where the drop
    * would have moved it, and the stop stays where it was.
    */
-  onCopy: (outcome: DropOutcome) => void;
+  onCopy: (to: CopyDestination) => void;
   /** Raised for every drag, so the rack's disclosure reducer can auto-open. */
   onDragStart: () => void;
   /** Raised on drop *and* on an Escape-cancelled drag — pdnd runs the same path. */
@@ -625,7 +626,11 @@ export function Board({
   useEffect(() => {
     return combine(
       monitorForElements({
-        onDragStart: () => latest.current.callbacks.onDragStart(),
+        // Not for a day's header (M41 D7): the rack opens so a stop can be
+        // parked, and a whole day cannot be (PR 396 review).
+        onDragStart: ({ source }) => {
+          if (source.data.kind !== "plan-day") latest.current.callbacks.onDragStart();
+        },
         onDrop: ({ source, location }) => {
           const { trip: currentTrip, callbacks: current } = latest.current;
           // pdnd runs this same path for an Escape-cancelled drag (with no
@@ -641,13 +646,16 @@ export function Board({
             }
             return;
           }
-          const outcome = resolveDrop(currentTrip, source.data, target);
-          if (outcome === null) return;
           // Option/Alt held at the drop: the same landing, as a copy (M41 D7).
+          // Read before `resolveDrop`, whose "nothing changes" answers are a
+          // move's: a copy onto the stop's own slot is a real copy (PR 396).
           if (location.current.input.altKey) {
-            current.onCopy(outcome);
+            const copy = resolveCopy(currentTrip, source.data, target);
+            if (copy !== null) current.onCopy(copy);
             return;
           }
+          const outcome = resolveDrop(currentTrip, source.data, target);
+          if (outcome === null) return;
           if (outcome.kind === "unschedule") {
             current.onUnschedule(outcome.activityId);
             return;

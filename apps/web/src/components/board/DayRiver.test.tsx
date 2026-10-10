@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ActivityView } from "@tc/contracts";
 import { activityFactory, locationFactory } from "@tc/factories";
@@ -27,7 +28,11 @@ vi.mock("@atlaskit/pragmatic-drag-and-drop/element/adapter", async (importOrigin
 // person can tell apart without it: the word in the block's corner, and the
 // kind in the name a screen reader hears. The geometry is `riverLayout.test.ts`.
 
-function renderRiver(
+function renderRiver(...args: Parameters<typeof riverElement>) {
+  return render(riverElement(...args));
+}
+
+function riverElement(
   stops: ActivityView[],
   readOnly = false,
   gestures?: RiverGestures,
@@ -35,7 +40,7 @@ function renderRiver(
   onRemoveActivity: (id: string) => void = vi.fn(),
 ) {
   const activities = Object.fromEntries(stops.map((s) => [s.activityId, s]));
-  return render(
+  return (
     <DayRiver
       title="Day 1"
       dayId="day-1"
@@ -54,7 +59,7 @@ function renderRiver(
       onToggleTag={vi.fn()}
       readOnly={readOnly}
       gestures={gestures}
-    />,
+    />
   );
 }
 
@@ -376,6 +381,27 @@ describe("gestures on empty time", () => {
     fireEvent.keyDown(screen.getByRole("button", { name: /^Edit Museum/ }), { key: "Enter" });
 
     expect(onRemove.mock.calls).toEqual([[evening.activityId], [morning.activityId]]);
+  });
+
+  // PR 396 review: the button that held focus leaves with its stop, and focus
+  // fell to <body>. Said through the keyboard (the wall bans reading focus
+  // directly): Enter opens a stop's editor only if its block has focus.
+  it("a stop removed from the keyboard hands focus to the next block, or else the one before", async () => {
+    const lunch = activityFactory.build({ title: "Lunch", timeWindow: { start: "12:00", end: "13:00" } });
+    const onEdit = vi.fn();
+    const g = gestures();
+    const { rerender } = renderRiver([morning, lunch, evening], false, g, onEdit);
+
+    screen.getByRole("button", { name: /^Edit Lunch/ }).focus();
+    await userEvent.keyboard("{Delete}");
+    rerender(riverElement([morning, evening], false, g, onEdit));
+    await userEvent.keyboard("{Enter}");
+    // Dinner was next; it is the last, so the one before takes focus.
+    await userEvent.keyboard("{Backspace}");
+    rerender(riverElement([morning], false, g, onEdit));
+    await userEvent.keyboard("{Enter}");
+
+    expect(onEdit.mock.calls).toEqual([[evening.activityId], [morning.activityId]]);
   });
 
   it("a read-only river offers none of it: no grip, and a double-click does nothing", () => {
