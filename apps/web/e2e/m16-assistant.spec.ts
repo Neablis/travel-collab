@@ -169,16 +169,15 @@ test("the chips that used to be dead ends are clickable and answered", async ({ 
   // day 1 only exists once they are accepted and the board has taken the new
   // state, so the accept's response is waited for before "New conversation"
   // and the first day chip below.
-  await expect(page.getByRole("group", { name: "Suggestions on the board" })).toContainText(
-    "I put 3 suggestions on the board",
-  );
-  await page.getByRole("button", { name: "3 suggestions" }).click();
+  const note = page.getByRole("group", { name: "Suggestions on the board" });
+  await expect(note).toContainText("I put 3 suggestions on the board");
+  // Accepted from the chat's own note (M40): the chip's Accept all is the
+  // same call, and with the note on screen a page-wide button name is two.
   const [applied] = await Promise.all([
     page.waitForResponse((r) => /\/suggestions\/changes\/accept$/.test(new URL(r.url()).pathname)),
-    page.getByRole("button", { name: "Accept all" }).click(),
+    note.getByRole("button", { name: "Accept all" }).click(),
   ]);
   expect(applied.status()).toBe(200);
-  await page.keyboard.press("Escape");
 
   // M18 landed on `main` while this spec was in flight: a freshly-added
   // stop's default `kind` is `planned`, and `needsBooking` (KI-86) does not
