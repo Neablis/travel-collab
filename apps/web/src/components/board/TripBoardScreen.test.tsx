@@ -203,6 +203,31 @@ describe("TripBoardScreen", () => {
     expect(await screen.findByRole("alert")).toBeTruthy();
   });
 
+  // PR #384 review: the board registered the phone tab bar's Ask above its
+  // early returns, so the error state (and the skeleton, and the sign-in
+  // prompt) offered an Ask item with no assistant behind it.
+  it("offers the phone tab bar no Ask while the board is not rendered", async () => {
+    setViewportMatches({ "(max-width: 767px)": true });
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    render(
+      <>
+        <TripProvider tripId="00000000-0000-4000-8000-000000000000">
+          <FocusProvider>
+            <EditorHost>
+              <LensRouter>
+                <TripBoardScreen tripId="00000000-0000-4000-8000-000000000000" />
+              </LensRouter>
+            </EditorHost>
+          </FocusProvider>
+        </TripProvider>
+        <PhoneAskTab />
+      </>,
+    );
+    expect(await screen.findByRole("alert")).toBeTruthy();
+    expect(screen.queryByTestId("ask-tab")).toBeNull();
+  });
+
   // I3 (final review): this used to render a bare `<Heading>Caesura</Heading>`
   // plus a link to Auth.js's default `/api/auth/signin` — exactly the
   // bare-front-door pattern M15 exists to eliminate, and it dropped

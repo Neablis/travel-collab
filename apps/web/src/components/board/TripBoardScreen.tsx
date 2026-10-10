@@ -126,7 +126,14 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // The phone's way in is the tab bar's Ask item (Mitchell, 2026-10-10), which
   // lives in the layout, outside this tree: offer it the same opener the
   // header's desktop pill gets. Withheld on /demo for the pill's reason (KI-79).
-  usePhoneAskEntry(isDemoTripId(tripId) ? undefined : assistant.show, assistant.open);
+  //
+  // **Only once the board itself renders** (PR #384 review). This hook has to
+  // sit above the loading, signed-out and error returns below, but the
+  // `AssistantRail` it opens sits after them — so registering unconditionally
+  // gave a phone an Ask item on the skeleton, the sign-in prompt and the error
+  // that opened nothing. The condition is the one those returns test.
+  const boardRenders = status === "ready" && trip !== null && activeTrip !== null;
+  usePhoneAskEntry(boardRenders && !isDemoTripId(tripId) ? assistant.show : undefined, assistant.open);
   // Which of SPEC §9/§23's presentations the assistant opens as. `AssistantRail`
   // is emphatic that the caller must not reach for `useIsPhone()` — it returns
   // `false` on the server and on the first client paint, so a JS-gated swap

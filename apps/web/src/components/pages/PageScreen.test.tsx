@@ -153,13 +153,22 @@ describe("PageScreen", () => {
       }),
     );
 
-    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    render(
+      <>
+        <PageScreen tripId={trip.tripId} pageId={page.id} />
+        <PhoneAskTab />
+      </>,
+    );
     await waitFor(() => expect(tripServed).toBe(true));
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(screen.queryByText("Hello notebook")).toBeNull();
+    // Nor does the phone tab bar offer an Ask while the skeleton is held: there
+    // is no assistant behind it yet (PR #384 review).
+    expect(screen.queryByTestId("ask-tab")).toBeNull();
 
     release();
     expect(await screen.findByText("Hello notebook")).toBeTruthy();
+    expect(screen.getByTestId("ask-tab")).toBeTruthy();
   });
 
   // M14 link 10. What a template keeps is the STORED document, and an open

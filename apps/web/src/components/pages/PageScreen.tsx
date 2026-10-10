@@ -963,9 +963,16 @@ export function PageScreen({
   // **A phone's Ask is the tab bar's** (Mitchell, 2026-10-10: "Dont forget this
   // 'Ask' element when moving ask to toolbar"). Offered only where the page's
   // own pill used to render — the mountable page, not the loading, error or
-  // locked branches, which never offered an assistant (decision 4).
+  // locked branches, which never offered an assistant (decision 4). Nor while
+  // the skeleton is held for the globals (PR #384 review): that is the loading
+  // branch too, with no assistant behind it yet.
   usePhoneAskEntry(
-    status !== "loading" && status !== "error" && page !== null && trip !== null && stored?.status === "mountable"
+    status !== "loading" &&
+      status !== "error" &&
+      globalsSettled &&
+      page !== null &&
+      trip !== null &&
+      stored?.status === "mountable"
       ? () => setAssistantOpen(true)
       : undefined,
     assistantOpen,
