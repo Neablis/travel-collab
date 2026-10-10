@@ -138,7 +138,8 @@ function PlanSectionSkeleton() {
         </div>
       </div>
       <div className="flex flex-col gap-2 rounded-lg border border-hairline bg-surface p-3">
-        <Heading level={4}>Assistant use today</Heading>
+        {/* h2 with the h4 type, as the loaded card's is (see below). */}
+        <Heading level={2} className="text-md font-medium">Assistant use today</Heading>
         {meter("Questions", "meter-questions-skeleton")}
         <Text variant="secondary" className="text-xs">
           Every question you ask the assistant, across all your trips.

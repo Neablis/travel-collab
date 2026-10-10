@@ -123,6 +123,15 @@ describe("what you hold", () => {
     expect(await screen.findByRole("heading", { level: 2, name: "Assistant use today" })).toBeTruthy();
   });
 
+  // PR #384 review: the skeleton kept the old h4, so the outline changed level
+  // when the read landed, and skipped two levels until it did.
+  it("titles the usage card at the same level while the plan is still loading", () => {
+    serve(subscribed());
+    render(<PlanSection />);
+    expect(screen.getByRole("status")).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 2, name: "Assistant use today" })).toBeTruthy();
+  });
+
   // **"Renews on 20 October" and "ends on 20 October" are the same date and
   // opposite facts**, and a person deciding whether to fix a card is reading
   // for exactly that difference.
