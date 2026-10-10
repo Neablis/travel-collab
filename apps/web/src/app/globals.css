@@ -1695,8 +1695,10 @@ html[data-look="ledger"] .shadow-raised {
   }
   @media (prefers-reduced-motion: reduce) {
     /* Dropped, not frozen: the toast that follows a save is what carries the
-       outcome, so the motion is decoration and nothing is lost with it. */
-    .share-lift svg path {
+       outcome, so the motion is decoration and nothing is lost with it.
+       The same selector as the rule it cancels: a bare `.share-lift svg path`
+       is less specific than `:not(:last-child)` and lost to it (PR #384). */
+    .share-lift svg path:not(:last-child) {
       animation: none;
     }
   }
