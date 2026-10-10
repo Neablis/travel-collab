@@ -318,9 +318,15 @@ export function ActivityEditor({
   // at "" surfaces the Day select's own "Unscheduled" option instead, and
   // the resulting dayId: null / undefined round-trips through AddActivity
   // exactly as it did before this task.
+  //
+  // **And it follows the stop until the user picks a day** (CodeRabbit, #392):
+  // when another editor moves the stop while this one is open, `defaultDayId`
+  // changes, and a field still showing the old day would make a save of some
+  // other field move the stop back.
   useEffect(() => {
-    if (dayPicked || selectedDayId !== "" || defaultDayId === undefined) return;
-    setSelectedDayId(defaultDayId);
+    if (dayPicked) return;
+    const next = defaultDayId ?? "";
+    if (selectedDayId !== next) setSelectedDayId(next);
   }, [defaultDayId, selectedDayId, dayPicked]);
 
   const selectedDay = days.find((d) => d.dayId === selectedDayId);

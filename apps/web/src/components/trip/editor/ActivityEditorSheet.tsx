@@ -201,6 +201,7 @@ export function ActivityEditorSheet() {
       // A changed day is a move as well as an update, sent as one batch
       // (M41 D3); an unchanged one is the single update it always was.
       const commands = editActivityCommands(activeTrip, state.activityId, value);
+      if (commands === null) return setRefusal("That day is no longer on the trip. Pick another.");
       result = commands.length === 1 ? await dispatch(commands[0]!) : await dispatchBatch(commands);
     } else if (state.mode === "create") {
       result = await dispatch(addActivityCommand(activeTrip.tripId, crypto.randomUUID(), value));

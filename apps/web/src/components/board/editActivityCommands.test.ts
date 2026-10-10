@@ -29,7 +29,7 @@ function form(activity: ActivityView, dayId: string | null): ActivityFormValue {
 describe("editActivityCommands", () => {
   it("is the one update it always was when the day is unchanged", () => {
     const commands = editActivityCommands(trip, TIMED.activityId, form(TIMED, DAY_1));
-    expect(commands.map((c) => c.type)).toEqual(["UpdateActivity"]);
+    expect(commands?.map((c) => c.type)).toEqual(["UpdateActivity"]);
   });
 
   it("is only the move a drag builds when nothing but the day changed", () => {
@@ -50,9 +50,15 @@ describe("editActivityCommands", () => {
 
   it("gives a parked stop a time when it is put on a day without one, so it leaves the rack", () => {
     const commands = editActivityCommands(trip, PARKED.activityId, form(PARKED, DAY_2));
-    expect(commands.at(-1)).toEqual(
+    expect(commands?.at(-1)).toEqual(
       expect.objectContaining({ type: "UpdateActivity", timeWindow: { start: "09:00", end: "10:00" } }),
     );
+  });
+
+  // CodeRabbit on #392: another editor removed the day while this one was
+  // open. A save then must refuse, not clear the time and leave it in place.
+  it("refuses a day that no longer exists, rather than clearing the stop's time", () => {
+    expect(editActivityCommands(trip, TIMED.activityId, form(TIMED, "99999999-9999-4999-8999-999999999999"))).toBeNull();
   });
 
   it("strips the time when a stop is parked", () => {
