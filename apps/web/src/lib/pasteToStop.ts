@@ -24,7 +24,9 @@ const NOTES_MAX = 2000;
  *
  * - A Google Maps place or search link gives a title and a place, with the
  *   place's own coordinates when the link carries them.
- * - An Apple Maps link with `q` (or `address`) and `ll` gives the same.
+ * - An Apple Maps link with `name` (or `q`, or `address`) and `coordinate`
+ *   (or `ll`) gives the same.
+ * - A Google directions link or bare map view is a link, not a place.
  * - A short link or any other web link goes into the notes, and the title is
  *   left empty.
  * - Plain text: its first line is the title, and any further lines are the
@@ -59,22 +61,53 @@ function googleMaps(url: URL): PastedStop | null {
   // `/maps/place/<name>/@lat,lng,zoom/data=…!3d<lat>!4d<lng>…`. The `@` pair
   // is where the map was centred when the link was copied, and the `!3d…!4d`
   // pair is the place itself, so that one wins when both are there.
+  //
+  // Only a place or a search names somewhere. Directions (`/maps/dir/…`) and
+  // a bare map view (`/maps/@lat,lng,zoom`) carry an `@` too, but that is
+  // only where the map was scrolled to, so they are links and not places.
   const segments = url.pathname.split("/");
   const named = segments.findIndex((s) => s === "place" || s === "search");
   const pathName = named === -1 ? undefined : segments[named + 1];
   const query = url.searchParams.get("q") ?? url.searchParams.get("query") ?? undefined;
-  const name = pathName !== undefined && pathName !== "" && !pathName.startsWith("@") ? decodePart(pathName) : (query ?? "").trim();
+  if (named === -1 && query === undefined) return null;
+  const rawName = pathName !== undefined && pathName !== "" && !pathName.startsWith("@") ? decodePart(pathName) : (query ?? "").trim();
+
+  // A dropped pin is named by its coordinates, in degrees and minutes when
+  // Google names it ("35°00'41.8"N 135°46'05.2"E"), and that is no title.
+  const dms = dmsCoords(rawName);
+  const name = dms === undefined ? rawName : "";
 
   const pinned = /!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/.exec(url.pathname);
   const centred = /@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/.exec(url.pathname);
-  const coords = coordsFrom(pinned) ?? coordsFrom(centred) ?? coordsFrom(/^(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)$/.exec(name));
+  const coords =
+    coordsFrom(pinned) ?? coordsFrom(centred) ?? coordsFrom(/^(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)$/.exec(name)) ?? dms ?? null;
   return place(name, coords);
+}
+
+/**
+ * Coordinates written in degrees, minutes and seconds, as Google names a
+ * dropped pin: `undefined` when the text is not that shape at all, `null`
+ * when it is but the numbers are no place.
+ */
+function dmsCoords(text: string): { lat: number; lng: number } | null | undefined {
+  const m = /^(\d{1,3})°\s*(\d{1,2})'\s*(\d{1,2}(?:\.\d+)?)"\s*([NS])[\s,]+(\d{1,3})°\s*(\d{1,2})'\s*(\d{1,2}(?:\.\d+)?)"\s*([EW])$/i.exec(text);
+  if (m === null) return undefined;
+  const degrees = (d: string, min: string, sec: string, hemisphere: string) =>
+    (Number(d) + Number(min) / 60 + Number(sec) / 3600) * (/[SW]/i.test(hemisphere) ? -1 : 1);
+  const lat = degrees(m[1]!, m[2]!, m[3]!, m[4]!);
+  const lng = degrees(m[5]!, m[6]!, m[7]!, m[8]!);
+  if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+  return { lat: Number(lat.toFixed(6)), lng: Number(lng.toFixed(6)) };
 }
 
 function appleMaps(url: URL): PastedStop | null {
   if (url.hostname.toLowerCase() !== "maps.apple.com") return null;
-  const name = (url.searchParams.get("q") ?? url.searchParams.get("address") ?? "").trim();
-  const coords = coordsFrom(/^(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)$/.exec(url.searchParams.get("ll") ?? ""));
+  // Today's share links (`/place?address=…&coordinate=…&name=…`) carry no `q`
+  // and no `ll`; older ones carry only those. The place's own name comes
+  // before its street address either way.
+  const params = url.searchParams;
+  const name = (params.get("name") ?? params.get("q") ?? params.get("address") ?? "").trim();
+  const coords = coordsFrom(/^(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)$/.exec(params.get("coordinate") ?? params.get("ll") ?? ""));
   return place(name, coords);
 }
 

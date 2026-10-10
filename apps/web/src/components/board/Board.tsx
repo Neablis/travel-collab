@@ -28,7 +28,8 @@ import { Column, DAY_COLUMN_WIDTH_PX } from "./Column";
 import { GhostDayColumn } from "./GhostDayColumn";
 import type { BoardSuggestions, RiverGestures } from "./DayRiver";
 import { ConflictBanner } from "./ConflictBanner";
-import { type AnyTimeOutcome, type DropOutcome, type PlaceOutcome, resolveDrop } from "./resolveDrop";
+import { type AnyTimeOutcome, type PlaceOutcome, resolveDrop } from "./resolveDrop";
+import { type CopyDestination, resolveCopy } from "./copyActivity";
 import { riverAxis } from "./riverLayout";
 import { pasteToStop } from "@/lib/pasteToStop";
 import { newStopPrefill } from "@/components/trip/newStopPrefill";
@@ -139,7 +140,7 @@ export type BoardCallbacks = {
    * A stop dropped with Option/Alt held (M41 D7): a copy lands where the drop
    * would have moved it, and the stop stays where it was.
    */
-  onCopy: (outcome: DropOutcome) => void;
+  onCopy: (to: CopyDestination) => void;
   /** Raised for every drag, so the rack's disclosure reducer can auto-open. */
   onDragStart: () => void;
   /** Raised on drop *and* on an Escape-cancelled drag — pdnd runs the same path. */
@@ -178,6 +179,7 @@ export type BoardCallbacks = {
  * @param focusedTag - Tag used to focus matching activities
  * @param onToggleTag - Handler for toggling tag focus
  * @param readOnly - Whether to hide controls that modify the trip
+ * @param previewing - Whether a past version is previewed (a paste then adds nothing)
  * @param sync - Optional handle for synchronizing scrolling with day selection
  * @param keepFlag - Optional "keep this day" pennant, rendered in each day's header
  * @param addSavedDay - Optional control for inserting a saved day, after the last column
@@ -192,6 +194,7 @@ export function Board({
   onToggleTag,
   readOnly = false,
   suggesting = false,
+  previewing = false,
   sync,
   addSavedDay,
   oneDay = false,
@@ -262,6 +265,14 @@ export function Board({
    * `readOnly`.
    */
   suggesting?: boolean;
+  /**
+   * A past version is on screen (History's preview). The host makes the board
+   * `inert`, which stops every pointer and keyboard path but not the document
+   * `paste` listener below, so that one listener stands down on this. Not
+   * `readOnly`: the preview should look like the board it was, controls and
+   * all.
+   */
+  previewing?: boolean;
   /** Index of the focused day, or null. Owned by TripBoardScreen's useFocus,
       the same value the day chips read — passed in rather than read from
       context here so Board stays renderable on its own in tests. */
@@ -627,7 +638,11 @@ export function Board({
   useEffect(() => {
     return combine(
       monitorForElements({
-        onDragStart: () => latest.current.callbacks.onDragStart(),
+        // Not for a day's header (M41 D7): the rack opens so a stop can be
+        // parked, and a whole day cannot be (PR 396 review).
+        onDragStart: ({ source }) => {
+          if (source.data.kind !== "plan-day") latest.current.callbacks.onDragStart();
+        },
         onDrop: ({ source, location }) => {
           const { trip: currentTrip, callbacks: current } = latest.current;
           // pdnd runs this same path for an Escape-cancelled drag (with no
@@ -643,13 +658,16 @@ export function Board({
             }
             return;
           }
-          const outcome = resolveDrop(currentTrip, source.data, target);
-          if (outcome === null) return;
           // Option/Alt held at the drop: the same landing, as a copy (M41 D7).
+          // Read before `resolveDrop`, whose "nothing changes" answers are a
+          // move's: a copy onto the stop's own slot is a real copy (PR 396).
           if (location.current.input.altKey) {
-            current.onCopy(outcome);
+            const copy = resolveCopy(currentTrip, source.data, target);
+            if (copy !== null) current.onCopy(copy);
             return;
           }
+          const outcome = resolveDrop(currentTrip, source.data, target);
+          if (outcome === null) return;
           if (outcome.kind === "unschedule") {
             current.onUnschedule(outcome.activityId);
             return;
@@ -730,10 +748,13 @@ export function Board({
   // one. The editor is a dialog with its own fields, so a paste inside it is
   // never this.
   useEffect(() => {
-    if (readOnly) return;
+    if (readOnly || previewing) return;
     const onPaste = (event: ClipboardEvent) => {
       const target = event.target instanceof Element ? event.target : null;
       if (target?.closest("input, textarea, select, [contenteditable], [role='dialog']")) return;
+      // A copied file: Finder puts its name in text/plain beside it, and a
+      // photo's filename is not a stop.
+      if ((event.clipboardData?.files.length ?? 0) > 0) return;
       const text = event.clipboardData?.getData("text/plain") ?? "";
       if (text.trim() === "") return;
       const days = latest.current.trip.days;
@@ -746,7 +767,7 @@ export function Board({
     };
     document.addEventListener("paste", onPaste);
     return () => document.removeEventListener("paste", onPaste);
-  }, [readOnly, addFromText, focusedDay]);
+  }, [readOnly, previewing, addFromText, focusedDay]);
 
   const gesturesFor = (dayId: string): RiverGestures | undefined =>
     readOnly

@@ -5,6 +5,8 @@ import {
   decideHistoryCommand,
   decideTripCommand,
   deriveUndoRedo,
+  diffTripStates,
+  evolveTrip,
   foldEnvelopes,
   groupBatches,
   tripStatesEqual,
@@ -248,5 +250,62 @@ describe("buildHistoryEntries", () => {
     expect(entries[entries.length - 1]!.description).toBe("Reverted to version 1");
     // the revert batch's several compensating events collapsed into one entry:
     expect(entries).toHaveLength(4);
+  });
+});
+
+// M41 D6 through the history pipeline: undo, redo and revert are diffs to a
+// replayed state (`diff.ts`), so the day a parked stop left has to survive
+// them, or ⌘Z quietly turns "From Day 1" into nothing.
+describe("undo and redo keep the day a parked stop left (M41 D6)", () => {
+  const DAY_2 = uuid(901);
+  const A2 = uuid(902);
+  function parkedFromDay1(): Log {
+    let log = freshTrip();
+    log = run(log, { type: "AddDay", tripId: TRIP, dayId: DAY_2 });
+    log = run(log, { type: "MoveActivity", tripId: TRIP, activityId: A1, toDayId: DAY, position: 0 });
+    return run(log, { type: "MoveActivity", tripId: TRIP, activityId: A1, toDayId: null, position: 0 });
+  }
+
+  it("puts a stop dragged off the rack back with the day it left, on undo", () => {
+    let log = parkedFromDay1();
+    expect(state(log).parkedFrom).toEqual({ [A1]: DAY });
+    log = run(log, { type: "MoveActivity", tripId: TRIP, activityId: A1, toDayId: DAY_2, position: 0 });
+    expect(state(log).parkedFrom).toEqual({});
+
+    log = run(log, { type: "UndoLastChange", tripId: TRIP });
+    expect(state(log).backlog).toEqual([A1]);
+    expect(state(log).parkedFrom).toEqual({ [A1]: DAY });
+  });
+
+  it("names the day again when an undone park is redone", () => {
+    let log = run(parkedFromDay1(), { type: "UndoLastChange", tripId: TRIP });
+    expect(state(log).parkedFrom).toEqual({});
+    log = run(log, { type: "RedoChange", tripId: TRIP });
+    expect(state(log).parkedFrom).toEqual({ [A1]: DAY });
+  });
+
+  it("keeps it through a reorder inside the rack", () => {
+    let log = parkedFromDay1();
+    log = run(log, { type: "AddActivity", tripId: TRIP, activityId: A2, title: "Trevi" });
+    log = run(log, { type: "MoveActivity", tripId: TRIP, activityId: A1, toDayId: null, position: 1 });
+    expect(state(log).backlog).toEqual([A2, A1]);
+    expect(state(log).parkedFrom).toEqual({ [A1]: DAY });
+  });
+
+  // The other direction: a target with no origin for a stop that has one now
+  // (a revert past the park) has to clear it, or the diff's own contract —
+  // applied, it yields the target — does not hold.
+  it("clears an origin the target does not have", () => {
+    const current = state(parkedFromDay1());
+    const target: TripState = { ...current, parkedFrom: {} };
+    const reverted = diffTripStates(current, target).reduce<TripState>((s, e) => evolveTrip(s, e)!, current);
+    expect(reverted.parkedFrom ?? {}).toEqual({});
+    expect(tripStatesEqual(reverted, target)).toBe(true);
+  });
+
+  it("is part of what makes two states equal", () => {
+    const parked = state(parkedFromDay1());
+    expect(tripStatesEqual(parked, { ...parked, parkedFrom: {} })).toBe(false);
+    expect(tripStatesEqual({ ...parked, parkedFrom: undefined }, { ...parked, parkedFrom: {} })).toBe(true);
   });
 });

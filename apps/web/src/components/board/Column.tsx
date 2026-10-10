@@ -226,11 +226,20 @@ export function Column({
   // a place from Maps, a line from a note. Dropped anywhere on the day, it
   // opens the editor on this day prefilled from it, as a paste does. The
   // link wins over the text, which for a dragged link is only its label.
+  //
+  // Board makes `onAddFromText` afresh each render, so the target reads it
+  // through a ref and registers again only when the section, or whether there
+  // is a callback at all, changes (PR 397).
   const onAddFromText = gestures?.onAddFromText;
+  const addFromTextRef = useRef(onAddFromText);
+  useEffect(() => {
+    addFromTextRef.current = onAddFromText;
+  }, [onAddFromText]);
+  const acceptsText = onAddFromText !== undefined;
   const [isTextOver, setIsTextOver] = useState(false);
   useEffect(() => {
     const el = section;
-    if (!el || onAddFromText === undefined) return;
+    if (!el || !acceptsText) return;
     return dropTargetForExternal({
       element: el,
       canDrop: ({ source }) => containsURLs({ source }) || containsText({ source }),
@@ -240,16 +249,19 @@ export function Column({
       onDrop: ({ source }) => {
         setIsTextOver(false);
         const text = getURLs({ source })[0] ?? getText({ source });
-        if (text !== null) onAddFromText(text);
+        if (text !== null) addFromTextRef.current?.(text);
       },
     });
-  }, [section, onAddFromText]);
+  }, [section, acceptsText]);
 
   return (
     <section
       ref={sectionRef}
       data-testid="day-column"
       data-day-id={dayId}
+      // What a river block's keyboard removal hands focus back to when it
+      // was the day's last stop (RiverBlock's `focusAfterRemoval`).
+      data-day-column
       // SPEC §28's city rule, and the ONLY thing this component does for it.
       // In Ledger a pale tint reads as grey on cream, so anything city-coded
       // also gets a 3px solid rule in its own city's colour. The rule itself

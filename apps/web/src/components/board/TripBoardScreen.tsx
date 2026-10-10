@@ -35,13 +35,13 @@ import { ActivityEditorSheet } from "@/components/trip/editor/ActivityEditorShee
 import { PeopleProvider } from "@/components/pages/people";
 import { type RackItem, UnscheduledRack } from "@/components/trip/UnscheduledRack";
 import { moveCommands } from "./moveCommands";
-import { copyActivityCommand } from "./copyActivity";
+import { type CopyDestination, copyCommands } from "./copyActivity";
 import type { resolveCalendarDrop } from "@/components/lenses/calendarDrop";
 
 type CalendarDropOutcome = NonNullable<ReturnType<typeof resolveCalendarDrop>>;
 import { rackDropWindow } from "./rackDropWindow";
 import { kindBadge } from "./activityKind";
-import { type AnyTimeOutcome, anyTimeCommands, type DropOutcome, type PlaceOutcome, placeCommands } from "./resolveDrop";
+import { type AnyTimeOutcome, anyTimeCommands, type PlaceOutcome, placeCommands } from "./resolveDrop";
 import { lensAcceptsDrops } from "./lensAcceptsDrops";
 import { rackDisclosure, type RackDisclosure, type RackEvent } from "@/components/trip/rackDisclosure";
 import { legRoute, shortPlace } from "@/lib/place";
@@ -653,19 +653,11 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   };
 
   // A stop dropped with Option/Alt held (M41 D7): a copy lands where the drop
-  // would have moved it. A drop on a river names the time; anywhere else the
-  // copy keeps the stop's own, and on the rack it has none.
-  const copyActivity = (outcome: DropOutcome) => {
-    const to =
-      outcome.kind === "unschedule"
-        ? { dayId: null, timeWindow: null }
-        : outcome.kind === "place"
-          ? { dayId: outcome.toDayId, timeWindow: outcome.timeWindow ?? undefined }
-          : outcome.kind === "anyTime"
-            ? { dayId: outcome.toDayId, timeWindow: null }
-            : { dayId: outcome.toDayId };
-    const command = copyActivityCommand(activeTrip, outcome.activityId, crypto.randomUUID(), to);
-    if (command !== null) void dispatch(command);
+  // would have moved it (`resolveCopy`), as ONE batch — the add, and the move
+  // that puts it in clock order on its day when appending would not.
+  const copyActivity = (to: CopyDestination) => {
+    const commands = copyCommands(activeTrip, to, crypto.randomUUID());
+    if (commands.length > 0) void dispatchBatch(commands);
   };
 
   // A drop at a time on a day's river (M29 part 3): the day AND the time, as
@@ -1283,6 +1275,9 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                     // draft by that same provider (W8).
                     readOnly={!canEditBoard}
                     suggesting={boardMode === "suggest"}
+                    // `inert` above does not reach Board's document paste
+                    // listener, so the preview is said out loud (PR 397).
+                    previewing={preview.seq !== null}
                     // Focus is a view state, not a command, so it is threaded
                     // past the read-only gate deliberately: a viewer's board
                     // and `/demo`'s signed-out reader both get the whole

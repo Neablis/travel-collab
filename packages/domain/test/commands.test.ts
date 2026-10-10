@@ -140,6 +140,15 @@ describe("decideTripCommand", () => {
     const parked = run(placed, { type: "MoveActivity", tripId: TRIP, activityId: ACT, toDayId: null, position: 0 });
     if (!parked.ok) throw new Error("expected ok");
     expect(parked.events[0]).toMatchObject({ type: "ActivityMoved", payload: { toDayId: null, fromDayId: DAY } });
+
+    // A reorder inside the rack names the day it left before, so it keeps it.
+    const stillParked = parked.events.reduce<TripState>((state, event) => evolveTrip(state, event), placed);
+    const other = run(stillParked, { type: "AddActivity", tripId: TRIP, activityId: "9b2f5a1e-0000-4000-8000-0000000000b2", title: "Trevi" });
+    if (!other.ok) throw new Error("expected ok");
+    const twoParked = other.events.reduce<TripState>((state, event) => evolveTrip(state, event), stillParked);
+    const reordered = run(twoParked, { type: "MoveActivity", tripId: TRIP, activityId: ACT, toDayId: null, position: 1 });
+    if (!reordered.ok) throw new Error("expected ok");
+    expect(reordered.events[0]).toMatchObject({ payload: { toDayId: null, fromDayId: DAY } });
   });
 
   it("RemoveActivity validates the activity", () => {
