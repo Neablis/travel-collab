@@ -637,6 +637,71 @@ describe("acceptSuggestionChanges", () => {
     for (const change of all) expect(await statusOf(change.id)).toBe("accepted");
   });
 
+  // Mitchell, 2026-10-09: a stacked suggestion — a new day, a stop moved onto
+  // it, then that stop retimed — is one History entry, replayed in the order
+  // it was made, and one undo takes all of it back.
+  it("accepts a new day, a move onto it and an update of the moved stop as one entry, in order", async () => {
+    const newDay = randomUUID();
+    const stacked = await suggest(
+      draft(
+        [{ type: "AddDay", tripId, dayId: newDay }],
+        [{ type: "MoveActivity", tripId, activityId: stopId, toDayId: newDay, position: 0 }],
+        [{ type: "UpdateActivity", tripId, activityId: stopId, title: "Inari at dusk", timeWindow: { start: "15:10", end: "16:00" } }],
+      ),
+    );
+    expect(stacked).toHaveLength(3);
+    const entriesBefore = await historyLength();
+
+    // Named last-first: the order it lands in is the server's, not the caller's.
+    const accepted = await acceptSuggestionChanges(tripId, stacked.map((c) => c.id).reverse(), EDITOR);
+    expect(accepted.ok).toBe(true);
+
+    const history = (await getTripHistory(tripId))!;
+    expect(history.entries).toHaveLength(entriesBefore + 1);
+    expect(history.entries[0]).toMatchObject({ description: "Accepted 3 suggestions", origin: { kind: "suggestions" } });
+    const after = (await getTripDetail(tripId))!;
+    expect(after.days.map((d) => d.dayId)).toEqual([dayId, newDay]);
+    expect(after.days[0]!.activityIds).toEqual([]);
+    expect(after.days[1]!.activityIds).toEqual([stopId]);
+    expect(after.activities[stopId]).toMatchObject({ title: "Inari at dusk", timeWindow: { start: "15:10", end: "16:00" } });
+
+    expect((await executeTripCommand({ type: "UndoLastChange", tripId }, OWNER)).ok).toBe(true);
+    const undone = (await getTripDetail(tripId))!;
+    expect(undone.days.map((d) => d.dayId)).toEqual([dayId]);
+    expect(undone.days[0]!.activityIds).toEqual([stopId]);
+    expect(undone.activities[stopId]!.title).toBe("Fushimi Inari");
+    expect(undone.activities[stopId]!.timeWindow ?? null).toBeNull();
+  });
+
+  it("accepts a stacked suggestion together with another author's, as one entry naming both", async () => {
+    const newDay = randomUUID();
+    const fromSam = await suggest(
+      draft(
+        [{ type: "AddDay", tripId, dayId: newDay }],
+        [{ type: "MoveActivity", tripId, activityId: stopId, toDayId: newDay, position: 0 }],
+        [{ type: "UpdateActivity", tripId, activityId: stopId, timeWindow: { start: "09:00", end: "10:30" } }],
+      ),
+    );
+    const fromSue = await suggest(draft(addStop(dayId, "Nishiki market"), [rename("Kyoto in spring")]), OTHER_SUGGESTER);
+    const entriesBefore = await historyLength();
+
+    // Sue's named first: Sam's suggestion is older, and lands first.
+    const all = [...fromSue, ...fromSam];
+    expect((await acceptSuggestionChanges(tripId, all.map((c) => c.id), EDITOR)).ok).toBe(true);
+
+    const history = (await getTripHistory(tripId))!;
+    expect(history.entries).toHaveLength(entriesBefore + 1);
+    expect(history.entries[0]).toMatchObject({
+      description: "Accepted 5 suggestions",
+      origin: { kind: "suggestions", authorIds: [SUGGESTER, OTHER_SUGGESTER] },
+    });
+    const after = (await getTripDetail(tripId))!;
+    expect(after.name).toBe("Kyoto in spring");
+    expect(after.days[1]!.activityIds).toEqual([stopId]);
+    expect(after.activities[stopId]!.timeWindow).toEqual({ start: "09:00", end: "10:30" });
+    expect(after.days[0]!.activityIds).toHaveLength(1);
+  });
+
   it("lands nothing when one change in the set is refused, and names that change", async () => {
     const [renamed, retitled] = await suggest(
       draft([rename("Kyoto in spring")], [{ type: "UpdateActivity", tripId, activityId: stopId, title: "Inari at dawn" }]),
