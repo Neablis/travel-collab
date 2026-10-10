@@ -5,11 +5,11 @@ import { Lightbulb } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover } from "@/components/ui/popover";
 import { Text } from "@/components/ui/text";
-import { acceptAllOrder } from "@/lib/acceptAll";
 import { dayLabel } from "@/lib/dates";
 import type { Ghost } from "@/lib/suggestionOverlay";
 import { useTrip } from "@/components/trip/context/TripProvider";
 import { AuthorChip, SuggestionActions, useAuthorNames, withVia } from "./SuggestionActions";
+import { useAcceptAll } from "@/components/trip/context/useAcceptAll";
 
 /**
  * The header's pending-suggestion count (spec §2.4) — the only notification
@@ -21,26 +21,12 @@ import { AuthorChip, SuggestionActions, useAuthorNames, withVia } from "./Sugges
  * Author names come from `PeopleProvider` (W15), which `TripHeader` mounts.
  */
 export function SuggestionsChip() {
-  const { suggestionGhosts: ghosts, trip, boardMode, suggestions } = useTrip();
+  const { suggestionGhosts: ghosts, trip } = useTrip();
   const nameOf = useAuthorNames(ghosts?.pending.map((c) => c.authorId) ?? []);
   const [open, setOpen] = useState(false);
-  const [accepting, setAccepting] = useState(false);
-  const [refusal, setRefusal] = useState<string | null>(null);
+  const accept = useAcceptAll();
   const noteId = useId();
   if (ghosts === null || ghosts.pending.length === 0) return null;
-
-  // W77, as M40 D1 amends it: every change that still applies, in ONE call,
-  // so one History entry and one undo. All or nothing: the server's refusal
-  // names the change it is about and says nothing landed.
-  const acceptable = acceptAllOrder(ghosts.pending, new Set(ghosts.stale.map((g) => g.changeId)));
-  const acceptAll = async () => {
-    if (suggestions === null) return;
-    setRefusal(null);
-    setAccepting(true);
-    const result = await suggestions.acceptMany(acceptable.map((c) => c.id));
-    setAccepting(false);
-    if (!result.ok) setRefusal(result.error.message);
-  };
 
   const count = ghosts.pending.length;
   const phrase = count === 1 ? "1 suggestion" : `${count} suggestions`;
@@ -81,7 +67,7 @@ export function SuggestionsChip() {
       open={open}
       onOpenChange={(next) => {
         setOpen(next);
-        if (!next) setRefusal(null);
+        if (!next) accept?.clearRefusal();
       }}
       align="end"
       trigger={
@@ -105,15 +91,16 @@ export function SuggestionsChip() {
       }
     >
       <div className="flex flex-col gap-3">
-        {/* Two or more: with one, its own Accept below is the same button. */}
-        {boardMode === "write" && (acceptable.length > 1 || accepting) && (
-          <Button variant="primary" size="sm" className="self-start" disabled={accepting} onClick={() => void acceptAll()}>
-            {accepting ? "Accepting…" : "Accept all"}
+        {/* Two or more: with one, its own Accept below is the same button.
+            `useAcceptAll` is the one place W77's single call is made. */}
+        {accept !== null && (accept.acceptable.length > 1 || accept.accepting) && (
+          <Button variant="primary" size="sm" className="self-start" disabled={accept.accepting} onClick={() => void accept.acceptAll()}>
+            {accept.accepting ? "Accepting…" : "Accept all"}
           </Button>
         )}
-        {refusal !== null && (
+        {accept?.refusal != null && (
           <Text as="p" role="alert" className="text-xs text-danger-ink">
-            {refusal}
+            {accept.refusal}
           </Text>
         )}
         {/* A message from a person, not the app's own copy (W77; Mitchell's

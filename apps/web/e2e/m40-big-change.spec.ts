@@ -5,8 +5,8 @@ import { e2eTripName } from "./tripNames";
 
 // M40 Part 3 (ADR-067): a big change is one change. Asked for a day, the
 // assistant stores its several changes as ONE suggestion on the board, saves a
-// snapshot first, and the chat says where to look. *Accept all* lands them as
-// one History entry, and the snapshot puts the trip back in one step.
+// snapshot first, and the chat says where to look. *Accept all*, from the
+// chat's note, lands them as one History entry, and the snapshot puts the trip back in one step.
 //
 // The model is `simulatedModel.ts` — this lane's webServer runs with
 // `AI_LIVE=false` (m10-simulated-ai.spec.ts says why), and "add a day …" is the
@@ -59,12 +59,18 @@ test("asked for a day, the assistant suggests it; Accept all lands it as one ent
   await chip.click();
   await expect(chip).toHaveAttribute("aria-expanded", "true");
   await expect(page.getByText(/Suggested by .+, via the assistant/)).toHaveCount(3);
+  await page.keyboard.press("Escape");
+  await expect(chip).toHaveAttribute("aria-expanded", "false");
 
+  // Accepted from the chat, not the chip (Mitchell's preview comment,
+  // 2026-10-10): the same one call, so the same one History entry. The chip's
+  // own Accept all is suggester.spec.ts's.
   const [accepted] = await Promise.all([
     page.waitForResponse((r) => /\/suggestions\/changes\/accept$/.test(new URL(r.url()).pathname)),
-    page.getByRole("button", { name: "Accept all" }).click(),
+    note.getByRole("button", { name: "Accept all" }).click(),
   ]);
   expect(accepted.status()).toBe(200);
+  await expect(note.getByRole("status")).toHaveText("Accepted as one change. Undo takes it all back.");
   await expect(page.getByRole("button", { name: /^\d+ suggestions?$/ })).toHaveCount(0);
   await expect(page.getByTestId("day-column")).toHaveCount(3);
   expect(await dayCount(page, tripId)).toBe(3);

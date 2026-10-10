@@ -1,6 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import type { AssistantSuggested } from "@tc/contracts";
+import { useAcceptAll } from "@/components/trip/context/useAcceptAll";
+import { Button } from "@/components/ui/button";
 
 /**
  * What the chat says for a turn whose changes went on the board (ADR-067),
@@ -16,11 +19,17 @@ export function suggestedWords({ changeCount, snapshotName }: AssistantSuggested
 
 /**
  * The note in place of a proposal card when a turn's changes were stored as a
- * suggestion (ADR-067 decision 4). It reviews nothing itself: the ghosts, the
- * header's suggestions chip and *Accept all* are the review, so it says where
- * they are. A skipped snapshot is said too, in the server's own sentence.
+ * suggestion (ADR-067 decision 4). It says where they are, and offers the one
+ * decision that needs no list: *Accept all* (Mitchell's preview comment,
+ * 2026-10-10), the chip's own button through `useAcceptAll`, so it takes every
+ * pending change that still applies as one History entry. Picking some, or
+ * dismissing any, stays in the header's suggestions chip. A skipped snapshot
+ * is said too, in the server's own sentence.
  */
 export function SuggestedNote({ suggested }: { suggested: AssistantSuggested }) {
+  const accept = useAcceptAll();
+  const [accepted, setAccepted] = useState(false);
+  const offer = accept !== null && !accepted && (accept.acceptable.length > 0 || accept.accepting);
   return (
     <div role="group" aria-label="Suggestions on the board" className="rounded-a-card border border-brand bg-brand-tint p-3">
       <p className="text-a-chat font-semibold text-pretty text-brand-pressed">{suggestedWords(suggested)}</p>
@@ -31,9 +40,33 @@ export function SuggestedNote({ suggested }: { suggested: AssistantSuggested }) 
       {suggested.snapshotSkipped !== undefined && (
         <p className="pt-0.5 text-a-note text-pretty text-slate">No snapshot this time: {suggested.snapshotSkipped}</p>
       )}
-      <p className="pt-0.5 text-a-note text-pretty text-brand-pressed">
-        Open the suggestions in the trip header to review them, and accept or dismiss each.
-      </p>
+      {accepted ? (
+        <p role="status" className="pt-0.5 text-a-note text-pretty text-brand-pressed">
+          Accepted as one change. Undo takes it all back.
+        </p>
+      ) : (
+        <p className="pt-0.5 text-a-note text-pretty text-brand-pressed">
+          {offer
+            ? "Accept them all here, or open the suggestions in the trip header to pick some or dismiss them."
+            : "Open the suggestions in the trip header to review them, and accept or dismiss each."}
+        </p>
+      )}
+      {offer && (
+        <Button
+          variant="primary"
+          size="sm"
+          className="mt-2"
+          disabled={accept.accepting}
+          onClick={() => void accept.acceptAll().then((ok) => ok && setAccepted(true))}
+        >
+          {accept.accepting ? "Accepting…" : "Accept all"}
+        </Button>
+      )}
+      {accept?.refusal != null && (
+        <p role="alert" className="pt-1 text-a-note text-pretty text-danger-ink">
+          {accept.refusal}
+        </p>
+      )}
     </div>
   );
 }
