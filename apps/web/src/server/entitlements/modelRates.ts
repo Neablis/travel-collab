@@ -143,6 +143,42 @@ export const MODEL_RATES: readonly ModelRate[] = [
     outputMicroUsdPerMTok: 4_400_000,
     cacheReadInputMicroUsdPerMTok: 140_000,
   },
+  // **The Anthropic tiers, through the Gateway on our own key** (BYOK, decided
+  // 2026-10-10): classifier and cheap on Haiku 5.5, mid on Sonnet 5.5, strong
+  // on Opus 5.5. With BYOK the request is billed by Anthropic, not by the
+  // Gateway, so these are ANTHROPIC'S list prices (base, not the Gateway's US
+  // regional +10%), read 2026-10-10. Cache writes are 1.25x input and cached
+  // reads 0.1x, as Anthropic prices them. One disagreement, resolved to the
+  // conservative side as this file always does: the Gateway's catalogue lists
+  // Sonnet 5.5 cached reads at $0.10, Anthropic at $0.20.
+  {
+    // Haiku 5.5 charges 5x on a single request past 100k input tokens
+    // ($0.50 / $2.50). This record has no tiers, so such a request is priced
+    // at the base rate and understated; the per-turn read cap keeps a step far
+    // below 100k, and the ledger's per-step input shows any that is not.
+    model: "anthropic/claude-haiku-5.5",
+    effectiveFrom: "2026-10-10",
+    inputMicroUsdPerMTok: 100_000,
+    outputMicroUsdPerMTok: 500_000,
+    cacheReadInputMicroUsdPerMTok: 10_000,
+    cacheWriteInputMicroUsdPerMTok: 125_000,
+  },
+  {
+    model: "anthropic/claude-sonnet-5.5",
+    effectiveFrom: "2026-10-10",
+    inputMicroUsdPerMTok: 2_000_000,
+    outputMicroUsdPerMTok: 10_000_000,
+    cacheReadInputMicroUsdPerMTok: 200_000,
+    cacheWriteInputMicroUsdPerMTok: 2_500_000,
+  },
+  {
+    model: "anthropic/claude-opus-5.5",
+    effectiveFrom: "2026-10-10",
+    inputMicroUsdPerMTok: 4_000_000,
+    outputMicroUsdPerMTok: 20_000_000,
+    cacheReadInputMicroUsdPerMTok: 200_000,
+    cacheWriteInputMicroUsdPerMTok: 5_000_000,
+  },
 ];
 
 // Frozen for the same reason the plan versions are: `readonly` is a

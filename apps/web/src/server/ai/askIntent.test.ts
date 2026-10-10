@@ -28,6 +28,7 @@ interface SeenCall {
   maxOutputTokens?: number;
   abortSignal?: AbortSignal;
   responseFormat?: { type?: string; schema?: unknown };
+  reasoning?: string;
 }
 
 /**
@@ -223,6 +224,16 @@ describe("classifyAskIntent", () => {
     const format = seen[0]!.responseFormat;
     expect(format?.type).toBe("json");
     expect(JSON.stringify(format?.schema)).toContain('"enum":["question","edit","plan"]');
+  });
+
+  // KI-88 again, from the other side: a model left at its provider's default
+  // thinking spends the verdict budget before it answers. Haiku 5.5, the
+  // classifier from 2026-10-10, thinks by default.
+  it("asks the provider for low reasoning, not its default", async () => {
+    const { model, seen } = modelReturning("question");
+    await classifyAskIntent(model, "How is the trip looking?");
+
+    expect(seen[0]!.reasoning).toBe("low");
   });
 
   // The budget has to hold a reasoning preamble AND the answer — an 8-token
