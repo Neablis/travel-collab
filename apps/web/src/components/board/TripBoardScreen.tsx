@@ -530,6 +530,10 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   const rackItem = (activityId: string, day: RackItem["day"]): RackItem[] => {
     const activity = activeTrip.activities[activityId];
     if (activity === undefined) return [];
+    // M41 D6: the day a parked stop left, named by its place in the trip now.
+    // `parkedFrom` holds parked stops only, and only when their move named a
+    // day, so every other card gets none.
+    const fromIndex = activeTrip.days.findIndex((d) => d.dayId === activeTrip.parkedFrom?.[activityId]);
     return [
       {
         activityId,
@@ -538,6 +542,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
         timeWindow: activity.timeWindow,
         bookedBy: activity.bookedBy,
         day,
+        from: fromIndex === -1 ? null : `Day ${fromIndex + 1}`,
         badge: kindBadge(activity),
       },
     ];

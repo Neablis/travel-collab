@@ -643,6 +643,14 @@ export const ActivityMovedV1 = z.object({
     activityId: z.string().uuid(),
     toDayId: z.string().uuid().nullable(),
     position: z.number().int().nonnegative(),
+    // M41 D6: the day the stop was on when it moved, so a parked stop can say
+    // which day it left. Stamped by the decider from state, never sent by a
+    // client. `null` for a stop that was already parked and for the moves
+    // revert writes, which compensate rather than move; absent on every move
+    // written before M41. Optional rather than defaulted, so the envelopes and
+    // fixtures that predate it stay valid as they are, and absent and `null`
+    // read the same: no origin.
+    fromDayId: z.string().uuid().nullable().optional(),
   }),
 });
 export type ActivityMovedV1 = z.infer<typeof ActivityMovedV1>;

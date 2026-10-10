@@ -24,9 +24,14 @@ export type RackItem = {
   // isn't, rather than asserting "No time yet" over a time the trip holds.
   timeWindow: { start: string; end: string } | null;
   // M13 link 5. Who parked this stop, or null. The rack's provenance line
-  // shows it; the half that is still missing (which day it came from) is a
-  // candidate, not a field.
+  // shows it.
   bookedBy: string | null;
+  /**
+   * The day a parked stop left, as its tag ("Day 3"), or `null` when its last
+   * move named none: a stop parked before M41, by a revert, or still on its
+   * day (M41 D6). The other half of the provenance line.
+   */
+  from: string | null;
   /**
    * The day this stop is ON, for an untimed stop that has one; `null` for a
    * parked stop with no day. Mitchell, PR #269's preview: *"Maybe anything
@@ -467,11 +472,19 @@ function RackCard({ item, onEdit }: { item: RackItem; onEdit?: (activityId: stri
               : toClockRange(item.timeWindow.start, item.timeWindow.end, clock)}
           </div>
         </div>
-        {/* M13 link 5 modelled HALF of what this line was drawn to say.
-            `bookedBy` records who parked the stop, so that half is real now.
-            **Which day it came from is not modelled yet** (M41 part 3 adds
-            it), so the line shows the half that exists rather than
-            fabricating the other. */}
+        {/* Which day it left (M41 D6), the half of the provenance line M13
+            could not model. Its own line, so it reads with or without the
+            "Parked by" below. */}
+        {item.from !== null && (
+          <div
+            className="pointer-events-none relative text-slate"
+            // eslint-disable-next-line no-restricted-syntax -- 11.5px provenance line is below Tailwind's text-xs (12px) floor, matching "Parked by"
+            style={{ fontSize: "11.5px" }}
+          >
+            From {item.from}
+          </div>
+        )}
+        {/* M13 link 5: who parked the stop. */}
         {item.bookedBy !== null && (
           <div className="pointer-events-none relative flex items-center gap-1.5">
             {/* Their chip once the members land (M38); nothing before, or for

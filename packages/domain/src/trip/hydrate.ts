@@ -21,6 +21,8 @@ export function hydrate(detail: TripDetail): TripState {
     startDate: detail.startDate,
     days: detail.days.map((d) => ({ dayId: d.dayId, activityIds: [...d.activityIds] })),
     backlog: [...detail.backlog],
+    // The `forkedFrom` reasoning: a doc written before M41 has no such key.
+    parkedFrom: { ...(detail.parkedFrom ?? {}) },
     activities: Object.fromEntries(
       Object.entries(detail.activities).map(([id, a]) => [
         id,
