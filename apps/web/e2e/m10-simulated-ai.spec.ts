@@ -35,7 +35,7 @@ test("a simulated AI answer streams into the rail and is badged as simulated", a
   await page.goto("/");
   const tripId = await createMappedTrip(page, tripName, 2);
   await page.goto(`/trips/${tripId}?view=Plan`);
-  await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
 
   // The Assistant rail is closed until asked for, at every width
   // (TripBoardScreen.tsx's useAssistantVisibility), so open it first.
@@ -75,7 +75,7 @@ test("an AI plan reaches the board only once it is approved", async ({ page }) =
   await page.goto("/");
   const tripId = await createMappedTrip(page, tripName, 2);
   await page.goto(`/trips/${tripId}?view=Plan`);
-  await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
 
   await openAssistantRail(page);
   await page.getByPlaceholder("Ask about this trip…").fill("add a coffee stop to day 1");
@@ -138,7 +138,7 @@ test("rejecting an AI plan leaves the trip exactly as it was", async ({ page }) 
   await page.goto("/");
   const tripId = await createMappedTrip(page, tripName, 2);
   await page.goto(`/trips/${tripId}?view=Plan`);
-  await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
 
   // Read the trip through the API before and after, so "unchanged" is the
   // whole projection rather than whatever happens to be on screen.

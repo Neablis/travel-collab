@@ -52,8 +52,14 @@ test.describe("mobile assistant (phone viewport)", () => {
   // disambiguation workaround. The pill's own accessible name is deliberately
   // its visible label — see `AskPill` — which is the reasoning this fix does
   // not overturn.
+  //
+  // **The phone's Ask is the tab bar's since 2026-10-10** (Mitchell: the
+  // one-row header was "way too crowded"; Ask moved to the bottom bar). So the
+  // scope is the bar now — the header's pill is still in the DOM at this width,
+  // hidden by its `max-md:hidden` wrapper, and the bar is the honest statement
+  // of which control a phone has. The name stays `askPill` for the walks below.
   const askPill = (page: import("@playwright/test").Page) =>
-    page.locator('header[aria-label="Trip"]').getByRole("button", { name: "Ask", exact: true });
+    page.getByRole("navigation", { name: "Phone navigation" }).getByRole("button", { name: "Ask", exact: true });
 
   async function seedTrip(page: import("@playwright/test").Page) {
     const name = e2eTripName("MobileRail");
@@ -128,11 +134,21 @@ test.describe("mobile assistant (phone viewport)", () => {
   // data rather than after it, and it does not vanish the moment the panel
   // opens. The property being asserted is unchanged: this control is not
   // parked over a scrolling list, and it is a real target.
-  test("the entry point is the header's Ask pill: in flow, 44px, and not a FAB (SPEC §13.5/§13.1)", async ({ page }) => {
+  //
+  // Since 2026-10-10 the entry point is the tab bar's Ask item. The bar is
+  // fixed chrome with its own reserved inset (`.phone-tab-bar-inset`), not a
+  // control parked over the list, so the property still holds of the control
+  // itself; and the header's pill, which would be a second entry point, is
+  // off screen at this width.
+  test("the entry point is the tab bar's Ask: 44px, and not a FAB (SPEC §13.5/§13.1)", async ({ page }) => {
     await seedTrip(page);
 
     const pill = askPill(page);
     await expect(pill).toBeVisible();
+    // In the DOM and hidden — `toHaveCount(1)` first, because `toBeHidden()`
+    // alone also passes for an element that is simply absent.
+    await expect(page.locator('header[aria-label="Trip"]').getByTestId("ask-pill")).toHaveCount(1);
+    await expect(page.locator('header[aria-label="Trip"]').getByTestId("ask-pill")).toBeHidden();
 
     // Stated as the spec states it, and asserting "not fixed" rather than
     // "static" so the in-flow presentation stays free to change without this

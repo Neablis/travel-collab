@@ -19,7 +19,7 @@ test("edits still queued when the page reloads are not lost", async ({ page }) =
   await page.goto("/");
   await createEmptyTripViaWizard(page, tripName);
   await page.getByRole("link", { name: tripName }).click();
-  await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
   await openPlan(page);
 
   const days = page.getByTestId("day-column");
@@ -63,7 +63,7 @@ test("an edit whose request never left the page is still saved, ahead of the one
   await page.goto("/");
   await createEmptyTripViaWizard(page, tripName);
   await page.getByRole("link", { name: tripName }).click();
-  await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
   await openPlan(page);
 
   const days = page.getByTestId("day-column");
@@ -101,7 +101,7 @@ test("edits still queued when you navigate away inside the app are each saved on
   await page.goto("/");
   await createEmptyTripViaWizard(page, tripName);
   await page.getByRole("link", { name: tripName }).click();
-  await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
   await openPlan(page);
 
   const days = page.getByTestId("day-column");

@@ -6,6 +6,7 @@ import { CoverPicker, type CoverApi } from "@/components/cover/CoverPicker";
 import { clearTripCover, fetchTripCover, searchTripCovers, setTripCover } from "@/lib/apiClient";
 import { cachedRead, DEDUPE, invalidate, peekCached } from "@/lib/queryCache";
 import { coverKeys } from "@/lib/queryKeys";
+import { setCachedTripCover } from "./tripCoverStore";
 
 // Trip settings → Cover photo (M37 part 4): the shared picker
 // (`components/cover/CoverPicker.tsx`), pointed at the trip's cover routes.
@@ -58,5 +59,15 @@ export function CoverSection({
       },
     };
   }, [tripId]);
-  return <CoverPicker api={api} canEdit={canEdit} onSettled={onSettled} />;
+  // `onChange` writes each pick or removal into the page's cover store, which
+  // the trip header's banner reads: setting a cover shows on the trip at once
+  // (Mitchell, 2026-10-10: "adding a cover photo makes no changes right away").
+  return (
+    <CoverPicker
+      api={api}
+      canEdit={canEdit}
+      onSettled={onSettled}
+      onChange={(cover) => setCachedTripCover(tripId, cover)}
+    />
+  );
 }

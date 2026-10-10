@@ -3,13 +3,21 @@ import { expect, test } from "./fixtures/test";
 import { createMappedTrip } from "./helpers";
 import { e2eTripName } from "./tripNames";
 
-// **M39 — the in-app install entry points** (Mitchell chose option B,
-// 2026-10-09): an *Install app* row in the account menu wherever installing
-// would work, and one nudge on a returning phone's trip. The rules are held
-// exhaustively by `InstallNudge.test.tsx` and `installPrompt.test.ts`; this is
-// the half only a browser can say — that the event reaches the app from a real
-// page load, that the row sits where the pinned stack says it does, and that
-// the installed app is left alone.
+// **The in-app install entry points.** M39 shipped them as an *Install app*
+// row in the account menu and one nudge under a returning phone's trip header
+// (Mitchell's option B, 2026-10-09). On the 2026-10-10 preview he moved them:
+// "Find a better place for install app … Maybe along the top on desktop next
+// to 'Playbooks' and make it more clear its a app?" So now:
+//
+//   - desktop: *Get the app* in the top nav, beside Playbooks; no menu row;
+//   - phone: the account menu's *Install app* row, plus a one-time card on
+//     the trips list for a returning device; nothing on the trip page.
+//
+// The rules are held exhaustively by `InstallNudge.test.tsx`,
+// `GetTheAppButton.test.tsx` and `installPrompt.test.ts`; this is the half only
+// a browser can say — that the event reaches the app from a real page load,
+// that each control shows at the width it is meant for, and that the installed
+// app is left alone.
 //
 // No browser here will fire `beforeinstallprompt` on its own (a Playwright
 // context is incognito, which Chrome refuses to install from — see
@@ -60,13 +68,13 @@ async function visitedBefore(page: Page, returning: boolean): Promise<void> {
   await page.addInitScript((days) => window.localStorage.setItem("caesura_visit_days", days), JSON.stringify(returning ? ["2000-1-1"] : []));
 }
 
-async function openTrip(page: Page, label: string, query = ""): Promise<void> {
-  const tripId = await createMappedTrip(page, e2eTripName(label), 2);
-  await page.goto(`/trips/${tripId}${query}`);
-  await expect(page.getByRole("button", { name: /Trip settings/ })).toBeVisible();
+async function openHome(page: Page): Promise<void> {
+  await page.goto("/");
+  await expect(page.getByRole("heading", { level: 1, name: "Your trips" })).toBeVisible();
 }
 
-const nudge = (page: Page) => page.getByRole("region", { name: "Install Caesura" });
+const card = (page: Page) => page.getByRole("region", { name: "Install Caesura" });
+const getTheApp = (page: Page) => page.getByRole("button", { name: "Get the app" });
 
 async function menuOffersInstall(page: Page): Promise<boolean> {
   await page.getByRole("button", { name: "Account menu" }).click();
@@ -77,123 +85,106 @@ async function menuOffersInstall(page: Page): Promise<boolean> {
   return offered;
 }
 
-test.describe("M39 — Install app, in the account menu", () => {
-  test("is offered once the browser says it can install, and asks the browser", async ({ page }) => {
+test.describe("Install — desktop: Get the app, in the top nav", () => {
+  test("sits beside Playbooks once the browser says it can install, and asks the browser", async ({ page }) => {
     await installable(page);
-    await page.goto("/");
-    await page.getByRole("button", { name: "Account menu" }).click();
-    await page.getByRole("button", { name: "Install app" }).click();
+    await openHome(page);
+    await expect(getTheApp(page)).toBeVisible();
+    // Beside Playbooks: the same row, directly after it.
+    const playbooks = (await page.getByRole("link", { name: "Playbooks", exact: true }).boundingBox())!;
+    const button = (await getTheApp(page).boundingBox())!;
+    expect(Math.abs(button.y + button.height / 2 - (playbooks.y + playbooks.height / 2))).toBeLessThanOrEqual(2);
+    expect(button.x).toBeGreaterThan(playbooks.x);
+    await getTheApp(page).click();
     await expect.poll(() => prompts(page)).toBe(1);
   });
 
   test("is not offered by a browser that cannot install", async ({ page }) => {
-    await page.goto("/");
-    expect(await menuOffersInstall(page)).toBe(false);
+    await openHome(page);
+    await expect(getTheApp(page)).toHaveCount(0);
   });
 
-  test("a returning desktop gets the row and never the nudge", async ({ page }) => {
-    await page.clock.install();
+  test("the account menu no longer carries the row, and the trip page carries nothing", async ({ page }) => {
     await installable(page);
     await visitedBefore(page, true);
-    await openTrip(page, "install-desktop");
-    await page.clock.fastForward(10_000);
-    expect(await menuOffersInstall(page)).toBe(true);
-    await expect(nudge(page)).toHaveCount(0);
+    const tripId = await createMappedTrip(page, e2eTripName("install-desktop"), 2);
+    await page.goto(`/trips/${tripId}`);
+    await expect(page.getByRole("button", { name: /Trip settings/ })).toBeVisible();
+    expect(await menuOffersInstall(page)).toBe(false);
+    await expect(getTheApp(page)).toBeVisible();
+    await expect(card(page)).toHaveCount(0);
   });
 });
 
-test.describe("M39 — the install nudge on a phone", () => {
+test.describe("Install — phone: the menu row and the trips list card", () => {
   test.use({ viewport: PHONE });
 
-  test("appears under the pinned header on a return visit, after the delay", async ({ page }) => {
-    await page.clock.install();
+  test("a returning phone gets the card on the trips list, and Install asks the browser", async ({ page }) => {
     await installable(page);
     await visitedBefore(page, true);
-    await openTrip(page, "install-nudge");
-    await expect(nudge(page)).toHaveCount(0);
-    await page.clock.fastForward(4_000);
-    await expect(nudge(page)).toBeVisible();
-    await expect(nudge(page)).toContainText("Keep Caesura on your home screen");
-
-    // Directly under the sticky header, and not counted in the pinned stack:
-    // the board's scroll offsets still clear exactly the header.
-    const geometry = await page.evaluate(() => {
-      const header = document.querySelector('header[aria-label="Trip"]')!.getBoundingClientRect();
-      const row = document.querySelector('section[aria-label="Install Caesura"]')!.getBoundingClientRect();
-      const stack = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--sticky-stack-height"));
-      return { gap: Math.round(row.top - header.bottom), stackMinusHeader: Math.round(stack - header.bottom) };
-    });
-    expect(geometry).toEqual({ gap: 0, stackMinusHeader: 0 });
+    await openHome(page);
+    await expect(card(page)).toBeVisible();
+    await expect(card(page)).toContainText("Keep Caesura on your home screen");
+    // The desktop's button is not drawn here.
+    await expect(getTheApp(page)).toBeHidden();
     for (const name of ["Install", "Not now"]) {
-      const box = (await nudge(page).getByRole("button", { name, exact: true }).boundingBox())!;
+      const box = (await card(page).getByRole("button", { name, exact: true }).boundingBox())!;
       expect(box.height, name).toBeGreaterThanOrEqual(44);
     }
-
-    await nudge(page).getByRole("button", { name: "Install", exact: true }).click();
+    await card(page).getByRole("button", { name: "Install", exact: true }).click();
     await expect.poll(() => prompts(page)).toBe(1);
-    await expect(nudge(page)).toHaveCount(0);
+    await expect(card(page)).toHaveCount(0);
   });
 
-  test("never appears on a first visit", async ({ page }) => {
-    await page.clock.install();
+  test("never appears on a first visit; the menu row is there", async ({ page }) => {
     await installable(page);
     await visitedBefore(page, false);
-    await openTrip(page, "install-first");
-    await page.clock.fastForward(10_000);
+    await openHome(page);
     // Installable all along — the menu says so — so the visit is the reason.
     expect(await menuOffersInstall(page)).toBe(true);
-    await expect(nudge(page)).toHaveCount(0);
+    await expect(card(page)).toHaveCount(0);
   });
 
   test("Not now is remembered across a reload; the menu row stays", async ({ page }) => {
-    await page.clock.install();
     await installable(page);
     await visitedBefore(page, true);
-    await openTrip(page, "install-not-now");
-    await page.clock.fastForward(4_000);
-    await nudge(page).getByRole("button", { name: "Not now" }).click();
-    await expect(nudge(page)).toHaveCount(0);
+    await openHome(page);
+    await card(page).getByRole("button", { name: "Not now" }).click();
+    await expect(card(page)).toHaveCount(0);
 
     await page.reload();
-    await expect(page.getByRole("button", { name: /Trip settings/ })).toBeVisible();
-    await page.clock.fastForward(10_000);
+    await expect(page.getByRole("heading", { level: 1, name: "Your trips" })).toBeVisible();
     expect(await menuOffersInstall(page)).toBe(true);
-    await expect(nudge(page)).toHaveCount(0);
+    await expect(card(page)).toHaveCount(0);
   });
 
-  test("waits for Overview or Plan: not on the Map", async ({ page }) => {
-    await page.clock.install();
+  test("nothing on a trip page any more", async ({ page }) => {
     await installable(page);
     await visitedBefore(page, true);
-    await openTrip(page, "install-map", "?view=Map");
-    await page.clock.fastForward(10_000);
-    await expect(nudge(page)).toHaveCount(0);
-    await page.getByRole("navigation", { name: "Phone navigation" }).getByRole("link", { name: "Plan" }).click();
-    await expect(nudge(page)).toBeVisible();
+    const tripId = await createMappedTrip(page, e2eTripName("install-trip"), 2);
+    await page.goto(`/trips/${tripId}?view=Plan`);
+    await expect(page.getByRole("button", { name: /Trip settings/ })).toBeVisible();
+    await expect(card(page)).toHaveCount(0);
   });
 
   test("offers nothing inside the installed app", async ({ page }) => {
     await standalone(page);
-    await page.clock.install();
     await installable(page);
     await visitedBefore(page, true);
-    await openTrip(page, "install-standalone");
+    await openHome(page);
     expect(await page.evaluate(() => matchMedia("(display-mode: standalone)").matches)).toBe(true);
-    await page.clock.fastForward(10_000);
     expect(await menuOffersInstall(page)).toBe(false);
-    await expect(nudge(page)).toHaveCount(0);
+    await expect(card(page)).toHaveCount(0);
   });
 });
 
-test.describe("M39 — Safari on an iPhone", () => {
+test.describe("Install — Safari on an iPhone", () => {
   test.use({ viewport: PHONE, userAgent: IPHONE_UA });
 
-  test("the nudge's Install shows Safari's two steps", async ({ page }) => {
-    await page.clock.install();
+  test("the card's Install shows Safari's two steps", async ({ page }) => {
     await visitedBefore(page, true);
-    await openTrip(page, "install-ios");
-    await page.clock.fastForward(4_000);
-    await nudge(page).getByRole("button", { name: "Install", exact: true }).click();
+    await openHome(page);
+    await card(page).getByRole("button", { name: "Install", exact: true }).click();
     const steps = page.getByRole("dialog", { name: "Add Caesura to your Home Screen" });
     await expect(steps).toContainText("Tap Share in Safari's toolbar.");
     await expect(steps).toContainText("Choose Add to Home Screen.");

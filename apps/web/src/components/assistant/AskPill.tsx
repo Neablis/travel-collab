@@ -3,6 +3,17 @@ import { Button } from "@/components/ui/button";
 import { BrandMark } from "@/components/BrandMark";
 import { cn } from "@/lib/cn";
 
+// **The trip header's Ask, above 768px only, since Mitchell's 2026-10-10
+// preview pass.** On a phone the one-row header was "way too crowded", and Ask
+// moved into the bottom tab bar (`PhoneTabBar`'s Ask item, fed by
+// `usePhoneAskEntry` from the board and both notebook screens). Same position
+// on every in-trip screen still holds — it is the bar's, which never moves —
+// and the scope reasoning below still holds: the bar's item opens the surface's
+// own assistant, so it inherits that surface's scope exactly as the pill did.
+// The notebook screens no longer render this pill at all.
+//
+// What follows is the pill's history, kept because the reasons still apply.
+//
 // SPEC §23's phone entry point to the assistant: *"An `Ask` pill, last item in
 // the top row, on all four in-trip screens — Plan, Map, the Notebook index and
 // an open Notebook page. Same pill, same label, same position, so it never
@@ -47,13 +58,13 @@ export function AskPill({ open, onOpen, className }: { open: boolean; onOpen: ()
   return (
     <Button
       variant="ghost"
-      // `size="touch"` is SPEC §13.1's 44px floor from the design system rather
-      // than a hand-written `min-h-11`. The design draws this pill's label at
-      // 13px; `touch` carries `md`'s `text-base` on purpose, and that is the
-      // rule §13.1 states for exactly this case — "chips grow by `min-height`,
-      // never by font size". The box takes the 44px, the type scale stays
-      // shared with desktop.
-      size="touch"
+      // `size="md"`, the box of the Add stop button it sits beside. It was
+      // `touch`, which keeps 44px even under a mouse, and stood 8px taller than
+      // Add stop on the desktop header (Mitchell: "Ask is larger than add stop
+      // in height and looks weird"). The 44px floor under a finger is not lost:
+      // the base button class carries `min-h-11` for a coarse pointer and only
+      // `fine:` releases it, so a tablet still gets SPEC §13.1's target.
+      size="md"
       // Not a variant: `primary` is a filled brand button and `secondary` is
       // surface-on-border, and the design's pill is neither — it is the same
       // brand-tint-behind-brand-ink treatment the active tab pill uses

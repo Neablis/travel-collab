@@ -27,7 +27,8 @@ import { AskPill } from "@/components/assistant/AskPill";
 import { SettingsSheet } from "./SettingsSheet";
 import { TripMetaPill, tripCounts, tripDateRange } from "./TripMetaPill";
 import { BudgetChip } from "./BudgetChip";
-import { InstallNudge } from "@/components/install/InstallNudge";
+import { AddCoverButton, TripCoverBanner } from "./cover/TripCoverBanner";
+import { useTripCover } from "./cover/tripCoverStore";
 
 // The bounded chrome surface (design-system.md surface vocabulary, Pattern 4):
 // trip identity (name + status) on one row with Share / Add stop / sync /
@@ -48,7 +49,6 @@ export function TripHeader({
   children,
   pinned,
   conflicts,
-  installNudge = false,
 }: {
   tripId: string;
   /**
@@ -83,11 +83,6 @@ export function TripHeader({
    * it is always there, where Ask is withheld on /demo.
    */
   conflicts?: (neighbour: React.RefObject<HTMLButtonElement | null>) => React.ReactNode;
-  /**
-   * Whether this view may carry the phone's install nudge (Overview and Plan
-   * of a signed-in trip). The nudge applies every other rule itself.
-   */
-  installNudge?: boolean;
 }) {
   // Render from `activeTrip`, not `trip`: `trip` is the server-confirmed
   // detail only, while `activeTrip` folds in TripProvider's optimistic
@@ -193,6 +188,10 @@ export function TripHeader({
   });
 
   const publishStickyStack = useStickyStackHeight();
+  // The cover band above the desktop header (Mitchell, 2026-10-10). Its own
+  // read, shared with Trip settings' picker through `tripCoverStore`, so a
+  // pick there shows here at once. Not on /demo, which has no session for it.
+  const cover = useTripCover(tripId, !isDemoTripId(tripId));
 
   if (trip === null || activeTrip === null || status !== "ready") return null;
 
@@ -200,6 +199,15 @@ export function TripHeader({
   // display of activeTrip.status ("active" | "deleted", contracts/trip.ts),
   // capitalized for display. Not a new capability, purely presentational.
   const statusLabel = activeTrip.status.charAt(0).toUpperCase() + activeTrip.status.slice(1);
+
+  // Who may change the cover: the picker's own rule (SettingsSheet passes it
+  // `canEdit={!readOnly}`), and never on /demo. The band and *Add cover* both
+  // open Trip settings at its Cover photo section.
+  const coverEditable = !readOnly && !isDemoTripId(tripId);
+  const openCoverPicker = () => {
+    setSettingsAt("cover");
+    setSettingsOpen(true);
+  };
 
   // Who is travelling and what state the trip is in: beside the title on a
   // desktop, and on the line under the phone's pinned row, which scrolls away
@@ -291,6 +299,15 @@ export function TripHeader({
 
   return (
     <>
+      {/* The cover band, desktop only, above the sticky header so it scrolls
+          away (see `TripCoverBanner`). */}
+      {cover != null && (
+        <TripCoverBanner
+          cover={cover}
+          tripName={activeTrip.name}
+          onChangeCover={coverEditable ? openCoverPicker : undefined}
+        />
+      )}
       <header
         ref={publishStickyStack}
         aria-label="Trip"
@@ -341,7 +358,7 @@ export function TripHeader({
                 header above this one, which is where a signed-out reader's way
                 onward belongs. */}
             {!isDemoTripId(tripId) && (
-              <nav className="flex w-full items-center justify-between gap-3 max-md:contents">
+              <nav aria-label="Trip" className="flex w-full items-center justify-between gap-3 max-md:contents">
                 {/* `min-h-11` and the inline-flex that makes it apply: §22 made
                     this link load-bearing on a phone. Scoping the tab bar removed
                     the Trips tab from inside a trip, so this is now the ONLY way
@@ -367,34 +384,13 @@ export function TripHeader({
                     subtree rather than a lens (design spec decision 11, refined
                     2026-07-20) — that part did not change; only the affordance
                     did. */}
-                {/* SPEC §23: the phone's entry point to the assistant, LAST in
-                    this row — "same pill, same label, same position, so it never
-                    moves as you change tabs". The row's `justify-between` is what
-                    pins it to the far end, so it stays there whatever the link
-                    beside it is called.
-
-                    §23 also moves the sync dot and avatar down to the title row,
-                    and that half is deliberately not built: in this app neither
-                    is in this row to begin with — the avatar lives in the global
-                    `AppHeader`, a separate sticky bar this header sits under —
-                    so honouring it would mean the phone dropping `AppHeader`
-                    entirely, which is a change to every `(app)` route rather than
-                    to this file. The row was already clear, so the pill just
-                    goes in.
-
-                    **At every width since M39 D3** (KI-2026-09-24-j). Above
-                    768px the entry point was a fixed launcher bottom-right,
-                    over the right-hand column's stop costs (SPEC §13.5,
-                    "nothing floats over data"); it is this pill now, at the
-                    end of the row `← Your trips` starts. That row is already
-                    44px tall for the link, so the desktop header does not grow.
-                    See `AskPill`. */}
-                {/* The wrapper is only the phone row's `order`. */}
-                {onOpenAssistant !== undefined && (
-                  <span className="flex max-md:order-1">
-                    <AskPill open={assistantOpen} onOpen={onOpenAssistant} />
-                  </span>
-                )}
+                {/* Ask used to end this row. It is on the title's row now,
+                    beside Add stop, and on a phone it is the tab bar's — see
+                    the action cluster below. What ends it instead, on a
+                    desktop with no cover yet, is the cover band's stand-in:
+                    a quiet *Add cover* for whoever may set one. Only once the
+                    read has said "none" (`null`), never while unknown. */}
+                {cover === null && coverEditable && <AddCoverButton onClick={openCoverPicker} />}
               </nav>
             )}
             {/* The title IS the way into Trip settings, and the only way:
@@ -416,21 +412,27 @@ export function TripHeader({
                 themselves (see Badge). They have to be able to wrap as whole
                 items instead, or the row overflows — 2026-08-30 design pass. */}
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 max-md:min-w-0 max-md:flex-1 max-md:flex-nowrap">
-              {/* The button goes INSIDE the h2, not around it. The other way
-                  round renders `<button><h2>…</h2></button>`, which is invalid
-                  (a button's content model is phrasing content) and, worse,
-                  silently costs the trip its heading: a button's descendants
-                  are presentational in the accessibility tree, so the h2's role
-                  is dropped and the name disappears from heading navigation
-                  entirely. e2e caught it — m8-make-it-real asserts
-                  getByRole("heading", { level: 2 }) on the trip name.
+              {/* **The trip page's h1** (2026-10-10, axe's page-has-heading-one
+                  on every trip view). It was an h2 under no h1 at all; the only
+                  h1 note on this screen (TripBoardScreen's signed-out branch)
+                  is about that branch's own heading and does not apply here.
+                  `text-xl` keeps the size it had as an h2.
 
-                  Nested this way both roles survive: h2 for structure, button
-                  for the action. The type classes are restated on the button
-                  because buttonVariants sets its own `font-medium` + size
-                  `text-base`, which would otherwise shrink the title inside its
-                  own heading. */}
-              <Heading level={2} className="max-md:min-w-0">
+                  The button goes INSIDE the heading, not around it. The other
+                  way round renders `<button><h1>…</h1></button>`, which is
+                  invalid (a button's content model is phrasing content) and,
+                  worse, silently costs the trip its heading: a button's
+                  descendants are presentational in the accessibility tree, so
+                  the heading role is dropped and the name disappears from
+                  heading navigation entirely. e2e caught it — m8-make-it-real
+                  asserts getByRole("heading", { level: 1 }) on the trip name.
+
+                  Nested this way both roles survive: heading for structure,
+                  button for the action. The type classes are restated on the
+                  button because buttonVariants sets its own `font-medium` +
+                  size `text-base`, which would otherwise shrink the title
+                  inside its own heading. */}
+              <Heading level={1} className="text-xl max-md:min-w-0">
                 <Button
                   variant="ghost"
                   onClick={() => setSettingsOpen(true)}
@@ -457,7 +459,12 @@ export function TripHeader({
               everything else) as it wraps at narrow widths. "Add a saved day"
               moved out of the header entirely (Task 1.4) — the design moved it
               into the plan flow; Phase 6 rebuilds it there. */}
-          <div className="flex flex-col items-end gap-2 max-md:contents">
+          {/* `md:self-end`: the cluster sits on the title's row, not on the
+              `← Your trips` row above it (Mitchell, preview comment on the trip
+              page: "move this down a bit so its aligned with the trip title on
+              the same row"). The left column is the taller one, so aligning to
+              its end is aligning to the title. */}
+          <div className="flex flex-col items-end gap-2 md:self-end max-md:contents">
             {/* `sm:flex-nowrap`, not a bare flex-wrap removal: this row's own
                 content (settings/share/add-stop + sync/undo/history) never
                 needs more than ~433px, but a nested flex item's own content
@@ -516,6 +523,15 @@ export function TripHeader({
                     names. Consistency now, per the rule already written down; the
                     split stays available if Trip settings → People wants it.
                     The "Viewer" badge is what still explains the quiet page. */}
+                {/* **Ask, beside Add stop, on the title's row.** It ended the
+                    `← Your trips` row until Mitchell's preview comment: "Ask is
+                    larger than add stop in height and looks weird. Lets also
+                    move this down a bit so its aligned with the trip title on
+                    the same row". `AskPill` is `size="md"` now, Add stop's box.
+                    Inside this wrapper's `max-md:hidden`, so a phone never
+                    draws it here: there it is the tab bar's. `undefined` on
+                    /demo withholds it (KI-79). */}
+                {onOpenAssistant !== undefined && <AskPill open={assistantOpen} onOpen={onOpenAssistant} />}
                 {/* `canEditBoard`: a suggester's new stop joins their draft. */}
                 {canEditBoard && (
                   <Button variant="primary" onClick={() => openCreate()}>
@@ -706,11 +722,6 @@ export function TripHeader({
           }}
         />
       </header>
-      {/* Under the pinned header, outside it: in the flow, so it covers
-          nothing, and it scrolls away with the line below rather than adding
-          a row to the pinned stack (`--sticky-stack-height` measures the
-          header alone). */}
-      <InstallNudge eligible={installNudge} />
       {/* **What scrolls away on a phone** (M39 D6): the trip's badges and its
           dates, on a line under the pinned row and outside the sticky box. */}
       {/* SPEC §23's date meta line: "the date range only. Stops and cities
@@ -731,7 +742,12 @@ export function TripHeader({
           `SettingsSheet`'s `datesLabel` is already a second copy of these
           rules and a third is where the header starts disagreeing with the
           sheet about the same trip. */}
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-6 pt-2 md:hidden">
+      {/* A real row, not a sliver (Mitchell, 2026-10-10 on a phone's Overview:
+          "too skinny and the text is against the bottom bar"). It had `pt-2`
+          and nothing under it, so the dates sat on whatever came next. Padded
+          both ways and at least 44px — the row height of the pinned header
+          above — so the line reads as its own band. */}
+      <div className="flex min-h-11 flex-wrap items-center gap-x-2 gap-y-1.5 px-6 py-2.5 md:hidden">
         {isPhone && identity}
         <div data-testid="trip-date-line">
           <DataText size="xs">{tripDateRange(activeTrip)}</DataText>

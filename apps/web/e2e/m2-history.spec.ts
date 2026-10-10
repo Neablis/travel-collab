@@ -35,7 +35,7 @@ test("history: dismiss persists, undo/redo, preview, revert", async ({ page }) =
   // -- setup: a day with an overlap conflict (M1 vocabulary) --
   await createEmptyTripViaWizard(page, tripName);
   await page.getByRole("link", { name: tripName }).click();
-  await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
   await openPlan(page);
   await waitForCommandConfirmed(page, () => page.getByRole("button", { name: "Add a day", exact: true }).click());
   await expect(page.getByTestId("day-column")).toHaveCount(1);
@@ -78,7 +78,7 @@ test("history: dismiss persists, undo/redo, preview, revert", async ({ page }) =
   // eslint-disable-next-line playwright/no-useless-not -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
   await expect(page.getByText(/overlap in time/)).not.toBeVisible();
   await page.reload();
-  await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
   // eslint-disable-next-line playwright/no-useless-not -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
   await expect(page.getByText(/overlap in time/)).not.toBeVisible(); // survived the reload
 

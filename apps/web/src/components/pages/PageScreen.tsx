@@ -33,7 +33,7 @@ import {
 } from "@/components/pages/editor/storedPageDoc";
 import { AssistantRail } from "@/components/assistant/AssistantRail";
 import { AssistantBubble } from "@/components/assistant/AssistantBubble";
-import { AskPill } from "@/components/assistant/AskPill";
+import { usePhoneAskEntry } from "@/components/nav/phoneAsk";
 import { phoneAskContext } from "@/components/assistant/phoneAskContext";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/cn";
@@ -120,8 +120,8 @@ function droppedNotice(dropped: readonly DroppedInsert[]): string {
  * The toolbar is the loaded one's classes and its controls' boxes: the
  * breadcrumb as three crumbs — the trip's name a bone, *Notebook* written out
  * (it is the same words and the same destination on every page, so it is
- * chrome, not data), the page's title a bone — then *Edit page* and, on a
- * phone, the Ask pill, both at the 44px floor they have there. The card is
+ * chrome, not data), the page's title a bone — then *Edit page* at the 44px
+ * floor it has there (a phone's Ask is the tab bar's, not this row's). The card is
  * `Card`'s raised box with the title row (an `h1` line box and the pennant's
  * square) and the document's lines under it.
  */
@@ -147,7 +147,6 @@ function NotebookSkeleton({ tripId }: { tripId: string }) {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Skeleton className="h-11 w-24 fine:h-9" delay={2} />
-            <Skeleton circle className="h-11 w-18 md:hidden" delay={2} />
           </div>
         </div>
         <div className="rounded-md border border-hairline bg-surface px-5 py-6 shadow-raised sm:px-12 sm:py-10">
@@ -285,7 +284,7 @@ export function PageScreen({
   // thing left that does. `AssistantRail` gates itself on nothing, so choosing
   // sheet-or-floating is the caller's and there is no CSS breakpoint that can
   // make the choice — which is the one job this hook still has here. The entry
-  // point no longer needs it: `AskPill` carries its own `md:hidden`, so it is
+  // point no longer needs it: it is the tab bar's Ask item on a phone, so it is
   // right at first paint where an `isPhone` branch around it was one frame
   // late on every phone load. SPEC §13.5 still forbids anything floating over
   // data on a phone, which is why the bubble below stays desktop-only.
@@ -961,6 +960,16 @@ export function PageScreen({
     ask.cancel();
     setAssistantOpen(false);
   };
+  // **A phone's Ask is the tab bar's** (Mitchell, 2026-10-10: "Dont forget this
+  // 'Ask' element when moving ask to toolbar"). Offered only where the page's
+  // own pill used to render — the mountable page, not the loading, error or
+  // locked branches, which never offered an assistant (decision 4).
+  usePhoneAskEntry(
+    status !== "loading" && status !== "error" && page !== null && trip !== null && stored?.status === "mountable"
+      ? () => setAssistantOpen(true)
+      : undefined,
+    assistantOpen,
+  );
   // **Leaving Editing no longer hangs up, and that is a reversal.** It did,
   // because the assistant was an editing-only control and leaving Editing was
   // leaving the assistant. It is available in both modes now (Mitchell:
@@ -1298,28 +1307,12 @@ export function PageScreen({
               revision={() => baseRef.current ?? page.updatedAt}
             />
           )}
-          {/* The phone's entry to the assistant, and it is now the SAME control
-              this app puts on Plan, Map and the Notebook index (SPEC §23) —
-              this screen's own `◎ Assistant` button was one of the three
-              different entry points §23 exists to collapse into one.
-
-              **After the mode toggle, because §23's claim is positional**:
-              *"last item in the top row… same pill, same label, same position,
-              so it never moves as you change tabs."* It shipped BEFORE the
-              toggle on this screen alone (Copilot, PR #148), which made the
-              open page the one surface of the four where the pill sat
-              somewhere else — the exact inconsistency §23 exists to end.
-
-              It only OPENS. The button it replaces toggled, because it was the
-              sheet's only dismissal; the sheet owns two of its own now (the ✕
-              and the scrim), and a third that also has to say which state it is
-              in is a control competing with the surface it opened. Closing
-              still runs `closeAssistant`, so hanging up on a turn in flight is
-              unchanged — `onHide` below is where it goes. */}
-          {/* `md:hidden`: above 768px this page's launcher is still the
-              floating `AssistantBubble` below (M39 D3 moved the trip board's
-              off its stop costs; a page has none). */}
-          <AskPill className="md:hidden" open={assistantOpen} onOpen={() => setAssistantOpen(true)} />
+          {/* The phone's `Ask` pill ended this row until 2026-10-10; it is the
+              tab bar's Ask item now (`usePhoneAskEntry` above), the same one
+              Plan, Map and the Notebook index offer. It only OPENS, as the
+              pill did: the sheet owns its own dismissals (the ✕ and the scrim),
+              and closing still runs `closeAssistant`. Above 768px this page's
+              launcher is still the floating `AssistantBubble` below. */}
         </div>
       </div>
       {/* Reading only, like the Reset it undoes: in Editing the session holds
@@ -1644,7 +1637,7 @@ export function PageScreen({
           // about is not reachable here: `useIsPhone` starts `false` and
           // corrects in an effect, but this rail mounts only when
           // `assistantOpen` is true, `assistantOpen` starts `false`, and the
-          // only things that set it are a tap on `AskPill` or on the bubble.
+          // only things that set it are a tap on the tab bar's Ask or on the bubble.
           // Effects have run long before a user can tap, so there is no frame
           // in which `isPhone` is stale AND the rail is on screen.
           // **This surface offers no Dock, and that is a decision rather than

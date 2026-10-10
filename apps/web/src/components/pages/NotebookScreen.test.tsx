@@ -29,6 +29,7 @@ vi.mock("@/lib/apiClient", async (orig) => {
 // Imported after the `vi.mock` calls, which are hoisted anyway — written this
 // way so a reader is not left wondering whether the screen got the real client.
 import { NotebookScreen } from "./NotebookScreen";
+import { PhoneAskTab } from "@/components/nav/PhoneTabBar";
 import { fetchTripAccess } from "@/lib/apiClient";
 import { cachedRead } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
@@ -557,9 +558,15 @@ describe("NotebookScreen", () => {
 
     async function openSheet() {
       server.use(...makePagesHandlers([pageFixture({ tripId: TRIP_ID })]));
-      render(<NotebookScreen tripId={TRIP_ID} />);
+      render(
+        <>
+          <NotebookScreen tripId={TRIP_ID} />
+          {/* The phone's Ask is the tab bar's item since 2026-10-10. */}
+          <PhoneAskTab />
+        </>,
+      );
       await screen.findByRole("region", { name: "Your notebooks" });
-      await userEvent.click(screen.getByRole("button", { name: "Ask" }));
+      await userEvent.click(await screen.findByRole("button", { name: "Ask" }));
     }
 
     // §23: *"the Notebook index gained a title block — 'Notebook' at title
