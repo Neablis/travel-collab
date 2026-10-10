@@ -532,6 +532,18 @@ describe("dayHighlights", () => {
     expect(first).toEqual({ kind: "only-here", places: ["Naoshima"] });
   });
 
+  // PR #384 review: a place was `area ?? city`, so a day known only by its city
+  // was compared against another day's neighbourhood and never met it.
+  it("does not call a city only one day's when another day visits a neighbourhood of it", () => {
+    const [cityOnly, inGion] = trip(
+      [{ title: "Station", city: "Kyoto" }],
+      [{ title: "Hanamikoji", area: "Gion", city: "Kyoto" }],
+    );
+    expect(cityOnly).not.toEqual(expect.objectContaining({ kind: "only-here" }));
+    // Gion itself is still only the second day's.
+    expect(inGion).toEqual({ kind: "only-here", places: ["Gion"] });
+  });
+
   it("does not count where a train leaves from as a place the day visits", () => {
     const [first] = trip(
       [{ title: "Shinkansen", area: "Shinagawa", kind: "transit" }, { title: "Temple", area: "Kita" }],
