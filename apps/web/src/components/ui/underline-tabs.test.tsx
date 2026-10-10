@@ -98,11 +98,11 @@ describe("UnderlineTabs", () => {
     expect(screen.getByRole("tab", { name: "Plan & usage" }).getAttribute("aria-controls")).toBe(
       tabPanelId("account", "plan"),
     );
-    expect(screen.getByRole("tab", { name: "API tokens" }).getAttribute("aria-controls")).toBeNull();
+    expect(screen.getByRole("tab", { name: "API tokens" }).hasAttribute("aria-controls")).toBe(false);
     unmount();
 
     renderTabs("plan");
-    for (const tab of screen.getAllByRole("tab")) expect(tab.getAttribute("aria-controls")).toBeNull();
+    for (const tab of screen.getAllByRole("tab")) expect(tab.hasAttribute("aria-controls")).toBe(false);
   });
 
   // A `role="tablist"` owes arrow-key movement. Without these the tabs are a row
