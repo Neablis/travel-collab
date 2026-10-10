@@ -367,34 +367,9 @@ export function TripHeader({
                     subtree rather than a lens (design spec decision 11, refined
                     2026-07-20) — that part did not change; only the affordance
                     did. */}
-                {/* SPEC §23: the phone's entry point to the assistant, LAST in
-                    this row — "same pill, same label, same position, so it never
-                    moves as you change tabs". The row's `justify-between` is what
-                    pins it to the far end, so it stays there whatever the link
-                    beside it is called.
-
-                    §23 also moves the sync dot and avatar down to the title row,
-                    and that half is deliberately not built: in this app neither
-                    is in this row to begin with — the avatar lives in the global
-                    `AppHeader`, a separate sticky bar this header sits under —
-                    so honouring it would mean the phone dropping `AppHeader`
-                    entirely, which is a change to every `(app)` route rather than
-                    to this file. The row was already clear, so the pill just
-                    goes in.
-
-                    **At every width since M39 D3** (KI-2026-09-24-j). Above
-                    768px the entry point was a fixed launcher bottom-right,
-                    over the right-hand column's stop costs (SPEC §13.5,
-                    "nothing floats over data"); it is this pill now, at the
-                    end of the row `← Your trips` starts. That row is already
-                    44px tall for the link, so the desktop header does not grow.
-                    See `AskPill`. */}
-                {/* The wrapper is only the phone row's `order`. */}
-                {onOpenAssistant !== undefined && (
-                  <span className="flex max-md:order-1">
-                    <AskPill open={assistantOpen} onOpen={onOpenAssistant} />
-                  </span>
-                )}
+                {/* Ask used to end this row. It is on the title's row now,
+                    beside Add stop, and on a phone it is the tab bar's — see
+                    the action cluster below. */}
               </nav>
             )}
             {/* The title IS the way into Trip settings, and the only way:
@@ -457,7 +432,12 @@ export function TripHeader({
               everything else) as it wraps at narrow widths. "Add a saved day"
               moved out of the header entirely (Task 1.4) — the design moved it
               into the plan flow; Phase 6 rebuilds it there. */}
-          <div className="flex flex-col items-end gap-2 max-md:contents">
+          {/* `md:self-end`: the cluster sits on the title's row, not on the
+              `← Your trips` row above it (Mitchell, preview comment on the trip
+              page: "move this down a bit so its aligned with the trip title on
+              the same row"). The left column is the taller one, so aligning to
+              its end is aligning to the title. */}
+          <div className="flex flex-col items-end gap-2 md:self-end max-md:contents">
             {/* `sm:flex-nowrap`, not a bare flex-wrap removal: this row's own
                 content (settings/share/add-stop + sync/undo/history) never
                 needs more than ~433px, but a nested flex item's own content
@@ -516,6 +496,15 @@ export function TripHeader({
                     names. Consistency now, per the rule already written down; the
                     split stays available if Trip settings → People wants it.
                     The "Viewer" badge is what still explains the quiet page. */}
+                {/* **Ask, beside Add stop, on the title's row.** It ended the
+                    `← Your trips` row until Mitchell's preview comment: "Ask is
+                    larger than add stop in height and looks weird. Lets also
+                    move this down a bit so its aligned with the trip title on
+                    the same row". `AskPill` is `size="md"` now, Add stop's box.
+                    Inside this wrapper's `max-md:hidden`, so a phone never
+                    draws it here: there it is the tab bar's. `undefined` on
+                    /demo withholds it (KI-79). */}
+                {onOpenAssistant !== undefined && <AskPill open={assistantOpen} onOpen={onOpenAssistant} />}
                 {/* `canEditBoard`: a suggester's new stop joins their draft. */}
                 {canEditBoard && (
                   <Button variant="primary" onClick={() => openCreate()}>

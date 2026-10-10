@@ -107,7 +107,9 @@ test.describe("M39 D9 — the phone's conflict state", () => {
   // 44px title box at 60–104 against Ask at 64–130, at 360px). Below 768px
   // Suggestions is a count too. What is held is what a person sees: no control
   // in the row sits on another, at the two narrowest common phone widths.
-  test("fits the title, Ask and both counts in the pinned row", async ({ page, browser }) => {
+  // Ask left this row for the tab bar on 2026-10-10 (Mitchell: "way too
+  // crowded"), so it is no longer one of the controls measured.
+  test("fits the title and both counts in the pinned row", async ({ page, browser }) => {
     test.slow();
     await grantCollaborators(browser, "dev-alice");
     const tripId = await overlappingTrip(page, "Phone fit, with a trip name long enough to truncate");
@@ -139,7 +141,6 @@ test.describe("M39 D9 — the phone's conflict state", () => {
     const row = [
       header.getByRole("link", { name: /Your trips/ }),
       header.getByRole("heading", { level: 2 }).getByRole("button"),
-      header.getByRole("button", { name: "Ask" }),
       chip(page),
       header.getByRole("button", { name: "2 suggestions" }),
       header.getByRole("button", { name: "Trip actions" }),
@@ -150,7 +151,7 @@ test.describe("M39 D9 — the phone's conflict state", () => {
       for (const control of row) await expect(control).toBeVisible();
       const boxes = await Promise.all(row.map(async (control) => (await control.boundingBox())!));
       // Left to right in that order, each ending where the next begins or
-      // before: a title squeezed below its 44px floor overflows into Ask.
+      // before: a title squeezed below its 44px floor overflows into the count.
       for (let i = 1; i < boxes.length; i++) {
         expect(boxes[i - 1]!.x + boxes[i - 1]!.width, `at ${width}px, control ${i - 1} ends before control ${i} starts`).toBeLessThanOrEqual(
           boxes[i]!.x + 0.5,

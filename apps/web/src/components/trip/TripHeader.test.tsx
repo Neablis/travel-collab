@@ -436,52 +436,33 @@ describe("TripHeader on a phone", () => {
   });
 });
 
-// SPEC §23. Two additions, and they are a pair: the pill is the phone's only
-// route to the assistant now (TripBoardScreen's launcher went `hidden
-// md:inline-flex` in the same change), and the date line is the meta row's one
-// survivor coming back on its own.
+// The header's Ask pill — above 768px only since 2026-10-10: a phone's Ask is
+// the tab bar's (`PhoneTabBar.test.tsx`, "the Ask item"), and this pill's
+// wrapper carries `max-md:hidden`. The date line below is the meta row's one
+// phone survivor.
 //
-// `md:hidden` is not asserted here at all. jsdom loads no stylesheet, so the
-// breakpoint is inert and a class-name match would only prove a string is in an
+// The breakpoint is not asserted here at all. jsdom loads no stylesheet, so it
+// is inert and a class-name match would only prove a string is in an
 // attribute. The phone half is pinned in a browser by
-// e2e/m16-mobile-assistant.spec.ts, which has the pill visible at 411px and the
-// board's `Assistant` launcher hidden at the same width.
-describe("TripHeader — the phone Ask pill (SPEC §23)", () => {
-  it("puts the pill last in the top row, and reports its open state", async () => {
+// e2e/m16-mobile-assistant.spec.ts.
+describe("TripHeader — the Ask pill", () => {
+  // Mitchell's preview comment on the desktop trip page: "Ask is larger than
+  // add stop in height and looks weird. Lets also move this down a bit so its
+  // aligned with the trip title on the same row". The row it left is the
+  // `← Your trips` row; where it went is directly before Add stop, in the
+  // cluster that now aligns to the title.
+  it("sits beside Add stop, out of the back link's row, and opens the assistant", async () => {
     const onOpen = vi.fn();
     await renderHeader(undefined, { open: false, onOpen });
 
-    const nav = screen.getByRole("navigation");
-    const pill = within(nav).getByRole("button", { name: "Ask" });
-
-    // LAST in the row — "same pill, same label, same position, so it never
-    // moves as you change tabs" only holds if it is pinned to one end, and
-    // `← Your trips` … `Ask` is the order §23 draws.
-    //
-    // Stated as TAB ORDER rather than `nav.lastElementChild`, and driven by
-    // the keyboard rather than by reading `document.activeElement` — the wall
-    // bans both node access and that property, and neither route was needed:
-    // a keyboard reader meets these controls in the order they are drawn in,
-    // so "the second stop is the one that opens the assistant, and the first
-    // is not" IS the position claim, said in what the user experiences.
-    //
-    // Space, not Enter, because the discrimination is the point: a link does
-    // not activate on Space and a button does. So the first probe fires only
-    // if the pill has moved to the front of the row, which is the regression
-    // this exists to catch, and it does not navigate away from the header on
-    // the way past.
-    expect(within(nav).getAllByRole("link")).toHaveLength(1);
-    expect(within(nav).getAllByRole("button")).toHaveLength(1);
-    await userEvent.tab();
-    await userEvent.keyboard("[Space]");
-    expect(onOpen).not.toHaveBeenCalled();
-    await userEvent.tab();
-    await userEvent.keyboard("[Space]");
-    expect(onOpen).toHaveBeenCalledTimes(1);
+    expect(within(screen.getByRole("navigation")).queryAllByRole("button")).toHaveLength(0);
+    const buttons = screen.getAllByRole("button");
+    const pill = screen.getByRole("button", { name: "Ask" });
+    expect(buttons.indexOf(screen.getByRole("button", { name: "Add stop" }))).toBe(buttons.indexOf(pill) + 1);
 
     expect(pill.getAttribute("aria-expanded")).toBe("false");
     await userEvent.click(pill);
-    expect(onOpen).toHaveBeenCalledTimes(2);
+    expect(onOpen).toHaveBeenCalledTimes(1);
   });
 
   it("says the assistant is open when it is", async () => {

@@ -22,6 +22,7 @@ import { NotebooksMenu } from "@/components/trip/NotebooksMenu";
 import { TagFocusLine } from "@/components/trip/TagFocusLine";
 import { PageContainer } from "@/components/ui/page-container";
 import { TripHeader } from "@/components/trip/TripHeader";
+import { usePhoneAskEntry } from "@/components/nav/phoneAsk";
 import { AddSavedDayButton } from "@/components/trip/AddSavedDayButton";
 import { useBoardSuggestions } from "./SuggestionActions";
 import { SuggestionTray } from "./SuggestionTray";
@@ -121,6 +122,10 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // The rail's own "Hide"/re-show is real layout chrome now, not AI
   // behavior gated behind M9 — see AssistantRail.tsx's header comment.
   const assistant = useAssistantVisibility();
+  // The phone's way in is the tab bar's Ask item (Mitchell, 2026-10-10), which
+  // lives in the layout, outside this tree: offer it the same opener the
+  // header's desktop pill gets. Withheld on /demo for the pill's reason (KI-79).
+  usePhoneAskEntry(isDemoTripId(tripId) ? undefined : assistant.show, assistant.open);
   // Which of SPEC §9/§23's presentations the assistant opens as. `AssistantRail`
   // is emphatic that the caller must not reach for `useIsPhone()` — it returns
   // `false` on the server and on the first client paint, so a JS-gated swap
@@ -1036,8 +1041,9 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           // eslint-disable-next-line no-restricted-syntax -- a measured, changing pixel height cannot be a static token
           style={{ "--rack-height": `${rackHeight}px` } as React.CSSProperties}
         >
-          {/* The phone's Ask pill lives in this header's top row (SPEC §23),
-              but the assistant's visibility belongs here — the rail is this
+          {/* The desktop's Ask pill lives in this header's title row (the
+              phone's is the tab bar's — `usePhoneAskEntry` above), but the
+              assistant's visibility belongs here — the rail is this
               screen's child and the thread is this screen's state. So the flag
               and the opener are passed down rather than the state moving up.
               `undefined` on /demo withholds the pill outright, the same

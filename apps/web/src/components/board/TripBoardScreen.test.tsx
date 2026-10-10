@@ -10,6 +10,7 @@ import { TripProvider } from "@/components/trip/context/TripProvider";
 import { EditorHost, useEditor } from "@/components/trip/context/EditorHost";
 import { FocusProvider } from "@/components/trip/context/FocusProvider";
 import { LensRouter } from "@/components/trip/context/LensRouter";
+import { PhoneAskTab } from "@/components/nav/PhoneTabBar";
 import { activityFactory, costedTripDetailFixture, historyFixture, locationFactory, tripDetailFixture } from "@tc/factories";
 import { makeTripHandlers, makeAccountPlanHandler, makeNearbyStopsHandler, makePagesHandlers } from "@/mocks/handlers";
 import { setViewportMatches, triggerResize } from "../../../vitest.setup";
@@ -1268,16 +1269,37 @@ describe("TripBoardScreen", () => {
   // is enforced by CSS is left to the test that runs at a real width in a real
   // browser: `e2e/responsive.spec.ts`, which drives 390px and 1280px and would
   // fail on a launcher that did not disappear.
-  it("the header's Ask pill is the phone's one entry point, and it sits in the header", async () => {
+  //
+  // **Since 2026-10-10 the phone's way in is the tab bar's Ask item**
+  // (Mitchell: the one-row header was "way too crowded"). The bar is mounted by
+  // the layout, outside this screen, so the board offers its opener through
+  // `usePhoneAskEntry`; this asserts the board's half of that hand-off — the
+  // item the bar would draw opens THIS board's assistant.
+  it("offers the phone tab bar an Ask that opens this board's assistant", async () => {
     setViewportMatches({ "(max-width: 767px)": true });
     const fixture = costedTripDetailFixture();
     server.use(...makeTripHandlers(fixture));
-    renderScreen(fixture.tripId);
+    render(
+      <>
+        <TripProvider tripId={fixture.tripId}>
+          <FocusProvider>
+            <EditorHost>
+              <LensRouter>
+                <TripBoardScreen tripId={fixture.tripId} />
+              </LensRouter>
+            </EditorHost>
+          </FocusProvider>
+        </TripProvider>
+        <PhoneAskTab />
+      </>,
+    );
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
     navigateToView("Plan");
-    await waitFor(() => expect(screen.queryAllByTestId("ask-pill").length).toBeGreaterThan(0));
-    expect(screen.getAllByTestId("ask-pill")).toHaveLength(1);
-    expect(within(screen.getByRole("navigation")).getByTestId("ask-pill")).toBeTruthy();
+    const tab = await screen.findByTestId("ask-tab");
+    expect(tab.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByRole("complementary", { name: "Assistant" })).toBeNull();
+    fireEvent.click(tab);
+    expect(await screen.findByRole("complementary", { name: "Assistant" })).toBeTruthy();
   });
 
   // M39 D3 (KI-2026-09-24-j): above 768px the board's way in was a floating
@@ -1339,7 +1361,7 @@ describe("TripBoardScreen", () => {
     renderScreen(fixture.tripId);
 
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
-    const pill = within(screen.getByRole("navigation")).getByTestId("ask-pill");
+    const pill = screen.getByTestId("ask-pill");
     // Shut, and saying so — `aria-expanded` is what carries the state, since
     // the label never changes.
     expect(pill.getAttribute("aria-expanded")).toBe("false");
@@ -1362,7 +1384,7 @@ describe("TripBoardScreen", () => {
     renderScreen(fixture.tripId);
 
     expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
-    fireEvent.click(within(screen.getByRole("navigation")).getByTestId("ask-pill"));
+    fireEvent.click(screen.getByTestId("ask-pill"));
 
     const panel = assistantPanel();
     // The scrim is what tells the two presentations apart here, and it is the
@@ -1420,7 +1442,7 @@ describe("TripBoardScreen", () => {
     const dayOne = screen.getByRole("button", { name: "Day 1, 0 stops" });
     await waitFor(() => expect(dayOne.getAttribute("aria-pressed")).toBe("true"));
 
-    fireEvent.click(within(screen.getByRole("navigation")).getByTestId("ask-pill"));
+    fireEvent.click(screen.getByTestId("ask-pill"));
     const panel = assistantPanel();
     expect(within(panel).getByText("Asking about Day 1")).toBeTruthy();
     expect(within(panel).queryByText("Asking about Rome 2027")).toBeNull();
@@ -1468,7 +1490,7 @@ describe("TripBoardScreen", () => {
     await waitFor(() => expect(dayOne.getAttribute("aria-pressed")).toBe("true"));
 
     navigateToView("Overview");
-    fireEvent.click(await within(screen.getByRole("navigation")).findByTestId("ask-pill"));
+    fireEvent.click(await screen.findByTestId("ask-pill"));
     const panel = assistantPanel();
     expect(within(panel).getByText("Asking about Rome 2027")).toBeTruthy();
     expect(within(panel).getByText(/It reads the whole trip/)).toBeTruthy();

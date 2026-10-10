@@ -794,6 +794,19 @@ test.describe("responsive (trip header on a phone)", () => {
     await expect(tripHeader.getByRole("button", { name: "Trip actions" })).toBeHidden();
     await expect(tripHeader.getByRole("button", { name: "Add stop" })).toBeVisible();
     await expect(tripHeader.getByRole("button", { name: "History", exact: true })).toBeVisible();
+
+    // Mitchell's preview comment (2026-10-10): "Ask is larger than add stop in
+    // height and looks weird. Lets also move this down a bit so its aligned
+    // with the trip title on the same row". Same height as Add stop, and on
+    // the title's row: the title's vertical centre falls inside Ask's box.
+    const askBox = (await tripHeader.getByRole("button", { name: "Ask", exact: true }).boundingBox())!;
+    const addBox = (await tripHeader.getByRole("button", { name: "Add stop" }).boundingBox())!;
+    const titleBox = (await tripHeader.getByRole("heading", { level: 2 }).boundingBox())!;
+    expect(askBox.height).toBe(addBox.height);
+    expect(Math.abs(askBox.y - addBox.y)).toBeLessThanOrEqual(1);
+    const titleCentre = titleBox.y + titleBox.height / 2;
+    expect(titleCentre).toBeGreaterThanOrEqual(askBox.y);
+    expect(titleCentre).toBeLessThanOrEqual(askBox.y + askBox.height);
   });
 });
 
