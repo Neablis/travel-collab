@@ -1044,6 +1044,21 @@ describe("a stored suggestion on the wire", () => {
   });
 });
 
+// A turn whose every write the trip refused: nothing to review, and the why.
+describe("a turn that changed nothing, on the wire", () => {
+  it("arrives as one `not-applied` event carrying the server's reasons", async () => {
+    const skipped = ["This trip has been deleted."];
+    server.use(
+      http.post("*/api/trips/:tripId/ask", () =>
+        sseResponse([...ANSWER_FRAMES, `{"type":"finish","finishReason":"stop","messageMetadata":${JSON.stringify({ notApplied: { skipped } })}}`]),
+      ),
+    );
+    const events: apiClientModule.AskEvent[] = [];
+    await askAssistant(TRIP_ID, [], { kind: "trip" }, (e) => events.push(e));
+    expect(events.at(-1)).toEqual({ type: "not-applied", skipped });
+  });
+});
+
 describe("the proposal on the wire", () => {
   it("arrives as one event, on the stream's final chunk", async () => {
     server.use(

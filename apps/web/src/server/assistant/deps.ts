@@ -96,6 +96,16 @@ export interface RefusedInsert {
  */
 export interface ProposalBuffer {
   collect(intent: RawToolIntent): void;
+  /**
+   * Why the trip would refuse `intent` if it were collected next — resolved
+   * after everything already collected, the order `resolveBatch` applies — or
+   * null when it would land (or would be a no-op). Lets a write tool answer
+   * the model with the refusal at the moment it calls, rather than "queued"
+   * and a proposal that later comes back empty (2026-10-10: six writes on a
+   * deleted trip, each told it was queued). Null for every intent when the
+   * buffer was made without a dry run.
+   */
+  refusalOf(intent: RawToolIntent): string | null;
   collected(): RawToolIntent[];
   addInsert(insert: CollectedInsert): void;
   inserts(): CollectedInsert[];
@@ -166,7 +176,14 @@ export function widgetNameOf(node: PageNode): string | null {
 }
 
 /** One turn's proposal collector. Never shared between turns. */
-export function newProposalBuffer(): ProposalBuffer {
+/**
+ * The trip's verdict on a batch of intents, in order: each that would be
+ * dropped, by position. `droppedWrites` (writeTools.ts) is the real one; the
+ * buffer takes it as a function so this module stays free of the domain.
+ */
+export type ProposalDryRun = (intents: RawToolIntent[]) => readonly { index: number; noOp: boolean; message: string }[];
+
+export function newProposalBuffer(dryRun: ProposalDryRun | null = null): ProposalBuffer {
   const intents: RawToolIntent[] = [];
   const inserts: CollectedInsert[] = [];
   const intentCalls: (string | null)[] = [];
@@ -175,6 +192,12 @@ export function newProposalBuffer(): ProposalBuffer {
     collect: (intent) => {
       intents.push(intent);
       intentCalls.push(currentCallId());
+    },
+    refusalOf: (intent) => {
+      if (dryRun === null) return null;
+      const next = intents.length;
+      const drop = dryRun([...intents, intent]).find((entry) => entry.index === next);
+      return drop === undefined || drop.noOp ? null : drop.message;
     },
     collected: () => [...intents],
     addInsert: (insert) => {

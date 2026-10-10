@@ -95,7 +95,9 @@ import {
   newPageBuffer,
   newPlaceCache,
   newProposalBuffer,
+  type PlaceCache,
 } from "@/server/assistant/deps";
+import type { RawToolIntent } from "@/server/assistant/batchResolver";
 import { MAX_PLACE_QUERIES } from "@/server/assistant/tools/places";
 import {
   data,
@@ -144,7 +146,7 @@ import { ESCALATE_TOOL_NAME } from "@/server/assistant/tools/escalate";
 import { ASK_HARD_DEADLINE_MS, ASK_STEP_DEADLINE_MS, AskDeadlineError, type AskDeadlines } from "@/server/ai/askDeadline";
 import { citiesOfDay } from "@tc/domain";
 import { newIntentLatch, type AskPivot } from "@/server/assistant/intents";
-import type { TaskClass } from "@/server/assistant/taskClass";
+import { REASONING_FOR, type TaskClass } from "@/server/assistant/taskClass";
 
 // The admission pipeline's public names, re-exported so that the one door has
 // one module to import: `route.ts`, the client-facing refusal codes and the two
@@ -283,14 +285,22 @@ export async function handleAskRequest(
     (escalation.escalated() !== null && grant.escalation !== null ? grant.escalation.grants : grant.grants)
       .itinerary === "propose";
   const proposesPage = grant.grants.pages === "propose";
-  const proposalBuffer = newProposalBuffer();
-  const pageBuffer = newPageBuffer();
   // **This turn's numbered search results, and the reason a `placeRef` means
   // anything** (M9 grounding). Minted per turn beside the two collectors and
   // never shared: a ref that outlived its turn would resolve to a place from a
   // different question. Read below by `buildProposal`, which turns each
   // citation into the location that actually commits.
   const placeCache = newPlaceCache();
+  // The dry run is the one the proposal is built with, so a write tool's
+  // answer and the card cannot disagree about what the trip refuses.
+  const proposalBuffer = newProposalBuffer((intents) =>
+    droppedWrites(intents, detail, { tripId, actorId: userId, placeCache }).map(({ index, noOp, call }) => ({
+      index,
+      noOp,
+      message: call.message,
+    })),
+  );
+  const pageBuffer = newPageBuffer();
   // **The turn's escalation latch** (M9 design §1b). Minted whether or not the
   // turn can escalate: a buffer nothing can reach costs one object, and making
   // it conditional would put "can this turn escalate?" in two places.
@@ -597,6 +607,10 @@ export async function handleAskRequest(
     // (our current model lists $0.028/MTok against $0.13 input), so this is
     // worth more the stronger the tier gets, not less.
     providerOptions: { gateway: { caching: "auto" } },
+    // The admitted tier's thinking budget (`REASONING_FOR`). A step escalated
+    // to another tier keeps it: escalation is about the tool set, and the
+    // stronger model does not need licence to over-think a bounded edit.
+    reasoning: REASONING_FOR[grant.tier],
     // **One malformed argument is not the end of a turn.** The SDK throws
     // `AI_InvalidToolInputError` and `ToolLoopAgent` aborts the run, so before
     // this the user got nothing at all — twice, on 2026-09-12's first two live
@@ -884,7 +898,7 @@ export async function handleAskRequest(
           { tripId, actorId: userId, placeCache },
           proposalBuffer.inserts(),
         );
-        if (proposal === null) return undefined;
+        if (proposal === null) return notAppliedMetadata(proposalBuffer.collected(), detail, { tripId, actorId: userId, placeCache });
         finalProposal = proposal;
         return { proposal };
       },
@@ -978,6 +992,25 @@ function suggestOnFinish(
       controller.enqueue({ ...chunk, messageMetadata: metadata });
     },
   });
+}
+
+/**
+ * The final chunk of a planning turn that wrote and has no proposal: every
+ * write call it made was refused against the trip. Says why, in the domain's
+ * words, rather than ending on the model's prose alone — which was told each
+ * call was collected, and so may well say the changes were made.
+ *
+ * Nothing when the turn wrote nothing, or when every drop was a no-op (the
+ * trip already said what was asked: nothing to explain).
+ */
+function notAppliedMetadata(
+  intents: RawToolIntent[],
+  detail: TripDetail,
+  opts: { tripId: string; actorId: string; placeCache: PlaceCache },
+): AskStreamMetadata | undefined {
+  if (intents.length === 0) return undefined;
+  const skipped = [...new Set(diagnosticDrops(droppedWrites(intents, detail, opts)).map((drop) => drop.message))];
+  return skipped.length === 0 ? undefined : { notApplied: { skipped } };
 }
 
 /**

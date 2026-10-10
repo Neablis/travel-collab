@@ -13,6 +13,11 @@ import { clearAskThread, loadAskThread, saveAskThread } from "@/components/assis
 
 import { toolNoteLabel, type AssistantTurn } from "./Transcript";
 
+/** The line a turn whose every change was refused ends on: nothing changed, and the server's why. */
+export function notAppliedNote(skipped: readonly string[]): string {
+  return `\n\nNothing was changed: ${skipped.join(" ")}`;
+}
+
 /** What a turn the server stopped at its deadline says when it produced nothing (KI-2026-09-26-s). */
 const STOPPED_EMPTY = "This took too long and was stopped before it finished. Nothing was changed — try asking for less at once.";
 
@@ -339,6 +344,12 @@ export function useAskThread({
           delivered = true;
         } else if (event.type === "stopped") {
           stopped = true;
+        } else if (event.type === "not-applied") {
+          // Said in the answer itself, after the model's own words — which may
+          // well claim the changes were made: the model is told its write calls
+          // were collected, and only the final resolve finds the trip refusing
+          // them. Text, not a card, because there is nothing to approve.
+          patchAnswer((turn) => ({ ...turn, text: `${turn.text}${notAppliedNote(event.skipped)}` }));
         }
         // Everything else belongs to whoever mounted this. The board attaches a
         // `proposal` to the answer; a page inserts `page-inserts` into its

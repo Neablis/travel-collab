@@ -71,6 +71,13 @@ export const DEMO_TRIP_UNSUPPORTED_CODE = "demo-trip-unsupported";
 // on this trip" is a refusal a legitimate client can reach by racing a delete.
 export const PAGE_NOT_ON_TRIP_CODE = "page-not-on-trip";
 
+// The refusal code for a turn on a deleted trip. Every command the domain is
+// handed for one is refused (`decide`'s `trip-deleted`), so a turn could read
+// the trip, call write tools, and end with nothing — at full price. Reachable
+// by a tab left open on a trip that was deleted elsewhere, or by a preview's
+// "Reset to demo data", which deletes the trip a page is showing.
+export const TRIP_DELETED_CODE = "trip-deleted";
+
 // The minimum to get through the door: the role the NARROWEST turn there is
 // still requires. A viewer's turn is read-only and always was; whether THIS turn
 // also gets a write half is decided by `grantTools` below, from the role the
@@ -684,6 +691,20 @@ const identifyActor: AdmissionStage = {
     if ("error" in g) {
       return refuse("identifyActor", "the guard refused this actor", g.error);
     }
+    // **Before model selection, the quota and the classifier**: the guard
+    // serves a deleted trip (it is 200 everywhere, so the page can offer a
+    // restore), and a turn admitted on one paid for a classifier call and
+    // every agent step only for the domain to refuse each write at the end
+    // (2026-10-10: three turns, ~$0.15, nothing changed). Here it costs nothing.
+    if (g.detail.status === "deleted") {
+      const reason = "This trip has been deleted, so the assistant can't work on it. Restore it to keep planning.";
+      return refuse(
+        "identifyActor",
+        reason,
+        Response.json({ error: reason, code: TRIP_DELETED_CODE }, { status: 409 }),
+        TRIP_DELETED_CODE,
+      );
+    }
     draft.actor = {
       userId: g.userId,
       detail: g.detail,
@@ -1076,8 +1097,9 @@ const grantTools: AdmissionStage = {
     //     nothing recognised. This endpoint's answer has been the widest safe
     //     tool set since KI-88.
     //   * `source: "affirmation"` — `isBareAgreement` short-circuits the
-    //     classifier for "Yes go ahead" and answers `FAIL_OPEN_TASK_CLASS`,
-    //     the SAME `plan`, with `failedOpen: false`. Its own comment says why:
+    //     classifier for "Yes go ahead" and answers a class nobody determined
+    //     (`edit` since 2026-10-10, `plan` before), with `failedOpen: false`.
+    //     Its own comment says why:
     //     an agreement "can be agreeing to a single stop or to a six-day
     //     itinerary, and this rule is deliberately not a parser."
     //

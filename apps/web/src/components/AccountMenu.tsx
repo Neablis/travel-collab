@@ -15,6 +15,7 @@ import { useSessionUser, type SessionUser } from "@/components/account/useSessio
 import { PersonChip } from "@/components/ui/person-chip";
 import { displayNameFor } from "@/lib/displayName";
 import { resetDemoData } from "@/lib/apiClient";
+import { pathAfterDemoReset } from "@/lib/demoDataReset";
 import { BrandMark } from "@/components/BrandMark";
 import { useInstallApp } from "@/components/install/InstallApp";
 
@@ -399,14 +400,17 @@ function AccountMenuFor({
   // rendered bare in its own tests and a name is display, not an operation.
   const preferences = usePreferences();
   const color = useShownColor();
-  // A hard reload, not a router.push: this can be confirmed from any page
-  // (a trip page whose own trip was just deleted included), and the freshly
-  // seeded trip needs every client-fetched view — Home's trip list, any open
-  // trip board — to refetch from scratch rather than reconcile stale state.
+  // A hard navigation, not a router.push: the freshly seeded trip needs every
+  // client-fetched view — Home's trip list, any open trip board — to refetch
+  // from scratch rather than reconcile stale state. On a trip page it goes to
+  // the RESEEDED trip: the reset deleted the one on screen, and reloading it
+  // left a deleted trip looking live (`pathAfterDemoReset`).
   async function handleResetDemoData() {
     const result = await resetDemoData();
     if (!result.ok) throw new Error(result.error.message);
-    window.location.reload();
+    const next = pathAfterDemoReset(window.location.pathname, window.location.search, result.value.tripId);
+    if (next === null) window.location.reload();
+    else window.location.assign(next);
   }
 
   return (
