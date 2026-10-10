@@ -25,7 +25,7 @@ test("a multi-turn conversation, scoped by the focused day and started from a de
   await page.goto("/");
   const tripId = await createMappedTrip(page, tripName, 3);
   await page.goto(`/trips/${tripId}?view=Plan`);
-  await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
 
   await openAssistantRail(page);
   const rail = page.getByRole("complementary", { name: "Assistant" });
@@ -151,7 +151,7 @@ test("the chips that used to be dead ends are clickable and answered", async ({ 
   // and it is literally the first step of "plan a trip from start to finish".
   const tripId = await createMappedTrip(page, tripName, 0);
   await page.goto(`/trips/${tripId}?view=Plan`);
-  await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
 
   await openAssistantRail(page);
   const rail = page.getByRole("complementary", { name: "Assistant" });

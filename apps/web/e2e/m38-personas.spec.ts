@@ -125,7 +125,7 @@ test("a persona survives a reload, shows on the invite before joining, and in Pe
   const tripName = e2eTripName("Personas");
   const tripId = await createMappedTrip(page, tripName, 1, TRIP_SHAPE);
   await page.goto(`/trips/${tripId}?view=Plan`);
-  await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
   await openPeople(page, tripName);
   const link = await createInviteLink(page);
   await page.keyboard.press("Escape");
@@ -170,7 +170,7 @@ test("a persona survives a reload, shows on the invite before joining, and in Pe
 
     await visitor.goto(link);
     await visitor.getByRole("button", { name: "Join the trip" }).click();
-    await expect(visitor.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
+    await expect(visitor.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
     await expect(visitor).toHaveURL(new RegExp(`/trips/${tripId}`));
 
     // 5. People, as the guest: both chips, and theirs shifted off plum because

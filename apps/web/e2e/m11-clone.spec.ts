@@ -84,7 +84,7 @@ test("a stranger clones a shared trip, gets the pinned plan, and can edit it", a
   await addDay(page, tripId);
 
   await page.goto(`/trips/${tripId}?view=Plan`);
-  await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
   const link = await shareLinkFor(page);
 
   // The owner keeps planning AFTER handing the link out. The clone must take
@@ -99,7 +99,7 @@ test("a stranger clones a shared trip, gets the pinned plan, and can edit it", a
 
     // Lands on her own copy — named as a copy, and editable.
     await expect(
-      erin.getByRole("heading", { name: `${tripName} (copy)`, level: 1 }),
+      erin.getByRole("heading", { name: `${tripName} (copy)`, level: 2 }),
     ).toBeVisible();
     await expect(erin.getByText("Viewer", { exact: true })).toHaveCount(0);
     // The clone drops her on the trip's default view, which is Overview since
@@ -138,7 +138,7 @@ test("a stranger clones a shared trip, gets the pinned plan, and can edit it", a
   // The source is untouched by any of it: still its own name, still the three
   // days its owner made.
   await page.reload();
-  await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
   await expect(page.getByTestId("day-column")).toHaveCount(3);
 });
 
@@ -160,7 +160,7 @@ test("duplicating your own trip records where the copy came from", async ({ page
     page.getByRole("menuitem", { name: "Duplicate" }).click(),
   ]);
 
-  await expect(page.getByRole("heading", { name: `${tripName} (copy)`, level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: `${tripName} (copy)`, level: 2 })).toBeVisible();
   await page.getByRole("button", { name: `${tripName} (copy) — Trip settings` }).click();
   await expect(page.getByText(new RegExp(`Copied from .${escapeForRegExp(tripName)}`))).toBeVisible();
 });

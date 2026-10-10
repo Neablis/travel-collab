@@ -71,7 +71,7 @@ test("a suggester's move waits for the owner, and Accept makes it", async ({ pag
   const stop = "Stop on day 1";
   const gelato = (day: Locator) => day.getByTestId(/activity-card-/).filter({ hasText: "Gelato" });
   await page.goto(`/trips/${tripId}?view=Plan`);
-  await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
   const link = await inviteLinkFor(page, tripName, "Can suggest");
 
   const suggesterName = newcomer("sam");
@@ -82,7 +82,7 @@ test("a suggester's move waits for the owner, and Accept makes it", async ({ pag
     // are the clause's business, not this walk's.
     await expect(sam.getByText(`You can suggest stops and changes ${SUGGESTER_APPROVAL}.`)).toBeVisible();
     await sam.getByRole("button", { name: "Join the trip" }).click();
-    await expect(sam.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
+    await expect(sam.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
     await expect(sam.getByText("Suggester", { exact: true })).toBeVisible();
     await openPlan(sam);
 
@@ -254,7 +254,7 @@ test("a suggester's new day and its stops show as a suggested day, and Accept ma
   const ghostOf = (where: Locator, title: string) => where.getByRole("button", { name: new RegExp(`^Suggested: .*${title}`) });
   const suggestedDay = (on: Page) => on.getByRole("region", { name: /^Day 3\b.* · suggested$/ });
   await page.goto(`/trips/${tripId}?view=Plan`);
-  await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
   const link = await inviteLinkFor(page, tripName, "Can suggest");
 
   const sam = await signedInAs(browser, newcomer("sam"), link);

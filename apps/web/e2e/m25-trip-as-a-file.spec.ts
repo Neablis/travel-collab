@@ -218,7 +218,7 @@ test.describe("M25 — a trip is a file you can take with you", () => {
     const landedOn = new URL(page.url()).pathname.split("/")[2]!;
     expect(landedOn).not.toBe(tripId);
 
-    await expect(page.getByRole("heading", { name, level: 1 })).toBeVisible();
+    await expect(page.getByRole("heading", { name, level: 2 })).toBeVisible();
     await expect(page.getByText("Fushimi Inari").first()).toBeVisible();
   });
 

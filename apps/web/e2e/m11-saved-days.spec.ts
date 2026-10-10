@@ -31,7 +31,7 @@ async function buildTrip(page: Page, name: string, dayCount: number): Promise<st
  */
 async function openPlanView(page: Page, tripId: string, tripName: string): Promise<void> {
   await page.goto(`/trips/${tripId}?view=Plan`);
-  await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
   await expect(page.getByRole("tab", { name: "Plan", selected: true })).toBeVisible();
 }
 

@@ -33,7 +33,7 @@ test("asked for a day, the assistant suggests it; Accept all lands it as one ent
   await page.goto("/");
   const tripId = await createMappedTrip(page, tripName, 2);
   await page.goto(`/trips/${tripId}?view=Plan`);
-  await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
 
   await openAssistantRail(page);
   await page.getByPlaceholder("Ask about this trip…").fill("add a day in Kyoto");

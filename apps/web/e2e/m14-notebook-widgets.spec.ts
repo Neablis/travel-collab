@@ -68,7 +68,7 @@ async function tripWithTwoDays(page: Page): Promise<string> {
   await createEmptyTripViaWizard(page, tripName);
   await page.getByRole("link", { name: tripName }).click();
   await page.waitForURL(/\/trips\/[^/]+$/);
-  await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
   // SPEC §24: a trip opens on Overview, which is read-only. "Add a day" is on
   // Plan, the one view that edits.
   await page.getByRole("tab", { name: "Plan" }).click();

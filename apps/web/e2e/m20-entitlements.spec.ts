@@ -103,7 +103,7 @@ test.describe("M20 — an account knows what it may do", () => {
     const tripId = await createTrip(page, name);
 
     await page.goto(`/trips/${tripId}?view=Plan`);
-    await expect(page.getByRole("heading", { name, level: 1 })).toBeVisible();
+    await expect(page.getByRole("heading", { name, level: 2 })).toBeVisible();
 
     // Dates and days — planning commands the free plan entitles in full,
     // through the app's own API as the signed-in free account.
@@ -121,7 +121,7 @@ test.describe("M20 — an account knows what it may do", () => {
     expect(dated.ok(), await dated.text()).toBe(true);
 
     await page.reload();
-    await expect(page.getByRole("heading", { name, level: 1 })).toBeVisible();
+    await expect(page.getByRole("heading", { name, level: 2 })).toBeVisible();
   });
 
   test("a free owner meets the collaboration gate, and it names the tier", async ({ page }) => {

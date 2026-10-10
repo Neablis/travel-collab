@@ -116,7 +116,7 @@ test("solo delight: the Notebook and its default pages", async ({ page }) => {
 
   await createEmptyTripViaWizard(page, tripName);
   await page.getByRole("link", { name: tripName }).click();
-  await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
 
   // -- open the trip's Notebooks: the two default notebooks exist --
   // Via the Notebooks pill in the view row (SPEC §11), which replaced the plain
@@ -211,7 +211,7 @@ test("fresh trip: Notebook default pages render their starter text", async ({ pa
 
   await createEmptyTripViaWizard(page, tripName);
   await page.getByRole("link", { name: tripName }).click();
-  await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
 
   await openNotebookIndex(page);
   await page.getByRole("link", { name: new RegExp(SEEDED_PAGE.title) }).click();
@@ -288,7 +288,7 @@ test("undo a trip revert: hand-typed prose survives untouched", async ({ page })
   // back to the trip. Waiting for the URL pattern first makes the assertion
   // and the `tripUrl` capture below both trustworthy.
   await page.waitForURL(/\/trips\/[^/]+$/);
-  await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
   const tripUrl = page.url();
   // §24: a trip opens on Overview; "Add a day" lives on Plan. `tripUrl` is
   // captured BEFORE this click on purpose — the later `goto(tripUrl)` is meant
@@ -326,7 +326,7 @@ test("undo a trip revert: hand-typed prose survives untouched", async ({ page })
 
   // -- add a second day, then revert to the 1-day state via the History panel --
   await page.goto(tripUrl);
-  await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
   await page.getByRole("tab", { name: "Plan" }).click();
   await waitForConfirmedCommand(page, () => page.getByRole("button", { name: "Add a day", exact: true }).click());
   await expect(page.getByTestId("day-column")).toHaveCount(2);
@@ -344,7 +344,7 @@ test("undo a trip revert: hand-typed prose survives untouched", async ({ page })
   // -- undo the revert itself (the most recent batch): back to 2 days,
   // prose still untouched --
   await page.goto(tripUrl);
-  await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
   // Plan again: `tripUrl` is the bare trip URL on purpose (see its capture
   // above — re-entering the way a person does lands on Overview since §24), and
   // the day columns counted below are Plan's.

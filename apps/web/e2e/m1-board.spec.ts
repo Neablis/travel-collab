@@ -11,7 +11,7 @@ test("board: days, activities, drag, conflicts as data", async ({ page, browser 
   // level:2 disambiguates TripHeader's h2 from TripCard's own h3 heading —
   // the same class of ambiguity fixed elsewhere post-M10 restyle (see
   // m2/m3/m4/smoke's fix commit); this spec hadn't hit it until now.
-  await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
   // SPEC §24: entering a trip lands on Overview — *"You read a trip before you
   // change it."* This spec is about the board, so it goes to the one view that
   // edits.
