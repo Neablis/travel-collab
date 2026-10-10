@@ -91,6 +91,49 @@ describe("time-overlap rule", () => {
     ).toEqual([]);
   });
 
+  // Mitchell's feedback #8, decided 2026-10-10: "Pending events shouldn't be an
+  // overlap till they are no longer pending." A pending stop (Maybe / To book,
+  // ADR-055) is not a commitment, so a stop on top of it is no conflict at all.
+  it("does not flag an overlap while either stop is pending", () => {
+    expect(
+      detectConflicts(
+        boardState([
+          { id: "a", window: { start: "09:00", end: "11:00" }, kind: "pending" },
+          { id: "b", window: { start: "10:00", end: "12:00" } },
+        ]),
+      ),
+    ).toEqual([]);
+    expect(
+      detectConflicts(
+        boardState([
+          { id: "a", window: { start: "09:00", end: "11:00" } },
+          { id: "b", window: { start: "10:00", end: "12:00" }, kind: "pending" },
+        ]),
+      ),
+    ).toEqual([]);
+  });
+
+  it("still flags a pending stop's neighbours against each other", () => {
+    const conflicts = detectConflicts(
+      boardState([
+        { id: "a", window: { start: "09:00", end: "11:00" } },
+        { id: "b", window: { start: "10:00", end: "12:00" } },
+        { id: "p", window: { start: "09:30", end: "11:30" }, kind: "pending" },
+      ]),
+    );
+    expect(conflicts.map((c) => c.subjects)).toEqual([["a", "b"]]);
+  });
+
+  it("flags a transit stop's overlap like a planned one's", () => {
+    const conflicts = detectConflicts(
+      boardState([
+        { id: "a", window: { start: "09:00", end: "11:00" }, kind: "transit" },
+        { id: "b", window: { start: "10:00", end: "12:00" } },
+      ]),
+    );
+    expect(conflicts.map((c) => c.kind)).toEqual(["time-overlap"]);
+  });
+
   it("ignores the backlog entirely", () => {
     expect(
       detectConflicts(

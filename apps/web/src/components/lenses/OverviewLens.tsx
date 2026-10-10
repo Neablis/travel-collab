@@ -114,6 +114,11 @@ export function OverviewLens({
   // first-paint trade every `useIsPhone` mount makes.
   const isPhone = useIsPhone();
   const [globals, setGlobals] = useState<TripGlobals | null>(null);
+  // Whether the FIRST globals read has answered, either way. The letter waits
+  // on it (see `body`): its widgets read places and zones from the globals,
+  // and mounting the editor before them drew those widgets twice, the second
+  // time at a different height, under the reader's eyes.
+  const [globalsSettled, setGlobalsSettled] = useState(false);
   const [state, setState] = useState<
     | { status: "loading" }
     | { status: "error"; message: string }
@@ -233,7 +238,9 @@ export function OverviewLens({
     void cachedRead(tripKeys.globals(tripId), () => fetchTripGlobals(tripId), {
       dedupeMs: DEDUPE.DOCUMENT,
     }).then((r) => {
-      if (live && r.ok) setGlobals(r.value);
+      if (!live) return;
+      if (r.ok) setGlobals(r.value);
+      setGlobalsSettled(true);
     });
     return () => {
       live = false;
@@ -277,7 +284,11 @@ export function OverviewLens({
   );
 
   const body = () => {
-    if (state.status === "loading") {
+    // The document waits for the first globals answer too (`globalsSettled`):
+    // the skeleton holds the letter's place until its widgets can be drawn
+    // once, at their final height. A failed read still settles — the widgets
+    // then say what they cannot show, as before.
+    if (state.status === "loading" || (state.status === "ready" && !globalsSettled)) {
       // The `ovBody` region (dc.html:1966-2013). The proportions are the
       // artboard's, and they are not arbitrary: a loading Overview should read
       // as a trip page — a title, a paragraph, a table of days, some cards —
@@ -361,6 +372,7 @@ export function OverviewLens({
           onChange={() => {}}
           editable={false}
           compact={isPhone}
+          label="Trip overview"
         />
       </PeopleProvider>
     );
@@ -371,8 +383,13 @@ export function OverviewLens({
   // are in the header's pill and in the letter's own first sentence already.
   // `min-h-7` holds the letterhead's height for a viewer, who has no Edit, so
   // the rule sits in the same place for everyone.
+  //
+  // `pb-22` is the desktop sheet's bottom margin. A phone does not need it
+  // (Mitchell, phone Overview: "Dont need this 'Below' notebook spacing"): the
+  // bottom tab bar's clearance is already reserved by `.phone-tab-bar-inset`
+  // on the page wrapper, so 88px more was only empty paper under the letter.
   return (
-    <div className="pt-8 pb-22 max-md:pt-0">
+    <div className="pt-8 pb-22 max-md:pt-0 max-md:pb-6">
       <div className="tc-overview-letter">
         <div className="mb-6.5 flex min-h-7 items-center justify-between gap-4 border-b border-hairline pb-4.5">
           {linkedPageId === null ? (

@@ -252,6 +252,21 @@ describe("HeaderSessionChrome's account menu", () => {
     expect(screen.queryByRole("button", { name: "Account menu" })).toBeNull();
   });
 
+  // axe `landmark-unique` on trip pages: this nav and the trip header's were
+  // both unnamed navigation landmarks.
+  it("names its navigation landmark", async () => {
+    const { getSession } = await import("next-auth/react");
+    vi.mocked(getSession).mockResolvedValueOnce({
+      user: { name: "Sam K", email: "sam@example.com" },
+      expires: "",
+    });
+
+    render(<HeaderSessionChrome />);
+
+    const main = await screen.findByRole("navigation", { name: "Main" });
+    expect(within(main).getByRole("link", { name: "Trips" }).getAttribute("href")).toBe("/");
+  });
+
   // ADR-061: the playbooks are readable without an account, so a signed-out
   // header is the way in — and both doors bring the reader back to this page.
   it("offers Sign in and Create an account while signed out, each returning to this page", async () => {

@@ -381,12 +381,15 @@ export function watchMapWorker(page: Page): { outcome: () => string } {
  *
  * **Whichever entry point the surface shows, since M39 D3.** The trip board's
  * floating launcher sat over the right-hand column's costs and is gone: there
- * the header's `ask-pill` is the way in at every width. A notebook page keeps
- * its `assistant-launcher` above 768px and hides its pill, so exactly one of
- * the two is visible on either surface.
+ * the header's `ask-pill` is the way in above 768px. A notebook page keeps
+ * its `assistant-launcher` above 768px. Below 768px, since 2026-10-10, every
+ * in-trip screen's way in is the tab bar's `ask-tab` (the header pill is
+ * hidden there), so exactly one of the three is visible on any surface.
  */
 export async function openAssistantRail(page: Page): Promise<void> {
-  await page.locator('[data-testid="ask-pill"]:visible, [data-testid="assistant-launcher"]:visible').click();
+  await page
+    .locator('[data-testid="ask-pill"]:visible, [data-testid="ask-tab"]:visible, [data-testid="assistant-launcher"]:visible')
+    .click();
   await expect(page.getByRole("complementary", { name: "Assistant" })).toBeVisible();
 }
 
@@ -500,7 +503,7 @@ export async function openAccountPage(page: Page, tab?: "profile" | "plan" | "to
   if (tab === undefined) return;
   if (tab === "tokens") {
     await page.getByRole("button", { name: "API tokens →" }).click();
-    await expect(page.getByRole("heading", { name: "API tokens", level: 3 })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "API tokens", level: 2 })).toBeVisible();
     return;
   }
   const label = { profile: "Profile", plan: "Plan & usage" }[tab];

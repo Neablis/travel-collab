@@ -314,7 +314,14 @@ export function Board({
       { start: boxRect.left, size: boxRect.width },
       spans,
       READING_LINE.horizontal,
-      { atStart: box.scrollLeft <= 1, atEnd: box.scrollLeft >= maxScroll - 1 },
+      {
+        atStart: box.scrollLeft <= 1,
+        atEnd: box.scrollLeft >= maxScroll - 1,
+        // The sliding line and the hold (centralDay.ts): every day reachable,
+        // each for its share of the scroll, not just the first and last.
+        progress: maxScroll > 0 ? box.scrollLeft / maxScroll : 0,
+        current: focusedDay,
+      },
     );
   });
 

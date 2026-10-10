@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Banner } from "@/components/ui/banner";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Heading } from "@/components/ui/heading";
+import { Skeleton, SkeletonRegion } from "@/components/ui/skeleton";
 import { Text } from "@/components/ui/text";
 import { effectiveTierRef, type AccountPlanView } from "@/lib/accountPlan";
 import { Check } from "lucide-react";
@@ -74,6 +75,83 @@ function Meter({ label, standing, testId }: { label: string; standing: { used: n
         <div className="h-full rounded-full bg-brand" style={{ width: `${pct}%` }} />
       </div>
     </div>
+  );
+}
+
+/**
+ * **The Plan tab while `/api/account/plan` is in flight** (Mitchell, Vercel
+ * Toolbar on `/account?tab=plan`: *"This page has no skeleton mode, and its
+ * mostly static text, we can put more of the text with placeholders for when
+ * the data loads in"*). It rendered nothing, so the whole tab appeared at once.
+ *
+ * The section's own two cards, with everything that does not depend on the
+ * account written out for real — the first capability (every plan has it),
+ * *Change plan* (a real link, §3b: chrome is never placeholdered), the meters'
+ * heading, labels and explanations — and a bone only where a value goes: the
+ * tier and its state, the renewal line, the rest of the capability list, the
+ * counts, and the ceilings line. Meter tracks are drawn empty, never filled.
+ * The past-due banner and the referral row depend on the account and are not
+ * guessed at.
+ */
+function PlanSectionSkeleton() {
+  const meter = (label: string, testId: string) => (
+    <div className="flex flex-col gap-1" data-testid={testId}>
+      <div className="flex items-baseline justify-between gap-2">
+        <Text as="span" className="text-sm text-ink">
+          {label}
+        </Text>
+        <span className="block text-sm">
+          <Skeleton circle className="inline-block h-3 w-12 align-middle" delay={2} />
+        </span>
+      </div>
+      <div className="h-1.5 w-full rounded-full bg-moss" aria-hidden />
+    </div>
+  );
+  return (
+    <SkeletonRegion label="Loading your plan" className="flex flex-col gap-3">
+      <div className="flex flex-col gap-1.5 rounded-lg border border-hairline bg-surface p-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="block text-sm">
+            <Skeleton className="inline-block h-3.5 w-24 align-middle" />
+          </span>
+          <Skeleton circle className="h-5 w-16" />
+        </div>
+        <span className="block text-xs">
+          <Skeleton circle className="inline-block h-2.5 w-40 align-middle" delay={2} />
+        </span>
+        <ul className="mt-1 flex flex-col gap-1">
+          <li className="flex items-start gap-2 text-xs text-ink">
+            <Check aria-hidden className="mt-px size-3.5 shrink-0 text-success" />
+            Plan trips, days and stops, with the map and costs
+          </li>
+          {["w-48", "w-40"].map((width) => (
+            <li key={width} className="flex items-start gap-2 text-xs">
+              <span aria-hidden className="mt-px size-3.5 shrink-0" />
+              <Skeleton circle className={`mt-0.5 inline-block h-2.5 align-middle ${width}`} delay={2} />
+            </li>
+          ))}
+        </ul>
+        <div className="mt-1 flex flex-wrap gap-2">
+          <Link href="/plans" className={buttonVariants({ variant: "secondary", size: "sm" })}>
+            Change plan
+          </Link>
+        </div>
+      </div>
+      <div className="flex flex-col gap-2 rounded-lg border border-hairline bg-surface p-3">
+        <Heading level={4}>Assistant use today</Heading>
+        {meter("Questions", "meter-questions-skeleton")}
+        <Text variant="secondary" className="text-xs">
+          Every question you ask the assistant, across all your trips.
+        </Text>
+        {meter("Steps", "meter-steps-skeleton")}
+        <Text variant="secondary" className="text-xs">
+          One question can take several steps. On a heavy day this is the one that runs out first.
+        </Text>
+        <span className="block text-xs">
+          <Skeleton circle className="inline-block h-2.5 w-3/4 align-middle" delay={3} />
+        </span>
+      </div>
+    </SkeletonRegion>
   );
 }
 
@@ -160,7 +238,7 @@ export function PlanSection() {
       </Text>
     );
   }
-  if (plan === null) return null;
+  if (plan === null) return <PlanSectionSkeleton />;
 
   const [planId, version] = plan.planVersionRef.split("@");
   // **The tier this account can actually use, which is not always the one it
@@ -375,7 +453,10 @@ export function PlanSection() {
           environment's global ceiling is deliberately never shown, because it
           was never sold to anyone. */}
       <div className="flex flex-col gap-2 rounded-lg border border-hairline bg-surface p-3">
-        <Heading level={4}>Assistant use today</Heading>
+        {/* h2, not h4: the Plan panel is named by its tab and has no heading
+            of its own, so these cards sit straight under the page's h1 and an
+            h4 skipped two levels (axe heading-order). Same h4 type. */}
+        <Heading level={2} className="text-md font-medium">Assistant use today</Heading>
         <Meter label="Questions" standing={plan.questions} testId="meter-questions" />
         <Text variant="secondary" className="text-xs">
           Every question you ask the assistant, across all your trips.
@@ -403,7 +484,7 @@ export function PlanSection() {
           reward that resolves to zero. */}
       {plan.canRefer ? (
         <div className="flex flex-col gap-2 rounded-lg border border-hairline bg-surface p-3" data-testid="referral-row">
-          <Heading level={4}>Bring someone in, get a month</Heading>
+          <Heading level={2} className="text-md font-medium">Bring someone in, get a month</Heading>
           <Text variant="secondary" className="text-xs">
             When someone new signs up with your link you get a month of whatever you hold the moment
             they join. A free plan earns nothing, so there is nothing to farm.

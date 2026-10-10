@@ -195,6 +195,15 @@ describe("the phone front door (SPEC §28)", () => {
   // pinned by the thing he asked for rather than by a class name.
   // ADR-061: the playbook library is open without an account, so a phone
   // visitor can leave the front door for it (Mitchell, 2026-10-02).
+  // axe at phone width on `/`: no `main` landmark, and the headline, claims
+  // and call to action outside every landmark.
+  it("holds its content in a main landmark, between the banner and the footer", () => {
+    render(<PhoneFrontDoor />);
+    const main = within(screen.getByTestId("phone-front-door")).getByRole("main");
+    expect(within(main).getByRole("heading", { level: 1, name: "Put the best day on repeat." })).toBeTruthy();
+    expect(within(main).getByRole("link", { name: "Start a trip" })).toBeTruthy();
+  });
+
   it("links the playbook library from the header", () => {
     render(<PhoneFrontDoor />);
     const playbooks = within(screen.getByTestId("phone-front-door")).getByRole("link", { name: "Playbooks" });

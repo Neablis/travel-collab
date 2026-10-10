@@ -68,7 +68,7 @@ test("a share link keeps showing the trip as it was when it was shared", async (
   await addDay(page, tripId);
 
   await page.goto(`/trips/${tripId}?view=Plan`);
-  await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
   const link = await shareLinkFor(page, tripName);
 
   // A signed-out stranger, in their own context.
@@ -109,7 +109,7 @@ test("turning a share link off stops it working", async ({ page, browser }) => {
   const tripName = e2eTripName("Unshared");
   const tripId = await createTrip(page, tripName);
   await page.goto(`/trips/${tripId}?view=Plan`);
-  await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
   const link = await shareLinkFor(page, tripName);
 
   await Promise.all([

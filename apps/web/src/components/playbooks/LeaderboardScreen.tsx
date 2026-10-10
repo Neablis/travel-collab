@@ -79,6 +79,7 @@ export function LeaderboardScreen() {
         // ROWS, which cannot happen. This is a board that never arrived, and
         // the Retry for it is in the banner above.
         <EmptyState
+          level={2}
           title="The board could not be loaded"
           body="Nothing has been shown yet. Retry above, or go back to Discover."
         />

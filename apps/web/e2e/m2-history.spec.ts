@@ -35,7 +35,7 @@ test("history: dismiss persists, undo/redo, preview, revert", async ({ page }) =
   // -- setup: a day with an overlap conflict (M1 vocabulary) --
   await createEmptyTripViaWizard(page, tripName);
   await page.getByRole("link", { name: tripName }).click();
-  await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
   await openPlan(page);
   await waitForCommandConfirmed(page, () => page.getByRole("button", { name: "Add a day", exact: true }).click());
   await expect(page.getByTestId("day-column")).toHaveCount(1);
@@ -47,11 +47,16 @@ test("history: dismiss persists, undo/redo, preview, revert", async ({ page }) =
   await page.getByLabel("What or where").fill("Colosseum");
   await page.getByLabel("Start", { exact: true }).fill("09:00");
   await page.getByLabel("How long").selectOption("2 hours");
+  // Both stops are Planned, not the editor's Pending default: an overlap with a
+  // pending stop is no conflict until it is confirmed (Mitchell, 2026-10-10,
+  // feedback #8), and this walk is about the conflict.
+  await page.getByRole("radiogroup", { name: "Kind" }).getByRole("radio", { name: "Planned" }).click();
   await waitForCommandConfirmed(page, () => page.getByRole("button", { name: "Add stop" }).last().click());
   await page.getByRole("button", { name: "Add stop" }).click();
   await page.getByLabel("What or where").fill("Vatican Museums");
   await page.getByLabel("Start", { exact: true }).fill("10:00");
   await page.getByLabel("How long").selectOption("2 hours");
+  await page.getByRole("radiogroup", { name: "Kind" }).getByRole("radio", { name: "Planned" }).click();
   await waitForCommandConfirmed(page, () => page.getByRole("button", { name: "Add stop" }).last().click());
 
   const rack = page.getByTestId("unscheduled-rack");
@@ -78,7 +83,7 @@ test("history: dismiss persists, undo/redo, preview, revert", async ({ page }) =
   // eslint-disable-next-line playwright/no-useless-not -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
   await expect(page.getByText(/overlap in time/)).not.toBeVisible();
   await page.reload();
-  await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
   // eslint-disable-next-line playwright/no-useless-not -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
   await expect(page.getByText(/overlap in time/)).not.toBeVisible(); // survived the reload
 

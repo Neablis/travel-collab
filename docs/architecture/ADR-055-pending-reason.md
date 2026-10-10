@@ -96,3 +96,7 @@ same gap for a leg moved off transit; the helper closes both.
   `(kind "transit")` like the command one, because both are the same message.
 - The OpenAPI document gains the field on every stop shape; v1 writes take it as they take
   `mode`.
+
+## Amendment — 2026-10-10: a pending stop is in no time overlap
+
+Mitchell, 2026-10-10 (design feedback #8: *"Pending events shouldn't be an overlap till they are no longer pending"*): `detectConflicts`' `time-overlap` rule skips any stop of `kind: "pending"`, whatever its reason, so no surface (board, conflict count and list, assistant, notebook widgets, API) shows one; confirming the stop brings the conflict back under the same id, and a dismissal made before it went pending lapses as KI-14 says (`docs/contracts/CHANGELOG.md`, 2026-10-10).

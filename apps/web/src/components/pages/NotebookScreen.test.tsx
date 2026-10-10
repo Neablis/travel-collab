@@ -29,6 +29,7 @@ vi.mock("@/lib/apiClient", async (orig) => {
 // Imported after the `vi.mock` calls, which are hoisted anyway — written this
 // way so a reader is not left wondering whether the screen got the real client.
 import { NotebookScreen } from "./NotebookScreen";
+import { PhoneAskTab } from "@/components/nav/PhoneTabBar";
 import { fetchTripAccess } from "@/lib/apiClient";
 import { cachedRead } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
@@ -125,6 +126,8 @@ describe("NotebookScreen", () => {
     // Scoped to the list: the gallery above offers a card called "Trip
     // Overview" too, because a seeded notebook is named after its template.
     const list = await screen.findByRole("region", { name: "Your notebooks" });
+    // The list is the page's `main` content (axe landmark-one-main).
+    expect(within(screen.getByRole("main")).getByRole("region", { name: "Your notebooks" })).toBe(list);
     expect(within(list).getByText("Trip Overview")).toBeTruthy();
     expect(within(list).getByText("Day Sheet")).toBeTruthy();
     // A notebook has no scope to name (SPEC §18), so the badge #126 shipped
@@ -193,7 +196,7 @@ describe("NotebookScreen", () => {
     render(<NotebookScreen tripId={TRIP_ID} />);
     await screen.findByRole("region", { name: "Your notebooks" });
 
-    const inOrder = screen.getAllByRole("heading", { level: 3 }).map((heading) => heading.textContent);
+    const inOrder = screen.getAllByRole("heading", { level: 2 }).map((heading) => heading.textContent);
     expect(inOrder).toEqual(["Your notebooks", "Start from a template"]);
   });
 
@@ -555,9 +558,15 @@ describe("NotebookScreen", () => {
 
     async function openSheet() {
       server.use(...makePagesHandlers([pageFixture({ tripId: TRIP_ID })]));
-      render(<NotebookScreen tripId={TRIP_ID} />);
+      render(
+        <>
+          <NotebookScreen tripId={TRIP_ID} />
+          {/* The phone's Ask is the tab bar's item since 2026-10-10. */}
+          <PhoneAskTab />
+        </>,
+      );
       await screen.findByRole("region", { name: "Your notebooks" });
-      await userEvent.click(screen.getByRole("button", { name: "Ask" }));
+      await userEvent.click(await screen.findByRole("button", { name: "Ask" }));
     }
 
     // §23: *"the Notebook index gained a title block — 'Notebook' at title
@@ -780,10 +789,13 @@ describe("NotebookScreen — the states between asked and answered", () => {
 
     expect(await screen.findByRole("status", { name: "Loading your notebooks" })).toBeTruthy();
     // Rule 1: the chrome is real from the first frame.
-    expect(screen.getByRole("heading", { name: "Notebooks", level: 2 })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Notebooks", level: 1 })).toBeTruthy();
     expect(screen.getByRole("link", { name: /Your trips/ })).toBeTruthy();
     // And the one thing this page can still DO without its list.
     expect(screen.getByRole("region", { name: "Start from a template" })).toBeTruthy();
+    // The sections sit one level under the page's h1 (axe heading-order).
+    expect(screen.getByRole("heading", { name: "Your notebooks", level: 2 })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Start from a template", level: 2 })).toBeTruthy();
   });
 
   it("puts a failed list's retry in place, and the templates still work", async () => {
@@ -804,7 +816,7 @@ describe("NotebookScreen — the states between asked and answered", () => {
     // The templates gallery is a module constant, so it survives a failed read
     // — which is the whole reason it sits outside the branch.
     expect(within(screen.getByRole("region", { name: "Start from a template" })).getByText("Blank notebook")).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Notebooks", level: 2 })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Notebooks", level: 1 })).toBeTruthy();
 
     await userEvent.click(within(failed).getByRole("button", { name: "Try again" }));
 

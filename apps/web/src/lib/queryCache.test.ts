@@ -1,5 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { DEDUPE, beginWrite, cachedRead, clearQueryCache, endWrite, invalidate, writesSettled } from "@/lib/queryCache";
+import {
+  DEDUPE,
+  beginWrite,
+  cachedRead,
+  clearQueryCache,
+  endWrite,
+  invalidate,
+  peekCached,
+  writesSettled,
+} from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
 import type { ApiResult } from "@/lib/apiClient";
 
@@ -284,6 +293,26 @@ describe("invalidate", () => {
     const next = await cachedRead(tripKeys.detail(TRIP), fresh.read);
     expect(next).toEqual({ ok: true, value: { name: "after the command" } });
     expect(fresh.calls.count).toBe(1);
+  });
+});
+
+// Trip settings' sections remount on every open of the sheet; this is what
+// they paint from while `cachedRead` revalidates.
+describe("peekCached", () => {
+  it("answers the last stored value past the window, and nothing a write has invalidated", async () => {
+    await cachedRead(tripKeys.access(TRIP), reader({ members: 2 }).read);
+    vi.advanceTimersByTime(DEDUPE.DOCUMENT + 1);
+    expect(peekCached(tripKeys.access(TRIP))).toEqual({ members: 2 });
+
+    invalidate(tripKeys.all(TRIP));
+    expect(peekCached(tripKeys.access(TRIP))).toBeUndefined();
+  });
+
+  it("never answers a failure", async () => {
+    await cachedRead(tripKeys.access(TRIP), () =>
+      Promise.resolve({ ok: false as const, error: { status: 500, message: "boom" } }),
+    );
+    expect(peekCached(tripKeys.access(TRIP))).toBeUndefined();
   });
 });
 

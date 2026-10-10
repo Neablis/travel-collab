@@ -20,7 +20,7 @@ import { e2eTripName } from "./tripNames";
 async function openNotebookIndex(page: Page): Promise<void> {
   await page.getByRole("button", { name: "Notebooks" }).click();
   await page.getByRole("link", { name: /Browse all notebooks/ }).click();
-  await expect(page.getByRole("heading", { name: "Notebooks", exact: true, level: 2 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Notebooks", exact: true, level: 1 })).toBeVisible();
 }
 
 // The edit session writes once, when it ends (ADR-036).
@@ -58,7 +58,7 @@ test("a new trip comes with four notebooks, and the Overview links to the other 
   await page.goto("/");
   await createEmptyTripViaWizard(page, tripName);
   await page.getByRole("link", { name: tripName }).click();
-  await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
 
   // -- the four, in order, each described by its own first line --
   await openNotebookIndex(page);
@@ -164,7 +164,7 @@ test("insert an internal link to Money and follow it; insert a link to a website
   await page.goto("/");
   await createEmptyTripViaWizard(page, tripName);
   await page.getByRole("link", { name: tripName }).click();
-  await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
   await openNotebookIndex(page);
   await page.getByRole("region", { name: "Your notebooks" }).getByRole("link", { name: /^Before you go/ }).click();
   await expect(page.getByRole("heading", { name: "Before you go", level: 1 })).toBeVisible();

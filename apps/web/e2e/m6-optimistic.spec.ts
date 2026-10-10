@@ -11,7 +11,7 @@ test("optimistic add renders instantly and persists", async ({ page }) => {
 
   await createEmptyTripViaWizard(page, tripName);
   await page.getByRole("link", { name: tripName }).click();
-  await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
   await openPlan(page);
 
   const days = page.getByTestId("day-column");
@@ -46,7 +46,7 @@ test("a rejected change stays visible, shows an error, and can be retried", asyn
 
   await createEmptyTripViaWizard(page, tripName);
   await page.getByRole("link", { name: tripName }).click();
-  await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
   await openPlan(page);
 
   // Force the single-command endpoint (AddDay is sent via sendTripCommand,

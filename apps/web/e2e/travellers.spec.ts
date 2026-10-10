@@ -125,7 +125,7 @@ test("a suggester joins without moving the totals, and counts once marked as tra
   try {
     await advisor.goto(link);
     await advisor.getByRole("button", { name: "Join the trip" }).click();
-    await expect(advisor.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
+    await expect(advisor.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
   } finally {
     await advisor.context().close();
   }

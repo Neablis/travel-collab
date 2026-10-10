@@ -5,7 +5,9 @@ import { DAY_END_MIN, toMinutes, toTimeString } from "@/lib/time";
 // here is a new rule: `time-overlap` conflicts are emitted by the domain
 // (packages/domain/src/trip/conflicts.ts) and arrive on TripDetail already —
 // this only decides which of the pair the warning hangs off and what the copy
-// needs to say about the other one.
+// needs to say about the other one. That includes "a pending stop is not in an
+// overlap" (Mitchell, 2026-10-10): the domain does not emit one, so nothing
+// here filters by kind.
 export type Overlap = {
   conflictId: string;
   laterActivityId: string; // the stop the warning attaches to

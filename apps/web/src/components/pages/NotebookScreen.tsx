@@ -23,7 +23,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { EmptyState } from "@/components/ui/empty-state";
-import { AskPill } from "@/components/assistant/AskPill";
+import { usePhoneAskEntry } from "@/components/nav/phoneAsk";
 import { AssistantRail } from "@/components/assistant/AssistantRail";
 import { phoneAskContext } from "@/components/assistant/phoneAskContext";
 import { useAskThread } from "@/components/assistant/useAskThread";
@@ -331,7 +331,7 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
   });
   const [assistantOpen, setAssistantOpen] = useState(false);
   // The ONLY thing width decides on this screen — see the effect below. The
-  // entry point is not gated on it (`AskPill` carries its own `md:hidden`) and
+  // entry point is not gated on it (the tab bar's Ask item is `md:hidden`) and
   // neither is the sheet's dress, which is unconditional because there is only
   // one presentation here to have.
   const isPhone = useIsPhone();
@@ -348,7 +348,7 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
   // only proves the viewport was phone-sized when the pill was tapped; a 411×852
   // phone turned landscape is 852px wide, so a rotation mid-conversation leaves a
   // phone bottom sheet — with its tab-bar scrim — pinned to a desktop-width
-  // screen, and `AskPill`'s `md:hidden` has taken away the only control that
+  // screen, and the tab bar's `md:hidden` has taken away the only control that
   // could have put it back (Copilot, PR #148).
   //
   // It CLOSES rather than re-dressing, and that is the one place this screen
@@ -363,7 +363,7 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
   // **This cannot flash**, which is the standing objection to a JS width check
   // (`useIsPhone` starts `false` on the server and on the first client paint).
   // Nothing here gates what paints: `assistantOpen` is `false` on every load and
-  // only a tap on `AskPill` sets it, so the guard is unreachable until effects
+  // only a tap on the tab bar's Ask sets it, so the guard is unreachable until effects
   // have run and `isPhone` is already correct. There is no frame in which it can
   // close something a user opened.
   useEffect(() => {
@@ -478,15 +478,19 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
   // page-scoped one route down. `focusedDay` is `null` because it is: the
   // `FocusProvider` is mounted on the board route, not this one, and there is
   // no day open on a list of notebooks to point at.
-  // `null` until the trip lands, which is also why `AskPill` waits for it: the
+  // `null` until the trip lands, which is also why the tab bar's Ask waits for it: the
   // assistant's whole scope IS this trip, and a pill that opens a sheet with
   // nothing to ask about is worse than a pill that is not there yet. The rest
   // of this screen's chrome — the way out, the heading, the standfirst — does
   // not depend on a read and so renders from the first frame (§3b rule 1).
   const phoneAsk = trip === null ? null : phoneAskContext(trip, null, { tab: "notebook", page: null });
+  // The tab bar's Ask item is this screen's way in (Mitchell, 2026-10-10:
+  // Ask moved from the phone's top rows into the bottom bar), offered once
+  // the trip has landed for the reason above.
+  usePhoneAskEntry(phoneAsk === null ? undefined : () => setAssistantOpen(true), assistantOpen);
 
   return (
-    <PageContainer>
+    <PageContainer as="main">
       <div className="mb-6">
         {/* SPEC §22 asks for this by name. Once the phone tab bar became
             scoped — Plan / Map / Notebook inside a trip, with Trips and
@@ -501,20 +505,17 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
             and a link that appears only under a breakpoint is the kind of thing
             that goes stale unseen. Styled as `TripHeader`'s is, so the two read
             as the same affordance. */}
-        {/* The top row, SPEC §23: the way out on the left, `Ask` last. Same
-            position as on Plan and Map, which is the whole of §23's *"same
-            pill, same label, same position, so it never moves as you change
-            tabs"* — a pill that sits in the header on two screens and
-            somewhere else on the third is the inconsistency it exists to end.
-            `AskPill` hides itself above 768px, so this row is a bare link on a
-            desktop exactly as it was. */}
+        {/* The top row. `Ask` ended it on a phone until 2026-10-10; it is the
+            tab bar's Ask item now (`usePhoneAskEntry` above), in the same
+            place on every in-trip screen. */}
         <div className="mb-2 flex items-center justify-between gap-3">
           <Link href="/" className="inline-flex min-h-11 items-center text-xs text-slate no-underline hover:text-ink">
             ← Your trips
           </Link>
-          {phoneAsk !== null && <AskPill open={assistantOpen} onOpen={() => setAssistantOpen(true)} />}
         </div>
-        <Heading level={2}>Notebooks</Heading>
+        {/* The page's h1 (axe page-has-heading-one: this route had none), at the
+            h2's size it always had; its two sections below are h2 at the h3 size. */}
+        <Heading level={1} className="text-xl">Notebooks</Heading>
         {/* SPEC §23's meta line: *"'Notebook' at title scale with the trip name
             as its meta line, matching Plan's rhythm. That is where the trip
             name lives now."* It is not decoration — with the tab bar scoped
@@ -526,7 +527,7 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
             "Notebook" singular. Deliberate: §23 is describing the tab's name,
             and the plural is what this list has been called since §7 — three
             e2e specs name it exactly (`m7-solo-delight`, `m14-notebook-widgets`
-            both assert `heading name "Notebooks" exact level 2`). Renaming a
+            both assert `heading name "Notebooks" exact level 1`). Renaming a
             heading the design did not ask to rename, to a word that also has to
             be right in the tab bar, is a change to make in the design's own
             terms rather than as a side effect of adding a meta line. */}
@@ -584,7 +585,7 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
           reopen it — §3b asks for regions that can fail independently, and
           these two cannot. */}
       <section aria-labelledby="your-notebooks" className="mb-8">
-        <Heading level={3} id="your-notebooks">
+        <Heading level={2} id="your-notebooks" className="text-lg">
           Your notebooks
         </Heading>
         {status === "loading" ? (
@@ -620,6 +621,7 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
           />
         ) : pages.length === 0 ? (
           <EmptyState
+            level={3}
             title="No notebooks yet"
             body={
               reader
@@ -755,7 +757,7 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
             is left to the ones worth comparing. Same `BLANK_STARTER`, same
             `handleCreate`, same accessible name the e2e suite clicks. */}
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <Heading level={3} id="start-from-a-template">
+          <Heading level={2} id="start-from-a-template" className="text-lg">
             Start from a template
           </Heading>
           <Button
@@ -844,7 +846,7 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
 
       {/* **`presentation="sheet"` unconditionally, because the sheet is the
           only presentation this screen has.** The one control that can set
-          `assistantOpen` is `AskPill`, which is `md:hidden`, so the sheet can
+          `assistantOpen` is the tab bar's Ask, which is `md:hidden`, so the sheet can
           only ever be OPENED at phone width — and the width guard above is what
           keeps that true afterwards, which is the half the open state cannot
           answer on its own (a rotation is not a tap).

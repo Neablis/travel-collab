@@ -80,6 +80,58 @@ describe("centralDayIndex", () => {
     });
   });
 
+  // Mitchell, desktop Plan, of day 14 of a fifteen-day trip: "It's impossible
+  // to scroll to this day, it jumps over it. If possible make the scroll stay
+  // on a day a bit more." The edge fix above only rescued the FIRST and LAST
+  // day: every other day whose centre lies outside the band the centre line
+  // can sweep (half a box from each end) was still skipped — hard right named
+  // day 12, then the end named day 15, and day 14 never. So the line slides
+  // with the scroll (`progress`): at the start it sits on the box's left edge,
+  // at the end on its right, and in between it sweeps the whole row, giving
+  // each day an equal share of the scroll. `current` then holds a day until
+  // the line is well into the next one, so a day does not flick past.
+  describe("a sliding reading line, which reaches every day", () => {
+    // Fifteen 276px columns in a 1680px box: Mitchell's board at 1728px.
+    const FIFTEEN = Array.from({ length: 15 }, (_, i) => ({ start: i * 276, size: 276 }));
+    const BOX = { start: 0, size: 1680 };
+    const MAX = 15 * 276 - 1680;
+    const at = (scrollLeft: number, current: number | null = null) =>
+      centralDayIndex(
+        BOX,
+        FIFTEEN.map((d) => ({ ...d, start: d.start - scrollLeft })),
+        READING_LINE.horizontal,
+        { atStart: scrollLeft <= 1, atEnd: scrollLeft >= MAX - 1, progress: scrollLeft / MAX, current },
+      );
+
+    it("names every day somewhere along the scroll, in order", () => {
+      const seen: number[] = [];
+      for (let scrollLeft = 0; scrollLeft <= MAX; scrollLeft++) {
+        const index = at(scrollLeft);
+        if (index !== null && seen.at(-1) !== index) seen.push(index);
+      }
+      expect(seen).toEqual(Array.from({ length: 15 }, (_, i) => i));
+    });
+
+    it("gives each day an even share of the scroll, not a sliver at the ends", () => {
+      const share = new Map<number, number>();
+      for (let scrollLeft = 0; scrollLeft <= MAX; scrollLeft++) {
+        const index = at(scrollLeft)!;
+        share.set(index, (share.get(index) ?? 0) + 1);
+      }
+      const even = MAX / 15;
+      for (const [, px] of share) expect(px).toBeGreaterThan(even * 0.8);
+    });
+
+    it("holds the current day a while past the boundary before moving on", () => {
+      // The boundary between day 6 and day 7, where the line crosses 7 × 276.
+      const boundary = Math.ceil((7 * 276 * MAX) / (15 * 276));
+      expect(at(boundary + 5)).toBe(7);
+      expect(at(boundary + 5, 6)).toBe(6);
+      // ...but only a while: well into day 7, the current day lets go.
+      expect(at(boundary + 60, 6)).toBe(7);
+    });
+  });
+
   it("settles on the earlier day when two are equidistant", () => {
     // Line at 400 with two 200px days centred at 300 and 500. Without the
     // strict `<` this would flip between them on sub-pixel scroll jitter, which

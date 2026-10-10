@@ -41,42 +41,67 @@ const SPARK_HEIGHTS = [
 /** Widths differ per bar so the three cards do not read as one repeated shape. */
 const CARD_TITLE_WIDTHS = ["w-3/4", "w-2/3", "w-4/5"];
 
+/**
+ * **The hero's own box model, row for row** (Mitchell, Vercel Toolbar on the
+ * Home preview: *"The skeleton for this element is shorter than the actual
+ * element … the size here should be pretty consistent"*, with the badge row
+ * selected).
+ *
+ * It was the artboard's proportions — `p-8`, `gap-4.5`, a 20px badge row, two
+ * title bars and no travellers — so the hero changed height when it landed.
+ * Now each row is the loaded `NextTripHero`'s: `Card`'s `rounded-md` and
+ * shadow, `.hero-grid`'s columns, `p-6` at `gap-5`; the badge row at the 32px
+ * of the `icon` menu button that ends it (44px on a phone, the button floor);
+ * the 24px/1.2 title, at `PHONE_TOUCH`'s 44px below `md`; the meta line; the
+ * budget slot at its reserved `min-h-10 sm:min-h-5`; the `md` traveller
+ * avatars; and *Open trip* with §35.2's one line after it. The right panel is
+ * the moss well with its static label — chrome is real from the first frame —
+ * and the same bones `SparklineSkeleton` draws.
+ */
 export function NextTripHeroSkeleton() {
   return (
     <SkeletonRegion
       label="Loading your next trip"
-      className="grid grid-cols-1 overflow-hidden rounded-lg border border-hairline bg-surface md:grid-cols-2"
+      className="overflow-hidden rounded-md border border-hairline bg-surface shadow-raised"
     >
-      <div className="flex flex-col gap-4.5 border-hairline p-8 md:border-r">
-        <div className="flex items-center gap-2.5">
-          <Skeleton circle className="h-5 w-19" />
-          <Skeleton circle className="h-3 w-16" />
-        </div>
-        <div className="flex flex-col gap-2.5">
-          <Skeleton className="h-6.5 w-3/4" />
-          <Skeleton className="h-6.5 w-2/5" />
-          <div className="flex items-center gap-2 pt-0.5">
-            <Skeleton circle className="h-3 w-29" delay={2} />
-            <Skeleton circle className="h-3 w-14" delay={2} />
-            <Skeleton circle className="h-3 w-16" delay={2} />
+      <div className="grid hero-grid">
+        <div className="flex flex-col gap-5 border-b border-hairline p-6 lg:border-b-0 lg:border-r">
+          <div className="flex items-center gap-2.5">
+            <Skeleton circle className="h-5 w-19" />
+            <Skeleton circle className="h-3 w-16" />
+            <span className="ml-auto flex size-11 items-center justify-center fine:size-8">
+              <Skeleton className="size-8" />
+            </span>
+          </div>
+          <div>
+            <div className="flex min-h-11 items-center fine:min-h-0">
+              <Skeleton className="h-7 w-3/4" />
+            </div>
+            <div className="mt-1.5 flex h-4.5 items-center">
+              <Skeleton circle className="h-3 w-1/2" delay={2} />
+            </div>
+            <div className="mt-1.5 flex min-h-10 items-start pt-1 sm:min-h-5">
+              <Skeleton circle className="h-3 w-2/5" delay={2} />
+            </div>
+          </div>
+          <div className="flex items-center">
+            <Skeleton circle className="size-7.5" delay={2} />
+            <Skeleton circle className="-ml-2 size-7.5" delay={2} />
+          </div>
+          {/* *Open trip* and §35.2's one line after it — a button and a line of
+              text, so the second bone is a text line, not a second button. */}
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-4.5 gap-y-3">
+            <Skeleton className="h-11 w-26 fine:h-9" delay={3} />
+            <div className="flex min-h-11 basis-full items-center fine:min-h-0 md:basis-auto">
+              <Skeleton circle className="h-3 w-32" delay={3} />
+            </div>
           </div>
         </div>
-        {/* *Open trip* and §35.2's one line after it — a button and a line of
-            text, so the second bone is a text line, not a second button. */}
-        <div className="flex items-center gap-4.5">
-          <Skeleton className="h-9 w-26" delay={3} />
-          <Skeleton circle className="h-3 w-32" delay={3} />
-        </div>
-      </div>
-      <div className="flex flex-col gap-4 p-7">
-        <div className="flex items-center justify-between gap-3">
-          <Skeleton circle className="h-3 w-32" />
-          <Skeleton circle className="h-3 w-18" />
-        </div>
-        <div className="flex h-24 items-end gap-1.5">
-          {SPARK_HEIGHTS.map((height, i) => (
-            <Skeleton key={i} className={`flex-1 ${height}`} delay={2} />
-          ))}
+        <div className="bg-moss p-6">
+          <div className="text-xs font-semibold uppercase tracking-wide text-slate">Shape of the trip</div>
+          <div className="mt-4">
+            <SparklineBones />
+          </div>
         </div>
       </div>
     </SkeletonRegion>
@@ -102,7 +127,17 @@ export function NextTripHeroSkeleton() {
  */
 export function SparklineSkeleton() {
   return (
-    <SkeletonRegion label="Loading the shape of the trip" className="flex flex-col gap-3">
+    <SkeletonRegion label="Loading the shape of the trip">
+      <SparklineBones />
+    </SkeletonRegion>
+  );
+}
+
+/** The bones alone, so the page-level hero skeleton draws the same panel
+ *  without nesting a second `role="status"` inside its own. */
+function SparklineBones() {
+  return (
+    <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-1.5">
         <div className="flex h-24 items-end gap-1.5">
           {SPARK_HEIGHTS.map((height, i) => (
@@ -117,7 +152,7 @@ export function SparklineSkeleton() {
         <Skeleton circle className="h-6.5 w-20" delay={3} />
         <Skeleton circle className="h-6.5 w-18" delay={3} />
       </div>
-    </SkeletonRegion>
+    </div>
   );
 }
 
@@ -139,38 +174,56 @@ export function SparklineSkeleton() {
  */
 export function TripGridSkeleton() {
   return (
-    <SkeletonRegion
-      label="Loading your trips"
-      className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3"
-    >
-      {CARD_TITLE_WIDTHS.map((titleWidth, card) => (
-        <div
-          key={card}
-          className="flex flex-col gap-3 rounded-md border border-hairline bg-surface p-3"
-          data-testid="trip-card-skeleton"
-        >
-          <div className="flex items-start justify-between gap-2">
-            <Skeleton circle className="h-1.5 w-11.5" />
-            <Skeleton className="size-6" />
-          </div>
-          <div>
-            <div className="flex min-h-11 items-center fine:min-h-0">
-              <Skeleton className={`h-5 ${titleWidth}`} />
+    // The section's own stack around the grid, not the grid alone: the loaded
+    // list puts an *Other trips* heading row above it and the phone's import
+    // link below it, each a `gap-3.5` item of the column this sits in, so a
+    // bare grid grew the column by both when the list landed (a layout-shift
+    // probe on Home: 164px → 278px).
+    <SkeletonRegion label="Loading your trips" className="flex flex-col gap-3.5">
+      <div className="mb-3 flex items-baseline justify-between gap-3">
+        <span className="block font-display text-lg">
+          <Skeleton className="inline-block h-4 w-28 align-middle" />
+        </span>
+        <span className="block text-sm">
+          <Skeleton circle className="inline-block h-3 w-16 align-middle" />
+        </span>
+      </div>
+      <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
+        {CARD_TITLE_WIDTHS.map((titleWidth, card) => (
+          <div
+            key={card}
+            className="flex flex-col gap-3 rounded-md border border-hairline bg-surface p-3"
+            data-testid="trip-card-skeleton"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <Skeleton circle className="h-1.5 w-11.5" />
+              <Skeleton className="size-6" />
             </div>
-            <Skeleton className="mt-1 h-3.5 w-2/5" delay={2} />
-            <div className="mt-1 flex min-h-10 items-start pt-0.5 md:min-h-5">
-              <Skeleton className="h-3.5 w-1/2" delay={2} />
+            <div>
+              <div className="flex min-h-11 items-center fine:min-h-0">
+                <Skeleton className={`h-5 ${titleWidth}`} />
+              </div>
+              <Skeleton className="mt-1 h-3.5 w-2/5" delay={2} />
+              <div className="mt-1 flex min-h-10 items-start pt-0.5 md:min-h-5">
+                <Skeleton className="h-3.5 w-1/2" delay={2} />
+              </div>
+            </div>
+            <div className="mt-auto flex items-center justify-between pt-1">
+              <div className="flex items-center">
+                <Skeleton circle className="size-6" delay={3} />
+                <Skeleton circle className="-ml-2 size-6" delay={3} />
+              </div>
+              <Skeleton circle className="h-5 w-16" delay={3} />
             </div>
           </div>
-          <div className="mt-auto flex items-center justify-between pt-1">
-            <div className="flex items-center">
-              <Skeleton circle className="size-6" delay={3} />
-              <Skeleton circle className="-ml-2 size-6" delay={3} />
-            </div>
-            <Skeleton circle className="h-5 w-16" delay={3} />
-          </div>
-        </div>
-      ))}
+        ))}
+      </div>
+      {/* *Import a trip file*: a 44px link on a phone, nothing from `md`. */}
+      <div className="mt-1 flex flex-col items-center">
+        <span className="flex min-h-11 items-center md:hidden">
+          <Skeleton circle className="h-3 w-28" delay={3} />
+        </span>
+      </div>
     </SkeletonRegion>
   );
 }

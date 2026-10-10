@@ -14,6 +14,7 @@ import { Toast } from "@/components/ui/toast";
 import { PageContainer } from "@/components/ui/page-container";
 import { formatTripDateLong } from "@/lib/formatDate";
 import { NextTripHero } from "@/components/home/NextTripHero";
+import { InstallNudge } from "@/components/install/InstallNudge";
 import { NextTripHeroSkeleton, TripGridSkeleton } from "@/components/home/HomeSkeletons";
 import { RegionError } from "@/components/ui/skeleton";
 import { TripCard } from "@/components/home/TripCard";
@@ -540,7 +541,11 @@ export default function Home() {
             className="uppercase tracking-wide"
             dateTime={dateIso ?? undefined}
           >
-            {dateIso !== null ? formatTripDateLong(dateIso) : null}
+            {/* A no-break space until the client's date is known, so the line
+                holds its height in the server HTML: empty, it was 0px, and the
+                whole page below — the hero's skeleton included — moved down a
+                line when the effect filled it in (layout-shift probe on Home). */}
+            {dateIso !== null ? formatTripDateLong(dateIso) : " "}
           </DataText>
           <div className="mt-1.5 flex flex-wrap items-center justify-between gap-3">
             <Heading level={1}>Your trips</Heading>
@@ -555,6 +560,12 @@ export default function Home() {
             </Button>
           </div>
         </div>
+
+        {/* A returning phone's one-time *Keep Caesura on your home screen*
+            card (Mitchell, 2026-10-10: install moved off the trip and out of
+            the desktop account menu). It renders nothing on a desktop, on a
+            first visit, where installing would not work, and once answered. */}
+        <InstallNudge />
 
         {/* The wizard's own createTrip/Create-empty failures render their own
             inline alert inside the Sheet (NewTripWizard.tsx) — this top-level

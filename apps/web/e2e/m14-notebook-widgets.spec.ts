@@ -57,7 +57,7 @@ async function finishEditing(page: Page): Promise<void> {
 async function openNotebookIndex(page: Page): Promise<void> {
   await page.getByRole("button", { name: "Notebooks" }).click();
   await page.getByRole("link", { name: /Browse all notebooks/ }).click();
-  await expect(page.getByRole("heading", { name: "Notebooks", exact: true, level: 2 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Notebooks", exact: true, level: 1 })).toBeVisible();
 }
 
 // A trip with two days, so "point it at a day" has a choice to make and
@@ -68,7 +68,7 @@ async function tripWithTwoDays(page: Page): Promise<string> {
   await createEmptyTripViaWizard(page, tripName);
   await page.getByRole("link", { name: tripName }).click();
   await page.waitForURL(/\/trips\/[^/]+$/);
-  await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
   // SPEC §24: a trip opens on Overview, which is read-only. "Add a day" is on
   // Plan, the one view that edits.
   await page.getByRole("tab", { name: "Plan" }).click();
@@ -1440,7 +1440,7 @@ test("a notebook is renamed by editing its own heading, and the index follows", 
   // the board's "Notebooks" button is not on this screen.
   // The breadcrumb's middle crumb (SPEC §35.3), which was "← Notebooks".
   await page.getByRole("navigation", { name: "Breadcrumb" }).getByRole("link", { name: "Notebook", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Notebooks", exact: true, level: 2 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Notebooks", exact: true, level: 1 })).toBeVisible();
   await expect(page.getByRole("link", { name: /Kyoto notes/ })).toBeVisible();
   await expect(page.getByRole("link", { name: /^Overview/ })).toHaveCount(0);
   // And the button it replaced is gone.

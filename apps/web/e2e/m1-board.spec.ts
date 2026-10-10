@@ -8,10 +8,10 @@ test("board: days, activities, drag, conflicts as data", async ({ page, browser 
 
   await createEmptyTripViaWizard(page, tripName);
   await page.getByRole("link", { name: tripName }).click();
-  // level:2 disambiguates TripHeader's h2 from TripCard's own h3 heading —
+  // level:1 disambiguates TripHeader's h1 from TripCard's own h3 heading —
   // the same class of ambiguity fixed elsewhere post-M10 restyle (see
   // m2/m3/m4/smoke's fix commit); this spec hadn't hit it until now.
-  await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
   // SPEC §24: entering a trip lands on Overview — *"You read a trip before you
   // change it."* This spec is about the board, so it goes to the one view that
   // edits.
@@ -30,6 +30,10 @@ test("board: days, activities, drag, conflicts as data", async ({ page, browser 
   await page.getByLabel("What or where").fill("Colosseum");
   await page.getByLabel("Start", { exact: true }).fill("09:00");
   await page.getByLabel("How long").selectOption("2 hours");
+  // Both stops are Planned, not the editor's Pending default: an overlap with a
+  // pending stop is no conflict until it is confirmed (Mitchell, 2026-10-10,
+  // feedback #8), and this walk is about the conflict.
+  await page.getByRole("radiogroup", { name: "Kind" }).getByRole("radio", { name: "Planned" }).click();
   await page.getByRole("button", { name: "Add stop" }).last().click();
 
   // The drawer is collapsed by default, and collapsed means not rendered — so
@@ -43,6 +47,7 @@ test("board: days, activities, drag, conflicts as data", async ({ page, browser 
   await page.getByLabel("What or where").fill("Vatican Museums");
   await page.getByLabel("Start", { exact: true }).fill("10:00");
   await page.getByLabel("How long").selectOption("2 hours");
+  await page.getByRole("radiogroup", { name: "Kind" }).getByRole("radio", { name: "Planned" }).click();
   await page.getByRole("button", { name: "Add stop" }).last().click();
   await expect(rack.getByTestId("rack-card").filter({ hasText: "Vatican Museums" })).toBeVisible();
 

@@ -291,4 +291,24 @@ describe("CoverSection — anyone else on the trip", () => {
     render(<CoverSection tripId={TRIP} canEdit={false} />);
     expect(await screen.findByText("No cover photo yet.")).toBeTruthy();
   });
+
+  // Trip settings unmounts its content when it closes, so every open is a
+  // fresh mount. Mitchell: *"it refetches on every open"* — and drew the
+  // skeleton each time, then the photo over it.
+  it("paints the cover at once when the sheet opens again, without asking again", async () => {
+    let reads = 0;
+    const cover = tripCoverFactory.build({ alt: "A ridge at dusk" });
+    server.use(...makeCoverHandlers({ cover }));
+    server.events.on("request:start", ({ request }) => {
+      if (request.method === "GET" && new URL(request.url).pathname.endsWith("/cover")) reads++;
+    });
+    const first = render(<CoverSection tripId={TRIP} canEdit={false} />);
+    expect(await screen.findByRole("img", { name: "A ridge at dusk" })).toBeTruthy();
+    first.unmount();
+
+    render(<CoverSection tripId={TRIP} canEdit={false} />);
+    // On the first frame, not after a read: no `find`.
+    expect(screen.getByRole("img", { name: "A ridge at dusk" })).toBeTruthy();
+    expect(reads).toBe(1);
+  });
 });

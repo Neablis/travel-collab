@@ -105,7 +105,7 @@ describe("KeepDayFlag", () => {
 // `globals.css` owns the keyframes and the `prefers-reduced-motion` drop.
 describe("the keep-day pennant's wave", () => {
   // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
-  const wavingFlag = () => document.querySelector(".flag-wave");
+  const wavingFlag = () => document.querySelector(".share-lift");
 
   it("does not wave until it is pressed", () => {
     renderFlag();

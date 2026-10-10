@@ -185,6 +185,8 @@ describe("Discover", () => {
     render(<DiscoverScreen initial={{ scope: "saved" }} />);
 
     expect(await screen.findByText("No days match")).toBeTruthy();
+    // One level under the screen's h1 (axe heading-order on /playbooks).
+    expect(screen.getByRole("heading", { level: 2, name: "No days match" })).toBeTruthy();
     expect(screen.queryByRole("tablist", { name: "Whose days" })).toBeNull();
     expect(screen.queryByRole("tab", { name: "Saved" })).toBeNull();
     expect(searchPlaybooksMock).toHaveBeenCalled();

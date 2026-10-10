@@ -17,7 +17,7 @@ const LETTER = /^Here is your itinerary, day by day/;
 async function openNotebookIndex(page: Page): Promise<void> {
   await page.getByRole("button", { name: "Notebooks" }).click();
   await page.getByRole("link", { name: /Browse all notebooks/ }).click();
-  await expect(page.getByRole("heading", { name: "Notebooks", exact: true, level: 2 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Notebooks", exact: true, level: 1 })).toBeVisible();
 }
 
 // The edit session writes once, when it ends (ADR-036).
@@ -35,7 +35,7 @@ test("the owner resets an edited Overview to its default, and adds back a missin
   await page.goto("/");
   await createEmptyTripViaWizard(page, tripName);
   await page.getByRole("link", { name: tripName }).click();
-  await expect(page.getByRole("heading", { name: tripName, level: 2 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
 
   // -- edit the Overview: its opening letter becomes the owner's own words --
   await openNotebookIndex(page);
@@ -71,7 +71,7 @@ test("the owner resets an edited Overview to its default, and adds back a missin
   // -- a notebook the trip is missing, added back from the list --
   // Back up the breadcrumb: the Notebooks menu is on the trip board, not here.
   await page.getByRole("link", { name: "Notebook", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Notebooks", exact: true, level: 2 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Notebooks", exact: true, level: 1 })).toBeVisible();
   await expect(page.getByRole("button", { name: "Add missing default notebooks" })).toHaveCount(0);
   await mine.getByRole("button", { name: "Delete Money" }).click();
   await expect(mine.getByRole("link", { name: /^Money/ })).toHaveCount(0);

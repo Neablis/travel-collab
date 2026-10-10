@@ -405,10 +405,13 @@ test.describe("responsive (narrow viewport)", () => {
 // The trip is chosen to exercise both halves: one row of city pills (Rome,
 // Barcelona, Kyoto fit on one line at 390px), and an actionable line with both
 // of its parts — overlapping windows (and three cities a day apart) give
-// decisions, and `kind: "pending"` makes every stop one still to book. With both
-// parts present, "N not booked yet" used to wrap under the button at this
-// width, which was the second half of the jump. The fetch is HELD so the
-// loading state is measured deliberately, not raced.
+// decisions, and `kind: "pending"` makes the last stop one still to book. Only
+// the last: an overlap with a pending stop is no conflict (Mitchell,
+// 2026-10-10, feedback #8), so a trip of nothing but pending stops would have
+// no decisions left to show. With both parts present, "N not booked yet" used
+// to wrap under the button at this width, which was the second half of the
+// jump. The fetch is HELD so the loading state is measured deliberately, not
+// raced.
 test.describe("responsive (Home hero on a phone, fresh account)", () => {
   test.use({ storageState: { cookies: [], origins: [] } });
 
@@ -429,7 +432,7 @@ test.describe("responsive (Home hero on a phone, fresh account)", () => {
     const stops = commands.filter(
       (command): command is Extract<typeof command, { type: "AddActivity" }> => command.type === "AddActivity",
     );
-    for (const { activityId } of stops) {
+    for (const { activityId } of stops.slice(-1)) {
       await page.request.post(`/api/trips/${tripId}/commands`, {
         data: { type: "UpdateActivity", tripId, activityId, kind: "pending" },
       });
@@ -794,6 +797,19 @@ test.describe("responsive (trip header on a phone)", () => {
     await expect(tripHeader.getByRole("button", { name: "Trip actions" })).toBeHidden();
     await expect(tripHeader.getByRole("button", { name: "Add stop" })).toBeVisible();
     await expect(tripHeader.getByRole("button", { name: "History", exact: true })).toBeVisible();
+
+    // Mitchell's preview comment (2026-10-10): "Ask is larger than add stop in
+    // height and looks weird. Lets also move this down a bit so its aligned
+    // with the trip title on the same row". Same height as Add stop, and on
+    // the title's row: the title's vertical centre falls inside Ask's box.
+    const askBox = (await tripHeader.getByRole("button", { name: "Ask", exact: true }).boundingBox())!;
+    const addBox = (await tripHeader.getByRole("button", { name: "Add stop" }).boundingBox())!;
+    const titleBox = (await tripHeader.getByRole("heading", { level: 1 }).boundingBox())!;
+    expect(askBox.height).toBe(addBox.height);
+    expect(Math.abs(askBox.y - addBox.y)).toBeLessThanOrEqual(1);
+    const titleCentre = titleBox.y + titleBox.height / 2;
+    expect(titleCentre).toBeGreaterThanOrEqual(askBox.y);
+    expect(titleCentre).toBeLessThanOrEqual(askBox.y + askBox.height);
   });
 });
 

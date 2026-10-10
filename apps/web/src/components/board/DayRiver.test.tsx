@@ -105,6 +105,50 @@ describe("what a block has room to say", () => {
     expect(block(long.activityId).getByRole("button", { name: "Dim everything that is not meal" })).toBeTruthy();
   });
 
+  // Mitchell, phone Plan: the "Outdoors" tag "overlaps with the text below in
+  // a weird way". The chips of a short block hang below it as a hover reveal;
+  // a phone has no hover, so they sat there at rest over the next stop. Under
+  // a finger they ride the title row instead — still one tap to focus a tag.
+  describe("under a finger", () => {
+    beforeEach(() => {
+      Object.defineProperty(window, "matchMedia", {
+        configurable: true,
+        writable: true,
+        value: (query: string) => ({
+          matches: query === "(pointer: coarse)",
+          media: query,
+          addEventListener: vi.fn(),
+          removeEventListener: vi.fn(),
+        }),
+      });
+    });
+    afterEach(() => {
+      Reflect.deleteProperty(window, "matchMedia");
+    });
+
+    it("puts a short block's tags on its title row, not hanging below it", () => {
+      const short = activityFactory.build({ title: "Hike", tags: ["outdoors"], timeWindow: { start: "09:00", end: "09:30" } });
+      renderRiver([short]);
+
+      expect(block(short.activityId).queryByTestId("river-tag-reveal")).toBeNull();
+      expect(block(short.activityId).getByRole("button", { name: "Dim everything that is not outdoors" })).toBeTruthy();
+    });
+
+    it("keeps the reveal for a block in a narrow lane, which has no row to spare", () => {
+      const a = activityFactory.build({ title: "Hike", tags: ["outdoors"], timeWindow: { start: "09:00", end: "09:30" } });
+      const b = activityFactory.build({ title: "Coffee", timeWindow: { start: "09:00", end: "09:30" } });
+      renderRiver([a, b]);
+
+      expect(block(a.activityId).getByTestId("river-tag-reveal")).toBeTruthy();
+    });
+  });
+
+  it("hangs a short block's tags below it under a mouse, revealed on hover", () => {
+    const short = activityFactory.build({ title: "Hike", tags: ["outdoors"], timeWindow: { start: "09:00", end: "09:30" } });
+    renderRiver([short]);
+    expect(block(short.activityId).getByTestId("river-tag-reveal")).toBeTruthy();
+  });
+
   it("names the place, the cost and the tags, which the drawn block may not show", () => {
     // Narrow (it overlaps) and compact (30 minutes): the picture has room for
     // the title alone, so the name is the only place the rest can be heard.

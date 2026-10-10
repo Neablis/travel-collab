@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 // The failure mode this file exists for: PhoneTabBar's selected tab is derived
@@ -26,6 +26,7 @@ let session: { id: string } | null | undefined = undefined;
 vi.mock("@/components/account/useSessionUser", () => ({ useSessionUser: () => session }));
 
 import { PhoneTabBar, PhoneTabBarFallback } from "./PhoneTabBar";
+import { usePhoneAskEntry } from "./phoneAsk";
 
 afterEach(() => {
   cleanup();
@@ -340,4 +341,74 @@ describe("PhoneTabBar", () => {
     expect(hrefOf("Playbooks")).toBe("/playbooks");
   });
 
+  // Mitchell, 2026-10-10: the phone trip header was "way too crowded", so Ask
+  // moved into this bar. The bar does not own the assistant — the screen does
+  // — so what is under test is the hand-off: a screen offers its opener, the
+  // bar draws an item that calls it, and nothing is drawn with nothing behind it.
+  describe("the Ask item", () => {
+    function Screen({ onOpen, open = false }: { onOpen?: () => void; open?: boolean }) {
+      usePhoneAskEntry(onOpen, open);
+      return null;
+    }
+    const ask = () => screen.queryByRole("button", { name: "Ask" });
+
+    it("opens the assistant of the screen that offered one, last in the bar", () => {
+      url = "/trips/t1?view=Plan";
+      const onOpen = vi.fn();
+      render(
+        <>
+          <Screen onOpen={onOpen} />
+          <PhoneTabBar />
+        </>,
+      );
+      const bar = screen.getByRole("navigation", { name: "Phone navigation" });
+      // Last: the bar's text ends with it, after the four trip tabs.
+      expect(bar.textContent).toBe("OverviewPlanMapNotebookAsk");
+      expect(ask()?.getAttribute("aria-expanded")).toBe("false");
+      fireEvent.click(ask()!);
+      expect(onOpen).toHaveBeenCalledTimes(1);
+    });
+
+    it("says when the assistant is up", () => {
+      url = "/trips/t1";
+      render(
+        <>
+          <Screen onOpen={() => {}} open />
+          <PhoneTabBar />
+        </>,
+      );
+      expect(ask()?.getAttribute("aria-expanded")).toBe("true");
+    });
+
+    it("is not drawn where no screen offers an assistant, or once it unmounts", () => {
+      url = "/trips/t1";
+      const { rerender } = render(
+        <>
+          <Screen />
+          <PhoneTabBar />
+        </>,
+      );
+      expect(ask()).toBeNull();
+      rerender(
+        <>
+          <Screen onOpen={() => {}} />
+          <PhoneTabBar />
+        </>,
+      );
+      expect(ask()).not.toBeNull();
+      rerender(<PhoneTabBar />);
+      expect(ask()).toBeNull();
+    });
+
+    it("is not drawn outside a trip", () => {
+      url = "/playbooks";
+      render(
+        <>
+          <Screen onOpen={() => {}} />
+          <PhoneTabBar />
+        </>,
+      );
+      expect(ask()).toBeNull();
+    });
+  });
 });

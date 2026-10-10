@@ -67,7 +67,7 @@ export function AccountScreen() {
   const tab = accountTabFrom(searchParams.get("tab"));
 
   return (
-    <PageContainer width="content">
+    <PageContainer as="main" width="content">
       <div className="flex flex-col gap-5 pt-1 pb-20">
         {/* **The phone's way out** (SPEC §34.3: *"Done returns you to Trips"*).
             Account is a TASK on a phone — the tab bar steps aside for it
@@ -103,6 +103,7 @@ export function AccountScreen() {
           }}
           options={TABS}
           idPrefix={ID_PREFIX}
+          hasPanel
           aria-label="Account sections"
         />
 
@@ -116,7 +117,7 @@ export function AccountScreen() {
             puts it on each tab's content div). One place, so a third view
             cannot arrive a little wider than the other two. */}
         {/* The tokens sub-view is not a tab's panel — no tab controls it — so
-            it is a region named by its own H3 rather than a `tabpanel`
+            it is a region named by its own H2 rather than a `tabpanel`
             pointing at a tab that does not exist. */}
         <div
           role={tab === "tokens" ? "region" : "tabpanel"}
@@ -156,7 +157,9 @@ export function AccountScreen() {
               >
                 &larr; Profile
               </Button>
-              <Heading level={3} id={TOKENS_HEADING_ID}>
+              {/* h2 under the page's h1 (it was an h3, skipping a level; axe
+                  heading-order). `text-lg` keeps the h3 size it had. */}
+              <Heading level={2} id={TOKENS_HEADING_ID} className="text-lg">
                 API tokens
               </Heading>
               <TokensSection />

@@ -97,11 +97,18 @@ export function MapDayStrip({
     // rather than one, because these chips are far narrower than a day column,
     // so more of them fit between the track's edge and its centre.
     const maxScroll = track.scrollWidth - track.clientWidth;
+    const held = days.findIndex((day) => day.index === focusedDay);
     const nth = centralDayIndex(
       { start: trackRect.left, size: trackRect.width },
       spans,
       READING_LINE.horizontal,
-      { atStart: track.scrollLeft <= 1, atEnd: track.scrollLeft >= maxScroll - 1 },
+      {
+        atStart: track.scrollLeft <= 1,
+        atEnd: track.scrollLeft >= maxScroll - 1,
+        // The sliding line and the hold (centralDay.ts), as Board and DayChips.
+        progress: maxScroll > 0 ? track.scrollLeft / maxScroll : 0,
+        current: held === -1 ? null : held,
+      },
     );
     return nth === null ? null : (days[nth]?.index ?? null);
   });

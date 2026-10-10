@@ -18,6 +18,7 @@ import { resetDemoData } from "@/lib/apiClient";
 import { pathAfterDemoReset } from "@/lib/demoDataReset";
 import { BrandMark } from "@/components/BrandMark";
 import { useInstallApp } from "@/components/install/InstallApp";
+import { GetTheAppButton } from "@/components/install/GetTheAppButton";
 
 // Handoff `…dc.html:97`: the 30px round avatar sits between Tailwind's h-7
 // (28px) and h-8 (32px) steps — same computed-geometry escape hatch as
@@ -181,11 +182,16 @@ export function AccountMenu({
             Safari on iOS — and never inside the installed app, so a browser
             that cannot install is never offered a row that does nothing.
             The mark is the app's own, at the size of an app icon in a list:
-            this row is the one that puts it on a home screen. */}
+            this row is the one that puts it on a home screen.
+
+            **Phone only since 2026-10-10** (`md:hidden`). Mitchell did not
+            like it in a desktop popover; above 768px the way in is *Get the
+            app* in the top nav, beside Playbooks. A CSS breakpoint, as the
+            nav's own hide is, so the first paint is right at every width. */}
         {installApp.route !== null && (
           <Button
             variant="ghost"
-            className="mt-1 h-auto w-full justify-start gap-2 rounded-md px-2.5 py-2 text-sm font-normal text-ink"
+            className="mt-1 h-auto w-full justify-start gap-2 rounded-md px-2.5 py-2 text-sm font-normal text-ink md:hidden"
             onClick={() => {
               // Closed first, as Reset is below: the iOS sheet opens over it.
               setOpen(false);
@@ -329,7 +335,11 @@ export function HeaderSessionChrome({ demoResetEnabled = false }: { demoResetEna
           `PHONE_TOUCH` is for the tablet these DO show on (M39 D3): 32px
           under a finger at 820px (KI-2026-09-24-j), 44px now, and released for
           a mouse. */}
-      <nav className="hidden items-center gap-1 pl-2 md:flex">
+      {/* `aria-label="Main"`: a trip page carries a second `nav` (the trip
+          header's), and two unnamed navigation landmarks are
+          indistinguishable in a screen reader's landmark list (axe
+          `landmark-unique`). */}
+      <nav aria-label="Main" className="hidden items-center gap-1 pl-2 md:flex">
         <Link href="/" className={cn(PHONE_TOUCH, "inline-flex items-center rounded-sm px-2.5 py-1.5 text-base font-medium text-slate no-underline hover:text-ink")}>
           Trips
         </Link>
@@ -339,6 +349,9 @@ export function HeaderSessionChrome({ demoResetEnabled = false }: { demoResetEna
         >
           Playbooks
         </Link>
+        {/* Beside Playbooks, where Mitchell asked for it (2026-10-10). Inside
+            this nav's `hidden md:flex`, so desktop and tablet only. */}
+        <GetTheAppButton />
       </nav>
       <div className="ml-auto flex items-center">
         {/* AccountMenuFor takes the `user` already resolved above rather than

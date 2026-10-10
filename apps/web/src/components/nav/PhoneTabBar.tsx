@@ -8,6 +8,9 @@ import { useSessionUser } from "@/components/account/useSessionUser";
 import { resolveView, type View } from "@/components/trip/context/LensRouter";
 import { cn } from "@/lib/cn";
 import { DEMO_PATH } from "@/lib/demoTrip";
+import { Button } from "@/components/ui/button";
+import { BrandMark } from "@/components/BrandMark";
+import { usePhoneAsk } from "./phoneAsk";
 
 // Handoff `Trip Planner Redesign.dc.html:863-871` (markup) and `:7211-7229`
 // (the active-state logic). The phone's bottom bar, and — per SPEC §13 "The tab
@@ -401,7 +404,49 @@ function PhoneTabBarView({
           </Link>
         );
       })}
+      {scopeOf(pathname) !== "account" && <PhoneAskTab />}
     </nav>
+  );
+}
+
+/**
+ * **Ask, as the bar's last item, inside a trip** (Mitchell, 2026-10-10: the
+ * phone trip header was "way too crowded"; "give the ai button a place on
+ * bottom toolbar"). Not a tab: it navigates nowhere and holds no state. It
+ * opens the assistant of whichever screen registered one (`usePhoneAskEntry`
+ * — the board, the notebook index, an open notebook page), so it inherits that
+ * screen's scope exactly as the header pill did, which was SPEC §23's reason
+ * for not making Ask a destination. Absent where nothing registered: `/demo`,
+ * whose trip the assistant refuses (KI-79), and a locked notebook page.
+ *
+ * Exported so a screen's own test can render it beside the screen: the bar
+ * itself needs a route, and the item is what the screen talks to.
+ */
+export function PhoneAskTab() {
+  const ask = usePhoneAsk();
+  if (ask === null) return null;
+  return (
+    // The ghost button primitive, with its box undone back to a tab's: the
+    // bar's links are not buttons, and this one item must sit exactly as
+    // they do (same height, same gap, same label size).
+    <Button
+      variant="ghost"
+      onClick={ask.onOpen}
+      aria-expanded={ask.open}
+      data-testid="ask-tab"
+      className={cn(
+        TAB_CLASS,
+        "h-auto rounded-none px-0 font-semibold text-brand-pressed hover:bg-transparent hover:text-brand-pressed",
+      )}
+    >
+      {/* The pill shape every tab's glyph sits in, filled with the brand tint
+          the header's Ask pill used — so it reads as the same control in its
+          new place, and as an action rather than the current tab. */}
+      <span className="phone-tab-pill grid place-items-center rounded-full bg-brand-tint">
+        <BrandMark size={16} tile={false} />
+      </span>
+      Ask
+    </Button>
   );
 }
 

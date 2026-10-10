@@ -33,7 +33,7 @@ import {
 } from "@/components/pages/editor/storedPageDoc";
 import { AssistantRail } from "@/components/assistant/AssistantRail";
 import { AssistantBubble } from "@/components/assistant/AssistantBubble";
-import { AskPill } from "@/components/assistant/AskPill";
+import { usePhoneAskEntry } from "@/components/nav/phoneAsk";
 import { phoneAskContext } from "@/components/assistant/phoneAskContext";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/cn";
@@ -112,16 +112,52 @@ function droppedNotice(dropped: readonly DroppedInsert[]): string {
  * when the real page replaces it. No widget rail: it only exists in Editing,
  * which a notebook does not open in.
  */
-function NotebookSkeleton() {
+/**
+ * **The page's own toolbar and card, row for row** (Mitchell, Vercel Toolbar
+ * on a phone: *"The skeleton for a notebook page looks nothing like the real
+ * page … the header and breadcrumbs, can fit more"*).
+ *
+ * The toolbar is the loaded one's classes and its controls' boxes: the
+ * breadcrumb as three crumbs — the trip's name a bone, *Notebook* written out
+ * (it is the same words and the same destination on every page, so it is
+ * chrome, not data), the page's title a bone — then *Edit page* at the 44px
+ * floor it has there (a phone's Ask is the tab bar's, not this row's). The card is
+ * `Card`'s raised box with the title row (an `h1` line box and the pennant's
+ * square) and the document's lines under it.
+ */
+function NotebookSkeleton({ tripId }: { tripId: string }) {
   return (
-    <PageContainer>
+    <PageContainer as="main">
       <SkeletonRegion label="Loading this notebook" className="flex flex-col">
-        <div className="mt-3 mb-3 flex items-center justify-between gap-3 md:my-0 md:py-3" data-testid="notebook-skeleton">
-          <Skeleton className="h-3.5 w-32" />
-          <Skeleton className="h-10 w-28 rounded-lg" />
+        <div className="mt-3 mb-3 flex flex-wrap items-center justify-between gap-3 md:my-0 md:py-3" data-testid="notebook-skeleton">
+          <div className="flex min-w-0 items-center gap-1.5 text-sm">
+            <span className="flex min-w-0 items-center py-1.5">
+              <Skeleton circle className="h-3 w-20" />
+            </span>
+            <span aria-hidden className="text-border-strong">
+              /
+            </span>
+            <Link href={`/trips/${tripId}/pages`} className="shrink-0 whitespace-nowrap text-slate no-underline hover:text-ink">
+              Notebook
+            </Link>
+            <span aria-hidden className="text-border-strong">
+              /
+            </span>
+            <Skeleton circle className="h-3 w-16" delay={2} />
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Skeleton className="h-11 w-24 fine:h-9" delay={2} />
+          </div>
         </div>
-        <div className="rounded-md border border-hairline px-5 py-6 sm:px-12 sm:py-10">
-          <Skeleton className="h-8 w-1/2" delay={2} />
+        <div className="rounded-md border border-hairline bg-surface px-5 py-6 shadow-raised sm:px-12 sm:py-10">
+          <div className="flex items-start gap-3">
+            <span className="block min-w-0 flex-1 font-display text-2xl">
+              <Skeleton className="inline-block h-7 w-1/2 align-middle" delay={2} />
+            </span>
+            <span className="flex size-11 shrink-0 items-center justify-center fine:size-7.5">
+              <Skeleton circle className="size-7.5" delay={2} />
+            </span>
+          </div>
           <div className="mt-6 flex flex-col gap-3">
             {["w-full", "w-11/12", "w-4/5", "w-full", "w-2/3"].map((width, line) => (
               <Skeleton key={line} className={`h-3.5 ${width}`} delay={3} data-testid="notebook-skeleton-line" />
@@ -248,7 +284,7 @@ export function PageScreen({
   // thing left that does. `AssistantRail` gates itself on nothing, so choosing
   // sheet-or-floating is the caller's and there is no CSS breakpoint that can
   // make the choice — which is the one job this hook still has here. The entry
-  // point no longer needs it: `AskPill` carries its own `md:hidden`, so it is
+  // point no longer needs it: it is the tab bar's Ask item on a phone, so it is
   // right at first paint where an `isPhone` branch around it was one frame
   // late on every phone load. SPEC §13.5 still forbids anything floating over
   // data on a phone, which is why the bubble below stays desktop-only.
@@ -326,6 +362,10 @@ export function PageScreen({
   const [editor, setEditor] = useState<Editor | null>(null);
   // Same fail-soft rule as `user` above, and for the same reason.
   const [globals, setGlobals] = useState<TripGlobals | null>(null);
+  // Whether the first globals read has answered, either way: the page keeps
+  // its skeleton until then, so the widgets that read places and zones from
+  // the globals are drawn once at their final height, not twice on screen.
+  const [globalsSettled, setGlobalsSettled] = useState(false);
 
   // SPEC §26: the widget whose settings the side channel is showing.
   //
@@ -465,7 +505,9 @@ export function PageScreen({
   useEffect(() => {
     let cancelled = false;
     void fetchTripGlobals(tripId).then((r) => {
-      if (!cancelled && r.ok) setGlobals(r.value);
+      if (cancelled) return;
+      if (r.ok) setGlobals(r.value);
+      setGlobalsSettled(true);
     });
     // Through the cache TripProvider reads, so arriving from the board reuses
     // the history it just fetched. A stale or failed read can only put the
@@ -918,6 +960,16 @@ export function PageScreen({
     ask.cancel();
     setAssistantOpen(false);
   };
+  // **A phone's Ask is the tab bar's** (Mitchell, 2026-10-10: "Dont forget this
+  // 'Ask' element when moving ask to toolbar"). Offered only where the page's
+  // own pill used to render — the mountable page, not the loading, error or
+  // locked branches, which never offered an assistant (decision 4).
+  usePhoneAskEntry(
+    status !== "loading" && status !== "error" && page !== null && trip !== null && stored?.status === "mountable"
+      ? () => setAssistantOpen(true)
+      : undefined,
+    assistantOpen,
+  );
   // **Leaving Editing no longer hangs up, and that is a reversal.** It did,
   // because the assistant was an editing-only control and leaving Editing was
   // leaving the assistant. It is available in both modes now (Mitchell:
@@ -999,10 +1051,10 @@ export function PageScreen({
   // still no word. The chrome cannot stand in for it: the breadcrumb's first
   // crumb is the trip's name and every button acts on a page that is not here
   // yet, so the toolbar row is outlined too.
-  if (status === "loading") return <NotebookSkeleton />;
+  if (status === "loading" || (status === "ready" && !globalsSettled)) return <NotebookSkeleton tripId={tripId} />;
   if (status === "error" || page === null || trip === null || stored === null) {
     return (
-      <PageContainer>
+      <PageContainer as="main">
         <p role="alert">{error ?? "Something went wrong"}</p>
         <PageBreadcrumb tripId={tripId} tripName={trip?.name ?? null} from={from} title={page?.title ?? null} />
       </PageContainer>
@@ -1162,7 +1214,7 @@ export function PageScreen({
   // control that promises editing would be a button that cannot keep its word.
   if (stored.status !== "mountable") {
     return (
-      <PageContainer>
+      <PageContainer as="main">
         <div className="mb-2">{backLink}</div>
         {/* Plain, not a `PageTitle`: this branch exists precisely so nothing
             here can write to a document the app cannot safely read, and a
@@ -1192,7 +1244,10 @@ export function PageScreen({
     // Member names for every widget on the page, its settings and its insert
     // sheet alike — from the access read the effect above already makes.
     <PeopleProvider tripId={tripId}>
-    <PageContainer>
+    {/* `main` on every branch's container (skeleton, error, locked, this):
+        each returns exactly one, and nothing above this route draws one, so
+        a notebook page has exactly one main landmark (axe landmark-one-main). */}
+    <PageContainer as="main">
       {/* The row above the container: where you came from on the left, the one
           mode toggle on the right (dc.html:2326). Everything that acts on the
           document itself is inside the container with it. */}
@@ -1252,28 +1307,12 @@ export function PageScreen({
               revision={() => baseRef.current ?? page.updatedAt}
             />
           )}
-          {/* The phone's entry to the assistant, and it is now the SAME control
-              this app puts on Plan, Map and the Notebook index (SPEC §23) —
-              this screen's own `◎ Assistant` button was one of the three
-              different entry points §23 exists to collapse into one.
-
-              **After the mode toggle, because §23's claim is positional**:
-              *"last item in the top row… same pill, same label, same position,
-              so it never moves as you change tabs."* It shipped BEFORE the
-              toggle on this screen alone (Copilot, PR #148), which made the
-              open page the one surface of the four where the pill sat
-              somewhere else — the exact inconsistency §23 exists to end.
-
-              It only OPENS. The button it replaces toggled, because it was the
-              sheet's only dismissal; the sheet owns two of its own now (the ✕
-              and the scrim), and a third that also has to say which state it is
-              in is a control competing with the surface it opened. Closing
-              still runs `closeAssistant`, so hanging up on a turn in flight is
-              unchanged — `onHide` below is where it goes. */}
-          {/* `md:hidden`: above 768px this page's launcher is still the
-              floating `AssistantBubble` below (M39 D3 moved the trip board's
-              off its stop costs; a page has none). */}
-          <AskPill className="md:hidden" open={assistantOpen} onOpen={() => setAssistantOpen(true)} />
+          {/* The phone's `Ask` pill ended this row until 2026-10-10; it is the
+              tab bar's Ask item now (`usePhoneAskEntry` above), the same one
+              Plan, Map and the Notebook index offer. It only OPENS, as the
+              pill did: the sheet owns its own dismissals (the ✕ and the scrim),
+              and closing still runs `closeAssistant`. Above 768px this page's
+              launcher is still the floating `AssistantBubble` below. */}
         </div>
       </div>
       {/* Reading only, like the Reset it undoes: in Editing the session holds
@@ -1598,7 +1637,7 @@ export function PageScreen({
           // about is not reachable here: `useIsPhone` starts `false` and
           // corrects in an effect, but this rail mounts only when
           // `assistantOpen` is true, `assistantOpen` starts `false`, and the
-          // only things that set it are a tap on `AskPill` or on the bubble.
+          // only things that set it are a tap on the tab bar's Ask or on the bubble.
           // Effects have run long before a user can tap, so there is no frame
           // in which `isPhone` is stale AND the rail is on screen.
           // **This surface offers no Dock, and that is a decision rather than

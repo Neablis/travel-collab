@@ -35,6 +35,7 @@ export function UnderlineTabs<T extends string>({
   options,
   idPrefix,
   className,
+  hasPanel = false,
   "aria-label": ariaLabel,
 }: {
   /**
@@ -49,6 +50,16 @@ export function UnderlineTabs<T extends string>({
   /** Namespaces the tab/panel ids so two strips on one page cannot collide. */
   idPrefix: string;
   className?: string;
+  /**
+   * The caller renders the selected tab's panel, with id `tabPanelId(idPrefix,
+   * value)`. Only then does a tab say `aria-controls`, and only the selected
+   * one: an id reference to an element that does not exist is an invalid ARIA
+   * value (axe `aria-valid-attr-value`, critical). Discover used to point every
+   * tab at a panel it never rendered, and Account mounts one panel at a time,
+   * so its unselected tabs pointed at nothing too. Off by default, because a
+   * missing `aria-controls` is merely less helpful and a dangling one is wrong.
+   */
+  hasPanel?: boolean;
   "aria-label": string;
 }) {
   // The buttons are held by ref rather than found with a DOM query. The first
@@ -108,7 +119,7 @@ export function UnderlineTabs<T extends string>({
             type="button"
             role="tab"
             aria-selected={selected}
-            aria-controls={tabPanelId(idPrefix, o.value)}
+            aria-controls={hasPanel && selected ? tabPanelId(idPrefix, o.value) : undefined}
             // Roving tabindex: the strip is one tab stop, and the arrow keys
             // move within it.
             tabIndex={tabStop ? 0 : -1}

@@ -109,6 +109,22 @@ describe("PeopleSection", () => {
     expect(screen.queryByRole("status", { name: "Loading people" })).toBeNull();
   });
 
+  // Trip settings remounts this on every open, and the provider already holds
+  // the list: the skeleton used to come back each time anyway, and the list
+  // reflowed in over it (Mitchell, trip preview).
+  it("paints the provider's list at once, then takes its own fresher read", async () => {
+    const dana = tripMemberProfileFactory.build({ userId: "dev-dana", role: "suggester", name: "Dana", travelling: false });
+    let answer: (value: unknown) => void = () => {};
+    fetchTripAccessMock.mockReturnValue(new Promise((resolve) => (answer = resolve)));
+    render(<PeopleSection tripId={tripId} access={access()} />);
+
+    expect(screen.getByText("Alice")).toBeTruthy();
+    expect(screen.queryByRole("status", { name: "Loading people" })).toBeNull();
+
+    await act(async () => answer({ ok: true, value: access({ members: [alice, bob, dana] }) }));
+    expect(within(screen.getByRole("list", { name: "Not travelling · 1" })).getByText("Dana")).toBeTruthy();
+  });
+
   it("drops the placeholder when the list fails to load, so it is not left breathing", async () => {
     fetchTripAccessMock.mockResolvedValue({ ok: false, error: { message: "Could not load people" } });
     render(<PeopleSection tripId={tripId} />);

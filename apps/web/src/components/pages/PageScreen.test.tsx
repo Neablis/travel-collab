@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
 import { PageScreen } from "./PageScreen";
+import { PhoneAskTab } from "@/components/nav/PhoneTabBar";
 import { CURRENT_PAGE_DOC_VERSION, SYSTEM_ACTOR_ID } from "@tc/contracts";
 import { pageFixture as sharedPageFixture, tripDetailFixture } from "@tc/factories";
 import { presetCatalog } from "@tc/pages";
@@ -128,6 +129,39 @@ describe("PageScreen", () => {
     expect(await screen.findByText("Hello notebook")).toBeTruthy();
   });
 
+  // The widgets read places and zones from the globals, a read of its own;
+  // mounted before them, they drew twice at different heights — the notebook
+  // page's layout shift. The page holds its skeleton until they answer.
+  it("does not mount the document until the globals have answered", async () => {
+    const trip = tripDetailFixture();
+    const page = pageFixture({
+      tripId: trip.tripId,
+      content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Hello notebook" }] }] },
+    });
+    let release: () => void = () => {};
+    const held = new Promise<void>((resolve) => (release = resolve));
+    let tripServed = false;
+    server.use(
+      ...makePagesHandlers([page]),
+      http.get("/api/trips/:tripId", () => {
+        tripServed = true;
+        return HttpResponse.json({ trip });
+      }),
+      http.get("/api/trips/:tripId/globals", async () => {
+        await held;
+        return HttpResponse.json({ globals: { days: [], cities: [], tags: [] } });
+      }),
+    );
+
+    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    await waitFor(() => expect(tripServed).toBe(true));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.queryByText("Hello notebook")).toBeNull();
+
+    release();
+    expect(await screen.findByText("Hello notebook")).toBeTruthy();
+  });
+
   // M14 link 10. What a template keeps is the STORED document, and an open
   // edit session has not been committed (ADR-036) — so the control is offered
   // in Reading, where the screen and the store agree, and not in Editing.
@@ -190,6 +224,8 @@ describe("PageScreen", () => {
     // Still a heading, and now the page's `h1`. Reading owns no chrome (§18),
     // so the title takes a caret only in Editing.
     const heading = await screen.findByRole("heading", { name: page.title, level: 1 });
+    // ...and inside the page's `main` (axe landmark-one-main on notebook pages).
+    expect(within(screen.getByRole("main")).getByRole("heading", { name: page.title, level: 1 })).toBe(heading);
     // `getAttribute`, not `isContentEditable`: jsdom does not implement the
     // property, and it reads `undefined` rather than `false` — which is how the
     // first cut of this test passed its own "not editable yet" assertion by
@@ -594,7 +630,13 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
         }),
       ),
     );
-    render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
+    render(
+      <>
+        <PageScreen tripId={trip.tripId} pageId={page.id} />
+        {/* A phone's Ask is the tab bar's item since 2026-10-10. */}
+        <PhoneAskTab />
+      </>,
+    );
     await screen.findByText("Notes");
     // A page opens in READING now (Mitchell, 2026-09-04), so a test about
     // authoring says so rather than relying on the default. That is the honest
@@ -1139,50 +1181,17 @@ describe("PageScreen: inserting and pointing a widget (item G)", () => {
     // else on the page could still answer to "Ask".
     const askPill = () => screen.getByRole("button", { name: "Ask", expanded: false });
 
-    // **§23's claim is positional, and this screen was the one that broke it**:
-    // *"An `Ask` pill, last item in the top row, on all four in-trip screens —
-    // Plan, Map, the Notebook index and an open Notebook page. Same pill, same
-    // label, same position, so it never moves as you change tabs."* On Plan and
-    // Map (`TripHeader`) and on the Notebook index the pill is last; here it
-    // shipped BEFORE the mode toggle, so the pill jumped as you opened a page —
-    // exactly the movement §23 exists to stop (Copilot, PR #148).
-    //
-    // ORDER, not presence. The bug left both controls on screen and both
-    // reachable, so a test that only asked whether each exists stayed green
-    // through it. `getAllByRole` hands elements back in document order, which is
-    // the order a screen reader announces them and Tab walks them, so comparing
-    // two indexes in that list asks the question a user would.
-    it("puts Ask last in the top row, after the mode toggle, in both modes", async () => {
-      setPhone(true);
-      await openPage();
-
-      const readingOrder = (control: HTMLElement) => screen.getAllByRole("button").indexOf(control);
-
-      // `openPage` leaves the page in Editing, so the toggle reads "Done
-      // editing" here.
-      expect(readingOrder(askPill())).toBeGreaterThan(
-        readingOrder(screen.getByRole("button", { name: "Done editing" })),
-      );
-
-      // And in the other mode, because "same position" is a claim about the
-      // row and not about one state of the control in it. A fix that reordered
-      // only one branch of the toggle's label would pass the assertion above.
-      await userEvent.click(screen.getByRole("button", { name: "Done editing" }));
-      expect(readingOrder(askPill())).toBeGreaterThan(
-        readingOrder(screen.getByRole("button", { name: "Edit page" })),
-      );
-    });
+    // (A test here used to pin the pill LAST in the page's top row, after the
+    // mode toggle — §23's positional claim. The pill left that row on
+    // 2026-10-10 for the tab bar, whose position never changes, so there is no
+    // row order left to hold.)
 
     // SPEC §13.5, unchanged by §19: *"Nothing floats over data. No floating
     // action button."* So the bubble the desktop gained is desktop-only, and
-    // the phone opens the same panel from a control in the page header — which
-    // stays put while the panel is open, because a header control is not a
-    // thing the panel grows out of.
-    //
-    // The control is `Ask` now, not `◎ Assistant`: SPEC §23 makes it one pill
-    // in one position on all four in-trip screens, and this screen's own
-    // button was one of the three different entry points it collapses.
-    it("opens the assistant from the page header, since nothing floats over data here", async () => {
+    // the phone opens the same panel from a fixed control — the tab bar's Ask
+    // since 2026-10-10 (Mitchell: "Dont forget this 'Ask' element when moving
+    // ask to toolbar"), the page header's pill before that.
+    it("opens the assistant from the tab bar's Ask, since nothing floats over data here", async () => {
       setPhone(true);
       await openPage();
 

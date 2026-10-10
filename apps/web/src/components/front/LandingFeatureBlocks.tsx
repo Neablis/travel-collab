@@ -112,13 +112,19 @@ function BlockHead({ eyebrow, title, children }: { eyebrow: string; title: strin
   );
 }
 
+// The jungle days recede behind the borrowed day, but only their DECORATION
+// fades. `opacity-75` used to sit on the whole card, which also dimmed its text:
+// slate on paper is 5.53:1, and at 75% opacity it composited down to 3.25:1 at
+// 9.5px, so axe failed the day label on `/`. The card's
+// paper-on-surface and the bars already read as background; the text keeps its
+// full token colour.
 function JungleDay({ day, title, bars }: { day: string; title: string; bars: readonly string[] }) {
   return (
-    <div className="flex w-15.5 flex-none flex-col gap-1.25 rounded-md border border-hairline bg-paper px-1.75 py-2 opacity-75">
+    <div className="flex w-15.5 flex-none flex-col gap-1.25 rounded-md border border-hairline bg-paper px-1.75 py-2">
       <DataText className="text-3xs tracking-wider uppercase">{day}</DataText>
       <Text as="span" className="text-2xs">{title}</Text>
       {bars.map((width, i) => (
-        <span key={i} aria-hidden className={cn("pointer-events-none h-1 rounded-full bg-success-tint", width)} />
+        <span key={i} aria-hidden className={cn("pointer-events-none h-1 rounded-full bg-success-tint opacity-75", width)} />
       ))}
     </div>
   );

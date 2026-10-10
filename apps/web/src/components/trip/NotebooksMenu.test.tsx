@@ -169,11 +169,11 @@ describe("NotebooksMenu", () => {
 
     render(<NotebooksMenu tripId={TRIP_ID} />);
 
-    // First open: nothing is known yet, and every trip is created with one
-    // notebook, its Overview (SPEC §25) — so one row, the likeliest list.
+    // First open: nothing is known yet, and every trip is seeded with the
+    // default notebooks — four of them — so that many rows, the likeliest list.
     hold();
     fireEvent.click(trigger());
-    expect(await placeholderRows()).toBe(1);
+    expect(await placeholderRows()).toBe(4);
     release();
     expect(await screen.findByRole("link", { name: /^Day Sheet .+/ })).toBeTruthy();
     expect(screen.queryByRole("status", { name: "Loading notebooks" })).toBeNull();

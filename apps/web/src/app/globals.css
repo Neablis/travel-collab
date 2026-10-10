@@ -56,7 +56,12 @@
   --color-danger-ink: #8f2b23;
   --color-warning: #b07c10;
   --color-warning-tint: #f6ebd4;
-  --color-warning-ink: #8a5f0b;
+  /* #8a5f0b until 2026-10: it cleared its own tint but not the OTHER tints it
+     sits on — a pending/overlap note inside a danger-accented day column was
+     4.38:1 on Ledger's danger-tint (axe, /demo phone), and 4.46:1 on its
+     info-tint. Darkened just enough to clear every Ledger tint: lowest is now
+     danger-tint at 4.69:1. design-system.md's AA table carries the numbers. */
+  --color-warning-ink: #845b0a;
   --color-success: #2e7d43;
   --color-success-tint: #e4f0e7;
   --color-success-ink: #22603a;
@@ -550,6 +555,19 @@ html[data-look="ledger"] .shadow-raised {
         var(--color-paper) 88%
       );
     }
+  }
+  /* The trip page's cover band (`TripCoverBanner`): the trip's name sits ON
+     the photo at the band's foot, in `text-surface`, so the photo darkens
+     toward the words rather than fading into the page. Ink under surface-
+     coloured text, both tokens, so the pair keeps its contrast in dark mode
+     (where the two swap) without a second rule. */
+  .cover-veil-title {
+    background: linear-gradient(
+      0deg,
+      color-mix(in srgb, var(--color-ink) 65%, transparent) 0%,
+      color-mix(in srgb, var(--color-ink) 25%, transparent) 55%,
+      transparent 100%
+    );
   }
   /* Light text laid on a photo (the hero's countdown): a soft shadow keeps it
      readable on a bright sky, where the photo is not yet veiled. */
@@ -1644,39 +1662,41 @@ html[data-look="ledger"] .shadow-raised {
     }
   }
 
-  /* The "Keep this day" pennant's wave (`Trip Planner Redesign.dc.html:4839`'s
-     `wave`, which the build shipped without — Mitchell, 2026-09-01: "The click
-     flag 'Save a day' animation from timeline view is missing"). The design
-     drives it with `Element.animate()` and a hard-coded transform origin; a
-     keyframe rule is the same motion without a per-click imperative call, and
-     it is the only route the colour wall leaves open anyway (it bans every
-     bracket value in a className, `animate-[om-flag-wave_620ms...]` included).
+  /* The pennant's press motion: the share arrow lifts out of its box and
+     settles. It replaced the design's flag `wave` (`Trip Planner
+     Redesign.dc.html:4839`; Mitchell, 2026-09-01: "The click flag 'Save a day'
+     animation from timeline view is missing") when the glyph went from a flag
+     to lucide's `Share` — a flag beside a notebook read as "report this". A
+     keyframe rule rather than `Element.animate()`, because it is the only route
+     the colour wall leaves open (it bans every bracket value in a className).
 
-     Origin at the pennant's staff rather than its centre — a flag pivots where
-     it is nailed, and rotating about the middle reads as a wobble. The keyframe
-     offsets are the design's own (0.4 / 0.7) at its own 620ms. */
-  @keyframes om-flag-wave {
+     Only the arrow moves. lucide's `Share` is three paths in this order: the
+     shaft, the head, then the box — so `path:not(:last-child)` is the arrow
+     and the box stays put, which is what makes it read as lifting OUT rather
+     than the whole glyph bobbing. 3px of a 24-unit viewBox at 16px is about a
+     2px nudge: subtle on purpose. Same 620ms and the same two-beat shape as
+     the wave (overshoot at 40%, a small settle past rest at 70%). */
+  @keyframes om-share-lift {
     0% {
-      transform: rotate(0deg);
+      transform: translateY(0);
     }
     40% {
-      transform: rotate(-11deg);
+      transform: translateY(-3px);
     }
     70% {
-      transform: rotate(5deg);
+      transform: translateY(1px);
     }
     100% {
-      transform: rotate(0deg);
+      transform: translateY(0);
     }
   }
-  .flag-wave {
-    animation: om-flag-wave 620ms ease-in-out;
-    transform-origin: 4px 14px;
+  .share-lift svg path:not(:last-child) {
+    animation: om-share-lift 620ms ease-in-out;
   }
   @media (prefers-reduced-motion: reduce) {
     /* Dropped, not frozen: the toast that follows a save is what carries the
        outcome, so the motion is decoration and nothing is lost with it. */
-    .flag-wave {
+    .share-lift svg path {
       animation: none;
     }
   }
@@ -1684,7 +1704,7 @@ html[data-look="ledger"] .shadow-raised {
   /* The keep-a-day celebration (`Trip Planner Redesign.dc.html:4871`'s
      `celebrate()`) — the wow moment the build shipped without. The design runs
      six concurrent `Element.animate()` calls; these are the same six curves as
-     keyframes, for the reason `om-flag-wave` above is: the colour wall bans
+     keyframes, for the reason `om-share-lift` above is: the colour wall bans
      bracket values in a className, so `animate-[...]` is not available, and a
      rule keeps the whole choreography — and its reduced-motion drop — in one
      place instead of spread across imperative call sites.
@@ -1736,25 +1756,11 @@ html[data-look="ledger"] .shadow-raised {
       background-color: var(--color-surface);
     }
   }
-  @keyframes om-flag-fill {
-    0% {
-      fill: transparent;
-      animation-timing-function: ease-out;
-    }
-    /* 320ms of 2600ms — the design's own pennant-fill duration, which is
-       deliberately a touch slower than the 280ms background behind it. */
-    12.31% {
-      fill: currentcolor;
-      animation-timing-function: linear;
-    }
-    87.69% {
-      fill: currentcolor;
-      animation-timing-function: ease-in;
-    }
-    100% {
-      fill: transparent;
-    }
-  }
+  /* The design's pennant-fill (`om-flag-fill`, filling the flag's cloth over
+     320ms) is gone with the flag: lucide's `Share` has no closed shape to
+     fill — filling its paths would turn the arrowhead into a solid triangle
+     and the box into a slab. The green circle with a surface-coloured glyph
+     already says "saved" on its own. */
   @keyframes om-flag-ring {
     0% {
       transform: scale(0.6);
@@ -1783,12 +1789,6 @@ html[data-look="ledger"] .shadow-raised {
     animation:
       om-flag-pop 540ms ease-out,
       om-flag-keep 2600ms linear;
-  }
-  /* lucide's `Flag` is one `path` (the pennant) plus one `line` (the staff),
-     so `svg path` is exactly the half that fills. The presentational
-     `fill="none"` on the svg root loses to a CSS `fill` on the path. */
-  .flag-celebrate svg path {
-    animation: om-flag-fill 2600ms linear;
   }
   .flag-celebrate-ring {
     position: absolute;
@@ -1849,13 +1849,12 @@ html[data-look="ledger"] .shadow-raised {
     animation-delay: 120ms;
   }
   @media (prefers-reduced-motion: reduce) {
-    /* Same call as `.flag-wave`: the toast carries the outcome, so all of this
+    /* Same call as `.share-lift`: the toast carries the outcome, so all of this
        is decoration. The ring and sparks have no resting state worth showing,
        so they are hidden outright rather than frozen mid-flight. (The "Kept"
        label this block used to carve out an exception for is gone — Mitchell,
        2026-09-06 10:07: *"drop the word kept and the expanded UI"*.) */
     .flag-celebrate,
-    .flag-celebrate svg path,
     .flag-celebrate-ring,
     .flag-celebrate-spark {
       animation: none;

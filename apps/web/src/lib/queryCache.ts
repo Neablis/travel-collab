@@ -275,6 +275,29 @@ export function cachedRead<T>(
 }
 
 /**
+ * The last successful result stored under `key`, **however old**, or
+ * `undefined` if there is none — synchronously, for a first render.
+ *
+ * **For painting, never for deciding.** A component that remounts every time
+ * it is shown (Trip settings' sections: the sheet's content unmounts when it
+ * closes) starts from `undefined` and draws a skeleton on every open, then
+ * reflows when its read lands — even when that read is a cache hit, because
+ * `cachedRead` answers through a promise, after the first paint. Peeking gives
+ * it the last answer to paint at once; it still calls `cachedRead` on mount,
+ * which revalidates in the background once the window has passed.
+ *
+ * This is stale-while-revalidate, and it keeps the module's promise: the
+ * window still decides whether a read goes to the wire, and every write still
+ * invalidates, so a peek can never show something a local write has
+ * falsified — only something a remote write has, for as long as the
+ * revalidation it is followed by takes.
+ */
+export function peekCached<T>(key: CacheKey): T | undefined {
+  const hit = entries.get(key);
+  return hit?.result.ok ? (hit.result.value as T) : undefined;
+}
+
+/**
  * Drop everything cached under `prefix`, and stop any read already in flight
  * under it from being stored.
  *

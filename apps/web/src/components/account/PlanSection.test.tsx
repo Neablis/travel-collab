@@ -115,6 +115,14 @@ describe("what you hold", () => {
     expect(text("plan-state")).toBe("Active");
   });
 
+  // The Plan panel has no heading of its own (its tab names it), so its cards
+  // sit one level under Account's h1 (axe heading-order).
+  it("titles the usage card one level under the page's h1", async () => {
+    serve(subscribed());
+    render(<PlanSection />);
+    expect(await screen.findByRole("heading", { level: 2, name: "Assistant use today" })).toBeTruthy();
+  });
+
   // **"Renews on 20 October" and "ends on 20 October" are the same date and
   // opposite facts**, and a person deciding whether to fix a card is reading
   // for exactly that difference.
