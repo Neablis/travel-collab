@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { registerPhoneAsk } from "@/components/nav/phoneAsk";
 import { CommandPalette } from "./CommandPalette";
@@ -27,12 +27,18 @@ const command = (label: string, run: () => void, group: PaletteCommand["group"] 
   run,
 });
 
+// What the palette reads to tell a Mac (⌘K) from anything else (Ctrl+K).
+// jsdom's own is "", so each test says which it is: a Mac unless it says not.
+let platform = "MacIntel";
 beforeEach(() => {
+  platform = "MacIntel";
+  vi.spyOn(navigator, "platform", "get").mockImplementation(() => platform);
   signedIn = true;
   push.mockReset();
   fetchTrips.mockReset().mockResolvedValue({ ok: true, value: [] });
 });
 afterEach(() => {
+  vi.restoreAllMocks();
   taken.splice(0).forEach((takeBack) => takeBack());
   cleanup();
 });
@@ -49,10 +55,40 @@ describe("CommandPalette", () => {
     await waitFor(() => expect(palette()).toBeNull());
   });
 
-  it("opens on Ctrl+K as well, for a keyboard without ⌘", async () => {
+  it("opens on Ctrl+K off a Mac, and not on the Windows key", async () => {
+    platform = "Win32";
     render(<CommandPalette />);
+    await userEvent.keyboard("{Meta>}k{/Meta}");
+    expect(palette()).toBeNull();
     await userEvent.keyboard("{Control>}k{/Control}");
     expect(palette()).toBeTruthy();
+  });
+
+  // PR 398 review: Ctrl+K in a Mac text field deletes to the end of the line.
+  it("leaves Ctrl+K to the text field on a Mac", async () => {
+    render(<CommandPalette />);
+    await userEvent.keyboard("{Control>}k{/Control}");
+    expect(palette()).toBeNull();
+  });
+
+  // PR 398 review: on a Russian layout the K key types "л".
+  it("opens by the K key where the layout's letters are not Latin", () => {
+    render(<CommandPalette />);
+    fireEvent.keyDown(window, { key: "л", code: "KeyK", metaKey: true });
+    expect(palette()).toBeTruthy();
+  });
+
+  // PR 398 review: an IME's Enter commits the candidate it is composing.
+  it("runs nothing on an Enter that ends an IME composition", async () => {
+    const plan = vi.fn();
+    offer([command("Plan", plan)]);
+    render(<CommandPalette />);
+    await userEvent.keyboard("{Meta>}k{/Meta}");
+    const box = screen.getByRole("combobox", { name: "Go to or do" });
+    fireEvent.keyDown(box, { key: "Enter", isComposing: true });
+    fireEvent.keyDown(box, { key: "Enter", keyCode: 229 });
+    expect(palette()).toBeTruthy();
+    expect(plan).not.toHaveBeenCalled();
   });
 
   // ADR-068 §1: the palette runs the page's function, and only once it has
@@ -101,6 +137,7 @@ describe("CommandPalette", () => {
 
     taken.push(registerPhoneAsk({ open: true, onOpen }));
     await userEvent.keyboard("{Meta>}k{/Meta}ask");
+    expect(palette()).toBeTruthy();
     expect(screen.queryByRole("option", { name: /Ask the assistant/ })).toBeNull();
   });
 
@@ -111,6 +148,38 @@ describe("CommandPalette", () => {
     await screen.findByRole("option", { name: /Kyoto in spring/ });
     await userEvent.keyboard("kyo{Enter}");
     await waitFor(() => expect(push).toHaveBeenCalledWith("/trips/t1"));
+  });
+
+  // PR 398 review: a list kept from the last opening offers a trip deleted
+  // since, until this opening's read lands, and for good if it fails.
+  it("shows none of the last opening's trips before this opening's arrive", async () => {
+    fetchTrips.mockResolvedValue({ ok: true, value: [{ tripId: "t1", name: "Kyoto in spring", status: "active" }] });
+    render(<CommandPalette />);
+    await userEvent.keyboard("{Meta>}k{/Meta}");
+    await screen.findByRole("option", { name: /Kyoto in spring/ });
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(palette()).toBeNull());
+
+    fetchTrips.mockResolvedValue({ ok: false, error: { code: "network" } });
+    await userEvent.keyboard("{Meta>}k{/Meta}");
+    expect(palette()).toBeTruthy();
+    await waitFor(() => expect(fetchTrips).toHaveBeenCalledTimes(2));
+    expect(screen.queryByRole("option", { name: /Kyoto in spring/ })).toBeNull();
+  });
+
+  // PR 398 review: the list can shrink under the highlight while it is open.
+  it("keeps the highlight on the list when the list shrinks under it", async () => {
+    signedIn = false;
+    offer([command("Alpha", vi.fn()), command("Beta", vi.fn())]);
+    render(<CommandPalette />);
+    await userEvent.keyboard("{Meta>}k{/Meta}{ArrowDown}{ArrowDown}");
+    expect(screen.getByRole("option", { selected: true }).textContent).toBe("PlaybooksGo to");
+
+    act(() => offer([command("Alpha", vi.fn())]));
+    const box = screen.getByRole("combobox", { name: "Go to or do" });
+    expect(screen.getByRole("option", { selected: true }).id).toBe(box.getAttribute("aria-activedescendant"));
+    await userEvent.keyboard("{Enter}");
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/playbooks"));
   });
 
   it("offers a reader with no account only what is open to them", async () => {

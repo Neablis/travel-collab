@@ -29,6 +29,21 @@ import { type PaletteCommand, usePaletteCommands } from "./paletteRegistry";
 // **No match goes nowhere** (ADR-068 §5): unmatched text is not handed to the
 // assistant in v1.
 
+// On a Mac, Ctrl+K is a text field's kill-line, so ⌘K alone opens it there
+// (PR 398 review). `userAgentData` where the browser has it, else the
+// long-deprecated but everywhere-present `platform`.
+function isMac(): boolean {
+  const nav = navigator as Navigator & { userAgentData?: { platform?: string } };
+  return /mac|iphone|ipad|ipod/i.test(nav.userAgentData?.platform ?? nav.platform ?? "");
+}
+
+// K as typed, or, on a layout whose letters are not Latin (Cyrillic's "л"),
+// the key where K is: a Dvorak K is still K by what it types.
+function isK(event: KeyboardEvent): boolean {
+  const key = event.key.toLowerCase();
+  return key === "k" || (!/^[a-z]$/.test(key) && event.code === "KeyK");
+}
+
 /** Opens on ⌘K (Ctrl+K off a Mac) from anywhere in the app. */
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
@@ -47,12 +62,16 @@ export function CommandPalette() {
     returnTo.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setQuery("");
     setActive(0);
+    // Not the last opening's list, which may hold a trip deleted since and
+    // would stay if this opening's read fails.
+    setTrips([]);
     setOpen(true);
   }, []);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key.toLowerCase() !== "k" || !(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) return;
+      const mac = isMac();
+      if (!isK(event) || !(mac ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey) || event.altKey || event.shiftKey) return;
       event.preventDefault();
       if (open) setOpen(false);
       else show();
@@ -83,6 +102,10 @@ export function CommandPalette() {
     [registered, ask, signedIn, trips, router],
   );
   const shown = rankCommands(commands, query);
+  // Held inside the list, which can shrink under it while it is open (a
+  // screen's commands change, the trips arrive): past its end, Enter would
+  // run nothing and the box would name an option that is not there.
+  const at = Math.min(active, Math.max(shown.length - 1, 0));
   const optionId = (index: number) => `${listId}-${index}`;
 
   const run = (command: PaletteCommand | undefined) => {
@@ -119,7 +142,7 @@ export function CommandPalette() {
           aria-expanded
           aria-controls={listId}
           aria-autocomplete="list"
-          aria-activedescendant={shown.length > 0 ? optionId(active) : undefined}
+          aria-activedescendant={shown.length > 0 ? optionId(at) : undefined}
           autoComplete="off"
           placeholder="Calendar, new stop, ask…"
           value={query}
@@ -128,13 +151,15 @@ export function CommandPalette() {
             setActive(0);
           }}
           onKeyDown={(event) => {
+            // An IME's Enter picks its candidate; it is not this list's Enter.
+            if (event.nativeEvent.isComposing || event.keyCode === 229) return;
             if (event.key === "ArrowDown" || event.key === "ArrowUp") {
               event.preventDefault();
               const step = event.key === "ArrowDown" ? 1 : -1;
-              setActive((i) => (shown.length === 0 ? 0 : (i + step + shown.length) % shown.length));
+              setActive(shown.length === 0 ? 0 : (at + step + shown.length) % shown.length);
             } else if (event.key === "Enter") {
               event.preventDefault();
-              run(shown[active]);
+              run(shown[at]);
             }
           }}
         />
@@ -145,8 +170,8 @@ export function CommandPalette() {
               key={command.id}
               id={optionId(index)}
               role="option"
-              aria-selected={index === active}
-              className={cn("flex cursor-pointer items-baseline justify-between gap-3 rounded-sm px-3 py-2 text-ink md:py-1.5", index === active && "bg-brand-tint")}
+              aria-selected={index === at}
+              className={cn("flex cursor-pointer items-baseline justify-between gap-3 rounded-sm px-3 py-2 text-ink md:py-1.5", index === at && "bg-brand-tint")}
               // `mousedown` would take focus from the box before the click lands.
               onMouseDown={(event) => event.preventDefault()}
               onMouseEnter={() => setActive(index)}

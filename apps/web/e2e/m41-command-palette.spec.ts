@@ -5,15 +5,20 @@ import { e2eTripName } from "./tripNames";
 
 // M41 D9 and ADR-068: ⌘K runs the page's own actions, so the whole walk here
 // is done from the keyboard. `ControlOrMeta` is ⌘ on a Mac and Ctrl elsewhere,
-// and the palette answers to both. What each command calls is the unit tests'
+// the one the palette answers to on each. What each command calls is the unit tests'
 // subject (`CommandPalette.test.tsx`, `commands.test.ts`, and the identity
 // cases in `TripBoardScreen.test.tsx`); this is the keyboard path end to end.
 
-async function command(page: Page, text: string) {
+// `waitFor`: an option to see listed before Enter, for one that arrives after
+// the palette opens. Your trips are read afresh at each opening and none are
+// listed until they land (PR 398 review), so typing a trip's name and pressing
+// Enter at once is "No match", which goes nowhere.
+async function command(page: Page, text: string, waitFor?: RegExp) {
   await page.keyboard.press("ControlOrMeta+KeyK");
   const palette = page.getByRole("dialog", { name: "Go to or do" });
   await expect(palette).toBeVisible();
   await page.keyboard.type(text);
+  if (waitFor !== undefined) await expect(palette.getByRole("option", { name: waitFor })).toBeVisible();
   await page.keyboard.press("Enter");
   await expect(palette).toBeHidden();
 }
@@ -40,7 +45,7 @@ test("a trip walked from the keyboard alone: a lens, a new stop, the assistant, 
   await command(page, "ask");
   await expect(page.getByRole("complementary", { name: "Assistant" })).toBeVisible();
 
-  await command(page, "PaletteOther");
+  await command(page, "PaletteOther", /PaletteOther/);
   await expect(page).toHaveURL(new RegExp(`/trips/${other}`));
 });
 

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { placeCommands, tripSettingsCommands } from "./commands";
 import { rankCommands } from "./match";
 
 const commands = [
@@ -51,6 +52,25 @@ describe("rankCommands", () => {
   it("ranks a later word's start above the same letters inside a word", () => {
     const places = [{ label: "Destination" }, { label: "Old tin mine" }];
     expect(rankCommands(places, "tin").map((c) => c.label)).toEqual(["Old tin mine", "Destination"]);
+  });
+
+  // PR 398 review, on what a trip page really lists: Account answers to
+  // "settings" and every trip to "trip", and neither may beat the label that
+  // says it. Enter takes the first.
+  it("ranks a label's match above the same word as another command's keyword", () => {
+    const onTrip = [
+      ...tripSettingsCommands(() => {}, true),
+      ...placeCommands(() => {}, [
+        { tripId: "t1", name: "Kyoto in spring" },
+        { tripId: "t2", name: "Lisbon" },
+      ]),
+    ];
+    const ranked = (query: string) => rankCommands(onTrip, query).map((c) => c.label);
+    expect(ranked("settings")[0]).toBe("Trip settings");
+    expect(ranked("trip")[0]).toBe("Trip settings");
+    // Still found by the keyword, below the label.
+    expect(ranked("settings")).toContain("Account");
+    expect(ranked("trip")).toContain("Lisbon");
   });
 
   it("matches nothing when the letters are not there", () => {
