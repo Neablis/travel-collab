@@ -13,6 +13,22 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-10 — `AdminRevokeGrantInput`: the operator's revoke body is parsed, and a grant id is a uuid
+
+- **Added** `AdminRevokeGrantInput` (`packages/contracts/src/entitlement.ts`): `{ grantId: uuid }`, the
+  body of `DELETE /api/admin/grants`, beside the `AdminGrantInput` its `POST` already parsed.
+- Why: the route checked the body by hand (`typeof grantId === "string"`), the one admin write not
+  going through a contract schema (external audit, 2026-10-09). The hand check also let a non-uuid
+  string reach `entitlement_grants.id`, a `uuid` column, where Postgres's cast failed and the route
+  answered **500** instead of the caller's **400**. It now answers `400 invalid-grant-id` with the
+  Zod `issues`, the same shape as the `POST`'s `invalid-grant`.
+- Consumers updated: `apps/web` — `app/api/admin/grants/route.ts` parses with it;
+  `server/entitlements/admin.int.test.ts` covers the non-uuid id. The console
+  (`components/admin/AccountGrants.tsx`) already sends only ids it listed, and reads the status, not
+  the body, so it is unchanged. Not on the public API (`exposure.ts`: `admin/grants` is `planned`),
+  so no `openapi.json`, `API_VERSION` or `API_FINGERPRINT` change.
+- Breaking? no — every id the console sends is a uuid; only a request that was already a 500 changes.
+
 ## 2026-10-10 — A pending stop is in no `time-overlap` conflict (design feedback #8)
 
 - **No schema changed shape, and `openapi.json` did not either** — so no `API_VERSION` or

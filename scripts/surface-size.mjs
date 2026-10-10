@@ -54,7 +54,9 @@ const BUDGETS = {
   // it was trimmed: 63,557 B / 969 lines went to 21,915 B / 336 lines against
   // the file's OWN stated "~300 lines is the signal" rule, so the ceiling that
   // merely capped further growth is now an actual budget.
-  "AGENTS.md": 47_000, // 37,515 at set
+  "AGENTS.md": 34_000, // 27,520 at set. Lowered from 47,000 on 2026-10-10 by a
+  // retirement pass (docs/retros/2026-10-10-retired-rules.md): 38,279 B went to
+  // 27,520 B, and the old ceiling would have let it regrow by 70% unnoticed.
   "CLAUDE.md": 10_000, // 3,639 at set
   "docs/known-issues/open/": null,
 };
