@@ -204,7 +204,6 @@
   "apps/web/src/components/ui/checkbox.tsx::Checkbox",
   "apps/web/src/components/ui/data-text.tsx::DataText",
   "apps/web/src/components/ui/dialog.tsx::DialogFooter",
-  "apps/web/src/components/ui/empty-state.tsx::EmptyState",
   "apps/web/src/components/ui/form-field.tsx::FormField",
   "apps/web/src/components/ui/heading.tsx::Heading",
   "apps/web/src/components/ui/input.tsx::Input",

@@ -114,8 +114,8 @@ function BlockHead({ eyebrow, title, children }: { eyebrow: string; title: strin
 
 // The jungle days recede behind the borrowed day, but only their DECORATION
 // fades. `opacity-75` used to sit on the whole card, which also dimmed its text:
-// slate on paper is 5.53:1 and at 75% opacity it composited to #908b80 on
-// #fbfaf6, 3.25:1 at 9.5px, and axe failed the day label on `/`. The card's
+// slate on paper is 5.53:1, and at 75% opacity it composited down to 3.25:1 at
+// 9.5px, so axe failed the day label on `/`. The card's
 // paper-on-surface and the bars already read as background; the text keeps its
 // full token colour.
 function JungleDay({ day, title, bars }: { day: string; title: string; bars: readonly string[] }) {
