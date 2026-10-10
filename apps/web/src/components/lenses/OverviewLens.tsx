@@ -361,6 +361,7 @@ export function OverviewLens({
           onChange={() => {}}
           editable={false}
           compact={isPhone}
+          label="Trip overview"
         />
       </PeopleProvider>
     );

@@ -38,6 +38,14 @@ export interface PageEditorProps {
   // side channel to put them in — the Overview tab (§25) mounts this read-only
   // and passes nothing.
   onWidgetSelected?: MacroEditorContextValue["onWidgetSelected"];
+  /**
+   * The document's accessible name. TipTap's `contenteditable` is announced as
+   * a textbox, and axe failed the Overview tab on `/demo` for a textbox with no
+   * name; defaulted here so no surface that mounts the editor can ship one
+   * without it. It rides on `editorProps`, so pass a constant rather than
+   * something that changes while mounted.
+   */
+  label?: string;
 }
 
 // The rich-text editor for a page: StarterKit's usual marks/blocks, plus the
@@ -92,7 +100,7 @@ function needsKeyOf(doc: unknown): string {
   return [...externalNeedsOf([doc], getMacro)].sort().join(",");
 }
 
-export function PageEditor({ detail, context, user = null, globals = null, value, onChange, onBindDay, onEditorReady, editable = true, compact = false, onWidgetSelected }: PageEditorProps) {
+export function PageEditor({ detail, context, user = null, globals = null, value, onChange, onBindDay, onEditorReady, editable = true, compact = false, onWidgetSelected, label = "Notebook page" }: PageEditorProps) {
   // The slash menu's keydown handler has to be installed at editor creation
   // (`editorProps` is read once), but the menu itself only exists after the
   // editor does. A ref breaks that circle; nothing reads it before the first
@@ -113,6 +121,16 @@ export function PageEditor({ detail, context, user = null, globals = null, value
   const editor = useEditor({
     extensions: PAGE_EDITOR_EXTENSIONS,
     editorProps: {
+      // On the `contenteditable` itself, which is the element exposed as the
+      // textbox; a label on a wrapper would name nothing.
+      //
+      // **`role` is restated, not decoration.** TipTap adds `role="textbox"`
+      // by merging it under these attributes at creation, but `setOptions`
+      // (which `useEditor` calls on re-render) hands `editorProps` straight to
+      // ProseMirror with no merge — so passing ANY attributes here silently
+      // stripped the role, and every `getByRole("textbox")` in this
+      // component's tests went red when the label was first added.
+      attributes: { role: "textbox", "aria-multiline": "true", "aria-label": label },
       // Drag-and-drop insert. The logic lives in `widgetDrop.ts` — see there
       // for why it is a function rather than a closure (jsdom has no layout,
       // so this handler is unreachable through a rendered editor).
