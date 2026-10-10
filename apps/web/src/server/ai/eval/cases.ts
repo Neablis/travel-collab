@@ -65,6 +65,13 @@ export function expectationFor(id: string, trip: TripDetail): EvalExpectation | 
       return { ...QUESTION, namesOneOfAmounts: [travellerSplitOfDay(trip, 1)] };
     case "q-free-evening":
       return { ...QUESTION, mustCall: ["find_free_time"], maxCallsOf: { find_free_time: 1 } };
+    // The long-trip guards (2026-10-10), on a 100-day trip (`long-100`): a
+    // summary is the overview's job. One `read_day` call (five days at most)
+    // is a fair look at a stay; more is the read-every-day shape the overview
+    // and the per-turn cap exist to stop, and the token ceiling is far under
+    // what reading even fifteen of its days and re-sending them would cost.
+    case "q-summarise-long-trip":
+      return { ...QUESTION, mustCall: ["read_trip"], maxCallsOf: { read_day: 1 }, maxInputTokens: 30_000 };
     case "q-length":
     case "q-busiest":
     case "q-cost":
