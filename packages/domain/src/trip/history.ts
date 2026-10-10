@@ -127,8 +127,10 @@ export function deriveUndoRedo(batches: Batch[]): UndoRedoTargets {
     switch (batch.origin.kind) {
       case "user":
       // An accepted suggestion is the reviewer's edit like any other (ADR-064,
-      // spec W11); its origin only remembers who asked for it.
+      // spec W11); its origin only remembers who asked for it. Several
+      // accepted at once are one batch, so one undo (M40 D1).
       case "suggestion":
+      case "suggestions":
       case "revert":
         done.push(batch);
         undone.length = 0;
@@ -332,6 +334,13 @@ function describeBatch(
       return `Redid: ${priorDescriptions.get(batch.origin.redoesBatchId) ?? "an earlier change"}`;
     case "revert":
       return `Reverted to version ${batch.origin.toSeq}`;
+    // What each change did is in its own row on the board; here the batch is
+    // the decision. Names are the client's to add (M40 D3): the domain holds
+    // only author ids.
+    case "suggestions": {
+      const n = batch.origin.changes.length;
+      return n === 1 ? "Accepted 1 suggestion" : `Accepted ${n} suggestions`;
+    }
     case "user":
     case "suggestion":
       // **A batch is one aggregate's or the other's, never both**, because a

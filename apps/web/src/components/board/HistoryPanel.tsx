@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { TripHistory } from "@tc/contracts";
+import type { SuggestionVia, TripHistory } from "@tc/contracts";
 import { Banner } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
@@ -9,12 +9,30 @@ import { coalesceHistory } from "./coalesceHistory";
 import { DataText } from "@/components/ui/data-text";
 import { Text } from "@/components/ui/text";
 import { formatTripDate } from "@/lib/formatDate";
-import { AuthorChip, useAuthorNames } from "./SuggestionActions";
+import { AuthorChip, useAuthorNames, withVia } from "./SuggestionActions";
+import { SnapshotList } from "./SnapshotList";
+import type { CommandOutcome } from "@/lib/apiClient";
 
 // "Suggested" alone until the names land: a name guessed wrong, or "a former
 // traveler" said of a member, is worse than none.
 function suggestedBy(name: string | null): string {
   return name === null ? "Suggested" : `Suggested by ${name}`;
+}
+
+// M40 D3: an accept-all reads "Accepted 7 suggestions / from Sam and Ana".
+// The domain's description is the count; the names are only here, on the
+// second line for the reason W11's by-line is (on one line the sentence ran
+// 69px past the popover in the e2e walk). Null until every name lands, for
+// `suggestedBy`'s reason. Deduplicated: two authors who have both left are
+// each "a former traveler", and saying it twice reads as a stutter.
+const AND = new Intl.ListFormat("en", { type: "conjunction" });
+/**
+ * The second line of an accept-all History row, "from Sam and Ana", each name
+ * once; null while any name is still loading.
+ */
+export function fromAuthors(names: readonly (string | null)[]): string | null {
+  if (names.some((n) => n === null)) return null;
+  return `from ${AND.format([...new Set(names as string[])])}`;
 }
 
 // Bounded page size for the History popover's entries list (#1): only the
@@ -35,6 +53,7 @@ export function HistoryPanel({
   onPreview,
   onExitPreview,
   onRevert,
+  snapshots,
 }: {
   history: TripHistory | null;
   previewSeq: number | null;
@@ -46,12 +65,17 @@ export function HistoryPanel({
   onPreview: (seq: number) => void;
   onExitPreview: () => void;
   onRevert: (toSeq: number) => void;
+  // Named snapshots (M40 part 2), listed above the scroll. Optional so a panel
+  // with no trip to ask about (the demo, a test of the entries) shows none.
+  snapshots?: { tripId: string; busy: boolean; onRestored: (outcome: CommandOutcome) => void };
 }) {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   // Null names outside a `PeopleProvider` (TripHeader mounts one) or before
   // it lands.
   const nameOf = useAuthorNames(
-    history?.entries.flatMap((e) => (e.origin.kind === "suggestion" ? [e.origin.authorId] : [])) ?? [],
+    history?.entries.flatMap((e) =>
+      e.origin.kind === "suggestion" ? [e.origin.authorId] : e.origin.kind === "suggestions" ? e.origin.authorIds : [],
+    ) ?? [],
   );
 
   if (history === null) return null;
@@ -65,6 +89,17 @@ export function HistoryPanel({
 
   return (
     <div className="flex flex-col gap-2">
+      {snapshots && (
+        <SnapshotList
+          tripId={snapshots.tripId}
+          canEdit={!readOnly}
+          busy={snapshots.busy}
+          previewSeq={previewSeq}
+          onPreview={onPreview}
+          onExitPreview={onExitPreview}
+          onRestored={snapshots.onRestored}
+        />
+      )}
       <ol reversed className="m-0 max-h-80 list-none divide-y divide-hairline overflow-y-auto p-0">
         {visible.map(({ entry, count }) => (
           <li
@@ -82,7 +117,7 @@ export function HistoryPanel({
                 // `h-auto` because a suggestion row is two lines and `md`'s
                 // fixed `h-9` would clip the second; the base's phone floor
                 // still holds, being `min-h`.
-                entry.origin.kind === "suggestion" && "h-auto py-1",
+                (entry.origin.kind === "suggestion" || entry.origin.kind === "suggestions") && "h-auto py-1",
                 entry.undone && "opacity-50",
                 previewSeq === entry.toSeq && "font-bold",
               )}
@@ -98,8 +133,11 @@ export function HistoryPanel({
                 {entry.origin.kind === "suggestion" && (
                   <span className="flex max-w-full min-w-0 items-center gap-1.5 text-xs text-slate">
                     <AuthorChip authorId={entry.origin.authorId} />
-                    <span className="truncate">{suggestedBy(nameOf(entry.origin.authorId))}</span>
+                    <span className="truncate">{withVia(suggestedBy(nameOf(entry.origin.authorId)), entry.origin.via)}</span>
                   </span>
+                )}
+                {entry.origin.kind === "suggestions" && (
+                  <AuthorsLine names={entry.origin.authorIds.map(nameOf)} via={entry.origin.via} />
                 )}
               </span>
               {/* The count is shown rather than implied, because one undo
@@ -137,4 +175,10 @@ export function HistoryPanel({
       )}
     </div>
   );
+}
+
+// An accept-all's second line; nothing until every name has landed.
+function AuthorsLine({ names, via }: { names: readonly (string | null)[]; via: SuggestionVia | undefined }) {
+  const from = fromAuthors(names);
+  return from === null ? null : <span className="max-w-full truncate text-xs text-slate">{withVia(from, via)}</span>;
 }

@@ -7,9 +7,11 @@ import { grantMembership } from "../access/members";
 import { db } from "../db/client";
 import { tripDetails, tripSuggestionChanges, tripSuggestions, users } from "../db/schema";
 import { readStream } from "../eventStore";
+import { getTripHistory } from "../history";
 import { getTripDetail } from "../projections";
 import { entitleAccounts } from "../test-support/entitledAccount";
 import { insertStoredSuggestion, unparseableCommands } from "../test-support/storedSuggestion";
+import { acceptSuggestionChanges } from "./accept";
 import { createSuggestion } from "./create";
 import { listSuggestionChanges } from "./list";
 import { resolveSuggestionChange } from "./resolve";
@@ -106,16 +108,28 @@ async function statusOf(changeId: string): Promise<string | undefined> {
 }
 
 describe("createSuggestion", () => {
-  it("is refused to everyone but a suggester, and stores nothing", async () => {
+  // ADR-067 decision 1 relaxed spec §2.7: an editor or the owner may suggest
+  // too, and is reviewed exactly like a suggester. A viewer still may not.
+  it("is refused to a viewer and a stranger, and stores nothing for either", async () => {
     const input = draft([rename("Kyoto in spring")]);
-    for (const actor of [VIEWER, EDITOR, OWNER]) {
-      expect(await createSuggestion(tripId, actor, input)).toMatchObject({ ok: false, error: { code: "forbidden" } });
-    }
+    expect(await createSuggestion(tripId, VIEWER, input)).toMatchObject({ ok: false, error: { code: "forbidden" } });
     expect(await createSuggestion(tripId, STRANGER, input)).toMatchObject({
       ok: false,
       error: { code: "not-found" },
     });
     expect(await storedChanges()).toBe(0);
+  });
+
+  it("takes a suggestion from an editor and from the owner, which another editor lists", async () => {
+    const fromEditor = await suggest(draft([rename("Kyoto in spring")]), EDITOR);
+    const fromOwner = await suggest(draft([rename("Kyoto in autumn")]), OWNER);
+    const listed = await listSuggestionChanges(tripId, OWNER);
+    expect(listed.ok && listed.value.changes.map((c) => [c.id, c.authorId])).toEqual([
+      [fromEditor[0]!.id, EDITOR],
+      [fromOwner[0]!.id, OWNER],
+    ]);
+    // A person's own draft says nothing about the assistant.
+    expect(listed.ok && listed.value.changes.every((c) => c.via === undefined)).toBe(true);
   });
 
   it("refuses a draft with a unit that does not apply, names it, and stores nothing", async () => {
@@ -379,6 +393,26 @@ describe("createSuggestion — caps", () => {
     });
   });
 
+  // ADR-067 decision 3: an assistant turn is one request, whatever it holds,
+  // and its author did not draft it change by change.
+  it("lets an assistant suggestion past the author's cap, and does not count it toward the author's own drafts", async () => {
+    await insertStoredSuggestion({ tripId, authorId: EDITOR, changes: SUGGESTION_AUTHOR_PENDING_MAX, via: "assistant" });
+    const viaAssistant = await createSuggestion(tripId, EDITOR, units(3), undefined, { via: "assistant" });
+    expect(viaAssistant.ok && viaAssistant.value.map((c) => c.via)).toEqual(["assistant", "assistant", "assistant"]);
+    // 53 open from the assistant, none drafted by hand: a draft of 50 still fits.
+    expect((await createSuggestion(tripId, EDITOR, units(SUGGESTION_AUTHOR_PENDING_MAX))).ok).toBe(true);
+    expect(await createSuggestion(tripId, EDITOR, units(1))).toMatchObject({ ok: false, error: { code: "too-many-pending" } });
+  });
+
+  it("holds an assistant suggestion to the trip's cap, and stores none of it", async () => {
+    await insertStoredSuggestion({ tripId, authorId: OTHER_SUGGESTER, changes: SUGGESTION_TRIP_PENDING_MAX - 1 });
+    expect(await createSuggestion(tripId, EDITOR, units(2), undefined, { via: "assistant" })).toMatchObject({
+      ok: false,
+      error: { code: "too-many-pending" },
+    });
+    expect(await storedChanges()).toBe(SUGGESTION_TRIP_PENDING_MAX - 1);
+  });
+
   it("does not count a resolved or an expired change", async () => {
     const [dismissed] = await insertStoredSuggestion({ tripId, authorId: SUGGESTER, changes: SUGGESTION_AUTHOR_PENDING_MAX });
     expect((await resolveSuggestionChange(tripId, dismissed!, OWNER, "dismiss")).ok).toBe(true);
@@ -449,6 +483,19 @@ describe("resolveSuggestionChange — accept", () => {
       authorId: SUGGESTER,
     });
     expect(await statusOf(change!.id)).toBe("accepted");
+  });
+
+  it("carries the assistant on the origin of a change it stored, so History can say so", async () => {
+    const created = await createSuggestion(tripId, EDITOR, draft([rename("Kyoto in spring")]), undefined, { via: "assistant" });
+    const [change] = created.ok ? created.value : [];
+    expect((await resolveSuggestionChange(tripId, change!.id, OWNER, "accept")).ok).toBe(true);
+    expect((await readStream(db, tripId)).at(-1)!.origin).toEqual({
+      kind: "suggestion",
+      suggestionId: change!.suggestionId,
+      changeId: change!.id,
+      authorId: EDITOR,
+      via: "assistant",
+    });
   });
 
   it("answers a second accept with already-resolved, and the trip gains exactly one batch", async () => {
@@ -589,6 +636,193 @@ describe("resolveSuggestionChange — accept", () => {
     });
     expect(await statusOf(change!.id)).toBe("pending");
     expect((await readStream(db, tripId)).length).toBe(before);
+  });
+});
+
+// M40 D1-D3. "Accept all" is one batch: one History entry, one undo, and a
+// refusal anywhere lands nothing.
+describe("acceptSuggestionChanges", () => {
+  const addStop = (day: string, title: string): BatchableCommand[] => [
+    { type: "AddActivity", tripId, activityId: randomUUID(), dayId: day, title },
+  ];
+
+  async function historyLength(): Promise<number> {
+    return (await getTripHistory(tripId))!.entries.length;
+  }
+
+  it("accepts ten changes as one History entry, which one undo takes back whole, leaving them accepted", async () => {
+    const newDay = randomUUID();
+    // Sam's stops build on Sam's new day; Sue's go on the day the trip has.
+    const fromSam = await suggest(draft([{ type: "AddDay", tripId, dayId: newDay }], ...[1, 2, 3, 4, 5].map((n) => addStop(newDay, `Sam ${n}`))));
+    const fromSue = await suggest(draft(...[1, 2, 3, 4].map((n) => addStop(dayId, `Sue ${n}`))), OTHER_SUGGESTER);
+    const all = [...fromSam, ...fromSue];
+    expect(all).toHaveLength(10);
+    const entriesBefore = await historyLength();
+    const tripBefore = await getTripDetail(tripId);
+
+    // Named children first: the server replays parents first regardless.
+    const accepted = await acceptSuggestionChanges(tripId, all.map((c) => c.id).reverse(), EDITOR);
+    expect(accepted.ok && accepted.value.map((c) => c.status)).toEqual(Array(10).fill("accepted"));
+
+    const history = (await getTripHistory(tripId))!;
+    expect(history.entries).toHaveLength(entriesBefore + 1);
+    expect(history.entries[0]).toMatchObject({
+      actorId: EDITOR,
+      description: "Accepted 10 suggestions",
+      origin: { kind: "suggestions", authorIds: [SUGGESTER, OTHER_SUGGESTER] },
+    });
+    expect((await getTripDetail(tripId))!.days).toHaveLength(2);
+
+    expect((await executeTripCommand({ type: "UndoLastChange", tripId }, OWNER)).ok).toBe(true);
+    const undone = (await getTripDetail(tripId))!;
+    expect(undone.days.map((d) => d.dayId)).toEqual(tripBefore!.days.map((d) => d.dayId));
+    expect(undone.days[0]!.activityIds).toEqual([stopId]);
+    expect(Object.keys(undone.activities)).toEqual([stopId]);
+    // D2: undo is compensating events and nothing else.
+    for (const change of all) expect(await statusOf(change.id)).toBe("accepted");
+  });
+
+  it("says the assistant on an accept-all only when every change in it came through the assistant", async () => {
+    const viaAssistant = async (title: string) => {
+      const created = await createSuggestion(tripId, EDITOR, draft(addStop(dayId, title)), undefined, { via: "assistant" });
+      if (!created.ok) throw new Error(JSON.stringify(created.error));
+      return created.value[0]!.id;
+    };
+    const both = [await viaAssistant("Nishiki market"), await viaAssistant("Kiyomizu-dera")];
+    expect((await acceptSuggestionChanges(tripId, both, OWNER)).ok).toBe(true);
+    expect((await getTripHistory(tripId))!.entries[0]!.origin).toMatchObject({ kind: "suggestions", via: "assistant" });
+
+    const [byHand] = await suggest(draft(addStop(dayId, "Gion")));
+    const mixed = [await viaAssistant("Ponto-cho"), byHand!.id];
+    expect((await acceptSuggestionChanges(tripId, mixed, OWNER)).ok).toBe(true);
+    expect((await getTripHistory(tripId))!.entries[0]!.origin).not.toHaveProperty("via");
+  });
+
+  // Mitchell, 2026-10-09: a stacked suggestion — a new day, a stop moved onto
+  // it, then that stop retimed — is one History entry, replayed in the order
+  // it was made, and one undo takes all of it back.
+  it("accepts a new day, a move onto it and an update of the moved stop as one entry, in order", async () => {
+    const newDay = randomUUID();
+    const stacked = await suggest(
+      draft(
+        [{ type: "AddDay", tripId, dayId: newDay }],
+        [{ type: "MoveActivity", tripId, activityId: stopId, toDayId: newDay, position: 0 }],
+        [{ type: "UpdateActivity", tripId, activityId: stopId, title: "Inari at dusk", timeWindow: { start: "15:10", end: "16:00" } }],
+      ),
+    );
+    expect(stacked).toHaveLength(3);
+    const entriesBefore = await historyLength();
+
+    // Named last-first: the order it lands in is the server's, not the caller's.
+    const accepted = await acceptSuggestionChanges(tripId, stacked.map((c) => c.id).reverse(), EDITOR);
+    expect(accepted.ok).toBe(true);
+
+    const history = (await getTripHistory(tripId))!;
+    expect(history.entries).toHaveLength(entriesBefore + 1);
+    expect(history.entries[0]).toMatchObject({ description: "Accepted 3 suggestions", origin: { kind: "suggestions" } });
+    const after = (await getTripDetail(tripId))!;
+    expect(after.days.map((d) => d.dayId)).toEqual([dayId, newDay]);
+    expect(after.days[0]!.activityIds).toEqual([]);
+    expect(after.days[1]!.activityIds).toEqual([stopId]);
+    expect(after.activities[stopId]).toMatchObject({ title: "Inari at dusk", timeWindow: { start: "15:10", end: "16:00" } });
+
+    expect((await executeTripCommand({ type: "UndoLastChange", tripId }, OWNER)).ok).toBe(true);
+    const undone = (await getTripDetail(tripId))!;
+    expect(undone.days.map((d) => d.dayId)).toEqual([dayId]);
+    expect(undone.days[0]!.activityIds).toEqual([stopId]);
+    expect(undone.activities[stopId]!.title).toBe("Fushimi Inari");
+    expect(undone.activities[stopId]!.timeWindow ?? null).toBeNull();
+  });
+
+  it("accepts a stacked suggestion together with another author's, as one entry naming both", async () => {
+    const newDay = randomUUID();
+    const fromSam = await suggest(
+      draft(
+        [{ type: "AddDay", tripId, dayId: newDay }],
+        [{ type: "MoveActivity", tripId, activityId: stopId, toDayId: newDay, position: 0 }],
+        [{ type: "UpdateActivity", tripId, activityId: stopId, timeWindow: { start: "09:00", end: "10:30" } }],
+      ),
+    );
+    const fromSue = await suggest(draft(addStop(dayId, "Nishiki market"), [rename("Kyoto in spring")]), OTHER_SUGGESTER);
+    const entriesBefore = await historyLength();
+
+    // Sue's named first: Sam's suggestion is older, and lands first.
+    const all = [...fromSue, ...fromSam];
+    expect((await acceptSuggestionChanges(tripId, all.map((c) => c.id), EDITOR)).ok).toBe(true);
+
+    const history = (await getTripHistory(tripId))!;
+    expect(history.entries).toHaveLength(entriesBefore + 1);
+    expect(history.entries[0]).toMatchObject({
+      description: "Accepted 5 suggestions",
+      origin: { kind: "suggestions", authorIds: [SUGGESTER, OTHER_SUGGESTER] },
+    });
+    const after = (await getTripDetail(tripId))!;
+    expect(after.name).toBe("Kyoto in spring");
+    expect(after.days[1]!.activityIds).toEqual([stopId]);
+    expect(after.activities[stopId]!.timeWindow).toEqual({ start: "09:00", end: "10:30" });
+    expect(after.days[0]!.activityIds).toHaveLength(1);
+  });
+
+  it("lands nothing when one change in the set is refused, and names that change", async () => {
+    const [renamed, retitled] = await suggest(
+      draft([rename("Kyoto in spring")], [{ type: "UpdateActivity", tripId, activityId: stopId, title: "Inari at dawn" }]),
+    );
+    expect((await executeTripCommand({ type: "RemoveActivity", tripId, activityId: stopId }, OWNER)).ok).toBe(true);
+    const before = (await readStream(db, tripId)).length;
+
+    const result = await acceptSuggestionChanges(tripId, [renamed!.id, retitled!.id], EDITOR);
+    expect(result).toMatchObject({ ok: false, error: { code: "no-longer-applies", changeId: retitled!.id } });
+    expect((await readStream(db, tripId)).length).toBe(before);
+    expect(await statusOf(renamed!.id)).toBe("pending");
+    expect(await statusOf(retitled!.id)).toBe("pending");
+  });
+
+  it("refuses a change whose pending parent is not in the set, and lands nothing", async () => {
+    const newDay = randomUUID();
+    const [addDay, addTea] = await suggest(draft([{ type: "AddDay", tripId, dayId: newDay }], addStop(newDay, "Tea ceremony")));
+    const [renamed] = await suggest(draft([rename("Kyoto in spring")]), OTHER_SUGGESTER);
+    const before = (await readStream(db, tripId)).length;
+
+    expect(await acceptSuggestionChanges(tripId, [renamed!.id, addTea!.id], EDITOR)).toMatchObject({
+      ok: false,
+      error: { code: "dependency-pending", changeId: addTea!.id },
+    });
+    expect((await readStream(db, tripId)).length).toBe(before);
+    for (const change of [addDay!, addTea!, renamed!]) expect(await statusOf(change.id)).toBe("pending");
+  });
+
+  it("refuses a resolved or unknown change by name, and a reviewer below editor", async () => {
+    const [first, second] = await suggest(draft([rename("Kyoto in spring")], [rename("Kyoto in autumn")]));
+    expect((await resolveSuggestionChange(tripId, first!.id, EDITOR, "dismiss")).ok).toBe(true);
+    expect(await acceptSuggestionChanges(tripId, [first!.id, second!.id], EDITOR)).toMatchObject({
+      ok: false,
+      error: { code: "already-resolved", changeId: first!.id },
+    });
+    const unknown = randomUUID();
+    expect(await acceptSuggestionChanges(tripId, [second!.id, unknown], EDITOR)).toMatchObject({
+      ok: false,
+      error: { code: "not-found", changeId: unknown },
+    });
+    expect(await acceptSuggestionChanges(tripId, [second!.id], SUGGESTER)).toMatchObject({
+      ok: false,
+      error: { code: "forbidden" },
+    });
+    expect(await statusOf(second!.id)).toBe("pending");
+  });
+
+  // W52, for the set: what every change asks for is already true.
+  it("accepts a set the trip already reflects throughout, and appends nothing", async () => {
+    const [first] = await suggest(draft([rename("Kyoto in spring")]));
+    const [second] = await suggest(draft([rename("Kyoto in spring")]), OTHER_SUGGESTER);
+    expect((await executeTripCommand(rename("Kyoto in spring"), OWNER)).ok).toBe(true);
+    const before = (await readStream(db, tripId)).length;
+
+    expect(await acceptSuggestionChanges(tripId, [first!.id, second!.id], EDITOR)).toMatchObject({
+      ok: true,
+      value: [{ id: first!.id, status: "accepted" }, { id: second!.id, status: "accepted" }],
+    });
+    expect((await readStream(db, tripId)).length).toBe(before);
+    for (const change of [first!, second!]) expect(await statusOf(change.id)).toBe("accepted");
   });
 });
 

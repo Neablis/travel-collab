@@ -25,9 +25,23 @@ const PROPOSAL = {
 
 const PAGE_DOC = { v: 1, type: "doc", content: [{ type: "paragraph", content: [] }] };
 
-describe("the /ask stream envelope — the four shapes the final chunk may take", () => {
+// ADR-067: a planning turn of more than one change, stored on the board.
+const SUGGESTED = {
+  suggestionId: "44444444-4444-4444-8444-444444444444",
+  changeCount: 3,
+  snapshotId: "55555555-5555-4555-8555-555555555555",
+  snapshotName: "Before: add a day in Kyoto",
+};
+
+describe("the /ask stream envelope — the five shapes the final chunk may take", () => {
   const ACCEPTED: [unknown, string][] = [
     [{ proposal: PROPOSAL }, "a proposal"],
+    [{ suggested: SUGGESTED }, "a multi-change turn stored as a suggestion"],
+    [
+      { suggested: { ...SUGGESTED, snapshotId: null, snapshotName: null, snapshotSkipped: "A trip keeps at most 20 snapshots." } },
+      "a stored suggestion whose snapshot was skipped",
+    ],
+    [{ proposal: { ...PROPOSAL, notSuggested: "This trip already has 200 suggested changes waiting." } }, "a card that could not be stored"],
     [{ pageInserts: { content: PAGE_DOC } }, "a page turn's inserts"],
     [{ composeError: 'Macro "cost.day" params failed validation.' }, "a compose refusal"],
     [{}, "a page turn that inserted nothing"],
@@ -70,6 +84,7 @@ describe("the /ask stream envelope — the four shapes the final chunk may take"
     [{ proposal: PROPOSAL, composeError: "boom" }, "a proposal and a refusal"],
     [{ proposal: PROPOSAL, pageInserts: { content: PAGE_DOC } }, "a proposal and page inserts"],
     [{ pageInserts: { content: PAGE_DOC }, composeError: "boom" }, "page inserts and a refusal"],
+    [{ proposal: PROPOSAL, suggested: SUGGESTED }, "a card and a stored suggestion"],
   ];
 
   it.each(AMBIGUOUS)("rejects %j (%s)", (metadata) => {
@@ -107,7 +122,7 @@ describe("the /ask stream envelope — the four shapes the final chunk may take"
 // half of why KI-22 moved this shape into contracts at all. The trap is that
 // `{}` is assignable FROM any object, so one `{}` member would make the whole
 // union accept every object and a typo would compile at the producer.
-describe("the envelope's TYPE pins the producer to the same four shapes", () => {
+describe("the envelope's TYPE pins the producer to the same five shapes", () => {
   it("refuses a misspelled key where `handleAskRequest` builds the chunk", () => {
     // Shaped exactly like `messageMetadata` in `apps/web/src/server/ai`.
     const messageMetadata = (): AskStreamMetadata | undefined =>
@@ -116,7 +131,7 @@ describe("the envelope's TYPE pins the producer to the same four shapes", () => 
     expect(AskStreamMetadata.safeParse(messageMetadata()).success).toBe(false);
   });
 
-  it("refuses a fifth key beside a valid proposal, which the parse forgives", () => {
+  it("refuses an unknown key beside a valid proposal, which the parse forgives", () => {
     // Forward compatibility is a CONSUMER rule: an older client strips a key a
     // newer server added. The producer is the newer server, and has no reason
     // to emit a key it does not also ship a schema for.
@@ -129,6 +144,31 @@ describe("the envelope's TYPE pins the producer to the same four shapes", () => 
   it("still lets the empty shape be built, because silence is a real answer", () => {
     const messageMetadata = (): AskStreamMetadata | undefined => ({});
     expect(AskStreamMetadata.safeParse(messageMetadata()).success).toBe(true);
+  });
+});
+
+describe("a stored suggestion on the wire (ADR-067)", () => {
+  const REJECTED: [unknown, string][] = [
+    [{ suggested: { ...SUGGESTED, changeCount: 0 } }, "no changes stored"],
+    [{ suggested: { ...SUGGESTED, suggestionId: "s1" } }, "an id that is not a suggestion's"],
+    [{ suggested: { suggestionId: SUGGESTED.suggestionId, changeCount: 2 } }, "no word on the snapshot either way"],
+    [{ suggested: { ...SUGGESTED, snapshotSkipped: "" } }, "a skipped snapshot with no reason"],
+  ];
+
+  it.each(REJECTED)("rejects %j (%s)", (metadata) => {
+    expect(AskStreamMetadata.safeParse(metadata).success).toBe(false);
+  });
+
+  it("carries what the resolver skipped, and reads an outcome from before that field as none", () => {
+    const skipped = ["“Dinner” is not on this trip, so it was left out."];
+    const carried = AskStreamMetadata.safeParse({ suggested: { ...SUGGESTED, skipped } });
+    expect(carried.success && "suggested" in carried.data && carried.data.suggested.skipped).toEqual(skipped);
+    const older = AskStreamMetadata.safeParse({ suggested: SUGGESTED });
+    expect(older.success && "suggested" in older.data && older.data.suggested.skipped).toEqual([]);
+  });
+
+  it("refuses a proposal whose reason for not being stored is blank", () => {
+    expect(AskStreamMetadata.safeParse({ proposal: { ...PROPOSAL, notSuggested: "" } }).success).toBe(false);
   });
 });
 

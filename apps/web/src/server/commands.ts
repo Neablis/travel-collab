@@ -298,11 +298,12 @@ const BatchBody = z.array(BatchableCommand).min(1);
 // unwinds the batch as a unit). Any rejection appends nothing.
 //
 // `alsoInSameTransaction` is a seam for a NON-PLANNING write that has to be the
-// same fact as the batch — today, exactly two callers: `insertSavedDay` writing
+// same fact as the batch — today, exactly three callers: `insertSavedDay` writing
 // the adds ledger row and its denormalised counter (M11b link 4), and accepting
 // a suggestion marking its change row accepted (`suggestions/resolve.ts`,
-// ADR-064), whose conditional update throws when another accept got there
-// first, so a double accept appends one batch, not two. It runs after
+// ADR-064), or several at once marking theirs (`suggestions/accept.ts`, M40),
+// whose conditional update throws when another resolve got there first, so a
+// double accept appends one batch, not two. It runs after
 // the events are appended and the projections written, still inside the
 // pipeline's transaction, and only when the batch succeeded — or, with
 // `options.runOnNoOp`, also when it is a no-op throughout (below). Throwing out
@@ -317,14 +318,14 @@ const BatchBody = z.array(BatchableCommand).min(1);
 //
 // It is NOT a general "run anything here" extension point. It may not append
 // events, write a planning projection, or decide a command — invariant 1 says
-// planning state is only ever written by the sequence above it. Both callers
+// planning state is only ever written by the sequence above it. All three callers
 // write only their own module's row, append nothing and decide nothing — the
 // shape this allows (ADR-064 re-read it for the second). A caller wanting
 // anything more is a signal the seam is wrong, not an invitation to widen it.
 //
 // `options.origin` is who the batch says asked for it; absent, `{ kind: "user" }`.
-// Only accepting a suggestion passes one: the reviewer is still `actorId`, and
-// the origin names the suggester (ADR-064 decision 3).
+// Only accepting suggestions passes one: the reviewer is still `actorId`, and
+// the origin names the suggester or suggesters (ADR-064 decision 3, M40 D3).
 //
 // `options.expectedSeq` is a CALLER's precondition on the same check step 5
 // already makes (ADR-050, Pass B): "only if the trip still stands at revision
@@ -339,8 +340,8 @@ const BatchBody = z.array(BatchableCommand).min(1);
 // `options.runOnNoOp` runs the same hook for a batch that is a no-op
 // throughout: the answer is still `no-op` and nothing is appended, but the hook
 // commits with the decision that said so, and is handed the trip as it stands.
-// One seam, not two (review of #308): its one user is accepting a suggestion
-// the trip already reflects (spec W52, W55), and the limits above bind it
+// One seam, not two (review of #308): its users are accepting a suggestion, or
+// a set of them, the trip already reflects (spec W52, W55), and the limits above bind it
 // unchanged. With no append there is no unique index to lose at, so the head is
 // read again after the hook, and a stream that moved since the decision is a
 // lost race like an append's — rolled back and run again against the new head.

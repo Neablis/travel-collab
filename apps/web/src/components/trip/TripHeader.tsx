@@ -102,6 +102,7 @@ export function TripHeader({
     status,
     pending,
     dispatch,
+    applyOutcome,
     preview,
     readOnly,
     canEditBoard,
@@ -596,6 +597,8 @@ export function TripHeader({
                       onPreview={(seq) => void preview.enter(seq)}
                       onExitPreview={preview.exit}
                       onRevert={(toSeq) => void dispatch({ type: "RevertToState", tripId, toSeq })}
+                      // The demo trip is folded in memory and has no snapshot rows to ask for.
+                      snapshots={isDemoTripId(tripId) ? undefined : { tripId, busy: pending, onRestored: applyOutcome }}
                     />
                   </Popover>
                   {!isPhone && overflowMenu}

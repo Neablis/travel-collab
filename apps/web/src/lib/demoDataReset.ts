@@ -19,3 +19,20 @@
 export function isDemoDataResetEnabled(): boolean {
   return process.env.VERCEL_ENV === "preview" && process.env.SEED_DEMO_DATA === "true";
 }
+
+/**
+ * Where to land after a reset, given where the reset was confirmed from: the
+ * reseeded trip, in the same view, when that was a trip page — or null, for a
+ * plain reload.
+ *
+ * A reset deletes every trip the account has, so the trip a trip page is
+ * showing is gone, and reloading it showed the deleted trip as if nothing had
+ * happened. On a preview (2026-10-10) the assistant was then asked to change
+ * it, three times, at full price, before anyone noticed. Only the trip's own
+ * page is swapped: `/trips/<id>/…` deeper than that names things (a page, a
+ * share) the new trip does not have.
+ */
+export function pathAfterDemoReset(pathname: string, search: string, newTripId: string): string | null {
+  const onTrip = /^\/trips\/[^/]+\/?$/.test(pathname);
+  return onTrip ? `/trips/${newTripId}${search}` : null;
+}

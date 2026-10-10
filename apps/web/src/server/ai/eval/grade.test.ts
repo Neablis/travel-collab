@@ -5,7 +5,7 @@ import { demoTripDetail } from "@/server/demoTrip";
 import { DAYTIME_END_MINUTES, DAYTIME_START_MINUTES, summarizeFreeDays } from "@tc/domain";
 import type { AskAnalyticsRecord } from "@/server/assistant/askAnalytics";
 import { expectationFor, mostFreeDays } from "./cases";
-import { grade, namesAmount, namesDayNumber, type EvalTurn } from "./grade";
+import { grade, namesAmount, namesDayNumber, reviewedChanges, type EvalTurn } from "./grade";
 
 // The fields `grade` reads, on an otherwise ordinary completed turn.
 function turn(over: Partial<AskAnalyticsRecord> = {}, text = "Day 3 is the most open.", proposalCommands = 0): EvalTurn {
@@ -133,5 +133,25 @@ describe("the cases", () => {
       expect(row.freeMinutes).toBe(ranked[0]!.freeMinutes);
     }
     expect(expectationFor("q-most-free", japan)!.namesOneOfDays).toEqual(days);
+  });
+});
+
+// ADR-067: a change prompt that ends with its changes stored on the board
+// proposed them as much as one that ends with a card, and must pass on it.
+describe("reviewedChanges", () => {
+  const finish = (messageMetadata: unknown) => [{ type: "text-delta", delta: "Done." }, { type: "finish", messageMetadata }];
+
+  it("counts a card's commands", () => {
+    expect(reviewedChanges(finish({ proposal: { commands: [{}, {}] } }))).toBe(2);
+  });
+
+  it("counts a stored suggestion's changes, so a multi-change case passes on it", () => {
+    const chunks = finish({ suggested: { suggestionId: "s", changeCount: 4, snapshotId: null, snapshotName: null } });
+    expect(reviewedChanges(chunks)).toBe(4);
+    expect(failing(grade(turn({}, "Put them on the board.", reviewedChanges(chunks)), { proposes: true }))).toEqual([]);
+  });
+
+  it("counts nothing for a turn that proposed nothing", () => {
+    expect(reviewedChanges([{ type: "finish" }])).toBe(0);
   });
 });

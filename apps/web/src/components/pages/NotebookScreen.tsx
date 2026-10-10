@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { TEMPLATE_LIBRARY, isOverviewPage, missingDefaultTemplates, type TemplateSeed } from "@tc/pages";
 import { newPageDoc } from "@tc/contracts";
-import type { PageContext, PageDoc, PageListEntry, SavedNotebookSummary, TripDetail, TripRole } from "@tc/contracts";
+import type { AssistantSuggested, PageContext, PageDoc, PageListEntry, SavedNotebookSummary, TripDetail, TripRole } from "@tc/contracts";
 import { addMissingDefaultNotebooks, createPage, deletePage, fetchPages } from "@/lib/pagesClient";
 import { deleteSavedNotebook, fetchSavedNotebooks, instantiateSavedNotebook } from "@/lib/savedNotebooksClient";
 import { RegionError, Skeleton, SkeletonRegion } from "@/components/ui/skeleton";
@@ -27,6 +27,7 @@ import { AskPill } from "@/components/assistant/AskPill";
 import { AssistantRail } from "@/components/assistant/AssistantRail";
 import { phoneAskContext } from "@/components/assistant/phoneAskContext";
 import { useAskThread } from "@/components/assistant/useAskThread";
+import { suggestedWords } from "@/components/assistant/SuggestedNote";
 import { useIsPhone } from "@/lib/useIsPhone";
 
 type Status = "loading" | "ready" | "error";
@@ -186,6 +187,13 @@ function StarterRow({
 const PROPOSE_ON_THE_PLAN =
   "I drafted that change, but it can only be applied from the trip's plan — open Plan and ask again to put it in.";
 
+// The same surface, when the turn's several changes were STORED (ADR-067):
+// they are already on the plan as suggestions, so the way through is to open
+// Plan and review them there, not to ask again. Not `SuggestedNote`, whose
+// pointer is the board's own header chip, which this screen does not have.
+const suggestedOnThePlan = (suggested: AssistantSuggested) =>
+  `${suggestedWords(suggested)} They are on the trip's plan — open Plan to review them, and accept or dismiss each.`;
+
 // The Notebook index — SPEC §7's list half. A separate route subtree (design
 // spec decision 11, refined 2026-07-20), reached from the Notebooks menu in the
 // board's view row rather than from a lens tab.
@@ -313,6 +321,10 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
     // same reason the widget framework has no second chip renderer) — it is
     // this surface saying it is not the one that lands changes.
     onEvent: (event, patchAnswer) => {
+      if (event.type === "suggested") {
+        patchAnswer((turn) => ({ ...turn, text: `${turn.text}\n\n${suggestedOnThePlan(event.suggested)}` }));
+        return;
+      }
       if (event.type !== "proposal") return;
       patchAnswer((turn) => ({ ...turn, text: `${turn.text}\n\n${PROPOSE_ON_THE_PLAN}` }));
     },

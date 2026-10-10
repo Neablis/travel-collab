@@ -615,14 +615,42 @@ describe("simulatedModel — proposing a change", () => {
     const result = await probe().doGenerate(
       askPrompt({ kind: "day", dayIndex: 2 }, READ_RESULTS, { question: "add a coffee stop", writeTools: true }),
     );
-    expect(callsOf(result).map((c) => c.toolName)).toEqual(["AddActivity", "AddActivity"]);
+    // One change for an ordinary request, so the card path stays reachable
+    // on the switched-off deployment (ADR-067 decision 5).
     // 1-based on the wire, matching the scope's 0-based dayIndex 2.
+    expect(callsOf(result).map((c) => [c.toolName, JSON.parse(c.input)])).toEqual([
+      ["AddActivity", { title: "Sample: coffee stop", dayRef: "day 3" }],
+    ]);
+    expect(result.finishReason.unified).toBe("tool-calls");
+  });
+
+  // ...and more than one for a request to plan, which the server stores as
+  // suggestions (ADR-067 decision 4).
+  it("proposes two stops for a request to plan the day", async () => {
+    const result = await probe().doGenerate(
+      askPrompt({ kind: "day", dayIndex: 2 }, READ_RESULTS, {
+        question: "Day 3 is empty — what could I do with it?",
+        writeTools: true,
+      }),
+    );
     expect(callsOf(result).map((c) => JSON.parse(c.input))).toEqual([
       { title: "Sample: coffee stop", dayRef: "day 3" },
       { title: "Sample: evening stroll", dayRef: "day 3" },
     ]);
-    expect(result.finishReason.unified).toBe("tool-calls");
   });
+
+  it.each(["add a day in Kyoto", "plan another day", "add a full day at the end"])(
+    "adds a day after the last and fills it, for %s",
+    async (question) => {
+      const result = await probe().doGenerate(askPrompt({ kind: "trip" }, READ_RESULTS, { question, writeTools: true }));
+      expect(callsOf(result).map((c) => [c.toolName, JSON.parse(c.input)])).toEqual([
+        ["AddDay", {}],
+        // Timed, so the suggested day draws them (m40-big-change.spec.ts).
+        ["AddActivity", { title: "Sample: coffee stop", dayRef: "day 4", timeWindow: { start: "09:00", end: "09:30" } }],
+        ["AddActivity", { title: "Sample: evening stroll", dayRef: "day 4", timeWindow: { start: "18:00", end: "19:00" } }],
+      ]);
+    },
+  );
 
   // M9's honest unknowns, at the source: the model that plans on the
   // switched-off deployment must not write a price it does not have.
@@ -707,6 +735,14 @@ describe("simulatedModel — proposing a change", () => {
     expect(callsOf(result)).toEqual([]);
   });
 
+  it("points a single queued change at its card", async () => {
+    const result = await probe().doGenerate(
+      askPrompt({ kind: "day", dayIndex: 2 }, [...READ_RESULTS, QUEUED], { question: "add a coffee stop", writeTools: true }),
+    );
+    expect(textOf(result)).toContain("I've drafted 1 change for day 3. Nothing is applied yet.");
+    expect(textOf(result)).toContain("approve to put them on the board, or reject to leave the trip exactly as it is");
+  });
+
   it("speaks once the proposal is queued, and never claims it applied", async () => {
     const result = await probe().doGenerate(
       askPrompt({ kind: "day", dayIndex: 2 }, [...READ_RESULTS, QUEUED, QUEUED], {
@@ -717,7 +753,7 @@ describe("simulatedModel — proposing a change", () => {
     expect(callsOf(result)).toEqual([]);
     const text = textOf(result);
     expect(text).toContain("I've drafted 2 changes for day 3. Nothing is applied yet.");
-    expect(text).toContain("approve to put them on the board, or reject to leave the trip exactly as it is");
+    expect(text).toContain("They usually go on the board as suggestions, or below when they cannot");
     expect(text).toContain("AI is switched off on this deployment");
     // The words that would be a lie.
     expect(text).not.toMatch(/\bI (added|moved|removed|applied)\b/);

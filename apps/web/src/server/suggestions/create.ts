@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { and, count, eq } from "drizzle-orm";
-import type { CreateSuggestionInput, SuggestionChange, TripDetail } from "@tc/contracts";
+import { and, count, eq, isNull } from "drizzle-orm";
+import type { CreateSuggestionInput, SuggestionChange, SuggestionVia, TripDetail } from "@tc/contracts";
 import { foldEnvelopes, tripDetailFromState } from "@tc/domain";
 import { predictBatch } from "@tc/domain/predict";
-import { memberRole } from "../accessPolicy";
+import { memberRole, roleAtLeast } from "../accessPolicy";
 import { effectiveMembers } from "../access/members";
 import { serverConflictContext } from "../conflictContext";
 import { db } from "../db/client";
@@ -21,12 +21,17 @@ import {
 } from "./shared";
 
 /**
- * Store a suggester's draft as one suggestion of N changes, one per unit
- * (spec W1), or refuse it and store nothing.
+ * Store a draft as one suggestion of N changes, one per unit (spec W1), or
+ * refuse it and store nothing.
  *
- * Only a member whose effective role is exactly `suggester` may: an editor
- * writes directly, and a viewer — including a suggester a lapse capped — may
- * not ask at all (spec §2.7).
+ * A member whose effective role is at least `suggester` may: since ADR-067
+ * decision 1 an editor or the owner may suggest too, which is how their
+ * assistant puts a multi-change turn on the board. A viewer — including a
+ * suggester or an editor a lapse capped — may not ask at all (spec §2.7).
+ *
+ * `via: "assistant"` marks a suggestion an assistant turn stored for its
+ * author (decision 2). It is exempt from the per-author cap, and not counted
+ * toward it, but held to the trip's cap like any other (decision 3).
  *
  * Every unit is dry-run in order with the domain's own `predictBatch`, each on
  * the detail the one before it left (W4). It skips a no-op sub-command and
@@ -45,6 +50,7 @@ export async function createSuggestion(
   actorId: string,
   input: CreateSuggestionInput,
   now: string = new Date().toISOString(),
+  { via }: { via?: SuggestionVia } = {},
 ): Promise<SuggestionResult<SuggestionChange[]>> {
   const units = input.units.map((u) => u.commands);
   // Accepting replays a change through `executeTripCommandBatch`, which takes
@@ -61,21 +67,23 @@ export async function createSuggestion(
     if (state === null || first === undefined) return refuse("not-found", "This trip does not exist.");
     const role = memberRole(actorId, await effectiveMembers(tx, tripId, state.members));
     if (role === null) return refuse("not-found", "This trip does not exist.");
-    if (role !== "suggester") return refuse("forbidden", "Only a member who can suggest may send a suggestion.");
+    if (!roleAtLeast(role, "suggester")) return refuse("forbidden", "Only a member who can suggest may send a suggestion.");
 
     // Before the dry run, which is the expensive part (KI-20261003-e). Aged-out
     // changes are recorded expired first, in this transaction, so the count
     // and the table agree.
     await expireStale(tx, tripId, new Date(now));
     const open = await tx
-      .select({ authorId: tripSuggestions.authorId, n: count() })
+      .select({ authorId: tripSuggestions.authorId, byHand: isNull(tripSuggestions.via), n: count() })
       .from(tripSuggestionChanges)
       .innerJoin(tripSuggestions, eq(tripSuggestions.id, tripSuggestionChanges.suggestionId))
       .where(and(eq(tripSuggestionChanges.tripId, tripId), openAt(new Date(now))))
-      .groupBy(tripSuggestions.authorId);
-    const own = open.find((o) => o.authorId === actorId)?.n ?? 0;
+      .groupBy(tripSuggestions.authorId, isNull(tripSuggestions.via));
+    // The author cap counts what the author drafted by hand: an assistant turn
+    // is one request, however many changes it holds (ADR-067 decision 3).
+    const own = open.find((o) => o.authorId === actorId && o.byHand)?.n ?? 0;
     const onTrip = open.reduce((sum, o) => sum + o.n, 0);
-    if (own + units.length > SUGGESTION_AUTHOR_PENDING_MAX) {
+    if (via === undefined && own + units.length > SUGGESTION_AUTHOR_PENDING_MAX) {
       return refuse(
         "too-many-pending",
         `You can have up to ${SUGGESTION_AUTHOR_PENDING_MAX} suggested changes waiting on this trip; ${own} are. Withdraw some, or wait for a decision.`,
@@ -111,6 +119,7 @@ export async function createSuggestion(
       note: input.note ?? null,
       baseSeq: history.length,
       createdAt: new Date(now),
+      via: via ?? null,
     };
     const ids = units.map(() => randomUUID());
     const rows = dependsOn(units.map((commands, i) => ({ commands, effect: effects[i]! }))).map((deps, position) => ({

@@ -1,5 +1,15 @@
 import { z } from "zod";
 
+/**
+ * How a suggestion came to be when a person did not draft it by hand:
+ * `assistant` is the asking editor's assistant turn (ADR-067 decision 2). The
+ * person is still its author; this only says it was asked for in words. Here
+ * rather than in `suggestion.ts` because `Origin` carries it too, and
+ * `suggestion.ts` imports `trip.ts`, which imports this file.
+ */
+export const SuggestionVia = z.enum(["assistant"]);
+export type SuggestionVia = z.infer<typeof SuggestionVia>;
+
 // Provenance of a batch of events: how the change came to be. Lives on the
 // EVENT ENVELOPE, beside actor_id/occurred_at — never in the domain event
 // vocabulary (ADR-005).
@@ -16,6 +26,22 @@ export const Origin = z.discriminatedUnion("kind", [
     suggestionId: z.string().uuid(),
     changeId: z.string().uuid(),
     authorId: z.string().min(1),
+    // Absent for a person's own draft, and on every envelope from before
+    // ADR-067: "Suggested by Ana, via the assistant".
+    via: SuggestionVia.optional(),
+  }),
+  // Several accepted at once, as one batch (M40 D1, D3): "Accept all". The
+  // changes in the order they were replayed, and every person who asked for
+  // one, each once, so history can say "Accepted 7 suggestions from Sam and
+  // Ana". A single accept keeps `suggestion`, and so does every stored
+  // envelope. The domain treats it exactly like `user`.
+  z.object({
+    kind: z.literal("suggestions"),
+    changes: z.array(z.object({ suggestionId: z.string().uuid(), changeId: z.string().uuid() })).min(1),
+    authorIds: z.array(z.string().min(1)).min(1),
+    // Set only when EVERY change accepted came through the assistant
+    // (ADR-067), so the line can say so without being wrong about any one.
+    via: SuggestionVia.optional(),
   }),
 ]);
 export type Origin = z.infer<typeof Origin>;

@@ -5,11 +5,11 @@ import { Lightbulb } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover } from "@/components/ui/popover";
 import { Text } from "@/components/ui/text";
-import { acceptAllOrder } from "@/lib/acceptAll";
 import { dayLabel } from "@/lib/dates";
 import type { Ghost } from "@/lib/suggestionOverlay";
 import { useTrip } from "@/components/trip/context/TripProvider";
-import { AuthorChip, SuggestionActions, useAuthorNames } from "./SuggestionActions";
+import { AuthorChip, SuggestionActions, useAuthorNames, withVia } from "./SuggestionActions";
+import { useAcceptAll } from "@/components/trip/context/useAcceptAll";
 
 /**
  * The header's pending-suggestion count (spec §2.4) — the only notification
@@ -21,33 +21,12 @@ import { AuthorChip, SuggestionActions, useAuthorNames } from "./SuggestionActio
  * Author names come from `PeopleProvider` (W15), which `TripHeader` mounts.
  */
 export function SuggestionsChip() {
-  const { suggestionGhosts: ghosts, trip, boardMode, suggestions } = useTrip();
+  const { suggestionGhosts: ghosts, trip } = useTrip();
   const nameOf = useAuthorNames(ghosts?.pending.map((c) => c.authorId) ?? []);
   const [open, setOpen] = useState(false);
-  const [progress, setProgress] = useState<{ at: number; of: number } | null>(null);
-  const [refusal, setRefusal] = useState<string | null>(null);
+  const accept = useAcceptAll();
   const noteId = useId();
   if (ghosts === null || ghosts.pending.length === 0) return null;
-
-  // W77: every change that still applies, parents first, one at a time
-  // through the same accept as each change's own button. The first refusal
-  // stops it: what follows may build on the change that was refused, and the
-  // reviewer should see why before anything else lands.
-  const acceptable = acceptAllOrder(ghosts.pending, new Set(ghosts.stale.map((g) => g.changeId)));
-  const acceptAll = async () => {
-    if (suggestions === null) return;
-    setRefusal(null);
-    for (const [at, change] of acceptable.entries()) {
-      setProgress({ at: at + 1, of: acceptable.length });
-      const result = await suggestions.resolve(change.id, "accept");
-      if (!result.ok) {
-        const rest = at + 1 < acceptable.length ? " The rest are still pending." : "";
-        setRefusal(`“${change.description}” was not accepted: ${result.error.message}${rest}`);
-        break;
-      }
-    }
-    setProgress(null);
-  };
 
   const count = ghosts.pending.length;
   const phrase = count === 1 ? "1 suggestion" : `${count} suggestions`;
@@ -78,9 +57,9 @@ export function SuggestionsChip() {
     ...ghosts.offBoard.map((ghost) => ({ ghost, stale: false })),
     ...ghosts.stale.map((ghost) => ({ ghost, stale: true })),
   ];
-  const byLine = (authorId: string) => {
-    const name = nameOf(authorId);
-    return name === null ? null : `Suggested by ${name}`;
+  const byLine = (ghost: Ghost) => {
+    const name = nameOf(ghost.authorId);
+    return name === null ? null : withVia(`Suggested by ${name}`, ghost.via);
   };
 
   return (
@@ -88,7 +67,7 @@ export function SuggestionsChip() {
       open={open}
       onOpenChange={(next) => {
         setOpen(next);
-        if (!next) setRefusal(null);
+        if (!next) accept?.clearRefusal();
       }}
       align="end"
       trigger={
@@ -112,17 +91,16 @@ export function SuggestionsChip() {
       }
     >
       <div className="flex flex-col gap-3">
-        {/* Two or more: with one, its own Accept below is the same button. */}
-        {/* Kept while a run is going: each accept shrinks `acceptable`, and the
-            button would vanish before its "N of M" reached the last change. */}
-        {boardMode === "write" && (acceptable.length > 1 || progress !== null) && (
-          <Button variant="primary" size="sm" className="self-start" disabled={progress !== null} onClick={() => void acceptAll()}>
-            {progress === null ? "Accept all" : `Accepting ${progress.at} of ${progress.of}…`}
+        {/* Two or more: with one, its own Accept below is the same button.
+            `useAcceptAll` is the one place W77's single call is made. */}
+        {accept !== null && (accept.acceptable.length > 1 || accept.accepting) && (
+          <Button variant="primary" size="sm" className="self-start" disabled={accept.accepting} onClick={() => void accept.acceptAll()}>
+            {accept.accepting ? "Accepting…" : "Accept all"}
           </Button>
         )}
-        {refusal !== null && (
+        {accept?.refusal != null && (
           <Text as="p" role="alert" className="text-xs text-danger-ink">
-            {refusal}
+            {accept.refusal}
           </Text>
         )}
         {/* A message from a person, not the app's own copy (W77; Mitchell's
@@ -143,14 +121,14 @@ export function SuggestionsChip() {
         {onBoard.length > 0 && (
           <Group label="On the board">
             {onBoard.map((ghost) => (
-              <Item key={ghost.changeId} ghost={ghost} detail={where(ghost)} byLine={byLine(ghost.authorId)} />
+              <Item key={ghost.changeId} ghost={ghost} detail={where(ghost)} byLine={byLine(ghost)} />
             ))}
           </Group>
         )}
         {listed.length > 0 && (
           <Group label="Not on the board">
             {listed.map(({ ghost, stale }) => (
-              <Item key={ghost.changeId} ghost={ghost} stale={stale} byLine={byLine(ghost.authorId)} />
+              <Item key={ghost.changeId} ghost={ghost} stale={stale} byLine={byLine(ghost)} />
             ))}
           </Group>
         )}

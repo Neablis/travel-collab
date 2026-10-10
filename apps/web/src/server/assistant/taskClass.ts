@@ -79,6 +79,24 @@ export function tierFor(taskClass: TaskClass, certainty: "sure" | "unsure" = "su
   return certainty === "unsure" ? strongerTier(TIER_FOR[taskClass], "mid") : TIER_FOR[taskClass];
 }
 
+/**
+ * How hard each tier's model is asked to think before it answers — the AI
+ * SDK's `reasoning` call setting, which the Gateway forwards to whichever
+ * provider serves the step.
+ *
+ * Left at the provider's default, a reasoning model spent ~8,000 output tokens
+ * and 144 s on ONE step whose tool calls were ~300 tokens: six small writes,
+ * already spelled out by the user (2026-10-10, `zai/glm-5.3` on the strong
+ * tier, ~$0.04 of the turn's ~$0.07). Output is the dearest token, and most of
+ * a turn's steps are reading the trip and emitting calls. `strong` keeps
+ * `medium` because a whole itinerary is what it is for.
+ */
+export const REASONING_FOR: Readonly<Record<ModelTier, "low" | "medium">> = {
+  cheap: "low",
+  mid: "low",
+  strong: "medium",
+};
+
 const TIER_RANK: Readonly<Record<ModelTier, number>> = { cheap: 0, mid: 1, strong: 2 };
 
 // `strongerTier` is used by `tierFor` above and declared below it. A function

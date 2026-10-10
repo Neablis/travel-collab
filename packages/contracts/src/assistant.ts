@@ -167,6 +167,14 @@ export const AssistantProposal = z
      * about. `droppedWriteCalls` filters it the same way.
      */
     skipped: z.string().array().default([]),
+    /**
+     * Why a proposal of more than one change is a card and not suggestions on
+     * the board (ADR-067 decision 4): storing it was refused — the trip's open
+     * suggestions are at their cap, say — so the turn falls back to ADR-022's
+     * card and the user loses nothing. The card says this sentence. Absent on
+     * every proposal that was never meant to be stored.
+     */
+    notSuggested: z.string().min(1).optional(),
   })
   // A proposal with nothing in it is not a proposal: there is nothing to
   // review, so the client renders no card and the answer stands on its own
@@ -180,35 +188,62 @@ export const AssistantProposal = z
   });
 export type AssistantProposal = z.infer<typeof AssistantProposal>;
 
+/**
+ * A planning turn of more than one change, stored as ONE suggestion on the
+ * board instead of returned as a card (ADR-067 decision 4). Authored by the
+ * person who asked, `via: "assistant"`, so the ghosts, the chip and *Accept
+ * all* are its review — the chat only says where to look.
+ *
+ * `snapshotId` and `snapshotName` are the snapshot saved before it (decision
+ * 6), or null when none was; `snapshotSkipped` then says why (the trip is at
+ * its snapshot cap), in a sentence the chat can show as it stands.
+ */
+export const AssistantSuggested = z.object({
+  suggestionId: z.string().uuid(),
+  changeCount: z.number().int().positive(),
+  snapshotId: z.string().uuid().nullable(),
+  snapshotName: z.string().min(1).nullable(),
+  snapshotSkipped: z.string().min(1).optional(),
+  /**
+   * The proposal's `skipped`, carried across: changes the resolver could not
+   * match to this trip, as sentences. They are in no stored change, so the
+   * chat note is the only place they are said. Defaulted, like the
+   * proposal's, so an outcome from before this field still parses.
+   */
+  skipped: z.string().array().default([]),
+});
+export type AssistantSuggested = z.infer<typeof AssistantSuggested>;
+
 /** One insert a page turn did not land: the widget's name (`text` for prose) and why. */
 export const DroppedInsert = z.object({ name: z.string().min(1), reason: z.string().min(1) });
 export type DroppedInsert = z.infer<typeof DroppedInsert>;
 
 /**
- * What the stream's final chunk carries, and the only four shapes it may take.
+ * What the stream's final chunk carries, and the only five shapes it may take.
  *
  * A proposal OR a page, never both: the two tool sets are disjoint server-side
  * — the page surface caps the `itinerary` domain at `read` and no other surface
  * grants `pages` at all (`assistant/grants.ts`) — so the scope that asked
  * decides which arrives. The union says so rather than leaving it to a
- * convention two files hold.
+ * convention two files hold. A planning turn ends in `proposal` or
+ * `suggested`, never both, by its command count (ADR-067 decisions 4 and 5).
  *
- * `{}` is the fourth shape and is a real one: a page-scoped turn that inserted
+ * `{}` is the fifth shape and is a real one: a page-scoped turn that inserted
  * nothing is silence, not a failure — a turn can legitimately answer a question
  * about the page without editing it, which is most of what a conversation does.
  * A turn with no outcome at all sends no `messageMetadata` key instead.
  *
- * **The empty branch is strict and the other three are not, and the asymmetry
+ * **The empty branch is strict and the other four are not, and the asymmetry
  * is load-bearing both ways.** A permissive `z.object({})` matches ANY object,
  * so `{ proposal: <garbage> }` would parse as "nothing" and the union would
  * accept every malformed payload rather than rejecting it — it would assert
- * nothing at all. The three payload branches are deliberately NOT strict for
+ * nothing at all. The four payload branches are deliberately NOT strict for
  * the opposite reason: the stream is a superset the server may grow, and a key
  * added beside a valid `proposal` by a newer deployment must not cost an older
  * client the proposal. It strips the key and renders the card.
  *
  * That forward compatibility is not a hole on the producing side. The inferred
- * type is still exactly these four shapes, so a server literal with a fifth or
+ * type is still exactly these five shapes, so a server literal with a sixth or
  * misspelled key fails to compile — the key set is pinned by the type, and the
  * parse is what protects the consumer.
  *
@@ -217,6 +252,20 @@ export type DroppedInsert = z.infer<typeof DroppedInsert>;
  */
 const AskStreamShape = z.union([
   z.object({ proposal: AssistantProposal }),
+  /**
+   * A planning turn of more than one change, already stored as a suggestion
+   * (ADR-067). The same turn never also carries `proposal`: storing it is what
+   * replaced the card.
+   */
+  z.object({ suggested: AssistantSuggested }),
+  /**
+   * A planning turn that called write tools and had EVERY one refused when
+   * resolved against the trip, so there is no proposal to show — with the
+   * server's reason for each (deduplicated, never empty). Without it such a
+   * turn ended on the model's own prose, which reads as if the changes were
+   * made (2026-10-10: a deleted trip, three turns, nothing changed, no word why).
+   */
+  z.object({ notApplied: z.object({ skipped: z.array(z.string().min(1)).min(1) }) }),
   /**
    * What a `page`-scoped turn wants INSERTED. Validated server-side against the
    * macro registry before a byte leaves — which this side cannot see — so this

@@ -1,0 +1,1 @@
+ALTER TABLE "trip_suggestions" ADD COLUMN "via" text;

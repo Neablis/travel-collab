@@ -13,6 +13,12 @@ import {
   createTripSuggestion,
   fetchTripSuggestions,
   resolveSuggestionChange,
+  fetchTripSnapshots,
+  saveTripSnapshot,
+  renameTripSnapshot,
+  deleteTripSnapshot,
+  restoreTripSnapshot,
+  acceptSuggestionChanges,
   createTripShare,
   deleteSavedDay,
   duplicateTrip,
@@ -264,6 +270,12 @@ const FETCHING_HELPERS: Record<string, () => Promise<ApiResult<unknown>>> = {
     createTripSuggestion(TRIP_ID, { units: [{ commands: [{ type: "AddDay", tripId: TRIP_ID, dayId: UUID }] }] }),
   fetchTripSuggestions: () => fetchTripSuggestions(TRIP_ID),
   resolveSuggestionChange: () => resolveSuggestionChange(TRIP_ID, UUID, "accept"),
+  fetchTripSnapshots: () => fetchTripSnapshots(TRIP_ID),
+  saveTripSnapshot: () => saveTripSnapshot(TRIP_ID, { name: "Before" }),
+  renameTripSnapshot: () => renameTripSnapshot(TRIP_ID, UUID, { name: "After" }),
+  deleteTripSnapshot: () => deleteTripSnapshot(TRIP_ID, UUID),
+  restoreTripSnapshot: () => restoreTripSnapshot(TRIP_ID, UUID),
+  acceptSuggestionChanges: () => acceptSuggestionChanges(TRIP_ID, [UUID]),
   fetchInviteLanding: () => fetchInviteLanding("tok"),
   fetchInvitePreview: () => fetchInvitePreview("tok"),
   acceptInvite: () => acceptInvite("tok"),
@@ -700,6 +712,10 @@ const TRIP_WRITERS: Record<string, () => Promise<ApiResult<unknown>>> = {
   removeMember: () => removeMember(TRIP_ID, "u-2"),
   // An accept appends a batch; see the helper for why every action clears.
   resolveSuggestionChange: () => resolveSuggestionChange(TRIP_ID, UUID, "accept"),
+  // A restore appends a revert batch.
+  restoreTripSnapshot: () => restoreTripSnapshot(TRIP_ID, UUID),
+  // M40: one batch for every change it names.
+  acceptSuggestionChanges: () => acceptSuggestionChanges(TRIP_ID, [UUID]),
   applyAssistantProposal: () =>
     applyAssistantProposal(TRIP_ID, {
       proposalId: "p1",
@@ -1006,6 +1022,43 @@ const PROPOSAL = {
 
 const FINISH_WITH_PROPOSAL = `{"type":"finish","finishReason":"stop","messageMetadata":${JSON.stringify({ proposal: PROPOSAL })}}`;
 
+// ADR-067: a turn of several changes ends with them stored on the board.
+describe("a stored suggestion on the wire", () => {
+  it("arrives as one `suggested` event, in place of a proposal", async () => {
+    const suggested = {
+      suggestionId: "7d9a1f8e-0000-4000-8000-000000000001",
+      changeCount: 3,
+      snapshotId: "7d9a1f8e-0000-4000-8000-000000000002",
+      snapshotName: "Before: add a day in Kyoto",
+      skipped: [],
+    };
+    server.use(
+      http.post("*/api/trips/:tripId/ask", () =>
+        sseResponse([...ANSWER_FRAMES, `{"type":"finish","finishReason":"stop","messageMetadata":${JSON.stringify({ suggested })}}`]),
+      ),
+    );
+    const events: apiClientModule.AskEvent[] = [];
+    await askAssistant(TRIP_ID, [], { kind: "trip" }, (e) => events.push(e));
+    expect(events.at(-1)).toEqual({ type: "suggested", suggested });
+    expect(events.some((e) => e.type === "proposal")).toBe(false);
+  });
+});
+
+// A turn whose every write the trip refused: nothing to review, and the why.
+describe("a turn that changed nothing, on the wire", () => {
+  it("arrives as one `not-applied` event carrying the server's reasons", async () => {
+    const skipped = ["This trip has been deleted."];
+    server.use(
+      http.post("*/api/trips/:tripId/ask", () =>
+        sseResponse([...ANSWER_FRAMES, `{"type":"finish","finishReason":"stop","messageMetadata":${JSON.stringify({ notApplied: { skipped } })}}`]),
+      ),
+    );
+    const events: apiClientModule.AskEvent[] = [];
+    await askAssistant(TRIP_ID, [], { kind: "trip" }, (e) => events.push(e));
+    expect(events.at(-1)).toEqual({ type: "not-applied", skipped });
+  });
+});
+
 describe("the proposal on the wire", () => {
   it("arrives as one event, on the stream's final chunk", async () => {
     server.use(
@@ -1303,6 +1356,21 @@ describe("resolveSuggestionChange", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error).toMatchObject({ status: 409, code: "dependency-pending" });
+  });
+});
+
+// M40 D1: an accept-all refusal accepted nothing, and names which change.
+describe("acceptSuggestionChanges", () => {
+  it("passes a refusal's code and the change it names through", async () => {
+    server.use(
+      http.post("*/api/trips/:tripId/suggestions/changes/accept", () =>
+        HttpResponse.json({ error: "No longer applies.", code: "no-longer-applies", changeId: UUID }, { status: 409 }),
+      ),
+    );
+    const result = await acceptSuggestionChanges(TRIP_ID, [UUID]);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toMatchObject({ status: 409, code: "no-longer-applies", changeId: UUID });
   });
 });
 

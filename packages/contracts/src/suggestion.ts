@@ -1,15 +1,18 @@
 import { z } from "zod";
+import { SuggestionVia } from "./history.ts";
 import { boundedNote } from "./review.ts";
 import { BatchableCommand } from "./trip.ts";
 
 // Suggestions: a `suggester`'s board edits, held for an editor or the owner to
-// accept or dismiss one change at a time (ADR-064, spec 2026-10-03).
+// accept or dismiss one change at a time, or accept several as one batch
+// (ADR-064, spec 2026-10-03; M40 D1).
 //
 // **Not events.** A pending suggestion is not planning state until someone
 // accepts it, so it lives in its own CRUD tables and never on the trip's
 // stream. Accepting one replays its commands through the ordinary pipeline
-// with the reviewer as actor and `Origin` `{ kind: "suggestion" }` — that
-// batch, and only that batch, is what the log records.
+// with the reviewer as actor and `Origin` `{ kind: "suggestion" }`, or
+// `{ kind: "suggestions" }` for several at once — that batch, and only that
+// batch, is what the log records.
 //
 // Vocabulary: a *change* is one optimistic-queue unit — one gesture, which may
 // be several commands (spec W1). A *suggestion* is the group of changes sent
@@ -51,6 +54,10 @@ export const SuggestionChange = z.object({
   dependsOn: z.array(z.string().uuid()),
   resolvedBy: z.string().min(1).nullable(),
   resolvedAt: z.string().nullable(), // ISO 8601
+  // The suggestion's `via`, repeated like `note`. Absent for a draft a person
+  // sent; `assistant` for one an editor's assistant turn stored (ADR-067).
+  // Optional rather than nullable so a client older than it still parses.
+  via: SuggestionVia.optional(),
 });
 export type SuggestionChange = z.infer<typeof SuggestionChange>;
 
@@ -102,3 +109,22 @@ export const ResolveSuggestionChangeInput = z.object({
   action: z.enum(["accept", "dismiss", "withdraw"]),
 });
 export type ResolveSuggestionChangeInput = z.infer<typeof ResolveSuggestionChangeInput>;
+
+// The trip's own cap on open changes (`SUGGESTION_TRIP_PENDING_MAX` in the web
+// app), so every change a reviewer can see pending fits in one accept.
+export const SUGGESTION_ACCEPT_MAX = 200;
+
+/**
+ * `POST /api/trips/:id/suggestions/changes/accept` (M40 D1): accept these
+ * changes as ONE batch, all or nothing. The order does not matter; the server
+ * replays parents first. Answered with every change it accepted, as the
+ * single-change route answers.
+ */
+export const AcceptSuggestionChangesInput = z.object({
+  changeIds: z
+    .array(z.string().uuid())
+    .min(1)
+    .max(SUGGESTION_ACCEPT_MAX)
+    .refine((ids) => new Set(ids).size === ids.length, "Each change may be named once."),
+});
+export type AcceptSuggestionChangesInput = z.infer<typeof AcceptSuggestionChangesInput>;

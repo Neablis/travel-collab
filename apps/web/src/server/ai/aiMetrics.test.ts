@@ -17,7 +17,7 @@ vi.mock("@sentry/nextjs", () => ({
   },
 }));
 
-import { recordAskMetrics, recordProposalApplyMetrics, splitModelId } from "@/server/ai/aiMetrics";
+import { recordAskMetrics, recordAskOutcomeMetrics, recordProposalApplyMetrics, splitModelId } from "@/server/ai/aiMetrics";
 import type { TurnLedger } from "@/server/assistant/ledger";
 
 interface Emitted {
@@ -465,5 +465,20 @@ describe("recordProposalApplyMetrics", () => {
     expect(() =>
       recordProposalApplyMetrics({ outcome: "applied", code: null, commandCount: 1, latencyMs: 1 }),
     ).not.toThrow();
+  });
+});
+
+// ADR-067: how often a big change reaches the board, and why it does not —
+// the outcome only, never an id, so the series stay bounded.
+describe("recordAskOutcomeMetrics", () => {
+  it("counts a planning turn's outcome with only that outcome as its attribute", () => {
+    recordAskOutcomeMetrics({ outcome: "notSuggested:too-many-pending", commandCount: 3 });
+    expect(counted("ai.ask.outcome")[0]).toEqual({
+      name: "ai.ask.outcome",
+      value: 1,
+      unit: undefined,
+      attributes: { outcome: "notSuggested:too-many-pending" },
+    });
+    expect(distributed("ai.ask.outcome.commands")[0]).toMatchObject({ value: 3 });
   });
 });

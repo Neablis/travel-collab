@@ -50,6 +50,21 @@ export function formatInstantLong(iso: string): string | null {
   return `${month} ${ordinalDayOfMonth(at.getDate())} ${at.getFullYear()}`;
 }
 
+/**
+ * An INSTANT as the reader's local date and time, "Fri, Oct 9, 3:04 PM", or
+ * null when the string is not one. For a moment someone acted at (a snapshot
+ * saved), where two on the same day are told apart by the time.
+ */
+export function formatInstantDateTime(iso: string): string | null {
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return null;
+  // ICU 72+ puts a narrow no-break space before "PM"; one space, whichever ICU
+  // the runtime ships, so the text does not change with the Node version.
+  return at
+    .toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
+    .replace(/\u202f/g, " ");
+}
+
 // "14th", for the Calendar cell's date-and-day line ("14th · Day 6"). The
 // suffix table is `@tc/pages`' `ordinal`, which the spend chart's axis also
 // reads ("1st", "2nd"), so the two cannot disagree about the teens.

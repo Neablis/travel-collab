@@ -13,6 +13,108 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-10 — `notApplied` on the /ask stream: a turn whose every write was refused says why
+
+- **Added** (`assistant.ts`): a sixth `AskStreamShape` member, `{ notApplied: { skipped: string[] (≥ 1, each
+  non-empty) } }`. A planning turn that called write tools and had every one refused when resolved
+  against the trip has no proposal, and used to end on the model's own prose — which could say the
+  changes were made. Its final chunk now carries the server's reasons instead (deduplicated). The
+  one-outcome rule covers it like the others.
+- Why: 2026-10-10, a preview trip deleted by *Reset to demo data* and left open: three turns, six
+  writes each refused `trip-deleted`, nothing changed and nothing said. `/ask` now also refuses a
+  deleted trip at admission (409 `trip-deleted`, not a contract type — a refusal code beside
+  `demo-trip-unsupported`).
+- Consumers updated: `apps/web` — `askAssistant` (`apiClient.ts`) maps it to a `not-applied` event, and
+  `useAskThread` appends *"Nothing was changed: …"* to the answer.
+- Breaking? no — an older client drops the unrecognised chunk, as it would before.
+
+## 2026-10-09 — The assistant suggests: `suggested` on the /ask stream, `via` on suggestions and their origin (M40 part 3, ADR-067); Public API 1.11.0
+
+- **Added** (`assistant.ts`): a fifth `AskStreamShape` member, `{ suggested: AssistantSuggested }`,
+  with `AssistantSuggested { suggestionId, changeCount (≥ 1), snapshotId: uuid | null,
+  snapshotName: string | null, snapshotSkipped?: string, skipped: string[] (default []) }`. `skipped`
+  is the proposal's own — what the resolver could not match to the trip — carried across because it
+  is in no stored change and the chat note is the only place it is said. A planning turn whose proposal has more
+  than one command and no inserts is stored as ONE suggestion and its final chunk carries this
+  instead of `proposal` (decision 4); one-command and insert turns keep `proposal` (decision 5). The
+  one-outcome rule covers it: `{ proposal, suggested }` is refused. The empty branch stays strict.
+- **Added** (`assistant.ts`): `AssistantProposal.notSuggested?: string` (non-empty). Set when a
+  multi-change proposal could not be stored (a suggestion cap, more than 50 changes, a command no
+  suggestion may hold such as `DismissConflict`, a change the dry run refused, a throw) and comes back
+  as the ordinary card instead, saying which. Nothing is stored then, the snapshot included. Each
+  planning turn's ending is logged as `ai.ask.outcome` (`card` / `suggested` /
+  `notSuggested:<code>`), a log line and a metric, not a contract.
+- **Added** (`history.ts`): `SuggestionVia = enum ["assistant"]`, and an optional `via` on the
+  `Origin` members `suggestion` and `suggestions` — on `suggestions` only when every accepted change
+  came via the assistant. History reads *"Suggested by Ana, via the assistant"*. Here rather than in
+  `suggestion.ts` because `suggestion.ts` imports `trip.ts`, which imports `history.ts`.
+- **Added** (`suggestion.ts`): optional `SuggestionChange.via`, repeated from the suggestion like
+  `note`; absent for a person's own draft. Stored in `trip_suggestions.via` (migration 0046, nullable,
+  no CHECK — no enum column in this schema has one).
+- Why: ADR-067. A big assistant change is reviewed on the board (ghosts, the chip, *Accept all*),
+  survives a reload, and is seen by every editor. Editors and the owner may now create suggestions
+  (decision 1); an assistant suggestion is exempt from the 50-per-author cap but not the 200-per-trip
+  cap (decision 3).
+- Consumers updated: `server/ai/suggestProposal.ts` (new) and `handleAskRequest` (the stream's
+  `finish` chunk is swapped one stage downstream, `suggestOnFinish`, because `messageMetadata` is
+  synchronous); `server/suggestions/` (`create`, `shared`, `resolve`, `accept`); `apiClient`
+  (`AskEvent` `suggested`); the board's ask handler (re-reads the suggestion list); `Transcript`,
+  new `SuggestedNote`, `ProposalCard` (`notSuggested`); `SuggestionsChip` and `HistoryPanel`
+  (`withVia`); `lib/suggestionOverlay` (`Ghost.via`); the eval grader (`reviewedChanges`) and replay
+  lane; `openapi.json` regenerated, `API_VERSION` 1.10.0 → 1.11.0 (minor: `via` is an optional
+  property on the v1 `Origin` schemas).
+- Breaking? No. Additive only. An older client drops a `suggested` chunk as an unknown outcome, so
+  it shows the turn's prose without a card; the suggestions are still on the board.
+
+## 2026-10-09 — `TripSnapshot`: named snapshots of a trip (M40 part 2)
+
+- **Added** (`snapshot.ts`): `TripSnapshot { id, tripId, seq, name, createdBy, createdAt }`,
+  `TripSnapshotsResponse { snapshots }` (newest first), `CreateSnapshotInput { name }`,
+  `RenameSnapshotInput { name }` and `SNAPSHOT_NAME_MAX` (80). A name is trimmed, then 1–80
+  characters; `trip_snapshots`' CHECK (migration 0045) holds the same bound. Deleting takes no body,
+  so it has no schema.
+- Why: M40 D4 and D5. A snapshot labels a position in the trip's log so a person can get back to it
+  without scrolling History. It is a CRUD row, **not an event**, and occupies no `seq`. Restoring
+  one is the existing `RevertToState { toSeq: seq }`, so no command or event changed, and the
+  restore route answers the command routes' `{ detail, history }`.
+- Consumers updated: `server/snapshots/` (the module and its status table), the routes under
+  `api/trips/[tripId]/snapshots/`, `server/public-api/exposure.ts` (three `planned` lines),
+  `apiClient` (`fetchTripSnapshots`, `saveTripSnapshot`, `renameTripSnapshot`,
+  `deleteTripSnapshot`, `restoreTripSnapshot`), `mocks/handlers.ts`, and the History panel's
+  `SnapshotList`.
+- Breaking? No. Additive only.
+
+## 2026-10-09 — Accept all is one batch: `Origin` `suggestions`, `AcceptSuggestionChangesInput` (M40 part 1); Public API 1.10.0
+
+- **Added:** an `Origin` member (`history.ts`), `{ kind: "suggestions", changes: { suggestionId,
+  changeId }[], authorIds: string[] }`, each list at least one long. It marks several changes
+  accepted as ONE batch (M40 D1): the changes in the order they were replayed, and every author
+  once, so History can read *"Accepted 7 suggestions from Sam and Ana"* (D3). `suggestion` stays,
+  for a single accept and every stored envelope.
+- **Added:** `AcceptSuggestionChangesInput` (`suggestion.ts`), `{ changeIds: uuid[] }`, 1 to
+  `SUGGESTION_ACCEPT_MAX` (200, the trip's own cap on open changes), each named once. The body of
+  `POST /api/trips/:id/suggestions/changes/accept`, which answers `{ changes: SuggestionChange[] }`
+  like the single-change route, or a refusal whose body now also carries `changeId`, the change it
+  is about. All or nothing: a refusal accepted nothing.
+- Why: M40 D1–D3. *Accept all* was a client loop of single accepts, so N changes were N History
+  entries and N undos, and a refusal halfway kept what had landed.
+- Consumers updated:
+  - `packages/domain/src/trip/history.ts`: `suggestions` is `user` in the undo stack; its
+    description is the count, *"Accepted N suggestions"* (names are the client's).
+  - `apps/web/src/server/suggestions/accept.ts` (new) and the route; `SuggestionError.changeId`
+    and `refused` carry the named change.
+  - `apiClient.acceptSuggestionChanges`, `useTripSuggestions.acceptMany`, `SuggestionsChip` (one
+    call, an "Accepting…" state), `HistoryPanel` (adds *"from Sam and Ana"* once the names land),
+    the MSW handlers, and `e2e/suggester.spec.ts`.
+  - The public API embeds event `origin`, so `openapi.json` was regenerated, `API_VERSION` moved
+    1.9.0 → 1.10.0 (minor, additive, as `suggestion` was in 1.4.0) and `API_FINGERPRINT` is new.
+    No `/v1` endpoint was added.
+- Breaking? No. The union member is additive and every stored `origin` still parses. A client on
+  an old bundle meets the unknown origin only after someone uses the new *Accept all*. That bundle
+  parses history and command outcomes strictly, so on a trip with a `suggestions` batch a stale tab
+  fails to parse those responses until it is reloaded. This is the same exposure `suggestion` had
+  in 1.4.0.
+
 ## 2026-10-08 — `PreferencesResponse.defaultColor`: Account draws the colour trips derive (M38 part 4)
 
 - **Added:** `PreferencesResponse` (`identity.ts`), `{ preferences: UserPreferences, defaultColor:

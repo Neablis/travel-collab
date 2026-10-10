@@ -12,11 +12,14 @@ import {
   CreatePageInput,
   CreateReportInput,
   CreateSavedNotebookInput,
+  CreateSnapshotInput,
   CreateSuggestionInput,
   NearbyStopsResponse,
   PAGE_CHANGED_CODE,
   PutReviewInput,
+  RenameSnapshotInput,
   ResolveSuggestionChangeInput,
+  AcceptSuggestionChangesInput,
   RestorePageInput,
   SetCoverBody,
   SetTravellingInput,
@@ -38,6 +41,7 @@ import {
   type TripEventsPage,
   type TripCover,
   type TripHistory,
+  type TripSnapshot,
   type TripRole,
 } from "@tc/contracts";
 
@@ -207,6 +211,8 @@ export function makeTripHandlers(
     onSuggestion?: (input: CreateSuggestionInput) => void;
     /** Changes already stored when the suite starts, oldest first. */
     suggestions?: SuggestionChange[];
+    /** Named snapshots already saved when the suite starts, newest first (M40). */
+    snapshots?: TripSnapshot[];
   },
 ) {
   let detail = structuredClone(initial);
@@ -214,6 +220,7 @@ export function makeTripHandlers(
   // Not role-scoped beyond the viewer's 404: a suite that needs a suggester's
   // narrower list seeds only that suggester's changes.
   const suggestions: SuggestionChange[] = structuredClone(options?.suggestions ?? []);
+  const snapshots: TripSnapshot[] = structuredClone(options?.snapshots ?? []);
   const role = options?.myRole ?? "owner";
   // The route serves pending changes only, and hashes those (W53).
   const pendingSuggestions = () => suggestions.filter((c) => c.status === "pending");
@@ -297,6 +304,27 @@ export function makeTripHandlers(
         ? HttpResponse.json({ changes: pendingSuggestions(), rev: suggestionsRev() })
         : HttpResponse.json({ error: "Not found", code: "not-found" }, { status: 404 }),
     ),
+    // Accept-all's (M40 D1): all or nothing, parents first by creation order.
+    // Ahead of the resolve route below, whose `:changeId` would match `accept`.
+    http.post("/api/trips/:tripId/suggestions/changes/accept", async ({ request }) => {
+      const { changeIds } = AcceptSuggestionChangesInput.parse(await request.json());
+      const targets = suggestions.filter((c) => changeIds.includes(c.id));
+      const refuse = (changeId: string, error: string, code: string, status = 409) =>
+        HttpResponse.json({ error, code, changeId }, { status });
+      const missing = changeIds.find((id) => !targets.some((c) => c.id === id));
+      if (missing) return refuse(missing, "Not found", "not-found", 404);
+      for (const c of targets) {
+        if (c.status !== "pending") return refuse(c.id, "Already resolved", "already-resolved");
+        const blocked = c.dependsOn.some(
+          (id) => !changeIds.includes(id) && suggestions.find((p) => p.id === id)?.status !== "accepted",
+        );
+        if (blocked) return refuse(c.id, "Accept the change it builds on first", "dependency-pending");
+      }
+      const resolvedAt = new Date().toISOString();
+      for (const c of targets) for (const command of c.commands) detail = applyMock(detail, command);
+      for (const c of targets) Object.assign(c, { status: "accepted", resolvedBy: "dev-alice", resolvedAt });
+      return HttpResponse.json({ changes: targets });
+    }),
     // The resolve route's rules that a board test can reach (spec §2.7, W28,
     // W33), without its role checks: accept applies the commands to the mock
     // trip so a refetch shows them confirmed; dismiss and withdraw take the
@@ -335,6 +363,43 @@ export function makeTripHandlers(
       HttpResponse.json({
         history:
           options?.history ?? { tripId: detail.tripId, entries: [], canUndo: false, canRedo: false },
+      }),
+    ),
+    // Named snapshots (M40 part 2), without the role checks or the cap. A
+    // restore answers the trip unchanged: reverting needs the domain, which a
+    // mock may not import. A test about the restored trip overrides it.
+    http.get("/api/trips/:tripId/snapshots", () => HttpResponse.json({ snapshots })),
+    http.post("/api/trips/:tripId/snapshots", async ({ request }) => {
+      const { name } = CreateSnapshotInput.parse(await request.json());
+      const snapshot: TripSnapshot = {
+        id: crypto.randomUUID(),
+        tripId: detail.tripId,
+        seq: Math.max(1, options?.history?.entries[0]?.toSeq ?? 1),
+        name,
+        createdBy: "dev-alice",
+        createdAt: new Date().toISOString(),
+      };
+      snapshots.unshift(snapshot);
+      return HttpResponse.json({ snapshot }, { status: 201 });
+    }),
+    http.patch("/api/trips/:tripId/snapshots/:snapshotId", async ({ params, request }) => {
+      const target = snapshots.find((x) => x.id === params.snapshotId);
+      if (!target) return HttpResponse.json({ error: "Not found", code: "not-found" }, { status: 404 });
+      target.name = RenameSnapshotInput.parse(await request.json()).name;
+      return HttpResponse.json({ snapshot: target });
+    }),
+    http.delete("/api/trips/:tripId/snapshots/:snapshotId", ({ params }) => {
+      const index = snapshots.findIndex((x) => x.id === params.snapshotId);
+      if (index === -1) return HttpResponse.json({ error: "Not found", code: "not-found" }, { status: 404 });
+      snapshots.splice(index, 1);
+      return HttpResponse.json({ ok: true });
+    }),
+    http.post("/api/trips/:tripId/snapshots/:snapshotId/restore", () =>
+      HttpResponse.json({
+        ok: true,
+        tripId: detail.tripId,
+        detail,
+        history: options?.history ?? { tripId: detail.tripId, entries: [], canUndo: false, canRedo: false },
       }),
     ),
     // M13 link 2. `useTripBroadcast` polls this while a multi-member trip is

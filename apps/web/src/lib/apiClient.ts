@@ -28,20 +28,26 @@ import {
   TripInvite,
   TripPreview,
   TripShare,
+  TripSnapshot,
+  TripSnapshotsResponse,
   TripSuggestionsResponse,
   TripSummary,
   PreferencesResponse,
   UpdateUserPreferences,
   UserPreferences,
   type AssistantProposal,
+  type AssistantSuggested,
   type AdminReportAction,
   type ChangeRoleInput,
   type CreateInviteInput,
   type CreateReportInput,
   type CreateSavedDayInput,
+  type CreateSnapshotInput,
   type CreateSuggestionInput,
   type PutReviewInput,
+  type RenameSnapshotInput,
   type ResolveSuggestionChangeInput,
+  type AcceptSuggestionChangesInput,
   type SetTravellingInput,
   type TripCommand,
 } from "@tc/contracts";
@@ -659,6 +665,32 @@ export async function resolveSuggestionChange(
   }
 }
 
+/**
+ * Accept these changes as ONE batch, all or nothing (M40 D1): one History
+ * entry, one undo. Resolves the changes accepted, parents first. A refusal
+ * accepted nothing, and its `changeId` names the change it is about.
+ */
+export async function acceptSuggestionChanges(
+  tripId: string,
+  changeIds: AcceptSuggestionChangesInput["changeIds"],
+): Promise<{ ok: true; value: SuggestionChange[] } | { ok: false; error: ApiError & { changeId?: string } }> {
+  const scope = tripKeys.all(tripId);
+  beginWrite(scope);
+  try {
+    const res = await fetch(apiUrl(`/api/trips/${tripId}/suggestions/changes/accept`), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ changeIds }),
+    });
+    if (!res.ok) return await refusal(res, (body) => (typeof body.changeId === "string" ? { changeId: body.changeId } : {}));
+    return { ok: true, value: CreatedSuggestion.parse(await res.json()).changes };
+  } catch (err) {
+    return networkError(err);
+  } finally {
+    endWrite(scope);
+  }
+}
+
 // ── Cover photos (M37) ───────────────────────────────────────────────────────
 // Not commands: a cover is metadata in its own table (D1), and TripDetail
 // does not carry it, so no trip read is invalidated by these writes. Home
@@ -774,6 +806,83 @@ export function setSavedDayCover(savedDayId: string, candidate: CoverCandidate):
 /** Removes the day's cover (its author only). */
 export function clearSavedDayCover(savedDayId: string): Promise<ApiResult<null>> {
   return deleteCover(savedDayCoverPath(savedDayId));
+}
+
+// ── Named snapshots (M40 part 2) ─────────────────────────────────────────────
+// A snapshot is a row in its own table, not planning state (D4), so saving,
+// renaming and deleting one invalidate no trip read. A restore is a trip write:
+// it appends a revert batch, and answers `{ detail, history }` like a command.
+
+const snapshotsPath = (tripId: string) => `/api/trips/${tripId}/snapshots`;
+const SnapshotBody = z.object({ snapshot: TripSnapshot });
+
+/** The trip's snapshots, newest first. */
+export async function fetchTripSnapshots(tripId: string): Promise<ApiResult<TripSnapshot[]>> {
+  try {
+    const res = await fetch(apiUrl(snapshotsPath(tripId)), { cache: "no-store" });
+    return await readJson(res, (data) => TripSnapshotsResponse.parse(data).snapshots);
+  } catch (err) {
+    return networkError(err);
+  }
+}
+
+/** Save the trip as it stands on the server now. A refusal carries `too-many-snapshots` at the cap. */
+export async function saveTripSnapshot(tripId: string, input: CreateSnapshotInput): Promise<ApiResult<TripSnapshot>> {
+  try {
+    const res = await fetch(apiUrl(snapshotsPath(tripId)), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    return await readJson(res, (data) => SnapshotBody.parse(data).snapshot);
+  } catch (err) {
+    return networkError(err);
+  }
+}
+
+/** Rename a snapshot; answers it as stored. */
+export async function renameTripSnapshot(
+  tripId: string,
+  snapshotId: string,
+  input: RenameSnapshotInput,
+): Promise<ApiResult<TripSnapshot>> {
+  try {
+    const res = await fetch(apiUrl(`${snapshotsPath(tripId)}/${snapshotId}`), {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    return await readJson(res, (data) => SnapshotBody.parse(data).snapshot);
+  } catch (err) {
+    return networkError(err);
+  }
+}
+
+/** Delete a snapshot for good. */
+export async function deleteTripSnapshot(tripId: string, snapshotId: string): Promise<ApiResult<null>> {
+  try {
+    const res = await fetch(apiUrl(`${snapshotsPath(tripId)}/${snapshotId}`), { method: "DELETE" });
+    return await readJson(res, () => null);
+  } catch (err) {
+    return networkError(err);
+  }
+}
+
+/**
+ * Restore a snapshot: one revert batch on the server, answered as the trip and
+ * its history. A refusal carries `no-op` when the trip already matches.
+ */
+export async function restoreTripSnapshot(tripId: string, snapshotId: string): Promise<ApiResult<CommandOutcome>> {
+  const scope = tripKeys.all(tripId);
+  beginWrite(scope);
+  try {
+    const res = await fetch(apiUrl(`${snapshotsPath(tripId)}/${snapshotId}/restore`), { method: "POST" });
+    return await readJson(res, (data) => parseOutcome(data as { detail: unknown; history: unknown }));
+  } catch (err) {
+    return networkError(err);
+  } finally {
+    endWrite(scope);
+  }
 }
 
 // ── Pinned read-only shares (M11 link 4) ─────────────────────────────────────
@@ -1377,6 +1486,17 @@ export type AskEvent =
   /** The turn's proposal, carried on the stream's final chunk. At most one. */
   | { type: "proposal"; proposal: AssistantProposal }
   /**
+   * A turn of several changes, already stored as one suggestion on the board
+   * (ADR-067) — on the same final chunk, in place of a proposal.
+   */
+  | { type: "suggested"; suggested: AssistantSuggested }
+  /**
+   * A planning turn whose every write the server refused, so there is nothing
+   * to review — with why, in the server's words. On the same final chunk, in
+   * place of a proposal.
+   */
+  | { type: "not-applied"; skipped: string[] }
+  /**
    * What a `page`-scoped turn wants INSERTED, on that same final chunk. Already
    * validated against the macro registry server-side, so nodes that failed
    * validation arrive as `page-error` instead and never as content.
@@ -1505,6 +1625,8 @@ export function askEventFromFrame(frame: string): AskEvent | null {
     const metadata = AskStreamMetadata.safeParse(part.messageMetadata);
     if (!metadata.success) return null;
     if ("proposal" in metadata.data) return { type: "proposal", proposal: metadata.data.proposal };
+    if ("suggested" in metadata.data) return { type: "suggested", suggested: metadata.data.suggested };
+    if ("notApplied" in metadata.data) return { type: "not-applied", skipped: metadata.data.notApplied.skipped };
     if ("pageInserts" in metadata.data) {
       return pageInsertsEvent(metadata.data.pageInserts.content, metadata.data.pageInserts.dropped ?? []);
     }

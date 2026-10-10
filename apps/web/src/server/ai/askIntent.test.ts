@@ -7,6 +7,7 @@
 // answer has to be `write` every time.
 import { describe, expect, it } from "vitest";
 import type { LanguageModel } from "ai";
+import { tierFor } from "@/server/assistant/taskClass";
 import {
   ASK_INTENT_INSTRUCTION,
   PAGE_INTENT_INSTRUCTION,
@@ -376,7 +377,19 @@ describe("certainty", () => {
   // used to be expressible only as `plan` with nothing flagged.
   it("calls a bare agreement unsure, because the rule says it cannot tell", async () => {
     const result = await classifyAskIntent(modelReturning("question").model, "yes go ahead");
-    expect(result).toMatchObject({ source: "affirmation", taskClass: "plan", certainty: "unsure", intent: "write" });
+    expect(result).toMatchObject({ source: "affirmation", taskClass: "edit", certainty: "unsure", intent: "write" });
+  });
+
+  // What an agreement agrees to is already spelled out, so it runs on `mid`
+  // (edit + unsure), not the strong tier `plan` sends it to: "go ahead with
+  // those" for six listed writes cost ~14x the request it agreed to
+  // (2026-10-10). The page surface keeps its own class.
+  it("runs a bare agreement on the mid tier, and recognises 'go ahead with those'", async () => {
+    const result = await classifyAskIntent(modelReturning("question").model, "Go ahead with those");
+    expect(result.source).toBe("affirmation");
+    expect(tierFor(result.taskClass, result.certainty)).toBe("mid");
+    const page = await classifyAskIntent(modelReturning("question").model, "yes go ahead", [], undefined, Date.now, "page");
+    expect(page.taskClass).toBe("compose");
   });
 
   // The instruction is re-sent on every turn, so the band had to replace the
