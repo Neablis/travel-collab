@@ -84,4 +84,44 @@ describe("pasteToStop", () => {
     const link = "https://www.google.com/maps?q=135.0,35.0";
     expect(pasteToStop(link)).toEqual({ title: "", notes: link });
   });
+
+  // What Apple Maps' Share gives today: no `q` and no `ll`, the place's name
+  // in `name`, its street address in `address`, and `coordinate`.
+  it("reads a current Apple Maps share link's name, not its address, and its coordinates", () => {
+    const link =
+      "https://maps.apple.com/place?address=4%20Chome-16-2%20Tsukiji,%20Chuo%20City,%20Tokyo%20104-0045,%20Japan&coordinate=35.6655,139.7707&name=Tsukiji%20Outer%20Market&place-id=I6A2F1B3C4D5E6F70";
+    expect(pasteToStop(link)).toEqual({
+      title: "Tsukiji Outer Market",
+      location: { name: "Tsukiji Outer Market", lat: 35.6655, lng: 139.7707 },
+    });
+  });
+
+  // Google names a dropped pin by its coordinates in degrees, minutes and
+  // seconds. That is no more a title than the decimal pair is.
+  it("makes a dropped pin named in degrees and minutes a place with no title", () => {
+    const link = "https://www.google.com/maps/place/35%C2%B000'41.8%22N+135%C2%B046'05.2%22E/@35.0116,135.7681,17z";
+    expect(pasteToStop(link)).toEqual({
+      title: "",
+      location: { name: "35.0116, 135.7681", lat: 35.0116, lng: 135.7681 },
+    });
+  });
+
+  it("reads a dropped pin's place from its degrees and minutes when the link has no other", () => {
+    expect(pasteToStop("https://www.google.com/maps/place/35%C2%B000'41.8%22S+135%C2%B046'05.2%22W")).toEqual({
+      title: "",
+      location: { name: "-35.0116, -135.7681", lat: -35.011611, lng: -135.768111 },
+    });
+  });
+
+  // Directions and a bare map view are not a place: the centre of the map is
+  // wherever it was scrolled to.
+  it("keeps a directions link in the notes", () => {
+    const link = "https://www.google.com/maps/dir/Kyoto+Station/Kinkaku-ji/@35.0116,135.7292,13z";
+    expect(pasteToStop(link)).toEqual({ title: "", notes: link });
+  });
+
+  it("keeps a bare map view in the notes", () => {
+    const link = "https://www.google.com/maps/@35.0116,135.7681,15z";
+    expect(pasteToStop(link)).toEqual({ title: "", notes: link });
+  });
 });
