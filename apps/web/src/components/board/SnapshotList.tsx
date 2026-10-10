@@ -175,10 +175,14 @@ export function SnapshotList({
               />
             </FormField>
           </div>
+          {/* `md`, the `Input`'s own `h-9` (both lift to the 44px floor on a
+              phone), so the two sit as one row on `items-end` — Mitchell,
+              trip preview: *"Save snapshot button should be same size as
+              input to left"*. `sm` was a 28px button beside a 36px field. */}
           <Button
             type="submit"
             variant="secondary"
-            size="sm"
+            size="md"
             disabled={busy || working || previewing || name.trim() === ""}
           >
             Save snapshot
