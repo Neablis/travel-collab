@@ -97,8 +97,10 @@ export function TripHeaderSkeleton({ tripId }: { tripId: string }) {
           </div>
         </SkeletonRegion>
       </div>
-      {/* The phone's line under the pinned row: the status badge and the dates. */}
-      <div aria-hidden className="flex flex-wrap items-center gap-x-2 gap-y-1 px-6 pt-2 md:hidden">
+      {/* The phone's line under the pinned row: the status badge and the dates.
+          The real row's box exactly — `min-h-11`, `py-2.5`, `gap-y-1.5` — since
+          it became a padded band rather than a `pt-2` sliver (PR #384 review). */}
+      <div aria-hidden className="flex min-h-11 flex-wrap items-center gap-x-2 gap-y-1.5 px-6 py-2.5 md:hidden">
         <Skeleton circle className="h-5 w-16" delay={2} />
         <span className="block text-xs">
           <Skeleton circle className="inline-block h-3 w-28 align-middle" delay={3} />
