@@ -7,7 +7,7 @@ import type { TimeWindow } from "@tc/contracts";
 import { useTrip } from "@/components/trip/context/TripProvider";
 import { useEditor } from "@/components/trip/context/EditorHost";
 import { useDaySync, useFocus } from "@/components/trip/context/FocusProvider";
-import { lensCommands, newStopCommand } from "@/components/palette/commands";
+import { lensCommands, moveStopsCommands, newStopCommand } from "@/components/palette/commands";
 import { usePaletteSource } from "@/components/palette/paletteRegistry";
 import { newStopPrefill } from "@/components/trip/newStopPrefill";
 import { useLens } from "@/components/trip/context/LensRouter";
@@ -162,12 +162,30 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // assistant needs nothing here: the palette offers the opener registered
   // just above, the one the phone's tab bar uses.
   const focusedDayId = focusedDay === null ? undefined : activeTrip?.days[focusedDay]?.dayId;
+  // A day's header dropped on another day (M41 D7): its stops move there as one
+  // batch, through the move every other drop builds (ADR-068 §3). Times kept.
+  // Up here, above the early returns, because ⌘K's *Move Day N's stops*
+  // below is this same function (PR 395 review: a day moved only by a drag).
+  const moveDay = (fromDayId: string, toDayId: string) => {
+    const from = activeTrip?.days.find((d) => d.dayId === fromDayId);
+    if (activeTrip == null || from === undefined) return;
+    const commands = moveCommands(activeTrip, from.activityIds, toDayId);
+    if (commands.length > 0) void dispatchBatch(commands);
+  };
+  const dayToMove = canEditBoard && focusedDay !== null ? activeTrip?.days[focusedDay] : undefined;
   usePaletteSource(
     "trip-board",
     boardRenders && activeTrip !== null
       ? [
           ...lensCommands(setView),
           ...(canEditBoard ? [newStopCommand(() => openCreate(newStopPrefill(activeTrip, focusedDayId)))] : []),
+          ...(dayToMove !== undefined && dayToMove.activityIds.length > 0
+            ? moveStopsCommands(
+                { id: `day:${dayToMove.dayId}`, name: `Day ${activeTrip.days.indexOf(dayToMove) + 1}'s stops` },
+                activeTrip.days.flatMap((day, index) => (day.dayId === dayToMove.dayId ? [] : [{ key: day.dayId, label: `Day ${index + 1}` }])),
+                (toDayId) => moveDay(dayToMove.dayId, toDayId),
+              )
+            : []),
         ]
       : [],
   );
@@ -623,15 +641,6 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     const newDayIds = Array.from({ length: outcome.newDays }, () => crypto.randomUUID());
     const toDayId = outcome.toDayId ?? newDayIds.at(-1)!;
     const commands = moveCommands(activeTrip, outcome.activityIds, toDayId, { newDayIds });
-    if (commands.length > 0) void dispatchBatch(commands);
-  };
-
-  // A day's header dropped on another day (M41 D7): its stops move there as one
-  // batch, through the move every other drop builds (ADR-068 §3). Times kept.
-  const moveDay = (fromDayId: string, toDayId: string) => {
-    const from = activeTrip.days.find((d) => d.dayId === fromDayId);
-    if (from === undefined) return;
-    const commands = moveCommands(activeTrip, from.activityIds, toDayId);
     if (commands.length > 0) void dispatchBatch(commands);
   };
 

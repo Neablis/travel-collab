@@ -22,6 +22,8 @@ import { cn } from "@/lib/cn";
 import { calendarMonths, type CalendarCell } from "./calendarData";
 import { resolveCalendarDrop, type CalendarDropData, type CityCardDragData } from "./calendarDrop";
 import { addDaysIso } from "@/lib/dates";
+import { moveStopsCommands, type MoveDestination } from "@/components/palette/commands";
+import { usePaletteSource } from "@/components/palette/paletteRegistry";
 
 // SPEC.md §4 / the handoff design: Sunday-start, not the old Monday-start
 // grid — this is where the flip happens.
@@ -372,6 +374,11 @@ export function CalendarLens({
   const latest = useRef({ detail, onDrop });
   latest.current = { detail, onDrop };
   const editable = onDrop !== undefined;
+  // Where a card's drag ends, and where ⌘K's *Move* commands end too.
+  const drop = (source: Record<string | symbol, unknown>, target: Record<string | symbol, unknown> | undefined) => {
+    const outcome = resolveCalendarDrop(latest.current.detail, source, target);
+    if (outcome !== null) latest.current.onDrop?.(outcome);
+  };
   // Room after the trip's end only where a drop there can grow it.
   const months = calendarMonths(detail, { roomAfterEnd: editable });
   useEffect(() => {
@@ -402,10 +409,7 @@ export function CalendarLens({
         }),
       ),
       monitorForElements({
-        onDrop: ({ source, location }) => {
-          const outcome = resolveCalendarDrop(latest.current.detail, source.data, location.current.dropTargets[0]?.data);
-          if (outcome !== null) latest.current.onDrop?.(outcome);
-        },
+        onDrop: ({ source, location }) => drop(source.data, location.current.dropTargets[0]?.data),
       }),
       autoScrollWindowForElements(),
     );
@@ -413,6 +417,57 @@ export function CalendarLens({
   // The last date in the trip: a cell after it takes a city card, and the
   // trip grows to meet it. None before the start, which never moves.
   const lastTripDate = detail.startDate === null || detail.days.length === 0 ? null : addDaysIso(detail.startDate, detail.days.length - 1);
+
+  // **The same moves from the keyboard (⌘K; PR 395 review, ADR-068).** A city
+  // card moved only by a drag, so the palette offers *Move <City> to Day N*
+  // for each card in the cell focus is on (the cell is the button that holds
+  // its cards; a focusable card inside it would be a control inside a
+  // control), and each runs `drop` with the very data a drag of that card onto
+  // that cell carries: one `onDrop`, one batch, one History entry.
+  //
+  // Which cell is read from `focusin`, not from blur: opening the palette
+  // takes focus into it, and the cell has to still count while it is open.
+  // Focus anywhere else that is not the palette (`data-command-palette`) lets
+  // the cell go.
+  const [cellOn, setCellOn] = useState<number | null>(null);
+  useEffect(() => {
+    const root = gridRef.current;
+    if (!editable || root === null) return;
+    const onFocusIn = (event: FocusEvent) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (target?.closest("[data-command-palette]")) return;
+      const cell = target?.closest<HTMLElement>("[data-drop-day]");
+      setCellOn(cell != null && root.contains(cell) ? Number(cell.dataset.dropDay) : null);
+    };
+    document.addEventListener("focusin", onFocusIn);
+    return () => {
+      document.removeEventListener("focusin", onFocusIn);
+      setCellOn(null);
+    };
+  }, [editable]);
+  const cellDay = editable && cellOn !== null ? detail.days[cellOn] : undefined;
+  const destinations: MoveDestination[] =
+    cellOn === null
+      ? []
+      : [
+          ...detail.days.flatMap((_, index) => (index === cellOn ? [] : [{ key: String(index), label: `Day ${index + 1}` }])),
+          ...(lastTripDate === null ? [] : [{ key: "after", label: `a new day after Day ${detail.days.length}` }]),
+        ];
+  usePaletteSource(
+    "calendar-card",
+    cellOn === null || cellDay === undefined
+      ? []
+      : calendarCityCards(cellDay, detail.activities, detail.members, focusedTag).flatMap((card, i) =>
+          moveStopsCommands({ id: `${cellOn}:${i}`, name: card.city ?? `Day ${cellOn + 1}'s stops with no city` }, destinations, (key) =>
+            drop(
+              { kind: "city-card", activityIds: card.activityIds, fromDayIndex: cellOn } satisfies CityCardDragData,
+              (key === "after" && lastTripDate !== null
+                ? { kind: "calendar-after", date: addDaysIso(lastTripDate, 1) }
+                : { kind: "calendar-day", dayIndex: Number(key) }) satisfies CalendarDropData,
+            ),
+          ),
+        ),
+  );
 
   if (months.length === 0) {
     return (

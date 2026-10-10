@@ -62,3 +62,26 @@ export function placeCommands(go: (href: string) => void, trips: readonly { trip
     ...trips.map((trip) => ({ id: `go:trip:${trip.tripId}`, label: trip.name, group: "Go to" as const, keywords: ["trip"], run: () => go(`/trips/${trip.tripId}`) })),
   ];
 }
+
+/** Where a block of stops can be moved to: `key` is what the move is handed, `label` ends the command's name. */
+export type MoveDestination = { key: string; label: string };
+
+/**
+ * *Move <what> to <destination>*, one per destination, each by the drag's own
+ * move with that destination's `key` (PR 395 review: a block of stops that
+ * only a drag could move). A Calendar city card hands over its `onDrop`, a
+ * Plan day the day-header drag's `moveDay`; what a key means is theirs.
+ */
+export function moveStopsCommands(
+  source: { id: string; name: string },
+  destinations: readonly MoveDestination[],
+  move: (key: string) => void,
+): PaletteCommand[] {
+  return destinations.map((to) => ({
+    id: `move:${source.id}:${to.key}`,
+    label: `Move ${source.name} to ${to.label}`,
+    group: "Do",
+    keywords: ["stops", "day", "drag"],
+    run: () => move(to.key),
+  }));
+}

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   askCommand,
   lensCommands,
+  moveStopsCommands,
   newStopCommand,
   newTripCommand,
   placeCommands,
@@ -54,5 +55,14 @@ describe("palette commands hold the page's own actions", () => {
     const go = vi.fn();
     for (const command of placeCommands(go, [{ tripId: "t1", name: "Kyoto" }])) command.run();
     expect(go.mock.calls.flat()).toEqual(["/", "/playbooks", "/account", "/trips/t1"]);
+  });
+
+  it("a block of stops moves by the drag's own move, to the destination named", () => {
+    const move = vi.fn();
+    const commands = moveStopsCommands({ id: "card", name: "Rome" }, [{ key: "1", label: "Day 2" }, { key: "after", label: "a new day after Day 3" }], move);
+    expect(commands.map((c) => c.label)).toEqual(["Move Rome to Day 2", "Move Rome to a new day after Day 3"]);
+    commands[1]?.run();
+    commands[0]?.run();
+    expect(move.mock.calls).toEqual([["after"], ["1"]]);
   });
 });

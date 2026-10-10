@@ -50,3 +50,29 @@ test("New trip from Home is Home's own button", async ({ page }) => {
   await command(page, "new trip");
   await expect(page.getByRole("dialog", { name: "New trip" })).toBeVisible();
 });
+
+// PR 395 review: a city card's stops moved only by a drag. From the keyboard,
+// Tab to the day's cell and ⌘K offers *Move <City> to Day N*, which is the
+// drag's own drop: one batch, so one History entry.
+test("a Calendar city card moves to another day from the keyboard, as one change", async ({ page }) => {
+  const tripId = await createMappedTrip(page, e2eTripName("PaletteMove"), 3, { startDate: "2027-06-07" });
+  await page.goto(`/trips/${tripId}?view=Calendar`);
+  const cell = (dayIndex: number) => page.locator(`[data-testid="calendar-cell"][data-day-index="${dayIndex}"]`);
+  await expect(cell(0).getByTestId("calendar-day-card")).toHaveCount(1);
+  const history = async () =>
+    ((await (await page.request.get(`/api/trips/${tripId}/history`)).json()) as { history: { entries: { description: string }[] } }).history.entries;
+  const before = (await history()).length;
+
+  // Tab, not `.focus()`: the cell is reached the way a keyboard user reaches it.
+  // One Tab per try, until the cell has focus.
+  await expect(async () => {
+    await page.keyboard.press("Tab");
+    await expect(cell(0)).toBeFocused({ timeout: 100 });
+  }).toPass({ intervals: [0], timeout: 30_000 });
+
+  await command(page, "to day 2");
+  await expect(cell(0)).toContainText("Nothing planned yet");
+  await expect(cell(1).getByTestId("calendar-day-card")).toHaveCount(2);
+  await expect.poll(async () => (await history()).length).toBe(before + 1);
+  expect((await history())[0]?.description).toMatch(/Moved/);
+});

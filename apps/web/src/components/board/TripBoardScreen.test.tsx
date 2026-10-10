@@ -6,6 +6,7 @@ import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { ASK_FAILED_MESSAGE, TripCommand, type TripDetail } from "@tc/contracts";
 import { TripBoardScreen } from "@/components/board/TripBoardScreen";
+import { moveCommands } from "@/components/board/moveCommands";
 import { TripProvider } from "@/components/trip/context/TripProvider";
 import { EditorHost, useEditor } from "@/components/trip/context/EditorHost";
 import { FocusProvider } from "@/components/trip/context/FocusProvider";
@@ -2728,5 +2729,32 @@ describe("⌘K runs the trip page's own actions", () => {
     run("new-stop");
     const sheet = await screen.findByRole("dialog", { name: "Add a stop" });
     expect((within(sheet).getByLabelText("Day") as HTMLSelectElement).value).toBe(fixture.days[0]!.dayId);
+  });
+
+  // PR 395 review: a day's stops moved only by Plan's day-header drag. The
+  // command is that drag's `moveDay`, so it sends what the drag sends: the
+  // day's stops through `moveCommands`, as ONE batch (one History entry).
+  it("moves the selected day's stops to another day as one batch, as the day header's drag does", async () => {
+    const costed = costedTripDetailFixture();
+    const day2 = "9f1c2b7e-5d3a-4c8b-9e2f-7a6d4b1c8e35";
+    const fixture = { ...costed, days: [...costed.days, { dayId: day2, activityIds: [], date: "2027-06-02", costSubtotal: 0 }] };
+    const batches: unknown[][] = [];
+    server.use(
+      // First, so it sees each batch and hands it on to the trip's own mock.
+      http.post("/api/trips/:tripId/commands/batch", async ({ request }) => {
+        const body = (await request.clone().json()) as { commands?: unknown[]; units?: { commands: unknown[] }[] };
+        batches.push(body.units ? body.units.flatMap((u) => u.commands) : (body.commands ?? []));
+        return undefined;
+      }),
+      ...makeTripHandlers(fixture),
+    );
+    const { run } = renderWithPalette(fixture.tripId);
+    await screen.findByRole("heading", { name: "Rome 2027" });
+    const column = screen.getAllByTestId("day-column")[0]!;
+    await userEvent.click(within(column).getByRole("button", { name: /^Day 1/ }));
+
+    run(`move:day:${fixture.days[0]!.dayId}:${day2}`);
+    await waitFor(() => expect(batches).toEqual([moveCommands(fixture, fixture.days[0]!.activityIds, day2)]));
+    expect(batches[0]).toHaveLength(2);
   });
 });

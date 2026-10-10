@@ -107,52 +107,56 @@ export function CommandPalette() {
         next?.();
       }}
     >
-      <Input
-        // Radix otherwise focuses the first control in the dialog, which is
-        // its header's Close: the palette is for typing into at once.
-        autoFocus
-        role="combobox"
-        aria-label="Go to or do"
-        aria-expanded
-        aria-controls={listId}
-        aria-autocomplete="list"
-        aria-activedescendant={shown.length > 0 ? optionId(active) : undefined}
-        autoComplete="off"
-        placeholder="Calendar, new stop, ask…"
-        value={query}
-        onChange={(event) => {
-          setQuery(event.target.value);
-          setActive(0);
-        }}
-        onKeyDown={(event) => {
-          if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-            event.preventDefault();
-            const step = event.key === "ArrowDown" ? 1 : -1;
-            setActive((i) => (shown.length === 0 ? 0 : (i + step + shown.length) % shown.length));
-          } else if (event.key === "Enter") {
-            event.preventDefault();
-            run(shown[active]);
-          }
-        }}
-      />
-      <div id={listId} role="listbox" aria-label="Commands" className="mt-2 py-1 text-sm">
-        {shown.length === 0 ? <p className="px-3 py-2 text-slate">No match</p> : null}
-        {shown.map((command, index) => (
-          <div
-            key={command.id}
-            id={optionId(index)}
-            role="option"
-            aria-selected={index === active}
-            className={cn("flex cursor-pointer items-baseline justify-between gap-3 rounded-sm px-3 py-2 text-ink md:py-1.5", index === active && "bg-brand-tint")}
-            // `mousedown` would take focus from the box before the click lands.
-            onMouseDown={(event) => event.preventDefault()}
-            onMouseEnter={() => setActive(index)}
-            onClick={() => run(command)}
-          >
-            <span className="truncate">{command.label}</span>
-            <span className="shrink-0 text-xs text-slate">{command.group}</span>
-          </div>
-        ))}
+      {/* What a screen tracking focus reads as "still where it was" while
+          the palette is open (CalendarLens's city cards). */}
+      <div data-command-palette>
+        <Input
+          // Radix otherwise focuses the first control in the dialog, which is
+          // its header's Close: the palette is for typing into at once.
+          autoFocus
+          role="combobox"
+          aria-label="Go to or do"
+          aria-expanded
+          aria-controls={listId}
+          aria-autocomplete="list"
+          aria-activedescendant={shown.length > 0 ? optionId(active) : undefined}
+          autoComplete="off"
+          placeholder="Calendar, new stop, ask…"
+          value={query}
+          onChange={(event) => {
+            setQuery(event.target.value);
+            setActive(0);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+              event.preventDefault();
+              const step = event.key === "ArrowDown" ? 1 : -1;
+              setActive((i) => (shown.length === 0 ? 0 : (i + step + shown.length) % shown.length));
+            } else if (event.key === "Enter") {
+              event.preventDefault();
+              run(shown[active]);
+            }
+          }}
+        />
+        <div id={listId} role="listbox" aria-label="Commands" className="mt-2 py-1 text-sm">
+          {shown.length === 0 ? <p className="px-3 py-2 text-slate">No match</p> : null}
+          {shown.map((command, index) => (
+            <div
+              key={command.id}
+              id={optionId(index)}
+              role="option"
+              aria-selected={index === active}
+              className={cn("flex cursor-pointer items-baseline justify-between gap-3 rounded-sm px-3 py-2 text-ink md:py-1.5", index === active && "bg-brand-tint")}
+              // `mousedown` would take focus from the box before the click lands.
+              onMouseDown={(event) => event.preventDefault()}
+              onMouseEnter={() => setActive(index)}
+              onClick={() => run(command)}
+            >
+              <span className="truncate">{command.label}</span>
+              <span className="shrink-0 text-xs text-slate">{command.group}</span>
+            </div>
+          ))}
+        </div>
       </div>
     </Dialog>
   );
