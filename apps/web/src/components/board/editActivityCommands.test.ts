@@ -55,7 +55,7 @@ describe("editActivityCommands", () => {
     );
   });
 
-  // CodeRabbit on #392: another editor removed the day while this one was
+  // CodeRabbit on PR 392: another editor removed the day while this one was
   // open. A save then must refuse, not clear the time and leave it in place.
   it("refuses a day that no longer exists, rather than clearing the stop's time", () => {
     expect(editActivityCommands(trip, TIMED.activityId, form(TIMED, "99999999-9999-4999-8999-999999999999"))).toBeNull();

@@ -319,7 +319,7 @@ export function ActivityEditor({
   // the resulting dayId: null / undefined round-trips through AddActivity
   // exactly as it did before this task.
   //
-  // **And it follows the stop until the user picks a day** (CodeRabbit, #392):
+  // **And it follows the stop until the user picks a day** (CodeRabbit, PR 392):
   // when another editor moves the stop while this one is open, `defaultDayId`
   // changes, and a field still showing the old day would make a save of some
   // other field move the stop back.
