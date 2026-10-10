@@ -50,11 +50,18 @@ export function SuggestionsChip() {
   // could not draw, and with every change on the board it said so and offered
   // nothing, so an owner who opened it never found Accept. The ghosts stay
   // where they are; the chip is also the list.
-  const dayIndex = new Map((trip?.days ?? []).map((d, i) => [d.dayId, i]));
+  // A suggested day is numbered after the trip's days, as the board draws it.
+  const realDays = trip?.days.length ?? 0;
+  const dayIndex = new Map([
+    ...(trip?.days ?? []).map((d, i) => [d.dayId, i] as const),
+    ...ghosts.newDays.map((g, k) => [g.dayId!, realDays + k] as const),
+  ]);
   const where = (ghost: Ghost) => {
     if (ghost.dayId === null) return "Unscheduled";
     const index = ghost.dayId === undefined ? undefined : dayIndex.get(ghost.dayId);
-    return index === undefined ? null : dayLabel(trip?.startDate ?? null, index);
+    if (index === undefined) return null;
+    const label = dayLabel(trip?.startDate ?? null, index);
+    return index < realDays ? label : `${label} · suggested`;
   };
   // By day, then as sent: `sort` is stable and `onBoard` is in creation order.
   const onBoard = [...ghosts.onBoard].sort(
