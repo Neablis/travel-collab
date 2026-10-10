@@ -40,6 +40,15 @@ import {
 export type AskOutcome = "completed" | "error" | "abort";
 
 /**
+ * Why the SERVER gave a turn its last, tool-less step (`wrapUpStep` in
+ * handleAskRequest.ts): the step deadline, or the turn's input-token ceiling.
+ * Either way the turn still ends `completed`, with an answer — so `outcome`
+ * cannot say it happened, and a reader asking "why did this turn stop
+ * reading?" needs this.
+ */
+export type AskWrapUp = "deadline" | "input-tokens";
+
+/**
  * WHY a turn failed. Null on every outcome but `error`.
  *
  * This exists because a live turn failed on 2026-08-29 and nothing anywhere
@@ -312,6 +321,8 @@ export interface AskAnalyticsRecord {
   outcome: AskOutcome;
   /** Why it failed, when it did — or why the SERVER ended it (the turn deadline). Null on a completed turn and on a user leaving. */
   cause: AskFailureCause | null;
+  /** Why the server cut the turn to one tool-less closing step, or null when it did not. */
+  wrapUp: AskWrapUp | null;
   finishReason: string;
   /** The whole run's token spend. */
   usage: AskUsage;
@@ -637,6 +648,8 @@ export interface AskRecorderParams {
   droppedInserts?: () => readonly DroppedInsert[];
   /** The turn's pivots, read at write time for the reason `escalation` is. */
   pivots?: () => readonly AskPivot[];
+  /** Why the turn was wrapped up, read at write time: it is decided mid-run, in `prepareStep`. */
+  wrapUp?: () => AskWrapUp | null;
   /**
    * The turn's id, minted by the handler (M31 Phase 1) and carried on the
    * ledger, so the `ai.ask` line, the `ai_usage` row and its step and tool-call
@@ -857,6 +870,7 @@ export function createAskRecorder(params: AskRecorderParams): AskRecorder {
       answered: text.trim().length > 0,
       outcome,
       cause,
+      wrapUp: params.wrapUp?.() ?? null,
       finishReason: final.finishReason ?? "unknown",
       // The turn's own token spend, off the ledger's `cost.turn` — the same two
       // numbers, read once. `totalTokens` is not on the ledger at all: it is

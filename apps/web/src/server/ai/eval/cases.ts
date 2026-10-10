@@ -11,7 +11,7 @@
 // meant to catch the 2026-10-04 shape (ten calls, 162 seconds) without failing
 // a turn that reads one extra day.
 import { travellerIds, type TripDetail } from "@tc/contracts";
-import { DAYTIME_END_MINUTES, DAYTIME_START_MINUTES, summarizeFreeDays } from "@tc/domain";
+import { DAYTIME_END_MINUTES, DAYTIME_START_MINUTES, citiesOfDay, summarizeFreeDays } from "@tc/domain";
 import type { EvalExpectation } from "./grade";
 
 const QUESTION: EvalExpectation = { proposes: false, maxToolCalls: 4, maxLatencyMs: 60_000 };
@@ -65,6 +65,13 @@ export function expectationFor(id: string, trip: TripDetail): EvalExpectation | 
       return { ...QUESTION, namesOneOfAmounts: [travellerSplitOfDay(trip, 1)] };
     case "q-free-evening":
       return { ...QUESTION, mustCall: ["find_free_time"], maxCallsOf: { find_free_time: 1 } };
+    // The long-trip guards (2026-10-10), on a 100-day trip (`long-100`): a
+    // summary is the overview's job. One `read_day` call (five days at most)
+    // is a fair look at a stay; more is the read-every-day shape the overview
+    // and the per-turn cap exist to stop, and the token ceiling is far under
+    // what reading even fifteen of its days and re-sending them would cost.
+    case "q-summarise-long-trip":
+      return { ...QUESTION, mustCall: ["read_trip"], maxCallsOf: { read_day: 1 }, maxInputTokens: 30_000 };
     case "q-length":
     case "q-busiest":
     case "q-cost":
@@ -85,9 +92,16 @@ export function expectationFor(id: string, trip: TripDetail): EvalExpectation | 
     case "c-rename":
     case "c-remove":
     case "c-retime":
-    case "c-add-evening":
       return CHANGE;
-    // A whole trip: the plan tier, more writes, and more time.
+    // **Gion is in Kyoto, and on the seeded trip day 2 is not** (days 1–6 are
+    // Tokyo, 7–11 Kyoto). Expected to draft it until the first eval on Claude
+    // (2026-10-10), where Sonnet said exactly that, proposed nothing and offered
+    // a Kyoto day or a Tokyo walk instead. That is the right answer, so it is
+    // what is asserted: a Kyoto walk drafted onto a day not in Kyoto fails.
+    // Computed from the trip like the days and amounts above, so a seed that
+    // moves day 2 to Kyoto expects the draft again.
+    case "c-add-evening":
+      return { ...CHANGE, proposes: citiesOfDay(trip, 1).includes("Kyoto") };
     // The off-topic gate (2026-10-10). Refused without the agent running, so
     // no tool is called; the borderline pair is travel help, and must NOT be.
     case "o-screwdriver":
@@ -98,8 +112,13 @@ export function expectationFor(id: string, trip: TripDetail): EvalExpectation | 
     case "b-visa":
     case "b-packing":
       return { ...QUESTION, offTopic: false };
+    // A whole trip: the plan tier, more writes, and more time. The seeded trip
+    // already has Kyoto days, so "plan me a six day trip to Kyoto" is
+    // ambiguous, and asking which days to give up is a fair answer (Opus did, on
+    // 2026-10-10). What this transcript caught was a turn that read and then said
+    // NOTHING, which `completes` (answered) still fails; a draft is not required.
     case "t-reads-and-says-nothing":
-      return { ...CHANGE, maxToolCalls: 40, maxLatencyMs: 240_000 };
+      return { ...CHANGE, proposes: undefined, maxToolCalls: 40, maxLatencyMs: 240_000 };
     default:
       return undefined;
   }

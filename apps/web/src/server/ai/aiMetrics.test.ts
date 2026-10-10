@@ -70,6 +70,7 @@ const ASK_RECORD: AskAnalyticsRecord = {
   answered: true,
   outcome: "completed",
   cause: null,
+  wrapUp: null,
   finishReason: "stop",
   usage: { inputTokens: 8355, outputTokens: 412, totalTokens: 8767 },
   usageByStep: [],

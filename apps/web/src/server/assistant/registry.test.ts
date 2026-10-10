@@ -24,6 +24,7 @@ import { z } from "zod";
 import {
   AMBIENT_DEP_KEYS,
   TURN_DEP_KEYS,
+  newDayReadBudget,
   newEscalationBuffer,
   newNotebookRefs,
   newPageBuffer,
@@ -63,6 +64,7 @@ const TURN_DEPS = {
   notebooks: newNotebookRefs(async () => [], null),
   typedAddresses: typedAddressesIn(""),
   intent: newIntentLatch("compose", ["compose"], () => 0),
+  readBudget: newDayReadBudget(15),
 };
 
 /** The widget names `insert_widget`'s schema will accept, read off the schema. */
