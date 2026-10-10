@@ -23,8 +23,15 @@ general setup.
 
 **M41 — MOVING AND ADDING STOPS TAKES ONE GESTURE WHEREVER YOU ARE — IS THE CURRENT MILESTONE AS
 OF 2026-10-10**, by **M40's gate closing at 8 of 8**. Order: `… M39 ✓ → M40 ✓ → M41 → M42 … M47`.
-The milestones README records M41 as scoped 2026-10-07, but its `TODO.md` row still says "not
-scoped", so confirm the decisions before building. (`docs/milestones/M41-planning-without-friction.md`)
+**Scoped 2026-10-10 with Mitchell, and re-framed**: the 2026-10-06 recommendations predated the
+time river and the Calendar redesign. The direction is fewer controls and more direct gestures,
+and a ⌘K palette that only runs the page's own actions (ADR-068). It is being built as a stack
+whose part 0 tracks the gate. (`docs/milestones/M41-planning-without-friction.md`, plan
+`docs/plans/2026-10-10-M41-gestures.md`)
+
+The README had stamped M41–M47 *"scoped 2026-10-07, all six decisions answered"* by a bulk edit.
+Corrected 2026-10-10: **M42–M47 are not scoped**, and each needs its decisions checked against
+today's UI before building, as M41's did.
 
 **M40 closed 2026-10-10.** A big change is reviewed, taken and undone whole:
 - *Accept all* is one batch, so one History entry and one undo (#376).
