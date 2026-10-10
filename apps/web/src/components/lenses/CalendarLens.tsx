@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
+import { draggable, dropTargetForElements, monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
+import { autoScrollWindowForElements } from "@atlaskit/pragmatic-drag-and-drop-auto-scroll/element";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { TimeFormat, TripDetail } from "@tc/contracts";
 import { Text } from "../ui/text";
@@ -17,6 +20,8 @@ import { toClockLabel, toClockRange } from "@/lib/time";
 import { useTimeFormat } from "@/components/account/PreferencesProvider";
 import { cn } from "@/lib/cn";
 import { calendarMonths, type CalendarCell } from "./calendarData";
+import { resolveCalendarDrop, type CalendarDropData, type CityCardDragData } from "./calendarDrop";
+import { addDaysIso } from "@/lib/dates";
 
 // SPEC.md §4 / the handoff design: Sunday-start, not the old Monday-start
 // grid — this is where the flip happens.
@@ -96,12 +101,10 @@ const MONTH_LABEL_SIZE = { fontSize: "17px" };
 
 
 // 6-dot grip (dc.html:670-672): 3 rows of 2 dots, each 2px, in the day's
-// accent ink. Rendered as a visual identity marker beside the city name
-// ONLY — no cursor: grab, no drag handlers/drop targets (Mitchell's
-// decision: a grip that advertises dragging and does nothing is the failure
-// mode this project already rejected once; see TODO.md's "Unscheduled rack:
-// drag support is Board-view-only" entry, extended by this task with the
-// calendar's own gap).
+// accent ink, beside the city name. Since M41 D2 the card it heads really
+// lifts, on an editable board, and carries the grab cursor there; on a
+// read-only one it is the identity marker it always was, with no cursor that
+// promises a drag.
 function DayGrip({ accent }: { accent: AccentFamily }) {
   return (
     <span className="flex shrink-0 flex-col gap-0.5">
@@ -311,9 +314,18 @@ export function CalendarLens({
   // per the plan brief ("Calendar cells set focus via useFocus()"). It is
   // intentionally unused inside this component.
   onSelectActivity: _onSelectActivity,
+  onDrop,
 }: {
   detail: TripDetail;
   onSelectActivity?: (activityId: string) => void;
+  /**
+   * What a drop in the Calendar resolved to (M41 D2): a city card's stops
+   * onto another day, or past the trip's end, or a rack card onto a day. The
+   * board carries it out with the same move functions Plan's drops use.
+   * **Absent on a read-only board**, and its absence is the signal: no card
+   * lifts and no cell takes a drop.
+   */
+  onDrop?: (outcome: NonNullable<ReturnType<typeof resolveCalendarDrop>>) => void;
 }) {
   const clock = useTimeFormat();
   const months = calendarMonths(detail);
@@ -352,6 +364,55 @@ export function CalendarLens({
     { block: "center", inline: "center" },
   );
 
+  // **Drag and drop (M41 D2).** Cells are drawn by `renderCell`, a function
+  // rather than a component, so the cards and cells are registered here from
+  // the data attributes they carry, after every render. The latest trip and
+  // handler are read through a ref so a re-render mid-drag does not swap the
+  // monitor out from under the drag (Board's monitor explains why that loses
+  // the drop).
+  const latest = useRef({ detail, onDrop });
+  latest.current = { detail, onDrop };
+  const editable = onDrop !== undefined;
+  useEffect(() => {
+    const root = gridRef.current;
+    if (!editable || root === null) return;
+    const over = (el: Element, on: boolean) => (on ? el.setAttribute("data-drop-over", "") : el.removeAttribute("data-drop-over"));
+    return combine(
+      ...[...root.querySelectorAll<HTMLElement>("[data-city-card]")].map((el) =>
+        draggable({
+          element: el,
+          getInitialData: (): CityCardDragData => ({
+            kind: "city-card",
+            activityIds: JSON.parse(el.dataset.cityCard ?? "[]") as string[],
+            fromDayIndex: Number(el.dataset.fromDay),
+          }),
+        }),
+      ),
+      ...[...root.querySelectorAll<HTMLElement>("[data-drop-day],[data-drop-after]")].map((el) =>
+        dropTargetForElements({
+          element: el,
+          getData: (): CalendarDropData =>
+            el.dataset.dropAfter !== undefined
+              ? { kind: "calendar-after", date: el.dataset.dropAfter }
+              : { kind: "calendar-day", dayIndex: Number(el.dataset.dropDay) },
+          onDragEnter: () => over(el, true),
+          onDragLeave: () => over(el, false),
+          onDrop: () => over(el, false),
+        }),
+      ),
+      monitorForElements({
+        onDrop: ({ source, location }) => {
+          const outcome = resolveCalendarDrop(latest.current.detail, source.data, location.current.dropTargets[0]?.data);
+          if (outcome !== null) latest.current.onDrop?.(outcome);
+        },
+      }),
+      autoScrollWindowForElements(),
+    );
+  });
+  // The last date in the trip: a cell after it takes a city card, and the
+  // trip grows to meet it. None before the start, which never moves.
+  const lastTripDate = detail.startDate === null || detail.days.length === 0 ? null : addDaysIso(detail.startDate, detail.days.length - 1);
+
   if (months.length === 0) {
     return (
       <section>
@@ -386,7 +447,10 @@ export function CalendarLens({
           key={cell.date}
           data-testid="calendar-cell"
           data-in-trip={false}
-          className="bg-surface"
+          // A date after the trip's end takes a city card (M41 D2). The ISO
+          // strings compare in date order.
+          data-drop-after={editable && lastTripDate !== null && cell.date > lastTripDate ? cell.date : undefined}
+          className="bg-surface data-[drop-over]:bg-moss"
           // eslint-disable-next-line no-restricted-syntax -- dc.html:665's 116px min height / 8px-9px padding has no token equivalent
           style={CELL_STYLE}
         >
@@ -435,6 +499,7 @@ export function CalendarLens({
         // can find it — the same identity the ring and the click handler use,
         // and the same attribute the chips row and the map strip carry.
         data-day-index={ordinal - 1}
+        data-drop-day={editable ? ordinal - 1 : undefined}
         aria-label={cellLabel(ordinal, cell.date, cityCards, detail.currency, clock)}
         aria-pressed={focusedDay === ordinal - 1}
         onClick={() => setFocusedDay(ordinal - 1)}
@@ -442,7 +507,7 @@ export function CalendarLens({
           // `day-sync-target`: the clause-2/3 follow above scrolls this cell
           // into view, and the class keeps it clear of the sticky header
           // stack when it does (globals.css, KI-2026-09-13-a).
-          "day-sync-target h-full w-full flex-col items-stretch justify-start rounded-none bg-surface text-left hover:opacity-90",
+          "day-sync-target h-full w-full flex-col items-stretch justify-start rounded-none bg-surface text-left hover:opacity-90 data-[drop-over]:bg-moss",
           // Mitchell, preview feedback on PR #55: "There should be a border on
           // the day card when i click, and the day is selected, either on the
           // day cards at top, or the clicking here." The click already set
@@ -510,6 +575,10 @@ export function CalendarLens({
               <div
                 key={`${card.city ?? "no-city"}-${i}`}
                 data-testid="calendar-day-card"
+                // What a drag of this card moves (M41 D2), read by the
+                // registration effect above.
+                data-city-card={editable ? JSON.stringify(card.activityIds) : undefined}
+                data-from-day={editable ? ordinal - 1 : undefined}
                 // SPEC §12's Calendar rule, and the one place M18b deliberately
                 // does NOT dim per stop: at a month's zoom the card is the unit,
                 // so a card whose stops all miss the focused tag drops to 0.28
@@ -517,7 +586,9 @@ export function CalendarLens({
                 // match`. Dimming individual stops here is impossible anyway —
                 // the Calendar stopped rendering them at M18.
                 data-off-tag={card.matches === 0 ? true : undefined}
-                className={cn("min-w-0", TINT_BG[accent.tint])}
+                // The grab cursor only where the card lifts: a grip that
+                // promises a drag it cannot do is what this used to withhold.
+                className={cn("min-w-0", editable && "cursor-grab", TINT_BG[accent.tint])}
                 // eslint-disable-next-line no-restricted-syntax -- dc.html:679's 10px radius / 7px-8px padding has no token equivalent, and the no-match dim is a shared constant with no token class
                 style={{ ...CARD_STYLE, opacity: card.matches === 0 ? CALENDAR_DIM_OPACITY : 1, transition: "opacity 150ms" }}
               >

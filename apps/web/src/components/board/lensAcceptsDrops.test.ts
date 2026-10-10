@@ -3,13 +3,13 @@ import { VIEWS } from "@/components/trip/context/LensRouter";
 import { lensAcceptsDrops } from "./lensAcceptsDrops";
 
 describe("lensAcceptsDrops", () => {
-  // SPEC §24 renamed Board to Plan and deleted Timeline. The rule is unchanged:
-  // Plan is the only view that registers drop targets, and — §24 again — the
-  // only surface that edits at all.
-  it("is true only for Plan, which is the only view with drop targets today", () => {
+  // SPEC §24 renamed Board to Plan and deleted Timeline. M41 D2 gave Calendar
+  // drop targets, so the drawer comes to it, as this function exists to make
+  // happen by itself.
+  it("is true for Plan and Calendar, the views with drop targets", () => {
     expect(lensAcceptsDrops("Plan")).toBe(true);
     expect(lensAcceptsDrops("Overview")).toBe(false);
-    expect(lensAcceptsDrops("Calendar")).toBe(false);
+    expect(lensAcceptsDrops("Calendar")).toBe(true);
     expect(lensAcceptsDrops("Map")).toBe(false);
   });
 
