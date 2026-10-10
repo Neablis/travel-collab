@@ -692,7 +692,7 @@ describe("ActivityEditor nearby stops (M34)", () => {
   });
 });
 
-// CodeRabbit on #392: another editor moves the stop while this one is open.
+// CodeRabbit on PR 392: another editor moves the stop while this one is open.
 // The Day field follows the stop until this reader picks a day themselves, so
 // a save of some other field does not drag the stop back where it was.
 describe("ActivityEditor — the Day field while the stop moves elsewhere", () => {

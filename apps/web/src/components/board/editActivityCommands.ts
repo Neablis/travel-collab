@@ -23,7 +23,7 @@ import { moveCommands } from "./moveCommands";
  * **`null` when the picked day no longer exists** (another editor removed it
  * while the sheet was open): the caller refuses the save, rather than sending
  * an update that clears the time of a stop that has not moved (CodeRabbit,
- * #392).
+ * PR 392).
  *
  * **An update that changes nothing is left out.** The optimistic queue refuses
  * a whole unit when any command in it is a no-op, so a day picked and nothing
