@@ -70,8 +70,8 @@ import { guard } from "@/server/pages-guard";
 import { settleAiSteps } from "@/server/quota";
 import { clockTimesLine, type AskScope } from "@/server/assistant/context";
 import { readPreferences } from "@/server/users";
-import { MAX_PROPOSAL_INSERTS } from "@/server/assistant/limits";
-import { MAX_READ_DAYS } from "@/server/assistant/tools/read";
+import { MAX_DAYS_READ_PER_TURN, MAX_PROPOSAL_INSERTS } from "@/server/assistant/limits";
+import { MAX_READ_DAYS, OVERVIEW_ABOVE_DAYS } from "@/server/assistant/tools/read";
 import {
   buildProposal,
   commitProposal,
@@ -90,6 +90,7 @@ import {
 import { notebookDirectory, placeSearchPort, playbookLibrary, savedDayLibrary } from "@/server/ai/assistantPorts";
 import { typedAddressesIn } from "@/server/assistant/typedAddresses";
 import {
+  newDayReadBudget,
   newEscalationBuffer,
   newNotebookRefs,
   newPageBuffer,
@@ -136,6 +137,7 @@ import {
   logAskAnalytics,
   type AskAnalyticsSink,
   type AskStepPlan,
+  type AskWrapUp,
 } from "@/server/assistant/askAnalytics";
 import { billableRoundTrips, newTurnMeter } from "@/server/assistant/ledger";
 import { recordTurnLedger } from "@/server/entitlements/usage";
@@ -200,6 +202,32 @@ export const MAX_ASK_STEPS = 8;
  * not simply `MAX_ASK_STEPS`.
  */
 export const CLASSIFIER_ROUND_TRIPS = 1;
+
+/**
+ * **The turn's input-token ceiling** (2026-10-10): once the agent's steps have
+ * spent more than this many input tokens between them, the next step is the
+ * wrap-up — no tools, `toolChoice: "none"` — and the run ends after it.
+ *
+ * Steps and seconds were the only bounds before it, and neither bounds tokens:
+ * every step re-sends the whole history, so a turn that read a long trip pays
+ * for that read again on every step after it, and eight steps of a 40k-token
+ * history is 320k tokens a turn nobody asked to be that big. 150k is far above
+ * what a healthy turn spends (a five-step planning turn measured 41,794 —
+ * see the caching comment on the agent below), so it ends only the runaway
+ * ones; the per-turn read cap (`MAX_DAYS_READ_PER_TURN`) is what keeps most
+ * of them from getting here.
+ *
+ * Measured from the steps the agent has TAKEN, as each reported its usage, so
+ * the wrap-up step itself is over the line by however much it re-sends —
+ * once, by design: ending a turn mid-air with no answer would spend the same
+ * tokens and give the user nothing for them.
+ */
+export const ASK_INPUT_TOKEN_CEILING = 150_000;
+
+/** The input tokens `steps` reported between them; a step that reported none counts as none. */
+export function inputTokensSpent(steps: readonly { usage?: { inputTokens?: number | undefined } }[]): number {
+  return steps.reduce((sum, step) => sum + (step.usage?.inputTokens ?? 0), 0);
+}
 
 // The constants, the schemas and the caps that used to sit here are now in
 // `assistant/admission.ts` beside the stage that enforces each of them — `AskRequest` and
@@ -315,6 +343,11 @@ export async function handleAskRequest(
     scope.kind === "page" ? scope.pageId : null,
   );
   const typedAddresses = typedAddressesIn(question);
+  // **The turn's read budget** (2026-10-10): how many distinct days `read_day`
+  // has returned in full, against `MAX_DAYS_READ_PER_TURN`. Per turn for the
+  // reason every collector here is — a count that outlived its turn would
+  // refuse the next question for what the last one read.
+  const readBudget = newDayReadBudget(MAX_DAYS_READ_PER_TURN);
   // **The turn's intent, and the one way it changes** (ADR-058). A board turn
   // holds a latch with nowhere to go — its pivot is the escalation above — so
   // `switch_intent` is never offered there and the latch is never asked.
@@ -370,6 +403,7 @@ export async function handleAskRequest(
       notebooks,
       typedAddresses,
       intent,
+      readBudget,
     },
     meter,
   );
@@ -447,6 +481,8 @@ export async function handleAskRequest(
     droppedInserts: () => (proposesPage ? pageOutcomeOf(pageBuffer.inserted()).dropped : []),
     // Page pivots from the latch, and a board escalation as the pivot it is.
     pivots: () => pivotsOf(intent.pivots(), escalation.escalated(), grant.taskClass),
+    // Set in `prepareStep`, several frames after this recorder is built.
+    wrapUp: () => wrapUpReason,
     // **Read at write time, so an aborted step's writes are still in the
     // record.** Both buffers hand back copies, so this cannot mutate the turn's
     // own account of what the model asked for. The insert carries the saved
@@ -575,6 +611,8 @@ export async function handleAskRequest(
   // one fired on; the hard one is a timer that aborts the run outright. Both
   // are measured from `startedAt`, so admission's own time counts.
   let wrapUpStep: number | null = null;
+  // And why — the step deadline or the input-token ceiling — for the record.
+  let wrapUpReason: AskWrapUp | null = null;
   const deadline = new AbortController();
   const untilHard = deadlines.hardMs - (Date.now() - startedAt);
   // Already past it — admission alone can take that long on a bad day — is an
@@ -688,15 +726,21 @@ export async function handleAskRequest(
      * where the once-per-turn latch lives — scanning the history for a tool
      * call would reimplement it, one frame later and with a second answer.
      */
-    prepareStep: ({ stepNumber }) => {
+    prepareStep: ({ stepNumber, steps }) => {
       // Recorded as the admitted plan first, and overwritten below by a pivot
       // or an escalation — so every step has an entry and the wrap-up step,
       // which sets no model and so runs on the admitted one, says so truly.
       stepPlans.set(stepNumber, admittedPlan);
-      // **Past the step deadline, one last step with no tools** — so the
-      // model says what it did rather than the turn ending mid-thought, and
-      // `stopWhen` below ends the run after it.
-      if (wrapUpStep === null && Date.now() - startedAt >= deadlines.stepMs) wrapUpStep = stepNumber;
+      // **Past the step deadline, or past the input-token ceiling, one last
+      // step with no tools** — so the model says what it has rather than the
+      // turn ending mid-thought, and `stopWhen` below ends the run after it.
+      // The same step for both, because the answer to either is the same: stop
+      // reading, and answer with what is already in the history.
+      if (wrapUpStep === null) {
+        if (Date.now() - startedAt >= deadlines.stepMs) wrapUpReason = "deadline";
+        else if (inputTokensSpent(steps) > ASK_INPUT_TOKEN_CEILING) wrapUpReason = "input-tokens";
+        if (wrapUpReason !== null) wrapUpStep = stepNumber;
+      }
       if (wrapUpStep !== null) return { activeTools: [], toolChoice: "none" as const };
       // **A page pivot** (ADR-058): the intent the latch holds now, with its
       // own tools, model and instruction. Unchanged intent returns nothing, so
@@ -1484,6 +1528,20 @@ export function instructionBlocks(
     UNTRUSTED_DATA_RULE,
     "Call read_trip first for the trip's shape, INCLUDING which city or cities each day touches — use that to find candidate days before reading any of them in full.",
     `Call read_day for what happens on a day (it is the only place stop times live) — pass a LIST of day numbers (up to ${MAX_READ_DAYS}) when a question needs more than one, in ONE call, rather than calling it once per day.`,
+    // **The long-trip path, as one sentence** (2026-10-10). Past
+    // `OVERVIEW_ABOVE_DAYS` read_trip no longer lists every day, and a turn
+    // reads at most `MAX_DAYS_READ_PER_TURN` days in full, so "read every day
+    // and summarise" is no longer a move that works — this says what does.
+    // Only on a trip that long: a shorter one's read_trip still lists every
+    // day, and its instruction stays byte-identical to what it was. A
+    // read-only turn is not handed find_days (it is `onReadOnlyTurns: false`),
+    // so it is pointed at the segments' day ranges instead of at a tool it
+    // does not hold.
+    ...(dayCount > OVERVIEW_ABOVE_DAYS
+      ? [
+          `This trip is long, so read_trip returns an overview: skim it, ${posture === "read-only" ? "use its segments' day ranges to choose" : "call find_days to locate"} the days the question needs, then read_day for only those (at most ${MAX_DAYS_READ_PER_TURN} days in full per turn). Never read every day to answer a question about the whole trip.`,
+        ]
+      : []),
     // A read-only turn holds neither of the next two tools (ADR-058 decision
     // 9), and an instruction naming a tool the turn was not handed is the
     // defect the page branch was once written for.

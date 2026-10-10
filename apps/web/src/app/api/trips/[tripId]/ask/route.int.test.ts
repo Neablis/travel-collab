@@ -114,6 +114,7 @@ const {
   standingOf,
   tripShapeOf,
   MAX_ASK_STEPS,
+  ASK_INPUT_TOKEN_CEILING,
 } = await import("@/server/ai/handleAskRequest");
 const { SIMULATED_HEADER } = await import("@tc/contracts");
 const { grantFor, minimumRoleFor, postureFor, toolsFor } = await import("@/server/assistant/grants");
@@ -562,14 +563,23 @@ function toolCall(toolName: string, input: unknown): Record<string, unknown> {
  * plays `steps` in order: an array of tool calls, a sentence, or `"hang"` — a
  * step that never answers until the turn is aborted (the deadline tests).
  * Records the tool names each turn step was offered, which is how a pivot and
- * the step deadline are observed from outside.
+ * the step deadline are observed from outside. `inputTokensPerStep` is what
+ * each turn step reports spending, for the input-token ceiling.
  */
-function scriptedPageModel(verdict: "compose" | "question" | "edit", steps: (Record<string, unknown>[] | string)[]) {
+function scriptedPageModel(
+  verdict: "compose" | "question" | "edit",
+  steps: (Record<string, unknown>[] | string)[],
+  inputTokensPerStep = 0,
+) {
   const offers: string[][] = [];
   let next = 0;
   const usage = {
     inputTokens: { total: 0, noCache: 0, cacheRead: undefined, cacheWrite: undefined },
     outputTokens: { total: 0, text: undefined, reasoning: undefined },
+  };
+  const stepUsage = {
+    ...usage,
+    inputTokens: { ...usage.inputTokens, total: inputTokensPerStep, noCache: inputTokensPerStep },
   };
   const systemOf = (options: { prompt?: { role?: string; content?: unknown }[] }) =>
     (options.prompt ?? [])
@@ -619,7 +629,7 @@ function scriptedPageModel(verdict: "compose" | "question" | "edit", steps: (Rec
               controller.enqueue({ type: "text-delta", id: "t", delta: step });
               controller.enqueue({ type: "text-end", id: "t" });
             }
-            controller.enqueue({ type: "finish", finishReason, usage });
+            controller.enqueue({ type: "finish", finishReason, usage: stepUsage });
             controller.close();
           },
         }),
@@ -2285,7 +2295,39 @@ describe("POST /api/trips/:id/ask", () => {
       await res.text();
 
       expect(turnOffers()).toEqual([[]]);
-      expect(records[0]).toMatchObject({ outcome: "completed", steps: 1 });
+      expect(records[0]).toMatchObject({ outcome: "completed", steps: 1, wrapUp: "deadline" });
+    });
+
+    // The input-token ceiling ends a turn the same way: once the steps taken
+    // have spent more than ASK_INPUT_TOKEN_CEILING between them, the next step
+    // is offered nothing, the model answers with what it has, and the record
+    // says why. 100k a step: step 2 is still under (100k spent), step 3 is not.
+    it("gives a turn past its input-token ceiling one tool-less step, and records why", async () => {
+      const tripId = await seedTrip();
+      const pageId = await seedPage(tripId);
+      const perStep = 100_000;
+      expect(perStep).toBeLessThan(ASK_INPUT_TOKEN_CEILING);
+      expect(perStep * 2).toBeGreaterThan(ASK_INPUT_TOKEN_CEILING);
+      const { model, turnOffers } = scriptedPageModel(
+        "question",
+        [[toolCall("read_trip", {})], [toolCall("read_trip", {})], "Here is what I have."],
+        perStep,
+      );
+      const records: AskAnalyticsRecord[] = [];
+      const res = await handleAskRequest(
+        req(tripId, { messages: [userMessage("what is on this trip?")], scope: { kind: "page", pageId } }),
+        tripId,
+        model,
+        (r) => records.push(r),
+      );
+      expect(textOf(await chunksOf(res))).toContain("Here is what I have.");
+
+      const offers = turnOffers();
+      expect(offers).toHaveLength(3);
+      expect(offers[0]).toContain("read_trip");
+      expect(offers[1]).toContain("read_trip");
+      expect(offers[2]).toEqual([]);
+      expect(records[0]).toMatchObject({ outcome: "completed", steps: 3, wrapUp: "input-tokens" });
     });
 
     // Composing writes nothing. The draft goes to the editor and the Notebook's
@@ -2956,8 +2998,13 @@ describe("POST /api/trips/:id/ask", () => {
       // question, so M9's escalation was on the table and the model did not
       // need it. A run where that name stops appearing is a classifier getting
       // it wrong often enough to matter.
+      //
+      // `find_days` sits beside `read_day` for the same reason: it is the
+      // locator for a trip too long for read_trip's per-day rows, and this
+      // one is not.
       expect(record.uncalledTools).toEqual([
         "read_day",
+        "find_days",
         "search_playbooks",
         "search_places",
         "request_change_tools",
@@ -2965,7 +3012,7 @@ describe("POST /api/trips/:id/ask", () => {
       expect(record.latencyMs).toBeGreaterThanOrEqual(0);
     });
 
-    it("leaves only the library uncalled on a day-scoped turn, which uses every trip read tool", async () => {
+    it("leaves only the library and the long-trip locator uncalled on a day-scoped turn", async () => {
       const tripId = await seedTrip();
       const records: AskAnalyticsRecord[] = [];
       const res = await ask(
@@ -2979,9 +3026,16 @@ describe("POST /api/trips/:id/ask", () => {
       // the day-scoped question is the shape this endpoint answers most. The
       // library and the gazetteer are the two things a question about a day
       // never needs — one because the corpus is outside the trip (ADR-042), the
-      // other because the day's stops are already placed. The third is the
-      // escalation this turn did not have to take.
-      expect(records[0]!.uncalledTools).toEqual(["search_playbooks", "search_places", "request_change_tools"]);
+      // other because the day's stops are already placed. `find_days` locates
+      // days on a trip too long for read_trip to list, and a turn that already
+      // knows its day has nothing to locate. The last is the escalation this
+      // turn did not have to take.
+      expect(records[0]!.uncalledTools).toEqual([
+        "find_days",
+        "search_playbooks",
+        "search_places",
+        "request_change_tools",
+      ]);
     });
   });
 });

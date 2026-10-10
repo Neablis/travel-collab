@@ -54,3 +54,15 @@ export const MAX_ASK_BODY_BYTES = 128 * 1024;
 // turn. It is deliberately far above the ONE the instruction asks for — this is
 // a blast-radius ceiling, not a second copy of the prompt's rule.
 export const MAX_PROPOSAL_INSERTS = 8;
+
+// Distinct days `read_day` may return in full across ONE turn (2026-10-10).
+//
+// `MAX_READ_DAYS` caps a call at five, but calls in one step run in parallel,
+// so the per-call cap never bounded a turn: a 100-day trip read whole is ~44k
+// tokens (~160k at 366 days, `tripDetailFactory`, 6 stops a day) and every
+// later step re-sends it. Fifteen is three full calls — the Japan fixture is
+// 14 days (ADR-030), so a trip of the size this product is mostly used for can
+// still be read end to end — and a question that needs more than fifteen days'
+// stops is one to answer from `read_trip`'s overview and `find_days`, or to
+// narrow with the user. `newDayReadBudget` (deps.ts) keeps the count.
+export const MAX_DAYS_READ_PER_TURN = 15;

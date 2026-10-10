@@ -20,7 +20,7 @@ import {
 } from "./grants";
 import { TASK_CLASSES } from "./taskClass";
 
-const READ_TOOLS = ["read_trip", "read_day", "find_free_time", "search_playbooks"];
+const READ_TOOLS = ["read_trip", "read_day", "find_days", "find_free_time", "search_playbooks"];
 // **In registry order, which puts it after the read tools and before the
 // commands** — `search_places` has to be read before the tools whose `placeRef`
 // cites it (registry.ts). Its own list rather than a fifth entry in
@@ -44,7 +44,7 @@ describe("the three tool sets a turn can be offered", () => {
   // Today's `READ_TOOL_NAMES`. Every domain capped at `read`, whichever surface
   // asks — which is what makes a viewer's trip turn and an editor's withheld
   // turn the same set without either being a special case.
-  it("is the four read tools plus search_places when every cap is `read`", () => {
+  it("is the five read tools plus search_places when every cap is `read`", () => {
     // **`search_places` survives every `read` cap, and that is correct rather
     // than an oversight.** It IS a read — it reads a public gazetteer and
     // writes nothing — so a viewer may search and an editor whose turn was read

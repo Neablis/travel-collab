@@ -14,6 +14,9 @@
 // fifth tool. `search_playbooks` is the one earned since (ADR-042 Decision 2),
 // and it is earned as a CAPABILITY BOUNDARY rather than a phrasing: it reads a
 // corpus outside the trip, which the other three cannot reach by construction.
+// `find_days` is the other (2026-10-10), earned as a COMPUTATION: once a long
+// trip's `read_trip` stops listing every day, "which days match?" has no
+// answer short of reading them, which the per-turn read cap now refuses.
 //
 // Two structural rules run through the whole file:
 //
@@ -41,12 +44,12 @@
 // conversion happens here and only here. Handing a model both an `index` and a
 // `day` for the same row is how off-by-one answers get written.
 import { z } from "zod";
-import { ActivityKind, ActivityMode, LocationPrecision, Money, PendingReason, TimeWindow, stopHeadcount, travellerIds, type Location, type TripDetail } from "@tc/contracts";
-import { DAYTIME_END_MINUTES, DAYTIME_START_MINUTES, citiesOfDay, findFreeGaps, minutesOf, summarizeFreeDays } from "@tc/domain";
+import { ActivityKind, ActivityMode, ActivityTag, LocationPrecision, Money, PendingReason, TimeWindow, stopHeadcount, travellerIds, type Location, type TripDetail } from "@tc/contracts";
+import { DAYTIME_END_MINUTES, DAYTIME_START_MINUTES, citiesOfDay, citiesOfStops, findFreeGaps, minutesOf, stopsInTimeOrder, summarizeFreeDays } from "@tc/domain";
 import { needsBooking } from "@/lib/needsBooking";
 import { activeConflicts, conflictsOnDay, type AiConflictSummary, type AskScope } from "@/server/assistant/context";
 import { defineTool } from "@/server/assistant/defineTool";
-import type { PlaybookLibrary } from "@/server/assistant/deps";
+import type { DayReadBudget, PlaybookLibrary } from "@/server/assistant/deps";
 import type { TaskClass } from "@/server/assistant/taskClass";
 import { plain, untrusted, untrustedAll, untrustedOrNull } from "@/server/assistant/prompt";
 
@@ -156,6 +159,9 @@ export const TripReadoutSchema: z.ZodType<TripReadout> = z.object({
  * Per-day stop counts and cost subtotals rather than stop titles: the point of
  * a separate `read_day` is that a 14-day trip's every stop does not have to be
  * re-sent to answer "how long is this trip?".
+ *
+ * This is the per-day readout at every length; what the TOOL returns past
+ * `OVERVIEW_ABOVE_DAYS` is `readTripForModel`'s choice, not this function's.
  */
 export function readTrip(detail: TripDetail): TripReadout {
   return {
@@ -181,6 +187,265 @@ export function readTrip(detail: TripDetail): TripReadout {
     // reason the command envelope strips it — see context.ts.
     conflicts: activeConflicts(detail).map(({ id: _id, ...rest }) => rest),
   };
+}
+
+// ---------------------------------------------------------------------------
+// The overview: `read_trip` on a trip too long for a row per day
+// ---------------------------------------------------------------------------
+//
+// `read_trip`'s per-day rows are the part of its answer that grows with the
+// trip: ~450 tokens at 16 days, ~2.6k at 100, ~9.5k at 366 (`tripDetailFactory`,
+// 6 stops a day, measured 2026-10-10). And it is the FIRST call of nearly every
+// turn, so whatever it returns is re-sent on every step after it. Past
+// `OVERVIEW_ABOVE_DAYS` the tool answers with this instead: the same trip-level
+// fields, and a body whose size follows how many places and categories the trip
+// has rather than how many days.
+//
+// A model that needs a particular day then LOCATES it with `find_days` and reads
+// only that one. The overview is deliberately not a way to answer a stop-level
+// question — it carries no titles at all — so the honest path for "what do we
+// do in Osaka?" is overview → `find_days({ city })` → `read_day`.
+
+/**
+ * Above this many days, `read_trip` returns the overview rather than a row per
+ * day. At or below it the readout is byte-identical to what it always was.
+ *
+ * Twenty because the per-day rows cost about as much as the overview's fixed
+ * fields at that length (~550 tokens), and because the trips this product is
+ * mostly used for — the canonical Japan fixture is 14 days (ADR-030) — sit
+ * under it, so the common case is untouched.
+ */
+export const OVERVIEW_ABOVE_DAYS = 20;
+
+// The two lists the overview could still grow without bound on a pathological
+// trip — a city change every day, or every other day empty. Capped and SAID to
+// be capped (`segmentsOmitted`, the trailing "…"), never silently cut, so a
+// model reading a cut list knows to ask `find_days` rather than concluding
+// there is nothing more.
+const MAX_OVERVIEW_SEGMENTS = 40;
+const MAX_OVERVIEW_RANGES = 30;
+
+/**
+ * One run of consecutive days that end in the same city.
+ *
+ * **The travel-day rule: a day belongs to the city it ENDS in** — the city of
+ * its last located stop in time order, a transit stop counting by its
+ * destination (`endingCityOf`). So a Kyoto → Osaka day opens the Osaka
+ * segment, and a day trip to Nara that comes back to Kyoto for dinner stays
+ * inside the Kyoto one. A day therefore sits in exactly ONE segment, which is
+ * what lets `stops`, `toBook` and `costSubtotal` add up to the trip's own
+ * totals (less the backlog) instead of counting a travel day twice. The other
+ * cities a segment's days touch — the city a travel day left, the Nara of a day
+ * trip — are in `alsoTouches`, so no city the trip visits drops out of sight.
+ *
+ * A repeat visit is a second segment: Tokyo 1–5, Kyoto 6–9, Tokyo 10–12 is
+ * three. A day with no city-bearing stop (an empty day, or one whose stops
+ * carry no city) has `city: null` and splits a run, because "we don't know
+ * where this day is" is not evidence that it is in the city either side.
+ */
+export interface TripSegmentReadout {
+  /** 1-based and inclusive: "1–12", or "7" for one day. */
+  days: string;
+  city: string | null;
+  alsoTouches: string[];
+  stops: number;
+  /** By `@/lib/needsBooking`'s rule, the same count `read_trip`'s per-day rows carry. */
+  toBook: number;
+  /** Integer minor units: the segment's days' `costSubtotal`s, summed. */
+  costSubtotal: number;
+}
+
+export interface TripOverviewReadout {
+  /**
+   * Our own sentence, never the user's: what this readout is and what to call
+   * next. Here rather than only in the tool description because the model
+   * reading the result is the one that has to act on it.
+   */
+  overview: string;
+  name: string;
+  currency: string;
+  startDate: string | null;
+  /** The last day's date — with `startDate`, the trip's date range. */
+  endDate: string | null;
+  dayCount: number;
+  members: number;
+  travellers: number;
+  tripCostTotal: number;
+  /** Stops on days, the backlog excluded. */
+  stopCount: number;
+  toBook: number;
+  segments: TripSegmentReadout[];
+  /** How many segments past `MAX_OVERVIEW_SEGMENTS` were left out; `find_days` reaches them. */
+  segmentsOmitted: number;
+  /** The days with no stops, as ranges: "40–60, 75". Empty string when there are none. */
+  emptyDays: string;
+  /** How many stops on days carry each tag (`ActivityTag`), and are of each kind. */
+  stopTags: Record<string, number>;
+  stopKinds: Record<string, number>;
+  /** Stops in the backlog, on no day. */
+  backlog: number;
+  /** Active conflicts by kind. The conflicts themselves are on each day's `read_day`. */
+  conflicts: Record<string, number>;
+}
+
+export const TripOverviewReadoutSchema: z.ZodType<TripOverviewReadout> = z.object({
+  overview: z.string(),
+  name: z.string(),
+  currency: z.string(),
+  startDate: z.string().nullable(),
+  endDate: z.string().nullable(),
+  dayCount: z.number(),
+  members: z.number(),
+  travellers: z.number(),
+  tripCostTotal: z.number(),
+  stopCount: z.number(),
+  toBook: z.number(),
+  segments: z.array(
+    z.object({
+      days: z.string(),
+      city: z.string().nullable(),
+      alsoTouches: z.array(z.string()),
+      stops: z.number(),
+      toBook: z.number(),
+      costSubtotal: z.number(),
+    }),
+  ),
+  segmentsOmitted: z.number(),
+  emptyDays: z.string(),
+  stopTags: z.record(z.string(), z.number()),
+  stopKinds: z.record(z.string(), z.number()),
+  backlog: z.number(),
+  conflicts: z.record(z.string(), z.number()),
+});
+
+/**
+ * The city day `index` ends in: the last city-bearing stop's city, in the time
+ * order `citiesOfDay` reads (`stopsInTimeOrder`), with a transit stop counted
+ * by its destination. `citiesOfStops` on that one stop IS the city rule, so
+ * there is no second reading of `location.city` here to drift from it.
+ *
+ * Not `citiesOfDay(...).at(-1)`: that list collapses a duplicate to its FIRST
+ * occurrence, so a Kyoto → Nara → Kyoto day reports `["Kyoto", "Nara"]` and
+ * its last entry is the one city the day did not end in.
+ */
+export function endingCityOf(detail: TripDetail, index: number): string | null {
+  const day = detail.days[index];
+  if (!day) return null;
+  const stops = day.activityIds.flatMap((id) => {
+    const activity = detail.activities[id];
+    return activity ? [activity] : [];
+  });
+  const ordered = stopsInTimeOrder(stops);
+  for (let i = ordered.length - 1; i >= 0; i--) {
+    const city = citiesOfStops([ordered[i]!]).at(-1);
+    if (city !== undefined) return city;
+  }
+  return null;
+}
+
+/** "1–12" for a run, "7" for one day. */
+function dayRange(from: number, to: number): string {
+  return from === to ? `${from}` : `${from}–${to}`;
+}
+
+/** Ascending day numbers as ranges, "3–5, 9", capped at `MAX_OVERVIEW_RANGES` with a trailing "…". */
+function rangesOf(days: readonly number[]): string {
+  const ranges: string[] = [];
+  for (let i = 0; i < days.length; ) {
+    let j = i;
+    while (j + 1 < days.length && days[j + 1] === days[j]! + 1) j++;
+    ranges.push(dayRange(days[i]!, days[j]!));
+    i = j + 1;
+  }
+  return ranges.length > MAX_OVERVIEW_RANGES ? `${ranges.slice(0, MAX_OVERVIEW_RANGES).join(", ")}, …` : ranges.join(", ");
+}
+
+function countInto(counts: Record<string, number>, key: string): void {
+  counts[key] = (counts[key] ?? 0) + 1;
+}
+
+/**
+ * The overview `read_trip` returns past `OVERVIEW_ABOVE_DAYS`. Deterministic
+ * and pure, like `readTrip`: every count is read off the projection, and the
+ * per-day numbers it sums are the ones `readTrip` would have printed.
+ */
+export function readTripOverview(detail: TripDetail): TripOverviewReadout {
+  const rows = readTrip(detail).days;
+  const segments: TripSegmentReadout[] = [];
+  let open: { from: number; to: number; city: string | null; touched: string[] } | null = null;
+  const totals = { stops: 0, toBook: 0, costSubtotal: 0 };
+  const close = () => {
+    if (open === null) return;
+    const { from, to, city, touched } = open;
+    segments.push({
+      days: dayRange(from, to),
+      city,
+      alsoTouches: touched.filter((other) => other !== city),
+      stops: totals.stops,
+      toBook: totals.toBook,
+      costSubtotal: totals.costSubtotal,
+    });
+    Object.assign(totals, { stops: 0, toBook: 0, costSubtotal: 0 });
+  };
+  rows.forEach((row, index) => {
+    const city = endingCityOf(detail, index);
+    if (open === null || open.city !== city) {
+      close();
+      open = { from: row.day, to: row.day, city, touched: [] };
+    }
+    open.to = row.day;
+    for (const touched of row.cities) if (!open.touched.includes(touched)) open.touched.push(touched);
+    totals.stops += row.stopCount;
+    totals.toBook += row.toBook;
+    totals.costSubtotal += row.costSubtotal;
+  });
+  close();
+
+  const stopTags: Record<string, number> = {};
+  const stopKinds: Record<string, number> = {};
+  for (const day of detail.days) {
+    for (const id of day.activityIds) {
+      const activity = detail.activities[id];
+      if (!activity) continue;
+      for (const tag of activity.tags) countInto(stopTags, tag);
+      countInto(stopKinds, activity.kind);
+    }
+  }
+  const conflicts: Record<string, number> = {};
+  for (const conflict of activeConflicts(detail)) countInto(conflicts, conflict.kind);
+
+  return {
+    // Worded for both kinds of turn: a viewer's is not handed `find_days`, and
+    // the segments' day ranges are its way to a day number.
+    overview: `This trip has ${rows.length} days, so this is an overview rather than a row per day. To answer about particular days, get their day numbers first (each segment lists its days; find_days filters further), then read_day for those days only.`,
+    name: detail.name,
+    currency: detail.currency,
+    startDate: detail.startDate,
+    endDate: detail.days.at(-1)?.date ?? null,
+    dayCount: rows.length,
+    members: detail.members.length,
+    travellers: travellerIds(detail.members).length,
+    tripCostTotal: detail.tripCostTotal,
+    stopCount: rows.reduce((sum, row) => sum + row.stopCount, 0),
+    toBook: rows.reduce((sum, row) => sum + row.toBook, 0),
+    segments: segments.slice(0, MAX_OVERVIEW_SEGMENTS),
+    segmentsOmitted: Math.max(0, segments.length - MAX_OVERVIEW_SEGMENTS),
+    emptyDays: rangesOf(rows.filter((row) => row.stopCount === 0).map((row) => row.day)),
+    stopTags,
+    stopKinds,
+    backlog: detail.backlog.length,
+    conflicts,
+  };
+}
+
+/**
+ * What the `read_trip` TOOL returns: the per-day readout up to
+ * `OVERVIEW_ABOVE_DAYS`, the overview past it. Kept apart from `readTrip` so
+ * the pure readout, and everything that reads it as one (the simulated model,
+ * the overview's own sums), keeps a single shape.
+ */
+export function readTripForModel(detail: TripDetail): TripReadout | TripOverviewReadout {
+  return detail.days.length > OVERVIEW_ABOVE_DAYS ? readTripOverview(detail) : readTrip(detail);
 }
 
 // `LocationPrecision` is imported from the contract rather than respelled here.
@@ -405,8 +670,15 @@ export const DayBatchReadoutSchema: z.ZodType<DayBatchReadout, z.ZodTypeDef, unk
  * Each entry is independently a `DayReadout` or a `ReadToolProblem`: one day
  * out of range does not fail the whole batch, because the other requested days
  * are still answerable.
+ *
+ * `budget` is the turn's `MAX_DAYS_READ_PER_TURN` ledger. Omitted, nothing is
+ * capped — the pure readout, as the unit tests read it. Given, a day past the
+ * cap comes back as its own `ReadToolProblem` entry, exactly as an
+ * out-of-range day does, and the days that still fit are read: the same
+ * "one bad entry does not fail the batch" rule. An out-of-range day returns no
+ * stops, so it is checked first and costs the budget nothing.
  */
-export function readDays(detail: TripDetail, days: readonly number[]): DayBatchReadout {
+export function readDays(detail: TripDetail, days: readonly number[], budget?: DayReadBudget): DayBatchReadout {
   const seen = new Set<number>();
   const unique: number[] = [];
   for (const day of days) {
@@ -414,7 +686,15 @@ export function readDays(detail: TripDetail, days: readonly number[]): DayBatchR
     seen.add(day);
     unique.push(day);
   }
-  return { days: unique.map((day) => readDay(detail, day)) };
+  return {
+    days: unique.map((day) => {
+      const readout = readDay(detail, day);
+      if ("error" in readout || budget === undefined || budget.admit(day)) return readout;
+      return {
+        error: `Day ${day} was not read: this turn has already read ${budget.cap} days in full, the most one turn may. Answer from read_trip and find_days, or ask the user to narrow the question to fewer days.`,
+      };
+    }),
+  };
 }
 
 export interface FreeTimeGapReadout {
@@ -578,6 +858,83 @@ export function findFreeTime(
   };
 }
 
+// How many day numbers `find_days` hands back. Numbers are a few characters
+// each, so this is not about their cost: it is that a list longer than the
+// per-turn read cap (`MAX_DAYS_READ_PER_TURN`, 15) cannot all be read anyway,
+// and `count` still says how many matched. A model with 200 matches has a
+// question to narrow, not a list to walk.
+export const MAX_FOUND_DAYS = 50;
+
+export interface FindDaysInput {
+  city?: string;
+  tag?: ActivityTag;
+  fromDay?: number;
+  toDay?: number;
+  fromDate?: string;
+  toDate?: string;
+  empty?: boolean;
+  toBook?: boolean;
+  hasConflicts?: boolean;
+}
+
+export interface FoundDaysReadout {
+  /** Every matching day, however many `days` shows. */
+  count: number;
+  /** 1-based, ascending, the first `MAX_FOUND_DAYS` of them. */
+  days: number[];
+}
+
+export const FoundDaysReadoutSchema: z.ZodType<FoundDaysReadout> = z.object({
+  count: z.number(),
+  days: z.array(z.number()),
+});
+
+/**
+ * `find_days`: which days match, as day NUMBERS and nothing else.
+ *
+ * Earned as a new computation (ADR-022's rule), not a phrasing: on a trip past
+ * `OVERVIEW_ABOVE_DAYS` the per-day rows `read_trip` used to carry are gone,
+ * and without a locator the model's only move for "which days are in Osaka?"
+ * is reading days until it finds them — the roll call `read_trip`'s `cities`
+ * field was added to end (2026-08-29), and one the per-turn read cap now
+ * refuses past fifteen days.
+ *
+ * Every filter is optional and they AND together. Each reads the projection
+ * through the rule that already owns it — `citiesOfDay` for a city (a travel
+ * day matches BOTH its cities, unlike the overview's one-segment-per-day rule:
+ * "which days touch Osaka?" includes the day you arrive), `needsBooking` for
+ * `toBook`, `conflictsOnDay` for `hasConflicts` — so a day `find_days` names is
+ * a day `read_day` agrees about.
+ *
+ * Returns no stop contents and echoes no input: a number is the whole of what
+ * it says, which is why it declares no `taint`.
+ */
+export function findDays(detail: TripDetail, input: FindDaysInput): FoundDaysReadout {
+  // Unfenced on the way in, for `search_playbooks`' reason: the model is told
+  // to spell a city as `read_trip` spells it, and `read_trip` fences it.
+  const city = input.city === undefined ? undefined : plain(input.city).trim().toLowerCase();
+  const matches: number[] = [];
+  detail.days.forEach((day, index) => {
+    const number = index + 1;
+    if (input.fromDay !== undefined && number < input.fromDay) return;
+    if (input.toDay !== undefined && number > input.toDay) return;
+    // A day with no date matches no date bound: "in May" cannot be said of it.
+    if (input.fromDate !== undefined && (day.date === null || day.date < input.fromDate)) return;
+    if (input.toDate !== undefined && (day.date === null || day.date > input.toDate)) return;
+    if (input.empty !== undefined && (day.activityIds.length === 0) !== input.empty) return;
+    if (city !== undefined && !citiesOfDay(detail, index).some((touched) => touched.toLowerCase() === city)) return;
+    const stops = day.activityIds.flatMap((id) => {
+      const activity = detail.activities[id];
+      return activity ? [activity] : [];
+    });
+    if (input.tag !== undefined && !stops.some((stop) => stop.tags.includes(input.tag!))) return;
+    if (input.toBook !== undefined && stops.some((stop) => needsBooking(stop)) !== input.toBook) return;
+    if (input.hasConflicts !== undefined && (conflictsOnDay(detail, index).length > 0) !== input.hasConflicts) return;
+    matches.push(number);
+  });
+  return { count: matches.length, days: matches.slice(0, MAX_FOUND_DAYS) };
+}
+
 // How many library days `search_playbooks` will name in one call, and how many
 // cities it will match on. `MAX_READ_DAYS`' reasoning, applied to the other
 // corpus: a cap the model could raise to "the whole library" would put 148
@@ -720,6 +1077,23 @@ export const FindFreeTimeInputSchema = z.object({
   minMinutes: z.number().int().min(1).optional().describe("Ignore gaps shorter than this many minutes."),
 });
 
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+// Every field optional and ANDed. Described only where the name does not say
+// it: this schema rides on every step of every turn that holds the tool, and
+// "fromDay" needs no sentence (contextBudget.test.ts measures each one).
+export const FindDaysInputSchema = z.object({
+  city: z.string().min(1).max(200).optional().describe("As read_trip spells it. A travel day matches both its cities."),
+  tag: ActivityTag.optional(),
+  fromDay: z.number().int().min(1).optional(),
+  toDay: z.number().int().min(1).optional(),
+  fromDate: z.string().regex(ISO_DATE).optional().describe("YYYY-MM-DD"),
+  toDate: z.string().regex(ISO_DATE).optional().describe("YYYY-MM-DD"),
+  empty: z.boolean().optional().describe("true: no stops; false: at least one."),
+  toBook: z.boolean().optional().describe("Has a stop still to book."),
+  hasConflicts: z.boolean().optional(),
+});
+
 // No `ownerId`, and no `visibility` either: both would be ways to ask the
 // library a question about somebody else, and neither is expressible. The set
 // of rows this can reach is decided by `readerId`, which arrives as the turn's
@@ -760,8 +1134,8 @@ export const SearchPlaybooksInputSchema = z.object({
 // through the agent's own message history — sees the fence and undoes it
 // (`plain`), which is what a real model does with the prose it writes back.
 //
-// `find_free_time` declares no `taint` and that is the point of the asymmetry:
-// day numbers, clock times and durations are ours. A fence on a field nobody
+// `find_free_time` and `find_days` declare no `taint`, and that is the point
+// of the asymmetry: day numbers, clock times and durations are ours. A fence on a field nobody
 // wrote teaches a reader — and a model — that the mark means nothing.
 
 /**
@@ -778,8 +1152,26 @@ function fencedConflicts(conflicts: readonly AiConflictSummary[]): AiConflictSum
   return conflicts.map((conflict) => ({ ...conflict, description: untrusted(conflict.description) }));
 }
 
-/** A trip readout, fenced: the trip's name, and each day's cities. */
-function fencedTrip(readout: TripReadout): TripReadout {
+/**
+ * A trip readout, fenced: the trip's name, and each day's cities — or, for the
+ * overview, each segment's city and the cities it also touches. The overview's
+ * other strings are ours: `overview` is our sentence, `days` and `emptyDays`
+ * are day numbers, and the keys of `stopTags`, `stopKinds` and `conflicts` are
+ * closed enums (`ActivityTag`, `ActivityKind`, the conflict kinds), which is
+ * why `tags` goes unfenced on `read_day` too.
+ */
+function fencedTrip(readout: TripReadout | TripOverviewReadout): TripReadout | TripOverviewReadout {
+  if ("segments" in readout) {
+    return {
+      ...readout,
+      name: untrusted(readout.name),
+      segments: readout.segments.map((segment) => ({
+        ...segment,
+        city: untrustedOrNull(segment.city),
+        alsoTouches: untrustedAll(segment.alsoTouches),
+      })),
+    };
+  }
   return {
     ...readout,
     name: untrusted(readout.name),
@@ -843,28 +1235,31 @@ function fencedDayResult(result: DayReadout | ReadToolProblem | DayBatchReadout)
 const STOP_LEVEL_CLASSES = ["question", "edit", "plan"] as const satisfies readonly TaskClass[];
 
 /**
- * The four definitions, wired to the four functions above.
+ * The five definitions, wired to the functions above.
  *
- * `needs` is the whole of what each may reach, and the three answers differ:
- * `read_trip` reads the trip and nothing else; `read_day` and `find_free_time`
- * also read the turn's scope, which is where the day-number fallback comes
- * from; `search_playbooks` reads NEITHER — the library is not the trip, and
+ * `needs` is the whole of what each may reach, and the answers differ:
+ * `read_trip` and `find_days` read the trip and nothing else; `read_day` and
+ * `find_free_time` also read the turn's scope, which is where the day-number
+ * fallback comes from, and `read_day` the turn's read budget;
+ * `search_playbooks` reads NEITHER — the library is not the trip, and
  * the only thing it takes is who is asking. That asymmetry used to be invisible
  * (one ambient context under every tool name) and is now three lines.
  */
 export const readTripTool = defineTool({
   name: "read_trip",
   description:
-    "Read this trip's shape: name, currency, start date, how many days, how many members and how many of them are travelling (a member can be on the trip and not travelling; a stop nobody is picked for is priced for the travellers, and for at least one person when nobody is travelling), each day's date, which city (or cities, on a travel day) it touches, stop count, how many of its stops still need booking and cost subtotal, the trip cost total, and any active conflicts. Start here — the `cities` field is how you find which days are near a place without reading every day.",
+    `Read this trip's shape: name, currency, start date, how many days, how many members and how many of them are travelling (a member can be on the trip and not travelling; a stop nobody is picked for is priced for the travellers, and for at least one person when nobody is travelling), each day's date, which city (or cities, on a travel day) it touches, stop count, how many of its stops still need booking and cost subtotal, the trip cost total, and any active conflicts. Start here — the \`cities\` field is how you find which days are near a place without reading every day. Past ${OVERVIEW_ABOVE_DAYS} days it returns an overview instead (city segments with their days, and counts): find the days you need there or with find_days, then read only those.`,
   domain: "itinerary",
   effect: "read",
   spend: "none",
   input: ReadTripInput,
-  output: TripReadoutSchema,
+  // The overview second: `z.union` keeps the first schema that parses, and an
+  // overview has no `days` array, so a per-day readout is never read as one.
+  output: z.union([TripReadoutSchema, TripOverviewReadoutSchema]),
   needs: ["trip"] as const,
   minimumRole: "viewer",
   taint: fencedTrip,
-  run: (_input, deps) => readTrip(deps.trip),
+  run: (_input, deps) => readTripForModel(deps.trip),
 });
 
 export const readDayTool = defineTool({
@@ -875,7 +1270,9 @@ export const readDayTool = defineTool({
   spend: "none",
   input: ReadDayInput,
   output: z.union([DayReadoutSchema, ReadToolProblemSchema, DayBatchReadoutSchema]),
-  needs: ["trip", "scope"] as const,
+  // `readBudget`: the turn's `MAX_DAYS_READ_PER_TURN` ledger, minted per turn
+  // like the collectors and shared by every `read_day` call in it.
+  needs: ["trip", "scope", "readBudget"] as const,
   minimumRole: "viewer",
   taskClasses: STOP_LEVEL_CLASSES,
   taint: fencedDayResult,
@@ -896,9 +1293,36 @@ export const readDayTool = defineTool({
     // The single-day shape stays exactly what it was — a bare `DayReadout` —
     // so the one-day form this tool has always answered is unchanged for the
     // common case. Only a genuine batch takes the wrapped `{ days: [...] }`
-    // shape `readDays` returns.
-    return days.length === 1 ? readDay(deps.trip, days[0]!) : readDays(deps.trip, days);
+    // shape `readDays` returns. Both go through the turn's read budget: one
+    // day past the cap is a bare refusal, exactly as one day out of range is.
+    const read = readDays(deps.trip, days, deps.readBudget);
+    return days.length === 1 ? read.days[0]! : read;
   },
+});
+
+export const findDaysTool = defineTool({
+  name: "find_days",
+  description: `Find which days match, as 1-based day numbers only (how many matched, and the first ${MAX_FOUND_DAYS}) — never their stops. Every filter is optional and they combine. On a long trip, where read_trip returns an overview, use it to locate the days a question needs, then read only those with read_day.`,
+  domain: "itinerary",
+  effect: "read",
+  spend: "none",
+  input: FindDaysInputSchema,
+  output: FoundDaysReadoutSchema,
+  // The trip and nothing else. No day-scope fallback: a locator that quietly
+  // narrowed to the scoped day would answer "which days are in Osaka?" with
+  // one day.
+  needs: ["trip"] as const,
+  minimumRole: "viewer",
+  // `read_day`'s classes, because it exists to point `read_day` somewhere.
+  taskClasses: STOP_LEVEL_CLASSES,
+  // Off a viewer's turn, like `find_free_time`: that turn is held to
+  // `read_trip` and `read_day` on purpose (ADR-058 decision 9, *"minimize the
+  // tool call as small as possible"*), and it is not this tool's place to
+  // widen it. A viewer still locates a city's days on a long trip — the
+  // overview's segments carry their day ranges — and is told so
+  // (`instructionBlocks`' long-trip line).
+  onReadOnlyTurns: false,
+  run: (input, deps) => findDays(deps.trip, input),
 });
 
 export const findFreeTimeTool = defineTool({
@@ -945,4 +1369,6 @@ export const searchPlaybooksTool = defineTool({
   run: (input, deps) => searchPlaybooks(deps.playbooks, deps.actor.userId, input),
 });
 
-export const READ_TOOLS = [readTripTool, readDayTool, findFreeTimeTool, searchPlaybooksTool] as const;
+// `find_days` beside the `read_day` it points: registry order is the order the
+// model reads the tools in.
+export const READ_TOOLS = [readTripTool, readDayTool, findDaysTool, findFreeTimeTool, searchPlaybooksTool] as const;

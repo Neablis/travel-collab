@@ -28,9 +28,9 @@
 import { describe, expect, it } from "vitest";
 import type { SavedDay, TripDetail } from "@tc/contracts";
 import { demoTripDetail } from "@/server/demoTrip";
-import { newProposalBuffer, type AssistantDeps } from "@/server/assistant/deps";
+import { newDayReadBudget, newProposalBuffer, type AssistantDeps } from "@/server/assistant/deps";
 import { UNTRUSTED_CLOSE, UNTRUSTED_OPEN, plain } from "@/server/assistant/prompt";
-import { READ_TOOLS } from "@/server/assistant/tools/read";
+import { OVERVIEW_ABOVE_DAYS, READ_TOOLS } from "@/server/assistant/tools/read";
 import { insertPlaybookDayTool } from "@/server/assistant/tools/insertPlaybookDay";
 
 // Distinctive enough to find in a JSON blob, and shaped like the attack it
@@ -100,6 +100,7 @@ function depsFor(trip: TripDetail): AssistantDeps {
     trip,
     scope: { kind: "day", dayIndex: 0 },
     actor: { tripId: trip.tripId, userId: "taint-reader" },
+    readBudget: newDayReadBudget(15),
     playbooks: {
       discover: async () => [
         {
@@ -135,12 +136,39 @@ describe("tool-result tainting", () => {
         expect(plain(value)).toContain(MARK);
       }
 
-      // `find_free_time` legitimately returns nothing a person wrote; every
-      // other tool here must have found something, or the walk above asserted
-      // nothing and this test is the vacuous kind it exists to prevent.
-      if (definition.name !== "find_free_time") expect(carrying.length).toBeGreaterThan(0);
+      // `find_free_time` and `find_days` legitimately return nothing a person
+      // wrote; every other tool here must have found something, or the walk
+      // above asserted nothing and this test is the vacuous kind it exists to
+      // prevent.
+      if (definition.name !== "find_free_time" && definition.name !== "find_days") {
+        expect(carrying.length).toBeGreaterThan(0);
+      }
     },
   );
+
+  // The canonical fixture is 14 days, so the loop above only ever sees
+  // `read_trip`'s per-day readout. Past `OVERVIEW_ABOVE_DAYS` it is a different
+  // shape with its own user-typed strings — a segment's city and the cities it
+  // also touches — so the overview is walked on a trip long enough to get one.
+  it("read_trip's overview of a long trip returns nothing user-authored outside the fence", async () => {
+    const detail = markedTrip();
+    const long: TripDetail = {
+      ...detail,
+      days: Array.from({ length: OVERVIEW_ABOVE_DAYS + 1 }, (_, i) => detail.days[i % detail.days.length]!),
+    };
+    const definition = READ_TOOLS.find((tool) => tool.name === "read_trip")!;
+    const result = (await definition.invoke({}, depsFor(long))) as { segments?: unknown[] };
+    const carrying = stringsIn(result).filter((value) => value.includes(MARK));
+
+    // It IS the overview, and it found the marked name and cities to walk.
+    expect(result.segments).toBeDefined();
+    expect(carrying.length).toBeGreaterThan(1);
+    for (const value of carrying) {
+      expect(value.startsWith(UNTRUSTED_OPEN)).toBe(true);
+      expect(value.endsWith(UNTRUSTED_CLOSE)).toBe(true);
+      expect(plain(value)).toContain(MARK);
+    }
+  });
 
   // The floor above is one marked string per tool, and `read_day` has a dozen
   // from titles and notes alone — so a readout that stopped returning a leg's
