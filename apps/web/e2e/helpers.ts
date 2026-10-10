@@ -465,7 +465,9 @@ export async function openNewParkedStop(page: Page): Promise<void> {
 export async function openNewStopOnDay(page: Page, dayIndex = 0): Promise<void> {
   const river = page.getByTestId("day-river").nth(dayIndex);
   const box = (await river.boundingBox())!;
-  const covered = await river.getByTestId(/^activity-card-/).evaluateAll((blocks) =>
+  // A suggestion's ghost is a button too, and not an `activity-card-*`
+  // (CodeRabbit, PR 393), so a suggester's river measures both.
+  const covered = await river.locator("[data-testid^='activity-card-'], [data-provisional]").evaluateAll((blocks) =>
     blocks.map((b) => {
       const r = b.getBoundingClientRect();
       return { top: r.top, bottom: r.bottom };
