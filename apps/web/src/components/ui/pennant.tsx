@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Flag } from "lucide-react";
+import { Share } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 
@@ -16,6 +16,16 @@ import { cn } from "@/lib/cn";
 // Everything below the button (the reasons for a fixed square, the wave's
 // `animationend`, the celebration's timer and run number) is `KeepDayFlag`'s
 // history, moved with the code it explains.
+//
+// **The glyph is a share arrow, not a flag.** Mitchell, on the notebook's
+// pennant at 375px: *"here it makes me think its to report the notebook, find a
+// different emoticon"*. Next to a document a flag reads as "report this";
+// lucide's `Share` (an arrow lifting out of a box) says what both pennants do:
+// send this day, or this notebook, out to the playbooks other people browse.
+// One glyph for both, as before. The press motion was a flag waving on its
+// staff and is now the arrow lifting out of the box (`.share-lift` in
+// globals.css). The component keeps its name: "pennant" is the handoff's name
+// for the 30px circle, not a claim about the icon.
 //
 // In `components/ui` rather than beside `KeepDayFlag` in `components/trip`:
 // `pages` importing `trip` closes a folder cycle the dependency wall refuses,
@@ -78,8 +88,8 @@ export function usePennantCelebration(): { run: number; celebrate: () => void } 
 
 /**
  * The icon-only pennant (handoff README "Keep this day"): a 30px circle on
- * `--color-surface`, its flag glyph tinted by `inkClassName`, that waves when
- * pressed and plays the keep celebration while `run` is non-zero.
+ * `--color-surface`, its share glyph tinted by `inkClassName`, whose arrow lifts
+ * when pressed, and which plays the keep celebration while `run` is non-zero.
  */
 export function PennantButton({
   label,
@@ -106,9 +116,12 @@ export function PennantButton({
   celebrationTestId: string;
   onPress: () => void;
 }) {
-  // The design's `wave` (`Trip Planner Redesign.dc.html:4839`): the pennant
-  // tips as you click it — Mitchell, 2026-09-01, "The click flag 'Save a day'
-  // animation from timeline view is missing".
+  // The press motion. It began as the design's `wave`
+  // (`Trip Planner Redesign.dc.html:4839`), a flag tipping on its staff —
+  // Mitchell, 2026-09-01, "The click flag 'Save a day' animation from timeline
+  // view is missing". With the share glyph it is the arrow lifting out of its
+  // box and settling back: the same "this went somewhere" beat at the same
+  // length, in the glyph's own terms.
   //
   // A CSS class toggled off `animationend` rather than `Element.animate()` (the
   // design's own mechanism): the animation lives in globals.css where
@@ -118,8 +131,8 @@ export function PennantButton({
   const [waving, setWaving] = useState(false);
   const celebrating = run > 0;
 
-  // The wave must not wait for whatever the press opens: a dialog opens over
-  // the flag, and an animation queued behind a React commit still reads late.
+  // The lift must not wait for whatever the press opens: a dialog opens over
+  // the pennant, and an animation queued behind a React commit still reads late.
   const press = () => {
     setWaving(true);
     onPress();
@@ -150,13 +163,14 @@ export function PennantButton({
         // the element wall, so no line disable is needed here.)
         style={{ height: PENNANT_PX, width: PENNANT_PX }}
       >
-        {/* The glyph waves, not the button: the design animates the `svg`
-            inside the control, so the 30px circle and its focus ring stay put
-            while the pennant tips. `onAnimationEnd` is on the same element the
-            class is, so it cannot be fired by some other animation bubbling up
-            from a child — a bare `<svg>` has none. */}
-        <span className={cn("inline-flex", waving && "flag-wave")} onAnimationEnd={() => setWaving(false)}>
-          <Flag className="h-4 w-4" aria-hidden />
+        {/* The glyph moves, not the button, so the 30px circle and its focus
+            ring stay put. The class sits on this span and the keyframe runs
+            on the arrow's two paths inside it (globals.css); their
+            `animationend` bubbles up to here, and nothing else inside a bare
+            `<svg>` animates while the class is on, so it can only be the lift
+            ending. */}
+        <span className={cn("inline-flex", waving && "share-lift")} onAnimationEnd={() => setWaving(false)}>
+          <Share className="h-4 w-4" aria-hidden />
         </span>
       </Button>
       {/* Keyed on the run so a second save inside the window replays the
