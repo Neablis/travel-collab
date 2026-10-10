@@ -37,7 +37,8 @@ gestures where a stop lives.
    the test instead of quietly living on.
 3. **One move function serves every move.** A drag in Plan or Calendar, a day or city-block drag,
    a rack drop and the editor's Day field all build their commands through one shared function,
-   which produces `MoveActivity` (and `SetTripDates` when a drop grows the trip) as one batch.
+   which produces `MoveActivity` (after `AddDay` for each new day when a drop grows the trip) as
+   one batch.
 4. **Every part of a milestone reports the duplicates it finds.** In its self-review, a part lists
    any second path it found to an existing action. It either removes the second path or records
    why both stay (a phone and a desktop form of the same action, for example). The milestone's

@@ -46,9 +46,13 @@ Returned to `docs/candidates.md` rather than built (D10): quick-add, search-to-a
    which opens the editor set to *Unscheduled*. The header's *Add stop* is **removed on desktop**;
    the phone keeps its `⋯` menu item. ⌘K's *New stop* (D9) is the keyboard way in.
 2. **Calendar rearranges by city block.** Dragging a city's card from one day onto another moves
-   **every stop on that day in that city** there, as one batch: one History entry, one undo.
-   - Dropped on a date **after the trip's end**, the trip grows to that date in the same batch
-     (`SetTripDates` with the new days, then the moves).
+   **the stops on that card** there, as one batch: one History entry, one undo. A card is a run of
+   consecutive stops in one city (`calendarCityCards.ts`), so a day of Kyoto, Nara, Kyoto shows
+   three cards, and the one grabbed is the one that moves. The stops with no city form one card
+   too.
+   - Dropped on a date **after the trip's end**, the trip grows to that date in the same batch:
+     `AddDay` for each new day, then the moves. It does not use `SetTripDates`, because the trip
+     page never sets an end date (`TripDateControl.tsx:10-18`).
    - Dropped **before the start** is not a drop target: the start date never moves.
    - Moving Day 1's block away leaves Day 1 empty; it does not move the start (Mitchell).
    - The rack is mounted in Calendar, and a rack card dropped on a day moves it there.
@@ -56,7 +60,9 @@ Returned to `docs/candidates.md` rather than built (D10): quick-add, search-to-a
 3. **Moving a stop without dragging is the editor's Day field**, enabled for every stop, not
    only on create (Mitchell: *"two ways, long press or open activity and add to day when on
    mobile"*). Changing it dispatches the same `MoveActivity` a drag does; a timed stop keeps its
-   time on the new day. This replaces both the *Move to…* menu and the keyboard shortcuts that
+   time on the new day. An edit that changes the day and other fields is one batch
+   (`UpdateActivity`, then `MoveActivity`): one History entry. The editor also gains **Remove**,
+   which the rack card loses (D4). This replaces both the *Move to…* menu and the keyboard shortcuts that
    were considered, and the rack card's *Add to day…* select.
 4. **The drawer is just cards.** A card is tapped to open its editor and dragged to place it.
    Its Edit, Remove and *Add to day…* controls go; Remove lives in the editor. The drawer stays a
