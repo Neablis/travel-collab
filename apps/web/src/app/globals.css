@@ -556,6 +556,20 @@ html[data-look="ledger"] .shadow-raised {
       );
     }
   }
+  /* The trip page's cover band (`TripCoverBanner`): `.cover-veil-paper`'s
+     fade, pulled up so it is mostly done where the header's top rests (240px
+     of a 384px band, 62.5%) and solid 40px below, under the title. The
+     playbook's stops leave the photo half-visible there, and on a dark photo
+     the slate `← Your trips` above the title fell under AA. */
+  .cover-veil-trip {
+    background: linear-gradient(
+      180deg,
+      transparent 34%,
+      color-mix(in srgb, var(--color-paper) 35%, transparent) 48%,
+      color-mix(in srgb, var(--color-paper) 82%, transparent) 62.5%,
+      var(--color-paper) 73%
+    );
+  }
   /* Light text laid on a photo (the hero's countdown): a soft shadow keeps it
      readable on a bright sky, where the photo is not yet veiled. */
   .cover-over-text {

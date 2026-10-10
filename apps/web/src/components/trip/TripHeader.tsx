@@ -352,9 +352,10 @@ export function TripHeader({
           // desktop classes beside them are untouched.
           "max-md:px-3 max-md:pt-1.5 max-md:pb-1.5",
           isDemoTripId(tripId) ? "pinned-at-top" : "below-app-header",
-          // Over a cover: on its foot, and see-through until it pins.
+          // Over a cover: on its foot, and see-through until it pins. The
+          // hairline stays, so pinning changes only the fill.
           cover != null && COVER_BAND.OVERLAP,
-          overCover && "border-transparent bg-transparent",
+          overCover && "bg-transparent",
         )}
       >
         {/* On a phone the two columns and the nav row dissolve (`contents`)
@@ -829,6 +830,47 @@ function TravellerStack({ access, onOpen }: { access: TripAccess | null; onOpen:
 }
 
 /**
+ * Whether the sticky `header` has pinned, read from `sentinel` — a line at
+ * the header's top where it sits before it pins (the cover band's,
+ * `TripCoverBanner`). Once the line has scrolled above the header's `top`, the
+ * header is held there and the line is not. `false` with no sentinel, and
+ * where there is no IntersectionObserver (jsdom), which is the page at rest.
+ */
+function useIsPinned(header: HTMLElement | null, sentinel: HTMLElement | null): boolean {
+  const [pinned, setPinned] = useState(false);
+  useEffect(() => {
+    if (header === null || sentinel === null || typeof IntersectionObserver !== "function") {
+      setPinned(false);
+      return;
+    }
+    // The header's `top` is AppHeader's height, which carries the safe-area
+    // inset, so it is re-read on resize and the observer rebuilt when it moves.
+    let top = Number.NaN;
+    let observer: IntersectionObserver | null = null;
+    const watch = () => {
+      const next = parseFloat(getComputedStyle(header).top) || 0;
+      if (next === top) return;
+      top = next;
+      observer?.disconnect();
+      observer = new IntersectionObserver(
+        ([entry]) => {
+          if (entry !== undefined) setPinned(!entry.isIntersecting && entry.boundingClientRect.top < next);
+        },
+        { rootMargin: `-${next}px 0px 0px 0px` },
+      );
+      observer.observe(sentinel);
+    };
+    watch();
+    window.addEventListener("resize", watch);
+    return () => {
+      window.removeEventListener("resize", watch);
+      observer?.disconnect();
+    };
+  }, [header, sentinel]);
+  return pinned;
+}
+
+/**
  * Publishes the height of the sticky stack this header ends — `AppHeader`'s
  * height above it where there is one (56px plus the top safe-area inset), plus
  * this header's own height — as
@@ -849,33 +891,6 @@ function TravellerStack({ access, onOpen }: { access: TripAccess | null; onOpen:
  * ref empty and never run again. The cleanup unpublishes the height, so a route
  * without this header does not inherit a margin for a stack that is not there.
  */
-/**
- * Whether the sticky `header` has pinned, read from `sentinel` — a line at
- * the header's top where it sits before it pins (the cover band's,
- * `TripCoverBanner`). Once the line has scrolled above the header's `top`, the
- * header is held there and the line is not. `false` with no sentinel, and
- * where there is no IntersectionObserver (jsdom), which is the page at rest.
- */
-function useIsPinned(header: HTMLElement | null, sentinel: HTMLElement | null): boolean {
-  const [pinned, setPinned] = useState(false);
-  useEffect(() => {
-    if (header === null || sentinel === null || typeof IntersectionObserver !== "function") {
-      setPinned(false);
-      return;
-    }
-    const top = parseFloat(getComputedStyle(header).top) || 0;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry !== undefined) setPinned(!entry.isIntersecting && entry.boundingClientRect.top < top);
-      },
-      { rootMargin: `-${top}px 0px 0px 0px` },
-    );
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, [header, sentinel]);
-  return pinned;
-}
-
 function useStickyStackHeight() {
   return useCallback((el: HTMLElement | null) => {
     if (el === null) return;

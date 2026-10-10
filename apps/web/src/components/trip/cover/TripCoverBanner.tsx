@@ -9,31 +9,29 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 
 /**
- * The band's measurements, shared with `TripHeader` (which pulls itself up by
+ * The band's three heights, shared with `TripHeader` (which pulls itself up by
  * `OVERLAP`) and `TripHeaderSkeleton` (which reserves `EXPOSED`). Tailwind
- * classes, not numbers, so the scanner sees each one whole.
+ * classes, not numbers, so the scanner sees each one whole — which is also why
+ * nothing computes them: **`BAND` must equal `EXPOSED` + `OVERLAP`** (384 =
+ * 240 + 144), and `.cover-veil-trip`'s stops are placed against that split.
  *
  * - `BAND` — the photo, 384px: tall enough to show what a landscape photo is
  *   of, where the 112px strip it replaced showed a slice through its middle
  *   (Mitchell, 2026-10-10: the Seneca Lake cover read as a roof).
- * - `OVERLAP` — the band's foot, 144px, that the header sits on. It has faded
- *   most of the way into the page by then, so the header's words read on it.
+ * - `OVERLAP` — the band's foot, 144px, that the header sits on. The veil is
+ *   82% page at its top and solid page 40px below, so the header's words read
+ *   on a dark photo as well as a light one.
  *   The header is held at least this tall (`min-h-36`), so the band never
  *   reaches past it into the board.
  * - `EXPOSED` — what is left above the header: the part that is a photo.
  */
-export const COVER_BAND = {
-  BAND: "h-96",
-  EXPOSED: "h-60",
-  /** Where the header's top sits, as an offset inside the band: `EXPOSED` down. */
-  HEADER_TOP: "top-60",
-  OVERLAP: "md:-mt-36 md:min-h-36",
-} as const;
+export const COVER_BAND = { BAND: "h-96", EXPOSED: "h-60", OVERLAP: "md:-mt-36 md:min-h-36" } as const;
 
 /**
  * **The trip's cover, on the trip** — a tall photo at the top of the desktop
  * trip page that fades into the page, with the trip header laid over its faded
- * foot: the playbook day's treatment (`SharedDayScreen`, `veil="paper"`),
+ * foot: the playbook day's treatment (`SharedDayScreen`, `veil="paper"`, with
+ * the fade pulled up to finish under the header — `.cover-veil-trip`),
  * chosen from mockups on 2026-10-10 over a colour wash and an inset photo.
  * Still center-cropped; letting an editor drag the crop is a candidate
  * (`docs/candidates.md`, *Reposition a cover*).
@@ -71,7 +69,8 @@ export function TripCoverBanner({
   sentinelRef?: Ref<HTMLDivElement>;
 }) {
   return (
-    <CoverImage photo={cover} veil="paper" priority sizes="100vw" className={cn(COVER_BAND.BAND, "shrink-0")}>
+    <CoverImage photo={cover} priority sizes="100vw" className={cn(COVER_BAND.BAND, "shrink-0")}>
+      <div aria-hidden className="cover-veil-trip absolute inset-0" />
       {onChangeCover !== undefined && (
         <Button
           variant="ghost"
@@ -84,7 +83,10 @@ export function TripCoverBanner({
       <div className="absolute top-2 right-3 rounded-md bg-surface/85 px-2">
         <CoverCredit photo={cover} />
       </div>
-      <div ref={sentinelRef} aria-hidden className={cn(COVER_BAND.HEADER_TOP, "pointer-events-none absolute inset-x-0 h-px")} />
+      {/* The sentinel: a line at the foot of the exposed part, where the header's top rests. */}
+      <div aria-hidden className={cn(COVER_BAND.EXPOSED, "pointer-events-none absolute inset-x-0 top-0")}>
+        <div ref={sentinelRef} className="absolute inset-x-0 bottom-0 h-px" />
+      </div>
     </CoverImage>
   );
 }

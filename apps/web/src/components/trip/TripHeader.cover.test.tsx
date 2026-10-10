@@ -183,20 +183,23 @@ describe("TripHeader — the cover band", () => {
         disconnect() {}
       },
     );
-    server.use(...makeCoverHandlers({ cover: tripCoverFactory.build() }));
-    await renderHeader();
-    await waitFor(() => expect(band()).not.toBeNull());
-    const header = screen.getByRole("banner", { name: "Trip" });
-    const seeThrough = () => header.classList.contains("bg-transparent");
+    try {
+      server.use(...makeCoverHandlers({ cover: tripCoverFactory.build() }));
+      await renderHeader();
+      await waitFor(() => expect(band()).not.toBeNull());
+      const header = screen.getByRole("banner", { name: "Trip" });
+      const seeThrough = () => header.classList.contains("bg-transparent");
 
-    expect(seeThrough()).toBe(true);
-    // The header's top line scrolls above the header's sticky `top` (0 in jsdom).
-    act(() => watched.notify!({ isIntersecting: false, boundingClientRect: { top: -40 } as DOMRectReadOnly }));
-    expect(seeThrough()).toBe(false);
-    expect(header.classList.contains("bg-surface")).toBe(true);
-    act(() => watched.notify!({ isIntersecting: true, boundingClientRect: { top: 200 } as DOMRectReadOnly }));
-    expect(seeThrough()).toBe(true);
-    vi.unstubAllGlobals();
+      expect(seeThrough()).toBe(true);
+      // The header's top line scrolls above the header's sticky `top` (0 in jsdom).
+      act(() => watched.notify!({ isIntersecting: false, boundingClientRect: { top: -40 } as DOMRectReadOnly }));
+      expect(seeThrough()).toBe(false);
+      expect(header.classList.contains("bg-surface")).toBe(true);
+      act(() => watched.notify!({ isIntersecting: true, boundingClientRect: { top: 200 } as DOMRectReadOnly }));
+      expect(seeThrough()).toBe(true);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("gives a reader the band but no way to change it, and no Add cover", async () => {
