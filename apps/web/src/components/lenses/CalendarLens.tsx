@@ -328,7 +328,6 @@ export function CalendarLens({
   onDrop?: (outcome: NonNullable<ReturnType<typeof resolveCalendarDrop>>) => void;
 }) {
   const clock = useTimeFormat();
-  const months = calendarMonths(detail);
   // Same per-day city derivation Task 8's DayChips established, reused via
   // chipModel rather than re-deriving it (mirrors TimelineLens.tsx). Indexed
   // by 0-based day index — cell.ordinal is 1-based, so look up days[ordinal - 1].
@@ -373,6 +372,8 @@ export function CalendarLens({
   const latest = useRef({ detail, onDrop });
   latest.current = { detail, onDrop };
   const editable = onDrop !== undefined;
+  // Room after the trip's end only where a drop there can grow it.
+  const months = calendarMonths(detail, { roomAfterEnd: editable });
   useEffect(() => {
     const root = gridRef.current;
     if (!editable || root === null) return;

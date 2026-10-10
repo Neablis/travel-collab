@@ -43,6 +43,26 @@ test("a city card dragged to another day moves its stops as one change, and past
   // count alone would pass on the way through four separate entries.
   await expect.poll(async () => (await historyEntries(page, tripId))[0]?.description).toMatch(/Added Day 4.*Added Day 6.*Moved/);
   expect(await historyLength(page, tripId)).toBe(before + 2);
+
+  // And it does: one ⌘Z/Ctrl+Z puts City 3 back on Day 3 and the trip back to
+  // three days, with no Day 4–6 left behind.
+  await page.keyboard.press("ControlOrMeta+KeyZ");
+  await expect(cell(page, 2).getByTestId("calendar-day-card")).toContainText("City 3");
+  await expect(cell(page, 3)).toHaveCount(0);
+  await expect(cell(page, 5)).toHaveCount(0);
+});
+
+// Thursday 10 June 2027 for three days ends on Saturday, the last cell of its
+// week, so the editable grid adds the next week for a drop to grow the trip
+// onto (CodeRabbit, PR 395: before, a Saturday end left nothing to drop on).
+test("a trip that ends on a Saturday still grows by a drop on the Sunday after", async ({ page }) => {
+  const tripId = await createMappedTrip(page, e2eTripName("CalSat"), 3, { startDate: "2027-06-10" });
+  await page.goto(`/trips/${tripId}?view=Calendar`);
+  await expect(cell(page, 0).getByTestId("calendar-day-card")).toHaveCount(1);
+
+  await dragCardTo(cell(page, 0).getByTestId("calendar-day-card"), page.locator('[data-drop-after="2027-06-13"]'));
+  await expect(cell(page, 3).getByTestId("calendar-day-card")).toContainText("City 1");
+  await expect(cell(page, 0)).toContainText("Nothing planned yet");
 });
 
 test("a parked stop in the Calendar's drawer drops onto a day", async ({ page }) => {
