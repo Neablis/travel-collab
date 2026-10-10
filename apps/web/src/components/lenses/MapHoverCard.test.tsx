@@ -26,7 +26,7 @@ const day = (over: Partial<MapDay> = {}): MapDay => ({
   index: 0, dayId: "d1", label: "Day 1", date: "2026-09-05", city: "Kyoto",
   accent: "warning", stops: [stop("A"), stop("B")], unlocatedCount: 0, totalKm: 4.2,
   bars: [{ grow: 1, color: "warning" }], isEmpty: false, flagText: null,
-  longest: { km: 3.1, from: "A", to: "B" }, legs: [], ...over,
+  highlight: { kind: "bookends", first: "A", last: "B" }, legs: [], ...over,
 });
 
 // The clamp is the part worth asserting here: jsdom has no layout, so this
@@ -53,30 +53,36 @@ describe("hoverCardTop", () => {
   });
 });
 
-// Exactly three notes, and the ORDER matters: an empty day also has no longest
-// leg, so checking `longest` first would tell a reader with no stops at all
-// that they have "a single anchor".
+// Mitchell, desktop Map: "Is there something better we can put in the hover
+// information [than the longest hop]? Show something truly unique about that
+// day." The note now says what sets the day apart (`dayHighlights`, whose
+// rules mapRailData.test.ts pins); this is only its wording.
 describe("hoverNote", () => {
   it("says the day is empty before anything else", () => {
-    expect(hoverNote(day({ isEmpty: true, stops: [], longest: null }), "km")).toBe("No stops yet");
+    expect(hoverNote(day({ isEmpty: true, stops: [], highlight: null }), "12h")).toBe("No stops yet");
   });
 
-  it("names a single anchor when there is nothing to travel between", () => {
-    expect(hoverNote(day({ stops: [stop("A")], longest: null }), "km")).toBe(
-      "A single anchor. Nothing to travel between.",
+  it("names the places only this day goes to, and how many more", () => {
+    expect(hoverNote(day({ highlight: { kind: "only-here", places: ["Fushimi"] } }), "12h")).toBe("Only day in Fushimi");
+    expect(hoverNote(day({ highlight: { kind: "only-here", places: ["Gion", "Kita"] } }), "12h")).toBe(
+      "Only day in Gion and Kita",
+    );
+    expect(hoverNote(day({ highlight: { kind: "only-here", places: ["Gion", "Kita", "Uji", "Arashiyama"] } }), "12h")).toBe(
+      "Only day in Gion, Kita and 2 more",
     );
   });
 
-  it("names the longest hop and both of its ends", () => {
-    expect(hoverNote(day(), "km")).toMatch(/Longest hop .* — A to B/);
+  it("names a record the day holds, in the reader's clock", () => {
+    expect(hoverNote(day({ highlight: { kind: "most-stops", stops: 7 } }), "12h")).toBe("Most stops of any day (7)");
+    expect(hoverNote(day({ highlight: { kind: "earliest", time: "06:30" } }), "12h")).toBe("Earliest start of the trip, 6:30 am");
+    expect(hoverNote(day({ highlight: { kind: "latest", time: "22:30" } }), "24h")).toBe("Latest finish of the trip, 22:30");
   });
 
-  // A transit stop's own leg (M24) is one stop, whose title already names both
-  // ends — "X to X" would say it twice.
-  it("names a leg by its own title", () => {
-    expect(hoverNote(day({ longest: { km: 290, leg: "Shinkansen Odawara → Kyoto" } }), "km")).toMatch(
-      /^Longest hop .* — Shinkansen Odawara → Kyoto$/,
+  it("names where the day starts and ends, or its one stop", () => {
+    expect(hoverNote(day({ highlight: { kind: "bookends", first: "Nezu Museum", last: "Torishiki" } }), "12h")).toBe(
+      "Starts at Nezu Museum, ends at Torishiki",
     );
+    expect(hoverNote(day({ highlight: { kind: "single", title: "Onsen" } }), "12h")).toBe("Just one stop: Onsen");
   });
 });
 
@@ -97,7 +103,7 @@ describe("MapHoverCard", () => {
       </PreferencesProvider>,
     );
     const card = screen.getByTestId("map-hover-card");
-    expect(card.textContent).toMatch(/^Day 1Longest hop/);
+    expect(card.textContent).toBe("Day 1Starts at A, ends at B");
   });
 
   it("lists the day's legs, and leaves them to the focus card when trimmed", () => {

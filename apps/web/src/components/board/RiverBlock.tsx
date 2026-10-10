@@ -15,6 +15,7 @@ import { cn } from "@/lib/cn";
 import type { AccentFamily } from "@/lib/dayAccent";
 import { formatMoney } from "@/lib/formatMoney";
 import { displayPlace, legRoute } from "@/lib/place";
+import { useIsCoarsePointer } from "@/lib/useIsPhone";
 import { formatDuration, toClockRange, toMinutes } from "@/lib/time";
 import { PENDING_REASON_DISPLAY } from "./PendingReasonPicker";
 import type { RiverPlacement } from "./riverLayout";
@@ -227,6 +228,7 @@ export function RiverBlock({
   // of the two ever runs.
   const lastPointer = useRef<string>("mouse");
   const dimOpacity = tagFocusOpacity(activity.tags, focusedTag);
+  const coarse = useIsCoarsePointer();
 
   useEffect(() => {
     const el = ref.current;
@@ -326,6 +328,14 @@ export function RiverBlock({
   // Tab stop, the chips the next), the same reveal the narrow-lane controls
   // use.
   const revealTags = placement.tier !== "tall" && activity.tags.length > 0 && onToggleTag !== undefined;
+  // **Under a finger, a block with its row to itself puts those chips on its
+  // title row instead** (Mitchell, phone Plan: the "Outdoors" tag "overlaps
+  // with the text below in a weird way"). The reveal is a hover surface, and a
+  // touch screen has no hover to bring it up or put it away, so it sat there
+  // at rest hanging over the next stop's title. A phone column is full width,
+  // so beside the title there is room. A narrow lane has none, and keeps the
+  // reveal so its tags stay reachable.
+  const tagsInTitleRow = revealTags && coarse && !narrow;
   const tagMark = tag && (
     <DataText
       aria-hidden
@@ -408,6 +418,11 @@ export function RiverBlock({
           )}
           {!narrow && provisionalPill}
           {!narrow && tagMark}
+          {tagsInTitleRow && (
+            <span className="pointer-events-auto shrink-0">
+              <StopTagChips activityId={activity.activityId} tags={activity.tags} focusedTag={focusedTag} onToggleTag={onToggleTag} />
+            </span>
+          )}
           {/* In a narrow lane the two controls would leave the title no room at
               all, so under a mouse they float over its end only while the
               block is hovered or holds focus — the edit button is the first
@@ -514,13 +529,15 @@ export function RiverBlock({
           <span className="h-0.75 w-5.5 rounded-full bg-ink opacity-30" />
         </span>
       )}
-      {revealTags && (
+      {revealTags && !tagsInTitleRow && (
         // Below the block, not inside it: a 24px block has no room, and its
         // box clips. `pt-0.5` rather than a margin, so there is no gap for the
         // pointer to fall through on its way down and lose the hover. Hidden at
         // rest only under a mouse (`pointer-fine`, as the narrow-lane controls
-        // above): a touch tablet has no hover to bring it up, so it shows it.
-        <div className="absolute top-full left-0 pt-0.5 pointer-fine:pointer-events-none pointer-fine:opacity-0 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100">
+        // above): a touch screen has no hover to bring it up, so it shows it —
+        // which is why, under a finger, only a narrow lane still uses it and
+        // every other block puts its chips on the title row (`tagsInTitleRow`).
+        <div data-testid="river-tag-reveal" className="absolute top-full left-0 pt-0.5 pointer-fine:pointer-events-none pointer-fine:opacity-0 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100">
           <span className="flex rounded-md bg-surface p-1 shadow-overlay">
             <StopTagChips activityId={activity.activityId} tags={activity.tags} focusedTag={focusedTag} onToggleTag={onToggleTag} />
           </span>

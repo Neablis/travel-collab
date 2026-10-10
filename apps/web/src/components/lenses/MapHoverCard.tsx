@@ -1,5 +1,7 @@
-import { useDistanceUnit } from "@/components/account/PreferencesProvider";
+import type { TimeFormat } from "@tc/contracts";
+import { useDistanceUnit, useTimeFormat } from "@/components/account/PreferencesProvider";
 import { cn } from "@/lib/cn";
+import { toClockLabel } from "@/lib/time";
 import { kmLabel } from "@/lib/units";
 import type { AccentFamily } from "@/lib/dayAccent";
 import { MapLegList } from "./MapFocusCard";
@@ -42,19 +44,41 @@ export function hoverCardTop(rowTop: number, wrapHeight: number): number {
   return Math.min(Math.max(rowTop, HOVER_CARD_MIN_TOP_PX), lowest);
 }
 
+/** How many places an "only day in" note names before it says "and N more". */
+const ONLY_HERE_NAMED = 2;
+
 /**
- * The day's one note, and there are exactly three of them (§ link 5a).
+ * The day's one note: what sets it apart from the trip's other days.
  *
- * Exported for its own test: which note a day gets is a small decision tree
- * that reads as obvious and is easy to get subtly wrong — an empty day also has
- * no longest leg, so an order that checked `longest` first would tell a reader
- * with no stops that they have "a single anchor".
+ * It used to be the longest hop ("Longest hop 3.1 km — A to B"), and Mitchell
+ * asked for better: *"Show something truly unique about that day, or something
+ * else that we won't need AI to pull off."* Which fact a day gets is
+ * `dayHighlights`' decision (mapRailData.ts); this is only its wording, in the
+ * reader's clock. Exported for its own test.
  */
-export function hoverNote(day: MapDay, unit: Parameters<typeof kmLabel>[1]): string {
-  if (day.isEmpty) return "No stops yet";
-  if (day.longest === null) return "A single anchor. Nothing to travel between.";
-  const where = "leg" in day.longest ? day.longest.leg : `${day.longest.from} to ${day.longest.to}`;
-  return `Longest hop ${kmLabel(day.longest.km, unit)} — ${where}`;
+export function hoverNote(day: MapDay, clock: TimeFormat): string {
+  const highlight = day.highlight;
+  if (day.isEmpty || highlight === null) return "No stops yet";
+  switch (highlight.kind) {
+    case "only-here": {
+      const named = highlight.places.slice(0, ONLY_HERE_NAMED);
+      const more = highlight.places.length - named.length;
+      const list = more > 0 ? `${named.join(", ")} and ${more} more` : named.join(" and ");
+      return `Only day in ${list}`;
+    }
+    case "most-stops":
+      // Not "7 stops": the trimmed card must not read as the focus card's
+      // stops line, which it exists not to repeat.
+      return `Most stops of any day (${highlight.stops})`;
+    case "earliest":
+      return `Earliest start of the trip, ${toClockLabel(highlight.time, clock)}`;
+    case "latest":
+      return `Latest finish of the trip, ${toClockLabel(highlight.time, clock)}`;
+    case "bookends":
+      return `Starts at ${highlight.first}, ends at ${highlight.last}`;
+    case "single":
+      return `Just one stop: ${highlight.title}`;
+  }
 }
 
 export function MapHoverCard({
@@ -70,14 +94,15 @@ export function MapHoverCard({
    * first element"). The focus card already shows the city and the
    * stops-and-distance line, so repeating them was why this card used to be
    * suppressed for the focused day entirely, and day 0 is focused by default.
-   * Trimmed, it keeps the hover state and adds only `Day N` and the longest-hop
+   * Trimmed, it keeps the hover state and adds only `Day N` and the day's
    * note. For an empty day that note is "No stops yet", the same sentence the
    * focus card shows, so it is dropped too.
    */
   trimmed?: boolean;
 }) {
   const unit = useDistanceUnit();
-  const note = trimmed && day.isEmpty ? null : hoverNote(day, unit);
+  const clock = useTimeFormat();
+  const note = trimmed && day.isEmpty ? null : hoverNote(day, clock);
   const stat =
     trimmed || day.stops.length === 0
       ? null

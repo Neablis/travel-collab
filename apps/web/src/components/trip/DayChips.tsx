@@ -159,6 +159,10 @@ export function DayChips({ days, focusedDay, onSelect, readOnly = false, sync, s
     return centralDayIndex({ start: rowRect.left, size: rowRect.width }, spans, READING_LINE.horizontal, {
       atStart: row.scrollLeft <= 1,
       atEnd: row.scrollLeft >= maxScroll - 1,
+      // The sliding line and the hold (centralDay.ts), as Board and the map's
+      // strip: a chip near either end is reachable, not just the end chips.
+      progress: maxScroll > 0 ? row.scrollLeft / maxScroll : 0,
+      current: focusedDay,
     });
   });
 
@@ -265,10 +269,16 @@ export function DayChips({ days, focusedDay, onSelect, readOnly = false, sync, s
       // a page colour over them (the row sits on more than one background).
       // 2rem is the Calendar's fade width (`CalendarLens` MonthBlock).
       //
-      // Snapping to chip starts, so a scroll comes to rest on a whole chip at
-      // the leading edge. `scroll-px-1` matches `px-1` above: without it the
-      // snapped chip lands flush on the scroll origin and its ring is clipped
-      // again, which is what the padding exists to prevent.
+      // **No scroll snapping.** It used to snap to chip starts, so a scroll
+      // came to rest on a whole chip at the leading edge — and so it could
+      // only come to rest at as many places as there are chip starts inside
+      // the scroll range, fewer than there are days whenever the row barely
+      // overflows. With the reading line sliding across the row (centralDay.ts)
+      // every resting place names a day, and snapping would take some of those
+      // places away again: Mitchell, desktop Plan, "it jumps over it".
+      // `scroll-px-1` matches `px-1` above: a chip scrolled into view by the
+      // follow would otherwise land flush on the scroll origin with its ring
+      // clipped, which is what the padding exists to prevent.
       //
       // The mask is a named rule in `globals.css` (`[data-day-chips]`) keyed
       // off the data attributes, because the colour wall bans the bracketed
@@ -277,7 +287,7 @@ export function DayChips({ days, focusedDay, onSelect, readOnly = false, sync, s
       data-day-chips=""
       data-fade-start={overflow.before || undefined}
       data-fade-end={overflow.after || undefined}
-      className="-mx-1 flex snap-x snap-mandatory scroll-px-1 gap-2 overflow-x-auto px-1 pt-1 pb-1"
+      className="-mx-1 flex scroll-px-1 gap-2 overflow-x-auto px-1 pt-1 pb-1"
     >
       {days.map((day, index) => {
         const accent = accents[index] ?? { tint: "neutral", ink: "neutral", solid: "neutral" };
@@ -301,7 +311,7 @@ export function DayChips({ days, focusedDay, onSelect, readOnly = false, sync, s
             data-day-index={index}
             onClick={() => onSelect(isFocused ? null : index)}
             className={cn(
-              "h-auto shrink-0 snap-start flex-col items-start justify-start gap-1 rounded-lg p-2 text-left hover:opacity-90",
+              "h-auto shrink-0 flex-col items-start justify-start gap-1 rounded-lg p-2 text-left hover:opacity-90",
               CHIP_BG[accent.solid],
               isFocused && "ring-2 ring-brand",
             )}
@@ -394,7 +404,7 @@ export function DayChips({ days, focusedDay, onSelect, readOnly = false, sync, s
             // A placeholder, as the ghost day it selects is (W76): dashed, and
             // saying "Suggested" in words rather than by colour alone.
             className={cn(
-              "h-auto shrink-0 snap-start flex-col items-start justify-start gap-1 rounded-lg border-2 border-dashed border-brand bg-surface p-2 text-left hover:opacity-90",
+              "h-auto shrink-0 flex-col items-start justify-start gap-1 rounded-lg border-2 border-dashed border-brand bg-surface p-2 text-left hover:opacity-90",
               isFocused && "ring-2 ring-brand",
             )}
             // eslint-disable-next-line no-restricted-syntax -- 92px chip width has no token equivalent, as the day chips above
