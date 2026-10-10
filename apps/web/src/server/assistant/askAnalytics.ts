@@ -903,8 +903,9 @@ export function createAskRecorder(params: AskRecorderParams): AskRecorder {
         endpoint: "ask",
         outcome,
         taskClass: params.taskClass,
-        classifierCertainty:
-          classification === null ? null : classification.failedOpen ? "failed" : classification.certainty,
+        // Only a classifier CALL has a certainty: the affirmation rule's
+        // stand-in `unsure` would read as a turn the classifier could not decide.
+        classifierCertainty: !classifierCalled ? null : classification.failedOpen ? "failed" : classification.certainty,
         turn: {
           // The RESOLVED id of the model that actually answered — never a
           // compiled default (ledger.ts, `ModelSpend.model`).

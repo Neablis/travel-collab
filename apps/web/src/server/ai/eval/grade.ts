@@ -175,6 +175,10 @@ export function grade(turn: EvalTurn, expect: EvalExpectation): EvalCheck[] {
       pass: refused === expect.offTopic,
       detail: `classification: ${record.classification?.verdict ?? "none"}`,
     });
+    // A refusal saves money only by never running the agent.
+    if (expect.offTopic) {
+      checks.push({ name: "ran no agent step", pass: record.steps === 0, detail: `${record.steps} steps` });
+    }
   }
   for (const phrase of expect.mustNotSay ?? []) {
     checks.push({

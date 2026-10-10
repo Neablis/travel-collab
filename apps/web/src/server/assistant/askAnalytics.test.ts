@@ -588,6 +588,17 @@ describe("the turn ledger", () => {
     expect(ledgers[0]!.cost.classifier).toBeNull();
   });
 
+  // No classifier ran, so there is no certainty to record: stored as `unsure`,
+  // a bare agreement would count as a turn the classifier could not decide.
+  it("records no classifier certainty when the affirmation rule answered", () => {
+    const { recorder, ledgers } = recorderWith({
+      classification: { ...CLASSIFIED_BY_MODEL, source: "affirmation", certainty: "unsure", model: null },
+    });
+    recorder.finish({ finishReason: "stop" });
+
+    expect(ledgers[0]!.cost.classifierCertainty).toBeNull();
+  });
+
   // Both fields the pipeline resolves and the recorder cannot: `compose` is a
   // fact about the surface, and the pinned plan version is a fact about the
   // account at the moment of the turn.
