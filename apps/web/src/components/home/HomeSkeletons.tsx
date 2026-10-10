@@ -174,38 +174,56 @@ function SparklineBones() {
  */
 export function TripGridSkeleton() {
   return (
-    <SkeletonRegion
-      label="Loading your trips"
-      className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3"
-    >
-      {CARD_TITLE_WIDTHS.map((titleWidth, card) => (
-        <div
-          key={card}
-          className="flex flex-col gap-3 rounded-md border border-hairline bg-surface p-3"
-          data-testid="trip-card-skeleton"
-        >
-          <div className="flex items-start justify-between gap-2">
-            <Skeleton circle className="h-1.5 w-11.5" />
-            <Skeleton className="size-6" />
-          </div>
-          <div>
-            <div className="flex min-h-11 items-center fine:min-h-0">
-              <Skeleton className={`h-5 ${titleWidth}`} />
+    // The section's own stack around the grid, not the grid alone: the loaded
+    // list puts an *Other trips* heading row above it and the phone's import
+    // link below it, each a `gap-3.5` item of the column this sits in, so a
+    // bare grid grew the column by both when the list landed (a layout-shift
+    // probe on Home: 164px → 278px).
+    <SkeletonRegion label="Loading your trips" className="flex flex-col gap-3.5">
+      <div className="mb-3 flex items-baseline justify-between gap-3">
+        <span className="block font-display text-lg">
+          <Skeleton className="inline-block h-4 w-28 align-middle" />
+        </span>
+        <span className="block text-sm">
+          <Skeleton circle className="inline-block h-3 w-16 align-middle" />
+        </span>
+      </div>
+      <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
+        {CARD_TITLE_WIDTHS.map((titleWidth, card) => (
+          <div
+            key={card}
+            className="flex flex-col gap-3 rounded-md border border-hairline bg-surface p-3"
+            data-testid="trip-card-skeleton"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <Skeleton circle className="h-1.5 w-11.5" />
+              <Skeleton className="size-6" />
             </div>
-            <Skeleton className="mt-1 h-3.5 w-2/5" delay={2} />
-            <div className="mt-1 flex min-h-10 items-start pt-0.5 md:min-h-5">
-              <Skeleton className="h-3.5 w-1/2" delay={2} />
+            <div>
+              <div className="flex min-h-11 items-center fine:min-h-0">
+                <Skeleton className={`h-5 ${titleWidth}`} />
+              </div>
+              <Skeleton className="mt-1 h-3.5 w-2/5" delay={2} />
+              <div className="mt-1 flex min-h-10 items-start pt-0.5 md:min-h-5">
+                <Skeleton className="h-3.5 w-1/2" delay={2} />
+              </div>
+            </div>
+            <div className="mt-auto flex items-center justify-between pt-1">
+              <div className="flex items-center">
+                <Skeleton circle className="size-6" delay={3} />
+                <Skeleton circle className="-ml-2 size-6" delay={3} />
+              </div>
+              <Skeleton circle className="h-5 w-16" delay={3} />
             </div>
           </div>
-          <div className="mt-auto flex items-center justify-between pt-1">
-            <div className="flex items-center">
-              <Skeleton circle className="size-6" delay={3} />
-              <Skeleton circle className="-ml-2 size-6" delay={3} />
-            </div>
-            <Skeleton circle className="h-5 w-16" delay={3} />
-          </div>
-        </div>
-      ))}
+        ))}
+      </div>
+      {/* *Import a trip file*: a 44px link on a phone, nothing from `md`. */}
+      <div className="mt-1 flex flex-col items-center">
+        <span className="flex min-h-11 items-center md:hidden">
+          <Skeleton circle className="h-3 w-28" delay={3} />
+        </span>
+      </div>
     </SkeletonRegion>
   );
 }
