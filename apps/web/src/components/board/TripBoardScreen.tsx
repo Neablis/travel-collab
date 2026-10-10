@@ -7,6 +7,9 @@ import type { TimeWindow } from "@tc/contracts";
 import { useTrip } from "@/components/trip/context/TripProvider";
 import { useEditor } from "@/components/trip/context/EditorHost";
 import { useDaySync, useFocus } from "@/components/trip/context/FocusProvider";
+import { lensCommands, newStopCommand } from "@/components/palette/commands";
+import { usePaletteSource } from "@/components/palette/paletteRegistry";
+import { newStopPrefill } from "@/components/trip/newStopPrefill";
 import { useLens } from "@/components/trip/context/LensRouter";
 import { chipModel, cityFor } from "@/lib/dayChips";
 import { DayChips } from "@/components/trip/DayChips";
@@ -153,6 +156,21 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   const headerReady = abovePhone !== undefined && coverSettled;
   const boardRenders = status === "ready" && trip !== null && activeTrip !== null && headerReady;
   usePhoneAskEntry(boardRenders && !isDemoTripId(tripId) ? assistant.show : undefined, assistant.open);
+  // **⌘K's lenses and *New stop*** (M41 D9, ADR-068): the lens switcher's
+  // own `setView`, and the editor opened on the selected day with a fitted
+  // time (`newStopPrefill`, what a paste onto a day opens), else parked. The
+  // assistant needs nothing here: the palette offers the opener registered
+  // just above, the one the phone's tab bar uses.
+  const focusedDayId = focusedDay === null ? undefined : activeTrip?.days[focusedDay]?.dayId;
+  usePaletteSource(
+    "trip-board",
+    boardRenders && activeTrip !== null
+      ? [
+          ...lensCommands(setView),
+          ...(canEditBoard ? [newStopCommand(() => openCreate(newStopPrefill(activeTrip, focusedDayId)))] : []),
+        ]
+      : [],
+  );
   // Which of SPEC §9/§23's presentations the assistant opens as. `AssistantRail`
   // is emphatic that the caller must not reach for `useIsPhone()` — it returns
   // `false` on the server and on the first client paint, so a JS-gated swap

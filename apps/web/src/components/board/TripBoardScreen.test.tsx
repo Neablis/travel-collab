@@ -1,6 +1,6 @@
 import { useSyncExternalStore, type ComponentProps } from "react";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
@@ -11,6 +11,8 @@ import { EditorHost, useEditor } from "@/components/trip/context/EditorHost";
 import { FocusProvider } from "@/components/trip/context/FocusProvider";
 import { LensRouter } from "@/components/trip/context/LensRouter";
 import { PhoneAskTab } from "@/components/nav/PhoneTabBar";
+import { usePhoneAsk } from "@/components/nav/phoneAsk";
+import { type PaletteCommand, usePaletteCommands } from "@/components/palette/paletteRegistry";
 import { activityFactory, costedTripDetailFixture, historyFixture, locationFactory, tripCoverFactory, tripDetailFixture } from "@tc/factories";
 import { makeTripHandlers, makeAccountPlanHandler, makeNearbyStopsHandler, makePagesHandlers } from "@/mocks/handlers";
 import { setViewportMatches, triggerResize } from "../../../vitest.setup";
@@ -2619,5 +2621,112 @@ describe("the add-a-stop sheet on a refused change", () => {
     // double-click still makes a stop that belongs to no day.
     const added = onCommand.mock.calls.map(([c]) => c).find((c) => c.type === "AddActivity");
     expect(added && "dayId" in added ? added.dayId : undefined).toBeUndefined();
+  });
+});
+
+// ADR-068 §2, on the real screen: what the trip registers for ⌘K runs the
+// page's own controls' functions. Each case does the thing both ways and
+// compares, so a command that re-implemented its action, or a control that
+// stopped using the shared one, fails here. The palette's own behaviour is
+// `CommandPalette.test.tsx`; this reads the registry it lists from.
+describe("⌘K runs the trip page's own actions", () => {
+  function renderWithPalette(tripId: string) {
+    let commands: readonly PaletteCommand[] = [];
+    let ask: ReturnType<typeof usePhoneAsk> = null;
+    function PaletteSpy() {
+      commands = usePaletteCommands();
+      ask = usePhoneAsk();
+      return null;
+    }
+    render(
+      <TripProvider tripId={tripId}>
+        <FocusProvider>
+          <EditorHost>
+            <LensRouter>
+              <TripBoardScreen tripId={tripId} />
+              <PaletteSpy />
+            </LensRouter>
+          </EditorHost>
+        </FocusProvider>
+      </TripProvider>,
+    );
+    return {
+      run: (id: string) => {
+        const command = commands.find((c) => c.id === id);
+        if (command === undefined) throw new Error(`no palette command "${id}" in ${commands.map((c) => c.id).join(", ")}`);
+        act(() => command.run());
+      },
+      openAssistant: () => act(() => ask?.onOpen()),
+    };
+  }
+
+  it("goes to a lens by the URL the lens's tab goes by", async () => {
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    const { run } = renderWithPalette(fixture.tripId);
+    await screen.findByRole("heading", { name: "Rome 2027" });
+
+    fireEvent.click(screen.getByRole("tab", { name: "Calendar" }));
+    const byTab = replaceSpy.mock.calls.at(-1);
+    navigateToView("Plan");
+    replaceSpy.mockClear();
+
+    run("view:Calendar");
+    expect(replaceSpy.mock.calls.at(-1)).toEqual(byTab);
+  });
+
+  it("opens Trip settings, as the trip's title does", async () => {
+    const fixture = tripDetailFixture();
+    // The sheet asks who is reading (`useSessionUser`).
+    server.use(...makeTripHandlers(fixture), http.get("/api/auth/session", () => HttpResponse.json({ user: { id: "dev-alice" } })));
+    const { run } = renderWithPalette(fixture.tripId);
+    await screen.findByRole("heading", { name: "Rome 2027" });
+
+    run("settings");
+    expect(await screen.findByRole("dialog", { name: /trip settings/i })).toBeTruthy();
+  });
+
+  it("undoes through the History control's own UndoLastChange", async () => {
+    const fixture = tripDetailFixture();
+    const sent: string[] = [];
+    server.use(
+      ...makeTripHandlers(fixture, {
+        history: { tripId: fixture.tripId, entries: [], canUndo: true, canRedo: false },
+        onCommand: (command) => sent.push(command.type),
+      }),
+    );
+    const { run } = renderWithPalette(fixture.tripId);
+    await screen.findByRole("heading", { name: "Rome 2027" });
+
+    await waitFor(() => run("undo"));
+    await waitFor(() => expect(sent).toEqual(["UndoLastChange"]));
+  });
+
+  it("opens the assistant by the opener the header's Ask uses", async () => {
+    setViewportMatches({ "(min-width: 1180px)": true });
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    const { openAssistant } = renderWithPalette(fixture.tripId);
+    await screen.findByRole("heading", { name: "Rome 2027" });
+    expect(screen.queryByRole("complementary", { name: "Assistant" })).toBeNull();
+
+    openAssistant();
+    expect(await screen.findByRole("complementary", { name: "Assistant" })).toBeTruthy();
+  });
+
+  it("opens New stop on the selected day, as a paste onto it does", async () => {
+    const fixture = tripDetailFixture({
+      days: [{ dayId: "9f1c2b7e-5d3a-4c8b-9e2f-7a6d4b1c8e35", activityIds: [], date: null, costSubtotal: 0 }],
+      activities: {},
+    });
+    server.use(...makeTripHandlers(fixture));
+    const { run } = renderWithPalette(fixture.tripId);
+    await screen.findByRole("heading", { name: "Rome 2027" });
+    const column = screen.getAllByTestId("day-column")[0]!;
+    await userEvent.click(within(column).getByRole("button", { name: /^Day 1/ }));
+
+    run("new-stop");
+    const sheet = await screen.findByRole("dialog", { name: "Add a stop" });
+    expect((within(sheet).getByLabelText("Day") as HTMLSelectElement).value).toBe(fixture.days[0]!.dayId);
   });
 });
