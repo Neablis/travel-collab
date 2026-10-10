@@ -195,6 +195,7 @@ const useFocusMock = vi.fn();
 function focusDefaults(): {
   focusedDay: number | null;
   setFocusedDay: (i: number | null) => void;
+  focusOrigin: "explicit" | "scroll";
   focusedTag: ActivityTag | null;
   toggleFocusedTag: (tag: ActivityTag) => void;
   clearFocusedTag: () => void;
@@ -202,6 +203,7 @@ function focusDefaults(): {
   return {
     focusedDay: null,
     setFocusedDay: vi.fn(),
+    focusOrigin: "explicit",
     focusedTag: null,
     toggleFocusedTag: vi.fn(),
     clearFocusedTag: vi.fn(),
@@ -455,6 +457,22 @@ function renderMap(
 // the offline panel.
 beforeEach(() => {
   mapStub.suppressLoad = false;
+});
+
+// The arrival rule is `mapArrivalDay` (mapRailData.test.ts); these pin that the
+// lens asks it with the selection's origin, not only its value.
+describe("MapLens on arrival", () => {
+  it("starts on the first day when the selected day was only scrolled past", () => {
+    const setFocusedDay = vi.fn();
+    renderMap(detailWithTwoDays(), { focusedDay: 1, focusOrigin: "scroll", setFocusedDay });
+    expect(setFocusedDay).toHaveBeenCalledWith(0);
+  });
+
+  it("keeps a day somebody picked", () => {
+    const setFocusedDay = vi.fn();
+    renderMap(detailWithTwoDays(), { focusedDay: 1, focusOrigin: "explicit", setFocusedDay });
+    expect(setFocusedDay).not.toHaveBeenCalled();
+  });
 });
 
 describe("MapLens", () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ActivityMode, type ActivityKind, type Location, type TripDetail } from "@tc/contracts";
-import { legVariant, longestLeg, mapDays, markerGroups, monthEdges, routeLegs } from "./mapRailData";
+import { legVariant, longestLeg, mapArrivalDay, mapDays, markerGroups, monthEdges, routeLegs } from "./mapRailData";
 import type { MapStop } from "./mapRailData";
 import { activityFactory, locationFactory } from "@tc/factories";
 import { haversineKm } from "@/lib/geo";
@@ -500,5 +500,33 @@ describe("monthEdges", () => {
 
   it("is empty for no days at all", () => {
     expect(monthEdges([])).toEqual([]);
+  });
+});
+
+// Mitchell, desktop Map: "When we go to the map page and a day isn't
+// selected, select the first day to start there." The rail he clicked had day
+// 15 ringed — set by scrolling Plan's columns to their end, not by a pick —
+// and a day nobody chose is not a selected day. So the map starts on day 1
+// unless somebody PICKED one, and a pick always wins.
+describe("mapArrivalDay", () => {
+  it("starts on the first day when nothing is selected", () => {
+    expect(mapArrivalDay(null, "explicit", 15)).toBe(0);
+  });
+
+  it("starts on the first day when the day was only scrolled past", () => {
+    expect(mapArrivalDay(14, "scroll", 15)).toBe(0);
+  });
+
+  it("keeps a day somebody picked", () => {
+    expect(mapArrivalDay(4, "explicit", 15)).toBeNull();
+  });
+
+  it("starts on the first day when the selection names no day the map has", () => {
+    // A suggested day the trip does not hold yet is picked as `days.length + k`.
+    expect(mapArrivalDay(15, "explicit", 15)).toBe(0);
+  });
+
+  it("has nothing to select on a trip with no days", () => {
+    expect(mapArrivalDay(null, "explicit", 0)).toBeNull();
   });
 });

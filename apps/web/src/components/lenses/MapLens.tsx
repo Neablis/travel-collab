@@ -9,7 +9,7 @@ import { EmptyState } from "../ui/empty-state";
 import { useEditor } from "../trip/context/EditorHost";
 import { useDaySync, useFocus } from "../trip/context/FocusProvider";
 import { activityPins, unlocatedActivities } from "./mapData";
-import { mapDays, markerGroups, routeLegs, type MapDay } from "./mapRailData";
+import { mapArrivalDay, mapDays, markerGroups, routeLegs, type MapDay } from "./mapRailData";
 import { MAP_RAIL_INSET_PX, MAP_RAIL_WIDTH_PX, MapRail } from "./MapRail";
 import { MAP_DAY_STRIP_HEIGHT_PX, MapDayStrip } from "./MapDayStrip";
 import { isFatalMapError } from "./mapBootstrap";
@@ -226,7 +226,7 @@ export function MapLens({
   readOnly?: boolean;
 }) {
   const { openCreate } = useEditor();
-  const { focusedDay, setFocusedDay, focusedTag } = useFocus();
+  const { focusedDay, setFocusedDay, focusedTag, focusOrigin } = useFocus();
   // The phone strip's half of the day-sync contract (`FocusProvider`'s header).
   // Taken unconditionally rather than inside the `isPhone` branch — hooks are
   // not conditional — which costs nothing on desktop, where the strip is not
@@ -369,15 +369,19 @@ export function MapLens({
    * "which day am I looking at", and switching back to the timeline should land
    * on that day rather than wherever the page happened to be.
    *
-   * Runs once per mount and only into an empty selection, so it never overrides
-   * a day somebody picked, and never fights the rail after the first paint.
+   * Runs once per mount, and never overrides a day somebody picked, nor fights
+   * the rail after the first paint. **A day only scrolled past is not a pick**
+   * (`mapArrivalDay`): Mitchell opened the map on day 15 because Plan's
+   * columns had been scrolled to their end, and asked for day 1 — "when we go
+   * to the map page and a day isn't selected, select the first day".
    */
   const defaultedDay = useRef(false);
   useEffect(() => {
-    if (defaultedDay.current || focusedDay !== null || days.length === 0) return;
+    if (defaultedDay.current || days.length === 0) return;
     defaultedDay.current = true;
-    setFocusedDay(0);
-  }, [focusedDay, days.length, setFocusedDay]);
+    const arrival = mapArrivalDay(focusedDay, focusOrigin, days.length);
+    if (arrival !== null) setFocusedDay(arrival);
+  }, [focusedDay, focusOrigin, days.length, setFocusedDay]);
 
   // Armed once per mount SEQUENCE, not per instance: the deps are the retry
   // token and whether there is anything to draw, never `attempt`. A rung that

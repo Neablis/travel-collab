@@ -208,6 +208,26 @@ export function longestLeg(stops: readonly MapStop[]): LongestLeg | null {
   return best;
 }
 
+/**
+ * The day the map should select on arrival, or null to leave the selection be.
+ *
+ * Day 1 unless somebody PICKED a day the map has (Mitchell, desktop Map: "When
+ * we go to the map page and a day isn't selected, select the first day to
+ * start there"). A day only scrolled past (`origin: "scroll"`) is not a
+ * selection: the rail he was looking at had day 15 ringed because Plan's
+ * columns had been scrolled to their end, and the map opened there.
+ *
+ * @param focusedDay - The selected day index, or null
+ * @param origin - Whether that day was picked (`explicit`) or scrolled past
+ * @param dayCount - How many days the map draws
+ * @returns 0 to select the first day, or null to keep the current selection
+ */
+export function mapArrivalDay(focusedDay: number | null, origin: "explicit" | "scroll", dayCount: number): number | null {
+  if (dayCount === 0) return null;
+  const picked = origin === "explicit" && focusedDay !== null && focusedDay >= 0 && focusedDay < dayCount;
+  return picked ? null : 0;
+}
+
 export function mapDays(detail: TripDetail): MapDay[] {
   const cities = chipModel(detail);
   // One dayAccents() call over the whole trip's cities, so collisions
