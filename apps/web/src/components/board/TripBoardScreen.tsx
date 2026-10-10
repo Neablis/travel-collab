@@ -32,6 +32,9 @@ import { ActivityEditorSheet } from "@/components/trip/editor/ActivityEditorShee
 import { PeopleProvider } from "@/components/pages/people";
 import { type RackItem, UnscheduledRack } from "@/components/trip/UnscheduledRack";
 import { moveCommands } from "./moveCommands";
+import type { resolveCalendarDrop } from "@/components/lenses/calendarDrop";
+
+type CalendarDropOutcome = NonNullable<ReturnType<typeof resolveCalendarDrop>>;
 import { rackDropWindow } from "./rackDropWindow";
 import { kindBadge } from "./activityKind";
 import { type AnyTimeOutcome, anyTimeCommands, type PlaceOutcome, placeCommands } from "./resolveDrop";
@@ -585,6 +588,23 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     const timeWindow = rackDropWindow(activeTrip, activityId, toDayId, position);
     for (const move of moveCommands(activeTrip, [activityId], toDayId, { position })) void dispatch(move);
     if (timeWindow !== null) void dispatch({ type: "UpdateActivity", tripId, activityId, timeWindow });
+  };
+
+  // A drop in the Calendar (M41 D2), through the moves Plan's drops use.
+  // A city card's stops move as ONE batch, one History entry and one undo,
+  // and a drop past the trip's end adds its days in the same batch, so the
+  // move and the days it needed are undone together. Timed stops keep their
+  // times. A rack card is one stop, and lands the way it does on Plan.
+  const calendarDrop = (outcome: CalendarDropOutcome) => {
+    if (outcome.kind === "rack") {
+      const day = activeTrip.days.find((d) => d.dayId === outcome.toDayId);
+      moveActivity(outcome.activityId, outcome.toDayId, day?.activityIds.length ?? 0);
+      return;
+    }
+    const newDayIds = Array.from({ length: outcome.newDays }, () => crypto.randomUUID());
+    const toDayId = outcome.toDayId ?? newDayIds.at(-1)!;
+    const commands = moveCommands(activeTrip, outcome.activityIds, toDayId, { newDayIds });
+    if (commands.length > 0) void dispatchBatch(commands);
   };
 
   // A drop at a time on a day's river (M29 part 3): the day AND the time, as
@@ -1259,7 +1279,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                   />
                 )}
                 {view === "Calendar" && (
-                  <CalendarLens detail={activeTrip} onSelectActivity={canEditBoard ? openEdit : undefined} />
+                  <CalendarLens detail={activeTrip} onSelectActivity={canEditBoard ? openEdit : undefined} onDrop={canEditBoard ? calendarDrop : undefined} />
                 )}
               </PageContainer>
             )}
