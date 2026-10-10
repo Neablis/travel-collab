@@ -1,4 +1,4 @@
-import { AdminGrantInput } from "@tc/contracts";
+import { AdminGrantInput, AdminRevokeGrantInput } from "@tc/contracts";
 import { invalidateConsole } from "@/server/entitlements/consoleCache";
 import { issueGrant, revokeGrant } from "@/server/entitlements/grants";
 import { livePlanVersion, planVersionFromRef } from "@/server/entitlements/planVersions";
@@ -57,11 +57,11 @@ export async function DELETE(request: Request) {
   const guard = await requireAdminApi();
   if ("error" in guard) return guard.error;
 
-  const body = await request.json().catch(() => null);
-  const grantId = typeof body === "object" && body !== null ? (body as { grantId?: unknown }).grantId : null;
-  if (typeof grantId !== "string" || grantId === "") {
-    return Response.json({ error: "invalid-grant-id" }, { status: 400 });
+  const body = AdminRevokeGrantInput.safeParse(await request.json().catch(() => null));
+  if (!body.success) {
+    return Response.json({ error: "invalid-grant-id", issues: body.error.issues }, { status: 400 });
   }
+  const { grantId } = body.data;
   // **Marks, never deletes.** Revoking is not tidying: the row is what answers
   // "has this account ever held a trial", and removing it would hand the trial
   // back to whoever had it revoked.

@@ -594,6 +594,21 @@ describe("granting is the only write", () => {
     expect(again.status).toBe(409);
     expect(await again.json()).toEqual({ error: "no-active-grant" });
   });
+
+  // **A grant id that is not a uuid is the caller's mistake, not the
+  // server's.** `entitlement_grants.id` is a `uuid` column, so a string that
+  // passed a bare `typeof` check reached Postgres and failed its cast as a 500.
+  it("answers 400 invalid-grant-id for a grant id that is not a uuid", async () => {
+    currentUserId = await account({ admin: true });
+    const res = await REVOKE(
+      new Request("http://localhost/api/admin/grants", {
+        method: "DELETE",
+        body: JSON.stringify({ grantId: "not-a-uuid" }),
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ error: "invalid-grant-id" });
+  });
 });
 
 describe("the operator bootstrap", () => {

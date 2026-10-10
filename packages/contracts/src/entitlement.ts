@@ -176,6 +176,18 @@ export const AdminGrantInput = z.object({
 export type AdminGrantInput = z.infer<typeof AdminGrantInput>;
 
 /**
+ * The body of the operator's revoke (`DELETE /api/admin/grants`).
+ *
+ * A uuid, not just a string: `entitlement_grants.id` is a `uuid` column, so a
+ * malformed id that got past a looser check failed Postgres's cast and came
+ * back as a 500 instead of the caller's 400.
+ */
+export const AdminRevokeGrantInput = z.object({
+  grantId: z.string().uuid(),
+});
+export type AdminRevokeGrantInput = z.infer<typeof AdminRevokeGrantInput>;
+
+/**
  * What Stripe says a subscription is, stored verbatim (M21 link 1).
  *
  * **Stripe's own words, not ours.** The division of authority M21 link 2
