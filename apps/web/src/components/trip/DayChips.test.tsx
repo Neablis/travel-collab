@@ -688,3 +688,23 @@ describe("DayChips day-sync", () => {
     expect(onSelect).toHaveBeenCalledWith(1);
   });
 });
+
+// The phone shows one day at a time and the rail is how it reaches any other,
+// so a suggested day needs a chip, at the index the board draws it at.
+describe("DayChips with a suggested day", () => {
+  it("selects the suggested day at the index after the trip's last day", () => {
+    const detail = tripDetailFixture({
+      days: [
+        { dayId: day1, activityIds: [], date: null, costSubtotal: 0 },
+        { dayId: day2, activityIds: [], date: null, costSubtotal: 0 },
+      ],
+      activities: {},
+    });
+    const onSelect = vi.fn();
+    render(<DayChips days={chipModel(detail)} focusedDay={0} onSelect={onSelect} suggestedDays={["Day 3"]} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Day 3 · suggested" }));
+
+    expect(onSelect).toHaveBeenCalledWith(2);
+  });
+});
