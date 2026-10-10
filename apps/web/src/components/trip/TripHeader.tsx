@@ -28,7 +28,7 @@ import { SettingsSheet } from "./SettingsSheet";
 import { TripMetaPill, tripCounts, tripDateRange } from "./TripMetaPill";
 import { BudgetChip } from "./BudgetChip";
 import { AddCoverButton, TripCoverBanner } from "./cover/TripCoverBanner";
-import { useTripCover } from "./cover/tripCoverStore";
+import { useTripCover } from "./cover/useTripCover";
 
 // The bounded chrome surface (design-system.md surface vocabulary, Pattern 4):
 // trip identity (name + status) on one row with Share / Add stop / sync /
@@ -189,8 +189,8 @@ export function TripHeader({
 
   const publishStickyStack = useStickyStackHeight();
   // The cover band above the desktop header (Mitchell, 2026-10-10). Its own
-  // read, shared with Trip settings' picker through `tripCoverStore`, so a
-  // pick there shows here at once. Not on /demo, which has no session for it.
+  // read, through the same cache entry Trip settings' picker reads
+  // (`useTripCover`), so a pick there shows here at once. Not on /demo, which has no session for it.
   const cover = useTripCover(tripId, !isDemoTripId(tripId));
 
   if (trip === null || activeTrip === null || status !== "ready") return null;

@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -26,7 +26,8 @@ vi.mock("@/lib/apiClient", async (orig) => {
 import { TripProvider } from "@/components/trip/context/TripProvider";
 import { EditorHost } from "@/components/trip/context/EditorHost";
 import { TripHeader } from "./TripHeader";
-import { resetTripCoverCache } from "./cover/tripCoverStore";
+import { cachedRead } from "@/lib/queryCache";
+import { coverKeys } from "@/lib/queryKeys";
 
 
 
@@ -38,7 +39,8 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   server.resetHandlers();
-  resetTripCoverCache();
+  // No cover reset of its own: the cover lives in the query cache, which
+  // `vitest.setup.ts` clears after every test.
 });
 afterAll(() => server.close());
 
@@ -114,6 +116,36 @@ describe("TripHeader — the cover band", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(band()).not.toBeNull();
     expect(addCover()).toBeNull();
+  });
+
+  // PR #384 review: the banner kept a store of its own beside the cache Trip
+  // settings reads, so a newer cover read there (a co-editor's) never reached
+  // the band, and the band's read never spared Settings its first one.
+  it("shares one cover with Trip settings: the band's read paints Settings, and a newer read repaints the band", async () => {
+    const reads = { count: 0 };
+    server.events.on("request:start", ({ request }) => {
+      if (request.method === "GET" && new URL(request.url).pathname === `/api/trips/${TRIP}/cover`) reads.count++;
+    });
+    server.use(...makeCoverHandlers({ cover: tripCoverFactory.build({ alt: "Old roofs" }) }));
+    await renderHeader();
+    await waitFor(() => expect(band()).not.toBeNull());
+    expect(reads.count).toBe(1);
+
+    await userEvent.click(band()!);
+    const sheet = await screen.findByRole("dialog", { name: /Trip settings/ });
+    expect(await within(sheet).findByRole("img", { name: "Old roofs" })).toBeTruthy();
+    expect(reads.count).toBe(1);
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+    // Any reader of the key bringing a newer answer — Settings revalidating
+    // after the window, say, and finding a co-editor's pick.
+    const newer = tripCoverFactory.build({ alt: "New harbour" });
+    await act(async () => {
+      await cachedRead(coverKeys.trip(TRIP), () => Promise.resolve({ ok: true as const, value: newer }), { dedupeMs: 0 });
+    });
+    expect(await screen.findByRole("img", { name: "New harbour" })).toBeTruthy();
+    server.events.removeAllListeners();
   });
 
   it("gives a reader the band but no way to change it, and no Add cover", async () => {

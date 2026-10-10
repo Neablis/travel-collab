@@ -74,6 +74,28 @@ const entries = new Map<CacheKey, Entry>();
 const inFlight = new Map<CacheKey, Pending>();
 
 /**
+ * Who hears that a stored answer changed — a read landing, a prime, an
+ * invalidation or a clear. For a component that paints straight from the cache
+ * (`peekCached` through `useSyncExternalStore`) and so must re-render when
+ * ANOTHER reader of the same key brings a newer answer: the trip header's cover
+ * band and Trip settings' cover picker read one key (PR #384 review), and
+ * before this each only saw its own reads.
+ */
+const listeners = new Set<() => void>();
+
+function emitChange(): void {
+  listeners.forEach((listener) => listener());
+}
+
+/** Calls `listener` whenever any stored answer changes; returns the unsubscribe. */
+export function subscribeQueryCache(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+/**
  * One monotonic clock for the whole cache. Every read takes a ticket from it;
  * every invalidation and every clear stamps itself with one.
  *
@@ -255,6 +277,7 @@ export function cachedRead<T>(
       // because a write can open after this read started.
       if (result.ok && !writeOutstandingFor(key) && mayStore(key, token)) {
         entries.set(key, { result, storedAt: Date.now() });
+        emitChange();
       }
       return result;
     } catch (err) {
@@ -298,6 +321,22 @@ export function peekCached<T>(key: CacheKey): T | undefined {
 }
 
 /**
+ * Store `value` as the answer under `key`, as if a read had just returned it.
+ *
+ * **For a write whose response IS the new state** — the cover picker's pick
+ * answers with the cover it stored, so reading it back again would only cost a
+ * request and leave every painter of the key on the old one until it landed.
+ * Supersedes any read of `key` already on the wire, the way `invalidate` does:
+ * that read started before the write, and must not be stored over it.
+ */
+export function primeCached<T>(key: CacheKey, value: T): void {
+  invalidatedAt.set(key, ++clock);
+  inFlight.delete(key);
+  entries.set(key, { result: { ok: true, value }, storedAt: Date.now() });
+  emitChange();
+}
+
+/**
  * Drop everything cached under `prefix`, and stop any read already in flight
  * under it from being stored.
  *
@@ -307,8 +346,11 @@ export function peekCached<T>(key: CacheKey): T | undefined {
  */
 export function invalidate(prefix: string): void {
   const at = ++clock;
+  let dropped = false;
   for (const key of entries.keys()) {
-    if (key.startsWith(prefix)) entries.delete(key);
+    if (!key.startsWith(prefix)) continue;
+    entries.delete(key);
+    dropped = true;
   }
   // A COPY of the keys: the loop deletes from the map it is walking.
   for (const key of [...inFlight.keys()]) {
@@ -322,6 +364,7 @@ export function invalidate(prefix: string): void {
     // answer anyone new receives.
     inFlight.delete(key);
   }
+  if (dropped) emitChange();
 }
 
 /**
@@ -346,4 +389,5 @@ export function clearQueryCache(): void {
   // No scope is open any more, so nobody is waiting on one.
   for (const waiter of settleWaiters) waiter.resolve();
   settleWaiters.clear();
+  emitChange();
 }

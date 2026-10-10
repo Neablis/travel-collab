@@ -3,10 +3,10 @@
 import { useMemo } from "react";
 import type { TripCover } from "@tc/contracts";
 import { CoverPicker, type CoverApi } from "@/components/cover/CoverPicker";
-import { clearTripCover, fetchTripCover, searchTripCovers, setTripCover } from "@/lib/apiClient";
-import { cachedRead, DEDUPE, invalidate, peekCached } from "@/lib/queryCache";
+import { clearTripCover, searchTripCovers, setTripCover } from "@/lib/apiClient";
+import { peekCached, primeCached } from "@/lib/queryCache";
 import { coverKeys } from "@/lib/queryKeys";
-import { setCachedTripCover } from "./tripCoverStore";
+import { readTripCover } from "./useTripCover";
 
 // Trip settings → Cover photo (M37 part 4): the shared picker
 // (`components/cover/CoverPicker.tsx`), pointed at the trip's cover routes.
@@ -37,37 +37,28 @@ export function CoverSection({
 }) {
   const api = useMemo<CoverApi>(() => {
     const key = coverKeys.trip(tripId);
-    const read = () => cachedRead(key, () => fetchTripCover(tripId), { dedupeMs: DEDUPE.DOCUMENT });
-    /** After a write: drop the old answer, and read the new one in for the next open. */
-    const refresh = () => {
-      invalidate(key);
-      void read();
-    };
     return {
-      read,
+      // The same entry the trip header's banner reads (`useTripCover`), so
+      // the header's read warms this section's first open and a read here
+      // updates the banner.
+      read: () => readTripCover(tripId),
       peek: () => peekCached<TripCover | null>(key),
       search: (q, page) => searchTripCovers(tripId, q, page),
+      // A write's answer IS the new cover: stored straight into that entry,
+      // so the banner changes the moment the picker does (Mitchell,
+      // 2026-10-10: "adding a cover photo makes no changes right away") and
+      // the next open paints it with no second read.
       set: async (candidate) => {
         const result = await setTripCover(tripId, candidate);
-        if (result.ok) refresh();
+        if (result.ok) primeCached(key, result.value);
         return result;
       },
       clear: async () => {
         const result = await clearTripCover(tripId);
-        if (result.ok) refresh();
+        if (result.ok) primeCached(key, null);
         return result;
       },
     };
   }, [tripId]);
-  // `onChange` writes each pick or removal into the page's cover store, which
-  // the trip header's banner reads: setting a cover shows on the trip at once
-  // (Mitchell, 2026-10-10: "adding a cover photo makes no changes right away").
-  return (
-    <CoverPicker
-      api={api}
-      canEdit={canEdit}
-      onSettled={onSettled}
-      onChange={(cover) => setCachedTripCover(tripId, cover)}
-    />
-  );
+  return <CoverPicker api={api} canEdit={canEdit} onSettled={onSettled} />;
 }
