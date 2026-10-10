@@ -420,6 +420,50 @@ export async function openPlan(page: Page): Promise<void> {
 }
 
 /**
+ * **Open the Unscheduled drawer, if it is shut**, and return it. Idempotent,
+ * unlike a click on its toggle: `openNewParkedStop` leaves it open, and a
+ * second click would close it again.
+ */
+export async function openRack(page: Page): Promise<Locator> {
+  const rack = page.getByTestId("unscheduled-rack");
+  const toggle = rack.getByRole("button", { name: /^Unscheduled/ });
+  if ((await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  return rack;
+}
+
+/**
+ * **Open the editor for a new parked stop, the way a person does on desktop**:
+ * a double-click on the Unscheduled drawer's empty space (M41 D1). The header's
+ * *Add stop* went in M41, and this is the one seam the specs that used it go
+ * through, so the next move of that door is a one-line edit.
+ *
+ * Opens the drawer first if it is shut (collapsed means not rendered). The
+ * double-click lands in the card row's bottom padding, which no card covers,
+ * so it is the drawer's empty space whatever is parked. Leaves the drawer open.
+ */
+export async function openNewParkedStop(page: Page): Promise<void> {
+  const rack = await openRack(page);
+  const row = rack.getByTestId("rack-cards");
+  const box = (await row.boundingBox())!;
+  await row.dblclick({ position: { x: Math.min(40, box.width / 2), y: box.height - 4 } });
+  await expect(page.getByRole("heading", { name: "Add a stop" })).toBeVisible();
+}
+
+/**
+ * **Open the editor for a new stop on a day**: a double-click on that day's
+ * river (M29), the gesture that replaced the header's *Add stop* for a stop
+ * that belongs to a day (M41 D1). Near the river's foot, where a walk's stops
+ * seldom are; the caller fills in the Start it wants over the hour it gets.
+ */
+export async function openNewStopOnDay(page: Page, dayIndex = 0): Promise<void> {
+  const river = page.getByTestId("day-river").nth(dayIndex);
+  const box = (await river.boundingBox())!;
+  await river.dblclick({ position: { x: box.width - 20, y: box.height - 30 } });
+  await expect(page.getByRole("heading", { name: "Add a stop" })).toBeVisible();
+}
+
+/**
  * **Create an empty trip through the New-trip sheet, from the home page.**
  *
  * One seam, where there were fourteen. `getByRole("button", { name: "New trip" })`

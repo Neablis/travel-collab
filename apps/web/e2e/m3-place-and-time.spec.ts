@@ -1,5 +1,5 @@
 import { expect, test } from "./fixtures/test";
-import { dragCardTo, openHistory, openPlan, createEmptyTripViaWizard } from "./helpers";
+import { dragCardTo, openHistory, openPlan, createEmptyTripViaWizard, openNewParkedStop, openRack } from "./helpers";
 import { e2eTripName } from "./tripNames";
 
 test("place & time: dates, geocoded pin, shift/clear/undo", async ({ page }) => {
@@ -109,7 +109,7 @@ test("place & time: dates, geocoded pin, shift/clear/undo", async ({ page }) => 
   // "Add stop" (TripHeader) is the create-with-no-dayId trigger now that the
   // Backlog column's "+ Add activity" is gone; the stop lands in the
   // Unscheduled drawer, which is collapsed until opened.
-  await page.getByRole("button", { name: "Add stop" }).click();
+  await openNewParkedStop(page);
   await page.getByLabel("What or where").fill("Fushimi Inari");
   await page.getByLabel("Place name").fill("Kyoto");
   await page.getByRole("button", { name: "Search" }).click();
@@ -128,7 +128,7 @@ test("place & time: dates, geocoded pin, shift/clear/undo", async ({ page }) => 
   await page.getByRole("button", { name: "Add stop" }).last().click();
 
   const rack = page.getByTestId("unscheduled-rack");
-  await rack.getByRole("button", { name: /unscheduled/i }).click();
+  await openRack(page);
   const fushimi = rack.getByTestId("rack-card").filter({ hasText: "Fushimi Inari" });
   await expect(fushimi).toBeVisible();
 

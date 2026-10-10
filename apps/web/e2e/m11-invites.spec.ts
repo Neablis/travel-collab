@@ -272,9 +272,10 @@ test("an invited viewer can read the trip but is told, and shown, that it is rea
     await expect(carol.getByRole("button", { name: /^Remove Day / })).toHaveCount(0);
     await expect(carol.getByRole("button", { name: `Remove ${stopTitle}` })).toHaveCount(0);
     await expect(carol.getByRole("button", { name: "Share" })).toHaveCount(0);
-    // Counted, not `toBeDisabled()`, since KI-64: the header's "Add stop" is
-    // withheld from a viewer like every other write control around it.
-    await expect(carol.getByRole("button", { name: "Add stop" })).toHaveCount(0);
+    // Counted, not `toBeDisabled()`, since KI-64: the header's dates pill is
+    // withheld from a viewer like every other write control around it (it was
+    // "Add stop" until M41 took that off the header for everyone).
+    await expect(carol.getByRole("button", { name: /^Trip dates:/ })).toHaveCount(0);
 
     // The card carries no way into the stop editor at all. This asserted a
     // relabelled "View" button until 2026-08-29: this branch had kept the

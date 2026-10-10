@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { ActivityView } from "@tc/contracts";
 import { expect, test } from "./fixtures/test";
-import { forget, publishedDay, signInAsDevUser } from "./helpers";
+import { forget, publishedDay, signInAsDevUser, openNewParkedStop } from "./helpers";
 import { e2eTripName } from "./tripNames";
 
 // M34: the add-stop sheet lists what other travellers did in the trip's city,
@@ -51,7 +51,7 @@ test("adding a stop lists a published stop in the trip's city, and a pick fills 
     });
 
     await page.goto(`/trips/${tripId}?view=Plan`);
-    await page.getByRole("button", { name: "Add stop" }).click();
+    await openNewParkedStop(page);
 
     // Before typing: the newcomer's stop, saying which playbook it came from.
     const list = page.getByRole("list", { name: "Nearby stops from the library" });

@@ -168,8 +168,8 @@ export function ActivityEditorSheet() {
       dayId: day.dayId,
       label: dayLabel(activeTrip.startDate, index),
       // Other stops already on this day, excluding whichever activity is
-      // being edited — same existing:Slot[] shape TripBoardScreen's
-      // assignFromRack builds for fitIntoDay.
+      // being edited — the same existing:Slot[] shape
+      // `editActivityCommands` builds for fitIntoDay.
       existing: day.activityIds
         .filter((id) => id !== editingActivityId)
         .map((id) => activeTrip.activities[id]?.timeWindow)

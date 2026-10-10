@@ -334,6 +334,20 @@ describe("gestures on empty time", () => {
     });
   });
 
+  // M41 D5: the gestures above are invisible, so an empty day names them.
+  it("an empty day says how to fill it, and only while it is empty and editable", () => {
+    const { unmount } = renderRiver([], false, gestures());
+    expect(screen.getByTestId("empty-day-hint").textContent).toContain("Double-click or drag to add a stop");
+    unmount();
+
+    const withStop = renderRiver([morning], false, gestures());
+    expect(screen.queryByTestId("empty-day-hint")).toBeNull();
+    withStop.unmount();
+
+    renderRiver([], true);
+    expect(screen.queryByTestId("empty-day-hint")).toBeNull();
+  });
+
   it("a read-only river offers none of it: no grip, and a double-click does nothing", () => {
     const g = gestures();
     renderRiver([morning], true, g);

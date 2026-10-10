@@ -15,7 +15,7 @@ import { moveCommands } from "./moveCommands";
  * - **To Unscheduled, the time goes.** Parking strips the times
  *   (`unscheduleActivity`).
  * - **From the rack onto a day with no time given, it gets a fitted one**, as
- *   the rack's *Add to day…* did (`assignFromRack`), so the stop leaves the
+ *   the rack's *Add to day…* did before M41 removed it, so the stop leaves the
  *   rack rather than waiting under its new day.
  * - **Otherwise it keeps the form's time**, so a timed stop keeps its hours on
  *   its new day.

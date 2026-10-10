@@ -681,6 +681,16 @@ export function DayRiver({
           <div className="ml-9.5 border-t border-hairline" />
         </div>
       ))}
+      {/* **An empty day says how to fill it** (M41 D5): the river's gestures
+          are otherwise invisible. Text, not a control: it takes no pointer
+          events, so the double-click it describes lands on the river under
+          it. Worded by the pointer, since a finger adds with a hold. */}
+      {live && ordered.length === 0 && (
+        <p data-testid="empty-day-hint" className="pointer-events-none absolute inset-x-0 top-3 left-9.5 m-0 text-center text-xs text-slate">
+          <span className="hidden fine:inline">Double-click or drag to add a stop</span>
+          <span className="fine:hidden">Hold to add a stop</span>
+        </p>
+      )}
       {/* 38px in: the 32px gutter and the 6px between it and the rule, the
           design's own numbers. A list, because a day's stops are one. */}
       <ul ref={listRef} aria-label={`${title} timeline`} className="absolute inset-y-0 right-0 left-9.5 m-0 list-none p-0">
