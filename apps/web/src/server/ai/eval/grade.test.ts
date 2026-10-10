@@ -117,6 +117,17 @@ describe("the cases", () => {
     expect(split).not.toContain(japan.days[0]!.costSubtotal / japan.members.length);
   });
 
+  // The first eval on Claude (2026-10-10) failed two cases where the model was
+  // right and the expectation was not: the seeded trip's day 2 is in Tokyo, so
+  // a Gion walk there must NOT be drafted, and "plan me a six day trip to
+  // Kyoto" may ask before drafting on a trip that already has Kyoto days.
+  it("expects no Gion walk on a seeded day 2 that is not in Kyoto, and lets the six-day plan ask first", () => {
+    expect(expectationFor("c-add-evening", japan)!.proposes).toBe(false);
+    const plan = expectationFor("t-reads-and-says-nothing", japan)!;
+    expect(plan.proposes).toBeUndefined();
+    expect(plan.completes ?? true).toBe(true);
+  });
+
   it("has an expectation for every prompt in the live set", () => {
     const set = JSON.parse(readFileSync(join(import.meta.dirname, "live-set.json"), "utf8")) as { prompts: { id: string }[] };
     for (const prompt of set.prompts) expect(expectationFor(prompt.id, japan), prompt.id).toBeDefined();
