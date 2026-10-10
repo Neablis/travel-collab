@@ -727,7 +727,9 @@ export function DayRiver({
                 style={{ top: placement.topPx, height: placement.heightPx, ...laneStyle(placement) }}
               >
                 {suggestions.review(
-                  [ghost],
+                  // With any update shown on this move (W79), so it can be
+                  // decided where it is seen.
+                  [ghost, ...(ghost.layered ?? [])],
                   // A placeholder until it is accepted (W76): dashed, hatched,
                   // and saying "Suggested" in words, so it never reads as a
                   // planned stop by its colour alone. The pill goes under the

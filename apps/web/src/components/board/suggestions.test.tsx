@@ -144,6 +144,21 @@ describe("suggestions on the board", () => {
     expect(within(review).getByRole("button", { name: "Dismiss: Moved Colosseum tour to Day 2" })).toBeTruthy();
   });
 
+  // W79: a retime from the same suggestion is shown on the move, and decided there.
+  it("draws a moved stop at the time a later change from its suggestion gives it, and offers that change on it", async () => {
+    mount("owner", (tripId) => [
+      change(tripId, "Moved Colosseum tour to Day 2", [{ type: "MoveActivity", tripId, activityId: COLOSSEUM, toDayId: DAY_2, position: 0 }]),
+      change(tripId, "Changed the time of Colosseum tour", [
+        { type: "UpdateActivity", tripId, activityId: COLOSSEUM, timeWindow: { start: "16:00", end: "17:00" } },
+      ]),
+    ]);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Suggested: Moved Colosseum tour to Day 2" }));
+    const review = await screen.findByRole("list", { name: "Suggested changes" });
+    expect(within(review).getByRole("button", { name: "Accept: Changed the time of Colosseum tour" })).toBeTruthy();
+    expect(within(review).getByRole("button", { name: "Dismiss: Changed the time of Colosseum tour" })).toBeTruthy();
+  });
+
   it("shows a suggester Withdraw on their own change, and no Accept or Dismiss", async () => {
     sessionUserId = "dev-sam";
     const { seeded, resolved } = mount("suggester", (tripId) => [addGelato(tripId)]);

@@ -255,6 +255,46 @@ describe("a suggested new day", () => {
     // A move is also a marker where the stop is now (W47), as onto any day.
     expect(ghosts.board.stops.get(transfer)?.map((g) => g.changeId)).toEqual([changes[3]!.id]);
   });
+
+  // "The flight home isn't in the right place": change 5 retimes the flight
+  // and depends on nothing, so on its own it is predicted on the confirmed
+  // trip. Shown on the move from the same suggestion, it lands at its new time.
+  it("shows a later update from the same suggestion on the moved stop, and leaves no marker where it only moves away from", () => {
+    const trip = tripDetailFactory.build({}, { transient: { dayCount: 14, activitiesPerDay: 2 } });
+    const tripId = trip.tripId;
+    const flight = trip.days[13]!.activityIds[1]!;
+    const D = uuidFrom(8211, 7);
+    const addDay = change(trip, [{ type: "AddDay", tripId, dayId: D }]);
+    const move = change(trip, [{ type: "MoveActivity", tripId, activityId: flight, toDayId: D, position: 0 }], { dependsOn: [addDay.id] });
+    const retime = change(trip, [{ type: "UpdateActivity", tripId, activityId: flight, timeWindow: { start: "15:10", end: "16:00" } }]);
+
+    const ghosts = placeGhosts(trip, [addDay, move, retime]);
+
+    const landed = ghosts.board.days.get(D)?.find((g) => g.activityId === flight);
+    expect(landed?.activity?.timeWindow).toEqual({ start: "15:10", end: "16:00" });
+    // The retime is reviewed on the moved ghost, and listed by its day.
+    expect(landed?.layered?.map((g) => g.changeId)).toEqual([retime.id]);
+    expect(ghosts.board.stops.get(flight)?.map((g) => g.changeId)).toEqual([move.id]);
+    expect(ghosts.onBoard.find((g) => g.changeId === retime.id)?.dayId).toBe(D);
+    expect(ghosts.offBoard).toEqual([]);
+  });
+
+  it("layers it on a move onto a day already on the trip too, but not across suggestions", () => {
+    const trip = confirmedTrip();
+    const tripId = trip.tripId;
+    const [from, to] = trip.days;
+    const stop = from!.activityIds[0]!;
+    const move = change(trip, [{ type: "MoveActivity", tripId, activityId: stop, toDayId: to!.dayId, position: 0 }]);
+    const retime = change(trip, [{ type: "UpdateActivity", tripId, activityId: stop, timeWindow: { start: "06:00", end: "06:30" } }]);
+    const other = change(trip, [{ type: "UpdateActivity", tripId, activityId: stop, title: "Elsewhere" }], { suggestionId: uuidFrom(9998, 7) });
+
+    const ghosts = placeGhosts(trip, [move, retime, other]);
+
+    const landed = ghosts.board.days.get(to!.dayId)?.find((g) => g.activityId === stop);
+    expect(landed?.activity).toMatchObject({ timeWindow: { start: "06:00", end: "06:30" } });
+    expect(landed?.activity?.title).not.toBe("Elsewhere");
+    expect(ghosts.board.stops.get(stop)?.map((g) => g.changeId)).toEqual([move.id, other.id]);
+  });
 });
 
 // Review of #311, finding 3.7: each change used to be predicted from the
