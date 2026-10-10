@@ -175,7 +175,6 @@ export function widgetNameOf(node: PageNode): string | null {
   return typeof name === "string" ? name : null;
 }
 
-/** One turn's proposal collector. Never shared between turns. */
 /**
  * The trip's verdict on a batch of intents, in order: each that would be
  * dropped, by position. `droppedWrites` (writeTools.ts) is the real one; the
@@ -183,6 +182,10 @@ export function widgetNameOf(node: PageNode): string | null {
  */
 export type ProposalDryRun = (intents: RawToolIntent[]) => readonly { index: number; noOp: boolean; message: string }[];
 
+/**
+ * One turn's proposal collector. Never shared between turns. Given `dryRun`,
+ * `refusalOf` answers with the trip's refusal; without it, never refuses.
+ */
 export function newProposalBuffer(dryRun: ProposalDryRun | null = null): ProposalBuffer {
   const intents: RawToolIntent[] = [];
   const inserts: CollectedInsert[] = [];
