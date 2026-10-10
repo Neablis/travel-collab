@@ -1,22 +1,22 @@
 {
   "about": "The models production runs, per tier, so the eval measures what users get (M33). Model ids, never keys. Each entry says where it was read from; refresh by reading the ledger (`ai_usage_steps.tier, model` and `ai_usage.classifier_model` on the production branch). Production's Vercel env holds these encrypted, so they are copied from what production actually ran, not from the dashboard. A tier production has never run is taken from Mitchell, and says so; a null tier is refused, never guessed.",
-  "verified": "2026-10-05",
+  "verified": "2026-10-10",
   "tiers": {
     "cheap": {
-      "model": "zai/glm-5.3-flash",
-      "source": "Mitchell, 2026-10-05: AI_MODEL_CHEAP switched from zai/glm-4.7-flashx after the M33 eval (12 of 12, 1.9-4.1s)"
+      "model": "anthropic/claude-haiku-5.5",
+      "source": "Mitchell, 2026-10-10: set in Vercel env (Production/Preview), on our own Anthropic key (BYOK). The eval run that day was served by provider anthropic with Vercel's credit unmoved; not yet read back from production's ledger"
     },
     "mid": {
-      "model": "zai/glm-5.3-flash",
-      "source": "ai_usage_steps, production, last seen 2026-10-04T23:08Z"
+      "model": "anthropic/claude-sonnet-5.5",
+      "source": "Mitchell, 2026-10-10: set in Vercel env (Production/Preview), on our own Anthropic key (BYOK). The eval run that day was served by provider anthropic with Vercel's credit unmoved; not yet read back from production's ledger"
     },
     "strong": {
-      "model": "zai/glm-5.3",
-      "source": "Mitchell, 2026-10-05 (AI_MODEL_STRONG; never yet run in production)"
+      "model": "anthropic/claude-opus-5.5",
+      "source": "Mitchell, 2026-10-10: set in Vercel env (Production/Preview), on our own Anthropic key (BYOK). The eval run that day was served by provider anthropic with Vercel's credit unmoved; not yet read back from production's ledger"
     },
     "classifier": {
-      "model": "zai/glm-4.7-flash",
-      "source": "ai_usage.classifier_model, production, last seen 2026-10-04T23:08Z"
+      "model": "anthropic/claude-haiku-5.5",
+      "source": "Mitchell, 2026-10-10: set in Vercel env (Production/Preview), on our own Anthropic key (BYOK). The eval run that day was served by provider anthropic with Vercel's credit unmoved; not yet read back from production's ledger"
     }
   }
 }
