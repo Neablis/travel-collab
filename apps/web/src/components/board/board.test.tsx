@@ -704,3 +704,104 @@ describe("a read-only board", () => {
     expect(screen.getAllByRole("button", { name: /^Dismiss:/ }).length).toBeGreaterThan(0);
   });
 });
+
+// M41 D8. A paste lands as a jsdom `paste` event with clipboard text; the
+// parser itself is `pasteToStop.test.ts`, so these are about where the stop
+// opens and when the board leaves a paste alone.
+describe("pasting onto the plan", () => {
+  const paste = (target: Element, text: string) =>
+    fireEvent.paste(target, { clipboardData: { files: [], getData: (type: string) => (type === "text/plain" ? text : "") } });
+
+  it("opens the editor on the selected day, prefilled from the text", () => {
+    const { getEditorState } = renderBoard(fixture(), noopCallbacks(), 0);
+    paste(document.body, "Ramen at Ichiran\nCash only");
+    // After the day's last stop (noon), so it is drawn on the day and not in
+    // the rack, where an untimed stop goes.
+    expect(getEditorState()).toEqual({
+      mode: "create",
+      prefill: { dayId: DAY, title: "Ramen at Ichiran", notes: "Cash only", timeWindow: { start: "12:30", end: "13:30" } },
+    });
+  });
+
+  it("opens it on the day holding the keyboard focus when no day is selected", () => {
+    const { getEditorState } = renderBoard(fixture(), noopCallbacks(), null);
+    screen.getByRole("button", { name: /^Edit Colosseum/ }).focus();
+    paste(document.body, "Gelato");
+    expect(getEditorState()?.prefill).toMatchObject({ dayId: DAY, title: "Gelato" });
+  });
+
+  // jsdom has no pointer, so `:hover` never matches; the second day's column
+  // answers it as a column under the pointer would.
+  it("opens it on the day holding the keyboard focus, not the day under the pointer", () => {
+    const DAY2 = "55555555-5555-4555-8555-555555555555";
+    const trip = fixture();
+    const { getEditorState } = renderBoard(
+      { ...trip, days: [...trip.days, { dayId: DAY2, activityIds: [], date: null, costSubtotal: 0 }] },
+      noopCallbacks(),
+      null,
+    );
+    const hovered = screen.getAllByTestId("day-column").find((el) => el.getAttribute("data-day-id") === DAY2);
+    if (hovered === undefined) throw new Error("no column for the second day");
+    const matches = hovered.matches.bind(hovered);
+    vi.spyOn(hovered, "matches").mockImplementation((selector) => selector === ":hover" || matches(selector));
+    screen.getByRole("button", { name: /^Edit Colosseum/ }).focus();
+    paste(document.body, "Gelato");
+    expect(getEditorState()?.prefill).toMatchObject({ dayId: DAY, title: "Gelato" });
+  });
+
+  it("parks the stop when no day is selected or focused", () => {
+    const { getEditorState } = renderBoard(fixture(), noopCallbacks(), null);
+    paste(document.body, "Gelato");
+    expect(getEditorState()).toEqual({ mode: "create", prefill: { title: "Gelato" } });
+  });
+
+  it("leaves a paste into a text field to the field", () => {
+    const { getEditorState } = renderBoard(fixture(), noopCallbacks(), 0);
+    const field = document.createElement("input");
+    document.body.append(field);
+    paste(field, "Gelato");
+    field.remove();
+    expect(getEditorState()?.mode).toBeNull();
+  });
+
+  it("does nothing on a read-only board", () => {
+    const { getEditorState } = renderBoard(fixture(), noopCallbacks(), 0, true);
+    paste(document.body, "Gelato");
+    expect(getEditorState()?.mode).toBeNull();
+  });
+
+  // The editor and every other sheet is a dialog with its own fields; a paste
+  // anywhere in one belongs to it.
+  it("leaves a paste inside a dialog to the dialog", () => {
+    const { getEditorState } = renderBoard(fixture(), noopCallbacks(), 0);
+    const dialog = document.createElement("div");
+    dialog.setAttribute("role", "dialog");
+    const inside = document.createElement("p");
+    dialog.append(inside);
+    document.body.append(dialog);
+    paste(inside, "Gelato");
+    dialog.remove();
+    expect(getEditorState()?.mode).toBeNull();
+  });
+
+  it("leaves a paste into an editable element to the element", () => {
+    const { getEditorState } = renderBoard(fixture(), noopCallbacks(), 0);
+    const editable = document.createElement("div");
+    editable.setAttribute("contenteditable", "true");
+    document.body.append(editable);
+    paste(editable, "Gelato");
+    editable.remove();
+    expect(getEditorState()?.mode).toBeNull();
+  });
+
+  // macOS Finder puts a copied file's name in text/plain beside the file, so
+  // without this a copied photo opens an editor titled "IMG_1234.jpg".
+  it("does not make a stop of a copied file's name", () => {
+    const { getEditorState } = renderBoard(fixture(), noopCallbacks(), 0);
+    const file = new File(["x"], "IMG_1234.jpg", { type: "image/jpeg" });
+    fireEvent.paste(document.body, {
+      clipboardData: { files: [file], getData: (type: string) => (type === "text/plain" ? "IMG_1234.jpg" : "") },
+    });
+    expect(getEditorState()?.mode).toBeNull();
+  });
+});

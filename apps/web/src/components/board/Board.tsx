@@ -31,6 +31,8 @@ import { ConflictBanner } from "./ConflictBanner";
 import { type AnyTimeOutcome, type PlaceOutcome, resolveDrop } from "./resolveDrop";
 import { type CopyDestination, resolveCopy } from "./copyActivity";
 import { riverAxis } from "./riverLayout";
+import { pasteToStop } from "@/lib/pasteToStop";
+import { fitIntoDay } from "@/components/trip/fitIntoDay";
 
 // Phase 6, Step 3 item 5: the trailing "One more day?" column, which replaces
 // the loose "+ Add day" button that used to trail the row. Shaped like a day
@@ -177,6 +179,7 @@ export type BoardCallbacks = {
  * @param focusedTag - Tag used to focus matching activities
  * @param onToggleTag - Handler for toggling tag focus
  * @param readOnly - Whether to hide controls that modify the trip
+ * @param previewing - Whether a past version is previewed (a paste then adds nothing)
  * @param sync - Optional handle for synchronizing scrolling with day selection
  * @param keepFlag - Optional "keep this day" pennant, rendered in each day's header
  * @param addSavedDay - Optional control for inserting a saved day, after the last column
@@ -191,6 +194,7 @@ export function Board({
   onToggleTag,
   readOnly = false,
   suggesting = false,
+  previewing = false,
   sync,
   addSavedDay,
   oneDay = false,
@@ -261,6 +265,14 @@ export function Board({
    * `readOnly`.
    */
   suggesting?: boolean;
+  /**
+   * A past version is on screen (History's preview). The host makes the board
+   * `inert`, which stops every pointer and keyboard path but not the document
+   * `paste` listener below, so that one listener stands down on this. Not
+   * `readOnly`: the preview should look like the board it was, controls and
+   * all.
+   */
+  previewing?: boolean;
   /** Index of the focused day, or null. Owned by TripBoardScreen's useFocus,
       the same value the day chips read — passed in rather than read from
       context here so Board stays renderable on its own in tests. */
@@ -716,6 +728,58 @@ export function Board({
   // `place` outcome. "Now ends at …" is the design's own flash for a resize.
   const clock = useTimeFormat();
   const [notice, setNotice] = useState<string | null>(null);
+
+  // **A paste or a drop of a link or a line of text makes a stop** (M41 D8).
+  // Both come here, so both open the same editor the same way: prefilled by
+  // `pasteToStop`, on the day it landed on, reviewed before anything is sent.
+  //
+  // **On a day, it gets a time**, fitted after the day's last stop as the
+  // rack's *Add to day…* fitted one: an untimed stop is drawn in the rack and
+  // not on its day, so a paste onto Day 2 would seem to land nowhere.
+  const addFromText = useCallback(
+    (text: string, dayId?: string) => {
+      const prefill = pasteToStop(text);
+      if (prefill === null) return;
+      const day = dayId === undefined ? undefined : latest.current.trip.days.find((d) => d.dayId === dayId);
+      if (day === undefined) return openCreate(prefill);
+      const windows = day.activityIds.flatMap((id) => {
+        const window = latest.current.trip.activities[id]?.timeWindow;
+        return window ? [window] : [];
+      });
+      openCreate({ ...prefill, dayId: day.dayId, timeWindow: fitIntoDay(windows) });
+    },
+    [openCreate],
+  );
+
+  // ⌘V anywhere on Plan that is not a text field. The day is the column that
+  // holds the keyboard focus, then the column the pointer is over, then the
+  // selected day; with none of those, the stop is parked, as the drawer's
+  // double-click parks one. Focus comes before the pointer because a keyboard
+  // user put it there on purpose, and the pointer may only be resting where
+  // it was last left. The editor is a dialog with its own fields, so a paste
+  // inside it is never this.
+  useEffect(() => {
+    if (readOnly || previewing) return;
+    const onPaste = (event: ClipboardEvent) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (target?.closest("input, textarea, select, [contenteditable]:not([contenteditable='false']), [role='dialog']")) return;
+      // A copied file: Finder puts its name in text/plain beside it, and a
+      // photo's filename is not a stop.
+      if ((event.clipboardData?.files.length ?? 0) > 0) return;
+      const text = event.clipboardData?.getData("text/plain") ?? "";
+      if (text.trim() === "") return;
+      const days = latest.current.trip.days;
+      const columns = columnRefs.current.slice(0, days.length);
+      let index = columns.findIndex((el) => el?.contains(document.activeElement) === true);
+      if (index < 0) index = columns.findIndex((el) => el?.matches(":hover") === true);
+      const day = index >= 0 ? days[index] : focusedDay === null ? undefined : days[focusedDay];
+      event.preventDefault();
+      addFromText(text, day?.dayId);
+    };
+    document.addEventListener("paste", onPaste);
+    return () => document.removeEventListener("paste", onPaste);
+  }, [readOnly, previewing, addFromText, focusedDay]);
+
   const gesturesFor = (dayId: string): RiverGestures | undefined =>
     readOnly
       ? undefined
@@ -735,6 +799,7 @@ export function Board({
             if (outcome?.kind === "place") latest.current.callbacks.onPlace(outcome);
           },
           onUnschedule: (activityId) => latest.current.callbacks.onUnschedule(activityId),
+          onAddFromText: (text) => addFromText(text, dayId),
         };
 
   return (

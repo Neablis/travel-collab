@@ -328,6 +328,24 @@ describe("TripBoardScreen", () => {
     await waitFor(() => expect(screen.queryByText(/Viewing version/)).toBeNull());
   });
 
+  // M41 D8, review of PR 397: ⌘V is a document listener, and `inert` stops
+  // pointer and focus but not a document's own events. So the preview has to
+  // tell the board, or a paste opens a live editor over a past version and
+  // its "Add stop" sends a real AddActivity.
+  it("a paste while previewing a past version opens no editor", async () => {
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture, { history: historyFixture(fixture.tripId), detailAt: { 2: tripDetailFixture() } }));
+    renderScreen(fixture.tripId);
+
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "History" }));
+    fireEvent.click(await screen.findByRole("button", { name: /Undid: Added "Colosseum" to the backlog/ }));
+    await screen.findByText("Viewing version 2 (read-only)");
+
+    fireEvent.paste(document.body, { clipboardData: { files: [], getData: (type: string) => (type === "text/plain" ? "Gelato" : "") } });
+    expect(screen.queryByRole("heading", { name: "Add a stop" })).toBeNull();
+  });
+
   it("switches between Overview, Plan, Calendar and Map", async () => {
     // SPEC §24: four peer views, and Timeline is deleted rather than hidden.
     // Each click below asserts the view actually MOUNTED, by something only it

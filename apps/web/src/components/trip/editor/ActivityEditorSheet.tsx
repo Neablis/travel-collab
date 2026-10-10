@@ -78,10 +78,10 @@ export function ActivityEditorSheet() {
     state.mode === "create" && state.prefill !== undefined
       ? {
           activityId: "",
-          title: "",
+          title: state.prefill.title ?? "",
           timeWindow: state.prefill.timeWindow ?? null,
           location: state.prefill.location ?? null,
-          notes: null,
+          notes: state.prefill.notes ?? null,
           anchors: [],
           kind: "pending" as const,
           tags: [],

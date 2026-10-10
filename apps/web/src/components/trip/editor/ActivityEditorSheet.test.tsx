@@ -173,6 +173,15 @@ describe("ActivityEditorSheet", () => {
     expect(screen.getByRole("heading", { name: "Add a stop" })).toBeTruthy();
   });
 
+  // M41 D8: a paste or a drop opens the editor with its title and notes in
+  // the fields, for the person to review before anything is sent.
+  it("fills the title and notes a paste prefilled", async () => {
+    renderEditorSheet({ mode: "create", prefill: { dayId: DAY_1, title: "Ramen at Ichiran", notes: "Cash only" } });
+    expect(((await screen.findByLabelText("What or where")) as HTMLInputElement).value).toBe("Ramen at Ichiran");
+    expect((screen.getByLabelText("Notes") as HTMLTextAreaElement).value).toBe("Cash only");
+    expect(sendTripUnitsMock).not.toHaveBeenCalled();
+  });
+
   it("offers day, start and duration rather than two raw times", () => {
     renderEditorSheet({ mode: "create" });
 
