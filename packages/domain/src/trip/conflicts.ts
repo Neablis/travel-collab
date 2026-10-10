@@ -88,13 +88,19 @@ export function haversineKm(
 
 type Rule = (state: TripState, ctx: ConflictContext) => Conflict[];
 
+// A pending stop (`kind: "pending"` — a Maybe, or one still To book, ADR-055)
+// takes no part in an overlap: it is not a commitment yet, so another stop on
+// top of it is not a clash. Mitchell, 2026-10-10 (feedback #8): "Pending events
+// shouldn't be an overlap till they are no longer pending." Confirming the stop
+// brings the conflict back under the same id; a dismissal made before it went
+// pending lapses like any other undetected conflict's (KI-14), so it shows again.
 const timeOverlapRule: Rule = (state, _ctx) => {
   const conflicts: Conflict[] = [];
   for (const day of state.days) {
     const timed: { id: string; title: string; window: TimeWindow }[] = [];
     for (const id of day.activityIds) {
       const activity = state.activities[id];
-      if (activity && activity.timeWindow !== null) {
+      if (activity && activity.timeWindow !== null && activity.kind !== "pending") {
         timed.push({ id, title: activity.title, window: activity.timeWindow });
       }
     }
