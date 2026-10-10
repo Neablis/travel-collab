@@ -218,6 +218,43 @@ export function PageEditor({ detail, context, user = null, globals = null, value
     setNeedsKey(needsKeyOf(value));
   }, [editor, editable, value]);
 
+  /**
+   * **Out of layout until TipTap has drawn its widgets — the Overview's and
+   * every notebook page's layout shift.** A layout-shift probe on `/demo`
+   * (CLS 0.247 at ~1.9s), the Overview lens and notebook pages all named the
+   * same nodes: the letter's bare `p`s and `h2`s, moving as a widget's
+   * paragraph went from nothing to its full height (49px → 557px).
+   *
+   * The cause is in `@tiptap/react` 2.x, not in our widgets. A node view
+   * created before the editor's `create` event — which `Editor` emits from a
+   * `setTimeout(0)` after building the view — renders its React component from
+   * a `queueMicrotask`, as a state update to `EditorContent`'s portals, so it
+   * commits in a LATER React render than the ProseMirror DOM it lives in
+   * (`ReactRenderer`'s constructor; only node views made after `create` take
+   * its `flushSync` path). For at least one painted frame every widget's span
+   * is empty — a paragraph holding only a widget is 0px tall — and when they
+   * fill in, every block below them moves.
+   *
+   * So the content is `display: none` until `create` has fired: by then the
+   * portal updates are queued ahead of this one and commit with it, and the
+   * document appears whole, in one frame, rather than assembling itself on
+   * screen. The caller's own skeleton (OverviewLens, PageScreen) has already
+   * gone, so this is one blank frame where there were several moving ones.
+   */
+  const [created, setCreated] = useState(false);
+  useEffect(() => {
+    if (editor === null) return;
+    if (editor.isInitialized) {
+      setCreated(true);
+      return;
+    }
+    const onCreate = () => setCreated(true);
+    editor.on("create", onCreate);
+    return () => {
+      editor.off("create", onCreate);
+    };
+  }, [editor]);
+
   // Hand the editor up once it exists. `useEditor` returns null on the first
   // render (`immediatelyRender: false`), so this fires twice: null, then the
   // real editor.
@@ -268,7 +305,7 @@ export function PageEditor({ detail, context, user = null, globals = null, value
     <MacroEditorContext.Provider
       value={{ detail, context, user, globals, external, editing: editable, compact, onBindDay, onWidgetSelected }}
     >
-      <EditorContent editor={editor} className="tc-page-editor" />
+      <EditorContent editor={editor} className={created ? "tc-page-editor" : "tc-page-editor hidden"} />
       <SlashMenu state={slash.state} onPick={slash.onPick} />
     </MacroEditorContext.Provider>
   );

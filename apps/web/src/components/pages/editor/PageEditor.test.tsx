@@ -51,6 +51,36 @@ describe("PageEditor", () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
+  // The Overview's and every notebook's layout shift (CLS 0.247 on /demo):
+  // TipTap 2 draws a node view created before its `create` event in a LATER
+  // render than the paragraph it sits in, so the document was on screen with
+  // its widgets empty and then grew. Every moment the document is displayed,
+  // its widgets must already be drawn.
+  it("is never displayed with a widget not yet drawn", async () => {
+    const value = newPageDoc([
+      { type: "paragraph", content: [{ type: "text", text: "Before" }] },
+      { type: "paragraph", content: [{ type: "macro", attrs: { name: "dates", params: {} } }] },
+      { type: "paragraph", content: [{ type: "text", text: "After" }] },
+    ]);
+    const shownEmpty: string[] = [];
+    const check = () => {
+      const content = document.querySelector(".tc-page-editor");
+      if (content === null || content.classList.contains("hidden")) return;
+      for (const widget of content.querySelectorAll(".react-renderer")) {
+        if (widget.childElementCount === 0) shownEmpty.push(widget.outerHTML);
+      }
+    };
+    const observer = new MutationObserver(check);
+    observer.observe(document.body, { subtree: true, childList: true, attributes: true });
+    try {
+      render(<PageEditor detail={detail} context={context} value={value} onChange={() => {}} editable={false} />);
+      await waitFor(() => expect(document.querySelector(".tc-page-editor:not(.hidden) .react-renderer *")).not.toBeNull());
+    } finally {
+      observer.disconnect();
+    }
+    expect(shownEmpty).toEqual([]);
+  });
+
   it("offers no macro autocomplete", async () => {
     render(
       <PageEditor
