@@ -440,6 +440,42 @@ the adapter is ever asked. On Vercel this variable must stay unset so the
 `ai-live` flag remains the sole source of truth — setting it there would
 make the dashboard and Toolbar controls silently inert.
 
+## Which models the assistant runs, and paying for them on our own key
+
+The assistant's models are four environment variables, set per Vercel
+environment (Production and Preview): `AI_MODEL_CHEAP`, `AI_MODEL_MID`,
+`AI_MODEL_STRONG` and `AI_CLASSIFIER_MODEL` (`apps/web/src/server/config.ts`).
+Each holds an AI Gateway model id. Changing one is a redeploy, not a code
+change — but **every id must have a rate in
+`apps/web/src/server/entitlements/modelRates.ts` first**, or every turn on it is
+an unpriced row in the cost console.
+
+**Decided 2026-10-10: the Anthropic tiers, on our own Anthropic key (BYOK).**
+
+| Variable | Model id |
+|---|---|
+| `AI_CLASSIFIER_MODEL` | `anthropic/claude-haiku-5.5` |
+| `AI_MODEL_CHEAP` | `anthropic/claude-haiku-5.5` |
+| `AI_MODEL_MID` | `anthropic/claude-sonnet-5.5` |
+| `AI_MODEL_STRONG` | `anthropic/claude-opus-5.5` |
+
+Gateway ids use dots (`claude-sonnet-5.5`), not the Anthropic API's dashes.
+The switch, in order:
+
+1. **Anthropic Console** — create an API key in its own workspace, and set that
+   workspace's monthly spend limit to the credit it is spending ($100), so
+   usage stops at the credit instead of charging a card.
+2. **Vercel → AI Gateway → Bring Your Own Key** — add Anthropic and paste the
+   key. It applies to every Gateway request from the team; no code reads it.
+3. **Vercel → AI Gateway budget** — set one. When a BYOK request fails (a bad
+   key, an exhausted Anthropic workspace) the Gateway **retries on Vercel's own
+   credentials**, so without a budget an empty Anthropic credit silently
+   becomes a Vercel bill.
+4. **Set the four variables** above for Production and Preview, and redeploy.
+5. **Update `apps/web/src/server/ai/eval/models.json`** to the new ids, then run
+   the eval once (`EVAL_CONFIRM=1 pnpm --filter web eval`, M33) to check
+   quality and cost on the new models.
+
 ## Debug-only routes
 
 `POST /api/dev/reset-demo-data` (`apps/web/src/app/api/dev/reset-demo-data/route.ts`)
