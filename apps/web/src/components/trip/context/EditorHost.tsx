@@ -38,19 +38,31 @@ export function EditorHost({ children }: { children: React.ReactNode }) {
   // not re-run just because editor state changed — otherwise the map is torn
   // down and rebuilt on every open (#24/#25).
   const returnFocus = useRef<HTMLElement | null>(null);
+  // Whether the editor is open, read by `remember` without making the actions
+  // depend on `state`.
+  const isOpen = useRef(false);
+  // Only from outside the editor (PR 398 review): reopened from within it (⌘K
+  // over the open sheet), focus is on the sheet's own field, which is gone by
+  // the time the sheet closes, and the control that first opened it is kept.
   const remember = () => {
+    if (isOpen.current) return;
     const at = document.activeElement;
     returnFocus.current = at instanceof HTMLElement && at !== document.body ? at : null;
   };
   const openCreate = useCallback((prefill?: ActivityPrefill) => {
     remember();
+    isOpen.current = true;
     setState({ mode: "create", prefill });
   }, []);
   const openEdit = useCallback((activityId: string) => {
     remember();
+    isOpen.current = true;
     setState({ mode: "edit", activityId });
   }, []);
-  const close = useCallback(() => setState({ mode: null }), []);
+  const close = useCallback(() => {
+    isOpen.current = false;
+    setState({ mode: null });
+  }, []);
   const api = useMemo<EditorCtx>(
     () => ({ state, openCreate, openEdit, close, returnFocus }),
     [state, openCreate, openEdit, close],

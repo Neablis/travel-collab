@@ -113,7 +113,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   const refreshSuggestions = useRef(tripSuggestions?.refresh);
   refreshSuggestions.current = tripSuggestions?.refresh;
   const { view, setView } = useLens();
-  const { openCreate, openEdit } = useEditor();
+  const { openCreate, openEdit, state: editor } = useEditor();
   const suggestions = useBoardSuggestions();
   // Task 4's FocusProvider is mounted around this whole tree (trips/[tripId]/
   // page.tsx), so this hook must run unconditionally before the early
@@ -172,13 +172,21 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     const commands = moveCommands(activeTrip, from.activityIds, toDayId);
     if (commands.length > 0) void dispatchBatch(commands);
   };
-  const dayToMove = canEditBoard && focusedDay !== null ? activeTrip?.days[focusedDay] : undefined;
+  // **Nothing that changes the trip while a past version is on screen** (PR 398
+  // review). The board and rack are `inert` then, which is the only thing
+  // standing between a click and a real command built from the preview's
+  // state (`dispatch` has no preview guard: see the rack's wrapper below), and
+  // ⌘K runs these without a click. The lenses stay: switching is reading.
+  const canChangeTrip = canEditBoard && preview.seq === null;
+  const dayToMove = canChangeTrip && focusedDay !== null ? activeTrip?.days[focusedDay] : undefined;
   usePaletteSource(
     "trip-board",
     boardRenders && activeTrip !== null
       ? [
           ...lensCommands(setView),
-          ...(canEditBoard ? [newStopCommand(() => openCreate(newStopPrefill(activeTrip, focusedDayId)))] : []),
+          // Not over an open editor (PR 398 review): a create sheet keeps its
+          // draft, so a second *New stop* would drop its prefill.
+          ...(canChangeTrip && editor.mode === null ? [newStopCommand(() => openCreate(newStopPrefill(activeTrip, focusedDayId)))] : []),
           ...(dayToMove !== undefined && dayToMove.activityIds.length > 0
             ? moveStopsCommands(
                 { id: `day:${dayToMove.dayId}`, name: `Day ${activeTrip.days.indexOf(dayToMove) + 1}'s stops` },
@@ -1334,7 +1342,9 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
                   />
                 )}
                 {view === "Calendar" && (
-                  <CalendarLens detail={activeTrip} onSelectActivity={canEditBoard ? openEdit : undefined} onDrop={canEditBoard ? calendarDrop : undefined} />
+                  // No drop while previewing: the lens offers its moves to ⌘K too,
+                  // which `inert` does not reach (PR 398 review).
+                  <CalendarLens detail={activeTrip} onSelectActivity={canEditBoard ? openEdit : undefined} onDrop={canChangeTrip ? calendarDrop : undefined} />
                 )}
               </PageContainer>
             )}

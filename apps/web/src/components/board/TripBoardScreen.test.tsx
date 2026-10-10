@@ -2658,6 +2658,7 @@ describe("⌘K runs the trip page's own actions", () => {
         act(() => command.run());
       },
       openAssistant: () => act(() => ask?.onOpen()),
+      ids: () => commands.map((c) => c.id),
     };
   }
 
@@ -2756,5 +2757,50 @@ describe("⌘K runs the trip page's own actions", () => {
     run(`move:day:${fixture.days[0]!.dayId}:${day2}`);
     await waitFor(() => expect(batches).toEqual([moveCommands(fixture, fixture.days[0]!.activityIds, day2)]));
     expect(batches[0]).toHaveLength(2);
+  });
+
+  // PR 398 review: while a past version is previewed, `inert` on the board is
+  // the only guard against a real command built from the preview's state, and
+  // ⌘K needs no click. New stop and both kinds of move go; lenses stay.
+  it("offers nothing that changes the trip while a past version is previewed", async () => {
+    const costed = costedTripDetailFixture();
+    const day2 = "9f1c2b7e-5d3a-4c8b-9e2f-7a6d4b1c8e35";
+    const fixture = { ...costed, days: [...costed.days, { dayId: day2, activityIds: [], date: "2027-06-02", costSubtotal: 0 }] };
+    server.use(...makeTripHandlers(fixture, { history: historyFixture(fixture.tripId), detailAt: { 2: fixture } }));
+    const { ids } = renderWithPalette(fixture.tripId);
+    await screen.findByRole("heading", { name: "Rome 2027" });
+    const column = screen.getAllByTestId("day-column")[0]!;
+    await userEvent.click(within(column).getByRole("button", { name: /^Day 1/ }));
+    expect(ids()).toContain("new-stop");
+    expect(ids()).toContain(`move:day:${fixture.days[0]!.dayId}:${day2}`);
+
+    fireEvent.click(screen.getByRole("button", { name: "History" }));
+    fireEvent.click(await screen.findByRole("button", { name: /Undid: Added "Colosseum" to the backlog/ }));
+    await screen.findByText("Viewing version 2 (read-only)");
+    expect(ids()).toContain("view:Calendar");
+    expect(ids().filter((id) => id === "new-stop" || id.startsWith("move:"))).toEqual([]);
+
+    // Calendar's city-card moves, for a cell focus is in (jsdom does not keep
+    // focus out of an `inert` subtree, which is the point: ⌘K would not either).
+    act(() => navigateToView("Calendar"));
+    const cell = (await screen.findAllByTestId("calendar-cell")).find((el) => el.dataset.dayIndex === "0")!;
+    act(() => cell.focus());
+    expect(ids().filter((id) => id.startsWith("move:"))).toEqual([]);
+  });
+
+  // PR 398 review: a create sheet keeps its draft, so New stop over an open
+  // editor would drop its prefill (and focus would go back into the sheet).
+  it("offers no New stop while the editor is open", async () => {
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    const { run, ids } = renderWithPalette(fixture.tripId);
+    await screen.findByRole("heading", { name: "Rome 2027" });
+
+    run("new-stop");
+    await screen.findByRole("dialog", { name: "Add a stop" });
+    expect(ids()).not.toContain("new-stop");
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Add a stop" })).toBeNull());
+    expect(ids()).toContain("new-stop");
   });
 });
