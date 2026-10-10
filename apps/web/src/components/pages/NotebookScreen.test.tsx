@@ -195,7 +195,7 @@ describe("NotebookScreen", () => {
     render(<NotebookScreen tripId={TRIP_ID} />);
     await screen.findByRole("region", { name: "Your notebooks" });
 
-    const inOrder = screen.getAllByRole("heading", { level: 3 }).map((heading) => heading.textContent);
+    const inOrder = screen.getAllByRole("heading", { level: 2 }).map((heading) => heading.textContent);
     expect(inOrder).toEqual(["Your notebooks", "Start from a template"]);
   });
 
@@ -782,10 +782,13 @@ describe("NotebookScreen — the states between asked and answered", () => {
 
     expect(await screen.findByRole("status", { name: "Loading your notebooks" })).toBeTruthy();
     // Rule 1: the chrome is real from the first frame.
-    expect(screen.getByRole("heading", { name: "Notebooks", level: 2 })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Notebooks", level: 1 })).toBeTruthy();
     expect(screen.getByRole("link", { name: /Your trips/ })).toBeTruthy();
     // And the one thing this page can still DO without its list.
     expect(screen.getByRole("region", { name: "Start from a template" })).toBeTruthy();
+    // The sections sit one level under the page's h1 (axe heading-order).
+    expect(screen.getByRole("heading", { name: "Your notebooks", level: 2 })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Start from a template", level: 2 })).toBeTruthy();
   });
 
   it("puts a failed list's retry in place, and the templates still work", async () => {
@@ -806,7 +809,7 @@ describe("NotebookScreen — the states between asked and answered", () => {
     // The templates gallery is a module constant, so it survives a failed read
     // — which is the whole reason it sits outside the branch.
     expect(within(screen.getByRole("region", { name: "Start from a template" })).getByText("Blank notebook")).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Notebooks", level: 2 })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Notebooks", level: 1 })).toBeTruthy();
 
     await userEvent.click(within(failed).getByRole("button", { name: "Try again" }));
 

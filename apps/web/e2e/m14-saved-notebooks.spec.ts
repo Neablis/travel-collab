@@ -25,7 +25,7 @@ async function newTrip(page: Page, label: string): Promise<string> {
 async function openNotebookIndex(page: Page): Promise<void> {
   await page.getByRole("button", { name: "Notebooks" }).click();
   await page.getByRole("link", { name: /Browse all notebooks/ }).click();
-  await expect(page.getByRole("heading", { name: "Notebooks", exact: true, level: 2 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Notebooks", exact: true, level: 1 })).toBeVisible();
 }
 
 test("a notebook saved as a template in one trip starts a notebook in another", async ({ page }) => {

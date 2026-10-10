@@ -514,7 +514,9 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
           </Link>
           {phoneAsk !== null && <AskPill open={assistantOpen} onOpen={() => setAssistantOpen(true)} />}
         </div>
-        <Heading level={2}>Notebooks</Heading>
+        {/* The page's h1 (axe page-has-heading-one: this route had none), at the
+            h2's size it always had; its two sections below are h2 at the h3 size. */}
+        <Heading level={1} className="text-xl">Notebooks</Heading>
         {/* SPEC §23's meta line: *"'Notebook' at title scale with the trip name
             as its meta line, matching Plan's rhythm. That is where the trip
             name lives now."* It is not decoration — with the tab bar scoped
@@ -526,7 +528,7 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
             "Notebook" singular. Deliberate: §23 is describing the tab's name,
             and the plural is what this list has been called since §7 — three
             e2e specs name it exactly (`m7-solo-delight`, `m14-notebook-widgets`
-            both assert `heading name "Notebooks" exact level 2`). Renaming a
+            both assert `heading name "Notebooks" exact level 1`). Renaming a
             heading the design did not ask to rename, to a word that also has to
             be right in the tab bar, is a change to make in the design's own
             terms rather than as a side effect of adding a meta line. */}
@@ -584,7 +586,7 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
           reopen it — §3b asks for regions that can fail independently, and
           these two cannot. */}
       <section aria-labelledby="your-notebooks" className="mb-8">
-        <Heading level={3} id="your-notebooks">
+        <Heading level={2} id="your-notebooks" className="text-lg">
           Your notebooks
         </Heading>
         {status === "loading" ? (
@@ -755,7 +757,7 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
             is left to the ones worth comparing. Same `BLANK_STARTER`, same
             `handleCreate`, same accessible name the e2e suite clicks. */}
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <Heading level={3} id="start-from-a-template">
+          <Heading level={2} id="start-from-a-template" className="text-lg">
             Start from a template
           </Heading>
           <Button

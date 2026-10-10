@@ -59,7 +59,7 @@ async function waitForConfirmedCommand(page: Page, action: () => Promise<void>):
 // this route now has an h2 "Notebooks" AND an h3 "Your notebooks", so a bare
 // { name: "Notebook" } matches two headings and trips strict mode.
 async function expectNotebookIndex(page: Page): Promise<void> {
-  await expect(page.getByRole("heading", { name: "Notebooks", exact: true, level: 2 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Notebooks", exact: true, level: 1 })).toBeVisible();
 }
 
 // The way into the Notebook index since SPEC §11: the Notebooks pill at the far
