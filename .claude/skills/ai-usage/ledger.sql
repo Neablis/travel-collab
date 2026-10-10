@@ -190,3 +190,24 @@ CROSS JOIN window_ w
 WHERE s.created_at >= w.since AND s.provider IS NOT NULL
 GROUP BY s.model, s.provider
 ORDER BY steps DESC;
+
+-- 10. The classifier's verdicts, per day: how many turns it refused as
+--     off-topic, and how sure it was across all of them (migration 0047,
+--     2026-10-10). A refused turn has `task_class = 'off_topic'` and zero
+--     steps. `unsure` is a turn the classifier could not decide — the gate's
+--     near-misses are among those — and `failed` is a classifier that failed
+--     open. Rows before 0047 have no certainty and count under `unrecorded`.
+WITH window_ AS (SELECT now() - interval '30 days' AS since)
+SELECT date_trunc('day', u.created_at) AS day,
+       count(*) AS turns,
+       count(*) FILTER (WHERE u.task_class = 'off_topic') AS off_topic,
+       round(count(*) FILTER (WHERE u.task_class = 'off_topic')::numeric / nullif(count(*), 0), 3) AS off_topic_rate,
+       count(*) FILTER (WHERE u.classifier_certainty = 'sure') AS sure,
+       count(*) FILTER (WHERE u.classifier_certainty = 'unsure') AS unsure,
+       count(*) FILTER (WHERE u.classifier_certainty = 'failed') AS failed,
+       count(*) FILTER (WHERE u.classifier_certainty IS NULL) AS unrecorded
+FROM ai_usage u
+CROSS JOIN window_ w
+WHERE u.created_at >= w.since AND u.endpoint = 'ask' AND u.turn_model NOT LIKE 'simulated/%'
+GROUP BY 1
+ORDER BY 1;

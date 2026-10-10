@@ -7,9 +7,9 @@
         "read_day"
       ],
       "toolChars": 2098,
-      "instructionChars": 1740,
-      "totalChars": 3838,
-      "approxTokens": 1160
+      "instructionChars": 2027,
+      "totalChars": 4125,
+      "approxTokens": 1246
     },
     "trip · question": {
       "tools": [
@@ -22,9 +22,9 @@
         "request_change_tools"
       ],
       "toolChars": 6870,
-      "instructionChars": 2337,
-      "totalChars": 9207,
-      "approxTokens": 2782
+      "instructionChars": 2624,
+      "totalChars": 9494,
+      "approxTokens": 2868
     },
     "trip · edit": {
       "tools": [
@@ -49,9 +49,9 @@
         "insert_playbook_day"
       ],
       "toolChars": 21842,
-      "instructionChars": 3851,
-      "totalChars": 25693,
-      "approxTokens": 7762
+      "instructionChars": 4138,
+      "totalChars": 25980,
+      "approxTokens": 7849
     },
     "trip · plan": {
       "tools": [
@@ -73,9 +73,9 @@
         "insert_playbook_day"
       ],
       "toolChars": 20783,
-      "instructionChars": 4158,
-      "totalChars": 24941,
-      "approxTokens": 7535
+      "instructionChars": 4445,
+      "totalChars": 25228,
+      "approxTokens": 7622
     },
     "trip · unsure": {
       "tools": [
@@ -100,9 +100,9 @@
         "insert_playbook_day"
       ],
       "toolChars": 21842,
-      "instructionChars": 3851,
-      "totalChars": 25693,
-      "approxTokens": 7762
+      "instructionChars": 4138,
+      "totalChars": 25980,
+      "approxTokens": 7849
     },
     "page · compose": {
       "tools": [
@@ -114,9 +114,9 @@
         "switch_intent"
       ],
       "toolChars": 4899,
-      "instructionChars": 3277,
-      "totalChars": 8176,
-      "approxTokens": 2470
+      "instructionChars": 3564,
+      "totalChars": 8463,
+      "approxTokens": 2557
     },
     "page · question": {
       "tools": [
@@ -128,9 +128,9 @@
         "switch_intent"
       ],
       "toolChars": 5864,
-      "instructionChars": 1425,
-      "totalChars": 7289,
-      "approxTokens": 2202
+      "instructionChars": 1712,
+      "totalChars": 7576,
+      "approxTokens": 2289
     }
   },
   "tools": {

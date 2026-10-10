@@ -99,6 +99,7 @@ function ledgerOf(record: AskAnalyticsRecord, toolCalls: TurnLedger["toolCalls"]
       endpoint: "ask",
       outcome: record.outcome,
       taskClass: classification === null ? "question" : classification.taskClass,
+      classifierCertainty: classification === null ? null : classification.certainty,
       turn: { model: record.model, tokensIn: record.usage.inputTokens, tokensOut: record.usage.outputTokens },
       classifier: called
         ? {
@@ -302,6 +303,7 @@ describe("recordAskMetrics", () => {
         context: null,
         model: "anthropic/claude-haiku-4-5",
         verdict: '{"result":"question"}',
+        offTopic: false,
         failedOpen: false,
         latencyMs: 180,
         usage: { inputTokens: 150, outputTokens: 10, totalTokens: 160 },
@@ -356,6 +358,7 @@ describe("recordAskMetrics", () => {
           context: null,
           model: null,
           verdict: "bare agreement — no model call",
+          offTopic: false,
           failedOpen: false,
           latencyMs: 0,
           usage: { inputTokens: null, outputTokens: null, totalTokens: null },
@@ -387,6 +390,7 @@ describe("recordAskMetrics", () => {
         context: "Earlier in the conversation: user: add a temple",
         model: "anthropic/claude-haiku-4-5",
         verdict: '{"result":"write"}',
+        offTopic: false,
         failedOpen: false,
         latencyMs: 12,
         usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },

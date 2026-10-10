@@ -75,7 +75,7 @@ export interface AdminAiModelsReport {
   failedTurns: number;
   worstDay: AdminAiWorstDay | null;
   days: AdminAiTurnsDay[];
-  taskClasses: { question: number; change: number; compose: number };
+  taskClasses: { question: number; change: number; compose: number; offTopic: number };
   escalatedTurns: number;
   contextByStep: AdminAiContextStep[];
   cacheReadShare: number | null;

@@ -55,6 +55,7 @@ const CLASSIFIED_AS_WRITE: AskIntentRecord = {
   context: null,
   model: "test/classifier",
   verdict: '{"result":"edit"}',
+  offTopic: false,
   failedOpen: false,
   latencyMs: 1,
   usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },

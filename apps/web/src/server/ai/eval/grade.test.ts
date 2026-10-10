@@ -119,6 +119,31 @@ describe("the cases", () => {
     expect(split).not.toContain(japan.days[0]!.costSubtotal / japan.members.length);
   });
 
+  // The off-topic gate (2026-10-10): refused is read off the classification,
+  // so a model that merely SAYS it cannot help still fails `offTopic: true`.
+  it("checks whether the classifier refused the turn as off-topic", () => {
+    const refused = turn({ steps: 0, classification: { offTopic: true, verdict: "{}" } as AskAnalyticsRecord["classification"] }, "I can only help with planning this trip.");
+    const answered = turn({ steps: 1, classification: { offTopic: false, verdict: "{}" } as AskAnalyticsRecord["classification"] }, "A Phillips.");
+    expect(failing(grade(refused, { offTopic: true }))).toEqual([]);
+    expect(failing(grade(answered, { offTopic: true }))).toEqual(["refused as off-topic", "ran no agent step"]);
+    expect(failing(grade(refused, { offTopic: false }))).toEqual(["not refused as off-topic"]);
+  });
+
+  // The refusal's whole saving is that the agent never runs: a classifier that
+  // flagged the turn while the agent answered anyway must fail.
+  it("fails an off-topic turn the agent still ran", () => {
+    const ranAnyway = turn({ steps: 2, classification: { offTopic: true, verdict: "{}" } as AskAnalyticsRecord["classification"] }, "I can only help with planning this trip.");
+    expect(failing(grade(ranAnyway, { offTopic: true }))).toEqual(["ran no agent step"]);
+  });
+
+  it("fails an answer that repeats a line of the instruction", () => {
+    const leaked = turn({}, "Sure: Use ONLY what the tools return. You cannot see the trip any other way.");
+    expect(failing(grade(leaked, { mustNotSay: ["Use ONLY what the tools return"] }))).toEqual([
+      'does not say "Use ONLY what the tools return"',
+    ]);
+    expect(failing(grade(turn(), { mustNotSay: ["Use ONLY what the tools return"] }))).toEqual([]);
+  });
+
   // The first eval on Claude (2026-10-10) failed two cases where the model was
   // right and the expectation was not: the seeded trip's day 2 is in Tokyo, so
   // a Gion walk there must NOT be drafted, and "plan me a six day trip to

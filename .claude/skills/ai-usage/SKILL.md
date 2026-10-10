@@ -29,7 +29,7 @@ them.
 
 ## From the database
 
-`.claude/skills/ai-usage/ledger.sql` holds eight named, read-only queries:
+`.claude/skills/ai-usage/ledger.sql` holds ten named, read-only queries:
 
 1. tool failure rate per tool (`failed` and `repaired` together; `refused-by-grant`
    on its own);
@@ -41,6 +41,7 @@ them.
 7. turn latency by outcome;
 8. model time per step, p50 and p95 per model (M32: step `duration_ms` less its tool calls).
 9. which AI Gateway provider served the steps, per model, with recent generation ids (0038).
+10. the classifier's verdicts per day: off-topic refusals (`task_class = 'off_topic'`) and its certainty (0047).
 
 Each starts with a `window_` CTE; change `since` there. Simulated turns are
 excluded.

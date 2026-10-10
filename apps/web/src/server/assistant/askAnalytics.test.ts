@@ -482,6 +482,7 @@ const CLASSIFIED_BY_MODEL: AskIntentRecord = {
   context: null,
   model: "zai/glm-4.7-flash",
   verdict: '{"result":"plan"}',
+  offTopic: false,
   failedOpen: false,
   latencyMs: 180,
   usage: { inputTokens: 198, outputTokens: 49, totalTokens: 247 },
@@ -588,6 +589,17 @@ describe("the turn ledger", () => {
     recorder.finish({ finishReason: "stop" });
 
     expect(ledgers[0]!.cost.classifier).toBeNull();
+  });
+
+  // No classifier ran, so there is no certainty to record: stored as `unsure`,
+  // a bare agreement would count as a turn the classifier could not decide.
+  it("records no classifier certainty when the affirmation rule answered", () => {
+    const { recorder, ledgers } = recorderWith({
+      classification: { ...CLASSIFIED_BY_MODEL, source: "affirmation", certainty: "unsure", model: null },
+    });
+    recorder.finish({ finishReason: "stop" });
+
+    expect(ledgers[0]!.cost.classifierCertainty).toBeNull();
   });
 
   // Both fields the pipeline resolves and the recorder cannot: `compose` is a

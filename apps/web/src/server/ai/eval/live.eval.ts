@@ -76,7 +76,7 @@ const { issueGrant } = await import("@/server/entitlements/grants");
 
 interface LivePrompt {
   id: string;
-  intent: "change" | "question";
+  intent: "change" | "question" | "off-topic";
   text: string;
   /** The trip it runs on (`trips.ts`); absent, the seeded Japan trip. */
   trip?: EvalTripName;

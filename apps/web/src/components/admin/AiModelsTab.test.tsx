@@ -31,7 +31,7 @@ function healthyReport(overrides: Partial<AdminAiModelsReport> = {}): AdminAiMod
       turns: 10,
       failed: i % 5 === 0 ? 1 : 0,
     })),
-    taskClasses: { question: 180, change: 120, compose: 0 },
+    taskClasses: { question: 180, change: 120, compose: 0, offTopic: 0 },
     escalatedTurns: 51,
     contextByStep: [
       { step: "1", median: 3100, p95: 5200, turns: 300 },
@@ -171,6 +171,15 @@ describe("the AI models tab", () => {
     expect(screen.getByTestId("ai-models-unpriced").textContent).toBe(
       "4 turns could not be priced at all — no rate, no reported usage, or simulated — as in Financial, so these costs are a floor.",
     );
+  });
+
+  // The off-topic share is the one to watch after a prompt change, so it must
+  // appear once anything was refused — and not clutter the panel before.
+  it("shows the off-topic share only once a turn was refused", () => {
+    const { container, rerender } = render(<AiModelsTab report={healthyReport()} />);
+    expect(container.textContent).not.toContain("refused as off-topic");
+    rerender(<AiModelsTab report={healthyReport({ taskClasses: { question: 150, change: 120, compose: 0, offTopic: 30 } })} />);
+    expect(container.textContent).toMatch(/10%\s*refused as off-topic/);
   });
 
   it("puts a tool's failed share in danger ink only above 5%", () => {

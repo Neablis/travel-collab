@@ -1172,6 +1172,12 @@ export const aiUsage = pgTable(
     classifierModel: text("classifier_model"),
     classifierTokensIn: integer("classifier_tokens_in"),
     classifierTokensOut: integer("classifier_tokens_out"),
+    // `sure` | `unsure` | `failed` (2026-10-10): how sure the classifier was,
+    // so the off-topic gate's near-misses — and the guess rate generally —
+    // outlive the hour the `ai.ask` log is kept for. Null when no
+    // classification was made (a page turn before ADR-058, an `ask.apply`).
+    // Text with no CHECK, like every enum column in this schema.
+    classifierCertainty: text("classifier_certainty"),
     /** The agent's own round-trips. The classifier's is the column above. */
     steps: integer("steps").notNull(),
     // Which per-user ceiling was in force. A purchase PINS a version, so this

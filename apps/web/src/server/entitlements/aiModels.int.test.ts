@@ -157,7 +157,7 @@ describe("turns over the trailing 30 days", () => {
     expect(report.accounts).toBe(2);
     expect(report.medianStepsPerTurn).toBe(2);
     expect(report.failedTurns).toBe(1);
-    expect(report.taskClasses).toEqual({ question: 2, change: 1, compose: 0 });
+    expect(report.taskClasses).toEqual({ question: 2, change: 1, compose: 0, offTopic: 0 });
     // The 61-day-old turn's step and call, and the simulated one's, stay out.
     expect(report.tools).toEqual([]);
     expect(report.contextPerStep?.p95).toBeLessThan(99_999);
@@ -169,6 +169,18 @@ describe("turns over the trailing 30 days", () => {
     expect(report.days.reduce((sum, day) => sum + day.turns, 0)).toBe(3);
     expect(report.days.at(-2)).toMatchObject({ day: midnightBefore(now, 1), turns: 1, failed: 0 });
     expect(report.days.at(-6)).toMatchObject({ day: midnightBefore(now, 5), turns: 1, failed: 1 });
+  });
+
+  // The off-topic gate's rate is what to watch after a classifier change
+  // (2026-10-10); folded into "questions" it would be invisible.
+  it("counts turns refused as off-topic on their own", async () => {
+    const now = freshNow();
+    await turn(daysBefore(now, 1), { taskClass: "off_topic" });
+    await turn(daysBefore(now, 2), { steps: [{}] });
+
+    const report = await aiModelsReport([], now);
+
+    expect(report.taskClasses).toEqual({ question: 1, change: 0, compose: 0, offTopic: 1 });
   });
 
   it("compares the window with the same span before it, so flat traffic reads as no change", async () => {

@@ -58,6 +58,7 @@ export type _CostKeys = Assert<
     | "endpoint"
     | "outcome"
     | "taskClass"
+    | "classifierCertainty"
     | "turn"
     | "classifier"
     | "steps"
@@ -131,7 +132,8 @@ const arbCost: fc.Arbitrary<TurnCost> = fc.record({
   userId: fc.constantFrom("alice", "bob"),
   endpoint: fc.constantFrom("ask" as const, "ask.apply" as const),
   outcome: fc.constantFrom("completed" as const, "error" as const, "abort" as const),
-  taskClass: fc.constantFrom("question" as const, "edit" as const, "plan" as const, "compose" as const),
+  taskClass: fc.constantFrom("question" as const, "edit" as const, "plan" as const, "compose" as const, "off_topic" as const),
+  classifierCertainty: fc.constantFrom("sure" as const, "unsure" as const, "failed" as const, null),
   turn: arbSpend,
   classifier: fc.option(arbSpend, { nil: null }),
   steps: fc.integer({ min: 0, max: 32 }),
@@ -216,6 +218,7 @@ describe("cost and capacity are two ledgers, not two fields of one", () => {
       endpoint: "ask",
       outcome: "completed",
       taskClass: "plan",
+      classifierCertainty: null,
       turn: { model: "m", tokensIn: 10, tokensOut: 2 },
       classifier: null,
       steps: 3,

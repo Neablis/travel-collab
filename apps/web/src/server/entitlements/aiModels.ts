@@ -160,7 +160,8 @@ export interface AiModelsReport {
   failedTurns: number;
   worstDay: AiWorstDay | null;
   days: AiTurnsDay[];
-  taskClasses: { question: number; change: number; compose: number };
+  /** `offTopic`: turns the classifier refused as unrelated to the trip or travel (2026-10-10). */
+  taskClasses: { question: number; change: number; compose: number; offTopic: number };
   escalatedTurns: number;
   contextByStep: AiContextStep[];
   cacheReadShare: number | null;
@@ -327,7 +328,7 @@ export async function aiModelsReport(
     turns: 0,
     failed: 0,
   }));
-  const taskClasses = { question: 0, change: 0, compose: 0 };
+  const taskClasses = { question: 0, change: 0, compose: 0, offTopic: 0 };
   for (const turn of turns) {
     const day = days[turnDay.get(turn.id)!]!;
     day.turns += 1;
@@ -335,6 +336,7 @@ export async function aiModelsReport(
     if (turn.taskClass === "question") taskClasses.question += 1;
     else if (turn.taskClass === "edit" || turn.taskClass === "plan") taskClasses.change += 1;
     else if (turn.taskClass === "compose") taskClasses.compose += 1;
+    else if (turn.taskClass === "off_topic") taskClasses.offTopic += 1;
   }
   const failedTurns = days.reduce((sum, day) => sum + day.failed, 0);
 

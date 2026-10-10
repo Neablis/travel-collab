@@ -8,7 +8,7 @@ const AT = new Date("2026-10-05T12:00:00Z");
 function ledger(steps: { model: string; tokensIn: number | null; tokensOut: number | null; cacheRead?: number }[], classifier: TurnLedger["cost"]["classifier"]): TurnLedger {
   return {
     cost: {
-      turnId: "t1", userId: "u", endpoint: "ask", outcome: "completed", taskClass: "question",
+      turnId: "t1", userId: "u", endpoint: "ask", outcome: "completed", taskClass: "question", classifierCertainty: null,
       turn: { model: steps[0]?.model ?? "x", tokensIn: null, tokensOut: null },
       classifier, steps: steps.length, planVersionRef: null, latencyMs: 1,
     },
