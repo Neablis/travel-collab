@@ -220,9 +220,14 @@ describe("UnscheduledRack — a viewer's drawer", () => {
     }
   });
 
+  // With no `onCreate` there is nothing to call, so what can go wrong is a
+  // handler that calls it anyway: a double-click that throws (CodeRabbit,
+  // PR 393, on this test claiming a double-click it never made).
   it("opens no card, and makes nothing on a double-click", async () => {
     renderRack({ open: true, onEdit: undefined, onCreate: undefined });
     expect(screen.queryAllByRole("button", { name: /^Edit / })).toHaveLength(0);
+    await userEvent.dblClick(screen.getByTestId("rack-cards"));
+    expect(screen.getAllByTestId("rack-card")).toHaveLength(2);
   });
   // The empty state's instruction ("Drag a stop down here…") is only true for
   // someone who can drag, so a viewer gets the state without the instruction.
