@@ -326,6 +326,10 @@ export function PageScreen({
   const [editor, setEditor] = useState<Editor | null>(null);
   // Same fail-soft rule as `user` above, and for the same reason.
   const [globals, setGlobals] = useState<TripGlobals | null>(null);
+  // Whether the first globals read has answered, either way: the page keeps
+  // its skeleton until then, so the widgets that read places and zones from
+  // the globals are drawn once at their final height, not twice on screen.
+  const [globalsSettled, setGlobalsSettled] = useState(false);
 
   // SPEC §26: the widget whose settings the side channel is showing.
   //
@@ -465,7 +469,9 @@ export function PageScreen({
   useEffect(() => {
     let cancelled = false;
     void fetchTripGlobals(tripId).then((r) => {
-      if (!cancelled && r.ok) setGlobals(r.value);
+      if (cancelled) return;
+      if (r.ok) setGlobals(r.value);
+      setGlobalsSettled(true);
     });
     // Through the cache TripProvider reads, so arriving from the board reuses
     // the history it just fetched. A stale or failed read can only put the
@@ -999,7 +1005,7 @@ export function PageScreen({
   // still no word. The chrome cannot stand in for it: the breadcrumb's first
   // crumb is the trip's name and every button acts on a page that is not here
   // yet, so the toolbar row is outlined too.
-  if (status === "loading") return <NotebookSkeleton />;
+  if (status === "loading" || (status === "ready" && !globalsSettled)) return <NotebookSkeleton />;
   if (status === "error" || page === null || trip === null || stored === null) {
     return (
       <PageContainer>

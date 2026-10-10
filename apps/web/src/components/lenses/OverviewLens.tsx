@@ -114,6 +114,11 @@ export function OverviewLens({
   // first-paint trade every `useIsPhone` mount makes.
   const isPhone = useIsPhone();
   const [globals, setGlobals] = useState<TripGlobals | null>(null);
+  // Whether the FIRST globals read has answered, either way. The letter waits
+  // on it (see `body`): its widgets read places and zones from the globals,
+  // and mounting the editor before them drew those widgets twice, the second
+  // time at a different height, under the reader's eyes.
+  const [globalsSettled, setGlobalsSettled] = useState(false);
   const [state, setState] = useState<
     | { status: "loading" }
     | { status: "error"; message: string }
@@ -233,7 +238,9 @@ export function OverviewLens({
     void cachedRead(tripKeys.globals(tripId), () => fetchTripGlobals(tripId), {
       dedupeMs: DEDUPE.DOCUMENT,
     }).then((r) => {
-      if (live && r.ok) setGlobals(r.value);
+      if (!live) return;
+      if (r.ok) setGlobals(r.value);
+      setGlobalsSettled(true);
     });
     return () => {
       live = false;
@@ -277,7 +284,11 @@ export function OverviewLens({
   );
 
   const body = () => {
-    if (state.status === "loading") {
+    // The document waits for the first globals answer too (`globalsSettled`):
+    // the skeleton holds the letter's place until its widgets can be drawn
+    // once, at their final height. A failed read still settles — the widgets
+    // then say what they cannot show, as before.
+    if (state.status === "loading" || (state.status === "ready" && !globalsSettled)) {
       // The `ovBody` region (dc.html:1966-2013). The proportions are the
       // artboard's, and they are not arbitrary: a loading Overview should read
       // as a trip page — a title, a paragraph, a table of days, some cards —
