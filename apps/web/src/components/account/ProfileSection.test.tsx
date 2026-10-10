@@ -271,6 +271,17 @@ describe("ProfileSection", () => {
       expect(screen.getByText("While this is off, days you publish say Sam K.")).toBeTruthy();
     });
 
+    // The short sentence turned into the long one when the probe answered,
+    // wrapped, and moved every row below it (a layout-shift probe on /account).
+    it("holds the long description, with the name still to come, while the session probe is out", async () => {
+      render(
+        <PreferencesProvider>
+          <ProfileSection email={undefined} signIn={undefined} onOpenTokens={openTokens} />
+        </PreferencesProvider>,
+      );
+      expect(await screen.findByText("What people on your trips see. Empty, it is your sign-in name, …")).toBeTruthy();
+    });
+
     it("previews the sign-in name's initials until a glyph is chosen", async () => {
       mount();
       const preview = await screen.findByTestId("persona-preview");
