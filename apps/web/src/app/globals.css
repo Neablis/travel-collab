@@ -556,17 +556,18 @@ html[data-look="ledger"] .shadow-raised {
       );
     }
   }
-  /* The trip page's cover band (`TripCoverBanner`): the trip's name sits ON
-     the photo at the band's foot, in `text-surface`, so the photo darkens
-     toward the words rather than fading into the page. Ink under surface-
-     coloured text, both tokens, so the pair keeps its contrast in dark mode
-     (where the two swap) without a second rule. */
-  .cover-veil-title {
+  /* The trip page's cover band (`TripCoverBanner`): `.cover-veil-paper`'s
+     fade, pulled up so it is mostly done where the header's top rests (240px
+     of a 384px band, 62.5%) and solid 40px below, under the title. The
+     playbook's stops leave the photo half-visible there, and on a dark photo
+     the slate `← Your trips` above the title fell under AA. */
+  .cover-veil-trip {
     background: linear-gradient(
-      0deg,
-      color-mix(in srgb, var(--color-ink) 65%, transparent) 0%,
-      color-mix(in srgb, var(--color-ink) 25%, transparent) 55%,
-      transparent 100%
+      180deg,
+      transparent 34%,
+      color-mix(in srgb, var(--color-paper) 35%, transparent) 48%,
+      color-mix(in srgb, var(--color-paper) 82%, transparent) 62.5%,
+      var(--color-paper) 73%
     );
   }
   /* Light text laid on a photo (the hero's countdown): a soft shadow keeps it

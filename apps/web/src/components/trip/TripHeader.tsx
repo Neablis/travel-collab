@@ -27,7 +27,7 @@ import { AskPill } from "@/components/assistant/AskPill";
 import { SettingsSheet } from "./SettingsSheet";
 import { TripMetaPill, tripCounts, tripDateRange } from "./TripMetaPill";
 import { BudgetChip } from "./BudgetChip";
-import { AddCoverButton, TripCoverBanner } from "./cover/TripCoverBanner";
+import { AddCoverButton, COVER_BAND, TripCoverBanner } from "./cover/TripCoverBanner";
 import { useTripCover } from "./cover/useTripCover";
 
 // The bounded chrome surface (design-system.md surface vocabulary, Pattern 4):
@@ -197,6 +197,19 @@ export function TripHeader({
   // `useIsPhone`, because the latter's first-paint guess would start the read.
   const abovePhone = useIsAbovePhone();
   const { cover } = useTripCover(tripId, abovePhone === true && !isDemoTripId(tripId));
+  // The header sits on the band's faded foot, see-through, until it pins; then
+  // it paints its own background, or the board would scroll visibly under it.
+  const [headerEl, setHeaderEl] = useState<HTMLElement | null>(null);
+  const [coverSentinel, setCoverSentinel] = useState<HTMLDivElement | null>(null);
+  const headerRef = useCallback(
+    (el: HTMLElement | null) => {
+      setHeaderEl(el);
+      return publishStickyStack(el);
+    },
+    [publishStickyStack],
+  );
+  const headerPinned = useIsPinned(headerEl, coverSentinel);
+  const overCover = cover != null && !headerPinned;
 
   if (trip === null || activeTrip === null || status !== "ready") return null;
 
@@ -305,16 +318,17 @@ export function TripHeader({
   return (
     <>
       {/* The cover band, desktop only, above the sticky header so it scrolls
-          away (see `TripCoverBanner`). */}
+          away; the header is pulled up over its faded foot (see
+          `TripCoverBanner`). */}
       {cover != null && (
         <TripCoverBanner
           cover={cover}
-          tripName={activeTrip.name}
           onChangeCover={coverEditable ? openCoverPicker : undefined}
+          sentinelRef={setCoverSentinel}
         />
       )}
       <header
-        ref={publishStickyStack}
+        ref={headerRef}
         aria-label="Trip"
         // `.below-app-header` is the height of AppHeader, which is sticky at the
         // top and sits above this one on every `(app)` route: 56px plus the
@@ -338,6 +352,10 @@ export function TripHeader({
           // desktop classes beside them are untouched.
           "max-md:px-3 max-md:pt-1.5 max-md:pb-1.5",
           isDemoTripId(tripId) ? "pinned-at-top" : "below-app-header",
+          // Over a cover: on its foot, and see-through until it pins. The
+          // hairline stays, so pinning changes only the fill.
+          cover != null && COVER_BAND.OVERLAP,
+          overCover && "bg-transparent",
         )}
       >
         {/* On a phone the two columns and the nav row dissolve (`contents`)
@@ -809,6 +827,47 @@ function TravellerStack({ access, onOpen }: { access: TripAccess | null; onOpen:
       {more > 0 ? <span className="text-xs font-semibold text-slate">+{more}</span> : null}
     </Button>
   );
+}
+
+/**
+ * Whether the sticky `header` has pinned, read from `sentinel` — a line at
+ * the header's top where it sits before it pins (the cover band's,
+ * `TripCoverBanner`). Once the line has scrolled above the header's `top`, the
+ * header is held there and the line is not. `false` with no sentinel, and
+ * where there is no IntersectionObserver (jsdom), which is the page at rest.
+ */
+function useIsPinned(header: HTMLElement | null, sentinel: HTMLElement | null): boolean {
+  const [pinned, setPinned] = useState(false);
+  useEffect(() => {
+    if (header === null || sentinel === null || typeof IntersectionObserver !== "function") {
+      setPinned(false);
+      return;
+    }
+    // The header's `top` is AppHeader's height, which carries the safe-area
+    // inset, so it is re-read on resize and the observer rebuilt when it moves.
+    let top = Number.NaN;
+    let observer: IntersectionObserver | null = null;
+    const watch = () => {
+      const next = parseFloat(getComputedStyle(header).top) || 0;
+      if (next === top) return;
+      top = next;
+      observer?.disconnect();
+      observer = new IntersectionObserver(
+        ([entry]) => {
+          if (entry !== undefined) setPinned(!entry.isIntersecting && entry.boundingClientRect.top < next);
+        },
+        { rootMargin: `-${next}px 0px 0px 0px` },
+      );
+      observer.observe(sentinel);
+    };
+    watch();
+    window.addEventListener("resize", watch);
+    return () => {
+      window.removeEventListener("resize", watch);
+      observer?.disconnect();
+    };
+  }, [header, sentinel]);
+  return pinned;
 }
 
 /**
