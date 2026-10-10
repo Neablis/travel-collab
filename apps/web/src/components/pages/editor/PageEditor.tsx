@@ -305,7 +305,10 @@ export function PageEditor({ detail, context, user = null, globals = null, value
     <MacroEditorContext.Provider
       value={{ detail, context, user, globals, external, editing: editable, compact, onBindDay, onWidgetSelected }}
     >
-      <EditorContent editor={editor} className={created ? "tc-page-editor" : "tc-page-editor hidden"} />
+      {/* The `hidden` attribute (preflight makes it `display: none`), not a
+          class: it also takes the half-drawn document out of the
+          accessibility tree for the same frame. */}
+      <EditorContent editor={editor} className="tc-page-editor" hidden={!created} />
       <SlashMenu state={slash.state} onPick={slash.onPick} />
     </MacroEditorContext.Provider>
   );
