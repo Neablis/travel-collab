@@ -103,6 +103,7 @@ export function AccountScreen() {
           }}
           options={TABS}
           idPrefix={ID_PREFIX}
+          hasPanel
           aria-label="Account sections"
         />
 
