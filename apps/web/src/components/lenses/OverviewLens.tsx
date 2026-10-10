@@ -371,8 +371,13 @@ export function OverviewLens({
   // are in the header's pill and in the letter's own first sentence already.
   // `min-h-7` holds the letterhead's height for a viewer, who has no Edit, so
   // the rule sits in the same place for everyone.
+  //
+  // `pb-22` is the desktop sheet's bottom margin. A phone does not need it
+  // (Mitchell, phone Overview: "Dont need this 'Below' notebook spacing"): the
+  // bottom tab bar's clearance is already reserved by `.phone-tab-bar-inset`
+  // on the page wrapper, so 88px more was only empty paper under the letter.
   return (
-    <div className="pt-8 pb-22 max-md:pt-0">
+    <div className="pt-8 pb-22 max-md:pt-0 max-md:pb-6">
       <div className="tc-overview-letter">
         <div className="mb-6.5 flex min-h-7 items-center justify-between gap-4 border-b border-hairline pb-4.5">
           {linkedPageId === null ? (
