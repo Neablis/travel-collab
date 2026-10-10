@@ -150,6 +150,21 @@ describe("TripHeader trip settings entry point", () => {
   });
 });
 
+// axe on signed-in trip pages (2026-10-10): page-has-heading-one — the trip
+// page had no h1, and the trip's name is its title — and landmark-unique, with
+// this header's back-link nav unnamed beside the app header's ("Main").
+describe("TripHeader — landmarks and headings", () => {
+  it("makes the trip's name the page's level-one heading", async () => {
+    await renderHeader();
+    expect(screen.getByRole("heading", { level: 1, name: /Japan/ })).toBeTruthy();
+  });
+
+  it("names its navigation", async () => {
+    await renderHeader();
+    expect(screen.getByRole("navigation", { name: "Trip" })).toBeTruthy();
+  });
+});
+
 // **M26 link 6a: there is no delete on this screen, so there is no toast.**
 //
 // A15 built this level's undo toast because `SettingsSheet`'s own subtree
