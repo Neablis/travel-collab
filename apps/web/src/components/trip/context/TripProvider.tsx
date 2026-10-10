@@ -92,7 +92,7 @@ type TripCtx = {
    * the header's to report (KI-36's retained queue), as before.
    */
   dispatch: (command: BoardCommand) => Promise<DispatchResult>;
-  dispatchBatch: (commands: BatchableCommand[]) => Promise<void>;
+  dispatchBatch: (commands: BatchableCommand[]) => Promise<DispatchResult>;
   // Replace confirmed state with an authoritative outcome the client didn't
   // predict — the AI planning batch is decided server-side, so the client
   // never held those commands to optimistically predict from. The AI response
@@ -850,9 +850,7 @@ export function TripProvider({ tripId, children }: { tripId: string; children: R
   }, []);
 
   const dispatchBatch = useCallback(
-    async (commands: BatchableCommand[]) => {
-      runDispatch(commands);
-    },
+    async (commands: BatchableCommand[]) => runDispatch(commands),
     [runDispatch],
   );
 

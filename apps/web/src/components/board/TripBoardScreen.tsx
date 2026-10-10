@@ -32,6 +32,7 @@ import { ActivityEditorSheet } from "@/components/trip/editor/ActivityEditorShee
 import { PeopleProvider } from "@/components/pages/people";
 import { type RackItem, UnscheduledRack } from "@/components/trip/UnscheduledRack";
 import { fitIntoDay } from "@/components/trip/fitIntoDay";
+import { moveCommands } from "./moveCommands";
 import { rackDropWindow } from "./rackDropWindow";
 import { kindBadge } from "./activityKind";
 import { type AnyTimeOutcome, anyTimeCommands, type PlaceOutcome, placeCommands } from "./resolveDrop";
@@ -580,9 +581,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
       .map((id) => activeTrip.activities[id]?.timeWindow)
       .filter((w): w is { start: string; end: string } => w !== null && w !== undefined);
 
-    if (!day.activityIds.includes(activityId)) {
-      void dispatch({ type: "MoveActivity", tripId, activityId, toDayId: dayId, position: day.activityIds.length });
-    }
+    for (const move of moveCommands(activeTrip, [activityId], dayId)) void dispatch(move);
     void dispatch({ type: "UpdateActivity", tripId, activityId, timeWindow: fitIntoDay(existing) });
   };
 
@@ -610,7 +609,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // is applied optimistically and empties the backlog the decision reads.
   const moveActivity = (activityId: string, toDayId: string | null, position: number) => {
     const timeWindow = rackDropWindow(activeTrip, activityId, toDayId, position);
-    void dispatch({ type: "MoveActivity", tripId, activityId, toDayId, position });
+    for (const move of moveCommands(activeTrip, [activityId], toDayId, { position })) void dispatch(move);
     if (timeWindow !== null) void dispatch({ type: "UpdateActivity", tripId, activityId, timeWindow });
   };
 
@@ -656,13 +655,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // no-op (harmlessly swallowed by TripProvider), so a stop that had no time
   // costs only one undo.
   const unscheduleActivity = (activityId: string) => {
-    void dispatch({
-      type: "MoveActivity",
-      tripId,
-      activityId,
-      toDayId: null,
-      position: activeTrip.backlog.filter((id) => id !== activityId).length,
-    });
+    for (const move of moveCommands(activeTrip, [activityId], null)) void dispatch(move);
     void dispatch({ type: "UpdateActivity", tripId, activityId, timeWindow: null });
     // The drop that got here also raised `dragEnd`, which re-closes a drawer
     // the drag itself opened. A park is the one drop that must not close it —
