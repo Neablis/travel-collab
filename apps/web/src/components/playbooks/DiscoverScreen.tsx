@@ -808,7 +808,9 @@ export function DiscoverScreen({
         <ul
           ref={results}
           // Focusable by script only: where a page turned in place leaves focus.
+          // Named, so a screen reader landing here hears where it is.
           tabIndex={-1}
+          aria-label="Results"
           className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3"
           data-testid="discover-results"
         >
