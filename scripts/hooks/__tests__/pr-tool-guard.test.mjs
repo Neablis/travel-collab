@@ -10,10 +10,18 @@ const BODY =
 
 const run = (tool_name, tool_input) => runHook("pr-tool-guard.mjs", { tool_name, tool_input });
 
-test("creating a draft PR blocks", () => {
-  const res = run(CREATE, { title: "feat: x", body: BODY, draft: true, base: "main", head: "b" });
+test("creating a draft PR from a milestone part branch blocks", () => {
+  const res = run(CREATE, { title: "feat: x", body: BODY, draft: true, base: "main", head: "claude/m42-part1-cards" });
   assert.equal(res.status, 2);
   assert.match(res.stderr, /ready for review, never draft/);
+});
+
+test("a draft PR from any other branch passes, part 0's included", () => {
+  for (const head of ["claude/fix-thing", "claude/build-a-milestone-abc", "claude/m42-part0-gate", undefined]) {
+    const res = run(CREATE, { title: "feat: x", body: BODY, draft: true, base: "main", head });
+    assert.equal(res.status, 0, String(head));
+    assert.equal(res.stderr, "", String(head));
+  }
 });
 
 test("a model id in the title or body blocks, on create and update", () => {
@@ -30,7 +38,6 @@ test("a model id in the title or body blocks, on create and update", () => {
 test("a ready PR with the standard attribution passes, and update may set draft", () => {
   assert.equal(run(CREATE, { title: "feat: x", body: BODY, draft: false }).status, 0);
   assert.equal(run(CREATE, { title: "feat: x", body: BODY }).status, 0);
-  assert.equal(run(CREATE, { title: "M42 part 0: decisions and gate", body: BODY, draft: true }).status, 0);
   const res = run(UPDATE, { pullNumber: 3, title: "feat: y", draft: true });
   assert.equal(res.status, 0);
   assert.equal(res.stderr, "");
