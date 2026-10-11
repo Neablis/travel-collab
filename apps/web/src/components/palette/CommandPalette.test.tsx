@@ -100,12 +100,13 @@ describe("CommandPalette", () => {
     expect(seen).toEqual([true]);
   });
 
+  // Go to › View, then its children: Plan, Calendar.
   it("moves down the list with the arrow keys", async () => {
     const plan = vi.fn();
     const calendar = vi.fn();
     offer([command("Plan", plan), command("Calendar", calendar)]);
     render(<CommandPalette />);
-    await userEvent.keyboard("{Meta>}k{/Meta}view{ArrowDown}{Enter}");
+    await userEvent.keyboard("{Meta>}k{/Meta}go view{ArrowDown}{ArrowDown}{Enter}");
     await waitFor(() => expect(calendar).toHaveBeenCalledTimes(1));
     expect(plan).not.toHaveBeenCalled();
   });
@@ -184,15 +185,16 @@ describe("CommandPalette", () => {
     signedIn = false;
     offer([command("Alpha", vi.fn()), command("Beta", vi.fn())]);
     render(<CommandPalette />);
-    // Go to › Alpha, Beta (views), then Playbooks (a page), under one heading.
-    await userEvent.keyboard("{Meta>}k{/Meta}go{ArrowDown}{ArrowDown}");
-    expect(screen.getByRole("option", { selected: true }).textContent).toBe("Go to › Page › Playbooks");
+    // Go to › View, then its children Alpha and Beta, under one heading.
+    await userEvent.keyboard("{Meta>}k{/Meta}go view{ArrowDown}{ArrowDown}");
+    expect(screen.getByRole("option", { selected: true }).textContent).toBe("Go to › View › Beta");
 
-    act(() => offer([command("Alpha", vi.fn())]));
+    const alpha = vi.fn();
+    act(() => offer([command("Alpha", alpha)]));
     const box = screen.getByRole("combobox", { name: "Go to or do" });
     expect(screen.getByRole("option", { selected: true }).id).toBe(box.getAttribute("aria-activedescendant"));
     await userEvent.keyboard("{Enter}");
-    await waitFor(() => expect(push).toHaveBeenCalledWith("/playbooks"));
+    await waitFor(() => expect(alpha).toHaveBeenCalledTimes(1));
   });
 
   it("offers a reader with no account only what is open to them", async () => {
@@ -263,16 +265,30 @@ describe("CommandPalette", () => {
       expect(box()).toBeTruthy();
     });
 
-    it("searches every leaf from the top, under each action's heading", async () => {
+    // A leaf and a branch both end on Ramen; opening the branch sets the whole trail.
+    it("searches every node from the top, under each action's heading", async () => {
       signedIn = false;
       const { ramenToDay3 } = leaves();
       render(<CommandPalette />);
       await userEvent.keyboard("{Meta>}k{/Meta}ramen");
-      const move = screen.getByRole("group", { name: "Move" });
-      expect(within(move).getAllByRole("option").map((o) => o.textContent)).toEqual(["Move › Stop › Ramen › Day 3", "Move › Stop › Ramen › Unscheduled"]);
-      expect(screen.getByRole("group", { name: "Remove" })).toBeTruthy();
+      expect(within(screen.getByRole("group", { name: "Remove" })).getAllByRole("option").map((o) => o.textContent)).toEqual(["Remove › Stop › Ramen"]);
+      expect(within(screen.getByRole("group", { name: "Move" })).getAllByRole("option").map((o) => o.textContent)).toEqual(["Move › Stop › Ramen›"]);
       await userEvent.keyboard("{ArrowDown}{Enter}");
+      expect(screen.getByTestId("palette-path").textContent).toBe("Move › Stop › Ramen ›");
+      await userEvent.keyboard("{Enter}");
       await waitFor(() => expect(ramenToDay3).toHaveBeenCalledTimes(1));
+    });
+
+    // Mitchell, PR 398: typing the action shows its options, not its leaves.
+    it("lists a top branch's children under it, and opens one with Enter", async () => {
+      signedIn = false;
+      leaves();
+      render(<CommandPalette />);
+      await userEvent.keyboard("{Meta>}k{/Meta}move");
+      expect(optionNames()).toEqual(["Move›", "Move › Stop›", "Remove›"]);
+      expect(screen.queryByTestId("palette-path")).toBeNull();
+      await userEvent.keyboard("{ArrowDown}{Enter}");
+      expect(screen.getByTestId("palette-path").textContent).toBe("Move › Stop ›");
     });
 
     it("searches only under the branch it is in", async () => {
@@ -280,7 +296,7 @@ describe("CommandPalette", () => {
       leaves();
       render(<CommandPalette />);
       await userEvent.keyboard("{Meta>}k{/Meta}{ArrowDown}{Enter}ramen");
-      expect(optionNames()).toEqual(["Stop › Ramen › Day 3", "Stop › Ramen › Unscheduled"]);
+      expect(optionNames()).toEqual(["Stop › Ramen›", "Stop › Ramen › Day 3", "Stop › Ramen › Unscheduled"]);
     });
 
     // The focused day's commands go when focus does, while the palette is open on them.

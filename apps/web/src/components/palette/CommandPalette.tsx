@@ -12,8 +12,8 @@ import { cn } from "@/lib/cn";
 import { orderHomeTrips } from "@/lib/homeTripOrder";
 import { localTodayIso } from "@/lib/today";
 import { askCommand, placeCommands } from "./commands";
-import { type PaletteNode, paletteLevel, pathText } from "./grammar";
-import { searchPalette } from "./match";
+import { type PaletteNode, paletteLevel } from "./grammar";
+import { type PaletteStep, searchPalette } from "./match";
 import { type PaletteCommand, usePaletteCommands } from "./paletteRegistry";
 
 // **⌘K** (M41 D9, ADR-068): go anywhere or start anything without the mouse.
@@ -25,8 +25,9 @@ import { type PaletteCommand, usePaletteCommands } from "./paletteRegistry";
 //
 // **It speaks ADR-069's grammar.** Empty, it lists the actions; Enter or Tab
 // on one drills in, a chip shows the path, and Backspace in an empty box
-// climbs back out. Typing searches every leaf under where you are, so
-// nobody has to drill to get anywhere.
+// climbs back out. Typing searches every node under where you are, branches
+// as well as leaves, so nobody has to drill to get anywhere, and a branch
+// that comes top shows its children beneath it.
 //
 // **Focus goes back where it was, and only then does the command run.** A
 // command that opens something (the editor, Trip settings, the assistant)
@@ -53,10 +54,12 @@ function isK(event: KeyboardEvent): boolean {
 }
 
 /**
- * A row of the list: a level's node, or a typed query's leaf under its
- * action's heading, which `spoken` says again for a reader of the row alone.
+ * A row of the list: a level's node, or a typed query's node under its
+ * action's heading. `spoken` is the path above `label` that the row does not
+ * show, said for a reader of the row alone; `nested` rows are the top
+ * match's children; `steps` is the trail a branch opens onto.
  */
-type Row = { id: string; heading?: string; spoken?: string; node: PaletteNode };
+type Row = { id: string; heading?: string; spoken?: string; label: string; nested?: boolean; steps: readonly PaletteStep[]; node: PaletteNode };
 
 /** Opens on ⌘K (Ctrl+K off a Mac) from anywhere in the app. */
 export function CommandPalette() {
@@ -129,19 +132,26 @@ export function CommandPalette() {
   }
   const path = trail.slice(0, depth);
   const at = path.map((step) => step.key);
+  const text = (steps: readonly PaletteStep[]) => steps.map((step) => step.label).join(" › ");
   const rows: Row[] =
     query.trim() === ""
-      ? level.map((node) => ({ id: node.key, node }))
+      ? level.map((node) => ({ id: node.key, label: node.label, steps: [...path, { key: node.key, label: node.label }], node }))
       : searchPalette(commands, query, at).flatMap((group) =>
-          group.commands.map((command): Row => {
-            // Drilled in, every row shares the chip's action. A singleton is
-            // its own action: no heading over one row of itself.
-            const grouped = at.length === 0 && command.type !== undefined;
+          group.hits.map((hit): Row => {
+            // A child stands under its parent's row and heading, and shows only its own label.
+            const shown = hit.child ? hit.steps.slice(0, -1) : hit.steps;
+            // Drilled in, every row shares the chip's action. A singleton or
+            // an action is its own: no heading over one row of itself.
+            const grouped = at.length === 0 && shown.length > 1;
+            const above = hit.child ? hit.steps.slice(at.length, -1) : grouped ? hit.steps.slice(0, 1) : [];
             return {
-              id: command.id,
+              id: hit.id,
               heading: grouped ? group.action : undefined,
-              spoken: grouped ? `${group.action} › ` : undefined,
-              node: { kind: "leaf", key: command.id, label: pathText(command, grouped ? 1 : at.length), command },
+              spoken: above.length > 0 ? `${text(above)} › ` : undefined,
+              label: hit.child ? hit.node.label : text(hit.steps.slice(grouped ? 1 : at.length)),
+              nested: hit.child,
+              steps: hit.steps,
+              node: hit.node,
             };
           }),
         );
@@ -154,7 +164,7 @@ export function CommandPalette() {
   const choose = (row: Row | undefined) => {
     if (row === undefined) return;
     if (row.node.kind === "branch") {
-      setTrail([...path, { key: row.node.key, label: row.node.label }]);
+      setTrail(row.steps);
       setQuery("");
       setActive(0);
       return;
@@ -169,7 +179,7 @@ export function CommandPalette() {
       id={optionId(index)}
       role="option"
       aria-selected={index === current}
-      className={cn("flex cursor-pointer items-baseline justify-between gap-3 rounded-sm px-3 py-2 text-ink md:py-1.5", index === current && "bg-brand-tint")}
+      className={cn("flex cursor-pointer items-baseline justify-between gap-3 rounded-sm px-3 py-2 text-ink md:py-1.5", row.nested && "pl-7", index === current && "bg-brand-tint")}
       // `mousedown` would take focus from the box before the click lands.
       onMouseDown={(event) => event.preventDefault()}
       onMouseEnter={() => setActive(index)}
@@ -177,7 +187,7 @@ export function CommandPalette() {
     >
       <span className="truncate">
         {row.spoken !== undefined ? <span className="sr-only">{row.spoken}</span> : null}
-        {row.node.label}
+        {row.label}
       </span>
       {row.node.kind === "branch" ? (
         <span aria-hidden className="shrink-0 text-xs text-slate">
@@ -231,7 +241,7 @@ export function CommandPalette() {
             aria-autocomplete="list"
             aria-activedescendant={rows.length > 0 ? optionId(current) : undefined}
             autoComplete="off"
-            placeholder={path.length > 0 ? "Type to narrow…" : "Calendar, new stop, ask…"}
+            placeholder={path.length > 0 ? "Type to narrow…" : "Type an action, a trip, a day or a stop…"}
             // A `w-full` flex item takes a 100% basis (KI-2026-09-14-c): beside the chip it must shrink.
             className="min-w-0 flex-1"
             value={query}

@@ -47,10 +47,16 @@ from anywhere without walking it.
    - Enter on a leaf runs it, after the palette has closed and handed focus back, as before. A leaf
      calls the page's own function (ADR-068 §1).
 3. **Typing matches from any level, with no drilling needed.**
+   - **Every node is a candidate, branches as well as leaves** (amended 2026-10-11, Mitchell on
+     PR 398): an Action, an Action › Type, Move's Action › Type › Target, and the leaves, all
+     under the current level. Sometimes you know the thing and type its name, sometimes you know
+     what you want to do and type the action to see its options; each is matched on its own.
    - Each word typed must match a segment, and the words must meet the segments in the path's
-     order. Skipping a segment is fine; going back is not. "go tokyo" → Go to › Trip › Tokyo;
-     "move ramen 3" → Move › Stop › Ramen › Day 3; "tokyo" alone → every path with a segment
-     matching Tokyo.
+     order. Skipping a segment is fine; going back is not. **The last word must land on the
+     node's own last segment**: a node is listed for what it is, not for its ancestors. "go" →
+     the branch Go to, not the leaves under it; "trip" → the branches Go to › Trip and
+     Edit › Trip, and any trip whose name matches; "tokyo" → only the Tokyo leaves; "go tokyo" →
+     Go to › Trip › Tokyo; "move ramen 3" → Move › Stop › Ramen › Day 3.
    - Segments have aliases: Go to — open, view, switch; Add — new, create; Edit — change, rename;
      Remove — delete; Stop — activity, place; View — lens.
    - Each segment keeps v1's match tiers: the whole of it, its start, the start of any word in it,
@@ -70,11 +76,16 @@ from anywhere without walking it.
      cities on that day ("Day 2 · Rome"), so the city is still typeable. A move is one batch and one
      History entry, through the existing `moveDay` / `moveCommands` (ADR-068 §3).
 5. **Ordering, when something is typed.**
-   1. Match quality on the **Target** first (the tiers above), then on the whole path.
+   1. Match quality on the node's **own last segment** first (the tiers above; aliases count),
+      then the **shallower** node, then match quality on the whole path. (Amended 2026-10-11:
+      this was the Target's match, when only leaves were listed.)
    2. Then **nearness**: the focused stop or day, then the selected day, then the current trip,
       then everything else.
    3. Then **natural order**: days in day order, stops by day then time, trips as Home lists them.
    4. At most about eight rows, **grouped by action**.
+   5. **When the top result is a branch, its children are listed straight beneath it**, nested,
+      inside the same eight rows: "go" shows Go to › then Trip, Day, Stop, View, Page. Enter on
+      the branch drills in; arrowing to a child and pressing Enter runs a leaf or drills a branch.
 
    The empty state is the action list, not a ranking. Ordering by recency is out of scope for now.
 
@@ -90,13 +101,19 @@ does not have to rediscover them.
 - **Nearness and natural order are metadata on the leaf** (`nearness`, `order`), supplied by the
   screen that knows them. They only break ties left by match quality; a leaf without them counts
   as global and keeps its registration order.
-- **The Target of a path without one** (Add › Stop, Undo) is its last segment before any
-  Destination, so §5.1 has something to rank on.
+- **A branch's nearness and natural order are its nearest leaf's**, so it ties the way its best
+  leaf would.
 - **Several words may land on one segment**, in order: "go kyoto spring" reaches Kyoto in spring.
+  They must all read one text of it, its label or one alias: "go view" is not Go to by its label
+  and its alias "view" at once, so it reaches Go to › View.
+- **The match is a table over (word, segment, text)**, not a search of every way the words can
+  land, which grows combinatorially with the query and runs for every node on every keystroke
+  (PR 398 review). A unit test holds it to the exhaustive search's answers.
+- **An action or a singleton that matches is its own row**, under no heading, so it never splits
+  its action's heading in two; a top branch's children stay with it.
 - **The closed sets keep their vocabulary order** at every level (actions, then types); targets and
-  destinations come nearest first, then in natural order. A typed query lists leaves only, and
-  drilled in, it searches only under the chip and does not match words against the chip's own
-  segments.
+  destinations come nearest first, then in natural order. Drilled in, a typed query searches
+  only under the chip and does not match words against the chip's own segments.
 
 ## Consequences
 

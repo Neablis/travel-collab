@@ -50,6 +50,16 @@ test("a trip walked from the keyboard alone: drilling, typing across levels, a n
   await page.goto(`/trips/${tripId}?view=Plan`);
   await expect(page.getByTestId("day-column")).toHaveCount(2);
 
+  // Typed, an action shows its options without opening it (ADR-069 §5.5):
+  // "go" is the branch Go to with its children under it, no chip.
+  await open(page);
+  await page.keyboard.type("go");
+  await expect(palette(page).getByRole("option", { name: "Go to", exact: true })).toBeVisible();
+  await expect(palette(page).getByRole("option", { name: "Go to › Trip", exact: true })).toBeVisible();
+  await expect(palette(page).getByTestId("palette-path")).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(palette(page)).toBeHidden();
+
   // Drilled: Enter on *Go to* shows it as the chip, and typing under it
   // reaches *View › Calendar*.
   await open(page);

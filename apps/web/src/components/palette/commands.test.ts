@@ -19,7 +19,7 @@ import {
   undoRedoCommands,
 } from "./commands";
 import { paletteLevel, pathText } from "./grammar";
-import { rankLeaves } from "./match";
+import { rankPalette } from "./match";
 
 // ADR-068 §2: a command runs the page's own function. Where the action takes
 // no argument the command holds the very same reference; where it takes one,
@@ -185,7 +185,7 @@ describe("the trip's commands in the palette", () => {
   });
 
   it("finds a day by a city on it, and a stop by its title and where it goes", () => {
-    expect(rankLeaves(commands, "move ostia 2")[0]?.id).toBe(`move:day:${DAY_1}:${DAY_2}`);
-    expect(rankLeaves(commands, "move colosseum unsch").map((c) => c.id)).toEqual([`move:stop:${early.activityId}:unscheduled`]);
+    expect(rankPalette(commands, "move ostia 2")[0]?.id).toBe(`leaf:move:day:${DAY_1}:${DAY_2}`);
+    expect(rankPalette(commands, "move colosseum unsch").map((hit) => hit.id)).toEqual([`leaf:move:stop:${early.activityId}:unscheduled`]);
   });
 });

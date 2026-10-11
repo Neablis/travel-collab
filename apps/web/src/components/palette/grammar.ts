@@ -49,19 +49,6 @@ export function pathOf(command: PaletteCommand): PathSegment[] {
   return path;
 }
 
-/**
- * Where in `path` the thing itself is, whose match ranks first (ADR-069 §5):
- * the Target, or for a path without one (*Add › Stop*, *Undo*) its last
- * segment before any Destination.
- */
-export function targetIndex(path: readonly PathSegment[]): number {
-  let at = 0;
-  path.forEach((segment, index) => {
-    if (segment.role !== "destination") at = index;
-  });
-  return at;
-}
-
 const NEARNESS: Record<PaletteNearness, number> = { focused: 0, selected: 1, trip: 2, global: 3 };
 
 /**
