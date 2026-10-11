@@ -272,8 +272,15 @@ export function SharedDayScreen({
   // A review held on this device is loaded and sent only for a CONFIRMED
   // reader, not merely one not yet known to be signed out: an expired cookie
   // reads `undefined` first, and flushing then would be a PUT that can only
-  // 401 (Copilot, PR #293).
-  const reviews = useDayReviews(savedDayId, feed.data?.publishedAt, Boolean(user));
+  // 401 (Copilot, PR #293). And only once the plan read has said the account
+  // may review (M42): a free account's flush could only 402, under a Queued row
+  // its note offers no way to discard. Strict here, unlike the form, because
+  // waiting costs nothing: the review stays stored for the next visit.
+  const reviews = useDayReviews(
+    savedDayId,
+    feed.data?.publishedAt,
+    Boolean(user) && reviewEntitled === true,
+  );
 
   // **Back from signing in, having pressed Add while signed out**
   // (`SignInToAddDialog` banked it). Opens the add dialog and adds nothing:

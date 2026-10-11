@@ -664,13 +664,40 @@ describe("a shared day", () => {
       expect(screen.queryByRole("button", { name: "1 star" })).toBeNull();
     });
 
-    it("offers the form to an account that holds playbook.review", async () => {
+    // A review held on this device is sent only once the plan read has said
+    // yes: an unknown answer keeps it stored rather than spending a PUT that
+    // may 402. So this goes red if the read never answers `true`.
+    it("sends a review held on this device once the plan says the account can review", async () => {
       session = { id: "dev-bob" };
       servePlan(["ai.ask", "playbook.review"]);
+      holdReview(DAY_ID, { stars: 4, note: null, heldAt: "2026-09-10T00:00:00.000Z" });
+      putReviewMock.mockResolvedValue(
+        ok({
+          kind: "saved",
+          review: { savedDayId: DAY_ID, reviewerId: "dev-bob", reviewerDisplayName: "Bob", stars: 4, note: null, createdAt: "2026-09-10T00:00:00.000Z", updatedAt: "2026-09-10T00:00:00.000Z", isMine: true },
+          summary: { average: 4, count: 1, histogram: { 1: 0, 2: 0, 3: 0, 4: 1, 5: 0 } },
+        }),
+      );
       renderDay();
+      await waitFor(() => expect(putReviewMock).toHaveBeenCalledWith(DAY_ID, { stars: 4, note: null }));
       expect(await screen.findByTestId("review-form")).toBeTruthy();
-      // The plan was read, so the form is the answer and not the unknown state.
-      await waitFor(() => expect(screen.queryByTestId("review-needs-plan")).toBeNull());
+    });
+
+    // Sent, it could only 402, and its error would sit inside a form this
+    // account is not shown, under a "Queued" row with no way to discard it. It
+    // waits in storage instead, as it does for a reader with no account.
+    it("neither shows nor sends a held review for an account that cannot review", async () => {
+      session = { id: "dev-bob" };
+      servePlan([]);
+      holdReview(DAY_ID, { stars: 4, note: null, heldAt: "2026-09-10T00:00:00.000Z" });
+      putReviewMock.mockResolvedValue({ ok: false, error: { status: 402, message: "Reviews are for Plus and Premium." } });
+      renderDay();
+      expect(await screen.findByTestId("review-needs-plan")).toBeTruthy();
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      expect(putReviewMock).not.toHaveBeenCalled();
+      expect(screen.queryByText("Queued")).toBeNull();
     });
 
     // A reader with no account keeps the header's Sign in as the offer, and

@@ -40,10 +40,11 @@ export type DayReviews = {
  * re-read: the server computes it from the rows under the same lock that wrote
  * the review, so the response is already the number a reload would show.
  *
- * `canSend` is false for a reader with no account (ADR-061). A review held on
- * this device — written by whoever was signed in here before — is then neither
- * shown nor flushed: a *Queued* row headed "You" would be somebody else's, and
- * the flush could only be refused. It stays in storage for when they sign in.
+ * `canSend` is false for a reader with no account (ADR-061), and for an account
+ * not known to hold `playbook.review` (M42). A review held on this device is
+ * then neither shown nor flushed: a *Queued* row headed "You" would be somebody
+ * else's, or one this account cannot send, and the flush could only be
+ * refused. It stays in storage for when it can be sent.
  */
 export function useDayReviews(
   savedDayId: string,
@@ -196,8 +197,9 @@ export function useDayReviews(
 /** What a refused post says. `message` carries the route's `error` string (`readJson`). */
 function refusal(error: ApiError): string {
   if (error.status === 400) return `That review was refused — a note can be at most ${REVIEW_NOTE_MAX} characters.`;
-  // `review-not-entitled` (M42): reached only when the plan read was unknown,
-  // since a known free account is shown the note instead of the form.
+  // `review-not-entitled` (M42): reached only from the form while the plan read
+  // is unknown. A known free account is shown the note instead, and a held
+  // review is not sent until the read says yes.
   if (error.status === 402) return "Reviews are for Plus and Premium.";
   if (error.status === 403) return "This is your own day, so it is not yours to rate.";
   if (error.status === 404) return "This day is no longer in the library, so it cannot be rated.";

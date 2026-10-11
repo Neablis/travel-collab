@@ -21,8 +21,9 @@ import {
 // your own review, withdraw it. The GET is open to a reader with no account
 // (ADR-061), charged per IP, with `mine: null`; PUT and DELETE are signed-in
 // only, for the reason `saved-day-access.ts` gives. PUT alone also needs
-// `playbook.review` (M42, ADR-071): withdrawing a review you already left is
-// never gated, so a free account is not stuck with one it cannot take back.
+// `playbook.review` (M42, ADR-071). Withdrawing a review you already left is
+// never gated, so through the API a free account can still take one back. The
+// page offers no withdraw control today.
 //
 // GET goes through `readSavedDayAsViewer` and PUT through `requireSavedDayRead`
 // first, so a day you cannot read is the same 404 here as on the day itself — this route never becomes a way to
