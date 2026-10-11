@@ -12,7 +12,7 @@ export const metadata = { title: "A shared trip", robots: NOINDEX };
 //
 // Every token here is a real share someone created. There is no longer a
 // reserved `featured` token: the landing page's "look around a real trip" goes
-// to `/demo`, which renders the actual board read-only against a trip folded in
+// to `/demo`, whose demos at `/demo/<slug>` render the actual board read-only, folded in
 // memory (ADR-031), rather than this narrowed one-page view of a pinned share.
 export default async function SharedTripPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;

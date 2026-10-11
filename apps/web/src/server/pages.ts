@@ -5,7 +5,7 @@ import type { Page, PageDoc, PageListEntry, PageSummary, CreatePageInput } from 
 import { findWidgetError, instantiateDefaults, notebookPreviewOf, type SeededPage } from "@tc/pages";
 import { db } from "./db/client";
 import { pages } from "./db/schema";
-import { DEMO_TRIP_ID, isDemoTripId } from "@/lib/demoTrip";
+import { DEMO_TRIPS, isDemoTripId } from "@/lib/demoTrip";
 import { isUuid } from "@/server/ids";
 
 /**
@@ -123,21 +123,28 @@ function seededRow(tripId: string, seed: SeededPage, now: string): typeof pages.
 //     above describes. These rows are ordered by construction.
 const DEMO_PAGE_EPOCH = "2026-01-01T00:00:00.000Z";
 
-/** The demo trip's prebuilt pages, folded in memory — never read, never written. */
+/** A demo trip's prebuilt pages, folded in memory — never read, never written. */
 function demoPageRows(tripId: string): (typeof pages.$inferInsert)[] {
   // Derived, not random: `…e000`, `…e001`, one per default page, minted in
   // `instantiateDefaults`' order so the demo Overview's notebook links name
   // them (ADR-056). The `e` block keeps them in the same reserved space as
-  // DEMO_TRIP_ID's `…d000`.
+  // the demos' `…d000`. The digit before it is the demo's place in
+  // `DEMO_TRIPS`, so no two demos hand out one page id; Japan's is 0, which
+  // keeps the ids it always had.
+  const ordinal = DEMO_TRIPS.findIndex((demo) => demo.tripId === tripId).toString(16);
   let i = 0;
-  const defaults = instantiateDefaults(tripId, () => `00000000-0000-4000-8000-00000000e${String(i++).padStart(3, "0")}`);
+  const defaults = instantiateDefaults(tripId, () => `00000000-0000-4000-8000-0000000${ordinal}e${String(i++).padStart(3, "0")}`);
   const epoch = Date.parse(DEMO_PAGE_EPOCH);
   return defaults.map((seed, n) => seededRow(tripId, seed, new Date(epoch + n).toISOString()));
 }
 
 /** The demo page with this id, or null. Lets `getPage` answer without a query. */
 function demoPageById(id: string): (typeof pages.$inferInsert) | null {
-  return demoPageRows(DEMO_TRIP_ID).find((row) => row.id === id) ?? null;
+  for (const { tripId } of DEMO_TRIPS) {
+    const row = demoPageRows(tripId).find((candidate) => candidate.id === id);
+    if (row !== undefined) return row;
+  }
+  return null;
 }
 
 export async function listPages(tripId: string): Promise<PageSummary[]> {

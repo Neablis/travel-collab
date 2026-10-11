@@ -239,8 +239,8 @@ export function LandingScreen() {
                 {/* Real as of M11 link 4, and still a plain link: SPEC §14
                     says this page runs on nothing — no session, no fetch, no
                     backend — so the CTA does not go looking for a trip to
-                    peek at. `/demo` is the real trip board, read-only, running
-                    the real lenses against the Japan fixture folded in memory
+                    peek at. `/demo` picks a demo, and each `/demo/<slug>` is the real trip board, read-only, running
+                    the real lenses against a fixture or bundle folded in memory
                     (ADR-031, superseding ADR-027's `DEMO_SHARE_TOKEN`). So
                     this link works on every deploy, every preview branch and
                     a fresh clone, and a data-model change still cannot break

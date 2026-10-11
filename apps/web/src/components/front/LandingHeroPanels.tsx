@@ -11,7 +11,7 @@ import { Text } from "@/components/ui/text";
 import { LANDING_DEMO } from "@/lib/landingDemo";
 
 // The hero's Timeline and Notebook panels, drawn by the product's own
-// components from a snapshot of the `/demo` trip (`lib/landingDemo.ts`) rather
+// components from a snapshot of the Japan demo (`lib/landingDemo.ts`) rather
 // than transcribed from the design handoff. That is a deliberate divergence from
 // `Trip Planner Redesign.dc.html:1885-1999`, recorded as `.design-sync/handoff/DRIFT.md`
 // D20 and item 16 of docs/milestones/M26-design-parity.md's "The design is stale here" list.
@@ -20,7 +20,7 @@ import { LANDING_DEMO } from "@/lib/landingDemo";
 // board's drag-and-drop, `@tc/pages`) out of `/welcome`'s first load.
 //
 // Both panels are read-only and fetch nothing (SPEC §14): the river gets
-// `readOnly` and no gestures, which is the path `/demo`'s board takes, and the
+// `readOnly` and no gestures, which is the path a `/demo/<slug>` board takes, and the
 // blocks are handed payloads `@tc/pages` resolved when the snapshot was made.
 
 const { river, notebook, accents, currency } = LANDING_DEMO;

@@ -125,10 +125,8 @@ test("board: days, activities, drag, conflicts as data", async ({ page, browser 
 // `/demo` because it needs no database and renders the canonical Japan fixture,
 // which is long enough to overflow the scroller at the desktop width.
 test("board: scrolling to either end selects the first and the last day", async ({ page }) => {
-  await page.goto("/demo");
-  // §24 again: `/demo` is the ordinary trip surface in read-only, so it lands on
-  // Overview like any other trip.
-  await page.getByRole("tab", { name: "Plan" }).click();
+  // A demo lands on Plan (Mitchell, 2026-10-11), the view this is about.
+  await page.goto("/demo/japan");
 
   const columns = page.getByRole("group", { name: "Day columns" });
   await expect(columns).toBeVisible();

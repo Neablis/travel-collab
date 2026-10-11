@@ -68,7 +68,7 @@ test.describe("tag focus", () => {
     // edit. The stops these walks read are one tab away on arrival now, and
     // asking for them without saying so waited 30 seconds on a page showing
     // the trip's notebook.
-    await page.goto("/demo?view=Plan");
+    await page.goto("/demo/japan?view=Plan");
     await expect(page.getByRole("heading", { name: "Japan: Tokyo → Kyoto → Osaka" })).toBeVisible();
     await expect(page.getByText("Viewer", { exact: true })).toBeVisible();
 
@@ -151,7 +151,7 @@ test.describe("tag focus", () => {
   });
 
   test("clicking the same chip again clears, and a different chip replaces", async ({ page }) => {
-    await page.goto("/demo?view=Plan");
+    await page.goto("/demo/japan?view=Plan");
     const yakitori = card(page, "Yakitori at Torishiki");
     const teamlab = card(page, "teamLab Planets");
     await expect(yakitori).toBeVisible();
@@ -180,7 +180,7 @@ test.describe("tag focus", () => {
   // is the case that needs it — every lodging stop in the fixture is that short,
   // so without this `lodging` could not be focused on a desktop Plan at all.
   test("a stop too short to draw its tags can still focus one", async ({ page }) => {
-    await page.goto("/demo?view=Plan");
+    await page.goto("/demo/japan?view=Plan");
     const hotel = card(page, "Check in at Trunk Hotel");
     const haneda = card(page, "Land at Haneda");
     await expect(hotel).toBeVisible();
@@ -204,7 +204,7 @@ test.describe("tag focus", () => {
       storageState: { cookies: [], origins: [] },
     });
     const page = await tablet.newPage();
-    await page.goto("/demo?view=Plan");
+    await page.goto("/demo/japan?view=Plan");
     expect(await page.evaluate(() => matchMedia("(pointer: coarse)").matches)).toBe(true);
     const chip = card(page, "Check in at Trunk Hotel").getByTestId("tag-chip-lodging");
     await chip.scrollIntoViewIfNeeded();
@@ -226,7 +226,7 @@ test.describe("tag focus", () => {
   // against our own components: the filter row this replaced is gone and stays
   // gone (KI-47), and nothing here offers multi-select.
   test("offers no filter row, no Show everything, and no multi-select", async ({ page }) => {
-    await page.goto("/demo?view=Plan");
+    await page.goto("/demo/japan?view=Plan");
     const yakitori = card(page, "Yakitori at Torishiki");
     await expect(yakitori).toBeVisible();
     await yakitori.getByTestId("tag-chip-meal").click();

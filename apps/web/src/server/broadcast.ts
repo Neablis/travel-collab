@@ -46,7 +46,7 @@ export async function getTripEventsAfter(
   // will be. A reader at the head stays at the head; one holding a lower seq
   // is told to resync, which for the demo resolves against the same fixture.
   if (isDemoTripId(tripId)) {
-    const headSeq = demoTripHeadSeq();
+    const headSeq = demoTripHeadSeq(tripId);
     return { headSeq, events: [], resync: afterSeq < headSeq };
   }
 
