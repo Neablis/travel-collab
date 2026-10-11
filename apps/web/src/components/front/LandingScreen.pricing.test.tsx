@@ -38,7 +38,9 @@ function namesAmount(text: string, amount: string): boolean {
   for (let at = text.indexOf(amount); at !== -1; at = text.indexOf(amount, at + 1)) {
     let rest = text.slice(at + amount.length);
     if (rest.startsWith(".00")) rest = rest.slice(3);
-    if (!/^[\d.,]/.test(rest)) return true;
+    // Sentence punctuation may follow the amount ("Plus is $9."); only a
+    // digit after it, with or without a separator, makes it another amount.
+    if (!/^[.,]?\d/.test(rest)) return true;
   }
   return false;
 }

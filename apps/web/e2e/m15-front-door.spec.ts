@@ -30,7 +30,12 @@ test("landing → sign in → first trip → sign out", async ({ page }) => {
   // exactly the trap, so the whole copy check is scoped rather than half of it.
   const landing = page.getByTestId("desktop-landing");
   await expect(landing.getByText("Invite the group with a link, nothing to install.")).toBeVisible();
-  await expect(page.getByText(/\bfree\b/i)).toHaveCount(0);
+  // **Except the plan's name in the plan table** (M42 D3, SPEC §17.1: "The
+  // `Free` plan name is not that claim") — the same rule as
+  // `LandingScreen.test.tsx`. Every exempt cell also matches the page-wide
+  // pattern, so equal counts mean no "free" anywhere else.
+  const planNames = page.getByTestId("plan-comparison").getByText(/^free$/i);
+  await expect(page.getByText(/\bfree\b/i)).toHaveCount(await planNames.count());
   await expect(page.getByText(/Free and open source/)).toHaveCount(0);
 
   // M11 link 4 built the real thing, so this is a link now, not a Preview
