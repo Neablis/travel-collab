@@ -164,6 +164,9 @@ Surveyed 2026-10-11. Re-check line numbers before trusting them. The app is unde
 - *Activities by tag* (count, pie or bar, the same toggle as spend), *Trip description*,
   *Tags by day* (stacked bar per day), *Hours by tag* (untimed stops left out). Ticketed never
   counted. Presets with keywords; chart colours from part 1's tokens.
+- *Trip description* calls `describeByTags` with **every activity, backlog included** (ADR-070 §3,
+  amended in part 3), so it says what the home card and invite page say. Iceland reads "Outdoorsy"
+  that way and "Outdoors & food" from the days alone, so building it from the days is a bug.
 
 ### Part 5 — tag pages and Discover
 

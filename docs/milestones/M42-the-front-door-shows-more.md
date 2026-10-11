@@ -86,7 +86,7 @@ Candidates absorbed (each deleted by this gate):
 8. **A description is worked out from the share of stops, at read time, never stored.** Lodging
    and Ticketed are ignored. Food counts when at least half the tagged stops are Food; any other
    category counts when it is on at least a quarter of the stops that carry one. The top two that
-   count name the trip ("Outdoorsy", "Beach & outdoors", "Food & drink"); none means *"A bit of
+   count name the trip ("Outdoorsy", "Beach & outdoors", "Food & drinks"); none means *"A bit of
    everything"*; too few tagged stops means no description. The same rule describes a day.
 9. **Descriptions show on** the demo picker, home trip cards, public day pages and Discover cards
    (with the day's tags linking to tag pages), and the invite page.

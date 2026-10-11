@@ -60,6 +60,9 @@ search engines get tag pages, and notebooks can chart the mix.
 3. **A description is derived, at read time, from the share of stops.** One pure function in
    `@tc/domain` describes a trip or a day from its stops; nothing stores the result (a query may
    materialise it for filtering, recomputed on every write, but the function is the only rule).
+   - A trip's stops are **all its activities, the backlog's too**; a day's are its own. Transit
+     stops are left out whatever their tags (amended 2026-10-11, part 3: so every surface, and
+     part 4's *Trip description* widget, reads the same input and shows the same words).
    - Count stops with at least one category tag, ignoring Lodging and Ticketed.
    - **Food** qualifies when at least **50%** of those stops are Food: every trip eats, so the
      bar is higher.
@@ -67,7 +70,7 @@ search engines get tag pages, and notebooks can chart the mix.
      non-Food category **and on at least two stops** (amended 2026-10-11, part 3: otherwise a day
      of four meals and one bar reads "Drinks & food", the bar being 100% of the non-Food stops).
    - The top two that qualify, by share, name it: one gives an adjective ("Outdoorsy"), two give
-     a pair ("Beach & outdoors", "Food & drink"). None gives *"A bit of everything"*.
+     a pair ("Beach & outdoors", "Food & drinks"). None gives *"A bit of everything"*.
    - Below a minimum number of tagged stops, there is no description, rather than a misleading one.
    - The copy for each tag (adjective and noun) is a table beside the function, tested so every
      category has both.
