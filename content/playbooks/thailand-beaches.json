@@ -354,7 +354,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "beach"
           ],
           "cost": {
             "amountMinor": 900,
