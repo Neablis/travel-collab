@@ -18,7 +18,8 @@ that needs another waits for it to merge, then branches from `main`. Part 0 is t
 | 4 | `claude/m42-part4-tag-widgets` | four notebook widgets (D11) | 1, 3 |
 | 5 | `claude/m42-part5-tag-pages` | tag and city×tag pages, the Discover tag filter and pagination, the sitemap | 2, 3 |
 | 6 | `claude/m42-part6-demo-per-trip` | `/demo/<slug>`, the picker with descriptions, one landing snapshot per trip | 3 (and 2, so descriptions read right) |
-| 7 | `claude/m42-part7-landing-pricing` | the `#pricing` section from a generated plan snapshot | — |
+| 7 | `claude/m42-part7-landing-pricing` | the `#pricing` section from a generated plan snapshot; Mitchell's walk: plan cards, notebook memory, solid phone header, no false votes/comments copy, landing art redrawn | — |
+| 8 | `claude/m42-part8-paid-reviews` | leaving a playbook review needs Plus or Premium (`playbook.review`, ADR-071) | — |
 
 **Order.** Wave 1: parts 1 and 7 in parallel. Wave 2 (after 1 merges): parts 2 and 3 in
 parallel. Wave 3: parts 4, 5 and 6 in parallel.
@@ -188,3 +189,16 @@ Surveyed 2026-10-11. Re-check line numbers before trusting them. The app is unde
   with a `--check` mode in CI like `landing:verify`.
 - `LandingScreen.tsx` gains a `#pricing` section rendering `PlanComparison` from the snapshot.
 - **A test** that fails if a price string is hard-coded in the landing component.
+
+### Part 8 — reviews need Plus or Premium (added 2026-10-11)
+
+- New entitlement `playbook.review` in `packages/contracts/src/entitlement.ts` (CHANGELOG; typecheck
+  every package; public API/openapi if entitlements are exposed).
+- Added in place to plus@v1, premium@v1, premium@v2 per ADR-071, with `noExtension` updated to
+  assert the change is an added entitlement citing ADR-071.
+- `accountCan(…, "playbook.review")` on PUT in `app/api/saved-days/[savedDayId]/reviews/route.ts`
+  (402, matching `ai-not-entitled`); DELETE of your own review stays open; GET stays open.
+- `ReviewsSection` / `ReviewRail`: a signed-in Free account sees "Reviews are for Plus and Premium"
+  with a link to plans; `/plans` gains a "Review playbooks" row.
+- Integration tests, red first: Free 402, Plus 200, plus@v1 holder 200, own-review delete for Free.
+- Walk (ADR-047, no money): a Free account is refused; an operator-granted Plus account reviews.

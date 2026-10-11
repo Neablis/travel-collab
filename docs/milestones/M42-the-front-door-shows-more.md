@@ -56,7 +56,10 @@ Candidates absorbed (each deleted by this gate):
    review (stars and a note) needs Plus or Premium** ("the cost keeps spammers out"); reading stays
    open, Free accounts' existing reviews stay, and no paying account loses anything. Trip "votes
    and comments" never existed, so that claim leaves `/plans`, the account sheet, the invite
-   screens and SPEC §29. Both in part 7.
+   screens and SPEC §29 (part 7). The review gate is **part 8**: existing paid versions gain the
+   new `playbook.review` entitlement in place, under **ADR-071**, so no current subscriber loses
+   reviewing. The landing art's trip replies and reactions, which don't exist, are redrawn around
+   suggestions and playbook stars (part 7).
 4. **Profiles and the board are not indexed.** *Already true when M42 was scoped*: the SEO pass
    (merge #344) set `NOINDEX_FOLLOW` on `/playbooks/board` and `/playbooks/profile/[userId]`, and
    `sitemap.ts` leaves both out. Recorded; no work.
@@ -120,6 +123,8 @@ Candidates absorbed (each deleted by this gate):
 - [ ] **Tag and city×tag pages render, and are indexed and in the sitemap only at 3 or more
       days**; Discover filters by tag.
 - [ ] **The four widgets of D11 are in the widget catalogue**, and none counts Ticketed.
+- [ ] **Leaving a playbook review needs Plus or Premium** (an integration test: Free gets refused,
+      Plus and an existing plus@v1 holder succeed); reading stays open (ADR-071).
 - [ ] **The e2e spec passes on `pnpm --filter web test:e2e:ci-like`**: signed out, open each demo
       trip, follow `#pricing`, and open a tag page.
 - [ ] **[walk]** The PR preview is walked signed out at desktop and phone widths, and the tag
