@@ -29,11 +29,12 @@
 typecheck → lint (including boundary rules) → unit → integration (Postgres
 service container) → e2e smoke → golden tests. All green or it doesn't merge.
 
-`pnpm check` (typecheck + lint + unit) is the fast subset with no
-infrastructure dependency — but it is **not** the mid-branch default: that is
+`pnpm check` is the whole local suite — typecheck, lint, every package's
+unit tests, and `test:int` when a database answers — and `check-test-lane.mjs`
+denies it locally: CI runs that suite on the PR. The mid-branch default is
 the `minimal-check-subset` skill's output, per `AGENTS.md` §Definition of Done
 Tier 2. `pnpm check` does
-**not** run integration or e2e, since those need a running Postgres
+**not** run e2e, and skips integration with no database, since those need a running Postgres
 (`pnpm setup` once, then `docker compose up -d` or equivalent) and, for e2e,
 installed Playwright browsers. For anything that touches the server or a
 user-facing flow, run the scoped forms: `pnpm test:int` (`apps/web`'s

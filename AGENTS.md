@@ -173,16 +173,15 @@ What each tool does, why it exists and what it measured:
   folder↔subfolder cycle, `KI-2026-09-23-b`) and `pnpm surface --check`
   (byte budgets on this file and the other first reads — past 85% a file gets a
   retirement pass, `docs/guidelines/retiring-a-rule.md`; raising a budget is a
-  decision recorded in the commit that raises it). `pnpm check` runs
-  `pnpm seed:verify` (the Japan fixture, ADR-030); `pnpm content:verify` checks
-  content bundles (ADR-041).
+  decision recorded in the commit that raises it). `pnpm seed:verify` checks
+  the Japan fixture (ADR-030); `pnpm content:verify` checks content bundles
+  (ADR-041).
 - **Hooks** (`scripts/hooks/`): a typecheck of the touched package on every
   `.ts`/`.tsx` edit; a guard on history-rewriting git while several worktrees
   exist; and the **draft-PR guard**, which asks before `gh pr create` without
-  `--draft` (on a milestone part branch it refuses `--draft` instead) and
-  before `gh pr ready` when no **Tier-3 stamp** covers HEAD. `pnpm check`, the
-  only writer of that stamp, is denied locally, so the ask is to say which tier
-  you ran: CI on the PR runs the full suite.
+  `--draft` (on a milestone part branch it refuses `--draft` instead).
+  `gh pr ready` passes: marking a PR ready is what makes CI run the full suite
+  on it, and that run is the verdict. No local stamp is involved.
 - **The subagent protocol** (`.claude/protocol/CONTRACT.md`) binds every
   dispatched subagent: three exit states, two-strike handback, report shape.
   `ADAPTER.md` holds this repo's facts, including the one resource no hook

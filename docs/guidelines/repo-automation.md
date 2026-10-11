@@ -78,21 +78,19 @@ Cannot see a cycle between a folder and its own subfolder
 `docs/reviews/2026-09-23-architecture-wall-first-run.md`.
 
 **Draft-PR guard** (`scripts/hooks/draft-pr-guard.mjs`, `PreToolUse` on
-`gh *`): asks before `gh pr create` without `--draft`, and before
-`gh pr ready` when no **Tier-3 stamp** covers HEAD. The rule was followed on
+`gh *`): asks before `gh pr create` without `--draft` (`--draft=false` counts
+as without). The rule was followed on
 **4 of 15 branches**; PR #196, opened ready, spent **41 CI runs and 8 failures**.
-Those two **ask**. On a milestone part branch (`claude/m<N>-part<K>-<slug>`,
-from `--head` or the checked-out branch) the first ask steps aside, because a
-part opens ready, and `gh pr create --draft` is **denied** instead. It also
+On a milestone part branch (`claude/m<N>-part<K>-<slug>`, N may carry a letter
+as in `m48a`, from `--head` or the checked-out branch) the ask steps aside,
+because a part opens ready, and `gh pr create --draft` is **denied** instead.
+`gh pr ready` passes: marking a PR ready is what makes CI run the full suite. It also
 denies a model id in a `gh pr create|edit` title, body or body file.
 
 **The Tier-3 stamp** (`pnpm check` records it; `pnpm tier3 verify` reads it).
 `check-test-lane.mjs` denies `pnpm check` locally, so a stamp exists only after
-an `ALLOW_FULL_SUITE=1` run; without one, `gh pr ready` asks and CI on the PR
-is the full-suite verdict. The stamp, `.git/tc-tier3.json`, holds the commit checked and **which lanes were live**.
-`pnpm check` ends in `test:int:if-db`, which skips silently with no database —
-*"A green `pnpm check` here is NOT a green CI."* The guard names the uncovered
-lanes; record them on the PR's *"Not run, and why"* line.
+an `ALLOW_FULL_SUITE=1` run, and no hook reads it any more: CI on the PR is the
+full-suite verdict. The stamp, `.git/tc-tier3.json`, holds the commit checked and **which lanes were live**.
 
 **Hooks** (`scripts/hooks/`, tests in `scripts/hooks/__tests__/` and
 `scripts/__tests__/`): a `PostToolUse` typecheck of the touched package

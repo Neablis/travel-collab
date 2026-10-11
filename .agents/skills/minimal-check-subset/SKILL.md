@@ -105,9 +105,10 @@ pnpm lint && pnpm test` across every workspace package).
        Measured 2026-09-05 on `@tc/factories`: 6 tests in 0.5s against 360 in
        2.4s. (This entry previously said there was "no file-level scoping
        option" for these packages. There is.) When the change is
-       package-wide, name the source directory rather than nothing:
-       `pnpm --filter <pkg> exec vitest run src/`. A run naming no path is
-       the whole suite, which CI pays for and `check-test-lane.mjs` denies.
+       package-wide, run the tests covering the files you changed and let
+       CI run the package suite. `vitest run src/` or `vitest run .` is the
+       package suite under another name, and so is a run naming no path;
+       `check-test-lane.mjs` denies all three.
        `@tc/predict` defines no `test` script.
 
    - **A change to user-visible text** (a label, a qualifier, an error

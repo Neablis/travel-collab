@@ -26,7 +26,8 @@ do the code survey.
    (`claude/m<N>-part<K>-…`), so the part-only hooks leave it alone. Subscribe to it. Part 0
    merges last.
 5. **Split the parts.** One theme each, under about 80 reviewable files. Each part's branch is
-   `claude/m<N>-part<K>-<slug>`, K from 1, e.g. `claude/m42-part2-drawer-is-cards`; the hooks
+   `claude/m<N>-part<K>-<slug>`, K from 1 and N with an optional letter (`m48a`), e.g.
+   `claude/m42-part2-drawer-is-cards`; the hooks
    recognise a part by that name (`scripts/hooks/lib/part-branch.mjs`).
    - **Every part targets `main` and merges on its own when ready.** No part is based on part 0
      or on another part. A part that needs an earlier one waits for it to merge to `main`, then
