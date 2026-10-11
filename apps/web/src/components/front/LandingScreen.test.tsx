@@ -145,19 +145,20 @@ describe("LandingScreen", () => {
   // "tripFree" — no word boundary, no match. The old form passed with exactly
   // that planted; `queryAllByText` tests each element's own text.
   //
-  // **Except inside the plan table**, which names the `free` plan and prices it
-  // "Free". SPEC §17.1: *"The `Free` plan name is not that claim"* — the rule
-  // is about selling the product on free, and the table only says what each
-  // plan is. Everything outside it is still held to the rule.
+  // **Except the plan's name in the plan table**: its `free` column header and
+  // the "Free" price cell. SPEC §17.1: *"The `Free` plan name is not that
+  // claim"*. Only a cell that is exactly the name is let through — "Free for a
+  // week" in the table is still a claim — and the other two patterns get no
+  // exemption at all.
   it.each([
     ["free", /\bfree\b/i],
     ["open source", /open[ -]source/i],
     ["no credit card", /credit card/i],
   ])("never sells itself on %s (SPEC §14)", (_label, pattern) => {
     render(<LandingScreen />);
-    const inPlanTables = screen
+    const planNames = screen
       .getAllByTestId("plan-comparison")
-      .flatMap((table) => within(table).queryAllByText(pattern));
-    expect(screen.queryAllByText(pattern).filter((el) => !inPlanTables.includes(el))).toEqual([]);
+      .flatMap((table) => within(table).queryAllByText(/^free$/i));
+    expect(screen.queryAllByText(pattern).filter((el) => !planNames.includes(el))).toEqual([]);
   });
 });
