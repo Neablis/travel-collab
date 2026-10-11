@@ -182,6 +182,9 @@ Surveyed 2026-10-11. Re-check line numbers before trusting them. The app is unde
 - `/demo` shows a picker (five cards with name, description, length); `/demo/<slug>` opens each.
   Canonicals and the sitemap list each.
 - `landing-demo.ts` writes one snapshot per trip; `landing:verify` checks them all.
+- `/demo` must fold the bundle files, not the production copies of the trips: the importer is
+  create-if-absent for trips, so imported trips keep their pre-M42 tags (part 2's review; nothing
+  else reads them). If they ever need the tags, extend `reconcileLocations` to issue tag updates.
 - **A test** that enumerates `content/trips/` so a new bundle cannot be left out.
 
 ### Part 7 — landing pricing
