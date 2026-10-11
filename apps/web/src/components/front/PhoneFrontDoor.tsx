@@ -122,8 +122,9 @@ function ExampleCard({ children, className }: { children: ReactNode; className?:
  *
  * **Three of the cards are now the product itself** (M42 part 9): the same
  * river, Discover card and notebook page as the desktop blocks, at phone size
- * (`LandingFeaturePanel`). The drawings below are what stands in while those
- * load, or if they cannot. Countdown stays a drawing, as on the desktop.
+ * (`LandingFeaturePanel`) — the Discover card in its compact form, which fits
+ * a short phone. The drawings below are the fallback if those cannot load.
+ * Countdown stays a drawing, as on the desktop.
  */
 const CLAIMS: readonly { label: string; body: string; example?: ReactNode }[] = [
   {
@@ -132,7 +133,7 @@ const CLAIMS: readonly { label: string; body: string; example?: ReactNode }[] = 
     label: "Playbooks",
     body: "Relive someone's perfect day.",
     example: (
-      <LandingFeaturePanel panel="playbook">
+      <LandingFeaturePanel panel="playbook-compact">
         <ExampleCard className="flex flex-col gap-2.5">
           <span className="flex items-baseline justify-between gap-2.5">
             <Text as="span" className="text-sm font-semibold text-ink">
@@ -348,12 +349,20 @@ export function PhoneFrontDoor() {
         //
         // Read back off `toFixed(3)` rather than off `opacity * tail`: a value
         // that rounds to `0.000` is gone from the screen, and a claim nobody
-        // can see is a claim nobody should hear. Nothing inside a claim is
-        // focusable, so hiding one cannot strand the keyboard on it.
+        // can see is a claim nobody should hear.
+        //
+        // **And nobody should reach or tap it** (M42 part 9). The claims hold
+        // real links now — the Discover card's — and they are stacked, so a
+        // faded claim later in the document sat over the shown one, took its
+        // taps, and kept its own links in the tab order inside `aria-hidden`.
+        // `inert` goes on and off with `aria-hidden`: out of the tab order,
+        // out of hit-testing, so a tap falls through to the claim on screen.
         const painted = (opacity * tail).toFixed(3);
+        const hidden = Number(painted) === 0;
         chunk.style.opacity = painted;
-        if (Number(painted) > 0) chunk.removeAttribute("aria-hidden");
-        else chunk.setAttribute("aria-hidden", "true");
+        if (hidden) chunk.setAttribute("aria-hidden", "true");
+        else chunk.removeAttribute("aria-hidden");
+        chunk.toggleAttribute("inert", hidden);
         chunk.style.transform = `translate3d(0,${dy.toFixed(1)}px,0)`;
       });
     };
@@ -495,8 +504,10 @@ export function PhoneFrontDoor() {
                   data-testid="front-door-claim"
                   // The authored rest state's other half: the three claims that
                   // start invisible start unannounced too, so the server's HTML
-                  // and the paint above agree before any effect has run.
+                  // and the paint above agree before any effect has run — and
+                  // inert, so their links can be neither tabbed to nor tapped.
                   aria-hidden={i !== 0}
+                  inert={i !== 0}
                   className="absolute inset-0 flex flex-col justify-center px-6"
                   // Note 2: the rest state is AUTHORED, not applied by the
                   // effect. Without it a cold load — or a browser that fires no

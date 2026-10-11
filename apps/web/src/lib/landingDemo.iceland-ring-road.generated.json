@@ -44,10 +44,7 @@
         "anchors": [],
         "kind": "transit",
         "tags": [],
-        "cost": {
-          "amountMinor": 3000,
-          "currency": "USD"
-        },
+        "cost": null,
         "bookedBy": null,
         "participants": [],
         "mode": null,
@@ -76,10 +73,7 @@
         "tags": [
           "outdoors"
         ],
-        "cost": {
-          "amountMinor": 1600,
-          "currency": "USD"
-        },
+        "cost": null,
         "bookedBy": null,
         "participants": [],
         "mode": null,
@@ -135,10 +129,7 @@
         "tags": [
           "meal"
         ],
-        "cost": {
-          "amountMinor": 4500,
-          "currency": "USD"
-        },
+        "cost": null,
         "bookedBy": null,
         "participants": [],
         "mode": null,
@@ -165,10 +156,7 @@
           "outdoors",
           "beach"
         ],
-        "cost": {
-          "amountMinor": 1000,
-          "currency": "USD"
-        },
+        "cost": null,
         "bookedBy": null,
         "participants": [],
         "mode": null,
@@ -196,10 +184,7 @@
         "tags": [
           "lodging"
         ],
-        "cost": {
-          "amountMinor": 74000,
-          "currency": "USD"
-        },
+        "cost": null,
         "bookedBy": null,
         "participants": [],
         "mode": null,
@@ -227,10 +212,7 @@
         "tags": [
           "meal"
         ],
-        "cost": {
-          "amountMinor": 12000,
-          "currency": "USD"
-        },
+        "cost": null,
         "bookedBy": null,
         "participants": [],
         "mode": null,
@@ -332,39 +314,39 @@
         "Kópavogur"
       ],
       "window": "8:30 am – 10:30 pm",
-      "cost": "$1,689.00",
+      "cost": null,
       "ordinal": 2,
       "date": null,
       "activities": [
         {
           "title": "Cinnamon buns at Brauð & Co",
           "timeWindow": "8:30 am – 9:10 am",
-          "cost": "$18.00"
+          "cost": null
         },
         {
           "title": "Up the Hallgrímskirkja tower",
           "timeWindow": "9:20 am – 10:20 am",
-          "cost": "$20.00"
+          "cost": null
         },
         {
           "title": "The Settlement Exhibition",
           "timeWindow": "10:45 am – 12:30 pm",
-          "cost": "$40.00"
+          "cost": null
         },
         {
           "title": "Lobster soup at Sægreifinn",
           "timeWindow": "1 pm – 2:15 pm",
-          "cost": "$65.00"
+          "cost": null
         },
         {
           "title": "Sky Lagoon, and the seven-step ritual",
           "timeWindow": "4 pm – 7 pm",
-          "cost": "$260.00"
+          "cost": null
         },
         {
           "title": "Dinner at Sumac",
           "timeWindow": "8:30 pm – 10:30 pm",
-          "cost": "$160.00"
+          "cost": null
         }
       ]
     }

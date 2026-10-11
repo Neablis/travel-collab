@@ -45,10 +45,7 @@
           "meal",
           "drinks"
         ],
-        "cost": {
-          "amountMinor": 1400,
-          "currency": "USD"
-        },
+        "cost": null,
         "bookedBy": null,
         "participants": [],
         "mode": null,
@@ -74,10 +71,7 @@
         "tags": [
           "ticketed"
         ],
-        "cost": {
-          "amountMinor": 84000,
-          "currency": "USD"
-        },
+        "cost": null,
         "bookedBy": null,
         "participants": [],
         "mode": null,
@@ -133,10 +127,7 @@
         "tags": [
           "meal"
         ],
-        "cost": {
-          "amountMinor": 9000,
-          "currency": "USD"
-        },
+        "cost": null,
         "bookedBy": null,
         "participants": [],
         "mode": null,
@@ -192,10 +183,7 @@
         "tags": [
           "drinks"
         ],
-        "cost": {
-          "amountMinor": 4000,
-          "currency": "USD"
-        },
+        "cost": null,
         "bookedBy": null,
         "participants": [],
         "mode": null,
@@ -223,10 +211,7 @@
         "tags": [
           "meal"
         ],
-        "cost": {
-          "amountMinor": 14000,
-          "currency": "USD"
-        },
+        "cost": null,
         "bookedBy": null,
         "participants": [],
         "mode": null,
@@ -324,14 +309,14 @@
         "Badia"
       ],
       "window": "7:30 am – 9:45 pm",
-      "cost": "$7,353.00",
+      "cost": null,
       "ordinal": 3,
       "date": null,
       "activities": [
         {
           "title": "Breakfast, check out, and the bags into a taxi for Corvara",
           "timeWindow": "7:30 am – 8:15 am",
-          "cost": "$120.00"
+          "cost": null
         },
         {
           "title": "Ski bus to Passo Falzarego",
@@ -346,22 +331,22 @@
         {
           "title": "Lunch at Rifugio Averau",
           "timeWindow": "12 pm – 1:20 pm",
-          "cost": "$110.00"
+          "cost": null
         },
         {
           "title": "Lagazuoi cable car, and the Hidden Valley to Armentarola",
           "timeWindow": "1:45 pm – 3:45 pm",
-          "cost": "$11.00"
+          "cost": null
         },
         {
           "title": "Check in at Hotel La Perla, Corvara",
           "timeWindow": "4:30 pm – 5:20 pm",
-          "cost": "$2,100.00"
+          "cost": null
         },
         {
           "title": "Dinner at Maso Runch",
           "timeWindow": "7:30 pm – 9:45 pm",
-          "cost": "$110.00"
+          "cost": null
         }
       ]
     }

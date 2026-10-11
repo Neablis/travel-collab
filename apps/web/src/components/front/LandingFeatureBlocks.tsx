@@ -19,8 +19,10 @@ import { LandingFeaturePanel } from "./LandingFeaturePanel";
 // **Three of the four show the app itself** (M42 part 9): Together is the
 // board's read-only river, Playbooks a Discover card, Notebook a notebook page
 // with its widgets resolved, each from the committed snapshots
-// (`lib/landingDemo.ts`) and loaded after first paint (`LandingFeaturePanel`).
-// The drawings below are what stands in while they load, or if they cannot.
+// (`lib/landingDemo.ts`). The server's HTML carries the real panels; what is
+// deferred is their JavaScript, a chunk of its own (`LandingFeaturePanel`),
+// which hydrates them once it arrives. The drawings below are the fallback if
+// that chunk cannot load, and what a client-side render shows while it does.
 // Countdown stays a drawing: `NextTripHero` fetches its trip and reads the
 // clock, and taking both as props is a refactor of the home screen, not of
 // this page.

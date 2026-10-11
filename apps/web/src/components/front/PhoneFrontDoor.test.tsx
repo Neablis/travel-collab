@@ -82,6 +82,23 @@ describe("the phone front door (SPEC §28)", () => {
     }
   });
 
+  // M42 part 9 put real links in the claims (the Discover card's), and the
+  // claims are stacked: a faded one later in the document sat over the shown
+  // one, took its taps, and kept its links in the tab order. Every claim the
+  // sequence hides is `inert` as well as `aria-hidden`. jsdom models neither
+  // focus nor hit-testing for it, so the attribute is held here and the
+  // behaviour in `m42-demo-trips.spec.ts`.
+  it("puts only the claims on screen within reach of a tap or a tab", () => {
+    render(<PhoneFrontDoor />);
+    const reachable = () => screen.getAllByTestId("front-door-claim").map((el) => !el.hasAttribute("inert"));
+
+    expect(reachable()).toEqual([true, false, false, false]);
+    for (const p of [0.3, 0.5, 0.62, 0.9]) {
+      scrollTo(p);
+      expect(reachable(), `at p=${p}`).toEqual(opacities().map((o) => o > 0));
+    }
+  });
+
   // And the markup carries it before any effect runs, for the same reason the
   // authored opacity has to: Next ships the server's HTML and hydration is a
   // tick later, so a page read in that gap would announce all four.
@@ -90,7 +107,11 @@ describe("the phone front door (SPEC §28)", () => {
     const claims = [...html.matchAll(/data-testid="front-door-claim"([^>]*)>/g)].map((m) => m[1]!);
     expect(claims).toHaveLength(4);
     expect(claims[0]).not.toContain('aria-hidden="true"');
-    for (const attrs of claims.slice(1)) expect(attrs).toContain('aria-hidden="true"');
+    expect(claims[0]).not.toContain("inert");
+    for (const attrs of claims.slice(1)) {
+      expect(attrs).toContain('aria-hidden="true"');
+      expect(attrs).toContain('inert=""');
+    }
   });
 
   // §28's first note: *"Progress is **scroll position inside the pinned

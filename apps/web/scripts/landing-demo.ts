@@ -23,6 +23,12 @@
 // resolving against the undated trip is the whole of it. The fold still needs
 // a start date, and it gets a fixed one so the output is reproducible.
 //
+// **So are prices** (M42 part 9). The front door sells the day, not what it
+// cost — Mitchell, 2026-10-11: *"nostalgic, not pricing"* — and a stop's
+// price reaches the river's accessible names and the notebook's day card as
+// text. Every stop is resolved with no cost, which is the form a stop nobody
+// priced already has.
+//
 // Run with `node --import ./scripts/lib/ts-resolve-register.mjs`, which lets
 // Node follow `src/**`'s extensionless imports and the `@/` alias.
 
@@ -89,12 +95,16 @@ function resolveBlock<K extends BlockPayload["kind"]>(
   return outcome.rendered.block as Extract<BlockPayload, { kind: K }>;
 }
 
-/** Demo `slug` as `/demo/<slug>` folds it, with its dates removed, and the context a widget resolves in. */
+/** Demo `slug` as `/demo/<slug>` folds it, with its dates and prices removed, and the context a widget resolves in. */
 function undatedDemo(slug: string) {
   const demo = demoTripBySlug(slug);
   if (demo === undefined) throw new Error(`landing demo: ${slug} is not a demo`);
   const folded = demoTripDetailFor(demo.tripId, REFERENCE_START_DATE);
-  const trip: TripDetail = { ...folded, days: folded.days.map((day) => ({ ...day, date: null })) };
+  const trip: TripDetail = {
+    ...folded,
+    days: folded.days.map((day) => ({ ...day, date: null })),
+    activities: Object.fromEntries(Object.entries(folded.activities).map(([id, activity]) => [id, { ...activity, cost: null }])),
+  };
   const globals = buildTripGlobals(trip);
   const ctx: WidgetContext = { trip, page: { tripId: demo.tripId }, user: null, globals, today: null };
   return { trip, globals, ctx };

@@ -20,6 +20,9 @@ const DEMOS = [
   { slug: "thailand-andaman", name: "Thailand: Bangkok → Krabi → Koh Lanta", description: "Food & beach", days: "10 days" },
 ];
 
+/** The Playbooks block's day, the bundled Railay playbook (`landingFeatures.generated.json`). */
+const PLAYBOOK = /^Railay: the first longtail/;
+
 test.describe("the front door, signed out (M42)", () => {
   test.use({ storageState: { cookies: [], origins: [] } });
 
@@ -83,30 +86,66 @@ test.describe("the front door, signed out (M42)", () => {
   });
 
   // Part 9: the feature blocks are the app's own river, Discover card and
-  // notebook page, from the committed snapshots, and the phone's claims are
-  // the same components at phone size — server-rendered, so they hydrate
-  // rather than swap in.
-  test("the landing's feature blocks show the app itself, at desktop and phone widths", async ({ page }) => {
+  // notebook page, from the committed snapshots — server-rendered, so they
+  // hydrate rather than swap in. A hydration mismatch shows up as React's
+  // minified errors in a production build (418, 423, 425) or as an uncaught
+  // page error, so both are listened for.
+  test("the landing's feature blocks show the app itself, and hydrate cleanly", async ({ page }) => {
     const hydration: string[] = [];
     page.on("console", (message) => {
-      if (message.type() === "error" && /hydrat/i.test(message.text())) hydration.push(message.text());
+      if (message.type() === "error" && /hydrat|Minified React error #(418|423|425)/i.test(message.text())) {
+        hydration.push(message.text());
+      }
     });
+    page.on("pageerror", (error) => hydration.push(error.message));
     await page.goto("/welcome");
     const landing = page.getByTestId("desktop-landing");
-    const playbook = /^Railay: the first longtail/;
     await expect(
       landing.getByRole("region", { name: "The trip starts before the trip." }).getByRole("list", { name: "Day 7 timeline" }),
     ).toBeVisible();
-    await expect(landing.getByRole("region", { name: "Relive someone’s perfect day." }).getByRole("link", { name: playbook })).toBeVisible();
+    await expect(landing.getByRole("region", { name: "Relive someone’s perfect day." }).getByRole("link", { name: PLAYBOOK })).toBeVisible();
     await expect(landing.getByRole("region", { name: "How you’ll remember it." }).getByText("Check in at Gora Kadan")).toBeVisible();
-
-    // The first claim is on screen as the phone's page opens, and its card
-    // fits the screen rather than running off the bottom of the pinned stage.
-    await page.setViewportSize({ width: 411, height: 852 });
-    const card = page.getByTestId("phone-front-door").getByTestId("discover-card");
-    await expect(card.getByRole("link", { name: playbook })).toBeVisible();
-    const box = await card.boundingBox();
-    expect(box!.y + box!.height).toBeLessThanOrEqual(852);
+    // Hydration has run once the hero's pills answer a click.
+    await landing.getByRole("button", { name: "Day 7" }).click();
+    await expect(landing.getByRole("button", { name: "Day 7" })).toHaveAttribute("aria-pressed", "true");
     expect(hydration).toEqual([]);
+  });
+
+  // The phone's claims are the same components, the Discover card in its
+  // compact form so it fits a short phone (390×664): below the headline and
+  // inside the pinned stage. The claims are stacked, so the ones the sequence
+  // hides are `inert`: a tap on the card lands on the card, not on a faded
+  // claim over it, and a hidden claim's links take no focus.
+  test("the phone's Playbooks claim fits a short phone and its card takes the tap", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 664 });
+    await page.goto("/welcome");
+    const phone = page.getByTestId("phone-front-door");
+    const title = phone.getByTestId("discover-card").getByRole("link", { name: PLAYBOOK });
+    await expect(title).toBeVisible();
+
+    const headline = await phone.getByRole("heading", { name: "Put the best day on repeat." }).boundingBox();
+    const card = await phone.getByTestId("discover-card").boundingBox();
+    expect(card!.y).toBeGreaterThan(headline!.y + headline!.height);
+    expect(card!.y + card!.height).toBeLessThanOrEqual(664);
+
+    const tapped = await title.evaluate((link) => {
+      const r = link.getBoundingClientRect();
+      return link.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2));
+    });
+    expect(tapped).toBe(true);
+
+    // Halfway down the pin the Playbooks claim has faded out, and with it out
+    // of the accessibility tree, so the link is held from before.
+    const link = await title.elementHandle();
+    await phone.evaluate((scroller) => {
+      const pin = scroller.querySelector<HTMLElement>("[data-testid=front-door-pin]")!;
+      scroller.scrollTop = 0.5 * (pin.offsetHeight - scroller.clientHeight);
+    });
+    await expect(phone.getByTestId("front-door-claim").first()).toHaveAttribute("aria-hidden", "true");
+    const focused = await link!.evaluate((el: HTMLElement) => {
+      el.focus();
+      return document.activeElement === el;
+    });
+    expect(focused).toBe(false);
   });
 });

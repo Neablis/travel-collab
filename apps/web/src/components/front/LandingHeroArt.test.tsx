@@ -151,6 +151,19 @@ describe("LandingHeroArt", () => {
     expect(screen.getByText("Nezu Museum")).toBeDefined();
   });
 
+  // Mitchell, 2026-10-11: the front door is *"nostalgic, not pricing"*. A
+  // stop's price would reach the river's accessible names and the notebook's
+  // day card, so the snapshot carries none, and neither view reads one.
+  it("prices nothing in the Timeline or Notebook view", async () => {
+    render(<LandingHeroArt />);
+    fireEvent.click(pill("Day 7"));
+    await screen.findByRole("list", { name: "Day 7 timeline" });
+    expect(document.body.textContent).not.toMatch(/[$€£¥]\s?\d/);
+    fireEvent.click(pill("Day 5"));
+    await screen.findByRole("img", { name: /^Days 1–3 Tokyo, day 4 Nikkō/ });
+    expect(document.body.textContent).not.toMatch(/[$€£¥]\s?\d/);
+  });
+
   it("names the pill group so the stop behaviour is discoverable", () => {
     render(<LandingHeroArt />);
     expect(

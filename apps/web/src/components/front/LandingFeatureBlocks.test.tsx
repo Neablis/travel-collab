@@ -90,17 +90,17 @@ describe("LandingFeatureBlocks", () => {
   // Mitchell, 2026-10-11: *"it should be more nostalgic than how much you
   // spent on dinner."* The Notebook used to be a day's cost table; it is a page
   // of the day as it was lived, with the plan's own facts in it as widget
-  // values. Nor does the Playbooks card print the day's total: the blocks sell
-  // the day, not what it cost. (The river's stops name their prices to a
-  // screen reader, as the board's do and the hero's Timeline has since it went
-  // real; nothing on screen reads one.)
-  it("remembers the day in the notebook, with no price in it or on the playbook", async () => {
+  // values. Nor does any other block print a price, on screen or to a screen
+  // reader: the Playbooks card has no total, and the river's stops, whose
+  // accessible names would read their prices, are snapshotted with none.
+  it("remembers the day in the notebook, with no price in any block", async () => {
     render(<LandingFeatureBlocks />);
     const notebook = within(screen.getByRole("region", { name: NOTEBOOK }));
     expect(await notebook.findByText("Check in at Gora Kadan")).toBeDefined();
     expect(notebook.getByText(/best night of the trip/)).toBeDefined();
     await within(screen.getByRole("region", { name: PLAYBOOKS })).findByRole("link", { name: LANDING_FEATURES.playbook.name });
-    for (const title of [NOTEBOOK, PLAYBOOKS]) {
+    await within(screen.getByRole("region", { name: TOGETHER })).findByRole("list", { name: "Day 7 timeline" });
+    for (const title of [NOTEBOOK, PLAYBOOKS, TOGETHER]) {
       expect(screen.getByRole("region", { name: title }).textContent).not.toMatch(/[$€£¥฿]\s?\d/);
     }
     expect(screen.queryByText(/\bcosts?\b/i)).toBeNull();

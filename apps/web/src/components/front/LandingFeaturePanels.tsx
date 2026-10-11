@@ -52,6 +52,20 @@ export function PlaybookPanel(): React.ReactElement {
 }
 
 /**
+ * Playbooks at phone size: the same card without its city chip, stop rows and tag chips,
+ * so it fits under the phone's headline on a 390×664 screen (the pinned stage
+ * clips what runs past it). What kind of day it is still says what the tags
+ * would, and the title still opens the whole day.
+ */
+export function CompactPlaybookPanel(): React.ReactElement {
+  return (
+    <ul className="flex flex-col">
+      <DiscoverCard day={{ ...LANDING_FEATURES.playbook, cities: [], preview: [], tags: [] }} origin={{ from: "playbooks" }} />
+    </ul>
+  );
+}
+
+/**
  * Notebook: a page somebody wrote about a day of the demo trip, under the
  * trip's strip. Its values are widgets resolved against the trip, drawn as a
  * notebook draws them; none of them is money (Mitchell, 2026-10-11).
