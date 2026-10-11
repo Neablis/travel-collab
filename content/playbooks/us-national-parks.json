@@ -76,7 +76,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "drinks"
           ],
           "notes": "Open at 06:00, and the only reliable caffeine before the park gate. Eat here — Zion Canyon has exactly one food service (the Lodge) and it does not open early.",
           "cost": {
@@ -492,7 +493,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "drinks"
           ],
           "notes": "Right at the visitor center, opens early, and does a proper coffee. Fill four litres of water here before you go down — the resthouse taps are seasonal.",
           "cost": {
@@ -577,7 +579,8 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "tour"
           ],
           "notes": "$354 a seat for the 45-minute North Canyon tour, two seats here — and 45 minutes is the total, of which 25 to 30 is airborne. Book weeks out for an afternoon slot; the light across the Dragon Corridor is far better after 14:00 than at 09:00. They weigh every passenger at check-in and seat by weight, so arrive an hour early and do not expect to choose your side. Flights are grounded for wind more often than anyone admits — nothing else in this day depends on it.",
           "cost": {
@@ -982,7 +985,8 @@
           },
           "kind": "pending",
           "tags": [
-            "outdoors"
+            "outdoors",
+            "beach"
           ],
           "notes": "Held because the tide, not you, decides whether this happens. Hole-in-the-Wall is 1.5 miles north up cobble and driftwood; you want to be walking out on a falling tide and through the arch below about +3 feet, checked against the NOAA La Push table for the exact day. Ellen Creek, half a mile up, is the point of no return — it and the headland both flood, and people get pinned. Two hours before low is the safe window. The tide pools on the far side at low water are the best on this coast.",
           "cost": {
@@ -1409,7 +1413,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "drinks"
           ],
           "notes": "Loud, quick and it feeds everyone who has been on rock all day. If you want the good meal instead, Desert Bistro is four blocks north and needs a reservation days out in season.",
           "cost": {

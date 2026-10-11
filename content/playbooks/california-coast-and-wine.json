@@ -131,7 +131,7 @@
           "kind": "planned",
           "tags": [
             "meal",
-            "outdoors"
+            "shopping"
           ],
           "notes": "Saturday 08:00-14:00 is the big market — 100-plus vendors wrapping the whole building. Tuesday and Thursday are 10:00-14:00 and only in front, along the Embarcadero, which is the prepared-food half. So on a Saturday walk straight through the building to the BACK plaza over the water: that is where the actual farmers are. The front is where the tour groups queue. Get there before 09:00 or the Roli Roti porchetta line is 25 minutes on its own. Verified 2026-09-06 against Foodwise: the market runs Saturday, Tuesday and Thursday year round; Saturday is 08:00-14:00 with more than 100 vendors around the whole building, Tuesday is 10:00-14:00 with 20-plus farms, Thursday is 10:00-14:00 with only 10 to 15 vendors and is mostly street-food lunch. This day only works on a Saturday.",
           "cost": {
@@ -154,6 +154,10 @@
             "countryCode": "US"
           },
           "kind": "pending",
+          "tags": [
+            "drinks",
+            "shopping"
+          ],
           "notes": "Acme bread and Cowgirl Creamery are the two counters worth carrying something out of. Do not eat a proper lunch here — you want to be hungry in North Beach at 14:45, and Hog Island at noon is a 40-minute wait for the same oysters you can get at 11:00 on a weekday.",
           "cost": {
             "amountMinor": 900,
@@ -194,7 +198,8 @@
           "kind": "planned",
           "tags": [
             "ticketed",
-            "outdoors"
+            "sight",
+            "tour"
           ],
           "notes": "$47.95 adult on the day tour. The only rule that matters: tickets release 90 days ahead on alcatrazcitycruises.com and you buy them the morning they drop. Summer sailings are gone four to six weeks out; night tours go faster still. Alcatraz City Cruises is the only operator the Park Service authorises, so every third-party Alcatraz package is either the same ticket with a markup or a boat that circles the island and never lands. On the rock: the cellhouse audio tour is 45 minutes and is the best thing on the island, then the agave trail and the gardens. Two and a half hours is right; take the 13:50 back. Bring a real layer — mid-bay is ten degrees colder than the Embarcadero and windier than you have planned for. Verified 2026-09-06: the 90-day release window is right, and Alcatraz City Cruises (trading as City Experiences) is still the only NPS-authorised operator from Pier 33. NOT verified: the exact sailing grid. I could not open the operator's schedule page, so treat the 11:00 out and 13:50 back as the shape of the day rather than real departure times — take the actual times off alcatrazcitycruises.com/plan-your-visit/schedule when you book, and hang the rest of the day off whatever sailing you get.",
           "cost": {
@@ -241,7 +246,10 @@
             "countryCode": "US"
           },
           "kind": "pending",
-          "tags": [],
+          "tags": [
+            "drinks",
+            "shopping"
+          ],
           "notes": "The Poetry Room is upstairs and the window bench is the point of the visit. Vesuvio is directly across Jack Kerouac Alley, has been pouring since 1948, and serves no food — which is why you ate first. Caffe Trieste two blocks up if you would rather have coffee than a drink.",
           "cost": {
             "amountMinor": 2200,
@@ -264,7 +272,8 @@
           },
           "kind": "planned",
           "tags": [
-            "outdoors"
+            "outdoors",
+            "sight"
           ],
           "notes": "Climb the wooden Filbert Steps from Sansome — cottage gardens, the wild parrots, and no parking problem, because the Coit Tower lot is a 40-minute crawl that people sit in rather than walk ten minutes. The 1934 WPA murals in the base are free to look at; the fee is only the elevator to the observation deck, and the view from the terrace outside costs nothing and is almost the same. CORRECTED 2026-09-06: this stop used to start at 17:00, which misses the elevator in every month of the year. Coit Tower opens at 10:00 and closes at 18:00 April-October and 17:00 November-March, and the last elevator ticket sells one hour before closing — so the cutoff is 17:00 in summer and 16:00 in winter. Moved to 16:30 so the summer window works; if you are here between November and March you need to be at the door by 15:45. Elevator is $11 non-resident, $8 San Francisco resident (was listed here as $15). Closed Thanksgiving, Christmas and New Year's Day.",
           "cost": {
@@ -362,7 +371,9 @@
             "countryCode": "US"
           },
           "kind": "planned",
-          "tags": [],
+          "tags": [
+            "sight"
+          ],
           "notes": "$10 suggested donation. The small adobe chapel on the left is 1776 and the oldest intact building in San Francisco; the enormous basilica beside it is 1918 and you can walk past it. Look up in the chapel — the ceiling is original Ohlone painted work, not a restoration. Twenty minutes is enough, and the cemetery behind it is the one from Vertigo. CORRECTED 2026-09-06: this stop started at 09:45 and the Mission does not open until 10:00 — moved. Visiting hours are 10:00-16:00 Tuesday to Sunday and it is CLOSED MONDAYS, so this whole day has to be a Tuesday-to-Sunday day (and the mural tour below pins it to a weekend). Suggested donation confirmed at $10 adult, $5 student. Guided tours are suspended until further notice; self-guided entry needs no reservation.",
           "cost": {
             "amountMinor": 1000,
@@ -430,7 +441,7 @@
           "kind": "planned",
           "tags": [
             "ticketed",
-            "outdoors"
+            "tour"
           ],
           "notes": "$25 general, $15 seniors 65+, $10 under 18 — all three confirmed 2026-09-06. This is the rare guided walk worth paying for: a working muralist covers 60 to 70 murals inside six blocks and tells you which walls are being repainted, by whom, and over what. TWO CORRECTIONS. The Classic Mural Tour runs Saturday and Sunday at 13:30 and takes about ninety minutes — this stop was scheduled at 11:30, which is a different tour entirely (11:00 Saturday is the Mission Trail Mural Walk, 11:00 Sunday is the Precita Park Tour), so the window has moved and the rest of the day moved with it. And it is not a booked stop: Precita Eyes sells tickets at the door on the day, reservations are not necessary and they say no one is turned away, so this is now marked planned rather than booked. Only private and group tours need an appointment, and those can run any day of the week. Meets at 2981 24th Street near Harrison. Weekend-only, which together with the Mission's Monday closure fixes this day to a Saturday or Sunday.",
           "cost": {
@@ -454,7 +465,7 @@
           },
           "kind": "planned",
           "tags": [
-            "outdoors"
+            "sight"
           ],
           "notes": "Walk it a second time on your own after the tour. It is the oldest continuous mural site in the city — the first panels went up in 1971 and the dense 1980s Central America wall is the heart of it. Several of those are being restored by the original artists on a 2026 grant, so what is on the wall now is not what is in the guidebook photograph. It is a working alley with garages and residents; go quietly and do not shoot into windows."
         },
@@ -473,7 +484,9 @@
             "countryCode": "US"
           },
           "kind": "pending",
-          "tags": [],
+          "tags": [
+            "drinks"
+          ],
           "notes": "A bean-to-bar factory with a cafe bolted to the front of it; the hot chocolate flight is three small cups from three origins and is far more interesting than buying a bar. If you would rather read than eat, Adobe Books and Alley Cat Books are both within three blocks and both host readings most weeknights.",
           "cost": {
             "amountMinor": 1200,
@@ -541,7 +554,8 @@
           },
           "kind": "planned",
           "tags": [
-            "outdoors"
+            "outdoors",
+            "sight"
           ],
           "notes": "Free, and the lot above the ruins holds about 75 cars and is full by 10:00 on any clear day — 08:15 is the entire trick, and the overflow is a half-mile of El Camino del Mar. Check a tide table before you commit: at low water you can walk the concrete tanks and into the cave on the north side; at high water the cave floods, the surge comes over the sill and people get hurt in it every year. June mornings here are fogged in until 11:00 and the ruins are better for it."
         },
@@ -581,7 +595,8 @@
           },
           "kind": "pending",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "museum"
           ],
           "notes": "$25 adult, free to residents of the nine Bay Area counties every Saturday and to everyone on the first Tuesday of the month — both free offers cover the permanent collection only, and special exhibitions are still full price. Worth it for the Rodin court and the building itself, which sits on a golf-course bluff with the bridge behind it. Marked as an idea on purpose: if the marine layer has burned off by 11:00, skip it without a second thought — the rest of this day is outside and the museum will still be there in fog. CORRECTED 2026-09-06 from FAMSF: adult admission is $25, not $20 ($22 seniors, $10 students, under 18 free). The gating fact this entry was missing — the Legion is CLOSED MONDAYS, open Tuesday to Sunday 09:30-17:15, and also shut on MLK Day, Labor Day, Indigenous Peoples' Day, Thanksgiving and Christmas. From 16:30 the permanent collection is free to everyone with no ticket, which is a different day than this one.",
           "cost": {
@@ -667,7 +682,8 @@
           },
           "kind": "planned",
           "tags": [
-            "outdoors"
+            "outdoors",
+            "sight"
           ],
           "notes": "Free — and open Friday to Sunday only, 10:00 to 17:00. Turning up on a Tuesday is by a distance the most common way this day fails, so check the NPS page the week you go. It is a Civil War brick casemate fort that Joseph Strauss threw a steel arch over rather than demolish, which is why the bridge has that arch at all. Go to the third-floor gallery and then the roof: you stand directly beneath the span with the deck humming above you. The wind funnelling through the Gate here is genuinely punishing — this is the layer you have been carrying since Sutro. Verified 2026-09-06 against the NPS operating-hours page for Fort Point: still Friday, Saturday and Sunday only, 10:00-17:00, still free, and the 15:30-16:45 window fits inside it. This pins the day to a Friday, Saturday or Sunday — which is compatible with the Legion of Honor above, since that is the stop that rules out Monday."
         },
@@ -735,7 +751,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "drinks"
           ],
           "notes": "Eat something solid now. Three tastings is roughly fifteen pours, the first one is at 10:00, and lunch is not until 12:15 — the people who skip this are the people who are finished by the third appointment.",
           "cost": {
@@ -780,7 +797,9 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "drinks",
+            "tour"
           ],
           "notes": "Appointment only, and it books weeks out — this is not a place you walk into, and neither are the other two. Start here because it is the northern end of the valley and because the tunnels sit at about 55F, which is the coldest thing you will do today: take a jacket in with you. Hand-dug by Chinese labourers in the 1870s and stacked floor to ceiling with riddled bottles. Sparkling first is also the right order for your palate. CORRECTED 2026-09-06 from Schramsberg's own visit pages: the public tour and tasting is $65 a head, not $75 (the Cave Tour with Classic Tasting is $100, the Reserve Wine & Cheese pairing $150). It runs seven days a week, appointment only as stated, the first tour of the day starts at 09:30 and the last at 14:30, and the appointment is one hour fifteen minutes — so this stop now ends at 11:15 rather than 11:30, which is what makes the corrected lunch and Frog's Leap slots below fit.",
           "cost": {
@@ -827,7 +846,9 @@
             "countryCode": "US"
           },
           "kind": "planned",
-          "tags": [],
+          "tags": [
+            "drinks"
+          ],
           "notes": "By reservation, in a red barn surrounded by an organic kitchen garden. Dry-farmed and certified organic since decades before either became a marketing line, and they will genuinely talk you through why the vines get no irrigation and what that does to the fruit. Deliberately the middle appointment — it is the most relaxed hour of the day and you want it between the caves and the cabernet. THREE CORRECTIONS, 2026-09-06, from Frog's Leap's own reservation and experience pages. The time: the Vineyard House Tour & Tasting runs at 10:30 and 13:30, so a 14:00 arrival matches nothing — moved to 13:30. The day: it runs Thursday through Monday, so this day cannot be a Tuesday or a Wednesday. And the advice to 'ask for the garden tasting' is wrong for an afternoon stop — the family-friendly Garden Tasting is a morning slot only (Friday from 10:00, Saturday and Sunday at 10:30), so if you want the garden you have to rebuild the day around it rather than request it at 13:30. Prices corrected too: the Vineyard House Back Porch Tasting is $60 a head plus a $5 Tock booking fee, and the 120-minute Rooted in Rutherford tour and tasting is $100 — the old $40-55 range is stale.",
           "cost": {
             "amountMinor": 6000,
@@ -850,7 +871,8 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "drinks"
           ],
           "notes": "Book an estate flight and taste the FAY and S.L.V. blocks side by side, which is the actual reason to come — this is the cabernet that won the 1976 Paris tasting. Last of the three on purpose: it is the biggest wine and the southern end of the valley, so the run back to town is fifteen minutes. Do not try to add a fourth. Three appointments plus a proper lunch is the honest ceiling for one day and everyone who has tried four has told the same story about it afterwards. CORRECTED 2026-09-06 — this was the stop that broke the day. Stag's Leap Wine Cellars is open 10:00-16:00 daily with the LAST TASTING APPOINTMENT AT 15:30, so the old 16:00 arrival was after the last slot of the day and would simply have been refused. Moved to the 15:30 appointment, which is the last one available, and everything upstream moved with it. Reservations are required for every experience — the Estate Experience wants 48 hours' notice and the Collector's Experience up to 72 — and all guests must be 21 or over. NOT verified: the $75-125 price range, which the winery's public pages did not state; treat the cost here as an estimate.",
           "cost": {
@@ -874,7 +896,8 @@
           },
           "kind": "pending",
           "tags": [
-            "meal"
+            "meal",
+            "shopping"
           ],
           "notes": "Oysters at Hog Island, a Model Bakery English muffin to take back for the morning, and something salty to finish on after a day of tannin. Most stalls close at 19:00, so this only works if the last tasting ran to time.",
           "cost": {
@@ -924,7 +947,8 @@
             "countryCode": "US"
           },
           "tags": [
-            "meal"
+            "meal",
+            "drinks"
           ],
           "notes": "Park on the plaza once and leave the car there until you pick up the driver. Healdsburg's free two-hour spots are enforced and the lots behind the plaza are not obvious from the square.",
           "cost": {
@@ -969,7 +993,8 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "drinks"
           ],
           "notes": "Continuously family-run since the 1930s, and the 1985 estate pinot is the wine that told America the Russian River could do this. The tasting room is small and the terrace looks straight down the vineyard rows — go here first, while your palate is clean and the room is empty.",
           "cost": {
@@ -994,7 +1019,8 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "drinks"
           ],
           "notes": "$75 for the seated flight, and the fee is waived against a three-bottle purchase — which is worth knowing before you decide it is expensive. Book it; walk-ins are not a thing here.",
           "cost": {
@@ -1041,7 +1067,8 @@
           },
           "kind": "pending",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "drinks"
           ],
           "notes": "A third tasting is where a wine day usually goes wrong. This one works because it is a different valley and a different grape — old-vine zinfandel after two pinots — so your palate has something to do.",
           "cost": {
@@ -1065,7 +1092,8 @@
           },
           "kind": "pending",
           "tags": [
-            "outdoors"
+            "outdoors",
+            "beach"
           ],
           "notes": "Between June and September the dam turns this stretch into a swimming beach with a lifeguard. In January it is a gravel bar and a heron, which is also fine."
         },
@@ -1085,7 +1113,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "drinks"
           ],
           "notes": "The wine wall upstairs pours 88 Sonoma wines by the glass in three sizes, which is the correct end to a day when you have already had three tastings and do not want a bottle.",
           "cost": {
@@ -1171,7 +1200,7 @@
             "countryCode": "US"
           },
           "tags": [
-            "outdoors"
+            "beach"
           ],
           "notes": "The genuinely useful fact about this coast: Capitola sits in a south-facing pocket, so the water is several degrees warmer and the wind is far softer than anywhere on the open coast. This is the swim that is actually pleasant without a wetsuit."
         },
@@ -1230,7 +1259,8 @@
             "countryCode": "US"
           },
           "tags": [
-            "outdoors"
+            "outdoors",
+            "beach"
           ],
           "notes": "You watch this one from above, which is rare and is what makes it worth the stop — the cliff at Lighthouse Point puts you directly over the takeoff. The Surfing Museum in the lighthouse itself is one room and twenty minutes."
         },
@@ -1249,7 +1279,8 @@
             "countryCode": "US"
           },
           "tags": [
-            "outdoors"
+            "outdoors",
+            "beach"
           ],
           "notes": "$10 a vehicle. Between October and January the eucalyptus grove behind the beach holds an overwintering monarch colony, which is a completely different reason to come and is signposted from the car park.",
           "cost": {
@@ -1342,7 +1373,8 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "museum"
           ],
           "notes": "$65, open 10:00-17:00 daily. The first forty minutes are the whole trick — go straight past the entrance exhibits to the Kelp Forest and the Open Sea while everybody else is still in the lobby, then work backwards. By 11:30 those two rooms are three deep. Spot-checked 2026-09-06: the Aquarium still states that tickets are sold only through montereybayaquarium.org and that it partners with no third-party reseller, so every 'discount Monterey Bay Aquarium ticket' site is either a markup or a fake. Its September calendar is also not uniform — 8-20 September is a Monterey County resident free-admission window, 12:00-16:00 by reservation — so check the hours-and-schedule page for your date rather than assuming 10:00-17:00.",
           "cost": {
@@ -1429,7 +1461,8 @@
             "countryCode": "US"
           },
           "tags": [
-            "outdoors"
+            "sight",
+            "shopping"
           ],
           "notes": "The town has no street numbers, so every address is a corner and a courtyard — 'Dolores between 5th and 6th' is a real address, not somebody being vague. The galleries and passageways off Ocean Avenue are the point; the beach at the bottom of the hill is the sunset."
         },
@@ -1449,7 +1482,8 @@
           },
           "kind": "pending",
           "tags": [
-            "outdoors"
+            "outdoors",
+            "beach"
           ],
           "notes": "White sand, cypress, and dogs off-lead everywhere — this is one of the few California beaches where that is the rule rather than an infraction. Fires are allowed south of 10th Avenue only."
         },
@@ -1535,7 +1569,8 @@
             "countryCode": "US"
           },
           "tags": [
-            "outdoors"
+            "outdoors",
+            "sight"
           ],
           "notes": "Fifteen miles south of Carmel and the reason to leave in the dark. Park in the pull-out on the north side and walk back onto Old Coast Road for the angle everybody recognises. By ten there are forty cars and a queue for it. Verified 2026-09-06: Bixby is a Caltrans pull-out, not a state park, it sits north of the burn, and this stretch of Highway 1 reopened on 3 September — so this stop stands while most of the rest of the day's did not."
         },
@@ -1555,7 +1590,8 @@
           },
           "kind": "pending",
           "tags": [
-            "outdoors"
+            "outdoors",
+            "sight"
           ],
           "notes": "The lighthouse itself only opens for guided walks on set days, so treat it as a viewpoint unless you have booked one. The volcanic rock it sits on is the best-looking thing on this stretch and costs nothing to look at. CORRECTED 2026-09-06: Point Sur State Historic Park is CLOSED until further notice after the Timber Fire, so there are no guided walks to book at all right now — the 'unless you have booked one' half of this note is currently dead. The rock is still there from the road, which is all this stop was ever really for."
         },
@@ -1637,7 +1673,8 @@
             "countryCode": "US"
           },
           "tags": [
-            "outdoors"
+            "outdoors",
+            "beach"
           ],
           "notes": "The whole reason this day is dated in December. Sunset light only passes through Keyhole Rock for a few weeks either side of the solstice, when the sun sets far enough south — come in July and you get a nice beach and no beam. Sycamore Canyon Road is two miles of single track with no sign on Highway 1 (it is the only paved left turn between the Big Sur post office and Nepenthe), a gate that shuts at sunset, and a cash kiosk. The purple sand is real; it is manganese garnet washing out of the cliff. Verified 2026-09-06, and this is the stop that saves the day: Los Padres National Forest is under a Timber Fire emergency closure (Monterey Ranger District order 05-07-51-26-10, effective 29 August 2026) that shuts the roads and trails of the fire area — but the order is written 'except Pfeiffer Beach and Sycamore Canyon Road', so this specific stop is explicitly carved out and OPEN while the state parks around it are not. One new restriction that comes with the carve-out: on Sycamore Canyon Road you must stay INSIDE A MOTOR VEHICLE for the whole two and a half miles from Highway 1 to the day-use area, so parking short and walking in — which people do when the small lot fills — is now prohibited. The $15 cash-only vehicle fee is right; an America the Beautiful or Forest Adventure Pass is accepted instead, and there is a self-registration station when the kiosk is unstaffed. Gate hours were reported to me as 09:00-20:00 daily but I could not confirm that against the Forest Service, so treat the closing time as unverified and do not be the car still inside at dusk.",
           "cost": {
@@ -1661,6 +1698,7 @@
           },
           "kind": "planned",
           "tags": [
+            "meal",
             "lodging"
           ],
           "notes": "The honest number: rooms start around $2,175 a night and January weeknights average more, so this is roughly $1,090 a head for two and it is the single most expensive stop in this whole library. What you are buying is a cliff-edge room with no television and the Sierra Mar dining room, which is open to non-guests by reservation only if you would rather have the dinner and sleep in Carmel — that version of this day costs a tenth as much and loses only the morning. Spot-checked 2026-09-06: Post Ranch Inn and Nepenthe were both evacuated during the Timber Fire in August, CAL FIRE reported no structure damage, and Big Sur's hotels and restaurants began reopening on 21 August with the rest following the highway reopening on 3 September. So this stop stands. The $2,175 starting rate was NOT re-verified in this pass and post-fire pricing may have moved — confirm on postranchinn.com when you book, and confirm Sierra Mar is seating non-guests again before you plan the cheaper sleep-in-Carmel version.",

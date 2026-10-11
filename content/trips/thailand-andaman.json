@@ -142,7 +142,8 @@
               },
               "kind": "planned",
               "tags": [
-                "ticketed"
+                "ticketed",
+                "sight"
               ],
               "notes": "300 baht each, and worth doing on arrival day because it needs nothing of you. The traditional massage school inside the compound takes walk-ins for an hour at about 480 baht, which is the correct use of a body that has been on a plane for twelve hours.",
               "cost": {
@@ -166,7 +167,8 @@
               },
               "kind": "planned",
               "tags": [
-                "meal"
+                "meal",
+                "nightlife"
               ],
               "notes": "Arrive at 17:30, not 19:00 — the Michelin-listed stalls have queues by seven. Start with guay jub at Nai Ek Roll Noodles at 442 Yaowarat, then eat small at three more places rather than sitting down anywhere. Cash only, most of the street.",
               "cost": {
@@ -241,7 +243,8 @@
               },
               "kind": "planned",
               "tags": [
-                "ticketed"
+                "ticketed",
+                "sight"
               ],
               "notes": "500 baht each, bought online to skip the ticket window. Gates open at 08:30 and the Emerald Buddha hall is a shuffling queue by 10:30. Shoulders and knees covered or you buy a cover-up at the gate at a tourist price.",
               "cost": {
@@ -289,7 +292,8 @@
               },
               "kind": "planned",
               "tags": [
-                "ticketed"
+                "ticketed",
+                "sight"
               ],
               "notes": "The cross-river ferry from Tha Tien is 5 baht and leaves every few minutes; the queue for it is always shorter than the queue for a taxi round by the bridge. The steep upper terrace of the prang has been closed on and off — the porcelain detail is at eye level anyway.",
               "cost": {
@@ -312,7 +316,9 @@
                 "countryCode": "TH"
               },
               "kind": "pending",
-              "tags": [],
+              "tags": [
+                "drinks"
+              ],
               "notes": "Nobody has committed to this. It is a small roof directly opposite Wat Arun and it takes no bookings, so it is either empty at five or impossible at six-thirty. If it is full, the Amorosa roof at Arun Residence next door is the same view.",
               "cost": {
                 "amountMinor": 2200,
@@ -500,7 +506,8 @@
               },
               "kind": "pending",
               "tags": [
-                "meal"
+                "meal",
+                "drinks"
               ],
               "notes": "Nothing booked; it is a deck over the mangrove tide and the tables at the end go first. East Railay is the mangrove side and smells like it at low tide — that is normal and the food is better here than on the resort beach.",
               "cost": {
@@ -529,7 +536,7 @@
               },
               "kind": "planned",
               "tags": [
-                "outdoors"
+                "beach"
               ],
               "notes": "Ten minutes on the paved path from East Railay, and completely empty until about 08:30 when the first Ao Nang day boats land. The shrine at the north end is a working one — the carvings are offerings, not a joke, and photographing them is fine but posing with them is not."
             },
@@ -573,7 +580,8 @@
               },
               "kind": "planned",
               "tags": [
-                "outdoors"
+                "outdoors",
+                "tour"
               ],
               "notes": "Booked the morning session deliberately — the limestone at Muay Thai wall is in shade until about one, and the afternoon course cooks. Shoes and harness are included; bring a litre of water each because there is no shop at the crag.",
               "cost": {
@@ -639,7 +647,10 @@
                 "countryCode": "TH"
               },
               "kind": "planned",
-              "tags": [],
+              "tags": [
+                "drinks",
+                "beach"
+              ],
               "notes": "The sun goes down behind the islands off West Railay, which is the only beach here facing the right way. Buy the beer at the 7-Eleven equivalent on the walking street; the beach bars charge triple for the same bottle and the same sand.",
               "cost": {
                 "amountMinor": 600,
@@ -662,7 +673,8 @@
               },
               "kind": "planned",
               "tags": [
-                "meal"
+                "meal",
+                "beach"
               ],
               "notes": "Tables on the sand, and one of the few kitchens here that will cook a whole fish properly. Ask the price by weight before they take it away.",
               "cost": {
@@ -713,7 +725,9 @@
                 "countryCode": "TH"
               },
               "kind": "planned",
-              "tags": [],
+              "tags": [
+                "tour"
+              ],
               "notes": "3,000 baht for the boat for the day, arranged at the beach hut yesterday. A private longtail costs about twice a seat on a joined tour and buys the one thing that matters: leaving Poda while the speedboat groups are still eating lunch.",
               "cost": {
                 "amountMinor": 7200,
@@ -760,7 +774,8 @@
               },
               "kind": "planned",
               "tags": [
-                "outdoors"
+                "outdoors",
+                "beach"
               ],
               "notes": "The sand strip joining the two islands only exists either side of low water — check the Krabi tide table the night before and tell the boatman the window you want. Two hours later it is chest-deep and there is nothing to see."
             },
@@ -781,7 +796,8 @@
               "kind": "planned",
               "tags": [
                 "meal",
-                "outdoors"
+                "outdoors",
+                "beach"
               ],
               "notes": "The reef is at the north tip, not off the main beach where everyone swims. Lunch is whatever the boatman's family packed, eaten on the sand — worth the 300 baht a head extra and better than the tour buffets landing at the same time.",
               "cost": {
@@ -969,7 +985,7 @@
               },
               "kind": "planned",
               "tags": [
-                "outdoors"
+                "beach"
               ],
               "notes": "Sandy and shelving, with no rocks at the south end — the one beach on Lanta you can swim at any tide."
             },
@@ -1066,7 +1082,9 @@
                 "precision": "area"
               },
               "kind": "planned",
-              "tags": [],
+              "tags": [
+                "sight"
+              ],
               "notes": "One street of stilt houses over the water, and the island's original port before the beaches existed. There is no beach here, which is exactly why it still looks like this."
             },
             {
@@ -1111,7 +1129,8 @@
               },
               "kind": "pending",
               "tags": [
-                "ticketed"
+                "ticketed",
+                "museum"
               ],
               "notes": "Not committed — twenty minutes if the sea-gypsy and Chinese-trader rooms grab you, five if they do not. In the old district office at the north end of the street; ask if the caretaker will open the upstairs.",
               "cost": {
@@ -1136,7 +1155,8 @@
               },
               "kind": "pending",
               "tags": [
-                "outdoors"
+                "outdoors",
+                "tour"
               ],
               "notes": "Held the 16:00 slot rather than a morning one on purpose: the mangrove tunnels only have water either side of high tide, and the village checks the tide table and moves you if it is wrong. Community-run, so the money stays on the east coast.",
               "cost": {
@@ -1215,7 +1235,9 @@
                 "precision": "city"
               },
               "kind": "planned",
-              "tags": [],
+              "tags": [
+                "tour"
+              ],
               "notes": "Price includes hotel pickup, the national park fee and lunch — confirm all three are in it, because the park fee is the one operators leave out. Koh Rok over Koh Phi Phi: same crossing time, a fifth of the boats.",
               "cost": {
                 "amountMinor": 13000,
@@ -1239,7 +1261,8 @@
               },
               "kind": "planned",
               "tags": [
-                "outdoors"
+                "outdoors",
+                "beach"
               ],
               "notes": "The channel between the two islands is the good bit and the boats sit in it at slack water. Bring your own mask if you have one — the tour masks leak and the guide has no small sizes."
             },
@@ -1260,7 +1283,8 @@
               },
               "kind": "planned",
               "tags": [
-                "meal"
+                "meal",
+                "beach"
               ],
               "cost": {
                 "amountMinor": 1200,
@@ -1303,7 +1327,8 @@
               },
               "kind": "planned",
               "tags": [
-                "meal"
+                "meal",
+                "tour"
               ],
               "notes": "Four hours, four dishes, and you eat what you cooked on the beach with a drink. Profits fund the Lanta Animal Welfare shelter next door. Book at least three days ahead in high season and say now if anyone is vegetarian — the curry pastes are made with shrimp otherwise.",
               "cost": {
@@ -1357,7 +1382,7 @@
               },
               "kind": "planned",
               "tags": [
-                "outdoors"
+                "beach"
               ],
               "notes": "This is the day the trip needs and the one that gets eaten first — do not let anything be booked into it. The beach bars will run a tab and rent a mat for 100 baht; the south end past the rocks is empty even in February."
             },
@@ -1378,7 +1403,8 @@
               },
               "kind": "planned",
               "tags": [
-                "meal"
+                "meal",
+                "drinks"
               ],
               "notes": "Beanbags on the sand and a grill. Go at six for the sun and stay for the food rather than the other way round — the kitchen slows right down after eight.",
               "cost": {
@@ -1521,7 +1547,7 @@
           },
           "kind": "pending",
           "tags": [
-            "outdoors"
+            "sight"
           ],
           "notes": "Third-class is about 20 baht and takes 90 minutes. Would need a whole day back in Bangkok that this itinerary does not have — parked unless the Krabi flight slips."
         },
@@ -1538,7 +1564,8 @@
           },
           "kind": "pending",
           "tags": [
-            "outdoors"
+            "outdoors",
+            "beach"
           ],
           "notes": "The Cathedral chamber is the reason people rate this over Phi Phi. Two tanks, a full day, and it clashes head-on with the Koh Rok trip — one or the other, not both."
         },
@@ -1553,6 +1580,9 @@
             "countryCode": "TH"
           },
           "kind": "pending",
+          "tags": [
+            "beach"
+          ],
           "notes": "Everyone who does it as a day trip regrets it and everyone who stays a night says Maya Bay at seven in the morning is a different place. Would cost a Lanta night."
         },
         {
@@ -1567,7 +1597,8 @@
           },
           "kind": "pending",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "museum"
           ],
           "notes": "Guided-tour only and the last tour is at 17:00. Fits the day-ten layover only if the Krabi flight is on time, which is why it is parked here rather than in the day."
         }

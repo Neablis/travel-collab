@@ -98,7 +98,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "drinks"
           ],
           "notes": "Last real coffee for 12 km. Fill both bottles here: there is one spring on the whole trail and it is eight kilometres in, on the Cain side.",
           "cost": {
@@ -173,7 +174,8 @@
           },
           "kind": "pending",
           "tags": [
-            "outdoors"
+            "outdoors",
+            "beach"
           ],
           "notes": "Snowmelt, so about eight degrees in May and worth exactly ninety seconds. Nobody regrets it on the walk back."
         },
@@ -214,7 +216,8 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "tour"
           ],
           "notes": "A 25-minute guided walk into the limestone cave where the cheese matures. Last entry is five, and it is the only thing open between finishing the walk and dinner.",
           "cost": {
@@ -278,7 +281,8 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "outdoors"
           ],
           "notes": "Buy the single, not the return - you are walking down the other side. 753 metres of ascent in under four minutes; stand on the left of the cabin for the wall.",
           "cost": {
@@ -641,7 +645,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "drinks"
           ],
           "notes": "Refugi Can Boi, the GR221 stage hut, is two minutes below the square if you are doing the route in stages - twenty-odd beds, booked through the Consell de Mallorca months ahead, never on the day.",
           "cost": {
@@ -689,7 +694,8 @@
           },
           "kind": "pending",
           "tags": [
-            "outdoors"
+            "outdoors",
+            "beach"
           ],
           "notes": "March water is around fifteen degrees and the shingle is punishing barefoot - the sandals are worth carrying for exactly this."
         },
@@ -732,6 +738,10 @@
             "countryCode": "ES"
           },
           "kind": "planned",
+          "tags": [
+            "outdoors",
+            "sight"
+          ],
           "notes": "The old army telegraph station, in use until 1956, now a forty-bed refugi. Its terrace is where the whole bay opens up in one go - the best five minutes of the stage and most people walk straight past it.",
           "cost": {
             "amountMinor": 0,
@@ -843,6 +853,10 @@
             "countryCode": "ES"
           },
           "kind": "planned",
+          "tags": [
+            "outdoors",
+            "tour"
+          ],
           "notes": "An AEGM mountain guide for the day, split four ways. Worth paying for on this route specifically: the Cazadores has an exposed ladder-and-chain section near the top, and the weather over Monte Perdido turns by lunchtime far more often than the forecast admits.",
           "cost": {
             "amountMinor": 21500,
@@ -888,6 +902,9 @@
             "countryCode": "ES"
           },
           "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
           "notes": "The balcony where the canyon suddenly drops 700 m below your boots. This is where the day stops being work and starts being a walk - sit down, eat something, everyone does.",
           "cost": {
             "amountMinor": 0,
@@ -1055,7 +1072,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "drinks"
           ],
           "notes": "The only building for miles and the terrace looks straight across at the Roques de Garcia. It is also the last warm room before 3,555 m: it is often five degrees at the top station in October with wind on top of that.",
           "cost": {
@@ -1079,7 +1097,8 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "outdoors"
           ],
           "notes": "Book the earliest slot at volcanoteide.com. The cable car stops running when wind at the top passes about sixty km/h, and afternoons are reliably windier than mornings - the first departure is the one that actually goes.",
           "cost": {
@@ -1196,7 +1215,8 @@
           },
           "kind": "pending",
           "tags": [
-            "meal"
+            "meal",
+            "drinks"
           ],
           "notes": "A 1916 pastry shop with a courtyard behind it. The drive down from 2,100 m to sea level takes 45 minutes and your ears will pop twice - this is the right place to stop while your head resettles.",
           "cost": {
@@ -1336,6 +1356,9 @@
             "countryCode": "ES"
           },
           "kind": "planned",
+          "tags": [
+            "sight"
+          ],
           "notes": "Twenty minutes of steps up from the church, free, and the only spot where the reservoir and the Pinsapar ridge sit in the same frame.",
           "cost": {
             "amountMinor": 0,
@@ -1357,6 +1380,9 @@
             "countryCode": "ES"
           },
           "kind": "planned",
+          "tags": [
+            "shopping"
+          ],
           "notes": "The last working wool mill in the sierra, on the edge of the village. Blankets run roughly ninety to a hundred and forty euros. Grazalema is the wettest place in Spain, which is exactly why the pinsapo firs and the wool trade are both here.",
           "cost": {
             "amountMinor": 0,
@@ -1558,6 +1584,9 @@
             "countryCode": "ES"
           },
           "kind": "pending",
+          "tags": [
+            "sight"
+          ],
           "notes": "Ninth century and the oldest church still standing on the entire Camino Frances, with the pre-Roman thatched pallozas beside it. This is the reason to stop here rather than push on to Fonfria, and it takes twenty minutes."
         },
         {
