@@ -72,6 +72,13 @@ describe("describeByTags (ADR-070 §3)", () => {
     expect(text(day)).toBe("Outdoorsy");
   });
 
+  // ADR-070 §3 as amended: one bar after four meals is 100% of the non-Food
+  // stops, and still not what the day is about.
+  it("names another category only when it is on at least two stops", () => {
+    expect(text([...times(4, "meal"), stop("drinks")])).toBe("Foodie");
+    expect(text([...times(4, "meal"), ...times(2, "drinks")])).toBe("Drinks & food");
+  });
+
   it("names the top two by share, the larger first", () => {
     expect(describeByTags([...times(4, "beach"), ...times(3, "outdoors"), stop("museum")])).toEqual({
       text: "Beach & outdoors",

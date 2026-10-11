@@ -30,9 +30,12 @@ export const MIN_DESCRIBED_STOPS = 4;
 export const A_BIT_OF_EVERYTHING = "A bit of everything";
 
 // Food has the higher bar because every trip eats; any other category is
-// measured against the stops that are something other than a meal.
+// measured against the stops that are something other than a meal, and must be
+// on two of them (ADR-070 §3, amended): after four meals, one bar is 100% of
+// the non-Food stops and still not what the day is about.
 const FOOD_SHARE = 0.5;
 const OTHER_SHARE = 0.25;
+const OTHER_MIN_STOPS = 2;
 
 // Sentence case: one category is its adjective alone ("Outdoorsy"), two are a
 // pair of nouns, the first capitalised ("Beach & outdoors").
@@ -82,7 +85,11 @@ export function describeByTags(stops: readonly DescribableStop[]): TagDescriptio
   const { counts, counted, nonFood } = tally(stops);
   if (counted < MIN_DESCRIBED_STOPS) return null;
   const share = (tag: DescribedTag) => (counts.get(tag) ?? 0) / (tag === "meal" ? counted : nonFood);
-  const named = DESCRIBED.filter((tag) => counts.has(tag) && share(tag) >= (tag === "meal" ? FOOD_SHARE : OTHER_SHARE))
+  const qualifies = (tag: DescribedTag) =>
+    tag === "meal"
+      ? share(tag) >= FOOD_SHARE
+      : share(tag) >= OTHER_SHARE && (counts.get(tag) ?? 0) >= OTHER_MIN_STOPS;
+  const named = DESCRIBED.filter(qualifies)
     // Stable, so equal shares keep contract order.
     .sort((a, b) => share(b) - share(a))
     .slice(0, 2);
