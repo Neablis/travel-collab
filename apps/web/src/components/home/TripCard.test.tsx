@@ -287,16 +287,16 @@ describe("TripCard — length, stops and the unplanned trip", () => {
   });
 });
 
-// M42 D9: the card says what kind of trip it is, as the heading's description,
-// so the two are read together.
+// M42 D9: the card says what kind of trip it is, as the description of the
+// name's link, where focus lands, so the two are read together.
 describe("TripCard — what kind of trip", () => {
   it("describes the trip under its name, and says nothing when the trip cannot say", () => {
     render(<TripCard trip={tripSummaryFixture({ description: "Beach & outdoors" })} />);
-    expect(screen.getByRole("heading", { name: "Iceland Ring Road", description: "Beach & outdoors" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Iceland Ring Road", description: "Beach & outdoors" })).toBeTruthy();
     cleanup();
 
     render(<TripCard trip={tripSummaryFixture({ description: null })} />);
-    expect(screen.getByRole("heading", { name: "Iceland Ring Road", description: "" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Iceland Ring Road", description: "" })).toBeTruthy();
   });
 });
 

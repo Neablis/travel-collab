@@ -224,7 +224,7 @@ describe("a Discover card's description", () => {
     const described = day({ description: "Sightseeing", tags: ["sight", "meal"] });
     render(<DiscoverCard day={described} origin={{ from: "playbooks" }} />);
     expect(
-      screen.getByRole("heading", { level: 2, name: "Kyoto temples on foot", description: "Sightseeing" }),
+      screen.getByRole("link", { name: "Kyoto temples on foot", description: "Sightseeing" }),
     ).toBeTruthy();
     const chips = within(screen.getByTestId(`tag-chips-${described.savedDayId}`)).getAllByTestId(/^tag-chip-/);
     expect(chips.map((chip) => chip.textContent)).toEqual(["Sight", "Food"]);
@@ -233,7 +233,7 @@ describe("a Discover card's description", () => {
   it("says nothing, and draws no tags, for a day too lightly tagged to describe", () => {
     const bare = day();
     render(<DiscoverCard day={bare} origin={{ from: "playbooks" }} />);
-    expect(screen.getByRole("heading", { level: 2, name: "Kyoto temples on foot", description: "" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Kyoto temples on foot", description: "" })).toBeTruthy();
     expect(screen.queryByTestId(`tag-chips-${bare.savedDayId}`)).toBeNull();
   });
 });

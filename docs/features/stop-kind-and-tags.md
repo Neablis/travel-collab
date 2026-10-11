@@ -80,6 +80,34 @@ Ticketed and Museum is counted under Museum, and a stop tagged only Ticketed is
 counted as **Untagged**. *Spend by day* filtered to Ticketed stacks those stops
 by category.
 
+### Descriptions
+
+A trip or a published day says what kind of thing it is: *Outdoorsy*,
+*Beach & outdoors*, *Food & drinks*, *A bit of everything*. If fewer than four
+stops are tagged, it says nothing. The rule is ADR-070 §3:
+
+- Food counts at half the stops.
+- Any other category counts at a quarter of the non-Food stops, and only if it
+  is on at least two of them.
+- The top two that count name it.
+
+One function, `describeByTags` in `@tc/domain`, works it out on every read, and
+nothing stores it.
+
+- **What is counted:** stops that carry a category. Lodging and Ticketed are
+  never counted. A trip counts **all its activities, the backlog included**, and
+  a transit stop is never counted, whatever its tags. A saved day counts all its
+  stops.
+- **Where it shows:**
+  - the home trip cards;
+  - the next-trip hero;
+  - the invite page;
+  - the public day page;
+  - Discover cards.
+
+  The day page and Discover cards also show the day's counted categories as
+  chips, the most used first (`describedTags`).
+
 ## Tag focus: click a chip to spotlight it
 
 One tag can be **focused** at a time, from any stop's chip, across the lenses:
@@ -106,6 +134,7 @@ control.
   [`apps/web/src/lib/activityTags.ts`](../../apps/web/src/lib/activityTags.ts)
 - Editor: [`ActivityEditor.tsx`](../../apps/web/src/components/board/ActivityEditor.tsx);
   chips: [`StopTagChips.tsx`](../../apps/web/src/components/board/StopTagChips.tsx)
+- Descriptions: [`tagDescription.ts`](../../packages/domain/src/trip/tagDescription.ts)
 - Spend series and their colours:
   [`spendSeries.ts`](../../packages/pages/src/macros/primitives/spendSeries.ts),
   [`spendColors.ts`](../../apps/web/src/components/pages/blocks/spendColors.ts)

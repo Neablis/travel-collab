@@ -886,10 +886,10 @@ describe("NextTripHero — what kind of trip", () => {
   it("describes the trip under its name, and says nothing when the trip cannot say", () => {
     fetchTripDetailMock.mockReturnValue(new Promise(() => {}));
     render(<NextTripHero trip={tripSummaryFixture({ description: "Outdoorsy" })} />);
-    expect(screen.getByRole("heading", { level: 2, name: "Japan: Tokyo to Kyoto", description: "Outdoorsy" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Japan: Tokyo to Kyoto", description: "Outdoorsy" })).toBeTruthy();
     cleanup();
 
     render(<NextTripHero trip={tripSummaryFixture({ description: null })} />);
-    expect(screen.getByRole("heading", { level: 2, name: "Japan: Tokyo to Kyoto", description: "" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Japan: Tokyo to Kyoto", description: "" })).toBeTruthy();
   });
 });

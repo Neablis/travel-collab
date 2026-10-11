@@ -124,8 +124,10 @@ export function TripCard({ trip, menuSlot, plannedOfBudget, viewerId }: TripCard
         <Link
           href={`/trips/${trip.tripId}`}
           className={cn("inline-flex items-center hover:underline", PHONE_TOUCH)}
+          // On the link, where focus lands, so the kind of trip is heard with its name.
+          aria-describedby={trip.description === null ? undefined : descriptionId}
         >
-          <Heading level={3} id={titleId} aria-describedby={trip.description === null ? undefined : descriptionId}>
+          <Heading level={3} id={titleId}>
             {trip.name}
           </Heading>
         </Link>

@@ -300,8 +300,10 @@ export function NextTripHero({ trip, menuSlot, viewerId }: NextTripHeroProps) {
               <Link
                 href={`/trips/${trip.tripId}`}
                 className={cn("inline-flex items-center hover:underline", PHONE_TOUCH)}
+                // On the link, where focus lands, as on a card.
+                aria-describedby={trip.description === null ? undefined : descriptionId}
               >
-                <Heading level={2} id={titleId} aria-describedby={trip.description === null ? undefined : descriptionId}>
+                <Heading level={2} id={titleId}>
                   {trip.name}
                 </Heading>
               </Link>

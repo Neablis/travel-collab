@@ -166,11 +166,7 @@ export function DiscoverCard({ day, origin }: { day: DiscoverDay; origin: BackOr
             straight under its h1, so an h4 skipped two levels and axe failed
             `/playbooks` on heading-order. The level is structure; `text-md
             font-medium` keeps the card title the size it was. */}
-        <Heading
-          level={2}
-          className="text-md font-medium leading-snug"
-          aria-describedby={day.description === null ? undefined : descriptionId}
-        >
+        <Heading level={2} className="text-md font-medium leading-snug">
           {/* §13.1's phone floor on the card's ROW ACTION — this title link is
               the only way into the day, so it is the target (M26 link 14's
               sweep, found by the census in the full e2e lane where seeded
@@ -180,6 +176,8 @@ export function DiscoverCard({ day, origin }: { day: DiscoverDay; origin: BackOr
           <Link
             href={`${dayPath(day)}${back}`}
             className={cn("inline-flex items-center hover:underline", PHONE_TOUCH)}
+            // On the link, where focus lands, so the kind of day is heard with its name.
+            aria-describedby={day.description === null ? undefined : descriptionId}
           >
             {day.name}
           </Link>
