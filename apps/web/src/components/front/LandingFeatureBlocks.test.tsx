@@ -87,6 +87,16 @@ describe("LandingFeatureBlocks", () => {
     expect(playbooks.getByText(`Added to ${LANDING_FEATURES.playbook.adds} trips`)).toBeDefined();
   });
 
+  // Mitchell, 2026-10-11: the front door's example day carries a rating, seeded
+  // into the landing's snapshot only, rather than "No reviews yet".
+  it("rates the playbook as its reviews would", async () => {
+    render(<LandingFeatureBlocks />);
+    const playbooks = within(screen.getByRole("region", { name: PLAYBOOKS }));
+    await playbooks.findByRole("link", { name: LANDING_FEATURES.playbook.name });
+    expect(playbooks.getByText("4.7 · 23 reviews")).toBeDefined();
+    expect(playbooks.queryByText("No reviews yet")).toBeNull();
+  });
+
   // Mitchell, 2026-10-11: *"it should be more nostalgic than how much you
   // spent on dinner."* The Notebook used to be a day's cost table; it is a page
   // of the day as it was lived, with the plan's own facts in it as widget

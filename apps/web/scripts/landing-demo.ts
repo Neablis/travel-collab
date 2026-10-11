@@ -153,6 +153,9 @@ export function buildLandingDemo(slug: string): LandingDemo {
  */
 const LANDING_PLAYBOOK = { bundle: "thailand-beaches", key: "railay-limestone-and-sunset" };
 
+/** The landing card's seeded rating: what Discover's card prints as `4.7 · 23 reviews`. */
+const LANDING_RATING = { rating: 4.7, reviewCount: 23 };
+
 /** Where the Playbooks and Notebook blocks' slice is committed. */
 export const FEATURES_PATH = fileURLToPath(new URL("../src/lib/landingFeatures.generated.json", import.meta.url));
 
@@ -161,7 +164,7 @@ export const FEATURES_PATH = fileURLToPath(new URL("../src/lib/landingFeatures.g
  * written it: the row `import-content-production.ts` writes (`resolvePlaybook`,
  * the domain's cities, the declared adds, kept-on as created and published),
  * read through Discover's own `toDiscoverDay`. Nobody has reviewed a freshly
- * imported day, so it has no rating. Read signed out, so it is nobody's own.
+ * imported day, so the landing seeds a rating below. Read signed out, so it is nobody's own.
  */
 function landingPlaybook(): DiscoverDay {
   const file = new URL(`../../../content/playbooks/${LANDING_PLAYBOOK.bundle}.json`, import.meta.url);
@@ -202,7 +205,13 @@ function landingPlaybook(): DiscoverDay {
   // null total, as it does for a day with nothing priced. And no tag that
   // links: a front-door card sends nobody into tag pages, which may not be
   // indexed, so its chips stay text, as a private day's do.
-  return { ...card, totalCost: null, namedTags: [] };
+  //
+  // **The rating is seeded here, for the landing only** (Mitchell,
+  // 2026-10-11): a freshly imported day has no reviews, and "No reviews yet"
+  // under the front door's example undersells it. Fixed numbers, so the
+  // snapshot stays reproducible; nothing writes them to the database, and
+  // Discover still shows the day's real reviews.
+  return { ...card, totalCost: null, namedTags: [], ...LANDING_RATING };
 }
 
 const MEMORY_DAY = { kind: "index", index: 5 };
