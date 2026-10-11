@@ -70,7 +70,7 @@ describe("field", () => {
     expect(valueOf(ctx, { field: "stop.kind" })).toBe("Pending, Planned, Travel, Pending, Planned, Planned, Planned");
     expect(valueOf(ctx, { field: "stop.kind", distinct: true })).toBe("Pending, Planned, Travel");
     // A list field is its elements, across stops.
-    expect(valueOf(ctx, { field: "stop.tags", day: { kind: "index", index: 0 } })).toBe("Ticketed, Meal");
+    expect(valueOf(ctx, { field: "stop.tags", day: { kind: "index", index: 0 } })).toBe("Ticketed, Food");
   });
 
   it("removes duplicates within one stop's list too", () => {
@@ -81,8 +81,8 @@ describe("field", () => {
     fixture.trip.activities[fixture.ids.s0]!.tags = ["ticketed", "meal", "ticketed"];
     const ctx = contextOf(fixture);
     const one = { tag: "ticketed", field: "stop.tags" };
-    expect(valueOf(ctx, one)).toBe("Ticketed, Meal, Ticketed");
-    expect(valueOf(ctx, { ...one, distinct: true })).toBe("Ticketed, Meal");
+    expect(valueOf(ctx, one)).toBe("Ticketed, Food, Ticketed");
+    expect(valueOf(ctx, { ...one, distinct: true })).toBe("Ticketed, Food");
   });
 
   it("is empty when the filters leave no stop, and says so when no stop has the value", () => {

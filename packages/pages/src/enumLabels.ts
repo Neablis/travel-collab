@@ -16,11 +16,21 @@ export const KIND_LABEL: Record<ActivityKind, string> = {
   transit: "Travel",
 };
 
+/** Copy for a tag (ADR-070). The key `meal` stays; only its word became "Food". */
 export const TAG_LABEL: Record<ActivityTag, string> = {
-  meal: "Meal",
+  meal: "Food",
   lodging: "Lodging",
   ticketed: "Ticketed",
   outdoors: "Outdoors",
+  drinks: "Drinks",
+  nightlife: "Nightlife",
+  museum: "Museum",
+  sight: "Sight",
+  beach: "Beach",
+  shopping: "Shopping",
+  show: "Show",
+  tour: "Tour",
+  wellness: "Wellness",
 };
 
 // One lookup by value, because a manifest `enum` value reaches `kinds.ts`

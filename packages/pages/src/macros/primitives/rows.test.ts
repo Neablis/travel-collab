@@ -263,7 +263,7 @@ describe("stop.rows", () => {
       expect(cellsOf(ctx, "stop.rows", params)).toEqual([
         ["9 am – 10 am", cost(fixture.ids.s0), "Colosseum, Rome, Italy", "Pending", "Ticketed"],
         // Lunch has no place: its cell stays, empty, so the column stays one.
-        ["12 pm – 1 pm", cost(fixture.ids.s1), "", "Planned", "Meal"],
+        ["12 pm – 1 pm", cost(fixture.ids.s1), "", "Planned", "Food"],
       ]);
       expect(headingsOf(ctx, params)).toEqual(["Stop", "Time", "Cost", "Place", "Status", "Tags"]);
     });

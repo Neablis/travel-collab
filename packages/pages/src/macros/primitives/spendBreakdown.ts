@@ -23,7 +23,8 @@ import { apportionPercents, shareLabel } from "../../shares";
 //   the three-way answer the shell was waiting on, and a cost inherits it from
 //   its stop — the M19 question "does a cost carry its own kind" is answered
 //   "no, the stop's", which is what `activity.ts` already argued for.
-// - **by tag**: Meal, Lodging, Ticketed, Outdoors, Untagged. Mitchell, the same
+// - **by tag**: each category tag, then Untagged (Ticketed is a modifier and
+//   no slice, ADR-070). Mitchell, the same
 //   day: *"Can #246 introduce the pie chart for spend by kind and spend by
 //   tags?"* — as ONE primitive with a `by` param, renamed from `cost.byKind`
 //   while nothing stored it. A stop with several tags is counted once, under
@@ -128,7 +129,7 @@ function slicesOf<K extends string>(
 
 /**
  * "Spend by kind", then what it is narrowed to, each as a reader says it:
- * "Spend by kind · Meal", "Spend by tag · Pending · Kyoto · Day 3". The
+ * "Spend by kind · Food", "Spend by tag · Pending · Kyoto · Day 3". The
  * withheld dimension never appears — it was dropped before `narrow` saw it.
  */
 function titleOf(by: SpendBreakdownBy, selection: Narrowed): string {
@@ -151,7 +152,7 @@ export const costBreakdown: MacroDef<CostBreakdownParams, SpendBreakdownPayload>
   params: CostBreakdownParams, inputs: COST_BREAKDOWN_INPUTS,
   selection: BREAKDOWN_SELECTION,
   description:
-    "A pie of what the selected stops cost, split by kind (Planned, Pending, Travel) or by tag (Meal, Lodging, Ticketed, Outdoors, Untagged; a stop with several tags counts under its first), with each slice's amount and share. Filter it to a day, dates or a city, and to a tag when split by kind or a kind when split by tag.",
+    "A pie of what the selected stops cost, split by kind (Planned, Pending, Travel) or by tag (Food, Lodging, Outdoors, Drinks, Nightlife, Museum, Sight, Beach, Shopping, Show, Tour, Wellness, Untagged; a stop with several tags counts under its first, and Ticketed is never a slice), with each slice's amount and share. Filter it to a day, dates or a city, and to a tag when split by kind or a kind when split by tag.",
   // `cost.chart`'s wording: the two are the notebook's charts of the same money.
   emptyText: "no costs yet",
   // Fixed, never computed (ADR-037 decision 5): no amount, no kind. The two

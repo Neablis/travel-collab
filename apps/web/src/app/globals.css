@@ -84,6 +84,40 @@
   --color-person-teal: #17707a;
   --color-person-on: #ffffff;
 
+  /* ADR-070's nine new activity tags (design-system.md "Tag colours"). The
+     original four keep their semantic families. Each tag has a solid (its
+     spend-chart series, ≥3:1 on surface, validated as one categorical palette
+     with meal/lodging/outdoors in contract order) and a chip pair (tint + ink,
+     ≥6.8:1). Light values only, like the person colours: the dark column is
+     recorded in the doc. */
+  --color-tag-drinks: #db64ac;
+  --color-tag-drinks-tint: #ffe9f4;
+  --color-tag-drinks-ink: #78335d;
+  --color-tag-nightlife: #523ead;
+  --color-tag-nightlife-tint: #eeeeff;
+  --color-tag-nightlife-ink: #4c4489;
+  --color-tag-museum: #a086c9;
+  --color-tag-museum-tint: #f3edfe;
+  --color-tag-museum-ink: #5b3f82;
+  --color-tag-sight: #8f452a;
+  --color-tag-sight-tint: #feece5;
+  --color-tag-sight-ink: #80361a;
+  --color-tag-beach: #309eb4;
+  --color-tag-beach-tint: #dbf6fd;
+  --color-tag-beach-ink: #005a69;
+  --color-tag-shopping: #893f7d;
+  --color-tag-shopping-tint: #fde9f9;
+  --color-tag-shopping-ink: #733568;
+  --color-tag-show: #e96b50;
+  --color-tag-show-tint: #ffebe7;
+  --color-tag-show-ink: #813424;
+  --color-tag-tour: #585c00;
+  --color-tag-tour-tint: #f0f3dc;
+  --color-tag-tour-ink: #515500;
+  --color-tag-wellness: #18a177;
+  --color-tag-wellness-tint: #def7eb;
+  --color-tag-wellness-ink: #005f44;
+
   /* Two notches below `text-xs` exist for the front door only: the landing
      page's dense illustrations (crew initials, ledger column heads, playbook
      day cards) carry micro-labels the app's chrome never needs, and the

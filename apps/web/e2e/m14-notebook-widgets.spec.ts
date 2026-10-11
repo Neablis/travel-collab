@@ -798,7 +798,7 @@ test("a multi-filter widget keeps every binding, and each survives a reload", as
   // A selectable tag has to exist before the chrome row can offer one, and a
   // selectable city likewise — `globals.tags` and `globals.cities` are both
   // "what this trip actually has", never the whole enum.
-  await addTaggedStop(page, "Ramen", "Meal");
+  await addTaggedStop(page, "Ramen", "Food");
   await addStopInCity(page, "Kinkaku-ji", "Kyoto");
   await openSeededPage(page);
 
@@ -962,7 +962,7 @@ test("a repeat widget is one table as wide as the card it sits in", async ({ pag
   // friends) carry the same roles over their own flex layout and are untouched
   // by any of this.
   await tripWithTwoDays(page);
-  await addTaggedStop(page, "Ramen", "Meal");
+  await addTaggedStop(page, "Ramen", "Food");
   await addStopInCity(page, "Kinkaku-ji", "Kyoto");
   await openSeededPage(page);
   await insertLinesFor(page, "Stop");
@@ -1677,14 +1677,18 @@ test("spend by kind and spend by tag split the trip's costs, and a filter on the
   await insertFromList(page, /Spend by tag/, "tag");
   const byTag = breakdown(/^Spend by tag/);
   await expect(byTag.getByRole("table", { name: "Spend by tag" }).getByRole("row")).toHaveText([
-    /Tag/, /Meal\s*\$50\.00\s*10%/, /Lodging\s*\$300\.00\s*60%/, /Ticketed\s*nothing priced/, /Outdoors\s*nothing priced/,
+    /Tag/, /Food\s*\$50\.00\s*10%/, /Lodging\s*\$300\.00\s*60%/,
+    ...["Outdoors", "Drinks", "Nightlife", "Museum", "Sight", "Beach", "Shopping", "Show", "Tour", "Wellness"]
+      .map((label) => new RegExp(`${label}\\s*nothing priced`)),
     /Untagged\s*\$150\.00\s*30%/, /Total\s*\$500\.00/,
   ]);
   await expect(settingsPanel(page).getByRole("combobox", { name: "Tags" })).toHaveCount(0);
   await settingsPanel(page).getByRole("combobox", { name: "Kind" }).selectOption("pending");
   const tagRows = byTag.getByRole("table", { name: "Spend by tag · Pending" }).getByRole("row");
   const tagExpected = [
-    /Tag/, /Meal\s*\$50\.00\s*100%/, /Lodging\s*nothing priced/, /Ticketed\s*nothing priced/, /Outdoors\s*nothing priced/,
+    /Tag/, /Food\s*\$50\.00\s*100%/, /Lodging\s*nothing priced/,
+    ...["Outdoors", "Drinks", "Nightlife", "Museum", "Sight", "Beach", "Shopping", "Show", "Tour", "Wellness"]
+      .map((label) => new RegExp(`${label}\\s*nothing priced`)),
     /Untagged\s*nothing priced/, /Total\s*\$50\.00/,
   ];
   await expect(tagRows).toHaveText(tagExpected);
@@ -2344,7 +2348,7 @@ test("spend by day puts each day's own total on its own day, and says the number
   const rows = chart.getByRole("table", { name: "Spend by day", exact: true }).getByRole("row");
   await expect(rows).toHaveText([
     /^Day\s*Date\s*Total\s*By tag$/,
-    /^Day 1\s*Jun 1, 2027\s*\$350\.00\s*Meal \$50\.00, Lodging \$300\.00$/,
+    /^Day 1\s*Jun 1, 2027\s*\$350\.00\s*Food \$50\.00, Lodging \$300\.00$/,
     /^Day 2\s*Jun 2, 2027\s*\$150\.00\s*Untagged \$150\.00$/,
     /^Day 3\s*Jun 3, 2027\s*nothing priced\s*—$/,
   ]);
