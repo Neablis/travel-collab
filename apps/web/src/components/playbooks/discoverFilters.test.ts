@@ -10,7 +10,7 @@ import {
   type FilterState,
 } from "./discoverFilters";
 
-const NONE: FilterState = { rating: "any", budget: "any", length: "any" };
+const NONE: FilterState = { rating: "any", budget: "any", length: "any", tag: "any" };
 const USD = { budgetCurrency: "USD" };
 
 const def = (id: string) => FILTER_DEFS.find((d) => d.id === id)!;
@@ -21,8 +21,8 @@ describe("SPEC §33.2's rule, as a data structure", () => {
   // one belongs here.
   it("holds the questions, and neither the place nor the ordering", () => {
     const ids = FILTER_DEFS.map((d) => d.id);
-    // §35.5's three, in its order: Rating, Budget, Length.
-    expect(ids).toEqual(["rating", "budget", "length"]);
+    // §35.5's three, in its order: Rating, Budget, Length; then M42's tag.
+    expect(ids).toEqual(["rating", "budget", "length", "tag"]);
     expect(ids).not.toContain("scope");
     expect(ids).not.toContain("sort");
   });
@@ -31,12 +31,12 @@ describe("SPEC §33.2's rule, as a data structure", () => {
     expect(activeFilterCount(NONE)).toBe(0);
     expect(activeFilterCount({ ...NONE, budget: "under200" })).toBe(1);
     expect(activeFilterCount({ ...NONE, budget: "under200", length: "one" })).toBe(2);
-    expect(activeFilterCount({ rating: "4", budget: "under200", length: "one" })).toBe(3);
+    expect(activeFilterCount({ rating: "4", budget: "under200", length: "one", tag: "beach" })).toBe(4);
   });
 
   it("clears every question and invents none", () => {
-    expect(clearedFilters({ rating: "4.5", budget: "over1000", length: "seven-plus" })).toEqual(NONE);
-    expect(activeFilterCount(clearedFilters({ rating: "3", budget: "over1000", length: "one" }))).toBe(0);
+    expect(clearedFilters({ rating: "4.5", budget: "over1000", length: "seven-plus", tag: "beach" })).toEqual(NONE);
+    expect(activeFilterCount(clearedFilters({ rating: "3", budget: "over1000", length: "one", tag: "any" }))).toBe(0);
   });
 });
 
@@ -119,6 +119,18 @@ describe("what a filter can honestly offer", () => {
       "four-six",
       "seven-plus",
     ]);
+  });
+
+  // ADR-070 §2 and §4: a tag filters by what a day's description names, which
+  // is never Ticketed (a modifier) or Lodging (every trip sleeps), so neither
+  // is a value. The rest in the picker's order, Food first.
+  it("offers every category a description can name, and not Ticketed or Lodging", () => {
+    const tags = def("tag").options(USD)!;
+    expect(tags.map((o) => o.value)).toEqual([
+      "any", "meal", "drinks", "nightlife", "museum", "sight", "outdoors",
+      "beach", "shopping", "show", "tour", "wellness",
+    ]);
+    expect(chipLabel(def("tag"), { ...NONE, tag: "meal" }, tags)).toBe("Food");
   });
 
   it("treats `any` as not asking", () => {

@@ -1,8 +1,8 @@
 import type { MetadataRoute } from "next";
 import { DEMO_TRIPS, demoPath } from "@/lib/demoTrip";
 import { deploymentOrigin } from "@/lib/deploymentOrigin";
-import { dayPath, placeIndexable, placePath } from "@/lib/playbookUrls";
-import { publishedPlaces, sitemapDays } from "@/server/publicLibrary";
+import { dayPath, placeIndexable, placePath, tagPath } from "@/lib/playbookUrls";
+import { publishedPlaces, publishedTagPages, sitemapDays } from "@/server/publicLibrary";
 
 // Read per request, not at build: the build has no database in CI. The reads
 // are cached for a day and cleared by a publish or an unpublish (ADR-063), so
@@ -27,11 +27,11 @@ const STATIC_PATHS = [
 // against a limit of 50,000 URLs. Past that this needs `generateSitemaps`.
 /**
  * `/sitemap.xml`: the static public routes, every published, unmoderated,
- * undeleted day, and every city and country page that is indexed.
+ * undeleted day, and every city, country and tag page that is indexed.
  */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const origin = deploymentOrigin();
-  const [days, places] = await Promise.all([sitemapDays(), publishedPlaces()]);
+  const [days, places, tags] = await Promise.all([sitemapDays(), publishedPlaces(), publishedTagPages()]);
   return [
     ...STATIC_PATHS.map((path) => ({ url: `${origin}${path}` })),
     ...days.map((day) => ({
@@ -41,5 +41,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // The page's own robots predicate: a thin place page is `noindex`, and
     // listing it here would contradict that.
     ...places.filter(placeIndexable).map((place) => ({ url: `${origin}${placePath(place)}` })),
+    // The same predicate over the same count, for the tag pages' robots tag (M42 D10).
+    ...tags
+      .filter(placeIndexable)
+      .map((page) => ({ url: `${origin}${tagPath(page.tag, page.city?.slug ?? null)}` })),
   ];
 }

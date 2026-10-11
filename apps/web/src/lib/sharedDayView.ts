@@ -1,4 +1,4 @@
-import type { ActivityTag, SavedDay, SavedDayModeration, TripCover } from "@tc/contracts";
+import type { ActivityTag, ActivityTagDescribed, SavedDay, SavedDayModeration, TripCover } from "@tc/contracts";
 import type { PublicAuthor } from "./playbooks";
 
 /**
@@ -28,4 +28,6 @@ export type SharedDayView = {
    */
   description: string | null;
   tags: ActivityTag[];
+  /** The tags the description names: the chips that link to a tag page, which lists this day (ADR-070 §4). */
+  namedTags: ActivityTagDescribed[];
 };

@@ -12,19 +12,23 @@ import { DiscoverCard } from "./DiscoverCard";
 // A client component fed the server's rows: `DiscoverCard` reads the reader's
 // clock preference through a hook.
 /**
- * A city or country page's body: its heading, how many days, the cards, and
- * the pager. The pager is real links (`?page=N`), because a crawler reaches
- * page two by following one.
+ * A city, country or tag page's body: its heading, how many days, the cards,
+ * and the pager. The pager is real links (`?page=N`), because a crawler
+ * reaches page two by following one.
  */
 export function PlaceDaysList({
-  name,
+  heading,
+  summary,
   path,
   days,
   total,
   page,
 }: {
-  name: string;
-  /** The place's own path, page one. */
+  /** "Kyoto playbooks": one string, for the reason at the heading. */
+  heading: string;
+  /** The line under it: how many days, and whose. */
+  summary: string;
+  /** The page's own path, page one. */
   path: string;
   days: DiscoverDay[];
   total: number;
@@ -39,10 +43,8 @@ export function PlaceDaysList({
       <div>
         {/* One string, not `{name} playbooks`: two text nodes reach the HTML
             split by a comment, and the heading is what a crawler reads. */}
-        <Heading level={1}>{`${name} playbooks`}</Heading>
-        <Text variant="secondary">
-          {total === 1 ? `1 day a traveler planned in ${name}.` : `${total} days other travelers planned in ${name}.`}
-        </Text>
+        <Heading level={1}>{heading}</Heading>
+        <Text variant="secondary">{summary}</Text>
       </div>
       <ul className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3" data-testid="place-days">
         {days.map((day) => (
