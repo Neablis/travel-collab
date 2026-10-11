@@ -135,7 +135,7 @@ describe("GET /api/invites/:token/preview — a pending invite", () => {
         { name: "Mei Tanaka", avatar: null, color: meiShows, colorShifted: false, travelling: true },
       ],
       total: usd(11_500),
-      // Three untagged stops: too few to say what kind of trip it is.
+      // Four untagged activities: nothing to say what kind of trip it is.
       description: null,
     });
 
@@ -158,9 +158,9 @@ describe("GET /api/invites/:token/preview — a pending invite", () => {
 });
 
 // M42 D9: the invite says what kind of trip it is, by the rule the home cards
-// use, from the stops on its days.
+// use, from every activity: the backlog is part of what the trip is about.
 describe("GET /api/invites/:token/preview — what kind of trip", () => {
-  it("describes the trip from its days' stops, leaving the backlog out", async () => {
+  it("describes the trip from its days' stops and its backlog alike", async () => {
     const tripId = randomUUID();
     const day = randomUUID();
     await command({ type: "CreateTrip", tripId, name: "Dolomites" });
@@ -168,14 +168,14 @@ describe("GET /api/invites/:token/preview — what kind of trip", () => {
     for (const title of ["Seceda", "Tre Cime", "Lago di Braies", "Alpe di Siusi"]) {
       await addStop(tripId, { dayId: day, title, tags: ["outdoors"] });
     }
-    // Four museums in the backlog would make it a museum trip if they counted.
+    // Four museums in the backlog: alone, the days would read "Outdoorsy".
     for (const title of ["MMM Corones", "Museion", "Ötzi", "Ladin museum"]) {
       await addStop(tripId, { title, tags: ["museum"] });
     }
     const invite = await createInvite(tripId, OWNER, { email: null, role: "viewer" });
     const { status, raw } = await preview(invite.token);
     expect(status).toBe(200);
-    expect((JSON.parse(raw) as TripPreview).description).toBe("Outdoorsy");
+    expect((JSON.parse(raw) as TripPreview).description).toBe("Outdoors & museums");
   });
 });
 

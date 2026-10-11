@@ -1,4 +1,5 @@
 import { inArray, sql, type SQL } from "drizzle-orm";
+import { describeByTags, describedTags } from "@tc/domain";
 import { SavedDayVisibility, TripCover } from "@tc/contracts";
 import type { CityMatch } from "@/lib/cities";
 import {
@@ -469,6 +470,8 @@ function toDiscoverDay(row: DiscoverRow, queryCities: string[], readerId: string
     publishedAt: isoOf(row.published_at),
     isMine: row.owner_id === readerId,
     cover: coverOfRow(row),
+    description: describeByTags(parsed.stops)?.text ?? null,
+    tags: describedTags(parsed.stops),
   };
 }
 

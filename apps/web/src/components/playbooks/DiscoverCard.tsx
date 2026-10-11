@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { useId } from "react";
+import { StopTagChips } from "@/components/board/StopTagChips";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { CoverCredit } from "@/components/cover/CoverCredit";
@@ -78,6 +80,7 @@ export function cityChips(day: Pick<DiscoverDay, "cities" | "matchedCities">): {
  */
 export function DiscoverCard({ day, origin }: { day: DiscoverDay; origin: BackOrigin }) {
   const clock = useTimeFormat();
+  const descriptionId = useId();
   const line = matchLine(day);
   const rated = ratingLine(day);
   const back = backQuery(origin);
@@ -163,7 +166,11 @@ export function DiscoverCard({ day, origin }: { day: DiscoverDay; origin: BackOr
             straight under its h1, so an h4 skipped two levels and axe failed
             `/playbooks` on heading-order. The level is structure; `text-md
             font-medium` keeps the card title the size it was. */}
-        <Heading level={2} className="text-md font-medium leading-snug">
+        <Heading
+          level={2}
+          className="text-md font-medium leading-snug"
+          aria-describedby={day.description === null ? undefined : descriptionId}
+        >
           {/* §13.1's phone floor on the card's ROW ACTION — this title link is
               the only way into the day, so it is the target (M26 link 14's
               sweep, found by the census in the full e2e lane where seeded
@@ -204,6 +211,20 @@ export function DiscoverCard({ day, origin }: { day: DiscoverDay; origin: BackOr
             guidelines: wherever the photo is). */}
         {cover !== null && <CoverCredit photo={cover} className="mt-1.5" />}
       </div>
+
+      {/* What kind of day it is, and the tags that say so (M42 D9), both
+          worked out by the server from the stops. Plain chips: part 5 makes
+          each one a way to its tag's page. */}
+      {(day.description !== null || day.tags.length > 0) && (
+        <div className="flex flex-col gap-1.5">
+          {day.description !== null && (
+            <Text variant="secondary" id={descriptionId}>
+              {day.description}
+            </Text>
+          )}
+          <StopTagChips activityId={day.savedDayId} tags={day.tags} focusedTag={null} />
+        </div>
+      )}
 
       {/* `dc.html:2630-2642`: the rating sits between the facts line and the
           stop preview, and an unrated day says so in words rather than drawing

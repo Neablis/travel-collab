@@ -13,6 +13,26 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-11 — `TripSummary.description` and `TripPreview.description`: a trip says what kind of trip it is (M42 part 3, ADR-070 §3)
+
+- **Added** `description: string | null`, defaulted to `null`, to `TripSummary`
+  (`packages/contracts/src/trip.ts`) and to `TripPreview` (`packages/contracts/src/invitePreview.ts`,
+  still `.strict()`). It is "Outdoorsy", "Beach & outdoors", "A bit of everything", or null when
+  fewer than four activities carry a category (Lodging and Ticketed aside). `StoredTripSummary`
+  omits it: the projection does not store it.
+- Why: M42 D8 and D9. The words are worked out at read time by `describeByTags` (`@tc/domain`,
+  new), from every activity on the trip, the backlog's as well as the days', and transit left out.
+  Nothing stores the result, so a retag is seen on the next read.
+- Consumers updated: `packages/domain` (`describeByTags`, `describedTags`, the copy table);
+  `packages/factories` (`tripSummaryFactory`); `apps/web` (the two listing queries in
+  `server/projections.ts`, `server/invitePreview.ts`, `TripCard`, `NextTripHero`,
+  `InviteLandingScreen`). Not contracts but on the same wire: the app's `DiscoverDay` and the
+  shared-day read (`SharedDayView`, `GET /api/saved-days/:id`) gain `description` and `tags`.
+  `TripSummary` and `DiscoverDay` are in the public API's `GET /v1/trips` and
+  `GET /v1/discover/playbooks`, so `openapi.json` is regenerated: `API_VERSION` 1.13.0 →
+  **1.14.0** (minor: optional fields) and a new `API_FINGERPRINT`.
+- Breaking? no: both fields are defaulted, so a payload from before them parses as "no description".
+
 ## 2026-10-11 — `ActivityTag` has thirteen values: twelve categories and one modifier (M42 part 1, ADR-070)
 
 - **Added** nine values to `ActivityTag` (`packages/contracts/src/activity.ts`), appended after the

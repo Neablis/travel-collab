@@ -86,11 +86,10 @@ export async function readInvitePreview(
         travelling: travellers.has(p.userId),
       })),
       total: { amountMinor: costed.tripCostTotal, currency: costed.currency },
-      // The stops on its days, as the home card counts them: the backlog is
-      // not the plan yet.
-      description:
-        describeByTags(detail.days.flatMap((day) => day.activityIds.flatMap((id) => detail.activities[id] ?? [])))
-          ?.text ?? null,
+      // Every activity, the backlog's too, as the home card describes it
+      // (`listTripSummariesVisibleTo`): what the trip is about, not only what
+      // is on a day yet. The words say nothing of who planned what.
+      description: describeByTags(Object.values(detail.activities))?.text ?? null,
     },
   };
 }

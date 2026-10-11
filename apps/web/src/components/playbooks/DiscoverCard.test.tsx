@@ -37,6 +37,8 @@ function day(over: Partial<DiscoverDay> = {}): DiscoverDay {
     publishedAt: "2026-08-02T00:00:00.000Z",
     isMine: false,
     cover: null,
+    description: null,
+    tags: [],
     ...over,
   };
 }
@@ -212,5 +214,26 @@ describe("a Discover card's title", () => {
   it("is a level-two heading, the next level under the screen's h1", () => {
     render(<DiscoverCard day={day()} origin={{ from: "playbooks" }} />);
     expect(screen.getByRole("heading", { level: 2, name: "Kyoto temples on foot" })).toBeTruthy();
+  });
+});
+
+// M42 D9: what kind of day it is, and the tags that say so, from the server
+// (`describeByTags`). Plain chips until the tag pages exist (part 5).
+describe("a Discover card's description", () => {
+  it("describes the day under its title and shows its tags, most used first", () => {
+    const described = day({ description: "Sightseeing", tags: ["sight", "meal"] });
+    render(<DiscoverCard day={described} origin={{ from: "playbooks" }} />);
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Kyoto temples on foot", description: "Sightseeing" }),
+    ).toBeTruthy();
+    const chips = within(screen.getByTestId(`tag-chips-${described.savedDayId}`)).getAllByTestId(/^tag-chip-/);
+    expect(chips.map((chip) => chip.textContent)).toEqual(["Sight", "Food"]);
+  });
+
+  it("says nothing, and draws no tags, for a day too lightly tagged to describe", () => {
+    const bare = day();
+    render(<DiscoverCard day={bare} origin={{ from: "playbooks" }} />);
+    expect(screen.getByRole("heading", { level: 2, name: "Kyoto temples on foot", description: "" })).toBeTruthy();
+    expect(screen.queryByTestId(`tag-chips-${bare.savedDayId}`)).toBeNull();
   });
 });

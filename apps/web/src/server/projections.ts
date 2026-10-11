@@ -384,16 +384,17 @@ const LISTED_SUMMARY = {
   // it is its own CRUD table, LEFT JOINed here so the grid reads every card's
   // cover in the statement that reads the cards.
   cover: TRIP_COVER_JSON,
-  // Each stop's kind and tags, for the description (M42 D8): the stops on the
-  // days, as `stopCount` counts them, and only the two fields the rule reads.
-  // Run silent like `countOf`, so a malformed document is no stops rather than
-  // an error; `describedListing` reads what comes back and drops the column.
+  // Each activity's kind and tags, for the description (M42 D8), and only the
+  // two fields the rule reads. Every activity, the backlog's as well as the
+  // days': unlike `stopCount`, which says how much is planned, this says what
+  // the trip is about, and the ideas parked for it are part of that (M42 part
+  // 3: counted from its days alone, the Iceland bundle read "Outdoors & food";
+  // from all its activities, "Outdoorsy"). Transit is left out by the rule. Run
+  // silent like `countOf`, so a malformed document is no stops rather than an
+  // error; `describedListing` reads what comes back and drops the column.
   stops: sql<unknown>`(
-    SELECT COALESCE(jsonb_agg(jsonb_build_object(
-      'kind', ${tripDetails.doc} -> 'activities' -> stop.id -> 'kind',
-      'tags', ${tripDetails.doc} -> 'activities' -> stop.id -> 'tags')), '[]'::jsonb)
-    FROM jsonb_array_elements_text(
-      jsonb_path_query_array(${tripDetails.doc}, 'strict $.days[*].activityIds[*]', '{}', true)) AS stop(id))`,
+    SELECT COALESCE(jsonb_agg(jsonb_build_object('kind', activity.value -> 'kind', 'tags', activity.value -> 'tags')), '[]'::jsonb)
+    FROM jsonb_path_query(${tripDetails.doc}, 'strict $.activities.*', '{}', true) AS activity(value))`,
 };
 
 // One stop as the listing query hands it over. Leniently, for `endDate`'s

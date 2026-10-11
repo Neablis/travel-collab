@@ -450,9 +450,10 @@ export const TripSummary = z.object({
   cover: TripCover.nullable().default(null),
   // What kind of trip it is, from its stops' tags (M42 D8, ADR-070 §3):
   // "Outdoorsy", "Beach & outdoors", "A bit of everything". Null when too few
-  // stops carry a category to say. Worked out from the trip's document in the
-  // listing query, never stored: `describeByTags` in `@tc/domain` is the only
-  // rule. `.default(null)` for the same version skew as `startDate`.
+  // stops carry a category to say. Worked out in the listing query from every
+  // activity in the trip's document, the backlog's too, and never stored:
+  // `describeByTags` in `@tc/domain` is the only rule. `.default(null)` for
+  // the same version skew as `startDate`.
   description: z.string().nullable().default(null),
 });
 export type TripSummary = z.infer<typeof TripSummary>;

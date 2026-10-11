@@ -502,7 +502,7 @@ describe("a shared day", () => {
         savedDayId={DAY_ID}
         backHref="/playbooks"
         backLabel="Discover"
-        initial={{ day: savedDay(), isAuthor: false, author: profile().author, pinning: false, publishedAt: null, moderation: null, cover: null }}
+        initial={{ day: savedDay(), isAuthor: false, author: profile().author, pinning: false, publishedAt: null, moderation: null, cover: null, description: null, tags: [] }}
       />,
     );
     expect(screen.getByRole("heading", { level: 1, name: "Kyoto temples on foot" })).toBeTruthy();
@@ -1405,6 +1405,37 @@ describe("a day's cover", () => {
     await userEvent.click(within(dialog).getByRole("button", { name: "Close" }));
     const add = screen.getByRole("button", { name: "Add cover" });
     await waitFor(() => expect(add.matches(":focus")).toBe(true));
+  });
+});
+
+// M42 D9: what kind of day it is, and the tags that say so, as the server
+// worked them out (`describeByTags`). Plain chips until the tag pages exist.
+describe("what kind of day it is", () => {
+  const described = { savedDay: savedDay(), isAuthor: false, description: "Sightseeing", tags: ["sight", "meal"] };
+  const chips = () => within(screen.getByTestId(`tag-chips-${DAY_ID}`)).getAllByTestId(/^tag-chip-/).map((c) => c.textContent);
+
+  it("describes the day under its title and shows its tags, most used first", async () => {
+    fetchSavedDayMock.mockResolvedValue(ok(described));
+    renderDay();
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Kyoto temples on foot", description: "Sightseeing" }),
+    ).toBeTruthy();
+    expect(chips()).toEqual(["Sight", "Food"]);
+  });
+
+  it("describes it the same way on a day with a cover", async () => {
+    fetchSavedDayMock.mockResolvedValue(ok({ ...described, cover: tripCoverFactory.build() }));
+    renderDay();
+    const band = await screen.findByTestId("day-cover");
+    expect(within(band).getByRole("heading", { level: 1, name: "Kyoto temples on foot", description: "Sightseeing" })).toBeTruthy();
+    expect(chips()).toEqual(["Sight", "Food"]);
+  });
+
+  it("says nothing, and draws no tags, for a day too lightly tagged to describe", async () => {
+    fetchSavedDayMock.mockResolvedValue(ok({ ...described, description: null, tags: [] }));
+    renderDay();
+    expect(await screen.findByRole("heading", { level: 1, name: "Kyoto temples on foot", description: "" })).toBeTruthy();
+    expect(screen.queryByTestId(`tag-chips-${DAY_ID}`)).toBeNull();
   });
 });
 
