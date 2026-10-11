@@ -16,9 +16,9 @@ beforeAll(async () => {
   await import("./TagCharts");
 });
 
-/** Two dated days of two stops, each untagged and untimed until `set` says otherwise. */
-function tripOf(): TripDetail {
-  const trip = tripDetailFactory.build({}, { transient: { dayCount: 2, activitiesPerDay: 2 } });
+/** Two dated days of two stops and `unscheduled` parked ones, each untagged and untimed until `set` says otherwise. */
+function tripOf(unscheduled = 0): TripDetail {
+  const trip = tripDetailFactory.build({}, { transient: { dayCount: 2, activitiesPerDay: 2, unscheduledCount: unscheduled } });
   trip.days = trip.days.map((day, i) => ({ ...day, date: `2026-08-0${i + 1}` }));
   for (const id of Object.keys(trip.activities)) {
     trip.activities[id] = { ...trip.activities[id]!, kind: "planned", tags: [], timeWindow: null };
@@ -56,18 +56,22 @@ describe("TagBreakdownBlock", () => {
 });
 
 describe("TagsByDayBlock", () => {
-  it("puts every day's stops and tags in the table a screen reader gets", () => {
-    const trip = tripOf();
+  it("puts every day's stops and tags in the table a screen reader gets, and names the unscheduled stop", () => {
+    const trip = tripOf(1);
     set(trip, 0, 0, ["meal"]);
     set(trip, 0, 1, ["meal"]);
     set(trip, 1, 0, ["beach"]);
     render(<TagsByDayBlock payload={payloadOf(trip, "tag.byDay", {}, "tags-by-day")} />);
 
+    // Each row's header ("Day 1") and its cells, read together.
     const rows = within(screen.getByRole("table", { name: "Tags by day" })).getAllByRole("row").slice(1);
-    expect(rows.map((row) => within(row).getAllByRole("cell").map((cell) => cell.textContent))).toEqual([
-      ["Aug 1, 2026", "2", "Food 2"],
-      ["Aug 2, 2026", "2", "Beach 1, Untagged 1"],
+    expect(
+      rows.map((row) => [within(row).getByRole("rowheader"), ...within(row).getAllByRole("cell")].map((cell) => cell.textContent)),
+    ).toEqual([
+      ["Day 1", "Aug 1, 2026", "2", "Food 2"],
+      ["Day 2", "Aug 2, 2026", "2", "Beach 1, Untagged 1"],
     ]);
+    expect(screen.getByText("Not charted: 1 stop not on a day yet.")).toBeDefined();
   });
 });
 
