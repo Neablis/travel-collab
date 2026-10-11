@@ -371,6 +371,7 @@ dispatched workflow. Details: `docs/guidelines/content-bundles.md`.
 | Redis only as an expendable cache | a Redis rate limiter (correctness on an expendable store) | 059 |
 | Travellers are access data, counted at read | storing it in the log (Planning would know who is invited) | 065 |
 | A stop's price is per person | — accepted as wrong for a shared room or taxi | 060 |
+| ⌘K runs the page's own actions, named Action › Type › Target | commands with handlers of their own (copies drift); a flat list of labels and keywords (names and ranking stopped agreeing as it grew) | 068, 069 |
 | Money is integer minor units, one currency per trip | floats (break bit-identical rebuild); live FX (a projection cannot call an API) | 008 |
 
 **ADR status that is easy to misread**

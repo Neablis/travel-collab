@@ -73,6 +73,10 @@ CodeRabbit has three limits that matter for a stack:
 
 - **Self-review each part before asking CodeRabbit**, not as the fallback when it fails to run. On
   M14 the fallback self-review of the top part found five real bugs.
+- **The self-review names any second way to do a thing** (ADR-068). If the part adds a control,
+  gesture or command for an action that already has one, or finds two that already exist, say so
+  in the PR body. Then remove one, or record why both stay (a phone and a desktop door to the same
+  function, for example). The milestone's gate PR keeps the running list.
 - Request reviews **in merge order**, one per slot, so the lowest part is always furthest along.
 
 ## 4. Merge with "Create a merge commit", and know the squash recovery

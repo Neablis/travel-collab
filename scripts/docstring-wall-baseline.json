@@ -119,7 +119,6 @@
   "apps/web/src/components/lenses/MapRail.tsx::MapRail",
   "apps/web/src/components/lenses/OverviewLens.tsx::OverviewLens",
   "apps/web/src/components/lenses/TripDateControl.tsx::TripDateControl",
-  "apps/web/src/components/lenses/calendarData.ts::calendarMonths",
   "apps/web/src/components/lenses/mapData.ts::activityPins",
   "apps/web/src/components/lenses/mapData.ts::unlocatedActivities",
   "apps/web/src/components/lenses/mapRailData.ts::mapDays",

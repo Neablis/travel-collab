@@ -32,6 +32,7 @@ import {
   type MinuteWindow,
   placeWindow,
   resizeEnd,
+  resizeStart,
   RIVER_DRAG_THRESHOLD_PX,
   RIVER_TOUCH_HOLD_MS,
   RIVER_TOUCH_SLOP_PX,
@@ -62,6 +63,8 @@ export type RiverGestures = {
   onDropAt: (activityId: string, dayId: string, window: TimeWindow) => void;
   /** A block lifted by touch was let go over the unscheduled rack: park it, as a mouse drop there does. */
   onUnschedule: (activityId: string) => void;
+  /** A link or a line of text was dropped on this day: open the editor prefilled from it (M41 D8). */
+  onAddFromText: (text: string) => void;
 };
 
 /**
@@ -213,7 +216,9 @@ export function DayRiver({
   const listRef = useRef<HTMLUListElement>(null);
   const [ghost, setGhost] = useState<Ghost | null>(null);
   // The block whose bottom edge is being dragged, and where its end is now.
-  const [resizing, setResizing] = useState<{ activityId: string; end: number } | null>(null);
+  // A block being resized, previewed as the window it would take: either edge
+  // moves (the top since M41 D7), so the preview holds both.
+  const [resizing, setResizing] = useState<{ activityId: string; start: number; end: number } | null>(null);
   // When the last sketch ended. The release of a sketch is also a click, and a
   // click soon after another is a double-click — which must not ALSO open the
   // add sheet at the release point.
@@ -240,7 +245,7 @@ export function DayRiver({
         // held, laid out with everything else — so it takes the lane it will
         // have when it lands, and its own time line reads the new end.
         const window =
-          resizing?.activityId === id ? toTimeWindow({ start: toMinutes(activity.timeWindow.start), end: resizing.end }) : activity.timeWindow;
+          resizing?.activityId === id ? toTimeWindow({ start: resizing.start, end: resizing.end }) : activity.timeWindow;
         return [{ activity, window }];
       }),
     [activityIds, activities, resizing],
@@ -547,14 +552,20 @@ export function DayRiver({
   // Under a finger the grip needs no hold: it is its own 44px target with
   // `touch-action: none`, so it never starts a scroll. A tap on it, though, is
   // a tap on the block, and opens the editor as the rest of the block does.
-  function startResize(activityId: string, stored: TimeWindow, release: () => void, press: { pointerType: string; clientY: number }) {
+  function startResize(
+    activityId: string,
+    stored: TimeWindow,
+    release: () => void,
+    press: { pointerType: string; clientY: number },
+    edge: "start" | "end" = "end",
+  ) {
     lastPointer.current = press.pointerType;
     if (!live) {
       release();
       return;
     }
     const touch = press.pointerType === "touch";
-    const start = toMinutes(stored.start);
+    let start = toMinutes(stored.start);
     let end = toMinutes(stored.end);
     let moved = false;
     if (touch) touchHeld.current = true;
@@ -562,8 +573,10 @@ export function DayRiver({
       (ev) => {
         if (!moved && Math.abs(ev.clientY - press.clientY) < RIVER_DRAG_THRESHOLD_PX) return;
         moved = true;
-        end = resizeEnd(axis, start, yOf(ev.clientY));
-        setResizing({ activityId, end });
+        // One edge moves, the other holds (M41 D7 added the top).
+        if (edge === "end") end = resizeEnd(axis, start, yOf(ev.clientY));
+        else start = resizeStart(axis, end, yOf(ev.clientY));
+        setResizing({ activityId, start, end });
       },
       (commit) => {
         touchHeld.current = false;
@@ -574,7 +587,7 @@ export function DayRiver({
           return;
         }
         const next = toTimeWindow({ start, end });
-        if (commit && next.end !== stored.end) live.onResize(activityId, next);
+        if (commit && (next.end !== stored.end || next.start !== stored.start)) live.onResize(activityId, next);
       },
       { scroll: touch },
     );
@@ -681,6 +694,16 @@ export function DayRiver({
           <div className="ml-9.5 border-t border-hairline" />
         </div>
       ))}
+      {/* **An empty day says how to fill it** (M41 D5): the river's gestures
+          are otherwise invisible. Text, not a control: it takes no pointer
+          events, so the double-click it describes lands on the river under
+          it. Worded by the pointer, since a finger adds with a hold. */}
+      {live && ordered.length === 0 && (
+        <p data-testid="empty-day-hint" className="pointer-events-none absolute inset-x-0 top-3 left-9.5 m-0 text-center text-xs text-slate">
+          <span className="hidden fine:inline">Double-click or drag to add a stop</span>
+          <span className="fine:hidden">Hold to add a stop</span>
+        </p>
+      )}
       {/* 38px in: the 32px gutter and the 6px between it and the rule, the
           design's own numbers. A list, because a day's stops are one. */}
       <ul ref={listRef} aria-label={`${title} timeline`} className="absolute inset-y-0 right-0 left-9.5 m-0 list-none p-0">
@@ -708,7 +731,7 @@ export function DayRiver({
               // The stop's STORED window, not the one being previewed: a
               // resize always runs from where the stop really starts and ends.
               onResizeStart={
-                live && activity.timeWindow ? (release, press) => startResize(id, activity.timeWindow!, release, press) : undefined
+                live && activity.timeWindow ? (release, press, edge) => startResize(id, activity.timeWindow!, release, press, edge) : undefined
               }
               onTouchPress={live ? (e) => startLift(id, e) : undefined}
               lifted={lifted === id}

@@ -270,7 +270,7 @@ describe("what is not on the trip yet reads as a placeholder", () => {
     mount("suggester", () => []);
     expect(await screen.findByText("Suggester")).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "Add stop" }));
+    fireEvent.doubleClick(screen.getAllByTestId("day-river")[0]!, { clientY: 44 });
     const sheet = await screen.findByRole("dialog");
     fireEvent.change(within(sheet).getByLabelText("What or where"), { target: { value: "Gelato" } });
     fireEvent.change(within(sheet).getByLabelText("Start", { exact: true }), { target: { value: "14:00" } });

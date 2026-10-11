@@ -59,6 +59,8 @@ describe("calendarCityCards", () => {
       {
         city: "Tokyo",
         stops: 2,
+        // What a drag of the card moves (M41 D2), in the day's order.
+        activityIds: ["a", "b"],
         costMinor: 1500,
         window: { start: "09:00", end: "14:30" },
         span: { from: expect.closeTo(0.125, 3), to: expect.closeTo(0.469, 3) },

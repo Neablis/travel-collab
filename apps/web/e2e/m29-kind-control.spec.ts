@@ -1,6 +1,6 @@
 import type { Locator } from "@playwright/test";
 import { expect, test } from "./fixtures/test";
-import { createMappedTrip } from "./helpers";
+import { createMappedTrip, openNewParkedStop } from "./helpers";
 import { e2eTripName } from "./tripNames";
 
 // M29 part 1's two walks (SPEC §36.9, ADR-055): the stop editor's segmented
@@ -18,7 +18,7 @@ const radio = (group: Locator, name: string) => group.getByRole("radio", { name,
 test("the stop editor's Kind is segmented, and Pending and Travel each bring their own icon row", async ({ page }) => {
   const tripId = await createMappedTrip(page, e2eTripName("KindControl"), 1);
   await page.goto(`/trips/${tripId}?view=Plan`);
-  await page.getByRole("button", { name: "Add stop" }).click();
+  await openNewParkedStop(page);
   await expect(page.getByRole("heading", { name: "Add a stop" })).toBeVisible();
 
   const kind = page.getByRole("radiogroup", { name: "Kind", exact: true });

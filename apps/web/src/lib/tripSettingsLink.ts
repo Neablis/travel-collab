@@ -5,7 +5,9 @@
 // state reached from another page.
 
 /** The Trip settings sections a link may open the sheet at. */
-export const SETTINGS_SECTIONS = ["people", "cover"] as const;
+// `share` is the snapshots section, where Share lives (M41: the palette's
+// *Share* opens the sheet there).
+export const SETTINGS_SECTIONS = ["people", "cover", "share"] as const;
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];
 
 const PARAM = "settings";

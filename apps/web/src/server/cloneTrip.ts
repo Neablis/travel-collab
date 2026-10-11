@@ -40,6 +40,8 @@ function remapIds(state: TripState, tripId: string): TripState {
     // Dismissals are OCCURRENCE-scoped (KI-14) and a fresh trip has had no
     // occurrences; conflict ids also embed the old day/activity ids.
     dismissedConflictIds: [],
+    // A copy starts with no "From Day N": the origins name the source's days.
+    parkedFrom: {},
   };
 }
 

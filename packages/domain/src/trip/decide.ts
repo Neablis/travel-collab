@@ -355,6 +355,13 @@ function decideCommand(
             activityId: command.activityId,
             toDayId: command.toDayId,
             position: command.position,
+            // From state, never the client (M41 D6), so it cannot name a day
+            // the stop was not on. A stop already parked carries the day it
+            // left before, so a reorder inside the rack keeps it.
+            fromDayId:
+              state.days.find((d) => d.activityIds.includes(command.activityId))?.dayId ??
+              state.parkedFrom?.[command.activityId] ??
+              null,
           },
         },
       ]);

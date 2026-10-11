@@ -22,6 +22,23 @@ import {
   uuid,
 } from "./support/tripGenerator";
 
+// Days, stops and moves only: AddDay, RemoveDay, AddActivity, MoveActivity.
+// The full `rawOp` mix almost never parks a stop that is on a day (measured
+// 2026-10-10: 3 accepted moves in 300 runs, none of them a park from a day,
+// because most MoveActivity tuples arrive before any stop exists), so on its
+// own it never reaches a parked origin (M41 D6).
+const parkingOp = fc.record({
+  op: fc.constantFrom(0, 1, 3, 3, 5, 5, 5),
+  a: fc.integer({ min: 0, max: 4 }),
+  b: fc.constantFrom(0, 0, 1, 2),
+  c: fc.integer({ min: 0, max: 5 }),
+});
+
+function originsEqual(a: TripState, b: TripState): boolean {
+  const sorted = (s: TripState) => JSON.stringify(Object.entries(s.parkedFrom ?? {}).sort());
+  return sorted(a) === sorted(b);
+}
+
 describe("diffTripStates round-trip (THE M2 invariant)", () => {
   it("applying the diff to current reproduces the target exactly, for any history and any cut point", () => {
     const w = witness("M2 round-trip");
@@ -33,9 +50,17 @@ describe("diffTripStates round-trip (THE M2 invariant)", () => {
     // rule AGENTS.md states as "a property that skips every generated case
     // still reports ✓").
     let forked = 0;
+    // A THIRD, for parked origins (M41 D6): pairs whose `parkedFrom` records
+    // differ, so the diff has to restore an origin for the round-trip to hold.
+    // Without counting them the property stays green while never touching
+    // origins — which is what the plain `rawOp` mix does (see `parkingOp`).
+    let originsDiffer = 0;
     fc.assert(
       fc.property(
-        fc.array(rawOp, { minLength: 1, maxLength: 40 }),
+        fc.oneof(
+          { arbitrary: fc.array(rawOp, { minLength: 1, maxLength: 40 }), weight: 1 },
+          { arbitrary: fc.array(parkingOp, { minLength: 1, maxLength: 40, size: "medium" }), weight: 2 },
+        ),
         fc.nat(),
         // Lineage is genesis-only — no raw op can produce one — so it is
         // generated here or this property replays only unforked trips and
@@ -52,6 +77,7 @@ describe("diffTripStates round-trip (THE M2 invariant)", () => {
           for (const event of diff) result = evolveTrip(result, event);
           w.tick();
           if (forkedFrom !== null) forked += 1;
+          if (!originsEqual(current, target)) originsDiffer += 1;
           expect(result.forkedFrom).toEqual(forkedFrom);
           expect(tripStatesEqual(result, target)).toBe(true);
           // conflicts are a pure function of state, so they match too:
@@ -66,6 +92,11 @@ describe("diffTripStates round-trip (THE M2 invariant)", () => {
     // the expected count — which cannot flap but still fails outright if
     // lineage stops being generated.
     expect(forked, "no forked-trip case was generated").toBeGreaterThanOrEqual(60);
+    // Measured 2026-10-10 over 12 runs: 20-43 of 300. Floored at 8, well under
+    // the lowest, so it cannot flap but fails if parks from a day stop being
+    // generated. (A pair differing ONLY in origins came up once in ~2,400
+    // runs — too rare to floor; the deterministic undo/redo/revert tests own it.)
+    expect(originsDiffer, "no case where the diff had to restore a parked origin").toBeGreaterThanOrEqual(8);
   });
 
   // Guards the generator itself, not the domain. See the `generator` counters.

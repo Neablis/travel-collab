@@ -691,3 +691,24 @@ describe("ActivityEditor nearby stops (M34)", () => {
     expect(nearbyList()).toBeNull();
   });
 });
+
+// CodeRabbit on PR 392: another editor moves the stop while this one is open.
+// The Day field follows the stop until this reader picks a day themselves, so
+// a save of some other field does not drag the stop back where it was.
+describe("ActivityEditor — the Day field while the stop moves elsewhere", () => {
+  const days = [
+    { dayId: "day-1", label: "Day 1", existing: [] },
+    { dayId: "day-2", label: "Day 2", existing: [] },
+  ];
+  const props = { initial: existingStop(), mode: "edit" as const, days, onSave: vi.fn(), onCancel: vi.fn() };
+
+  it("follows the stop's day until a day is picked here", async () => {
+    const { rerender } = render(<ActivityEditor {...props} defaultDayId="day-1" />);
+    rerender(<ActivityEditor {...props} defaultDayId="day-2" />);
+    expect((screen.getByLabelText("Day") as HTMLSelectElement).value).toBe("day-2");
+
+    await userEvent.selectOptions(screen.getByLabelText("Day"), "day-1");
+    rerender(<ActivityEditor {...props} defaultDayId={undefined} />);
+    expect((screen.getByLabelText("Day") as HTMLSelectElement).value).toBe("day-1");
+  });
+});

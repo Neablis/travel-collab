@@ -141,6 +141,11 @@ function lineageEqual(a: TripState["forkedFrom"], b: TripState["forkedFrom"]): b
   return a.tripId === b.tripId && a.atSeq === b.atSeq && a.name === b.name;
 }
 
+function recordsEqual(a: Record<string, string>, b: Record<string, string>): boolean {
+  const keys = Object.keys(a);
+  return keys.length === Object.keys(b).length && keys.every((k) => a[k] === b[k]);
+}
+
 // Structural equality over the whole planning state. Activity record KEY ORDER
 // is deliberately ignored (replay and diff construct it in different orders);
 // every list that carries meaning (days, activityIds, backlog, dismissals) is
@@ -162,6 +167,9 @@ export function tripStatesEqual(a: TripState, b: TripState): boolean {
   // "if a comment asserts an invariant, a test enforces it" rule is about.
   if (!lineageEqual(a.forkedFrom, b.forkedFrom)) return false;
   if (!daysEqual(a.days, b.days) || !sameList(a.backlog, b.backlog)) return false;
+  // M41 D6: the day each parked stop left. Without it here, undo's diff
+  // dropped the origin as a no-op and nothing noticed. Absent reads as empty.
+  if (!recordsEqual(a.parkedFrom ?? {}, b.parkedFrom ?? {})) return false;
   if (!sameList(a.dismissedConflictIds, b.dismissedConflictIds)) return false;
   const aIds = Object.keys(a.activities).sort();
   const bIds = Object.keys(b.activities).sort();

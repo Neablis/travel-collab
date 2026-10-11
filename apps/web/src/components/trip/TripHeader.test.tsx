@@ -211,12 +211,14 @@ describe("TripHeader restyle (Task 9)", () => {
     expect(badge.className).toMatch(/bg-moss/);
   });
 
-  it("Add stop opens the portable editor with no dayId prefill", async () => {
-    const { getEditorState } = await renderHeader();
+  // M41 D1: a stop is made where it will live (a day's river, the drawer),
+  // so the desktop header has no button for it. The phone's `⋯` item is the
+  // header's one door left, asserted in the overflow menu's block below.
+  it("offers no Add stop button: a stop is made where it will live", async () => {
+    await renderHeader();
 
-    await userEvent.click(screen.getByRole("button", { name: "Add stop" }));
-
-    expect(getEditorState()).toEqual({ mode: "create", prefill: undefined });
+    expect(await screen.findByRole("button", { name: /^Trip dates:/ })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Add stop" })).toBeNull();
   });
 
   // Share (ShareButton, Task 18) is self-wrapped in its own <Preview> —
@@ -240,7 +242,6 @@ describe("TripHeader restyle (Task 9)", () => {
 
     expect(screen.queryByRole("button", { name: "Share" })).toBeNull();
     // The actions that have nowhere else to live are untouched.
-    expect(screen.getByRole("button", { name: "Add stop" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "History" })).toBeTruthy();
   });
 
@@ -293,7 +294,7 @@ describe("TripHeader viewer gating", () => {
     await renderHeader();
 
     expect(screen.queryByText("Viewer")).toBeNull();
-    expect(screen.getByRole("button", { name: "Add stop" }).hasAttribute("disabled")).toBe(false);
+    expect(screen.getByRole("button", { name: /^Trip dates:/ }).hasAttribute("disabled")).toBe(false);
 
     // And the pill's popover reaches the log through the provider's dispatch,
     // the same road Trip settings' Dates row takes.
@@ -348,13 +349,13 @@ describe("TripHeader — the access read failed", () => {
     expect(await screen.findByText("Access unknown")).toBeTruthy();
     // Not "Viewer": an unknown role is not a viewer.
     expect(screen.queryByText("Viewer")).toBeNull();
-    expect(screen.getByRole("button", { name: "Add stop" }).hasAttribute("disabled")).toBe(false);
+    expect(screen.getByRole("button", { name: /^Trip dates:/ }).hasAttribute("disabled")).toBe(false);
   });
 
   it("says nothing when the read succeeded", async () => {
     await renderHeader();
 
-    expect(await screen.findByRole("button", { name: "Add stop" })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: /^Trip dates:/ })).toBeTruthy();
     expect(screen.queryByText("Access unknown")).toBeNull();
   });
 });
@@ -464,16 +465,14 @@ describe("TripHeader — the Ask pill", () => {
   // Mitchell's preview comment on the desktop trip page: "Ask is larger than
   // add stop in height and looks weird. Lets also move this down a bit so its
   // aligned with the trip title on the same row". The row it left is the
-  // `← Your trips` row; where it went is directly before Add stop, in the
-  // cluster that now aligns to the title.
-  it("sits beside Add stop, out of the back link's row, and opens the assistant", async () => {
+  // `← Your trips` row; where it went is the cluster that aligns to the
+  // title (Add stop, which it sat beside, left the header in M41).
+  it("sits out of the back link's row, and opens the assistant", async () => {
     const onOpen = vi.fn();
     await renderHeader(undefined, { open: false, onOpen });
 
     expect(within(screen.getByRole("navigation")).queryAllByRole("button")).toHaveLength(0);
-    const buttons = screen.getAllByRole("button");
     const pill = screen.getByRole("button", { name: "Ask" });
-    expect(buttons.indexOf(screen.getByRole("button", { name: "Add stop" }))).toBe(buttons.indexOf(pill) + 1);
 
     expect(pill.getAttribute("aria-expanded")).toBe("false");
     await userEvent.click(pill);
@@ -708,7 +707,7 @@ describe("TripHeader — the avatar stack (D10)", () => {
     accessMembers = [person("dev-alice", "Alice Ames", false)];
     await renderHeader();
     // Witness: the access read has answered, and the header rendered.
-    await screen.findByRole("button", { name: "Add stop" });
+    await screen.findByRole("button", { name: /^Trip dates:/ });
     expect(screen.queryByRole("button", { name: "Travellers on this trip" })).toBeNull();
 
     // As between tests (`vitest.setup.ts`), so the second mount reads afresh.
@@ -760,7 +759,7 @@ describe("TripHeader — a link into Trip settings", () => {
     window.history.replaceState(null, "", "/trips/x?settings=budget");
     await renderHeader();
     // Witness: the header rendered, so the sheet had its chance to open.
-    await screen.findByRole("button", { name: "Add stop" });
+    await screen.findByRole("button", { name: /^Trip dates:/ });
     expect(screen.queryByRole("dialog", { name: /trip settings/i })).toBeNull();
   });
 });

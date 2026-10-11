@@ -1,7 +1,10 @@
 "use client";
 
-import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
-import { dropTargetForElements, monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { draggable, dropTargetForElements, monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
+import { dropTargetForExternal } from "@atlaskit/pragmatic-drag-and-drop/external/adapter";
+import { containsText, getText } from "@atlaskit/pragmatic-drag-and-drop/external/text";
+import { containsURLs, getURLs } from "@atlaskit/pragmatic-drag-and-drop/external/url";
 import type { DragLocationHistory } from "@atlaskit/pragmatic-drag-and-drop/types";
 import { X } from "lucide-react";
 import type { ActivityTag, ActivityView } from "@tc/contracts";
@@ -171,6 +174,18 @@ export function Column({
     },
     [columnRef],
   );
+  // **The header lifts the whole day** (M41 D7): dropped on another day, every
+  // stop on this one moves there (Board's monitor, `onMoveDay`). Only on an
+  // editable board, and only a day with stops on it: there is nothing to move
+  // otherwise, and a header that lifts and does nothing is a false promise.
+  const headerRef = useRef<HTMLElement>(null);
+  const liftable = gestures !== undefined && activityIds.length > 0;
+  useEffect(() => {
+    const el = headerRef.current;
+    if (!el || !liftable) return;
+    return draggable({ element: el, getInitialData: () => ({ kind: "plan-day", dayId }) });
+  }, [dayId, liftable]);
+
   // Whether this column itself — not its river or its chip — is the innermost
   // drop target, which is exactly where resolveDrop.ts's "dropped on a column"
   // branch fires. No hover tint on the column itself (Task 3.3).
@@ -207,10 +222,46 @@ export function Column({
     });
   }, [dayId, section]);
 
+  // **A link or a line of text dragged in from outside the app** (M41 D8) —
+  // a place from Maps, a line from a note. Dropped anywhere on the day, it
+  // opens the editor on this day prefilled from it, as a paste does. The
+  // link wins over the text, which for a dragged link is only its label.
+  //
+  // Board makes `onAddFromText` afresh each render, so the target reads it
+  // through a ref and registers again only when the section, or whether there
+  // is a callback at all, changes (PR 397).
+  const onAddFromText = gestures?.onAddFromText;
+  const addFromTextRef = useRef(onAddFromText);
+  useEffect(() => {
+    addFromTextRef.current = onAddFromText;
+  }, [onAddFromText]);
+  const acceptsText = onAddFromText !== undefined;
+  const [isTextOver, setIsTextOver] = useState(false);
+  useEffect(() => {
+    const el = section;
+    if (!el || !acceptsText) return;
+    return dropTargetForExternal({
+      element: el,
+      canDrop: ({ source }) => containsURLs({ source }) || containsText({ source }),
+      getDropEffect: () => "copy",
+      onDragEnter: () => setIsTextOver(true),
+      onDragLeave: () => setIsTextOver(false),
+      onDrop: ({ source }) => {
+        setIsTextOver(false);
+        const text = getURLs({ source })[0] ?? getText({ source });
+        if (text !== null) addFromTextRef.current?.(text);
+      },
+    });
+  }, [section, acceptsText]);
+
   return (
     <section
       ref={sectionRef}
       data-testid="day-column"
+      data-day-id={dayId}
+      // What a river block's keyboard removal hands focus back to when it
+      // was the day's last stop (RiverBlock's `focusAfterRemoval`).
+      data-day-column
       // SPEC §28's city rule, and the ONLY thing this component does for it.
       // In Ledger a pale tint reads as grey on cream, so anything city-coded
       // also gets a 3px solid rule in its own city's colour. The rule itself
@@ -233,8 +284,9 @@ export function Column({
         fullWidth ? "w-full" : "shrink-0",
         TINT_BG[accent],
         // Same ring the focused chip wears (DayChips), so "this day" reads the
-        // same whichever of the two you picked it from.
-        isFocused && "ring-2 ring-brand",
+        // same whichever of the two you picked it from. A link or text dragged
+        // over the day wears it too, as where the drop will land.
+        (isFocused || isTextOver) && "ring-2 ring-brand",
       )}
       // **268px is a DESKTOP constant, and link 13 is what it cost.** Measured
       // 2026-09-20 at 390x844: a phone was rendering this fixed column inside a
@@ -275,7 +327,11 @@ export function Column({
       {/* One grid item for the first of the two rows every column shares: the
           header, and the "this day" drop line under it. */}
       <div className="flex min-w-0 flex-col gap-1">
-        <header data-day-header className="day-sync-target flex items-baseline justify-between gap-1">
+        <header
+          ref={headerRef}
+          data-day-header
+          className={cn("day-sync-target flex items-baseline justify-between gap-1", liftable && "cursor-grab")}
+        >
           {/* The title and the day's "Unscheduled" chip, together at the start of
               the header, so `justify-between` keeps meaning "the day at one
               end, its controls at the other". */}

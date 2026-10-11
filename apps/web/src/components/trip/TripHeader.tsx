@@ -24,6 +24,8 @@ import { SuggestionsChip } from "@/components/board/SuggestionsChip";
 import { PeopleProvider } from "@/components/pages/people";
 import { UndoRedoControls, useUndoRedoShortcuts } from "@/components/board/UndoRedoControls";
 import { AskPill } from "@/components/assistant/AskPill";
+import { tripSettingsCommands, undoRedoCommands } from "@/components/palette/commands";
+import { usePaletteSource } from "@/components/palette/paletteRegistry";
 import { SettingsSheet } from "./SettingsSheet";
 import { TripMetaPill, tripCounts, tripDateRange } from "./TripMetaPill";
 import { BudgetChip } from "./BudgetChip";
@@ -108,10 +110,8 @@ export function TripHeader({
     access,
     refreshAccess,
   } = useTrip();
-  // Task 9: "Add stop" is a real trigger for the same portable activity
-  // editor Board's own "+ Add activity" button opens (Board.tsx) — no
-  // dayId prefill, identical to that button's own openCreate() call.
-  // TripHeader now renders inside EditorHost (trips/[tripId]/page.tsx wraps
+  // The phone menu's "Add stop" opens the portable activity editor with no
+  // day: a parked stop. TripHeader renders inside EditorHost (trips/[tripId]/page.tsx wraps
   // TripBoardScreen, which mounts TripHeader, in <EditorHost>), so this hook
   // is always safe to call here.
   const { openCreate } = useEditor();
@@ -172,20 +172,39 @@ export function TripHeader({
   // stays mounted when the History popover (which now holds the buttons) is
   // closed. Gated on `preview.seq === null` so ⌘Z is inert while previewing a
   // past version, exactly as it was when the buttons carried the binding.
-  useUndoRedoShortcuts({
-    // `!readOnly` here as well as on the buttons: TripProvider's `dispatch`
-    // already refuses a viewer's write, so pressing ⌘Z could not mutate the
-    // trip — but it DID surface "You have view-only access to this trip." for
-    // a shortcut whose controls a viewer cannot even see. Gated at the same
-    // layer as the buttons so the header is consistent about it, and so a
-    // future dispatch that does not go through the provider inherits the gate
-    // (CodeRabbit, PR #71).
-    canUndo: !readOnly && preview.seq === null && (history?.canUndo ?? false),
-    canRedo: !readOnly && preview.seq === null && (history?.canRedo ?? false),
-    onUndo: () => void dispatch({ type: "UndoLastChange", tripId }),
-    onRedo: () => void dispatch({ type: "RedoChange", tripId }),
-    isBusy: pending,
-  });
+  // **Undo and redo, named once** (ADR-068): ⌘Z, the History popover's
+  // buttons and the palette all run these two, behind the one gate.
+  //
+  // `!readOnly` on the shortcut as well as on the buttons: TripProvider's
+  // `dispatch` already refuses a viewer's write, so pressing ⌘Z could not
+  // mutate the trip — but it DID surface "You have view-only access to this
+  // trip." for a shortcut whose controls a viewer cannot even see. Gated at
+  // the same layer as the buttons so the header is consistent about it, and
+  // so a future dispatch that does not go through the provider inherits the
+  // gate (CodeRabbit, PR #71).
+  const undo = () => void dispatch({ type: "UndoLastChange", tripId });
+  const redo = () => void dispatch({ type: "RedoChange", tripId });
+  const canUndo = !readOnly && preview.seq === null && (history?.canUndo ?? false);
+  const canRedo = !readOnly && preview.seq === null && (history?.canRedo ?? false);
+  useUndoRedoShortcuts({ canUndo, canRedo, onUndo: undo, onRedo: redo, isBusy: pending });
+
+  // **One opener for Trip settings** (ADR-068): at a section, or at its top.
+  // The title, the avatar stack, the cover, the budget chip, the phone's menu
+  // and the palette all open the sheet through it.
+  const openSettings = useCallback((section: SettingsSection | null) => {
+    setSettingsAt(section);
+    setSettingsOpen(true);
+  }, []);
+  const ready = trip !== null && activeTrip !== null && status === "ready";
+  usePaletteSource(
+    "trip-header",
+    ready
+      ? [
+          ...undoRedoCommands({ canUndo: canUndo && !pending, canRedo: canRedo && !pending, onUndo: undo, onRedo: redo }),
+          ...tripSettingsCommands(openSettings, !readOnly),
+        ]
+      : [],
+  );
 
   const publishStickyStack = useStickyStackHeight();
   // The cover band above the desktop header (Mitchell, 2026-10-10). Its own
@@ -222,10 +241,7 @@ export function TripHeader({
   // `canEdit={!readOnly}`), and never on /demo. The band and *Add cover* both
   // open Trip settings at its Cover photo section.
   const coverEditable = !readOnly && !isDemoTripId(tripId);
-  const openCoverPicker = () => {
-    setSettingsAt("cover");
-    setSettingsOpen(true);
-  };
+  const openCoverPicker = () => openSettings("cover");
 
   // Who is travelling and what state the trip is in: beside the title on a
   // desktop, and on the line under the phone's pinned row, which scrolls away
@@ -235,10 +251,7 @@ export function TripHeader({
     <>
       <TravellerStack
         access={access}
-        onOpen={() => {
-          setSettingsAt("people");
-          setSettingsOpen(true);
-        }}
+        onOpen={() => openSettings("people")}
       />
       <Badge variant="neutral">{statusLabel}</Badge>
       {/* M11 link 3: a viewer's trip is theirs to read, not to change.
@@ -303,10 +316,10 @@ export function TripHeader({
             event.preventDefault();
             if (next === "add") openCreate();
             else if (next === "history") setHistoryOpen(true);
-            else setSettingsOpen(true);
+            else openSettings(null);
           }}
         >
-          {/* `canEditBoard`, as the desktop's button: a suggester's stop joins their draft. */}
+          {/* `canEditBoard`: a suggester's stop joins their draft. The one header door to a parked stop left, for a touch screen (M41 D1). */}
           {canEditBoard && <MenuItem onSelect={() => (afterMenu.current = "add")}>Add stop</MenuItem>}
           <MenuItem onSelect={() => (afterMenu.current = "history")}>History</MenuItem>
           <MenuItem onSelect={() => (afterMenu.current = "settings")}>Trip settings</MenuItem>
@@ -458,7 +471,7 @@ export function TripHeader({
               <Heading level={1} className="text-xl max-md:min-w-0">
                 <Button
                   variant="ghost"
-                  onClick={() => setSettingsOpen(true)}
+                  onClick={() => openSettings(null)}
                   aria-label={`${activeTrip.name} — Trip settings`}
                   title="Trip settings"
                   className="h-auto justify-start p-0 text-left font-display text-xl font-semibold text-ink hover:bg-transparent hover:underline max-md:max-w-full"
@@ -555,12 +568,12 @@ export function TripHeader({
                     draws it here: there it is the tab bar's. `undefined` on
                     /demo withholds it (KI-79). */}
                 {onOpenAssistant !== undefined && <AskPill open={assistantOpen} onOpen={onOpenAssistant} />}
-                {/* `canEditBoard`: a suggester's new stop joins their draft. */}
-                {canEditBoard && (
-                  <Button variant="primary" onClick={() => openCreate()}>
-                    Add stop
-                  </Button>
-                )}
+                {/* **No "Add stop" here** (M41 D1). A stop is made where it
+                    will live: double-click or drag across a day's river, or
+                    double-click the Unscheduled drawer for a parked one, and
+                    ⌘K's *New stop* from the keyboard. Each calls the same
+                    `openCreate`. The phone keeps its `⋯` item, the one door a
+                    touch screen has for a parked stop (ADR-068 §4). */}
               </div>
 
               {/* The trip's member names, for "Suggested by …" in the chip and
@@ -621,10 +634,10 @@ export function TripHeader({
                     {preview.seq === null && !readOnly && (
                       <div className="mb-2 flex justify-end border-b border-hairline pb-2">
                         <UndoRedoControls
-                          canUndo={history?.canUndo ?? false}
-                          canRedo={history?.canRedo ?? false}
-                          onUndo={() => void dispatch({ type: "UndoLastChange", tripId })}
-                          onRedo={() => void dispatch({ type: "RedoChange", tripId })}
+                          canUndo={canUndo}
+                          canRedo={canRedo}
+                          onUndo={undo}
+                          onRedo={redo}
                           isBusy={pending}
                         />
                       </div>
@@ -689,7 +702,7 @@ export function TripHeader({
             readOnly={readOnly || preview.seq !== null}
             onCommand={(command) => void dispatch(command)}
           />
-          <BudgetChip spend={tripSpend(activeTrip)} currency={activeTrip.currency} onOpenSettings={() => setSettingsOpen(true)} />
+          <BudgetChip spend={tripSpend(activeTrip)} currency={activeTrip.currency} onOpenSettings={() => openSettings(null)} />
         </div>
 
         {/* Handoff `current/…dc.html:249`: the tab strip lives INSIDE the sticky

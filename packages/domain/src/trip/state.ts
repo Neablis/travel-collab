@@ -23,6 +23,10 @@ export type TripState = {
   startDate: string | null; // display-only until M3
   days: DayState[]; // ordinal = position in this array
   backlog: string[]; // ordered activityIds without a day
+  // M41 D6: parked activityId → the day its last move left. Only parked stops,
+  // and only those whose move recorded a day (`ActivityMoved.fromDayId`).
+  // Optional, and absent reads as empty: a state built before M41 has none.
+  parkedFrom?: Record<string, string>;
   activities: Record<string, ActivityState>;
   dismissedConflictIds: string[]; // sorted; content-derived conflict ids the user dismissed
   currency: string; // ISO-4217; defaults to "USD"

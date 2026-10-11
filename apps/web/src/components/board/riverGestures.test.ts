@@ -6,6 +6,7 @@ import {
   fromTimeWindow,
   placeWindow,
   resizeEnd,
+  resizeStart,
   sketchCreates,
   sketchWindow,
   stopMinutes,
@@ -154,5 +155,22 @@ describe("a held touch near the edge of the screen", () => {
 describe("the stored form", () => {
   it("reads midnight as 23:59, the last minute a window can hold", () => {
     expect(toTimeWindow({ start: hm(23), end: 24 * 60 })).toEqual({ start: "23:00", end: "23:59" });
+  });
+});
+
+// M41 D7: the mirror of the bottom edge.
+describe("drag a block's top edge", () => {
+  it("starts the stop at the quarter hour under the pointer", () => {
+    expect(resizeStart(axis, hm(18), at(16.5))).toBe(hm(16, 30));
+    // 16:24 is nearer 16:30 than 16:15.
+    expect(resizeStart(axis, hm(18), at(16.4))).toBe(hm(16, 30));
+  });
+
+  it("leaves at least a quarter hour before an unsnapped end", () => {
+    expect(resizeStart(axis, hm(10, 50), at(12))).toBe(hm(10, 35));
+  });
+
+  it("never starts before the river's first hour", () => {
+    expect(resizeStart(axis, hm(18), at(-5))).toBe(axis.t0);
   });
 });

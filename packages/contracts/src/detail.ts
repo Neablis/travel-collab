@@ -106,6 +106,12 @@ export const TripDetail = z.object({
     }),
   ),
   backlog: z.array(z.string().uuid()),
+  // M41 D6: for each parked stop whose last move left a day, that day's id.
+  // Derived in replay from `ActivityMoved.fromDayId`, so a stop parked before
+  // M41, or by a revert, has no entry and shows no origin rather than a wrong
+  // one. Optional: a stored doc written before it has no such key, and
+  // absent reads as empty.
+  parkedFrom: z.record(z.string().uuid()).optional(),
   activities: z.record(ActivityView),
   conflicts: z.array(Conflict),
   dismissedConflictIds: z.array(z.string()), // sorted; ids are content-derived

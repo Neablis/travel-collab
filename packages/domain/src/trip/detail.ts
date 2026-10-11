@@ -34,6 +34,7 @@ export function tripDetailFromState(
       costSubtotal: dayCostSubtotals[i]!,
     })),
     backlog: [...state.backlog],
+    parkedFrom: { ...(state.parkedFrom ?? {}) },
     activities: Object.fromEntries(
       Object.entries(state.activities).map(([id, a]) => [
         id,

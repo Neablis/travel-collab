@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures/test";
-import { dragCardTo, openHistory, openPlan, createEmptyTripViaWizard } from "./helpers";
+import { dragCardTo, openHistory, openPlan, createEmptyTripViaWizard, openNewParkedStop, openRack } from "./helpers";
 import { e2eTripName } from "./tripNames";
 
 // M6 made every trip-mutating command optimistic: the UI (and Playwright's
@@ -43,7 +43,7 @@ test("history: dismiss persists, undo/redo, preview, revert", async ({ page }) =
   // "Add stop" (TripHeader) is the create-with-no-dayId trigger since Task 3.3
   // deleted the Backlog column and its "+ Add activity" button; what it makes
   // is parked in the Unscheduled drawer, which starts collapsed.
-  await page.getByRole("button", { name: "Add stop" }).click();
+  await openNewParkedStop(page);
   await page.getByLabel("What or where").fill("Colosseum");
   await page.getByLabel("Start", { exact: true }).fill("09:00");
   await page.getByLabel("How long").selectOption("2 hours");
@@ -52,7 +52,7 @@ test("history: dismiss persists, undo/redo, preview, revert", async ({ page }) =
   // feedback #8), and this walk is about the conflict.
   await page.getByRole("radiogroup", { name: "Kind" }).getByRole("radio", { name: "Planned" }).click();
   await waitForCommandConfirmed(page, () => page.getByRole("button", { name: "Add stop" }).last().click());
-  await page.getByRole("button", { name: "Add stop" }).click();
+  await openNewParkedStop(page);
   await page.getByLabel("What or where").fill("Vatican Museums");
   await page.getByLabel("Start", { exact: true }).fill("10:00");
   await page.getByLabel("How long").selectOption("2 hours");
@@ -60,7 +60,7 @@ test("history: dismiss persists, undo/redo, preview, revert", async ({ page }) =
   await waitForCommandConfirmed(page, () => page.getByRole("button", { name: "Add stop" }).last().click());
 
   const rack = page.getByTestId("unscheduled-rack");
-  await rack.getByRole("button", { name: /unscheduled/i }).click();
+  await openRack(page);
   const day1 = page.getByTestId("day-column").nth(0);
   // Each dropped on the river at its own start, an hour (44px) below the
   // river's top: the empty trip's 8:00 for Colosseum, then Colosseum's own

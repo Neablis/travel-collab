@@ -9,7 +9,8 @@ import { Button } from "@/components/ui/button";
 import { DataText } from "@/components/ui/data-text";
 import { Text } from "@/components/ui/text";
 import { ActivityEditor, type ActivityDayOption, type ActivityFormValue } from "@/components/board/ActivityEditor";
-import { addActivityCommand, updateActivityCommand } from "@/components/board/activityCommands";
+import { addActivityCommand } from "@/components/board/activityCommands";
+import { editActivityCommands } from "@/components/board/editActivityCommands";
 import { ActivityConflicts } from "@/components/trip/editor/ActivityConflicts";
 import { useEditor } from "@/components/trip/context/EditorHost";
 import { useTrip, type DispatchResult } from "@/components/trip/context/TripProvider";
@@ -35,8 +36,8 @@ import { displayPlace, legEnd } from "@/lib/place";
 // the per-day option list (label + already-scheduled windows) that Banner
 // needs, and wiring dayId correctly into AddActivity/UpdateActivity.
 export function ActivityEditorSheet() {
-  const { state, close } = useEditor();
-  const { activeTrip, dispatch, canEditBoard, boardMode, access } = useTrip();
+  const { state, close, returnFocus } = useEditor();
+  const { activeTrip, dispatch, dispatchBatch, canEditBoard, boardMode, access } = useTrip();
   // Opted in to suggest mode (W8): a suggester's save joins their draft, so
   // only a reader gets the read-only sheet.
   const readOnly = !canEditBoard;
@@ -77,10 +78,10 @@ export function ActivityEditorSheet() {
     state.mode === "create" && state.prefill !== undefined
       ? {
           activityId: "",
-          title: "",
+          title: state.prefill.title ?? "",
           timeWindow: state.prefill.timeWindow ?? null,
           location: state.prefill.location ?? null,
-          notes: null,
+          notes: state.prefill.notes ?? null,
           anchors: [],
           kind: "pending" as const,
           tags: [],
@@ -167,8 +168,8 @@ export function ActivityEditorSheet() {
       dayId: day.dayId,
       label: dayLabel(activeTrip.startDate, index),
       // Other stops already on this day, excluding whichever activity is
-      // being edited — same existing:Slot[] shape TripBoardScreen's
-      // assignFromRack builds for fitIntoDay.
+      // being edited — the same existing:Slot[] shape
+      // `editActivityCommands` builds for fitIntoDay.
       existing: day.activityIds
         .filter((id) => id !== editingActivityId)
         .map((id) => activeTrip.activities[id]?.timeWindow)
@@ -197,7 +198,11 @@ export function ActivityEditorSheet() {
     // a compile error in one file rather than a silent drop in several.
     let result: DispatchResult = { ok: true };
     if (state.mode === "edit" && state.activityId !== undefined) {
-      result = await dispatch(updateActivityCommand(activeTrip.tripId, state.activityId, value));
+      // A changed day is a move as well as an update, sent as one batch
+      // (M41 D3); an unchanged one is the single update it always was.
+      const commands = editActivityCommands(activeTrip, state.activityId, value);
+      if (commands === null) return setRefusal("That day is no longer on the trip. Pick another.");
+      result = commands.length === 1 ? await dispatch(commands[0]!) : await dispatchBatch(commands);
     } else if (state.mode === "create") {
       result = await dispatch(addActivityCommand(activeTrip.tripId, crypto.randomUUID(), value));
     }
@@ -208,8 +213,29 @@ export function ActivityEditorSheet() {
     close();
   }
 
+  // M41 D4: the editor is where a stop is removed from, now that the rack's
+  // cards carry no controls. Refused, it stays open and says why, like a save.
+  async function handleRemove() {
+    if (activeTrip === null || readOnly || state.activityId === undefined) return;
+    const result = await dispatch({ type: "RemoveActivity", tripId: activeTrip.tripId, activityId: state.activityId });
+    if (!result.ok) return setRefusal(result.message);
+    close();
+  }
+
   return (
-    <Sheet title={title} open={open} onOpenChange={(next) => { if (!next) close(); }}>
+    <Sheet
+      title={title}
+      open={open}
+      onOpenChange={(next) => { if (!next) close(); }}
+      // Back to what opened it — a stop's block, the palette's caller — when
+      // that is still on the page (KI-2026-10-09-b).
+      onCloseAutoFocus={(event) => {
+        const back = returnFocus?.current;
+        if (back == null || !back.isConnected) return;
+        event.preventDefault();
+        back.focus();
+      }}
+    >
       {open && editingActivityId !== undefined && activeTrip !== null && (
         // KI-43: every conflict naming this stop, dismissed ones included.
         // Edit mode only — a stop being created has no id yet, so nothing can
@@ -262,6 +288,7 @@ export function ActivityEditorSheet() {
           nearbyStops={nearbyStops}
           onSave={handleSave}
           onCancel={close}
+          onRemove={state.mode === "edit" ? () => void handleRemove() : undefined}
         />
       )}
     </Sheet>

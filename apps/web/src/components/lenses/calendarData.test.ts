@@ -124,4 +124,48 @@ describe("calendarMonths", () => {
     );
     w.atLeast(300); // no guard clauses skip a case — every run ticks exactly once
   });
+
+  // An editable Calendar grows a trip by a drop on a date after its end (M41
+  // D2), so that date has to be on the grid. CodeRabbit, PR 395: a trip ending
+  // on a Saturday, or on the last day of a month, rendered none.
+  describe("room after the end", () => {
+    function tripFrom(startIso: string, dayCount: number) {
+      const start = new Date(`${startIso}T00:00:00Z`);
+      return tripDetailFixture({
+        startDate: startIso,
+        days: Array.from({ length: dayCount }, (_, i) => {
+          const dt = new Date(start.getTime() + i * 86400000);
+          return { dayId: uuid(i), activityIds: [], date: dt.toISOString().slice(0, 10), costSubtotal: 0 };
+        }),
+      });
+    }
+    const datedCells = (months: ReturnType<typeof calendarMonths>) =>
+      months.flatMap((m) => m.cells).filter((c): c is Extract<typeof c, { blank: false }> => !c.blank);
+
+    // Thu 10 – Sat 12 June 2027: the last day closes its week.
+    it("gives a trip ending on a Saturday the whole next week to drop on", () => {
+      const cells = datedCells(calendarMonths(tripFrom("2027-06-10", 3), { roomAfterEnd: true }));
+      const after = cells.filter((c) => c.date > "2027-06-12");
+      expect(after.map((c) => c.date)).toEqual([
+        "2027-06-13", "2027-06-14", "2027-06-15", "2027-06-16", "2027-06-17", "2027-06-18", "2027-06-19",
+      ]);
+      expect(after.every((c) => !c.inTrip)).toBe(true);
+    });
+
+    // Mon 29 – Wed 31 March 2027: the rest of the week is April's.
+    it("renders the next month's block when the days after the end fall in it", () => {
+      const months = calendarMonths(tripFrom("2027-03-29", 3), { roomAfterEnd: true });
+      expect(months.map((m) => m.label)).toEqual(["March 2027", "April 2027"]);
+      expect(months[1]!.note).toBe("");
+      const april = datedCells([months[1]!]);
+      expect(april.map((c) => c.date)).toEqual(["2027-04-01", "2027-04-02", "2027-04-03"]);
+      expect(april.every((c) => !c.inTrip)).toBe(true);
+    });
+
+    it("renders nothing after a Saturday end without the option (read-only boards)", () => {
+      const cells = datedCells(calendarMonths(tripFrom("2027-06-10", 3)));
+      expect(cells.filter((c) => c.date > "2027-06-12")).toEqual([]);
+      expect(cells.at(-1)?.date).toBe("2027-06-12");
+    });
+  });
 });

@@ -16,6 +16,29 @@ not by anybody remembering. That automation exists because the rule was being
 skipped: M23's entry survived its own gate closing on 2026-09-19 and was still
 here two days later.
 
+- **Quick-add and search-to-add (cut from M41 at its scoping, 2026-10-10).** What was left of the
+  M8 trim's C1 and C2. M41 judged both redundant with the gestures it builds. The river's
+  double-click and drag already add a stop on a day, and M41's paste-to-add turns a Maps link or a
+  line of text into one (D8). Place search already lives in the editor, and M34 suggests nearby
+  stops there. A header input was never in the prototype either (`SPEC.md` §11 calls quick add
+  "the in-trip FAB"). Revisit only if people are seen typing stops one after another and the
+  editor is the friction.
+
+- **Gesture and keyboard follow-ups left out of M41 (2026-10-10).** Considered while scoping M41
+  and left for later, in rough order of value:
+  - **Multi-select drag:** shift-click several stops and drag them as one batch.
+  - **Resize by keyboard:** M41 gives moving a keyboard path (the editor's Day field) but not
+    changing a stop's length.
+  - **⌘K hands unmatched text to the assistant:** "Ask: …". ADR-068 §5 keeps the palette off the
+    model in v1, so this needs a decision.
+  - **Pinch or ⌘-scroll to zoom the river's time scale:** the scale is tuned, and pinch already
+    zooms the page on a phone.
+  - **Follow Google Maps short links on paste:** a `maps.app.goo.gl` link is what the Maps app's
+    Share button gives on a phone. M41's paste-to-add (`lib/pasteToStop.ts`) puts it in the notes
+    and leaves the title empty, because reading the place out of it needs a server request to
+    Google per paste, against a redirect that is not a documented API. Worth it if people are seen
+    pasting short links and retyping the place.
+
 - **Accounts by tier, week by week, on the operator console (split out of M36, 2026-10-06).**
   The 2026-10-05 handoff draws one area chart per tier on the Users tab — accounts holding the tier
   at the end of each week for 26 weeks, with *+N added* and *−N lost* over 30 days
@@ -267,24 +290,6 @@ here two days later.
   `stripe listen`) than in a live one with a mode switch inside it.
   *Placed 2026-10-06 → `docs/milestones/M47-the-business-over-time.md` (proposed, not yet scoped). M47's gate deletes this entry at close.*
 
-- **The header's "Add stop" on desktop — where should creating an UNSCHEDULED
-  stop live?** Reported on the preview, 2026-09-15: *"This Add Stop button i
-  believe was added for mobile, it shouldnt show in desktop"*. The premise is
-  not what the code does, which is why this is a design question rather than a
-  fix: it is not a phone control and it is not a duplicate. Each day column
-  already has its own `+ Add` (`Column.tsx` → `openCreate({ dayId })`), and the
-  header's bare `openCreate()` with no day is the ONLY way to make a stop that
-  belongs to no day — it is the Backlog column's old button, folded into the
-  header when that column became the Unscheduled drawer (`Board.tsx:396`). The
-  drawer itself only moves existing stops onto days; it mints nothing. So
-  hiding the header button on desktop removes a capability at that width rather
-  than tidying a duplicate, and the real options are: give the Unscheduled
-  drawer its own create affordance and then drop the header button, accept the
-  header button as the home for it, or decide unscheduled stops are phone-only.
-  Not guessed at in the M21 branch — RULES.md 2 ("no purposeless UI") and RULES.md
-  4 ("challenge to simplify") point opposite ways here until someone picks.
-  *(Filed 2026-09-15 from PR #177's preview feedback.)*
-  *Placed 2026-10-06 → `docs/milestones/M41-planning-without-friction.md` (proposed, not yet scoped). M41's gate deletes this entry at close.*
 - **A capability `premium` does not grant would make M20's fourth-plan proof
   unconditional.** `studio` grants `trip.collaborators` without `ai.command`,
   which makes it incomparable with `plus` — but it is still a *subset of
@@ -493,41 +498,6 @@ here two days later.
     both as not designed.
   - **Auth-screen error/empty states** — not yet checked against the design.
 
-- **M8 Wave C/D trim: quick-add, search-to-add button, move-via-menu,
-  first-run state, empty states (Mitchell, 2026-08-07).** Deferred out of M8
-  rather than done reflexively, once Wave A merged. None of these close a
-  capability gap: an activity — including one with a real geocoded place —
-  can already be added via the existing `+ Add activity` editor
-  (`ActivityEditor.tsx`/`LocationInput.tsx`), and reordering already works by
-  dragging. What's deferred is speed (a faster input, a dedicated search
-  button, a menu instead of a drag) and presentation (first-run/empty-state
-  copy and layout) — genuine ergonomics and polish, but not blockers against
-  the Phase 1 gate, and exactly the surface a separate, already-underway
-  design-tool brainstorm for the product's future look and feel is likely to
-  reshape. Building it now risks the "redone twice" cost M5's own Wave 1
-  re-skin already paid once when the layout moved underneath it — the same
-  argument M10's own scope doc makes about not polishing a structure that is
-  still moving, applied here to interaction/ergonomics work instead of visual
-  polish. **Kept, not deferred:** the KI-5 visible-sync-state indicator
-  (correctness/trust, not ergonomics — doesn't depend on quick-add existing)
-  and the M8 e2e gate script, resized to exercise the existing
-  add-activity/drag-and-drop flow. Full reasoning in
-  `docs/milestones/M8-make-it-real.md`'s "Scope trim" section — the original
-  step-by-step plan (`docs/plans/2026-07-28-M8-make-it-real.md`, including
-  the deferred C1–C3/D1–D2 task write-ups) was deleted at M8's gate close
-  per `docs/plans/README.md`'s staging-area rule. Revisit once M10's
-  direction is set — these are exactly the kind of task that direction
-  should inform, not the reverse.
-  **Status (audited 2026-09-25):** D1 and D2 landed in a different shape —
-  first run became the Home-level new-trip conversation (`FirstTripStart`,
-  then SPEC §30–32), and Map, Notebook and Calendar have empty states. **What is
-  left:** C1 quick-add (`AppHeader.tsx` still omits the prototype's), C2 a
-  search-to-add button (place search lives only inside the editor), C3 a
-  "Move to…" menu for a *scheduled* stop (the editor's Day select is disabled
-  in edit mode; only the rack's dropdown moves anything, and only off the
-  rack), and empty states for the day column, the rack and History.
-  *Placed 2026-10-06 → `docs/milestones/M41-planning-without-friction.md` (proposed, not yet scoped). M41's gate deletes this entry at close.*
-
 - **Duplicate and the undo-toast's Restore: no optimistic update yet (Mitchell,
   2026-08-01, from M8 dogfooding).** Delete's optimism (page.tsx's
   `deletingIds` filter-set, M8/A15 follow-up) and the rename/date/budget
@@ -536,7 +506,7 @@ here two days later.
   redirect fires) and Undo (`page.tsx`'s `undoDelete` does a full `load()`
   refetch rather than re-inserting the row locally) are lower-value/more work
   for now — deferred rather than done reflexively.
-  *Placed 2026-10-06 → `docs/milestones/M41-planning-without-friction.md` (proposed, not yet scoped). M41's gate deletes this entry at close.*
+  *Placed into M41 on 2026-10-06, and cut at its scoping on 2026-10-10: it is a Home trip-list item, off M41's theme. Unplaced again.*
 
 - **Contained activities: a meal inside a day-long activity is not a conflict
   (Mitchell, 2026-08-02, from M8 dogfooding).** Every day of the Rochester run
@@ -585,36 +555,6 @@ here two days later.
   recorded transcripts (`server/ai/eval/replay.int.test.ts`, which closed
   KI-011). What does not exist is the comparison itself: nothing runs the same
   prompts against several models and scores them side by side.
-
-- **Drag works in Calendar: from the rack onto a day, and a stop between days
-  (2026-08-23, manual QA on PR #26's preview deploy).** What is left of the
-  "unscheduled rack is Board-view-only" entry, audited 2026-09-25: the Timeline
-  gap went with the Timeline (#170); the drawer now renders only where a stop
-  can be dropped, gated by `board/lensAcceptsDrops.ts` (#55), which also settled
-  where it shows; and its bottom clearance is reserved (`globals.css`, #98).
-  Nothing under `apps/web/src/components/lenses/` registers
-  `dropTargetForElements`, so two gaps remain, and closing either brings the
-  drawer to Calendar:
-  1. Drag from the rack onto a day in Calendar — no drop target exists.
-  2. `CalendarLens.tsx`'s day cards and stop chips are built to the design's
-     drag affordance (dc.html:670-672's 6-dot grip) but are not draggable;
-     `cursor: grab` is withheld so the UI never promises a drag it can't
-     perform. Wiring them needs a drop target in the calendar lens itself and
-     reuses `MoveActivity`, the command Board's `ActivityCard` drag already
-     dispatches.
-  *Placed 2026-10-06 → `docs/milestones/M41-planning-without-friction.md` (proposed, not yet scoped). M41's gate deletes this entry at close.*
-
-- **A parked stop remembers which day it came from (2026-09-22).** Half of the
-  `rack-provenance` preview M13 link 5 retired. That link modelled **who**
-  parked a stop (`bookedBy`), and the rack now says so; it did not model
-  **which day it was parked from**, because a backlog stop keeps no record of
-  the day it was moved off — `MoveActivity` carries `toDayId` and nothing
-  about where it left. Worth having: the rack's whole problem is that a stop
-  out of its day loses the context that explains it. **Not costed and not
-  placed** — it needs a decision about whether the origin is a field on the
-  activity (which replay would have to maintain) or something read back off
-  the event log, and that is a real design question rather than a line.
-  *Placed 2026-10-06 → `docs/milestones/M41-planning-without-friction.md` (proposed, not yet scoped). M41's gate deletes this entry at close.*
 
 - **`/ask` survives a throw while building its proposal (2026-09-25,
   `KI-2026-09-24-w`).** A throw inside `buildProposal` (called from

@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ActivityView } from "@tc/contracts";
 import { activityFactory, locationFactory } from "@tc/factories";
@@ -27,9 +28,19 @@ vi.mock("@atlaskit/pragmatic-drag-and-drop/element/adapter", async (importOrigin
 // person can tell apart without it: the word in the block's corner, and the
 // kind in the name a screen reader hears. The geometry is `riverLayout.test.ts`.
 
-function renderRiver(stops: ActivityView[], readOnly = false, gestures?: RiverGestures, onEditActivity: (id: string) => void = vi.fn()) {
+function renderRiver(...args: Parameters<typeof riverElement>) {
+  return render(riverElement(...args));
+}
+
+function riverElement(
+  stops: ActivityView[],
+  readOnly = false,
+  gestures?: RiverGestures,
+  onEditActivity: (id: string) => void = vi.fn(),
+  onRemoveActivity: (id: string) => void = vi.fn(),
+) {
   const activities = Object.fromEntries(stops.map((s) => [s.activityId, s]));
-  return render(
+  return (
     <DayRiver
       title="Day 1"
       dayId="day-1"
@@ -42,13 +53,13 @@ function renderRiver(stops: ActivityView[], readOnly = false, gestures?: RiverGe
       overlapPartners={new Map()}
       currency="EUR"
       onEditActivity={onEditActivity}
-      onRemoveActivity={vi.fn()}
+      onRemoveActivity={onRemoveActivity}
       onDismissOverlap={vi.fn()}
       focusedTag={null}
       onToggleTag={vi.fn()}
       readOnly={readOnly}
       gestures={gestures}
-    />,
+    />
   );
 }
 
@@ -228,7 +239,7 @@ describe("the order a river is read in", () => {
 describe("gestures on empty time", () => {
   const morning = activityFactory.build({ title: "Museum", timeWindow: { start: "09:00", end: "10:00" } });
   const evening = activityFactory.build({ title: "Dinner", timeWindow: { start: "17:00", end: "18:00" } });
-  const gestures = () => ({ onCreateAt: vi.fn(), onResize: vi.fn(), onDropAt: vi.fn(), onUnschedule: vi.fn() }) satisfies RiverGestures;
+  const gestures = () => ({ onCreateAt: vi.fn(), onResize: vi.fn(), onDropAt: vi.fn(), onUnschedule: vi.fn(), onAddFromText: vi.fn() }) satisfies RiverGestures;
   const hour = (h: number) => (h - 9) * 44;
 
   it("double-click on empty time opens an hour at the quarter hour under the pointer — and not on a block", () => {
@@ -332,6 +343,65 @@ describe("gestures on empty time", () => {
       fireEvent.pointerMove(window, { buttons: 0, clientY: hour(11) });
       expect(canDrag(morning.activityId)).toBe(true);
     });
+  });
+
+  // M41 D5: the gestures above are invisible, so an empty day names them.
+  it("an empty day says how to fill it, and only while it is empty and editable", () => {
+    const { unmount } = renderRiver([], false, gestures());
+    expect(screen.getByTestId("empty-day-hint").textContent).toContain("Double-click or drag to add a stop");
+    unmount();
+
+    const withStop = renderRiver([morning], false, gestures());
+    expect(screen.queryByTestId("empty-day-hint")).toBeNull();
+    withStop.unmount();
+
+    renderRiver([], true);
+    expect(screen.queryByTestId("empty-day-hint")).toBeNull();
+  });
+
+  // M41 D7: the top edge, the mirror of the bottom one.
+  it("dragging a block's top edge changes when it starts, and leaves when it ends", () => {
+    const g = gestures();
+    renderRiver([morning, evening], false, g);
+
+    fireEvent.pointerDown(block(evening.activityId).getByTitle("Drag to change when it starts"), { button: 0, clientY: hour(17) });
+    fireEvent.pointerMove(window, { buttons: 1, clientY: hour(16.5) });
+    fireEvent.pointerUp(window, { clientY: hour(16.5) });
+
+    expect(g.onResize).toHaveBeenCalledExactlyOnceWith(evening.activityId, { start: "16:30", end: "18:00" });
+  });
+
+  // M41 D7: the keyboard's half of a block's ✕.
+  it("Delete or Backspace on a focused block removes its stop", () => {
+    const onRemove = vi.fn();
+    renderRiver([morning, evening], false, gestures(), vi.fn(), onRemove);
+
+    fireEvent.keyDown(screen.getByRole("button", { name: /^Edit Dinner/ }), { key: "Delete" });
+    fireEvent.keyDown(screen.getByRole("button", { name: /^Edit Museum/ }), { key: "Backspace" });
+    fireEvent.keyDown(screen.getByRole("button", { name: /^Edit Museum/ }), { key: "Enter" });
+
+    expect(onRemove.mock.calls).toEqual([[evening.activityId], [morning.activityId]]);
+  });
+
+  // PR 396 review: the button that held focus leaves with its stop, and focus
+  // fell to <body>. Said through the keyboard (the wall bans reading focus
+  // directly): Enter opens a stop's editor only if its block has focus.
+  it("a stop removed from the keyboard hands focus to the next block, or else the one before", async () => {
+    const lunch = activityFactory.build({ title: "Lunch", timeWindow: { start: "12:00", end: "13:00" } });
+    const onEdit = vi.fn();
+    const g = gestures();
+    const { rerender } = renderRiver([morning, lunch, evening], false, g, onEdit);
+
+    screen.getByRole("button", { name: /^Edit Lunch/ }).focus();
+    await userEvent.keyboard("{Delete}");
+    rerender(riverElement([morning, evening], false, g, onEdit));
+    await userEvent.keyboard("{Enter}");
+    // Dinner was next; it is the last, so the one before takes focus.
+    await userEvent.keyboard("{Backspace}");
+    rerender(riverElement([morning], false, g, onEdit));
+    await userEvent.keyboard("{Enter}");
+
+    expect(onEdit.mock.calls).toEqual([[evening.activityId], [morning.activityId]]);
   });
 
   it("a read-only river offers none of it: no grip, and a double-click does nothing", () => {

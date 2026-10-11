@@ -256,3 +256,47 @@ describe("lifecycle events", () => {
     expect(restored).toEqual(created);
   });
 });
+
+// M41 D6: a parked stop says which day it left. Read from the moves' own
+// `fromDayId`, so what the replay knows is exactly what the log says, and a
+// stop whose move recorded none shows none rather than a guess.
+describe("evolveTrip — the day a parked stop left (M41 D6)", () => {
+  const days: TripEvent[] = [
+    created,
+    { type: "DayAdded", version: 1, payload: { tripId: TRIP, dayId: DAY_A } },
+    { type: "DayAdded", version: 1, payload: { tripId: TRIP, dayId: DAY_B } },
+    addActivity,
+    { type: "ActivityMoved", version: 1, payload: { tripId: TRIP, activityId: ACT, toDayId: DAY_A, position: 0, fromDayId: null } },
+  ];
+  const park = (fromDayId?: string | null): TripEvent => ({
+    type: "ActivityMoved",
+    version: 1,
+    payload: { tripId: TRIP, activityId: ACT, toDayId: null, position: 0, ...(fromDayId === undefined ? {} : { fromDayId }) },
+  });
+
+  it("names the day a parked stop came from, and forgets it once the stop is on a day again", () => {
+    const parked = fold([...days, park(DAY_A)]);
+    expect(parked.parkedFrom).toEqual({ [ACT]: DAY_A });
+
+    const back = evolveTrip(parked, { type: "ActivityMoved", version: 1, payload: { tripId: TRIP, activityId: ACT, toDayId: DAY_B, position: 0, fromDayId: null } });
+    expect(back.parkedFrom).toEqual({});
+  });
+
+  // A reorder inside the rack carries the origin in its own event (the
+  // decider stamps it; `commands.test.ts`), so replay reads only the event:
+  // the same day keeps it, and none clears it, which undo's diff relies on.
+  it("reads a move within the rack as its event says: the origin kept, or cleared", () => {
+    expect(fold([...days, park(DAY_A), park(DAY_A)]).parkedFrom).toEqual({ [ACT]: DAY_A });
+    expect(fold([...days, park(DAY_A), park(null)]).parkedFrom).toEqual({});
+  });
+
+  it("names none for a move written before M41, or by a revert", () => {
+    expect(fold([...days, park()]).parkedFrom ?? {}).toEqual({});
+    expect(fold([...days, park(null)]).parkedFrom ?? {}).toEqual({});
+  });
+
+  it("forgets a day that is removed, rather than naming a day that is gone", () => {
+    const state = fold([...days, park(DAY_A), { type: "DayRemoved", version: 1, payload: { tripId: TRIP, dayId: DAY_A } }]);
+    expect(state.parkedFrom).toEqual({});
+  });
+});

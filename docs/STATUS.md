@@ -21,10 +21,24 @@ general setup.
 
 ## Where the work is right now
 
-**M41 — MOVING AND ADDING STOPS TAKES ONE GESTURE WHEREVER YOU ARE — IS THE CURRENT MILESTONE AS
-OF 2026-10-10**, by **M40's gate closing at 8 of 8**. Order: `… M39 ✓ → M40 ✓ → M41 → M42 … M47`.
-The milestones README records M41 as scoped 2026-10-07, but its `TODO.md` row still says "not
-scoped", so confirm the decisions before building. (`docs/milestones/M41-planning-without-friction.md`)
+**M42 — THE FRONT DOOR SHOWS MORE THAN ONE TRIP, AND WHAT IT COSTS — IS THE CURRENT MILESTONE AS
+OF 2026-10-11**, by **M41's gate closing at 13 of 13**. It is **not scoped**: its decisions are
+recommendations, and each needs checking against today's UI with Mitchell before anything is built
+(`docs/milestones/M42-the-front-door-shows-more.md`). Order: `… M40 ✓ → M41 ✓ → M42 → M43 … M47`.
+
+**M41 closed 2026-10-11.** Moving and adding stops takes one gesture wherever you are: the
+editor's Day field moves any stop, a drawer of just cards with double-click to create, the
+empty-day hint, *"from Day N"* on a parked stop (API 1.12.0), Calendar's city-block drag, Plan's
+day drag, Option-drag copy, top-edge resize and Delete, paste or drop to add, and a ⌘K palette
+that runs the page's own actions (ADR-068, ADR-069). It shipped as #392–#398 (with #399), merged
+into part 0, #391, which Mitchell merges to `main`. CI on #391 (`50d9a2d`, run 38103062053) was
+green on every job, including both ci-like e2e shards, and Mitchell walked the preview with the
+mouse and keyboard only. No migrations. Its retro is at the end of
+`docs/milestones/M41-planning-without-friction.md`.
+
+The README had stamped M41–M47 *"scoped 2026-10-07, all six decisions answered"* by a bulk edit.
+Corrected 2026-10-10: **M42–M47 are not scoped**, and each needs its decisions checked against
+today's UI before building, as M41's were.
 
 **M40 closed 2026-10-10.** A big change is reviewed, taken and undone whole:
 - *Accept all* is one batch, so one History entry and one undo (#376).
@@ -270,10 +284,10 @@ half, the model guessing a coordinate rather than citing one, is M9 scope.
 
 ## Next action
 
-**Confirm M41's decisions, then plan its build** (`docs/milestones/M41-planning-without-friction.md`).
-The README says it was scoped 2026-10-07 and its `TODO.md` row says it was not, so read the milestone
-file's decisions with Mitchell before writing a plan. All 47 migrations are applied (M40 added
-`0045` and `0046`). Separately,
+**Mitchell merges #391 to `main`.** M41's gate is closed at 13 of 13 on it. M41 adds no
+migration, so there is no `migrate-production` run. Then **scope M42** with Mitchell
+(`docs/milestones/M42-the-front-door-shows-more.md`; `building-a-milestone.md` steps 1–2).
+All 48 migrations are applied (M40 added `0045` and `0046`; `0047` landed between milestones). Separately,
 `KI-2026-10-04-c` resolves on query 8 of `ledger.sql` over a few days of cheap-tier step durations.
 
 **Carried out of M24, not gating:** `KI-2026-09-25-q`. About a dozen

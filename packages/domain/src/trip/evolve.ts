@@ -1,15 +1,24 @@
 import type { TripEvent } from "@tc/contracts";
 import type { TripState } from "./state";
 
+// Off every list, and so off `parkedFrom` too: a stop that is not parked has
+// no origin to name. A move back onto the rack writes it again.
 function removeEverywhere(state: TripState, activityId: string): TripState {
+  const { [activityId]: _origin, ...parkedFrom } = state.parkedFrom ?? {};
+  void _origin;
   return {
     ...state,
+    parkedFrom,
     backlog: state.backlog.filter((id) => id !== activityId),
     days: state.days.map((d) => ({
       ...d,
       activityIds: d.activityIds.filter((id) => id !== activityId),
     })),
   };
+}
+
+function withoutDay(parkedFrom: Record<string, string>, dayId: string): Record<string, string> {
+  return Object.fromEntries(Object.entries(parkedFrom).filter(([, from]) => from !== dayId));
 }
 
 function insertAt(list: string[], id: string, position: number): string[] {
@@ -66,6 +75,9 @@ export function evolveTrip(state: TripState | null, event: TripEvent): TripState
         ...state,
         days: state.days.filter((d) => d.dayId !== event.payload.dayId),
         backlog: [...state.backlog, ...(day?.activityIds ?? [])],
+        // A day that is gone is no origin to name (M41 D6): neither for the
+        // stops it held, parked here, nor for any parked from it earlier.
+        parkedFrom: withoutDay(state.parkedFrom ?? {}, event.payload.dayId),
       };
     }
     case "TripStartDateSet":
@@ -105,10 +117,18 @@ export function evolveTrip(state: TripState | null, event: TripEvent): TripState
       };
     }
     case "ActivityMoved": {
-      const { activityId, toDayId, position } = event.payload;
+      const { activityId, toDayId, position, fromDayId } = event.payload;
       const removed = removeEverywhere(state, activityId);
       if (toDayId === null) {
-        return { ...removed, backlog: insertAt(removed.backlog, activityId, position) };
+        // The day it left (M41 D6), exactly as the event says: the decider
+        // carries a parked stop's origin through a reorder, and the diff
+        // writes the target's, so `null` or an absent field (a move written
+        // before M41) means none, and clears one.
+        return {
+          ...removed,
+          backlog: insertAt(removed.backlog, activityId, position),
+          parkedFrom: fromDayId == null ? removed.parkedFrom : { ...removed.parkedFrom, [activityId]: fromDayId },
+        };
       }
       requireDay(state, toDayId, "ActivityMoved");
       return {

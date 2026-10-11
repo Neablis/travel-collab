@@ -15,15 +15,16 @@ import type { View } from "@/components/trip/context/LensRouter";
  * `view !== "Map"` or a view whitelist; the point is that the answer follows
  * the drop targets rather than being restated beside them and drifting.
  *
- * Today only Plan registers any: `dropTargetForElements` is wired for the
- * rack's own zone, `Column.tsx`'s day columns and their "Unscheduled" chips, and
- * each `DayRiver`, all inside the Plan view. Nothing under `lenses/` registers
- * one.
+ * Plan registers them for the rack's own zone, `Column.tsx`'s day columns and
+ * their "Unscheduled" chips, and each `DayRiver`. Since M41 D2 Calendar does
+ * too: each in-trip day cell takes a rack card or a city card, and each date
+ * after the trip's end takes a city card (`CalendarLens`). Overview and Map
+ * register none.
  *
  * SPEC §24 renamed the view (Board -> Plan) and deleted Timeline; neither
  * changes the rule, and the four TODO.md rack gaps it used to name are now
  * three, Timeline's having gone with the lens.
  */
 export function lensAcceptsDrops(view: View): boolean {
-  return view === "Plan";
+  return view === "Plan" || view === "Calendar";
 }
