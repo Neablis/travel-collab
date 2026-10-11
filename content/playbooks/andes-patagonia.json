@@ -113,7 +113,9 @@
             "countryCode": "PE"
           },
           "kind": "planned",
-          "tags": [],
+          "tags": [
+            "tour"
+          ],
           "notes": "A guide is required for a first entry and they wait at the gate in official vests with a laminated licence — this is the honest, cheap way to do it: join a group of eight to ten forming for your circuit and split it. Say up front you have a 07:00 Huayna Picchu slot so the guide paces the royal sector and lets you go at 06:55.",
           "cost": {
             "amountMinor": 2500,
@@ -134,7 +136,8 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "sight"
           ],
           "notes": "Buy route 3-A specifically — it is the ONLY ticket that includes Huayna Picchu, and it is Circuit 3 (Realeza), not the postcard Circuit 2. Sold on the government portal tuboleto.cultura.pe, 400 places a day, and it goes 30-plus days out for peak dates. Ordinary circuits get a 30-minute grace period; mountain routes get none — the printed hour is the hour. Circuit 3 walks the lower town: the Water Mirrors, the House of the Inka, the Temple of the Condor. The classic postcard framing is Circuit 2's, so accept you are trading it for the climb.",
           "cost": {
@@ -158,8 +161,8 @@
           },
           "kind": "planned",
           "tags": [
-            "outdoors",
-            "ticketed"
+            "ticketed",
+            "outdoors"
           ],
           "notes": "Sign the register at the Huayna Picchu gate — they check you back out and they do come looking. Roughly an hour of wet stone stairs up, cables on the last section, and a squeeze through the tunnel below the summit. If you have any hesitation about exposure, the Huchuy Picchu option on the same circuit is 45 minutes and almost the same view of the citadel. Add the Gran Caverna / Templo de la Luna descent on the far side if your legs are good: two extra hours, and you will have it to yourselves."
         },
@@ -291,7 +294,8 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "sight"
           ],
           "notes": "Covered by the Boleto Turístico Parcial Circuito III (S/70, valid two days, buy it here at the gate in cash) — the full S/130 boleto is only worth it if you are also doing Sacsayhuamán and the Cusco museums. Walk the rim clockwise and go down into the second, smaller depression that nobody photographs; the temperature difference between the top and bottom rings is real and you can feel it on your arms.",
           "cost": {
@@ -315,7 +319,8 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "sight"
           ],
           "notes": "NOT on the boleto — a separate S/20 collected by the Maras community at the gate, cash. Walking between the pans has been banned since 2019; you get the upper walkway, which is where the photograph is anyway. Come before noon: after that the sun is overhead and the pans go flat white instead of pink. Buy the pink salt and the salt-and-chilli from the community stall at the exit, not in Cusco.",
           "cost": {
@@ -362,7 +367,9 @@
             "countryCode": "PE"
           },
           "kind": "planned",
-          "tags": [],
+          "tags": [
+            "shopping"
+          ],
           "notes": "Sunday is the big market and also the one where every stall is aimed at a bus; Tuesday and Thursday are smaller and better. The produce and the herb sellers are on the plaza's north side and are the actual market — the textiles ring is largely Ayacucho factory work, so pinch the weave: real handspun alpaca is uneven. Find the clay bread oven behind the church and buy the empanada and the chuta bread straight off the paddle."
         },
         {
@@ -382,7 +389,8 @@
           "kind": "planned",
           "tags": [
             "ticketed",
-            "outdoors"
+            "outdoors",
+            "sight"
           ],
           "notes": "Already on the boleto parcial you bought at Moray. Have the driver take you to the UPPER gate and walk down through Q'allaqasa and the terraces to town — an hour downhill instead of two hours climbing, and the cemetery cliff with its thousand looted tombs is on that side. Last entry 16:00 in low season, so check the hour at the gate before you commit."
         },
@@ -440,7 +448,10 @@
             "countryCode": "PE"
           },
           "kind": "planned",
-          "tags": [],
+          "tags": [
+            "meal",
+            "shopping"
+          ],
           "notes": "Cross the footbridge from Miraflores at the end of Avenida Ricardo Palma. This is where the Barranco kitchens buy: the ají stall (amarillo, panca, limo, rocoto — buy the paste, it flies home), forty potato varieties, and the cebicheros' counters at the back doing a S/20 plate at nine in the morning that beats most restaurants. Go before 10:30 and bring small notes; nobody breaks a hundred sol bill.",
           "cost": {
             "amountMinor": 800,
@@ -462,7 +473,9 @@
             "countryCode": "PE"
           },
           "kind": "planned",
-          "tags": [],
+          "tags": [
+            "sight"
+          ],
           "notes": "Walk the bridge, then go DOWN the Bajada de Baños ravine to the sea rather than standing on the bridge with everyone else — the old bathing path comes out at the pier with the whole coastline in view. Ermita church at the top, the murals of Jade Rivera on the side streets. Barranco is safe and walkable by day; keep the phone away on the malecón after dark."
         },
         {
@@ -505,7 +518,8 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "museum"
           ],
           "notes": "A Belle Époque mansion of colonial Cusco School painting and Andean silver, two minutes from where you are eating tonight, and almost always empty. Closed Mondays. The garden is the right place to sit out the heaviest part of the afternoon.",
           "cost": {
@@ -528,7 +542,9 @@
             "countryCode": "PE"
           },
           "kind": "pending",
-          "tags": [],
+          "tags": [
+            "drinks"
+          ],
           "notes": "The bodega on the plaza, a bar since 1937, wooden shelves and a ham slicer. A pisco chilcano and a sandwich de jamón del país. Uncommitted — if lunch ran long, skip it, because you do not want to arrive at tonight's booking full.",
           "cost": {
             "amountMinor": 1200,
@@ -690,7 +706,8 @@
           },
           "kind": "planned",
           "tags": [
-            "outdoors"
+            "outdoors",
+            "tour"
           ],
           "notes": "A certified guide out of Puerto Natales (Antares, Big Foot, Erratic Rock's people) for a shared group of six to eight — worth it here less for route-finding than for the turnaround call. The first 45 minutes up the Windy Pass earn the name: it funnels straight down the valley and gusts to 100 km/h are ordinary. Poles, and put anything loose inside the pack — hats go to Argentina.",
           "cost": {
@@ -830,7 +847,8 @@
           },
           "kind": "planned",
           "tags": [
-            "outdoors"
+            "outdoors",
+            "tour"
           ],
           "notes": "Roughly CLP 280,000, an hour in the air, six to a basket and a minimum of four to fly. Book direct rather than through a reseller and book it for your FIRST possible morning, because wind cancels flights and the rebooking is onto the next clear day — if that is your departure day you simply lose it. Cancellation for weather is refunded in full. The pilot lands wherever the wind puts them and the chase truck brings sparkling wine; you are back in the village before the day tours have left.",
           "cost": {
@@ -878,7 +896,8 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "sight"
           ],
           "notes": "A 12th-century Atacameño fortress 3 km out of the village, entry collected by the Quitor community, walkable or a ten-minute bike. Climb to the cross for the whole oasis laid out along the river. Then do nothing until four: San Pedro between one and four in the afternoon is unusable, and every good thing here happens at either end of the day.",
           "cost": {
@@ -950,7 +969,9 @@
             "countryCode": "CL"
           },
           "kind": "pending",
-          "tags": [],
+          "tags": [
+            "tour"
+          ],
           "notes": "A hold because it only runs on the nights either side of a new moon — check the lunar calendar BEFORE you fix your San Pedro dates, since a full moon washes out the entire reason people come here. Roughly CLP 45,000 for two hours with telescopes, a laser tour of the southern sky and hot chocolate; ask whether the guide is an astronomer or a driver. Free alternative: walk fifteen minutes out of the village down the Catarpe road and lie on your back. ALMA runs free Saturday and Sunday morning visits to the operations base, booked around 60 days ahead on their site.",
           "cost": {
             "amountMinor": 4500,
@@ -1003,7 +1024,8 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "outdoors"
           ],
           "notes": "Since late 2024 the El Chaltén trails are behind three access portals and a paid day pass. Buy it the night before on ventaweb.apn.gob.ar — the town's signal is poor and the portal has none, so SCREENSHOT the QR. One pass covers every trail in the northern zone for the day, and the 3-day Flexipass is barely more than two singles. The trailhead is at the north end of Avenida San Martín by the old Puesto Amarillo, not at the visitor centre.",
           "cost": {
@@ -1123,7 +1145,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "drinks"
           ],
           "notes": "Locro and a home-brewed bock at a shared table, and the room is entirely people who came off the same trail. No reservations, so arriving at five rather than seven is the difference between a table and the pavement.",
           "cost": {
@@ -1199,7 +1222,8 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "outdoors"
           ],
           "notes": "Pay online in advance on ventaweb.apn.gob.ar; the gate stopped taking cards reliably and the queue at 09:30 when four buses arrive together is twenty minutes. Foreign-resident rate, per person, valid for the day (a second consecutive day is half price if you register the first ticket at the gate). NOT included in the Big Ice price.",
           "cost": {
@@ -1241,8 +1265,9 @@
           },
           "kind": "planned",
           "tags": [
+            "ticketed",
             "outdoors",
-            "ticketed"
+            "tour"
           ],
           "notes": "Hielo y Aventura is the only concessionaire permitted on the ice; there is no competitor and no bargaining. Around $590 without pickup, roughly 3.5 hours actually walking on the glacier, and it goes deep enough to reach the blue sinkholes and lagoons the Minitrekking never sees. Hard limits: 18 to 50 years old, reasonable fitness, and it sells out weeks ahead in January — book direct at their Libertador office or on their site rather than through an OTA and save the markup. Minitrekking (no age cap, 1.5 hours on ice, about half the price) is the alternative if the age rule or the price rules you out. Whisky on glacier ice at the end is the tradition.",
           "cost": {
@@ -1266,7 +1291,9 @@
           },
           "kind": "pending",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "outdoors",
+            "tour"
           ],
           "notes": "An hour on the water a few hundred metres off a 70 m wall, which is the only way to understand the scale. Uncommitted because after six hours on ice some people are done — buy it at the pier on the day rather than in advance. Stand at the BOW on the left side going out.",
           "cost": {
@@ -1310,7 +1337,9 @@
           },
           "kind": "pending",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "drinks",
+            "museum"
           ],
           "notes": "Six kilometres out of town on the way back, a genuinely good museum of Patagonian ice and how the Campo de Hielo Sur works, with a bar built of glacier ice in the basement. Skip it if you are cold and tired — it will still be there tomorrow and it runs a free shuttle from Libertador.",
           "cost": {
@@ -1382,7 +1411,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "drinks"
           ],
           "notes": "A protected bar notable from 1864 on the corner of Perú and Carlos Calvo — carved bar back, tiled floor, café con leche and three medialunas. At 09:30 it is neighbours reading the paper; at 11:30 it is a queue. Get pesos before today: Sunday casas de cambio are shut, and the cuevas on Florida give a far better rate than any ATM, which caps withdrawals low and charges brutally.",
           "cost": {
@@ -1405,7 +1435,9 @@
             "countryCode": "AR"
           },
           "kind": "planned",
-          "tags": [],
+          "tags": [
+            "shopping"
+          ],
           "notes": "Sundays only, roughly 10:00 to 17:00, thirteen blocks of Defensa from Plaza Dorrego up to Plaza de Mayo, closed to cars. The actual antiques — soda siphons, silver mates, 1940s Gardel pressings — are the stalls ON Plaza Dorrego; almost everything strung along Defensa is new production. Walk it downhill from Plaza de Mayo so you finish at the plaza. Cash, small notes, and a zipped bag: the crowd is dense and the pickpocketing is skilled rather than violent."
         },
         {
@@ -1424,7 +1456,8 @@
           },
           "kind": "pending",
           "tags": [
-            "meal"
+            "meal",
+            "shopping"
           ],
           "notes": "An 1897 wrought-iron market hall that is half greengrocers and half food counters. Empanadas salteñas, a choripán, an espresso at Coffee Town. Treat it as a snack, not lunch — you have a parrilla booked in half an hour and the Argentine portion size is not a joke.",
           "cost": {
@@ -1472,7 +1505,9 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "sight",
+            "tour"
           ],
           "notes": "A private excavation under a 19th-century house: the tunnelled stream and cisterns the city was built over, and the best hour of history in Buenos Aires. Guided only, English tours on the hour, and Sunday runs a shorter schedule — book on their site, they cap the group at fifteen.",
           "cost": {
@@ -1495,7 +1530,9 @@
             "countryCode": "AR"
           },
           "kind": "pending",
-          "tags": [],
+          "tags": [
+            "drinks"
+          ],
           "notes": "A green-walled corner bar that takes vermouth seriously, five minutes from Dorrego. The Argentine hour: nothing happens between six and nine, so this is how you bridge it without going back to the hotel and losing the evening.",
           "cost": {
             "amountMinor": 1500,
@@ -1517,7 +1554,10 @@
             "countryCode": "AR"
           },
           "kind": "planned",
-          "tags": [],
+          "tags": [
+            "nightlife",
+            "show"
+          ],
           "notes": "After the stalls come down the square becomes an open-air milonga: a sound system, a chalk circle, and porteños of every age dancing on cobbles, free, with a hat passed round. This is the opposite of the dinner-show at El Viejo Almacén and it is the real thing. It starts later and runs longer in summer. If you want to dance rather than watch, La Catedral in Almagro takes beginners at a class before the milonga most nights."
         }
       ]

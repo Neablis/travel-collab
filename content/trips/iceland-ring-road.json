@@ -92,7 +92,9 @@
                 "countryCode": "IS"
               },
               "kind": "planned",
-              "tags": [],
+              "tags": [
+                "shopping"
+              ],
               "notes": "Five minutes off the airport road and the last cheap supermarket before the capital. Buy the breakfasts, the lunches and the flask coffee here: petrol stations east of Vík sell hot dogs, crisps and very little else, and they close early in winter.",
               "cost": {
                 "amountMinor": 9000,
@@ -190,7 +192,8 @@
               },
               "kind": "planned",
               "tags": [
-                "ticketed"
+                "ticketed",
+                "sight"
               ],
               "notes": "The church is free, the lift up the tower is about 1,400 ISK and is the whole point. Go at opening: it is one small lift and by eleven the queue is down the nave. The coloured roofs read best on a grey day, not a blue one.",
               "cost": {
@@ -214,7 +217,8 @@
               },
               "kind": "pending",
               "tags": [
-                "ticketed"
+                "ticketed",
+                "museum"
               ],
               "notes": "Unclaimed — someone put it on the list as the rainy-morning option. It is a 10th-century longhouse left where it was found, under a modern building, and it takes 45 minutes rather than the two hours the ticket price suggests.",
               "cost": {
@@ -262,7 +266,8 @@
               },
               "kind": "planned",
               "tags": [
-                "ticketed"
+                "ticketed",
+                "wellness"
               ],
               "notes": "Booked the Sér package for the private changing rooms — the alternative is a communal room, and you shower naked and thoroughly before you get in either way, which is posted and enforced. Take the last slot before dark and do the ritual in the order on the wall: the cold plunge before the sauna is the part everyone skips and the part that works. Leave the phone in the locker; it will not survive the steam.",
               "cost": {
@@ -405,7 +410,8 @@
               },
               "kind": "planned",
               "tags": [
-                "outdoors"
+                "outdoors",
+                "beach"
               ],
               "notes": "Read the warning-light board at the car park before you walk down; it is a real forecast, not decoration. Sneaker waves here kill visitors most years. Stay above the wet line on the sand, never turn your back on the sea, and do not go near the water to take a photograph of someone standing near the water.",
               "cost": {
@@ -524,7 +530,8 @@
               },
               "kind": "planned",
               "tags": [
-                "meal"
+                "meal",
+                "wellness"
               ],
               "notes": "Every Icelandic village has a geothermal pool and a hot pot, and it is where the village actually is at six in the evening. About 1,000 ISK. You shower naked and thoroughly before you get in — it is posted in five languages and the attendant does check.",
               "cost": {
@@ -621,7 +628,8 @@
               },
               "kind": "planned",
               "tags": [
-                "outdoors"
+                "outdoors",
+                "beach"
               ],
               "notes": "Cross the road to the beach side in the last hour of daylight — the ice on the black sand catches low sun and the lagoon itself is in shadow by then. The amphibian and zodiac boats only run May to October, so in winter this is a walk, which is no loss. Do not stand on a beached iceberg; they roll."
             },
@@ -738,7 +746,8 @@
               },
               "kind": "planned",
               "tags": [
-                "outdoors"
+                "outdoors",
+                "tour"
               ],
               "notes": "You cannot do this alone — only the operators' modified trucks get to the caves, and the caves move every winter, so a January booking is for an ice cave, not for the photograph that sold you the idea. Guides call it off at eight in the morning if the glacier is unsafe and refund in full. Crampons and helmet are provided; boots that take a crampon binding are not.",
               "cost": {
@@ -986,7 +995,8 @@
               },
               "kind": "planned",
               "tags": [
-                "meal"
+                "meal",
+                "drinks"
               ],
               "notes": "Second and last aurora chance of the trip. The hotel's observatory is opened for guests on clear nights and someone on the staff will be reading the forecast out loud at the bar by nine.",
               "cost": {
@@ -1056,7 +1066,8 @@
               },
               "kind": "pending",
               "tags": [
-                "meal"
+                "meal",
+                "shopping"
               ],
               "notes": "Ask for it eina með öllu — one with everything, which means both onions, ketchup, sweet mustard and remoulade. The flea market next door is weekends only; on a weekday the Harpa foyer is free, warm and ten minutes away.",
               "cost": {
@@ -1122,7 +1133,8 @@
           },
           "kind": "pending",
           "tags": [
-            "outdoors"
+            "outdoors",
+            "sight"
           ],
           "notes": "Eight kilometres round trip across flat black sand with no shelter, or a shuttle bus from the car park for people who read that sentence twice. Two hours of a short winter day for a photograph everyone already has."
         },
@@ -1154,7 +1166,10 @@
             "countryCode": "IS"
           },
           "kind": "pending",
-          "tags": [],
+          "tags": [
+            "ticketed",
+            "wellness"
+          ],
           "notes": "Older, cheaper and far quieter than the Blue Lagoon; the pool sits at 38–40 °C and a small geyser goes off every few minutes at the far end. It is a twenty-minute detour off the circle and the day is already full."
         },
         {
@@ -1169,7 +1184,9 @@
           },
           "kind": "pending",
           "tags": [
-            "outdoors"
+            "ticketed",
+            "outdoors",
+            "tour"
           ],
           "notes": "Winter sailings run but get cancelled for swell more often than they go, and three hours in Faxaflói in January is a serious undertaking. Only if a flat calm day appears."
         },
@@ -1186,7 +1203,8 @@
           },
           "kind": "pending",
           "tags": [
-            "outdoors"
+            "outdoors",
+            "tour"
           ],
           "notes": "F249 fords the Krossá and no hire car of any size is insured on it — this is a guided super-jeep day or nothing, and the hire agreement is void the moment you try it yourself."
         }

@@ -80,7 +80,8 @@
           },
           "kind": "planned",
           "tags": [
-            "outdoors"
+            "ticketed",
+            "beach"
           ],
           "notes": "Ten dollars at the turnstile, and it buys you the pool before the photographers arrive around nine. Two things to know: the pool closes all day Thursday for cleaning, and on a big south swell the sea breaks straight over the end wall, which is thrilling if you were expecting it and alarming if you were not. Swim laps in the 50 m, then get out — the day is long. Lockers take coins. Verified 2026-09-06: the Thursday cleaning closure is real (the club notes it may open on summer Thursdays when the tides allow), pool hours are 06:00-18:30 Mon-Fri and 06:30-18:30 weekends, and adult entry is A$10 with towel or locker hire A$5 each, so this 06:50 slot is inside opening hours on any day but Thursday.",
           "cost": {
@@ -104,7 +105,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "drinks"
           ],
           "notes": "Eat before the walk, not after. There is precisely one good coffee between Bondi and Coogee — the Bronte kiosks — and it always has a queue twelve deep by nine. Two blocks back from the sand on Hall Street the prices drop by a third and the seats exist. Fill a water bottle here too; the bubblers along the path work but they are warm.",
           "cost": {
@@ -128,7 +130,8 @@
           },
           "kind": "planned",
           "tags": [
-            "outdoors"
+            "outdoors",
+            "beach"
           ],
           "notes": "Walk it north to south. The six kilometres are the same either way, but southbound the morning sun is behind you rather than in the lens, the climbs are shorter, and you end at Coogee where the bus back to the city runs every ten minutes instead of at Bondi where it runs full. Mackenzies Bay between Bondi and Tamarama only has sand a few months a year — if it is there, it is a beach that comes and goes. At Bronte swim in the Baths at the south end, not the bogey hole, and do not swim the Bronte Express rip in the middle of the beach. In late October and early November Sculpture by the Sea puts 100,000 people on this path: the same walk at 07:00 is empty and the sculptures are all still there.",
           "cost": {
@@ -152,7 +155,8 @@
           },
           "kind": "planned",
           "tags": [
-            "outdoors"
+            "outdoors",
+            "beach"
           ],
           "notes": "The clifftop boardwalk through Waverley Cemetery is the prettiest 500 metres of the whole route and half the walkers cut inland and miss it — it closes for storm repairs occasionally, and the detour up Trafalgar Street is signposted when it does. Clovelly is the swim to plan around: a narrow concrete-sided inlet, flat when everything else is churning, with resident blue gropers that come to look at you. Hire a mask at the kiosk if you are not carrying one. Go at high tide for depth, and never at the mouth on a big swell — the surge in that channel is stronger than it looks. Gordons Bay, five minutes further, has an underwater nature trail if you have time and your own gear.",
           "cost": {
@@ -176,7 +180,8 @@
           },
           "kind": "planned",
           "tags": [
-            "outdoors"
+            "outdoors",
+            "beach"
           ],
           "notes": "Everyone finishes at Coogee Beach; the finish is actually 400 m past it. Wylie's is a 1907 tidal pool on the rocks, entry about ten dollars, timber deck, and the water has whatever the ocean sent it that morning — seaweed, small fish, sometimes an octopus in the corner. Lower tide means shallower and warmer. The women-only McIvers Baths next door is the other one, cash donation at the gate.",
           "cost": {
@@ -293,6 +298,9 @@
             "countryCode": "AU"
           },
           "kind": "planned",
+          "tags": [
+            "drinks"
+          ],
           "notes": "There are no seats. That is the whole design — you stand at the shelf, drink it, and leave, which is why the queue moves even when it is out the door at 08:15. Weekdays only: Patricia is shut Saturday and Sunday, and a laneway coffee day planned for a weekend has to start at Market Lane instead. The magic in a glass is what to order; the white chocolate mendiant comes with it.",
           "cost": {
             "amountMinor": 360,
@@ -315,7 +323,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "shopping"
           ],
           "notes": "Check the day before you plan around this: the market is closed Mondays and Wednesdays, which catches out more visitors than any other rule in this city. Go to the Deli Hall (the enclosed one), get a borek from the Turkish counter and a bratwurst if it is cold, then a filter at Market Lane's Therry Street shop on the way out. Fruit and veg sheds discount hard in the last hour, not the first. Verified 2026-09-06: Queen Victoria Market is closed all day Monday and Wednesday (the Wednesday night market, 17:00-22:00, runs only in season), and trades Tue/Thu/Fri 06:00-15:00, Sat 06:00-16:00, Sun 09:00-16:00. This 08:25 stop therefore only works Tuesday, Thursday, Friday or Saturday - on a Sunday the market is still shut at 08:25, and on Monday or Wednesday the day needs a different second breakfast.",
           "cost": {
@@ -338,6 +347,9 @@
             "countryCode": "AU"
           },
           "kind": "planned",
+          "tags": [
+            "sight"
+          ],
           "notes": "Hosier Lane before 10:30 or not at all — the walking tours land on the half hour and the lane is 3 m wide. The walls are repainted constantly, so nothing you saw in a photo is still there; that is the point rather than a disappointment. Then cut through Centre Place and Degraves for the cafe-table version, and find Presgrave Place off Howey Place, which is the one nobody photographs: a lane hung with framed miniatures and tiny installations. Cathedral Arcade in the Nicholas Building has the leadlight dome worth a lift ride.",
           "cost": {
             "amountMinor": 0,
@@ -359,6 +371,9 @@
             "countryCode": "AU"
           },
           "kind": "planned",
+          "tags": [
+            "museum"
+          ],
           "notes": "The permanent collection is free, always — you only pay for the summer blockbuster, and those sell timed slots that go weeks ahead. Walk through the water wall, go straight to the Great Hall and lie down on the carpet: the Leonard French stained-glass ceiling is meant to be seen flat on your back and the guards will not mind. Ninety minutes is enough for one wing; trying to do the whole building is how this day dies. Verified 2026-09-06: NGV International is open daily 10:00-17:00 and entry to the permanent collection is free, so a 10:40 arrival is fine and the building closes well before this day needs it to.",
           "cost": {
             "amountMinor": 0,
@@ -425,6 +440,9 @@
             "countryCode": "AU"
           },
           "kind": "pending",
+          "tags": [
+            "drinks"
+          ],
           "notes": "A tiled room the size of a bathroom that fits about ten people standing, hidden in the lane you found this morning. Cash used to be the rule and the no-photos house style still is. The drinks are expensive and correct. If it is full — it is often full by six — Siglo's terrace above the Supper Club has the Parliament view and a fireplace.",
           "cost": {
             "amountMinor": 1720,
@@ -566,7 +584,9 @@
           },
           "kind": "planned",
           "tags": [
-            "outdoors"
+            "outdoors",
+            "beach",
+            "tour"
           ],
           "notes": "Take the guided snorkel on the first site even if you are a confident swimmer — you spend an hour being shown what you would otherwise swim over, and the guides are reef researchers who log what they see. From November to May you wear a full lycra stinger suit: irukandji and box jellyfish are the reason, they are not optional, and hire is a few dollars. Also: a stinger suit is a sun suit, which matters more than people expect at 16 degrees south. Verified 2026-09-06: marine biologists guide a snorkel and give a reef talk every day the boat runs, and stinger season is early November to late May. The suits are not optional on the boat and are included in the fare; note that the serious box jellyfish and irukandji risk is inshore, on beaches and estuaries, and is considerably lower out at the shelf edge - the suit out here is as much a sun suit as anything.",
           "cost": {
@@ -589,7 +609,8 @@
           "kind": "planned",
           "tags": [
             "meal",
-            "outdoors"
+            "outdoors",
+            "beach"
           ],
           "notes": "The crew move the boat to a second and third site rather than parking all day, and each site is a different structure — a bommie field, then a wall. Lunch is included and served on the crossing between sites. Eat lightly, get back in the water within 20 minutes, and skip the third site only if you are cold; the water is 24-29 degrees depending on the month and an hour still gets you.",
           "cost": {
@@ -634,7 +655,8 @@
           },
           "kind": "pending",
           "tags": [
-            "outdoors"
+            "outdoors",
+            "beach"
           ],
           "notes": "Walk it, do not swim it in stinger season unless you are inside the netted enclosure at the southern end — and the net stops jellyfish, not crocodiles, which is why nobody swims at dawn or dusk near the creek mouths here. Flagstaff Hill is a 25-minute climb from the far end for the view back over the bay if your legs still work.",
           "cost": {
@@ -732,8 +754,8 @@
           },
           "kind": "planned",
           "tags": [
-            "outdoors",
-            "ticketed"
+            "ticketed",
+            "outdoors"
           ],
           "notes": "Talinguru is the sunrise side, and the reason to use it rather than any other pull-off is that from the top of the dune boardwalk you can see Uluru and Kata Tjuta in the same frame as the light arrives. Get there 40 minutes before sunrise: the near car park fills first and the walk from the far one is ten minutes in the dark, so carry a head torch. The park pass is a three-day ticket bought online, roughly 38 dollars, and it is checked. Do not go to the sunset viewing area at dawn — you will be looking into a shadow. Verified 2026-09-06: the three-day park pass is A$38 per adult and under-18s are free; buy it online and have it on the phone, because it is scanned at the entry station.",
           "cost": {
@@ -783,7 +805,8 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "tour"
           ],
           "notes": "Ninety minutes with an Anangu artist and an interpreter, learning the iconography before you paint anything — it is the best-value cultural hour in the park and about 89 dollars. Book the day before; morning sessions run daily and sell out in peak season. The Cultural Centre itself is free, has no photography inside, and Maruku's shop is where you buy work directly from the artists rather than from a gallery in Alice. Verified 2026-09-06: the Cultural Centre is open 07:00-17:45 daily, so this 10:30-12:15 workshop sits comfortably inside its hours.",
           "cost": {
@@ -831,7 +854,8 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "tour"
           ],
           "notes": "The 15-minute Uluru flight is about 185 dollars and it does one thing the ground cannot: it shows you that Kata Tjuta is bigger than Uluru and 30 km away, which no photograph from the base ever conveys. If the budget stretches, the 25-30 minute flight adds Kata Tjuta properly. Afternoon flights fly into better light than morning ones. Skip it entirely if it is windy — they cancel and refund rather than fly rough, so keep it late enough in the day that a cancellation does not wreck anything.",
           "cost": {
@@ -878,7 +902,8 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "sight"
           ],
           "notes": "CORRECTED 2026-09-06: this was written as a separate Star Pass session stacked after dinner, and that does not fit. Sounds of Silence is a four-hour evening ending with your transfer back to the hotel, and Field of Light general admission is itself about 90 minutes, so the two only work as one booking. Ayers Rock Resort sells exactly that: a combined Field of Light + Sounds of Silence dinner, where the 50,000 solar stems come on as darkness falls beside the dining dune and you walk down into the field as the night ends, with one transfer instead of two. Book that combination rather than the dinner and a standalone Star Pass, and treat this window as the tail of the same evening, not a second outing. If you would rather do the field on its own, do it on a different night - the last session, when the earlier groups have cleared. Phone cameras make a mess of it; look instead.",
           "cost": {
@@ -1040,7 +1065,8 @@
           "kind": "pending",
           "tags": [
             "ticketed",
-            "outdoors"
+            "outdoors",
+            "tour"
           ],
           "notes": "A 30-minute alpine flight with a landing on the snow, around 495 dollars, and the landing is the whole point: you stand on a ridge in absolute silence with the Wakatipu 1,500 m below. Hold it rather than book it — alpine landings are the first thing cancelled for wind or low cloud, and the operators will tell you honestly at midday whether the afternoon is flying. If it is a no, the same money buys a Milford Sound fly-cruise-fly on a different day, which is a better use of it than a scenic circuit in flat light.",
           "cost": {
@@ -1064,7 +1090,8 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "wellness"
           ],
           "notes": "Private cedar tubs above the Shotover canyon, booked by the pool rather than the person, with a roof and a wall that retract — book the last light slot and ask for a west-facing room. It is 15 minutes out of town and they run a free shuttle if you ask when booking. After a bungy and a skydive this is not a luxury, it is maintenance.",
           "cost": {
@@ -1225,7 +1252,8 @@
           "kind": "pending",
           "tags": [
             "ticketed",
-            "outdoors"
+            "outdoors",
+            "tour"
           ],
           "notes": "CORRECTED 2026-09-06: there is no 10:45 Mitre Peak Cruises sailing and this day could not be walked as written. Mitre Peak's published departures are 08:50, 09:55, 11:10, 13:30 and 15:55, subject to season, so the 11:10 is the one this drive actually makes - leaving Te Anau at 07:05 does not get you to the terminal in time to check in for the 09:55. Everything about the boat itself checks out: Mitre Peak runs two-hour cruises on purpose-built vessels capped at 75 passengers, gets closer to the walls than the 400-seat ships, and is still operating in 2026; RealNZ and Southern Discoveries run the big boats and the underwater observatory add-on. Hold rather than book if you can, because this is weather-dependent in a specific way: rain is good here - a wet day puts hundreds of temporary waterfalls down the walls - and what ruins it is a storm that cancels sailings outright. The 11:10 is inside the coach crush; the 08:50 or the 15:55 are markedly emptier if you can shift the shape of the day. Sit outside on the bow going out, inside coming back, and expect the boat to nose right under Stirling Falls.",
           "cost": {
@@ -1492,7 +1520,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "drinks"
           ],
           "notes": "Where the shuttle drops everyone and the only place in the village guaranteed to be serving food at half past three. Sit outside if Ruapehu is out. If the crossing was cancelled for weather — which happens often enough that you should hold a spare day — the Taranaki Falls loop from Whakapapa is two flat hours in the same park and stays open in almost anything. Verified 2026-09-06: if you are reading this between June and 24 October, the Ketetahi car park is shut and the shuttle-based version of this day is off - the Taranaki Falls loop from Whakapapa is the fallback and stays open in almost anything.",
           "cost": {
@@ -1585,7 +1614,9 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "sight",
+            "tour"
           ],
           "notes": "Around NZ$130, two and a half hours, guided the whole way — you cannot wander it alone. Departures run every 30 minutes from 09:30 to 16:00 and summer sells out a fortnight ahead, so book, and book an early slot: the set faces the morning sun and the 10:00 group is a third the size of the 13:00. There are no toilets on the set itself for the two hours. It rains here and the tour does not stop for it, so take a jacket rather than an umbrella. The drink at the Green Dragon at the end is included — the ginger beer is the one to get if you are driving, and the Evening Banquet Tour is the upgrade if you would rather eat there than in Rotorua. Verified 2026-09-06: the Signature Tour from the Shire's Rest is 2.5 hours, not 2 - this window has been extended and the rest of the afternoon pushed back accordingly - and the adult fare was NZ$130 as at 25 August 2026. A bus takes you from the Shire's Rest car park onto the set; no cars go in. Advance booking is strongly recommended, particularly in school holidays, weekends and the summer peak.",
           "cost": {
@@ -1679,8 +1710,8 @@
           },
           "kind": "planned",
           "tags": [
-            "outdoors",
-            "ticketed"
+            "ticketed",
+            "outdoors"
           ],
           "notes": "Suspension bridges strung between 117-year-old Californian redwoods, 20 m up. The nightlights version with David Trubridge's lanterns is the one to buy and it starts at dusk, which in a Rotorua winter is barely five o'clock — check the day's start time when you buy, because in midsummer it is not dark until nine and the day ticket is the better deal then. The forest floor walking tracks underneath are free and excellent if you would rather not pay. Verified 2026-09-06: the Treewalk opens daily at 09:00 and closes about 21:00 in winter and midnight in midsummer, and Nightlights starts 20 minutes after sunset - which in September is around 18:20, i.e. after the Te Pa Tu pick-up. Take the day walk here and the hangi in the evening, or move Nightlights to another night. From 1 September 2026 booking a specific date and time for Nightlights is strongly recommended.",
           "cost": {
@@ -1705,7 +1736,8 @@
           "kind": "planned",
           "tags": [
             "meal",
-            "ticketed"
+            "ticketed",
+            "show"
           ],
           "notes": "Around 180 dollars for a four-hour evening in the forest: a powhiri welcome, performance, and a hangi lifted out of the earth oven in front of you. They collect from Rotorua hotels around 17:45 to 18:15 depending where you are staying, so the pick-up, not the start time, is what you plan around — confirm yours when you book. Go in with some manners about it: it is a welcome onto a marae-style space, they will ask your group to nominate a chief, and taking that seriously makes the night. Book at least a few days out in summer.",
           "cost": {

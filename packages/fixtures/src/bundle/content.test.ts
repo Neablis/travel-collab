@@ -2,6 +2,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { ActivityTagCategory } from "@tc/contracts";
 import { parseBundle, playbookStops } from "./schema.ts";
 import { lintBundle, summarise } from "./lint.ts";
 import { resolvePlaybook } from "./toPlaybooks.ts";
@@ -141,5 +142,23 @@ describe("content/ bundles", () => {
     // differ — the starter library's own rule, applied to the whole set.
     const bundles = files.map((path) => parseBundle(JSON.parse(readFileSync(path, "utf8"))));
     expect(Object.keys(summarise(bundles).owners).length).toBeGreaterThan(3);
+  });
+
+  it("uses every category tag somewhere", () => {
+    // ADR-070: tag pages, the Discover tag filter and the trip descriptions
+    // read these bundles. A category no bundled stop carries is a tag page
+    // that can never fill and a description no demo can show. Ticketed is a
+    // modifier, not a category, so it is not asked for.
+    const used = new Set(
+      files.flatMap((path) => {
+        const bundle = parseBundle(JSON.parse(readFileSync(path, "utf8")));
+        return [
+          ...bundle.trips.flatMap((t) => [...t.days.flatMap((d) => d.stops), ...t.backlog]),
+          ...bundle.playbooks.flatMap(playbookStops),
+          ...bundle.activities,
+        ].flatMap((s) => s.tags);
+      }),
+    );
+    expect(ActivityTagCategory.options.filter((tag) => !used.has(tag))).toEqual([]);
   });
 });

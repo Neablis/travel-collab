@@ -254,7 +254,9 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "outdoors",
+            "tour"
           ],
           "notes": "A full private day is roughly the price of three separate half-days and buys you the thing you actually want in Cortina: someone who knows which of the three disconnected sectors has good snow today. Book weeks out for February — the local schools sell out before the hotels do. Price is for the instructor, not per person, so split it across up to four.",
           "cost": {
@@ -383,7 +385,8 @@
           },
           "kind": "pending",
           "tags": [
-            "meal"
+            "meal",
+            "drinks"
           ],
           "notes": "Optional, and the first thing to drop if the light is good — Scoiattoli sits right under the towers at 2,255 m and the deckchairs are the photograph everyone takes home. Skip it if you would rather ski the WWI open-air museum runs below.",
           "cost": {
@@ -407,7 +410,8 @@
           },
           "kind": "pending",
           "tags": [
-            "meal"
+            "meal",
+            "drinks"
           ],
           "notes": "Cortina does not really do slopeside après — the ritual is boots off, town clothes on, and a slow walk up Corso Italia between 17:00 and 19:00. Get back and changed rather than sitting at a valley-station bar in ski boots.",
           "cost": {
@@ -606,7 +610,8 @@
           },
           "kind": "pending",
           "tags": [
-            "meal"
+            "meal",
+            "drinks"
           ],
           "notes": "One spritz and go — a 07:15 lift day ends with an early dinner, and the Ladin restaurants in Corvara seat their first sitting at 19:00. Book that table at breakfast, not at 18:30.",
           "cost": {
@@ -719,7 +724,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "drinks"
           ],
           "notes": "Twenty minutes, standing, for the panorama over the Marmolada and Tofane and the mouths of the WWI tunnels cut into the mountain under your feet. Do not sit down for a full breakfast — the run below is the point and it gets busy behind you.",
           "cost": {
@@ -899,7 +905,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "drinks"
           ],
           "notes": "Sits right at the mid-station, so it is a stand-at-the-bar espresso and a slice of strudel, not a sit-down. Save the appetite for Chalet Fiat.",
           "cost": {
@@ -1154,7 +1161,8 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "wellness"
           ],
           "notes": "Roman-era baths cut into the rock, a natural steam grotto in a tunnel, and an outdoor pool looking straight down the valley — go in ski clothes, everything else (robe, towel, slippers) is included, and so is the evening Aperiterme. Take the five-hour Escape entry rather than the full day; nobody lasts longer than that. Book the slot, they cap numbers, and note that under-14s are not admitted here.",
           "cost": {
@@ -1232,7 +1240,8 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "tour"
           ],
           "notes": "Harness, transceiver, shovel and probe are not optional and are usually rented here rather than at a ski shop. Take wider skis than your piste pair — the glacier is soft, crusted or tracked and never groomed. If the guide says the conditions are wrong, that is the answer; the route reschedules, it does not get argued with.",
           "cost": {
@@ -1280,7 +1289,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "drinks"
           ],
           "notes": "Last coffee, last toilet and last mobile signal for four hours. Drink water here too — 3,400 m dehydrates you faster than the skiing does.",
           "cost": {
@@ -1302,7 +1312,8 @@
           },
           "kind": "planned",
           "tags": [
-            "outdoors"
+            "outdoors",
+            "tour"
           ],
           "notes": "Twenty-plus kilometres through crevasse fields and seracs — a guide is not a nicety, it is the only sane way down, and the price is per guide, not per head. A private guide from the Italian side runs around €590; with three or four in the party the per-person figure drops to roughly a third of that, so fill the rope. It is not steep, but it is long and unrelenting: if you cannot ski a red comfortably for an hour without stopping, do this next year.",
           "cost": {
@@ -1374,7 +1385,8 @@
           },
           "kind": "pending",
           "tags": [
-            "meal"
+            "meal",
+            "drinks"
           ],
           "notes": "You have just skied from Italy to France, which is worth a sit-down. Do not linger past 16:45 — the tunnel queues at the end of the afternoon.",
           "cost": {
@@ -1443,7 +1455,8 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "museum"
           ],
           "notes": "Go at opening, before the market crowd wakes up — by noon in December the queue is out onto Via Museo. Book the timed slot online; the 5,300-year-old man himself takes ten minutes, the clothing and tools are the part worth the hour.",
           "cost": {
@@ -1467,7 +1480,7 @@
           },
           "kind": "planned",
           "tags": [
-            "outdoors"
+            "shopping"
           ],
           "notes": "The year-round produce market two streets from Walther Square, where locals buy speck and mountain cheese at a third of the stall price. Buy the speck here to take home, not from the Christmas huts.",
           "cost": {
@@ -1491,7 +1504,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "drinks"
           ],
           "notes": "A house-brewed beer and a plate of canederli, which is what a South Tyrolean lunch actually looks like — the market huts sell snacks, not meals, and eating properly at midday is what stops you spending forty euros on sausages by six. It fills at 12:30 in December; book or arrive at noon.",
           "cost": {
@@ -1537,7 +1551,7 @@
           },
           "kind": "planned",
           "tags": [
-            "outdoors"
+            "shopping"
           ],
           "notes": "Entry is free and the market runs from the end of November to 6 January, 11:00–19:00 on weekdays and from 10:00 at weekends. The half hour after dusk is the whole point — get down for it rather than arriving at eleven in the morning when it is a car park with huts on it."
         },
@@ -1557,7 +1571,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "drinks"
           ],
           "notes": "Two things to eat here and neither is a bratwurst: Strauben, the fried spiral funnel cake with lingonberry jam, and the mulled wine, which in Alto Adige is made with real local red rather than syrup. There is a deposit on the mug — keep it as the souvenir or hand it back for the coins.",
           "cost": {
@@ -1581,7 +1596,7 @@
           },
           "kind": "pending",
           "tags": [
-            "outdoors"
+            "shopping"
           ],
           "notes": "The market spills well beyond Walther Square and the stalls along the river are quieter and cheaper. Zelten — the dense rye Christmas loaf full of figs, walnuts and pine nuts — travels for weeks and is the one edible worth suitcase space.",
           "cost": {

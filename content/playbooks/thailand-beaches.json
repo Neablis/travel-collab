@@ -101,7 +101,7 @@
           },
           "kind": "planned",
           "tags": [
-            "outdoors"
+            "beach"
           ],
           "notes": "Ten minutes on the path south past Rayavadee and you are on it before the day-trip boats land at 10:30 — that one hour is the entire reason to go early. The cave at the far end is a working shrine: the carved wooden phalluses are offerings to the sea princess, not a photo prop. Free to walk on; bring cash, because the boat vendors are the only thing to buy from."
         },
@@ -166,7 +166,8 @@
           "kind": "planned",
           "tags": [
             "ticketed",
-            "outdoors"
+            "outdoors",
+            "tour"
           ],
           "cost": {
             "amountMinor": 3000,
@@ -190,7 +191,9 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "drinks",
+            "beach"
           ],
           "cost": {
             "amountMinor": 1200,
@@ -214,7 +217,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "drinks"
           ],
           "cost": {
             "amountMinor": 900,
@@ -280,7 +284,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "beach"
           ],
           "cost": {
             "amountMinor": 500,
@@ -325,7 +330,7 @@
           },
           "kind": "planned",
           "tags": [
-            "outdoors"
+            "beach"
           ],
           "cost": {
             "amountMinor": 300,
@@ -372,6 +377,10 @@
             "countryCode": "TH"
           },
           "kind": "pending",
+          "tags": [
+            "drinks",
+            "sight"
+          ],
           "cost": {
             "amountMinor": 400,
             "currency": "USD"
@@ -394,7 +403,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "drinks"
           ],
           "cost": {
             "amountMinor": 500,
@@ -460,7 +470,7 @@
           },
           "kind": "planned",
           "tags": [
-            "outdoors"
+            "beach"
           ],
           "notes": "1.85km of sand that is empty at 06:40 and hard to walk down by 11:00. The reef starts about 40m out straight off the north end — mask on from the beach, no boat and no fee. Sairee faces west, so this is the swim, not the sunset."
         },
@@ -480,8 +490,8 @@
           },
           "kind": "planned",
           "tags": [
-            "outdoors",
-            "ticketed"
+            "ticketed",
+            "outdoors"
           ],
           "cost": {
             "amountMinor": 150,
@@ -506,7 +516,9 @@
           "kind": "planned",
           "tags": [
             "ticketed",
-            "outdoors"
+            "outdoors",
+            "beach",
+            "tour"
           ],
           "cost": {
             "amountMinor": 2500,
@@ -529,6 +541,10 @@
             "countryCode": "TH"
           },
           "kind": "planned",
+          "tags": [
+            "drinks",
+            "beach"
+          ],
           "cost": {
             "amountMinor": 400,
             "currency": "USD"
@@ -574,6 +590,10 @@
             "countryCode": "TH"
           },
           "kind": "pending",
+          "tags": [
+            "drinks",
+            "nightlife"
+          ],
           "cost": {
             "amountMinor": 1200,
             "currency": "USD"
@@ -635,7 +655,8 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "tour"
           ],
           "cost": {
             "amountMinor": 18000,
@@ -682,7 +703,8 @@
           },
           "kind": "planned",
           "tags": [
-            "outdoors"
+            "outdoors",
+            "beach"
           ],
           "notes": "Granite boulders the size of houses stacked into swim-throughs and chimneys. Current runs here, so it is a follow-the-guide dive rather than a wander — stay off the rock, let it push you through the gaps, and keep the guide's fins in sight through the narrow bits."
         },
@@ -724,7 +746,8 @@
           },
           "kind": "planned",
           "tags": [
-            "outdoors"
+            "outdoors",
+            "beach"
           ],
           "notes": "Bigger boulders, more open blue, and the day's best chance of leopard sharks lying on the sand at the reef edge. It runs deeper than the morning dive, so hold gas back rather than chasing the first thing you see."
         },
@@ -814,8 +837,8 @@
           },
           "kind": "planned",
           "tags": [
-            "outdoors",
-            "ticketed"
+            "ticketed",
+            "outdoors"
           ],
           "cost": {
             "amountMinor": 150,
@@ -858,6 +881,10 @@
             "countryCode": "TH"
           },
           "kind": "planned",
+          "tags": [
+            "beach",
+            "tour"
+          ],
           "cost": {
             "amountMinor": 14800,
             "currency": "USD"
@@ -880,7 +907,8 @@
           },
           "kind": "planned",
           "tags": [
-            "outdoors"
+            "outdoors",
+            "beach"
           ],
           "notes": "Ten minutes around the headland. Between 09:30 and 10:15 you can have a walled emerald bay to yourselves; at 10:30 the Phuket boats come in forty at a time and it becomes a floating car park. This single stop is what the early charter buys."
         },
@@ -901,7 +929,8 @@
           "kind": "planned",
           "tags": [
             "ticketed",
-            "outdoors"
+            "outdoors",
+            "beach"
           ],
           "cost": {
             "amountMinor": 1200,
@@ -924,7 +953,8 @@
           "kind": "planned",
           "tags": [
             "ticketed",
-            "outdoors"
+            "outdoors",
+            "beach"
           ],
           "cost": {
             "amountMinor": 1200,
@@ -948,7 +978,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "beach"
           ],
           "cost": {
             "amountMinor": 1000,
@@ -972,7 +1003,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "beach"
           ],
           "cost": {
             "amountMinor": 2200,
@@ -1072,7 +1104,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "beach"
           ],
           "cost": {
             "amountMinor": 550,
@@ -1096,7 +1129,8 @@
           },
           "kind": "planned",
           "tags": [
-            "outdoors"
+            "outdoors",
+            "beach"
           ],
           "cost": {
             "amountMinor": 300,
@@ -1330,7 +1364,9 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "drinks",
+            "nightlife"
           ],
           "cost": {
             "amountMinor": 1200,
@@ -1407,6 +1443,10 @@
             "countryCode": "TH"
           },
           "kind": "planned",
+          "tags": [
+            "beach",
+            "tour"
+          ],
           "cost": {
             "amountMinor": 96500,
             "currency": "USD"
@@ -1495,7 +1535,8 @@
           },
           "kind": "planned",
           "tags": [
-            "outdoors"
+            "outdoors",
+            "beach"
           ],
           "notes": "Kayaks come with the charter, so nobody offers them — ask. Go left out of the beach into the mangrove channels; the caves at the far end are only enterable near low water and the captain will know today's answer, which no schedule can."
         },

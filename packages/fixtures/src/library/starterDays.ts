@@ -154,11 +154,11 @@ export const STARTER_SAVED_DAYS: SeededSavedDay[] = [
         cost: money(350),
       }),
       stop("Miradouro da Senhora do Monte", "09:45", "10:15", { name: "Miradouro da Senhora do Monte", city: "Lisbon" }, {
-        tags: ["outdoors"],
+        tags: ["outdoors", "sight"],
         notes: "Go here before the Graça terrace — same view, a fraction of the people.",
       }),
       stop("São Vicente de Fora cloisters", "10:30", "11:45", { name: "Mosteiro de São Vicente de Fora", city: "Lisbon" }, {
-        tags: ["ticketed"],
+        tags: ["ticketed", "sight"],
         cost: money(850),
       }),
       stop("Lunch at Ti-Natércia", "12:30", "13:45", { name: "Ti-Natércia", city: "Lisbon" }, {
@@ -167,10 +167,11 @@ export const STARTER_SAVED_DAYS: SeededSavedDay[] = [
         cost: money(1_800),
       }),
       stop("Down through Alfama to the river", "14:00", "16:00", { name: "Campo das Cebolas", city: "Lisbon" }, {
-        tags: ["outdoors"],
+        tags: ["outdoors", "sight"],
         notes: "No route worth writing down — the whole point is losing the plan for two hours.",
       }),
       stop("Ginjinha at Sol e Pesca", "16:30", "17:15", { name: "Sol e Pesca", city: "Lisbon" }, {
+        tags: ["drinks"],
         cost: money(600),
       }),
     ],
@@ -201,7 +202,7 @@ export const STARTER_SAVED_DAYS: SeededSavedDay[] = [
       }),
       stop("Pena Palace at opening", "09:00", "11:00", { name: "Palácio Nacional da Pena", city: "Sintra" }, {
         kind: "planned",
-        tags: ["ticketed"],
+        tags: ["ticketed", "sight"],
         notes: "Timed entry, booked online. The park ticket alone is not enough for the interior.",
         cost: money(2_200),
       }),
@@ -209,7 +210,7 @@ export const STARTER_SAVED_DAYS: SeededSavedDay[] = [
         tags: ["outdoors"],
       }),
       stop("Quinta da Regaleira and the initiation well", "12:00", "14:00", { name: "Quinta da Regaleira", city: "Sintra" }, {
-        tags: ["ticketed"],
+        tags: ["ticketed", "sight"],
         cost: money(1_400),
       }),
       stop("Late lunch at Tascantiga", "14:15", "15:30", { name: "Tascantiga", city: "Sintra" }, {
@@ -242,7 +243,7 @@ export const STARTER_SAVED_DAYS: SeededSavedDay[] = [
       }),
       stop("Museo Frida Kahlo", "11:00", "12:30", { name: "Museo Frida Kahlo", city: "Mexico City" }, {
         kind: "planned",
-        tags: ["ticketed"],
+        tags: ["ticketed", "museum"],
         notes: "Sells out days ahead. Buy the timed slot before you leave home, not that morning.",
         cost: money(1_600),
       }),
@@ -250,11 +251,11 @@ export const STARTER_SAVED_DAYS: SeededSavedDay[] = [
         tags: ["outdoors"],
       }),
       stop("Museo Casa de León Trotsky", "14:30", "15:45", { name: "Museo Casa de León Trotsky", city: "Mexico City" }, {
-        tags: ["ticketed"],
+        tags: ["ticketed", "museum"],
         cost: money(700),
       }),
       stop("Churros at El Jarocho", "16:00", "16:30", { name: "Café El Jarocho", city: "Mexico City" }, {
-        tags: ["meal"],
+        tags: ["meal", "drinks"],
         cost: money(400),
       }),
     ],
@@ -276,6 +277,7 @@ export const STARTER_SAVED_DAYS: SeededSavedDay[] = [
     addedBy: [{ tripId: "bc000000-0000-4000-8000-000000000010", addedBy: MAEVE }],
     stops: [
       stop("Park at the Three Sisters", "08:30", "08:45", { name: "Three Sisters Viewpoint", city: "Glencoe" }, {
+        tags: ["outdoors"],
         cost: money(400),
       }),
       stop("Up the Lost Valley", "09:00", "12:30", { name: "Coire Gabhail", city: "Glencoe" }, {
@@ -313,7 +315,7 @@ export const STARTER_SAVED_DAYS: SeededSavedDay[] = [
     ],
     stops: [
       stop("The Met, Egyptian wing first", "10:00", "12:30", { name: "The Metropolitan Museum of Art", city: "New York" }, {
-        tags: ["ticketed"],
+        tags: ["ticketed", "museum"],
         notes: "Start at the far end and work back — everybody else starts at the entrance.",
         cost: money(3_000),
       }),
@@ -325,7 +327,7 @@ export const STARTER_SAVED_DAYS: SeededSavedDay[] = [
         tags: ["outdoors"],
       }),
       stop("American Museum of Natural History", "15:15", "17:30", { name: "American Museum of Natural History", city: "New York" }, {
-        tags: ["ticketed"],
+        tags: ["ticketed", "museum"],
         cost: money(2_800),
       }),
     ],
@@ -346,10 +348,10 @@ export const STARTER_SAVED_DAYS: SeededSavedDay[] = [
     addedBy: [],
     stops: [
       stop("Across the top deck of the Dom Luís I", "16:00", "16:30", { name: "Ponte Luís I", city: "Porto" }, {
-        tags: ["outdoors"],
+        tags: ["outdoors", "sight"],
       }),
       stop("Cellar tour in Gaia", "17:00", "18:00", { name: "Taylor's Port", city: "Vila Nova de Gaia" }, {
-        tags: ["ticketed"],
+        tags: ["ticketed", "drinks", "tour"],
       }),
       stop("Sunset from the Jardim do Morro", "18:30", "19:15", { name: "Jardim do Morro", city: "Vila Nova de Gaia" }, {
         tags: ["outdoors"],

@@ -78,7 +78,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "drinks"
           ],
           "notes": "Nothing else in Fira is open at this hour and there is no water, no shade and no shop between Imerovigli and Oia. Buy two litres here as well as the coffee — this is the last chance for four hours.",
           "cost": {
@@ -298,7 +299,9 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "beach",
+            "tour"
           ],
           "notes": "This price is the boat for the day, not a seat — a 45-46 ft catamaran with skipper and host takes eight comfortably, so split eight ways it lands near what a crowded shared cruise charges per head, and you choose where it stops. Take the 10:00 departure rather than the sunset one: every sunset charter on the island anchors in the same water off Ammoudi at 18:30.",
           "cost": {
@@ -322,7 +325,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "beach"
           ],
           "notes": "Lunch is aboard and included in the charter — say at booking if anyone does not eat fish, because the standard spread is a Greek grill and it is decided the day before, not on the water. Swim to the warm sulphur water before you eat, not after: it stains pale swimwear rust-orange permanently, so wear something dark.",
           "cost": {
@@ -346,7 +350,8 @@
           },
           "kind": "planned",
           "tags": [
-            "outdoors"
+            "outdoors",
+            "beach"
           ],
           "notes": "White Beach is only reachable by boat and is the stop the shared cruises skip. Ask the skipper to run the return along the cliff face rather than straight across — the caldera wall from the water is the view you actually came for, and it is free.",
           "cost": {
@@ -412,6 +417,10 @@
             "countryCode": "GR"
           },
           "kind": "pending",
+          "tags": [
+            "drinks",
+            "nightlife"
+          ],
           "notes": "Uncommitted — but the castle ruins that were unusable at 20:30 are empty by 22:45, and Oia after the buses leave is the version of the village in the photographs.",
           "cost": {
             "amountMinor": 2400,
@@ -484,7 +493,8 @@
           },
           "kind": "planned",
           "tags": [
-            "outdoors"
+            "outdoors",
+            "beach"
           ],
           "notes": "Five kilometres from Adamas and empty at 06:20; by 11:00 there are several hundred people on white rock with no shade anywhere on it and the light is flat and blinding. Walk left past the inlet to the shipwreck side — almost nobody does, and that is where the rock is strangest.",
           "cost": {
@@ -534,7 +544,9 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "beach",
+            "tour"
           ],
           "notes": "Wind decides this day, not the timetable. Big wooden kaikia (Thalassitra, Kapetan Yiangos) are steady and sail the whole west coast; the small RIBs get right inside Kleftiko's arches but bounce hard in a meltemi. Call the operator at 08:00 on the day — if the north wind is up they reverse and run the east coast instead, and that is a different, lesser day. Lunch aboard is included on the full-day boats.",
           "cost": {
@@ -559,7 +571,8 @@
           },
           "kind": "planned",
           "tags": [
-            "outdoors"
+            "outdoors",
+            "beach"
           ],
           "notes": "Kleftiko is a pirate anchorage of white arches you swim through, not a beach — there is nowhere to stand, so it is mask-and-fins or nothing. Ask to stop at Sykia on the way back: the cave roof collapsed and it is lit from above like a skylight, and half the boats skip it to keep to schedule.",
           "cost": {
@@ -583,7 +596,8 @@
           },
           "kind": "planned",
           "tags": [
-            "outdoors"
+            "outdoors",
+            "sight"
           ],
           "notes": "Ten minutes of steps from the top car park and you are on the highest point of the island looking down the whole gulf. Go up first and drink afterwards — the terraces below fill from 19:00 and you will spend the sunset waiting for a table instead of watching it.",
           "cost": {
@@ -606,6 +620,9 @@
             "countryCode": "GR"
           },
           "kind": "pending",
+          "tags": [
+            "drinks"
+          ],
           "notes": "Same cliff edge, twenty minutes after everyone else has left it. Not a plan, just the obvious thing to do on the way back to the quad.",
           "cost": {
             "amountMinor": 1400,
@@ -788,6 +805,9 @@
             "countryCode": "GR"
           },
           "kind": "pending",
+          "tags": [
+            "drinks"
+          ],
           "notes": "Fifteen minutes, free, and still using the copper stills from 1896. Three strengths of kitron: green is the sweet one people like on the day, yellow is the one worth carrying home. Skip it if you are driving the mountain road afterwards.",
           "cost": {
             "amountMinor": 500,
@@ -808,7 +828,7 @@
           },
           "kind": "pending",
           "tags": [
-            "outdoors"
+            "beach"
           ],
           "notes": "A pair of beds and an umbrella at the beach clubs at the north end runs about what is priced here. Walk ten minutes south past the last row instead and it is empty sand and dune all the way to Kastraki for nothing — this cost is the version where you give in, and it is fine either way.",
           "cost": {
@@ -833,7 +853,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "sight"
           ],
           "notes": "The marble door frame on the islet is a five-minute causeway walk from the port and is the one sunset on Naxos worth planning around. Then go up into the Kastro rather than eating on the waterfront — the port tavernas have the view and the village ones have the food. Book, because the good ones inside the walls have eight tables.",
           "cost": {
@@ -900,7 +921,8 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "outdoors"
           ],
           "notes": "They log every walker in and out and the stub is checked again at Agia Roumeli, so keep it somewhere dry. Park is open May to late October only — outside that the whole day is impossible, not merely quiet.",
           "cost": {
@@ -972,7 +994,8 @@
           },
           "kind": "pending",
           "tags": [
-            "outdoors"
+            "drinks",
+            "beach"
           ],
           "notes": "Swim before you sit down or you will not get up again. The Libyan Sea here is colder than the north coast and it is exactly what six hours of descent needs.",
           "cost": {
@@ -1117,7 +1140,8 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "sight"
           ],
           "notes": "Opens at 10:00, last entry 15:30. It is a vertical cave — 411 concrete steps down and the same back up, which is the whole visit, and it is the reason to be on the first entry rather than behind two coach groups on a single staircase. Around 15C inside whatever it is doing outside; take a layer and shoes with grip, the steps run wet.",
           "cost": {
@@ -1142,7 +1166,7 @@
           "kind": "pending",
           "tags": [
             "meal",
-            "outdoors"
+            "beach"
           ],
           "notes": "Two long-running tavernas anchor the two ends of the bay and they are completely different days: the north end is loungers, playlists and a younger crowd, the south end is Greek families eating for three hours. The inland ridge shelters this bay from the meltemi, which is why it is swimmable on days the north coast is not, and the water stays shallow for forty metres.",
           "cost": {
@@ -1165,6 +1189,9 @@
             "countryCode": "GR"
           },
           "kind": "pending",
+          "tags": [
+            "sight"
+          ],
           "notes": "A five-minute boat from the beach at Agios Georgios to an uninhabited island with an active excavation of an archaic Apollo sanctuary. It is not a museum — access depends on whether the dig team is working, so ask at the taverna on the Agios Georgios beach before committing the afternoon to it.",
           "cost": {
             "amountMinor": 1200,
@@ -1207,6 +1234,9 @@
             "precision": "city"
           },
           "kind": "pending",
+          "tags": [
+            "drinks"
+          ],
           "notes": "The half-sunken Venetian kastelli in the water is a thirty-second walk out along the mole and nearly everyone photographs it from the wrong side — go out on it and look back at the harbour instead.",
           "cost": {
             "amountMinor": 1300,
@@ -1299,7 +1329,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "drinks"
           ],
           "notes": "No cars, motorbikes or scooters anywhere on the island since the 1950s, and the ban is genuinely enforced. Sit for twenty minutes and watch the entire day's freight — luggage, crates, a fridge — go up the lanes by mule. It is the thing that makes Hydra different and it happens in the first half hour after each boat.",
           "cost": {
@@ -1393,7 +1424,7 @@
           },
           "kind": "pending",
           "tags": [
-            "outdoors"
+            "beach"
           ],
           "notes": "There is no sand on Hydra at all — you swim off slabs and ladders, and these are the best of them. Bring something on your feet for the rock, and go in off the flat stone to the left rather than the crowded steps.",
           "cost": {
@@ -1486,7 +1517,7 @@
           },
           "kind": "planned",
           "tags": [
-            "outdoors"
+            "sight"
           ],
           "notes": "The two cruise berths are working by 09:00 and several thousand people walk into the old town in the hour after. This half hour outside the walls is the buffer that makes the rest of the morning possible — and the windmills on the mole are better lit early anyway.",
           "cost": {
@@ -1527,7 +1558,8 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "sight"
           ],
           "notes": "Two things almost nobody uses: the mosaic floors upstairs were lifted from Kos and shipped here in the 1930s, and the two ground-floor exhibitions on medieval and ancient Rhodes are included in the same ticket and are usually empty. Budget the extra hour for them rather than a second museum.",
           "cost": {
@@ -1549,7 +1581,9 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "museum",
+            "sight"
           ],
           "notes": "Each inn on the street belonged to a different 'tongue' of the order and carries its coat of arms — France is the ornate one, Spain the plain one. The museum at the bottom is the Knights' hospital itself and the courtyard is worth the ticket on its own; the small Aphrodite everyone comes for is in a side room and is about the size of a cat.",
           "cost": {
@@ -1592,6 +1626,9 @@
             "countryCode": "GR"
           },
           "kind": "planned",
+          "tags": [
+            "sight"
+          ],
           "notes": "The oldest synagogue still standing in Greece, with a small and very sobering museum behind it about the 1944 deportation of the island's community. The seahorse-fountain square outside is the quietest corner inside the walls in mid-afternoon. Closed Saturdays.",
           "cost": {
             "amountMinor": 500,
@@ -1612,7 +1649,8 @@
           },
           "kind": "pending",
           "tags": [
-            "outdoors"
+            "outdoors",
+            "sight"
           ],
           "notes": "Free, flat, dry, and about two and a half kilometres of grass and stacked cannonballs beneath the walls. Drop in near Koskinou Gate. It is the only serious length of the fortifications you can walk without the ticketed rampart tour, and almost nobody does it.",
           "cost": {

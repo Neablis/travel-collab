@@ -76,7 +76,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "shopping"
           ],
           "notes": "The market is working from about 07:00 and this is the only hour it belongs to the neighbourhood rather than to tourism. The chocolate grinders are clustered at the Las Casas end — ask for chocolate de agua, not de leche, and buy a kilo of ground cacao if you want the trip to follow you home. Everything here is cash, and nobody has change for a 500-peso note before nine.",
           "cost": {
@@ -98,7 +99,9 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "sight",
+            "tour"
           ],
           "notes": "The church is free and empty early; the garden cannot be walked alone at all — entry is only on a guided tour, Spanish several times daily and English on a shorter fixed schedule. Turn up twenty minutes before the slot, because the group is capped and they close the gate on time. The whole garden is plants that end up in Oaxacan food, dye and mezcal, which makes it the best possible briefing for the rest of the day.",
           "cost": {
@@ -121,6 +124,9 @@
             "countryCode": "MX"
           },
           "kind": "pending",
+          "tags": [
+            "museum"
+          ],
           "notes": "Free, air-conditioned, and small enough to do properly in an hour. Worth it mostly as preparation: after this you can tell a cochineal red from an aniline one at a hundred paces, which changes what you buy in Teotitlán del Valle.",
           "cost": {
             "amountMinor": 0,
@@ -143,7 +149,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "shopping"
           ],
           "notes": "The smoke corridor runs roughly 10:00 to 17:00 and is thickest between one and three. The system confuses people: you buy tasajo or cecina enchilada by weight from one of the grill stalls, and separately buy tortillas, salsa, spring onions and guacamole from the women walking the aisle — two transactions, both cash, neither of them a menu. Sit at the communal bench, order less than you think, go back for more.",
           "cost": {
@@ -166,6 +173,9 @@
             "countryCode": "MX"
           },
           "kind": "pending",
+          "tags": [
+            "meal"
+          ],
           "notes": "Twenty minutes uphill from the market and worth it purely because you need to walk after that lunch. Leche quemada con tuna is the local order; the sorbet carts are on the Berriozábal side.",
           "cost": {
             "amountMinor": 250,
@@ -187,6 +197,9 @@
             "countryCode": "MX"
           },
           "kind": "planned",
+          "tags": [
+            "drinks"
+          ],
           "notes": "Ulises Torrentera's bar on Guerrero, and probably the deepest mezcal list in Mexico. It keeps early hours — open from midday and shut long before a normal bar would start — and it is closed Sundays, so this is a pre-dinner stop, not a nightcap. Do not order by name. Say what you liked about the last thing you drank and let them pour; a flight of three wild agaves runs about twenty dollars and is the whole education.",
           "cost": {
             "amountMinor": 2200,
@@ -232,6 +245,10 @@
             "countryCode": "MX"
           },
           "kind": "pending",
+          "tags": [
+            "drinks",
+            "nightlife"
+          ],
           "notes": "5 de Mayo 209 — mezcal cocktails rather than a tasting bar, and a room that stays lively past the point where the rest of the centro has rolled up. Balancing In Situ's seriousness with something long and cold is the reason this day ends well.",
           "cost": {
             "amountMinor": 1600,
@@ -283,6 +300,9 @@
             "countryCode": "MX"
           },
           "kind": "planned",
+          "tags": [
+            "tour"
+          ],
           "notes": "This is the whole reason the day works. A group van does Monte Albán at 11:00 with two hundred other people and reaches Hierve el Agua at the hottest, fullest hour. A private car with an INAH-accredited guide costs roughly what four seats on the van cost, and buys you the ordering of the day. Book direct with a local operator — Zapotrek and Coyote Aventuras both run Zapotec guides — and agree the route the night before, not in the car.",
           "cost": {
             "amountMinor": 23000,
@@ -304,7 +324,8 @@
           "kind": "planned",
           "tags": [
             "ticketed",
-            "outdoors"
+            "outdoors",
+            "sight"
           ],
           "notes": "Gates at 08:00, last entry 16:00. INAH raised the foreign-visitor fee to 210 pesos in January 2026 and it now includes the site museum, so do not let anyone sell you a separate museum ticket. The coaches from the city land about 10:30; before that the Gran Plaza is 300 metres of empty limestone with the whole valley below it. Take a hat — there is no shade anywhere on the platform — and cash, because the booth's card reader is decorative.",
           "cost": {
@@ -327,6 +348,9 @@
             "countryCode": "MX"
           },
           "kind": "planned",
+          "tags": [
+            "tour"
+          ],
           "notes": "The demonstration — crushing cochineal off a nopal paddle, then shifting the red to purple with lime juice in front of you — is free, and ends in a sales room. That is the honest bargain, so go in knowing it. A metre-square rug in genuine natural dye is 150 to 300 dollars and takes weeks; anything at 40 dollars is aniline, which is fine, but ask which it is. Avoid the workshops with coach parking on the main road.",
           "cost": {
             "amountMinor": 0,
@@ -396,6 +420,10 @@
             "countryCode": "MX"
           },
           "kind": "planned",
+          "tags": [
+            "drinks",
+            "tour"
+          ],
           "notes": "Matatlán calls itself the world capital of mezcal and the highway through it is lined with places built for buses. Ask the driver for a family palenque still cooking espadín in an earth pit and distilling in clay — the difference is audible in the room, never mind the glass. Tastings are free or nearly; buy by the litre from the barrel and they will fill a bottle for you. Cash, pesos, and eat something first.",
           "cost": {
             "amountMinor": 1500,
@@ -492,7 +520,8 @@
           "kind": "planned",
           "tags": [
             "ticketed",
-            "outdoors"
+            "outdoors",
+            "sight"
           ],
           "notes": "The single most useful fact about this site: you pay twice, at two different windows, before one turnstile — about 105 pesos to INAH and about 592 to Cultur, roughly 700 pesos total. Bring it in cash pesos; the card terminals fail constantly and the queue behind you will not be kind. Gates open 08:00, last entry 16:00. The Cancún and Riviera Maya coaches arrive from about 10:30 and the vendors finish setting up their tables along the avenues around 09:00, so the first ninety minutes are a different site entirely. Do the Great Ball Court and the Osario early and leave the Sacred Cenote for last as the crowd builds.",
           "cost": {
@@ -516,7 +545,8 @@
           },
           "kind": "planned",
           "tags": [
-            "outdoors"
+            "outdoors",
+            "beach"
           ],
           "notes": "Ik Kil is three kilometres from the ruins, which is exactly why every coach stops there and why the water is a soup of lifejackets by 11:00. Yokdzonot is twenty minutes west on the free road, run by a women's cooperative since 2005, and on a weekday morning you can have a 40-metre open well to yourself. Entry is around 150 pesos, cash, life jacket included and compulsory. Their restaurant does a proper sopa de lima and it is the best food in a fifteen-kilometre radius.",
           "cost": {
@@ -583,7 +613,8 @@
           },
           "kind": "planned",
           "tags": [
-            "outdoors"
+            "outdoors",
+            "beach"
           ],
           "notes": "Three kilometres from the plaza — 60 pesos in a taxi each way, or rent a bike. The 250-peso ticket includes the hacienda pool and a food-and-drink credit you should actually use. Come after 16:00: the Cancún day trips leave around three and the queue for the rope swing goes from twenty minutes to nothing. Roots hang the full 25 metres to the water and the afternoon light comes straight down the shaft.",
           "cost": {
@@ -606,6 +637,9 @@
             "countryCode": "MX"
           },
           "kind": "pending",
+          "tags": [
+            "sight"
+          ],
           "notes": "The pastel street everyone photographs at noon is empty and much better at dusk. Walk it to the convent at the end; the free light-and-sound projection on its facade runs at 21:00 and takes about 25 minutes if you want to come back after dinner.",
           "cost": {
             "amountMinor": 0,
@@ -695,7 +729,8 @@
           "kind": "planned",
           "tags": [
             "ticketed",
-            "outdoors"
+            "outdoors",
+            "sight"
           ],
           "notes": "Since Parque del Jaguar took over the access, entry is three separate charges stacked together — the INAH site fee, a CONANP national-park bracelet and the park ticket — landing around 500 pesos a head. Carry it in cash; the readers at the gate are unreliable. Gate 08:00, last admission mid-afternoon. The Cozumel day groups arrive from about 10:00 and the ledge above the beach becomes a single-file queue, so shoot El Castillo from the south path first and walk the perimeter wall last.",
           "cost": {
@@ -718,6 +753,9 @@
             "countryCode": "MX"
           },
           "kind": "planned",
+          "tags": [
+            "tour"
+          ],
           "notes": "Cenote diving is guided-only, and the shop should ask for the physical certification card and a logbook before it takes your money — one that does not is one to walk out of. Cavern rules mean a continuous guideline, daylight always in sight, and no more than four divers to a guide. Two-tank guided cenote days with full gear run about 160 dollars; book the day before and take the later slot so the ruins morning fits in front of it.",
           "cost": {
             "amountMinor": 16000,
@@ -740,7 +778,8 @@
           },
           "kind": "planned",
           "tags": [
-            "outdoors"
+            "outdoors",
+            "beach"
           ],
           "notes": "The catch nobody warns you about: the ejido charges its own cenote entrance of about 400 pesos per diver, in cash, at the gate on the 307, and it is not inside the price the shop quoted you. The Barbie Line is the shallower, brighter of the two circuits — 10 metres, big decorated rooms, and a halocline that makes the water look like it needs cleaning. Bring a torch even in daylight.",
           "cost": {
@@ -788,7 +827,8 @@
           },
           "kind": "planned",
           "tags": [
-            "outdoors"
+            "outdoors",
+            "beach"
           ],
           "notes": "Open water rather than cavern, eight metres at most, and the best halocline on this coast — you swim through the shimmer where the freshwater lens sits on salt. Entrance is about 200 pesos, cash, separate again. There is a resident crocodile called Panchito who keeps to the mangrove edge; the guides know exactly where he is and it is the calmest wildlife encounter of the trip. Best light is between three and four.",
           "cost": {
@@ -835,6 +875,9 @@
             "countryCode": "MX"
           },
           "kind": "pending",
+          "tags": [
+            "drinks"
+          ],
           "notes": "They press sugarcane through a mill built into a VW Beetle in the doorway, which is exactly as gimmicky and as good as that sounds. One drink — you have been up since half six and under water twice.",
           "cost": {
             "amountMinor": 900,
@@ -994,6 +1037,9 @@
             "countryCode": "MX"
           },
           "kind": "pending",
+          "tags": [
+            "meal"
+          ],
           "notes": "The Colima branch has seats and a manageable queue; the original on Havre in Juárez has a line down the street by nine in the morning. The rol de guayaba is the thing, and they do sell out — late afternoon is a gamble you take knowingly.",
           "cost": {
             "amountMinor": 350,
@@ -1039,6 +1085,10 @@
             "countryCode": "MX"
           },
           "kind": "planned",
+          "tags": [
+            "drinks",
+            "nightlife"
+          ],
           "notes": "Álvaro Obregón 106, and consistently on the world's-best lists without behaving like it. The Roma bar takes no reservations — leave your name and number, walk two blocks for a beer, they text. Ask for the Mr Pink, and if the room is full upstairs is quieter.",
           "cost": {
             "amountMinor": 3600,
@@ -1096,7 +1146,8 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "outdoors"
           ],
           "notes": "A paper wristband, about 150 pesos per person per day, cash pesos, sold at the kiosk and not by the operator. No bracelet, no water — the inspectors do check on the boats. Buy it for the number of people actually swimming, not the number on board.",
           "cost": {
@@ -1120,7 +1171,9 @@
           },
           "kind": "planned",
           "tags": [
-            "outdoors"
+            "outdoors",
+            "beach",
+            "tour"
           ],
           "notes": "This line is where the money goes and it is the whole point of the day. On a shared boat you take your turn among ten strangers and get maybe four short entries. Chartering the panga means the captain can sit off the aggregation, read which animal is vertical-feeding rather than cruising, and put two of you in front of it repeatedly for the entire window. Wear the wetsuit even in February — the bay runs about 21°C and you will be in and out for two hours. Leave the GoPro pole at home; the observers will make you stow it.",
           "cost": {
@@ -1144,7 +1197,8 @@
           },
           "kind": "planned",
           "tags": [
-            "outdoors"
+            "outdoors",
+            "beach"
           ],
           "notes": "Forty minutes north once the whale-shark window closes, and a separate national-park bracelet again — buy both in the morning. The colony closes to swimmers for roughly June to August while the pups are born, so this pairs naturally with whale-shark season. Outside that, the juveniles come to you and chew on fins; the bulls stay on the rock and you stay off it.",
           "cost": {
@@ -1211,7 +1265,8 @@
           },
           "kind": "pending",
           "tags": [
-            "outdoors"
+            "outdoors",
+            "beach"
           ],
           "notes": "The one genuinely swimmable beach on this stretch — the coast north of town has a rip that drowns people every year, and the beaches by the Hotel California are for looking at, not entering. Beginner surf lessons run about 50 dollars for a group hour and boards rent for 20 at the shacks behind the point. Sunset here is the reason people move to Todos Santos.",
           "cost": {
@@ -1332,7 +1387,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "drinks"
           ],
           "notes": "A soda — the small family comedores, not the tourist places on the main junction — does a casado of rice, beans, plantain and a protein for under ten dollars. Eat properly now: the reserve has a café at the gate and nothing else, and you are about to spend three hours walking wet trails.",
           "cost": {
@@ -1380,6 +1436,9 @@
             "countryCode": "CR"
           },
           "kind": "pending",
+          "tags": [
+            "outdoors"
+          ],
           "notes": "Free, thirty feeders, and a dozen species including violet sabrewings hovering at arm's length. Ten minutes here gets better photographs than three hours on the trails, which is either delightful or annoying depending on your temperament.",
           "cost": {
             "amountMinor": 0,
@@ -1427,7 +1486,8 @@
           "kind": "planned",
           "tags": [
             "ticketed",
-            "outdoors"
+            "outdoors",
+            "tour"
           ],
           "notes": "Around 35 dollars, reservation only, and the single best two hours in Monteverde — roughly seventy percent of the cloud forest's animals are nocturnal and the daytime trails are largely a walk through green. The guide carries the torch and you deliberately do not: your eyes stay adjusted, and that is why the group sees the sloth, the side-striped palm pit viper and the tarantula in its burrow rather than a bouncing circle of light. Closed shoes, long trousers, and expect drizzle.",
           "cost": {
@@ -1465,7 +1525,8 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "tour"
           ],
           "notes": "A reputable small-group overnight — OX Expeditions and Wicho & Charlie's are the two most people use — runs about 140 to 160 dollars including tent, sleeping bag, both meals and two guides on the mountain. They will weigh your pack and repack it in front of you, which feels patronising until hour four. Take four litres of water, gloves, and a layer you would happily wear at 3°C; camp gets close to freezing and the summit is below it. Rent the jacket here for a few dollars instead of buying one — every hostel on the street rents them.",
           "cost": {
@@ -1536,7 +1597,8 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "outdoors"
           ],
           "notes": "Roughly 100 quetzales per person, collected at the gate, cash only, and it is not included in any tour price you were quoted no matter what the booking page implied. The gate does not make change for a Q200 note. Everyone in the group who forgot this holds up everyone who did not.",
           "cost": {
@@ -1585,6 +1647,9 @@
             "precision": "venue"
           },
           "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
           "notes": "Camp faces Fuego straight across the saddle, close enough that the eruptions arrive as a physical thump before the ash column resolves. It goes roughly every fifteen to twenty minutes. Get into dry clothes immediately — you have sweated through everything and the temperature falls off a cliff at four o'clock.",
           "cost": {
             "amountMinor": 0,
