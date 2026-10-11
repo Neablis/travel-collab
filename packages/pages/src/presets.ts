@@ -506,8 +506,10 @@ export const PRESETS: readonly WidgetPreset[] = [
     id: "activities-by-tag-chart",
     widget: "tag.breakdown",
     params: { measure: "count", key: "hidden" },
-    title: "Activities by tag (chart only)",
-    summary: "Draws the trip's stops by tag as a pie or bars with no table beside it; hover a slice or bar for its count and share.",
+    title: "Chart of activities by tag",
+    // Not "Activities by tag (chart only)": the picker's rows are found by title
+    // prefix, and no title may begin with another whole title.
+    summary: "Draws the trip's stops by tag as a chart only, a pie or bars with no table beside it; hover a slice or bar for its count and share.",
     keywords: [
       "activities", "stops", "count", "tag", "tags", "category", "mix", "pie", "donut", "bar", "chart", "graph",
       "chart only", "no table", "picture", "hover",
