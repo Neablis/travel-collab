@@ -3,6 +3,7 @@
 import { type ReactNode, useEffect, useRef } from "react";
 import Link from "next/link";
 import { BrandMark } from "@/components/BrandMark";
+import { LandingPricing } from "@/components/front/LandingPricing";
 import { buttonVariants } from "@/components/ui/button";
 import { DataText } from "@/components/ui/data-text";
 import { Heading } from "@/components/ui/heading";
@@ -256,6 +257,30 @@ export function PhoneFrontDoor() {
   const pinRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<SVGSVGElement | null>(null);
   const chunkRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const headerRef = useRef<HTMLElement | null>(null);
+  const pricingRef = useRef<HTMLElement | null>(null);
+
+  // **`#pricing` is answered here, not by the browser.** The id belongs to the
+  // desktop landing's section, since two elements cannot share it, and the
+  // browser scrolls to that one — which is `display: none` at this width, so
+  // nothing moves. On a wide screen this tree is the hidden one, every rect in
+  // it is zero and the scroll goes nowhere, so the two never fight.
+  //
+  // **Only this scroller moves, to just under the sticky bar.** The first
+  // version called `scrollIntoView`, which scrolls every ancestor: on a 390px
+  // phone it moved the window 374px as well and took the bar with it.
+  useEffect(() => {
+    const toPricing = () => {
+      const scroller = scrollerRef.current;
+      const pricing = pricingRef.current;
+      if (window.location.hash !== "#pricing" || scroller === null || pricing === null) return;
+      const below = pricing.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+      scroller.scrollTo({ top: scroller.scrollTop + below - (headerRef.current?.offsetHeight ?? 0) });
+    };
+    toPricing();
+    window.addEventListener("hashchange", toPricing);
+    return () => window.removeEventListener("hashchange", toPricing);
+  }, []);
 
   useEffect(() => {
     const scroller = scrollerRef.current;
@@ -364,7 +389,7 @@ export function PhoneFrontDoor() {
           stage's top padding is 64px and this bar is 64 (24 + a 28px mark +
           12). Both add the top safe-area inset (`.phone-front-door-header`,
           `.phone-front-door-stage`), so they still match under a status bar. */}
-      <header className="phone-front-door-header sticky top-0 z-10 flex items-center justify-between px-6 pb-3">
+      <header ref={headerRef} className="phone-front-door-header sticky top-0 z-10 flex items-center justify-between px-6 pb-3">
         <span className="flex items-center gap-2.5">
           <BrandMark size={28} />
           <Text as="span" className="font-display text-md font-semibold text-ink">
@@ -516,6 +541,20 @@ export function PhoneFrontDoor() {
             Look around a real trip
           </Link>
         </section>
+
+        {/* After the call to action, not between it and the pin: §28's clear-out
+            lands on empty paper and the CTA, and Mitchell tuned that hand-off
+            twice. So this section carries its own way to sign up. */}
+        <div className="bg-paper px-6 pb-10">
+          <LandingPricing ref={pricingRef}>
+            <Link
+              href="/signup"
+              className={cn(buttonVariants({ variant: "primary", size: "touch" }), "justify-center no-underline")}
+            >
+              Sign up
+            </Link>
+          </LandingPricing>
+        </div>
       </main>
 
       {/* The desktop landing's footer, same five items (see LandingScreen).

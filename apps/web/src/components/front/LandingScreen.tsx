@@ -7,6 +7,7 @@ import { DataText } from "@/components/ui/data-text";
 import { FrontDoorHeader } from "@/components/front/FrontDoorHeader";
 import { LandingHeroArt } from "@/components/front/LandingHeroArt";
 import { LandingFeatureBlocks } from "@/components/front/LandingFeatureBlocks";
+import { LandingPricing } from "@/components/front/LandingPricing";
 import { DEMO_PATH } from "@/lib/demoTrip";
 import { cn } from "@/lib/cn";
 
@@ -149,6 +150,9 @@ export function LandingScreen() {
             <Link href="/playbooks" className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "no-underline")}>
               Playbooks
             </Link>
+            <Link href="#pricing" className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "no-underline")}>
+              Pricing
+            </Link>
             <Link href="/signin" className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "no-underline")}>
               Sign in
             </Link>
@@ -264,6 +268,13 @@ export function LandingScreen() {
             stopped being true the day Countdown made it four. */}
         <div className="mx-auto w-full max-w-285 px-7 pt-13.5 pb-2.5">
           <LandingFeatureBlocks />
+        </div>
+
+        {/* Straight before the closing band, so its "Start a trip" is the
+            call to action under the prices. The `pricing` id lives here and
+            only here; the phone front door scrolls to its own copy itself. */}
+        <div className="mx-auto w-full max-w-285 px-7 pt-14">
+          <LandingPricing id="pricing" />
         </div>
 
         <div className="mx-auto w-full max-w-285 px-7 pt-14 pb-19.5">

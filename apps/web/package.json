@@ -35,6 +35,8 @@
     "content:verify": "node scripts/import-content.ts --dry-run",
     "landing:generate": "node --import ./scripts/lib/ts-resolve-register.mjs scripts/landing-demo.ts",
     "landing:verify": "node --import ./scripts/lib/ts-resolve-register.mjs scripts/landing-demo.ts --check",
+    "landing:plans:generate": "node --import ./scripts/lib/ts-resolve-register.mjs scripts/landing-plans.ts",
+    "landing:plans:verify": "node --import ./scripts/lib/ts-resolve-register.mjs scripts/landing-plans.ts --check",
     "og:tokens": "node scripts/generate-og-tokens.mjs",
     "og:verify": "node scripts/generate-og-tokens.mjs --check",
     "openapi:generate": "UPDATE_OPENAPI=1 vitest run -c vitest.unit.config.ts src/server/public-api/openapi.test.ts"

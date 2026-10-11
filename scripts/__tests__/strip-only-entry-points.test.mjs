@@ -81,6 +81,12 @@ const ENTRY_POINTS = {
     args: [...LOADER, "scripts/landing-demo.ts", "--check"],
     expect: { status: 0, output: /landing:verify OK/ },
   },
+  // `landing:plans:verify` (and `landing:plans:generate`). Reads the committed
+  // plan file through `planCatalogue`, so it touches no database either.
+  "scripts/landing-plans.ts": {
+    args: [...LOADER, "scripts/landing-plans.ts", "--check"],
+    expect: { status: 0, output: /landing:plans:verify OK/ },
+  },
   // Run by hand, never by CI. It is here because it is the same shape of
   // script and would break the same way; without a key it throws before
   // touching the vendor.

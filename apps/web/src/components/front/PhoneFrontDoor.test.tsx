@@ -1,6 +1,6 @@
 import { cleanup, render, screen, within, fireEvent } from "@testing-library/react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PhoneFrontDoor } from "./PhoneFrontDoor";
 
 afterEach(cleanup);
@@ -202,6 +202,50 @@ describe("the phone front door (SPEC §28)", () => {
     const main = within(screen.getByTestId("phone-front-door")).getByRole("main");
     expect(within(main).getByRole("heading", { level: 1, name: "Put the best day on repeat." })).toBeTruthy();
     expect(within(main).getByRole("link", { name: "Start a trip" })).toBeTruthy();
+  });
+
+  // M42 D3. The desktop tree owns the `pricing` id — two elements cannot share
+  // one — and comes second in the document, so a browser following
+  // `/welcome#pricing` at phone width finds the hidden desktop section and
+  // scrolls nowhere. The phone front door answers the hash itself, by
+  // scrolling its own scroller and nothing else (see the effect's comment).
+  describe("#pricing", () => {
+    const scrolled: { el: Element; top: number | undefined }[] = [];
+    beforeEach(() => {
+      scrolled.length = 0;
+      // jsdom implements no scrolling, so the call is recorded instead.
+      Element.prototype.scrollTo = function (this: Element, options?: ScrollToOptions | number) {
+        scrolled.push({ el: this, top: typeof options === "object" ? options.top : undefined });
+      } as Element["scrollTo"];
+    });
+    afterEach(() => {
+      window.history.replaceState(null, "", window.location.pathname);
+      delete (Element.prototype as Partial<Element>).scrollTo;
+    });
+
+    it("scrolls its own scroller when the page is opened at #pricing", () => {
+      window.history.replaceState(null, "", "#pricing");
+      render(<PhoneFrontDoor />);
+      expect(scrolled.map(({ el }) => el)).toEqual([screen.getByTestId("phone-front-door")]);
+    });
+
+    it("lands the section just under the sticky bar when the hash changes to #pricing", () => {
+      render(<PhoneFrontDoor />);
+      const door = screen.getByTestId("phone-front-door");
+      const pricing = within(door).getByRole("region", { name: "Pricing" });
+      // jsdom lays nothing out, so the geometry the effect reads is given here.
+      door.scrollTop = 100;
+      vi.spyOn(door, "getBoundingClientRect").mockReturnValue({ top: 0 } as DOMRect);
+      vi.spyOn(pricing, "getBoundingClientRect").mockReturnValue({ top: 5000 } as DOMRect);
+      Object.defineProperty(within(door).getByRole("banner"), "offsetHeight", { value: 64 });
+
+      window.history.replaceState(null, "", "#pricing");
+      fireEvent(window, new HashChangeEvent("hashchange"));
+
+      expect(scrolled).toEqual([{ el: door, top: 100 + 5000 - 64 }]);
+      expect(within(pricing).getByRole("table")).toBeTruthy();
+      expect(within(pricing).getByRole("link", { name: "Sign up" }).getAttribute("href")).toBe("/signup");
+    });
   });
 
   it("links the playbook library from the header", () => {
