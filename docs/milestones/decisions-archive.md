@@ -1,8 +1,8 @@
 # Milestone decision archive
 
 Every dated decision note whose milestones have all closed their gates, moved
-here verbatim and in order on 2026-09-21 (and two more on 2026-09-30, filed in
-date order). Nothing was reworded and nothing was
+here verbatim and in order on 2026-09-21 (and two more on 2026-09-30, and eight
+more on 2026-10-11, filed in date order). Nothing was reworded and nothing was
 deleted; `docs/milestones/README.md` keeps a one-line dated pointer to each.
 
 This is the treatment `docs/STATUS.md` has had twice already
@@ -202,6 +202,74 @@ here. Two facts that call needs:
   names M17 as a prerequisite, so it can be placed anywhere without moving
   anything else.
 
+### 2026-09-01 — milestone audit
+
+`docs/reviews/2026-09-01-milestone-audit.md` checked every remaining milestone
+against `main` at `dd61c44`. What it found:
+
+- **M9 is no longer the milestone its file described**, and it has been
+  retitled accordingly (**"The assistant cites what it plans"**). Four of seven
+  scope items and three of six gate boxes are already satisfied by shipped
+  code. What remains is grounding, conversation durability and an eval harness.
+- **ADR-022's two stated grounds for placing M9 last have both been met** —
+  "UI polish first" (M10, 2026-08-27) and "sharing first" (M11/M11a/M11b, all
+  closed). The placement has not been re-examined since those lapsed.
+- **`ai-live` defaults to false and grounding is what would let it be turned
+  on**, so the largest built feature in the product is dark for as long as M9
+  waits.
+- **M12, M13 and M14 have no milestone file and no exit gate**, against this
+  file's own rule that each gets one "before work on it begins". M9 and M19 are
+  scoped today; three of the next four are not.
+
+**All four findings are now acted on.** The reorder is above. M12, M13 and M14
+were scoped the same day and have files and exit gates
+(`M12-reviews-and-moderation.md`, `M13-collaboration.md`, `M14-rich-layer.md`),
+so no milestone in the order is unscoped except M19, which is deliberately
+*placed but not scoped* pending its link-1 design question. The nine orphan AI
+known issues are assigned to M9, three of them as gate boxes.
+`map-legend-modes` was retagged off M9.
+
+**M19 was placed last on 2026-08-31** ("just put at end for now" — Mitchell),
+the same day it was minted. Last is a real position here, not a shrug: M19's
+third link (who an activity is for) overlaps **M13**'s `add-stop-who`, and
+running after M13 means M13 can land that field and M19 build the splits on it,
+rather than the two racing to add a per-stop person field. If the order changes
+so M19 runs first, that link has to be reassigned rather than duplicated.
+
+**M11a and M11b each need a migration, and neither must be merged without a
+dispatch** — `gh workflow run migrate-production.yml -f confirm=migrate`, from
+`main`. M17 keeps its own migration for whenever it is picked up; its re-scope
+(2026-08-29) already removed the `users` table and the identity decision, so
+what remains is the preferences half.
+
+### 2026-09-01 — reorder: M9 moves from last to second, by Mitchell's decision
+
+**Mitchell's call, 2026-09-01**, on the audit below: *"reorder as you see fit."*
+**New execution order: `M17 → M9 → M12 → M13 → M14 → M19`.** Milestone numbers
+are unchanged — this is a placement, the same shape as ADR-018, ADR-021 and
+ADR-022.
+
+**What it supersedes.** ADR-022 (2026-08-25) moved M9 to last, after M14, on two
+stated grounds: the data layer beneath a planning partner should exist first,
+and UI polish and sharing come before it. **Both have since been met** — M10's
+Wave-2 gate (2026-08-27) for polish; M11, M11a and M11b (all closed) for
+sharing; M18, M18b and M16 for the data layer and the read agent. ADR-022's
+reasoning is not overturned, it is **spent**: the conditions it named have
+happened.
+
+**Why second rather than first.** M17 stays ahead of M9 because it is already
+the current milestone and is small, and because M14's insert picker needs its
+account-scope fields. Nothing in M9 reads a preference.
+
+**Why not later.** `ai-live` defaults to false and the assistant is built and
+dark; grounding is what would let it be turned on. Every milestone placed ahead
+of M9 extends that. M9 is also now the **smallest** of the four remaining
+non-M17 milestones and the only one that was scoped before this session.
+
+**M19 keeps its place last, unchanged.** Its link 3 (who an activity is for)
+overlaps M13's `add-stop-who`, and running after M13 is what stops both from
+adding the same field.
+
 ### 2026-09-01 — minted and placed: M20 and M21, the first commercial milestones
 
 **Mitchell's call, 2026-09-01**, choosing the placement from four offered:
@@ -250,6 +318,34 @@ is.** It answers `can(account, capability)`; the caller knows that
 `trip.collaborators` is about invites. That is what keeps M20's collaboration
 gate from being a module-boundary violation.
 
+### 2026-09-10 — M9 opens with Phase 0, the assistant kernel
+
+**Mitchell's call, 2026-09-10**, opening KI-2026-09-05-t: *"Lets take on
+refactoring it, and the entire AI Ask system."* Chosen from three placements
+offered; the two declined were finishing M17 first, and writing the design
+record now and building after M17.
+
+**Why ahead of M17.** The KI's own argument, which M9's estimate already
+assumes: `handleAskRequest()` being one 455-line function is a *schedule
+multiplier* on every M9 task, and ~15 of the 40 open known issues are
+consequences of the same untyped boundaries. Doing M9's three real pieces of
+work against that shape pays the multiplier three times.
+
+**As decided, this paused M17 at "0 of 3 gate boxes". That reading was wrong,
+and the note above is why** — M17's boxes had been satisfiable since PR #112
+merged on 2026-09-02, and its gate closed on 2026-09-11 without Phase 0 giving
+anything back. So the interposition cost M17 nothing: it displaced a marker,
+not any work. Recorded rather than quietly corrected, because "pausing" a
+milestone that was already finishable is the same drift the 2026-09-11 note
+above measures, arrived at from the other direction — that note found a marker
+reporting work that was done, and this one set a marker against it.
+
+**What it is not.** It closes no gate box, of M9's or anyone's. Entitlement
+policy and the `ai_usage` cost ledger stay **M20's**, under the four rules
+decided 2026-09-01 — Phase 0 builds the ports those rules fill and chooses no
+tier, ceiling or price. Decision: **ADR-043**. Design:
+`docs/specs/2026-09-10-assistant-kernel-design.md`.
+
 ### 2026-09-11 — M17's gate closed nine days late, and the queue drifted while it was open
 
 **M17's gate closed 2026-09-11 on work that merged 2026-09-02.** The three live
@@ -279,6 +375,99 @@ decision has superseded it** — not because M9 is where the work has been going
 If the real sequence is now M12/M14 first, that is an amendment to make here
 explicitly, the same shape as ADR-021, ADR-022 and the M9 reorder; this note
 records the divergence rather than quietly resolving it.
+
+### 2026-09-13 — reorder: M20 and M21 run next, ahead of M9's remaining work
+
+**Mitchell's call, 2026-09-13**, asked for directly — *"start the milestone that
+creates the stripe work and ability to pay for the app."* **New execution order:
+`M17 ✓ → M9 [Phase 0 ✓, paused] → M20 → M21 → M12 → M13 → M14 → M19`.**
+Milestone numbers are unchanged; this is a placement, the same shape as ADR-018,
+ADR-021, ADR-022 and the two reorders below. M19 stays last regardless.
+
+**This supersedes one stated prerequisite, and that is the whole of the cost.**
+`M20-account-tiers-and-entitlements.md` lists *"**M9, and it must be closed.**
+Not a code dependency — a product one"*, and the 2026-09-01 placement note below
+gives the reason: `ai-live` defaults off, M9's grounding is what would let it be
+turned on, and **selling access to a dark feature is what running M20 first
+means**. That argument has not been refuted — it has been **accepted and
+outweighed**, and it is recorded here rather than quietly dropped so that
+whoever writes M20's retro knows the trade was deliberate.
+
+Three consequences to hold, each with its mitigation:
+
+1. ~~**The AI tier ships dark.**~~ **VOID, 2026-09-13** — decided the same day,
+   later the same session: **`ai-live` will be on in production before release**,
+   and the flag is kept as an **emergency disable** rather than removed
+   (ADR-019's 2026-09-13 amendment). So an account that buys `plus` gets a real
+   assistant, and the largest cost this reorder carried is not paid at all. Two
+   things the amendment settles rather than leaves implied: the fallthrough
+   itself flips (not a widening rule), because a kill switch that requires
+   knowing what rules exist is not one; and **the flip must come after M20's
+   entitlement gate is live in production**, since `selectAiModel` checks
+   entitlement *before* the flag and that check is what replaces the fallthrough
+   as the spend control. **What remains true is narrower and worth keeping:**
+   the assistant will be live but **ungrounded** until M9, since grounding is
+   M9's work. That is a product judgement, not a blocker.
+2. **The pricing decision loses the volume evidence M9 would have produced.**
+   M21's prerequisites argue that setting prices after M9 is right *"because of
+   evidence, not arithmetic"* — Vercel held exactly one `ai.ask` record across
+   seven days. **Mitigation: the arithmetic is sufficient at this size and the
+   same file says so** — a ceiling-consuming account costs ~$2-$14/month against
+   the models actually configured, so any plausible price clears it. **The
+   prices were decided the same day** (see below), which closes M21's one owed
+   decision rather than deferring it.
+3. **M9's remaining work ages.** Its twelve open AI known issues stay open
+   longer. **Mitigation: none needed — they are known issues, they are assigned
+   to M9, and M9 keeps its place immediately after M21** rather than returning
+   to the back of the queue where ADR-022 had put it.
+
+**Why the pair and not M21 alone.** M21 was what was asked for, and M21 cannot
+open: its prerequisites are *"**M20, and it must be closed.** Every entitlement,
+every gate and the resolver this milestone drives are M20's. There is nothing
+here to build without them"*, plus M20 link 9's cost ledger, which link 7's
+revenue comparison has nothing to compare against without. "The ability to pay
+for the app" is both milestones — M20 builds what a subscription grants, M21
+makes it real — so both are placed, in that order, and M20 is the one that
+opens.
+
+**Mitchell's second decision the same day: the prices.** `free` $0, `plus` $9 a
+month, `premium` $19 a month — M21's one owed decision, recorded in
+`M21-subscriptions-and-billing.md` under *Prerequisites*. **It is recorded in
+M21's file and nowhere in M20's**, because M20's *Deliberately not here* is
+explicit that *"if a price string appears in this milestone's diff, the split has
+failed"* — a rule this note is subject to as well, which is why the numbers are
+here as a decision record and are not to be copied into M20's plan, contracts,
+or plan-version file. M20 publishes versions that are free by construction; M21
+link 2 adds `price_minor`, `currency` and `stripe_price_id` to the same entries.
+
+**The prerequisite ADR is written and accepted: ADR-045** (*Entitlements is a
+module with two stores*). M20's prerequisites require it *"before the milestone
+opens — not written mid-build"*, and `AGENTS.md`'s module map now carries the
+**Entitlements** row it adds. That was the first act of this reorder, ahead of
+any plan.
+
+**Two more decisions the same day, both closing questions the kickoff plan
+opened.** Neither changes the placement; both change what gets built.
+
+1. **The grace window is 3 days**, from the decline rather than the period end
+   (M21 link 6). It is deliberately **shorter than Stripe's own retry
+   schedule**, so an account lapses while Stripe is still retrying and a later
+   successful retry restores it through the ordinary webhook path.
+2. **The `plus` trial is one time ever per account** — not per subscription and
+   not per lapse. **This one is M20's to build, not M21's**, because the trial
+   is a grant issued at signup, and it carries a schema requirement that is
+   easy to violate by being tidy: **an expired or revoked trial grant is never
+   deleted**, since eligibility is *"has this account ever held one"*. A
+   cleanup job over `entitlement_grants` silently returns the trial to everyone
+   who ever had one. M20's trial gate box is **amended** to require it, which
+   is a gate change and is therefore recorded here as Mitchell's decision, per
+   this file's own rule.
+
+**What was NOT decided here.** The landing page's pricing section (`SPEC.md`
+§17.1) still has no owner — Mitchell ruled on 2026-09-02 that it is neither
+M20's nor M21's, and `TODO.md`'s Candidate ideas says to revisit it *"when M21
+opens"*. M21 is placed, not open. It stays parked, and M21's *An unowned
+surface* section remains the single copy of what it owes.
 
 ### 2026-09-16 — reordered: M22 runs AHEAD of M21, which pauses at 11/17
 
@@ -765,6 +954,61 @@ all be answered as their links come up.
 documented non-fix — correct today only because the tokens happen to be hex) and
 `KI-2026-09-19-g` (the colour wall passes an **undefined token name**, which is
 how M23 shipped a transparent chip).
+
+### 2026-10-05 — minted: M35, built before it was minted
+
+**Mitchell's call, 2026-10-05:** *"Create and add a milestone so this work is tracked
+correctly."* The travellers and People work was specced, approved (D1–D11) and built T1–T9 on one
+branch, PR #335, **while M34 was current and with no milestone placing it**. That is building
+ahead of the current milestone, and this note records it rather than back-dating a placement.
+M35 is minted to give the work a gate. Its row goes after M34 in `TODO.md`, so M34 stays current
+and `pnpm milestone close M34` reads M35 as the next milestone from the row order.
+
+**Mitchell also decided not to restack the branch.** The plan's A/B/C split (data and server,
+costs, the People panel) stays as a review order, and #335 is reviewed and merged as one PR.
+Scope and gate: `docs/milestones/M35-travellers-and-people.md`.
+
+### 2026-10-06 — minted and placed: M36, the operator console, started ahead of M34's close
+
+**Mitchell's call, 2026-10-06:** *"I added a design handoff to redo the admin/operator dashboard.
+Create a new milestone … then start on that milestone, it will be the next milestone."* M36 is
+**placed immediately after M34**, so its `TODO.md` row sits above M35's and `pnpm milestone close
+M34` will make it current. **M35 moves one row down**: it is built and merged, and what is left of
+its gate (the eval re-run, CodeRabbit, the 0039 dispatch, the retro) does not need it to be
+current.
+
+**It is started before M34 closes**, which is building ahead of the current milestone. M34 has
+two boxes open, the preview walk and the retro, both Mitchell's or the gate-closer's; nothing in
+M36 touches the add-stop sheet. Recorded here rather than back-dated.
+
+### 2026-10-06 — M34, M9 and M36 closed on Mitchell's production word; M29 and M30 get their rows; TODO.md trimmed
+
+**Mitchell, 2026-10-06:** *"close out M9 for good and M34, ive testing those in production and
+they work … dont do any walk through or checking of boxes that involve confirm its working, i
+already did those"*. Both gates were closed on that attestation; nothing was re-walked.
+
+- **M34** closed 7 of 7 through `pnpm milestone close M34`, which made **M36** current.
+- **M9** closed 10 of 10 by hand, because the script skips a PAUSED row. It is **closed, not
+  paused**: its row is ticked, which also settles the `pnpm milestones` disagreement between it
+  and the Phase 0 row. Two boxes asked for an artefact in the file (a real call's `meta`, a
+  recorded transcript) and are ticked by decision; the retro names them.
+- **M29 and M30** had closed on 2026-10-04 with no `TODO.md` row, so `pnpm milestones` showed
+  them as unknown. Each now has a ticked row, and this table's entries say closed.
+- **M36** closed 13 of 13 the same day, on Mitchell's *"im done with admin dashboard, works"*,
+  through `pnpm milestone close M36`, which made **M35** current: the last unticked row.
+- **`TODO.md` was at 87% of its surface budget**, so the closed rows were collapsed to title, date
+  and file (`docs/retros/2026-10-06-retired-rules.md` holds the old text verbatim).
+
+### 2026-10-06 — M35 closed; M37 is current
+
+**Mitchell, 2026-10-06:** *"Let's start the next milestone, close out the previous by confirming
+the migration run, and checking the boxes"*. M35 closed 12 of 12 through `pnpm milestone close
+M35`, which made **M37** current.
+- **Migration `0039` was confirmed from the run, not from `pnpm state`.** `migrate-production`
+  run #37 on `498530c` logged "migrations applied successfully!". `pnpm state` cannot list runs
+  without `gh`, so in a cloud session it read a 2026-09-27 run and reported `0039` unapplied.
+- **CodeRabbit had nothing to work.** It skipped #335 because of the repo's star count.
+- **The eval re-run was ticked on Mitchell's word** (*"Tick it on your word"*). It was not run.
 
 ---
 
@@ -1266,3 +1510,40 @@ finished layout.
   runs at 1280px, above the 1179px breakpoint where the page-blocking scrim turns
   on). **Wave 2** closes the delta; plan at `docs/plans/2026-08-14-M10-redesign-
   delta.md`. Milestone numbers and order are unchanged.
+
+---
+
+## Moved out of README.md on 2026-10-11
+
+The retirement pass `pnpm milestone close M41` listed, under
+`docs/guidelines/retiring-a-rule.md`, run because `docs/milestones/README.md`
+was at 88% of its surface budget. Verbatim, nothing reworded. Two kinds of text:
+
+- **Eight dated notes, filed above in date order**: the two from 2026-09-01
+  (the milestone audit, and M9's move from last to second), 2026-09-10,
+  2026-09-13, 2026-10-05 and three from 2026-10-06. Every milestone they
+  place or close has closed its gate. `README.md` keeps a dated pointer to each.
+- **The Current-milestone placement paragraphs from M14 to M34**, below. Each
+  records why a milestone was current. All of those milestones have closed; the
+  live line is `Current milestone:` in `README.md`.
+
+### Current-milestone placements, M14 to M34
+
+**M34 became current 2026-10-05, by M33's gate closing** at **6 of 6**, the day it was minted.
+Scope and gate: `docs/milestones/M34-nearby-stops.md`; build plan
+`docs/plans/2026-10-05-M34-nearby-stops.md`.
+
+**M33 — evals — was current on 2026-10-05 only**, by M32's gate closing. Its retro is at the end
+of `docs/milestones/M33-evals.md`.
+
+**M32 — the free-day tool — was current on 2026-10-05 only**, by M31's gate closing. Its retro is
+at the end of `docs/milestones/M32-free-day.md`.
+
+**M31 — the assistant ledger — was current from 2026-10-04 to 2026-10-05**, by M19's gate
+closing. Its retro is at the end of `docs/milestones/M31-assistant-ledger.md`.
+
+**M19 — the cost model — became current 2026-10-01, by M14's gate closing** at **22 of 22**,
+and was scoped on 2026-10-02 by ADR-060. Scope and gate: `docs/milestones/M19-cost-model.md`.
+
+**M14 — Rich layer — was current from 2026-09-26 to 2026-10-01**, by M28's gate
+closing. Its retro is at the end of `docs/milestones/M14-rich-layer.md`.

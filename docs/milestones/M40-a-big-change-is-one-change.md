@@ -3,7 +3,8 @@
 **Status:** **Gate closed 2026-10-10 at 8 of 8.** Retro at the end. Scoped 2026-10-09: Mitchell answered all seven decisions as recommended, after a
 plain-language walk-through of each, and confirmed Decision 2 on its own (undo leaves the
 suggestions accepted-then-undone). Built as three parts after a phase-0 PR that tracks this gate
-(`docs/plans/2026-10-09-M40-big-change.md`). Placed after M39; minted from `docs/candidates.md`
+(its plan, `docs/plans/2026-10-09-M40-big-change.md`, was removed at close and lives in git
+history). Placed after M39; minted from `docs/candidates.md`
 (see `docs/milestones/README.md`, *2026-10-06 — proposed: M37 to M47*).
 
 ## Why this exists
