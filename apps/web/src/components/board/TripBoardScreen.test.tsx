@@ -2680,6 +2680,21 @@ describe("⌘K runs the trip page's own actions", () => {
     };
   }
 
+  // Every batch posted, as one list of commands each. Registered after the
+  // trip's handlers, so it comes first (`server.use` prepends) and hands each
+  // request on to them.
+  function spyOnBatches() {
+    const batches: unknown[][] = [];
+    server.use(
+      http.post("/api/trips/:tripId/commands/batch", async ({ request }) => {
+        const body = (await request.clone().json()) as { commands?: unknown[]; units?: { commands: unknown[] }[] };
+        batches.push(body.units ? body.units.flatMap((u) => u.commands) : (body.commands ?? []));
+        return undefined;
+      }),
+    );
+    return batches;
+  }
+
   it("goes to a lens by the URL the lens's tab goes by", async () => {
     const fixture = tripDetailFixture();
     server.use(...makeTripHandlers(fixture));
@@ -2752,34 +2767,107 @@ describe("⌘K runs the trip page's own actions", () => {
 
   // PR 395 review: a day's stops moved only by Plan's day-header drag. The
   // command is that drag's `moveDay`, so it sends what the drag sends: the
-  // day's stops through `moveCommands`, as ONE batch (one History entry).
-  it("moves the selected day's stops to another day as one batch, as the day header's drag does", async () => {
+  // day's stops through `moveCommands`, as ONE batch (one History entry). It
+  // replaces the Calendar city cards' commands (ADR-069 §4), so it is offered
+  // for every day with stops, not only the selected one.
+  it("moves a day's stops to another day as one batch, as the day header's drag does", async () => {
     const costed = costedTripDetailFixture();
     const day2 = "9f1c2b7e-5d3a-4c8b-9e2f-7a6d4b1c8e35";
     const fixture = { ...costed, days: [...costed.days, { dayId: day2, activityIds: [], date: "2027-06-02", costSubtotal: 0 }] };
-    const batches: unknown[][] = [];
-    server.use(
-      // First, so it sees each batch and hands it on to the trip's own mock.
-      http.post("/api/trips/:tripId/commands/batch", async ({ request }) => {
-        const body = (await request.clone().json()) as { commands?: unknown[]; units?: { commands: unknown[] }[] };
-        batches.push(body.units ? body.units.flatMap((u) => u.commands) : (body.commands ?? []));
-        return undefined;
-      }),
-      ...makeTripHandlers(fixture),
-    );
+    server.use(...makeTripHandlers(fixture));
+    const batches = spyOnBatches();
     const { run } = renderWithPalette(fixture.tripId);
     await screen.findByRole("heading", { name: "Rome 2027" });
-    const column = screen.getAllByTestId("day-column")[0]!;
-    await userEvent.click(within(column).getByRole("button", { name: /^Day 1/ }));
 
     run(`move:day:${fixture.days[0]!.dayId}:${day2}`);
     await waitFor(() => expect(batches).toEqual([moveCommands(fixture, fixture.days[0]!.activityIds, day2)]));
     expect(batches[0]).toHaveLength(2);
   });
 
+  it("moves a day's stops to a new day after the last, the day and the moves in one batch", async () => {
+    const fixture = costedTripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    const batches = spyOnBatches();
+    const { run } = renderWithPalette(fixture.tripId);
+    await screen.findByRole("heading", { name: "Rome 2027" });
+
+    run(`move:day:${fixture.days[0]!.dayId}:new`);
+    await waitFor(() => expect(batches).toHaveLength(1));
+    const [addDay, ...moves] = batches[0] as TripCommand[];
+    expect(addDay).toMatchObject({ type: "AddDay", tripId: fixture.tripId });
+    const newDayId = addDay?.type === "AddDay" ? addDay.dayId : "";
+    expect(moves).toEqual(moveCommands(fixture, fixture.days[0]!.activityIds, newDayId, { newDayIds: [newDayId] }).slice(1));
+  });
+
+  // ADR-068 §1, for the inline actions lifted into named functions: the
+  // board's own ✕s and *One more day* and the palette send the same command.
+  it("adds and removes days and stops by the board's own controls' functions", async () => {
+    const fixture = costedTripDetailFixture();
+    const dayId = fixture.days[0]!.dayId;
+    const forum = fixture.days[0]!.activityIds[1]!;
+    // What one render of the trip sends when `act` runs: a fresh trip each
+    // time, since the first removal takes the thing off the board.
+    const sentBy = async (act: (palette: ReturnType<typeof renderWithPalette>) => void) => {
+      const sent: TripCommand[] = [];
+      server.use(...makeTripHandlers(fixture, { onCommand: (command) => sent.push(command) }));
+      const palette = renderWithPalette(fixture.tripId);
+      await screen.findByRole("heading", { name: "Rome 2027" });
+      act(palette);
+      await waitFor(() => expect(sent).toHaveLength(1));
+      cleanup();
+      // A new day's id is the one thing that differs between two runs.
+      return sent.map((command) => (command.type === "AddDay" ? { ...command, dayId: "new" } : command));
+    };
+    const pairs: [() => void, string][] = [
+      [() => fireEvent.click(screen.getByRole("button", { name: "Remove Roman Forum" })), `remove:stop:${forum}`],
+      [() => fireEvent.click(screen.getByRole("button", { name: /^Remove Day 1/ })), `remove:day:${dayId}`],
+      [() => fireEvent.click(screen.getByRole("button", { name: "Add a day" })), "add-day"],
+    ];
+    const types: string[] = [];
+    for (const [click, id] of pairs) {
+      const byControl = await sentBy(click);
+      expect(await sentBy(({ run }) => run(id))).toEqual(byControl);
+      types.push(...byControl.map((c) => c.type));
+    }
+    expect(types).toEqual(["RemoveActivity", "RemoveDay", "AddDay"]);
+  });
+
+  it("moves a stop to another day or the rack by the board's moveActivity, as a drop at the end of it does", async () => {
+    const costed = costedTripDetailFixture();
+    const day2 = "9f1c2b7e-5d3a-4c8b-9e2f-7a6d4b1c8e35";
+    const fixture = { ...costed, days: [...costed.days, { dayId: day2, activityIds: [], date: "2027-06-02", costSubtotal: 0 }] };
+    const sent: TripCommand[] = [];
+    server.use(...makeTripHandlers(fixture, { onCommand: (command) => sent.push(command) }));
+    const { run } = renderWithPalette(fixture.tripId);
+    await screen.findByRole("heading", { name: "Rome 2027" });
+    const forum = fixture.days[0]!.activityIds[1]!;
+
+    run(`move:stop:${forum}:${day2}`);
+    await waitFor(() => expect(sent).toEqual(moveCommands(fixture, [forum], day2, { position: 0 })));
+  });
+
+  // ADR-069 §4: Go to › Stop switches to Plan, selects the stop's day and
+  // focuses its block, as a click on its card would leave focus.
+  it("goes to a stop: Plan, its day selected, its block focused", async () => {
+    const fixture = costedTripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    const { run } = renderWithPalette(fixture.tripId);
+    await screen.findByRole("heading", { name: "Rome 2027" });
+    act(() => navigateToView("Calendar"));
+    const forum = fixture.days[0]!.activityIds[1]!;
+
+    run(`go:stop:${forum}`);
+    await waitFor(() => expect(replaceSpy.mock.calls.at(-1)?.[0]).toMatch(/view=Plan/));
+    act(() => navigateToView("Plan"));
+    // `:focus` asked of what a query found (no jest-dom here; SnapshotList.test.tsx).
+    await waitFor(() => expect(within(screen.getByTestId(`activity-card-${forum}`)).getByRole("button", { name: /^Edit / }).matches(":focus")).toBe(true));
+    const column = screen.getAllByTestId("day-column")[0]!;
+    expect(within(column).getByRole("button", { name: /^Day 1/ }).getAttribute("aria-pressed")).toBe("true");
+  });
+
   // PR 398 review: while a past version is previewed, `inert` on the board is
   // the only guard against a real command built from the preview's state, and
-  // ⌘K needs no click. New stop and both kinds of move go; lenses stay.
+  // ⌘K needs no click. Every Add, Edit, Move and Remove goes; Go to stays.
   it("offers nothing that changes the trip while a past version is previewed", async () => {
     const costed = costedTripDetailFixture();
     const day2 = "9f1c2b7e-5d3a-4c8b-9e2f-7a6d4b1c8e35";
@@ -2789,26 +2877,25 @@ describe("⌘K runs the trip page's own actions", () => {
     await screen.findByRole("heading", { name: "Rome 2027" });
     const column = screen.getAllByTestId("day-column")[0]!;
     await userEvent.click(within(column).getByRole("button", { name: /^Day 1/ }));
-    expect(ids()).toContain("new-stop");
-    expect(ids()).toContain(`move:day:${fixture.days[0]!.dayId}:${day2}`);
+    const changes = (all: readonly string[]) => all.filter((id) => id === "new-stop" || id === "add-day" || /^(edit|move|remove):/.test(id));
+    expect(changes(ids())).toContain("new-stop");
+    expect(changes(ids())).toContain(`move:day:${fixture.days[0]!.dayId}:${day2}`);
+    expect(changes(ids())).toContain(`remove:day:${fixture.days[0]!.dayId}`);
 
     fireEvent.click(screen.getByRole("button", { name: "History" }));
     fireEvent.click(await screen.findByRole("button", { name: /Undid: Added "Colosseum" to the backlog/ }));
     await screen.findByText("Viewing version 2 (read-only)");
     expect(ids()).toContain("view:Calendar");
-    expect(ids().filter((id) => id === "new-stop" || id.startsWith("move:"))).toEqual([]);
-
-    // Calendar's city-card moves, for a cell focus is in (jsdom does not keep
-    // focus out of an `inert` subtree, which is the point: ⌘K would not either).
-    act(() => navigateToView("Calendar"));
-    const cell = (await screen.findAllByTestId("calendar-cell")).find((el) => el.dataset.dayIndex === "0")!;
-    act(() => cell.focus());
-    expect(ids().filter((id) => id.startsWith("move:"))).toEqual([]);
+    expect(ids()).toContain(`go:day:${fixture.days[0]!.dayId}`);
+    // Waited for: the registry is written in an effect, after the header has
+    // painted the version it shows.
+    await waitFor(() => expect(changes(ids())).toEqual([]));
   });
 
   // PR 398 review: a create sheet keeps its draft, so New stop over an open
-  // editor would drop its prefill (and focus would go back into the sheet).
-  it("offers no New stop while the editor is open", async () => {
+  // editor would drop its prefill (and focus would go back into the sheet);
+  // an edit sheet holds a stop a move or removal would change under it.
+  it("offers nothing that changes the trip while the editor is open", async () => {
     const fixture = tripDetailFixture();
     server.use(...makeTripHandlers(fixture));
     const { run, ids } = renderWithPalette(fixture.tripId);
@@ -2816,9 +2903,10 @@ describe("⌘K runs the trip page's own actions", () => {
 
     run("new-stop");
     await screen.findByRole("dialog", { name: "Add a stop" });
-    expect(ids()).not.toContain("new-stop");
+    expect(ids().filter((id) => id === "new-stop" || id === "add-day" || /^(edit|move|remove):/.test(id))).toEqual([]);
     await userEvent.keyboard("{Escape}");
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Add a stop" })).toBeNull());
     expect(ids()).toContain("new-stop");
+    expect(ids()).toContain("add-day");
   });
 });

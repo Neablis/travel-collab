@@ -146,6 +146,22 @@ describe("CommandPalette", () => {
     await waitFor(() => expect(push).toHaveBeenCalledWith("/trips/t1"));
   });
 
+  // ADR-069 §5: trips in the order Home lists them, where the API's (newest
+  // first) would put an undated trip over the one coming up.
+  it("lists your trips as Home does, the next one first", async () => {
+    fetchTrips.mockResolvedValue({
+      ok: true,
+      value: [
+        { tripId: "t1", name: "Lisbon someday", status: "active", startDate: null, endDate: null },
+        { tripId: "t2", name: "Lima soon", status: "active", startDate: "2999-01-01", endDate: "2999-01-05" },
+      ],
+    });
+    render(<CommandPalette />);
+    await userEvent.keyboard("{Meta>}k{/Meta}go li");
+    await screen.findByRole("option", { name: /Lisbon/ });
+    expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual(["Go to › Trip › Lima soon", "Go to › Trip › Lisbon someday"]);
+  });
+
   // PR 398 review: a list kept from the last opening offers a trip deleted
   // since, until this opening's read lands, and for good if it fails.
   it("shows none of the last opening's trips before this opening's arrive", async () => {

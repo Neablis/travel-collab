@@ -355,6 +355,8 @@ export function RiverBlock({
       ref={ref}
       data-river-block
       data-testid={`activity-card-${activity.activityId}`}
+      // Where ⌘K's *Go to › Stop* finds the block, and how focus in it counts as near (TripBoardScreen).
+      data-activity-id={activity.activityId}
       data-off-tag={dimOpacity !== 1 ? true : undefined}
       // `z-10` while hovered or focused: the tag reveal below hangs out of
       // the block, over whichever block comes next in the DOM.

@@ -9,6 +9,8 @@ import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { fetchTrips } from "@/lib/apiClient";
 import { cn } from "@/lib/cn";
+import { orderHomeTrips } from "@/lib/homeTripOrder";
+import { localTodayIso } from "@/lib/today";
 import { askCommand, placeCommands } from "./commands";
 import { type PaletteNode, paletteLevel, pathText } from "./grammar";
 import { searchPalette } from "./match";
@@ -96,12 +98,12 @@ export function CommandPalette() {
   }, [open, show]);
 
   // Your trips, read each time it opens: a list kept from the last opening
-  // would offer a trip deleted since.
+  // would offer a trip deleted since. In Home's order (ADR-069 §5).
   useEffect(() => {
     if (!open || !signedIn) return;
     let live = true;
     void fetchTrips().then((result) => {
-      if (live && result.ok) setTrips(result.value.filter((trip) => trip.status === "active"));
+      if (live && result.ok) setTrips(orderHomeTrips(result.value.filter((trip) => trip.status === "active"), localTodayIso()));
     });
     return () => {
       live = false;
@@ -210,7 +212,7 @@ export function CommandPalette() {
       }}
     >
       {/* What a screen tracking focus reads as "still where it was" while
-          the palette is open (CalendarLens's city cards). */}
+          the palette is open (TripBoardScreen's nearness). */}
       <div data-command-palette>
         <div className="flex items-center gap-2">
           {path.length > 0 ? (
