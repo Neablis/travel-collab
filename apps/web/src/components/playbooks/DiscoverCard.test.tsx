@@ -230,6 +230,19 @@ describe("a Discover card's description", () => {
     expect(chips.map((chip) => chip.textContent)).toEqual(["Sight", "Food"]);
   });
 
+  // M42 part 5: a chip is the way to its tag's page, for a tag that has one.
+  // Lodging never names a day (ADR-070 §3), so it has no page to link to.
+  it("links each tag to its page, and leaves a tag with no page as text", () => {
+    const described = day({ description: "Sightseeing", tags: ["sight", "meal", "lodging"] });
+    render(<DiscoverCard day={described} origin={{ from: "playbooks" }} />);
+    const chips = within(screen.getByTestId(`tag-chips-${described.savedDayId}`));
+    expect(chips.getAllByRole("link").map((link) => [link.textContent, link.getAttribute("href")])).toEqual([
+      ["Sight", "/playbooks/tag/sight"],
+      ["Food", "/playbooks/tag/meal"],
+    ]);
+    expect(chips.getByTestId("tag-chip-lodging").textContent).toBe("Lodging");
+  });
+
   it("says nothing, and draws no tags, for a day too lightly tagged to describe", () => {
     const bare = day();
     render(<DiscoverCard day={bare} origin={{ from: "playbooks" }} />);

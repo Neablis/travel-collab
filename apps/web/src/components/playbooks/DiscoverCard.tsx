@@ -14,7 +14,7 @@ import { toClockLabel, toClockRange } from "@/lib/time";
 import { useTimeFormat } from "@/components/account/PreferencesProvider";
 import { cn } from "@/lib/cn";
 import { PHONE_TOUCH } from "@/components/ui/button";
-import { cityPath, dayPath } from "@/lib/playbookUrls";
+import { cityPath, dayPath, tagChipPath } from "@/lib/playbookUrls";
 import { backQuery, type BackOrigin } from "./backLink";
 
 // One day in the public library, as Discover and a public profile both render
@@ -211,8 +211,8 @@ export function DiscoverCard({ day, origin }: { day: DiscoverDay; origin: BackOr
       </div>
 
       {/* What kind of day it is, and the tags that say so (M42 D9), both
-          worked out by the server from the stops. Plain chips: part 5 makes
-          each one a way to its tag's page. */}
+          worked out by the server from the stops. Each chip is the way to its
+          tag's page (M42 D10). */}
       {(day.description !== null || day.tags.length > 0) && (
         <div className="flex flex-col gap-1.5">
           {day.description !== null && (
@@ -220,7 +220,7 @@ export function DiscoverCard({ day, origin }: { day: DiscoverDay; origin: BackOr
               {day.description}
             </Text>
           )}
-          <StopTagChips activityId={day.savedDayId} tags={day.tags} focusedTag={null} />
+          <StopTagChips activityId={day.savedDayId} tags={day.tags} focusedTag={null} hrefOf={tagChipPath} />
         </div>
       )}
 

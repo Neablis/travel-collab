@@ -1,5 +1,5 @@
 import { inArray, sql, type SQL } from "drizzle-orm";
-import { describeByTags, describedTags } from "@tc/domain";
+import { describeByTags, describedTags, type DescribedTag } from "@tc/domain";
 import { SavedDayVisibility, TripCover } from "@tc/contracts";
 import type { CityMatch } from "@/lib/cities";
 import {
@@ -16,6 +16,7 @@ import {
   type DiscoverSort,
   type PublicAuthor,
   type RatingFloor,
+  type TagFilter,
 } from "@/lib/playbooks";
 import { countryName } from "@/lib/place";
 import { countrySlug, slugify } from "@/lib/playbookUrls";
@@ -90,6 +91,21 @@ export type DiscoverQuery = {
    * the same answer they would otherwise each have to spell.
    */
   rating?: RatingFloor;
+  /**
+   * Days whose description names this tag (M42 D10, ADR-070 §4); absent or
+   * `any` asks nothing. Applied after the read, as the budget band is: a
+   * description is worked out from the stops, and `stops` is a value nothing
+   * queries into (ADR-029).
+   *
+   * Read time rather than a materialised column, because it is cheap at the
+   * library's size: every row read here is parsed whole for its card anyway,
+   * and `describeByTags` is one pass over its stops. Production held 155
+   * published days on 2026-10-02, under one `CANDIDATE_LIMIT` window. When
+   * the library outgrows the window often enough for a tag search's count
+   * to be a floor, a column recomputed on every write becomes worth its
+   * migration.
+   */
+  tag?: TagFilter;
   /**
    * Narrow to one person's days — what a public profile is.
    *
@@ -401,8 +417,11 @@ function orderBy(sort: DiscoverSort): SQL {
  * server can no longer read is dropped and logged, never allowed to fail the
  * whole page — one unreadable fragment must not take the other twenty-three
  * with it.
+ *
+ * With the card come the tags its description names: which tags' pages and
+ * filters it belongs to (ADR-070 §4), and no field of the card itself.
  */
-function toDiscoverDay(row: DiscoverRow, queryCities: string[], readerId: string | null): DiscoverDay | null {
+function toDiscoverDay(row: DiscoverRow, queryCities: string[], readerId: string | null): ReadCard | null {
   // **The same helper `savedDays.ts`'s `fromRow` calls** (F-F05, and ADR-048
   // makes it a prerequisite of M23). This was a hand-copied duplicate of that
   // function's parses, with identical log strings, until the sequence work gave
@@ -419,8 +438,9 @@ function toDiscoverDay(row: DiscoverRow, queryCities: string[], readerId: string
   });
   if (parsed === null) return null;
   const facts = savedDayFacts(parsed.stops, parsed.dayCount);
+  const described = describeByTags(parsed.stops);
   const wanted = new Set(queryCities);
-  return {
+  const day: DiscoverDay = {
     savedDayId: row.id,
     ownerId: row.owner_id,
     ownerDisplayName: publicNameFor({
@@ -470,9 +490,22 @@ function toDiscoverDay(row: DiscoverRow, queryCities: string[], readerId: string
     publishedAt: isoOf(row.published_at),
     isMine: row.owner_id === readerId,
     cover: coverOfRow(row),
-    description: describeByTags(parsed.stops)?.text ?? null,
+    description: described?.text ?? null,
     tags: describedTags(parsed.stops),
   };
+  return { day, named: described?.named ?? [] };
+}
+
+/** A card, and the tags its description names. */
+type ReadCard = { day: DiscoverDay; named: readonly DescribedTag[] };
+
+/**
+ * Whether a card answers what the query asks after the read: the budget band
+ * and the tag, which are both worked out from the stops.
+ */
+function keeps(query: Pick<DiscoverQuery, "budget" | "tag">, { day, named }: ReadCard): boolean {
+  const tag = query.tag ?? "any";
+  return inBudgetBand(query.budget, day.totalCost?.amountMinor ?? null) && (tag === "any" || named.includes(tag));
 }
 
 /**
@@ -633,15 +666,28 @@ const discoverColumns = sql`
       ${SAVED_DAY_COVER_JSON} as cover,
       ${ownerNames(sql`d.owner_id`)}`;
 
-export async function discoverDays(query: DiscoverQuery): Promise<DiscoverResponse> {
-  const rows = await db.execute<DiscoverRow>(sql`
-    select ${discoverColumns}, ${matchedCount(query)}::int as matched_count,
-      count(*) over ()::int as total_count
-    from saved_days d ${SAVED_DAY_COVER_JOIN}
-    where ${matchPredicate(query)}
-    order by ${orderBy(query.sort)}
-    limit ${CANDIDATE_LIMIT}
-  `);
+/**
+ * One page of Discover, `after` the card a previous page ended on (null for
+ * page one), and what the page says about the whole match: sibling cities,
+ * the shared currency, the count.
+ *
+ * The cards are `discoverPage`'s, so page one and page two are one ranking
+ * read one way (M42 part 5). The rest is counted over the ranked candidate
+ * window, as before Discover paged.
+ */
+export async function discoverDays(query: DiscoverQuery, after: string | null = null): Promise<DiscoverResponse> {
+  const [rows, page] = await Promise.all([
+    db.execute<DiscoverRow>(sql`
+      select ${discoverColumns}, ${matchedCount(query)}::int as matched_count,
+        count(*) over ()::int as total_count
+      from saved_days d ${SAVED_DAY_COVER_JOIN}
+      where ${matchPredicate(query)}
+      order by ${orderBy(query.sort)}
+      limit ${CANDIDATE_LIMIT}
+    `),
+    // One past the page, so the last page knows it is the last.
+    discoverPage(query, { limit: DISCOVER_PAGE_SIZE + 1, after }),
+  ]);
   // `count(*) over ()` is evaluated before `limit`, so every row carries the
   // number of rows the WHERE matched — the whole library's answer to these
   // filters, not the window's. It rides on the query that already runs rather
@@ -651,23 +697,23 @@ export async function discoverDays(query: DiscoverQuery): Promise<DiscoverRespon
 
   const candidates = [...rows.rows]
     .map((row) => toDiscoverDay(row, query.cities, query.readerId))
-    .filter((day): day is DiscoverDay => day !== null);
+    .filter((card): card is ReadCard => card !== null);
 
   // The one currency every matched day agrees on, or null. Decided over the
   // candidates rather than the page so the budget control does not appear and
   // disappear as you scroll. See `BudgetBand` for why a mixed set hides it
   // rather than comparing numbers that are not comparable.
   const currencies = new Set(
-    candidates.map((d) => d.totalCost?.currency).filter((c): c is string => c !== undefined),
+    candidates.map(({ day }) => day.totalCost?.currency).filter((c): c is string => c !== undefined),
   );
   const budgetCurrency = currencies.size === 1 ? [...currencies][0]! : null;
 
-  const filtered = candidates.filter((day) =>
-    inBudgetBand(query.budget, day.totalCost?.amountMinor ?? null),
-  );
+  const filtered = candidates.filter((card) => keeps(query, card)).map(({ day }) => day);
+  const askedAfterRead = query.budget !== "any" || (query.tag ?? "any") !== "any";
 
   return {
-    days: filtered.slice(0, DISCOVER_PAGE_SIZE),
+    days: page.slice(0, DISCOVER_PAGE_SIZE),
+    nextCursor: page.length > DISCOVER_PAGE_SIZE ? page[DISCOVER_PAGE_SIZE - 1]!.savedDayId : null,
     // `filtered`, not `candidates` and not the page: the chips describe the set
     // the cards come from, band included. See `siblingCities`.
     siblings: siblingCities(filtered, query.cities),
@@ -677,23 +723,22 @@ export async function discoverDays(query: DiscoverQuery): Promise<DiscoverRespon
     // leaderboard link has anything to rank, and no filter on this query may
     // change that answer.
     sharedPlaybookCount: await publishedPlaybookCount(),
-    // BOTH caps, not just the candidate window. There is no pagination — the
-    // page's answer to truncation is "narrow the cities" — so a query matching
-    // 25 to 199 days used to return 24 cards flagged as the complete set, with
-    // no way to reach the rest and nothing on screen saying they existed
-    // (CodeRabbit, PR 102). The profile day list is this same function, and
-    // it says the same thing there by comparing its card count against
-    // `playbooksShared`.
+    // BOTH caps, not just the candidate window: a query matching 25 to 199
+    // days used to return 24 cards flagged as the complete set (CodeRabbit,
+    // PR 102). Discover pages by `nextCursor` since M42; the profile day list
+    // is this same function, unpaged, and says the same thing there by
+    // comparing its card count against `playbooksShared`.
     truncated: windowFull || filtered.length > DISCOVER_PAGE_SIZE,
     // What the results sentence states (KI-2026-09-23-h). Inside the window
-    // `filtered` IS the whole match — band applied, unreadable rows dropped —
-    // so it is exact and agrees with the page to the day. Past the window the
-    // SQL total is used, minus the rows this read could not parse; that is
-    // exact only with no band on, since the band cannot be a predicate. With a
-    // band on past the window, what is known is a floor, and it says so.
+    // `filtered` IS the whole match — band and tag applied, unreadable rows
+    // dropped — so it is exact and agrees with the pages to the day. Past the
+    // window the SQL total is used, minus the rows this read could not parse;
+    // that is exact only with no band or tag on, since neither can be a
+    // predicate. With one on past the window, what is known is a floor, and it
+    // says so.
     ...(!windowFull
       ? { matchCount: filtered.length, matchCountExact: true }
-      : query.budget === "any"
+      : !askedAfterRead
         ? {
             matchCount: Number(rows.rows[0]!.total_count) - (rows.rows.length - candidates.length),
             matchCountExact: true,
@@ -703,7 +748,13 @@ export async function discoverDays(query: DiscoverQuery): Promise<DiscoverRespon
 }
 
 /** What a Discover request asks for, before the reader is known. */
-export type DiscoverInput = Pick<DiscoverQuery, "cities" | "countries" | "scope" | "sort" | "budget" | "length" | "rating">;
+export type DiscoverInput = Pick<
+  DiscoverQuery,
+  "cities" | "countries" | "scope" | "sort" | "budget" | "length" | "rating" | "tag"
+> & {
+  /** The page's cursor: the last card of the page before, or absent for page one. */
+  after?: string | null;
+};
 
 /**
  * Discover for one reader — what `GET /api/playbooks` and the Discover page
@@ -713,8 +764,11 @@ export type DiscoverInput = Pick<DiscoverQuery, "cities" | "countries" | "scope"
  * *Yours* and *Saved* mean nothing without an account, so a signed-out
  * reader's scope is `everyone` whatever was asked.
  */
-export async function discoverFor(input: DiscoverInput, readerId: string | null): Promise<DiscoverResponse> {
-  return discoverDays({ ...input, scope: readerId === null ? "everyone" : input.scope, readerId });
+export async function discoverFor(
+  { after = null, ...input }: DiscoverInput,
+  readerId: string | null,
+): Promise<DiscoverResponse> {
+  return discoverDays({ ...input, scope: readerId === null ? "everyone" : input.scope, readerId }, after);
 }
 
 /**
@@ -727,7 +781,8 @@ export async function discoverFor(input: DiscoverInput, readerId: string | null)
  * 1; a timestamp is negated as its epoch (`numeric` since Postgres 14, so the
  * microseconds survive). `d.id` ascends last, as it does in `orderBy`.
  * `public-api/discover.int.test.ts` holds the two to one order for every sort;
- * `orderBy` keeps its readable form for the app's Discover, which never pages.
+ * `orderBy` keeps its readable form for the candidate window and the place
+ * pages, which do not page by keyset.
  */
 function rankKeys(query: DiscoverQuery): SQL {
   const matched = matchedCount(query);
@@ -742,39 +797,40 @@ function rankKeys(query: DiscoverQuery): SQL {
 
 /**
  * **One keyset page of Discover — what `GET /v1/discover/playbooks` serves**
- * (ADR-050, Pass C).
+ * (ADR-050, Pass C), and the cards of the app's Discover (M42 part 5).
  *
- * Not `discoverDays`, because that answers a screen: the 200-row candidate
- * window, the budget band applied in application code over it, 24 cards and no
- * way past them. None of that pages. This takes the same predicates
- * (`matchPredicate`) and the same ranking (`rankKeys`) and the same row → card
- * boundary (`toDiscoverDay`), and pages them by keyset: `after` is the
- * `savedDayId` of the last card, and the next page is the rows ranked strictly
- * after that row's keys **as they are now**.
+ * This takes `discoverDays`' predicates (`matchPredicate`) and ranking
+ * (`rankKeys`) and the same row → card boundary (`toDiscoverDay`), and pages
+ * them by keyset: `after` is the `savedDayId` of the last card, and the next
+ * page is the rows ranked strictly after that row's keys **as they are now**.
  *
  * What that promises, honestly: no duplicate and no skip while the ranking
  * holds still. A day whose adds, rating or publish time move between two
  * requests moves in the ranking, and may be seen twice or not at all — true of
  * any page over a live counter, and `newest` is the sort that holds still.
  *
- * **The budget band is not offered.** A day's total is a sum over jsonb stops
- * (ADR-029), so it cannot be a predicate, and a page filtered after the fact
- * would come back short and read as the end.
+ * **The budget band and the tag are applied after the read** — both are
+ * worked out from jsonb stops (ADR-029), so neither can be a predicate — and
+ * the page is refilled past the rows they drop, so it never comes back short
+ * and reads as the end. The public API offers neither.
  *
  * An `after` that names no row is no cursor — `decodeKeyedCursor`'s rule — and a
  * row this server cannot read is skipped with the page refilled past it, so
  * one unreadable row never ends the listing early.
  */
 export async function discoverPage(
-  query: Omit<DiscoverQuery, "budget">,
+  query: Omit<DiscoverQuery, "budget"> & { budget?: BudgetBand },
   page: { limit: number; after: string | null },
 ): Promise<DiscoverDay[]> {
-  const full: DiscoverQuery = { ...query, budget: "any" };
+  const full: DiscoverQuery = { budget: "any", ...query };
   const keys = rankKeys(full);
+  // A filtered read drops rows, so it reads a window at a time rather than
+  // one round trip per handful of survivors.
+  const batch = full.budget !== "any" || (full.tag ?? "any") !== "any" ? CANDIDATE_LIMIT : 0;
   const out: DiscoverDay[] = [];
   let after = page.after !== null && isUuid(page.after) ? page.after : null;
   for (;;) {
-    const want = page.limit - out.length;
+    const want = Math.max(page.limit - out.length, batch);
     const rows = await db.execute<DiscoverRow>(sql`
       select ${discoverColumns}, ${matchedCount(full)}::int as matched_count
       from saved_days d ${SAVED_DAY_COVER_JOIN}
@@ -791,8 +847,11 @@ export async function discoverPage(
       limit ${want}
     `);
     for (const row of rows.rows) {
-      const day = toDiscoverDay(row, query.cities, query.readerId);
-      if (day !== null) out.push(day);
+      const card = toDiscoverDay(row, query.cities, query.readerId);
+      if (card !== null && keeps(full, card)) out.push(card.day);
+      // Stop at the page: the next one starts after its last card, not after
+      // the last row this read happened to fetch.
+      if (out.length === page.limit) return out;
     }
     if (out.length >= page.limit || rows.rows.length < want) return out;
     after = rows.rows[rows.rows.length - 1]!.id;
@@ -1023,6 +1082,14 @@ export type PlacePage = {
  * codes and slug by their English name. A value with no slug has no page.
  */
 export async function publishedPlaces(): Promise<PlacePage[]> {
+  return placesOf(await readablePublishedDays());
+}
+
+/** A published day as the place and tag pages count it: its places, and the tags its description names. */
+type PublishedDay = { id: string; cities: string[]; countries: string[]; named: readonly DescribedTag[] };
+
+/** Every published, unmoderated, undeleted day this server can read. */
+async function readablePublishedDays(): Promise<PublishedDay[]> {
   const rows = await db.execute<{
     id: string;
     cities: string[];
@@ -1038,7 +1105,22 @@ export async function publishedPlaces(): Promise<PlacePage[]> {
       ${notDeleted}
       ${notModerated}
   `);
+  return rows.rows.flatMap((row) => {
+    const id = String(row.id);
+    // A day `publishedDaysPage` cannot read is no card on the page, so it is no day here either.
+    const readable = parseSavedDayColumns({
+      savedDayId: id,
+      stops: row.stops,
+      visibility: row.visibility,
+      authorKind: row.author_kind,
+      dayCount: row.day_count,
+    });
+    if (readable === null) return [];
+    return [{ id, cities: row.cities, countries: row.countries, named: describeByTags(readable.stops)?.named ?? [] }];
+  });
+}
 
+function placesOf(published: readonly PublishedDay[]): PlacePage[] {
   const gathered = new Map<string, { kind: PlacePage["kind"]; slug: string; days: Set<string>; uses: Map<string, number> }>();
   const touch = (kind: PlacePage["kind"], slug: string, value: string, dayId: string) => {
     const key = `${kind}:${slug}`;
@@ -1047,24 +1129,14 @@ export async function publishedPlaces(): Promise<PlacePage[]> {
     place.days.add(dayId);
     place.uses.set(value, (place.uses.get(value) ?? 0) + 1);
   };
-  for (const row of rows.rows) {
-    const dayId = String(row.id);
-    // A day `publishedDaysPage` cannot read is no card on the page, so it is no day here either.
-    const readable = parseSavedDayColumns({
-      savedDayId: dayId,
-      stops: row.stops,
-      visibility: row.visibility,
-      authorKind: row.author_kind,
-      dayCount: row.day_count,
-    });
-    if (readable === null) continue;
-    for (const city of new Set(row.cities)) {
+  for (const day of published) {
+    for (const city of new Set(day.cities)) {
       const slug = slugify(city);
-      if (slug !== "") touch("city", slug, city, dayId);
+      if (slug !== "") touch("city", slug, city, day.id);
     }
-    for (const code of new Set(row.countries)) {
+    for (const code of new Set(day.countries)) {
       const slug = countrySlug(code);
-      if (slug !== null) touch("country", slug, code, dayId);
+      if (slug !== null) touch("country", slug, code, day.id);
     }
   }
 
@@ -1080,16 +1152,58 @@ export async function publishedPlaces(): Promise<PlacePage[]> {
 }
 
 /**
+ * A tag page (M42 D10): the tag, the city page it is narrowed to or null for
+ * the whole library, and how many days its description names the tag in.
+ */
+export type TagPage = {
+  tag: DescribedTag;
+  city: Pick<PlacePage, "slug" | "name" | "cities"> | null;
+  /** The number `publishedDaysPage` totals for the tag, which `placeIndexable` reads as for a place. */
+  days: number;
+};
+
+/**
+ * Every tag page with a day on it: one per tag a published day's description
+ * names (ADR-070 §4), and one per city page and such a tag. A city is its
+ * page — every spelling that slugs alike — named as its page names it.
+ */
+export async function publishedTagPages(): Promise<TagPage[]> {
+  const published = await readablePublishedDays();
+  const cities = new Map(
+    placesOf(published)
+      .filter((place) => place.kind === "city")
+      .map(({ slug, name, cities: spellings }) => [slug, { slug, name, cities: spellings }]),
+  );
+  const counted = new Map<string, TagPage>();
+  const count = (tag: DescribedTag, city: TagPage["city"]) => {
+    const key = `${city?.slug ?? ""}:${tag}`;
+    const page = counted.get(key);
+    if (page === undefined) counted.set(key, { tag, city, days: 1 });
+    else page.days += 1;
+  };
+  for (const day of published) {
+    // Each slug once, so a day carrying two spellings of a city counts once there.
+    const slugs = new Set(day.cities.map(slugify).filter((slug) => slug !== ""));
+    for (const tag of day.named) {
+      count(tag, null);
+      for (const slug of slugs) count(tag, cities.get(slug)!);
+    }
+  }
+  return [...counted.values()];
+}
+
+/**
  * Published days for a place or an author, most-added first, one offset page.
  *
  * `matchPredicate` with a reader who owns nothing and `publishedOnly`, so the
  * rows are exactly what a stranger can open, and `toDiscoverDay`, so each is
  * the card Discover would show. Offset paging, unlike `discoverPage`'s keyset:
  * a place page is addressed by `?page=N`, which a crawler follows as a link.
- * `total` is 0 for a page past the end.
+ * `total` is 0 for a page past the end. A `tag` keeps the days whose
+ * description names it: a tag page, or a city's.
  */
 export async function publishedDaysPage(
-  filter: { cities?: string[]; countries?: string[]; authorId?: string },
+  filter: { cities?: string[]; countries?: string[]; authorId?: string; tag?: DescribedTag },
   page: { limit: number; offset: number },
 ): Promise<{ days: DiscoverDay[]; total: number }> {
   const query: DiscoverQuery = {
@@ -1100,13 +1214,15 @@ export async function publishedDaysPage(
     sort: "most-added",
     budget: "any",
     length: "any",
+    tag: filter.tag ?? "any",
     publishedOnly: true,
     readerId: null,
   };
   // Every match is read and paged here, not by `limit`/`offset`: a row
-  // `toDiscoverDay` cannot read is dropped, and counting rows in SQL would
-  // then disagree with the cards and leave a page short. One place's days are
-  // a small slice of a library of a few hundred.
+  // `toDiscoverDay` cannot read, or whose description does not name the tag,
+  // is dropped, and counting rows in SQL would then disagree with the cards
+  // and leave a page short. A library of a few hundred days is cheap to read
+  // whole, which a tag page does.
   const rows = await db.execute<DiscoverRow>(sql`
     select ${discoverColumns}, ${matchedCount(query)}::int as matched_count
     from saved_days d ${SAVED_DAY_COVER_JOIN}
@@ -1115,6 +1231,7 @@ export async function publishedDaysPage(
   `);
   const readable = [...rows.rows]
     .map((row) => toDiscoverDay(row, query.cities, null))
-    .filter((day): day is DiscoverDay => day !== null);
+    .filter((card): card is ReadCard => card !== null && keeps(query, card))
+    .map(({ day }) => day);
   return { days: readable.slice(page.offset, page.offset + page.limit), total: readable.length };
 }

@@ -1,5 +1,5 @@
-import type { z } from "zod";
-import { DiscoverScope, DiscoverSort, LengthBand, normalizeCities, RatingFloor } from "@/lib/playbooks";
+import { z } from "zod";
+import { DiscoverScope, DiscoverSort, LengthBand, normalizeCities, RatingFloor, TagFilter } from "@/lib/playbooks";
 
 // Discover's state as a URL, both directions, in one place — so the page that
 // READS `?rating=4` and the screen that WRITES it cannot spell it two ways.
@@ -23,6 +23,12 @@ export type DiscoverUrlState = {
   sort: DiscoverSort;
   length: LengthBand;
   rating: RatingFloor;
+  tag: TagFilter;
+  /**
+   * Where this page starts: the last card id of the page before, or null for
+   * page one. A link carries it, so a crawler reaches page two (M42 part 5).
+   */
+  after: string | null;
 };
 
 export const DISCOVER_URL_DEFAULTS: DiscoverUrlState = {
@@ -32,6 +38,8 @@ export const DISCOVER_URL_DEFAULTS: DiscoverUrlState = {
   sort: "most-added",
   length: "any",
   rating: "any",
+  tag: "any",
+  after: null,
 };
 
 type RawParams = Record<string, string | string[] | undefined>;
@@ -65,6 +73,9 @@ export function parseDiscoverUrl(params: RawParams): DiscoverUrlState {
     sort: pick(DiscoverSort, first(params.sort), DISCOVER_URL_DEFAULTS.sort),
     length: pick(LengthBand, first(params.length), DISCOVER_URL_DEFAULTS.length),
     rating: pick(RatingFloor, first(params.rating), DISCOVER_URL_DEFAULTS.rating),
+    // Ticketed and Lodging are no value of it (ADR-070 §2, §4), so they read as no filter.
+    tag: pick(TagFilter, first(params.tag), DISCOVER_URL_DEFAULTS.tag),
+    after: z.string().uuid().safeParse(first(params.after)).data ?? DISCOVER_URL_DEFAULTS.after,
   };
 }
 
@@ -82,5 +93,8 @@ export function discoverQueryString(state: DiscoverUrlState): string {
   if (state.sort !== DISCOVER_URL_DEFAULTS.sort) params.set("sort", state.sort);
   if (state.length !== DISCOVER_URL_DEFAULTS.length) params.set("length", state.length);
   if (state.rating !== DISCOVER_URL_DEFAULTS.rating) params.set("rating", state.rating);
+  if (state.tag !== DISCOVER_URL_DEFAULTS.tag) params.set("tag", state.tag);
+  // Last, so a page link reads as the search and then where in it.
+  if (state.after !== null) params.set("after", state.after);
   return params.toString();
 }

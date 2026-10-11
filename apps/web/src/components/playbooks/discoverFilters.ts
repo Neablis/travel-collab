@@ -1,11 +1,14 @@
+import { TAG_GROUPS, TAG_LABEL } from "@/lib/activityTags";
 import { formatMoney } from "@/lib/formatMoney";
 import {
   BUDGET_BAND_EDGES,
+  DiscoverTag,
   LENGTH_BAND_LABELS,
   LengthBand,
   RATING_FLOOR_LABELS,
   RatingFloor,
   type BudgetBand,
+  type TagFilter,
 } from "@/lib/playbooks";
 
 // SPEC §33.2 — **a place is a tab, a question is a chip, a property of the list
@@ -27,12 +30,16 @@ import {
 // A filter id that spelled a plan id or an entitlement is the trap
 // `planVersions.fourthPlan.test.ts` exists to catch.
 
-export type DiscoverFilterId = "rating" | "budget" | "length";
+export type DiscoverFilterId = "rating" | "budget" | "length" | "tag";
 
 export type FilterOption = { value: string; label: string };
 
 /** Just the question half of Discover's state — no scope, no sort, no cities. */
-export type FilterState = { rating: RatingFloor; budget: BudgetBand; length: LengthBand };
+export type FilterState = { rating: RatingFloor; budget: BudgetBand; length: LengthBand; tag: TagFilter };
+
+// The picker's categories in its order, Food first, less the one a
+// description never names.
+const FILTER_TAGS = TAG_GROUPS[0]!.tags.filter((tag) => DiscoverTag.safeParse(tag).success);
 
 export type FilterContext = {
   /**
@@ -112,6 +119,19 @@ export const FILTER_DEFS: readonly FilterDef[] = [
       LengthBand.options.map((value) => ({ value, label: LENGTH_BAND_LABELS[value] })),
     value: (state) => state.length,
     apply: (state, value) => ({ ...state, length: value as LengthBand }),
+  },
+  {
+    // M42 D10: a day is a tag's when its description names it (ADR-070 §4),
+    // so one bar on a day of meals does not make it a nightlife day.
+    id: "tag",
+    label: "Tag",
+    none: "any",
+    options: () => [
+      { value: "any", label: "Any tag" },
+      ...FILTER_TAGS.map((tag) => ({ value: tag, label: TAG_LABEL[tag] })),
+    ],
+    value: (state) => state.tag,
+    apply: (state, value) => ({ ...state, tag: value as TagFilter }),
   },
 ];
 

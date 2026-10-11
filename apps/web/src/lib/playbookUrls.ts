@@ -6,9 +6,10 @@
 // day. A link whose slug is missing or stale still opens: the page redirects
 // it to the current URL.
 
+import type { ActivityTag } from "@tc/contracts";
 import { countryFacts } from "@tc/pages";
 import { countryName } from "./place";
-import { DISCOVER_PAGE_SIZE } from "./playbooks";
+import { DISCOVER_PAGE_SIZE, DiscoverTag } from "./playbooks";
 
 const MAX_SLUG_LENGTH = 60;
 const UUID_AT_END = /(?:^|-)([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
@@ -64,7 +65,7 @@ export const MIN_INDEXED_PLACE_DAYS = 3;
 // The sitemap and the page's robots tag both ask this, about the same
 // `PlacePage.days`: two thresholds, or one threshold over two counts, would let
 // a place be listed in the sitemap and `noindex` on arrival.
-/** Whether a city or country page is indexed and listed in the sitemap. */
+/** Whether a city, country or tag page is indexed and listed in the sitemap (M42 D10 holds tags to it too). */
 export function placeIndexable(place: { days: number }): boolean {
   return place.days >= MIN_INDEXED_PLACE_DAYS;
 }
@@ -102,6 +103,22 @@ export function countrySlug(code: string): string | null {
   if (name === null || name === code) return null;
   const slug = slugify(name);
   return slug === "" ? null : slug;
+}
+
+// The tag's key, never its label: ADR-070 never renames a key and may relabel
+// one (`meal` reads Food), and a URL has no redirect behind it to survive that.
+/**
+ * A tag page's path, page one: `/playbooks/tag/<tag>`, or
+ * `/playbooks/city/<slug>/<tag>` for that tag in one city's page.
+ */
+export function tagPath(tag: DiscoverTag, citySlug: string | null = null): string {
+  return citySlug === null ? `/playbooks/tag/${tag}` : `/playbooks/city/${citySlug}/${tag}`;
+}
+
+/** Where a tag chip leads: its tag's page, or null for Lodging and Ticketed, which have none. */
+export function tagChipPath(tag: ActivityTag): string | null {
+  const parsed = DiscoverTag.safeParse(tag);
+  return parsed.success ? tagPath(parsed.data) : null;
 }
 
 /** A place page's URL for page `page`; page one is the bare path, so it is self-canonical. */

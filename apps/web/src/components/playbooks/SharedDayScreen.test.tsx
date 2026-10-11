@@ -1522,18 +1522,20 @@ describe("a day's cover", () => {
 });
 
 // M42 D9: what kind of day it is, and the tags that say so, as the server
-// worked them out (`describeByTags`). Plain chips until the tag pages exist.
+// worked them out (`describeByTags`). Each chip links to its tag's page (part 5).
 describe("what kind of day it is", () => {
   const described = { savedDay: savedDay(), isAuthor: false, description: "Sightseeing", tags: ["sight", "meal"] };
   const chips = () => within(screen.getByTestId(`tag-chips-${DAY_ID}`)).getAllByTestId(/^tag-chip-/).map((c) => c.textContent);
 
-  it("describes the day under its title and shows its tags, most used first", async () => {
+  it("describes the day under its title and shows its tags, most used first, each a link to its page", async () => {
     fetchSavedDayMock.mockResolvedValue(ok(described));
     renderDay();
     expect(
       await screen.findByRole("heading", { level: 1, name: "Kyoto temples on foot", description: "Sightseeing" }),
     ).toBeTruthy();
     expect(chips()).toEqual(["Sight", "Food"]);
+    const links = within(screen.getByTestId(`tag-chips-${DAY_ID}`)).getAllByRole("link");
+    expect(links.map((link) => link.getAttribute("href"))).toEqual(["/playbooks/tag/sight", "/playbooks/tag/meal"]);
   });
 
   it("describes it the same way on a day with a cover", async () => {

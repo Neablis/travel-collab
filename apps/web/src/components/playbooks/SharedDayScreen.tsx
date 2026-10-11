@@ -42,7 +42,7 @@ import {
 import type { SharedDayView } from "@/lib/sharedDayView";
 import { takePlaybookAdd } from "@/lib/pendingPlaybookAdd";
 import { cn } from "@/lib/cn";
-import { cityPath, dayPath, daySegment } from "@/lib/playbookUrls";
+import { cityPath, dayPath, daySegment, tagChipPath } from "@/lib/playbookUrls";
 import { dayLength, savedDayFacts, DAY_LENGTH_LABELS } from "@/lib/savedDayFacts";
 import { toClockLabel, toClockRange } from "@/lib/time";
 import { useTimeFormat } from "@/components/account/PreferencesProvider";
@@ -556,8 +556,8 @@ export function SharedDayScreen({
                 </>
               )}
               {/* What kind of day it is, and the tags that say so (M42 D9), under
-                  the title block with or without a cover. Plain chips: part 5
-                  makes each one a way to its tag's page. */}
+                  the title block with or without a cover. Each chip is the
+                  way to its tag's page (M42 D10). */}
               {(description !== null || tags.length > 0) && (
                 <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
                   {description !== null && (
@@ -565,7 +565,7 @@ export function SharedDayScreen({
                       {description}
                     </Text>
                   )}
-                  <StopTagChips activityId={day.savedDayId} tags={tags} focusedTag={null} />
+                  <StopTagChips activityId={day.savedDayId} tags={tags} focusedTag={null} hrefOf={tagChipPath} />
                 </div>
               )}
               {/* The author's own paragraph (`saved_days.summary`). It is also

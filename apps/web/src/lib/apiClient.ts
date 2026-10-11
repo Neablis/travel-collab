@@ -66,6 +66,7 @@ import {
   type DiscoverScope,
   type DiscoverSort,
   type RatingFloor,
+  type TagFilter,
 } from "@/lib/playbooks";
 import {
   AdminReportActionResponse,
@@ -1280,6 +1281,10 @@ export async function searchPlaybooks(query: {
   length?: LengthBand;
   /** The rating floor (M12 link 5). `"any"` is sent as nothing, like every other filter's default. */
   rating?: RatingFloor;
+  /** One tag the days' descriptions name (M42 D10); `"any"` is sent as nothing. */
+  tag?: TagFilter;
+  /** The last card of the page before, for the page after it; null or absent for page one. */
+  after?: string | null;
 }): Promise<ApiResult<DiscoverResponse>> {
   const params = new URLSearchParams();
   for (const city of query.cities ?? []) params.append("city", city);
@@ -1289,6 +1294,8 @@ export async function searchPlaybooks(query: {
   if (query.budget) params.set("budget", query.budget);
   if (query.length) params.set("length", query.length);
   if (query.rating && query.rating !== "any") params.set("rating", query.rating);
+  if (query.tag && query.tag !== "any") params.set("tag", query.tag);
+  if (query.after) params.set("after", query.after);
   try {
     const res = await fetch(apiUrl(`/api/playbooks?${params.toString()}`));
     return await readJson(res, (data) => DiscoverResponse.parse(data));

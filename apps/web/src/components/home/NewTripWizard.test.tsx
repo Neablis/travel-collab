@@ -99,6 +99,7 @@ function discover(days: DiscoverDay[]): ApiResult<DiscoverResponse> {
       matchCount: days.length,
       matchCountExact: true,
       sharedPlaybookCount: days.length,
+      nextCursor: null,
     },
   };
 }

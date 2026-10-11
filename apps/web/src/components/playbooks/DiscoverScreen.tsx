@@ -14,14 +14,7 @@ import { cn } from "@/lib/cn";
 import { PHONE_TOUCH } from "@/components/ui/button";
 import { useSessionUser } from "@/components/account/useSessionUser";
 import { searchPlaybooks } from "@/lib/apiClient";
-import type {
-  BudgetBand,
-  DiscoverResponse,
-  DiscoverScope,
-  DiscoverSort,
-  LengthBand,
-  RatingFloor,
-} from "@/lib/playbooks";
+import type { BudgetBand, DiscoverResponse, DiscoverScope, DiscoverSort } from "@/lib/playbooks";
 import {
   FILTER_DEFS,
   activeFilterCount,
@@ -69,21 +62,13 @@ const SORTS: readonly { value: DiscoverSort; label: string }[] = [
 /** How many skeleton cards stand in while the first read is in flight. */
 const SKELETON_COUNT = 6;
 
-type Filters = {
-  cities: string[];
-  /** ISO alpha-2 codes (M12 link 7) — OR'd with `cities` on the server. */
-  countries: string[];
-  scope: DiscoverScope;
-  sort: DiscoverSort;
-  rating: RatingFloor;
-  budget: BudgetBand;
-  length: LengthBand;
-};
+/** The URL's state, and the budget band, which is not in it (`discoverUrl.ts`). */
+type Filters = DiscoverUrlState & { budget: BudgetBand };
 
 const NO_FILTERS: Filters = { ...DISCOVER_URL_DEFAULTS, budget: "any" };
 
 /** The question half of the state — what `discoverFilters` counts and clears. */
-const questionsOf = (f: Filters): FilterState => ({ rating: f.rating, budget: f.budget, length: f.length });
+const questionsOf = (f: Filters): FilterState => ({ rating: f.rating, budget: f.budget, length: f.length, tag: f.tag });
 
 /**
  * §35.5's chip: 32px, a full pill, 13px/600, and a trailing caret. Idle is a
@@ -179,8 +164,18 @@ export function DiscoverScreen({
   /** The server's answer to the URL's own search. Rendered without a first fetch. */
   initialData?: DiscoverResponse;
 }) {
-  const [filters, setFilters] = useState<Filters>({ ...NO_FILTERS, ...initial });
-  const { cities, countries, sort, rating, budget, length } = filters;
+  const [filters, setState] = useState<Filters>({ ...NO_FILTERS, ...initial });
+  // Every change is a new search, and a cursor belongs to the search it was
+  // read under: page two of Kyoto is no place to start Kyoto at four stars.
+  const setFilters = useCallback(
+    (update: (prev: Filters) => Filters) =>
+      setState((prev) => {
+        const next = update(prev);
+        return next === prev ? prev : { ...next, after: null };
+      }),
+    [],
+  );
+  const { cities, countries, sort, rating, budget, length, tag, after } = filters;
   // **A reader with no account reads Everyone, whatever the URL says**
   // (ADR-061). *Yours* and *Saved* mean nothing without an account, so their
   // tabs are not drawn — and a pasted `?scope=saved` must not tell a stranger
@@ -196,9 +191,11 @@ export function DiscoverScreen({
   const [phoneFiltersOpen, setPhoneFiltersOpen] = useState(false);
 
   const read = useCallback(
-    () => searchPlaybooks({ cities, countries, scope, sort, budget, length, rating }),
-    [cities, countries, scope, sort, budget, length, rating],
+    () => searchPlaybooks({ cities, countries, scope, sort, budget, length, rating, tag, after }),
+    [cities, countries, scope, sort, budget, length, rating, tag, after],
   );
+  // The search as a query string, for the pager's links: the search, then where in it.
+  const search = { cities, countries, scope, sort, length, rating, tag };
 
   // **State → URL, one direction.** `history.replaceState` rather than
   // `router.replace`: Next syncs the native history API into its router
@@ -214,10 +211,10 @@ export function DiscoverScreen({
       seeded.current = false;
       return;
     }
-    const query = discoverQueryString({ cities, countries, scope, sort, length, rating });
+    const query = discoverQueryString({ cities, countries, scope, sort, length, rating, tag, after });
     const url = `${window.location.pathname}${query === "" ? "" : `?${query}`}`;
     window.history.replaceState(window.history.state, "", url);
-  }, [cities, countries, scope, sort, length, rating]);
+  }, [cities, countries, scope, sort, length, rating, tag, after]);
   // The conflict signal is the DAY LIST plus each day's adds — the two things a
   // reader is looking at that somebody else can move. Deliberately not the
   // whole payload: sibling chip counts shift constantly and a banner that fired
@@ -230,6 +227,10 @@ export function DiscoverScreen({
 
   const set = <K extends keyof Filters>(key: K, value: Filters[K]) =>
     setFilters((prev) => ({ ...prev, [key]: value }));
+  const pageLink = (from: string | null) => {
+    const query = discoverQueryString({ ...search, after: from });
+    return `/playbooks${query === "" ? "" : `?${query}`}`;
+  };
 
   // Each filter's own options, resolved once against the current context. A
   // `null` means the filter cannot honestly be offered — Budget with no shared
@@ -271,9 +272,9 @@ export function DiscoverScreen({
       if (FILTER_DEFS.every((def) => def.value(cleared) === def.value(prev))) return prev;
       return { ...prev, ...cleared };
     });
-  }, [filterOptions]);
+  }, [filterOptions, setFilters]);
 
-  const questions: FilterState = { rating, budget, length };
+  const questions: FilterState = { rating, budget, length, tag };
   const activeCount = activeFilterCount(questions);
 
   const setQuestion = (def: FilterDef, value: string) =>
@@ -701,12 +702,6 @@ export function DiscoverScreen({
         </div>
       </div>
 
-      {feed.data?.truncated === true && (
-        <Text variant="muted" className="text-xs">
-          Showing the best matches. Narrow the places to see the rest.
-        </Text>
-      )}
-
       {/* Skeleton grid while fetching — and only on the FIRST fetch. A later
           read (a filter change, a Retry) leaves the previous results in place
           rather than flashing the page empty, which is what makes changing a
@@ -741,7 +736,7 @@ export function DiscoverScreen({
             // the search card.
             <Button
               variant="primary"
-              onClick={() => setFilters({ ...NO_FILTERS, scope, sort })}
+              onClick={() => setFilters(() => ({ ...NO_FILTERS, scope, sort }))}
               data-testid="discover-search-everywhere"
             >
               Search everywhere
@@ -754,6 +749,28 @@ export function DiscoverScreen({
             <DiscoverCard key={day.savedDayId} day={day} origin={{ from: "playbooks" }} />
           ))}
         </ul>
+      )}
+
+      {/* The pager (M42 part 5), real links so a crawler follows them. Keyset
+          pages go forward from a card, so the way back is to the first page;
+          the browser's Back steps one page at a time. */}
+      {(after !== null || (feed.data?.nextCursor ?? null) !== null) && (
+        <nav aria-label="Pages" className="flex items-center gap-4 text-sm">
+          {after !== null && (
+            <Link href={pageLink(null)} className={cn("inline-flex items-center underline", PHONE_TOUCH)}>
+              First page
+            </Link>
+          )}
+          {feed.data?.nextCursor != null && (
+            <Link
+              href={pageLink(feed.data.nextCursor)}
+              rel="next"
+              className={cn("inline-flex items-center underline", PHONE_TOUCH)}
+            >
+              Next page
+            </Link>
+          )}
+        </nav>
       )}
 
       {/* The leaderboard's ONLY entrance. Not in the top bar: it is

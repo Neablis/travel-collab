@@ -101,8 +101,8 @@ export function discoverFor(input: live.DiscoverInput, readerId: string | null):
   if (readerId !== null) return live.discoverFor(input, readerId);
   // Spelled field by field so one search is one key, whatever order the
   // caller built it in. Scope is Everyone for anyone signed out.
-  const { cities, countries = [], sort, budget, length, rating = "any" } = input;
-  const search = { cities, countries, sort, budget, length, rating, scope: "everyone" as const };
+  const { cities, countries = [], sort, budget, length, rating = "any", tag = "any", after = null } = input;
+  const search = { cities, countries, sort, budget, length, rating, tag, after, scope: "everyone" as const };
   return libraryCached(["discover", JSON.stringify(search)], [LIBRARY_TAG], () => live.discoverFor(search, null));
 }
 
@@ -114,6 +114,16 @@ export function publishedPlaces(): Promise<live.PlacePage[]> {
 /** The page for one slug, or null when no published day touches it — which the route answers with a 404. */
 export async function placeFor(kind: live.PlacePage["kind"], slug: string): Promise<live.PlacePage | null> {
   return (await publishedPlaces()).find((place) => place.kind === kind && place.slug === slug) ?? null;
+}
+
+/** Every tag page with a day on it: `playbooks.ts`'s `publishedTagPages`, cached. */
+export function publishedTagPages(): Promise<live.TagPage[]> {
+  return libraryCached(["tags"], [LIBRARY_TAG], live.publishedTagPages);
+}
+
+/** The page for a tag, in one city's page or the whole library, or null when no published day is named by it there. */
+export async function tagPageFor(tag: live.TagPage["tag"], citySlug: string | null): Promise<live.TagPage | null> {
+  return (await publishedTagPages()).find((page) => page.tag === tag && (page.city?.slug ?? null) === citySlug) ?? null;
 }
 
 /** One page of a place's or an author's published days: `playbooks.ts`'s `publishedDaysPage`, cached. */
