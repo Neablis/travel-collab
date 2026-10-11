@@ -63,7 +63,7 @@ function llmsTxt(origin: string): string {
     "## Optional",
     "",
     `- [Caesura](${at("/")}): the landing page`,
-    `- [An example trip](${at("/demo")}): a real trip board, read-only, no account needed`,
+    `- [Example trips](${at("/demo")}): real trip boards, read-only, no account needed`,
     "",
   ].join("\n");
 }

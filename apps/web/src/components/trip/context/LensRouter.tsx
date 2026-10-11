@@ -1,6 +1,7 @@
 "use client";
 import { createContext, useContext, useMemo } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { isDemoBoardPath } from "@/lib/demoTrip";
 
 // SPEC §24: the trip has **four peer views — Overview · Plan · Calendar · Map**
 // — and the change is not cosmetic. Each one answers one question, and the
@@ -56,12 +57,13 @@ export function dayScopeFor(view: View): boolean {
  *   lens=Map                    -> Map
  *   view=Timeline               -> Plan
  *   view=Calendar               -> Calendar
- *   anything else, or nothing   -> Overview
+ *   page=… with no view         -> Overview (a notebook link card is Overview's)
+ *   anything else, or nothing   -> `landing`, which `landingView` answers
  *
  * **The default moved from Board to Overview** and that is §24's: *"Entering a
  * trip lands on Overview. You read a trip before you change it."*
  */
-export function resolveView(params: { get: (k: string) => string | null }): View {
+export function resolveView(params: { get: (k: string) => string | null }, landing: View = "Overview"): View {
   const raw = params.get("view");
   if ((VIEWS as readonly string[]).includes(raw ?? "")) return raw as View;
 
@@ -71,7 +73,17 @@ export function resolveView(params: { get: (k: string) => string | null }): View
   if (lens === "Schedule") return raw === "Calendar" ? "Calendar" : "Plan";
   if (raw === "Calendar") return "Calendar";
   if (raw === "Timeline") return "Plan";
-  return "Overview";
+  return params.get("page") !== null ? "Overview" : landing;
+}
+
+/**
+ * The view a trip opens on when its URL names none. Overview (§24), except on
+ * a demo: a visitor is there to see the planning, and Plan is the surface that
+ * shows it (Mitchell, 2026-10-11). Read off the path so the board and the
+ * phone tab bar cannot disagree about which view is open.
+ */
+export function landingView(pathname: string): View {
+  return isDemoBoardPath(pathname) ? "Plan" : "Overview";
 }
 
 type LensCtx = {
@@ -93,7 +105,7 @@ export function LensRouter({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   const value = useMemo<LensCtx>(() => {
-    const view = resolveView(params);
+    const view = resolveView(params, landingView(pathname));
     // `scroll: false` is load-bearing for the day-sync contract's clause 3
     // ("changing the tab jumps to the selected day" — see `FocusProvider`'s
     // header), not just a nicety: Next's default scrolls the window to the top

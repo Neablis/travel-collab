@@ -87,7 +87,7 @@ test.describe("the Japan demo's Overview", () => {
   test.use({ storageState: { cookies: [], origins: [] } });
 
   test("reads as an itinerary: a covering note, dates and route, then each day as a timed schedule", async ({ page }) => {
-    await page.goto("/demo");
+    await page.goto("/demo/japan?view=Overview");
     await expect(page.getByRole("tab", { name: "Overview" })).toHaveAttribute("aria-selected", "true");
 
     await expect(page.getByText(/^Here is your itinerary, day by day/)).toBeVisible();
@@ -121,12 +121,12 @@ test.describe("the Japan demo's Overview", () => {
   // access is `/demo`'s and who has no notebook route to be sent to; they now
   // open the notebook in the Overview tab, on the demo's own path.
   test("an 'Also in this trip' card opens its notebook, still inside the read-only demo", async ({ page }) => {
-    await page.goto("/demo");
+    await page.goto("/demo/japan?view=Overview");
     const money = page.getByTestId("link-card").filter({ hasText: "Money" });
-    await expect(money).toHaveAttribute("href", /^\/demo\?/);
+    await expect(money).toHaveAttribute("href", /^\/demo\/japan\?/);
     await money.click();
 
-    await expect(page).toHaveURL(/\/demo\?view=Overview&page=[0-9a-f-]+$/);
+    await expect(page).toHaveURL(/\/demo\/japan\?view=Overview&page=[0-9a-f-]+$/);
     await expect(page.getByRole("heading", { name: "Spend by day" })).toBeVisible();
     // "Who owes what" (M19 part 2) names each traveller from the trip's access
     // read. Without it a member reads "Traveler 1", so a row led by each of the
@@ -149,12 +149,12 @@ test.describe("the Japan demo's Overview", () => {
     await page.keyboard.press("Tab");
     await expect(page.getByTestId("link-card").filter({ hasText: "Bookings" })).toBeFocused();
     await page.keyboard.press("Enter");
-    await expect(page).toHaveURL(/\/demo\?view=Overview&page=[0-9a-f-]+$/);
+    await expect(page).toHaveURL(/\/demo\/japan\?view=Overview&page=[0-9a-f-]+$/);
     await expect(page.getByRole("heading", { name: "Still to book" })).toBeVisible();
 
     // Picking the Overview tab leaves the followed notebook, too.
     await page.getByRole("tab", { name: "Overview" }).click();
-    await expect(page).toHaveURL(/\/demo\?view=Overview$/);
+    await expect(page).toHaveURL(/\/demo\/japan\?view=Overview$/);
     await expect(page.getByText(/^Here is your itinerary, day by day/)).toBeVisible();
   });
 });

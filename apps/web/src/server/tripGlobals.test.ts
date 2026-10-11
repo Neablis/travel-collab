@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { TripDetail } from "@tc/contracts";
 import { tripDetailFixture } from "@tc/factories";
 import { demoTripDetail } from "./demoTrip";
+import { DEMO_TRIP_ID } from "@/lib/demoTrip";
 import { buildTripGlobals } from "./tripGlobals";
 
 // A trip whose middle day travels: it ends in a second city, so it appears in
@@ -205,7 +206,7 @@ describe("buildTripGlobals and time zones", () => {
   // day is fully located (`verify.ts`'s unlocated-stop finding is empty), so
   // every day has a zone, and it is Japan's.
   it("puts every day of the Japan demo trip in Asia/Tokyo", () => {
-    const g = buildTripGlobals(demoTripDetail(), { homeAirport: "SFO" });
+    const g = buildTripGlobals(demoTripDetail(DEMO_TRIP_ID), { homeAirport: "SFO" });
     expect(g.days.length).toBeGreaterThan(0);
     expect(new Set(g.days.map((d) => d.timeZone))).toEqual(new Set(["Asia/Tokyo"]));
     expect(g.days.every((d) => d.place !== null)).toBe(true);
