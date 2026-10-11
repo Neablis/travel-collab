@@ -196,6 +196,9 @@ export function useDayReviews(
 /** What a refused post says. `message` carries the route's `error` string (`readJson`). */
 function refusal(error: ApiError): string {
   if (error.status === 400) return `That review was refused — a note can be at most ${REVIEW_NOTE_MAX} characters.`;
+  // `review-not-entitled` (M42): reached only when the plan read was unknown,
+  // since a known free account is shown the note instead of the form.
+  if (error.status === 402) return "Reviews are for Plus and Premium.";
   if (error.status === 403) return "This is your own day, so it is not yours to rate.";
   if (error.status === 404) return "This day is no longer in the library, so it cannot be rated.";
   return "Your review did not post. Try again.";

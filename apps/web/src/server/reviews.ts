@@ -30,6 +30,18 @@ import { publicNamesOf } from "./playbooks";
 // reviewer is called one thing on the rail and on their profile ("Dana R.";
 // Mitchell, 2026-10-02). One batched read per response, never one per review.
 
+/**
+ * The refusal for leaving a review without `playbook.review` (M42, ADR-071):
+ * **402**, the status and `{ error, code }` shape of `ai-not-entitled` and
+ * `collaborators-not-entitled`, because it is something the person can act on
+ * rather than something they may not do.
+ *
+ * The reason names the tiers as copy, never derived from the plan file — the
+ * same rule `COLLABORATORS_NOT_ENTITLED_REASON` gives.
+ */
+export const REVIEW_NOT_ENTITLED_CODE = "review-not-entitled";
+export const REVIEW_NOT_ENTITLED_REASON = "Reviews are for Plus and Premium.";
+
 type ReviewRow = typeof savedDayReviews.$inferSelect;
 
 function toReview(row: ReviewRow, readerId: string | null, nameOf: (userId: string) => string): Review {

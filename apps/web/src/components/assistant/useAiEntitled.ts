@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { Entitlement } from "@tc/contracts";
 import type { AccountPlanView } from "@/lib/accountPlan";
 import { cachedRead, DEDUPE } from "@/lib/queryCache";
 import type { ApiResult } from "@/lib/apiClient";
@@ -13,7 +14,7 @@ import type { ApiResult } from "@/lib/apiClient";
  * for exactly that comparison. A fourth plan that grants the assistant works
  * here with no edit, because this asks what the account HOLDS.
  */
-export const AI_ASK_ENTITLEMENT = "ai.ask";
+export const AI_ASK_ENTITLEMENT: Entitlement = "ai.ask";
 
 /** The cache key, spelled here and nowhere else — `queryKeys.ts`'s rule. */
 export const accountPlanKey = "account:plan";
@@ -81,9 +82,24 @@ async function readAccountPlan(): Promise<ApiResult<AccountPlanView>> {
  * stored result instead of asking again.
  */
 export function useAiEntitled(): boolean | null {
+  return useEntitled(AI_ASK_ENTITLEMENT);
+}
+
+/**
+ * The same question for any capability — `useAiEntitled`'s read, contract and
+ * `null`-is-entitled rule, not a second way to ask. M42 added the second
+ * caller: the shared day asks about `playbook.review` before offering the
+ * review form.
+ *
+ * `active: false` asks nothing and answers `null`, for a caller that knows
+ * there is no account to ask about (a reader with no session on a public day),
+ * so it does not spend a request on a 401.
+ */
+export function useEntitled(capability: Entitlement, active = true): boolean | null {
   const [entitled, setEntitled] = useState<boolean | null>(null);
 
   useEffect(() => {
+    if (!active) return;
     let live = true;
     void cachedRead(accountPlanKey, readAccountPlan, { dedupeMs: DEDUPE.NAVIGATION }).then(
       (result) => {
@@ -95,13 +111,13 @@ export function useAiEntitled(): boolean | null {
         // resolver's post-lapse answer, not the version it pins. A lapsed
         // subscriber holds `premium` and is conferred `free`, and it is the
         // second one that decides whether a question will be answered.
-        setEntitled(result.ok ? result.value.entitlements.includes(AI_ASK_ENTITLEMENT) : null);
+        setEntitled(result.ok ? result.value.entitlements.includes(capability) : null);
       },
     );
     return () => {
       live = false;
     };
-  }, []);
+  }, [capability, active]);
 
-  return entitled;
+  return active ? entitled : null;
 }

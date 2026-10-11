@@ -14,6 +14,7 @@ import { mapPanel } from "./sharedDayFacts";
 import { scopedGeometry } from "./sharedDayGeometry";
 import { useDistanceUnit } from "@/components/account/PreferencesProvider";
 import { useSessionUser } from "@/components/account/useSessionUser";
+import { useEntitled } from "@/components/assistant/useAiEntitled";
 import { Banner } from "@/components/ui/banner";
 import { Button, PHONE_TOUCH } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -223,6 +224,9 @@ export function SharedDayScreen({
   const feed = useLibraryRead(read, signature, initial);
   const user = useSessionUser();
   const signedOut = user === null;
+  // `null` (unknown, or the read failed) offers the form: the server's 402 is
+  // the gate, and this only spares a free account a form it cannot post.
+  const reviewEntitled = useEntitled("playbook.review", user != null);
 
   const [adding, setAdding] = useState(false);
   const [signingIn, setSigningIn] = useState(false);
@@ -749,7 +753,7 @@ export function SharedDayScreen({
             <ReviewsSection
               reviews={reviews}
               savedDayId={day.savedDayId}
-              canReview={!isAuthor && !signedOut}
+              offer={isAuthor || signedOut ? "none" : reviewEntitled === false ? "needs-plan" : "form"}
               canReport={!signedOut}
             />
           </div>

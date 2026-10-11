@@ -5,16 +5,19 @@ import { REVIEW_NOTE_MAX, SavedDayVisibility, type Review, type ReviewSummary, t
 import { scenarios } from "@tc/factories";
 import { db } from "@/server/db/client";
 import { savedDayReviews, savedDays, users } from "@/server/db/schema";
-import { recomputeReviewCounters } from "@/server/reviews";
+import { putReview, recomputeReviewCounters } from "@/server/reviews";
 import { deleteSavedDay, saveDay, setSavedDayVisibility } from "@/server/savedDays";
-import { entitleAccounts } from "@/server/test-support/entitledAccount";
+import { entitleAccounts, entitleByGrant } from "@/server/test-support/entitledAccount";
 
 // The reviews route (M12 links 1-3), walked as the people who use it: an author
 // who publishes, a reader who rates, and nobody signed in. The counters' own
 // agreement with the rows is `server/reviews.int.test.ts`; this file owns the
 // status codes and what a client is handed back.
 //
-// Actors minted per test (KI-69), so every count below is exact.
+// Actors minted per test (KI-69), so every count below is exact. Both hold
+// `plus@v1`, because leaving a review needs `playbook.review` (ADR-071) and the
+// gate answers before `own-day` or a private day's 404; the suite about that
+// gate mints its own free account.
 
 let AUTHOR = "";
 let READER = "";
@@ -26,10 +29,11 @@ vi.mock("@/server/auth", () => ({
 
 const { GET, PUT, DELETE } = await import("./route");
 
-beforeEach(() => {
+beforeEach(async () => {
   AUTHOR = `m12-author-${randomUUID().slice(0, 8)}`;
   READER = `m12-reader-${randomUUID().slice(0, 8)}`;
   currentUserId = null;
+  await entitleAccounts([AUTHOR, READER], "plus");
 });
 
 afterEach(() => {
@@ -204,9 +208,10 @@ describe("what a review calls people", () => {
     currentUserId = READER;
     const res = await put(id, { stars: 5 });
     expect(((await res.json()) as Saved).review.reviewerDisplayName).toBe("Dee R.");
-    // No `users` row at all: the handle, as before.
-    currentUserId = OTHER();
-    expect((await put(id, { stars: 3 })).status).toBe(200);
+    // No `users` row at all: the handle, as before. Written below the route,
+    // because an account with no row is `free` and the route refuses it now; a
+    // review like this is one such an account left before the gate.
+    expect((await putReview(id, OTHER(), { stars: 3, note: null })).kind).toBe("saved");
 
     currentUserId = READER;
     const body = await read(id);
@@ -264,8 +269,7 @@ describe("GET and DELETE /api/saved-days/:id/reviews", () => {
   it("404s a DELETE of a hidden review, and a PUT after it leaves the review hidden", async () => {
     const id = await authorsDay();
     const other = `m12-other-${randomUUID().slice(0, 8)}`;
-    currentUserId = other;
-    await put(id, { stars: 5 });
+    expect((await putReview(id, other, { stars: 5, note: null })).kind).toBe("saved");
     currentUserId = READER;
     await put(id, { stars: 1 });
 
@@ -290,5 +294,67 @@ describe("GET and DELETE /api/saved-days/:id/reviews", () => {
     const [row] = await db.select().from(savedDayReviews).where(mine);
     expect(row?.hiddenAt).toBeInstanceOf(Date);
     expect(await counters()).toEqual({ rating: 5, reviewCount: 1 });
+  });
+});
+
+// Mitchell, 2026-10-11 (M42 D3, ADR-071): leaving a review needs Plus or
+// Premium, "the cost keeps spammers out". Reading stays open, a free account's
+// existing review stays, and no paying account loses anything.
+describe("leaving a review needs playbook.review (ADR-071)", () => {
+  async function freeAccount(): Promise<string> {
+    const id = `m42-free-${randomUUID().slice(0, 8)}`;
+    await entitleAccounts([id], "free");
+    return id;
+  }
+
+  it("402s a free account, and writes nothing", async () => {
+    const id = await authorsDay();
+    currentUserId = await freeAccount();
+
+    const res = await put(id, { stars: 4 });
+    expect(res.status).toBe(402);
+    expect(((await res.json()) as { code: string }).code).toBe("review-not-entitled");
+    expect((await read(id)).summary.count).toBe(0);
+  });
+
+  // The no-loss guarantee: plus@v1 was sold before the entitlement existed,
+  // and gains it in place rather than stranding every holder and every trial.
+  it("lets a plus@v1 holder review", async () => {
+    const id = await authorsDay();
+    currentUserId = READER;
+    expect((await put(id, { stars: 5 })).status).toBe(200);
+  });
+
+  it("lets an operator-granted Plus account review", async () => {
+    const id = await authorsDay();
+    const granted = `m42-granted-${randomUUID().slice(0, 8)}`;
+    await entitleByGrant(granted, "plus");
+    currentUserId = granted;
+    expect((await put(id, { stars: 5 })).status).toBe(200);
+  });
+
+  it("lets a premium@v1 and a premium@v2 holder review", async () => {
+    const id = await authorsDay();
+    for (const version of [1, 2]) {
+      const holder = `m42-premium-${randomUUID().slice(0, 8)}`;
+      await entitleAccounts([holder], "premium");
+      await db.update(users).set({ planVersion: version }).where(eq(users.id, holder));
+      currentUserId = holder;
+      expect((await put(id, { stars: 4 })).status, `premium@v${version}`).toBe(200);
+    }
+  });
+
+  it("still shows a free account's review, and lets it withdraw it", async () => {
+    const id = await authorsDay();
+    const free = await freeAccount();
+    // Left before the gate shipped, which is the only way a free account has one.
+    expect((await putReview(id, free, { stars: 3, note: "Before the gate." })).kind).toBe("saved");
+
+    expect((await read(id)).reviews.map((r) => r.reviewerId)).toEqual([free]);
+
+    currentUserId = free;
+    const res = await DELETE(new Request("http://test/x", { method: "DELETE" }), ctx(id));
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { summary: ReviewSummary }).summary.count).toBe(0);
   });
 });

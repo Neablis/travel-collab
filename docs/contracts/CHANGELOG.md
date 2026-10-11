@@ -13,6 +13,29 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-11 — `Entitlement` gains `playbook.review`: leaving a review needs Plus or Premium (M42 part 8, ADR-071)
+
+- **Added** `"playbook.review"` to `Entitlement` (`packages/contracts/src/entitlement.ts`), the
+  fifth capability. It gates `PUT /api/saved-days/:id/reviews`, which now answers
+  **402** `{ error, code: "review-not-entitled" }` to an account without it, the shape of
+  `ai-not-entitled` and `collaborators-not-entitled`. Reading reviews and withdrawing your own stay
+  open.
+- Why: Mitchell, 2026-10-11 (M42 D3): reviews on Plus and Premium only, *"the cost keeps spammers
+  out"*. Reviewing was free to every account before, so under ADR-071 the published versions that
+  sell it gained it **in place**: `plus@v1`, `premium@v1`, `premium@v2` and the disabled
+  `studio@v1`. `free@v1` did not. No holder or trial lost reviewing, and no new version, Stripe
+  Price or data write was needed. `planVersions.noExtension.test.ts` lists each addition with
+  ADR-071 and fails on any change to a published version it does not list.
+- Consumers updated: `apps/web`: `server/entitlements/planVersions.ts` and its tests; the reviews
+  route and `server/reviews.ts`; `lib/planCopy.ts` (`ENTITLEMENT_LABEL`, a `Record` over the enum);
+  `/plans`' comparison gains a *Review playbooks* row; the shared day asks `useEntitled` (the
+  assistant's plan read, generalised) and shows a free account *"Reviews are for Plus and
+  Premium"* with a link to `/plans` where the form was. `packages/contracts/test/entitlement.test.ts`.
+  Not on the public API: entitlements are not in `openapi.json` and the reviews route is `planned`
+  in `exposure.ts`, so no `API_VERSION` or `API_FINGERPRINT` change.
+- Breaking? yes, for a free account's review write only: it was 200 and is now 402. No migration;
+  reviews already written by free accounts stay and still show.
+
 ## 2026-10-10 — `ActivityMoved.fromDayId` and `TripDetail.parkedFrom`: a parked stop knows which day it left (M41 D6)
 
 - **Added** `fromDayId: uuid | null`, optional, to `ActivityMovedV1`'s payload

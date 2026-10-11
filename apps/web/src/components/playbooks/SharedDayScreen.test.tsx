@@ -639,6 +639,53 @@ describe("a shared day", () => {
     expect(screen.queryByRole("button", { name: "Report this day" })).toBeNull();
   });
 
+  // M42 (ADR-071): leaving a review needs `playbook.review`. A signed-in
+  // account without it is told where the form would be, rather than offered
+  // one the server answers with 402.
+  describe("leaving a review needs Plus or Premium", () => {
+    function servePlan(entitlements: string[]) {
+      const fetchMock = vi.fn(async (url: string) =>
+        String(url).endsWith("/api/account/plan")
+          ? new Response(JSON.stringify({ plan: { entitlements } }), { status: 200 })
+          : new Response("{}", { status: 404 }),
+      );
+      vi.stubGlobal("fetch", fetchMock);
+      return fetchMock;
+    }
+
+    it("tells a signed-in free account the reviews are for Plus and Premium, with the way to the plans", async () => {
+      session = { id: "dev-bob" };
+      servePlan([]);
+      renderDay();
+      const note = await screen.findByTestId("review-needs-plan");
+      expect(note.textContent).toContain("Reviews are for Plus and Premium");
+      expect(within(note).getByRole("link", { name: "See plans" }).getAttribute("href")).toBe("/plans");
+      expect(screen.queryByTestId("review-form")).toBeNull();
+      expect(screen.queryByRole("button", { name: "1 star" })).toBeNull();
+    });
+
+    it("offers the form to an account that holds playbook.review", async () => {
+      session = { id: "dev-bob" };
+      servePlan(["ai.ask", "playbook.review"]);
+      renderDay();
+      expect(await screen.findByTestId("review-form")).toBeTruthy();
+      // The plan was read, so the form is the answer and not the unknown state.
+      await waitFor(() => expect(screen.queryByTestId("review-needs-plan")).toBeNull());
+    });
+
+    // A reader with no account keeps the header's Sign in as the offer, and
+    // costs no plan read: there is no account to ask about.
+    it("asks nothing and says nothing about plans to a reader with no account", async () => {
+      session = null;
+      const fetchMock = servePlan([]);
+      renderDay();
+      expect(await screen.findByTestId("reviews-empty")).toBeTruthy();
+      expect(screen.queryByTestId("review-needs-plan")).toBeNull();
+      expect(screen.queryByTestId("review-form")).toBeNull();
+      expect(fetchMock.mock.calls.map(([url]) => String(url))).not.toContain("/api/account/plan");
+    });
+  });
+
   it("reports the day itself, by id, with the reason picked", async () => {
     createReportMock.mockResolvedValue(ok({}));
     renderDay();

@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Banner } from "@/components/ui/banner";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { DataText } from "@/components/ui/data-text";
 import { Heading } from "@/components/ui/heading";
 import { Input } from "@/components/ui/input";
@@ -28,25 +29,33 @@ type Row = {
 };
 
 /**
+ * What sits where the review form goes: the form, a note that reviewing needs
+ * a plan, or nothing.
+ */
+export type ReviewOffer = "form" | "needs-plan" | "none";
+
+/**
  * "What people said" (§15, `dc.html:2804`): the form that rates the day, the
  * reader's own review once it exists, and everybody's — newest first.
  *
- * `canReview` is false for the day's author. The server refuses them (403
+ * `offer` is `"none"` for the day's author. The server refuses them (403
  * `own-day`, "the author is not their own audience"), so offering a form that
  * can only fail would be a control that does nothing; they still see the list.
- * It is false for a reader with no account too (ADR-061), and so is
- * `canReport`: both writes answer 401 without a session, and the header's
- * *Sign in* is the honest offer rather than a form that cannot post.
+ * It is `"none"` for a reader with no account too (ADR-061), and `canReport` is
+ * false: both writes answer 401 without a session, and the header's *Sign in*
+ * is the honest offer rather than a form that cannot post. It is
+ * `"needs-plan"` for an account without `playbook.review` (M42, ADR-071), which
+ * the server refuses with 402: the note says so and where the plans are.
  */
 export function ReviewsSection({
   reviews,
   savedDayId,
-  canReview,
+  offer,
   canReport,
 }: {
   reviews: DayReviews;
   savedDayId: string;
-  canReview: boolean;
+  offer: ReviewOffer;
   canReport: boolean;
 }) {
   const { data, held, online, busy, error } = reviews;
@@ -99,7 +108,23 @@ export function ReviewsSection({
         )}
       </div>
 
-      {canReview && (
+      {offer === "needs-plan" && (
+        // No price, the collaborators gate's rule: §29 puts prices on `plans`.
+        <div
+          role="note"
+          className="flex flex-wrap items-center gap-2.5 rounded-lg border border-hairline bg-surface p-3.5"
+          data-testid="review-needs-plan"
+        >
+          <Text as="span" className="text-sm">
+            Reviews are for Plus and Premium.
+          </Text>
+          <Link href="/plans" className={buttonVariants({ variant: "secondary", size: "sm" })}>
+            See plans
+          </Link>
+        </div>
+      )}
+
+      {offer === "form" && (
         <div className="flex flex-col gap-2.5 rounded-lg border border-hairline bg-surface p-3.5" data-testid="review-form">
           {showDone ? (
             <div className="flex flex-wrap items-center gap-2.5">

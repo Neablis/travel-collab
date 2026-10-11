@@ -207,7 +207,7 @@ describe("the console answers from real data", () => {
     const rows = await adminAccounts(200);
     const row = rows.find((account) => account.userId === id)!;
     expect(row.planVersionRef).toBe("premium@v1");
-    expect([...row.entitlements].sort()).toEqual(["ai.ask", "ai.command", "trip.collaborators"]);
+    expect([...row.entitlements].sort()).toEqual(["ai.ask", "ai.command", "playbook.review", "trip.collaborators"]);
     expect(await accountCan(id, "trip.collaborators")).toBe(true);
   });
 });

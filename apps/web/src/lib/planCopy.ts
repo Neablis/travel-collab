@@ -143,4 +143,5 @@ export const ENTITLEMENT_LABEL: Record<Entitlement, string> = {
   "ai.command": "Let the assistant make changes for you",
   "trip.collaborators": "Invite friends to plan your trips with you, with votes and comments",
   "api.tokens": "API tokens for your own tools",
+  "playbook.review": "Review playbooks with stars and a note",
 };

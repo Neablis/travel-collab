@@ -25,10 +25,16 @@ import { z } from "zod";
 /**
  * What an account may do. A capability, never a tier.
  *
- * Four members, and the vocabulary is deliberately small: every string here is
- * checked by real code, and a fifth would need a reader before it earned a
+ * Five members, and the vocabulary is deliberately small: every string here is
+ * checked by real code, and a sixth would need a reader before it earned a
  * place. Adding one is a contracts change with a changelog entry, which is the
  * protocol invariant 5 requires.
+ *
+ * **`playbook.review` is M42's**: leaving a review of a published day
+ * (Mitchell, 2026-10-11: *"the cost keeps spammers out"*). Reading reviews and
+ * withdrawing your own are not gated. It was free to every account before it
+ * was a capability, which is the one case ADR-071 lets a published plan
+ * version gain in place, so no paying holder lost it when the gate shipped.
  *
  * **`api.tokens` is M22's, and it gates two different acts.** Mitchell,
  * 2026-09-16: *"lets lock creating and using API keys behind top tier for
@@ -59,7 +65,13 @@ import { z } from "zod";
  * 2026-09-01). There is no `trip.plan` string because nothing may ever gate on
  * one — a capability that exists is a capability someone will eventually check.
  */
-export const Entitlement = z.enum(["ai.ask", "ai.command", "trip.collaborators", "api.tokens"]);
+export const Entitlement = z.enum([
+  "ai.ask",
+  "ai.command",
+  "trip.collaborators",
+  "api.tokens",
+  "playbook.review",
+]);
 export type Entitlement = z.infer<typeof Entitlement>;
 
 /** Every entitlement, for exhaustiveness at a call site that must handle all of them. */
