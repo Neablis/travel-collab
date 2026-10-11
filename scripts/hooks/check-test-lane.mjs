@@ -1,8 +1,20 @@
-// PreToolUse hook (matcher: Bash). Refuses the two test commands this repo has
-// measured to lie about what they ran.
+// PreToolUse hook (matcher: Bash). Refuses the test commands this repo has
+// measured to lie about what they ran, and the full local suites that
+// build-a-part's recipe leaves to CI.
 //
 //   pnpm ... test:e2e            (not :ci-like)  -> deny, unless E2E_DEV_LANE=1
 //   pnpm ... test -- --run <f>                   -> deny, always
+//   pnpm check / pnpm test:unit                  -> deny  (full suite)
+//   pnpm [--filter p] test, no test path         -> deny  (full suite)
+//   vitest run, no test path                     -> deny  (full suite)
+//   vitest run in apps/web without -c/--config   -> deny  (default config is
+//                                                   the integration suite)
+//   test:e2e[:ci-like] with no spec, or `-- spec` -> deny  (full e2e suite)
+//
+// The full-suite denials step aside for `ALLOW_FULL_SUITE=1` at the start of
+// the command, which is for when Mitchell asks for a full run. `test:int` is
+// left alone: minimal-check-subset sends a schema or projection change there
+// on purpose, because cross-file state is the point of that lane.
 //
 // WHY
 //
@@ -50,12 +62,77 @@ if (!command) process.exit(0);
 // `grep -rn "test -- --run" docs/` names the form without running it. Splitting
 // on separators is imperfect inside quotes; a missed deny costs one slow run, a
 // spurious one costs the guard its credibility.
-const SEGMENTS = (cmd) => cmd.split(/[\n;|&]+/);
-const PM_CALL = /^\s*((?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*)(?:pnpm|npm|yarn)\b(.*)$/;
+//
+// A commit body is text, not commands: a heredoc or a multi-line quoted string
+// whose line reads "pnpm test passes" would otherwise be split out as a call.
+const prose = (cmd) =>
+  cmd
+    .replace(/<<-?\s*(['"]?)(\w+)\1[^\n]*\n[\s\S]*?\n\s*\2\s*(?=\n|$)/g, "")
+    .replace(/"(?:[^"\\]|\\.)*"|'[^']*'/g, (q) => (q.includes("\n") ? "''" : q));
+const SEGMENTS = (cmd) => prose(cmd).split(/[\n;|&]+/);
+const ENV_PREFIX = /^\s*((?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*)(.*)$/;
+const RUNNERS = new Set(["pnpm", "npm", "yarn", "npx", "node", "vitest"]);
 
 const DEV_LANE = /\btest:e2e(?!:ci-like\b)(?![\w:-])/;
 const PASSTHROUGH = /\btest\s+--\s+--run\b/;
 const OVERRIDE = /(?:^|\s)E2E_DEV_LANE=1(?:\s|$)/;
+const FULL_OK = /(?:^|\s)ALLOW_FULL_SUITE=1(?:\s|$)/;
+
+// Flags whose next token is a value, never a test path.
+const VALUE_FLAGS = new Set([
+  "--filter", "-F", "-C", "--dir", "--workspace", "--prefix",
+  "-c", "--config", "-g", "--grep", "-t", "--testNamePattern", "--project",
+  "--reporter", "--shard", "--workers", "-j", "--retries", "--repeat-each",
+  "--root", "--environment", "--outputFile", "--timeout",
+]);
+// A token that names a test file or a directory of them. A bare word such as
+// `dates` is a vitest name filter, not a path, and still runs a full collect.
+const PATHLIKE = /\/|\.(?:test|spec)\b|\.m?[jt]sx?$/;
+
+const UNIT = "pnpm --filter web exec vitest run -c vitest.unit.config.ts <test files>";
+const INT = "pnpm --filter web exec node scripts/with-test-db.mjs vitest run <file>";
+const E2E = "pnpm --filter web test:e2e:ci-like e2e/<spec>.ts (no `--` before the path)";
+const ESCAPE =
+  " `ALLOW_FULL_SUITE=1` in front of the command is only for when Mitchell asks for a full run.";
+
+function tokens(s) {
+  return (s.match(/"[^"]*"|'[^']*'|\S+/g) ?? []).map((t) => t.replace(/^(['"])(.*)\1$/, "$2"));
+}
+
+function positionals(args) {
+  const out = [];
+  for (let i = 0; i < args.length; i += 1) {
+    const a = args[i];
+    if (a === "--") continue;
+    if (a.startsWith("-")) {
+      if (VALUE_FLAGS.has(a)) i += 1;
+      continue;
+    }
+    out.push(a);
+  }
+  return out;
+}
+
+const hasPath = (args) => positionals(args).some((a) => PATHLIKE.test(a));
+
+// A pnpm/npm/yarn call reduced to { script, filters, args }, skipping the
+// package manager's own flags; `exec` is reported as the script name.
+function scriptCall(words) {
+  const filters = [];
+  let i = 1;
+  while (i < words.length && words[i].startsWith("-")) {
+    const w = words[i];
+    const eq = w.match(/^--(?:filter|dir|prefix|workspace)=(.*)$/);
+    if (eq) filters.push(eq[1]);
+    else if (VALUE_FLAGS.has(w)) {
+      filters.push(words[i + 1] ?? "");
+      i += 1;
+    }
+    i += 1;
+  }
+  if (words[i] === "run") i += 1;
+  return { script: words[i] ?? "", filters, args: words.slice(i + 1) };
+}
 
 function deny(reason) {
   console.log(
@@ -70,24 +147,31 @@ function deny(reason) {
   process.exit(0);
 }
 
+const cwd = String(parsed?.cwd ?? "");
 const calls = [];
+let inWeb = /\/apps\/web(?:\/|$)/.test(cwd);
 for (const seg of SEGMENTS(command)) {
-  const m = PM_CALL.exec(seg);
-  if (m) calls.push({ env: m[1], args: m[2] });
+  const m = ENV_PREFIX.exec(seg);
+  const words = tokens(m[2]);
+  if (words[0] === "cd" && /(?:^|\/)apps\/web\/?$/.test(words[1] ?? "")) inWeb = true;
+  if (!RUNNERS.has(words[0]?.split("/").pop())) continue;
+  calls.push({ env: m[1], rest: m[2], words, inWeb });
 }
 
-if (calls.some((c) => PASSTHROUGH.test(c.args))) {
+const pmCalls = calls.filter((c) => /^(?:pnpm|npm|yarn)$/.test(c.words[0]));
+
+if (pmCalls.some((c) => PASSTHROUGH.test(c.rest))) {
   deny(
     "`test -- --run <file>` does not scope: pnpm swallows the passthrough and vitest " +
       "runs the whole suite (measured: one named file, `Test Files 103 passed (103)`). " +
-      "Use `pnpm --filter web exec vitest run -c vitest.unit.config.ts <file>` for a " +
-      "unit test, or `node scripts/with-test-db.mjs vitest run <file>` from apps/web " +
+      `Use \`${UNIT.replace("<test files>", "<file>")}\` for a unit test, or ` +
+      "`node scripts/with-test-db.mjs vitest run <file>` from apps/web " +
       "for an integration test. See the minimal-check-subset skill " +
       "(.claude/skills/minimal-check-subset/SKILL.md).",
   );
 }
 
-if (calls.some((c) => DEV_LANE.test(c.args) && !OVERRIDE.test(c.env))) {
+if (pmCalls.some((c) => DEV_LANE.test(c.rest) && !OVERRIDE.test(c.env))) {
   deny(
     "Plain `test:e2e` is the dev lane: it serves `pnpm dev`, which compiles routes on " +
       "first hit and times out where CI does not (KI-27). CLAUDE.md rule 1: an e2e " +
@@ -96,6 +180,69 @@ if (calls.some((c) => DEV_LANE.test(c.args) && !OVERRIDE.test(c.env))) {
       "not a verdict, put `E2E_DEV_LANE=1` in front of the command. For which checks a " +
       "change needs at all, see the minimal-check-subset skill.",
   );
+}
+
+// --- full local suites -------------------------------------------------------
+
+for (const c of calls) {
+  if (FULL_OK.test(c.env)) continue;
+  const runner = c.words[0].split("/").pop();
+  const web = c.inWeb;
+
+  if (/^(?:pnpm|npm|yarn)$/.test(runner)) {
+    const { script, filters, args } = scriptCall(c.words);
+    const onWeb = web || filters.some((f) => /(?:^|\/)(?:apps\/)?web$/.test(f));
+    if (script === "check" || script === "test:unit") {
+      deny(
+        `\`${runner} ${script}\` is the full local suite, a final-review cost CI pays on the ` +
+          "PR. Run build-a-part's scoped recipe instead: `npx tsc --noEmit -p <touched " +
+          "package>`, `pnpm --filter web exec eslint <changed files>`, and " +
+          `\`${UNIT}\`. The minimal-check-subset skill covers anything else.${ESCAPE}`,
+      );
+    }
+    if (script === "test" && !hasPath(args)) {
+      deny(
+        `\`${c.words.join(" ")}\` names no test file, so it runs the whole suite. ` +
+          `Scope it: \`${onWeb ? UNIT : "pnpm --filter <pkg> exec vitest run <test files>"}\`.` +
+          ESCAPE,
+      );
+    }
+    if (/^test:e2e(?::ci-like)?$/.test(script)) {
+      const dashed = args.indexOf("--");
+      const before = dashed === -1 ? args : args.slice(0, dashed);
+      if (dashed !== -1 && hasPath(args.slice(dashed + 1)) && !hasPath(before)) {
+        deny(
+          `\`-- <spec>\` drops the filter: \`${script} -- e2e/x.spec.ts\` ran the whole e2e ` +
+            `suite (177 tests, 2026-09-25). Run \`${E2E}\`.`,
+        );
+      }
+      if (!hasPath(before)) {
+        deny(`\`${script}\` with no spec path runs the whole e2e suite. Run \`${E2E}\`.${ESCAPE}`);
+      }
+    }
+  }
+
+  const v = c.words.findIndex((w) => w.split("/").pop() === "vitest");
+  if (v === -1) continue;
+  const vargs = c.words.slice(v + 1).filter((w, i) => !(i === 0 && w === "run"));
+  const viaDb = c.words.slice(0, v).some((w) => w.endsWith("with-test-db.mjs"));
+  if (!hasPath(vargs)) {
+    deny(
+      "This vitest run names no test file or directory, so it runs the whole suite. " +
+        `Name the files: \`${viaDb ? INT : UNIT}\`.${ESCAPE}`,
+    );
+  }
+  const filters = scriptCall(c.words).filters;
+  const onWeb = web || filters.some((f) => /(?:^|\/)(?:apps\/)?web$/.test(f));
+  const hasConfig = vargs.some((a) => /^(?:-c|--config)(?:=|$)/.test(a));
+  const intFiles = positionals(vargs).some((a) => /\.int\.test\./.test(a));
+  if (onWeb && !viaDb && !hasConfig && !intFiles) {
+    deny(
+      "In apps/web, vitest without `-c vitest.unit.config.ts` uses the default config, " +
+        "whose include is the integration suite (`src/**/*.int.test.ts`), so a unit file " +
+        `matches nothing. Run \`${UNIT}\`, or for an integration test \`${INT}\`.`,
+    );
+  }
 }
 
 process.exit(0);

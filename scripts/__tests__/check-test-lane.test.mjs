@@ -53,7 +53,8 @@ test("the swallowed passthrough is denied, with the command that does scope", ()
 
 test("E2E_DEV_LANE=1 lets the dev lane through, but not the passthrough form", () => {
   assert.equal(hook("E2E_DEV_LANE=1 pnpm --filter web test:e2e tests/e2e/x.spec.ts"), null);
-  assert.equal(hook("cd apps/web && E2E_DEV_LANE=1 pnpm test:e2e"), null);
+  // The override is for the dev lane, not for the whole suite: a spec is still owed.
+  assert.equal(hook("cd apps/web && E2E_DEV_LANE=1 pnpm test:e2e")?.permissionDecision, "deny");
   // The override is per segment: it cannot leak onto a later call.
   assert.equal(
     hook("E2E_DEV_LANE=1 pnpm test:e2e x.spec.ts && pnpm test:e2e")?.permissionDecision,
@@ -65,16 +66,68 @@ test("E2E_DEV_LANE=1 lets the dev lane through, but not the passthrough form", (
   );
 });
 
+test("full local suites are denied with the scoped command and the escape hatch", () => {
+  for (const c of [
+    "pnpm check",
+    "pnpm test",
+    "pnpm test:unit",
+    "pnpm --filter web test",
+    "pnpm -F @tc/domain test",
+    "cd apps/web && pnpm exec vitest run",
+    "npx vitest run",
+    "pnpm --filter web exec node scripts/with-test-db.mjs vitest run",
+    "pnpm --filter web test:e2e:ci-like",
+    "pnpm --filter web test:e2e:ci-like -g 'Calendar week'",
+  ]) {
+    const r = hook(c);
+    assert.equal(r?.permissionDecision, "deny", c);
+    assert.match(r.permissionDecisionReason, /ALLOW_FULL_SUITE=1/, c);
+    assert.match(r.permissionDecisionReason, /when Mitchell asks/, c);
+  }
+  assert.match(hook("pnpm check").permissionDecisionReason, /vitest\.unit\.config\.ts <test files>/);
+  assert.match(
+    hook("pnpm --filter web test:e2e:ci-like").permissionDecisionReason,
+    /test:e2e:ci-like e2e\/<spec>\.ts/,
+  );
+});
+
+test("a dash-dash before the e2e spec is denied: it drops the filter", () => {
+  const r = hook("pnpm --filter web test:e2e:ci-like -- e2e/m26-phone-targets.spec.ts");
+  assert.equal(r?.permissionDecision, "deny");
+  assert.match(r.permissionDecisionReason, /drops the filter/);
+});
+
+test("a web vitest run without -c is denied, because the default config is the int suite", () => {
+  for (const c of [
+    "pnpm --filter web exec vitest run src/lib/dates.test.ts",
+    "cd apps/web && npx vitest run src/lib/dates.test.ts",
+  ]) {
+    const r = hook(c);
+    assert.equal(r?.permissionDecision, "deny", c);
+    assert.match(r.permissionDecisionReason, /-c vitest\.unit\.config\.ts/, c);
+  }
+});
+
+test("ALLOW_FULL_SUITE=1 lets a full suite through, per segment", () => {
+  assert.equal(hook("ALLOW_FULL_SUITE=1 pnpm check"), null);
+  assert.equal(hook("ALLOW_FULL_SUITE=1 pnpm --filter web test:e2e:ci-like"), null);
+  assert.equal(hook("ALLOW_FULL_SUITE=1 pnpm check && pnpm test")?.permissionDecision, "deny");
+});
+
 // --- it must NOT fire --------------------------------------------------------
 
 test("the lanes that are right are silent", () => {
   for (const c of [
-    "pnpm --filter web test:e2e:ci-like",
-    "pnpm --filter web test:e2e:ci-like -- tests/e2e/trip.spec.ts",
+    "pnpm --filter web test:e2e:ci-like e2e/trip.spec.ts",
+    "WEB_PORT=3100 pnpm --filter web test:e2e:ci-like e2e/trip.spec.ts -g 'drag'",
     "pnpm --filter web exec vitest run -c vitest.unit.config.ts src/lib/dates.test.ts",
-    "pnpm --filter web test",
+    "cd apps/web && pnpm exec vitest run --config=vitest.unit.config.ts src/lib/",
+    "pnpm --filter web test src/lib/dates.test.ts",
+    "pnpm --filter web exec node scripts/with-test-db.mjs vitest run src/ask/route.int.test.ts",
+    "pnpm --filter @tc/factories exec vitest run src/trip.test.ts",
     "pnpm --filter web test:int",
-    "pnpm test",
+    "node --test scripts/__tests__/check-test-lane.test.mjs",
+    "pnpm --filter web exec eslint src/lib/dates.ts",
   ]) {
     assert.equal(hook(c), null, c);
   }
@@ -86,6 +139,8 @@ test("naming a banned form without running it is silent", () => {
     'grep -rn "test -- --run" docs/',
     "echo pnpm-free: test:e2e",
     "rg 'test:e2e(?!:ci-like)' scripts/",
+    "git commit -m \"$(cat <<'EOF'\nfix: thing\n\npnpm test passes\npnpm check\nEOF\n)\"",
+    "git commit -m 'fix: thing\n\npnpm check is green'",
   ]) {
     assert.equal(hook(c), null, c);
   }

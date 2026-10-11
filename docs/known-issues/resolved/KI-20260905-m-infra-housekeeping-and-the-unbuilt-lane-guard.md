@@ -1,5 +1,6 @@
 ### KI-2026-09-05-m — infra housekeeping: the fresh-clone recipe fails twice, an inert supply-chain control, an empty stub file, two stale rationale headers, and the test-lane guard that was never built
 
+- **Resolved 2026-10-11:** `check-test-lane.mjs` is wired into `.claude/settings.json` (PreToolUse, Bash), on Mitchell's ask for hooks that refuse full local suites. It now also denies `pnpm check`, unscoped vitest and e2e runs; see `docs/guidelines/repo-automation.md`.
 - **Severity:** cleanup — five LOW items, all CONFIRMED. Bundled; strike a line as it lands. **Narrowed 2026-09-25: one step is left — wiring the already-built `check-test-lane.mjs` into `.claude/settings.json` (item 5, the snippet is below). Items 1-4 and the setup-env note are done.**
 - **Area:** `README.md:81-85` + `apps/web/package.json:24`; `pnpm-workspace.yaml:9-12`; `/skills-lock.json`; `.github/workflows/ci.yml:3-10` and `.coderabbit.yaml:6`; `.claude/settings.json` (the absent hook)
 - **Symptom / What happens:**
