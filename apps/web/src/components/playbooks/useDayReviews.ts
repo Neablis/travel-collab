@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { REVIEW_NOTE_MAX, type PutReviewInput, type ReviewDayChanged, type SavedDayReviewsResponse } from "@tc/contracts";
 import { fetchReviews, putReview, type ApiError, type PutReviewOutcome } from "@/lib/apiClient";
 import { clearHeldReview, holdReview, loadHeldReview, type HeldReview } from "./reviewQueue";
-import { useOnline } from "./useOnline";
+import { useOnline } from "@/lib/useOnline";
 
 /** Everything the rail, the review section and the conflict banner read and do. */
 export type DayReviews = {

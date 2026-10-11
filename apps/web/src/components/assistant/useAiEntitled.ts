@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { Entitlement } from "@tc/contracts";
-import { useOnline } from "@/components/playbooks/useOnline";
+import { useOnline } from "@/lib/useOnline";
 import type { AccountPlanView } from "@/lib/accountPlan";
 import { cachedRead, DEDUPE } from "@/lib/queryCache";
 import type { ApiResult } from "@/lib/apiClient";
