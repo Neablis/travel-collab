@@ -324,7 +324,9 @@ function metaLine(landing: ValidLanding): string {
 // A `Record`, so a new invite role does not compile until the landing says
 // what it may do.
 const CREW_CAN: Record<ValidLanding["role"], string> = {
-  editor: "You can add stops, vote and comment.",
+  // What an editor does: the stops. Trips have no voting or commenting, so
+  // the line promises neither (Mitchell, 2026-10-11).
+  editor: "You can add, move and change stops.",
   suggester: `You can suggest stops and changes ${SUGGESTER_APPROVAL}.`,
   viewer: "You'll be able to look, but not change anything.",
 };

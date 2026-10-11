@@ -1,0 +1,40 @@
+[
+  {
+    "planId": "free",
+    "version": 1,
+    "entitlements": [],
+    "perUserRequestsPerDay": 0,
+    "perUserStepsPerDay": 0,
+    "held": false,
+    "priceMinor": 0,
+    "currency": "usd"
+  },
+  {
+    "planId": "plus",
+    "version": 1,
+    "entitlements": [
+      "ai.ask",
+      "ai.command"
+    ],
+    "perUserRequestsPerDay": 50,
+    "perUserStepsPerDay": 400,
+    "held": false,
+    "priceMinor": 900,
+    "currency": "usd"
+  },
+  {
+    "planId": "premium",
+    "version": 2,
+    "entitlements": [
+      "ai.ask",
+      "ai.command",
+      "trip.collaborators",
+      "api.tokens"
+    ],
+    "perUserRequestsPerDay": 200,
+    "perUserStepsPerDay": 1600,
+    "held": false,
+    "priceMinor": 1900,
+    "currency": "usd"
+  }
+]

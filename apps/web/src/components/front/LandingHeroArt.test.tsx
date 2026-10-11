@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { setViewportMatches } from "../../../vitest.setup";
+import { UNBUILT_SOCIAL } from "@/test-support/unbuiltSocial";
 import { LandingHeroArt } from "./LandingHeroArt";
 
 // **The real panels are loaded before any test runs.** The hero `lazy()`-loads
@@ -28,7 +29,7 @@ afterEach(() => {
 // has loaded as well as after — the rotation is about which view is up, not
 // about whether its panel has arrived.
 const MAP = "Fushimi Inari";
-const TIMELINE = "Dana is reading Day 7";
+const TIMELINE = "Dana changed Day 7";
 const NOTEBOOK = "Times come from the plan — move the day and they follow";
 
 const pill = (label: string) => screen.getByRole("button", { name: label });
@@ -186,5 +187,18 @@ describe("LandingHeroArt", () => {
     // A surviving interval would setState on an unmounted tree; nothing to
     // assert on screen, so assert the interval itself is gone.
     expect(vi.getTimerCount()).toBe(0);
+  });
+
+  // The Day 6 map is swept with the rest of the landing
+  // (`LandingScreen.test.tsx`); the other two views only render on their pill,
+  // so they are swept here, with their real panels loaded.
+  it("pictures no replies, reactions or live presence in the Timeline and Notebook views", async () => {
+    render(<LandingHeroArt />);
+    fireEvent.click(pill("Day 7"));
+    await screen.findByRole("list", { name: "Day 7 timeline" });
+    expect(screen.queryAllByText(UNBUILT_SOCIAL).map((el) => el.textContent)).toEqual([]);
+    fireEvent.click(pill("Day 5"));
+    await screen.findByRole("img", { name: /^Days 1–3 Tokyo, day 4 Nikkō/ });
+    expect(screen.queryAllByText(UNBUILT_SOCIAL).map((el) => el.textContent)).toEqual([]);
   });
 });

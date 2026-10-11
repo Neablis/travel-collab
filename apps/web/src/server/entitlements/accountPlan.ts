@@ -35,12 +35,8 @@ import {
   entitlementsLostIfSubscriptionStops,
   type AccountEntitlements,
 } from "./resolver";
-import {
-  livePlanVersion,
-  planVersionRefOf,
-  PLAN_VERSIONS,
-  type PlanVersion,
-} from "./planVersions";
+import { planCatalogue } from "./planCatalogue";
+import { planVersionRefOf } from "./planVersions";
 import { aiQuotas, aiStepQuotas, dailyPolicy, peekQuota, type QuotaStanding } from "@/server/quota";
 import { codesMintedBy } from "./referrals";
 
@@ -211,19 +207,6 @@ export interface AccountPlanView {
   billing: PlanBillingView;
 }
 
-function choiceOf(version: PlanVersion, heldPlanId: string): PlanChoice {
-  return {
-    planId: version.planId,
-    version: version.version,
-    entitlements: version.entitlements,
-    perUserRequestsPerDay: version.ceilings.perUserRequestsPerDay,
-    perUserStepsPerDay: version.ceilings.perUserStepsPerDay,
-    held: version.planId === heldPlanId,
-    priceMinor: version.price?.minor ?? null,
-    currency: version.price?.currency ?? null,
-  };
-}
-
 /**
  * The four words, decided in one place.
  *
@@ -278,26 +261,7 @@ export async function accountPlanView(
     state === "cancelling" ||
     state === "past-due" ||
     resolved.grants.some((grant) => grant.source !== "trial");
-  // **In the plan file's own declaration order, and the presentation ladder is
-  // deliberately not read here.**
-  //
-  // `planVersions.noExtension.test.ts` allows that sort field to be named only
-  // by the plan file itself and by RENDERING — *"a GATE joining this list is
-  // the failure this test exists to catch"*. This function calls
-  // `entitlementsFor`, so it is exactly the kind of module that rule is pointed
-  // at, even though ordering a chooser is a presentation use. It caught the
-  // first version of this line in CI, and then caught the comment explaining
-  // the fix: that check greps RAW source, so merely spelling the field's name
-  // here — even to say it is not used — puts this file back on the list.
-  //
-  // Declaration order answers the same question without touching the ladder,
-  // and the two are pinned to agree by an assertion inside that same
-  // (allowlisted) test, so a future edit that reorders the plans without moving
-  // their sort values fails loudly instead of quietly reordering a chooser.
-  const catalogue = [...new Set(PLAN_VERSIONS.map((entry) => entry.planId))]
-    .map((planId) => livePlanVersion(planId))
-    .filter((version) => version.enabled)
-    .map((version) => choiceOf(version, heldPlanId));
+  const catalogue = planCatalogue(heldPlanId);
 
   return {
     planVersionRef: planVersionRefOf(resolved.held),

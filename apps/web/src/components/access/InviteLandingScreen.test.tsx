@@ -157,6 +157,15 @@ describe("InviteLandingScreen — a pending invite", () => {
     expect(screen.getByText("What each person is in for, and what each stop costs, show once you join.")).toBeTruthy();
   });
 
+  // Mitchell, 2026-10-11: trips have no voting or commenting, so an editor is
+  // promised what an editor does — the stops — and nothing that isn't built.
+  it("tells an editor what they can change, and promises nothing unbuilt", async () => {
+    fetchInviteLandingMock.mockResolvedValue(answer(valid({ role: "editor" })));
+    render(<InviteLandingScreen token="tok" googleAvailable />);
+    expect(await screen.findByText(/You can add, move and change stops\./)).toBeTruthy();
+    expect(screen.queryByText(/\bvot(e|es|ing)\b|\bcomment/i)).toBeNull();
+  });
+
   it("does not promise a viewer that they can change anything", async () => {
     fetchInviteLandingMock.mockResolvedValue(answer(valid({ role: "viewer" })));
     render(<InviteLandingScreen token="tok" googleAvailable />);

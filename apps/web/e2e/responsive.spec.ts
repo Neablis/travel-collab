@@ -1051,6 +1051,20 @@ test.describe("responsive (narrow viewport, signed out)", () => {
       return hit === link || link.contains(hit);
     });
     expect(onTop, "something is painted over the Sign in link").toBe(true);
+
+    // Clear over the map, paper once the pin releases (Mitchell, 2026-10-11):
+    // past the pin, content scrolls under the bar and must not show through
+    // its links. Read as the painted colour, since that is the claim.
+    const header = page.getByRole("banner");
+    const background = () => header.evaluate((el) => getComputedStyle(el).backgroundColor);
+    await scroller.evaluate((el) => {
+      el.scrollTop = 0;
+    });
+    await expect.poll(background).toBe("rgba(0, 0, 0, 0)");
+    await scroller.evaluate((el) => {
+      el.scrollTop = el.scrollHeight;
+    });
+    await expect.poll(background).not.toBe("rgba(0, 0, 0, 0)");
   });
 });
 

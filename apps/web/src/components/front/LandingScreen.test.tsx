@@ -1,3 +1,4 @@
+import { UNBUILT_SOCIAL } from "@/test-support/unbuiltSocial";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { LandingScreen } from "./LandingScreen";
@@ -30,6 +31,7 @@ afterEach(() => {
 // helper holding the queries reads to `testing-library/prefer-screen-queries`
 // exactly like `render`'s own destructured queries — the shape that rule exists
 // to stop — and the wall rejects it. Verbose, and the wall is right.
+
 
 describe("LandingScreen", () => {
   it("leads with the product claim", () => {
@@ -105,6 +107,24 @@ describe("LandingScreen", () => {
     );
   });
 
+  // M42 D3: the plans and their prices at an anchor the header and any
+  // outside link can reach. A summary, not `/plans`' comparison table —
+  // Mitchell, 2026-10-11: *"the specifics are for the actual payment page"*.
+  it("summarises the plans at #pricing, linked from the header", () => {
+    render(<LandingScreen />);
+    const desktop = within(screen.getByTestId("desktop-landing"));
+    const pricing = desktop.getByRole("region", { name: "Pricing" });
+    expect(pricing.id).toBe("pricing");
+    expect(within(pricing).queryByRole("table")).toBeNull();
+    expect(within(pricing).getByText("Unlimited planned trips")).toBeDefined();
+    expect(within(pricing).getByText("AI tools to help plan the trip")).toBeDefined();
+    expect(within(pricing).getByText("Invite all your friends to come along")).toBeDefined();
+    expect(within(pricing).getByRole("link", { name: "Compare plans" }).getAttribute("href")).toBe(
+      "/signin?callbackUrl=%2Fplans",
+    );
+    expect(desktop.getByRole("link", { name: "Pricing" }).getAttribute("href")).toBe("#pricing");
+  });
+
   it("links the developers page from the footer", () => {
     render(<LandingScreen />);
     const footer = within(within(screen.getByTestId("desktop-landing")).getByRole("contentinfo"));
@@ -133,12 +153,33 @@ describe("LandingScreen", () => {
   // "Free …" kicker straight after the header's "Start a trip" reads as
   // "tripFree" — no word boundary, no match. The old form passed with exactly
   // that planted; `queryAllByText` tests each element's own text.
+  //
+  // **Except the plan's name in the plan summary**: the `free` card's name and
+  // its "Free" price. SPEC §17.1: *"The `Free` plan name is not that claim"*.
+  // Only an element that is exactly the name is let through — "Free for a
+  // week" on a card is still a claim — and the other two patterns get no
+  // exemption at all.
   it.each([
     ["free", /\bfree\b/i],
     ["open source", /open[ -]source/i],
     ["no credit card", /credit card/i],
   ])("never sells itself on %s (SPEC §14)", (_label, pattern) => {
     render(<LandingScreen />);
-    expect(screen.queryAllByText(pattern)).toEqual([]);
+    const planNames = screen
+      .getAllByTestId("plan-summary")
+      .flatMap((table) => within(table).queryAllByText(/^free$/i));
+    expect(screen.queryAllByText(pattern).filter((el) => !planNames.includes(el))).toEqual([]);
+  });
+
+  // Mitchell, 2026-10-11: the landing draws what the app does. Trips have no
+  // replies, votes, comments, reactions or live presence — they have
+  // suggestions and a history of who changed what, and the public library
+  // has stars — so neither tree may picture the rest. Both trees, because the
+  // phone front door carries its own cards; the hero's other two views are
+  // swept below.
+  it("pictures no replies, votes, reactions or presence, which trips do not have", () => {
+    render(<LandingScreen />);
+    expect(screen.queryAllByText(UNBUILT_SOCIAL).map((el) => el.textContent)).toEqual([]);
+    expect(screen.queryAllByRole("img", { name: UNBUILT_SOCIAL })).toEqual([]);
   });
 });
