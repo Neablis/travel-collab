@@ -10,6 +10,11 @@
 //   vitest run in apps/web without -c/--config   -> deny  (default config is
 //                                                   the integration suite)
 //   test:e2e[:ci-like] with no spec, or `-- spec` -> deny  (full e2e suite)
+//   playwright test in apps/web, no spec         -> deny  (full e2e suite)
+//
+// "In apps/web" is decided by the package manager's `--filter`s when there are
+// any, and otherwise by the cwd, re-evaluated at every `cd` in the command.
+// `vitest list` and `vitest --version` run nothing and pass.
 //
 // The full-suite denials step aside for `ALLOW_FULL_SUITE=1` at the start of
 // the command, which is for when Mitchell asks for a full run. `test:int` is
@@ -54,7 +59,9 @@ try {
   process.exit(0);
 }
 
-const command = String(parsed?.tool_input?.command ?? "");
+// A CRLF command left `\r` in a segment, which `.` does not match, and the
+// env-prefix regex then failed and threw.
+const command = String(parsed?.tool_input?.command ?? "").replace(/\r/g, "");
 if (!command) process.exit(0);
 
 // The package manager must be the COMMAND WORD of a segment, as in
@@ -65,13 +72,16 @@ if (!command) process.exit(0);
 //
 // A commit body is text, not commands: a heredoc or a multi-line quoted string
 // whose line reads "pnpm test passes" would otherwise be split out as a call.
+// A one-line quoted string keeps its text, so a quoted spec path still counts
+// as a path, but loses its separators: `-m "b; pnpm check passed"` split at
+// the `;` and read as a `pnpm check` call.
 const prose = (cmd) =>
   cmd
     .replace(/<<-?\s*(['"]?)(\w+)\1[^\n]*\n[\s\S]*?\n\s*\2\s*(?=\n|$)/g, "")
-    .replace(/"(?:[^"\\]|\\.)*"|'[^']*'/g, (q) => (q.includes("\n") ? "''" : q));
+    .replace(/"(?:[^"\\]|\\.)*"|'[^']*'/g, (q) => (q.includes("\n") ? "''" : q.replace(/[;&|]/g, " ")));
 const SEGMENTS = (cmd) => prose(cmd).split(/[\n;|&]+/);
 const ENV_PREFIX = /^\s*((?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*)(.*)$/;
-const RUNNERS = new Set(["pnpm", "npm", "yarn", "npx", "node", "vitest"]);
+const RUNNERS = new Set(["pnpm", "npm", "yarn", "npx", "node", "vitest", "playwright"]);
 
 const DEV_LANE = /\btest:e2e(?!:ci-like\b)(?![\w:-])/;
 const PASSTHROUGH = /\btest\s+--\s+--run\b/;
@@ -147,13 +157,25 @@ function deny(reason) {
   process.exit(0);
 }
 
+const IN_WEB = /(?:^|\/)apps\/web(?:\/|$)/;
+const isWebFilter = (f) => /(?:^|\/)(?:apps\/)?web$/.test(f);
+// Filters name the package outright, so they decide; the cwd only matters
+// when there are none.
+const targetsWeb = (filters, inWeb) => (filters.length > 0 ? filters.some(isWebFilter) : inWeb);
+
 const cwd = String(parsed?.cwd ?? "");
 const calls = [];
-let inWeb = /\/apps\/web(?:\/|$)/.test(cwd);
+let inWeb = IN_WEB.test(cwd);
 for (const seg of SEGMENTS(command)) {
   const m = ENV_PREFIX.exec(seg);
+  if (!m) continue;
   const words = tokens(m[2]);
-  if (words[0] === "cd" && /(?:^|\/)apps\/web\/?$/.test(words[1] ?? "")) inWeb = true;
+  if (words[0] === "cd") {
+    // Every `cd` moves: into web, deeper inside it, or out of it. A path with
+    // `..`, an absolute path or a bare `cd` leaves unless it names apps/web.
+    const to = words[1] ?? "";
+    inWeb = IN_WEB.test(to) || (inWeb && to !== "" && !/^[/~-]/.test(to) && !to.split("/").includes(".."));
+  }
   if (!RUNNERS.has(words[0]?.split("/").pop())) continue;
   calls.push({ env: m[1], rest: m[2], words, inWeb });
 }
@@ -191,7 +213,7 @@ for (const c of calls) {
 
   if (/^(?:pnpm|npm|yarn)$/.test(runner)) {
     const { script, filters, args } = scriptCall(c.words);
-    const onWeb = web || filters.some((f) => /(?:^|\/)(?:apps\/)?web$/.test(f));
+    const onWeb = targetsWeb(filters, web);
     if (script === "check" || script === "test:unit") {
       deny(
         `\`${runner} ${script}\` is the full local suite, a final-review cost CI pays on the ` +
@@ -222,9 +244,19 @@ for (const c of calls) {
     }
   }
 
+  const pmFilters = /^(?:pnpm|npm|yarn)$/.test(runner) ? scriptCall(c.words).filters : [];
+
+  const pw = c.words.findIndex((w, i) => w.split("/").pop() === "playwright" && c.words[i + 1] === "test");
+  if (pw !== -1 && targetsWeb(pmFilters, web) && !hasPath(c.words.slice(pw + 2))) {
+    deny(`\`playwright test\` with no spec path runs the whole e2e suite. Run \`${E2E}\`.${ESCAPE}`);
+  }
+
   const v = c.words.findIndex((w) => w.split("/").pop() === "vitest");
   if (v === -1) continue;
-  const vargs = c.words.slice(v + 1).filter((w, i) => !(i === 0 && w === "run"));
+  const after = c.words.slice(v + 1);
+  // Collecting or printing the version runs no test.
+  if (after[0] === "list" || after.some((a) => /^(?:--version|-v|--help|-h)$/.test(a))) continue;
+  const vargs = after.filter((w, i) => !(i === 0 && w === "run"));
   const viaDb = c.words.slice(0, v).some((w) => w.endsWith("with-test-db.mjs"));
   if (!hasPath(vargs)) {
     deny(
@@ -232,8 +264,7 @@ for (const c of calls) {
         `Name the files: \`${viaDb ? INT : UNIT}\`.${ESCAPE}`,
     );
   }
-  const filters = scriptCall(c.words).filters;
-  const onWeb = web || filters.some((f) => /(?:^|\/)(?:apps\/)?web$/.test(f));
+  const onWeb = targetsWeb(pmFilters, web);
   const hasConfig = vargs.some((a) => /^(?:-c|--config)(?:=|$)/.test(a));
   const intFiles = positionals(vargs).some((a) => /\.int\.test\./.test(a));
   if (onWeb && !viaDb && !hasConfig && !intFiles) {

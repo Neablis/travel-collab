@@ -10,9 +10,9 @@ import { execFileSync } from "node:child_process";
 
 const HOOK = new URL("../hooks/check-test-lane.mjs", import.meta.url).pathname;
 
-function hook(command) {
+function hook(command, cwd) {
   const out = execFileSync(process.execPath, [HOOK], {
-    input: JSON.stringify({ tool_input: { command } }),
+    input: JSON.stringify({ tool_input: { command }, cwd }),
     encoding: "utf8",
     stdio: ["pipe", "pipe", "pipe"],
   }).trim();
@@ -114,7 +114,53 @@ test("ALLOW_FULL_SUITE=1 lets a full suite through, per segment", () => {
   assert.equal(hook("ALLOW_FULL_SUITE=1 pnpm check && pnpm test")?.permissionDecision, "deny");
 });
 
+test("an unscoped playwright test in apps/web is denied", () => {
+  for (const [c, cwd] of [
+    ["pnpm --filter web exec playwright test", undefined],
+    ["cd apps/web && npx playwright test --grep notebook", undefined],
+    ["playwright test", "/repo/apps/web"],
+  ]) {
+    const r = hook(c, cwd);
+    assert.equal(r?.permissionDecision, "deny", c);
+    assert.match(r.permissionDecisionReason, /test:e2e:ci-like e2e\/<spec>\.ts/, c);
+  }
+});
+
 // --- it must NOT fire --------------------------------------------------------
+
+test("a non-web vitest run is not judged by apps/web's config, wherever it starts", () => {
+  // The filter names the package outright; the cwd only decides without one.
+  assert.equal(hook("pnpm --filter @tc/domain exec vitest run src/plan.test.ts", "/repo/apps/web"), null);
+  assert.equal(hook("cd apps/web && pnpm --filter @tc/factories exec vitest run src/trip.test.ts"), null);
+  // Every `cd` is re-evaluated: leaving apps/web leaves its config behind.
+  assert.equal(hook("cd apps/web && cd ../.. && npx vitest run packages/domain/src/plan.test.ts"), null);
+  // ...and the web rule still holds for a run that stays there.
+  assert.equal(
+    hook("cd apps/web && cd src && npx vitest run lib/dates.test.ts")?.permissionDecision,
+    "deny",
+  );
+});
+
+test("a quoted separator is text, not a command boundary", () => {
+  assert.equal(hook('git commit -m "a" -m "b; pnpm check passed"'), null);
+  assert.equal(hook("git commit -m 'x | pnpm test && done'"), null);
+});
+
+test("a CRLF command is read, not crashed on", () => {
+  assert.equal(hook("cd apps/web\r\npnpm exec vitest run -c vitest.unit.config.ts src/lib/dates.test.ts\r\n"), null);
+  assert.equal(hook("echo hi\r\npnpm check\r\n")?.permissionDecision, "deny");
+});
+
+test("vitest list and vitest --version run nothing and pass", () => {
+  for (const c of [
+    "pnpm --filter web exec vitest --version",
+    "npx vitest list",
+    "cd apps/web && pnpm exec vitest list -c vitest.unit.config.ts",
+  ]) {
+    assert.equal(hook(c), null, c);
+  }
+});
+
 
 test("the lanes that are right are silent", () => {
   for (const c of [
@@ -128,6 +174,7 @@ test("the lanes that are right are silent", () => {
     "pnpm --filter web test:int",
     "node --test scripts/__tests__/check-test-lane.test.mjs",
     "pnpm --filter web exec eslint src/lib/dates.ts",
+    "pnpm --filter web exec playwright test e2e/trip.spec.ts",
   ]) {
     assert.equal(hook(c), null, c);
   }
