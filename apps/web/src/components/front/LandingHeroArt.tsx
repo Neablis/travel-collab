@@ -51,7 +51,7 @@ const HERO_DAYS = [
 // The design's own crew (`dc.html:2344`): Sam K, Priya R, Jonah M, Mei T. The
 // page this replaced shipped PS/SK/MJ/AL, which matched nothing — and PR
 // specifically has to be here, because Priya is named in this component's own
-// art (the map presence pill, the notebook comment) and again in
+// art (the map's "Priya moved stop 3", the notebook's change line) and again in
 // LandingFeatureBlocks. An avatar row without her contradicts the illustration
 // it sits on. Keep these two files' crews identical.
 const CREW = ["SK", "PR", "JM", "MT"] as const;
@@ -62,8 +62,9 @@ const CREW = ["SK", "PR", "JM", "MT"] as const;
 // collected here so the map view spends one disable on all three pins instead
 // of one each.
 //
-// The retro's "can't wait" heart on pin 1 (2026-09-28, DRIFT D21) is gone:
-// trips have no reactions (Mitchell, 2026-10-11).
+// The "can't wait" heart the 2026-09-28 landing retro put on pin 1
+// (`docs/design-feedback/2026-09-28-landing-retro-copy.md`) is gone: trips
+// have no reactions (Mitchell, 2026-10-11).
 const MAP_PINS = [
   { num: "1", title: "Fushimi Inari", time: "9:40", confirmed: true, at: { left: "14%", top: "22%" } },
   { num: "2", title: "Nishiki Market", time: "1:15", confirmed: true, at: { left: "34%", top: "55%" } },
@@ -89,7 +90,7 @@ const MAP_SUGGESTION = {
 
 const TIMELINE_ROWS = [
   { time: "8:20 am", title: "Shinkansen to Osaka", badge: { label: "Travel", variant: "info" } },
-  { time: "11:00 am", title: "Osaka Castle", chip: "Marcus is dragging this", highlighted: true },
+  { time: "11:00 am", title: "Osaka Castle", chip: "Marcus moved this", highlighted: true },
   {
     time: "1:30 pm",
     title: "Kuromon Market, lunch",
@@ -115,12 +116,15 @@ const NOTEBOOK_PROSE = {
   tail: ", which leaves the evening open.",
 };
 
-const NOTEBOOK_SUGGESTION = {
-  quote: "“Take the 7:15 instead — the 7:45 is always packed.”",
-  meta: "Priya suggested a change to Day 5",
+// A change in the past tense, not a suggestion: the notebook offers no Accept,
+// and what it does show is the plan's times following an edit.
+const NOTEBOOK_CHANGE = {
+  line: "Moved the train home to 4:10 pm, and this page followed.",
+  meta: "Priya · Day 5",
 };
 
-// The suggestion's Accept, drawn rather than live (see MAP_SUGGESTION).
+// The suggestion's Accept, drawn rather than live (see MAP_SUGGESTION). Only on
+// the map, whose real counterpart (the board) offers one; the notebook does not.
 const SUGGESTION_ACCEPT =
   "flex-none self-center rounded-full bg-brand px-2 py-0.5 text-3xs font-semibold text-surface";
 
@@ -345,7 +349,7 @@ function MapView(): React.ReactElement {
           PR
         </span>
         <Text as="span" variant="secondary" className="text-2xs">
-          Priya is moving stop 3
+          Priya moved stop 3
         </Text>
       </div>
 
@@ -384,7 +388,7 @@ function TimelineView(): React.ReactElement {
           DK
         </span>
         <Text as="span" variant="secondary" className="text-2xs">
-          Dana is reading Day 7
+          Dana changed Day 7
         </Text>
       </div>
     </>
@@ -499,13 +503,10 @@ function NotebookArt(): React.ReactElement {
         </span>
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <Text as="span" className="text-xs text-pretty">
-            {NOTEBOOK_SUGGESTION.quote}
+            {NOTEBOOK_CHANGE.line}
           </Text>
-          <DataText className="text-3xs tracking-wider uppercase">{NOTEBOOK_SUGGESTION.meta}</DataText>
+          <DataText className="text-3xs tracking-wider uppercase">{NOTEBOOK_CHANGE.meta}</DataText>
         </div>
-        <span aria-hidden className={SUGGESTION_ACCEPT}>
-          Accept
-        </span>
       </div>
     </>
   );

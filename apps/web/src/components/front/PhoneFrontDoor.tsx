@@ -203,17 +203,11 @@ const CLAIMS: readonly { label: string; body: string; example?: ReactNode }[] = 
           >
             PR
           </DataText>
-          {/* A suggestion waiting on a planner, not a chat line: trips have no
-              replies (Mitchell, 2026-10-11). The Accept is drawn, not live. */}
-          <Text as="span" className="min-w-0 flex-1 text-xs text-brand-pressed">
-            Priya suggested meeting at the station at 6:40.
+          {/* A change somebody made, not a chat line: trips have no replies
+              (Mitchell, 2026-10-11), and a countdown offers no Accept. */}
+          <Text as="span" className="text-xs text-brand-pressed">
+            Priya moved the meet-up to 6:40 am.
           </Text>
-          <span
-            aria-hidden
-            className="flex-none rounded-full bg-brand px-2 py-0.5 text-3xs font-semibold text-surface"
-          >
-            Accept
-          </span>
         </span>
       </ExampleCard>
     ),

@@ -314,10 +314,12 @@ describe("the phone front door (SPEC §28)", () => {
       // Together: three stops and the change somebody else made.
       expect(within(claims[1]!).getByText("Fushimi Inari, early")).toBeTruthy();
       expect(within(claims[1]!).getByText(/Priya moved this an hour later/)).toBeTruthy();
-      // Countdown: the night before, and somebody still awake suggesting an
-      // early start.
+      // Countdown: the night before, and somebody still awake moving the
+      // start earlier.
       expect(within(claims[2]!).getByText("Wheels up tomorrow")).toBeTruthy();
-      expect(within(claims[2]!).getByText(/Priya suggested meeting at the station/)).toBeTruthy();
+      expect(within(claims[2]!).getByText("Priya moved the meet-up to 6:40 am.")).toBeTruthy();
+      // A countdown offers no Accept, so its card draws none (review of PR 405).
+      expect(within(claims[2]!).queryByText("Accept")).toBeNull();
       // Notebook: a page of the trip as it was lived — the day, a memory, and
       // the people who were there.
       expect(within(claims[3]!).getByText("Day 6 · Hakone")).toBeTruthy();

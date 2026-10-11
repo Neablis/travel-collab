@@ -203,7 +203,7 @@ export function LandingFeatureBlocks(): React.ReactElement {
                 </span>
               ))}
             </div>
-            <DataText className="text-3xs tracking-wider uppercase">4 here now</DataText>
+            <DataText className="text-3xs tracking-wider uppercase">4 planning</DataText>
           </div>
 
           <div className="relative flex flex-col">
@@ -323,15 +323,15 @@ export function LandingFeatureBlocks(): React.ReactElement {
             <span className="grid size-5 flex-none place-items-center rounded-full bg-brand-tint text-3xs font-semibold text-brand-pressed">
               PR
             </span>
+            {/* A change somebody made, in the past tense: there is no chat to
+                quote and no Accept on a countdown, and the app has no live
+                presence (ADR-049 polls) — Mitchell, 2026-10-11. */}
             <div className="flex min-w-0 flex-1 flex-col gap-0.5">
               <Text as="span" className="text-xs">
-                “Meet at the station at 6:40 — I can&rsquo;t sleep anyway.”
+                Moved the meet-up at Kyoto station to 6:40 am.
               </Text>
-              <DataText className="text-3xs tracking-wider uppercase">Priya suggested this · 1:12 am</DataText>
+              <DataText className="text-3xs tracking-wider uppercase">Priya · 1:12 am</DataText>
             </div>
-            <span aria-hidden className={SUGGESTION_ACCEPT}>
-              Accept
-            </span>
           </div>
         </div>
       </Card>
@@ -349,7 +349,7 @@ export function LandingFeatureBlocks(): React.ReactElement {
         <div className="flex min-h-0 flex-1 flex-col justify-between gap-2.5 px-4.5 pb-4.5">
           <div className="flex items-center gap-2 pb-0.75">
             <DataText className="text-3xs tracking-wider uppercase">Day 6 · Hakone</DataText>
-            <DataText className="ml-auto text-3xs">Sam typing…</DataText>
+            <DataText className="ml-auto text-3xs">Sam started this page</DataText>
           </div>
 
           {/* SPEC §14's notebook-as-surface, kept: a page, not a card, with the
