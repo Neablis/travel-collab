@@ -97,7 +97,8 @@ test("Move › Day › Day 1 › Day 2, drilled from the keyboard, is one change
   const tripId = await createMappedTrip(page, e2eTripName("PaletteMove"), 3, { startDate: "2027-06-07" });
   // A second stop on Day 1, so the move is two commands and only a batch
   // makes it one History entry: one stop moves as one command either way.
-  const { trip } = (await (await page.request.get(`/api/trips/${tripId}`)).json()) as { trip: { days: { dayId: string }[] } };
+  const read = async () => ((await (await page.request.get(`/api/trips/${tripId}`)).json()) as { trip: { days: { dayId: string; activityIds: string[] }[] } }).trip;
+  const trip = await read();
   const added = await page.request.post(`/api/trips/${tripId}/commands`, {
     data: { type: "AddActivity", tripId, activityId: crypto.randomUUID(), title: "Late swim", dayId: trip.days[0]!.dayId, timeWindow: { start: "18:00", end: "19:00" } },
   });
@@ -119,6 +120,9 @@ test("Move › Day › Day 1 › Day 2, drilled from the keyboard, is one change
 
   await expect(column(0).locator("[data-river-block]")).toHaveCount(0);
   await expect(column(1).locator("[data-river-block]")).toHaveCount(3);
-  await expect.poll(async () => (await history()).length).toBe(before + 1);
+  // Counted once the server holds both moves: polled for `before + 1` alone,
+  // the count passes as the first of two separate batches lands.
+  await expect.poll(async () => (await read()).days[1]!.activityIds.length).toBe(3);
+  expect(await history()).toHaveLength(before + 1);
   expect((await history())[0]?.description).toMatch(/Moved/);
 });
