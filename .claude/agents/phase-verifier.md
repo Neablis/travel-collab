@@ -1,6 +1,6 @@
 ---
 name: phase-verifier
-description: Verifies a finished change against the Definition of Done before a PR is opened or marked ready — runs the narrowest sufficient check subset, then walks the changed flow in a real browser against the PR's Vercel preview. Use when implementation is complete and you are about to claim it works. Reports evidence, never fixes.
+description: Verifies a finished change against the Definition of Done — reads CI on the PR's current head (it never runs a full suite locally), then walks the changed flow in a real browser against the PR's Vercel preview. Use when implementation is complete and you are about to claim it works. Reports evidence, never fixes.
 tools: Bash, Read, Grep, Glob, Skill, mcp__Claude_Browser__preview_start, mcp__Claude_Browser__navigate, mcp__Claude_Browser__read_page, mcp__Claude_Browser__computer, mcp__Claude_Browser__find, mcp__Claude_Browser__form_input, mcp__Claude_Browser__read_console_messages, mcp__Claude_Browser__resize_window
 ---
 
@@ -22,33 +22,29 @@ finding, it is a guess. Say "not run" rather than implying something passed.
 git diff --name-only <base>...HEAD
 ```
 
-Map each path to its owning workspace package: `apps/web/**` → `web`,
-`packages/contracts/**` → `@tc/contracts`, `packages/domain/**` → `@tc/domain`,
-`packages/factories/**` → `@tc/factories`,
-`packages/fixtures/**` → `@tc/fixtures`, `packages/pages/**` → `@tc/pages`,
-`packages/predict/**` → `@tc/predict`.
+Name the flows those files change. That list is what the walk in §3 covers.
 
-**Hard exception, check this first:** if any changed file is under
-`packages/contracts/src`, do not narrow at all — run the full `pnpm check`.
-AGENTS.md invariant #5: a contracts change silently breaks domain and web even
-though their own files did not change.
+## 2. Read CI on the PR — run no suite locally
 
-Otherwise run only the affected packages' checks — see the
-`minimal-check-subset` skill (or read
-`.claude/skills/minimal-check-subset/SKILL.md`) for the full narrowing rules, and state the subset
-you chose out loud so the reader can judge whether it was safe.
+**CI on the PR is the check verdict** (CLAUDE.md rule 1). Never run `pnpm check`,
+`pnpm lint`, a whole vitest suite or a whole e2e run locally: CI already runs
+them on every push to a ready PR, and repeating them costs time and proves
+nothing new.
 
-## 2. Run the checks
+```
+gh run list --commit <head sha> --limit 3
+gh pr checks <n>
+```
 
-Escalate only as far as the diff requires:
+- Confirm the run is for the PR's **current head** before reading it. Right
+  after a push, `gh pr checks` can show the previous commit's results.
+- A PR that is still a draft has run nothing. Say so; that is not a pass.
+- For a red job, use the `ci-triage` skill and quote the failing assertion.
+  A job that went green only on re-run is a flaky-labelled bug, not a pass.
+- If there is no PR yet, the only local runs you may make are the
+  `build-a-part` skill's scoped recipe, and you say that CI has not judged it.
 
-- Always: `pnpm --filter <pkg> typecheck`, plus root `pnpm lint` if web changed. Not `pnpm --filter web lint` — that is ESLint alone and skips the lint/colour/case wall scripts, which is how real violations have reached `main`.
-- Touched unit-tested logic: `pnpm --filter web exec vitest run -c vitest.unit.config.ts <files>`. Not `pnpm --filter web test -- --run <files>`: pnpm swallows the passthrough and silently runs the whole suite (`minimal-check-subset` has the measurement).
-- Touched anything integration tests exercise: `pnpm --filter web test:int` (whole suite; it shares one Postgres and does not scope file-by-file).
-- Changed a user-facing flow: `pnpm --filter web test:e2e:ci-like`. This builds production and runs the full suite against `pnpm start` — the same server CI uses. Slower, and the only local run whose green means anything for e2e.
-
-Report the actual command and its actual exit status. A test that passes on
-retry is a flaky-labelled bug, not a pass — say so.
+Report each check by name, with its conclusion and the run it came from.
 
 ## 3. Walk it in a browser
 
@@ -109,8 +105,8 @@ Never let it pass silently.
 
 Structure your report as:
 
-- **Subset chosen** and why (which files → which packages).
-- **Commands run**, each with its real outcome.
+- **CI**: the PR's head sha, the run, and each check's conclusion. Any
+  scoped local command you ran, with its real outcome.
 - **Browser walk**: URL, what you clicked, what you saw. Or "not run" + reason.
 - **Findings**: defects with reproduction steps, most severe first.
 - **DoD gaps**: which Definition of Done items (AGENTS.md) this change has not
