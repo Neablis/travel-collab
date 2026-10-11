@@ -3,7 +3,9 @@ import type { AvatarKey, FilterDimension, ManifestObject, PersonColor, TripDetai
 import type { WidgetEntity } from "./filters";
 import type { MacroResult, UnboundNeeds } from "./result";
 import type { ExternalInputs, ExternalNeed } from "./external";
-import type { SpendBreakdownPayload, SpendByDayPayload } from "./chartPayloads";
+import type {
+  SpendBreakdownPayload, SpendByDayPayload, TagBreakdownPayload, TagsByDayPayload, TripDescriptionPayload,
+} from "./chartPayloads";
 import type { WeatherPayload } from "./weatherPayload";
 import type { SunPayload } from "./sunPayload";
 import type { LinkCardPayload, MissingNotebookPayload } from "./linkTarget";
@@ -131,6 +133,9 @@ export type BlockPayload =
   | TripPeoplePayload
   | SpendByDayPayload
   | SpendBreakdownPayload
+  | TagBreakdownPayload
+  | TagsByDayPayload
+  | TripDescriptionPayload
   | WeatherPayload
   | SunPayload
   | LinkCardPayload

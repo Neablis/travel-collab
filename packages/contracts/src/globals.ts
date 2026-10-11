@@ -103,6 +103,27 @@ export const TripGlobalsTag = z.object({
 });
 export type TripGlobalsTag = z.infer<typeof TripGlobalsTag>;
 
+// What kind of trip this is (M42 D11, ADR-070 §3), for the *Trip description*
+// widget. Here rather than worked out by the widget because the rule,
+// `describeByTags`, is in `@tc/domain`, which only the server may import: the
+// `cities` reason above. The server reads every activity, the backlog's too,
+// so the widget says what the home card and the invite page say.
+//
+// Plain `.describe()`, so the field picker does not offer it: the widget is
+// how a person reads it.
+export const TripGlobalsDescription = z.object({
+  text: z.string().min(1).describe('What kind of trip it is: "Outdoorsy", "Beach & outdoors", "A bit of everything"'),
+  counted: z
+    .number()
+    .int()
+    .positive()
+    .describe("How many activities the description counted: those with a category other than Lodging, travel left out"),
+  tags: z
+    .array(TripGlobalsTag)
+    .describe("Every category the description counted, the most activities first, with how many carry it"),
+});
+export type TripGlobalsDescription = z.infer<typeof TripGlobalsDescription>;
+
 // The trip's addressable collections. `people` is deliberately absent: nothing
 // links an activity to a person, and the attribution model that would fix it
 // was deferred out of M14 on 2026-09-03 (M13 `add-stop-who` / M19 link 3). An
@@ -112,6 +133,10 @@ export const TripGlobals = z.object({
   days: describedCollection("Every day of the trip", z.array(TripGlobalsDay)),
   cities: describedCollection("Every city the trip touches", z.array(TripGlobalsCity)),
   tags: describedCollection("Every tag in use on this trip", z.array(TripGlobalsTag)),
+  // `.default(null)` so a response from before the field still parses.
+  description: TripGlobalsDescription.nullable()
+    .default(null)
+    .describe("What kind of trip it is, from its activities' tags. Null when too few carry a category to say."),
   // The REQUESTING account's zone, from its home airport (M14 link 11), so a
   // widget can say "Tokyo is 16 h ahead of home". It is the one field here that
   // is about the reader rather than the trip — two members asking get two

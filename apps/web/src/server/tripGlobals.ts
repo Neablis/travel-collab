@@ -1,5 +1,7 @@
-import { citiesOfDay } from "@tc/domain";
-import type { TripDetail, TripGlobals, TripGlobalsCity, TripGlobalsDay, TripGlobalsTag, UserPreferences } from "@tc/contracts";
+import { citiesOfDay, describeByTags, describedTags } from "@tc/domain";
+import type {
+  TripDetail, TripGlobals, TripGlobalsCity, TripGlobalsDay, TripGlobalsDescription, TripGlobalsTag, UserPreferences,
+} from "@tc/contracts";
 import { timeZoneAt, timeZoneOfAirport } from "./timeZones";
 
 // Builds the trip's addressable collections (ADR-037 open question 4).
@@ -74,7 +76,29 @@ export function buildTripGlobals(
   }
   const tags: TripGlobalsTag[] = [...tagCounts.entries()].map(([tag, activityCount]) => ({ tag, activityCount }));
 
-  return { days, cities, tags, homeTimeZone: timeZoneOfAirport(reader.homeAirport) };
+  return { days, cities, tags, description: descriptionOf(detail), homeTimeZone: timeZoneOfAirport(reader.homeAirport) };
+}
+
+/**
+ * What kind of trip this is, for the *Trip description* widget: the home
+ * card's words, from the same rule over the same stops — **every activity,
+ * the backlog's too** (ADR-070 §3, as amended). From the days alone the Iceland
+ * bundle reads "Outdoors & food" where its card says "Outdoorsy".
+ *
+ * Which stops count, and under which tags, is asked of `describedTags` one stop
+ * at a time rather than written again here, so the shares the widget shows are
+ * of exactly the stops the words were worked out from.
+ */
+function descriptionOf(detail: TripDetail): TripGlobalsDescription | null {
+  const stops = Object.values(detail.activities);
+  const described = describeByTags(stops);
+  if (described === null) return null;
+  const perStop = stops.map((stop) => describedTags([stop]));
+  return {
+    text: described.text,
+    counted: perStop.filter((tags) => tags.length > 0).length,
+    tags: describedTags(stops).map((tag) => ({ tag, activityCount: perStop.filter((tags) => tags.includes(tag)).length })),
+  };
 }
 
 /**

@@ -72,7 +72,7 @@ describe("buildTripGlobals", () => {
   it("reports empty collections for a trip with nothing in it, rather than failing", () => {
     const bare = { ...tripDetailFixture(), days: [], activities: {} } as TripDetail;
     const g = buildTripGlobals(bare);
-    expect(g).toEqual({ days: [], cities: [], tags: [], homeTimeZone: null });
+    expect(g).toEqual({ days: [], cities: [], tags: [], description: null, homeTimeZone: null });
   });
 });
 

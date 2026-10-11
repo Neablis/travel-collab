@@ -10,6 +10,9 @@ import { TripStripBlock } from "./blocks/TripStripBlock";
 import { TripPeopleBlock } from "./blocks/TripPeopleBlock";
 import { SpendByDayBlock } from "./blocks/SpendByDayBlock";
 import { SpendBreakdownBlock } from "./blocks/SpendBreakdownBlock";
+import { TagBreakdownBlock } from "./blocks/TagBreakdownBlock";
+import { TagsByDayBlock } from "./blocks/TagsByDayBlock";
+import { TripDescriptionBlock } from "./blocks/TripDescriptionBlock";
 import { WeatherBlock } from "./blocks/WeatherBlock";
 import { SunBlock } from "./blocks/SunBlock";
 import { LinkCardBlock, MissingNotebookBlock } from "./blocks/LinkCardBlock";
@@ -86,6 +89,12 @@ export function BlockView({
       return <SpendByDayBlock payload={block} />;
     case "spend-breakdown":
       return <SpendBreakdownBlock payload={block} />;
+    case "tag-breakdown":
+      return <TagBreakdownBlock payload={block} />;
+    case "tags-by-day":
+      return <TagsByDayBlock payload={block} />;
+    case "trip-description":
+      return <TripDescriptionBlock payload={block} />;
     case "weather":
       return <WeatherBlock payload={block} accents={accents} />;
     case "sun":

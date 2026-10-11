@@ -233,6 +233,7 @@ describe("templates", () => {
       })),
       cities: [],
       tags: [],
+      description: null,
       homeTimeZone: null,
     };
     // What `GET /api/trips/:id/weather` answers for a trip with no located stop:
@@ -266,7 +267,7 @@ describe("templates", () => {
         firstPaint: false,
         ctx: {
           trip: bare, page: { tripId: bare.tripId }, user: null,
-          globals: { days: [], cities: [], tags: [], homeTimeZone: null }, today: "2026-09-26", external: fetched,
+          globals: { days: [], cities: [], tags: [], description: null, homeTimeZone: null }, today: "2026-09-26", external: fetched,
         },
       },
       {

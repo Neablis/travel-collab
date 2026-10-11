@@ -13,6 +13,24 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-11 — `TripGlobals.description`: what kind of trip it is, for the *Trip description* widget (M42 part 4, ADR-070 §3)
+
+- **Added** `TripGlobalsDescription` (`packages/contracts/src/globals.ts`): `{ text, counted, tags }`,
+  where `tags` is a `TripGlobalsTag[]` of every category the description counted, the most
+  activities first. `TripGlobals` gains `description: TripGlobalsDescription | null`, defaulted to
+  `null`. Plain `.describe()`, so the field picker does not offer it.
+- Why: M42 D11's *Trip description* notebook widget must say what the home card says.
+  `buildTripGlobals` works it out with `describeByTags` (`@tc/domain`) over every activity, the
+  backlog's too, and asks `describedTags` one stop at a time for the counts behind the shares.
+  `@tc/pages` may not import the domain, so it reads the result here, as it reads `cities`.
+- Consumers updated: `apps/web` (`server/tripGlobals.ts`; `components/access/previewContext.ts`
+  sends `null`, the invite drawing no description widget); `packages/pages` (the new `tag.breakdown`,
+  `tag.byDay` and `trip.description` widgets, and four presets: *Activities by tag*, *Hours by tag*,
+  *Tags by day*, *Trip description*); test fixtures that build a `TripGlobals` by hand.
+  `TripGlobals` is `GET /v1/trips/:id/globals`, so `openapi.json` is regenerated: `API_VERSION`
+  1.14.0 → **1.15.0** (minor: an optional field) and a new `API_FINGERPRINT`.
+- Breaking? no: the field is defaulted, so a payload from before it parses as "no description".
+
 ## 2026-10-11 — `TripSummary.description` and `TripPreview.description`: a trip says what kind of trip it is (M42 part 3, ADR-070 §3)
 
 - **Added** `description: string | null`, defaulted to `null`, to `TripSummary`
