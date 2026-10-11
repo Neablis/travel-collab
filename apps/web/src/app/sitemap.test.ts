@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const sitemapDays = vi.fn();
 vi.mock("@/server/playbooks", () => ({ sitemapDays: () => sitemapDays(), publishedPlaces: async () => [] }));
 
+import { DEMO_TRIPS } from "@/lib/demoTrip";
 import { deploymentOrigin } from "@/lib/deploymentOrigin";
 import sitemap from "./sitemap";
 
@@ -14,6 +15,14 @@ describe("sitemap.xml", () => {
   it("lists the root among the static routes", async () => {
     const urls = (await sitemap()).map((entry) => entry.url);
     expect(urls).toContain(`${deploymentOrigin()}/`);
+  });
+
+  // M42 D1: each demo trip is a public page with no database behind it.
+  // `server/demoTrip.test.ts` holds `DEMO_TRIPS` to `content/trips/`.
+  it("lists the picker and every demo trip", async () => {
+    const urls = (await sitemap()).map((entry) => entry.url);
+    expect(urls).toContain(`${deploymentOrigin()}/demo`);
+    for (const { slug } of DEMO_TRIPS) expect(urls).toContain(`${deploymentOrigin()}/demo/${slug}`);
   });
 
   // Copilot, PR #296: nothing observed the `lastModified = publishedAt` mapping.

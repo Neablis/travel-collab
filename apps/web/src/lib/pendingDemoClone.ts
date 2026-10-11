@@ -1,3 +1,5 @@
+import { isDemoTripId } from "./demoTrip";
+
 /**
  * "I pressed *Make this trip mine*, and then I had to make an account."
  *
@@ -23,7 +25,7 @@
  *      hop 1 or 2 is `/`.
  *
  * So the intent is banked in the browser instead of being threaded through
- * every one of those URLs, and it is redeemed by whichever of `/demo` and the
+ * every one of those URLs, and it is redeemed by whichever of `/demo/<slug>` and the
  * trip list the round trip actually lands on.
  *
  * **This is the only carrier.** It shipped alongside a `?clone=1` on the
@@ -70,9 +72,14 @@ function storage(): Storage | null {
   }
 }
 
-export function rememberDemoClone(now: number = Date.now()): void {
+/**
+ * Banks the intent to copy demo `tripId`. The marker names the demo, since
+ * there are several (M42 D1), and the trip list redeems it with no page of
+ * its own to say which one was pressed.
+ */
+export function rememberDemoClone(tripId: string, now: number = Date.now()): void {
   try {
-    storage()?.setItem(KEY, String(now));
+    storage()?.setItem(KEY, `${now}:${tripId}`);
   } catch {
     // Full quota, or a browser refusing storage. The button still works for
     // anyone who signs in and presses it again; losing the shortcut is not
@@ -81,25 +88,31 @@ export function rememberDemoClone(now: number = Date.now()): void {
 }
 
 /**
- * Reads the marker, clears it, and says whether it was live.
+ * Reads the marker, clears it, and answers the demo it asked to copy, or null
+ * when there was none or it has expired.
  *
  * **Clears on every path, including the expired one** — a stale marker that
  * survived being read would keep firing on every later visit to the trip list.
  * Reading and clearing in one call is also what makes the redeeming page's
  * StrictMode double-effect safe: the second pass finds nothing.
+ *
+ * Only a demo's id comes back, so an edited marker can at worst copy a
+ * different public demo.
  */
-export function takeDemoClone(now: number = Date.now()): boolean {
+export function takeDemoClone(now: number = Date.now()): string | null {
   const store = storage();
-  if (store === null) return false;
+  if (store === null) return null;
   let raw: string | null = null;
   try {
     raw = store.getItem(KEY);
     store.removeItem(KEY);
   } catch {
-    return false;
+    return null;
   }
-  if (raw === null) return false;
-  const at = Number(raw);
-  if (!Number.isFinite(at)) return false;
-  return now - at >= 0 && now - at <= PENDING_DEMO_CLONE_MAX_AGE_MS;
+  if (raw === null) return null;
+  const split = raw.indexOf(":");
+  const at = Number(raw.slice(0, split));
+  const tripId = raw.slice(split + 1);
+  if (split < 0 || !Number.isFinite(at) || !isDemoTripId(tripId)) return null;
+  return now - at >= 0 && now - at <= PENDING_DEMO_CLONE_MAX_AGE_MS ? tripId : null;
 }

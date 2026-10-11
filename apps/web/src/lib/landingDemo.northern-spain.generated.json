@@ -1,0 +1,375 @@
+{
+  "currency": "USD",
+  "accents": {
+    "00000000-0000-4000-8003-000000000001": "brand",
+    "00000000-0000-4000-8003-000000000002": "brand",
+    "00000000-0000-4000-8003-000000000003": "brand",
+    "00000000-0000-4000-8003-000000000004": "danger",
+    "00000000-0000-4000-8003-000000000005": "danger",
+    "00000000-0000-4000-8003-000000000006": "warning",
+    "00000000-0000-4000-8003-000000000007": "warning",
+    "00000000-0000-4000-8003-000000000008": "info",
+    "00000000-0000-4000-8003-000000000009": "info"
+  },
+  "river": {
+    "dayId": "00000000-0000-4000-8003-000000000002",
+    "ordinal": 2,
+    "city": "San Sebastián",
+    "activityIds": [
+      "00000000-0000-4000-8003-000000000015",
+      "00000000-0000-4000-8003-000000000016",
+      "00000000-0000-4000-8003-000000000017",
+      "00000000-0000-4000-8003-000000000018",
+      "00000000-0000-4000-8003-000000000019",
+      "00000000-0000-4000-8003-000000000020",
+      "00000000-0000-4000-8003-000000000021"
+    ],
+    "activities": {
+      "00000000-0000-4000-8003-000000000015": {
+        "activityId": "00000000-0000-4000-8003-000000000015",
+        "title": "Breakfast at Pastelería Otaegui",
+        "timeWindow": {
+          "start": "08:30",
+          "end": "09:15"
+        },
+        "location": {
+          "name": "Pastelería Otaegui, Calle Narrica",
+          "lat": 43.299253,
+          "lng": -1.991695,
+          "countryCode": "ES",
+          "city": "San Sebastián",
+          "area": "Parte Vieja"
+        },
+        "notes": "The old pastry shop on the edge of the Parte Vieja. Ask for a pantxineta, which is the local almond and cream thing and is what everyone is queuing for at eleven.",
+        "anchors": [],
+        "kind": "planned",
+        "tags": [
+          "meal"
+        ],
+        "cost": {
+          "amountMinor": 1600,
+          "currency": "USD"
+        },
+        "bookedBy": null,
+        "participants": [],
+        "mode": null,
+        "endLocation": null,
+        "pendingReason": null
+      },
+      "00000000-0000-4000-8003-000000000016": {
+        "activityId": "00000000-0000-4000-8003-000000000016",
+        "title": "La Concha end to end, and the Peine del Viento",
+        "timeWindow": {
+          "start": "09:30",
+          "end": "11:00"
+        },
+        "location": {
+          "name": "Playa de la Concha and Peine del Viento",
+          "lat": 43.31692,
+          "lng": -2.002854,
+          "countryCode": "ES",
+          "city": "San Sebastián",
+          "area": "Ondarreta"
+        },
+        "notes": "Go at high tide. Chillida's sculptures are the photograph, but the blowholes cut into the paving in front of them only fire when there is swell — at low water it is three lumps of iron and a puddle.",
+        "anchors": [],
+        "kind": "planned",
+        "tags": [
+          "outdoors",
+          "beach"
+        ],
+        "cost": null,
+        "bookedBy": null,
+        "participants": [],
+        "mode": null,
+        "endLocation": null,
+        "pendingReason": null
+      },
+      "00000000-0000-4000-8003-000000000017": {
+        "activityId": "00000000-0000-4000-8003-000000000017",
+        "title": "Funicular up Monte Igueldo",
+        "timeWindow": {
+          "start": "11:15",
+          "end": "12:20"
+        },
+        "location": {
+          "name": "Funicular de Monte Igueldo",
+          "lat": 43.308976,
+          "lng": -2.036057,
+          "countryCode": "ES",
+          "city": "San Sebastián",
+          "area": "Igueldo"
+        },
+        "notes": "1912 wooden funicular, four euros return, and the view down the whole shell of the bay that every postcard uses. The rickety amusement park at the top is genuinely 1920s and genuinely rickety.",
+        "anchors": [],
+        "kind": "planned",
+        "tags": [
+          "ticketed",
+          "sight"
+        ],
+        "cost": {
+          "amountMinor": 1000,
+          "currency": "USD"
+        },
+        "bookedBy": null,
+        "participants": [],
+        "mode": null,
+        "endLocation": null,
+        "pendingReason": null
+      },
+      "00000000-0000-4000-8003-000000000018": {
+        "activityId": "00000000-0000-4000-8003-000000000018",
+        "title": "The tortilla at Bar Néstor",
+        "timeWindow": {
+          "start": "13:00",
+          "end": "14:30"
+        },
+        "location": {
+          "name": "Bar Néstor, Calle Arrandegi",
+          "lat": 43.323888,
+          "lng": -1.983707,
+          "countryCode": "ES",
+          "city": "San Sebastián",
+          "area": "Parte Vieja"
+        },
+        "notes": "Néstor makes one tortilla at 13:00 and one at 20:00, twelve slices each, and that is the entire supply. You put your name on the list at noon or you do not eat it. Order the tomato salad and a txuleta while you wait — that is the actual meal; the tortilla is a slice.",
+        "anchors": [],
+        "kind": "pending",
+        "tags": [
+          "meal",
+          "drinks"
+        ],
+        "cost": {
+          "amountMinor": 5000,
+          "currency": "USD"
+        },
+        "bookedBy": null,
+        "participants": [],
+        "mode": null,
+        "endLocation": null,
+        "pendingReason": null
+      },
+      "00000000-0000-4000-8003-000000000019": {
+        "activityId": "00000000-0000-4000-8003-000000000019",
+        "title": "Up Monte Urgull to the Mota castle",
+        "timeWindow": {
+          "start": "16:00",
+          "end": "17:30"
+        },
+        "location": {
+          "name": "Castillo de la Mota, Monte Urgull",
+          "lat": 43.325038,
+          "lng": -1.988891,
+          "countryCode": "ES",
+          "city": "San Sebastián",
+          "area": "Urgull"
+        },
+        "notes": "Twenty-five minutes up from behind the aquarium, free, and almost nobody does it. The 1813 siege museum inside the castle explains why the old town is entirely 19th-century — the answer is that the British and Portuguese burned it down.",
+        "anchors": [],
+        "kind": "planned",
+        "tags": [
+          "outdoors",
+          "sight"
+        ],
+        "cost": null,
+        "bookedBy": null,
+        "participants": [],
+        "mode": null,
+        "endLocation": null,
+        "pendingReason": null
+      },
+      "00000000-0000-4000-8003-000000000020": {
+        "activityId": "00000000-0000-4000-8003-000000000020",
+        "title": "Txakoli and anchovies at Bar Txepetxa",
+        "timeWindow": {
+          "start": "18:00",
+          "end": "19:00"
+        },
+        "location": {
+          "name": "Bar Txepetxa, Calle Pescadería",
+          "lat": 43.323785,
+          "lng": -1.983991,
+          "countryCode": "ES",
+          "city": "San Sebastián",
+          "area": "Parte Vieja"
+        },
+        "notes": "One thing, done nine ways: anchovies, cured in-house, on bread, with a different topping each time. Have the one with sea urchin and the plain one, and let them pour the txakoli from height.",
+        "anchors": [],
+        "kind": "planned",
+        "tags": [
+          "meal",
+          "drinks"
+        ],
+        "cost": {
+          "amountMinor": 3000,
+          "currency": "USD"
+        },
+        "bookedBy": null,
+        "participants": [],
+        "mode": null,
+        "endLocation": null,
+        "pendingReason": null
+      },
+      "00000000-0000-4000-8003-000000000021": {
+        "activityId": "00000000-0000-4000-8003-000000000021",
+        "title": "The crawl: Cuchara de San Telmo, Gandarias, Borda Berri",
+        "timeWindow": {
+          "start": "20:00",
+          "end": "22:45"
+        },
+        "location": {
+          "name": "Calle 31 de Agosto and Calle Fermín Calbetón",
+          "countryCode": "ES",
+          "city": "San Sebastián",
+          "area": "Parte Vieja"
+        },
+        "notes": "One or two pintxos and one small glass per bar, then move — sitting down anywhere ends the crawl. Order the carrillera at Cuchara and the risotto de idiazábal at Borda Berri; both are cooked to order, so nothing on the counter is what you want.",
+        "anchors": [],
+        "kind": "planned",
+        "tags": [
+          "meal",
+          "drinks"
+        ],
+        "cost": {
+          "amountMinor": 11000,
+          "currency": "USD"
+        },
+        "bookedBy": null,
+        "participants": [],
+        "mode": null,
+        "endLocation": null,
+        "pendingReason": null
+      }
+    }
+  },
+  "notebook": {
+    "strip": {
+      "kind": "trip-strip",
+      "runs": [
+        {
+          "city": "San Sebastián",
+          "days": [
+            {
+              "dayId": "00000000-0000-4000-8003-000000000001",
+              "ordinal": 1,
+              "date": null,
+              "city": "San Sebastián"
+            },
+            {
+              "dayId": "00000000-0000-4000-8003-000000000002",
+              "ordinal": 2,
+              "date": null,
+              "city": "San Sebastián"
+            },
+            {
+              "dayId": "00000000-0000-4000-8003-000000000003",
+              "ordinal": 3,
+              "date": null,
+              "city": "San Sebastián"
+            }
+          ],
+          "phrase": "days 1–3 San Sebastián"
+        },
+        {
+          "city": "Bilbao",
+          "days": [
+            {
+              "dayId": "00000000-0000-4000-8003-000000000004",
+              "ordinal": 4,
+              "date": null,
+              "city": "Bilbao"
+            },
+            {
+              "dayId": "00000000-0000-4000-8003-000000000005",
+              "ordinal": 5,
+              "date": null,
+              "city": "Bilbao"
+            }
+          ],
+          "phrase": "days 4–5 Bilbao"
+        },
+        {
+          "city": "Cangas de Onís",
+          "days": [
+            {
+              "dayId": "00000000-0000-4000-8003-000000000006",
+              "ordinal": 6,
+              "date": null,
+              "city": "Cangas de Onís"
+            },
+            {
+              "dayId": "00000000-0000-4000-8003-000000000007",
+              "ordinal": 7,
+              "date": null,
+              "city": "Cangas de Onís"
+            }
+          ],
+          "phrase": "days 6–7 Cangas de Onís"
+        },
+        {
+          "city": "Santiago de Compostela",
+          "days": [
+            {
+              "dayId": "00000000-0000-4000-8003-000000000008",
+              "ordinal": 8,
+              "date": null,
+              "city": "Santiago de Compostela"
+            },
+            {
+              "dayId": "00000000-0000-4000-8003-000000000009",
+              "ordinal": 9,
+              "date": null,
+              "city": "Santiago de Compostela"
+            }
+          ],
+          "phrase": "days 8–9 Santiago de Compostela"
+        }
+      ],
+      "summary": "Days 1–3 San Sebastián, days 4–5 Bilbao, days 6–7 Cangas de Onís, days 8–9 Santiago de Compostela"
+    },
+    "day": {
+      "kind": "itinerary-day",
+      "dayId": "00000000-0000-4000-8003-000000000003",
+      "cities": [
+        "San Sebastián",
+        "Getaria"
+      ],
+      "window": "9 am – 10:15 pm",
+      "cost": "$1,656.00",
+      "ordinal": 3,
+      "date": null,
+      "activities": [
+        {
+          "title": "Breakfast at the hotel",
+          "timeWindow": "9 am – 9:45 am",
+          "cost": "$16.00"
+        },
+        {
+          "title": "Coast road to Getaria via Zarautz",
+          "timeWindow": "10 am – 10:40 am",
+          "cost": null
+        },
+        {
+          "title": "Cristóbal Balenciaga Museoa",
+          "timeWindow": "10:50 am – 12:20 pm",
+          "cost": "$26.00"
+        },
+        {
+          "title": "Lunch at Elkano",
+          "timeWindow": "1:30 pm – 3:45 pm",
+          "cost": "$340.00"
+        },
+        {
+          "title": "Txakoli tasting at Txomin Etxaniz",
+          "timeWindow": "4:30 pm – 6 pm",
+          "cost": "$50.00"
+        },
+        {
+          "title": "Quiet dinner at Bodegón Alejandro",
+          "timeWindow": "8:30 pm – 10:15 pm",
+          "cost": "$120.00"
+        }
+      ]
+    }
+  }
+}

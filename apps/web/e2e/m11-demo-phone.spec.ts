@@ -19,7 +19,7 @@ test.describe("the demo trip on a phone", () => {
   test.use({ storageState: { cookies: [], origins: [] } });
 
   test("reaches Plan and Map from the tab bar, without leaving the demo", async ({ page }) => {
-    await page.goto("/demo");
+    await page.goto("/demo/japan");
     await expect(page.getByRole("heading", { name: "Japan: Tokyo → Kyoto → Osaka" })).toBeVisible();
 
     const bar = page.getByRole("navigation", { name: "Phone navigation" });
@@ -27,25 +27,21 @@ test.describe("the demo trip on a phone", () => {
     // Only the views the demo serves. Notebook, Trips and Playbooks all lead
     // to signed-in routes, which for this visitor is a sign-in wall.
     await expect(bar.getByRole("link")).toHaveText(["Overview", "Plan", "Map"]);
-    // The demo lands on Overview (§24), and the bar says so.
-    await expect(bar.getByRole("link", { name: "Overview" })).toHaveAttribute("aria-current", "page");
-
-    await bar.getByRole("link", { name: "Plan" }).click();
-    await expect(page).toHaveURL(/\/demo\?view=Plan$/);
+    // A demo lands on Plan (Mitchell, 2026-10-11), and the bar says so.
     await expect(page.getByText("Land at Haneda").first()).toBeVisible();
     await expect(bar.getByRole("link", { name: "Plan" })).toHaveAttribute("aria-current", "page");
 
     await bar.getByRole("link", { name: "Map" }).click();
-    await expect(page).toHaveURL(/\/demo\?view=Map$/);
+    await expect(page).toHaveURL(/\/demo\/japan\?view=Map$/);
     await expect(page.getByTestId("map-lens")).toBeVisible();
     await expect(bar.getByRole("link", { name: "Map" })).toHaveAttribute("aria-current", "page");
 
-    // And back to where the demo opened — the tab Mitchell asked for on
-    // 2026-10-01. Without it the only way back off Map was the browser's Back.
+    // And on to Overview — the tab Mitchell asked for on 2026-10-01. Without
+    // it the only way back off Map was the browser's Back.
     // The witness is the Overview document's editor, the same one
     // `m14-mobile-notebook` uses for a phone's Overview.
     await bar.getByRole("link", { name: "Overview" }).click();
-    await expect(page).toHaveURL(/\/demo\?view=Overview$/);
+    await expect(page).toHaveURL(/\/demo\/japan\?view=Overview$/);
     await expect(page.locator(".tc-page-editor")).toBeVisible();
     await expect(page.getByTestId("map-lens")).toHaveCount(0);
     await expect(bar.getByRole("link", { name: "Overview" })).toHaveAttribute("aria-current", "page");

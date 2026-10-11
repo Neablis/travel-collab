@@ -28,7 +28,6 @@ const FIRST_TRIP_COMPOSER_ID = "first-trip-composer";
 import { duplicateTrip, createTrip as createTripApi, leaveTrip, sendTripCommand, fetchTripDetail, fetchTrips } from "@/lib/apiClient";
 import { viewerOwnsTrip } from "@/lib/tripRole";
 import { useSessionUser } from "@/components/account/useSessionUser";
-import { DEMO_TRIP_ID } from "@/lib/demoTrip";
 import { takeDemoClone } from "@/lib/pendingDemoClone";
 import { pendingPlaybookAddDay } from "@/lib/pendingPlaybookAdd";
 import { tripSpend, plannedOfBudgetLine } from "@/lib/cost";
@@ -258,7 +257,8 @@ export default function Home() {
   const demoCloneAttempted = useRef(false);
   useEffect(() => {
     if (demoCloneAttempted.current || trips === null || unauthenticated) return;
-    if (!takeDemoClone()) return;
+    const demoTripId = takeDemoClone();
+    if (demoTripId === null) return;
     demoCloneAttempted.current = true;
     setCloningDemo(true);
     // The wizard may already be open (page-head button, or the first-run
@@ -268,7 +268,7 @@ export default function Home() {
     // to the demo copy, so close it rather than let the submit race the
     // clone (CodeRabbit, pull request 104).
     setNewTripOpen(false);
-    void duplicateTrip(DEMO_TRIP_ID).then((result) => {
+    void duplicateTrip(demoTripId).then((result) => {
       if (result.ok) {
         // Left true across the navigation on purpose: `router.push` does not
         // unmount synchronously, and flipping this back would flash the empty
