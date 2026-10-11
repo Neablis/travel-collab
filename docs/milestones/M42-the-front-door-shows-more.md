@@ -99,6 +99,9 @@ Candidates absorbed (each deleted by this gate):
 11. **Four notebook widgets**: *Activities by tag* (count, pie or bar), *Trip description* (the
     description and its top tags with shares), *Tags by day* (a stacked bar per day), and *Hours
     by tag* (untimed stops left out). Ticketed is left out of all four.
+    *Walk, 2026-10-11:* the *Trip description* chips stay ordered by stop count (as on day pages
+    and Discover cards), not with the described tags first; and Discover's tag filter stays inside
+    the Filters panel (part 5), with no separate row of one-tap tag chips.
 
 ## Scope
 
