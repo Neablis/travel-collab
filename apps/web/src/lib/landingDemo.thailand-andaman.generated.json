@@ -1,0 +1,389 @@
+{
+  "currency": "USD",
+  "accents": {
+    "00000000-0000-4000-8004-000000000001": "info",
+    "00000000-0000-4000-8004-000000000002": "info",
+    "00000000-0000-4000-8004-000000000003": "brand",
+    "00000000-0000-4000-8004-000000000004": "brand",
+    "00000000-0000-4000-8004-000000000005": "brand",
+    "00000000-0000-4000-8004-000000000006": "danger",
+    "00000000-0000-4000-8004-000000000007": "danger",
+    "00000000-0000-4000-8004-000000000008": "danger",
+    "00000000-0000-4000-8004-000000000009": "danger",
+    "00000000-0000-4000-8004-000000000010": "info"
+  },
+  "river": {
+    "dayId": "00000000-0000-4000-8004-000000000002",
+    "ordinal": 2,
+    "city": "Bangkok",
+    "activityIds": [
+      "00000000-0000-4000-8004-000000000017",
+      "00000000-0000-4000-8004-000000000018",
+      "00000000-0000-4000-8004-000000000019",
+      "00000000-0000-4000-8004-000000000020",
+      "00000000-0000-4000-8004-000000000021",
+      "00000000-0000-4000-8004-000000000022",
+      "00000000-0000-4000-8004-000000000023"
+    ],
+    "activities": {
+      "00000000-0000-4000-8004-000000000017": {
+        "activityId": "00000000-0000-4000-8004-000000000017",
+        "title": "Breakfast at Sarnies, Charoen Krung",
+        "timeWindow": {
+          "start": "08:00",
+          "end": "08:50"
+        },
+        "location": {
+          "name": "Sarnies Bangkok, Charoen Krung Soi 44",
+          "lat": 13.72106,
+          "lng": 100.514802,
+          "countryCode": "TH",
+          "city": "Bangkok",
+          "area": "Bang Rak"
+        },
+        "notes": "Charoen Krung wakes up late; this is one of the few places doing a real breakfast before nine. Sit upstairs in the old shophouse, not in the ground-floor coffee queue.",
+        "anchors": [],
+        "kind": "planned",
+        "tags": [
+          "meal"
+        ],
+        "cost": {
+          "amountMinor": 1600,
+          "currency": "USD"
+        },
+        "bookedBy": null,
+        "participants": [],
+        "mode": null,
+        "endLocation": null,
+        "pendingReason": null
+      },
+      "00000000-0000-4000-8004-000000000018": {
+        "activityId": "00000000-0000-4000-8004-000000000018",
+        "title": "Orange-flag express boat up the Chao Phraya",
+        "timeWindow": {
+          "start": "09:15",
+          "end": "09:45"
+        },
+        "location": {
+          "name": "Chao Phraya Express Boat, Si Phraya pier to Tha Chang",
+          "lat": 13.748158,
+          "lng": 100.497558,
+          "countryCode": "TH",
+          "city": "Bangkok",
+          "area": "Chao Phraya river"
+        },
+        "notes": "Take the orange flag, 16 baht, pay the conductor on board. Ignore the blue-flag tourist boat at four times the price on the same water — the only difference is a commentary and a guaranteed seat.",
+        "anchors": [],
+        "kind": "transit",
+        "tags": [],
+        "cost": {
+          "amountMinor": 120,
+          "currency": "USD"
+        },
+        "bookedBy": null,
+        "participants": [],
+        "mode": null,
+        "endLocation": null,
+        "pendingReason": null
+      },
+      "00000000-0000-4000-8004-000000000019": {
+        "activityId": "00000000-0000-4000-8004-000000000019",
+        "title": "Grand Palace and Wat Phra Kaew",
+        "timeWindow": {
+          "start": "09:50",
+          "end": "12:00"
+        },
+        "location": {
+          "name": "The Grand Palace",
+          "lat": 13.749351,
+          "lng": 100.491864,
+          "countryCode": "TH",
+          "city": "Bangkok",
+          "area": "Phra Nakhon"
+        },
+        "notes": "500 baht each, bought online to skip the ticket window. Gates open at 08:30 and the Emerald Buddha hall is a shuffling queue by 10:30. Shoulders and knees covered or you buy a cover-up at the gate at a tourist price.",
+        "anchors": [],
+        "kind": "planned",
+        "tags": [
+          "ticketed",
+          "sight"
+        ],
+        "cost": {
+          "amountMinor": 3400,
+          "currency": "USD"
+        },
+        "bookedBy": null,
+        "participants": [],
+        "mode": null,
+        "endLocation": null,
+        "pendingReason": null
+      },
+      "00000000-0000-4000-8004-000000000020": {
+        "activityId": "00000000-0000-4000-8004-000000000020",
+        "title": "Lunch at Err Urban Rustic Thai",
+        "timeWindow": {
+          "start": "12:30",
+          "end": "13:40"
+        },
+        "location": {
+          "name": "Err Urban Rustic Thai, Maha Rat Road",
+          "lat": 13.724956,
+          "lng": 100.579491,
+          "countryCode": "TH",
+          "city": "Bangkok",
+          "area": "Tha Tien"
+        },
+        "notes": "Down an alley behind Wat Pho and much cooler than anything on the palace side. The pork and the pickles are the point; the som tam is fierce even by local standards, so say 'phet nit noi' unless you mean it.",
+        "anchors": [],
+        "kind": "planned",
+        "tags": [
+          "meal"
+        ],
+        "cost": {
+          "amountMinor": 3200,
+          "currency": "USD"
+        },
+        "bookedBy": null,
+        "participants": [],
+        "mode": null,
+        "endLocation": null,
+        "pendingReason": null
+      },
+      "00000000-0000-4000-8004-000000000021": {
+        "activityId": "00000000-0000-4000-8004-000000000021",
+        "title": "Cross to Wat Arun",
+        "timeWindow": {
+          "start": "14:10",
+          "end": "15:40"
+        },
+        "location": {
+          "name": "Wat Arun Ratchawararam",
+          "lat": 13.743876,
+          "lng": 100.489941,
+          "countryCode": "TH",
+          "city": "Bangkok",
+          "area": "Thonburi"
+        },
+        "notes": "The cross-river ferry from Tha Tien is 5 baht and leaves every few minutes; the queue for it is always shorter than the queue for a taxi round by the bridge. The steep upper terrace of the prang has been closed on and off — the porcelain detail is at eye level anyway.",
+        "anchors": [],
+        "kind": "planned",
+        "tags": [
+          "ticketed",
+          "sight"
+        ],
+        "cost": {
+          "amountMinor": 700,
+          "currency": "USD"
+        },
+        "bookedBy": null,
+        "participants": [],
+        "mode": null,
+        "endLocation": null,
+        "pendingReason": null
+      },
+      "00000000-0000-4000-8004-000000000022": {
+        "activityId": "00000000-0000-4000-8004-000000000022",
+        "title": "Sunset drink at Sala Rattanakosin",
+        "timeWindow": {
+          "start": "17:00",
+          "end": "18:15"
+        },
+        "location": {
+          "name": "Sala Rattanakosin rooftop bar, Maha Rat Road",
+          "lat": 13.744493,
+          "lng": 100.492573,
+          "countryCode": "TH",
+          "city": "Bangkok",
+          "area": "Tha Tien"
+        },
+        "notes": "Nobody has committed to this. It is a small roof directly opposite Wat Arun and it takes no bookings, so it is either empty at five or impossible at six-thirty. If it is full, the Amorosa roof at Arun Residence next door is the same view.",
+        "anchors": [],
+        "kind": "pending",
+        "tags": [
+          "drinks"
+        ],
+        "cost": {
+          "amountMinor": 2200,
+          "currency": "USD"
+        },
+        "bookedBy": null,
+        "participants": [],
+        "mode": null,
+        "endLocation": null,
+        "pendingReason": null
+      },
+      "00000000-0000-4000-8004-000000000023": {
+        "activityId": "00000000-0000-4000-8004-000000000023",
+        "title": "Dinner at Supanniga Eating Room",
+        "timeWindow": {
+          "start": "19:30",
+          "end": "21:30"
+        },
+        "location": {
+          "name": "Supanniga Eating Room, Tha Tien",
+          "lat": 13.746481,
+          "lng": 100.490557,
+          "countryCode": "TH",
+          "city": "Bangkok",
+          "area": "Tha Tien"
+        },
+        "notes": "Held two seats on the river terrace; they confirm 48 hours out and release the table if nobody replies. Trat-province home cooking rather than hotel Thai — the moo cha muang and the crab curry are what to order.",
+        "anchors": [],
+        "kind": "pending",
+        "tags": [
+          "meal"
+        ],
+        "cost": {
+          "amountMinor": 5500,
+          "currency": "USD"
+        },
+        "bookedBy": null,
+        "participants": [],
+        "mode": null,
+        "endLocation": null,
+        "pendingReason": null
+      }
+    }
+  },
+  "notebook": {
+    "strip": {
+      "kind": "trip-strip",
+      "runs": [
+        {
+          "city": "Bangkok",
+          "days": [
+            {
+              "dayId": "00000000-0000-4000-8004-000000000001",
+              "ordinal": 1,
+              "date": null,
+              "city": "Bangkok"
+            },
+            {
+              "dayId": "00000000-0000-4000-8004-000000000002",
+              "ordinal": 2,
+              "date": null,
+              "city": "Bangkok"
+            }
+          ],
+          "phrase": "days 1–2 Bangkok"
+        },
+        {
+          "city": "Krabi",
+          "days": [
+            {
+              "dayId": "00000000-0000-4000-8004-000000000003",
+              "ordinal": 3,
+              "date": null,
+              "city": "Krabi"
+            },
+            {
+              "dayId": "00000000-0000-4000-8004-000000000004",
+              "ordinal": 4,
+              "date": null,
+              "city": "Krabi"
+            },
+            {
+              "dayId": "00000000-0000-4000-8004-000000000005",
+              "ordinal": 5,
+              "date": null,
+              "city": "Krabi"
+            }
+          ],
+          "phrase": "days 3–5 Krabi"
+        },
+        {
+          "city": "Koh Lanta",
+          "days": [
+            {
+              "dayId": "00000000-0000-4000-8004-000000000006",
+              "ordinal": 6,
+              "date": null,
+              "city": "Koh Lanta"
+            },
+            {
+              "dayId": "00000000-0000-4000-8004-000000000007",
+              "ordinal": 7,
+              "date": null,
+              "city": "Koh Lanta"
+            },
+            {
+              "dayId": "00000000-0000-4000-8004-000000000008",
+              "ordinal": 8,
+              "date": null,
+              "city": "Koh Lanta"
+            },
+            {
+              "dayId": "00000000-0000-4000-8004-000000000009",
+              "ordinal": 9,
+              "date": null,
+              "city": "Koh Lanta"
+            }
+          ],
+          "phrase": "days 6–9 Koh Lanta"
+        },
+        {
+          "city": "Bangkok",
+          "days": [
+            {
+              "dayId": "00000000-0000-4000-8004-000000000010",
+              "ordinal": 10,
+              "date": null,
+              "city": "Bangkok"
+            }
+          ],
+          "phrase": "day 10 Bangkok"
+        }
+      ],
+      "summary": "Days 1–2 Bangkok, days 3–5 Krabi, days 6–9 Koh Lanta, day 10 Bangkok"
+    },
+    "day": {
+      "kind": "itinerary-day",
+      "dayId": "00000000-0000-4000-8004-000000000003",
+      "cities": [
+        "Bangkok",
+        "Krabi"
+      ],
+      "window": "8:30 am – 8:45 pm",
+      "cost": "$3,207.00",
+      "ordinal": 3,
+      "date": null,
+      "activities": [
+        {
+          "title": "Breakfast on the Riva Surya terrace, then check out",
+          "timeWindow": "8:30 am – 9:20 am",
+          "cost": "$14.00"
+        },
+        {
+          "title": "Taxi to Don Mueang",
+          "timeWindow": "10 am – 11:05 am",
+          "cost": "$14.00"
+        },
+        {
+          "title": "Flight Bangkok to Krabi (DMK–KBV)",
+          "timeWindow": "12:55 pm – 2:20 pm",
+          "cost": "$156.00"
+        },
+        {
+          "title": "Airport minivan to Ao Nang",
+          "timeWindow": "3 pm – 3:55 pm",
+          "cost": "$12.00"
+        },
+        {
+          "title": "Longtail from Ao Nang to Railay West",
+          "timeWindow": "4:20 pm – 4:50 pm",
+          "cost": "$9.00"
+        },
+        {
+          "title": "Check in at Railay Bay Resort",
+          "timeWindow": "5 pm – 5:45 pm",
+          "cost": "$840.00"
+        },
+        {
+          "title": "Dinner at the Last Bar, East Railay",
+          "timeWindow": "7 pm – 8:45 pm",
+          "cost": "$24.00"
+        }
+      ]
+    }
+  }
+}

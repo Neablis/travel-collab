@@ -1,24 +1,19 @@
-import { DemoTripScreen } from "@/components/demo/DemoTripScreen";
+import { DemoPicker } from "@/components/demo/DemoPicker";
+import { DEMO_TRIP_CARDS } from "@/lib/demoTripCards";
 import { pageMetadata } from "@/lib/siteMetadata";
 
 export const metadata = pageMetadata({
-  title: "An example trip",
-  description: "Look around a real trip on Caesura: every day, stop, cost and map, read-only and with no account.",
+  title: "Example trips",
+  description: "Look around real trips on Caesura: every day, stop, cost and map, read-only and with no account.",
   canonical: "/demo",
 });
 
 // Under `(front)`, not `(app)`: this is a page for people who have no account,
 // so it draws the front door's chrome rather than the signed-in shell. It is
-// also deliberately absent from `middleware.ts`'s matcher — matching it would
-// bounce every visitor to /signin, which is precisely what this page exists to
-// avoid — and it is NOT under `/trips/:id`, which that matcher does guard.
-//
-// What renders below is the real trip board (ADR-031): the real `TripProvider`
-// reading the real `/api/trips/:id`, `/history` and `/access` endpoints, and
-// the real Day-columns, Timeline, Calendar and Map lenses. The trip it asks for
-// is folded from the Japan fixture in memory and granted to every visitor as a
-// **viewer**, so the board is read-only by the same rule that makes an invited
-// viewer read-only — not by a second, parallel read-only implementation.
-export default function DemoPage() {
-  return <DemoTripScreen />;
+// also deliberately absent from `middleware.ts`'s matcher, and so is every
+// `/demo/<slug>` below it — matching them would bounce every visitor to
+// /signin, which is precisely what they exist to avoid.
+/** `/demo`: the picker of example trips, from the committed cards. */
+export default function DemoPickerPage() {
+  return <DemoPicker cards={DEMO_TRIP_CARDS} />;
 }

@@ -29,7 +29,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tri
   // be looked up: the demo is served without touching the database, and this
   // is the one read on its path that would otherwise have.
   const members = isDemoTripId(tripId)
-    ? demoTripMembers()
+    ? demoTripMembers(tripId)
     : await withProfiles(access.detail.members, access.userId);
   // **The OWNER's entitlement, not the reader's** (M20 link 6). The owner is
   // the billing subject — collaboration on a trip is paid for by whoever owns

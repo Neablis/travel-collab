@@ -1101,7 +1101,7 @@ describe("Home finishing a demo clone", () => {
   });
 
   it("copies the demo trip and opens it when the marker is set", async () => {
-    rememberDemoClone();
+    rememberDemoClone(DEMO_TRIP_ID);
     stubEmptyListAndDuplicate();
 
     render(<Home />);
@@ -1123,7 +1123,7 @@ describe("Home finishing a demo clone", () => {
     // `takeDemoClone` reads AND clears, which is what makes this true under
     // StrictMode's double-invoked effects. A second copy is a second trip in
     // somebody's list, from one button press.
-    rememberDemoClone();
+    rememberDemoClone(DEMO_TRIP_ID);
     stubEmptyListAndDuplicate();
 
     const { rerender } = render(<Home />);
@@ -1135,7 +1135,7 @@ describe("Home finishing a demo clone", () => {
   it("says so and stays put when the copy fails", async () => {
     // Not fatal: the trip list is a perfectly good place to be, and the demo is
     // one link away. What must not happen is a silent nothing.
-    rememberDemoClone();
+    rememberDemoClone(DEMO_TRIP_ID);
     stubEmptyListAndDuplicate(500);
 
     render(<Home />);
@@ -1154,7 +1154,7 @@ describe("Home finishing a demo clone", () => {
   // which is what's on screen because an empty trip list is what "no trips
   // yet" and "the clone hasn't resolved yet" both look like — disabled.
   it("disables both wizard launchers while the demo copy is in flight", async () => {
-    rememberDemoClone();
+    rememberDemoClone(DEMO_TRIP_ID);
     let resolveDuplicate!: (response: Response) => void;
     const duplicatePending = new Promise<Response>((resolve) => {
       resolveDuplicate = resolve;
@@ -1204,7 +1204,7 @@ describe("Home finishing a demo clone", () => {
   // decided yet whether this account has zero trips or a pending clone) and
   // a person can open the wizard before the clone claims it.
   it("closes an already-open wizard when the demo copy starts", async () => {
-    rememberDemoClone();
+    rememberDemoClone(DEMO_TRIP_ID);
     let resolveList!: (response: Response) => void;
     const listPending = new Promise<Response>((resolve) => {
       resolveList = resolve;

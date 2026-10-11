@@ -14,12 +14,12 @@ import { PhoneTabBar, PhoneTabBarFallback } from "@/components/nav/PhoneTabBar";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Text } from "@/components/ui/text";
 import { duplicateTrip } from "@/lib/apiClient";
-import { DEMO_PATH, DEMO_TRIP_ID } from "@/lib/demoTrip";
+import { demoPath, type DemoTrip } from "@/lib/demoTrip";
 import { rememberDemoClone, takeDemoClone } from "@/lib/pendingDemoClone";
 import { cn } from "@/lib/cn";
 
-// `/demo` — the real board, read-only, for someone who has no account yet
-// (ADR-031).
+// `/demo/<slug>` — the real board, read-only, for someone who has no account
+// yet (ADR-031), on one of the demo trips (M42 D1).
 //
 // The provider stack below is the SAME stack `(app)/trips/[tripId]/page.tsx`
 // mounts, in the same order, around the same `TripBoardScreen`. That is the
@@ -36,7 +36,8 @@ import { cn } from "@/lib/cn";
 // invited viewer's board does, and a control added to the board later inherits
 // that without anyone remembering this page exists.
 
-export function DemoTripScreen() {
+/** One demo's board, its banner and the phone tab bar, for `/demo/<slug>`. */
+export function DemoTripScreen({ demo }: { demo: DemoTrip }) {
   return (
     <>
       <FrontDoorHeader
@@ -60,7 +61,7 @@ export function DemoTripScreen() {
             all, and axe flagged it on `/demo`. `main` has no padding here
             (`px-0`), so it draws exactly where it did. Still outside the
             Suspense boundary, so it stays in the first paint. */}
-        <DemoBanner />
+        <DemoBanner demo={demo} />
         {/* `LensRouter` reads `useSearchParams()` — which lens you are looking
             at is URL state, so a link to `/demo?lens=Map` opens the map. That
             makes this subtree opt out of static prerendering, and Next.js
@@ -75,11 +76,11 @@ export function DemoTripScreen() {
             header and the banner — including "Make this trip mine" — are in
             the first paint. */}
         <Suspense fallback={<BoardFallback />}>
-          <TripProvider tripId={DEMO_TRIP_ID}>
+          <TripProvider tripId={demo.tripId}>
             <FocusProvider>
               <EditorHost>
                 <LensRouter>
-                  <TripBoardScreen tripId={DEMO_TRIP_ID} />
+                  <TripBoardScreen tripId={demo.tripId} />
                 </LensRouter>
               </EditorHost>
             </FocusProvider>
@@ -116,7 +117,7 @@ function BoardFallback() {
  * demo-shaped branch — the board's only concession to the demo is dropping the
  * assistant rail, which has no read-only half to fall back to.
  */
-function DemoBanner() {
+function DemoBanner({ demo }: { demo: DemoTrip }) {
   const router = useRouter();
   const [copying, setCopying] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -134,13 +135,13 @@ function DemoBanner() {
    * be shouting about something they did not just ask for.
    */
   const makeItMine = useCallback(
-    async ({ pressed }: { pressed: boolean }) => {
+    async ({ tripId, pressed }: { tripId: string; pressed: boolean }) => {
       setCopying(true);
       setError(null);
       // The ordinary duplicate endpoint. Signed out it answers 401, which is the
       // visitor's cue to sign in — and to come back and have the copy happen,
       // rather than land here again with the button still to press.
-      const result = await duplicateTrip(DEMO_TRIP_ID);
+      const result = await duplicateTrip(tripId);
       if (result.ok) {
         router.push(`/trips/${result.value.tripId}`);
         return;
@@ -156,10 +157,10 @@ function DemoBanner() {
         // need to exist, and it was redundant with the marker anyway
         // (Mitchell, 2026-09-01). `localStorage` is same-origin, so nobody
         // else's page can set it.
-        rememberDemoClone();
+        rememberDemoClone(tripId);
         setCopying(false);
         if (pressed) {
-          router.push(`/signin?callbackUrl=${encodeURIComponent(DEMO_PATH)}`);
+          router.push(`/signin?callbackUrl=${encodeURIComponent(demoPath(demo.slug))}`);
         }
         return;
       }
@@ -170,7 +171,7 @@ function DemoBanner() {
       setCopying(false);
       setError(result.error.message);
     },
-    [router],
+    [router, demo.slug],
   );
 
   // Coming back from sign-in, having already asked for a copy.
@@ -197,8 +198,11 @@ function DemoBanner() {
     // and a second pass here is a second trip in somebody's list. The
     // read-and-clear makes that true on its own; this is the cheaper guard.
     autoCloned.current = true;
-    if (!takeDemoClone()) return;
-    void makeItMine({ pressed: false });
+    // The marker's demo, not necessarily this page's: it names the one that
+    // was pressed, and the round trip may have landed on another.
+    const tripId = takeDemoClone();
+    if (tripId === null) return;
+    void makeItMine({ tripId, pressed: false });
   }, [makeItMine]);
 
   return (
@@ -219,7 +223,7 @@ function DemoBanner() {
               {error}
             </Text>
           )}
-          <Button variant="primary" disabled={copying} onClick={() => void makeItMine({ pressed: true })}>
+          <Button variant="primary" disabled={copying} onClick={() => void makeItMine({ tripId: demo.tripId, pressed: true })}>
             {copying ? "Making it yours…" : "Make this trip mine"}
           </Button>
         </div>

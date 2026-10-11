@@ -19,7 +19,7 @@ test.describe("the demo trip on a phone", () => {
   test.use({ storageState: { cookies: [], origins: [] } });
 
   test("reaches Plan and Map from the tab bar, without leaving the demo", async ({ page }) => {
-    await page.goto("/demo");
+    await page.goto("/demo/japan");
     await expect(page.getByRole("heading", { name: "Japan: Tokyo → Kyoto → Osaka" })).toBeVisible();
 
     const bar = page.getByRole("navigation", { name: "Phone navigation" });
@@ -31,12 +31,12 @@ test.describe("the demo trip on a phone", () => {
     await expect(bar.getByRole("link", { name: "Overview" })).toHaveAttribute("aria-current", "page");
 
     await bar.getByRole("link", { name: "Plan" }).click();
-    await expect(page).toHaveURL(/\/demo\?view=Plan$/);
+    await expect(page).toHaveURL(/\/demo\/japan\?view=Plan$/);
     await expect(page.getByText("Land at Haneda").first()).toBeVisible();
     await expect(bar.getByRole("link", { name: "Plan" })).toHaveAttribute("aria-current", "page");
 
     await bar.getByRole("link", { name: "Map" }).click();
-    await expect(page).toHaveURL(/\/demo\?view=Map$/);
+    await expect(page).toHaveURL(/\/demo\/japan\?view=Map$/);
     await expect(page.getByTestId("map-lens")).toBeVisible();
     await expect(bar.getByRole("link", { name: "Map" })).toHaveAttribute("aria-current", "page");
 
@@ -45,7 +45,7 @@ test.describe("the demo trip on a phone", () => {
     // The witness is the Overview document's editor, the same one
     // `m14-mobile-notebook` uses for a phone's Overview.
     await bar.getByRole("link", { name: "Overview" }).click();
-    await expect(page).toHaveURL(/\/demo\?view=Overview$/);
+    await expect(page).toHaveURL(/\/demo\/japan\?view=Overview$/);
     await expect(page.locator(".tc-page-editor")).toBeVisible();
     await expect(page.getByTestId("map-lens")).toHaveCount(0);
     await expect(bar.getByRole("link", { name: "Overview" })).toHaveAttribute("aria-current", "page");

@@ -7,7 +7,7 @@ import { BookOpen, LayoutDashboard, List, Luggage, Map, NotebookText } from "luc
 import { useSessionUser } from "@/components/account/useSessionUser";
 import { resolveView, type View } from "@/components/trip/context/LensRouter";
 import { cn } from "@/lib/cn";
-import { DEMO_PATH } from "@/lib/demoTrip";
+import { isDemoBoardPath } from "@/lib/demoTrip";
 import { Button } from "@/components/ui/button";
 import { BrandMark } from "@/components/BrandMark";
 import { usePhoneAsk } from "./phoneAsk";
@@ -72,7 +72,7 @@ type PhoneScope = "trip" | "demo" | "account";
 
 function scopeOf(pathname: string): PhoneScope {
   if (tripIdFromPathname(pathname)) return "trip";
-  return pathname === DEMO_PATH ? "demo" : "account";
+  return isDemoBoardPath(pathname) ? "demo" : "account";
 }
 
 /**
@@ -208,10 +208,10 @@ function activePhoneTab(pathname: string, view: View | null): PhoneTabId | null 
  */
 function phoneTabHref(tab: PhoneTabId, pathname: string): string {
   const tripId = tripIdFromPathname(pathname);
-  // The path the trip's views live on. The demo's views are `/demo?view=…` —
+  // The path the trip's views live on. The demo's views are `/demo/<slug>?view=…` —
   // `LensRouter` reads `?view=` on whatever path it is mounted under — and
   // `/trips/<demo id>` is a 404 behind a sign-in wall (`lib/demoTrip.ts`).
-  const tripPath = tripId ? `/trips/${tripId}` : pathname === DEMO_PATH ? DEMO_PATH : null;
+  const tripPath = tripId ? `/trips/${tripId}` : isDemoBoardPath(pathname) ? pathname : null;
   switch (tab) {
     case "trips":
       return "/";

@@ -39,6 +39,9 @@ test.describe("the demo trip", () => {
     }
     await page.getByRole("link", { name: "Look around a real trip" }).click();
     await expect(page).toHaveURL(/\/demo$/);
+    // The picker (M42 D1); Japan is one card on it.
+    await page.getByRole("link", { name: "Japan: Tokyo → Kyoto → Osaka" }).click();
+    await expect(page).toHaveURL(/\/demo\/japan$/);
 
     // The real fixture through the real trip header.
     await expect(page.getByRole("heading", { name: "Japan: Tokyo → Kyoto → Osaka" })).toBeVisible();
@@ -103,7 +106,7 @@ test.describe("the demo trip", () => {
   });
 
   test("hides every control a signed-out visitor has no session for", async ({ page }) => {
-    await page.goto("/demo");
+    await page.goto("/demo/japan");
     await expect(page.getByRole("heading", { name: "Japan: Tokyo → Kyoto → Osaka" })).toBeVisible();
 
     // Both go to `(app)` routes behind middleware — a trip to /signin.
@@ -129,7 +132,7 @@ test.describe("the demo trip", () => {
   });
 
   test("shows the trip's own history, without offering to change it", async ({ page }) => {
-    await page.goto("/demo");
+    await page.goto("/demo/japan");
     await expect(page.getByRole("heading", { name: "Japan: Tokyo → Kyoto → Osaka" })).toBeVisible();
 
     await page.getByRole("button", { name: /history/i }).click();
@@ -143,7 +146,7 @@ test.describe("the demo trip", () => {
   });
 
   test("finishes the copy after sign-in, without a second click", async ({ page }) => {
-    await page.goto("/demo");
+    await page.goto("/demo/japan");
     await page.getByRole("button", { name: "Make this trip mine" }).click();
 
     // The callbackUrl carries only the DESTINATION now. What tells the demo to
@@ -151,7 +154,7 @@ test.describe("the demo trip", () => {
     // the `?clone=1` that used to ride along here is gone, because a URL is
     // shareable and a link should not be able to make a stranger take a copy
     // (Mitchell, 2026-09-01).
-    await expect(page).toHaveURL(/\/signin\?callbackUrl=%2Fdemo$/);
+    await expect(page).toHaveURL(/\/signin\?callbackUrl=%2Fdemo%2Fjapan$/);
 
     // No invite code, deliberately: M11a's gate only asks for one from someone
     // with no `users` row, and alice has had one since `auth.setup.ts` — which
@@ -184,15 +187,15 @@ test.describe("the demo trip", () => {
   test("finishes the copy for somebody who had to make an account first", async ({ page }) => {
     test.slow();
 
-    await page.goto("/demo");
+    await page.goto("/demo/japan");
     await page.getByRole("button", { name: "Make this trip mine" }).click();
-    await expect(page).toHaveURL(/\/signin\?callbackUrl=%2Fdemo$/);
+    await expect(page).toHaveURL(/\/signin\?callbackUrl=%2Fdemo%2Fjapan$/);
 
     // The hop that used to lose it. The link is built from the NORMALISED
     // callbackUrl, so this is also the assertion that a hostile one could not
     // ride across.
     const swap = page.getByRole("link", { name: "Create an account" });
-    await expect(swap).toHaveAttribute("href", "/signup?callbackUrl=%2Fdemo");
+    await expect(swap).toHaveAttribute("href", "/signup?callbackUrl=%2Fdemo%2Fjapan");
     await swap.click();
     await expect(page).toHaveURL(/\/signup\?callbackUrl=/);
 
@@ -219,7 +222,7 @@ test.describe("the demo trip", () => {
 // The already-signed-in half: one click, no detour.
 test("a signed-in visitor makes the demo trip theirs, and can edit it", async ({ page }) => {
   test.slow();
-  await page.goto("/demo");
+  await page.goto("/demo/japan");
   await expect(page.getByRole("heading", { name: "Japan: Tokyo → Kyoto → Osaka" })).toBeVisible();
   await expect(page.getByText("Viewer", { exact: true })).toBeVisible();
 
