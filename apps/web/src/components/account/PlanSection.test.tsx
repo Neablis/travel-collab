@@ -506,7 +506,7 @@ describe("the card's three answers", () => {
       "Plan trips, days and stops, with the map and costs",
       "Ask the assistant about your trips",
       "Let the assistant make changes for you",
-      "Invite friends to plan your trips with you, with votes and comments",
+      "Invite friends to plan your trips with you",
     ]);
     expect(screen.queryByText(/ai\.ask|trip\.collaborators/)).toBeNull();
   });

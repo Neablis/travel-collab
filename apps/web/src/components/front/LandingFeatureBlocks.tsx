@@ -2,7 +2,6 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { DataText } from "@/components/ui/data-text";
 import { Heading } from "@/components/ui/heading";
-import { Table, TBody, TD, TFoot, TH, THead, TR } from "@/components/ui/table";
 import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/cn";
 
@@ -28,14 +27,10 @@ import { cn } from "@/lib/cn";
 
 const CREW = ["SK", "PR", "JM", "MT"] as const;
 
-// `dc.html:2124-2133`. The design labels the total $550 ($340 + $210); SPEC §14
-// says $596. The design file wins on copy (handoff `README.md`) and is the one
-// that adds up — do not "fix" this to $596.
-const COST_ROWS = [
-  { item: "Ryokan, Higashiyama", who: "Priya", cost: "$340" },
-  { item: "Kikunoi Roan dinner", who: "All 4", cost: "$210" },
-] as const;
-const COST_TOTAL = "$550";
+// A suggestion's Accept, drawn rather than live: the landing runs on nothing
+// (SPEC §14), so it is a picture of the button, hidden from the reader.
+const SUGGESTION_ACCEPT =
+  "flex-none self-center rounded-full bg-brand px-2 py-0.5 text-3xs font-semibold text-surface";
 
 // The Countdown block's steps. A fixture frozen the night before, never computed
 // from `Date.now()`: the page runs on nothing (SPEC §14), and a clock read here
@@ -192,8 +187,8 @@ export function LandingFeatureBlocks(): React.ReactElement {
       {/* Together — `dc.html:2018-2093` */}
       <Card className="flex h-full min-h-107.5 flex-col overflow-hidden rounded-lg p-0">
         <BlockHead eyebrow="Together" title="The trip starts before the trip.">
-          One plan your whole group can touch. Drag a stop and watch everyone react. Tap the ones you
-          can&rsquo;t wait for. Argue about Pontocho now, thank yourselves in Kyoto.
+          One plan your whole group can touch. Drag a stop and everyone sees it move. Suggest a change
+          and the planners say yes. Argue about Pontocho now, thank yourselves in Kyoto.
         </BlockHead>
 
         <div className="flex min-h-0 flex-1 flex-col justify-between gap-2.5 px-4.5 pb-4.5">
@@ -208,7 +203,7 @@ export function LandingFeatureBlocks(): React.ReactElement {
                 </span>
               ))}
             </div>
-            <DataText className="text-3xs tracking-wider uppercase">4 here now</DataText>
+            <DataText className="text-3xs tracking-wider uppercase">4 planning</DataText>
           </div>
 
           <div className="relative flex flex-col">
@@ -220,11 +215,6 @@ export function LandingFeatureBlocks(): React.ReactElement {
             >
               <Text as="span" className="truncate text-xs">Fushimi Inari, early</Text>
               <span className={cn(NAME_CHIP, "bg-brand-tint text-brand-pressed")}>Sam</span>
-              {/* "Tap the ones you can't wait for" — three of the four did. */}
-              <span className="ml-auto flex flex-none items-center gap-0.5">
-                <span role="img" aria-label="Can't wait" className="text-2xs text-danger">♥</span>
-                <DataText className="text-3xs">3</DataText>
-              </span>
             </TimelineRow>
 
             <TravelGap>Train + 20 min walk</TravelGap>
@@ -261,20 +251,26 @@ export function LandingFeatureBlocks(): React.ReactElement {
               }
             >
               <Text as="span" variant="secondary" className="truncate text-xs">Pontocho, maybe</Text>
-              <Badge variant="neutral" className="flex-none px-1.5 text-3xs tracking-wider uppercase">Idea</Badge>
+              <Badge variant="neutral" className="flex-none px-1.5 text-3xs tracking-wider uppercase">Suggested</Badge>
             </TimelineRow>
           </div>
 
+          {/* Dana's suggestion, the dashed stop above, waiting on a planner
+              (M40). It was a comment thread with replies, which trips do not
+              have (Mitchell, 2026-10-11). */}
           <div className="flex items-start gap-2 rounded-md bg-moss px-2.75 py-2.25">
             <span className="grid size-5 flex-none place-items-center rounded-full bg-warning-tint text-3xs font-semibold text-warning-ink">
               DK
             </span>
-            <div className="flex flex-col gap-0.5">
+            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
               <Text as="span" className="text-xs">
                 “Keep Pontocho — we can decide on the night.”
               </Text>
-              <DataText className="text-3xs tracking-wider uppercase">Dana · 2 replies</DataText>
+              <DataText className="text-3xs tracking-wider uppercase">Dana suggested this</DataText>
             </div>
+            <span aria-hidden className={SUGGESTION_ACCEPT}>
+              Accept
+            </span>
           </div>
         </div>
       </Card>
@@ -327,78 +323,50 @@ export function LandingFeatureBlocks(): React.ReactElement {
             <span className="grid size-5 flex-none place-items-center rounded-full bg-brand-tint text-3xs font-semibold text-brand-pressed">
               PR
             </span>
-            <div className="flex flex-col gap-0.5">
+            {/* A change somebody made, in the past tense: there is no chat to
+                quote and no Accept on a countdown, and the app has no live
+                presence (ADR-049 polls) — Mitchell, 2026-10-11. */}
+            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
               <Text as="span" className="text-xs">
-                “Bags are by the door. Is anyone else still up?”
+                Moved the meet-up at Kyoto station to 6:40 am.
               </Text>
-              <DataText className="text-3xs tracking-wider uppercase">Priya · 1:12 am · 3 replies</DataText>
+              <DataText className="text-3xs tracking-wider uppercase">Priya · 1:12 am</DataText>
             </div>
           </div>
         </div>
       </Card>
 
-      {/* Notebook — `dc.html:2095-2136` */}
+      {/* Notebook — `dc.html:2095-2136`'s frame. The page in it is a memory
+          rather than the design's cost table (Mitchell, 2026-10-11: *"it
+          should be more nostalgic than how much you spent on dinner"*), and
+          the phone's Notebook card is the same entry, shorter. */}
       <Card className="flex h-full min-h-107.5 flex-col overflow-hidden rounded-lg p-0">
         <BlockHead eyebrow="Notebook" title="How you’ll remember it.">
-          Pages that read like the letter home, with times and costs pulled live from the plan. Before
-          the trip it&rsquo;s a promise. After, it&rsquo;s the keepsake.
+          Pages that read like the letter home, written by everyone who was there. Before the trip
+          it&rsquo;s a promise. After, it&rsquo;s the keepsake.
         </BlockHead>
 
         <div className="flex min-h-0 flex-1 flex-col justify-between gap-2.5 px-4.5 pb-4.5">
           <div className="flex items-center gap-2 pb-0.75">
-            <DataText className="text-3xs tracking-wider uppercase">Arriving in Kyoto · Day 6</DataText>
-            <DataText className="ml-auto text-3xs">Sam typing…</DataText>
+            <DataText className="text-3xs tracking-wider uppercase">Day 6 · Hakone</DataText>
+            <DataText className="ml-auto text-3xs">Sam started this page</DataText>
           </div>
 
+          {/* SPEC §14's notebook-as-surface, kept: a page, not a card, with the
+              plan's own time in it wearing the widget-value tint. */}
           <div className="flex min-h-0 flex-1 flex-col gap-3 rounded-md border border-hairline bg-paper px-3.75 py-3.5">
             <Text as="p" className="text-sm leading-relaxed text-pretty">
-              We land at{" "}
-              <DataText className="rounded-sm bg-brand-tint px-1.25 py-px text-2xs text-brand-pressed">11:20 am</DataText>{" "}
-              and head up to Higashiyama — bags at the ryokan by{" "}
-              <DataText className="rounded-sm bg-brand-tint px-1.25 py-px text-2xs text-brand-pressed">4:00 pm</DataText>.{" "}
-              <span className="border-b-2 border-warning bg-warning-tint px-0.5 py-px">
-                Cash for the market — no cards.
-              </span>{" "}
-              Here is where the money goes:
+              We reached the ryokan at{" "}
+              <DataText className="rounded-sm bg-brand-tint px-1.25 py-px text-2xs text-brand-pressed">4:00 pm</DataText>{" "}
+              and stayed in the onsen until our fingers wrinkled, then ate far too much kaiseki. Marcus asked
+              for seconds of the one course nobody could name.
             </Text>
-
-            {/* SPEC §14: a table, not a card, "because the point is that the
-                notebook and the plan are one surface". The `Table` primitive
-                carries the semantics; the overrides strip its data-grid chrome
-                (cell padding, its own type scale) down to the design's
-                borderless doc rules. */}
-            <Table className="text-xs">
-              <THead>
-                <TR className="border-border-strong">
-                  <TH className="w-full px-0 pt-0 pb-1.25 font-mono text-3xs font-normal tracking-wider">Day 6</TH>
-                  <TH className="px-0 pt-0 pb-1.25 pl-2.5 font-mono text-3xs font-normal tracking-wider">Who</TH>
-                  <TH className="px-0 pt-0 pb-1.25 pl-2.5 text-right font-mono text-3xs font-normal tracking-wider">Cost</TH>
-                </TR>
-              </THead>
-              <TBody>
-                {COST_ROWS.map((row) => (
-                  <TR key={row.item}>
-                    <TD className="px-0 py-1.5 align-middle text-ink">{row.item}</TD>
-                    <TD className="px-0 py-1.5 pl-2.5 align-middle text-2xs text-slate">{row.who}</TD>
-                    <TD className="px-0 py-1.5 pl-2.5 text-right align-middle">
-                      <DataText className="text-2xs text-ink">{row.cost}</DataText>
-                    </TD>
-                  </TR>
-                ))}
-              </TBody>
-              <TFoot>
-                <TR className="border-b-0 font-semibold">
-                  <TD className="px-0 pt-1.5 align-middle text-ink">Day total</TD>
-                  <TD className="px-0 pt-1.5" />
-                  <TD className="px-0 pt-1.5 pl-2.5 text-right align-middle">
-                    <DataText className="text-2xs font-semibold text-ink">{COST_TOTAL}</DataText>
-                  </TD>
-                </TR>
-              </TFoot>
-            </Table>
-
             <Text as="p" className="text-sm leading-relaxed text-pretty">
-              Trains are on Sam, and we settle up in Osaka.
+              We walked back under the lanterns with nobody in a hurry. Priya says it was the best night of
+              the trip, and nobody argued.
+            </Text>
+            <Text as="p" className="mt-auto text-xs text-slate">
+              Sam, Priya, Dana, Marcus · Apr 9
             </Text>
           </div>
         </div>

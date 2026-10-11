@@ -36,28 +36,28 @@ rather than grepping for `§n` and reading forward (KI-2026-09-14-c).
 | §12 | Calendar as a city view, account settings, focus rings — 2026-08-26 | 451 |
 | §13 | Mobile foundations | 557 |
 | §14 | The landing page — 2026-08-26 | 637 |
-| §15 | Playbooks becomes a public library — 2026-08-30 | 684 |
-| §16 | The shared day gets a map, and Playbooks reaches the phone — 2026-09-01 | 757 |
-| §17 | Billing surfaces — M20 / M21 — 2026-09-02 | 796 |
+| §15 | Playbooks becomes a public library — 2026-08-30 | 690 |
+| §16 | The shared day gets a map, and Playbooks reaches the phone — 2026-09-01 | 763 |
+| §17 | Billing surfaces — M20 / M21 — 2026-09-02 | 802 |
 | §18 | Notebook widgets — a page has no scope — 2026-09-02 | 236 |
-| §19 | The phone Notebook is the whole model — 2026-09-03 | 895 |
-| §20 | Save this day as a Playbook — 2026-09-04 | 974 |
-| §21 | The notebook widget framework — 2026-09-04 | 1082 |
-| §22 | The phone tab bar is scoped, not disabled — 2026-09-05 | 1047 |
-| §23 | The assistant reaches the phone — as a pill, not a tab — 2026-09-05 | 1001 |
-| §24 | The trip's four tabs, renamed and rescoped — 2026-09-12 | 1116 |
-| §25 | Overview IS a notebook page — 2026-09-12 | 1154 |
-| §26 | Widget settings live outside the page — 2026-09-12 | 1180 |
-| §27 | Trip lifecycle, and read-only as one mode with two ways in — 2026-09-12 | 1221 |
-| §28 | Identity, the Ledger look, and the front door on a phone — 2026-09-12 | 1262 |
-| §29 | Plans is a route, and paying has a confirm step — 2026-09-14 | 1320 |
-| §30 | New trip is a conversation; the transcript has no bubbles — 2026-09-15 | 1407 |
-| §31 | The new-trip transcript is chat-shaped — 2026-09-18 | 1524 |
-| §32 | The conversation is every surface's new-trip flow — 2026-09-18 | 1586 |
-| §33 | Playbooks hold several days, and the Discover bar is re-sorted by kind — 2026-09-19 | 1658 |
-| §34 | API tokens, a trip as a file, and the phone gets an account — 2026-09-19 | 1748 |
-| §35 | Simplify pass, the invite landing, Cass, and actions that look like actions — 2026-09-22 | 1905 |
-| §36 | Travel legs, co-travellers, the rich layer and reporting — 2026-09-25 | 2094 |
+| §19 | The phone Notebook is the whole model — 2026-09-03 | 901 |
+| §20 | Save this day as a Playbook — 2026-09-04 | 980 |
+| §21 | The notebook widget framework — 2026-09-04 | 1088 |
+| §22 | The phone tab bar is scoped, not disabled — 2026-09-05 | 1053 |
+| §23 | The assistant reaches the phone — as a pill, not a tab — 2026-09-05 | 1007 |
+| §24 | The trip's four tabs, renamed and rescoped — 2026-09-12 | 1122 |
+| §25 | Overview IS a notebook page — 2026-09-12 | 1160 |
+| §26 | Widget settings live outside the page — 2026-09-12 | 1186 |
+| §27 | Trip lifecycle, and read-only as one mode with two ways in — 2026-09-12 | 1227 |
+| §28 | Identity, the Ledger look, and the front door on a phone — 2026-09-12 | 1268 |
+| §29 | Plans is a route, and paying has a confirm step — 2026-09-14 | 1326 |
+| §30 | New trip is a conversation; the transcript has no bubbles — 2026-09-15 | 1415 |
+| §31 | The new-trip transcript is chat-shaped — 2026-09-18 | 1532 |
+| §32 | The conversation is every surface's new-trip flow — 2026-09-18 | 1594 |
+| §33 | Playbooks hold several days, and the Discover bar is re-sorted by kind — 2026-09-19 | 1666 |
+| §34 | API tokens, a trip as a file, and the phone gets an account — 2026-09-19 | 1756 |
+| §35 | Simplify pass, the invite landing, Cass, and actions that look like actions — 2026-09-22 | 1913 |
+| §36 | Travel legs, co-travellers, the rich layer and reporting — 2026-09-25 | 2102 |
 
 <!-- SPEC-INDEX:END -->
 
@@ -656,10 +656,16 @@ no empty, offline or conflict state, and project rule 6 is satisfied trivially.
    Decorative SVG layers are `pointer-events: none` so the pills stay clickable — the
    same trap exists in any real implementation.
 2. **Three equal-height blocks, flush to the card bottoms** —
-   *Together*: a live timeline with Priya's lifted stop, Dana's comment thread, travel
-   gaps. *Notebook*: prose with an inline, borderless, doc-style cost table
-   (activity / who / cost; Day 6 total $596) — a table, not a card, because the point is
-   that the notebook and the plan are one surface. *Playbooks*: a borrowed Phuket beach
+   *Together*: a live timeline with Priya's lifted stop, Dana's suggested stop with an
+   Accept drawn on it, travel gaps. *(Build note, 2026-10-11: Dana's comment thread, the
+   hero's reply counts and the "can't wait" heart are gone — trips have no replies or
+   reactions. The landing pictures suggestions (M40) and, for the public library, playbook
+   stars. Live presence is not built either (ADR-049 polls), so every "is moving" / "here
+   now" / "typing" line is a past, attributed change: "Priya moved stop 3".)* *Notebook*: a page of the day as it was lived — a few lines of memory with
+   the plan's own time inline, signed by the people who were there; no money (Mitchell,
+   2026-10-11: "more nostalgic than how much you spent on dinner", replacing the Day 6
+   cost table) — a page, not a card, because the point is that the notebook and the plan
+   are one surface. *Playbooks*: a borrowed Phuket beach
    day, 4.8★, "Shared 214 times", dropping in as Day 2 of a calendar strip between
    jungle days.
 
@@ -1350,9 +1356,11 @@ Three states, one route, no overlay in any of them.
    with its own price, one line of who it is for, and **four bullets enumerating what it
    grants** — never "everything in Plus". The held card is the only emphasised one:
    `--color-moss` head, `--color-border-strong` border, a `success` Badge, and its CTA
-   disabled reading "What you hold". Then a **side-by-side table** (7 rows: trips/days/stops,
-   map+costs+saved days, questions a day, steps a day, other people editing, votes and
-   comments, price) with the **held plan's column tinted** and its values at weight 600.
+   disabled reading "What you hold". Then a **side-by-side table** (6 rows: trips/days/stops,
+   map+costs+saved days, questions a day, steps a day, other people editing, price) with the
+   **held plan's column tinted** and its values at weight 600. *(Build note, 2026-10-11: the
+   "votes and comments" row is dropped — trips have no voting or commenting, so no plan may
+   sell it.)*
 2. **Confirm.** Two columns: *What changes*, in the product's own terms and **with the
    real collaborator names** ("Mei, Priya, Sam and Kenji go back to editing Japan — no
    re-invites"), and an *Order* card — line items, the proration credit, `Due today`, the
@@ -1988,7 +1996,7 @@ max 1080px):
   sam@example.com · 2 days ago*); the trip name as H1 (display 600, clamp 30–44px, balance);
   mono meta *Sep 20 – Oct 3, 2026 · 14 days · N cities*; the inviter's note as a blockquote
   (3px brand rule, 16px/1.55); crew avatar stack + *Dana, Mei, Priya and Kenji are planning.
-  You can add stops, vote and comment.*; **Join with Google** (primary, full width, max 380px),
+  You can add, move and change stops.*; **Join with Google** (primary, full width, max 380px),
   **Have a look first** (ghost), and *Joining is free — Dana's plan covers everyone she
   invites.*
 - *Right:* a raised Card, **The plan so far** — a 10px ribbon of one segment per day in its

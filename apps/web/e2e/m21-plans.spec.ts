@@ -86,6 +86,26 @@ test.describe("M21 — what each plan is for, and what it costs", () => {
     await expect(table).not.toContainText("✗");
   });
 
+  // Mitchell, 2026-10-11: on a phone, every plan in the comparison is read
+  // without a sideways swipe — one card per plan, the table from `md` up.
+  // Measured in a browser because which of the two is on screen is CSS.
+  test("the comparison does not scroll sideways on a phone", async ({ page }) => {
+    await signInAs(page, newcomer("m21phone"));
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/plans");
+
+    // Every plan's price is on screen, not past its edge: a table the width of
+    // four columns puts the last plan's column somewhere a thumb has to fetch
+    // it from. The box ignores the scroller's clipping, which is the point.
+    const comparison = page.getByTestId("plan-comparison");
+    for (const price of ["Free", "$9 / month", "$19 / month"]) {
+      const shown = comparison.getByText(price, { exact: true }).filter({ visible: true });
+      await expect(shown).toHaveCount(1);
+      const box = (await shown.boundingBox())!;
+      expect(box.x + box.width, `${price} sits past the screen's edge`).toBeLessThanOrEqual(390);
+    }
+  });
+
   test("a deployment that cannot sell says so instead of offering a dead button", async ({ page }) => {
     // Every run of this suite is a deployment with no Stripe keys, which is
     // exactly the state §29 writes a rule for.

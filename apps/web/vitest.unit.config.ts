@@ -74,7 +74,7 @@ export default defineConfig({
         test: {
           name: "node",
           environment: "node",
-          // Five unit tests live outside src/, because the things they cover
+          // Eight unit tests live outside src/, because the things they cover
           // do too: `next.config.test.ts` covers the CSP's build-time
           // VERCEL_ENV branch and the js-profiling document policy,
           // `sentry.shared.test.ts` covers the sample-rate parsing shared by
@@ -93,7 +93,12 @@ export default defineConfig({
           // the sweep may drop, and when the template is stale.
           // `scripts/landing-demo.test.ts` is `pnpm landing:verify`: the landing
           // hero's snapshot against a fresh fold of the demo fixture, run here
-          // so the drift check sits in CI beside the fixture's own. Named file by
+          // so the drift check sits in CI beside the fixture's own.
+          // `scripts/landing-plans.test.ts` is `pnpm landing:plans:verify`, the
+          // same check for the landing's pricing snapshot against the plan file.
+          // `scripts/assistant-live-set.test.ts` covers the live set's guard
+          // against running on anything but a preview or local deployment.
+          // Named file by
           // file, not by a `scripts/**` glob: the other files in `scripts/`
           // are entry points, not test subjects.
           include: [
@@ -104,6 +109,7 @@ export default defineConfig({
             "scripts/geocode-japan-seed.test.ts",
             "scripts/with-test-db.test.ts",
             "scripts/landing-demo.test.ts",
+            "scripts/landing-plans.test.ts",
             "scripts/assistant-live-set.test.ts",
           ],
           exclude: [...ALWAYS_EXCLUDE, ...JSDOM_TS_FILES],
