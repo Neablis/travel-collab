@@ -26,12 +26,18 @@ Quick orientation:
 - What to do with PR feedback (four surfaces, only some self-resolving): `docs/guidelines/working-a-review.md`
 - Working in a cloud session (what's different here): `docs/guidelines/cloud-agent-sessions.md`
 - Work too big for one PR — planning, merging and finishing a stack: `docs/guidelines/stacked-prs.md`
-- Building a whole milestone ("next milestone"), from decisions to the closed gate: `docs/guidelines/building-a-milestone.md` (the `build-a-milestone` skill)
+- Building a whole milestone ("next milestone"), from decisions to the closed gate: `docs/guidelines/building-a-milestone.md`.
+  The `build-a-milestone` skill orchestrates and loads one sub-skill per stage: `plan-a-milestone`,
+  `build-a-part` (a `phase-implementer` subagent), `review-a-part` (a `part-reviewer` subagent) and
+  `close-a-milestone`.
 
-Four rules that are cheap to state and were expensive to relearn:
+Five rules that are cheap to state and were expensive to relearn:
 
-1. **An e2e result only counts from `pnpm --filter web test:e2e:ci-like`.**
-   Plain `test:e2e` serves `pnpm dev`, which compiles routes on first hit and
+1. **An e2e result only counts from `pnpm --filter web test:e2e:ci-like <spec>`
+   or from CI on the PR.** The full suite is never run locally: CI runs it on
+   every push to a ready PR, so read it there. Locally, ci-like runs only the
+   spec you changed (no `--` before the path, or it runs everything). Plain
+   `test:e2e` serves `pnpm dev`, which compiles routes on first hit and
    produces timeouts CI does not have. The dev lane is for iterating on a spec
    you are writing — not for a verdict, a PR checkbox, or anything you tell
    Mitchell.
@@ -57,7 +63,11 @@ Four rules that are cheap to state and were expensive to relearn:
    per commit, and that asymmetry is what makes this easy to get backwards.
    Measured on #103, then again on #141 — where this line was trusted as it used
    to be written, and was wrong. Scoped code runs the `minimal-check-subset`
-   skill's output, not `pnpm check`.
-   The full suite is a **final-review** cost, paid once when the branch leaves
-   draft. `AGENTS.md`'s Definition of Done has the three tiers and the trap
-   (`.design-sync/**` is a build input, not prose).
+   skill's output (for a milestone part, `build-a-part`'s recipe), not
+   `pnpm check`. The full suite is CI's, paid by the PR's run once it is
+   ready, and is not repeated locally. `AGENTS.md`'s Definition of Done has
+   the three tiers and the trap (`.design-sync/**` is a build input, not
+   prose).
+5. **Write "PR 395", never "#395", in code, comments and test names.** The
+   colour wall (`scripts/check-color-wall.mjs`, `apps/web/src`) reads `#` and 3
+   to 8 digits as a raw hex colour after a quote, a backtick, `[`, `:`, `=` or `,`.

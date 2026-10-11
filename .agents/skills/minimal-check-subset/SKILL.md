@@ -27,9 +27,10 @@ pnpm lint && pnpm test` across every workspace package).
      check on its own.
 
 3. **Hard exception — check this FIRST, before any narrowing.** If ANY
-   changed file is under `packages/contracts/src`, do NOT narrow at all. Run
-   the full `pnpm check` (or at minimum `pnpm typecheck` across every
-   package). State explicitly that you're doing this because a contracts
+   changed file is under `packages/contracts/src`, do NOT narrow to one
+   package. Run `pnpm typecheck` across every package, plus the test files
+   covering what you touched; CI on the PR runs the full suite (`pnpm check`
+   is denied locally by `check-test-lane.mjs`). State explicitly that you're doing this because a contracts
    change was detected, citing `AGENTS.md` Invariant #5 ("Contracts change by
    protocol, not by drift") — `packages/contracts` schemas are depended on by
    both `packages/domain` and `apps/web`, and a change there can silently
@@ -103,9 +104,12 @@ pnpm lint && pnpm test` across every workspace package).
 
        Measured 2026-09-05 on `@tc/factories`: 6 tests in 0.5s against 360 in
        2.4s. (This entry previously said there was "no file-level scoping
-       option" for these packages. There is.) Fall back to
-       `pnpm --filter <pkg> test` for the whole suite when the change is
-       package-wide. `@tc/predict` defines no `test` script.
+       option" for these packages. There is.) When the change is
+       package-wide, run the tests covering the files you changed and let
+       CI run the package suite. `vitest run src/` or `vitest run .` is the
+       package suite under another name, and so is a run naming no path;
+       `check-test-lane.mjs` denies all three.
+       `@tc/predict` defines no `test` script.
 
    - **A change to user-visible text** (a label, a qualifier, an error
      message): before calling the subset complete, grep the whole repo for

@@ -31,17 +31,18 @@ orientation re-reads across 220 sessions against 9 that ran `/roadmap`.
 | `/candidates` / `/milestones` | Thin wrappers over `pnpm candidates` / `pnpm milestones`, for when you want to type one. The digest names the commands anyway — F7 says a command nobody invokes helps nobody, so these are convenience, not the delivery mechanism |
 | `/dispatch` | Sets up a subagent protocol run — splits the work, writes the manifest the enforcement hooks read, emits one brief per unit, and drives the promotion gate at teardown |
 
-**Subagents** (`.claude/agents/`): `phase-implementer`, `phase-verifier`,
-`ki-fixer`. Dispatch these rather than writing the prompt again — `phase-verifier`
+**Subagents** (`.claude/agents/`): `phase-implementer`, `part-reviewer` (read-only review of
+one part's PR), `phase-verifier`, `ki-fixer`. Dispatch these rather than writing the prompt again — `phase-verifier`
 in particular drives the PR's Vercel preview, so the browser walk works from a
 container with no local infra.
 
 **Skills** (`.claude/skills/`): `minimal-check-subset` (narrowest sufficient
 check), `ci-triage` (scoped failing-job logs), `worktree-hygiene` (read-only
 worktree audit), `write-a-test` (the testing guide as steps), `ai-usage` (the
-assistant's live cost and quality), `build-a-milestone` (a whole milestone, from
-Mitchell's decisions to the closed gate — `building-a-milestone.md` as steps). The first three are symlinks into
-`.agents/skills/`; edit them there.
+assistant's live cost and quality), `build-a-milestone` (the orchestrator for a whole milestone, from
+Mitchell's decisions to the closed gate), which loads `plan-a-milestone`, `build-a-part`,
+`review-a-part` and `close-a-milestone` one stage at a time (`building-a-milestone.md`). The first
+three are symlinks into `.agents/skills/`; edit them there.
 
 **Content check** (`pnpm content:verify`): parses every bundle under `content/`
 against `travel-collab/content-bundle/v1`, runs the content rules a schema
@@ -77,20 +78,54 @@ Cannot see a cycle between a folder and its own subfolder
 `docs/reviews/2026-09-23-architecture-wall-first-run.md`.
 
 **Draft-PR guard** (`scripts/hooks/draft-pr-guard.mjs`, `PreToolUse` on
-`gh *`): asks before `gh pr create` without `--draft`, and before
-`gh pr ready` when no **Tier-3 stamp** covers HEAD. The rule was followed on
+`gh *`): asks before `gh pr create` without `--draft` (`--draft=false` counts
+as without). The rule was followed on
 **4 of 15 branches**; PR #196, opened ready, spent **41 CI runs and 8 failures**.
-It **asks**, never denies.
+On a milestone part branch (`claude/m<N>-part<K>-<slug>`, N may carry a letter
+as in `m48a`, from `--head` or the checked-out branch) the ask steps aside,
+because a part opens ready, and `gh pr create --draft` is **denied** instead.
+`gh pr ready` passes: marking a PR ready is what makes CI run the full suite. It also
+denies a model id in a `gh pr create|edit` title, body or body file.
 
-**The Tier-3 stamp** (`pnpm check` records it; `pnpm tier3 verify` reads it):
-`.git/tc-tier3.json` holds the commit checked and **which lanes were live**.
-`pnpm check` ends in `test:int:if-db`, which skips silently with no database —
-*"A green `pnpm check` here is NOT a green CI."* The guard names the uncovered
-lanes; record them on the PR's *"Not run, and why"* line.
+**The Tier-3 stamp** (`pnpm check` records it; `pnpm tier3 verify` reads it).
+`check-test-lane.mjs` denies `pnpm check` locally, so a stamp exists only after
+an `ALLOW_FULL_SUITE=1` run, and no hook reads it any more: CI on the PR is the
+full-suite verdict. The stamp, `.git/tc-tier3.json`, holds the commit checked and **which lanes were live**.
 
-**Hooks** (`scripts/hooks/`): a `PostToolUse` typecheck of the touched package
+**Hooks** (`scripts/hooks/`, tests in `scripts/hooks/__tests__/` and
+`scripts/__tests__/`): a `PostToolUse` typecheck of the touched package
 on every `.ts`/`.tsx` edit, and a `PreToolUse` guard on history-rewriting git
-commands while multiple worktrees exist.
+commands while multiple worktrees exist. The milestone loop adds these:
+
+- **Test lane** (`check-test-lane.mjs`, `PreToolUse` Bash): denies `pnpm check`,
+  `test:unit`, a `test` or vitest run naming no test path, a web vitest run without
+  `-c`, an e2e or `playwright test` run with no spec or with `--` before it, and
+  the dev e2e lane. Whether a call targets apps/web is decided by its `--filter`s,
+  else by the cwd after every `cd`. The reason gives the scoped command.
+  `ALLOW_FULL_SUITE=1` in front is for when Mitchell asks for a full run.
+- **Commit message** (`commit-message-guard.mjs`, `PreToolUse` Bash): blocks a
+  `git commit` whose message (`-m`, `-F`, or a heredoc) holds a hyphenated model
+  id. The words trailer passes; `ALLOW_MODEL_ID=1` in front passes a commit about
+  the product's own model routing.
+- **PR tool** (`pr-tool-guard.mjs`, `PreToolUse` on the GitHub MCP create/update
+  PR tools): blocks a draft create whose `head` is a milestone part branch, and a
+  model id in the title or body.
+- **Review nudge** (`push-review-nudge.mjs`, `PostToolUse` Bash): after a push
+  of a milestone part branch, tells whoever pushed to report it; the
+  orchestrator dispatches `part-reviewer`. Never blocks.
+- **Implementer report** (`implementer-report-check.mjs`, `SubagentStop` on
+  `phase-implementer`): sends a report with no pushed sha or no red-first table
+  back once. Skips `BLOCKED`/`DESCOPED` reports.
+- **Orchestrator no-code** (`orchestrator-no-code.mjs`, `PreToolUse` Edit/Write):
+  blocks main-session edits under `apps/` and `packages/` while
+  `<git-dir>/tc-orchestrator` exists. `build-a-milestone` creates the marker and
+  `close-a-milestone` removes it. Subagents (`agent_id` set) are never blocked.
+  `apps/` and `packages/` in any other worktree count too; the message names the
+  marker and the `rm` that lifts it.
+
+The digest's `MILESTONE PARTS` line lists each open part PR with
+its `ci-ok` and review state, and prints nothing when `gh` fails (`OPEN PRS`
+already says so).
 
 **The subagent protocol** (`.claude/protocol/`): `CONTRACT.md` is binding on
 every dispatched subagent — lifecycle, the three exit states, the two-strike

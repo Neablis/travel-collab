@@ -160,27 +160,28 @@ What each tool does, why it exists and what it measured:
   `/cleanup-orphans`, `/dispatch`, `/candidates`, `/milestones`. Scripts:
   `pnpm milestones`, `pnpm candidates`, and `pnpm milestone close <id>` — the
   gate-close checklist; `TODO.md`'s rows ARE the order (KI-2026-09-21-a).
-- **Subagents** (`.claude/agents/`): `phase-implementer`, `phase-verifier`,
-  `ki-fixer`. Dispatch these rather than writing the prompt again —
+- **Subagents** (`.claude/agents/`): `phase-implementer`, `part-reviewer`,
+  `phase-verifier`, `ki-fixer`. Dispatch these rather than writing the prompt again —
   `phase-verifier` drives the PR's Vercel preview, so the browser walk needs no
   local infra.
 - **Skills** (`.claude/skills/`): `minimal-check-subset`, `ci-triage`,
-  `worktree-hygiene`, `write-a-test`, `ai-usage`. The first three are symlinks
+  `worktree-hygiene`, `write-a-test`, `ai-usage`, and `build-a-milestone`
+  with its sub-skills `plan-a-milestone`, `build-a-part`, `review-a-part` and
+  `close-a-milestone`. The first three are symlinks
   into `.agents/skills/`; edit them there.
 - **Walls.** `pnpm lint` runs `pnpm arch` (dependency-cruiser; blind to a
   folder↔subfolder cycle, `KI-2026-09-23-b`) and `pnpm surface --check`
   (byte budgets on this file and the other first reads — past 85% a file gets a
   retirement pass, `docs/guidelines/retiring-a-rule.md`; raising a budget is a
-  decision recorded in the commit that raises it). `pnpm check` runs
-  `pnpm seed:verify` (the Japan fixture, ADR-030); `pnpm content:verify` checks
-  content bundles (ADR-041).
+  decision recorded in the commit that raises it). `pnpm seed:verify` checks
+  the Japan fixture (ADR-030); `pnpm content:verify` checks content bundles
+  (ADR-041).
 - **Hooks** (`scripts/hooks/`): a typecheck of the touched package on every
   `.ts`/`.tsx` edit; a guard on history-rewriting git while several worktrees
   exist; and the **draft-PR guard**, which asks before `gh pr create` without
-  `--draft` and before `gh pr ready` when no **Tier-3 stamp** covers HEAD.
-  `pnpm check` writes the stamp (`.git/tc-tier3.json`) with the lanes that
-  were live — with no database it skips the integration lane silently, so *a
-  green `pnpm check` here is NOT a green CI*.
+  `--draft` (on a milestone part branch it refuses `--draft` instead).
+  `gh pr ready` passes: marking a PR ready is what makes CI run the full suite
+  on it, and that run is the verdict. No local stamp is involved.
 - **The subagent protocol** (`.claude/protocol/CONTRACT.md`) binds every
   dispatched subagent: three exit states, two-strike handback, report shape.
   `ADAPTER.md` holds this repo's facts, including the one resource no hook
@@ -219,7 +220,8 @@ finished-but-unmerged one gets a PR, or a recorded reason it is left.
 Rule: **open that PR as a draft, and mark it ready only when you believe it is
 green.** `ci.yml` skips its jobs on a draft. The budget is 2,000 minutes a month
 and PR #55 alone spent **315** on work-in-progress.
-`docs/guidelines/ci-cost-and-capacity.md`.
+`docs/guidelines/ci-cost-and-capacity.md`. **Except a milestone part**
+(`claude/m<N>-part<K>-…`), which opens ready (`build-a-part`).
 
 ## Definition of Done (every change)
 
@@ -229,8 +231,8 @@ Classify the change by what it touches, then run **only** that tier.
 
 > **The short version, because it has been misread.** Mid-branch, each fix runs
 > **only its own subset** (Tier 1 or 2; CLAUDE.md rule 4). The full suite runs
-> **once**, when the branch leaves draft (Tier 3), and even then running it
-> locally is optional because CI runs it on push. **Never per part of a stack,
+> **once**, when the PR is ready (Tier 3), and CI runs it, not you: the full
+> suite is never run locally (CLAUDE.md rule 1). **Never per part of a stack,
 > per fix, or "to be sure"** — the suggester role ran it on each of three
 > stacked parts and twice more (`docs/retros/2026-10-04-suggester-role-retro.md`, §2).
 
@@ -267,19 +269,20 @@ is ready.
 > Run the `minimal-check-subset` skill's output **and nothing more** —
 > typically `pnpm --filter <pkg> typecheck`, that package's lint, and the
 > specific test files covering what you touched. "Narrowest sufficient" is not
-> "smallest": for `packages/contracts/src` the skill says do not narrow,
-> because the consumers span packages, so the subset genuinely *is*
-> `pnpm check`. That is the only way a full run gets earned before Tier 3.
+> "smallest": for `packages/contracts/src` the consumers span packages, so
+> the subset is `pnpm typecheck` across every package; CI runs the full suite.
 > Record the subset in the PR body.
 
-**Tier 3 — final review.** The branch is finished and about to leave draft.
+**Tier 3 — final review.** The branch is finished and its PR is ready (a
+milestone part opens ready; `build-a-part`).
 
 > This is the single full-suite run a branch pays for: `pnpm check`, plus
 > `pnpm --filter web test:e2e:ci-like` if a user flow changed, and
-> `pnpm seed:verify` if a contract field or fixture changed. **Running it
-> locally is optional** — `gh pr ready <n>` is when `ci.yml` starts paying
-> attention, and CI runs the same suite. Run it locally at most once, here. A
-> stack pays it once, on the top part (`docs/guidelines/stacked-prs.md` §5).
+> `pnpm seed:verify` if a contract field or fixture changed. **CI pays it, on
+> the PR; it is not run locally.** A ready PR is when `ci.yml` starts paying
+> attention, so read its run on the real head. A milestone part pays it on its
+> own PR to `main`; any other stack pays it once, on the top part
+> (`docs/guidelines/stacked-prs.md` §5).
 
 A mid-branch full-suite run is a judgment call to justify, not a reflex. If you
 genuinely need one — you are chasing a failure whose blast radius you cannot
@@ -367,6 +370,11 @@ window aborts it** (`KI-2026-09-01`).
 
 An agent may trigger it itself only when certain it is done pushing; if in
 doubt, hand off.
+
+**A milestone part is the exception** (Mitchell, after M41): the
+`part-reviewer` subagent reviews every push and replaces steps 2–4, and
+CodeRabbit is asked at most once, on the riskiest or largest part
+(`review-a-part`).
 
 ### Do not watch what cannot run
 

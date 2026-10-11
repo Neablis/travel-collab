@@ -410,3 +410,41 @@ test("PROD MIGRATIONS attributes a migration a --no-ff merge brought in to the c
   const { stdout, feature } = noFfMergeFixture({ renumber: false });
   assert.match(stdout, new RegExp(`newest is 0001_feature, added in ${feature.slice(0, 7)}`));
 });
+
+test("MILESTONE PARTS gives one line per open part PR, with CI and review state", () => {
+  const dir = makeFixture();
+  const prs = [
+    {
+      number: 401, title: "Part 2", headRefName: "claude/m41-part2-drawer-is-cards", createdAt: "2026-10-10T00:00:00Z",
+      isDraft: false, reviewDecision: "APPROVED",
+      statusCheckRollup: [
+        { name: "unit", status: "COMPLETED", conclusion: "FAILURE" },
+        { name: "ci-ok", status: "COMPLETED", conclusion: "SUCCESS" },
+      ],
+    },
+    {
+      number: 402, title: "Part 3", headRefName: "claude/m41-part3-parked-origin", createdAt: "2026-10-10T00:00:00Z",
+      isDraft: false, reviewDecision: "",
+      statusCheckRollup: [{ name: "e2e", status: "IN_PROGRESS", conclusion: "" }],
+    },
+    { number: 400, title: "Part 0", headRefName: "claude/build-a-milestone-x", createdAt: "2026-10-09T00:00:00Z" },
+  ];
+  const bin = makeBin({ gh: `#!/bin/sh\ncat <<'JSON'\n${JSON.stringify(prs)}\nJSON\n` });
+  const { status, stdout } = runDigest([dir], { env: { ...process.env, PATH: `${bin}:${process.env.PATH}` } });
+
+  assert.equal(status, 0);
+  assert.match(stdout, /MILESTONE PARTS: 2 open, not merged/);
+  assert.match(stdout, /  PR 401 \[claude\/m41-part2-drawer-is-cards\] ready, ci-ok green, approved/);
+  assert.match(stdout, /  PR 402 \[claude\/m41-part3-parked-origin\] ready, CI pending, no review decision/);
+  assert.doesNotMatch(stdout, /PR 400 \[/);
+});
+
+test("MILESTONE PARTS prints nothing when gh fails, leaving that to OPEN PRS", () => {
+  const dir = makeFixture();
+  const bin = makeBin({ gh: "#!/bin/sh\necho 'HTTP 403' >&2\nexit 1\n" });
+  const { status, stdout, stderr } = runDigest([dir], { env: { ...process.env, PATH: `${bin}:${process.env.PATH}` } });
+  assert.equal(status, 0);
+  assert.equal(stderr, "");
+  assert.match(stdout, /OPEN PRS: \(gh/);
+  assert.doesNotMatch(stdout, /MILESTONE PARTS/);
+});

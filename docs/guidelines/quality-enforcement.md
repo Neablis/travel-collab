@@ -29,18 +29,19 @@
 typecheck → lint (including boundary rules) → unit → integration (Postgres
 service container) → e2e smoke → golden tests. All green or it doesn't merge.
 
-`pnpm check` (typecheck + lint + unit) is the fast subset with no
-infrastructure dependency — but it is **not** the mid-branch default: that is
+`pnpm check` is the whole local suite — typecheck, lint, every package's
+unit tests, and `test:int` when a database answers — and `check-test-lane.mjs`
+denies it locally: CI runs that suite on the PR. The mid-branch default is
 the `minimal-check-subset` skill's output, per `AGENTS.md` §Definition of Done
 Tier 2. `pnpm check` does
-**not** run integration or e2e, since those need a running Postgres
+**not** run e2e, and skips integration with no database, since those need a running Postgres
 (`pnpm setup` once, then `docker compose up -d` or equivalent) and, for e2e,
-installed Playwright browsers. Run those explicitly before claiming done on
-anything that touches the server or a user-facing flow:
-`pnpm test:int` (`apps/web`'s `*.int.test.ts` against real Postgres) and
-`pnpm --filter web test:e2e` (or scope to one spec while iterating, e.g.
-`pnpm --filter web test:e2e m10-map-rail`) — see
-`environments-and-deploys.md` for the one-time env setup. None of the three
+installed Playwright browsers. For anything that touches the server or a
+user-facing flow, run the scoped forms: `pnpm test:int` (`apps/web`'s
+`*.int.test.ts` against real Postgres) and the changed flow's own spec,
+`pnpm --filter web test:e2e:ci-like e2e/<spec>.ts`. The whole e2e suite is
+CI's, on the PR, and is denied locally (`check-test-lane.mjs`) — see
+`environments-and-deploys.md` for the one-time env setup. None of these
 commands need you to `export` DATABASE_URL by hand.
 
 **`pnpm --filter web test:e2e` runs against `pnpm dev`, not what CI runs
@@ -99,7 +100,8 @@ one text and a pointer to it.
 - **The bar itself:** `AGENTS.md` §Definition of Done. Its §*Verification scales
   to the change* has the three tiers — Tier 1 (prose-only branch: run nothing),
   Tier 2 (mid-branch code: the `minimal-check-subset` skill's output and nothing
-  more), Tier 3 (leaving draft: the single `pnpm check` a branch pays for). Its
+  more), Tier 3 (final review: the single full-suite run a branch pays for, which CI
+  runs on the PR). Its
   §*What the change itself must carry* has the rest of the checklist — tests at
   the layer, fixtures, contracts changelog, invariants, migrations, the PR
   template.

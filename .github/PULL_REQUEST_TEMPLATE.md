@@ -34,8 +34,10 @@ Plan:
                these paths; only `ci-ok` reports, in under a minute.
        Tier 2  scoped code — the minimal-check-subset only. Name the exact
                commands on the "Subset run" line. Not `pnpm check`.
-       Tier 3  final review, leaving draft — `pnpm check` once, plus e2e if a
-               user flow changed and seed:verify if a fixture/contract did. -->
+       Tier 3  final review: CI green on the head. The full suite runs in
+               CI on the PR, not locally (`pnpm check` is denied); add the
+               part's own e2e spec via ci-like if a user flow changed, and
+               seed:verify if a fixture/contract did. -->
 
 Tier: <!-- 1 / 2 / 3 -->
 
@@ -51,14 +53,16 @@ Red-first (any PR adding a test): <!-- For each new test: the source edit that
      required of every PR, and treating them as a flat list is the exact defect
      KI-2026-09-05-u closed in quality-enforcement.md. Tier 1 (prose-only
      BRANCH) runs NOTHING. Tier 2 (scoped code) runs the minimal-check-subset
-     skill's output and nothing more. Tier 3 (final review) runs `pnpm check`, plus the conditional lanes below that actually apply. Tick
+     skill's output and nothing more. Tier 3 (final review) is CI green on the
+     head, plus the conditional lanes below that actually apply. Tick
      what the tier actually required and strike the rest. -->
 
 - [ ] Tier for this PR (1 prose / 2 scoped / 3 final review): <!-- state it -->
-- [ ] `pnpm check` green locally (typecheck + lint + unit) — Tier 3
+- [ ] CI green on the real HEAD (typecheck + lint + unit + integration + e2e) — Tier 3
 - [ ] `pnpm --filter web test:int` green (needs Postgres) — Tier 3
-- [ ] `pnpm --filter web test:e2e:ci-like` green — Tier 3 **and only if this
-      changed a user flow**; e2e is conditional per AGENTS.md, not automatic
+- [ ] The part's e2e spec via ci-like (`pnpm --filter web test:e2e:ci-like
+      e2e/<spec>.ts`), and CI — Tier 3 **and only if this changed a user
+      flow**; e2e is conditional per AGENTS.md, not automatic
 - [ ] Seed/fixture verification — only if contracts or fixtures changed
 - [ ] Manual browser walk of the changed flow
 

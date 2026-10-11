@@ -61,17 +61,19 @@ full output of every job and wastes context on the ones that passed.
   for `✘` (or `failed`) to find failing test titles. If you need a trace or
   screenshot to debug further, download that shard's artifact instead of
   reading raw bytes into context: `gh run download <run-id> -n
-  playwright-report-1` (or `-2`), then open it locally. To run one shard's
-  specs locally: `pnpm --filter web test:e2e:ci-like --shard=N/2` (the extra
-  argument lands on the script's final `pnpm test:e2e`).
+  playwright-report-1` (or `-2`), then open it locally. To reproduce, run the
+  failing spec, not the shard: `pnpm --filter web test:e2e:ci-like
+  e2e/<spec>.ts` (no `--` before the path). A whole shard is a full e2e run,
+  which is CI's and which `check-test-lane.mjs` denies locally.
 
 ## 4. Reproduce locally with the narrowest command
 
 Don't re-run full CI to reproduce — use the smallest matching local command:
 
-- typecheck / lint / unit / script-tests: `pnpm typecheck` / `pnpm lint` /
-  `pnpm test:unit` / `pnpm test:scripts` — the same command the job ran (or
-  narrower — see the `minimal-check-subset` skill)
+- typecheck / lint / script-tests: `pnpm typecheck` / `pnpm lint` /
+  `pnpm test:scripts` — the same command the job ran (or narrower — see the
+  `minimal-check-subset` skill). Not `pnpm test:unit`: that is the whole unit
+  suite, denied locally (`check-test-lane.mjs`); run the failing files.
 - one unit test file:
   `pnpm --filter web exec vitest run -c vitest.unit.config.ts <file>`
 
@@ -81,8 +83,8 @@ Don't re-run full CI to reproduce — use the smallest matching local command:
   not optional.
 - integration: `pnpm --filter web test:int` (needs real Postgres — see
   `docker-compose.yml`)
-- e2e: `pnpm --filter web test:e2e:ci-like` — the only e2e lane whose result
-  counts (CLAUDE.md rule 1, `AGENTS.md`, KI-27). Plain `test:e2e` serves
+- e2e: `pnpm --filter web test:e2e:ci-like e2e/<spec>.ts` — the only e2e
+  lane whose result counts (CLAUDE.md rule 1, `AGENTS.md`, KI-27). Plain `test:e2e` serves
   `pnpm dev`, which compiles routes on first hit and invents timeouts CI does
   not have. No env vars to export by hand: `playwright.config.ts`'s
   `webServer.env` sets `AUTH_DEV_LOGIN`, `AUTH_SECRET`, `AI_LIVE` and (under

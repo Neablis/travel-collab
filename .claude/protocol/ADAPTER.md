@@ -19,17 +19,20 @@ the lease hook reads. A row marked otherwise below is yours to observe.
 |---|---|
 | `shared-db-writes` | `db:reset`, `db:reseed`, `db:seed`, `db:migrate` and `docker compose` act on the database `DATABASE_URL` names — the developer's own `travel`, which every worktree shares. **The test lanes are no longer on this list:** since KI-2026-08-30-e, `test:int` and `test:e2e` each provision a private database and drop it afterwards, so any number of units may run them at once. |
 | `dev-server` | A hand-started `pnpm dev` binds `WEB_PORT`, which defaults to 3001 in every worktree — a second one either fails to bind or silently serves the wrong worktree. Set `WEB_PORT` and it is yours alone. `test:e2e` is **not** covered by this: it picks a free port itself. |
-| `ci-minutes` | **Human-observed policy, not a hook-enforced lease** — `adapter.json` declares no pattern for it, so no hook will stop a second unit; you have to hold this one yourself. This repo is private on a GitHub Free plan; a measured 30-day sample burned 1,956 of 2,000 minutes, 71% on pull-request runs. Open PRs as drafts and mark ready only when you believe they are green. See `docs/guidelines/ci-cost-and-capacity.md`. |
+| `ci-minutes` | **Human-observed policy, not a hook-enforced lease** — `adapter.json` declares no pattern for it, so no hook will stop a second unit; you have to hold this one yourself. This repo is private on a GitHub Free plan; a measured 30-day sample burned 1,956 of 2,000 minutes, 71% on pull-request runs. Push only what you believe is green. A milestone part opens ready, not as a draft (`build-a-part`): a draft runs nothing, and a push while a PR is draft cancels its ready run. See `docs/guidelines/ci-cost-and-capacity.md`. |
 
 ## Acceptance-check catalogue
 
 - **Narrowest sufficient subset:** use the `minimal-check-subset` skill.
 - **Contracts exception:** if any changed file is under
-  `packages/contracts/src`, do not narrow — run the full `pnpm check`.
-  A contracts change silently breaks domain and web even though their own
-  files did not change (AGENTS.md invariant 5).
-- **E2E:** a result counts only from `pnpm --filter web test:e2e:ci-like`.
-  Plain `test:e2e` serves `pnpm dev`, which compiles routes on first hit and
+  `packages/contracts/src`, do not narrow to one package — run
+  `pnpm typecheck` across every package, and leave the full suite to CI on
+  the PR (`pnpm check` is denied locally). A contracts change silently
+  breaks domain and web even though their own files did not change
+  (AGENTS.md invariant 5).
+- **E2E:** a result counts only from `pnpm --filter web test:e2e:ci-like
+  <spec>` (only your own spec, no `--` before the path) or from CI on the PR.
+  The full suite is never run locally. Plain `test:e2e` serves `pnpm dev`, which compiles routes on first hit and
   produces timeouts CI does not have. The dev lane is for iterating on a
   spec you are writing — never for a verdict or a PR checkbox.
 - **Integration:** `pnpm --filter web test:int` is whole-suite by design, and

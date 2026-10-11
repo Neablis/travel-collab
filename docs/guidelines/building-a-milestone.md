@@ -1,93 +1,82 @@
 # Building a milestone
 
-This is how a milestone goes from "next milestone" to a closed gate in one session. It was written from
-M40 (2026-10-09 → 10, #375 → #376 → #377 → #378), whose retro is at the end of
-`docs/milestones/M40-a-big-change-is-one-change.md`. Mitchell confirmed the process on 2026-10-10.
-The `build-a-milestone` skill runs it.
+This is how a milestone goes from "next milestone" to a closed gate in one session. It was first
+written from M40 (PR 375 → PR 378) and rewritten after M41 (PR 391 → PR 399), whose retro is at the
+end of `docs/milestones/M41-planning-without-friction.md`. M41 taught three things: CodeRabbit's
+hourly limit set the pace of a stack, full local suites wasted hours that CI was already spending,
+and a design settled only after Mitchell played with the preview cost a second build.
 
-The mechanics of a stack (file budgets, where fixes go, merge commits, squash recovery, worktree
-hygiene) are in `stacked-prs.md`. This file is the order of the whole session, and it does not
-repeat them.
+So the process now has three properties:
 
-## The process
+- **The orchestrating session stays lean.** It holds the decisions, the tasks, PR state and the
+  conversation with Mitchell. It never writes or reads source code; subagents carry every build,
+  fix, review and gate-close step, each with a written brief.
+- **Each part is its own PR on `main`**, merged when it is ready. Only part 0, the prose-only gate
+  PR, waits for the end.
+- **CI on the PR is the verdict.** Locally a part runs the checks that touch its diff and nothing
+  more.
 
-**1. Find the milestone.** Mitchell says "next milestone" (or names one). Run `pnpm state` and read
-`docs/STATUS.md`. If the files that record the current milestone disagree (README, `TODO.md`,
-STATUS, the milestone file), say so before going further.
+The `build-a-milestone` skill is the orchestrator. It loads one sub-skill per stage, so each stage's
+detail is read only when it is needed. This file says what each stage is for; the skills say how.
 
-**2. Review it with Mitchell.** Read the milestone file in full, and survey the code it touches,
-with file and line references. Then put each open decision to him in plain language, with a
-recommendation and what changes if he picks otherwise. He answers. Nothing is built on a decision he
-has not answered.
+## 1. Plan — `plan-a-milestone`
 
-**3. Name the session** after the milestone, in its own words, short enough to read in a list:
-*"M40 — A big change is reviewed, taken and undone whole"*.
+Find the milestone (`pnpm state`, `docs/STATUS.md`, the milestone file) and say so if the files
+that record it disagree. Put each open decision to Mitchell in plain language, with a
+recommendation and the code it touches. **For a UI-heavy part, show him the interaction model**
+before it is built: a few lines on how it is driven, such as the palette's *Action › Type ›
+Target*. Then name the session, open part 0, and split the work into parts.
 
-**4. Plan the stack, with the gate PR as part 0.**
-- **Part 0** is prose only. It holds:
-  - the answered decisions, written into the milestone file;
-  - any ADR;
-  - the plan in `docs/plans/`, which says per part what to click on its preview to see it work;
-  - the gate tracker, in its PR body: the stack table, every gate box with its evidence, the review
-    log, and the merge and migration order. **Update it after every event**: a part opened, a
-    review result, a merge, a migration.
-- **Parts 1…N** split the work in dependency order, one theme each, inside `stacked-prs.md` §1's
-  budget. Each part is on its own branch, based on the part below. Each opens as a draft.
-- **Part 0 merges last**, once every gate box is ticked. It is also where the gate is closed (step 10).
+- **Part 0** is prose only: the answered decisions, any ADR, the plan in `docs/plans/`, and the
+  gate tracker in its PR body. It lives on the session's branch, opens as a draft, is marked ready
+  at the gate, and merges last.
+- **Parts 1…N** each target `main`, one theme each, under about 80 reviewable files, on branches
+  named `claude/m<N>-part<K>-<slug>`: the hooks' part-only rules key on that name. A part that
+  depends on another waits for it to merge to `main`; nothing is based on part 0 or on another part.
+- **The sidebar tasks** are one per part, stepped through build → test seen red → scoped checks →
+  push (opened ready) → review → fixes → CI green → merged, plus one for the decisions and one for
+  the gate close. They are how Mitchell follows along, so they move when the part moves.
 
-**5. Build the parts back to back.** Start the next part while the one below is in review. For each
-part:
-- Write tests that are seen to fail before they pass (`testing.md`; CLAUDE.md rule 3).
-- **Check locally with a diff-scoped run, not the whole suite.** Run typecheck, and run lint and
-  tests over the files you changed and their neighbours: what imports them, what they import, and
-  the specs that exercise them. Use `minimal-check-subset` to pick these. Before adding a control or
-  renaming visible text, `grep -rn '"<the text>"' apps/web/e2e/` finds every spec that would now
-  see it twice. M40 broke `m16-assistant.spec.ts` that way. Run the ci-like e2e for the specs the
-  part touches (CLAUDE.md rule 1).
-- **Leave the full lint and full test runs to the PR's CI.** CI runs the whole suite on every push
-  to a ready PR, so a full local run only repeats it. When CI goes red, root-cause it and push a fix.
-  Never re-run it and hope.
-- Self-review the part's own diff before asking anyone else (`stacked-prs.md` §3a).
-- Mark it ready, which starts CI. Don't push in the same second as marking it ready: CI can run on
-  the old head. If it does, mark the PR draft and ready again.
+## 2. Build each part — `build-a-part`
 
-**6. Review each part.**
-- **CodeRabbit** allows about one review an hour. Trigger it with `@coderabbitai review` as each
-  slot frees up, lowest part first. Mitchell asked for this on 2026-10-09, and `AGENTS.md` allows
-  an agent to trigger a review once it is certain it has finished pushing to that part. Schedule a
-  reminder for the next slot rather than polling. Never push to a part while its review runs (`stacked-prs.md` §3).
-- **When CodeRabbit is rate-limited or unavailable**, review the part with a subagent (the
-  `code-review` skill) instead of waiting.
-- Work every finding: fix it, or reply on its thread with why not (`working-a-review.md`). A bot
-  finding is a claim to check, not an order.
-- Fixes go to the lowest part they touch, then merge upward (`stacked-prs.md` §3).
+A `phase-implementer` subagent builds one part: a test seen to fail first (CLAUDE.md rule 3), the
+code, a fixed scoped local-check recipe, a check of its own diff, a push, and the PR opened **ready
+for review, never draft**. A draft runs no CI, and a push while a PR is draft cancels its
+ready-for-review run.
 
-**7. Mark each part reviewed and ready to merge.** When its review is worked and its CI is green,
-say so in its PR body and in part 0's tracker, and tell Mitchell.
+Parts with no dependency between them are built in parallel, each in its own worktree. The full
+lint, test and e2e suites are never run locally: CI runs them on every push to a ready PR (CLAUDE.md
+rule 1). When CI goes red, `ci-triage` finds the cause and the part gets a fix, not a re-run.
 
-**8. Mitchell walks the top part's preview.** The top part contains everything, so the walk happens
-there. Each of his Vercel comments is fixed on the lowest part it touches, with a reply on its thread
-naming the commit. He resolves the threads, not the agent.
+## 3. Review each part — `review-a-part`
 
-**9. Mitchell merges parts 1…N bottom-up**, each with "Create a merge commit" (`stacked-prs.md` §4).
-After any part that adds a migration, `migrate-production` is dispatched before the next part
-merges. Before saying a migration is outstanding, re-read the workflow runs.
+The **`part-reviewer` subagent** reviews every push. It is read-only: it reports ranked findings
+with a failure scenario and a fix, and the implementer works them on the part's own branch.
+CodeRabbit is optional. It is asked once, on the riskiest or largest part, because this repo gets no
+automatic CodeRabbit reviews and about one an hour, and that limit must not pace the work. Every
+finding is fixed, or answered on its thread and resolved (`working-a-review.md`).
 
-**10. Close the gate on part 0.**
-- Merge `main` into part 0.
-- Run the full `test:e2e:ci-like` on merged `main`. This is the one full local run, and it is
-  what the e2e gate box asks for.
-- Tick every gate box with its evidence.
-- Append the retro to the milestone file.
-- Run `pnpm milestone close <id>` (dry run, then `--confirm`).
-- Write STATUS's *Where the work is right now* and *Next action*.
-- Push. Mitchell merges part 0, and the milestone is closed.
+A part is **ready to merge** when CI is green on its head and its findings are fixed or answered.
+Mitchell merges it, and dispatches `migrate-production` after one that adds a migration.
+
+## 4. Close the gate — `close-a-milestone`
+
+Part 0's tracker records every part, review, CI run, merge and migration as it happens. Mitchell
+walks each part's preview, with the mouse and keyboard-only, and his comments are fixed on that
+part's branch. Each gate box is ticked only with evidence; CI on the merged parts is the e2e
+evidence. Then part 0 gets the retro, `pnpm milestone close <M>` (dry run, then `--confirm`), the
+STATUS update, and the plan's deletion (`docs/plans/README.md`). Part 0 is marked ready before its
+CI is relied on, and Mitchell merges it.
 
 ## Standing rules
 
-- **Nothing merges without Mitchell**, and he dispatches `migrate-production`.
+- **Merges are Mitchell's** unless he says otherwise. `migrate-production` is always his.
 - **Never run the live eval without asking him first.** `pnpm --filter web eval` costs money. The
   grader's own tests are free.
-- **Re-read the source before reporting state.** A PR, a check or a workflow run read earlier may
-  be out of date by the time it is reported.
+- **Speak to Mitchell on a finding, a failure, a merge or a question.** Preview builds, CodeRabbit
+  skip notices and summary edits, and echoes of our own replies are read silently.
+- **Re-read the source before reporting state.** A PR, check or workflow run read earlier may be out
+  of date by the time it is reported.
 - **Wait by ending the turn**, with PR subscriptions and scheduled reminders, not by polling.
+
+Work too big for one PR outside a milestone still uses `stacked-prs.md`.
