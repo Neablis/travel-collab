@@ -59,7 +59,8 @@ Candidates absorbed (each deleted by this gate):
    screens and SPEC §29 (part 7). The review gate is **part 8**: existing paid versions gain the
    new `playbook.review` entitlement in place, under **ADR-071**, so no current subscriber loses
    reviewing. The landing art's trip replies and reactions, which don't exist, are redrawn around
-   suggestions and playbook stars (part 7).
+   suggestions and playbook stars, and its live-presence pills ("4 here now", "Sam typing…"), which
+   don't exist either, become true past-tense actions ("Priya moved stop 3") (part 7).
 4. **Profiles and the board are not indexed.** *Already true when M42 was scoped*: the SEO pass
    (merge #344) set `NOINDEX_FOLLOW` on `/playbooks/board` and `/playbooks/profile/[userId]`, and
    `sitemap.ts` leaves both out. Recorded; no work.
