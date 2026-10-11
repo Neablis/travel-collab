@@ -49,7 +49,7 @@ import type {
 import { INSERT_PLAYBOOK_DAY } from "@/server/ai/writeTools";
 import { plain } from "@/server/assistant/prompt";
 import { ASSISTANT_TOOLS } from "@/server/assistant/registry";
-import type { WidgetMatch } from "@tc/pages";
+import { TAG_LABEL, type WidgetMatch } from "@tc/pages";
 
 export const SIMULATED_MODEL_ID = "simulated/no-op";
 
@@ -840,9 +840,12 @@ const TOPIC_TAGS: readonly [RegExp, ActivityTag][] = [
 
 const NOTEBOOK_REQUEST = /\b(notebook|page|section)\b.*\babout\b|\babout\b.*\bnotebook\b/i;
 
-function notebookTopic(text: string): string | null {
+function notebookTopic(text: string): ActivityTag | null {
   if (!NOTEBOOK_REQUEST.test(text)) return null;
-  return TOPIC_TAGS.find(([pattern]) => pattern.test(text))?.[1] ?? null;
+  // The topic follows "about": read the whole request and "show me a notebook
+  // about hiking" is a `show` notebook, because the verb comes first.
+  const about = text.split(/\babout\b/i).slice(1).join(" ") || text;
+  return TOPIC_TAGS.find(([pattern]) => pattern.test(about))?.[1] ?? null;
 }
 
 /**
@@ -862,7 +865,7 @@ const NOTEBOOK_WIDGETS = 3;
  * is FOR (never what it holds), and the top matches each filtered to the
  * topic's tag. No `read_trip`, no `read_day`.
  */
-function notebookTurn(results: readonly ToolResultLike[], tag: string): SimulatedStep {
+function notebookTurn(results: readonly ToolResultLike[], tag: ActivityTag): SimulatedStep {
   const searched = results.find((result) => result.toolName === "search_widgets");
   if (searched === undefined) {
     return {
@@ -883,7 +886,7 @@ function notebookTurn(results: readonly ToolResultLike[], tag: string): Simulate
       .slice(0, NOTEBOOK_WIDGETS);
     return {
       content: [
-        call("insert_text", { markdown: `## ${tag[0]!.toUpperCase()}${tag.slice(1)}\n\nEverything on this trip tagged ${tag}, read live.` }),
+        call("insert_text", { markdown: `## ${TAG_LABEL[tag]}\n\nEverything on this trip tagged ${tag}, read live.` }),
         ...matches.map((match) => call("insert_widget", { name: match.insert.name, params: { ...match.insert.params, tag } })),
       ],
       finishReason: { unified: "tool-calls", raw: undefined },

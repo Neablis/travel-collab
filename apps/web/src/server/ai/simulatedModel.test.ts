@@ -1041,6 +1041,50 @@ describe("simulatedModel — a write turn proposes on every phrasing it classifi
   });
 });
 
+// ADR-058's topic notebook, on its second step: the topic is read from what
+// follows "about", so a verb before it ("show me…") cannot become the topic.
+describe("simulatedModel — a notebook about a topic", () => {
+  const SEARCHED = {
+    toolName: "search_widgets",
+    value: { matches: [{ insert: { name: "spend_breakdown", params: {} }, selects: { entity: "activity", filters: ["tag"] } }] },
+  };
+  const notebookStep = async (question: string) => {
+    const result = await probe().doGenerate({
+      tools: [{ name: "search_widgets" }, { name: "insert_text" }, { name: "insert_widget" }],
+      prompt: [
+        { role: "system", content: ["You are a test.", askScopeLine({ kind: "page", pageId: "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f" })].join("\n") },
+        { role: "user", content: [{ type: "text", text: question }] },
+        {
+          role: "tool",
+          content: [{ type: "tool-result", toolCallId: "c0", toolName: SEARCHED.toolName, output: { type: "json", value: SEARCHED.value } }],
+        },
+      ],
+    });
+    const calls = callsOf(result);
+    const widget = calls.find((c) => c.toolName === "insert_widget");
+    const text = calls.find((c) => c.toolName === "insert_text");
+    return {
+      tag: (JSON.parse(widget!.input) as { params: { tag: string } }).params.tag,
+      heading: (JSON.parse(text!.input) as { markdown: string }).markdown.split("\n")[0],
+    };
+  };
+
+  it.each([
+    ["show me a notebook about hiking", "outdoors"],
+    ["make a notebook about museums", "museum"],
+    ["make a notebook about bars", "drinks"],
+    ["make a notebook about meals", "meal"],
+  ])("files %j under the %s tag", async (question, tag) => {
+    expect((await notebookStep(question)).tag).toBe(tag);
+  });
+
+  // The heading is what the reader sees, so it says the tag's label ("Food"),
+  // never its key ("Meal").
+  it("heads the section with the tag's label, not its key", async () => {
+    expect((await notebookStep("make a notebook about meals")).heading).toBe("## Food");
+  });
+});
+
 // ADR-058: the page surface is classified too, and the switched-off
 // deployment has to give the same two answers a live classifier is asked for.
 describe("simulatedModel — the page classification call", () => {
