@@ -286,7 +286,7 @@ half, the model guessing a coordinate rather than citing one, is M9 scope.
 
 **Mitchell merges #391 to `main`.** M41's gate is closed at 13 of 13 on it. M41 adds no
 migration, so there is no `migrate-production` run. Then **scope M42** with Mitchell
-(`docs/milestones/M42-the-front-door-shows-more.md`; `building-a-milestone.md` steps 1–2).
+(`docs/milestones/M42-the-front-door-shows-more.md`; `building-a-milestone.md` §1, `plan-a-milestone`).
 All 48 migrations are applied (M40 added `0045` and `0046`; `0047` landed between milestones). Separately,
 `KI-2026-10-04-c` resolves on query 8 of `ledger.sql` over a few days of cheap-tier step durations.
 
