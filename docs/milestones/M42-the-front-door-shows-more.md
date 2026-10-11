@@ -69,6 +69,9 @@ Candidates absorbed (each deleted by this gate):
    Together, a real Discover card (with its tags and description) for Playbooks, real notebook
    blocks for Notebook; Countdown stays art unless its refactor is cheap. The hero's Map view stays
    a drawing. Part 7's corrected art merges first; part 9 replaces it.
+   *Part 9 (2026-10-11):* the Playbooks block keeps its line and shows a bundled day as a real
+   card (Mitchell: "present the day as real"); the landing river carries no prices, even for
+   screen readers; Countdown stays art.
 4. **Profiles and the board are not indexed.** *Already true when M42 was scoped*: the SEO pass
    (merge #344) set `NOINDEX_FOLLOW` on `/playbooks/board` and `/playbooks/profile/[userId]`, and
    `sitemap.ts` leaves both out. Recorded; no work.
