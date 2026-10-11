@@ -1,6 +1,9 @@
 # M41 — Moving and adding stops takes one gesture wherever you are
 
-**Status:** **Scoped 2026-10-10 by Mitchell, in session, and re-framed in the process.** The five
+**Status:** **Built 2026-10-10 → 2026-10-11; gate 11 of 13 at close on 2026-10-11.** All seven
+parts (#392–#398, with #399) are merged into part 0 (#391). Open: the full ci-like e2e on merged
+`main` (CI on #391) and Mitchell's preview walk. **Scoped 2026-10-10 by Mitchell, in session, and
+re-framed in the process.** The five
 recommendations it was proposed with (2026-10-06) were checked against the code first, and most
 had gone stale: they were written 2026-08-01 to 2026-09-22, before the time river (M29), the
 Calendar redesign (M26/M27) and the phone layout (M39). Mitchell's direction for the re-frame,
@@ -84,10 +87,16 @@ Returned to `docs/candidates.md` rather than built (D10): quick-add, search-to-a
    - drag a stop's **top edge** to change when it starts, beside the bottom edge's end;
    - **Delete/Backspace** on a focused stop removes it, undone as any removal is (⌘Z, History).
      *(Corrected at build time, part 5: no removal has an undo toast.)*
+   - **Decided 2026-10-11 (Mitchell): the river block's ✕ Remove stays.** The ✕, Delete/Backspace
+     and the palette's *Remove › Stop* are one action with several doors: all three call the
+     board's one `removeActivity`.
 8. **Paste onto a day makes a stop.** With a day focused, ⌘V of a Google Maps link or a line of
    text, or dropping either onto a day, opens the editor on that day prefilled with the title and
    place. It goes through the editor and `AddActivity`, never the model. This is what replaces
    quick-add and search-to-add.
+   - **Recorded 2026-10-11: focus before hover.** A paste lands on the day holding the keyboard
+     focus, then the day under the pointer, then the selected day; with none, the stop is parked.
+     A keyboard user put the focus there on purpose; the pointer may only be resting (#397).
 9. **⌘K opens a command palette that runs the page's own actions** (ADR-068). v1:
    - **Go to** a lens, another trip, Playbooks, Settings;
    - **New stop** (the focused day, else parked), **New trip**, **Undo**, **Redo**, **Share**;
@@ -97,6 +106,13 @@ Returned to `docs/candidates.md` rather than built (D10): quick-add, search-to-a
    Every command calls the **same function** its page control or gesture calls, so the palette
    is never a second way of doing anything. Text that matches nothing does not go to the model
    in v1.
+
+   **Refined 2026-10-10/11 (Mitchell, on #398's preview): the palette follows ADR-069's grammar.**
+   Every command is a path, *Action › Type › Target [› Destination]*: actions Go to · Add · Edit
+   · Move · Remove over Trip · Day · Stop · View · Page, plus the singletons Undo, Redo and Ask.
+   Nothing that destroys a trip is in it, and there is no Copy/Duplicate. Typing matches any
+   level of a path (`3e06376`), so "go" lists Go to's options. ADR-068's rule stands: every
+   command calls the page's own function. *New stop* is now *Add › Stop*.
 10. **Cut:** quick-add (D8 and the river's gestures replace it; the prototype never had the
     header input the proposal described), search-to-add (the editor's place search and M34's
     nearby suggestions cover it), and optimistic Duplicate/Restore (a Home trip-list item, off
@@ -126,25 +142,91 @@ Returned to `docs/candidates.md` rather than built (D10): quick-add, search-to-a
 
 ## Exit gate
 
-- [ ] **Decisions 1–11 are answered and recorded here**, and ADR-068 is written.
-- [ ] **Any stop can be moved from its editor's Day field**, and the move is the same
-      `MoveActivity` a drag dispatches (a test asserts the command, seen red).
-- [ ] **A parked stop can be created on desktop by double-clicking the drawer**, the header's
+- [x] **Decisions 1–11 are answered and recorded here**, and ADR-068 is written. *Ticked
+      2026-10-11: answered by Mitchell in session 2026-10-10 (#391); ADR-068 in #391, ADR-069 (the
+      palette's grammar) in #398; the 2026-10-11 decisions (keep the ✕, focus before hover) are
+      under D7 and D8.*
+- [x] **Any stop can be moved from its editor's Day field**, and the move is the same
+      `MoveActivity` a drag dispatches (a test asserts the command, seen red). *Ticked 2026-10-11:
+      #392; `ActivityEditorSheet.test.tsx` "moves a stop to the day picked in its editor" and
+      "moves and edits a stop as one batch…", over `moveCommands` (`moveCommands.test.ts`), seen
+      red per #392's body.*
+- [x] **A parked stop can be created on desktop by double-clicking the drawer**, the header's
       *Add stop* is gone on desktop, and the drawer's cards carry no controls of their own.
-- [ ] **An empty day shows how to fill it.**
-- [ ] **A parked stop shows the day it left**, and a stop parked before the contract change, or
-      by a revert, shows none rather than a wrong day.
-- [ ] **In Calendar, a city block dragged to another day moves all its stops in one batch**, one
+      *Ticked 2026-10-11: #393; `UnscheduledRack.test.tsx` "makes a parked stop on a double-click
+      of its empty space…" and "opens a card's stop when the card is tapped, and carries no
+      controls of its own"; `TripHeader.test.tsx` "offers no Add stop button…".*
+- [x] **An empty day shows how to fill it.** *Ticked 2026-10-11: #393; `DayRiver.test.tsx` "an
+      empty day says how to fill it, and only while it is empty and editable".*
+- [x] **A parked stop shows the day it left**, and a stop parked before the contract change, or
+      by a revert, shows none rather than a wrong day. *Ticked 2026-10-11: #394 and its fix #399;
+      `evolve.test.ts` "names the day a parked stop came from…" and "names none for a move written
+      before M41, or by a revert"; `UnscheduledRack.test.tsx` "says which day a parked stop left,
+      and nothing when that is not known".*
+- [x] **In Calendar, a city block dragged to another day moves all its stops in one batch**, one
       History entry and one undo; a drop past the end grows the trip; moving Day 1's block leaves
-      the start date alone; a rack card drops onto a day. An e2e covers the block drag.
-- [ ] **In Plan, a day can be dragged onto another, Option-drag copies a stop, the top edge moves
-      its start, and Delete removes a focused stop**, each with a test seen red.
-- [ ] **Pasting a Maps link or a line of text onto a day opens the editor prefilled**, with the
-      parser unit-tested over its examples and each test seen red.
-- [ ] **⌘K reaches every lens, another trip, Playbooks, Settings and the assistant, and makes a
+      the start date alone; a rack card drops onto a day. An e2e covers the block drag. *Ticked
+      2026-10-11: #395; `m41-calendar-drag.spec.ts` (Day 1's card to Day 2 leaves Day 1 in the
+      trip and empty, one entry; past-end drop grows the trip as one entry, one ⌘Z undoes it;
+      Saturday-end growth; a parked stop dropped onto a day); `calendarDrop.test.ts`, seen red per
+      #395's body.*
+- [x] **In Plan, a day can be dragged onto another, Option-drag copies a stop, the top edge moves
+      its start, and Delete removes a focused stop**, each with a test seen red. *Ticked
+      2026-10-11: #396; `TripBoardScreen.test.tsx` "moves a day's stops to another day as one
+      batch…", `copyActivity.test.ts`, `DayRiver.test.tsx` "dragging a block's top edge changes
+      when it starts…" and "Delete or Backspace on a focused block removes its stop", and
+      `m41-plan-gestures.spec.ts`; seen red per #396's body.*
+- [x] **Pasting a Maps link or a line of text onto a day opens the editor prefilled**, with the
+      parser unit-tested over its examples and each test seen red. *Ticked 2026-10-11: #397;
+      `pasteToStop.test.ts` (Google and Apple Maps links, pins, search links, short links to
+      notes, plain text), `m41-paste-to-add.spec.ts` (text pasted over a day; a Maps link dropped
+      on a day); seen red per #397's body.*
+- [x] **⌘K reaches every lens, another trip, Playbooks, Settings and the assistant, and makes a
       stop**, and a test asserts each command calls the same function as its page control.
-- [ ] **No second way to do a thing was added**: part 0's duplication log lists every one found
-      and what was done about it.
-- [ ] **The e2e specs pass on `pnpm --filter web test:e2e:ci-like`.**
-- [ ] **[walk]** The PR preview is walked with a mouse and with the keyboard only.
-- [ ] A retro is appended at gate close.
+      *Ticked 2026-10-11: #398; `commands.test.ts` "palette commands hold the page's own actions"
+      (each lens is `setView`, Add › Stop / Ask are the functions given, Edit › Trip is the
+      header's one opener, places and trips go where the app's links go) and the day/stop
+      commands' identity tests; `m41-command-palette.spec.ts`, keyboard only; seen red per #398's
+      body.*
+- [x] **No second way to do a thing was added**: part 0's duplication log lists every one found
+      and what was done about it. *Ticked 2026-10-11: the log in
+      `docs/plans/2026-10-10-M41-gestures.md` and #391's tracker, 17 rows, closed out with the
+      ✕ decision.*
+- [ ] **The e2e specs pass on `pnpm --filter web test:e2e:ci-like`.** *Open 2026-10-11: by
+      Mitchell's ruling the full run is CI on #391 on merged `main`, pending at this commit. (#398
+      ran 305/305 locally on `a4b3e09`, before the merge.)*
+- [ ] **[walk]** The PR preview is walked with a mouse and with the keyboard only. *Open
+      2026-10-11: Mitchell's walk.*
+- [x] A retro is appended at gate close. *Ticked 2026-10-11: below.*
+
+## Retro — written 2026-10-11, gate 11 of 13 (not yet closed)
+
+**What shipped.** Part 0 (#391) and seven parts, merged into it bottom-up 2026-10-10 → 2026-10-11:
+the editor's Day field and one move function (#392); the drawer as just cards, double-click to
+create, the empty-day hint (#393); *"from Day N"* from `ActivityMovedV1.fromDayId`, API 1.12.0
+(#394, fix #399); Calendar's city-block drag and rack (#395); Plan's day drag, Option-drag copy,
+top-edge resize and Delete (#396); paste or drop to add (#397); the ⌘K palette on ADR-069's grammar
+(#398). No migrations.
+
+**What held.**
+- **Self-review by subagents found real bugs in every part**, before CodeRabbit saw it; each
+  part's PR lists its fixes (in #398: ranking, history-preview gating, Mac ⌘K, IME, stale trips).
+- **The duplication log (D11) did its job.** Part 7 lifted the inline handlers behind Trip
+  settings, undo/redo, the assistant, and adding or removing days and stops into one function
+  each, which the controls and the palette both call.
+
+**What did not.**
+- **CodeRabbit reviews about one PR an hour**, and that set the pace of the stack more than the
+  building did.
+- **Mitchell redesigned the palette midway**, after playing with #398's preview. The flat v1 list
+  became ADR-069's grammar, and then "match any level" (`3e06376`). Right call; it cost part 7 a
+  second build.
+- **Full local suites wasted a lot of time.** Mitchell ruled: scoped checks locally, CI for the full
+  run (`building-a-milestone.md` step 5).
+- **Lesson: a push while a PR is draft cancels the ready run.** CI's concurrency group cancels in
+  progress, and a draft runs nothing, so push first, then mark ready, and do not push again until
+  the run is done.
+- **Lesson: e2e count assertions have holes.** Polling for `before + 1` can pass on the way
+  through several separate entries. Assert the entry itself (its description) and then the count,
+  as `m41-calendar-drag.spec.ts` does; #398 closed the same hole in its Move › Day spec
+  (`124c546`).

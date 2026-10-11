@@ -22,7 +22,11 @@ general setup.
 ## Where the work is right now
 
 **M41 — MOVING AND ADDING STOPS TAKES ONE GESTURE WHEREVER YOU ARE — IS THE CURRENT MILESTONE AS
-OF 2026-10-10**, by **M40's gate closing at 8 of 8**. Order: `… M39 ✓ → M40 ✓ → M41 → M42 … M47`.
+OF 2026-10-10**, by **M40's gate closing at 8 of 8**. **2026-10-11: built; gate 11 of 13, not yet
+closed.** All seven parts (#392–#398, with #399) are merged into part 0, #391, and `main` is merged
+into it. Open: the full ci-like e2e (CI on #391, marked ready 2026-10-11) and Mitchell's mouse and
+keyboard-only walk of the preview. No migrations; the public API is 1.12.0. The retro is at the
+end of the milestone file. Order: `… M39 ✓ → M40 ✓ → M41 → M42 … M47`.
 **Scoped 2026-10-10 with Mitchell, and re-framed**: the 2026-10-06 recommendations predated the
 time river and the Calendar redesign. The direction is fewer controls and more direct gestures,
 and a ⌘K palette that only runs the page's own actions (ADR-068). It is being built as a stack
@@ -277,10 +281,11 @@ half, the model guessing a coordinate rather than citing one, is M9 scope.
 
 ## Next action
 
-**Confirm M41's decisions, then plan its build** (`docs/milestones/M41-planning-without-friction.md`).
-The README says it was scoped 2026-10-07 and its `TODO.md` row says it was not, so read the milestone
-file's decisions with Mitchell before writing a plan. All 47 migrations are applied (M40 added
-`0045` and `0046`). Separately,
+**Close M41's gate on #391** (`docs/milestones/M41-planning-without-friction.md`). When #391's CI
+is green, tick the e2e box with its sha; when Mitchell has walked the preview, tick the walk box.
+Then `pnpm milestone close M41 --confirm`, delete `docs/plans/2026-10-10-M41-gestures.md`, and
+Mitchell merges #391 to `main`. M41 adds no migration, so there is no `migrate-production` run.
+All 48 migrations are applied (M40 added `0045` and `0046`; `0047` landed between milestones). Separately,
 `KI-2026-10-04-c` resolves on query 8 of `ledger.sql` over a few days of cheap-tier step durations.
 
 **Carried out of M24, not gating:** `KI-2026-09-25-q`. About a dozen
