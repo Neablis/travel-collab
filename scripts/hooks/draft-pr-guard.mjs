@@ -1,7 +1,16 @@
-// PreToolUse hook (matcher: Bash). Two asks, both about the same measurement.
+// PreToolUse hook (matcher: Bash). Two asks, both about the same measurement,
+// and two refusals.
 //
 //   gh pr create   without --draft          -> ask
 //   gh pr ready    without a Tier-3 stamp   -> ask
+//   gh pr create --draft  from a milestone part branch -> deny (it opens ready)
+//   gh pr create|edit  with a model id in --title/--body/--body-file -> deny
+//
+// On a milestone part branch (`claude/m<N>-part<K>-...`, lib/part-branch.mjs)
+// the first ask steps aside: build-a-part opens a part's PR ready for review,
+// and the phase-implementer that does it has only `gh`. The head branch is
+// `--head`/`-H` when given, else the branch checked out at the payload's cwd.
+// The model-id rule is pr-tool-guard.mjs's, for the PRs `gh` opens.
 //
 // WHY
 //
@@ -31,6 +40,11 @@
 // FAILS OPEN. Any parse problem, any missing git, any unreadable stamp exits 0.
 
 import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { parseShell } from "./lib/shell.mjs";
+import { currentBranch, isPartBranch } from "./lib/part-branch.mjs";
+import { findModelId } from "./lib/model-id.mjs";
 
 let input = "";
 process.stdin.setEncoding("utf8");
@@ -45,60 +59,106 @@ try {
 
 const command = String(parsed?.tool_input?.command ?? "");
 if (!command) process.exit(0);
+const cwd = typeof parsed?.cwd === "string" && parsed.cwd ? parsed.cwd : process.cwd();
 
 // `gh` must be the COMMAND WORD of a segment, not merely a substring. The
 // first draft matched `\bgh…pr\s+create` anywhere, so
 // `git commit -m 'gh pr create'` fired — a false positive, and this repo's
 // standing rule is that a hook firing on something a person legitimately
-// chose is a hook that gets trained away.
-//
-// Splitting on shell separators is imperfect inside quotes, and that is the
-// SAFE direction for an advisory guard: a missed ask costs one CI round trip,
-// a spurious one costs the guard's credibility.
-const SEGMENTS = (cmd) => cmd.split(/[\n;|&]+/);
-const GH_CALL = /^\s*(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*gh\b(.*)$/;
-
-function ghArgs(command) {
+// chose is a hook that gets trained away. lib/shell.mjs reads quotes and
+// heredocs the way the shell does, so a body passed as
+// `--body "$(cat <<'EOF' ... EOF)"` arrives as one word.
+function ghCalls(command) {
   const calls = [];
-  for (const seg of SEGMENTS(command)) {
-    const m = GH_CALL.exec(seg);
-    if (m) calls.push(m[1]);
+  for (const seg of parseShell(command)) {
+    if (seg.words[0]?.split("/").pop() !== "gh") continue;
+    const pr = seg.words.indexOf("pr");
+    if (pr === -1) continue;
+    calls.push({ sub: seg.words[pr + 1] ?? "", args: seg.words.slice(pr + 2), heredocs: seg.heredocs });
   }
   return calls;
 }
 
-const CREATE = /\bpr\s+create\b/;
-const READY = /\bpr\s+ready\b/;
-const HAS_DRAFT = /(^|\s)(--draft|-d)(\s|=|$)/;
+/** The values of `names` in `args`, in both `--x v` and `--x=v` spellings. */
+function optionValues(args, names) {
+  const out = [];
+  for (let i = 0; i < args.length; i += 1) {
+    const a = args[i];
+    if (names.includes(a)) out.push(args[(i += 1)] ?? "");
+    else {
+      const eq = names.find((n) => n.startsWith("--") && a.startsWith(`${n}=`));
+      if (eq) out.push(a.slice(eq.length + 1));
+    }
+  }
+  return out;
+}
 
-function ask(reason) {
+const hasDraft = (args) => args.some((a) => a === "--draft" || a === "-d" || a.startsWith("--draft="));
+
+function respond(permissionDecision, reason) {
   console.log(
     JSON.stringify({
       hookSpecificOutput: {
         hookEventName: "PreToolUse",
-        permissionDecision: "ask",
+        permissionDecision,
         permissionDecisionReason: reason,
       },
     }),
   );
   process.exit(0);
 }
+const ask = (reason) => respond("ask", reason);
 
-const calls = ghArgs(command);
+const calls = ghCalls(command);
 
-if (calls.some((a) => CREATE.test(a) && !HAS_DRAFT.test(a))) {
+for (const call of calls.filter((c) => c.sub === "create" || c.sub === "edit")) {
+  const texts = [
+    ...optionValues(call.args, ["--title", "-t", "--body", "-b"]),
+    ...optionValues(call.args, ["--body-file", "-F"]).map((f) => {
+      if (f === "-") return call.heredocs.join("\n");
+      try {
+        return readFileSync(resolve(cwd, f), "utf8");
+      } catch {
+        return ""; // an unreadable body file is gh's error to report
+      }
+    }),
+  ];
+  const found = texts.map(findModelId).find(Boolean);
+  if (found) {
+    respond(
+      "deny",
+      `The PR title or body contains a model id ("${found}"). Remove it; the body ends ` +
+        "with the Claude Code attribution line and the session link, nothing more.",
+    );
+  }
+}
+
+const creates = calls.filter((c) => c.sub === "create");
+const headOf = (call) => optionValues(call.args, ["--head", "-H"]).pop() ?? currentBranch(cwd);
+const onPart = creates.filter((c) => isPartBranch(headOf(c)));
+
+if (onPart.some((c) => hasDraft(c.args))) {
+  respond(
+    "deny",
+    "This is a milestone part's branch: open it ready (build-a-part), not as a draft. " +
+      "Drop --draft. A push while a PR is draft cancels its ready-for-review CI run.",
+  );
+}
+
+if (creates.some((c) => !onPart.includes(c) && !hasDraft(c.args))) {
   ask(
     "This opens a PR ready rather than as a draft. AGENTS.md: \"open that PR as a " +
       "draft, and mark it ready only when you believe it is green.\" Measured over " +
       "2026-09-15..20: 11 of 15 branches opened ready, and PR #196 — opened ready — " +
       "spent 41 CI runs and 8 failures across 15 hours, its first run failing three " +
       "seconds in on `test:int`, a lane that runs locally in ~70s. " +
-      "Add --draft, then `pnpm check` and `gh pr ready <n>`. " +
+      "Add --draft, then `gh pr ready <n>` when you believe it is green: CI on the PR " +
+      "runs the full suite. " +
       "Override deliberately for a prose fix, a revert, or a PR asked for right now.",
   );
 }
 
-if (calls.some((a) => READY.test(a))) {
+if (calls.some((c) => c.sub === "ready")) {
   let head;
   try {
     head = execFileSync("git", ["rev-parse", "HEAD"], {
@@ -119,10 +179,11 @@ if (calls.some((a) => READY.test(a))) {
   if (!verify.ok) {
     ask(
       `Marking this PR ready, but ${verify.reason}. Tier 3 is the single ` +
-        "full-suite run a branch pays for, and it is what `ready_for_review` tells CI " +
-        "to start paying attention to. Run `pnpm check` first — it records the stamp — " +
-        "or say in the PR body which tier you ran and why. A silent skip is the thing " +
-        "AGENTS.md calls out; an unchecked box is a fine outcome.",
+        "full-suite run a branch pays for, and CI on the PR runs the full suite once it " +
+        "is ready; `pnpm check` is not run locally. Mark it ready when the scoped checks " +
+        "for every change on the branch have passed, and say in the PR body which tier " +
+        "you ran. A silent skip is the thing AGENTS.md calls out; an unchecked box is a " +
+        "fine outcome.",
     );
   }
 
