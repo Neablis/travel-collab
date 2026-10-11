@@ -1,7 +1,14 @@
 import { cleanup, render, screen, within, fireEvent } from "@testing-library/react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { LANDING_FEATURES } from "@/lib/landingDemo";
 import { PhoneFrontDoor } from "./PhoneFrontDoor";
+
+// The three real cards are `lazy()`-loaded; loaded here first so a cold
+// worker's transform does not outrun `findBy*` (`LandingHeroArt.test.tsx`).
+beforeAll(async () => {
+  await import("./LandingFeaturePanels");
+});
 
 afterEach(cleanup);
 
@@ -303,38 +310,42 @@ describe("the phone front door (SPEC §28)", () => {
     // *"Is also awkward wording ... and missing the graphic"*, twice, and
     // *"missing the example. Attached example of what it should look like"*.
     // Every claim carries a card since the 2026-09-28 retro (the card-less
-    // "One plan" opener went; Playbooks leads, and Countdown is new).
-    it("draws the example under every claim", () => {
+    // "One plan" opener went; Playbooks leads, and Countdown is new), and three
+    // of the four are the product itself since M42 part 9: the desktop blocks'
+    // river, Discover card and notebook page, at phone size. Found with
+    // `hidden`, because every claim but the first starts out unannounced.
+    it("draws the example under every claim, three of them the product's own", async () => {
       render(<PhoneFrontDoor />);
       const claims = screen.getAllByTestId("front-door-claim");
-      // Playbooks: somebody else's day, and what happens when you take it.
-      expect(within(claims[0]!).getByText("A beach day in Phuket")).toBeTruthy();
-      expect(within(claims[0]!).getByText(/Relived 214 times/)).toBeTruthy();
-      expect(within(claims[0]!).getByText(/Dropping in as Day 2/)).toBeTruthy();
-      // Together: three stops and the change somebody else made.
-      expect(within(claims[1]!).getByText("Fushimi Inari, early")).toBeTruthy();
-      expect(within(claims[1]!).getByText(/Priya moved this an hour later/)).toBeTruthy();
+      // Playbooks: a real day from the library, as Discover shows it.
+      expect(
+        await within(claims[0]!).findByRole("link", { name: LANDING_FEATURES.playbook.name, hidden: true }),
+      ).toBeTruthy();
+      expect(within(claims[0]!).queryByText("A beach day in Phuket")).toBeNull();
+      // Together: the demo trip's day on the board's read-only river.
+      expect(await within(claims[1]!).findByRole("list", { name: "Day 7 timeline", hidden: true })).toBeTruthy();
+      expect(within(claims[1]!).queryByText("Fushimi Inari, early")).toBeNull();
       // Countdown: the night before, and somebody still awake moving the
-      // start earlier.
+      // start earlier — still a drawing, since the app's own reads the clock.
       expect(within(claims[2]!).getByText("Wheels up tomorrow")).toBeTruthy();
       expect(within(claims[2]!).getByText("Priya moved the meet-up to 6:40 am.")).toBeTruthy();
       // A countdown offers no Accept, so its card draws none (review of PR 405).
       expect(within(claims[2]!).queryByText("Accept")).toBeNull();
-      // Notebook: a page of the trip as it was lived — the day, a memory, and
-      // the people who were there.
-      expect(within(claims[3]!).getByText("Day 6 · Hakone")).toBeTruthy();
+      // Notebook: a page of the trip as it was lived, under the trip's strip.
+      expect(await within(claims[3]!).findByRole("img", { name: /^Days 1–3 Tokyo/, hidden: true })).toBeTruthy();
       expect(within(claims[3]!).getByText(/best night of the trip/)).toBeTruthy();
-      expect(within(claims[3]!).getByText("Sam, Priya, Dana, Marcus · Apr 9")).toBeTruthy();
+      expect(within(claims[3]!).queryByText("Sam, Priya, Dana, Marcus · Apr 9")).toBeNull();
     });
 
     // Mitchell, 2026-10-11: *"it should be more nostalgic than how much you
     // spent on dinner."* The card used to be a day's spend and its receipts;
     // "How you'll remember it" is not a total.
-    it("remembers the trip in the notebook without a price in it", () => {
+    it("remembers the trip in the notebook without a price in it", async () => {
       render(<PhoneFrontDoor />);
       const notebook = screen.getAllByTestId("front-door-claim")[3]!;
+      expect(await within(notebook).findByText("Check in at Gora Kadan")).toBeTruthy();
       expect(within(notebook).getByText("How you'll remember it.")).toBeTruthy();
-      expect(notebook.textContent).not.toMatch(/[$€£]\s?\d/);
+      expect(notebook.textContent).not.toMatch(/[$€£¥]\s?\d/);
     });
 
     // The half of "awkward wording" that was a BUILD defect rather than a copy

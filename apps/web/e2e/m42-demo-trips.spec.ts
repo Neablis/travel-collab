@@ -81,4 +81,32 @@ test.describe("the front door, signed out (M42)", () => {
     await expect(pricing).toBeInViewport();
     await expect(pricing.getByTestId("plan-summary")).toContainText(/Free.*\/ month.*\/ month/);
   });
+
+  // Part 9: the feature blocks are the app's own river, Discover card and
+  // notebook page, from the committed snapshots, and the phone's claims are
+  // the same components at phone size — server-rendered, so they hydrate
+  // rather than swap in.
+  test("the landing's feature blocks show the app itself, at desktop and phone widths", async ({ page }) => {
+    const hydration: string[] = [];
+    page.on("console", (message) => {
+      if (message.type() === "error" && /hydrat/i.test(message.text())) hydration.push(message.text());
+    });
+    await page.goto("/welcome");
+    const landing = page.getByTestId("desktop-landing");
+    const playbook = /^Railay: the first longtail/;
+    await expect(
+      landing.getByRole("region", { name: "The trip starts before the trip." }).getByRole("list", { name: "Day 7 timeline" }),
+    ).toBeVisible();
+    await expect(landing.getByRole("region", { name: "Relive someone’s perfect day." }).getByRole("link", { name: playbook })).toBeVisible();
+    await expect(landing.getByRole("region", { name: "How you’ll remember it." }).getByText("Check in at Gora Kadan")).toBeVisible();
+
+    // The first claim is on screen as the phone's page opens, and its card
+    // fits the screen rather than running off the bottom of the pinned stage.
+    await page.setViewportSize({ width: 411, height: 852 });
+    const card = page.getByTestId("phone-front-door").getByTestId("discover-card");
+    await expect(card.getByRole("link", { name: playbook })).toBeVisible();
+    const box = await card.boundingBox();
+    expect(box!.y + box!.height).toBeLessThanOrEqual(852);
+    expect(hydration).toEqual([]);
+  });
 });

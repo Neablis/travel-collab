@@ -1,0 +1,101 @@
+{
+  "playbook": {
+    "savedDayId": "95742081-a970-48b2-8779-34d5104c94ca",
+    "ownerId": "dev-nadia",
+    "ownerDisplayName": "Nadia",
+    "name": "Railay: the first longtail, Phra Nang before the crowd, and back after dark",
+    "cities": [
+      "Krabi"
+    ],
+    "matchedCities": [],
+    "stopCount": 8,
+    "dayCount": 1,
+    "window": {
+      "start": "08:15",
+      "end": "21:25"
+    },
+    "preview": [
+      {
+        "title": "Longtail from Ao Nang beach to Railay West",
+        "start": "08:15"
+      },
+      {
+        "title": "Phra Nang Cave Beach and the fertility shrine",
+        "start": "09:00"
+      },
+      {
+        "title": "Railay viewpoint, and the lagoon if it has not rained",
+        "start": "10:35"
+      }
+    ],
+    "totalCost": null,
+    "adds": 5,
+    "rating": null,
+    "reviewCount": 0,
+    "visibility": "public",
+    "authorKind": "ai",
+    "sourceTripName": "Andaman, twelve days and one bag",
+    "createdAt": "2026-02-14T09:00:00.000Z",
+    "publishedAt": "2026-02-14T09:00:00.000Z",
+    "isMine": false,
+    "cover": null,
+    "description": "Food & outdoors",
+    "tags": [
+      "meal",
+      "outdoors",
+      "drinks",
+      "beach",
+      "tour"
+    ]
+  },
+  "memory": [
+    [
+      {
+        "kind": "text",
+        "text": "Day six, "
+      },
+      {
+        "kind": "chip",
+        "name": "city",
+        "text": "Tokyo"
+      },
+      {
+        "kind": "text",
+        "text": " – "
+      },
+      {
+        "kind": "chip",
+        "name": "city",
+        "text": "Hakone"
+      },
+      {
+        "kind": "text",
+        "text": ": "
+      },
+      {
+        "kind": "chip",
+        "name": "value",
+        "text": "5 stops"
+      },
+      {
+        "kind": "text",
+        "text": ", and the one we still talk about is "
+      },
+      {
+        "kind": "chip",
+        "name": "value",
+        "text": "Check in at Gora Kadan"
+      },
+      {
+        "kind": "text",
+        "text": ". We stayed in the onsen until our fingers wrinkled, then ate far too much kaiseki."
+      }
+    ],
+    [
+      {
+        "kind": "text",
+        "text": "Nobody was in a hurry. Priya says it was the best night of the trip, and nobody argued."
+      }
+    ]
+  ]
+}

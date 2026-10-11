@@ -1,6 +1,7 @@
 import { UNBUILT_SOCIAL } from "@/test-support/unbuiltSocial";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { LANDING_FEATURES } from "@/lib/landingDemo";
 import { LandingScreen } from "./LandingScreen";
 
 // **The real panels are loaded before any test runs.** The hero `lazy()`-loads
@@ -14,7 +15,20 @@ import { LandingScreen } from "./LandingScreen";
 // fails is `LandingHeroArt.failed.test.tsx`'s business, not this file's.
 beforeAll(async () => {
   await import("./LandingHeroPanels");
+  await import("./LandingFeaturePanels");
 });
+
+/**
+ * Waits for the feature blocks' and the phone claims' real components (M42
+ * part 9), in both trees, so what a test reads next is what a visitor sees
+ * once they have arrived. `hidden`, because the phone's later claims start out
+ * unannounced.
+ */
+async function realPanels() {
+  expect(await screen.findAllByRole("link", { name: LANDING_FEATURES.playbook.name, hidden: true })).toHaveLength(2);
+  expect(await screen.findAllByRole("list", { name: "Day 7 timeline", hidden: true })).toHaveLength(2);
+  expect(await screen.findAllByRole("img", { name: /^Days 1–3 Tokyo/, hidden: true })).toHaveLength(2);
+}
 
 afterEach(() => {
   cleanup();
@@ -78,9 +92,12 @@ describe("LandingScreen", () => {
   // held here rather than trusted. The hero mounts one view at a time, so each
   // is opened, and each is asserted to have drawn something real before the
   // spy is read — a view that failed to mount would otherwise pass for free.
-  it("calls fetch for nothing while it renders, in any hero view (SPEC §14)", async () => {
+  // The feature blocks and phone claims are the product's own components too,
+  // a Discover card among them, so they are waited for as well.
+  it("calls fetch for nothing while it renders, in any hero view or feature block (SPEC §14)", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     render(<LandingScreen />);
+    await realPanels();
     const desktop = within(screen.getByTestId("desktop-landing"));
 
     fireEvent.click(desktop.getByRole("button", { name: "Day 7" }));
@@ -175,10 +192,13 @@ describe("LandingScreen", () => {
   // replies, votes, comments, reactions or live presence — they have
   // suggestions and a history of who changed what, and the public library
   // has stars — so neither tree may picture the rest. Both trees, because the
-  // phone front door carries its own cards; the hero's other two views are
-  // swept below.
-  it("pictures no replies, votes, reactions or presence, which trips do not have", () => {
+  // phone front door carries its own cards, and once their real components
+  // have arrived, because those are what a visitor reads; the hero's Timeline
+  // and Notebook views are swept in `LandingHeroArt.test.tsx`, and the
+  // drawings the real components replace in the `.failed` tests.
+  it("pictures no replies, votes, reactions or presence, which trips do not have", async () => {
     render(<LandingScreen />);
+    await realPanels();
     expect(screen.queryAllByText(UNBUILT_SOCIAL).map((el) => el.textContent)).toEqual([]);
     expect(screen.queryAllByRole("img", { name: UNBUILT_SOCIAL })).toEqual([]);
   });

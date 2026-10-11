@@ -1,8 +1,23 @@
-import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { cleanup, render, screen, within } from "@testing-library/react";
+import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { LANDING_FEATURES } from "@/lib/landingDemo";
 import { LandingFeatureBlocks } from "./LandingFeatureBlocks";
 
+// **The real panels are loaded before any test runs**, for the reason
+// `LandingHeroArt.test.tsx` gives: the blocks `lazy()`-load the river, the
+// Discover card and the notebook blocks, and a cold worker's first transform of
+// that tree outruns `findBy*`'s default. A load that fails is
+// `LandingFeatureBlocks.failed.test.tsx`'s business.
+beforeAll(async () => {
+  await import("./LandingFeaturePanels");
+});
+
 afterEach(cleanup);
+
+const PLAYBOOKS = "Relive someone’s perfect day.";
+const TOGETHER = "The trip starts before the trip.";
+const COUNTDOWN = "Too excited to sleep.";
+const NOTEBOOK = "How you’ll remember it.";
 
 describe("LandingFeatureBlocks", () => {
   it.each(["Playbooks", "Together", "Countdown", "Notebook"])("names the %s block", (eyebrow) => {
@@ -10,68 +25,95 @@ describe("LandingFeatureBlocks", () => {
     expect(screen.getByText(eyebrow)).toBeDefined();
   });
 
-  it.each([
-    "Relive someone’s perfect day.",
-    "The trip starts before the trip.",
-    "Too excited to sleep.",
-    "How you’ll remember it.",
-  ])("titles the block %s", (title) => {
+  // In page order, because the retro's order is the argument: the feeling
+  // (Playbooks) first, the mechanics riding along after it. Each block is a
+  // region named by its title, which is also how the tests below find one.
+  it("puts the blocks in the retro's order", () => {
     render(<LandingFeatureBlocks />);
-    expect(screen.getByRole("heading", { name: title })).toBeDefined();
+    expect(screen.getAllByRole("region").map((region) => within(region).getAllByRole("heading")[0]?.textContent)).toEqual([
+      PLAYBOOKS,
+      TOGETHER,
+      COUNTDOWN,
+      NOTEBOOK,
+    ]);
+  });
+
+  // M42 part 9: the blocks show the app, not a drawing of it (Mitchell's
+  // suggestion, which the real hero did half of). The drawings stay, as what
+  // stands in while the real components load or if they cannot, so "the block
+  // rendered" proves nothing: each block is asserted to hold the real thing and
+  // no longer the drawing once the snapshot's components have arrived.
+  it("draws the real river, Discover card and notebook page in place of the drawings", async () => {
+    render(<LandingFeatureBlocks />);
+
+    const together = within(screen.getByRole("region", { name: TOGETHER }));
+    expect(await together.findByRole("list", { name: "Day 7 timeline" })).toBeDefined();
+    expect(together.queryByText("Pontocho, maybe")).toBeNull();
+
+    const playbooks = within(screen.getByRole("region", { name: PLAYBOOKS }));
+    expect(await playbooks.findByRole("link", { name: LANDING_FEATURES.playbook.name })).toBeDefined();
+    expect(playbooks.queryByText("A perfect Phuket beach day")).toBeNull();
+
+    const notebook = within(screen.getByRole("region", { name: NOTEBOOK }));
+    expect(await notebook.findByRole("img", { name: /^Days 1–3 Tokyo/ })).toBeDefined();
+    expect(notebook.queryByText("Sam started this page")).toBeNull();
+  });
+
+  // The river is the board's own, read-only: a stop the demo puts on Day 7, at
+  // its time, and no control that would open an editor nobody can use here.
+  it("draws the demo trip's Day 7 on the board's read-only river", async () => {
+    render(<LandingFeatureBlocks />);
+    const river = within(await within(screen.getByRole("region", { name: TOGETHER })).findByRole("list", { name: "Day 7 timeline" }));
+    expect(river.getByText(/^Dinner at Gion Nanba, 7 pm – 9 pm, Maybe/)).toBeDefined();
+    expect(river.queryAllByRole("button")).toHaveLength(0);
+  });
+
+  // The card is Discover's, so it says what Discover would: what kind of day
+  // it is (M42 D8), its tags, and how many trips took it. Its tags are plain
+  // chips — a landing card sends nobody into tag pages.
+  it("shows the bundled playbook as Discover draws it, with its description and tags", async () => {
+    render(<LandingFeatureBlocks />);
+    const playbooks = within(screen.getByRole("region", { name: PLAYBOOKS }));
+    await playbooks.findByRole("link", { name: LANDING_FEATURES.playbook.name });
+    expect(playbooks.getByText("Food & outdoors")).toBeDefined();
+    expect(playbooks.getByText("Beach")).toBeDefined();
+    expect(playbooks.queryByRole("link", { name: "Beach" })).toBeNull();
+    expect(playbooks.getByText(`Added to ${LANDING_FEATURES.playbook.adds} trips`)).toBeDefined();
   });
 
   // Mitchell, 2026-10-11: *"it should be more nostalgic than how much you
   // spent on dinner."* The Notebook used to be a day's cost table; it is a page
-  // of the day as it was lived, signed by the people who were there. It was the
-  // only block that carried money, so no block may.
-  it("remembers the day in the notebook, with no price anywhere", () => {
+  // of the day as it was lived, with the plan's own facts in it as widget
+  // values. Nor does the Playbooks card print the day's total: the blocks sell
+  // the day, not what it cost. (The river's stops name their prices to a
+  // screen reader, as the board's do and the hero's Timeline has since it went
+  // real; nothing on screen reads one.)
+  it("remembers the day in the notebook, with no price in it or on the playbook", async () => {
     render(<LandingFeatureBlocks />);
-    expect(screen.getByText("Day 6 · Hakone")).toBeDefined();
-    expect(screen.getByText(/best night of the trip/)).toBeDefined();
-    expect(screen.getByText("Sam, Priya, Dana, Marcus · Apr 9")).toBeDefined();
-    expect(document.body.textContent).not.toMatch(/[$€£]\s?\d/);
+    const notebook = within(screen.getByRole("region", { name: NOTEBOOK }));
+    expect(await notebook.findByText("Check in at Gora Kadan")).toBeDefined();
+    expect(notebook.getByText(/best night of the trip/)).toBeDefined();
+    await within(screen.getByRole("region", { name: PLAYBOOKS })).findByRole("link", { name: LANDING_FEATURES.playbook.name });
+    for (const title of [NOTEBOOK, PLAYBOOKS]) {
+      expect(screen.getByRole("region", { name: title }).textContent).not.toMatch(/[$€£¥฿]\s?\d/);
+    }
     expect(screen.queryByText(/\bcosts?\b/i)).toBeNull();
   });
 
-  it("shows the borrowed playbook's rating and reach", () => {
-    render(<LandingFeatureBlocks />);
-    expect(screen.getByText("4.8")).toBeDefined();
-    expect(screen.getByText("Relived 214 times")).toBeDefined();
-  });
-
-  // In page order, because the retro's order is the argument: the feeling
-  // (Playbooks) first, the mechanics riding along after it.
-  it("puts the blocks in the retro's order", () => {
-    render(<LandingFeatureBlocks />);
-    expect(screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual([
-      "Relive someone’s perfect day.",
-      "The trip starts before the trip.",
-      "Too excited to sleep.",
-      "How you’ll remember it.",
-    ]);
-  });
-
+  // Countdown stays a drawing: `NextTripHero` fetches its trip and reads the
+  // clock, and the landing does neither (SPEC §14). A countdown offers no
+  // Accept, so its drawing draws none (review of PR 405).
   it("counts the trip down to tomorrow and marks the steps already passed", () => {
     render(<LandingFeatureBlocks />);
-    expect(screen.getByText("Wheels up tomorrow.")).toBeDefined();
-    expect(screen.getByText("day to go")).toBeDefined();
-    expect(screen.getAllByRole("listitem").map((li) => li.textContent)).toEqual(["One month", "One week", "Tomorrow"]);
+    const countdown = within(screen.getByRole("region", { name: COUNTDOWN }));
+    expect(countdown.getByText("Wheels up tomorrow.")).toBeDefined();
+    expect(countdown.getByText("day to go")).toBeDefined();
+    expect(countdown.getAllByRole("listitem").map((li) => li.textContent)).toEqual(["One month", "One week", "Tomorrow"]);
+    expect(countdown.queryByText("Accept")).toBeNull();
   });
 
-  // Mitchell, 2026-10-11: the group's say is a suggestion a planner accepts,
-  // which trips have — not a heart or a reply thread, which they do not.
-  it("marks the booked stop and Dana's suggested one on the Together timeline", () => {
-    render(<LandingFeatureBlocks />);
-    expect(screen.getByText("Pending")).toBeDefined();
-    expect(screen.getByText("Suggested")).toBeDefined();
-    expect(screen.getByText("Pontocho, maybe")).toBeDefined();
-    expect(screen.getByText("Dana suggested this")).toBeDefined();
-  });
-
-  // DRIFT §2: the Notebook's macro values and playbook sharing are unbuilt, and
-  // showing them is deliberate — a landing page states direction. Only the two
-  // *interactive* dead ends get Preview shells, and LandingScreen owns both.
-  // Nothing in this file is interactive, so nothing in it may become a shell.
+  // DRIFT §2: only the two *interactive* dead ends get Preview shells, and
+  // LandingScreen owns both. Nothing in this file may become a shell.
   it("wraps nothing in a Preview shell", () => {
     const { container } = render(<LandingFeatureBlocks />);
     // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
