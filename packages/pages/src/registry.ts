@@ -17,6 +17,7 @@ import { tripStripWidget } from "./macros/primitives/tripStrip";
 import { tripPeopleWidget } from "./macros/primitives/tripPeople";
 import { costChart } from "./macros/primitives/spendByDay";
 import { costBreakdown } from "./macros/primitives/spendBreakdown";
+import { tagBreakdown, tagsByDay, tripDescription } from "./macros/primitives/tagCharts";
 import { costBalances, personShare } from "./macros/primitives/balances";
 import { field } from "./macros/primitives/field";
 import { daySun, dayFromHome } from "./macros/primitives/time";
@@ -60,6 +61,10 @@ const DEFS: AnyMacroDef[] = [
   // as a pie per kind or per tag — its own primitive, not a `view` of the
   // bars, because its filters differ. See `spendBreakdown.ts`.
   costBreakdown,
+  // The tag widgets (M42 D11): "Activities by tag" and "Hours by tag" are one
+  // stop primitive with a `measure`, "Tags by day" another, and "Trip
+  // description" is on `trip.strip`'s terms. See `tagCharts.ts`.
+  tagBreakdown, tagsByDay, tripDescription,
   // "Who owes what" and "What one person is in for" (M19 part 2, ADR-060
   // decision 6): stop primitives over `balances`. See `balances.ts`.
   costBalances, personShare,

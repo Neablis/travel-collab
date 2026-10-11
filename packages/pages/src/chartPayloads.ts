@@ -123,3 +123,87 @@ export type SpendBreakdownPayload = SpendBreakdownCommon &
     | { by: "kind"; slices: SpendBreakdownSlice<ActivityKind>[] }
     | { by: "tag"; slices: SpendBreakdownSlice<SpendSeriesKey>[] }
   );
+
+// ---- the tag charts (M42 D11) ---------------------------------------------
+// Counted, never priced: how many stops each tag is on, or how long they take.
+// A stop is filed under ONE series, `seriesOf`'s first category, so the parts
+// add up to the stops charted, as the spend charts' parts add up to the money.
+
+/** What "Activities by tag" and "Hours by tag" measure: `tag.breakdown`'s `measure`. */
+export type TagMeasure = "count" | "hours";
+
+/** One tag of a tag breakdown: a slice of the donut or a bar, and a row of its key. */
+export interface TagBreakdownSlice {
+  key: SpendSeriesKey;
+  label: string;
+  /** Stops, or minutes. 0 for a tag nothing charted carries. */
+  value: number;
+  /** "3 stops", "4h 30m"; `null` when `value` is 0. */
+  text: string | null;
+  /** Apportioned across the slices, as the spend pie's are; `null` when `value` is 0. */
+  share: string | null;
+}
+
+/**
+ * "Activities by tag" or "Hours by tag": every category and Untagged, in
+ * contract order, zeroes included, drawn as a donut or as a bar per tag.
+ */
+export interface TagBreakdownPayload {
+  kind: "tag-breakdown";
+  measure: TagMeasure;
+  /** The widget's `view` param, a "Variation" choice like "Spend by day"'s. */
+  view: "pie" | "bars";
+  /** The widget's `key` param: the table of values beside the chart, or the chart alone with them on hover. */
+  key: "shown" | "hidden";
+  /** What it is, then what it is narrowed to: "Hours by tag · Kyoto". */
+  title: string;
+  /** The key's value column: "Stops" or "Time". */
+  valueHeading: string;
+  slices: TagBreakdownSlice[];
+  /** Everything charted, as a reader says it: "24 stops", "31h 15m". */
+  total: string;
+  summary: string;
+  /** What it leaves out and says so: untimed stops, for hours. `null` when nothing. */
+  notCharted: string | null;
+}
+
+/** One day of "Tags by day". */
+export interface TagsByDayBar {
+  /** "Day 3". */
+  label: string;
+  /** "3rd", for the axis. */
+  tick: string;
+  /** Display-ready, or `null` for an undated day. */
+  date: string | null;
+  /** Stops per stack. A key with none is 0, never absent. */
+  counts: Record<SpendSeriesKey, number>;
+  total: number;
+  /** "Food 2, Outdoors 3", for the table a screen reader gets; `null` for an empty day. */
+  breakdown: string | null;
+}
+
+/** "Tags by day": a bar per day, stacked by tag. */
+export interface TagsByDayPayload {
+  kind: "tags-by-day";
+  /** The stacks with any stop, in `ActivityTagCategory` order and then untagged. */
+  series: { key: SpendSeriesKey; label: string }[];
+  /** One per selected day, in trip order, empty days included. */
+  days: TagsByDayBar[];
+  /** Whole numbers from 0 to at least the tallest bar. */
+  ticks: number[];
+  summary: string;
+  /** The unscheduled stops, which have no day to stand on. `null` when none. */
+  notCharted: string | null;
+}
+
+/** "Trip description": what kind of trip it is, and the tags that say so. */
+export interface TripDescriptionPayload {
+  kind: "trip-description";
+  /** "Outdoorsy", "Beach & outdoors", "A bit of everything". */
+  text: string;
+  /** The top categories, the most stops first, each with its share of the stops counted. */
+  tags: { key: ActivityTagCategory; label: string; share: string }[];
+  /** "Share of 24 tagged stops": what each share is of. */
+  basis: string;
+  summary: string;
+}

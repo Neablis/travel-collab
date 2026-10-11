@@ -105,6 +105,22 @@ export function describeByTags(stops: readonly DescribableStop[]): TagDescriptio
  * the description leaves them out.
  */
 export function describedTags(stops: readonly DescribableStop[]): DescribedTag[] {
-  const { counts } = tally(stops);
-  return DESCRIBED.filter((tag) => counts.has(tag)).sort((a, b) => counts.get(b)! - counts.get(a)!);
+  return describedTagCounts(stops).tags.map(({ tag }) => tag);
+}
+
+/**
+ * The numbers behind a description: how many stops it counted, and how many of
+ * those carry each category, in `describedTags`' order. The *Trip description*
+ * widget's shares are `count / counted`, read from the same tally the words are
+ * worked out from rather than a second reading of which stops count.
+ */
+export function describedTagCounts(stops: readonly DescribableStop[]): {
+  counted: number;
+  tags: { tag: DescribedTag; count: number }[];
+} {
+  const { counts, counted } = tally(stops);
+  const tags = DESCRIBED.filter((tag) => counts.has(tag))
+    .sort((a, b) => counts.get(b)! - counts.get(a)!)
+    .map((tag) => ({ tag, count: counts.get(tag)! }));
+  return { counted, tags };
 }

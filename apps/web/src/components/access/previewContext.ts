@@ -153,5 +153,5 @@ function globalsOf(preview: TripPreview): TripGlobals {
     }
     return { index, date: day.date, cities: touched, activityCount: day.stops.length, costSubtotal: 0, place: null, timeZone: null };
   });
-  return { days, cities: [...cities.values()], tags: [], homeTimeZone: null };
+  return { days, cities: [...cities.values()], tags: [], description: null, homeTimeZone: null };
 }

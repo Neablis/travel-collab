@@ -7,6 +7,7 @@ import {
   TAG_DESCRIPTION_COPY,
   describeByTags,
   describedTags,
+  describedTagCounts,
   type DescribableStop,
 } from "../src";
 import { witness } from "./support/witness";
@@ -135,5 +136,20 @@ describe("describedTags", () => {
   it("lists every counted category, most stops first, ties in contract order", () => {
     const day = [...times(2, "sight"), stop("beach", "lodging"), stop("museum", "ticketed"), stop("lodging"), stop("ticketed"), transit("tour")];
     expect(describedTags(day)).toEqual(["sight", "museum", "beach"]);
+  });
+});
+
+describe("describedTagCounts", () => {
+  it("counts the stops a description counts, and each category's stops, in describedTags' order", () => {
+    // Counted: the two sights, the beach and the museum. Not the Lodging-only
+    // or Ticketed-only stop, an untagged one, or travel.
+    const day = [
+      ...times(2, "sight"), stop("beach", "lodging"), stop("museum", "ticketed", "sight"),
+      stop("lodging"), stop("ticketed"), stop(), transit("tour"),
+    ];
+    expect(describedTagCounts(day)).toEqual({
+      counted: 4,
+      tags: [{ tag: "sight", count: 3 }, { tag: "museum", count: 1 }, { tag: "beach", count: 1 }],
+    });
   });
 });
