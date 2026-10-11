@@ -31,17 +31,18 @@ orientation re-reads across 220 sessions against 9 that ran `/roadmap`.
 | `/candidates` / `/milestones` | Thin wrappers over `pnpm candidates` / `pnpm milestones`, for when you want to type one. The digest names the commands anyway — F7 says a command nobody invokes helps nobody, so these are convenience, not the delivery mechanism |
 | `/dispatch` | Sets up a subagent protocol run — splits the work, writes the manifest the enforcement hooks read, emits one brief per unit, and drives the promotion gate at teardown |
 
-**Subagents** (`.claude/agents/`): `phase-implementer`, `phase-verifier`,
-`ki-fixer`. Dispatch these rather than writing the prompt again — `phase-verifier`
+**Subagents** (`.claude/agents/`): `phase-implementer`, `part-reviewer` (read-only review of
+one part's PR), `phase-verifier`, `ki-fixer`. Dispatch these rather than writing the prompt again — `phase-verifier`
 in particular drives the PR's Vercel preview, so the browser walk works from a
 container with no local infra.
 
 **Skills** (`.claude/skills/`): `minimal-check-subset` (narrowest sufficient
 check), `ci-triage` (scoped failing-job logs), `worktree-hygiene` (read-only
 worktree audit), `write-a-test` (the testing guide as steps), `ai-usage` (the
-assistant's live cost and quality), `build-a-milestone` (a whole milestone, from
-Mitchell's decisions to the closed gate — `building-a-milestone.md` as steps). The first three are symlinks into
-`.agents/skills/`; edit them there.
+assistant's live cost and quality), `build-a-milestone` (the orchestrator for a whole milestone, from
+Mitchell's decisions to the closed gate), which loads `plan-a-milestone`, `build-a-part`,
+`review-a-part` and `close-a-milestone` one stage at a time (`building-a-milestone.md`). The first
+three are symlinks into `.agents/skills/`; edit them there.
 
 **Content check** (`pnpm content:verify`): parses every bundle under `content/`
 against `travel-collab/content-bundle/v1`, runs the content rules a schema

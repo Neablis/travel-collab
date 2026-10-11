@@ -160,12 +160,14 @@ What each tool does, why it exists and what it measured:
   `/cleanup-orphans`, `/dispatch`, `/candidates`, `/milestones`. Scripts:
   `pnpm milestones`, `pnpm candidates`, and `pnpm milestone close <id>` — the
   gate-close checklist; `TODO.md`'s rows ARE the order (KI-2026-09-21-a).
-- **Subagents** (`.claude/agents/`): `phase-implementer`, `phase-verifier`,
-  `ki-fixer`. Dispatch these rather than writing the prompt again —
+- **Subagents** (`.claude/agents/`): `phase-implementer`, `part-reviewer`,
+  `phase-verifier`, `ki-fixer`. Dispatch these rather than writing the prompt again —
   `phase-verifier` drives the PR's Vercel preview, so the browser walk needs no
   local infra.
 - **Skills** (`.claude/skills/`): `minimal-check-subset`, `ci-triage`,
-  `worktree-hygiene`, `write-a-test`, `ai-usage`. The first three are symlinks
+  `worktree-hygiene`, `write-a-test`, `ai-usage`, and `build-a-milestone`
+  with its sub-skills `plan-a-milestone`, `build-a-part`, `review-a-part` and
+  `close-a-milestone`. The first three are symlinks
   into `.agents/skills/`; edit them there.
 - **Walls.** `pnpm lint` runs `pnpm arch` (dependency-cruiser; blind to a
   folder↔subfolder cycle, `KI-2026-09-23-b`) and `pnpm surface --check`
@@ -229,8 +231,8 @@ Classify the change by what it touches, then run **only** that tier.
 
 > **The short version, because it has been misread.** Mid-branch, each fix runs
 > **only its own subset** (Tier 1 or 2; CLAUDE.md rule 4). The full suite runs
-> **once**, when the branch leaves draft (Tier 3), and even then running it
-> locally is optional because CI runs it on push. **Never per part of a stack,
+> **once**, when the PR is ready (Tier 3), and CI runs it, not you: the full
+> suite is never run locally (CLAUDE.md rule 1). **Never per part of a stack,
 > per fix, or "to be sure"** — the suggester role ran it on each of three
 > stacked parts and twice more (`docs/retros/2026-10-04-suggester-role-retro.md`, §2).
 
@@ -272,14 +274,16 @@ is ready.
 > `pnpm check`. That is the only way a full run gets earned before Tier 3.
 > Record the subset in the PR body.
 
-**Tier 3 — final review.** The branch is finished and about to leave draft.
+**Tier 3 — final review.** The branch is finished and its PR is ready (a
+milestone part opens ready; `build-a-part`).
 
 > This is the single full-suite run a branch pays for: `pnpm check`, plus
 > `pnpm --filter web test:e2e:ci-like` if a user flow changed, and
-> `pnpm seed:verify` if a contract field or fixture changed. **Running it
-> locally is optional** — `gh pr ready <n>` is when `ci.yml` starts paying
-> attention, and CI runs the same suite. Run it locally at most once, here. A
-> stack pays it once, on the top part (`docs/guidelines/stacked-prs.md` §5).
+> `pnpm seed:verify` if a contract field or fixture changed. **CI pays it, on
+> the PR; it is not run locally.** A ready PR is when `ci.yml` starts paying
+> attention, so read its run on the real head. A milestone part pays it on its
+> own PR to `main`; any other stack pays it once, on the top part
+> (`docs/guidelines/stacked-prs.md` §5).
 
 A mid-branch full-suite run is a judgment call to justify, not a reflex. If you
 genuinely need one — you are chasing a failure whose blast radius you cannot
@@ -367,6 +371,11 @@ window aborts it** (`KI-2026-09-01`).
 
 An agent may trigger it itself only when certain it is done pushing; if in
 doubt, hand off.
+
+**A milestone part is the exception** (Mitchell, after M41): the
+`part-reviewer` subagent reviews every push and replaces steps 2–4, and
+CodeRabbit is asked at most once, on the riskiest or largest part
+(`review-a-part`).
 
 ### Do not watch what cannot run
 
