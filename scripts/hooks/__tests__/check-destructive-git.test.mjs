@@ -109,3 +109,19 @@ test("stays silent when this checkout is the only worktree", () => {
 test("fails open outside a git repo", () => {
   assert.equal(verdict("git push --force", makeLooseDir()), null);
 });
+
+test("a long segment is matched in linear time", () => {
+  // The flag search was a lazy `[^\n;|&]*?` lookahead tried after every
+  // `git <sub>`, and the option chain was rescanned from every `git`: 12s
+  // and 23s respectively for these at 20000 repeats.
+  for (const command of ["git reset ".repeat(20000), "git -C ".repeat(20000)]) {
+    const started = Date.now();
+    const res = runHook("check-destructive-git.mjs", { tool_input: { command } }, {
+      cwd: twoWorktreeRepo(),
+      timeout: 10000,
+    });
+    assert.equal(res.signal, null, `${command.slice(0, 12)}... was killed`);
+    assert.equal(res.status, 0);
+    assert.ok(Date.now() - started < 2000, `${command.slice(0, 12)}... took ${Date.now() - started}ms`);
+  }
+});

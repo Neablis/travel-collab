@@ -1,16 +1,19 @@
-// PreToolUse hook (matcher: Bash). Two asks, both about the same measurement,
-// and two refusals.
+// PreToolUse hook (matcher: Bash). One ask and two refusals.
 //
 //   gh pr create   without --draft          -> ask
-//   gh pr ready    without a Tier-3 stamp   -> ask
 //   gh pr create --draft  from a milestone part branch -> deny (it opens ready)
 //   gh pr create|edit  with a model id in --title/--body/--body-file -> deny
 //
 // On a milestone part branch (`claude/m<N>-part<K>-...`, lib/part-branch.mjs)
-// the first ask steps aside: build-a-part opens a part's PR ready for review,
+// the ask steps aside: build-a-part opens a part's PR ready for review,
 // and the phase-implementer that does it has only `gh`. The head branch is
 // `--head`/`-H` when given, else the branch checked out at the payload's cwd.
 // The model-id rule is pr-tool-guard.mjs's, for the PRs `gh` opens.
+//
+// `gh pr ready` passes. It used to ask unless a Tier-3 stamp covered HEAD, but
+// only `pnpm check` writes that stamp and check-test-lane.mjs denies it
+// locally, so the ask fired on every call. Marking a PR ready is what makes
+// CI run the full suite on it; that run is the verdict.
 //
 // WHY
 //
@@ -37,9 +40,8 @@
 // standing rule is that a hook firing on something a person legitimately chose
 // is a hook that gets trained away.
 //
-// FAILS OPEN. Any parse problem, any missing git, any unreadable stamp exits 0.
+// FAILS OPEN. Any parse problem or missing git exits 0.
 
-import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { parseShell } from "./lib/shell.mjs";
@@ -93,7 +95,9 @@ function optionValues(args, names) {
   return out;
 }
 
-const hasDraft = (args) => args.some((a) => a === "--draft" || a === "-d" || a.startsWith("--draft="));
+// `--draft=false` is gh's boolean flag set off: the PR opens ready.
+const DRAFT = new Set(["--draft", "-d", "--draft=true", "--draft=1"]);
+const hasDraft = (args) => args.some((a) => DRAFT.has(a));
 
 function respond(permissionDecision, reason) {
   console.log(
@@ -156,58 +160,6 @@ if (creates.some((c) => !onPart.includes(c) && !hasDraft(c.args))) {
       "runs the full suite. " +
       "Override deliberately for a prose fix, a revert, or a PR asked for right now.",
   );
-}
-
-if (calls.some((c) => c.sub === "ready")) {
-  let head;
-  try {
-    head = execFileSync("git", ["rev-parse", "HEAD"], {
-      encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 10000,
-    }).trim();
-  } catch {
-    process.exit(0); // no git, no opinion
-  }
-
-  let verify;
-  try {
-    const mod = await import("../tier3-stamp.mjs");
-    verify = mod.verifyStamp(head, mod.readStamp());
-  } catch {
-    process.exit(0); // the stamp module is advisory; never block on its absence
-  }
-
-  if (!verify.ok) {
-    ask(
-      `Marking this PR ready, but ${verify.reason}. Tier 3 is the single ` +
-        "full-suite run a branch pays for, and CI on the PR runs the full suite once it " +
-        "is ready; `pnpm check` is not run locally. Mark it ready when the scoped checks " +
-        "for every change on the branch have passed, and say in the PR body which tier " +
-        "you ran. A silent skip is the thing AGENTS.md calls out; an unchecked box is a " +
-        "fine outcome.",
-    );
-  }
-
-  const notCovered = verify.blocked ?? [];
-  if (notCovered.length > 0 || verify.stamp?.dirty) {
-    const bits = [];
-    if (notCovered.length) {
-      bits.push(
-        `the local check ran with ${notCovered.length} lane(s) BLOCKED, so they were ` +
-          `never verified here: ${notCovered.join("; ")}`,
-      );
-    }
-    if (verify.stamp?.dirty) {
-      bits.push("the tree was dirty when stamped, so the stamp may not describe this commit");
-    }
-    ask(
-      `Tier-3 stamp matches HEAD, but ${bits.join(", and ")}. ` +
-        "In a cloud container the local lane is conditional — see KI-2026-09-08-b, " +
-        "KI-2026-09-12-b, KI-2026-09-02-a, KI-49. `pnpm check` skips `test:int` " +
-        "SILENTLY when no database answers, and says so itself: \"A green `pnpm check` " +
-        "here is NOT a green CI.\" Fine to proceed — record it on the PR's " +
-        "\"Not run, and why\" line rather than letting CI be the first to find out.",
-    );
-  }
 }
 
 process.exit(0);

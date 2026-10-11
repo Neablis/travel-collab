@@ -7,6 +7,7 @@
 //   pnpm check / pnpm test:unit                  -> deny  (full suite)
 //   pnpm [--filter p] test, no test path         -> deny  (full suite)
 //   vitest run, no test path                     -> deny  (full suite)
+//   vitest run whose only path is `src/` or `.`  -> deny  (the package suite)
 //   vitest run in apps/web without -c/--config   -> deny  (default config is
 //                                                   the integration suite)
 //   test:e2e[:ci-like] with no spec, or `-- spec` -> deny  (full e2e suite)
@@ -48,6 +49,8 @@
 // FAILS OPEN. A payload that does not parse, or a command with no pnpm/npm
 // call in it, exits 0 with no output.
 
+import { parseShell, withoutRedirections } from "./lib/shell.mjs";
+
 let input = "";
 process.stdin.setEncoding("utf8");
 for await (const chunk of process.stdin) input += chunk;
@@ -59,34 +62,23 @@ try {
   process.exit(0);
 }
 
-// A CRLF command left `\r` in a segment, which `.` does not match, and the
-// env-prefix regex then failed and threw.
-const command = String(parsed?.tool_input?.command ?? "").replace(/\r/g, "");
+const command = String(parsed?.tool_input?.command ?? "");
 if (!command) process.exit(0);
 
 // The package manager must be the COMMAND WORD of a segment, as in
 // draft-pr-guard.mjs: `git commit -m 'use test:e2e:ci-like, not test:e2e'` or
-// `grep -rn "test -- --run" docs/` names the form without running it. Splitting
-// on separators is imperfect inside quotes; a missed deny costs one slow run, a
-// spurious one costs the guard its credibility.
-//
-// A commit body is text, not commands: a heredoc or a multi-line quoted string
-// whose line reads "pnpm test passes" would otherwise be split out as a call.
-// A one-line quoted string keeps its text, so a quoted spec path still counts
-// as a path, but loses its separators: `-m "b; pnpm check passed"` split at
-// the `;` and read as a `pnpm check` call.
-const prose = (cmd) =>
-  cmd
-    .replace(/<<-?\s*(['"]?)(\w+)\1[^\n]*\n[\s\S]*?\n\s*\2\s*(?=\n|$)/g, "")
-    .replace(/"(?:[^"\\]|\\.)*"|'[^']*'/g, (q) => (q.includes("\n") ? "''" : q.replace(/[;&|]/g, " ")));
-const SEGMENTS = (cmd) => prose(cmd).split(/[\n;|&]+/);
-const ENV_PREFIX = /^\s*((?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*)(.*)$/;
+// `grep -rn "test -- --run" docs/` names the form without running it.
+// lib/shell.mjs splits the command the way the shell would, so a quoted
+// separator (`-m "b; pnpm check passed"`) stays text, a heredoc body is never
+// read as commands, and an escaped quote (`echo \"; pnpm check`) does not open
+// a string that hides the call after it. The regex splitter it replaces did
+// all three wrong, and its heredoc pattern was quadratic.
 const RUNNERS = new Set(["pnpm", "npm", "yarn", "npx", "node", "vitest", "playwright"]);
 
 const DEV_LANE = /\btest:e2e(?!:ci-like\b)(?![\w:-])/;
 const PASSTHROUGH = /\btest\s+--\s+--run\b/;
-const OVERRIDE = /(?:^|\s)E2E_DEV_LANE=1(?:\s|$)/;
-const FULL_OK = /(?:^|\s)ALLOW_FULL_SUITE=1(?:\s|$)/;
+const OVERRIDE = "E2E_DEV_LANE=1";
+const FULL_OK = "ALLOW_FULL_SUITE=1";
 
 // Flags whose next token is a value, never a test path.
 const VALUE_FLAGS = new Set([
@@ -105,10 +97,6 @@ const E2E = "pnpm --filter web test:e2e:ci-like e2e/<spec>.ts (no `--` before th
 const ESCAPE =
   " `ALLOW_FULL_SUITE=1` in front of the command is only for when Mitchell asks for a full run.";
 
-function tokens(s) {
-  return (s.match(/"[^"]*"|'[^']*'|\S+/g) ?? []).map((t) => t.replace(/^(['"])(.*)\1$/, "$2"));
-}
-
 function positionals(args) {
   const out = [];
   for (let i = 0; i < args.length; i += 1) {
@@ -124,6 +112,16 @@ function positionals(args) {
 }
 
 const hasPath = (args) => positionals(args).some((a) => PATHLIKE.test(a));
+
+// A package's whole source tree or root: `src`, `src/`, `.`, `./`, and the
+// same under `apps/<p>/` or `packages/<p>/`. Naming one is the package suite
+// with a path attached.
+const WHOLE_PACKAGE = /^(?:(?:apps|packages)\/[^/]+(?:\/src)?|src|\.)?$/;
+const isWholePackage = (a) => WHOLE_PACKAGE.test(a.replace(/^(?:\.\/)+/, "").replace(/\/+$/, ""));
+const PACKAGE_WIDE =
+  "A package-wide change is not a reason to run the package suite: run the tests " +
+  "covering the files you changed, and let CI run the package suite on the PR " +
+  "(minimal-check-subset).";
 
 // A pnpm/npm/yarn call reduced to { script, filters, args }, skipping the
 // package manager's own flags; `exec` is reported as the script name.
@@ -166,18 +164,19 @@ const targetsWeb = (filters, inWeb) => (filters.length > 0 ? filters.some(isWebF
 const cwd = String(parsed?.cwd ?? "");
 const calls = [];
 let inWeb = IN_WEB.test(cwd);
-for (const seg of SEGMENTS(command)) {
-  const m = ENV_PREFIX.exec(seg);
-  if (!m) continue;
-  const words = tokens(m[2]);
+for (const seg of parseShell(command)) {
+  const words = withoutRedirections(seg.words);
   if (words[0] === "cd") {
     // Every `cd` moves: into web, deeper inside it, or out of it. A path with
-    // `..`, an absolute path or a bare `cd` leaves unless it names apps/web.
+    // `..`, an absolute path, a bare `cd`, or one built from `$` (a variable
+    // or `$(git rev-parse --show-toplevel)`) leaves unless it names apps/web.
     const to = words[1] ?? "";
-    inWeb = IN_WEB.test(to) || (inWeb && to !== "" && !/^[/~-]/.test(to) && !to.split("/").includes(".."));
+    inWeb =
+      IN_WEB.test(to) ||
+      (inWeb && to !== "" && !to.includes("$") && !/^[/~-]/.test(to) && !to.split("/").includes(".."));
   }
   if (!RUNNERS.has(words[0]?.split("/").pop())) continue;
-  calls.push({ env: m[1], rest: m[2], words, inWeb });
+  calls.push({ env: seg.env, rest: words.join(" "), words, inWeb });
 }
 
 const pmCalls = calls.filter((c) => /^(?:pnpm|npm|yarn)$/.test(c.words[0]));
@@ -193,7 +192,7 @@ if (pmCalls.some((c) => PASSTHROUGH.test(c.rest))) {
   );
 }
 
-if (pmCalls.some((c) => DEV_LANE.test(c.rest) && !OVERRIDE.test(c.env))) {
+if (pmCalls.some((c) => DEV_LANE.test(c.rest) && !c.env.includes(OVERRIDE))) {
   deny(
     "Plain `test:e2e` is the dev lane: it serves `pnpm dev`, which compiles routes on " +
       "first hit and times out where CI does not (KI-27). CLAUDE.md rule 1: an e2e " +
@@ -207,7 +206,7 @@ if (pmCalls.some((c) => DEV_LANE.test(c.rest) && !OVERRIDE.test(c.env))) {
 // --- full local suites -------------------------------------------------------
 
 for (const c of calls) {
-  if (FULL_OK.test(c.env)) continue;
+  if (c.env.includes(FULL_OK)) continue;
   const runner = c.words[0].split("/").pop();
   const web = c.inWeb;
 
@@ -258,6 +257,13 @@ for (const c of calls) {
   if (after[0] === "list" || after.some((a) => /^(?:--version|-v|--help|-h)$/.test(a))) continue;
   const vargs = after.filter((w, i) => !(i === 0 && w === "run"));
   const viaDb = c.words.slice(0, v).some((w) => w.endsWith("with-test-db.mjs"));
+  const paths = positionals(vargs).filter((a) => PATHLIKE.test(a) || isWholePackage(a));
+  if (paths.length > 0 && paths.every(isWholePackage)) {
+    deny(
+      `\`${paths.join(" ")}\` is a package's whole tree, so this vitest run is the package ` +
+        `suite. ${PACKAGE_WIDE}${ESCAPE}`,
+    );
+  }
   if (!hasPath(vargs)) {
     deny(
       "This vitest run names no test file or directory, so it runs the whole suite. " +

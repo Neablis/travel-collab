@@ -6,7 +6,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 
 const HOOK = new URL("../hooks/check-test-lane.mjs", import.meta.url).pathname;
 
@@ -201,4 +201,58 @@ test("a malformed payload or empty command is silent", () => {
   }).trim();
   assert.equal(out, "", "a parse failure must fail open");
   assert.equal(hook(""), null);
+});
+
+// --- second-round review (PR 403) ------------------------------------------
+
+function timedHook(command, cwd) {
+  const started = Date.now();
+  const res = spawnSync(process.execPath, [HOOK], {
+    input: JSON.stringify({ tool_input: { command }, cwd }),
+    encoding: "utf8",
+    timeout: 10000,
+  });
+  return { ms: Date.now() - started, signal: res.signal, out: res.stdout.trim() };
+}
+
+test("an unterminated heredoc is read in linear time", () => {
+  // The old splitter's heredoc regex, and lib/shell.mjs's `$(cat <<...)`
+  // regex, both ended in a lazy `[\s\S]*?` before `\n\s*DELIM`: quadratic.
+  for (const command of [`$(cat <<A\n${"\n".repeat(40000)})`, "<<A\n".repeat(40000)]) {
+    const r = timedHook(command);
+    assert.equal(r.signal, null, `${JSON.stringify(command.slice(0, 12))}... was killed`);
+    assert.ok(r.ms < 2000, `${JSON.stringify(command.slice(0, 12))}... took ${r.ms}ms`);
+  }
+});
+
+test("a hyphenated heredoc delimiter still hides its body", () => {
+  assert.equal(hook("cat > notes.md <<'END-MSG'\npnpm check\npnpm test\nEND-MSG"), null);
+});
+
+test("a cd to a path built from $ leaves apps/web", () => {
+  const c = 'cd "$(git rev-parse --show-toplevel)" && npx vitest run packages/domain/src/a.test.ts';
+  assert.equal(hook(c, "/repo/apps/web"), null);
+});
+
+test("an escaped quote does not open a string that hides the call after it", () => {
+  for (const c of ['echo \\"; pnpm check; echo \\"', "echo \\'; pnpm check; echo \\'"]) {
+    assert.equal(hook(c)?.permissionDecision, "deny", c);
+  }
+});
+
+test("a vitest run whose only path is a package's whole tree is the package suite", () => {
+  for (const c of [
+    "pnpm --filter @tc/domain exec vitest run src/",
+    "cd packages/domain && npx vitest run .",
+    "npx vitest run packages/domain/src/",
+    "pnpm --filter web exec vitest run -c vitest.unit.config.ts ./src",
+  ]) {
+    const r = hook(c);
+    assert.equal(r?.permissionDecision, "deny", c);
+    assert.match(r.permissionDecisionReason, /run the tests covering the files you changed/, c);
+    assert.match(r.permissionDecisionReason, /let CI run the package suite/, c);
+  }
+  // A narrower directory, or a file beside the tree, is still a scoped run.
+  assert.equal(hook("pnpm --filter @tc/domain exec vitest run src/plan/"), null);
+  assert.equal(hook("pnpm --filter @tc/domain exec vitest run src/ src/plan.test.ts"), null);
 });

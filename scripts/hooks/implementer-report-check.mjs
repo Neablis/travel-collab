@@ -20,7 +20,9 @@ if (!text.trim()) process.exit(0);
 if (/Exit:\s*\**\s*(?:BLOCKED|DESCOPED)\b/.test(text)) process.exit(0);
 
 const sha = /\b[0-9a-f]{40}\b/.test(text) || /pushed\b[^\n]{0,120}?\b[0-9a-f]{7,40}\b/i.test(text);
-const redFirst = /^[\s#>*-]*\**red[ -]first\b/im.test(text);
+// `[ \t]`, not `\s`, and no separate `\**`: either one let the prefix be
+// matched many ways, and a report of blank lines took seconds.
+const redFirst = /^[ \t#>*-]*red[ -]first\b/im.test(text);
 
 if (!sha || !redFirst) {
   const missing = [!sha && "the pushed sha", !redFirst && "a Red first table"].filter(Boolean);

@@ -16,8 +16,40 @@
 
 const SEPARATORS = new Set([";", "&", "|", "\n", "(", ")"]);
 
-/** The end index (exclusive) of a `$(` substitution whose `(` is at `open`. */
+// A heredoc delimiter: any run of characters the shell would not end a word
+// on, so `<<'END-MSG'` and `<<EOF.md` read as heredocs, not as `<<` and text.
+const DELIM = String.raw`([^\s'"<>;&|()]+)`;
+// Sticky, so a match is tried at one index without slicing the command.
+const HEREDOC_OP = new RegExp(String.raw`<<-?[ \t]*(['"]?)${DELIM}\1`, "y");
+// Only the header: `${DELIM}\1[^\n]*\n` would backtrack quadratically on a
+// long word with no newline, so the line's end is found with indexOf.
+const CAT_HEREDOC = new RegExp(String.raw`^\s*cat\s*<<-?[ \t]*(['"]?)${DELIM}\1`);
+
+/** A `<<` heredoc operator at `at`, as `{ delim, end }`, or null. */
+function heredocAt(cmd, at) {
+  HEREDOC_OP.lastIndex = at;
+  const h = HEREDOC_OP.exec(cmd);
+  return h ? { delim: h[2], end: at + h[0].length } : null;
+}
+
+/** The index just past the `"` that closes a span opened at `open`. */
+function doubleQuoteEnd(cmd, open) {
+  let i = open + 1;
+  while (i < cmd.length && cmd[i] !== '"') {
+    if (cmd[i] === "\\") i += 2;
+    else if (cmd[i] === "$" && cmd[i + 1] === "(") i = substitutionEnd(cmd, i + 1);
+    else i += 1;
+  }
+  return Math.min(i + 1, cmd.length);
+}
+
+/**
+ * The end index (exclusive) of a `$(` substitution whose `(` is at `open`.
+ * Quoted spans are skipped, so a `(` or `)` in a string does not count, and a
+ * `$((...))` is arithmetic, where `<<` is a shift, not a heredoc.
+ */
 function substitutionEnd(cmd, open) {
+  const arithmetic = cmd[open + 1] === "(";
   let depth = 1;
   let i = open + 1;
   while (i < cmd.length) {
@@ -31,11 +63,18 @@ function substitutionEnd(cmd, open) {
       i = j === -1 ? cmd.length : j + 1;
       continue;
     }
-    if (c === "<" && cmd[i + 1] === "<") {
-      const h = /^<<-?\s*(['"]?)(\w+)\1/.exec(cmd.slice(i));
+    if (c === '"') {
+      i = doubleQuoteEnd(cmd, i);
+      continue;
+    }
+    if (c === "<" && cmd[i + 1] === "<" && !arithmetic) {
+      if (cmd[i + 2] === "<") {
+        i += 3; // a here-string, `<<<word`
+        continue;
+      }
+      const h = heredocAt(cmd, i);
       if (h) {
-        const end = heredocEnd(cmd, i + h[0].length, h[2]);
-        i = end.next;
+        i = heredocEnd(cmd, h.end, h.delim).next;
         continue;
       }
     }
@@ -51,28 +90,37 @@ function substitutionEnd(cmd, open) {
 
 /**
  * A heredoc's body: the lines after the newline that follows `from`, up to the
- * line that is just `delim`. Returns the body and the index after that line.
+ * line that is just `delim`. Returns the body, the index after that line, and
+ * whether the line was found at all.
  */
 function heredocEnd(cmd, from, delim) {
   const nl = cmd.indexOf("\n", from);
-  if (nl === -1) return { body: "", next: cmd.length };
+  if (nl === -1) return { body: "", next: cmd.length, found: false };
   const lines = [];
   let pos = nl + 1;
   while (pos <= cmd.length) {
     let eol = cmd.indexOf("\n", pos);
     if (eol === -1) eol = cmd.length;
     const line = cmd.slice(pos, eol);
-    if (line.trim() === delim) return { body: lines.join("\n"), next: eol };
+    if (line.trim() === delim) return { body: lines.join("\n"), next: eol, found: true };
     lines.push(line);
     pos = eol + 1;
   }
-  return { body: lines.join("\n"), next: cmd.length };
+  return { body: lines.join("\n"), next: cmd.length, found: false };
 }
 
-/** What a `$( ... )` contributes to a word. */
+/**
+ * What a `$( ... )` contributes to a word: the body of a lone `cat` heredoc,
+ * else the raw text. Only the header is a regex; the body is found line by
+ * line, because a lazy `[\s\S]*?` before the closing line was quadratic.
+ */
 function substitutionText(inner) {
-  const m = /^\s*cat\s*<<-?\s*(['"]?)(\w+)\1[^\n]*\n([\s\S]*?)\n\s*\2\s*$/.exec(inner);
-  return m ? m[3] : `$(${inner})`;
+  const m = CAT_HEREDOC.exec(inner);
+  if (m) {
+    const end = heredocEnd(inner, m[0].length, m[2]);
+    if (end.found && inner.slice(end.next).trim() === "") return end.body;
+  }
+  return `$(${inner})`;
 }
 
 /**
@@ -149,14 +197,19 @@ export function parseShell(input) {
       i = nl === -1 ? cmd.length : nl;
       continue;
     }
-    if (c === "<" && cmd[i + 1] === "<" && cmd[i + 2] !== "<") {
-      const h = /^<<-?[ \t]*(['"]?)(\w+)\1/.exec(cmd.slice(i));
+    if (c === "<" && cmd[i + 1] === "<") {
+      if (cmd[i + 2] === "<") {
+        word = (word ?? "") + "<<<"; // a here-string, never a heredoc
+        i += 3;
+        continue;
+      }
+      const h = heredocAt(cmd, i);
       if (h) {
         pushWord();
         const slot = { body: "" };
         heredocs.push(slot);
-        pending.push({ delim: h[2], slot });
-        i += h[0].length;
+        pending.push({ delim: h.delim, slot });
+        i = h.end;
         continue;
       }
     }

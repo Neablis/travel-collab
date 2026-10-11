@@ -166,3 +166,33 @@ test("a stamp with every lane OK reports nothing not covered", () => {
   assert.equal(res.ok, true);
   assert.deepEqual(res.blocked, []);
 });
+
+// --- second-round review (PR 403) ------------------------------------------
+
+test("--draft=false opens ready, so it asks; --draft=true and --draft=1 are drafts", () => {
+  assert.equal(hook("gh pr create --draft=false --title x")?.permissionDecision, "ask");
+  assert.equal(hook("gh pr create --draft=true --title x"), null);
+  assert.equal(hook("gh pr create --draft=1 --title x"), null);
+  const part = repoOn("claude/m42-part1-flags");
+  assert.equal(hook("gh pr create --draft=true --title x", part)?.permissionDecision, "deny");
+  assert.equal(hook("gh pr create --draft=false --title x", part), null);
+});
+
+test("gh pr ready passes: CI on the PR is the full-suite verdict, not a local stamp", () => {
+  assert.equal(hook("gh pr ready 12"), null);
+  assert.equal(hook("gh pr ready"), null);
+});
+
+test("a lettered milestone's part branch is a part branch", () => {
+  assert.equal(hook("gh pr create --head claude/m48a-part1-x --title x"), null);
+  assert.equal(
+    hook("gh pr create --draft --head claude/m48a-part1-x --title x")?.permissionDecision,
+    "deny",
+  );
+});
+
+test("a parenthesis inside a quoted string in $(...) does not hide the gh call after it", () => {
+  const r = hook('echo $(echo "(" ); gh pr create --draft', repoOn("claude/m42-part1-quotes"));
+  assert.equal(r?.permissionDecision, "deny");
+  assert.match(r.permissionDecisionReason, /open it ready/);
+});

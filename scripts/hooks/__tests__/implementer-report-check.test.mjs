@@ -41,3 +41,21 @@ test("a complete report, a retry, another agent type or no agent type passes", (
   assert.equal(run({ last_assistant_message: bad, agent_type: undefined }).status, 0);
   assert.equal(run({ last_assistant_message: `## Exit: BLOCKED\n${bad}` }).status, 0);
 });
+
+test("a long run of blank lines or asterisks is read in linear time", () => {
+  // `^[\s#>*-]*\**red` overlapped `*` in both parts and let `\s` span lines,
+  // so every line start rescanned the rest of the report.
+  for (const filler of ["\n".repeat(60000), "*".repeat(60000)]) {
+    const started = Date.now();
+    const payload = {
+      hook_event_name: "SubagentStop",
+      stop_hook_active: false,
+      agent_type: "phase-implementer",
+      last_assistant_message: `${filler}\n${GOOD}`,
+    };
+    const res = runHook("implementer-report-check.mjs", payload, { timeout: 10000 });
+    assert.equal(res.signal, null, "was killed");
+    assert.equal(res.status, 0);
+    assert.ok(Date.now() - started < 2000, `took ${Date.now() - started}ms`);
+  }
+});

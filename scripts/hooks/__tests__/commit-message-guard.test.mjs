@@ -88,3 +88,31 @@ test("a pathological run of git options is matched in linear time", () => {
     assert.ok(Date.now() - started < 2000, `took ${Date.now() - started}ms`);
   }
 });
+
+test("an unterminated `$(cat <<A` or a run of heredoc openers is read in linear time", () => {
+  // lib/shell.mjs matched `$(cat <<A ... A)` with a lazy `[\s\S]*?` before
+  // `\n\s*A`, which backtracked quadratically when the closing line never came.
+  for (const command of [
+    `git commit -m "$(cat <<A\n${"\n".repeat(40000)})"`,
+    "<<A\n".repeat(40000),
+  ]) {
+    const started = Date.now();
+    const res = runHook("commit-message-guard.mjs", { tool_input: { command } }, { timeout: 10000 });
+    assert.equal(res.signal, null, `${JSON.stringify(command.slice(0, 20))}... was killed`);
+    assert.ok(Date.now() - started < 2000, `took ${Date.now() - started}ms`);
+  }
+});
+
+test("a hyphenated heredoc delimiter is a heredoc: a file write passes, a -F - message blocks", () => {
+  const write = run("cat > notes.md <<'END-MSG'\ngit commit -m 'route to claude-haiku-4-5'\nEND-MSG");
+  assert.equal(write.status, 0, write.stderr);
+  const commit = run("git commit -F - <<'END-MSG'\nfeat: x\n\nby claude-haiku-4-5\nEND-MSG");
+  assert.equal(commit.status, 2);
+  assert.match(commit.stderr, /claude-haiku-4-5/);
+});
+
+test("a shift in $((...)) is not a heredoc that swallows the commit after it", () => {
+  const res = run('echo $((1<<2)); git commit -m "claude-opus-5-5"');
+  assert.equal(res.status, 2);
+  assert.match(res.stderr, /claude-opus-5-5/);
+});
