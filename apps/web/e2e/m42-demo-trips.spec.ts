@@ -47,9 +47,26 @@ test.describe("the front door, signed out (M42)", () => {
       await expect(page.getByRole("heading", { name: demo.name })).toBeVisible();
       await expect(page.getByText("Viewer", { exact: true })).toBeVisible();
       await expect(page.getByRole("button", { name: "Make this trip mine" })).toBeVisible();
+      // A demo opens on Plan, where the planning is (Mitchell, 2026-10-11).
+      await expect(page.getByRole("tab", { name: "Plan" })).toHaveAttribute("aria-selected", "true");
       await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", new RegExp(`/demo/${demo.slug}$`));
     });
   }
+
+  // `/demo` was the Japan board until it became the picker, so a link into one
+  // of its views still opens Japan at that view. A bare `/demo` is the picker.
+  test("an old /demo link to a view opens Japan at that view", async ({ page }) => {
+    await page.goto("/demo?view=Map");
+    await expect(page).toHaveURL(/\/demo\/japan\?view=Map$/);
+    await expect(page.getByRole("tab", { name: "Map" })).toHaveAttribute("aria-selected", "true");
+
+    await page.goto("/demo?view=Overview");
+    await expect(page).toHaveURL(/\/demo\/japan\?view=Overview$/);
+    await expect(page.getByRole("tab", { name: "Overview" })).toHaveAttribute("aria-selected", "true");
+
+    await page.goto("/demo?lens=Map");
+    await expect(page).toHaveURL(/\/demo\/japan\?lens=Map$/);
+  });
 
   test("a slug that is no demo is a 404", async ({ page }) => {
     const response = await page.goto("/demo/atlantis");

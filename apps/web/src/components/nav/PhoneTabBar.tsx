@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { BookOpen, LayoutDashboard, List, Luggage, Map, NotebookText } from "lucide-react";
 import { useSessionUser } from "@/components/account/useSessionUser";
-import { resolveView, type View } from "@/components/trip/context/LensRouter";
+import { landingView, resolveView, type View } from "@/components/trip/context/LensRouter";
 import { cn } from "@/lib/cn";
 import { isDemoBoardPath } from "@/lib/demoTrip";
 import { Button } from "@/components/ui/button";
@@ -182,8 +182,9 @@ function activePhoneTab(pathname: string, view: View | null): PhoneTabId | null 
     // tapping that "current" tab navigated away to a different screen
     // (KI-2026-09-24-l). `null` also covers "not known yet" (the SSR fallback
     // below), for the same reason: no tab is better than a wrong one.
-    // `resolveView` returns Overview for a bare URL, so the trip's landing
-    // screen lights Overview whether or not `?view=` is spelled out.
+    // For a bare URL `resolveView` returns the trip's landing view (Overview,
+    // or Plan on a demo), so the landing screen lights its tab whether or not
+    // `?view=` is spelled out.
     if (view === "Overview") return "overview";
     if (view === "Map") return "map";
     if (view === "Plan") return "plan";
@@ -494,5 +495,6 @@ export function PhoneTabBar() {
   // arrive late. With no session cookie the layout starts the session at
   // `null`, so the fallback above already drew the signed-out bar.
   const signedOut = useSessionUser() === null;
-  return <PhoneTabBarView pathname={usePathname()} view={resolveView(useSearchParams())} signedOut={signedOut} />;
+  const pathname = usePathname();
+  return <PhoneTabBarView pathname={pathname} view={resolveView(useSearchParams(), landingView(pathname))} signedOut={signedOut} />;
 }

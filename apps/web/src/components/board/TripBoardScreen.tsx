@@ -403,7 +403,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   }, [isPhone, focusedDay, activeTrip, setFocusedDay]);
 
   const searchParams = useSearchParams();
-  /** **A link card to a notebook** from a board with no notebook route — `/demo`, an invite's look (`linkHref`). */
+  /** **A link card to a notebook** from a board with no notebook route — `/demo/<slug>`, an invite's look (`linkHref`). */
   const linkedPage = searchParams.get("page");
   /**
    * **A link card to a day** (M30, ADR-056) arrives as `?view=Plan&day=<dayId>`:
@@ -420,7 +420,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     if (index !== -1) setFocusedDay(index);
   }, [linkedDay, activeTrip, setFocusedDay]);
 
-  // The demo board (`/demo`, ADR-031) runs everything on this screen except
+  // A demo board (`/demo/<slug>`, ADR-031) runs everything on this screen except
   // the assistant. Not because it would look wrong — because it would not
   // work: `/api/trips/:id/ask` refuses the demo trip outright with a 403
   // `demo-trip-unsupported` (KI-79), so a launcher offered to a signed-out

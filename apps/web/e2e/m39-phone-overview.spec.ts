@@ -36,7 +36,7 @@ test.describe("M39 D2 — the Overview on a phone", () => {
       viewport: { width: 390, height: 844 },
     });
     const page = await context.newPage();
-    await page.goto("/demo/japan");
+    await page.goto("/demo/japan?view=Overview");
     const days = page.getByRole("list", { name: "Day by day" }).getByTestId("itinerary-day");
     await expect(days).toHaveCount(14);
 
@@ -86,7 +86,7 @@ test.describe("M39 D2 — the Overview on a phone", () => {
   test("names /demo's stops with their times and standings", async ({ browser }) => {
     const context = await browser.newContext({ storageState: { cookies: [], origins: [] } });
     const page = await context.newPage();
-    await page.goto("/demo/japan");
+    await page.goto("/demo/japan?view=Overview");
     const dayOne = page.getByRole("list", { name: "Day by day" }).getByTestId("itinerary-day").first();
     await expect(dayOne).toContainText("2:30 pm Land at Haneda (Travel)");
     await expect(dayOne).toContainText("5 pm Check in at Trunk Hotel");

@@ -63,7 +63,7 @@ export function DemoTripScreen({ demo }: { demo: DemoTrip }) {
             Suspense boundary, so it stays in the first paint. */}
         <DemoBanner demo={demo} />
         {/* `LensRouter` reads `useSearchParams()` — which lens you are looking
-            at is URL state, so a link to `/demo?lens=Map` opens the map. That
+            at is URL state, so a link to `/demo/<slug>?lens=Map` opens the map. That
             makes this subtree opt out of static prerendering, and Next.js
             requires the opt-out to be a Suspense boundary rather than a build
             error. `(app)/trips/[tripId]` never needed one because that route is

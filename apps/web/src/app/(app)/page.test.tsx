@@ -28,7 +28,7 @@ vi.mock("@/components/install/InstallNudge", () => ({
 }));
 
 import Home from "./page";
-import { DEMO_TRIP_ID } from "@/lib/demoTrip";
+import { DEMO_TRIP_ID, DEMO_TRIPS } from "@/lib/demoTrip";
 import { rememberDemoClone } from "@/lib/pendingDemoClone";
 import { rememberPlaybookAdd } from "@/lib/pendingPlaybookAdd";
 
@@ -1075,7 +1075,8 @@ describe("Home finishing a demo clone", () => {
       // (CodeRabbit, PR #196). Each test still drives the session through
       // `getSessionMock` exactly as before; only the transport moved.
       if (url.includes("/api/auth/session")) return jsonResponse(await getSessionMock());
-      if (url.includes(`/api/trips/${DEMO_TRIP_ID}/duplicate`)) {
+      // Any demo's duplicate: which one was asked for is what a test asserts.
+      if (/\/api\/trips\/[^/]+\/duplicate$/.test(url)) {
         return duplicateStatus === 201
           ? jsonResponse({ tripId: clonedTripId }, 201)
           : jsonResponse({ error: "boom" }, duplicateStatus);
@@ -1108,6 +1109,21 @@ describe("Home finishing a demo clone", () => {
 
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith(`/trips/${clonedTripId}`));
     expect(duplicateCalls()).toHaveLength(1);
+  });
+
+  // M42 D1: five demos. The marker names the one that was pressed, and this
+  // page has nothing else to say which; copying Japan here would hand
+  // somebody who asked for Iceland the wrong trip.
+  it("copies the demo the marker names, not Japan", async () => {
+    const iceland = DEMO_TRIPS.find((demo) => demo.slug === "iceland-ring-road")!.tripId;
+    rememberDemoClone(iceland);
+    stubEmptyListAndDuplicate();
+
+    render(<Home />);
+
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith(`/trips/${clonedTripId}`));
+    const duplicated = fetchMock.mock.calls.map(([input]) => String(input)).filter((url) => url.endsWith("/duplicate"));
+    expect(duplicated).toEqual([expect.stringContaining(`/api/trips/${iceland}/duplicate`)]);
   });
 
   it("does nothing when no copy was ever asked for", async () => {

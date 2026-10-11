@@ -311,7 +311,8 @@ describe("PhoneTabBar", () => {
     });
 
     it.each([
-      ["/demo/iceland-ring-road", "Overview"],
+      // A demo opens on Plan (Mitchell, 2026-10-11); a real trip on Overview.
+      ["/demo/iceland-ring-road", "Plan"],
       ["/demo/iceland-ring-road?view=Overview", "Overview"],
       ["/demo/iceland-ring-road?view=Calendar", null],
       ["/demo/iceland-ring-road?view=Plan", "Plan"],
