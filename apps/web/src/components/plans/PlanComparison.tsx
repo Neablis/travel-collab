@@ -124,6 +124,12 @@ const ROWS: Row[] = [
     label: "Invite friends to your trips",
     cell: (choice) => (choice.entitlements.includes("trip.collaborators") ? "Yes" : "—"),
   },
+  // M42 (ADR-071): stars and a note on a published day. Reading reviews is on
+  // every plan, so the row is about leaving one.
+  {
+    label: "Review playbooks",
+    cell: (choice) => (choice.entitlements.includes("playbook.review") ? "Yes" : "—"),
+  },
   { label: "Price", cell: planPrice },
 ];
 

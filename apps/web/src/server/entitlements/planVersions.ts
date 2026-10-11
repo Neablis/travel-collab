@@ -14,6 +14,12 @@
 // `planVersions.immutability.test.ts` fails if a published entry's shape is
 // mutated at runtime or if any code path can update one.
 //
+// **One exception, ADR-071's, and it only adds.** A published version may gain
+// an entitlement for a capability every account had before it was gated, so
+// holders keep what they had. Nothing else changes in place: no price, no
+// ceiling, no removal. `noExtension.test.ts` lists each such addition with the
+// ADR it rests on and fails on any it does not list.
+//
 // **Prices arrived with M21 link 2, on these same entries**, as this file's
 // M20 header said they would. Three things about that, because the first one
 // looks like a breach of the paragraph above and is not:
@@ -201,7 +207,10 @@ export const PLAN_VERSIONS: readonly PlanVersion[] = [
   {
     planId: "plus",
     version: 1,
-    entitlements: ["ai.ask", "ai.command"],
+    // `playbook.review` was added in place on 2026-10-11 (ADR-071): leaving a
+    // review was free to everyone when this version was sold, so gating it
+    // without adding it here would have taken it from every holder and trial.
+    entitlements: ["ai.ask", "ai.command", "playbook.review"],
     // 50 requests · 400 steps a day. Half of today's environment defaults
     // (100 · 800), which M20 link 5 measured as already affordable: at the one
     // live record's ~$0.0045 for an eight-step request, a maxed-out `plus`
@@ -235,8 +244,8 @@ export const PLAN_VERSIONS: readonly PlanVersion[] = [
     // Enumerated in full, deliberately repeating `plus`'s two strings. This is
     // the rule, not an oversight: see the header. The day a plan grants
     // `trip.collaborators` WITHOUT `ai.command`, this list is what makes that
-    // expressible.
-    entitlements: ["ai.ask", "ai.command", "trip.collaborators"],
+    // expressible. `playbook.review` added in place, 2026-10-11 (ADR-071).
+    entitlements: ["ai.ask", "ai.command", "trip.collaborators", "playbook.review"],
     // 200 requests · 1600 steps a day — twice today's environment defaults.
     // ~$27 a month at the ceiling on the measured rate.
     ceilings: { perUserRequestsPerDay: 200, perUserStepsPerDay: 1600, maxTier: null },
@@ -270,10 +279,11 @@ export const PLAN_VERSIONS: readonly PlanVersion[] = [
     //
     // **Enumerated in full, never as a spread of `v1`.** Four strings, repeating
     // three, because that is the rule the header states and the one
-    // `noExtension.test.ts` walks the AST to enforce.
+    // `noExtension.test.ts` walks the AST to enforce. The fifth,
+    // `playbook.review`, was added in place on 2026-10-11 (ADR-071).
     planId: "premium",
     version: 2,
-    entitlements: ["ai.ask", "ai.command", "trip.collaborators", "api.tokens"],
+    entitlements: ["ai.ask", "ai.command", "trip.collaborators", "api.tokens", "playbook.review"],
     // **Unchanged from `v1`.** This version sells one more capability at the
     // same price; the ceilings are the assistant's and the API does not spend
     // model budget, so nothing here moves. A token's cost bound is
@@ -304,9 +314,14 @@ export const PLAN_VERSIONS: readonly PlanVersion[] = [
     // Do not delete it because nothing ships it. The claim *"the split
     // architecture is real rather than asserted"* is only worth something while
     // something unprovable-by-a-ladder is actually expressed.
+    //
+    // `playbook.review` was added in place on 2026-10-11 (ADR-071) like every
+    // other version that existed then. Nobody holds this one, but the rule is
+    // that no version which had reviewing for free loses it, and a plan built
+    // around friends planning together has no reason to be the exception.
     planId: "studio",
     version: 1,
-    entitlements: ["ai.ask", "trip.collaborators"],
+    entitlements: ["ai.ask", "trip.collaborators", "playbook.review"],
     ceilings: { perUserRequestsPerDay: 50, perUserStepsPerDay: 400, maxTier: null },
     // **`null`, not `0`.** Nothing sells this plan, so it has no price rather
     // than a price of nothing — and `priceOf` refusing to check out an

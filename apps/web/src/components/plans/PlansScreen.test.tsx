@@ -38,7 +38,7 @@ const CATALOGUE: AccountPlanView["catalogue"] = [
   {
     planId: "plus",
     version: 1,
-    entitlements: ["ai.ask", "ai.command"],
+    entitlements: ["ai.ask", "ai.command", "playbook.review"],
     perUserRequestsPerDay: 50,
     perUserStepsPerDay: 400,
     held: false,
@@ -48,7 +48,7 @@ const CATALOGUE: AccountPlanView["catalogue"] = [
   {
     planId: "premium",
     version: 1,
-    entitlements: ["ai.ask", "ai.command", "trip.collaborators"],
+    entitlements: ["ai.ask", "ai.command", "trip.collaborators", "playbook.review"],
     perUserRequestsPerDay: 200,
     perUserStepsPerDay: 1600,
     held: false,
@@ -192,6 +192,15 @@ describe("the chooser", () => {
     expect(rows).not.toContain("Steps a day");
     expect(rows).not.toContain("Other people editing");
     expect(rows).not.toContain("Questions a day");
+  });
+
+  // M42 (ADR-071): leaving a playbook review needs Plus or Premium, read from
+  // each plan's own entitlements like every other row.
+  it("says which plans can review playbooks", async () => {
+    render(<PlansScreen />);
+    const table = within(await screen.findByTestId("plan-comparison"));
+    const row = within(table.getByRole("row", { name: /^Review playbooks/ }));
+    expect(row.getAllByRole("cell").map((cell) => cell.textContent)).toEqual(["—", "Yes", "Yes"]);
   });
 
   // §29: *"the held card is the only emphasised one, and its CTA is disabled

@@ -255,8 +255,10 @@ describe("a published entry is append-only", () => {
   // editing a published entry in place fails a test in the same diff that does
   // it, rather than being caught only if a reviewer notices.
   //
-  // **Publishing `v2` does not touch this test.** Adding an entry is expected;
-  // changing one of these three is not.
+  // **Publishing a version adds its record here, as published, in the same
+  // diff.** Adding an entry is expected; changing one already recorded is not.
+  // Every published version must have a record, so a new one cannot ship
+  // unpinned and be edited in place later without this test noticing.
   //
   // **Since M21 link 2 the pin covers the PRICE**, which makes this the
   // mechanical half of the gate box *"no published plan version's price is ever
@@ -264,7 +266,17 @@ describe("a published entry is append-only", () => {
   // nothing to edit, because nothing had been sold and the field did not exist
   // — and from here the numbers below are frozen: changing $9 to $10 fails this
   // test, and the way to change $9 to $10 is to publish `plus@v2`.
-  const V1_AS_PUBLISHED = [
+  //
+  // **ADR-071 is the one exception, and it is listed rather than allowed.** A
+  // published version may gain an entitlement for a capability every account
+  // had before it was gated, so its holders keep it. These records stay as
+  // first published; `ADDED_IN_PLACE` names each addition and the ADR it rests
+  // on, and the live entry must equal the record plus exactly those. An
+  // addition missing from the list fails, and so does a list entry that is not
+  // an addition, so the exception cannot grow without a line here saying so.
+  // Since M42 every version is pinned, not only the v1s: an in-place change to
+  // `premium@v2` is as much a rewrite of what was sold as one to `v1`.
+  const AS_PUBLISHED = [
     {
       planId: "free",
       version: 1,
@@ -295,15 +307,79 @@ describe("a published entry is append-only", () => {
       publishedAt: "2026-09-13",
       enabled: true,
     },
+    {
+      planId: "premium",
+      version: 2,
+      entitlements: ["ai.ask", "ai.command", "trip.collaborators", "api.tokens"],
+      ceilings: { perUserRequestsPerDay: 200, perUserStepsPerDay: 1600, maxTier: null },
+      price: { minor: 1900, currency: "usd", stripePriceId: null },
+      displayOrder: 3,
+      publishedAt: "2026-09-16",
+      enabled: true,
+    },
+    {
+      planId: "studio",
+      version: 1,
+      entitlements: ["ai.ask", "trip.collaborators"],
+      ceilings: { perUserRequestsPerDay: 50, perUserStepsPerDay: 400, maxTier: null },
+      price: null,
+      displayOrder: 4,
+      publishedAt: "2026-09-13",
+      enabled: false,
+    },
   ];
 
-  it("still grants exactly what v1 was published granting", () => {
-    for (const published of V1_AS_PUBLISHED) {
-      const live = PLAN_VERSIONS.find(
-        (entry) => entry.planId === published.planId && entry.version === 1,
-      );
-      expect(live).toBeDefined();
-      expect(JSON.parse(JSON.stringify(live))).toEqual(published);
+  /** Every entitlement added to a published version in place, and the decision that allowed it. */
+  const ADDED_IN_PLACE: readonly { ref: string; entitlement: Entitlement; adr: string }[] = [
+    // M42: leaving a playbook review, free to everyone until it was gated.
+    // `free@v1` is deliberately absent — that is the gate.
+    { ref: "plus@v1", entitlement: "playbook.review", adr: "ADR-071" },
+    { ref: "premium@v1", entitlement: "playbook.review", adr: "ADR-071" },
+    { ref: "premium@v2", entitlement: "playbook.review", adr: "ADR-071" },
+    { ref: "studio@v1", entitlement: "playbook.review", adr: "ADR-071" },
+  ];
+
+  /**
+   * The capabilities ADR-071 rule 1 covers: each was open to every account
+   * before it was gated. Only these may be added to a published version in
+   * place; anything else, `trip.collaborators` to `plus@v1` say, is a new
+   * version. Growing this list is a product decision recorded in an ADR.
+   */
+  const GATED_AFTER_FREE: readonly Entitlement[] = [
+    // Leaving a playbook review: any signed-in account until M42.
+    "playbook.review",
+  ];
+
+  const refOf = (entry: { planId: string; version: number }) => `${entry.planId}@v${entry.version}`;
+
+  it("pins every published version", () => {
+    expect(AS_PUBLISHED.map(refOf).sort()).toEqual(PLAN_VERSIONS.map(refOf).sort());
+  });
+
+  it("still is what each version was published as, plus only the listed additions", () => {
+    for (const published of AS_PUBLISHED) {
+      const ref = refOf(published);
+      const live = PLAN_VERSIONS.find((entry) => refOf(entry) === ref);
+      expect(live, ref).toBeDefined();
+      const added = ADDED_IN_PLACE.filter((addition) => addition.ref === ref).map((a) => a.entitlement);
+      expect(JSON.parse(JSON.stringify(live)), ref).toEqual({
+        ...published,
+        entitlements: [...published.entitlements, ...added],
+      });
+    }
+  });
+
+  it("lists only additions, to pinned versions, each resting on ADR-071", () => {
+    for (const addition of ADDED_IN_PLACE) {
+      const published = AS_PUBLISHED.find((entry) => refOf(entry) === addition.ref);
+      expect(published, `${addition.ref} is not pinned above`).toBeDefined();
+      // An "addition" the version already had is a no-op hiding in the list.
+      expect(published!.entitlements as readonly string[], addition.ref).not.toContain(addition.entitlement);
+      // Rule 1: only a capability that was free to everyone before its gate.
+      expect(GATED_AFTER_FREE, `${addition.ref} gains ${addition.entitlement}`).toContain(addition.entitlement);
+      // ADR-071 is the only decision that lets a published version change at
+      // all. A second exception is a new ADR and a deliberate edit here.
+      expect(addition.adr).toBe("ADR-071");
     }
   });
 

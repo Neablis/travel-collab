@@ -6,7 +6,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import { REVIEW_NOTE_MAX, type Review, type ReviewSummary } from "@tc/contracts";
 import { makeReportHandlers, makeReviewsHandlers } from "@/mocks/handlers";
 import { ReviewRail } from "./ReviewRail";
-import { ReviewConflictBanner, ReviewsSection } from "./ReviewsSection";
+import { ReviewConflictBanner, ReviewsSection, type ReviewOffer } from "./ReviewsSection";
 import { holdReview } from "./reviewQueue";
 import { useDayReviews } from "./useDayReviews";
 
@@ -52,13 +52,21 @@ function record(): { method: string; body: unknown }[] {
 }
 
 /** What `SharedDayScreen` wires, minus the day around it. */
-function Harness({ publishedAt, canReport = true }: { publishedAt?: string | null; canReport?: boolean }) {
+function Harness({
+  publishedAt,
+  canReport = true,
+  offer = "form",
+}: {
+  publishedAt?: string | null;
+  canReport?: boolean;
+  offer?: ReviewOffer;
+}) {
   const reviews = useDayReviews(DAY, publishedAt);
   return (
     <>
       <ReviewConflictBanner reviews={reviews} />
       {reviews.data !== null && <ReviewRail summary={reviews.data.summary} />}
-      <ReviewsSection reviews={reviews} savedDayId={DAY} canReview canReport={canReport} />
+      <ReviewsSection reviews={reviews} savedDayId={DAY} offer={offer} canReport={canReport} />
     </>
   );
 }
@@ -186,6 +194,36 @@ describe("posting a review", () => {
     await userEvent.click(screen.getByRole("button", { name: "Post" }));
     expect((await screen.findByRole("alert")).textContent).toContain("a note can be at most 140 characters");
     expect(screen.queryByTestId("review-done")).toBeNull();
+  });
+
+  // The form is offered while the plan is unknown or its read failed, so the
+  // server's 402 can still reach it. It names the plans, not "try again".
+  it("says reviews are for Plus and Premium when the server refuses with 402", async () => {
+    server.use(...makeReviewsHandlers(DAY, []));
+    server.use(
+      http.put("/api/saved-days/:savedDayId/reviews", () =>
+        HttpResponse.json({ error: "Reviews are for Plus and Premium.", code: "review-not-entitled" }, { status: 402 }),
+      ),
+    );
+    render(<Harness />);
+    await rate(4);
+    await userEvent.click(screen.getByRole("button", { name: "Post" }));
+    expect((await screen.findByRole("alert")).textContent).toContain("Reviews are for Plus and Premium");
+  });
+});
+
+describe("an account without playbook.review", () => {
+  // M42 (ADR-071): reading stays open and a free account's existing review
+  // stays. Only the form gives way to the note.
+  it("lists everyone's reviews, its own included, under the note instead of a form", async () => {
+    const own = review({ reviewerId: "dev-alice", reviewerDisplayName: "Alice", isMine: true, stars: 3, note: "Before the gate." });
+    server.use(...makeReviewsHandlers(DAY, [review(), own]));
+    render(<Harness offer="needs-plan" />);
+    const note = await screen.findByTestId("review-needs-plan");
+    expect(within(note).getByRole("link", { name: "See plans" }).getAttribute("href")).toBe("/plans");
+    expect(await screen.findAllByTestId("review-row")).toHaveLength(2);
+    expect(screen.getByText("Before the gate.")).toBeTruthy();
+    expect(screen.queryByTestId("review-form")).toBeNull();
   });
 });
 

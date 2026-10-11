@@ -48,11 +48,12 @@ const CODE = (() => {
 })();
 
 describe("Entitlement", () => {
-  it("names the four capabilities the product gates on", () => {
+  it("names the five capabilities the product gates on", () => {
     // Three are M20's. `api.tokens` is M22's, and it gates two acts rather than
     // one — minting a token, and using one — because a token minted while
     // entitled would otherwise outlive the entitlement by months.
-    expect(ENTITLEMENTS).toEqual(["ai.ask", "ai.command", "trip.collaborators", "api.tokens"]);
+    // `playbook.review` is M42's (ADR-071).
+    expect(ENTITLEMENTS).toEqual(["ai.ask", "ai.command", "trip.collaborators", "api.tokens", "playbook.review"]);
   });
 
   it("refuses a capability outside the vocabulary", () => {
