@@ -43,6 +43,12 @@ Candidates absorbed (each deleted by this gate):
    with a `#pricing` anchor. The landing page gets no separate copy. `planVersions.ts` is
    server-only, so the landing reads a **generated, checked snapshot** of it, the way it reads the
    demo (`landing:verify`).
+   *From Mitchell's walk of part 7's preview (2026-10-11):* on phones the plans stack one card
+   per plan (on `/plans` too); the phone section adds no "Sign up" of its own; the phone's sticky
+   header turns solid once past the pinned map. And **"How you'll remember it" shows a notebook
+   memory, not money**, on phone and desktop ("it should be more nostalgic than how much you spent
+   on dinner"): the Day 6 cost card and table give way to a short journal entry, and SPEC §14 is
+   amended to match.
 4. **Profiles and the board are not indexed.** *Already true when M42 was scoped*: the SEO pass
    (merge #344) set `NOINDEX_FOLLOW` on `/playbooks/board` and `/playbooks/profile/[userId]`, and
    `sitemap.ts` leaves both out. Recorded; no work.
