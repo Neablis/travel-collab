@@ -439,11 +439,12 @@ test("MILESTONE PARTS gives one line per open part PR, with CI and review state"
   assert.doesNotMatch(stdout, /PR 400 \[/);
 });
 
-test("MILESTONE PARTS degrades to one line when gh fails", () => {
+test("MILESTONE PARTS prints nothing when gh fails, leaving that to OPEN PRS", () => {
   const dir = makeFixture();
   const bin = makeBin({ gh: "#!/bin/sh\necho 'HTTP 403' >&2\nexit 1\n" });
   const { status, stdout, stderr } = runDigest([dir], { env: { ...process.env, PATH: `${bin}:${process.env.PATH}` } });
   assert.equal(status, 0);
   assert.equal(stderr, "");
-  assert.match(stdout, /MILESTONE PARTS: \(PR status unavailable\)/);
+  assert.match(stdout, /OPEN PRS: \(gh/);
+  assert.doesNotMatch(stdout, /MILESTONE PARTS/);
 });

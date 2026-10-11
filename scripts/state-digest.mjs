@@ -2,6 +2,7 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
+import { PART_BRANCH } from "./hooks/lib/part-branch.mjs";
 
 // The roadmap readers live in ONE place so this digest and the commands that
 // write these files cannot disagree about what they say. See the header of
@@ -177,10 +178,6 @@ function summarizeChecks(rollup) {
   const all = rollup.map(verdict);
   return `CI ${all.includes("red") ? "red" : all.includes("pending") ? "pending" : "green"}`;
 }
-
-// A milestone part's branch, as the parts of M41 were named
-// (`claude/m41-part3-parked-origin`).
-const PART_BRANCH = /^claude\/m\d+-part/;
 
 /**
  * Open PRs. `gh` is optional infrastructure: it may not be installed, may not
@@ -381,9 +378,8 @@ function render(d) {
 
   // One line per open milestone part, so the orchestrator sees where each
   // part's PR stands without a gh call per PR. Merged parts have left this list.
-  if (d.prs.unavailable) {
-    out.push("MILESTONE PARTS: (PR status unavailable)");
-  } else {
+  // Without gh it prints nothing: OPEN PRS already says gh is unavailable.
+  if (!d.prs.unavailable) {
     const parts = d.prs.prs.filter((pr) => PART_BRANCH.test(pr.branch));
     if (parts.length > 0) {
       out.push(`MILESTONE PARTS: ${parts.length} open, not merged`);
