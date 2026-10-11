@@ -29,6 +29,20 @@ afterEach(cleanup);
 // ("$340"), so a bare amount is not a price; the second assertion covers that.
 const PRICE_SHAPED = /[$€£]\s?\d[\d.,]*\s*(\/|a|per)\s*(mo|month)\b/i;
 
+/**
+ * Whether `text` names `amount` ("$9") as a whole amount — "$9" or "$9.00",
+ * but not "$94" or "$9.50". Plain string search rather than a regex built from
+ * the amount, so nothing in it needs escaping.
+ */
+function namesAmount(text: string, amount: string): boolean {
+  for (let at = text.indexOf(amount); at !== -1; at = text.indexOf(amount, at + 1)) {
+    let rest = text.slice(at + amount.length);
+    if (rest.startsWith(".00")) rest = rest.slice(3);
+    if (!/^[\d.,]/.test(rest)) return true;
+  }
+  return false;
+}
+
 describe("the landing page's prices", () => {
   it.each(["desktop-landing", "phone-front-door"])("in %s are the snapshot's, and only those", async (tree) => {
     const { LANDING_PLANS: real } = await vi.importActual<typeof import("@/lib/landingPlans")>("@/lib/landingPlans");
@@ -42,8 +56,8 @@ describe("the landing page's prices", () => {
     // The live prices, in any wording: "$9", "$9.00", "$9 a month".
     for (const { priceMinor, currency } of real) {
       if (priceMinor === null || priceMinor === 0) continue;
-      const amount = formatPrice(priceMinor, currency).replace(/[$]/g, "\\$");
-      expect(scope.queryAllByText(new RegExp(`${amount}(\\.00)?(?![\\d.,])`))).toEqual([]);
+      const amount = formatPrice(priceMinor, currency);
+      expect(scope.queryAllByText((text) => namesAmount(text, amount))).toEqual([]);
     }
   });
 });
