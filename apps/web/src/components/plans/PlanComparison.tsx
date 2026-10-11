@@ -80,7 +80,7 @@ export function planBullets(choice: AccountPlanChoice): string[] {
       ? `Ask the assistant ${choice.perUserRequestsPerDay ?? "unlimited"} questions about your trips and have it make ${choice.perUserStepsPerDay ?? "unlimited"} changes a day`
       : "No assistant",
     has("trip.collaborators")
-      ? "Invite friends to plan your trips with you, with votes and comments"
+      ? "Invite friends to plan your trips with you"
       : "Just you on your trips — no invites",
   ];
 }
@@ -91,7 +91,8 @@ interface Row {
   cell: (choice: AccountPlanChoice) => string;
 }
 
-// The seven rows §29 names, in its order.
+// §29's rows, in its order, less "Votes and comments": trips have neither, and
+// a pricing page must not sell what is not built (Mitchell, 2026-10-11).
 //
 // **Worded for the person choosing, not for the quota.** Mitchell, PR #269
 // preview: *"'Steps a day' makes no sense to a person, it needs to better
@@ -121,10 +122,6 @@ const ROWS: Row[] = [
   },
   {
     label: "Invite friends to your trips",
-    cell: (choice) => (choice.entitlements.includes("trip.collaborators") ? "Yes" : "—"),
-  },
-  {
-    label: "Votes and comments",
     cell: (choice) => (choice.entitlements.includes("trip.collaborators") ? "Yes" : "—"),
   },
   { label: "Price", cell: planPrice },

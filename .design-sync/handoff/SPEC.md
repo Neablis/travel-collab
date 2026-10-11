@@ -51,13 +51,13 @@ rather than grepping for `§n` and reading forward (KI-2026-09-14-c).
 | §27 | Trip lifecycle, and read-only as one mode with two ways in — 2026-09-12 | 1223 |
 | §28 | Identity, the Ledger look, and the front door on a phone — 2026-09-12 | 1264 |
 | §29 | Plans is a route, and paying has a confirm step — 2026-09-14 | 1322 |
-| §30 | New trip is a conversation; the transcript has no bubbles — 2026-09-15 | 1409 |
-| §31 | The new-trip transcript is chat-shaped — 2026-09-18 | 1526 |
-| §32 | The conversation is every surface's new-trip flow — 2026-09-18 | 1588 |
-| §33 | Playbooks hold several days, and the Discover bar is re-sorted by kind — 2026-09-19 | 1660 |
-| §34 | API tokens, a trip as a file, and the phone gets an account — 2026-09-19 | 1750 |
-| §35 | Simplify pass, the invite landing, Cass, and actions that look like actions — 2026-09-22 | 1907 |
-| §36 | Travel legs, co-travellers, the rich layer and reporting — 2026-09-25 | 2096 |
+| §30 | New trip is a conversation; the transcript has no bubbles — 2026-09-15 | 1411 |
+| §31 | The new-trip transcript is chat-shaped — 2026-09-18 | 1528 |
+| §32 | The conversation is every surface's new-trip flow — 2026-09-18 | 1590 |
+| §33 | Playbooks hold several days, and the Discover bar is re-sorted by kind — 2026-09-19 | 1662 |
+| §34 | API tokens, a trip as a file, and the phone gets an account — 2026-09-19 | 1752 |
+| §35 | Simplify pass, the invite landing, Cass, and actions that look like actions — 2026-09-22 | 1909 |
+| §36 | Travel legs, co-travellers, the rich layer and reporting — 2026-09-25 | 2098 |
 
 <!-- SPEC-INDEX:END -->
 
@@ -1352,9 +1352,11 @@ Three states, one route, no overlay in any of them.
    with its own price, one line of who it is for, and **four bullets enumerating what it
    grants** — never "everything in Plus". The held card is the only emphasised one:
    `--color-moss` head, `--color-border-strong` border, a `success` Badge, and its CTA
-   disabled reading "What you hold". Then a **side-by-side table** (7 rows: trips/days/stops,
-   map+costs+saved days, questions a day, steps a day, other people editing, votes and
-   comments, price) with the **held plan's column tinted** and its values at weight 600.
+   disabled reading "What you hold". Then a **side-by-side table** (6 rows: trips/days/stops,
+   map+costs+saved days, questions a day, steps a day, other people editing, price) with the
+   **held plan's column tinted** and its values at weight 600. *(Build note, 2026-10-11: the
+   "votes and comments" row is dropped — trips have no voting or commenting, so no plan may
+   sell it.)*
 2. **Confirm.** Two columns: *What changes*, in the product's own terms and **with the
    real collaborator names** ("Mei, Priya, Sam and Kenji go back to editing Japan — no
    re-invites"), and an *Order* card — line items, the proration credit, `Due today`, the
@@ -1990,7 +1992,7 @@ max 1080px):
   sam@example.com · 2 days ago*); the trip name as H1 (display 600, clamp 30–44px, balance);
   mono meta *Sep 20 – Oct 3, 2026 · 14 days · N cities*; the inviter's note as a blockquote
   (3px brand rule, 16px/1.55); crew avatar stack + *Dana, Mei, Priya and Kenji are planning.
-  You can add stops, vote and comment.*; **Join with Google** (primary, full width, max 380px),
+  You can add, move and change stops.*; **Join with Google** (primary, full width, max 380px),
   **Have a look first** (ghost), and *Joining is free — Dana's plan covers everyone she
   invites.*
 - *Right:* a raised Card, **The plan so far** — a 10px ribbon of one segment per day in its
