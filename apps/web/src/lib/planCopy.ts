@@ -141,7 +141,8 @@ export function lapsedSentence(losesCollaborators: boolean): string {
 export const ENTITLEMENT_LABEL: Record<Entitlement, string> = {
   "ai.ask": "Ask the assistant about your trips",
   "ai.command": "Let the assistant make changes for you",
-  "trip.collaborators": "Invite friends to plan your trips with you, with votes and comments",
+  // No "votes and comments": trips have neither (Mitchell, 2026-10-11).
+  "trip.collaborators": "Invite friends to plan your trips with you",
   "api.tokens": "API tokens for your own tools",
   "playbook.review": "Review playbooks with stars and a note",
 };

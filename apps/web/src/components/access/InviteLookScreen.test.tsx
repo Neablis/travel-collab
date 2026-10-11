@@ -58,6 +58,18 @@ describe("InviteLookScreen", () => {
     ).toBeTruthy();
   });
 
+  // Trips have no voting or commenting (Mitchell, 2026-10-11).
+  it("tells an editor that joining lets them change the stops, and nothing unbuilt", async () => {
+    fetchInviteLandingMock.mockResolvedValue({ ok: true, value: { ...landing, role: "editor" } });
+    render(<InviteLookScreen token="tok" googleAvailable />);
+    expect(
+      await screen.findByText(
+        "You're having a look first. Join and you can add, move and change stops alongside everyone else.",
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByText(/\bvot(e|es|ing)\b|\bcomment/i)).toBeNull();
+  });
+
   it("shows the landing's plan card, with the trip's total, under the banner's Join", async () => {
     render(<InviteLookScreen token="tok" googleAvailable />);
     const plan = await screen.findByRole("region", { name: "The plan so far" });

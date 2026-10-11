@@ -108,7 +108,7 @@ function LookCard({ preview }: { preview: TripPreview }) {
 // What joining gives, by the role on offer. A `Record`, so a new invite role
 // does not compile until the banner says what it may do.
 const LOOK_LINE: Record<ValidLanding["role"], string> = {
-  editor: "You're having a look first. Join and you can add stops, vote and comment alongside everyone else.",
+  editor: "You're having a look first. Join and you can add, move and change stops alongside everyone else.",
   suggester: `You're having a look first. Join and you can suggest changes ${SUGGESTER_APPROVAL}.`,
   viewer: "You're having a look first. Join and this trip stays in your list as it takes shape.",
 };

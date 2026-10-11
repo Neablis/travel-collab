@@ -164,7 +164,8 @@ describe("the ladder is presentation only", () => {
   // **The file's declaration order and `displayOrder` agree**, and that is now a
   // checked fact rather than a coincidence.
   //
-  // `accountPlan.ts` builds the account sheet's plan chooser and needs the
+  // `accountPlan.ts` built the account sheet's plan chooser (it is
+  // `planCatalogue.ts` now, which the landing's pricing reads too) and needs the
   // plans in the order a person should read them. Sorting by `displayOrder`
   // there put the ladder inside a module that also resolves entitlements, and
   // this suite refused it in CI — correctly, per the rule above. It takes the

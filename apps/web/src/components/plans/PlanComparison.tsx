@@ -1,4 +1,6 @@
 import { TBody, THead, TH, TD, TR, Table } from "@/components/ui/table";
+import { Text } from "@/components/ui/text";
+import { cn } from "@/lib/cn";
 import type { AccountPlanChoice } from "@/lib/accountPlan";
 import { formatPrice } from "@/lib/planCopy";
 
@@ -37,6 +39,31 @@ export function whoItIsFor(choice: AccountPlanChoice): string {
 }
 
 /**
+ * The landing page's one line per plan (Mitchell, 2026-10-11: *"free -
+ * unlimited planned trips, paid = access to ai tools to help plan trip, pro =
+ * invite all your friends to come along"*).
+ *
+ * **Read off the entitlements, for `whoItIsFor`'s reason**, and in its order:
+ * the line names the most social thing the plan grants. Every plan's trips are
+ * unlimited (`planBullets`' first row), so a plan with neither the assistant
+ * nor collaborators is pitched on that. No line may say "free" — SPEC §14's
+ * copy rule, which only the plan's name and price are exempt from.
+ */
+export function planPitch(choice: AccountPlanChoice): string {
+  const has = (entitlement: string) => choice.entitlements.includes(entitlement);
+  if (has("trip.collaborators")) return "Invite all your friends to come along";
+  if (has("ai.ask")) return "AI tools to help plan the trip";
+  return "Unlimited planned trips";
+}
+
+/** A plan's price as every plan surface prints it: "Free", "$9 / month", or `—` when it is not sold. */
+export function planPrice(choice: AccountPlanChoice): string {
+  if (choice.priceMinor === null) return "—";
+  if (choice.priceMinor === 0) return "Free";
+  return `${formatPrice(choice.priceMinor, choice.currency)} / month`;
+}
+
+/**
  * **Four bullets enumerating what this plan grants** (§29), derived from the
  * plan's own record.
  *
@@ -53,7 +80,7 @@ export function planBullets(choice: AccountPlanChoice): string[] {
       ? `Ask the assistant ${choice.perUserRequestsPerDay ?? "unlimited"} questions about your trips and have it make ${choice.perUserStepsPerDay ?? "unlimited"} changes a day`
       : "No assistant",
     has("trip.collaborators")
-      ? "Invite friends to plan your trips with you, with votes and comments"
+      ? "Invite friends to plan your trips with you"
       : "Just you on your trips — no invites",
   ];
 }
@@ -64,7 +91,8 @@ interface Row {
   cell: (choice: AccountPlanChoice) => string;
 }
 
-// The seven rows §29 names, in its order.
+// §29's rows, in its order, less "Votes and comments": trips have neither, and
+// a pricing page must not sell what is not built (Mitchell, 2026-10-11).
 //
 // **Worded for the person choosing, not for the quota.** Mitchell, PR #269
 // preview: *"'Steps a day' makes no sense to a person, it needs to better
@@ -96,90 +124,113 @@ const ROWS: Row[] = [
     label: "Invite friends to your trips",
     cell: (choice) => (choice.entitlements.includes("trip.collaborators") ? "Yes" : "—"),
   },
-  {
-    label: "Votes and comments",
-    cell: (choice) => (choice.entitlements.includes("trip.collaborators") ? "Yes" : "—"),
-  },
   // M42 (ADR-071): stars and a note on a published day. Reading reviews is on
   // every plan, so the row is about leaving one.
   {
     label: "Review playbooks",
     cell: (choice) => (choice.entitlements.includes("playbook.review") ? "Yes" : "—"),
   },
-  {
-    label: "Price",
-    cell: (choice) =>
-      choice.priceMinor === null
-        ? "—"
-        : choice.priceMinor === 0
-          ? "Free"
-          : `${formatPrice(choice.priceMinor, choice.currency)} / month`,
-  },
+  { label: "Price", cell: planPrice },
 ];
+
+/** `—` is slate, never a red cross: a cross is a judgement and a dash is an absence. */
+const valueTone = (value: string) => (value === "—" ? "text-slate" : "");
 
 export function PlanComparison({ catalogue }: { catalogue: readonly AccountPlanChoice[] }) {
   return (
-    // A table is the one thing on this page allowed to be wider than the
-    // screen, in its own scroller — three plan columns plus a label column does
-    // not fit at phone width and stacking a comparison destroys the comparison.
-    //
-    // **The width comes from `whitespace-nowrap` on the cells, not from a
-    // minimum on the table.** A `min-w-[32rem]` would be an arbitrary value the
-    // colour wall refuses, and it would also be a guess: four columns of
-    // whatever the plan file publishes is not a number this file can know.
-    // Letting the content set the width and scrolling the overflow is both
-    // token-clean and correct for a fifth plan.
-    <div className="overflow-x-auto" data-testid="plan-comparison">
-      <Table className="text-sm">
-        <caption className="sr-only">
-          What each plan includes. The columns are in display order and that order means nothing.
-        </caption>
-        <THead>
-          <TR>
-            <TH scope="col" className="whitespace-nowrap">
-              <span className="sr-only">Feature</span>
-            </TH>
-            {catalogue.map((choice) => (
-              <TH
-                key={choice.planId}
-                scope="col"
-                // **The held plan's column is tinted and its values are at
-                // weight 600** (§29). Emphasis, not rank.
-                className={choice.held ? "whitespace-nowrap bg-moss text-ink" : "whitespace-nowrap"}
-              >
-                {choice.planId}
-              </TH>
-            ))}
-          </TR>
-        </THead>
-        <TBody>
-          {ROWS.map((row) => (
-            <TR key={row.label}>
-              <TH scope="row" className="whitespace-nowrap font-normal normal-case tracking-normal">
-                {row.label}
-              </TH>
-              {catalogue.map((choice) => {
+    <div data-testid="plan-comparison">
+      {/* **Below `md`, one card per plan, each carrying every row** (Mitchell,
+          2026-10-11: on a phone every plan's name, price and contents are read
+          without a sideways swipe). A card per plan rather than a narrower
+          table, because four columns of these labels do not fit 390px at any
+          size worth reading. Still no ranking: the cards are in display order
+          and each one holds only its own values. */}
+      <div className="flex flex-col gap-3 md:hidden">
+        {catalogue.map((choice) => (
+          <div
+            key={choice.planId}
+            role="group"
+            aria-label={choice.planId}
+            className={
+              choice.held
+                ? "flex flex-col gap-2 rounded-lg border border-border-strong bg-moss p-4"
+                : "flex flex-col gap-2 rounded-lg border border-hairline p-4"
+            }
+          >
+            <Text as="span" className="font-semibold text-ink">
+              {choice.planId}
+            </Text>
+            <dl className="flex flex-col gap-1.5 text-sm">
+              {ROWS.map((row) => {
                 const value = row.cell(choice);
                 return (
-                  <TD
-                    key={choice.planId}
-                    className={[
-                      "whitespace-nowrap",
-                      choice.held ? "bg-moss font-semibold text-ink" : "text-ink",
-                      // **A `—` is slate, never a red cross.** The design is
-                      // explicit, and the reason is the rule above it: a cross
-                      // is a judgement and a dash is an absence.
-                      value === "—" ? "text-slate" : "",
-                    ].join(" ")}
-                  >
-                    {value}
-                  </TD>
+                  <div key={row.label} className="flex items-baseline justify-between gap-3">
+                    <dt className="text-slate">{row.label}</dt>
+                    <dd className={cn("shrink-0 text-right text-ink", choice.held && "font-semibold", valueTone(value))}>
+                      {value}
+                    </dd>
+                  </div>
                 );
               })}
+            </dl>
+          </div>
+        ))}
+      </div>
+
+      {/* From `md` up, the side-by-side table, in its own scroller should a
+          fifth plan outgrow the width. **The width comes from
+          `whitespace-nowrap` on the cells, not from a minimum on the table**: a
+          `min-w-[32rem]` would be an arbitrary value the colour wall refuses,
+          and a guess at what the plan file publishes. */}
+      <div className="hidden overflow-x-auto md:block">
+        <Table className="text-sm">
+          <caption className="sr-only">
+            What each plan includes. The columns are in display order and that order means nothing.
+          </caption>
+          <THead>
+            <TR>
+              <TH scope="col" className="whitespace-nowrap">
+                <span className="sr-only">Feature</span>
+              </TH>
+              {catalogue.map((choice) => (
+                <TH
+                  key={choice.planId}
+                  scope="col"
+                  // **The held plan's column is tinted and its values are at
+                  // weight 600** (§29). Emphasis, not rank.
+                  className={choice.held ? "whitespace-nowrap bg-moss text-ink" : "whitespace-nowrap"}
+                >
+                  {choice.planId}
+                </TH>
+              ))}
             </TR>
-          ))}
-        </TBody>
-      </Table>
+          </THead>
+          <TBody>
+            {ROWS.map((row) => (
+              <TR key={row.label}>
+                <TH scope="row" className="whitespace-nowrap font-normal normal-case tracking-normal">
+                  {row.label}
+                </TH>
+                {catalogue.map((choice) => {
+                  const value = row.cell(choice);
+                  return (
+                    <TD
+                      key={choice.planId}
+                      className={cn(
+                        "whitespace-nowrap",
+                        choice.held ? "bg-moss font-semibold text-ink" : "text-ink",
+                        valueTone(value),
+                      )}
+                    >
+                      {value}
+                    </TD>
+                  );
+                })}
+              </TR>
+            ))}
+          </TBody>
+        </Table>
+      </div>
     </div>
   );
 }

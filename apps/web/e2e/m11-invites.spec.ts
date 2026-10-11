@@ -173,7 +173,7 @@ test("an invited editor opens the trip and changes it; the owner sees them liste
   try {
     await bob.goto(link);
     await expect(bob.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
-    await expect(bob.getByText(/You can add stops, vote and comment\./)).toBeVisible();
+    await expect(bob.getByText(/You can add, move and change stops\./)).toBeVisible();
     await bob.getByRole("button", { name: "Join the trip" }).click();
 
     // Lands on the trip, editable, with no "Viewer" badge — and told so once

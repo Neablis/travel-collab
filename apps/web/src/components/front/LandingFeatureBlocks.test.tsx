@@ -20,19 +20,17 @@ describe("LandingFeatureBlocks", () => {
     expect(screen.getByRole("heading", { name: title })).toBeDefined();
   });
 
-  // The handoff contradicts itself here and the contradiction is resolved, not
-  // open: SPEC §14 says the Day 6 total is $596, the design file
-  // (`dc.html:2124-2133`) lists $340 + $210 and labels the total $550. The
-  // design file is authoritative for copy and is the one that adds up, so $550
-  // is correct. This assertion exists so nobody reading SPEC §14 alone
-  // "corrects" it back to $596.
-  it("adds the notebook's cost table up to $550, not SPEC §14's $596", () => {
+  // Mitchell, 2026-10-11: *"it should be more nostalgic than how much you
+  // spent on dinner."* The Notebook used to be a day's cost table; it is a page
+  // of the day as it was lived, signed by the people who were there. It was the
+  // only block that carried money, so no block may.
+  it("remembers the day in the notebook, with no price anywhere", () => {
     render(<LandingFeatureBlocks />);
-    expect(screen.getByText("$340")).toBeDefined();
-    expect(screen.getByText("$210")).toBeDefined();
-    expect(screen.getByText("Day total")).toBeDefined();
-    expect(screen.getByText("$550")).toBeDefined();
-    expect(screen.queryByText("$596")).toBeNull();
+    expect(screen.getByText("Day 6 · Hakone")).toBeDefined();
+    expect(screen.getByText(/best night of the trip/)).toBeDefined();
+    expect(screen.getByText("Sam, Priya, Dana, Marcus · Apr 9")).toBeDefined();
+    expect(document.body.textContent).not.toMatch(/[$€£]\s?\d/);
+    expect(screen.queryByText(/\bcosts?\b/i)).toBeNull();
   });
 
   it("shows the borrowed playbook's rating and reach", () => {
@@ -60,16 +58,14 @@ describe("LandingFeatureBlocks", () => {
     expect(screen.getAllByRole("listitem").map((li) => li.textContent)).toEqual(["One month", "One week", "Tomorrow"]);
   });
 
-  it("lets the group mark the stop they can't wait for", () => {
-    render(<LandingFeatureBlocks />);
-    expect(screen.getByRole("img", { name: "Can't wait" })).toBeDefined();
-  });
-
-  it("marks the booked stop and the maybe on the Together timeline", () => {
+  // Mitchell, 2026-10-11: the group's say is a suggestion a planner accepts,
+  // which trips have — not a heart or a reply thread, which they do not.
+  it("marks the booked stop and Dana's suggested one on the Together timeline", () => {
     render(<LandingFeatureBlocks />);
     expect(screen.getByText("Pending")).toBeDefined();
-    expect(screen.getByText("Idea")).toBeDefined();
+    expect(screen.getByText("Suggested")).toBeDefined();
     expect(screen.getByText("Pontocho, maybe")).toBeDefined();
+    expect(screen.getByText("Dana suggested this")).toBeDefined();
   });
 
   // DRIFT §2: the Notebook's macro values and playbook sharing are unbuilt, and
