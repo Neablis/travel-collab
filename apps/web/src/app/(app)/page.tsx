@@ -33,6 +33,8 @@ import { takeDemoClone } from "@/lib/pendingDemoClone";
 import { pendingPlaybookAddDay } from "@/lib/pendingPlaybookAdd";
 import { tripSpend, plannedOfBudgetLine } from "@/lib/cost";
 import { orderHomeTrips } from "@/lib/homeTripOrder";
+import { newTripCommand } from "@/components/palette/commands";
+import { usePaletteSource } from "@/components/palette/paletteRegistry";
 
 // Today's calendar date as YYYY-MM-DD in local time, so formatTripDateLong
 // (which expects a calendar date, not an instant — see lib/formatDate.ts)
@@ -462,6 +464,10 @@ export default function Home() {
   useEffect(() => {
     if (unauthenticated) router.replace("/welcome");
   }, [unauthenticated, router]);
+
+  // ⌘K's *New trip* is this page's button (ADR-068): the same function, under
+  // the same `disabled`.
+  usePaletteSource("home", unauthenticated || cloningDemo ? [] : [newTripCommand(startNewTrip)]);
 
   if (unauthenticated) return null;
 

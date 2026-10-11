@@ -408,6 +408,8 @@ function RackCard({ item, onEdit }: { item: RackItem; onEdit?: (activityId: stri
     <div
       ref={ref}
       data-testid="rack-card"
+      // How focus on the card counts as near for ⌘K (TripBoardScreen).
+      data-activity-id={item.activityId}
       data-blstop=""
       // Cursor follows the registration, matching a river block's own: a grab
       // cursor over a card that cannot be picked up is a false promise.

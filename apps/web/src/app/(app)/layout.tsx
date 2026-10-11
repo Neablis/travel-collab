@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { Suspense } from "react";
 import { AppHeader } from "@/components/AppHeader";
+import { CommandPalette } from "@/components/palette/CommandPalette";
 import { PhoneTabBar, PhoneTabBarFallback } from "@/components/nav/PhoneTabBar";
 import { PreferencesProvider } from "@/components/account/PreferencesProvider";
 import { SessionUserProvider } from "@/components/account/useSessionUser";
@@ -40,6 +41,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <SessionUserProvider noSessionCookie={noSessionCookie}>
       <PreferencesProvider noSessionCookie={noSessionCookie}>
         <AppHeader />
+        {/* ⌘K, from every app page (M41 D9). The page below registers what it offers. */}
+        <CommandPalette />
         {/* `.phone-tab-bar-inset` (globals.css) keeps the page's last row clear
             of the fixed tab bar below, and is 0px at >=768px where the bar is
             not rendered. The wrapper exists only to own that padding: the bar

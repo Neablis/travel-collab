@@ -36,7 +36,7 @@ import { displayPlace, legEnd } from "@/lib/place";
 // the per-day option list (label + already-scheduled windows) that Banner
 // needs, and wiring dayId correctly into AddActivity/UpdateActivity.
 export function ActivityEditorSheet() {
-  const { state, close } = useEditor();
+  const { state, close, returnFocus } = useEditor();
   const { activeTrip, dispatch, dispatchBatch, canEditBoard, boardMode, access } = useTrip();
   // Opted in to suggest mode (W8): a suggester's save joins their draft, so
   // only a reader gets the read-only sheet.
@@ -223,7 +223,19 @@ export function ActivityEditorSheet() {
   }
 
   return (
-    <Sheet title={title} open={open} onOpenChange={(next) => { if (!next) close(); }}>
+    <Sheet
+      title={title}
+      open={open}
+      onOpenChange={(next) => { if (!next) close(); }}
+      // Back to what opened it — a stop's block, the palette's caller — when
+      // that is still on the page (KI-2026-10-09-b).
+      onCloseAutoFocus={(event) => {
+        const back = returnFocus?.current;
+        if (back == null || !back.isConnected) return;
+        event.preventDefault();
+        back.focus();
+      }}
+    >
       {open && editingActivityId !== undefined && activeTrip !== null && (
         // KI-43: every conflict naming this stop, dismissed ones included.
         // Edit mode only — a stop being created has no id yet, so nothing can

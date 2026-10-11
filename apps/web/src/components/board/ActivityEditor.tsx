@@ -388,6 +388,10 @@ export function ActivityEditor({
       >
         <Input
           id="activity-title"
+          // A new stop starts with its name, so the field takes focus: ⌘K
+          // *New stop* is typed straight into (M41 D9). Not when editing, where
+          // a phone would raise its keyboard over a stop opened to be read.
+          autoFocus={mode === "create"}
           aria-label="What or where"
           placeholder="e.g. Dinner at Kikunoi Roan"
           value={title}
