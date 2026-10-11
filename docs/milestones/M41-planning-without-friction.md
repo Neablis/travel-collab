@@ -1,15 +1,15 @@
 # M41 — Moving and adding stops takes one gesture wherever you are
 
-**Status:** **Built 2026-10-10 → 2026-10-11; gate 11 of 13 at close on 2026-10-11.** All seven
-parts (#392–#398, with #399) are merged into part 0 (#391). Open: the full ci-like e2e on merged
-`main` (CI on #391) and Mitchell's preview walk. **Scoped 2026-10-10 by Mitchell, in session, and
+**Status:** **Closed 2026-10-11 — gate 13 of 13.** Built 2026-10-10 → 2026-10-11. All seven
+parts (#392–#398, with #399) are merged into part 0 (#391), which merges last. **Scoped 2026-10-10 by Mitchell, in session, and
 re-framed in the process.** The five
 recommendations it was proposed with (2026-10-06) were checked against the code first, and most
 had gone stale: they were written 2026-08-01 to 2026-09-22, before the time river (M29), the
 Calendar redesign (M26/M27) and the phone layout (M39). Mitchell's direction for the re-frame,
 2026-10-10: *"less buttons on the ui, more consolidation of functionality so it has a very
 functional page with natural interactions, rather than tons of buttons"*. Built as a stack after a
-phase-0 PR that tracks this gate (`docs/plans/2026-10-10-M41-gestures.md`). ADR-068 records D9.
+phase-0 PR that tracks this gate (#391; its plan, `docs/plans/2026-10-10-M41-gestures.md`, was
+removed at close and lives in git history). ADR-068 records D9.
 
 ## Why this exists
 
@@ -190,16 +190,20 @@ Returned to `docs/candidates.md` rather than built (D10): quick-add, search-to-a
       body.*
 - [x] **No second way to do a thing was added**: part 0's duplication log lists every one found
       and what was done about it. *Ticked 2026-10-11: the log in
-      `docs/plans/2026-10-10-M41-gestures.md` and #391's tracker, 17 rows, closed out with the
+      #391's tracker (and the plan, now in git history), 17 rows, closed out with the
       ✕ decision.*
-- [ ] **The e2e specs pass on `pnpm --filter web test:e2e:ci-like`.** *Open 2026-10-11: by
-      Mitchell's ruling the full run is CI on #391 on merged `main`, pending at this commit. (#398
-      ran 305/305 locally on `a4b3e09`, before the merge.)*
-- [ ] **[walk]** The PR preview is walked with a mouse and with the keyboard only. *Open
-      2026-10-11: Mitchell's walk.*
+- [x] **The e2e specs pass on `pnpm --filter web test:e2e:ci-like`.** *Ticked 2026-10-11: by
+      Mitchell's ruling the full run is CI on #391 on merged `main`: run
+      [38103062053](https://github.com/Neablis/travel-collab/actions/runs/38103062053) on
+      `50d9a2d`, every job green (lint, typecheck, unit, integration, scripts, e2e shards 1/2 and
+      2/2, `ci-ok`). (#398 ran 305/305 locally on `a4b3e09`, before the merge.)*
+- [x] **[walk]** The PR preview is walked with a mouse and with the keyboard only. *Ticked
+      2026-10-11: Mitchell walked #391's merged
+      [preview](https://travel-collab-git-claude-build-a-milest-210a43-neablis-projects.vercel.app)
+      with the mouse and keyboard only: "Walked and its all good".*
 - [x] A retro is appended at gate close. *Ticked 2026-10-11: below.*
 
-## Retro — written 2026-10-11, gate 11 of 13 (not yet closed)
+## Retro — written 2026-10-11, closed at gate 13 of 13
 
 **What shipped.** Part 0 (#391) and seven parts, merged into it bottom-up 2026-10-10 → 2026-10-11:
 the editor's Day field and one move function (#392); the drawer as just cards, double-click to
