@@ -48,7 +48,7 @@ export const ROUTES = [
   // route". The build has separate screen components for both, so anyone
   // looking for a demo artboard to copy will not find one and must not invent
   // one.
-  { route: "/demo", gate: "isTrip", spec: [27], note: "No artboard of its own — the trip surface in `readOnly` (§27)" },
+  { route: "/demo/[slug]", gate: "isTrip", spec: [27], note: "No artboard of its own — the trip surface in `readOnly` (§27); one per demo trip (M42 D1)" },
   { route: "/s/[token]", gate: "isTrip", spec: [27], note: "No artboard of its own — the trip surface in `readOnly` (§27)" },
   { route: "/invite/[token]", gate: "isInvite", spec: [35], note: "§35.6: `valid`, `revoked`, `member` (M27 D9 — no `expired`)" },
   { route: "/invite/[token]/look", gate: "isTrip", spec: [27, 35], note: "No artboard of its own — the trip surface in `readOnly`, §35.6's invite banner (M27 D12)" },
@@ -65,6 +65,7 @@ export const NOT_DRAWN = new Map([
   ["/developers/reference", "M22 API reference rendered by Scalar from /api/v1/openapi.json — no artboard"],
   ["/playbooks/city/[slug]", "SEO pass, part 5: a city's published days for crawlers — Discover's cards and grid under a heading, no artboard"],
   ["/playbooks/country/[slug]", "SEO pass, part 5: the city page over a country's days — no artboard"],
+  ["/demo", "the picker, M42 D1, has no artboard"],
 ]);
 
 /** Every route in the app, as a Next.js path with its groups stripped. */
