@@ -35,8 +35,9 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { DiscoverDay } from "@/lib/playbooks";
-import type { PageParagraphNode, TripDetail } from "@tc/contracts";
-import { ContentBundleV1, REFERENCE_START_DATE, resolvePlaybook } from "@tc/fixtures";
+import { SavedStop, TripCover, type PageParagraphNode, type TripDetail } from "@tc/contracts";
+import { z } from "zod";
+import { REFERENCE_START_DATE } from "@tc/fixtures";
 import { renderMacro, type BlockPayload, type Seg, type WidgetContext } from "@tc/pages";
 import { cityAccents } from "@/components/pages/cityAccents";
 import { DEMO_TRIPS, demoTripBySlug } from "@/lib/demoTrip";
@@ -147,36 +148,56 @@ export function buildLandingDemo(slug: string): LandingDemo {
 }
 
 /**
- * The Playbooks block's day, chosen by hand: a beach day, as the block's art
- * always pictured, whose stops say what kind of day it is (Food & outdoors)
- * and carry five tags between them.
+ * The Playbooks block's day: Mitchell's own published Hanoi playbook, featured
+ * with his approval, read once from its public endpoint and committed trimmed
+ * (`landing-day.json`: its stops without prices, its cover, its author's
+ * public name). Nothing here reaches production or Unsplash; the cover is a
+ * stored `TripCover`, whose images are Unsplash's CDN and cost no API call.
  */
-const LANDING_PLAYBOOK = { bundle: "thailand-beaches", key: "railay-limestone-and-sunset" };
+const LANDING_DAY_PATH = new URL("./landing-day.json", import.meta.url);
 
-/** The landing card's seeded rating: what Discover's card prints as `4.7 · 23 reviews`. */
-const LANDING_RATING = { rating: 4.7, reviewCount: 23 };
+const LandingDay = z.object({
+  savedDayId: z.string().uuid(),
+  ownerId: z.string().min(1),
+  ownerDisplayName: z.string().min(1),
+  name: z.string().min(1),
+  dayCount: z.number().int().min(1),
+  cities: z.array(z.string()),
+  visibility: z.literal("public"),
+  authorKind: z.string(),
+  sourceTripName: z.string().min(1),
+  createdAt: z.string(),
+  publishedAt: z.string(),
+  description: z.string(),
+  cover: TripCover,
+  stops: z.array(SavedStop),
+});
+
+/**
+ * What the landing seeds onto the card, for the landing only (Mitchell,
+ * 2026-10-11): a rating and an adds count, where the day's own are new-day
+ * zeros, so the front door's example does not read "No reviews yet". Fixed
+ * numbers, so the snapshot stays reproducible; nothing writes them to the
+ * database, and Discover still shows the day's real numbers.
+ */
+const LANDING_SEED = { rating: 4.7, reviewCount: 23, adds: 12 };
 
 /** Where the Playbooks and Notebook blocks' slice is committed. */
 export const FEATURES_PATH = fileURLToPath(new URL("../src/lib/landingFeatures.generated.json", import.meta.url));
 
 /**
- * A bundled playbook as Discover would draw it, once the content importer has
- * written it: the row `import-content-production.ts` writes (`resolvePlaybook`,
- * the domain's cities, the declared adds, kept-on as created and published),
- * read through Discover's own `toDiscoverDay`. Nobody has reviewed a freshly
- * imported day, so the landing seeds a rating below. Read signed out, so it is nobody's own.
+ * The committed day as Discover draws it, through Discover's own
+ * `toDiscoverDay`, read signed out so it is nobody's own. Its cities and
+ * description are worked out again from its stops and held to what
+ * production said, so a rule change that would redraw the card fails here.
  */
 function landingPlaybook(): DiscoverDay {
-  const file = new URL(`../../../content/playbooks/${LANDING_PLAYBOOK.bundle}.json`, import.meta.url);
-  const bundle = ContentBundleV1.parse(JSON.parse(readFileSync(file, "utf8")));
-  const authored = bundle.playbooks.find((p) => p.key === LANDING_PLAYBOOK.key);
-  if (authored === undefined) throw new Error(`landing demo: ${LANDING_PLAYBOOK.bundle} has no playbook ${LANDING_PLAYBOOK.key}`);
-  const day = resolvePlaybook(bundle.bundle.id, authored, bundle.bundle.origin);
+  const day = LandingDay.parse(JSON.parse(readFileSync(LANDING_DAY_PATH, "utf8")));
   const card = toDiscoverDay(
     {
       id: day.savedDayId,
       owner_id: day.ownerId,
-      owner_display_name: null,
+      owner_display_name: day.ownerDisplayName,
       owner_name: null,
       name: day.name,
       stops: day.stops,
@@ -184,34 +205,27 @@ function landingPlaybook(): DiscoverDay {
       visibility: day.visibility,
       author_kind: day.authorKind,
       day_count: day.dayCount,
-      adds: day.addedBy.length,
-      rating: null,
-      review_count: 0,
+      adds: LANDING_SEED.adds,
+      rating: LANDING_SEED.rating,
+      review_count: LANDING_SEED.reviewCount,
       source_trip_name: day.sourceTripName,
-      created_at: day.keptOn ?? null,
-      published_at: day.visibility === "public" ? (day.keptOn ?? null) : null,
-      cover: null,
+      created_at: day.createdAt,
+      published_at: day.publishedAt,
+      cover: day.cover,
       matched_count: 0,
     },
     [],
     null,
   );
-  if (card === null) throw new Error(`landing demo: ${LANDING_PLAYBOOK.key} does not read as a Discover card`);
-  if (card.description === null || card.tags.length === 0) {
-    throw new Error(`landing demo: ${LANDING_PLAYBOOK.key} no longer says what kind of day it is, which is what the block shows`);
+  if (card === null) throw new Error(`landing demo: ${day.name} does not read as a Discover card`);
+  if (JSON.stringify(card.cities) !== JSON.stringify(day.cities) || card.description !== day.description) {
+    throw new Error(`landing demo: ${day.name} now reads as ${card.description} in ${card.cities.join(", ")}, not as production drew it`);
   }
   // No price on the landing outside its plans (Mitchell, 2026-10-11): the
-  // blocks sell the day, not what it cost. The card draws no money line for a
-  // null total, as it does for a day with nothing priced. And no tag that
-  // links: a front-door card sends nobody into tag pages, which may not be
-  // indexed, so its chips stay text, as a private day's do.
-  //
-  // **The rating is seeded here, for the landing only** (Mitchell,
-  // 2026-10-11): a freshly imported day has no reviews, and "No reviews yet"
-  // under the front door's example undersells it. Fixed numbers, so the
-  // snapshot stays reproducible; nothing writes them to the database, and
-  // Discover still shows the day's real reviews.
-  return { ...card, totalCost: null, namedTags: [], ...LANDING_RATING };
+  // blocks sell the day, not what it cost. And no tag that links: a
+  // front-door card sends nobody into tag pages, which may not be indexed, so
+  // its chips stay text, as a private day's do.
+  return { ...card, totalCost: null, namedTags: [] };
 }
 
 const MEMORY_DAY = { kind: "index", index: 5 };

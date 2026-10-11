@@ -2045,7 +2045,7 @@ the same PR, not a regression in the code.
     the entry), so the hero artboards can be redrawn to match.
 17. **The landing's Together, Playbooks and Notebook blocks** (`dc.html:2016-2199`)
     — added 2026-10-11 (M42 part 9), on item 16's terms: the read-only
-    `DayRiver`, a real `DiscoverCard` from a bundled playbook, and a notebook
+    `DayRiver`, a real `DiscoverCard` of a published playbook, and a notebook
     page (`TripStripBlock` and resolved widget values) from committed
     snapshots, with the handoff's art as the placeholder while they load
     (`LandingFeatureBlocks.tsx`); the phone front door's matching claims too.

@@ -69,22 +69,28 @@ describe("LandingFeatureBlocks", () => {
   });
 
   // The card is Discover's, so it says what Discover would: what kind of day
-  // it is (M42 D8), its tags, and how many trips took it. Its tags are plain
-  // chips — a landing card sends nobody into tag pages, which Discover's
-  // card links for the tags its description names — so its only ways out are
-  // the day, its city and its author.
-  it("shows the bundled playbook as Discover draws it, with its description and tags", async () => {
+  // it is (M42 D8), its tags, how many trips took it, and its cover with the
+  // photographer's credit (Unsplash's guidelines). Its tags are plain chips —
+  // a landing card sends nobody into tag pages, which Discover's card links
+  // for the tags its description names — so its ways out are its cities, the
+  // day, the credit and its author.
+  it("shows Mitchell's playbook as Discover draws it, with its cover, description and tags", async () => {
     render(<LandingFeatureBlocks />);
     const playbooks = within(screen.getByRole("region", { name: PLAYBOOKS }));
     await playbooks.findByRole("link", { name: LANDING_FEATURES.playbook.name });
-    expect(playbooks.getByText("Food & outdoors")).toBeDefined();
+    expect(playbooks.getByRole("img", { name: "a group of people walking down a train track" })).toBeDefined();
+    expect(playbooks.getByText("Outdoors & food")).toBeDefined();
     expect(playbooks.getByText("Outdoors")).toBeDefined();
     expect(playbooks.getAllByRole("link").map((link) => link.textContent)).toEqual([
-      "Krabi",
+      "Hanoi",
+      "Ninh Bình",
+      "Tam Cốc",
       LANDING_FEATURES.playbook.name,
-      LANDING_FEATURES.playbook.ownerDisplayName,
+      "Elric Pxl",
+      "Unsplash",
+      "Neablis",
     ]);
-    expect(playbooks.getByText(`Added to ${LANDING_FEATURES.playbook.adds} trips`)).toBeDefined();
+    expect(playbooks.getByText("Added to 12 trips")).toBeDefined();
   });
 
   // Mitchell, 2026-10-11: the front door's example day carries a rating, seeded

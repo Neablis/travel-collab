@@ -46,7 +46,7 @@ export type LandingDemo = {
  * page as segments.
  */
 export type LandingFeatures = {
-  /** A bundled playbook, read through Discover's own `toDiscoverDay`. */
+  /** Mitchell's published Hanoi playbook (`scripts/landing-day.json`), read through Discover's own `toDiscoverDay`. */
   playbook: DiscoverDay;
   /** The page's paragraphs: the author's words and the widgets' resolved values. */
   memory: Seg[][];

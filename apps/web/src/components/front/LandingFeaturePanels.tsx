@@ -39,7 +39,8 @@ export function TogetherPanel(): React.ReactElement {
 }
 
 /**
- * Playbooks: a bundled playbook as Discover draws it. Signed out, so its links
+ * Playbooks: Mitchell's Hanoi playbook as Discover draws it, its cover photo
+ * and the photographer's credit leading. Signed out, so its links
  * lead into the open library (ADR-061), and its tags are plain chips — a
  * landing card sends nobody into tag pages.
  */
@@ -52,15 +53,15 @@ export function PlaybookPanel(): React.ReactElement {
 }
 
 /**
- * Playbooks at phone size: the same card without its city chip, stop rows and tag chips,
- * so it fits under the phone's headline on a 390×664 screen (the pinned stage
- * clips what runs past it). What kind of day it is still says what the tags
- * would, and the title still opens the whole day.
+ * Playbooks at phone size: the same card without its cover photo, city chips,
+ * stop rows and tag chips, so it fits under the phone's headline on a 390×664
+ * screen (the pinned stage clips what runs past it). What kind of day it is
+ * still says what the tags would, and the title still opens the whole day.
  */
 export function CompactPlaybookPanel(): React.ReactElement {
   return (
     <ul className="flex flex-col">
-      <DiscoverCard day={{ ...LANDING_FEATURES.playbook, cities: [], preview: [], tags: [] }} origin={{ from: "playbooks" }} />
+      <DiscoverCard day={{ ...LANDING_FEATURES.playbook, cover: null, cities: [], preview: [], tags: [] }} origin={{ from: "playbooks" }} />
     </ul>
   );
 }

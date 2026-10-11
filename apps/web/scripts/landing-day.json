@@ -1,0 +1,430 @@
+{
+  "$comment": "Mitchell's own published day, featured on the landing with his approval (M42 part 9). Read once from GET https://caesura.today/api/saved-days/0846d130-f4bc-468a-8b53-072a1b78f3e1 on 2026-10-11 and trimmed to what the card draws; scripts/landing-demo.ts reads it. Prices are left out.",
+  "savedDayId": "0846d130-f4bc-468a-8b53-072a1b78f3e1",
+  "ownerId": "google-113473133903263768833",
+  "ownerDisplayName": "Neablis",
+  "name": "Hanoi in 4 days: street food, egg coffee & Old Quarter chaos",
+  "dayCount": 4,
+  "cities": [
+    "Hanoi",
+    "Ninh Bình",
+    "Tam Cốc"
+  ],
+  "visibility": "public",
+  "authorKind": "human",
+  "sourceTripName": "Hanoi in 4 days: street food, egg coffee & Old Quarter chaos",
+  "createdAt": "2026-10-04T16:10:53.098Z",
+  "publishedAt": "2026-10-04T18:13:25.641Z",
+  "description": "Outdoors & food",
+  "cover": {
+    "unsplashId": "82_jgTdi51Q",
+    "urls": {
+      "raw": "https://images.unsplash.com/photo-1712576752855-bf4721d76a86?ixid=M3wxMDk0NzI5fDB8MXxzZWFyY2h8NXx8SGFub2l8ZW58MXwwfHx8MTc5MTM4MzgxOXww&ixlib=rb-4.1.0",
+      "regular": "https://images.unsplash.com/photo-1712576752855-bf4721d76a86?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3wxMDk0NzI5fDB8MXxzZWFyY2h8NXx8SGFub2l8ZW58MXwwfHx8MTc5MTM4MzgxOXww&ixlib=rb-4.1.0&q=80&w=1080",
+      "small": "https://images.unsplash.com/photo-1712576752855-bf4721d76a86?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3wxMDk0NzI5fDB8MXxzZWFyY2h8NXx8SGFub2l8ZW58MXwwfHx8MTc5MTM4MzgxOXww&ixlib=rb-4.1.0&q=80&w=400"
+    },
+    "alt": "a group of people walking down a train track",
+    "photographerName": "Elric Pxl",
+    "photographerUrl": "https://unsplash.com/@elricpxl",
+    "photoPageUrl": "https://unsplash.com/photos/a-group-of-people-walking-down-a-train-track-82_jgTdi51Q"
+  },
+  "stops": [
+    {
+      "title": "Breakfast at Phở Gia Truyền",
+      "timeWindow": {
+        "start": "07:30",
+        "end": "09:00"
+      },
+      "location": {
+        "name": "Phở Gia Truyền",
+        "lat": 21.03365,
+        "lng": 105.84656,
+        "countryCode": "VN",
+        "city": "Hanoi"
+      },
+      "notes": "Hanoi eats pho for breakfast, and this is where the city does it. A tiny shop on Bat Dan street with a legendary beef broth, clear and deep from hours of marrow and charred ginger. Go early, the best bowls run out by mid-morning. Order pho tai (rare beef) and don't skip the quay breadsticks.",
+      "anchors": [],
+      "kind": "planned",
+      "tags": [
+        "meal"
+      ],
+      "dayIndex": 0,
+      "mode": null,
+      "endLocation": null,
+      "pendingReason": null,
+      "cost": null
+    },
+    {
+      "title": "Hoàn Kiếm Lake and Ngọc Sơn Temple",
+      "timeWindow": {
+        "start": "09:30",
+        "end": "10:30"
+      },
+      "location": {
+        "name": "Ngọc Sơn Temple, Hoàn Kiếm Lake",
+        "lat": 21.03161,
+        "lng": 105.85276,
+        "countryCode": "VN",
+        "city": "Hanoi"
+      },
+      "notes": "Walk off breakfast on the red-painted Huc Bridge to this small temple on Jade Island. The lake is Hanoi's living room: tai chi at dawn, couples at dusk, and the legend of the turtle who took back the emperor's sword. A calm counterweight to the motorbike chaos one street over.",
+      "anchors": [],
+      "kind": "planned",
+      "tags": [
+        "outdoors"
+      ],
+      "dayIndex": 0,
+      "mode": null,
+      "endLocation": null,
+      "pendingReason": null,
+      "cost": null
+    },
+    {
+      "title": "Bánh mì at Bánh Mì 25",
+      "timeWindow": {
+        "start": "11:00",
+        "end": "12:00"
+      },
+      "location": {
+        "name": "Bánh Mì 25",
+        "lat": 21.03612,
+        "lng": 105.84859,
+        "countryCode": "VN",
+        "city": "Hanoi"
+      },
+      "notes": "The famous baguette shop on Hang Ca: crackling crust, a slick of pate, pickled carrot and daikon, and your choice of fillings. The classic Hanoi street lunch and the standard every other banh mi in the city is measured against. Eat it on the walk.",
+      "anchors": [],
+      "kind": "planned",
+      "tags": [
+        "meal"
+      ],
+      "dayIndex": 0,
+      "mode": null,
+      "endLocation": null,
+      "pendingReason": null,
+      "cost": null
+    },
+    {
+      "title": "Đồng Xuân Market wander",
+      "timeWindow": {
+        "start": "12:30",
+        "end": "14:00"
+      },
+      "location": {
+        "name": "Đồng Xuân Market",
+        "lat": 21.0379,
+        "lng": 105.84897,
+        "countryCode": "VN",
+        "city": "Hanoi"
+      },
+      "notes": "Hanoi's biggest covered market and the Old Quarter's pantry. Four floors of dried squid, tea, lacquerware, and fabric, with a food hall floor of noodles and che desserts. Go to see what the city actually buys, not what it sells to tourists.",
+      "anchors": [],
+      "kind": "planned",
+      "tags": [],
+      "dayIndex": 0,
+      "mode": null,
+      "endLocation": null,
+      "pendingReason": null,
+      "cost": null
+    },
+    {
+      "title": "Egg coffee at Cà Phê Giảng",
+      "timeWindow": {
+        "start": "15:00",
+        "end": "16:00"
+      },
+      "location": {
+        "name": "Cà Phê Giảng",
+        "lat": 21.03363,
+        "lng": 105.85448,
+        "countryCode": "VN",
+        "city": "Hanoi"
+      },
+      "notes": "The original egg coffee shop, run by the family that invented the drink in the 1940s when milk was scarce: egg yolk whipped with condensed milk over strong robusta. Thick as custard, drunk hot or iced. The tiny second-floor cafe off Nguyen Huu Huan is the classic; the afternoon crowd is smaller than the morning rush.",
+      "anchors": [],
+      "kind": "planned",
+      "tags": [
+        "meal"
+      ],
+      "dayIndex": 0,
+      "mode": null,
+      "endLocation": null,
+      "pendingReason": null,
+      "cost": null
+    },
+    {
+      "title": "Evening at St. Joseph's Cathedral",
+      "timeWindow": {
+        "start": "17:30",
+        "end": "18:30"
+      },
+      "location": {
+        "name": "St. Joseph's Cathedral",
+        "lat": 21.0277,
+        "lng": 105.84986,
+        "countryCode": "VN",
+        "city": "Hanoi"
+      },
+      "notes": "End the day in the square outside Hanoi's neo-Gothic cathedral, the prettiest street corner in the city at golden hour. Vendors sell grilled corn and lemon tea on plastic stools, and the evening brings out a young crowd. A good spot to plan tomorrow over a final iced coffee.",
+      "anchors": [],
+      "kind": "planned",
+      "tags": [],
+      "dayIndex": 0,
+      "mode": null,
+      "endLocation": null,
+      "pendingReason": null,
+      "cost": null
+    },
+    {
+      "title": "Temple of Literature",
+      "timeWindow": {
+        "start": "08:30",
+        "end": "10:30"
+      },
+      "location": {
+        "name": "Temple of Literature",
+        "lat": 21.02965,
+        "lng": 105.83667,
+        "countryCode": "VN",
+        "city": "Hanoi"
+      },
+      "notes": "Vietnam's first university, founded 1070. Five walled courtyards of stone stelae and banyan trees, a refuge of quiet two kilometers from the Old Quarter's noise. Go before 10 for the soft light and the calligraphy students practicing on the paving.",
+      "anchors": [],
+      "kind": "planned",
+      "tags": [
+        "ticketed"
+      ],
+      "dayIndex": 1,
+      "mode": null,
+      "endLocation": null,
+      "pendingReason": null,
+      "cost": null
+    },
+    {
+      "title": "Obama bun cha at Bún Chả Hương Liên",
+      "timeWindow": {
+        "start": "11:30",
+        "end": "13:00"
+      },
+      "location": {
+        "name": "Bún Chả Hương Liên",
+        "lat": 21.01788,
+        "lng": 105.854,
+        "countryCode": "VN",
+        "city": "Hanoi"
+      },
+      "notes": "Bun cha is strictly a lunch dish, and this is the most famous bowl in Hanoi: the place Obama and Bourdain sat on plastic stools in 2016. Char-grilled pork patties and belly over vermicelli with herbs and a sweet-sour dipping broth. The 'Obama combo' comes with a crab spring roll. Arrive by 11:30 or the line decides for you.",
+      "anchors": [],
+      "kind": "planned",
+      "tags": [
+        "meal"
+      ],
+      "dayIndex": 1,
+      "mode": null,
+      "endLocation": null,
+      "pendingReason": null,
+      "cost": null
+    },
+    {
+      "title": "Hanoi Train Street",
+      "timeWindow": {
+        "start": "15:30",
+        "end": "17:00"
+      },
+      "location": {
+        "name": "Hanoi Train Street",
+        "lat": 21.01688,
+        "lng": 105.84131,
+        "countryCode": "VN",
+        "city": "Hanoi"
+      },
+      "notes": "A working railway line squeezed between houses so close you could hand a resident a coffee from the tracks. Cafes line the rails; sit at one, order a drink, and wait for a train to thread through at walking pace. Check the board for the day's schedule, trains run afternoons and more often on weekends.",
+      "anchors": [],
+      "kind": "planned",
+      "tags": [
+        "outdoors"
+      ],
+      "dayIndex": 1,
+      "mode": null,
+      "endLocation": null,
+      "pendingReason": null,
+      "cost": null
+    },
+    {
+      "title": "Dinner at Chả Cá Lã Vọng",
+      "timeWindow": {
+        "start": "18:30",
+        "end": "20:00"
+      },
+      "location": {
+        "name": "Chả Cá Lã Vọng",
+        "lat": 21.03571,
+        "lng": 105.84915,
+        "countryCode": "VN",
+        "city": "Hanoi"
+      },
+      "notes": "Hanoi's most historic restaurant, serving one dish since 1871: turmeric-marinated fish sizzled tableside in a skillet with dill and scallions, folded into vermicelli with peanuts and shrimp paste. It's the priciest meal on this itinerary and still under ten dollars a head.",
+      "anchors": [],
+      "kind": "planned",
+      "tags": [
+        "meal"
+      ],
+      "dayIndex": 1,
+      "mode": null,
+      "endLocation": null,
+      "pendingReason": null,
+      "cost": null
+    },
+    {
+      "title": "Tràng An rowboat ride",
+      "timeWindow": {
+        "start": "09:00",
+        "end": "12:00"
+      },
+      "location": {
+        "name": "Tràng An boat landing",
+        "lat": 20.2747,
+        "lng": 105.90332,
+        "countryCode": "VN",
+        "city": "Ninh Bình"
+      },
+      "notes": "Day trip south to 'Halong Bay on land': limestone karsts rising out of rice paddies, threaded by a slow river. A two-to-three-hour rowboat ride passes through caves and grottos to hidden valleys with temples. Go with route 3 if you want the longest cave sequence. Book a car or shuttle from Hanoi the night before; the drive is about two hours.",
+      "anchors": [],
+      "kind": "planned",
+      "tags": [
+        "outdoors"
+      ],
+      "dayIndex": 2,
+      "mode": null,
+      "endLocation": null,
+      "pendingReason": null,
+      "cost": null
+    },
+    {
+      "title": "Lunch in Tam Cốc",
+      "timeWindow": {
+        "start": "12:15",
+        "end": "13:30"
+      },
+      "location": {
+        "name": "Tam Cốc riverside restaurants",
+        "lat": 20.2160052,
+        "lng": 105.9326152,
+        "countryCode": "VN",
+        "city": "Tam Cốc",
+        "precision": "city"
+      },
+      "notes": "Simple lunch at one of the riverside restaurants in Tam Coc village: grilled mountain goat, the local specialty, with crispy rice crackers, or just com rang (fried rice) with whatever the river gave that morning. Nothing fancy, everything fresh.",
+      "anchors": [],
+      "kind": "planned",
+      "tags": [
+        "meal"
+      ],
+      "dayIndex": 2,
+      "mode": null,
+      "endLocation": null,
+      "pendingReason": null,
+      "cost": null
+    },
+    {
+      "title": "Climb Hang Múa for sunset",
+      "timeWindow": {
+        "start": "14:30",
+        "end": "16:30"
+      },
+      "location": {
+        "name": "Hang Múa viewpoint",
+        "lat": 20.23016,
+        "lng": 105.9362,
+        "countryCode": "VN",
+        "city": "Ninh Bình"
+      },
+      "notes": "Five hundred stone steps up a limestone peak to a dragon statue and the single best panorama in northern Vietnam: the Ngo Dong river winding between karsts and lotus fields. Climb in the late afternoon when the light goes gold and the crowds thin. Back in Hanoi by evening.",
+      "anchors": [],
+      "kind": "planned",
+      "tags": [
+        "outdoors"
+      ],
+      "dayIndex": 2,
+      "mode": null,
+      "endLocation": null,
+      "pendingReason": null,
+      "cost": null
+    },
+    {
+      "title": "Breakfast at Phở Thìn",
+      "timeWindow": {
+        "start": "08:00",
+        "end": "09:30"
+      },
+      "location": {
+        "name": "Phở Thìn",
+        "lat": 21.01805,
+        "lng": 105.85532,
+        "countryCode": "VN",
+        "city": "Hanoi"
+      },
+      "notes": "The other great Hanoi pho, and the opposite of Gia Truyen: beef wok-fried with garlic and ginger before it hits the broth, giving it a smoky depth, with fried breadsticks mandatory. The 13 Lo Duc original has been doing exactly this since 1979. A strong last-morning bowl.",
+      "anchors": [],
+      "kind": "planned",
+      "tags": [
+        "meal"
+      ],
+      "dayIndex": 3,
+      "mode": null,
+      "endLocation": null,
+      "pendingReason": null,
+      "cost": null
+    },
+    {
+      "title": "Trấn Quốc Pagoda and West Lake",
+      "timeWindow": {
+        "start": "10:00",
+        "end": "11:30"
+      },
+      "location": {
+        "name": "Trấn Quốc Pagoda",
+        "lat": 21.04819,
+        "lng": 105.8378,
+        "countryCode": "VN",
+        "city": "Hanoi"
+      },
+      "notes": "Hanoi's oldest Buddhist temple, on a small island in West Lake reached by a causeway. The 1,500-year-old pagoda and its Bodhi tree, a gift from India in 1959, make this the city's most photogenic religious site. Walk the lake promenade after; it is the locals' favorite morning route.",
+      "anchors": [],
+      "kind": "planned",
+      "tags": [
+        "outdoors"
+      ],
+      "dayIndex": 3,
+      "mode": null,
+      "endLocation": null,
+      "pendingReason": null,
+      "cost": null
+    },
+    {
+      "title": "Ice cream at Kem Tràng Tiền",
+      "timeWindow": {
+        "start": "12:00",
+        "end": "13:00"
+      },
+      "location": {
+        "name": "Kem Tràng Tiền",
+        "lat": 21.02495,
+        "lng": 105.85492,
+        "countryCode": "VN",
+        "city": "Hanoi"
+      },
+      "notes": "A Hanoi institution since 1958: the ice cream counter on Trang Tien street, famous for its green rice and young coconut flavors. Grab a cone and walk the French Quarter's colonial boulevards for a sweet, slow farewell to the city.",
+      "anchors": [],
+      "kind": "planned",
+      "tags": [
+        "meal"
+      ],
+      "dayIndex": 3,
+      "mode": null,
+      "endLocation": null,
+      "pendingReason": null,
+      "cost": null
+    }
+  ]
+}

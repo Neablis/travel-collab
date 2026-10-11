@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { buildLandingDemo, buildLandingFeatures, CARDS_PATH, FEATURES_PATH, serializeLandingDemo, snapshotPath } from "./landing-demo";
 import { demoTripCards } from "@/server/demoTrip";
 
@@ -36,6 +36,18 @@ describe.each(SLUGS)("the landing's %s snapshot", (slug) => {
   // `/demo/<slug>` moves its dates and a frozen one would go stale.
   it("carries no calendar date", () => {
     expect(readFileSync(snapshotPath(slug), "utf8")).not.toMatch(/\d{4}-\d{2}-\d{2}|\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b/);
+  });
+});
+
+// The landing's card shows a cover photo, which is a stored `TripCover` and
+// Unsplash's CDN, never Unsplash's API: generating or verifying the snapshot
+// asks nobody anything, so `landing:verify` runs offline in CI.
+describe("the landing's snapshot generator", () => {
+  it("makes no network request, to Unsplash or anywhere", () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("offline"));
+    buildLandingFeatures();
+    expect(fetchSpy).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
   });
 });
 

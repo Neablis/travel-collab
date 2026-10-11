@@ -20,8 +20,8 @@ const DEMOS = [
   { slug: "thailand-andaman", name: "Thailand: Bangkok → Krabi → Koh Lanta", description: "Food & beach", days: "10 days" },
 ];
 
-/** The Playbooks block's day, the bundled Railay playbook (`landingFeatures.generated.json`). */
-const PLAYBOOK = /^Railay: the first longtail/;
+/** The Playbooks block's day, Mitchell's Hanoi playbook (`scripts/landing-day.json`). */
+const PLAYBOOK = /^Hanoi in 4 days/;
 
 test.describe("the front door, signed out (M42)", () => {
   test.use({ storageState: { cookies: [], origins: [] } });
@@ -109,6 +109,11 @@ test.describe("the front door, signed out (M42)", () => {
     await landing.getByRole("button", { name: "Day 7" }).click();
     await expect(landing.getByRole("button", { name: "Day 7" })).toHaveAttribute("aria-pressed", "true");
     expect(hydration).toEqual([]);
+    // The Playbooks card's cover is Unsplash's CDN, not its API: nothing on
+    // the landing asks Unsplash anything (`LandingScreen.test.tsx`'s fetch spy;
+    // in a browser the CSP's `connect-src` would refuse it before a request).
+    const cover = landing.getByRole("region", { name: "Relive someone’s perfect day." }).getByRole("img", { name: "a group of people walking down a train track" });
+    expect(await cover.getAttribute("src")).toMatch(/^https:\/\/images\.unsplash\.com\//);
   });
 
   // The phone's claims are the same components, the Discover card in its
