@@ -75,17 +75,16 @@ const JUNGLE_DAYS = [
 // the three don't drift apart.
 const NAME_CHIP = "flex-none rounded-full px-1.5 py-0.5 text-3xs font-semibold tracking-wider uppercase";
 
-// A real panel's width (M42 part 9). At two columns the blocks are ~560px wide
-// on a 1140px page, and a Discover card or a river drawn across all of that
-// stops reading as a card (Mitchell, on the preview). So the body is capped
-// and centred: 420px for the Playbooks card, 384px of it once the gutters are
-// taken, about a card's width on the Discover grid; 484px for the river and
-// the notebook page, 448px inside, which need a little more for their times
-// and their sentences. Below the cap the body takes the block's width, as
-// before. The phone front door draws the panels on its own.
-const BODY = "flex min-h-0 w-full flex-1 flex-col justify-between gap-2.5 self-center px-4.5 pb-4.5";
-const CARD_BODY = cn(BODY, "max-w-105");
-const PAGE_BODY = cn(BODY, "max-w-121");
+// A block's body: the panel, or its drawing, under the block's heading.
+const BODY = "flex min-h-0 flex-1 flex-col justify-between gap-2.5 px-4.5 pb-4.5";
+
+// **A card's width, not a column's** (M42 part 9; Mitchell, on the preview:
+// the cards looked very wide). Each block is held to 480px and centred, and
+// the grid to two of them and the gap between, 978px, centred on the page,
+// so the pair sits together in the middle rather than across the 1140px page.
+// Stacked, below `lg`, each card keeps the same cap and is centred, so a wide
+// tablet does not stretch one either.
+const BLOCK = "flex h-full w-full max-w-120 min-h-107.5 flex-col justify-self-center overflow-hidden rounded-lg p-0";
 
 // The design draws the timeline as `grid-template-columns: 40px 18px 1fr`, which
 // Tailwind can't name; a flex row with fixed leading columns is the same layout
@@ -327,16 +326,17 @@ export function LandingFeatureBlocks(): React.ReactElement {
     // width would squeeze the Playbooks card's borrowed Day 2 to nothing: at
     // three columns it already had only 137px of the ~300px card after the two
     // fixed 62px jungle days (CodeRabbit, PR #58), and a quarter-width card
-    // leaves it none. One column below `lg`.
-    <div className="grid gap-4.5 lg:grid-cols-2">
+    // leaves it none. One column below `lg`. 978px is two 480px blocks and
+    // the 18px gap (see `BLOCK`).
+    <div className="mx-auto grid w-full max-w-244.5 gap-4.5 lg:grid-cols-2">
       {/* Playbooks — `dc.html:2138-2198` */}
-      <Card as="section" aria-labelledby="landing-playbooks" className="flex h-full min-h-107.5 flex-col overflow-hidden rounded-lg p-0">
+      <Card as="section" aria-labelledby="landing-playbooks" className={BLOCK}>
         <BlockHead id="landing-playbooks" eyebrow="Playbooks" title="Relive someone’s perfect day.">
           Every playbook is a day that actually happened, saved by the person who lived it, in the order
           it happened. The sunrise, the alley, the swim. Drop it into your trip and it&rsquo;s yours now.
         </BlockHead>
 
-        <div className={CARD_BODY}>
+        <div className={BODY}>
           <LandingFeaturePanel panel="playbook">
             <PlaybooksArt />
           </LandingFeaturePanel>
@@ -344,13 +344,13 @@ export function LandingFeatureBlocks(): React.ReactElement {
       </Card>
 
       {/* Together — `dc.html:2018-2093` */}
-      <Card as="section" aria-labelledby="landing-together" className="flex h-full min-h-107.5 flex-col overflow-hidden rounded-lg p-0">
+      <Card as="section" aria-labelledby="landing-together" className={BLOCK}>
         <BlockHead id="landing-together" eyebrow="Together" title="The trip starts before the trip.">
           One plan your whole group can touch. Drag a stop and everyone sees it move. Suggest a change
           and the planners say yes. Argue about Pontocho now, thank yourselves in Kyoto.
         </BlockHead>
 
-        <div className={PAGE_BODY}>
+        <div className={BODY}>
           <LandingFeaturePanel panel="together">
             <TogetherArt />
           </LandingFeaturePanel>
@@ -358,7 +358,7 @@ export function LandingFeatureBlocks(): React.ReactElement {
       </Card>
 
       {/* Countdown — new in the 2026-09-28 retro; no design artboard yet. */}
-      <Card as="section" aria-labelledby="landing-countdown" className="flex h-full min-h-107.5 flex-col overflow-hidden rounded-lg p-0">
+      <Card as="section" aria-labelledby="landing-countdown" className={BLOCK}>
         <BlockHead id="landing-countdown" eyebrow="Countdown" title="Too excited to sleep.">
           Every trip gets a living countdown, shared with the whole group. One month. One week. Wheels
           up tomorrow. Sleep if you can.
@@ -422,13 +422,13 @@ export function LandingFeatureBlocks(): React.ReactElement {
           rather than the design's cost table (Mitchell, 2026-10-11: *"it
           should be more nostalgic than how much you spent on dinner"*), and
           the phone's Notebook claim is the same page. */}
-      <Card as="section" aria-labelledby="landing-notebook" className="flex h-full min-h-107.5 flex-col overflow-hidden rounded-lg p-0">
+      <Card as="section" aria-labelledby="landing-notebook" className={BLOCK}>
         <BlockHead id="landing-notebook" eyebrow="Notebook" title="How you’ll remember it.">
           Pages that read like the letter home, written by everyone who was there. Before the trip
           it&rsquo;s a promise. After, it&rsquo;s the keepsake.
         </BlockHead>
 
-        <div className={PAGE_BODY}>
+        <div className={BODY}>
           <LandingFeaturePanel panel="notebook">
             <NotebookArt />
           </LandingFeaturePanel>

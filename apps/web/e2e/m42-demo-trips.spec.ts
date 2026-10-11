@@ -116,22 +116,25 @@ test.describe("the front door, signed out (M42)", () => {
     expect(await cover.getAttribute("src")).toMatch(/^https:\/\/images\.unsplash\.com\//);
   });
 
-  // Mitchell, on the preview: the real panels read as cards, not as bands
-  // across the block. At 1440px each is held to a card's width — the Discover
-  // card to 384px, the river and the notebook page to 448px — and centred.
-  test("the landing's real panels keep a card's width on a wide screen", async ({ page }) => {
+  // Mitchell, on the preview: the feature cards read as cards, not as halves
+  // of the page. At 1440px each is at most 480px wide, and the pair of
+  // columns sits in the middle of the page.
+  test("the landing's feature cards keep a card's width and sit centred on a wide screen", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/welcome");
     const landing = page.getByTestId("desktop-landing");
-    const card = landing.getByRole("region", { name: "Relive someone’s perfect day." }).getByTestId("discover-card");
-    const river = landing.getByRole("region", { name: "The trip starts before the trip." }).getByRole("list", { name: "Day 7 timeline" });
-    const strip = landing.getByRole("region", { name: "How you’ll remember it." }).getByRole("img", { name: /^Days 1–3 Tokyo/ });
-    await expect(card).toBeVisible();
-    await expect(river).toBeVisible();
-    await expect(strip).toBeVisible();
-    expect((await card.boundingBox())!.width).toBeLessThanOrEqual(384);
-    expect((await river.boundingBox())!.width).toBeLessThanOrEqual(448);
-    expect((await strip.boundingBox())!.width).toBeLessThanOrEqual(448);
+    const titles = ["Relive someone’s perfect day.", "The trip starts before the trip.", "Too excited to sleep.", "How you’ll remember it."];
+    const boxes = [];
+    for (const title of titles) {
+      const card = landing.getByRole("region", { name: title });
+      await expect(card).toBeVisible();
+      boxes.push((await card.boundingBox())!);
+    }
+    for (const box of boxes) expect(box.width).toBeLessThanOrEqual(480);
+    const left = Math.min(...boxes.map((b) => b.x));
+    const right = Math.max(...boxes.map((b) => b.x + b.width));
+    const pageWidth = await page.evaluate(() => document.documentElement.clientWidth);
+    expect(Math.abs(left - (pageWidth - right))).toBeLessThanOrEqual(2);
   });
 
   // The phone's claims are the same components, the Discover card in its

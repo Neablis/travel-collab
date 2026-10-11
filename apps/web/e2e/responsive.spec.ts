@@ -852,8 +852,7 @@ test.describe("responsive (narrow viewport, signed out)", () => {
       return found as { x: number; y: number; width: number }[];
     };
 
-    // 900px: one column — same x, y strictly increasing in page order, and
-    // each card wider than a column of the two-up layout.
+    // 900px: one column — same x, y strictly increasing in page order.
     await page.setViewportSize({ width: 900, height: 900 });
     await page.goto("/welcome");
     const stacked = await cardBoxes();
@@ -869,12 +868,13 @@ test.describe("responsive (narrow viewport, signed out)", () => {
     await page.setViewportSize({ width: 1280, height: 900 });
     const [playbooks, together, countdown, notebook] = await cardBoxes();
 
-    // The 900px comment claims each stacked card is wider than a two-up
-    // column — this is the line that makes that true rather than aspirational
-    // (CodeRabbit, PR #58). Narrowest stacked vs widest two-up: ~844 vs ~560.
-    expect(Math.min(...stacked.map((b) => b.width))).toBeGreaterThan(
-      Math.max(playbooks!.width, together!.width, countdown!.width, notebook!.width),
-    );
+    // Every card is a card's width in both layouts (M42 part 9): held to
+    // 480px, so a stacked card on a wide tablet does not span it either. This
+    // replaces "a stacked card is wider than a two-up column", which the cap
+    // made untrue on purpose; the x and y checks still tell the layouts apart.
+    for (const box of [...stacked, playbooks!, together!, countdown!, notebook!]) {
+      expect(box.width).toBeLessThanOrEqual(480);
+    }
 
     expect(together!.y).toBe(playbooks!.y);
     expect(notebook!.y).toBe(countdown!.y);
