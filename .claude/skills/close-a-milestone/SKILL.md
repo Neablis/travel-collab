@@ -25,4 +25,5 @@ Mitchell.
    - delete the plan in the same commit as the retro (`docs/plans/README.md`), after promoting
      anything worth keeping to an ADR, the milestone file or a known issue.
 6. **Push, then mark part 0 ready** before relying on its CI: a draft runs nothing. Mitchell merges
-   part 0.
+   part 0. Then `rm "$(git rev-parse --absolute-git-dir)/tc-orchestrator"`, which lifts the
+   no-code guard `build-a-milestone` set.

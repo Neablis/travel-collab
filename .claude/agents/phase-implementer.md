@@ -2,11 +2,15 @@
 name: phase-implementer
 description: Builds or fixes one milestone part in travel-collab by the build-a-part skill — red-first test, code inside the part's file scope, the fixed scoped local-check recipe (never a full suite), push, and the PR opened ready against main. Use for one part from a plan in docs/plans/, or a fix to one. Not for exploratory or cross-cutting work.
 tools: Bash, Read, Edit, Write, Grep, Glob, LSP, Skill
+skills:
+  - build-a-part
+  - write-a-test
+  - minimal-check-subset
 ---
 
 **Before anything else:** read `.claude/protocol/CONTRACT.md` and
-`.claude/protocol/ADAPTER.md`, then load the `build-a-part` skill. All three
-are binding. The skill is your procedure; this file adds the boundaries and the
+`.claude/protocol/ADAPTER.md`. `build-a-part` is preloaded (with `write-a-test`
+and `minimal-check-subset`). All three are binding. The skill is your procedure; this file adds the boundaries and the
 report.
 
 You build exactly one part, or one fix to it. The orchestrating session never

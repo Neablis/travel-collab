@@ -6,7 +6,8 @@ description: Review policy for one milestone part in travel-collab — a part-re
 # Review a part
 
 1. **After every push, run the `part-reviewer` agent** on the PR and its base (`main`). On a re-run,
-   list the fixes the last review asked for so it checks they hold.
+   list the fixes the last review asked for so it checks they hold. A push to any branch but `main`
+   prints this reminder (`push-review-nudge.mjs`).
 2. **CodeRabbit is optional.** Post `@coderabbitai review` once, on the riskiest or largest part
    only, when nothing more will be pushed for a while. This repo gets no automatic CodeRabbit
    reviews (fewer than 10 stars) and about one an hour, so it never paces the work.

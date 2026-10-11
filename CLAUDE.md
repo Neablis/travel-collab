@@ -31,7 +31,7 @@ Quick orientation:
   `build-a-part` (a `phase-implementer` subagent), `review-a-part` (a `part-reviewer` subagent) and
   `close-a-milestone`.
 
-Four rules that are cheap to state and were expensive to relearn:
+Five rules that are cheap to state and were expensive to relearn:
 
 1. **An e2e result only counts from `pnpm --filter web test:e2e:ci-like <spec>`
    or from CI on the PR.** The full suite is never run locally: CI runs it on
@@ -68,3 +68,6 @@ Four rules that are cheap to state and were expensive to relearn:
    ready, and is not repeated locally. `AGENTS.md`'s Definition of Done has
    the three tiers and the trap (`.design-sync/**` is a build input, not
    prose).
+5. **Write "PR 395", never "#395", in code, comments and test names.** The
+   colour wall (`scripts/check-color-wall.mjs`, `apps/web/src`) reads `#` and 3
+   to 8 digits as a raw hex colour after a quote, a backtick, `[`, `:`, `=` or `,`.

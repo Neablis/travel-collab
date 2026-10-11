@@ -89,9 +89,33 @@ It **asks**, never denies.
 *"A green `pnpm check` here is NOT a green CI."* The guard names the uncovered
 lanes; record them on the PR's *"Not run, and why"* line.
 
-**Hooks** (`scripts/hooks/`): a `PostToolUse` typecheck of the touched package
+**Hooks** (`scripts/hooks/`, tests in `scripts/hooks/__tests__/` and
+`scripts/__tests__/`): a `PostToolUse` typecheck of the touched package
 on every `.ts`/`.tsx` edit, and a `PreToolUse` guard on history-rewriting git
-commands while multiple worktrees exist.
+commands while multiple worktrees exist. The milestone loop adds these:
+
+- **Test lane** (`check-test-lane.mjs`, `PreToolUse` Bash): denies `pnpm check`,
+  `test:unit`, a `test` or vitest run naming no test path, a web vitest run without
+  `-c`, an e2e run with no spec or with `--` before it, and the dev e2e lane. The
+  reason gives the scoped command. `ALLOW_FULL_SUITE=1` in front is for when
+  Mitchell asks for a full run.
+- **Commit message** (`commit-message-guard.mjs`, `PreToolUse` Bash): blocks a
+  `git commit` whose message holds a hyphenated model id. The words trailer passes.
+- **PR tool** (`pr-tool-guard.mjs`, `PreToolUse` on the GitHub MCP create/update
+  PR tools): blocks a draft create, except a "part 0" title, and a model id in
+  the title or body.
+- **Review nudge** (`push-review-nudge.mjs`, `PostToolUse` Bash): after a push
+  to any branch but `main`, adds context to dispatch `part-reviewer`. Never blocks.
+- **Implementer report** (`implementer-report-check.mjs`, `SubagentStop` on
+  `phase-implementer`): sends a report with no pushed sha or no red-first table
+  back once. Skips `BLOCKED`/`DESCOPED` reports.
+- **Orchestrator no-code** (`orchestrator-no-code.mjs`, `PreToolUse` Edit/Write):
+  blocks main-session edits under `apps/` and `packages/` while
+  `<git-dir>/tc-orchestrator` exists. `build-a-milestone` creates the marker and
+  `close-a-milestone` removes it. Subagents (`agent_id` set) are never blocked.
+
+The digest's `MILESTONE PARTS` line lists each open `claude/m<N>-part*` PR with
+its `ci-ok` and review state, or `(PR status unavailable)` when `gh` fails.
 
 **The subagent protocol** (`.claude/protocol/`): `CONTRACT.md` is binding on
 every dispatched subagent — lifecycle, the three exit states, the two-strike

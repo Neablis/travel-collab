@@ -17,7 +17,9 @@ one sub-skill per stage and hands every hands-on step to a subagent.
 
 ## Your own rules
 
-- **You never write or read source code.** Every build, fix, merge, review and gate-close step goes
+- **You never write or read source code.** Start by running
+  `touch "$(git rev-parse --absolute-git-dir)/tc-orchestrator"`: from then on
+  `orchestrator-no-code.mjs` refuses this session's edits under `apps/` and `packages/`. Every build, fix, merge, review and gate-close step goes
   to a subagent with a written brief: the part, its branch, its scope, what done means.
 - **You own** the decisions with Mitchell, the sidebar tasks, PR state, and answering Mitchell.
   Move a part's task the moment its state changes.
