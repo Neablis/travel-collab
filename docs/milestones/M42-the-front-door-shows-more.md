@@ -102,6 +102,9 @@ Candidates absorbed (each deleted by this gate):
     *Walk, 2026-10-11:* the *Trip description* chips stay ordered by stop count (as on day pages
     and Discover cards), not with the described tags first; and Discover's tag filter stays inside
     the Filters panel (part 5), with no separate row of one-tap tag chips.
+    *Walk of part 4:* the breakdown chart takes most of the block with a compact key, and a
+    chart-only variant ("Chart of activities by tag") shows its numbers on hover and to screen
+    readers; a keyboard user who wants them picks the variant with the key (Mitchell, 2026-10-11).
 
 ## Scope
 
