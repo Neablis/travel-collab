@@ -14,6 +14,11 @@ import { parseStdin, readAll } from "./lib/run-context.mjs";
 //     build-a-milestone creates it and close-a-milestone removes it. Without
 //     the marker every ordinary main session would lose the right to edit code.
 //
+// "Code" is apps/ or packages/ under this worktree's root, under any other
+// worktree of the repo (`git worktree list`), or under `.claude/worktrees/<x>/`
+// inside this one, so the orchestrator cannot edit code by reaching into a
+// worktree it made.
+//
 // It runs beside subagent-file-scope.mjs and does not overlap it: that hook
 // only engages inside a protocol unit's worktree, this one never engages for a
 // subagent. Exit 2 with the reason on stderr blocks; anything it cannot work
@@ -29,19 +34,38 @@ const git = (args) =>
   execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 3000 }).trim();
 
 let root;
+let marker;
 try {
-  if (!existsSync(join(git(["rev-parse", "--absolute-git-dir"]), "tc-orchestrator"))) process.exit(0);
+  marker = join(git(["rev-parse", "--absolute-git-dir"]), "tc-orchestrator");
+  if (!existsSync(marker)) process.exit(0);
   root = git(["rev-parse", "--show-toplevel"]);
 } catch {
   process.exit(0);
 }
 
-const rel = relative(root, resolve(cwd, target));
-if (rel.startsWith(`apps${sep}`) || rel.startsWith(`packages${sep}`)) {
+let roots = [root];
+try {
+  roots = roots.concat(
+    git(["worktree", "list", "--porcelain"])
+      .split("\n")
+      .filter((l) => l.startsWith("worktree "))
+      .map((l) => l.slice(9)),
+  );
+} catch {
+  // This worktree's own root is still checked.
+}
+
+const file = resolve(cwd, target);
+const CODE = /^(?:\.claude\/worktrees\/[^/]+\/)?(?:apps|packages)\//;
+const hit = roots
+  .map((r) => relative(r, file).split(sep).join("/"))
+  .find((rel) => !rel.startsWith("..") && CODE.test(rel));
+if (hit) {
   console.error(
-    `This session is orchestrating a milestone and does not edit code ("${rel}"). ` +
+    `This session is orchestrating a milestone and does not edit code ("${hit}"). ` +
       "Dispatch a phase-implementer with a brief: the part, its branch, its file scope, " +
-      "and what done means (build-a-milestone).",
+      "and what done means (build-a-milestone). The marker that makes this session the " +
+      `orchestrator is ${marker}; when the milestone is over, \`rm ${marker}\` lifts this.`,
   );
   process.exit(2);
 }

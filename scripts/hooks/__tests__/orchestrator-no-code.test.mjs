@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { makeRepo, runHook } from "./fixture.mjs";
+import { makeLinkedWorktree, makeRepo, runHook } from "./fixture.mjs";
 
 function orchestrating() {
   const root = makeRepo();
@@ -22,6 +22,24 @@ test("the orchestrating main session is blocked from apps/ and packages/", () =>
     assert.equal(res.status, 2, file);
     assert.match(res.stderr, /Dispatch a phase-implementer/);
   }
+});
+
+test("the block names the marker and the command that removes it", () => {
+  const { root, marker } = orchestrating();
+  const res = edit(root, "apps/web/src/x.ts");
+  assert.equal(res.status, 2);
+  assert.ok(res.stderr.includes(`rm ${marker}`), res.stderr);
+});
+
+test("code under another worktree is code too", () => {
+  const { root } = orchestrating();
+  const linked = makeLinkedWorktree(root);
+  for (const file of [".claude/worktrees/m42-part1/apps/web/src/x.ts", join(linked, "packages/domain/src/y.ts")]) {
+    const res = edit(root, file);
+    assert.equal(res.status, 2, file);
+    assert.match(res.stderr, /Dispatch a phase-implementer/, file);
+  }
+  assert.equal(edit(root, ".claude/worktrees/m42-part1/docs/plan.md").status, 0);
 });
 
 test("a subagent, prose files, and a session without the marker pass", () => {
