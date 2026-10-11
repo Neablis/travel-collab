@@ -22,9 +22,12 @@ general setup.
 ## Where the work is right now
 
 **M42 — THE FRONT DOOR SHOWS MORE THAN ONE TRIP, AND WHAT IT COSTS — IS THE CURRENT MILESTONE AS
-OF 2026-10-11**, by **M41's gate closing at 13 of 13**. It is **not scoped**: its decisions are
-recommendations, and each needs checking against today's UI with Mitchell before anything is built
-(`docs/milestones/M42-the-front-door-shows-more.md`). Order: `… M40 ✓ → M41 ✓ → M42 → M43 … M47`.
+OF 2026-10-11**, by **M41's gate closing at 13 of 13**. It was **scoped 2026-10-11 with Mitchell**:
+decisions 1–11 are answered, and he widened it with richer activity tags — thirteen tags (twelve
+categories and Ticketed as a modifier), trip descriptions, tag pages and tag widgets (ADR-070). It
+is built as seven parts, each its own PR on `main`, with part 0 (the prose and the gate tracker) on
+`claude/dreamy-ritchie-kfnsa2` merging last
+(`docs/milestones/M42-the-front-door-shows-more.md`, plan `docs/plans/2026-10-11-M42-front-door-and-tags.md`). Order: `… M40 ✓ → M41 ✓ → M42 → M43 … M47`.
 
 **M41 closed 2026-10-11.** Moving and adding stops takes one gesture wherever you are: the
 editor's Day field moves any stop, a drawer of just cards with double-click to create, the
@@ -284,9 +287,9 @@ half, the model guessing a coordinate rather than citing one, is M9 scope.
 
 ## Next action
 
-**Mitchell merges #391 to `main`.** M41's gate is closed at 13 of 13 on it. M41 adds no
-migration, so there is no `migrate-production` run. Then **scope M42** with Mitchell
-(`docs/milestones/M42-the-front-door-shows-more.md`; `building-a-milestone.md` §1, `plan-a-milestone`).
+**Build M42's parts** (`docs/plans/2026-10-11-M42-front-door-and-tags.md`): parts 1 (the tag
+vocabulary) and 7 (landing pricing) first, in parallel; the rest follow as their dependencies merge
+to `main`. M41 is merged (#391), with no migration.
 All 48 migrations are applied (M40 added `0045` and `0046`; `0047` landed between milestones). Separately,
 `KI-2026-10-04-c` resolves on query 8 of `ledger.sql` over a few days of cheap-tier step durations.
 
