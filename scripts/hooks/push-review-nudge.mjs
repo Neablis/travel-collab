@@ -1,16 +1,25 @@
-import { execFileSync } from "node:child_process";
 import { parseStdin, readAll } from "./lib/run-context.mjs";
-import { GIT_WITH_GLOBAL_OPTS } from "./lib/git-command.mjs";
+import { gitSubcommandArgs, parseShell, withoutRedirections } from "./lib/shell.mjs";
+import { currentBranch, isPartBranch } from "./lib/part-branch.mjs";
 
-// PostToolUse hook (matcher: Bash). After a successful `git push` of a branch
-// other than main, adds one line of context: the next step in review-a-part is
-// a part-reviewer run on the PR. Advisory only — it never blocks, and it exits
-// 0 on anything it cannot work out.
+// PostToolUse hook (matcher: Bash). After a successful `git push` of a
+// milestone part branch (lib/part-branch.mjs), adds one line of context: the
+// push is to be reported, because the next step in review-a-part is a
+// part-reviewer run that the orchestrator dispatches. The line reaches
+// whoever pushed, usually the phase-implementer, not the orchestrator.
+// Advisory only — it never blocks, and it exits 0 on anything it cannot work
+// out.
+//
+// The branch is the refspec's destination when one is given, else the branch
+// checked out at the payload's cwd. Redirections are not arguments:
+// `git push ... 2>&1` once reported "Pushed 2>.".
 
 try {
   const payload = parseStdin(await readAll(process.stdin));
   const command = String(payload?.tool_input?.command ?? "");
-  const push = new RegExp(String.raw`(?:^|[\n;|&]\s*)${GIT_WITH_GLOBAL_OPTS}\s+push\b([^\n;|&]*)`).exec(command);
+  const push = parseShell(command)
+    .map((seg) => gitSubcommandArgs(seg, "push"))
+    .find(Boolean);
   if (!push) process.exit(0);
 
   // PostToolUse normally fires only on success; a rejected push can still land
@@ -19,26 +28,20 @@ try {
   const out = typeof res === "string" ? res : `${res.stdout ?? ""}\n${res.stderr ?? ""}`;
   if (res.interrupted || /\[rejected\]|\bfatal:|\berror:/.test(out)) process.exit(0);
 
-  const args = push[1].trim().split(/\s+/).filter(Boolean);
+  const args = withoutRedirections(push);
   if (args.some((a) => /^(?:--delete|-d|--tags|--all|--mirror)$/.test(a))) process.exit(0);
   const positional = args.filter((a) => !a.startsWith("-"));
   let branch = positional.length >= 2 ? positional[positional.length - 1] : "";
   branch = branch.replace(/^\+/, "").split(":").pop().replace(/^refs\/heads\//, "");
-  if (!branch || branch === "HEAD") {
-    branch = execFileSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
-      cwd: payload?.cwd || process.cwd(),
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-      timeout: 3000,
-    }).trim();
-  }
-  if (!branch || branch === "HEAD" || branch === "main" || branch === "master") process.exit(0);
+  if (!branch || branch === "HEAD") branch = currentBranch(payload?.cwd) ?? "";
+  if (!isPartBranch(branch)) process.exit(0);
 
   console.log(
     JSON.stringify({
       hookSpecificOutput: {
         hookEventName: "PostToolUse",
-        additionalContext: `Pushed ${branch}. Next per review-a-part: dispatch the part-reviewer agent on this PR.`,
+        additionalContext:
+          `Pushed ${branch}. Report this push; the orchestrator dispatches part-reviewer (review-a-part).`,
       },
     }),
   );
