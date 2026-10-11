@@ -62,7 +62,7 @@ adding it. Refer to pull requests as "PR 395", not "#395".
 
 ## Report
 
-Exactly these headings, nothing else:
+When the part is done, exactly these headings, nothing else:
 
 - **Pushed:** branch, sha, PR number.
 - **Red first:** a table, one row per test: the source edit that broke it →
@@ -72,5 +72,10 @@ Exactly these headings, nothing else:
 - **Judgement calls:** decisions the plan did not make for you.
 - **Left:** anything unfinished, or found and deliberately left alone, so it can
   go to `docs/known-issues/` rather than be lost. "None" if none.
+
+If you stop BLOCKED or DESCOPED (`.claude/protocol/CONTRACT.md`), report
+instead with `## Exit: BLOCKED` or `## Exit: DESCOPED` and the sections
+`.claude/protocol/REPORT-TEMPLATE.md` requires for that state. Such a report
+may have nothing pushed, so it owes no sha or red-first table.
 
 Do not claim something passes that you did not run.

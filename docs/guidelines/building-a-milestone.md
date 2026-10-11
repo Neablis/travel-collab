@@ -28,8 +28,10 @@ before it is built: a few lines on how it is driven, such as the palette's *Acti
 Target*. Then name the session, open part 0, and split the work into parts.
 
 - **Part 0** is prose only: the answered decisions, any ADR, the plan in `docs/plans/`, and the
-  gate tracker in its PR body. It merges last.
-- **Parts 1…N** each target `main`, one theme each, under about 80 reviewable files. A part that
+  gate tracker in its PR body. It lives on the session's branch, opens as a draft, is marked ready
+  at the gate, and merges last.
+- **Parts 1…N** each target `main`, one theme each, under about 80 reviewable files, on branches
+  named `claude/m<N>-part<K>-<slug>`: the hooks' part-only rules key on that name. A part that
   depends on another waits for it to merge to `main`; nothing is based on part 0 or on another part.
 - **The sidebar tasks** are one per part, stepped through build → test seen red → scoped checks →
   push (opened ready) → review → fixes → CI green → merged, plus one for the decisions and one for

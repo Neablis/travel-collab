@@ -179,10 +179,10 @@ What each tool does, why it exists and what it measured:
 - **Hooks** (`scripts/hooks/`): a typecheck of the touched package on every
   `.ts`/`.tsx` edit; a guard on history-rewriting git while several worktrees
   exist; and the **draft-PR guard**, which asks before `gh pr create` without
-  `--draft` and before `gh pr ready` when no **Tier-3 stamp** covers HEAD.
-  `pnpm check` writes the stamp (`.git/tc-tier3.json`) with the lanes that
-  were live — with no database it skips the integration lane silently, so *a
-  green `pnpm check` here is NOT a green CI*.
+  `--draft` (on a milestone part branch it refuses `--draft` instead) and
+  before `gh pr ready` when no **Tier-3 stamp** covers HEAD. `pnpm check`, the
+  only writer of that stamp, is denied locally, so the ask is to say which tier
+  you ran: CI on the PR runs the full suite.
 - **The subagent protocol** (`.claude/protocol/CONTRACT.md`) binds every
   dispatched subagent: three exit states, two-strike handback, report shape.
   `ADAPTER.md` holds this repo's facts, including the one resource no hook
@@ -221,7 +221,8 @@ finished-but-unmerged one gets a PR, or a recorded reason it is left.
 Rule: **open that PR as a draft, and mark it ready only when you believe it is
 green.** `ci.yml` skips its jobs on a draft. The budget is 2,000 minutes a month
 and PR #55 alone spent **315** on work-in-progress.
-`docs/guidelines/ci-cost-and-capacity.md`.
+`docs/guidelines/ci-cost-and-capacity.md`. **Except a milestone part**
+(`claude/m<N>-part<K>-…`), which opens ready (`build-a-part`).
 
 ## Definition of Done (every change)
 

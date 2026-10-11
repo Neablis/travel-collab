@@ -21,8 +21,13 @@ do the code survey.
 4. **Open part 0** on the session's designated branch, after merging `main` into it. It is prose
    only: the answered decisions in the milestone file, any ADR, the plan in `docs/plans/` (per
    part: its theme, files, and what to click on its preview), and a PR body that tracks the gate.
-   Pick migration, ADR and KI numbers only after that merge. Subscribe to it. Part 0 merges last.
-5. **Split the parts.** One theme each, under about 80 reviewable files.
+   Pick migration, ADR and KI numbers only after that merge. **Open it as a draft**; it is marked
+   ready only at the gate (`close-a-milestone`). Its branch must not look like a part's
+   (`claude/m<N>-part<K>-…`), so the part-only hooks leave it alone. Subscribe to it. Part 0
+   merges last.
+5. **Split the parts.** One theme each, under about 80 reviewable files. Each part's branch is
+   `claude/m<N>-part<K>-<slug>`, K from 1, e.g. `claude/m42-part2-drawer-is-cards`; the hooks
+   recognise a part by that name (`scripts/hooks/lib/part-branch.mjs`).
    - **Every part targets `main` and merges on its own when ready.** No part is based on part 0
      or on another part. A part that needs an earlier one waits for it to merge to `main`, then
      branches from `main`.
