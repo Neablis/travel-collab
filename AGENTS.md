@@ -270,9 +270,8 @@ is ready.
 > Run the `minimal-check-subset` skill's output **and nothing more** —
 > typically `pnpm --filter <pkg> typecheck`, that package's lint, and the
 > specific test files covering what you touched. "Narrowest sufficient" is not
-> "smallest": for `packages/contracts/src` the skill says do not narrow,
-> because the consumers span packages, so the subset genuinely *is*
-> `pnpm check`. That is the only way a full run gets earned before Tier 3.
+> "smallest": for `packages/contracts/src` the consumers span packages, so
+> the subset is `pnpm typecheck` across every package; CI runs the full suite.
 > Record the subset in the PR body.
 
 **Tier 3 — final review.** The branch is finished and its PR is ready (a

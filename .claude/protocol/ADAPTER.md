@@ -25,11 +25,11 @@ the lease hook reads. A row marked otherwise below is yours to observe.
 
 - **Narrowest sufficient subset:** use the `minimal-check-subset` skill.
 - **Contracts exception:** if any changed file is under
-  `packages/contracts/src`, do not narrow — run the full `pnpm check`.
-  A contracts change silently breaks domain and web even though their own
-  files did not change (AGENTS.md invariant 5). For a milestone part the
-  local half of that is `pnpm typecheck` across every package; CI runs the
-  rest (`build-a-part`).
+  `packages/contracts/src`, do not narrow to one package — run
+  `pnpm typecheck` across every package, and leave the full suite to CI on
+  the PR (`pnpm check` is denied locally). A contracts change silently
+  breaks domain and web even though their own files did not change
+  (AGENTS.md invariant 5).
 - **E2E:** a result counts only from `pnpm --filter web test:e2e:ci-like
   <spec>` (only your own spec, no `--` before the path) or from CI on the PR.
   The full suite is never run locally. Plain `test:e2e` serves `pnpm dev`, which compiles routes on first hit and
