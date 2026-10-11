@@ -5,7 +5,7 @@ import { expect, test } from "./fixtures/test";
 //
 // `/demo` rather than a seeded trip, for three reasons this milestone cares
 // about: it needs no database, it renders the canonical Japan fixture (which
-// carries 33 `meal`, 4 `lodging`, 11 `outdoors` and 8 `ticketed` tags — ADR-030),
+// carries every tag, 27 of them `meal` — ADR-030, `expectations.ts`),
 // and it is signed-out and read-only, which is exactly the surface where the
 // "focus is a view state, not a command" decision has to hold. Every write
 // affordance on this page is gone (ADR-031); the chips are not, and that is
@@ -93,9 +93,9 @@ test.describe("tag focus", () => {
     // The line beside the view tabs names it and offers Clear.
     const focusLine = page.getByTestId("tag-focus-line");
     await expect(focusLine).toBeVisible();
-    await expect(focusLine.getByText("Meal")).toBeVisible();
+    await expect(focusLine.getByText("Food")).toBeVisible();
     // The Clear control's own name, distinct from the chips' `Stop focusing
-    // on meal` — 34 chips carry that hint on this fixture, so the two must not
+    // on meal` — 27 chips carry that hint on this fixture, so the two must not
     // collide (they did, and this walk is what found it).
     await expect(page.getByRole("button", { name: "Clear meal focus" })).toBeVisible();
 
@@ -116,10 +116,10 @@ test.describe("tag focus", () => {
     // --- The Calendar counts rather than dimming stops -------------------
     await page.getByRole("tab", { name: "Calendar" }).click();
     await expect(page).toHaveURL(/view=Calendar/);
-    // Day 1 is four Tokyo stops, two of them `meal`. The count is in the
+    // Day 1 is four Tokyo stops, one of them `meal`. The count is in the
     // cell's accessible name as well as on the card, because the cell is a
     // button whose aria-label REPLACES its content.
-    await expect(page.getByLabel(/^Day 1, .*Tokyo, 4 stops,.*2 of 4 match/)).toBeVisible();
+    await expect(page.getByLabel(/^Day 1, .*Tokyo, 4 stops,.*1 of 4 match/)).toBeVisible();
     await expect(page.getByTestId("calendar-tag-match").first()).toBeVisible();
 
     // --- The Map keeps its own day dimming ------------------------------

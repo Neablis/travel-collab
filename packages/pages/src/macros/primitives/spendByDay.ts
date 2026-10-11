@@ -8,7 +8,7 @@ import { filterInputs, filterParams } from "../../filters";
 import { costOfStops, narrow, type SelectedStop } from "../../select";
 import { dayLabel, formatDate, formatMoney, ordinal } from "../../format";
 import { collapseKind } from "../../kinds";
-import { SPEND_SERIES, SPEND_SERIES_LABEL, seriesOf } from "./spendSeries";
+import { SPEND_SERIES, SPEND_SERIES_LABEL, isSpendSeries, seriesOf } from "./spendSeries";
 
 // `cost.chart` — "Spend by day", the first chart (M14 link 11; widget
 // brainstorm §6 item 5). One bar per selected day for what its stops cost,
@@ -51,12 +51,13 @@ const SERIES_LABEL = SPEND_SERIES_LABEL;
 
 /**
  * Which ONE stack a stop's cost goes on: `seriesOf`'s first-tag rule — unless
- * the widget is filtered to a tag: then every stop on the chart carries that
- * one, and stacking a "just the outdoors" chart under "Meal" would contradict
- * the filter the reader set.
+ * the widget is filtered to a category: then every stop on the chart carries
+ * that one, and stacking a "just the outdoors" chart under "Food" would
+ * contradict the filter the reader set. Filtered to Ticketed, which is no
+ * stack, the stops stack by what they are.
  */
 function stackOf(stop: SelectedStop, filteredTo: ActivityTag | undefined): SpendSeriesKey {
-  return filteredTo ?? seriesOf(stop);
+  return filteredTo !== undefined && isSpendSeries(filteredTo) ? filteredTo : seriesOf(stop);
 }
 
 const zeroes = (): Record<SpendSeriesKey, number> =>

@@ -35,6 +35,7 @@
 // and stream-part shapes below are structural for the same reason.
 import { randomUUID } from "node:crypto";
 import type { LanguageModel } from "ai";
+import type { ActivityTag } from "@tc/contracts";
 import { needsBooking } from "@/lib/needsBooking";
 import { parseAskScope, type AskScope } from "@/server/assistant/context";
 import { askIntentVerdictText, isAskIntentCall, isPageIntentCall } from "@/server/ai/askIntent";
@@ -48,7 +49,7 @@ import type {
 import { INSERT_PLAYBOOK_DAY } from "@/server/ai/writeTools";
 import { plain } from "@/server/assistant/prompt";
 import { ASSISTANT_TOOLS } from "@/server/assistant/registry";
-import type { WidgetMatch } from "@tc/pages";
+import { TAG_LABEL, type WidgetMatch } from "@tc/pages";
 
 export const SIMULATED_MODEL_ID = "simulated/no-op";
 
@@ -817,18 +818,34 @@ function pageTurn(results: readonly ToolResultLike[], question: string, options:
 // **A notebook about a topic** (ADR-058) — "make a notebook about meals". The
 // topic is a TAG, because that is what a notebook's widgets filter by: the
 // page is built once and reads the trip live, so nothing here reads a day.
-const TOPIC_TAGS: readonly [RegExp, string][] = [
+// First match wins, so a narrower phrase comes before a word it contains
+// ("night markets" is nightlife, not shopping) and food before drink. Typed against the contract, so
+// a key that is not a tag fails to compile; a tag with no row is simply never a
+// topic.
+const TOPIC_TAGS: readonly [RegExp, ActivityTag][] = [
+  [/\b(nightlife|night ?out|clubs?|clubbing|night markets?)\b/i, "nightlife"],
   [/\b(meals?|food|eat|eating|restaurants?|dining|dinners?|lunch(es)?)\b/i, "meal"],
+  [/\b(drinks?|bars?|cafés?|cafes?|coffee|wine|winer(y|ies)|tastings?|cocktails?|beers?)\b/i, "drinks"],
   [/\b(lodging|hotels?|stays?|accommodation)\b/i, "lodging"],
   [/\b(tickets?|ticketed|bookings?)\b/i, "ticketed"],
-  [/\b(outdoors?|hikes?|hiking|nature)\b/i, "outdoors"],
+  [/\b(museums?|galler(y|ies)|art)\b/i, "museum"],
+  [/\b(sights?|sightseeing|landmarks?|temples?|monuments?|viewpoints?)\b/i, "sight"],
+  [/\b(beach(es)?|swimming|coast)\b/i, "beach"],
+  [/\b(shopping|shops?|markets?)\b/i, "shopping"],
+  [/\b(shows?|concerts?|theat(er|re)|performances?|gigs?)\b/i, "show"],
+  [/\b(tours?|guided|classes|workshops?)\b/i, "tour"],
+  [/\b(wellness|spas?|onsen|yoga|massages?)\b/i, "wellness"],
+  [/\b(outdoors?|hikes?|hiking|nature|parks?)\b/i, "outdoors"],
 ];
 
 const NOTEBOOK_REQUEST = /\b(notebook|page|section)\b.*\babout\b|\babout\b.*\bnotebook\b/i;
 
-function notebookTopic(text: string): string | null {
+function notebookTopic(text: string): ActivityTag | null {
   if (!NOTEBOOK_REQUEST.test(text)) return null;
-  return TOPIC_TAGS.find(([pattern]) => pattern.test(text))?.[1] ?? null;
+  // The topic follows "about": read the whole request and "show me a notebook
+  // about hiking" is a `show` notebook, because the verb comes first.
+  const about = text.split(/\babout\b/i).slice(1).join(" ") || text;
+  return TOPIC_TAGS.find(([pattern]) => pattern.test(about))?.[1] ?? null;
 }
 
 /**
@@ -848,7 +865,7 @@ const NOTEBOOK_WIDGETS = 3;
  * is FOR (never what it holds), and the top matches each filtered to the
  * topic's tag. No `read_trip`, no `read_day`.
  */
-function notebookTurn(results: readonly ToolResultLike[], tag: string): SimulatedStep {
+function notebookTurn(results: readonly ToolResultLike[], tag: ActivityTag): SimulatedStep {
   const searched = results.find((result) => result.toolName === "search_widgets");
   if (searched === undefined) {
     return {
@@ -869,7 +886,7 @@ function notebookTurn(results: readonly ToolResultLike[], tag: string): Simulate
       .slice(0, NOTEBOOK_WIDGETS);
     return {
       content: [
-        call("insert_text", { markdown: `## ${tag[0]!.toUpperCase()}${tag.slice(1)}\n\nEverything on this trip tagged ${tag}, read live.` }),
+        call("insert_text", { markdown: `## ${TAG_LABEL[tag]}\n\nEverything on this trip tagged ${tag}, read live.` }),
         ...matches.map((match) => call("insert_widget", { name: match.insert.name, params: { ...match.insert.params, tag } })),
       ],
       finishReason: { unified: "tool-calls", raw: undefined },

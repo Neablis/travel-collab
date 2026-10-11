@@ -108,7 +108,7 @@ describe a stop the command API would refuse.
 | `timeWindow` | `HH:MM` 24h, `end` strictly after `start`. Omit for a backlog item or an untimed stop |
 | `location` | `name` required; `city` is what Discover matches on, so **give every stop a city**. `area` is the neighbourhood. `lat`/`lng` come as a pair or not at all — and if you are not certain of a coordinate, omit it: a wrong pin is worse than no pin, and the checked-in bundles carry none for exactly that reason |
 | `kind` | `planned` (default), `pending`, `transit` — a file written before M28 may still say `booked`, `hold` or `idea`, which import as `planned`, `pending` and `pending` (ADR-054) |
-| `tags` | any of `meal`, `lodging`, `ticketed`, `outdoors` |
+| `tags` | any of the keys of `ActivityTag` (`packages/contracts/src/activity.ts`, ADR-070): `meal`, `lodging`, `ticketed`, `outdoors`, `drinks`, `nightlife`, `museum`, `sight`, `beach`, `shopping`, `show`, `tour`, `wellness`. `ticketed` is a modifier that goes beside a category, not instead of one |
 | `notes` | ≤ 2000 chars |
 | `cost` | `{ "amountMinor": 1250, "currency": "USD" }` — **minor units, integer** (ADR-008). $12.50 is `1250` |
 

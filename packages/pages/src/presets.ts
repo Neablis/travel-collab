@@ -475,13 +475,14 @@ export const PRESETS: readonly WidgetPreset[] = [
     widget: "cost.breakdown",
     params: { by: "tag" },
     title: "Spend by tag",
-    summary: "Splits what the trip costs into a pie by tag, such as meals, lodging and tickets, with each slice's amount and share.",
+    summary: "Splits what the trip costs into a pie by tag, such as food, drinks, lodging and museums, with each slice's amount and share.",
     keywords: [
       "spend", "spending", "chart", "pie", "donut", "breakdown", "split", "share", "tag", "tags", "meal", "meals",
-      "lodging", "ticketed", "outdoors", "untagged", "costs", "money", "budget",
+      "food", "lodging", "outdoors", "drinks", "bars", "nightlife", "museum", "museums", "sight", "sights",
+      "beach", "shopping", "show", "shows", "tour", "tours", "wellness", "spa", "untagged", "costs", "money", "budget",
     ],
-    description: "A pie of what the trip costs per tag — Meal, Lodging, Ticketed, Outdoors, Untagged; a stop with several tags counts under its first — with each tag's amount and share. Filter it to a day, dates, a city or a kind.",
-    preview: "a pie of what meals, lodging, tickets and the outdoors cost",
+    description: "A pie of what the trip costs per tag — Food, Lodging, Outdoors, Drinks, Nightlife, Museum, Sight, Beach, Shopping, Show, Tour, Wellness, Untagged; a stop with several tags counts under its first, and Ticketed is never a slice — with each tag's amount and share. Filter it to a day, dates, a city or a kind.",
+    preview: "a pie of what food, drinks, lodging and sights cost",
   },
   // ---- the clock pair -----------------------------------------------------
   // M14 link 11. Unbound, so every located day; a day binding narrows either.

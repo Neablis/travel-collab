@@ -37,7 +37,7 @@ describe("TagFocusLine", () => {
     renderLine("meal");
     await userEvent.click(screen.getByRole("button", { name: "set" }));
     const line = screen.getByTestId("tag-focus-line");
-    expect(within(line).getByText("Meal")).toBeTruthy();
+    expect(within(line).getByText("Food")).toBeTruthy();
   });
 
   it("clears the focus, and takes itself away with it", async () => {

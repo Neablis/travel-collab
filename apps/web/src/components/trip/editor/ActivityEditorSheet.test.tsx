@@ -265,7 +265,7 @@ describe("ActivityEditorSheet", () => {
 
     await userEvent.type(screen.getByLabelText("What or where"), "Kaiseki dinner");
     fireEvent.click(screen.getByRole("radio", { name: "Planned" }));
-    await userEvent.click(screen.getByRole("button", { name: "Meal", pressed: false }));
+    await userEvent.click(screen.getByRole("button", { name: "Food", pressed: false }));
     await userEvent.click(screen.getByRole("button", { name: "Add stop" }));
 
     expect(dispatch).toHaveBeenCalledWith(

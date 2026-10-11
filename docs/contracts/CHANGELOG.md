@@ -13,6 +13,34 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-11 — `ActivityTag` has thirteen values: twelve categories and one modifier (M42 part 1, ADR-070)
+
+- **Added** nine values to `ActivityTag` (`packages/contracts/src/activity.ts`), appended after the
+  existing four: `drinks`, `nightlife`, `museum`, `sight`, `beach`, `shopping`, `show`, `tour`,
+  `wellness`. No existing key was renamed, removed or reordered.
+- **Added** `ActivityTagModifier` (`ticketed`) and `ActivityTagCategory` (the other twelve, in
+  contract order), both derived from `ActivityTag` (`.extract` / `.exclude`), so every consumer
+  reads one definition of which tag is which.
+- Why: four tags, two of them on nearly every trip, could not say what a trip is like, and
+  `ticketed` is a property of a stop rather than a kind of one (ADR-070). Appending keeps every
+  stored stop's first tag, which spend charts file it under, where it was.
+- **Behaviour change, no shape change: spend charts chart categories only.** *Spend by tag*'s
+  slices and *Spend by day*'s stacks (`SpendSeriesKey`, now `ActivityTagCategory | "untagged"`)
+  no longer have a Ticketed series. A stop tagged only `ticketed` is now charted as **Untagged**,
+  and a stop tagged `ticketed` with a category is charted under that category. *Spend by day*
+  filtered to Ticketed stacks those stops by category. The label of `meal` is now *Food*.
+- Consumers updated: `packages/pages` (`TAG_LABEL`, `spendSeries.ts`, the spend-by-tag preset's
+  text and keywords, `chartPayloads.ts`); `apps/web` (`lib/activityTags.ts`: chip classes and the
+  editor's two picker groups; `spendColors.ts`; nine `tag-<key>` colour tokens in `globals.css`;
+  the simulated model's topic words); `packages/fixtures` (the Japan fixture re-tagged so every
+  tag is on a stop, and its expected counts). The assistant's tools and content bundles take the
+  enum from the contract and needed no edit. The enum is in the public API's stop and filter
+  schemas, so `openapi.json` is regenerated: `API_VERSION` 1.12.0 → **1.13.0** (minor: additive
+  values) and a new `API_FINGERPRINT`.
+- Breaking? no for stored data: every value that parsed still parses, events stay at version 1,
+  and no row is rewritten. A public API client with an exhaustive switch over the tag values will
+  now meet values it does not know; that is the additive change the minor bump announces.
+
 ## 2026-10-10 — `ActivityMoved.fromDayId` and `TripDetail.parkedFrom`: a parked stop knows which day it left (M41 D6)
 
 - **Added** `fromDayId: uuid | null`, optional, to `ActivityMovedV1`'s payload

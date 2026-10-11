@@ -1,6 +1,6 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import type { ActivityTag, Money, TripDetail } from "@tc/contracts";
+import { ActivityTag, type Money, type TripDetail } from "@tc/contracts";
 import { tripDetailFactory } from "@tc/factories";
 import { renderMacro } from "../../registry";
 import type { WidgetContext } from "../../registry-types";
@@ -61,7 +61,7 @@ describe("cost.chart — spend by day", () => {
 
     expect(chart.days.map((bar) => bar.label)).toEqual(["Day 1", "Day 2", "Day 3"]);
     expect(chart.days[0]!.amounts).toMatchObject({ meal: 4000, lodging: 20000, untagged: 0 });
-    expect(chart.days[0]!.breakdown).toBe("Meal $40.00, Lodging $200.00");
+    expect(chart.days[0]!.breakdown).toBe("Food $40.00, Lodging $200.00");
     expect(chart.days[1]!.total).toBeNull();
     expect(chart.days[2]!.amounts.untagged).toBe(1500);
     // Only the stacks that carry money get a key in the legend.
@@ -82,6 +82,18 @@ describe("cost.chart — spend by day", () => {
     price(trip, 0, 1, usd(9000), ["lodging"]);
     const bar = chartOf(trip, { tag: "outdoors" }).days[0]!;
     expect(bar.amounts).toMatchObject({ meal: 0, outdoors: 3000, lodging: 0 });
+  });
+
+  // Ticketed is no stack (ADR-070), so a chart filtered to it stacks the
+  // ticketed stops by what they are rather than dropping their money.
+  it("stacks by category when filtered to Ticketed, which is no stack", () => {
+    const trip = tripOf();
+    price(trip, 0, 0, usd(3000), ["ticketed", "museum"]);
+    price(trip, 0, 1, usd(1000), ["ticketed"]);
+    const chart = chartOf(trip, { tag: "ticketed" });
+    expect(chart.days[0]!.amounts).toMatchObject({ museum: 3000, untagged: 1000 });
+    expect(chart.days[0]!.total).toBe("$40.00");
+    expect(chart.series.map((s) => s.key)).toEqual(["museum", "untagged"]);
   });
 
   it("charts only the trip's currency, and names what it left out", () => {
@@ -280,7 +292,7 @@ describe("cost.chart properties", () => {
   const stopArb = fc.record({
     amount: fc.option(fc.integer({ min: 0, max: 500_000 }), { nil: null }),
     currency: fc.constantFrom("USD", "USD", "USD", "JPY"),
-    tags: fc.subarray(["meal", "lodging", "ticketed", "outdoors"] as ActivityTag[]),
+    tags: fc.subarray([...ActivityTag.options]),
   });
 
   it("stacks every day to the trip-currency sum of that day's stops", () => {
