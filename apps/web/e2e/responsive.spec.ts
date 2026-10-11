@@ -830,20 +830,20 @@ test.describe("responsive (narrow viewport, signed out)", () => {
     // Four cards in page order since the 2026-09-28 retro (DRIFT D21), and the
     // order is asserted rather than sorted away: Playbooks leading is the
     // retro's whole argument.
+    //
+    // Each card is a region named by its title (M42 part 9), which is how a
+    // reader reaches one, so that is how they are found — in the desktop tree,
+    // since the phone front door is in the DOM too.
     const cardBoxes = async () => {
-      const boxes = await page.evaluate(() => {
-        return ["Playbooks", "Together", "Countdown", "Notebook"].map((eyebrow) => {
-          const span = Array.from(document.querySelectorAll("span")).find(
-            (el) => el.textContent?.trim() === eyebrow,
-          );
-          // `.min-h-107\\.5` is the card root's own height floor — a real class
-          // it renders with, not a hook added for this test.
-          const card = span?.closest("div.min-h-107\\.5");
-          if (!card) return null;
-          const r = card.getBoundingClientRect();
-          return { x: Math.round(r.x), y: Math.round(r.y), width: Math.round(r.width) };
-        });
-      });
+      const landing = page.getByTestId("desktop-landing");
+      const boxes = await Promise.all(
+        ["Relive someone’s perfect day.", "The trip starts before the trip.", "Too excited to sleep.", "How you’ll remember it."].map(
+          async (title) => {
+            const r = await landing.getByRole("region", { name: title }).boundingBox();
+            return r === null ? null : { x: Math.round(r.x), y: Math.round(r.y), width: Math.round(r.width) };
+          },
+        ),
+      );
       const found = boxes.filter((b) => b !== null);
       // eslint-disable-next-line playwright/no-conditional-in-test -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
       if (found.length !== 4) {
