@@ -75,6 +75,18 @@ const JUNGLE_DAYS = [
 // the three don't drift apart.
 const NAME_CHIP = "flex-none rounded-full px-1.5 py-0.5 text-3xs font-semibold tracking-wider uppercase";
 
+// A real panel's width (M42 part 9). At two columns the blocks are ~560px wide
+// on a 1140px page, and a Discover card or a river drawn across all of that
+// stops reading as a card (Mitchell, on the preview). So the body is capped
+// and centred: 420px for the Playbooks card, 384px of it once the gutters are
+// taken, about a card's width on the Discover grid; 484px for the river and
+// the notebook page, 448px inside, which need a little more for their times
+// and their sentences. Below the cap the body takes the block's width, as
+// before. The phone front door draws the panels on its own.
+const BODY = "flex min-h-0 w-full flex-1 flex-col justify-between gap-2.5 self-center px-4.5 pb-4.5";
+const CARD_BODY = cn(BODY, "max-w-105");
+const PAGE_BODY = cn(BODY, "max-w-121");
+
 // The design draws the timeline as `grid-template-columns: 40px 18px 1fr`, which
 // Tailwind can't name; a flex row with fixed leading columns is the same layout
 // and needs no inline style. The spine below is centred on the dot column:
@@ -324,7 +336,7 @@ export function LandingFeatureBlocks(): React.ReactElement {
           it happened. The sunrise, the alley, the swim. Drop it into your trip and it&rsquo;s yours now.
         </BlockHead>
 
-        <div className="flex min-h-0 flex-1 flex-col justify-between gap-2.5 px-4.5 pb-4.5">
+        <div className={CARD_BODY}>
           <LandingFeaturePanel panel="playbook">
             <PlaybooksArt />
           </LandingFeaturePanel>
@@ -338,7 +350,7 @@ export function LandingFeatureBlocks(): React.ReactElement {
           and the planners say yes. Argue about Pontocho now, thank yourselves in Kyoto.
         </BlockHead>
 
-        <div className="flex min-h-0 flex-1 flex-col justify-between gap-2.5 px-4.5 pb-4.5">
+        <div className={PAGE_BODY}>
           <LandingFeaturePanel panel="together">
             <TogetherArt />
           </LandingFeaturePanel>
@@ -416,7 +428,7 @@ export function LandingFeatureBlocks(): React.ReactElement {
           it&rsquo;s a promise. After, it&rsquo;s the keepsake.
         </BlockHead>
 
-        <div className="flex min-h-0 flex-1 flex-col justify-between gap-2.5 px-4.5 pb-4.5">
+        <div className={PAGE_BODY}>
           <LandingFeaturePanel panel="notebook">
             <NotebookArt />
           </LandingFeaturePanel>

@@ -116,6 +116,24 @@ test.describe("the front door, signed out (M42)", () => {
     expect(await cover.getAttribute("src")).toMatch(/^https:\/\/images\.unsplash\.com\//);
   });
 
+  // Mitchell, on the preview: the real panels read as cards, not as bands
+  // across the block. At 1440px each is held to a card's width — the Discover
+  // card to 384px, the river and the notebook page to 448px — and centred.
+  test("the landing's real panels keep a card's width on a wide screen", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/welcome");
+    const landing = page.getByTestId("desktop-landing");
+    const card = landing.getByRole("region", { name: "Relive someone’s perfect day." }).getByTestId("discover-card");
+    const river = landing.getByRole("region", { name: "The trip starts before the trip." }).getByRole("list", { name: "Day 7 timeline" });
+    const strip = landing.getByRole("region", { name: "How you’ll remember it." }).getByRole("img", { name: /^Days 1–3 Tokyo/ });
+    await expect(card).toBeVisible();
+    await expect(river).toBeVisible();
+    await expect(strip).toBeVisible();
+    expect((await card.boundingBox())!.width).toBeLessThanOrEqual(384);
+    expect((await river.boundingBox())!.width).toBeLessThanOrEqual(448);
+    expect((await strip.boundingBox())!.width).toBeLessThanOrEqual(448);
+  });
+
   // The phone's claims are the same components, the Discover card in its
   // compact form so it fits a short phone (390×664): below the headline and
   // inside the pinned stage. The claims are stacked, so the ones the sequence
