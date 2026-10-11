@@ -4,6 +4,7 @@ import { renderMacro, type BlockPayload } from "@tc/pages";
 import type { ActivityTag, TimeWindow, TripDetail, TripGlobals } from "@tc/contracts";
 import { tripDetailFactory } from "@tc/factories";
 import { TagBreakdownBlock } from "./TagBreakdownBlock";
+import { tagTooltipFor, tagTooltipLines } from "./TagCharts";
 import { TagsByDayBlock } from "./TagsByDayBlock";
 import { TripDescriptionBlock } from "./TripDescriptionBlock";
 
@@ -52,6 +53,44 @@ describe("TagBreakdownBlock", () => {
     const rows = within(screen.getByRole("table", { name: "Hours by tag" })).getAllByRole("row").slice(1);
     expect(rows.map((row) => row.textContent)).toEqual(["Food1h25%", "Outdoors3h75%", "Total4h"]);
     expect(screen.getByText("Not charted: 2 stops with no time.")).toBeDefined();
+  });
+});
+
+describe("TagBreakdownBlock, chart only", () => {
+  /** Two meals, an outdoors stop and an untagged one, counted. */
+  function counted(params: Record<string, unknown>) {
+    const trip = tripOf();
+    set(trip, 0, 0, ["meal"]);
+    set(trip, 0, 1, ["meal"]);
+    set(trip, 1, 0, ["outdoors"]);
+    return payloadOf(trip, "tag.breakdown", { measure: "count", ...params }, "tag-breakdown");
+  }
+
+  it("shows no key, and keeps every number in a table for a screen reader", async () => {
+    const payload = counted({ key: "hidden" });
+    render(<TagBreakdownBlock payload={payload} />);
+
+    expect(screen.queryByRole("table", { name: "Activities by tag" })).toBeNull();
+    const rows = within(screen.getByRole("table", { name: "Activities by tag, in numbers" })).getAllByRole("row").slice(1);
+    expect(rows.map((row) => row.textContent)).toEqual(["Food2 stops50%", "Outdoors1 stop25%", "Untagged1 stop25%", "Total4 stops"]);
+    expect(await screen.findByRole("img", { name: payload.summary, busy: false })).toBeDefined();
+  });
+
+  it("says a hovered tag's count and share", () => {
+    const Hover = tagTooltipFor(counted({ key: "hidden", view: "bars" }));
+    render(<Hover active payload={[{ payload: { key: "meal" } }]} />);
+    expect(screen.getByText("Food")).toBeDefined();
+    expect(screen.getByText("Stops").nextSibling?.textContent).toBe("2 stops");
+    expect(screen.getByText("Share").nextSibling?.textContent).toBe("50%");
+  });
+
+  it("says a hovered tag's time, in hours by tag", () => {
+    const trip = tripOf();
+    set(trip, 0, 0, ["meal"], { start: "12:00", end: "13:30" });
+    set(trip, 0, 1, ["outdoors"], { start: "09:00", end: "13:30" });
+    const lines = tagTooltipLines(payloadOf(trip, "tag.breakdown", { measure: "hours" }, "tag-breakdown"), "meal");
+    expect(lines?.title).toBe("Food");
+    expect(lines?.lines.map(({ label, value }) => [label, value])).toEqual([["Time", "1h 30m"], ["Share", "25%"]]);
   });
 });
 

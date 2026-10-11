@@ -68,9 +68,10 @@ function titleOf(measure: TagMeasure, selection: Narrowed): string {
 // activity" here.
 const TAG_BREAKDOWN_FILTERS = ["day", "dates", "city"] as const satisfies readonly FilterDimension[];
 const TagBreakdownParams = filterParams(TAG_BREAKDOWN_FILTERS, {
-  // Absent is "count", and "pie".
+  // Absent is "count", "pie" and "shown".
   measure: z.enum(MEASURE_NAMES).optional(),
   view: z.enum(["pie", "bars"]).optional(),
+  key: z.enum(["shown", "hidden"]).optional(),
 });
 type TagBreakdownParams = z.infer<typeof TagBreakdownParams>;
 
@@ -85,6 +86,12 @@ const TAG_BREAKDOWN_INPUTS: readonly WidgetInput[] = [
     name: "view", type: "choice", label: "Variation", default: "pie",
     options: [{ value: "pie", label: "Pie" }, { value: "bars", label: "Bars" }],
   },
+  // Mitchell, PR 410 preview: the chart alone, its numbers on hover. Hidden
+  // only from the eye: the block keeps them in a table a screen reader reads.
+  {
+    name: "key", type: "choice", label: "Key", default: "shown",
+    options: [{ value: "shown", label: "Shown" }, { value: "hidden", label: "Chart only" }],
+  },
 ];
 
 export const tagBreakdown: MacroDef<TagBreakdownParams, TagBreakdownPayload> = {
@@ -92,7 +99,7 @@ export const tagBreakdown: MacroDef<TagBreakdownParams, TagBreakdownPayload> = {
   params: TagBreakdownParams, inputs: TAG_BREAKDOWN_INPUTS,
   selection: { entity: "stop", filters: TAG_BREAKDOWN_FILTERS },
   description:
-    "How many stops carry each tag (Food, Lodging, Outdoors, Drinks, Nightlife, Museum, Sight, Beach, Shopping, Show, Tour, Wellness, Untagged), or how many hours they take, as a pie or a bar per tag, with each tag's share. A stop with several tags counts under its first; Ticketed is never counted, and travel stops are left out. For hours, a stop with no time is left out and named. Filter it to a day, dates or a city.",
+    "How many stops carry each tag (Food, Lodging, Outdoors, Drinks, Nightlife, Museum, Sight, Beach, Shopping, Show, Tour, Wellness, Untagged), or how many hours they take, as a pie or a bar per tag, with each tag's share in a key beside it or, chart only, on hover. A stop with several tags counts under its first; Ticketed is never counted, and travel stops are left out. For hours, a stop with no time is left out and named. Filter it to a day, dates or a city.",
   emptyText: "no stops to count yet",
   // Fixed, never computed (ADR-037 decision 5). The presets carry their own.
   preview: "a pie of how many stops carry each tag",
@@ -127,6 +134,7 @@ export const tagBreakdown: MacroDef<TagBreakdownParams, TagBreakdownPayload> = {
       kind: "tag-breakdown",
       measure,
       view: params.view ?? "pie",
+      key: params.key ?? "shown",
       title,
       valueHeading: heading,
       slices,

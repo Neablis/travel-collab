@@ -153,6 +153,8 @@ export interface TagBreakdownPayload {
   measure: TagMeasure;
   /** The widget's `view` param, a "Variation" choice like "Spend by day"'s. */
   view: "pie" | "bars";
+  /** The widget's `key` param: the table of values beside the chart, or the chart alone with them on hover. */
+  key: "shown" | "hidden";
   /** What it is, then what it is narrowed to: "Hours by tag · Kyoto". */
   title: string;
   /** The key's value column: "Stops" or "Time". */

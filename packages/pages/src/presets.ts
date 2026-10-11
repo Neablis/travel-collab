@@ -501,6 +501,19 @@ export const PRESETS: readonly WidgetPreset[] = [
     ],
     preview: "a pie of how many stops are food, outdoors or museums",
   },
+  // Mitchell, PR 410 preview: the same chart alone, full width, its numbers on hover.
+  {
+    id: "activities-by-tag-chart",
+    widget: "tag.breakdown",
+    params: { measure: "count", key: "hidden" },
+    title: "Activities by tag (chart only)",
+    summary: "Draws the trip's stops by tag as a pie or bars with no table beside it; hover a slice or bar for its count and share.",
+    keywords: [
+      "activities", "stops", "count", "tag", "tags", "category", "mix", "pie", "donut", "bar", "chart", "graph",
+      "chart only", "no table", "picture", "hover",
+    ],
+    preview: "a pie of how many stops carry each tag, on its own",
+  },
   {
     id: "hours-by-tag",
     widget: "tag.breakdown",
