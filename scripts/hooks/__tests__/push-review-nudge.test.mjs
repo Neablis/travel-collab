@@ -30,3 +30,25 @@ test("main, a rejected push, a tag push and non-push commands add nothing", () =
     assert.equal(res.stdout, "", command);
   }
 });
+
+test("a pathological run of git options is matched in linear time", () => {
+  // `git -C=! -C=! ... x` made the old option matcher backtrack exponentially
+  // (CodeQL js/redos); 5000 repeats never finished.
+  const opts = " -C=!".repeat(5000);
+  for (const [command, nudged] of [
+    [`git${opts} x`, false],
+    [`git${" -- -".repeat(5000)} x`, false],
+    [`git${opts} push -u origin claude/x`, true],
+  ]) {
+    const started = Date.now();
+    const res = runHook(
+      "push-review-nudge.mjs",
+      { tool_name: "Bash", tool_input: { command }, tool_response: OK },
+      { timeout: 5000 },
+    );
+    assert.equal(res.signal, null, `${command.slice(0, 40)}... was killed`);
+    assert.equal(res.status, 0);
+    assert.equal(res.stdout !== "", nudged);
+    assert.ok(Date.now() - started < 2000, `took ${Date.now() - started}ms`);
+  }
+});

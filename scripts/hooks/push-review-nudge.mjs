@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { parseStdin, readAll } from "./lib/run-context.mjs";
+import { GIT_WITH_GLOBAL_OPTS } from "./lib/git-command.mjs";
 
 // PostToolUse hook (matcher: Bash). After a successful `git push` of a branch
 // other than main, adds one line of context: the next step in review-a-part is
@@ -9,7 +10,7 @@ import { parseStdin, readAll } from "./lib/run-context.mjs";
 try {
   const payload = parseStdin(await readAll(process.stdin));
   const command = String(payload?.tool_input?.command ?? "");
-  const push = /(?:^|[\n;|&]\s*)(?:[A-Za-z_]\w*=\S*\s+)*git\b(?:\s+-[cC]\s*\S+|\s+--?[\w-]+(?:=\S+)?)*\s+push\b([^\n;|&]*)/.exec(command);
+  const push = new RegExp(String.raw`(?:^|[\n;|&]\s*)${GIT_WITH_GLOBAL_OPTS}\s+push\b([^\n;|&]*)`).exec(command);
   if (!push) process.exit(0);
 
   // PostToolUse normally fires only on success; a rejected push can still land

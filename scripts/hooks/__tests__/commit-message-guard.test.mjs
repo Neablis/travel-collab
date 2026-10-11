@@ -47,3 +47,20 @@ test("the required trailers, claude-code and non-commit commands pass", () => {
 test("naming git commit without running it passes", () => {
   assert.equal(run("echo 'git commit -m claude-opus-5-5'").status, 0);
 });
+
+test("a pathological run of git options is matched in linear time", () => {
+  // `git -C=! -C=! ... x` made the old option matcher backtrack exponentially
+  // (CodeQL js/redos); 5000 repeats never finished.
+  const opts = " -C=!".repeat(5000);
+  for (const [command, status] of [
+    [`git${opts} x`, 0],
+    [`git${" -- -".repeat(5000)} x`, 0],
+    [`git${opts} commit -m claude-opus-5-5`, 2],
+  ]) {
+    const started = Date.now();
+    const res = runHook("commit-message-guard.mjs", { tool_input: { command } }, { timeout: 5000 });
+    assert.equal(res.signal, null, `${command.slice(0, 40)}... was killed`);
+    assert.equal(res.status, status);
+    assert.ok(Date.now() - started < 2000, `took ${Date.now() - started}ms`);
+  }
+});

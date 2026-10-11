@@ -77,6 +77,9 @@ export function runHookRaw(name, rawInput, options = {}) {
     input: rawInput,
     encoding: "utf8",
     cwd: options.cwd,
+    // A hook that hangs (e.g. a backtracking regex) is killed and returns
+    // status null with `signal` set, instead of stalling the suite.
+    timeout: options.timeout,
   });
   let json = null;
   try {
@@ -84,7 +87,7 @@ export function runHookRaw(name, rawInput, options = {}) {
   } catch {
     json = null;
   }
-  return { status: res.status, stdout: res.stdout, stderr: res.stderr, json };
+  return { status: res.status, signal: res.signal, stdout: res.stdout, stderr: res.stderr, json };
 }
 
 export function decision(res) {

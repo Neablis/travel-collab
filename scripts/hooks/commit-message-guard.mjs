@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { parseStdin, readAll } from "./lib/run-context.mjs";
 import { findModelId } from "./lib/model-id.mjs";
+import { GIT_WITH_GLOBAL_OPTS } from "./lib/git-command.mjs";
 
 // PreToolUse hook (matcher: Bash). Blocks a `git commit` whose message names a
 // hyphenated model id. The attribution this repo wants is the trailer
@@ -18,7 +19,7 @@ import { findModelId } from "./lib/model-id.mjs";
 
 const payload = parseStdin(await readAll(process.stdin));
 const command = String(payload?.tool_input?.command ?? "");
-const commit = /(?:^|[\n;|&(]\s*)(?:[A-Za-z_]\w*=\S*\s+)*git\b(?:\s+-[cC]\s*\S+|\s+--?[\w-]+(?:=\S+)?)*\s+commit\b/.exec(command);
+const commit = new RegExp(String.raw`(?:^|[\n;|&(]\s*)${GIT_WITH_GLOBAL_OPTS}\s+commit\b`).exec(command);
 if (!commit) process.exit(0);
 
 const tail = command.slice(commit.index);
