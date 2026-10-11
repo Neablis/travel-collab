@@ -181,6 +181,9 @@
             "countryCode": "US"
           },
           "kind": "planned",
+          "tags": [
+            "drinks"
+          ],
           "notes": "East side, Route 414: this is the side with the dry Rieslings and the serious Pinot Noir, and it faces the afternoon sun across the water. The Salon flight is five wines for $23 with no reservation, which is why it fits an afternoon. The deeper guided tasting is a separate thing in the Summer House and is reservation-only, so if you want that one, book it and start the day with wine and end with the gorge instead. Verified 2026-09-06 (forgecellars.com/visit, /salon, /tastings): open Friday and Saturday 11:30–18:30 and Sunday 12:00–17:00, closed Monday through Thursday — so this entire Route 414 afternoon only exists on a Friday, Saturday or Sunday. The Salon needs no reservation; the Summer House tastings do (twelve seats, arranged by email). Tasting prices were not re-verified.",
           "cost": {
             "amountMinor": 2300,
@@ -202,6 +205,9 @@
             "countryCode": "US"
           },
           "kind": "planned",
+          "tags": [
+            "drinks"
+          ],
           "notes": "A house that makes Riesling in a dozen dryness levels and almost nothing else, which makes it the one tasting where you actually learn something instead of drifting through six varieties. Ask them to pour the dry #239 against a late-harvest so you can feel the range. Verified 2026-09-06 (boundarybreaks.com/tasting-room): open seven days a week year-round 11:00–17:00, closing only New Year’s Day, Thanksgiving and Christmas — and they take no reservations at all. Tastings are first come, first served, with a maximum party size of six, so a group of seven or more cannot be booked around; split it or go elsewhere. This stop’s kind was changed from booked to planned on that basis. Tasting fees around Seneca are typically waived on a bottle purchase of roughly $30 or more; ask before you pay.",
           "cost": {
             "amountMinor": 2000,
@@ -223,6 +229,9 @@
             "countryCode": "US"
           },
           "kind": "pending",
+          "tags": [
+            "drinks"
+          ],
           "notes": "Marked idea on purpose: three tastings is the honest maximum and this is the one to drop. If the gorge ran long, or Forge held you, skip it without regret. It stays on the list because Wagner has Wagner Valley Brewing on the same property, so the person who has been pacing themselves gets a beer instead of a fourth Riesling, and the octagonal cellar is a genuinely good building.",
           "cost": {
             "amountMinor": 1500,
@@ -246,7 +255,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "drinks"
           ],
           "notes": "The by-the-glass list is the region read sideways — small producers who do not have a tasting room you could have visited today. Reserve on a race weekend or a foliage Saturday; Watkins Glen has about six places to eat and all of them know it.",
           "cost": {
@@ -332,7 +342,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "shopping"
           ],
           "notes": "Weekends, and people get this wrong constantly. Verified 2026-09-06 (ithacamarket.com): Saturdays 09:00–15:00 April through October, then 10:00–14:00 on Saturdays in November and December; Sundays 10:00–15:00 May through October and 10:00–14:00 in November. The 2026 season opened Saturday 4 April. Nothing midweek at this site — the old note’s “April through December” Saturday hours were an hour long at each end in the winter months. Build the day around it or miss it entirely. Eat here rather than downtown — the pavilion is a food court of a dozen cuisines over the water. And seven cider producers rotate under the pavilion every weekend May to December, including Redbyrd Orchard, which has no tasting room of its own anywhere, so this is the only place to drink it. Lot fills by 10:30; the free TCAT route from downtown is easier.",
           "cost": {
@@ -403,6 +414,9 @@
             "countryCode": "US"
           },
           "kind": "pending",
+          "tags": [
+            "meal"
+          ],
           "notes": "The university has a working creamery and sells the output at counter prices. It is a two-dollar detour at the top of the gorge, not a destination — take it if the walk left you on campus anyway.",
           "cost": {
             "amountMinor": 600,
@@ -462,6 +476,9 @@
             "countryCode": "US"
           },
           "kind": "planned",
+          "tags": [
+            "drinks"
+          ],
           "notes": "Start here and start early — this is where Frank proved in the 1960s that European vinifera would survive an upstate winter, and every dry Riesling in this file descends from that argument. Verified 2026-09-06 (drfrankwines.com): open daily 10:00–17:00 with the last tasting at 16:00 — the 09:45 start this day used to carry was before the doors opened, so the stop now begins at 10:00. Reservations are recommended and genuinely needed after noon; standard parties are capped at six and groups of twelve or more must reserve. The $25 tasting price was not re-verified. From June to October the 1886 Food and Wine Experience is $35 on the terrace and buys you the best view on the lake with your wine, which is the version to take. Ask for the Rkatsiteli — nobody else in the country grows it seriously. The June-to-October 1886 Food and Wine Experience and its $35 price could not be confirmed on the winery’s current pages this pass — check it still exists before building the terrace hour around it.",
           "cost": {
             "amountMinor": 2500,
@@ -483,6 +500,9 @@
             "countryCode": "US"
           },
           "kind": "pending",
+          "tags": [
+            "museum"
+          ],
           "notes": "Hammondsport built the first American aircraft sold commercially, and the museum has the motorcycles and flying boats to prove it. Forty-five minutes is honest; two hours if anyone in the car likes engines. Skip it without guilt if the weather is good — the lake is the reason you came. Verified 2026-09-06 (glennhcurtissmuseum.org/visit): open seven days a week, 09:00–17:00 from 1 May to 31 October and 10:00–16:00 from 1 November to 30 April — no closure day to work around.",
           "cost": {
             "amountMinor": 1350,
@@ -543,6 +563,9 @@
             "countryCode": "US"
           },
           "kind": "planned",
+          "tags": [
+            "drinks"
+          ],
           "notes": "Sixth-generation farm, and the least polished tasting room on this list in the best way — they will pour you the Vignoles and the ice wine and talk about frost. Tastings are cheap and often waived on a bottle. They also tap maple in March, which is worth knowing if you come back in spring.",
           "cost": {
             "amountMinor": 1200,
@@ -565,7 +588,8 @@
           },
           "kind": "pending",
           "tags": [
-            "outdoors"
+            "outdoors",
+            "beach"
           ],
           "notes": "Hold: the $10 vehicle fee and the swim beach only exist in season, roughly May to October, and the beach is guarded on a short schedule. Come for the shoreline and the view down both branches rather than the swimming — the water is cold into July and the beach is small.",
           "cost": {
@@ -661,7 +685,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "drinks"
           ],
           "notes": "Parking in the village is free but two-hour limited on Genesee, and by 11:00 in July there is none. Park once, early, on a side street off Jordan and walk everything after that.",
           "cost": {
@@ -685,7 +710,8 @@
           },
           "kind": "pending",
           "tags": [
-            "outdoors"
+            "outdoors",
+            "beach"
           ],
           "notes": "Free, right in the middle of the village, and the water is startling — Skaneateles is Syracuse's unfiltered drinking supply, which is why the rules about dogs and boats near shore are enforced and why you can see the bottom at fifteen feet. There is no lifeguard at the pier; the guarded beach is next door at the Village Beach and charges non-residents. Hold, because a north wind makes this end of the lake choppy and cold even in July.",
           "cost": {
@@ -708,6 +734,9 @@
             "countryCode": "US"
           },
           "kind": "pending",
+          "tags": [
+            "shopping"
+          ],
           "notes": "Four blocks, no chains, and it takes an hour only because you stop. Uncommitted on purpose — if the swim was good, stay in the water instead.",
           "cost": {
             "amountMinor": 0,
@@ -754,7 +783,8 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "tour"
           ],
           "notes": "The Barbara S. Wiles is one of the last boats in the country still delivering actual US Mail, to camps with no road access, and the delivery is the entertainment — a teenager hangs off the rail and hands mail across a moving gap forty times. It runs July 1 to the Tuesday after Labor Day only, so this day does not exist in June. Three hours; if that is too much boat, the one-hour sightseeing cruise is $27 adult and $17 child. Sit port side outbound for the shade and the shoreline. Book ahead in August. Verified 2026-09-06 (midlakesnavigation.com, Visit Syracuse): mail delivery runs 1 July to the Tuesday after Labor Day, and the wider cruise season is roughly mid-May through Columbus Day, so the June warning holds. The 13:30 departure in this day is NOT verified — Mid-Lakes sets sailing times per season, so confirm the time when you book on 315-685-8500 and expect the rest of the afternoon to move with it.",
           "cost": {
@@ -794,6 +824,9 @@
             "countryCode": "US"
           },
           "kind": "pending",
+          "tags": [
+            "drinks"
+          ],
           "notes": "The only vineyard on Skaneateles, and honestly the view is the better half of what you are buying — the wine is fine, the terrace at 18:00 in July is not. Weekends have live music and a crowd; a weekday is the whole hillside to yourself.",
           "cost": {
             "amountMinor": 1600,
@@ -864,7 +897,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "drinks"
           ],
           "notes": "Gimme! started in this village before it was anywhere else. Twenty minutes, then Route 96 north — nothing on today's list opens before 10:00 in winter.",
           "cost": {
@@ -887,6 +921,9 @@
             "countryCode": "US"
           },
           "kind": "pending",
+          "tags": [
+            "tour"
+          ],
           "notes": "One of the oldest working goat dairies in the country and a real farm, not a farm-themed shop. Hold, hard: in winter the tours are by appointment only and they will say no if it is kidding season or the road is bad. Call two days ahead. Buy the Cayuga Blue on the way out — it is what the restaurants in Ithaca are putting on their boards.",
           "cost": {
             "amountMinor": 1500,
@@ -909,7 +946,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "drinks"
           ],
           "notes": "The single best introduction to New York cider, because it pours other people's as well as its own. The catch that ruins people's Tuesdays: in January and February it is Friday to Monday only — seven days a week the rest of the year, but not now. Get a flight and lunch together; the kitchen is farm-to-table off the land outside the window and the pairing is the point. The Funkhouse is the one to try first. Verified 2026-09-06 (fingerlakesciderhouse.com/pages/hours): seven days a week March through December, Friday to Monday only in January and February, with flights and pours 11:00–16:45. Taken together with the two stops below, the deep-winter version of this day only works on a Friday or a Saturday.",
           "cost": {
@@ -949,6 +987,9 @@
             "countryCode": "US"
           },
           "kind": "planned",
+          "tags": [
+            "drinks"
+          ],
           "notes": "Steve Selin makes cider from wild and abandoned apple trees he found around the county, and if you ask he will tell you which roadside the fruit came from. Verified 2026-09-06 (southhillcider.com/hours-and-information): open Thursday through Monday and closed Tuesday and Wednesday — roughly midday to 19:00, with later closes on Friday and Saturday, not the 21:00 four-day week this note used to claim. Check the exact close before you make this a late stop.",
           "cost": {
             "amountMinor": 1800,
@@ -970,6 +1011,9 @@
             "countryCode": "US"
           },
           "kind": "pending",
+          "tags": [
+            "drinks"
+          ],
           "notes": "Ian Merwin spent a career on tree fruit at Cornell before planting this orchard, so the cider is an argument about varieties. Verified 2026-09-06 (blackdiamondcider.com/taste-and-visit): the cider shack is at 4675 Seneca Road in Trumansburg, about twenty minutes north of Ithaca — not the Newfield address this stop used to carry — and it opens seasonally May through November, Wednesday to Sunday 13:00–17:00, with appointments needed for groups of six or more. That means it is shut for the deep-winter framing of this day: in January or February drop it and give the hour back to the Cider House or to the taproom below. Come May to November and it is worth the detour; growler fills if you liked it.",
           "cost": {
             "amountMinor": 1600,
@@ -992,7 +1036,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "drinks"
           ],
           "notes": "End on beer rather than a fourth cider — Flower Power has been the region's IPA since 1997 and the kitchen is considerably better than a brewery kitchen needs to be. Winter hours are shorter than the website's summer ones suggest, so check before driving out; the beer garden that makes this place in July is a field of snow in February and the taproom is where everyone is. Verified 2026-09-06 (ithacabeer.com): the taproom is closed Monday and Tuesday and opens Wednesday and Thursday 16:00–21:00, Friday and Saturday 12:00–21:00 and Sunday 12:00–18:00 — so this stop only runs its full hour and a quarter Wednesday to Saturday, and on a Sunday you are out at 18:00.",
           "cost": {
@@ -1042,6 +1087,10 @@
             "countryCode": "US"
           },
           "kind": "planned",
+          "tags": [
+            "drinks",
+            "tour"
+          ],
           "notes": "West side, Route 14: the older estates, the deep-water bank that keeps the vines alive in January, and the Rieslings that get compared to the Mosel without embarrassment. The seated tasting is $15–25 and you can more or less walk in; this is the other thing — into the blocks with somebody who farms them, then thief samples out of barrel and tank. It has to be arranged weeks ahead, it costs about $125 a head, and during harvest they may simply refuse because everyone is on a picking line. Ask in August for an October date and take whatever morning they offer. Verified 2026-09-06 (wiemer.com/visit-us, exploretock.com/wiemer): the tasting room opens 10:30 Monday to Saturday and 11:00 on Sunday and closes at 17:00, with the last guided tasting at 15:30 and preset flights until 16:30 — the 09:30 start this day used to carry was before opening, so it now begins at 10:30 and the rest of the morning shifts with it. Reservations run through Tock and are strongly recommended; walk-ins are taken when they are not full. The private vineyard-and-barrel walk and its ~$125 price could NOT be confirmed on those pages — ask for it by email rather than assuming it is a bookable product.",
           "cost": {
             "amountMinor": 12500,
@@ -1083,7 +1132,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "drinks"
           ],
           "notes": "Eat before sailing, not after. Two hours on open water in October is colder than the forecast says and there is no galley — the boat is a 1926 schooner, not a dinner cruise.",
           "cost": {
@@ -1196,6 +1246,9 @@
             "countryCode": "US"
           },
           "kind": "pending",
+          "tags": [
+            "outdoors"
+          ],
           "notes": "Costs nothing and is the best part of the day. There is almost no light pollution across the water, the garden is open to guests all night, and the bar will let you carry a glass out.",
           "cost": {
             "amountMinor": 0,
@@ -1301,7 +1354,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "drinks"
           ],
           "notes": "It is on Cascade Road on the way back into town, which nothing else good is — everywhere else means parking on Main Street in boots. Table by the window, boots off, no apologies.",
           "cost": {
@@ -1324,6 +1378,9 @@
             "countryCode": "US"
           },
           "kind": "pending",
+          "tags": [
+            "outdoors"
+          ],
           "notes": "A wooden chute that fires you off a pier and out across the frozen lake. Verified 2026-09-06 (North Elba parks department, Lake Placid News): the 2026 season ran 17 January to 6 March, and the sessions are Friday 19:00–21:00, Saturday 12:00–16:00 and 19:00–21:00, and Sunday 12:00–15:00 — there is no weekday session and no late-afternoon one, so the 16:00–16:50 dusk run this day used to promise did not exist. It now takes the Saturday afternoon session; the Friday or Saturday evening session is the alternative if you want it in the dark, but that collides with dinner. It is $20 adult and $10 student for unlimited rides in a session, not a few dollars a run, and it only opens once the ice reaches twelve inches — some winters it never does, so this stays a hold.",
           "cost": {
             "amountMinor": 2000,
@@ -1346,7 +1403,8 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "outdoors"
           ],
           "notes": "Eric Heiden won five gold medals on this outdoor ice in 1980 and you can skate the same 400 metres for about ten dollars including rentals. Check the session board first — hockey and speed-skating clubs take it often, and public sessions are shorter than you would guess. Outdoor ice, so it is weather-dependent in a thaw. Verified 2026-09-06 (lakeplacidolympiccenter.com): after a refrigeration rebuild the outdoor oval ran most days through 2 March 2026, but public sessions still share the ice with clubs, so the session board is the thing to check. The ten-dollar rental price was not re-verified.",
           "cost": {
@@ -1369,6 +1427,9 @@
             "countryCode": "US"
           },
           "kind": "pending",
+          "tags": [
+            "museum"
+          ],
           "notes": "An hour, indoors, warm, and it explains why a village of 2,500 people has two Winter Games behind it. Take it if the chute was closed; skip it if you are still cold from the summit.",
           "cost": {
             "amountMinor": 1500,
@@ -1457,7 +1518,8 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "museum"
           ],
           "notes": "Verified 2026-09-06 (diaart.org): Dia:Beacon is open Friday to Monday 10:00–17:00 and closed Tuesday, Wednesday and Thursday, with admission closing at 16:30 — and advance tickets are suggested, not required: same-day and walk-up tickets are sold at the door, which is the opposite of the “timed tickets only, nothing at the door, released the month before on the 15th” this note used to claim, so the stop is no longer marked booked. Buy online anyway to skip the line on a summer weekend. Morning still matters more here than at any other museum: the galleries in the old Nabisco box-printing plant are lit by daylight through sawtooth roofs, so a late-afternoon visit in winter is genuinely dim. Three hours is right; Serra’s torqued ellipses and the Walter De Maria floor take an hour of that between them. Dia is Friday to Monday and Storm King is closed Tuesdays, so this whole day only exists on a Friday, Saturday, Sunday or Monday. The $25 and $12 prices were not re-verified.",
           "cost": {
@@ -1527,7 +1589,8 @@
           "kind": "planned",
           "tags": [
             "ticketed",
-            "outdoors"
+            "outdoors",
+            "museum"
           ],
           "notes": "Five hundred acres. On foot you will see a third of it and mostly the third nearest the car park. Rent a bike at the visitor centre or ride the tram, and go to the far south fields first while you have legs — Maya Lin's Wavefield is the corner everyone runs out of time for. Verified 2026-09-06 (stormking.org/visit, /tickets): Wednesday to Monday 10:00–18:00, closed Tuesdays, final entry 17:00, with Saturdays open to 20:00 in summer, and the season reopens 1 April — there is no winter version of this day. Pre-purchased tickets are required to guarantee admission and parking, and each month goes on sale midway through the month before (October 2026 was released 15 September). Peak fall pricing applies to Saturdays and Sundays from 26 September to 8 November 2026, which is also when it is at its best. This stop used to run to 18:20, half an hour past closing; it now ends at 18:00.",
           "cost": {

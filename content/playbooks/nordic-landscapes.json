@@ -189,7 +189,8 @@
           },
           "kind": "planned",
           "tags": [
-            "outdoors"
+            "outdoors",
+            "beach"
           ],
           "notes": "Parking 1000 ISK. Read the traffic-light danger sign in the car park before you step onto the sand — this beach kills people every few years. Sneaker waves run 30 m further up than the previous twenty waves did, the shelf is steep, and the undertow is unsurvivable. Stay well back from the wet sand, never turn your back on the sea, and do not go into Hálsanefshellir cave when the light is amber or red. Puffins nest on the Reynisfjall cliffs above from mid-May to early August.",
           "cost": {
@@ -313,7 +314,8 @@
           },
           "kind": "planned",
           "tags": [
-            "outdoors"
+            "outdoors",
+            "beach"
           ],
           "notes": "Cross the bridge and park on the seaward side — the west lot is quieter than the east one. What is on the sand depends entirely on the tide and last night's calving: sometimes a field of clear boulders, sometimes almost nothing. Same sneaker-wave rule as Reynisfjara, and here the ice itself will knock you over. Do not climb on a berg."
         },
@@ -332,7 +334,8 @@
           "kind": "planned",
           "tags": [
             "ticketed",
-            "outdoors"
+            "outdoors",
+            "tour"
           ],
           "notes": "Roughly 29,900 ISK with the established operators (Arctic Adventures, Glacier Adventure, Local Guide of Vatnajökull) — about $215. Book it weeks ahead; February is the peak of the season. Non-negotiables: the natural blue caves only exist roughly November to March, they are new every winter because the glacier moves, and a mild wet spell floods them and the tour is cancelled the same morning — take the refund, do not argue for a substitute. You get crampons, a helmet and a headlamp; you bring genuinely waterproof trousers, because you will be kneeling in meltwater. There is no self-guided version of this and people who try it die.",
           "cost": {
@@ -399,6 +402,9 @@
             "countryCode": "IS"
           },
           "kind": "pending",
+          "tags": [
+            "wellness"
+          ],
           "notes": "Five concrete tubs in a field 15 minutes inland from Höfn, about 1,500 ISK, honesty-box simple. No music, no ritual, no queue — the anti-Blue Lagoon. On a clear night you are sitting in 39°C water looking at the Vatnajökull icefield, and this is as good an aurora seat as any paid tour. Bring your own towel; the changing hut is a hut.",
           "cost": {
             "amountMinor": 1200,
@@ -517,7 +523,8 @@
           "kind": "planned",
           "tags": [
             "ticketed",
-            "outdoors"
+            "outdoors",
+            "beach"
           ],
           "notes": "About 21,000 ISK ($150) for a meet-on-site snorkel; more with Reykjavík pickup. The water is glacial meltwater filtered through lava for decades: 2°C year-round, and visibility past 100 m, which is why people fly here for it. You float, you do not swim, and the dry suit means only your lips and hands get cold. Requirements are real and enforced: over 16 (or 12 with a parent), able to swim, no diving in the 24 hours before, and you must declare height and weight in advance so the suit fits. Book two weeks out in summer. It runs year-round — winter is arguably better because the site is empty.",
           "cost": {
@@ -639,7 +646,8 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "wellness"
           ],
           "notes": "Not the Blue Lagoon and 10 minutes from downtown Reykjavík instead of 50. The Sér pass is about 13,990 ISK ($133) and buys a private changing room — worth it over the Saman's communal one. The seven-step ritual (hot water, cold plunge, sauna with a glass wall onto the Atlantic, cold mist, salt scrub, steam, back in) takes an hour if you are not rushed. Book a time slot; walk-ups get turned away on cruise days. Take the pool bar drink out to the infinity edge and watch the light go.",
           "cost": {
@@ -697,7 +705,8 @@
           },
           "kind": "planned",
           "tags": [
-            "outdoors"
+            "outdoors",
+            "sight"
           ],
           "notes": "A small tarred timber church alone in an 8,000-year-old lava field, with the graveyard wall and nothing else for kilometres. Free, but it is an active church and a burial ground: stay outside the wall unless it is open, and do not fly a drone over it. The lava path behind it toward the beach is ten minutes and worth it.",
           "cost": {
@@ -746,7 +755,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "drinks"
           ],
           "notes": "A tiny wooden house right on the cove at the Hellnar end of the walk — fish soup, rhubarb pie, twelve seats and a view of the surf. Cash-free, summer season only (roughly May to September); out of season, eat in Hellissandur or Ólafsvík instead.",
           "cost": {
@@ -771,7 +781,9 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "outdoors",
+            "tour"
           ],
           "notes": "About 5,400 ISK. A guided 45 minutes down a spiral staircase 35 m below the surface into an 8,000-year-old lava tube, 200 m in — helmet and torch provided, and it is the only way in, the gate is locked otherwise. Tours run on the hour; in summer buy the next slot on arrival, in winter check the day's departures first. Constant 5°C inside, so keep the jacket, and it is not for anyone unhappy in the dark or on stairs.",
           "cost": {
@@ -796,7 +808,8 @@
           },
           "kind": "planned",
           "tags": [
-            "outdoors"
+            "outdoors",
+            "beach"
           ],
           "notes": "Black pebbles rather than sand, reached by a path down through lava pinnacles. Four stones sit on the beach — Fullsterkur at 154 kg down to Amlóði at 23 kg — the old test for a place in a fishing crew; lift them if you like, they are not roped off. The rusted iron scattered over the beach is the wreck of the English trawler Epine, lost in 1948 with 14 men, and it is a protected memorial: look, photograph, leave every piece where it is. Big Atlantic swell, no lifeguard, stay high on the beach.",
           "cost": {
@@ -938,7 +951,8 @@
           },
           "kind": "planned",
           "tags": [
-            "outdoors"
+            "outdoors",
+            "beach"
           ],
           "notes": "About 9 km round trip with 500 m of ascent, 4 hours at a normal pace with photo stops. The first half is a boardwalked bog that is still a bog after rain — proper waterproof boots, not trainers. From the summit you look straight down onto Kvalvika; the famous overhanging rock is a few minutes below the top on the seaward side and there is no fence, no barrier and a very long drop, so do not do the sitting-on-the-edge photo in wind. Add an hour if you drop down to the beach itself. Go early: by 11:00 in July this trail is a queue, and the Lofoten weather changes inside 30 minutes — carry a shell even under a blue sky.",
           "cost": {
@@ -1007,7 +1021,8 @@
           "kind": "planned",
           "tags": [
             "ticketed",
-            "outdoors"
+            "outdoors",
+            "tour"
           ],
           "notes": "The headline number is 16,200 NOK — and that is the boat for two hours, not the price per head. Six of us split it to about $250 each, which is why this is worth doing privately: you set the departure, you stop where the sea eagles are, and you go into the fjord when the Hurtigruten is not filling it. Trollfjorden is 2 km long and about 100 m wide at the mouth with 1,000 m walls, and the RIB turning inside it is the whole point. Full flotation suits, gloves and goggles are provided and you need them at 50 km/h; anything not zipped in will leave. Cancels for swell, and they will call you.",
           "cost": {
@@ -1097,7 +1112,8 @@
           },
           "kind": "planned",
           "tags": [
-            "outdoors"
+            "sight",
+            "shopping"
           ],
           "notes": "The wooden Hanseatic wharf is a UNESCO site and by 10:00 it belongs to four cruise ships. At 07:00 you can walk the crooked alleys behind the façade — Bellgården, Jacobsfjorden — alone, and the boards move under you. Free. The fish market opens around 07:00 in summer; the outdoor stalls are a tourist price, the indoor Mathallen is the real one. Fløibanen (200 NOK return) is the obvious evening alternative if you land back early.",
           "cost": {
@@ -1194,7 +1210,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "drinks"
           ],
           "notes": "A stave-church-shaped brewpub two minutes from the railway platform, so it survives a tight connection. Their own beers plus a Viking board of smoked meats and flatbread; roughly 480 NOK. Flåm is a village of 350 people that handles a million visitors a year, so everything here is priced accordingly and this is still the best of it.",
           "cost": {
@@ -1427,7 +1444,8 @@
           "kind": "planned",
           "tags": [
             "ticketed",
-            "outdoors"
+            "outdoors",
+            "tour"
           ],
           "notes": "About 690 NOK for the three-hour Lysefjord trip; the boat leaves from the harbour in the middle of Stavanger, so no transfer. It sails under Preikestolen and the skipper holds position beneath it — seeing the slab you stood on from 604 m below is the reason to do both halves on the same day. They also nose into the Hengjane waterfall and past the goats at Fantahålå. Open deck at the front, heated cabin behind; dress for the deck.",
           "cost": {
@@ -1474,6 +1492,9 @@
             "countryCode": "NO"
           },
           "kind": "pending",
+          "tags": [
+            "drinks"
+          ],
           "notes": "The painted street — every timber house a different colour, the result of one hairdresser talking the whole block into it. Bøker og Børst is the bookshop-bar in the middle of it with a back courtyard. Purely optional after a 20 km day on your legs, which is why it is an idea and not a plan.",
           "cost": {
             "amountMinor": 1400,
@@ -1526,7 +1547,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "drinks"
           ],
           "notes": "Understand the light before you plan anything here: the sun stays below the horizon from about 27 November to 15 January, and the mountains around the city stretch that to roughly 21 November–21 January in practice. There is no sunrise. What you get instead is four hours of deep blue twilight from about 10:00 to 14:00, and it is genuinely beautiful — plan every outdoor thing inside it. Risø opens early and does the best coffee in town; about 240 NOK for coffee and something baked.",
           "cost": {
@@ -1551,7 +1573,8 @@
           "kind": "planned",
           "tags": [
             "ticketed",
-            "outdoors"
+            "outdoors",
+            "tour"
           ],
           "notes": "About 3,900 NOK per adult in the December–March high season (2,690 in November and April), including transfer from town, thermal suit, boots, mittens and a lavvo lunch of bidos stew by the fire. Roughly an hour on the sled, two to a sled, one driving and one under the blanket — swap halfway. Two hundred huskies, and the kennel visit with the puppies is not the filler it sounds like. Book this before you book flights in the dark season: the good operators sell out in November. It runs in a snowstorm; it does not run in rain, which is now a real January risk on the coast.",
           "cost": {
@@ -1575,7 +1598,8 @@
           },
           "kind": "pending",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "museum"
           ],
           "notes": "About 90 NOK, in an 1830s customs warehouse on the wharf. Amundsen, Nansen, and an unsentimental account of the trapping and sealing that actually built this town. The right thing to have in your back pocket for a whiteout afternoon; skip it if the sky is clear and go up the cable car instead.",
           "cost": {
@@ -1648,7 +1672,8 @@
           },
           "kind": "pending",
           "tags": [
-            "meal"
+            "meal",
+            "drinks"
           ],
           "notes": "A kiosk from 1911 in the middle of the main street, claimed as Norway's smallest bar. Reindeer sausage in a lompe for about 95 NOK. Twenty minutes, standing in the cold, and it is the thing you will remember about Tromsø's street life.",
           "cost": {
@@ -1673,7 +1698,8 @@
           "kind": "planned",
           "tags": [
             "ticketed",
-            "outdoors"
+            "outdoors",
+            "tour"
           ],
           "notes": "1,300–1,950 NOK depending on group size; this one was about 1,890. Ends around 01:30–02:00, not the 23:59 shown here — the window is padded out because that is what the operators sell. The point of a chase over standing on a beach is the driving: a good guide will run to Skibotn, the Lyngen fjords or over the Finnish border to find clear sky, and 200–300 km in a night is normal. Six clear-ish nights in ten is a fair January expectation, so build in two attempts if the aurora is the reason you came. They provide thermal suits, hot drinks and, on most tours, photographs of you under it — do not buy a tripod for this trip. Book with a small-group operator, not a 50-seat coach.",
           "cost": {

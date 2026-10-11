@@ -80,7 +80,7 @@
           },
           "kind": "planned",
           "tags": [
-            "outdoors"
+            "shopping"
           ],
           "notes": "Sunday only, roughly 08:00 to 15:00 — there is no market here on any other day of the week and the street is a row of shut shutters if you turn up on a Saturday. Be on it by 08:15: by 10:30 the road is a single shuffling file and you cannot turn round, let alone carry a tree. The buying rule is the reverse of the walking rule — do the first lap empty-handed, then come back at the end. After about 14:00 the traders would rather sell at a loss than load stock back onto the van, and the shouting starts. Nearest station is Hoxton on the Overground, not a tube; Bethnal Green and Old Street are both a ten-minute walk. Verified 2026-09-06: Sunday only, 08:00 to about 15:00 — the market's own site and Visit London give the same hours, and there is no market here on any other day of the week."
         },
@@ -100,7 +100,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "drinks"
           ],
           "notes": "The yard off the middle of Columbia Road is where locals stand while the tourists queue on the street. Lily Vanilli is Sunday-only too, and sells out of the good things before noon. E Pellicci on Bethnal Green Road is the famous caff round here and it is shut on Sundays — plan a different morning for it rather than walking over and finding out.",
           "cost": {
@@ -123,6 +124,9 @@
             "countryCode": "GB"
           },
           "kind": "pending",
+          "tags": [
+            "sight"
+          ],
           "notes": "Two minutes off Columbia Road and almost nobody makes the detour. The mound under the bandstand is the rubble of the slum that stood here, and the estate built on top of it in 1900 was the first council housing in the country. Free, takes twenty minutes, and it is the one thing on this day that explains the rest of it."
         },
         {
@@ -140,6 +144,9 @@
             "countryCode": "GB"
           },
           "kind": "planned",
+          "tags": [
+            "shopping"
+          ],
           "notes": "Sunday is the only day all of the Brick Lane markets run together. Backyard Market is the vintage one and the Sunday UpMarket is food and makers; both are in the Truman Brewery yards on the west side, signposted badly. Skip the northern end of Brick Lane where the curry-house touts work the pavement — the good end is south of the railway bridge. Old Spitalfields Market is 400m west if this is too much of a crush.",
           "cost": {
             "amountMinor": 1800,
@@ -186,7 +193,8 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "museum"
           ],
           "notes": "Book the timed slot in advance — it is a private house with about a dozen people in it at a time and walk-up tickets are sold only if a slot happens to have room. Silence is genuinely enforced and so is the no-photographs rule; if that sounds like a gimmick, it is the entire point, and it stops working the moment somebody talks. Not for children, and not for anyone who wants a guide to explain things. Verified 2026-09-06: the house opens Friday 12:00–21:00 and Saturday and Sunday 12:00–16:00 — it is shut Monday to Thursday. Daytime silent visits run from 12:00 with the last around 15:15, so on the Sunday this day is built around, 14:00 is the last comfortable slot. The candlelit evening sittings at 18:00 and 20:00 are a Friday thing and are NOT available on a Sunday — if the Silent Night is what you came for, it is a separate evening at roughly four times the daytime price.",
           "cost": {
@@ -209,6 +217,9 @@
             "countryCode": "GB"
           },
           "kind": "planned",
+          "tags": [
+            "drinks"
+          ],
           "notes": "A back-street pub the Kray twins once bought for their mother, now simply a very good one — long beer list, no music loud enough to shout over. It is a five-minute walk north from Brick Lane up Cheshire Street, which on a Sunday is still half a market itself. If it is rammed, The Royal Oak on the corner of Columbia Road does the same job and puts you back where the day started.",
           "cost": {
             "amountMinor": 1150,
@@ -248,6 +259,9 @@
             "countryCode": "GB"
           },
           "kind": "planned",
+          "tags": [
+            "shopping"
+          ],
           "notes": "The Edwardian galleried room at the back is the reason to come, and it is shelved by country rather than by genre, so the novels, histories and guidebooks for one place stand together. Go before 10:30 and you get it nearly empty. If it is a Sunday, the Marylebone farmers market runs in the Cramer Street car park behind Waitrose — worth ten minutes.",
           "cost": {
             "amountMinor": 2400,
@@ -269,6 +283,9 @@
             "countryCode": "GB"
           },
           "kind": "planned",
+          "tags": [
+            "museum"
+          ],
           "notes": "Free, open every day from 10:00, and ten minutes from Oxford Street with none of the crowd. The terms of the bequest forbid anything leaving or joining the collection, which means nothing here ever travels to a blockbuster show somewhere else — you see it in this house or not at all. Everyone stops at the Laughing Cavalier and the Fragonard and then leaves; the arms and armour in the basement is one of the best collections in Europe and is usually empty. Verified 2026-09-06: open seven days a week, 10:00–17:00, free, and no advance booking is needed for general admission; the only regular closures are 24–26 December."
         },
         {
@@ -332,7 +349,8 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "show"
           ],
           "notes": "Matinees are Wednesday and Saturday almost everywhere, usually 14:00 or 14:30 — a Monday or Tuesday afternoon in the West End has nothing on at all, which catches people out. Book direct with the theatre rather than a reseller, and check the seating plan for the specific house: many of these are Victorian buildings where the front of the dress circle beats the back of the stalls for the same money. TKTS in Leicester Square sells genuine same-day discounts if you are willing to take what is left. Verified 2026-09-06: dinner tonight is Ikoyi, which opens Monday to Friday only — so of the two standard matinee days this has to be the Wednesday one. A Saturday matinee leaves you with the restaurant shut.",
           "cost": {
@@ -355,6 +373,9 @@
             "countryCode": "GB"
           },
           "kind": "planned",
+          "tags": [
+            "drinks"
+          ],
           "notes": "No reservations, so the trick is to arrive before 18:00 — after that there is a queue in the lobby and it does not move. One cocktail costs what a bottle costs elsewhere and you are paying for the room and the piano, which is a fair trade once. Dress is smart; no sportswear, and they mean it. Beaufort Bar across the hall takes bookings if you would rather not gamble.",
           "cost": {
             "amountMinor": 3400,
@@ -475,7 +496,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "drinks"
           ],
           "notes": "The lower Royal Mile below the World's End is the quiet half and stays that way until about eleven. Walk up rather than taking a bus: the Canongate closes and kirkyard are where the Old Town is still a place people live rather than a souvenir corridor.",
           "cost": {
@@ -499,7 +521,8 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "sight"
           ],
           "notes": "Timed entry, booked online in advance, and cheaper online than at the gate — the gate queue on the esplanade can be forty minutes in summer for the privilege of paying more. Go straight up to the Crown Room and St Margaret's Chapel first and work back down; everyone else does the sequence in the printed order and bunches at the top by noon. The One O'Clock Gun is fired every day except Sunday, Good Friday and Christmas Day, and if you want it you need to still be here at 13:00, which this day is not. Verified 2026-09-06: open daily from 09:30 (closed 25–26 December); April to September it closes at 18:00 with last admission 17:00, October to March it closes at 17:00 with last admission 16:00. Entry is in 30-minute timed slots and once the online allocation has gone there are no tickets at the gate at all — this is a book-ahead, not a turn-up-and-queue. The Crown Room, closed in January 2026 for refurbishment and a new display case, reopened in May 2026, so the Honours are back on show.",
           "cost": {
@@ -547,7 +570,9 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "sight",
+            "tour"
           ],
           "notes": "A genuine 17th-century street sealed under the City Chambers, and the only one of the Old Town underground attractions that is the real thing rather than a vault repurposed for a ghost act. Timed tours in small groups, booked ahead, and they do sell out. It is cold and low — you will duck. The costumed guiding is hammier than it needs to be; the archaeology under it is not. Verified 2026-09-06: tours run from 10:00, hourly-ish every 20–30 minutes, with the last tour at 21:00 from 1 April to 31 October and at 17:00 Sunday to Thursday off-peak. It sells out; book online, where it is also a couple of pounds cheaper than the door.",
           "cost": {
@@ -570,6 +595,9 @@
             "countryCode": "GB"
           },
           "kind": "planned",
+          "tags": [
+            "drinks"
+          ],
           "notes": "Several hundred bottles behind the bar, no music, no television and no cocktails — the room is built for conversation and the staff will talk you through a region for as long as you like if you are not in a hurry. Ask for something you cannot buy at home rather than the name you already know; the independent bottlings on the top shelves are the reason to be here. Order a half measure and water on the side. If it is full, Kay's Bar off Jamaica Street in the New Town is fifteen minutes downhill and is the other answer to the same question.",
           "cost": {
             "amountMinor": 3000,
@@ -682,6 +710,9 @@
             "countryCode": "GB"
           },
           "kind": "planned",
+          "tags": [
+            "outdoors"
+          ],
           "notes": "Two roadside stops fifteen minutes apart, ten minutes each, free. Kilt Rock is the one on every postcard — a waterfall going straight off a basalt cliff into the sea. Stand at the fence for thirty seconds and listen: the railings hum in the wind, which is a genuinely strange noise and the thing people remember. Lealt, just south, has the better short walk and a quarter of the people."
         },
         {
@@ -768,7 +799,8 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "museum"
           ],
           "notes": "Seven thatched blackhouses kept as a croft township, run by the family whose township it was. Cheap, and the stop to drop if the Quiraing overran. Verified 2026-09-06: open Easter to late September only, Monday to Saturday 09:30–17:00, and closed every Sunday — not just out of high season — with the whole site shut from about the start of October until Easter. The window here has been pulled back to finish at 16:55 because the old 17:30 end ran past the door being locked. Flora MacDonald's grave is in the cemetery on the headland just above, five minutes on foot, and the view from it back down the Minch is the better half of the stop.",
           "cost": {
@@ -851,7 +883,9 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "museum",
+            "sight"
           ],
           "notes": "Timed entry, booked online, and the price moves with the slot — weekday mornings are the cheapest and the emptiest at once. Take a slot before 10:00: the coaches from London and Stonehenge arrive between 11:00 and 14:00 and the Great Bath terrace becomes unusable. The water is 46 degrees, untreated and genuinely unsafe to touch, which is what the signs are actually about. The included audio guide has a separate Bill Bryson commentary track that is better company than the official one. Do not drink the spa water in the Pump Room unless you want to know what it tastes like, which is the only reason anyone does. Verified 2026-09-06: open every day 09:00–18:00 with last entry 17:00, except 20 July–31 August 2026 when it runs 09:00–22:00 with last admission 21:00; closed 25–26 December. Timed tickets are booked online and they ask you to book at least an hour ahead of the slot you want.",
           "cost": {
@@ -875,7 +909,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "sight"
           ],
           "notes": "The Abbey asks a donation at the door and the fan vaulting is worth it; the tower tours are separate, limited and go up 212 steps to the roof if you have booked one. Sally Lunn's is round the corner in one of the oldest houses in the city and the bun is a brioche the size of a plate — order one between two, savoury half then sweet half, or you will not want dinner. The cellar kitchen museum downstairs is free if you are eating.",
           "cost": {
@@ -899,7 +934,9 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "museum",
+            "sight"
           ],
           "notes": "Walk up Gay Street so the Circus arrives suddenly, which is how it was designed to. The lawn in front of the Royal Crescent is public and you can lie on it; the ha-ha at the bottom is the trick that makes the park look like it belongs to the houses. No.1 is the end house done out as it was in the 1770s and takes forty-five minutes. If you are short of time this is the stop to cut — the exterior is the thing.",
           "cost": {
@@ -924,7 +961,9 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "sight",
+            "tour"
           ],
           "notes": "Half a day with a car and driver, shared, which is what a group of three or four should do here — the villages are twenty minutes apart and forty from Bath, and the bus connections between them are effectively fictional. Castle Combe has no parking in the village at all: the car park is up on the hill by the main road and you walk five minutes down, which is also the best way to see it. Lacock is owned end to end by the National Trust and the street is free to walk; the Abbey, cloisters and Fox Talbot Museum are ticketed and, verified 2026-09-06, run 10:00–17:00 with last admission 45 minutes before closing — so you have to be through the gate by about 16:15, not 17:00. That is why Castle Combe goes first and why this half-day cannot start later than 14:30. Neither village has a cash machine and Lacock's shops close early.",
           "cost": {
@@ -948,7 +987,8 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "wellness"
           ],
           "notes": "The only place in Britain where you can get into the natural thermal water, two minutes from the Roman ones you were not allowed to touch this morning. Book the two-hour session; robe, towel and slippers are included and hiring them separately is a needless extra. Last entry is two hours before closing and they are strict about it. Go up to the open-air rooftop pool in the last of the light with the Abbey floodlit over the parapet — that fifteen minutes is what the ticket is for. It is busiest at weekends from about 14:00. Verified 2026-09-06: the New Royal Bath main spa runs 09:00–21:30 with the pools and Wellness Suite closing at 21:00, every day except 25–26 December and 1 January; the two-hour session is the Thermae Welcome and robe, towel and slippers are included in it; and 16 is the minimum age for admission outright, not just for most sessions, with 18 the minimum for treatments.",
           "cost": {
@@ -1125,7 +1165,8 @@
           },
           "kind": "pending",
           "tags": [
-            "outdoors"
+            "outdoors",
+            "beach"
           ],
           "notes": "Check the Newlyn tide tables before you fix the time of this stop, and treat everything else in the afternoon as movable around it. At high water on a spring tide there is essentially no beach here — the sand is gone and the cove is a wall of surf against the rocks. On the ebb it opens into the white shell sand that made the place famous, and the walk round to Pedn Vounder appears at the eastern end. That crossing is cut off by the sea and people get stranded there every single summer; do not start it on a rising tide. Window widened to 17:30 in the 2026-09-06 pass, because the afternoon no longer has a Minack daytime slot to be back for."
         },
@@ -1168,7 +1209,8 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "show"
           ],
           "notes": "CORRECTED 2026-09-06 — the stop as written was impossible. Theatre-and-garden daytime visits run 10:00–17:00 with last entry at 15:30, and last entry moves earlier still on performance days, so a 17:15 sightseeing visit does not exist: you cannot walk in at 17:15 on any day of the year, let alone after six miles of coast path and a long lunch. The honest way to be at the Minack in the evening is a show. The 2026 season runs April to October; pre-booking is essential and tickets are released roughly two months ahead, so this is booked before the trip, not during it. Bring a cushion and a waterproof — the seats are cut into the cliff, performances go ahead in rain, and the wind off the sea at ten at night is far colder than the afternoon suggests. Parking is on site and small. From November to February the site is closed to visitors on Mondays and Tuesdays. If there is no show on your date, do the daytime visit on a different and much shorter day, and be through the gate before 15:30.",
           "cost": {
@@ -1255,7 +1297,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "outdoors"
           ],
           "notes": "1,085m, the highest point in Wales, and there is a cafe in it — but Hafod Eryri only opens when the Snowdon Mountain Railway is running, roughly late March to the end of October and not at all if the trains are stopping short at Clogwyn in high wind. Outside that it is a locked stone building and a summit cairn, so carry lunch regardless. Queue for the trig point on one side and take the view from the other; almost nobody walks the two minutes to the quiet end of the platform.",
           "cost": {
@@ -1343,6 +1386,10 @@
             "countryCode": "GB"
           },
           "kind": "pending",
+          "tags": [
+            "outdoors",
+            "sight"
+          ],
           "notes": "IMPOSSIBLE AS ORIGINALLY WRITTEN — verified 2026-09-06: the National Slate Museum has been closed since November 2024 for a redevelopment now costed at about £25m, construction only started on site in November 2025, and the reopening has slipped from 2026 to 2027. There is nothing to walk into: no slate-splitting demonstration, no workshops, no cafe, no free entry, because there is no open museum. Amgueddfa Cymru is running the collection as 'Museum on the Move' out of partner venues across the slate World Heritage Site while the work goes on, so check where it is showing if the slate story is why you came. What is still here, still free and still open is Dolbadarn Castle — a single Welsh round tower from the 1200s on the knoll above Llyn Padarn, ten minutes on foot from the village — and the path round the lake below it, which is the better hour anyway with a day on the mountain behind you."
         },
         {
@@ -1361,7 +1408,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "drinks"
           ],
           "notes": "A bunkhouse pub at the Caernarfon end of the village that has fed walkers pizza and local beer for years — no ceremony, no booking, and the room is entirely people who were on a mountain today. The Heights in the middle of the village is the busier alternative with live music some nights. Kitchens here stop early; anything after 21:00 in Llanberis is a bag of crisps.",
           "cost": {
@@ -1436,7 +1484,8 @@
           },
           "kind": "planned",
           "tags": [
-            "outdoors"
+            "outdoors",
+            "sight"
           ],
           "notes": "An OPW site with no gate, no ticket and no opening hours — you park across the road and walk out over the pavement. Roughly 5,800 years old, and the excavation found the remains of more than thirty people under it. The car park is small and the Galway coaches reach it around eleven, so this is a stop that is either sublime or a crowd depending entirely on whether you got here first. Walk out onto the clints and grikes away from the tomb: the flora in the cracks is the actual wonder of the Burren, Arctic and Mediterranean plants growing side by side, and it peaks in May and June."
         },
@@ -1456,7 +1505,8 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "sight"
           ],
           "notes": "A ring fort a kilometre south of the dolmen, still being excavated, on the family's own land. The sheepdog demonstrations run at fixed times a few times a day and are the reason to come — build the late morning around the one you want rather than turning up and hoping. Fort and dogs are sold together or separately and the combined ticket is the better value. Seasonal: much reduced from November to March, so check before making it the anchor of a winter day. Verified 2026-09-06: the sheepdog demonstrations run daily at fixed times, and the times published are a late-morning slot (commonly 11:15) and an early-afternoon one (around 14:00–14:15). Confirm the day's times on the fort's own site before you fix this window — it is the demonstration that has to be caught, not the fort.",
           "cost": {
@@ -1526,7 +1576,8 @@
           "kind": "pending",
           "tags": [
             "ticketed",
-            "outdoors"
+            "outdoors",
+            "tour"
           ],
           "notes": "An hour-long cruise that runs south under the cliff face and turns at Hag's Head. You do not understand that the cliffs are 214m high until you are at the bottom of them looking up, and the sea stack and the nesting ledges are invisible from the top. Sailings are cancelled outright in any real swell and the decision is made on the morning, which is why this is a hold and why the evening plan needs to survive without it. Take the seasickness advice seriously — the Atlantic here is rarely flat. Verified 2026-09-06: the Cliffs of Moher cruise out of Doolin sails seven days a week from March to October only, so this stop does not exist in a winter version of the day. The trip is 45 minutes to an hour depending on conditions, and the fare is refunded if the sailing is cancelled.",
           "cost": {
@@ -1574,6 +1625,10 @@
             "countryCode": "IE"
           },
           "kind": "planned",
+          "tags": [
+            "drinks",
+            "nightlife"
+          ],
           "notes": "Doolin has three session pubs within four hundred metres — O'Connor's in Fisherstreet, McGann's and McDermott's up in Roadford — and the honest advice is to look in all three. If one is a coach-party crush the other two will not be. Sessions start when the players arrive, which is nearer 21:45 than the time chalked on the board, and the first half hour is the tuning. Do not talk over a slow air; nobody will tell you to stop and everybody will notice.",
           "cost": {
             "amountMinor": 2200,
