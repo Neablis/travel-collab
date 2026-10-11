@@ -20,6 +20,7 @@ export function tagBreakdownConfig(payload: TagBreakdownPayload): ChartConfig {
   return Object.fromEntries(payload.slices.map(({ key, label }) => [key, { label, color: SPEND_SERIES_COLOR[key] }]));
 }
 
+/** "Activities by tag" / "Hours by tag": the donut or bars, a key of every tag that carries something, and what it left out. */
 export function TagBreakdownBlock({ payload }: { payload: TagBreakdownPayload }) {
   const config = tagBreakdownConfig(payload);
   return (

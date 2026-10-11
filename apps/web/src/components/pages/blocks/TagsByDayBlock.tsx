@@ -11,10 +11,12 @@ const TagsByDayChart = lazy(() => import("./TagCharts").then((m) => ({ default: 
 // ADR-044: fixed, so the page never moves when the chart arrives.
 const TAGS_BY_DAY_HEIGHT = 224;
 
+/** Each stack's label and colour, shared by the chart and its key: the spend charts' tag colours. */
 export function tagsByDayConfig(payload: TagsByDayPayload): ChartConfig {
   return Object.fromEntries(payload.series.map(({ key, label }) => [key, { label, color: SPEND_SERIES_COLOR[key] }]));
 }
 
+/** "Tags by day": the stacked bars, their key, what was left off, and every count as a table for a screen reader. */
 export function TagsByDayBlock({ payload }: { payload: TagsByDayPayload }) {
   const config = tagsByDayConfig(payload);
   return (
