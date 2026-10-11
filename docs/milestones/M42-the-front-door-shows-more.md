@@ -61,6 +61,12 @@ Candidates absorbed (each deleted by this gate):
    reviewing. The landing art's trip replies and reactions, which don't exist, are redrawn around
    suggestions and playbook stars, and its live-presence pills ("4 here now", "Sam typing…"), which
    don't exist either, become true past-tense actions ("Priya moved stop 3") (part 7).
+   **The landing shows the real app (part 9).** Mitchell's earlier suggestion, only half done by the
+   2026-09-27 real-hero spec (Timeline and Notebook hero views): the feature blocks and the phone
+   claims render the app's own components from the generated snapshot — the real river for
+   Together, a real Discover card (with its tags and description) for Playbooks, real notebook
+   blocks for Notebook; Countdown stays art unless its refactor is cheap. The hero's Map view stays
+   a drawing. Part 7's corrected art merges first; part 9 replaces it.
 4. **Profiles and the board are not indexed.** *Already true when M42 was scoped*: the SEO pass
    (merge #344) set `NOINDEX_FOLLOW` on `/playbooks/board` and `/playbooks/profile/[userId]`, and
    `sitemap.ts` leaves both out. Recorded; no work.
@@ -126,6 +132,8 @@ Candidates absorbed (each deleted by this gate):
 - [ ] **The four widgets of D11 are in the widget catalogue**, and none counts Ticketed.
 - [ ] **Leaving a playbook review needs Plus or Premium** (an integration test: Free gets refused,
       Plus and an existing plus@v1 holder succeed); reading stays open (ADR-071).
+- [ ] **The landing's feature blocks and phone claims render real app components** from the
+      generated snapshot (Countdown excepted if it stays art), and the snapshot check covers them.
 - [ ] **The e2e spec passes on `pnpm --filter web test:e2e:ci-like`**: signed out, open each demo
       trip, follow `#pricing`, and open a tag page.
 - [ ] **[walk]** The PR preview is walked signed out at desktop and phone widths, and the tag

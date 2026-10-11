@@ -20,6 +20,7 @@ that needs another waits for it to merge, then branches from `main`. Part 0 is t
 | 6 | `claude/m42-part6-demo-per-trip` | `/demo/<slug>`, the picker with descriptions, one landing snapshot per trip | 3 (and 2, so descriptions read right) |
 | 7 | `claude/m42-part7-landing-pricing` | the `#pricing` section from a generated plan snapshot; Mitchell's walk: plan cards, notebook memory, solid phone header, no false votes/comments copy, landing art redrawn | — |
 | 8 | `claude/m42-part8-paid-reviews` | leaving a playbook review needs Plus or Premium (`playbook.review`, ADR-071) | — |
+| 9 | `claude/m42-part9-real-landing` | the landing's feature blocks and phone claims render real app components from the snapshot | 6, 7 (and 3, for descriptions on the Discover card) |
 
 **Order.** Wave 1: parts 1 and 7 in parallel. Wave 2 (after 1 merges): parts 2 and 3 in
 parallel. Wave 3: parts 4, 5 and 6 in parallel.
@@ -202,3 +203,19 @@ Surveyed 2026-10-11. Re-check line numbers before trusting them. The app is unde
   with a link to plans; `/plans` gains a "Review playbooks" row.
 - Integration tests, red first: Free 402, Plus 200, plus@v1 holder 200, own-review delete for Free.
 - Walk (ADR-047, no money): a Free account is refused; an operator-granted Plus account reviews.
+
+### Part 9 — the landing shows the real app (added 2026-10-11)
+
+- Mitchell's suggestion, half done by `docs/specs/2026-09-27-link-previews-and-real-hero-design.md`
+  (only the hero's Timeline and Notebook views are real, via `LandingHeroPanels`).
+- Together → the real `DayRiver` (read-only) from the snapshot's river (lazy-loaded like the hero:
+  `RiverBlock` pulls in drag-and-drop). Playbooks → a real `DiscoverCard` from a bundled playbook
+  day, with its tags and description (part 3). Notebook → real notebook blocks with resolved
+  payloads (a memory-style text block plus trip strip; no cost table). Countdown → stays art unless
+  `NextTripHero` can take its data and "now" as props cheaply (it fetches and reads `new Date()`).
+- Phone claims render the same components at phone size.
+- All data from the generated snapshot (`landing-demo.ts`; part 6 makes it per trip): the landing
+  imports nothing from `@/server` or `@tc/domain` (lint wall), loads nothing live (SPEC §14), and
+  the static art stays as the loading/error placeholder. `landing:verify` covers the new payloads.
+- The hero's Map view stays a drawing (Mitchell, 2026-10-11).
+- The `unbuiltSocial` sweep keeps running over the real components.
