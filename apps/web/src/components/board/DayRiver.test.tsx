@@ -174,7 +174,7 @@ describe("what a block has room to say", () => {
     renderRiver([lunch, walk]);
 
     expect(
-      screen.getByRole("button", { name: "Edit Ramen, 12 pm – 12:30 pm, Planned, Ichiran, Tokyo, Japan, €18.50, tagged Meal and Ticketed" }),
+      screen.getByRole("button", { name: "Edit Ramen, 12 pm – 12:30 pm, Planned, Ichiran, Tokyo, Japan, €18.50, tagged Food and Ticketed" }),
     ).toBeTruthy();
   });
 });

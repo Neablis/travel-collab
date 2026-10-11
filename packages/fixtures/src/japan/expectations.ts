@@ -51,8 +51,11 @@ export const JAPAN_TRIP_EXPECTATIONS: JapanTripExpectations = {
   // typechecks until the fixture covers it, so a new kind of stop cannot ship
   // with nothing on screen that exercises it.
   kinds: { planned: 55, pending: 8, transit: 9 },
-  tags: { lodging: 4, meal: 33, outdoors: 11, ticketed: 8 },
-  untaggedCount: 18,
+  tags: {
+    meal: 27, lodging: 4, ticketed: 8, outdoors: 10, drinks: 6, nightlife: 2, museum: 6,
+    sight: 9, beach: 1, shopping: 3, show: 1, tour: 1, wellness: 1,
+  },
+  untaggedCount: 14,
 
   // M24. Every one of the nine transit stops says how it travels, and five
   // name where they end (the rest end somewhere the fixture has no row for —

@@ -114,7 +114,8 @@
         "anchors": [],
         "kind": "planned",
         "tags": [
-          "ticketed"
+          "ticketed",
+          "sight"
         ],
         "cost": {
           "amountMinor": 7500,

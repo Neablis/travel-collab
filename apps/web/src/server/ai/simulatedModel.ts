@@ -35,6 +35,7 @@
 // and stream-part shapes below are structural for the same reason.
 import { randomUUID } from "node:crypto";
 import type { LanguageModel } from "ai";
+import type { ActivityTag } from "@tc/contracts";
 import { needsBooking } from "@/lib/needsBooking";
 import { parseAskScope, type AskScope } from "@/server/assistant/context";
 import { askIntentVerdictText, isAskIntentCall, isPageIntentCall } from "@/server/ai/askIntent";
@@ -817,11 +818,24 @@ function pageTurn(results: readonly ToolResultLike[], question: string, options:
 // **A notebook about a topic** (ADR-058) — "make a notebook about meals". The
 // topic is a TAG, because that is what a notebook's widgets filter by: the
 // page is built once and reads the trip live, so nothing here reads a day.
-const TOPIC_TAGS: readonly [RegExp, string][] = [
+// First match wins, so a narrower phrase comes before a word it contains
+// ("night markets" is nightlife, not shopping) and food before drink. Typed against the contract, so
+// a key that is not a tag fails to compile; a tag with no row is simply never a
+// topic.
+const TOPIC_TAGS: readonly [RegExp, ActivityTag][] = [
+  [/\b(nightlife|night ?out|clubs?|clubbing|night markets?)\b/i, "nightlife"],
   [/\b(meals?|food|eat|eating|restaurants?|dining|dinners?|lunch(es)?)\b/i, "meal"],
+  [/\b(drinks?|bars?|cafés?|cafes?|coffee|wine|winer(y|ies)|tastings?|cocktails?|beers?)\b/i, "drinks"],
   [/\b(lodging|hotels?|stays?|accommodation)\b/i, "lodging"],
   [/\b(tickets?|ticketed|bookings?)\b/i, "ticketed"],
-  [/\b(outdoors?|hikes?|hiking|nature)\b/i, "outdoors"],
+  [/\b(museums?|galler(y|ies)|art)\b/i, "museum"],
+  [/\b(sights?|sightseeing|landmarks?|temples?|monuments?|viewpoints?)\b/i, "sight"],
+  [/\b(beach(es)?|swimming|coast)\b/i, "beach"],
+  [/\b(shopping|shops?|markets?)\b/i, "shopping"],
+  [/\b(shows?|concerts?|theat(er|re)|performances?|gigs?)\b/i, "show"],
+  [/\b(tours?|guided|classes|workshops?)\b/i, "tour"],
+  [/\b(wellness|spas?|onsen|yoga|massages?)\b/i, "wellness"],
+  [/\b(outdoors?|hikes?|hiking|nature|parks?)\b/i, "outdoors"],
 ];
 
 const NOTEBOOK_REQUEST = /\b(notebook|page|section)\b.*\babout\b|\babout\b.*\bnotebook\b/i;

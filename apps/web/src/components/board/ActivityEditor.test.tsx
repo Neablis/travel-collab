@@ -282,19 +282,30 @@ describe("ActivityEditor pending reason", () => {
 });
 
 describe("ActivityEditor tag picker", () => {
-  it("offers the four contract tags and never the handoff's six (KI-52)", () => {
+  // ADR-070: what a stop IS, then what it NEEDS, in M42 decision 5's order.
+  it("offers the twelve categories and the one modifier in two labelled groups", () => {
     renderEditor(null, "create");
-    const group = screen.getByRole("group", { name: "Tags" });
-    // eslint-disable-next-line testing-library/no-node-access -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
-    const labels = Array.from(group.querySelectorAll("button")).map((b) => b.textContent);
-    expect(labels).toEqual(["Meal", "Lodging", "Ticketed", "Outdoors"]);
+    expect(accessibleNames(screen.getByRole("group", { name: "What it is" }), "button")).toEqual([
+      "Food", "Drinks", "Nightlife", "Museum", "Sight", "Outdoors",
+      "Beach", "Shopping", "Show", "Tour", "Wellness", "Lodging",
+    ]);
+    expect(accessibleNames(screen.getByRole("group", { name: "Needs" }), "button")).toEqual(["Ticketed"]);
     expect(screen.queryByRole("button", { name: /considering/i })).toBeNull();
     expect(screen.queryByRole("button", { name: /^travel$/i })).toBeNull();
   });
 
+  it("saves picks from both groups in contract order, not the order they were clicked", () => {
+    const onSave = renderEditor(existingStop({ tags: [] }), "edit");
+    fireEvent.click(screen.getByRole("button", { name: "Ticketed" }));
+    fireEvent.click(screen.getByRole("button", { name: "Nightlife" }));
+    fireEvent.click(screen.getByRole("button", { name: "Lodging" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ tags: ["lodging", "ticketed", "nightlife"] }));
+  });
+
   it("starts with nothing selected when adding", () => {
     const onSave = renderEditor(null, "create");
-    expect(screen.getByRole("button", { name: "Meal" }).getAttribute("aria-pressed")).toBe("false");
+    expect(screen.getByRole("button", { name: "Food" }).getAttribute("aria-pressed")).toBe("false");
     fireEvent.change(screen.getByLabelText("What or where"), { target: { value: "Gora Kadan" } });
     fireEvent.click(screen.getByRole("button", { name: "Add stop" }));
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ tags: [] }));
@@ -303,21 +314,21 @@ describe("ActivityEditor tag picker", () => {
   it("shows the stop's existing tags as pressed when editing", () => {
     renderEditor(existingStop({ tags: ["lodging"] }), "edit");
     expect(screen.getByRole("button", { name: "Lodging" }).getAttribute("aria-pressed")).toBe("true");
-    expect(screen.getByRole("button", { name: "Meal" }).getAttribute("aria-pressed")).toBe("false");
+    expect(screen.getByRole("button", { name: "Food" }).getAttribute("aria-pressed")).toBe("false");
   });
 
   // UpdateActivity.tags is a whole-array replace (packages/contracts/src/
   // activity.ts), so the form always sends the complete set, never a delta.
   it("sends the whole array when a tag is added", () => {
     const onSave = renderEditor(existingStop({ tags: ["lodging"] }), "edit");
-    fireEvent.click(screen.getByRole("button", { name: "Meal" }));
+    fireEvent.click(screen.getByRole("button", { name: "Food" }));
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ tags: ["meal", "lodging"] }));
   });
 
   it("sends the whole array when a tag is removed", () => {
     const onSave = renderEditor(existingStop({ tags: ["meal", "outdoors"] }), "edit");
-    fireEvent.click(screen.getByRole("button", { name: "Meal" }));
+    fireEvent.click(screen.getByRole("button", { name: "Food" }));
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ tags: ["outdoors"] }));
   });
@@ -634,7 +645,7 @@ describe("ActivityEditor nearby stops (M34)", () => {
 
     expect((screen.getByLabelText("What or where") as HTMLInputElement).value).toBe("Nishiki Market");
     expect(checkedKind()).toBe("Planned");
-    expect(screen.getByRole("button", { name: "Meal" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByRole("button", { name: "Food" }).getAttribute("aria-pressed")).toBe("true");
     expect((screen.getByLabelText("How long") as HTMLSelectElement).selectedOptions[0]?.textContent).toBe("1.5 hours");
     expect((screen.getByLabelText("Start") as HTMLInputElement).value).toBe("10:00");
     // Picked, so out of the way until the title is edited again.

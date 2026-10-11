@@ -26,7 +26,7 @@ import {
   type DurationLabel,
 } from "./activityDuration";
 import { KIND_LABEL, KIND_OPTIONS } from "./activityKind";
-import { TAG_LABEL, TAG_ORDER, toggleTag } from "@/lib/activityTags";
+import { TAG_GROUPS, TAG_LABEL, toggleTag } from "@/lib/activityTags";
 import { LocationInput } from "./LocationInput";
 import { MoneyInput } from "./MoneyInput";
 import { PendingReasonPicker } from "./PendingReasonPicker";
@@ -534,33 +534,37 @@ export function ActivityEditor({
         </Text>
       </div>
 
-      {/* Four toggles, never the handoff's six (KI-52). The design pairs each
-          chip with the "power" it grants — "Pins where you sleep that night",
-          "the assistant keeps asking until there is a booking date". None of
-          those powers exists yet (they are M18b and later), so the copy that
-          promises them is left out rather than shipped ahead of the
-          behaviour. */}
-      <div className="flex flex-col gap-1.5">
+      {/* ADR-070's two groups: what a stop IS, then what it NEEDS. The design
+          pairs each chip with the "power" it grants — "Pins where you sleep
+          that night", "the assistant keeps asking until there is a booking
+          date". None of those powers exists yet, so the copy that promises
+          them is left out rather than shipped ahead of the behaviour. */}
+      <div role="group" aria-label="Tags" className="flex flex-col gap-1.5">
         <div className="flex items-baseline justify-between gap-2.5">
           <Text variant="muted">Tags</Text>
         </div>
-        <div role="group" aria-label="Tags" className="flex flex-wrap gap-1.5">
-          {TAG_ORDER.map((tag) => {
-            const on = tags.includes(tag);
-            return (
-              <Button
-                key={tag}
-                variant={on ? "primary" : "secondary"}
-                size="sm"
-                aria-pressed={on}
-                className="rounded-full px-3"
-                onClick={() => setTags((current) => toggleTag(current, tag))}
-              >
-                {TAG_LABEL[tag]}
-              </Button>
-            );
-          })}
-        </div>
+        {TAG_GROUPS.map((group) => (
+          <div key={group.label} className="flex flex-col gap-1">
+            <Text variant="muted">{group.label}</Text>
+            <div role="group" aria-label={group.label} className="flex flex-wrap gap-1.5">
+              {group.tags.map((tag) => {
+                const on = tags.includes(tag);
+                return (
+                  <Button
+                    key={tag}
+                    variant={on ? "primary" : "secondary"}
+                    size="sm"
+                    aria-pressed={on}
+                    className="rounded-full px-3"
+                    onClick={() => setTags((current) => toggleTag(current, tag))}
+                  >
+                    {TAG_LABEL[tag]}
+                  </Button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </div>
 
       {/* M13 link 5. Two controls because they answer two questions — who

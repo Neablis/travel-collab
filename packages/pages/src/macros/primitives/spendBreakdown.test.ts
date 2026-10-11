@@ -1,6 +1,6 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import type { ActivityKind, ActivityTag, Money, TripDetail } from "@tc/contracts";
+import { ActivityTag, type ActivityKind, type Money, type TripDetail } from "@tc/contracts";
 import { tripDetailFactory } from "@tc/factories";
 import { renderMacro } from "../../registry";
 import type { WidgetContext } from "../../registry-types";
@@ -125,11 +125,11 @@ describe("cost.breakdown by kind — spend by kind", () => {
     const trip = tripOf();
     price(trip, 0, 0, usd(1000), "planned", ["meal"]);
     expect(pieOf(trip).title).toBe("Spend by kind");
-    expect(pieOf(trip, { tag: "meal" }).title).toBe("Spend by kind · Meal");
-    expect(pieOf(trip, { tag: "meal", day: { kind: "index", index: 0 } }).title).toBe("Spend by kind · Meal · Day 1");
+    expect(pieOf(trip, { tag: "meal" }).title).toBe("Spend by kind · Food");
+    expect(pieOf(trip, { tag: "meal", day: { kind: "index", index: 0 } }).title).toBe("Spend by kind · Food · Day 1");
     expect(pieOf(trip, { dates: { from: "2026-08-01", through: "2026-08-02" } }).title).toBe("Spend by kind · Aug 1 – Aug 2");
     // The picture's sentence starts with the same words.
-    expect(pieOf(trip, { tag: "meal" }).summary).toBe("Spend by kind · Meal in USD: $10.00 — Planned $10.00 (100%).");
+    expect(pieOf(trip, { tag: "meal" }).summary).toBe("Spend by kind · Food in USD: $10.00 — Planned $10.00 (100%).");
   });
 
   it("charts only the trip's currency, and names what it left out", () => {
@@ -169,15 +169,30 @@ describe("cost.breakdown by tag — spend by tag", () => {
 
     expect(pie.by).toBe("tag");
     expect(pie.title).toBe("Spend by tag");
-    expect(pie.slices.map(({ key, label, amount, share }) => [key, label, amount, share])).toEqual([
-      ["meal", "Meal", "$70.00", "70%"],
+    expect(pie.slices.map((s) => s.key)).toEqual([
+      "meal", "lodging", "outdoors", "drinks", "nightlife", "museum", "sight",
+      "beach", "shopping", "show", "tour", "wellness", "untagged",
+    ]);
+    expect(pie.slices.filter((s) => s.amount !== null).map(({ key, label, amount, share }) => [key, label, amount, share])).toEqual([
+      ["meal", "Food", "$70.00", "70%"],
       ["lodging", "Lodging", "$20.00", "20%"],
-      ["ticketed", "Ticketed", null, null],
-      ["outdoors", "Outdoors", null, null],
       ["untagged", "Untagged", "$10.00", "10%"],
     ]);
     expect(pie.total).toBe("$100.00");
-    expect(pie.summary).toBe("Spend by tag in USD: $100.00 — Meal $70.00 (70%), Lodging $20.00 (20%), Untagged $10.00 (10%).");
+    expect(pie.summary).toBe("Spend by tag in USD: $100.00 — Food $70.00 (70%), Lodging $20.00 (20%), Untagged $10.00 (10%).");
+  });
+
+  // ADR-070: Ticketed says what a stop needs, not what it is, so it is no
+  // slice, and a stop with no other tag is untagged money.
+  it("files a Ticketed stop under its category, and a Ticketed-only stop as untagged", () => {
+    const trip = tripOf();
+    price(trip, 0, 0, usd(3000), "planned", ["ticketed"]);
+    price(trip, 0, 1, usd(1000), "planned", ["ticketed", "museum"]);
+    const pie = pieOf(trip, { by: "tag" });
+    expect(pie.slices.filter((s) => s.amount !== null).map(({ key, amount }) => [key, amount])).toEqual([
+      ["museum", "$10.00"],
+      ["untagged", "$30.00"],
+    ]);
   });
 
   it("narrows by kind, and says so in its title", () => {
@@ -186,7 +201,7 @@ describe("cost.breakdown by tag — spend by tag", () => {
     price(trip, 0, 1, usd(2000), "pending", ["meal"]);
     price(trip, 1, 0, usd(1000), "pending");
     const pie = pieOf(trip, { by: "tag", kind: "pending" });
-    expect(pie.slices.map((s) => s.amountMinor)).toEqual([2000, 0, 0, 0, 1000]);
+    expect(pie.slices.map((s) => s.amountMinor)).toEqual([2000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1000]);
     expect(pie.title).toBe("Spend by tag · Pending");
     expect(pie.total).toBe("$30.00");
   });
@@ -198,7 +213,7 @@ describe("cost.breakdown by tag — spend by tag", () => {
     price(trip, 1, 0, usd(1000), "planned");
     const stored = pieOf(trip, { by: "tag", tag: "meal" });
     expect(stored).toEqual(pieOf(trip, { by: "tag" }));
-    expect(stored.slices.map((s) => s.amountMinor)).toEqual([6000, 2000, 0, 0, 1000]);
+    expect(stored.slices.map((s) => s.amountMinor)).toEqual([6000, 2000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1000]);
     expect(stored.title).toBe("Spend by tag");
   });
 
@@ -228,7 +243,7 @@ describe("cost.breakdown properties", () => {
   const stopArb = fc.record({
     amount: fc.option(fc.integer({ min: 0, max: 500_000 }), { nil: null }),
     kind: fc.constantFrom(...KINDS),
-    tags: fc.subarray(["meal", "lodging", "ticketed", "outdoors"] as ActivityTag[]),
+    tags: fc.subarray([...ActivityTag.options]),
   });
   const filterArb = fc.oneof(
     fc.constant({}),

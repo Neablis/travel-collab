@@ -70,7 +70,7 @@ describe("SpendByDayBlock", () => {
     // "Day 1" in full, where the axis says "1st".
     expect(screen.getByText(/^Day 1( · .*)?$/)).toBeDefined();
     expect(screen.getByText("Total").nextSibling?.textContent).toBe("$50.00");
-    expect(screen.getByText("Meal").nextSibling?.textContent).toBe("$40.00");
+    expect(screen.getByText("Food").nextSibling?.textContent).toBe("$40.00");
     expect(screen.getByText("Untagged").nextSibling?.textContent).toBe("$10.00");
   });
 
@@ -83,7 +83,7 @@ describe("SpendByDayBlock", () => {
 
     const rows = within(screen.getByRole("table", { name: "Spend by day" })).getAllByRole("row").slice(1);
     expect(rows.map((row) => within(row).getAllByRole("cell").map((cell) => cell.textContent))).toEqual([
-      [expect.any(String), "$240.00", "Meal $40.00, Lodging $200.00"],
+      [expect.any(String), "$240.00", "Food $40.00, Lodging $200.00"],
       [expect.any(String), "nothing priced", "—"],
       [expect.any(String), "nothing priced", "—"],
     ]);

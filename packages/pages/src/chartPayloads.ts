@@ -1,4 +1,4 @@
-import type { ActivityKind, ActivityTag } from "@tc/contracts";
+import type { ActivityKind, ActivityTagCategory } from "@tc/contracts";
 
 // What a CHART widget resolves to (M14 link 11). Kept out of `registry-types.ts`
 // so the chart payloads can grow without every block widget's branch editing
@@ -9,8 +9,8 @@ import type { ActivityKind, ActivityTag } from "@tc/contracts";
 // every label a reader sees — the axis ticks included — is formatted here, and
 // the component only places them.
 
-/** A stack in "Spend by day": one per tag, plus the stops that carry none. */
-export type SpendSeriesKey = ActivityTag | "untagged";
+/** A stack in "Spend by day": one per category tag, plus the stops that carry none. */
+export type SpendSeriesKey = ActivityTagCategory | "untagged";
 
 export interface SpendByDayBar {
   /** "Day 3" — a trip ordinal, counting from 1. The hover's title and the table's row. */
@@ -23,7 +23,7 @@ export interface SpendByDayBar {
   amounts: Record<SpendSeriesKey, number>;
   /** The bar's height as a reader says it; `null` for a day nothing is priced on. */
   total: string | null;
-  /** The stacks in words — "Meal $40.00, Lodging $200.00" — for the table a screen reader gets. */
+  /** The stacks in words — "Food $40.00, Lodging $200.00" — for the table a screen reader gets. */
   breakdown: string | null;
   /** The same stacks one by one, for the hover's line per stack. Only the ones with spend. */
   parts: { key: SpendSeriesKey; label: string; text: string }[];
@@ -61,7 +61,7 @@ export interface SpendByDayPayload {
   view: "bars" | "burndown";
   /** `null` for the bars. */
   burnDown: SpendBurnDown | null;
-  /** The stacks that carry any spend, in `ActivityTag` order and then untagged. */
+  /** The stacks that carry any spend, in `ActivityTagCategory` order and then untagged. */
   series: { key: SpendSeriesKey; label: string }[];
   /** One per selected day, in trip order — zero days included, so the run of days is the trip's. */
   days: SpendByDayBar[];
@@ -82,7 +82,7 @@ export type SpendBreakdownBy = "kind" | "tag";
 export interface SpendBreakdownSlice<K extends string = ActivityKind | SpendSeriesKey> {
   /** The kind, or the tag (or "untagged") the slice is. */
   key: K;
-  /** The board's word for it — "Travel", never "transit"; "Meal", "Untagged". */
+  /** The board's word for it — "Travel", never "transit"; "Food", "Untagged". */
   label: string;
   /** Minor units, trip currency. 0 for a slice nothing priced is on. */
   amountMinor: number;
@@ -99,7 +99,7 @@ interface SpendBreakdownCommon {
   kind: "spend-breakdown";
   /**
    * What the widget is, and what it is narrowed to on the other dimension:
-   * "Spend by kind", "Spend by kind · Meal", "Spend by tag · Pending". It names
+   * "Spend by kind", "Spend by kind · Food", "Spend by tag · Pending". It names
    * the key's table, so a screen reader hears the narrowing too.
    */
   title: string;
