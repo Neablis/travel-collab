@@ -95,15 +95,6 @@ const CLAIM_STOPS = [
   { time: "4:00 pm", title: "Ryokan check-in, Higashiyama" },
 ] as const;
 
-// `dc.html:7486`. Not the desktop block's `COST_ROWS` — that one is two rows
-// totalling $550 and this is three totalling the $596 the paragraph above it
-// names. Both are the design's own numbers for two different screens.
-const CLAIM_COSTS = [
-  { label: "Ryokan · Hakone", amount: "$380" },
-  { label: "Dinner, all four", amount: "$164" },
-  { label: "Romancecar seats", amount: "$52" },
-] as const;
-
 // A card under a claim, in the design's own shape: `--radius-xl` is 14px, which
 // is the value `dc.html` draws these at.
 function ExampleCard({ children, className }: { children: ReactNode; className?: string }) {
@@ -222,30 +213,22 @@ const CLAIMS: readonly { label: string; body: string; example?: ReactNode }[] = 
   {
     label: "Notebook",
     body: "How you'll remember it.",
+    // A page of the trip as it was lived, not what it cost (Mitchell,
+    // 2026-10-11: *"it should be more nostalgic than how much you spent on
+    // dinner"*). Day 6 is Apr 9 because Countdown's wheels-up is Apr 4, and the
+    // four are the landing's own crew.
     example: (
-      <ExampleCard>
-        <Text as="span" className="mb-2 block text-sm text-ink">
-          Day 6 is the expensive one —{" "}
-          {/* The product's own widget-value treatment, deliberately: this is a
-              picture of a notebook, and a number that came from the trip rather
-              than from the writer wears brand tint under a brand rule wherever
-              it appears (`MacroView`'s `Segs`). A different treatment here would
-              be advertising a thing the product does not do. */}
-          <span className="rounded-sm border-b-2 border-brand bg-brand-tint px-1">$596</span> across four of us.
+      <ExampleCard className="flex flex-col gap-2">
+        <DataText size="xs" className="uppercase tracking-wider text-slate">
+          Day 6 · Hakone
+        </DataText>
+        <Text as="span" className="text-sm text-ink">
+          We stayed in the onsen until our fingers wrinkled, then ate far too much kaiseki. Priya says it was the
+          best night of the trip.
         </Text>
-        {CLAIM_COSTS.map((row) => (
-          <span
-            key={row.label}
-            className="flex items-baseline justify-between gap-2.5 border-t border-hairline py-1.5"
-          >
-            <Text as="span" className="truncate text-xs text-ink">
-              {row.label}
-            </Text>
-            <DataText size="xs" className="shrink-0 text-slate">
-              {row.amount}
-            </DataText>
-          </span>
-        ))}
+        <Text as="span" className="text-xs text-slate">
+          Sam, Priya, Dana, Marcus · Apr 9
+        </Text>
       </ExampleCard>
     ),
   },
@@ -292,6 +275,11 @@ export function PhoneFrontDoor() {
     const paint = () => {
       const usable = Math.max(1, pin.offsetHeight - scroller.clientHeight);
       const p = Math.max(0, Math.min(1, scroller.scrollTop / usable));
+
+      // **The bar goes to paper as the pin releases.** Over the stage there is
+      // nothing under it but the map; after, content scrolls beneath it, and a
+      // clear bar shows that content through its links (Mitchell, 2026-10-11).
+      headerRef.current?.toggleAttribute("data-solid", p >= 1);
 
       // The stage clears as ONE: the map and whatever claim is still on it go
       // together, so the pin releases onto empty paper rather than dropping the
@@ -389,7 +377,11 @@ export function PhoneFrontDoor() {
           stage's top padding is 64px and this bar is 64 (24 + a 28px mark +
           12). Both add the top safe-area inset (`.phone-front-door-header`,
           `.phone-front-door-stage`), so they still match under a status bar. */}
-      <header ref={headerRef} className="phone-front-door-header sticky top-0 z-10 flex items-center justify-between px-6 pb-3">
+      <header
+        ref={headerRef}
+        // Clear until `paint` marks it `data-solid`: the page opens on the map.
+        className="phone-front-door-header sticky top-0 z-10 flex items-center justify-between px-6 pb-3 transition-colors data-solid:bg-paper"
+      >
         <span className="flex items-center gap-2.5">
           <BrandMark size={28} />
           <Text as="span" className="font-display text-md font-semibold text-ink">
@@ -544,16 +536,9 @@ export function PhoneFrontDoor() {
 
         {/* After the call to action, not between it and the pin: §28's clear-out
             lands on empty paper and the CTA, and Mitchell tuned that hand-off
-            twice. So this section carries its own way to sign up. */}
+            twice. No sign-up of its own: "Start a trip" is just above. */}
         <div className="bg-paper px-6 pb-10">
-          <LandingPricing ref={pricingRef}>
-            <Link
-              href="/signup"
-              className={cn(buttonVariants({ variant: "primary", size: "touch" }), "justify-center no-underline")}
-            >
-              Sign up
-            </Link>
-          </LandingPricing>
+          <LandingPricing ref={pricingRef} />
         </div>
       </main>
 

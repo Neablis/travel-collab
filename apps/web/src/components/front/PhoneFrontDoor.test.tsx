@@ -243,9 +243,38 @@ describe("the phone front door (SPEC §28)", () => {
       fireEvent(window, new HashChangeEvent("hashchange"));
 
       expect(scrolled).toEqual([{ el: door, top: 100 + 5000 - 64 }]);
-      expect(within(pricing).getByRole("table")).toBeTruthy();
-      expect(within(pricing).getByRole("link", { name: "Sign up" }).getAttribute("href")).toBe("/signup");
     });
+
+    // Mitchell, 2026-10-11: the front door summarises the plans and leaves
+    // the specifics to `/plans`. One line each, one way through to the rest —
+    // and no second sign-up button, because "Start a trip" sits just above.
+    it("summarises the plans and sends the specifics to /plans", () => {
+      render(<PhoneFrontDoor />);
+      const door = within(screen.getByTestId("phone-front-door"));
+      const pricing = within(door.getByRole("region", { name: "Pricing" }));
+      expect(pricing.queryByRole("table")).toBeNull();
+      expect(pricing.getByText("Unlimited planned trips")).toBeTruthy();
+      expect(pricing.getByText("AI tools to help plan the trip")).toBeTruthy();
+      expect(pricing.getByText("Invite all your friends to come along")).toBeTruthy();
+      expect(pricing.getByRole("link", { name: "Compare plans" }).getAttribute("href")).toBe("/signin?callbackUrl=%2Fplans");
+      expect(door.queryByRole("link", { name: "Sign up" })).toBeNull();
+    });
+  });
+
+  // Mitchell, 2026-10-11: the bar is clear over the map, where nothing sits
+  // under it to read, and paper once the pin releases — after that, content
+  // scrolls under it, and a clear bar shows that content through its links
+  // and takes the taps aimed at it.
+  it("puts the header on paper once the pin releases, and only then", () => {
+    render(<PhoneFrontDoor />);
+    const header = within(screen.getByTestId("phone-front-door")).getByRole("banner");
+    expect(header.hasAttribute("data-solid")).toBe(false);
+    scrollTo(0.97);
+    expect(header.hasAttribute("data-solid")).toBe(false);
+    scrollTo(1.2);
+    expect(header.hasAttribute("data-solid")).toBe(true);
+    scrollTo(0.5);
+    expect(header.hasAttribute("data-solid")).toBe(false);
   });
 
   it("links the playbook library from the header", () => {
@@ -288,10 +317,21 @@ describe("the phone front door (SPEC §28)", () => {
       // Countdown: the night before, and somebody still awake.
       expect(within(claims[2]!).getByText("Wheels up tomorrow")).toBeTruthy();
       expect(within(claims[2]!).getByText(/Is anyone else still up/)).toBeTruthy();
-      // Notebook: a sentence with a value in it, over the costs that value is
-      // the total of.
-      expect(within(claims[3]!).getByText("$596")).toBeTruthy();
-      expect(within(claims[3]!).getByText("Ryokan · Hakone")).toBeTruthy();
+      // Notebook: a page of the trip as it was lived — the day, a memory, and
+      // the people who were there.
+      expect(within(claims[3]!).getByText("Day 6 · Hakone")).toBeTruthy();
+      expect(within(claims[3]!).getByText(/best night of the trip/)).toBeTruthy();
+      expect(within(claims[3]!).getByText("Sam, Priya, Dana, Marcus · Apr 9")).toBeTruthy();
+    });
+
+    // Mitchell, 2026-10-11: *"it should be more nostalgic than how much you
+    // spent on dinner."* The card used to be a day's spend and its receipts;
+    // "How you'll remember it" is not a total.
+    it("remembers the trip in the notebook without a price in it", () => {
+      render(<PhoneFrontDoor />);
+      const notebook = screen.getAllByTestId("front-door-claim")[3]!;
+      expect(within(notebook).getByText("How you'll remember it.")).toBeTruthy();
+      expect(notebook.textContent).not.toMatch(/[$€£]\s?\d/);
     });
 
     // The half of "awkward wording" that was a BUILD defect rather than a copy

@@ -105,14 +105,21 @@ describe("LandingScreen", () => {
     );
   });
 
-  // M42 D3: the plans and their prices, as `/plans` draws them, at an anchor
-  // the header and any outside link can reach.
-  it("shows the plans at #pricing, linked from the header", () => {
+  // M42 D3: the plans and their prices at an anchor the header and any
+  // outside link can reach. A summary, not `/plans`' comparison table —
+  // Mitchell, 2026-10-11: *"the specifics are for the actual payment page"*.
+  it("summarises the plans at #pricing, linked from the header", () => {
     render(<LandingScreen />);
     const desktop = within(screen.getByTestId("desktop-landing"));
     const pricing = desktop.getByRole("region", { name: "Pricing" });
     expect(pricing.id).toBe("pricing");
-    expect(within(pricing).getByRole("table")).toBeDefined();
+    expect(within(pricing).queryByRole("table")).toBeNull();
+    expect(within(pricing).getByText("Unlimited planned trips")).toBeDefined();
+    expect(within(pricing).getByText("AI tools to help plan the trip")).toBeDefined();
+    expect(within(pricing).getByText("Invite all your friends to come along")).toBeDefined();
+    expect(within(pricing).getByRole("link", { name: "Compare plans" }).getAttribute("href")).toBe(
+      "/signin?callbackUrl=%2Fplans",
+    );
     expect(desktop.getByRole("link", { name: "Pricing" }).getAttribute("href")).toBe("#pricing");
   });
 
@@ -145,10 +152,10 @@ describe("LandingScreen", () => {
   // "tripFree" — no word boundary, no match. The old form passed with exactly
   // that planted; `queryAllByText` tests each element's own text.
   //
-  // **Except the plan's name in the plan table**: its `free` column header and
-  // the "Free" price cell. SPEC §17.1: *"The `Free` plan name is not that
-  // claim"*. Only a cell that is exactly the name is let through — "Free for a
-  // week" in the table is still a claim — and the other two patterns get no
+  // **Except the plan's name in the plan summary**: the `free` card's name and
+  // its "Free" price. SPEC §17.1: *"The `Free` plan name is not that claim"*.
+  // Only an element that is exactly the name is let through — "Free for a
+  // week" on a card is still a claim — and the other two patterns get no
   // exemption at all.
   it.each([
     ["free", /\bfree\b/i],
@@ -157,7 +164,7 @@ describe("LandingScreen", () => {
   ])("never sells itself on %s (SPEC §14)", (_label, pattern) => {
     render(<LandingScreen />);
     const planNames = screen
-      .getAllByTestId("plan-comparison")
+      .getAllByTestId("plan-summary")
       .flatMap((table) => within(table).queryAllByText(/^free$/i));
     expect(screen.queryAllByText(pattern).filter((el) => !planNames.includes(el))).toEqual([]);
   });

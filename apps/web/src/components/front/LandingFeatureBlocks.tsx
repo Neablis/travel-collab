@@ -2,7 +2,6 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { DataText } from "@/components/ui/data-text";
 import { Heading } from "@/components/ui/heading";
-import { Table, TBody, TD, TFoot, TH, THead, TR } from "@/components/ui/table";
 import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/cn";
 
@@ -27,15 +26,6 @@ import { cn } from "@/lib/cn";
 // get shells, and `LandingScreen.tsx` owns both.
 
 const CREW = ["SK", "PR", "JM", "MT"] as const;
-
-// `dc.html:2124-2133`. The design labels the total $550 ($340 + $210); SPEC §14
-// says $596. The design file wins on copy (handoff `README.md`) and is the one
-// that adds up — do not "fix" this to $596.
-const COST_ROWS = [
-  { item: "Ryokan, Higashiyama", who: "Priya", cost: "$340" },
-  { item: "Kikunoi Roan dinner", who: "All 4", cost: "$210" },
-] as const;
-const COST_TOTAL = "$550";
 
 // The Countdown block's steps. A fixture frozen the night before, never computed
 // from `Date.now()`: the page runs on nothing (SPEC §14), and a clock read here
@@ -337,68 +327,37 @@ export function LandingFeatureBlocks(): React.ReactElement {
         </div>
       </Card>
 
-      {/* Notebook — `dc.html:2095-2136` */}
+      {/* Notebook — `dc.html:2095-2136`'s frame. The page in it is a memory
+          rather than the design's cost table (Mitchell, 2026-10-11: *"it
+          should be more nostalgic than how much you spent on dinner"*), and
+          the phone's Notebook card is the same entry, shorter. */}
       <Card className="flex h-full min-h-107.5 flex-col overflow-hidden rounded-lg p-0">
         <BlockHead eyebrow="Notebook" title="How you’ll remember it.">
-          Pages that read like the letter home, with times and costs pulled live from the plan. Before
-          the trip it&rsquo;s a promise. After, it&rsquo;s the keepsake.
+          Pages that read like the letter home, written by everyone who was there. Before the trip
+          it&rsquo;s a promise. After, it&rsquo;s the keepsake.
         </BlockHead>
 
         <div className="flex min-h-0 flex-1 flex-col justify-between gap-2.5 px-4.5 pb-4.5">
           <div className="flex items-center gap-2 pb-0.75">
-            <DataText className="text-3xs tracking-wider uppercase">Arriving in Kyoto · Day 6</DataText>
+            <DataText className="text-3xs tracking-wider uppercase">Day 6 · Hakone</DataText>
             <DataText className="ml-auto text-3xs">Sam typing…</DataText>
           </div>
 
+          {/* SPEC §14's notebook-as-surface, kept: a page, not a card, with the
+              plan's own time in it wearing the widget-value tint. */}
           <div className="flex min-h-0 flex-1 flex-col gap-3 rounded-md border border-hairline bg-paper px-3.75 py-3.5">
             <Text as="p" className="text-sm leading-relaxed text-pretty">
-              We land at{" "}
-              <DataText className="rounded-sm bg-brand-tint px-1.25 py-px text-2xs text-brand-pressed">11:20 am</DataText>{" "}
-              and head up to Higashiyama — bags at the ryokan by{" "}
-              <DataText className="rounded-sm bg-brand-tint px-1.25 py-px text-2xs text-brand-pressed">4:00 pm</DataText>.{" "}
-              <span className="border-b-2 border-warning bg-warning-tint px-0.5 py-px">
-                Cash for the market — no cards.
-              </span>{" "}
-              Here is where the money goes:
+              We reached the ryokan at{" "}
+              <DataText className="rounded-sm bg-brand-tint px-1.25 py-px text-2xs text-brand-pressed">4:00 pm</DataText>{" "}
+              and stayed in the onsen until our fingers wrinkled, then ate far too much kaiseki. Marcus asked
+              for seconds of the one course nobody could name.
             </Text>
-
-            {/* SPEC §14: a table, not a card, "because the point is that the
-                notebook and the plan are one surface". The `Table` primitive
-                carries the semantics; the overrides strip its data-grid chrome
-                (cell padding, its own type scale) down to the design's
-                borderless doc rules. */}
-            <Table className="text-xs">
-              <THead>
-                <TR className="border-border-strong">
-                  <TH className="w-full px-0 pt-0 pb-1.25 font-mono text-3xs font-normal tracking-wider">Day 6</TH>
-                  <TH className="px-0 pt-0 pb-1.25 pl-2.5 font-mono text-3xs font-normal tracking-wider">Who</TH>
-                  <TH className="px-0 pt-0 pb-1.25 pl-2.5 text-right font-mono text-3xs font-normal tracking-wider">Cost</TH>
-                </TR>
-              </THead>
-              <TBody>
-                {COST_ROWS.map((row) => (
-                  <TR key={row.item}>
-                    <TD className="px-0 py-1.5 align-middle text-ink">{row.item}</TD>
-                    <TD className="px-0 py-1.5 pl-2.5 align-middle text-2xs text-slate">{row.who}</TD>
-                    <TD className="px-0 py-1.5 pl-2.5 text-right align-middle">
-                      <DataText className="text-2xs text-ink">{row.cost}</DataText>
-                    </TD>
-                  </TR>
-                ))}
-              </TBody>
-              <TFoot>
-                <TR className="border-b-0 font-semibold">
-                  <TD className="px-0 pt-1.5 align-middle text-ink">Day total</TD>
-                  <TD className="px-0 pt-1.5" />
-                  <TD className="px-0 pt-1.5 pl-2.5 text-right align-middle">
-                    <DataText className="text-2xs font-semibold text-ink">{COST_TOTAL}</DataText>
-                  </TD>
-                </TR>
-              </TFoot>
-            </Table>
-
             <Text as="p" className="text-sm leading-relaxed text-pretty">
-              Trains are on Sam, and we settle up in Osaka.
+              We walked back under the lanterns with nobody in a hurry. Priya says it was the best night of
+              the trip, and nobody argued.
+            </Text>
+            <Text as="p" className="mt-auto text-xs text-slate">
+              Sam, Priya, Dana, Marcus · Apr 9
             </Text>
           </div>
         </div>

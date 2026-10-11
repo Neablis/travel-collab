@@ -36,28 +36,28 @@ rather than grepping for `§n` and reading forward (KI-2026-09-14-c).
 | §12 | Calendar as a city view, account settings, focus rings — 2026-08-26 | 451 |
 | §13 | Mobile foundations | 557 |
 | §14 | The landing page — 2026-08-26 | 637 |
-| §15 | Playbooks becomes a public library — 2026-08-30 | 684 |
-| §16 | The shared day gets a map, and Playbooks reaches the phone — 2026-09-01 | 757 |
-| §17 | Billing surfaces — M20 / M21 — 2026-09-02 | 796 |
+| §15 | Playbooks becomes a public library — 2026-08-30 | 686 |
+| §16 | The shared day gets a map, and Playbooks reaches the phone — 2026-09-01 | 759 |
+| §17 | Billing surfaces — M20 / M21 — 2026-09-02 | 798 |
 | §18 | Notebook widgets — a page has no scope — 2026-09-02 | 236 |
-| §19 | The phone Notebook is the whole model — 2026-09-03 | 895 |
-| §20 | Save this day as a Playbook — 2026-09-04 | 974 |
-| §21 | The notebook widget framework — 2026-09-04 | 1082 |
-| §22 | The phone tab bar is scoped, not disabled — 2026-09-05 | 1047 |
-| §23 | The assistant reaches the phone — as a pill, not a tab — 2026-09-05 | 1001 |
-| §24 | The trip's four tabs, renamed and rescoped — 2026-09-12 | 1116 |
-| §25 | Overview IS a notebook page — 2026-09-12 | 1154 |
-| §26 | Widget settings live outside the page — 2026-09-12 | 1180 |
-| §27 | Trip lifecycle, and read-only as one mode with two ways in — 2026-09-12 | 1221 |
-| §28 | Identity, the Ledger look, and the front door on a phone — 2026-09-12 | 1262 |
-| §29 | Plans is a route, and paying has a confirm step — 2026-09-14 | 1320 |
-| §30 | New trip is a conversation; the transcript has no bubbles — 2026-09-15 | 1407 |
-| §31 | The new-trip transcript is chat-shaped — 2026-09-18 | 1524 |
-| §32 | The conversation is every surface's new-trip flow — 2026-09-18 | 1586 |
-| §33 | Playbooks hold several days, and the Discover bar is re-sorted by kind — 2026-09-19 | 1658 |
-| §34 | API tokens, a trip as a file, and the phone gets an account — 2026-09-19 | 1748 |
-| §35 | Simplify pass, the invite landing, Cass, and actions that look like actions — 2026-09-22 | 1905 |
-| §36 | Travel legs, co-travellers, the rich layer and reporting — 2026-09-25 | 2094 |
+| §19 | The phone Notebook is the whole model — 2026-09-03 | 897 |
+| §20 | Save this day as a Playbook — 2026-09-04 | 976 |
+| §21 | The notebook widget framework — 2026-09-04 | 1084 |
+| §22 | The phone tab bar is scoped, not disabled — 2026-09-05 | 1049 |
+| §23 | The assistant reaches the phone — as a pill, not a tab — 2026-09-05 | 1003 |
+| §24 | The trip's four tabs, renamed and rescoped — 2026-09-12 | 1118 |
+| §25 | Overview IS a notebook page — 2026-09-12 | 1156 |
+| §26 | Widget settings live outside the page — 2026-09-12 | 1182 |
+| §27 | Trip lifecycle, and read-only as one mode with two ways in — 2026-09-12 | 1223 |
+| §28 | Identity, the Ledger look, and the front door on a phone — 2026-09-12 | 1264 |
+| §29 | Plans is a route, and paying has a confirm step — 2026-09-14 | 1322 |
+| §30 | New trip is a conversation; the transcript has no bubbles — 2026-09-15 | 1409 |
+| §31 | The new-trip transcript is chat-shaped — 2026-09-18 | 1526 |
+| §32 | The conversation is every surface's new-trip flow — 2026-09-18 | 1588 |
+| §33 | Playbooks hold several days, and the Discover bar is re-sorted by kind — 2026-09-19 | 1660 |
+| §34 | API tokens, a trip as a file, and the phone gets an account — 2026-09-19 | 1750 |
+| §35 | Simplify pass, the invite landing, Cass, and actions that look like actions — 2026-09-22 | 1907 |
+| §36 | Travel legs, co-travellers, the rich layer and reporting — 2026-09-25 | 2096 |
 
 <!-- SPEC-INDEX:END -->
 
@@ -657,9 +657,11 @@ no empty, offline or conflict state, and project rule 6 is satisfied trivially.
    same trap exists in any real implementation.
 2. **Three equal-height blocks, flush to the card bottoms** —
    *Together*: a live timeline with Priya's lifted stop, Dana's comment thread, travel
-   gaps. *Notebook*: prose with an inline, borderless, doc-style cost table
-   (activity / who / cost; Day 6 total $596) — a table, not a card, because the point is
-   that the notebook and the plan are one surface. *Playbooks*: a borrowed Phuket beach
+   gaps. *Notebook*: a page of the day as it was lived — a few lines of memory with
+   the plan's own time inline, signed by the people who were there; no money (Mitchell,
+   2026-10-11: "more nostalgic than how much you spent on dinner", replacing the Day 6
+   cost table) — a page, not a card, because the point is that the notebook and the plan
+   are one surface. *Playbooks*: a borrowed Phuket beach
    day, 4.8★, "Shared 214 times", dropping in as Day 2 of a calendar strip between
    jungle days.
 
