@@ -95,9 +95,16 @@ test("Add › Trip from Home is Home's own button", async ({ page }) => {
 // History entry. It replaced the Calendar city cards' commands.
 test("Move › Day › Day 1 › Day 2, drilled from the keyboard, is one change", async ({ page }) => {
   const tripId = await createMappedTrip(page, e2eTripName("PaletteMove"), 3, { startDate: "2027-06-07" });
+  // A second stop on Day 1, so the move is two commands and only a batch
+  // makes it one History entry: one stop moves as one command either way.
+  const { trip } = (await (await page.request.get(`/api/trips/${tripId}`)).json()) as { trip: { days: { dayId: string }[] } };
+  const added = await page.request.post(`/api/trips/${tripId}/commands`, {
+    data: { type: "AddActivity", tripId, activityId: crypto.randomUUID(), title: "Late swim", dayId: trip.days[0]!.dayId, timeWindow: { start: "18:00", end: "19:00" } },
+  });
+  expect(added.ok()).toBe(true);
   await page.goto(`/trips/${tripId}?view=Plan`);
   const column = (index: number) => page.getByTestId("day-column").nth(index);
-  await expect(column(0).locator("[data-river-block]")).toHaveCount(1);
+  await expect(column(0).locator("[data-river-block]")).toHaveCount(2);
   const history = async () =>
     ((await (await page.request.get(`/api/trips/${tripId}/history`)).json()) as { history: { entries: { description: string }[] } }).history.entries;
   const before = (await history()).length;
@@ -111,7 +118,7 @@ test("Move › Day › Day 1 › Day 2, drilled from the keyboard, is one change
   await expect(palette(page)).toBeHidden();
 
   await expect(column(0).locator("[data-river-block]")).toHaveCount(0);
-  await expect(column(1).locator("[data-river-block]")).toHaveCount(2);
+  await expect(column(1).locator("[data-river-block]")).toHaveCount(3);
   await expect.poll(async () => (await history()).length).toBe(before + 1);
   expect((await history())[0]?.description).toMatch(/Moved/);
 });
