@@ -219,3 +219,7 @@ Surveyed 2026-10-11. Re-check line numbers before trusting them. The app is unde
   the static art stays as the loading/error placeholder. `landing:verify` covers the new payloads.
 - The hero's Map view stays a drawing (Mitchell, 2026-10-11).
 - The `unbuiltSocial` sweep keeps running over the real components.
+- Carried from part 7's last review (minor, left there because this part rewrites the same
+  surfaces): assert no "Accept" on the desktop Countdown and hero Notebook art; widen
+  `test-support/unbuiltSocial.ts` to `is (reading|moving|dragging|viewing|editing|typing)|\bonline\b|\bviewing\b`
+  with `\btyping\b`; fix the stale "presence pill" comments and `LandingScreen.test.tsx:178-179`.
