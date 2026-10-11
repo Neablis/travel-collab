@@ -49,6 +49,11 @@ Candidates absorbed (each deleted by this gate):
    memory, not money**, on phone and desktop ("it should be more nostalgic than how much you spent
    on dinner"): the Day 6 cost card and table give way to a short journal entry, and SPEC §14 is
    amended to match.
+   **D3 is overridden for the landing:** it shows three compact plan cards (name, price, one line
+   each: Free — unlimited planned trips; Plus — AI tools to help plan; Premium — invite all your
+   friends), with a link to `/plans` for the comparison. `/plans` keeps `PlanComparison` ("the
+   specifics are for the payment page, tracking your tier, or comparing"). **Voting and commenting
+   move from Premium-only to Plus and Premium** ("the cost keeps spammers out"), in part 7.
 4. **Profiles and the board are not indexed.** *Already true when M42 was scoped*: the SEO pass
    (merge #344) set `NOINDEX_FOLLOW` on `/playbooks/board` and `/playbooks/profile/[userId]`, and
    `sitemap.ts` leaves both out. Recorded; no work.
