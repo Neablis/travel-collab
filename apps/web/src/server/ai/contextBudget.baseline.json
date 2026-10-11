@@ -113,10 +113,10 @@
         "insert_widget",
         "switch_intent"
       ],
-      "toolChars": 4899,
+      "toolChars": 4946,
       "instructionChars": 3564,
-      "totalChars": 8463,
-      "approxTokens": 2557
+      "totalChars": 8510,
+      "approxTokens": 2571
     },
     "page · question": {
       "tools": [
@@ -155,8 +155,8 @@
       "approxTokens": 374
     },
     "insert_widget": {
-      "chars": 1120,
-      "approxTokens": 338
+      "chars": 1167,
+      "approxTokens": 353
     },
     "find_days": {
       "chars": 1063,

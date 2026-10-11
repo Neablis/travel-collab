@@ -11,6 +11,9 @@ import { SpendByDayChart } from "../pages/blocks/SpendByDayChart";
 import { breakdownChartConfig } from "../pages/blocks/SpendBreakdownBlock";
 import { SpendBreakdownChart } from "../pages/blocks/SpendBreakdownChart";
 import { ContextByStepChart, TurnsADayChart } from "../admin/AiModelsCharts";
+import { tagBreakdownConfig } from "../pages/blocks/TagBreakdownBlock";
+import { tagsByDayConfig } from "../pages/blocks/TagsByDayBlock";
+import { TagBreakdownChart, TagsByDayChart } from "../pages/blocks/TagCharts";
 
 // The M14 gate box, as a test: *"Charts go through the one adopted chart
 // component, and none carries a colour or font outside the design-system
@@ -81,6 +84,11 @@ const CHARTS: Record<string, Record<string, () => ReactElement>> = {
     "by kind": () => breakdownChart({}),
     "by tag": () => breakdownChart({ by: "tag" }),
   },
+  "components/pages/blocks/TagCharts.tsx": {
+    "activities, pie": () => tagChart("tag.breakdown", {}),
+    "activities, bars": () => tagChart("tag.breakdown", { view: "bars" }),
+    "tags by day": () => tagChart("tag.byDay", {}),
+  },
   // The operator console's AI models tab (M36 link 4).
   "components/admin/AiModelsCharts.tsx": {
     "turns a day": () => (
@@ -110,6 +118,9 @@ const CHARTS: Record<string, Record<string, () => ReactElement>> = {
 // A chart that draws far fewer marks than the bars gets its own floor below.
 const PAINTED_FLOOR: Record<string, number> = {
   "components/pages/blocks/SpendBreakdownChart.tsx": 2,
+  // The donut draws one sector per tag and nothing else: measured at 4, against
+  // 14 for the bars and 19 by day. Half the smallest, as the spend donut.
+  "components/pages/blocks/TagCharts.tsx": 2,
   // Two areas (fill and stroke for turns, fill for failed) and the baseline:
   // measured at 4, no axis by design. 3 still fails a chart missing an area.
   "components/admin/AiModelsCharts.tsx": 3,
@@ -129,6 +140,19 @@ function breakdownChart(params: Record<string, unknown>): ReactElement {
   }
   const payload = outcome.rendered.block;
   return <SpendBreakdownChart payload={payload} config={breakdownChartConfig(payload)} height={176} />;
+}
+
+// `spendTrip`'s tags, so each tag chart draws several tags.
+function tagChart(name: "tag.breakdown" | "tag.byDay", params: Record<string, unknown>): ReactElement {
+  const trip = spendTrip();
+  const outcome = renderMacro({ trip, page: { tripId: trip.tripId }, user: null, globals: null, today: null }, name, params);
+  if (outcome.status !== "ok" || outcome.rendered.kind !== "block") throw new Error(`expected a block, got ${outcome.status}`);
+  const payload = outcome.rendered.block;
+  if (payload.kind === "tag-breakdown") {
+    return <TagBreakdownChart payload={payload} config={tagBreakdownConfig(payload)} height={176} />;
+  }
+  if (payload.kind === "tags-by-day") return <TagsByDayChart payload={payload} config={tagsByDayConfig(payload)} height={224} />;
+  throw new Error(`expected a tag chart, got ${payload.kind}`);
 }
 
 // A paint is a token, a series property that `ChartContainer` sets FROM a

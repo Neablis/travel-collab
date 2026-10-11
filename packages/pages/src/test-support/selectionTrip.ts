@@ -130,6 +130,7 @@ export function selectionTrip(): SelectionTrip {
       { tag: "lodging", activityCount: 1 },
       { tag: "outdoors", activityCount: 1 },
     ],
+    description: null,
     homeTimeZone: null,
   };
 
