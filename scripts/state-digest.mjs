@@ -159,6 +159,30 @@ function readGit(root) {
 }
 
 /**
+ * One word for a PR's checks. `ci-ok` is the one required check (CLAUDE.md
+ * rule 4), so when it has reported it is the answer; otherwise the worst of
+ * the rest. Check runs carry status/conclusion, commit statuses carry state.
+ */
+function summarizeChecks(rollup) {
+  if (!Array.isArray(rollup) || rollup.length === 0) return "no checks";
+  const verdict = (c) => {
+    const v = String(c?.conclusion || c?.state || "").toUpperCase();
+    if (c?.status && String(c.status).toUpperCase() !== "COMPLETED") return "pending";
+    if (["SUCCESS", "NEUTRAL", "SKIPPED"].includes(v)) return "green";
+    if (["PENDING", "EXPECTED", "QUEUED", ""].includes(v)) return "pending";
+    return "red";
+  };
+  const required = rollup.find((c) => (c?.name ?? c?.context) === "ci-ok");
+  if (required) return `ci-ok ${verdict(required)}`;
+  const all = rollup.map(verdict);
+  return `CI ${all.includes("red") ? "red" : all.includes("pending") ? "pending" : "green"}`;
+}
+
+// A milestone part's branch, as the parts of M41 were named
+// (`claude/m41-part3-parked-origin`).
+const PART_BRANCH = /^claude\/m\d+-part/;
+
+/**
  * Open PRs. `gh` is optional infrastructure: it may not be installed, may not
  * be authenticated, and may be slow. Every one of those prints "(gh
  * unavailable)" and costs the session nothing.
@@ -173,7 +197,7 @@ function readPullRequests(root, { skip }) {
       "--state",
       "open",
       "--json",
-      "number,title,headRefName,createdAt",
+      "number,title,headRefName,createdAt,isDraft,reviewDecision,statusCheckRollup",
       "--limit",
       "20",
     ],
@@ -189,6 +213,9 @@ function readPullRequests(root, { skip }) {
         title: String(pr.title ?? ""),
         branch: String(pr.headRefName ?? ""),
         created: String(pr.createdAt ?? "").slice(0, 10),
+        draft: pr.isDraft === true,
+        review: String(pr.reviewDecision ?? ""),
+        ci: summarizeChecks(pr.statusCheckRollup),
       })),
     };
   } catch {
@@ -349,6 +376,21 @@ function render(d) {
     }
     if (d.prs.prs.length > PR_MAX_LINES) {
       out.push(`  …and ${d.prs.prs.length - PR_MAX_LINES} more (gh pr list)`);
+    }
+  }
+
+  // One line per open milestone part, so the orchestrator sees where each
+  // part's PR stands without a gh call per PR. Merged parts have left this list.
+  if (d.prs.unavailable) {
+    out.push("MILESTONE PARTS: (PR status unavailable)");
+  } else {
+    const parts = d.prs.prs.filter((pr) => PART_BRANCH.test(pr.branch));
+    if (parts.length > 0) {
+      out.push(`MILESTONE PARTS: ${parts.length} open, not merged`);
+      for (const pr of parts.slice(0, PR_MAX_LINES)) {
+        const review = pr.review ? pr.review.toLowerCase().replace(/_/g, " ") : "no review decision";
+        out.push(`  PR ${pr.number} [${pr.branch}] ${pr.draft ? "draft" : "ready"}, ${pr.ci}, ${review}`);
+      }
     }
   }
 
