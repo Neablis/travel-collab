@@ -64,7 +64,8 @@ search engines get tag pages, and notebooks can chart the mix.
    - **Food** qualifies when at least **50%** of those stops are Food: every trip eats, so the
      bar is higher.
    - Any **other category** qualifies when it is on at least **25%** of the stops that carry a
-     non-Food category.
+     non-Food category **and on at least two stops** (amended 2026-10-11, part 3: otherwise a day
+     of four meals and one bar reads "Drinks & food", the bar being 100% of the non-Food stops).
    - The top two that qualify, by share, name it: one gives an adjective ("Outdoorsy"), two give
      a pair ("Beach & outdoors", "Food & drink"). None gives *"A bit of everything"*.
    - Below a minimum number of tagged stops, there is no description, rather than a misleading one.
