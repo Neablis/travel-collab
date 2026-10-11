@@ -48,6 +48,30 @@ test("naming git commit without running it passes", () => {
   assert.equal(run("echo 'git commit -m claude-opus-5-5'").status, 0);
 });
 
+test("only the commit's own message is scanned", () => {
+  for (const command of [
+    // A heredoc that writes a file is its body, not a command.
+    "cat > notes.md <<'EOF'\ngit commit -m 'route to claude-haiku-4-5'\nEOF",
+    // A later command in the same line is not the message.
+    'git commit -m "x" && grep -rn "claude-haiku-4-5" apps/',
+  ]) {
+    const res = run(command);
+    assert.equal(res.status, 0, `${command}\n${res.stderr}`);
+  }
+  // The message still counts when it arrives through `-F -` and a heredoc.
+  const res = run("git commit -F - <<'EOF'\nfeat: x\n\nby claude-haiku-4-5\nEOF");
+  assert.equal(res.status, 2);
+  assert.match(res.stderr, /claude-haiku-4-5/);
+});
+
+test("ALLOW_MODEL_ID=1 lets a commit about the product's model routing through", () => {
+  const res = run("ALLOW_MODEL_ID=1 git commit -m 'feat(ai): route classification to claude-haiku-4-5'");
+  assert.equal(res.status, 0, res.stderr);
+  assert.equal(res.stderr, "");
+  // Only for the segment it prefixes.
+  assert.equal(run("ALLOW_MODEL_ID=1 git add . && git commit -m 'x claude-haiku-4-5'").status, 2);
+});
+
 test("a pathological run of git options is matched in linear time", () => {
   // `git -C=! -C=! ... x` made the old option matcher backtrack exponentially
   // (CodeQL js/redos); 5000 repeats never finished.

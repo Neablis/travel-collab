@@ -2,43 +2,76 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { parseStdin, readAll } from "./lib/run-context.mjs";
 import { findModelId } from "./lib/model-id.mjs";
-import { GIT_WITH_GLOBAL_OPTS } from "./lib/git-command.mjs";
+import { gitSubcommandArgs, parseShell } from "./lib/shell.mjs";
 
 // PreToolUse hook (matcher: Bash). Blocks a `git commit` whose message names a
 // hyphenated model id. The attribution this repo wants is the trailer
 // `Co-Authored-By: Claude <Family> <version> <noreply@anthropic.com>`; a model
 // id anywhere else in the message is noise that outlives the model.
 //
-// Scans from `git commit` to the end of the command rather than parsing `-m`,
-// because the usual shape is `-m "$(cat <<'EOF' ... EOF)"`, which no simple
-// argv split survives. `-F <file>` / `--file=<file>` is read from disk.
+// Only the message is scanned: each `-m`/`--message` value, with
+// `-m "$(cat <<'EOF' ... EOF)"` resolved to the heredoc's body by
+// lib/shell.mjs, and the `-F`/`--file` message (a file read from disk, or the
+// heredoc fed to `-F -`). Scanning the command text from `git commit` onward
+// blocked `git commit -m x && grep -rn <id> apps/`, and a heredoc that wrote a
+// file containing "git commit" read as a commit.
 //
-// `git` must be the command word of a segment, so `grep -rn "git commit"`
-// does not count. Exit 2 with the reason on stderr blocks. FAILS OPEN on anything it cannot
+// `ALLOW_MODEL_ID=1` in front of the commit lets one through, for a change
+// that legitimately describes the product's own AI model routing.
+//
+// Exit 2 with the reason on stderr blocks. FAILS OPEN on anything it cannot
 // parse or read.
 
 const payload = parseStdin(await readAll(process.stdin));
 const command = String(payload?.tool_input?.command ?? "");
-const commit = new RegExp(String.raw`(?:^|[\n;|&(]\s*)${GIT_WITH_GLOBAL_OPTS}\s+commit\b`).exec(command);
-if (!commit) process.exit(0);
+const cwd = String(payload?.cwd ?? process.cwd());
 
-const tail = command.slice(commit.index);
-const texts = [tail];
-for (const m of tail.matchAll(/(?:\s-F\s*|\s--file[=\s])(['"]?)([^\s'"]+)\1/g)) {
-  if (m[2] === "-") continue;
-  try {
-    texts.push(readFileSync(resolve(String(payload?.cwd ?? process.cwd()), m[2]), "utf8"));
-  } catch {
-    // An unreadable message file is git's error to report, not this hook's.
+/** The message texts one `git commit` segment carries. */
+function messages(seg, args) {
+  const out = [];
+  const file = (f) => {
+    if (f === "-") return seg.heredocs.join("\n");
+    try {
+      return readFileSync(resolve(cwd, f), "utf8");
+    } catch {
+      return ""; // an unreadable message file is git's error to report
+    }
+  };
+  for (let i = 0; i < args.length; i += 1) {
+    const a = args[i];
+    if (a === "--message" || a === "--file") {
+      const v = args[(i += 1)] ?? "";
+      out.push(a === "--file" ? file(v) : v);
+    } else if (a.startsWith("--message=")) out.push(a.slice(10));
+    else if (a.startsWith("--file=")) out.push(file(a.slice(7)));
+    else if (/^-[a-zA-Z]*[mF]$/.test(a)) {
+      // `-m x`, `-am x`, `-F f`: the cluster's last flag takes the next word.
+      const v = args[(i += 1)] ?? "";
+      out.push(a.endsWith("F") ? file(v) : v);
+    } else if (/^-[a-zA-Z]*[mF]./.test(a) && !a.startsWith("--")) {
+      // `-mtext`, `-Ffile`: the value is glued to the flag.
+      const at = a.search(/[mF]/);
+      const v = a.slice(at + 1);
+      out.push(a[at] === "F" ? file(v) : v);
+    }
   }
+  return out;
 }
 
-const found = texts.map(findModelId).find(Boolean);
+let found = null;
+for (const seg of parseShell(command)) {
+  const args = gitSubcommandArgs(seg, "commit");
+  if (!args || seg.env.includes("ALLOW_MODEL_ID=1")) continue;
+  found = messages(seg, args).map(findModelId).find(Boolean);
+  if (found) break;
+}
+
 if (found) {
   console.error(
     `This commit message contains a model id ("${found}"). Remove it: the only ` +
       "attribution is the `Co-Authored-By:` trailer, which names the model in words " +
-      "(e.g. `Claude Opus 5.5`), plus the `Claude-Session:` line.",
+      "(e.g. `Claude Opus 5.5`), plus the `Claude-Session:` line. If the commit is " +
+      "about the product's own AI model routing, put `ALLOW_MODEL_ID=1` in front of it.",
   );
   process.exit(2);
 }
