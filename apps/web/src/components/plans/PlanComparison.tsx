@@ -160,7 +160,9 @@ export function PlanComparison({ catalogue }: { catalogue: readonly AccountPlanC
                 return (
                   <div key={row.label} className="flex items-baseline justify-between gap-3">
                     <dt className="text-slate">{row.label}</dt>
-                    <dd className={cn("shrink-0 text-right text-ink", valueTone(value))}>{value}</dd>
+                    <dd className={cn("shrink-0 text-right text-ink", choice.held && "font-semibold", valueTone(value))}>
+                      {value}
+                    </dd>
                   </div>
                 );
               })}

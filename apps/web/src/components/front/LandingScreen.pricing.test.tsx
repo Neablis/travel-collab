@@ -25,8 +25,8 @@ vi.mock("@/lib/landingPlans", async (importOriginal) => {
 
 afterEach(cleanup);
 
-// Anything reading as a monthly price. The hero's demo trip shows money too
-// ("$340"), so a bare amount is not a price; the second assertion covers that.
+// Anything reading as a monthly price. A demo trip may show money (the hero's
+// ¥1,340), so a bare amount is not a price; the second assertion covers that.
 const PRICE_SHAPED = /[$€£]\s?\d[\d.,]*\s*(\/|a|per)\s*(mo|month)\b/i;
 
 /**
