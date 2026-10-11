@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { describeByTags } from "@tc/domain";
 import { travellerIds, type Location, type PreviewPlace, type TripDetail, type TripPreview } from "@tc/contracts";
 import { cityFor } from "@/lib/dayChips";
 import { displayNameFor } from "@/lib/displayName";
@@ -85,6 +86,11 @@ export async function readInvitePreview(
         travelling: travellers.has(p.userId),
       })),
       total: { amountMinor: costed.tripCostTotal, currency: costed.currency },
+      // The stops on its days, as the home card counts them: the backlog is
+      // not the plan yet.
+      description:
+        describeByTags(detail.days.flatMap((day) => day.activityIds.flatMap((id) => detail.activities[id] ?? [])))
+          ?.text ?? null,
     },
   };
 }

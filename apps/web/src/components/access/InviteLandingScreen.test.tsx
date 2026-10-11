@@ -93,6 +93,7 @@ const preview: TripPreview = {
     { name: "Kenji", avatar: null, color: "teal", colorShifted: false, travelling: false },
   ],
   total: { amountMinor: 123_450, currency: "USD" },
+  description: "Food & sights",
 };
 
 const answer = (landing: InviteLanding) => ({ ok: true, value: landing });
@@ -120,6 +121,21 @@ describe("InviteLandingScreen — a pending invite", () => {
     expect(screen.getByText("Dana Reyes invited you")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Have a look first" }).getAttribute("href")).toBe("/invite/tok/look");
     expect(screen.getByRole("link", { name: "Sign in" })).toBeTruthy();
+  });
+
+  // M42 D9: the trip's description, from the token-scoped read, says what kind
+  // of trip the name is.
+  it("says what kind of trip it is under its name, and nothing when the trip cannot say", async () => {
+    render(<InviteLandingScreen token="tok" googleAvailable />);
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Japan: food and temples", description: "Food & sights" }),
+    ).toBeTruthy();
+    cleanup();
+
+    fetchInvitePreviewMock.mockResolvedValue({ ok: true, value: { ...preview, description: null } });
+    render(<InviteLandingScreen token="tok" googleAvailable />);
+    await screen.findByText("in 5 days");
+    expect(screen.getByRole("heading", { level: 1, name: "Japan: food and temples", description: "" })).toBeTruthy();
   });
 
   // The fixed set (D5), each drawn by the notebook's widget from the preview.

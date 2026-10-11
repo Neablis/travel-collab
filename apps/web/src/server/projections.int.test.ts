@@ -155,6 +155,46 @@ describe("trip summaries carry the day, stop and idea counts", () => {
 });
 
 /**
+ * M42 D8: a card says what kind of trip it is, worked out from the stops in
+ * the listing query and stored nowhere. The days' stops, not the backlog.
+ */
+describe("trip summaries carry a description of the trip", () => {
+  it("describes the trip from its days' stops in both listing queries, and survives a malformed stop", async () => {
+    const member = `m42-${randomUUID().slice(0, 8)}`;
+    const tripId = randomUUID();
+    const day = randomUUID();
+    await executeTripCommand({ type: "CreateTrip", tripId, name: "Coast" }, member);
+    await executeTripCommand(
+      { type: "SetTripDates", tripId, startDate: "2099-06-01", endDate: "2099-06-01", newDayIds: [day] },
+      member,
+    );
+    const add = (tags: ("beach" | "outdoors" | "museum")[], dayId?: string) =>
+      executeTripCommand({ type: "AddActivity", tripId, activityId: randomUUID(), dayId, title: "Stop", tags }, member);
+    for (const tags of [["beach"], ["beach"], ["beach"], ["beach", "outdoors"], ["outdoors"]] as const) await add([...tags], day);
+    // Enough museums in the backlog to name the trip, if the backlog counted.
+    for (let i = 0; i < 6; i++) await add(["museum"]);
+
+    const described = (rows: { name: string; description: string | null }[]) => rows.map((r) => [r.name, r.description]);
+    expect(described(await listTripSummariesVisibleTo(member))).toEqual([["Coast", "Beach & outdoors"]]);
+    expect(described(await listTripSummariesPage(member, { limit: 10, after: null }))).toEqual([["Coast", "Beach & outdoors"]]);
+
+    // A stop whose tags are not an array reads as untagged, and the rest of the
+    // trip is still described, rather than failing every trip on Home.
+    const firstStop = sql`(${tripDetails.doc} #>> '{days,0,activityIds,0}')`;
+    await db
+      .update(tripDetails)
+      .set({ doc: sql`jsonb_set(${tripDetails.doc}, ARRAY['activities', ${firstStop}, 'tags'], '"beach"'::jsonb)` })
+      .where(eq(tripDetails.tripId, tripId));
+    const [corrupted] = await db
+      .select({ tags: sql`${tripDetails.doc} -> 'activities' -> ${firstStop} -> 'tags'` })
+      .from(tripDetails)
+      .where(eq(tripDetails.tripId, tripId));
+    expect(corrupted?.tags).toBe("beach");
+    expect(described(await listTripSummariesVisibleTo(member))).toEqual([["Coast", "Beach & outdoors"]]);
+  });
+});
+
+/**
  * KI-2026-09-05-r. `trip_details.doc` is `jsonb(...).$type<TripDetail>()` — a
  * Drizzle CAST, checked by nothing at runtime — and `getTripDetail` handed that
  * column straight back under a `Promise<TripDetail | null>` signature. Every

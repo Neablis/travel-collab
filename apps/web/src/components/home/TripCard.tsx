@@ -4,6 +4,7 @@ import { travellerIds, type TripSummary, type TripStatus } from "@tc/contracts";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Heading } from "@/components/ui/heading";
+import { Text } from "@/components/ui/text";
 import { DataText } from "@/components/ui/data-text";
 import { dayAccents, type AccentFamily } from "@/lib/dayAccent";
 import { displayNameFor } from "@/lib/displayName";
@@ -111,6 +112,7 @@ export function TripCard({ trip, menuSlot, plannedOfBudget, viewerId }: TripCard
   // (the approved canvas). Without one, the card is exactly what it was.
   const { cover } = trip;
   const titleId = useId();
+  const descriptionId = useId();
 
   const body = (
     <>
@@ -123,13 +125,21 @@ export function TripCard({ trip, menuSlot, plannedOfBudget, viewerId }: TripCard
           href={`/trips/${trip.tripId}`}
           className={cn("inline-flex items-center hover:underline", PHONE_TOUCH)}
         >
-          <Heading level={3} id={titleId}>
+          <Heading level={3} id={titleId} aria-describedby={trip.description === null ? undefined : descriptionId}>
             {trip.name}
           </Heading>
         </Link>
         <div className="mt-1">
           <DataText size="sm">{meta}</DataText>
         </div>
+        {/* What kind of trip it is (M42 D9). It comes with the list, so it
+            never lands late and moves the card the way KI-28's slot below
+            guards against; a trip too lightly tagged to say has no line. */}
+        {trip.description !== null && (
+          <Text variant="secondary" id={descriptionId} className="mt-0.5">
+            {trip.description}
+          </Text>
+        )}
         {/* KI-28: the slot is reserved (mt-1 + min-h-5, exactly one text-sm
             line; leading-5 pins the FILLED line box to that same 20px, which
             takes the residual difference between the two states from ~0.3px

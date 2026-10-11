@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { CalendarClock } from "lucide-react";
 import type { InviteLanding } from "@tc/contracts";
@@ -224,6 +224,10 @@ function ValidInvite({
   // the inviter's chip is theirs, as they look on this trip (D3) — initials on
   // slate until the preview says otherwise.
   const owner = preview.kind === "ready" ? preview.preview.people[0]! : null;
+  // What kind of trip it is (M42 D9), under the name it describes, and the
+  // name's description to a screen reader, so the two are heard together.
+  const description = preview.kind === "ready" ? preview.preview.description : null;
+  const descriptionId = useId();
 
   return (
     <PreviewScope context={context}>
@@ -242,9 +246,18 @@ function ValidInvite({
           </div>
 
           <div className="flex flex-col gap-2.5">
-            <Heading level={1} className="text-balance leading-tight tracking-tight">
+            <Heading
+              level={1}
+              className="text-balance leading-tight tracking-tight"
+              aria-describedby={description === null ? undefined : descriptionId}
+            >
               {landing.trip.name}
             </Heading>
+            {description !== null && (
+              <Text as="span" id={descriptionId} className="text-md">
+                {description}
+              </Text>
+            )}
             <Text as="span" className="font-mono text-sm text-slate">
               {metaLine(landing)}
             </Text>

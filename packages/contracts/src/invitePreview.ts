@@ -101,6 +101,10 @@ export const TripPreview = z
     // for the effective travellers exactly as the board shows it. The ONLY
     // amount in this object (D4).
     total: Money,
+    // What kind of trip it is, by the rule the home cards use (M42 D8): words
+    // about the trip's stops, never about a person or a price. Null when too
+    // few stops are tagged to say.
+    description: z.string().nullable().default(null),
   })
   .strict();
 export type TripPreview = z.infer<typeof TripPreview>;

@@ -6,6 +6,7 @@ import { travellerIds, type TripSummary } from "@tc/contracts";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Heading } from "@/components/ui/heading";
+import { Text } from "@/components/ui/text";
 import { DataText } from "@/components/ui/data-text";
 import { PHONE_TOUCH, buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -178,6 +179,7 @@ export function NextTripHero({ trip, menuSlot, viewerId }: NextTripHeroProps) {
   // Each next-step link is described by the trip's name, as a card's are
   // (`UnplannedTripSteps`): Home can show the same links on several trips.
   const titleId = useId();
+  const descriptionId = useId();
   // Held with the owner's buttons while the reader is unknown: an owner may
   // always set one, so it is part of the owner-alone row.
   const pickCover = unplanned && (holding ? cover === null : offersCover(trip, viewerId));
@@ -299,7 +301,7 @@ export function NextTripHero({ trip, menuSlot, viewerId }: NextTripHeroProps) {
                 href={`/trips/${trip.tripId}`}
                 className={cn("inline-flex items-center hover:underline", PHONE_TOUCH)}
               >
-                <Heading level={2} id={titleId}>
+                <Heading level={2} id={titleId} aria-describedby={trip.description === null ? undefined : descriptionId}>
                   {trip.name}
                 </Heading>
               </Link>
@@ -312,6 +314,13 @@ export function NextTripHero({ trip, menuSlot, viewerId }: NextTripHeroProps) {
               <div className="mt-1.5">
                 <DataText size="sm">{meta}</DataText>
               </div>
+              {/* What kind of trip it is (M42 D9), from the summary, so it is
+                  there on the first frame, as on a card. */}
+              {trip.description !== null && (
+                <Text variant="secondary" id={descriptionId} className="mt-0.5">
+                  {trip.description}
+                </Text>
+              )}
               {/* KI-28: reserved slot, same reason as TripCard's own cost line
                   — this hero sits ABOVE the trip grid, so the 27px it used to
                   gain when its TripDetail landed pushed every card (and any

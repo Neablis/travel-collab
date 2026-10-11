@@ -1,5 +1,7 @@
 import {
+  ActivityTag,
   PageEvent,
+  StoredActivityKind,
   TripDetail,
   TripEvent,
   isPageEventType,
@@ -10,8 +12,9 @@ import {
   type PageContent,
   type PageDoc,
 } from "@tc/contracts";
-import { projectTripDetails, projectTripSummaries } from "@tc/domain";
+import { describeByTags, projectTripDetails, projectTripSummaries } from "@tc/domain";
 import { and, desc, eq, getTableColumns, inArray, isNull, lte, ne, or, sql } from "drizzle-orm";
+import { z } from "zod";
 import { hasMembershipRow } from "./access/members";
 import { serverConflictContext } from "./conflictContext";
 import { db, type Queryable } from "./db/client";
@@ -381,7 +384,31 @@ const LISTED_SUMMARY = {
   // it is its own CRUD table, LEFT JOINed here so the grid reads every card's
   // cover in the statement that reads the cards.
   cover: TRIP_COVER_JSON,
+  // Each stop's kind and tags, for the description (M42 D8): the stops on the
+  // days, as `stopCount` counts them, and only the two fields the rule reads.
+  // Run silent like `countOf`, so a malformed document is no stops rather than
+  // an error; `describedListing` reads what comes back and drops the column.
+  stops: sql<unknown>`(
+    SELECT COALESCE(jsonb_agg(jsonb_build_object(
+      'kind', ${tripDetails.doc} -> 'activities' -> stop.id -> 'kind',
+      'tags', ${tripDetails.doc} -> 'activities' -> stop.id -> 'tags')), '[]'::jsonb)
+    FROM jsonb_array_elements_text(
+      jsonb_path_query_array(${tripDetails.doc}, 'strict $.days[*].activityIds[*]', '{}', true)) AS stop(id))`,
 };
+
+// One stop as the listing query hands it over. Leniently, for `endDate`'s
+// reason: one bad stop must not fail every trip on Home, so a kind that does
+// not parse reads as the default and tags that do not parse as none.
+const ListedStop = z.object({
+  kind: StoredActivityKind.catch("planned"),
+  tags: z.array(ActivityTag).catch([]),
+});
+
+/** A listed row with its stops turned into the trip's description, and the stops dropped. */
+function describedListing<T extends { stops: unknown }>({ stops, ...row }: T): Omit<T, "stops"> & { description: string | null } {
+  const parsed = z.array(ListedStop).parse(stops);
+  return { ...row, description: describeByTags(parsed)?.text ?? null };
+}
 
 export async function listTripSummaries() {
   return db.select().from(tripSummaries).where(eq(tripSummaries.status, "active"));
@@ -462,7 +489,8 @@ export async function listTripSummariesPage(
     .leftJoin(tripCovers, eq(tripCovers.tripId, tripSummaries.tripId))
     .where(seek === undefined ? visible : and(visible, seek))
     .orderBy(desc(tripSummaries.createdAt), desc(tripSummaries.tripId))
-    .limit(page.limit);
+    .limit(page.limit)
+    .then((rows) => rows.map(describedListing));
 }
 
 /**
@@ -491,5 +519,6 @@ export async function listTripSummariesVisibleTo(userId: string) {
         ),
       ),
     )
-    .orderBy(desc(tripSummaries.createdAt), desc(tripSummaries.tripId));
+    .orderBy(desc(tripSummaries.createdAt), desc(tripSummaries.tripId))
+    .then((rows) => rows.map(describedListing));
 }
