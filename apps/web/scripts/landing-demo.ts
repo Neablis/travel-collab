@@ -189,8 +189,10 @@ function landingPlaybook(): DiscoverDay {
   }
   // No price on the landing outside its plans (Mitchell, 2026-10-11): the
   // blocks sell the day, not what it cost. The card draws no money line for a
-  // null total, as it does for a day with nothing priced.
-  return { ...card, totalCost: null };
+  // null total, as it does for a day with nothing priced. And no tag that
+  // links: a front-door card sends nobody into tag pages, which may not be
+  // indexed, so its chips stay text, as a private day's do.
+  return { ...card, totalCost: null, namedTags: [] };
 }
 
 const MEMORY_DAY = { kind: "index", index: 5 };

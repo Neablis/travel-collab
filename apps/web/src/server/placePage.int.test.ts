@@ -70,7 +70,13 @@ describe("placeMetadata and placeListing", () => {
     const id = await day("In Nauru", { countries: ["NR"] });
 
     const listing = await placeListing("country", props("nauru"));
-    expect(listing).toMatchObject({ name: "Nauru", path: "/playbooks/country/nauru", total: 1, page: 1 });
+    expect(listing).toMatchObject({
+      heading: "Nauru playbooks",
+      summary: "1 day a traveler planned in Nauru.",
+      path: "/playbooks/country/nauru",
+      total: 1,
+      page: 1,
+    });
     expect(listing.days.map((d) => d.savedDayId)).toEqual([id]);
     const meta = await placeMetadata("country", props("nauru"));
     expect(meta.title).toBe("Nauru playbooks");

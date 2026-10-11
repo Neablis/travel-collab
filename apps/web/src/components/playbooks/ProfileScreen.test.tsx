@@ -35,6 +35,7 @@ function day(over: Partial<DiscoverDay> = {}): DiscoverDay {
     cover: null,
     description: null,
     tags: [],
+    namedTags: [],
     ...over,
   };
 }

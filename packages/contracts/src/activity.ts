@@ -258,6 +258,16 @@ export type ActivityTagModifier = z.infer<typeof ActivityTagModifier>;
 export const ActivityTagCategory = ActivityTag.exclude(ActivityTagModifier.options);
 export type ActivityTagCategory = z.infer<typeof ActivityTagCategory>;
 
+/**
+ * The categories a description can name (ADR-070 §3): every one but Lodging,
+ * which every trip has. A day belongs to a tag when its description names it
+ * (§4), so these are also the tags with a page and Discover's tag filter's
+ * values. Here rather than in `@tc/domain`, which owns the rule, because the
+ * app's UI reads it too and may not import the domain.
+ */
+export const ActivityTagDescribed = ActivityTagCategory.exclude(["lodging"]);
+export type ActivityTagDescribed = z.infer<typeof ActivityTagDescribed>;
+
 // HOW a transit stop travels — `kind: "transit"` says THAT it is travel, this
 // says by what (M24, ADR-053). Closed for the reason `ActivityTag` is: each
 // value gets behaviour (a map style, a legend key), and a free string cannot

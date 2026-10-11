@@ -70,14 +70,20 @@ describe("LandingFeatureBlocks", () => {
 
   // The card is Discover's, so it says what Discover would: what kind of day
   // it is (M42 D8), its tags, and how many trips took it. Its tags are plain
-  // chips — a landing card sends nobody into tag pages.
+  // chips — a landing card sends nobody into tag pages, which Discover's
+  // card links for the tags its description names — so its only ways out are
+  // the day, its city and its author.
   it("shows the bundled playbook as Discover draws it, with its description and tags", async () => {
     render(<LandingFeatureBlocks />);
     const playbooks = within(screen.getByRole("region", { name: PLAYBOOKS }));
     await playbooks.findByRole("link", { name: LANDING_FEATURES.playbook.name });
     expect(playbooks.getByText("Food & outdoors")).toBeDefined();
-    expect(playbooks.getByText("Beach")).toBeDefined();
-    expect(playbooks.queryByRole("link", { name: "Beach" })).toBeNull();
+    expect(playbooks.getByText("Outdoors")).toBeDefined();
+    expect(playbooks.getAllByRole("link").map((link) => link.textContent)).toEqual([
+      "Krabi",
+      LANDING_FEATURES.playbook.name,
+      LANDING_FEATURES.playbook.ownerDisplayName,
+    ]);
     expect(playbooks.getByText(`Added to ${LANDING_FEATURES.playbook.adds} trips`)).toBeDefined();
   });
 

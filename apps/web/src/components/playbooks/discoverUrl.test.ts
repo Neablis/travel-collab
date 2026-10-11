@@ -19,6 +19,8 @@ describe("Discover's state as a URL", () => {
       sort: "highest-rated" as const,
       length: "two-three" as const,
       rating: "4.5" as const,
+      tag: "nightlife" as const,
+      after: "0b0c3e5e-8f8a-4c39-9f64-2d1f1c1b9a77",
     };
     expect(fromQuery(discoverQueryString(state))).toEqual(state);
   });
@@ -35,6 +37,14 @@ describe("Discover's state as a URL", () => {
       cities: ["Kyoto"],
       countries: ["JP"],
     });
+  });
+
+  // ADR-070 §2 and §4: Ticketed and Lodging are tags no description names, so
+  // neither is a filter value, and a hand-typed one asks for nothing.
+  it("reads no tag filter from a tag that has no page", () => {
+    expect(fromQuery("tag=ticketed").tag).toBe("any");
+    expect(fromQuery("tag=lodging").tag).toBe("any");
+    expect(fromQuery("tag=beach").tag).toBe("beach");
   });
 
   // The route trims and dedupes; the page seeds the server's first search from

@@ -83,6 +83,7 @@ export function toDiscoverDay(row: DiscoverRow, queryCities: string[], readerId:
   });
   if (parsed === null) return null;
   const facts = savedDayFacts(parsed.stops, parsed.dayCount);
+  const described = describeByTags(parsed.stops);
   const wanted = new Set(queryCities);
   return {
     savedDayId: row.id,
@@ -134,8 +135,11 @@ export function toDiscoverDay(row: DiscoverRow, queryCities: string[], readerId:
     publishedAt: isoOf(row.published_at),
     isMine: row.owner_id === readerId,
     cover: coverOfRow(row),
-    description: describeByTags(parsed.stops)?.text ?? null,
+    description: described?.text ?? null,
     tags: describedTags(parsed.stops),
+    // Tag pages list published days only, so a private day's chip would lead
+    // to a page without it, or to a 404.
+    namedTags: parsed.visibility === "public" ? [...(described?.named ?? [])] : [],
   };
 }
 
