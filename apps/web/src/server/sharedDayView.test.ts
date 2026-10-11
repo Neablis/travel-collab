@@ -7,8 +7,10 @@ vi.mock("./playbooks", () => ({ publicAuthor: (...a: unknown[]) => publicAuthor(
 // Three sights and a meal that is also one: enough to say what kind of day.
 const STOPS = [...Array.from({ length: 3 }, () => ({ kind: "planned", tags: ["sight"] })), { kind: "planned", tags: ["meal", "sight"] }];
 vi.mock("./savedDayPinBackfill", () => ({ schedulePinBackfill: () => false }));
+// Published unless a test says otherwise.
+let visibility = "public";
 vi.mock("./savedDays", () => ({
-  readableSavedDay: async () => ({ savedDayId: "d-1", ownerId: "dev-alice", stops: STOPS }),
+  readableSavedDay: async () => ({ savedDayId: "d-1", ownerId: "dev-alice", stops: STOPS, visibility }),
   publishedAtOf: async () => null,
   moderationOf: async () => null,
 }));
@@ -19,6 +21,7 @@ vi.mock("./savedDayCovers", () => ({ getSavedDayCover: async () => COVER }));
 import { sharedDayRead, sharedDayView } from "./sharedDayView";
 
 beforeEach(() => {
+  visibility = "public";
   publicAuthor.mockReset().mockResolvedValue({ userId: "dev-alice", displayName: "Alice C." });
 });
 
@@ -36,6 +39,14 @@ describe("sharedDayRead", () => {
   it("says what kind of day it is, from the stops, the tags it carries and the ones it names", async () => {
     const read = await sharedDayRead("d-1", null);
     expect([read?.description, read?.tags, read?.namedTags]).toEqual(["Sightseeing", ["sight", "meal"], ["sight"]]);
+  });
+
+  // Tag pages list published days only: a private day, read by its author,
+  // is described but on no tag page, so none of its chips may link to one.
+  it("names no tag on a private day", async () => {
+    visibility = "private";
+    const read = await sharedDayRead("d-1", "dev-alice");
+    expect([read?.description, read?.namedTags]).toEqual(["Sightseeing", []]);
   });
 });
 

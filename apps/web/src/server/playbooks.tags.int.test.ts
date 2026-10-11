@@ -130,6 +130,17 @@ describe("Discover's tag filter", () => {
     expect([card.tags, card.namedTags]).toEqual([["meal", "nightlife"], ["meal"]]);
   });
 
+  // Tag pages list published days only, so the author's private day on
+  // *Yours* is described but names no tag a chip could link to.
+  it("names no tag on a private day in its author's Discover", async () => {
+    const city = `Tagprivate${randomUUID().slice(0, 6)}`;
+    const row = { ...rowOf(city, LATE_NIGHT, new Date()), visibility: "private" as const, publishedAt: null };
+    await db.insert(savedDays).values(row);
+    const { days } = await discoverDays({ ...newestIn(city), tag: "any", scope: "yours", readerId: OWNER });
+    const card = days.find((d) => d.savedDayId === row.id)!;
+    expect([card.description, card.namedTags]).toEqual(["Late-night", []]);
+  });
+
   // A filtered-out row where one page ends: page one still holds a full page,
   // page two starts after its last card, and the row never shows.
   it("skips a filtered-out row at a page's edge, on either side of it", async () => {

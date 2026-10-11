@@ -577,6 +577,24 @@ describe("Discover", () => {
     expect(screen.queryByRole("link", { name: "Next page" })).toBeNull();
   });
 
+  // The button pressed is gone while the page it turned to loads; focus
+  // lands on the list, not on the document.
+  it("keeps focus on the list when a page turns in place", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const last = "aa000000-0000-4000-8000-000000000024";
+    searchPlaybooksMock.mockResolvedValue(ok(response({ nextCursor: last })));
+    render(<DiscoverScreen initial={{ cities: ["Kyoto"] }} />);
+    await screen.findByTestId("discover-results");
+    await user.click(screen.getByTestId("filter-more"));
+    await user.click(screen.getByTestId("filter-more-budget-under200"));
+    await user.keyboard("{Escape}");
+    const next = await screen.findByRole("button", { name: "Next page" });
+    searchPlaybooksMock.mockReturnValue(new Promise(() => {}));
+    next.focus();
+    await user.keyboard("{Enter}");
+    expect(screen.getByTestId("discover-results").matches(":focus")).toBe(true);
+  });
+
   // The cursor on screen while a new search loads is the last search's, and
   // no next page of this one.
   it("offers no next page while a new search is still loading", async () => {

@@ -284,8 +284,14 @@ export function DiscoverScreen({
     const query = discoverQueryString({ ...search, after: from });
     return `/playbooks${query === "" ? "" : `?${query}`}`;
   };
-  // Not `setFilters`, which starts every change from page one.
-  const turnTo = (from: string | null) => setState((prev) => ({ ...prev, after: from }));
+  // Not `setFilters`, which starts every change from page one. The button
+  // pressed is gone while the page loads, so focus goes to the list it turns,
+  // not to the document.
+  const results = useRef<HTMLUListElement>(null);
+  const turnTo = (from: string | null) => {
+    setState((prev) => ({ ...prev, after: from }));
+    results.current?.focus();
+  };
 
   // Each filter's own options, resolved once against the current context. A
   // `null` means the filter cannot honestly be offered — Budget with no shared
@@ -799,7 +805,13 @@ export function DiscoverScreen({
           }
         />
       ) : (
-        <ul className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3" data-testid="discover-results">
+        <ul
+          ref={results}
+          // Focusable by script only: where a page turned in place leaves focus.
+          tabIndex={-1}
+          className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3"
+          data-testid="discover-results"
+        >
           {days.map((day) => (
             <DiscoverCard key={day.savedDayId} day={day} origin={{ from: "playbooks" }} />
           ))}
@@ -808,7 +820,8 @@ export function DiscoverScreen({
 
       {/* The pager (M42 part 5), real links so a crawler follows them. Keyset
           pages go forward from a card, so the way back is to the first page;
-          the browser's Back steps one page at a time. */}
+          over links the browser's Back steps one page at a time. Under a
+          budget band the pages turn in place, and Back leaves Discover. */}
       {(after !== null || (answer?.nextCursor ?? null) !== null) && (
         <nav aria-label="Pages" className="flex items-center gap-4 text-sm">
           {after !== null && (

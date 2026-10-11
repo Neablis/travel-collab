@@ -489,7 +489,9 @@ function toDiscoverDay(row: DiscoverRow, queryCities: string[], readerId: string
     cover: coverOfRow(row),
     description: described?.text ?? null,
     tags: describedTags(parsed.stops),
-    namedTags: [...(described?.named ?? [])],
+    // Tag pages list published days only, so a private day's chip would lead
+    // to a page without it, or to a 404.
+    namedTags: parsed.visibility === "public" ? [...(described?.named ?? [])] : [],
   };
 }
 

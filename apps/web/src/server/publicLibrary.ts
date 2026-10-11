@@ -88,7 +88,8 @@ export async function dayPageView(
       moderation: null,
       // In the day's cache entry, so a pick or a clear clears `dayTag` too.
       cover,
-      ...whatKindOfDay(day.stops),
+      // Listed: this path serves only days in the public library.
+      ...whatKindOfDay(day.stops, true),
     },
   };
 }
