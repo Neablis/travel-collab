@@ -32,9 +32,10 @@ describe("sharedDayRead", () => {
 
   // M42 D9: the page and the API's re-read both come through here, so the
   // screen says the same thing on its first paint and after it reads again.
-  it("says what kind of day it is, from the stops, and the tags that say so", async () => {
+  // M42 part 5: only the tags the description names are pages this day is on.
+  it("says what kind of day it is, from the stops, the tags it carries and the ones it names", async () => {
     const read = await sharedDayRead("d-1", null);
-    expect([read?.description, read?.tags]).toEqual(["Sightseeing", ["sight", "meal"]]);
+    expect([read?.description, read?.tags, read?.namedTags]).toEqual(["Sightseeing", ["sight", "meal"], ["sight"]]);
   });
 });
 

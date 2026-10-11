@@ -29,7 +29,12 @@ export function StopTagChips({
 }) {
   if (tags.length === 0) return null;
   return (
-    <span data-testid={`tag-chips-${activityId}`} className="flex flex-wrap gap-1.5">
+    <span
+      data-testid={`tag-chips-${activityId}`}
+      // Linked chips wrap with a row gap that keeps one 44px reach from
+      // overlapping the next row's on a phone, as a Discover card's city chips do.
+      className={cn("flex flex-wrap", hrefOf === undefined ? "gap-1.5" : "gap-x-1.5 gap-y-6 md:gap-y-1.5")}
+    >
       {tags.map((tag) => {
         const chipClass = cn(
           "inline-flex items-center rounded-sm px-2 py-0.5 text-xs font-semibold",

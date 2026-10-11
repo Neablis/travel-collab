@@ -44,12 +44,15 @@ export async function sharedDayRead(
 }
 
 /**
- * What kind of day these stops make (M42 D9) and the categories they carry,
- * for `SharedDayView`. One place, so the page's cached read and the live one
- * cannot word the same day two ways.
+ * What kind of day these stops make (M42 D9), the categories they carry and
+ * the ones the description names, for `SharedDayView`. One place, so the
+ * page's cached read and the live one cannot word the same day two ways.
  */
-export function whatKindOfDay(stops: readonly SavedStop[]): Pick<SharedDayView, "description" | "tags"> {
-  return { description: describeByTags(stops)?.text ?? null, tags: describedTags(stops) };
+export function whatKindOfDay(
+  stops: readonly SavedStop[],
+): Pick<SharedDayView, "description" | "tags" | "namedTags"> {
+  const described = describeByTags(stops);
+  return { description: described?.text ?? null, tags: describedTags(stops), namedTags: [...(described?.named ?? [])] };
 }
 
 /**

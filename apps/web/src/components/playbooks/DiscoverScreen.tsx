@@ -13,7 +13,7 @@ import { UnderlineTabs } from "@/components/ui/underline-tabs";
 import { cn } from "@/lib/cn";
 import { PHONE_TOUCH } from "@/components/ui/button";
 import { useSessionUser } from "@/components/account/useSessionUser";
-import { searchPlaybooks } from "@/lib/apiClient";
+import { searchPlaybooks, type ApiResult } from "@/lib/apiClient";
 import type { BudgetBand, DiscoverResponse, DiscoverScope, DiscoverSort } from "@/lib/playbooks";
 import {
   FILTER_DEFS,
@@ -128,6 +128,45 @@ function FilterMenu({
   );
 }
 
+/** A Discover answer, and which search it answers (`DiscoverScreen`'s `searchKey`). */
+type Answer = DiscoverResponse & { forSearch: string };
+
+/**
+ * One of the pager's two ways on: a link a crawler can follow, or, with a
+ * budget band on, a button that turns the page in place.
+ */
+function PageTurn({
+  href,
+  onTurn,
+  label,
+  next = false,
+}: {
+  href: string | null;
+  onTurn: () => void;
+  label: string;
+  next?: boolean;
+}) {
+  const className = cn("inline-flex items-center underline", PHONE_TOUCH);
+  if (href !== null) {
+    return (
+      <Link href={href} rel={next ? "next" : undefined} className={className}>
+        {label}
+      </Link>
+    );
+  }
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      className={cn(className, "h-auto px-0 text-sm font-normal")}
+      onClick={onTurn}
+    >
+      {label}
+    </Button>
+  );
+}
+
 /**
  * §33.2's results sentence — `128 shared days` — stating how many days the
  * query MATCHES, not how many fit on the page (KI-2026-09-23-h: with 148
@@ -190,12 +229,20 @@ export function DiscoverScreen({
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [phoneFiltersOpen, setPhoneFiltersOpen] = useState(false);
 
-  const read = useCallback(
-    () => searchPlaybooks({ cities, countries, scope, sort, budget, length, rating, tag, after }),
-    [cities, countries, scope, sort, budget, length, rating, tag, after],
-  );
+  // Which search an answer is for, carried on the answer: while a new search
+  // loads, or after it fails, the answer on screen is the last search's, and
+  // its `nextCursor` is no next page of this one.
+  const searchKey = JSON.stringify([cities, countries, scope, sort, budget, length, rating, tag, after]);
+  const [seedKey] = useState(searchKey);
+  const read = useCallback(async (): Promise<ApiResult<Answer>> => {
+    const result = await searchPlaybooks({ cities, countries, scope, sort, budget, length, rating, tag, after });
+    return result.ok ? { ok: true, value: { ...result.value, forSearch: searchKey } } : result;
+  }, [cities, countries, scope, sort, budget, length, rating, tag, after, searchKey]);
   // The search as a query string, for the pager's links: the search, then where in it.
   const search = { cities, countries, scope, sort, length, rating, tag };
+  // The budget band is not in the URL (`discoverUrl.ts`), so a page link would
+  // read a different list: with a band on, paging is a change of state.
+  const pagesByLink = budget === "any";
 
   // **State → URL, one direction.** `history.replaceState` rather than
   // `router.replace`: Next syncs the native history API into its router
@@ -211,10 +258,14 @@ export function DiscoverScreen({
       seeded.current = false;
       return;
     }
-    const query = discoverQueryString({ cities, countries, scope, sort, length, rating, tag, after });
+    const query = discoverQueryString({
+      ...{ cities, countries, scope, sort, length, rating, tag },
+      // A cursor read under a band the URL cannot carry would reload as a page of another list.
+      after: pagesByLink ? after : null,
+    });
     const url = `${window.location.pathname}${query === "" ? "" : `?${query}`}`;
     window.history.replaceState(window.history.state, "", url);
-  }, [cities, countries, scope, sort, length, rating, tag, after]);
+  }, [cities, countries, scope, sort, length, rating, tag, after, pagesByLink]);
   // The conflict signal is the DAY LIST plus each day's adds — the two things a
   // reader is looking at that somebody else can move. Deliberately not the
   // whole payload: sibling chip counts shift constantly and a banner that fired
@@ -223,7 +274,9 @@ export function DiscoverScreen({
     (value: DiscoverResponse) => value.days.map((d) => `${d.savedDayId}:${d.adds}`).join(","),
     [],
   );
-  const feed = useLibraryRead(read, signature, initialData);
+  const feed = useLibraryRead(read, signature, initialData && { ...initialData, forSearch: seedKey });
+  // The answer to the search on screen, or null while it is still the last one's.
+  const answer = feed.data?.forSearch === searchKey ? feed.data : null;
 
   const set = <K extends keyof Filters>(key: K, value: Filters[K]) =>
     setFilters((prev) => ({ ...prev, [key]: value }));
@@ -231,6 +284,8 @@ export function DiscoverScreen({
     const query = discoverQueryString({ ...search, after: from });
     return `/playbooks${query === "" ? "" : `?${query}`}`;
   };
+  // Not `setFilters`, which starts every change from page one.
+  const turnTo = (from: string | null) => setState((prev) => ({ ...prev, after: from }));
 
   // Each filter's own options, resolved once against the current context. A
   // `null` means the filter cannot honestly be offered — Budget with no shared
@@ -754,21 +809,18 @@ export function DiscoverScreen({
       {/* The pager (M42 part 5), real links so a crawler follows them. Keyset
           pages go forward from a card, so the way back is to the first page;
           the browser's Back steps one page at a time. */}
-      {(after !== null || (feed.data?.nextCursor ?? null) !== null) && (
+      {(after !== null || (answer?.nextCursor ?? null) !== null) && (
         <nav aria-label="Pages" className="flex items-center gap-4 text-sm">
           {after !== null && (
-            <Link href={pageLink(null)} className={cn("inline-flex items-center underline", PHONE_TOUCH)}>
-              First page
-            </Link>
+            <PageTurn href={pagesByLink ? pageLink(null) : null} onTurn={() => turnTo(null)} label="First page" />
           )}
-          {feed.data?.nextCursor != null && (
-            <Link
-              href={pageLink(feed.data.nextCursor)}
-              rel="next"
-              className={cn("inline-flex items-center underline", PHONE_TOUCH)}
-            >
-              Next page
-            </Link>
+          {answer?.nextCursor != null && (
+            <PageTurn
+              href={pagesByLink ? pageLink(answer.nextCursor) : null}
+              onTurn={() => turnTo(answer.nextCursor)}
+              label="Next page"
+              next
+            />
           )}
         </nav>
       )}

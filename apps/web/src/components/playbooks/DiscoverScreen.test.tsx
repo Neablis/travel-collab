@@ -43,6 +43,7 @@ function day(over: Partial<DiscoverDay> = {}): DiscoverDay {
     cover: null,
     description: null,
     tags: [],
+    namedTags: [],
     ...over,
   };
 }
@@ -550,6 +551,47 @@ describe("Discover", () => {
     await waitFor(() =>
       expect(searchPlaybooksMock).toHaveBeenLastCalledWith(expect.objectContaining({ tag: "beach", after: null })),
     );
+  });
+
+  // The budget band is not in the URL, so a link to page two would read a
+  // different list: every day after the cursor at any price. With a band on,
+  // Next page turns the page in place, under the band.
+  it("pages under a budget band without leaving it", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const last = "aa000000-0000-4000-8000-000000000024";
+    searchPlaybooksMock.mockResolvedValue(ok(response({ nextCursor: last })));
+    render(<DiscoverScreen initial={{ cities: ["Kyoto"] }} />);
+    await screen.findByTestId("discover-results");
+    await user.click(screen.getByTestId("filter-more"));
+    await user.click(screen.getByTestId("filter-more-budget-under200"));
+    await user.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(searchPlaybooksMock).toHaveBeenLastCalledWith(expect.objectContaining({ budget: "under200" })),
+    );
+    await user.click(await screen.findByRole("button", { name: "Next page" }));
+    await waitFor(() =>
+      expect(searchPlaybooksMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ cities: ["Kyoto"], budget: "under200", after: last }),
+      ),
+    );
+    expect(screen.queryByRole("link", { name: "Next page" })).toBeNull();
+  });
+
+  // The cursor on screen while a new search loads is the last search's, and
+  // no next page of this one.
+  it("offers no next page while a new search is still loading", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const last = "aa000000-0000-4000-8000-000000000024";
+    searchPlaybooksMock.mockResolvedValue(ok(response({ nextCursor: last })));
+    render(<DiscoverScreen />);
+    expect(await screen.findByRole("link", { name: "Next page" })).toBeTruthy();
+    searchPlaybooksMock.mockReturnValue(new Promise(() => {}));
+    await user.click(screen.getByTestId("filter-more"));
+    await user.click(screen.getByTestId("filter-more-tag-beach"));
+    await waitFor(() =>
+      expect(searchPlaybooksMock).toHaveBeenLastCalledWith(expect.objectContaining({ tag: "beach" })),
+    );
+    expect(screen.queryByRole("link", { name: "Next page" })).toBeNull();
   });
 
   // Past the candidate window with a budget band on, the count is a floor and

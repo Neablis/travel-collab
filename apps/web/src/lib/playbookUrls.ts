@@ -6,10 +6,10 @@
 // day. A link whose slug is missing or stale still opens: the page redirects
 // it to the current URL.
 
-import type { ActivityTag } from "@tc/contracts";
+import type { ActivityTag, ActivityTagDescribed } from "@tc/contracts";
 import { countryFacts } from "@tc/pages";
 import { countryName } from "./place";
-import { DISCOVER_PAGE_SIZE, DiscoverTag } from "./playbooks";
+import { DISCOVER_PAGE_SIZE } from "./playbooks";
 
 const MAX_SLUG_LENGTH = 60;
 const UUID_AT_END = /(?:^|-)([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
@@ -111,14 +111,21 @@ export function countrySlug(code: string): string | null {
  * A tag page's path, page one: `/playbooks/tag/<tag>`, or
  * `/playbooks/city/<slug>/<tag>` for that tag in one city's page.
  */
-export function tagPath(tag: DiscoverTag, citySlug: string | null = null): string {
+export function tagPath(tag: ActivityTagDescribed, citySlug: string | null = null): string {
   return citySlug === null ? `/playbooks/tag/${tag}` : `/playbooks/city/${citySlug}/${tag}`;
 }
 
-/** Where a tag chip leads: its tag's page, or null for Lodging and Ticketed, which have none. */
-export function tagChipPath(tag: ActivityTag): string | null {
-  const parsed = DiscoverTag.safeParse(tag);
-  return parsed.success ? tagPath(parsed.data) : null;
+/**
+ * Where a day's tag chip leads: its tag's page when the day's description
+ * names the tag, so the day is on that page (ADR-070 §4); null otherwise. A
+ * day of meals with one bar carries a Nightlife chip, and the Nightlife page
+ * does not list it, or does not exist.
+ */
+export function namedTagPath(named: readonly ActivityTagDescribed[]): (tag: ActivityTag) => string | null {
+  return (tag) => {
+    const page = named.find((name) => name === tag);
+    return page === undefined ? null : tagPath(page);
+  };
 }
 
 /** A place page's URL for page `page`; page one is the bare path, so it is self-canonical. */

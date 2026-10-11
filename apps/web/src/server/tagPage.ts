@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import type { PlaceDaysList } from "@/components/playbooks/PlaceDaysList";
 import { TAG_LABEL } from "@/lib/activityTags";
-import { DiscoverTag } from "@/lib/playbooks";
+import { ActivityTagDescribed } from "@tc/contracts";
 import { PLAYBOOKS_CARD_PATH } from "@/lib/playbooksPreview";
 import { PLACE_PAGE_SIZE, placeIndexable, placePagePath, tagPath } from "@/lib/playbookUrls";
 import { NOINDEX_FOLLOW, pageMetadata } from "@/lib/siteMetadata";
@@ -27,7 +27,7 @@ export type TagRouteProps = {
 // (Lodging, Ticketed, a typo), a tag no day there is named by, and a page past
 // the end are all a 404, answered without listing anything.
 const load = cache(async (tag: string, citySlug: string | null, page: number) => {
-  const parsed = DiscoverTag.safeParse(tag);
+  const parsed = ActivityTagDescribed.safeParse(tag);
   if (!parsed.success) return null;
   const tagPage = await tagPageFor(parsed.data, citySlug);
   if (tagPage === null || (page - 1) * PLACE_PAGE_SIZE >= tagPage.days) return null;

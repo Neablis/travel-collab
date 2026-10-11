@@ -34,7 +34,8 @@ import { sharedDayRead } from "@/server/sharedDayView";
 // it, moderation included.
 //
 // `description` and `tags` are what kind of day it is (M42 D9), worked out
-// from the stops by the domain's rule, which the page cannot import.
+// from the stops by the domain's rule, which the page cannot import;
+// `namedTags` are the tags the description names, whose chips link (part 5).
 //
 // A reader with no account (ADR-061) gets a published, unmoderated day or the
 // same 404 as anyone else, and is charged per IP. They never start a pin
@@ -58,6 +59,7 @@ export async function GET(
     cover: view.cover === null ? null : TripCover.parse(view.cover),
     description: view.description,
     tags: view.tags,
+    namedTags: view.namedTags,
   });
 }
 

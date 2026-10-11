@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ActivityTag, ActivityTagCategory, Money, SavedDayAuthorKind, TimeWindow, TripCover } from "@tc/contracts";
+import { ActivityTag, ActivityTagDescribed, Money, SavedDayAuthorKind, TimeWindow, TripCover } from "@tc/contracts";
 import { CityMatch } from "@/lib/cities";
 
 // The wire shapes of the public library's three read endpoints (M11b PR3):
@@ -383,6 +383,13 @@ export const DiscoverDay = z.object({
   description: z.string().nullable().default(null),
   /** The categories its stops carry, most used first (`describedTags`): the card's tag chips. */
   tags: z.array(ActivityTag).default([]),
+  /**
+   * The tags its description names (`describeByTags`), which are the tag
+   * pages and tag searches it is on (ADR-070 §4): the chips that link to a
+   * page. A chip outside this would lead to a page without the day on it,
+   * or to none. **Not on the public API** — `public-api/discover.ts` drops it.
+   */
+  namedTags: z.array(ActivityTagDescribed).default([]),
 });
 export type DiscoverDay = z.infer<typeof DiscoverDay>;
 
@@ -461,16 +468,10 @@ export const DiscoverResponse = z.object({
 export type DiscoverResponse = z.infer<typeof DiscoverResponse>;
 
 /**
- * A tag with a page, and a value of Discover's tag filter: every category
- * but Lodging (M42 D10). A day belongs to a tag when its description names it
- * (ADR-070 §4), and a description never names Lodging, which every trip has,
- * or Ticketed, which is a modifier, not a kind of activity (§2).
+ * Discover's tag filter (M42 D10): one tag a description can name, or `any`,
+ * the word its other filters use for not asking. Never Ticketed or Lodging.
  */
-export const DiscoverTag = ActivityTagCategory.exclude(["lodging"]);
-export type DiscoverTag = z.infer<typeof DiscoverTag>;
-
-/** Discover's tag filter: one tag, or `any`, the word its other filters use for not asking. */
-export const TagFilter = z.union([z.literal("any"), DiscoverTag]);
+export const TagFilter = z.union([z.literal("any"), ActivityTagDescribed]);
 export type TagFilter = z.infer<typeof TagFilter>;
 
 /**

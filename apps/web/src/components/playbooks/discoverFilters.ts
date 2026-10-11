@@ -1,8 +1,8 @@
+import { ActivityTagDescribed } from "@tc/contracts";
 import { TAG_GROUPS, TAG_LABEL } from "@/lib/activityTags";
 import { formatMoney } from "@/lib/formatMoney";
 import {
   BUDGET_BAND_EDGES,
-  DiscoverTag,
   LENGTH_BAND_LABELS,
   LengthBand,
   RATING_FLOOR_LABELS,
@@ -39,7 +39,7 @@ export type FilterState = { rating: RatingFloor; budget: BudgetBand; length: Len
 
 // The picker's categories in its order, Food first, less the one a
 // description never names.
-const FILTER_TAGS = TAG_GROUPS[0]!.tags.filter((tag) => DiscoverTag.safeParse(tag).success);
+const FILTER_TAGS = TAG_GROUPS[0]!.tags.filter((tag) => ActivityTagDescribed.safeParse(tag).success);
 
 export type FilterContext = {
   /**

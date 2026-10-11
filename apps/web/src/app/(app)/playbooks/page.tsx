@@ -8,6 +8,7 @@ import {
 import { linkPreviewMetadata } from "@/lib/linkPreview";
 import { countrySlug, placeIndexable, placePath, slugify, tagPath } from "@/lib/playbookUrls";
 import { playbooksPageMetadata } from "@/lib/playbooksPreview";
+import { NOINDEX_FOLLOW } from "@/lib/siteMetadata";
 import { auth } from "@/server/auth";
 import { discoverFor, placeFor, tagPageFor } from "@/server/publicLibrary";
 
@@ -60,6 +61,12 @@ export async function generateMetadata({
       : linkPreviewMetadata(`/api/og/playbooks/city/${encodeURIComponent(cities[0]!)}`, fallback),
     placeCanonical(state),
   ]);
+  // A page after the first (M42 part 5) is `noindex, follow`, with no
+  // canonical. Its cursor is a card, and the ranking moves as days are added
+  // and rated, so `?after=` holds different days from week to week: not a
+  // page to index, nor one to fold into page one. Crawlers still follow it to
+  // the days, which the sitemap lists anyway.
+  if (state.after !== null) return { ...meta, robots: NOINDEX_FOLLOW };
   return { ...meta, alternates: { canonical: place ?? "/playbooks" } };
 }
 

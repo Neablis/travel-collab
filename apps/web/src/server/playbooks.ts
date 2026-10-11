@@ -417,11 +417,8 @@ function orderBy(sort: DiscoverSort): SQL {
  * server can no longer read is dropped and logged, never allowed to fail the
  * whole page — one unreadable fragment must not take the other twenty-three
  * with it.
- *
- * With the card come the tags its description names: which tags' pages and
- * filters it belongs to (ADR-070 §4), and no field of the card itself.
  */
-function toDiscoverDay(row: DiscoverRow, queryCities: string[], readerId: string | null): ReadCard | null {
+function toDiscoverDay(row: DiscoverRow, queryCities: string[], readerId: string | null): DiscoverDay | null {
   // **The same helper `savedDays.ts`'s `fromRow` calls** (F-F05, and ADR-048
   // makes it a prerequisite of M23). This was a hand-copied duplicate of that
   // function's parses, with identical log strings, until the sequence work gave
@@ -440,7 +437,7 @@ function toDiscoverDay(row: DiscoverRow, queryCities: string[], readerId: string
   const facts = savedDayFacts(parsed.stops, parsed.dayCount);
   const described = describeByTags(parsed.stops);
   const wanted = new Set(queryCities);
-  const day: DiscoverDay = {
+  return {
     savedDayId: row.id,
     ownerId: row.owner_id,
     ownerDisplayName: publicNameFor({
@@ -492,20 +489,17 @@ function toDiscoverDay(row: DiscoverRow, queryCities: string[], readerId: string
     cover: coverOfRow(row),
     description: described?.text ?? null,
     tags: describedTags(parsed.stops),
+    namedTags: [...(described?.named ?? [])],
   };
-  return { day, named: described?.named ?? [] };
 }
-
-/** A card, and the tags its description names. */
-type ReadCard = { day: DiscoverDay; named: readonly DescribedTag[] };
 
 /**
  * Whether a card answers what the query asks after the read: the budget band
  * and the tag, which are both worked out from the stops.
  */
-function keeps(query: Pick<DiscoverQuery, "budget" | "tag">, { day, named }: ReadCard): boolean {
+function keeps(query: Pick<DiscoverQuery, "budget" | "tag">, day: DiscoverDay): boolean {
   const tag = query.tag ?? "any";
-  return inBudgetBand(query.budget, day.totalCost?.amountMinor ?? null) && (tag === "any" || named.includes(tag));
+  return inBudgetBand(query.budget, day.totalCost?.amountMinor ?? null) && (tag === "any" || day.namedTags.includes(tag));
 }
 
 /**
@@ -697,23 +691,25 @@ export async function discoverDays(query: DiscoverQuery, after: string | null = 
 
   const candidates = [...rows.rows]
     .map((row) => toDiscoverDay(row, query.cities, query.readerId))
-    .filter((card): card is ReadCard => card !== null);
+    .filter((day): day is DiscoverDay => day !== null);
 
   // The one currency every matched day agrees on, or null. Decided over the
   // candidates rather than the page so the budget control does not appear and
   // disappear as you scroll. See `BudgetBand` for why a mixed set hides it
   // rather than comparing numbers that are not comparable.
   const currencies = new Set(
-    candidates.map(({ day }) => day.totalCost?.currency).filter((c): c is string => c !== undefined),
+    candidates.map((d) => d.totalCost?.currency).filter((c): c is string => c !== undefined),
   );
   const budgetCurrency = currencies.size === 1 ? [...currencies][0]! : null;
 
-  const filtered = candidates.filter((card) => keeps(query, card)).map(({ day }) => day);
+  const filtered = candidates.filter((day) => keeps(query, day));
   const askedAfterRead = query.budget !== "any" || (query.tag ?? "any") !== "any";
+  const days = page.slice(0, DISCOVER_PAGE_SIZE);
+  const nextCursor = page.length > DISCOVER_PAGE_SIZE ? days.at(-1)!.savedDayId : null;
 
   return {
-    days: page.slice(0, DISCOVER_PAGE_SIZE),
-    nextCursor: page.length > DISCOVER_PAGE_SIZE ? page[DISCOVER_PAGE_SIZE - 1]!.savedDayId : null,
+    days,
+    nextCursor,
     // `filtered`, not `candidates` and not the page: the chips describe the set
     // the cards come from, band included. See `siblingCities`.
     siblings: siblingCities(filtered, query.cities),
@@ -735,7 +731,8 @@ export async function discoverDays(query: DiscoverQuery, after: string | null = 
     // window the SQL total is used, minus the rows this read could not parse;
     // that is exact only with no band or tag on, since neither can be a
     // predicate. With one on past the window, what is known is a floor, and it
-    // says so.
+    // says so: the window's matches, or this page's cards and one more when
+    // there is a next page, whichever is more, so "10+" never heads 24 cards.
     ...(!windowFull
       ? { matchCount: filtered.length, matchCountExact: true }
       : !askedAfterRead
@@ -743,7 +740,10 @@ export async function discoverDays(query: DiscoverQuery, after: string | null = 
             matchCount: Number(rows.rows[0]!.total_count) - (rows.rows.length - candidates.length),
             matchCountExact: true,
           }
-        : { matchCount: filtered.length, matchCountExact: false }),
+        : {
+            matchCount: Math.max(filtered.length, days.length + (nextCursor === null ? 0 : 1)),
+            matchCountExact: false,
+          }),
   };
 }
 
@@ -780,9 +780,12 @@ export async function discoverFor(
  * `-coalesce(rating, 0)`, which puts null last because a rating is never below
  * 1; a timestamp is negated as its epoch (`numeric` since Postgres 14, so the
  * microseconds survive). `d.id` ascends last, as it does in `orderBy`.
- * `public-api/discover.int.test.ts` holds the two to one order for every sort;
- * `orderBy` keeps its readable form for the candidate window and the place
- * pages, which do not page by keyset.
+ * `public-api/discover.int.test.ts` holds the two to one order for every sort,
+ * by comparing the API's keyset pages with `publishedDaysPage`, which orders
+ * by `orderBy`. `orderBy` keeps its readable form for the candidate window and
+ * the place pages, which do not page by keyset; Discover's cards and the API
+ * are both `discoverPage`, so comparing those two would hold `rankKeys` to
+ * itself.
  */
 function rankKeys(query: DiscoverQuery): SQL {
   const matched = matchedCount(query);
@@ -847,8 +850,8 @@ export async function discoverPage(
       limit ${want}
     `);
     for (const row of rows.rows) {
-      const card = toDiscoverDay(row, query.cities, query.readerId);
-      if (card !== null && keeps(full, card)) out.push(card.day);
+      const day = toDiscoverDay(row, query.cities, query.readerId);
+      if (day !== null && keeps(full, day)) out.push(day);
       // Stop at the page: the next one starts after its last card, not after
       // the last row this read happened to fetch.
       if (out.length === page.limit) return out;
@@ -1200,10 +1203,11 @@ export async function publishedTagPages(): Promise<TagPage[]> {
  * the card Discover would show. Offset paging, unlike `discoverPage`'s keyset:
  * a place page is addressed by `?page=N`, which a crawler follows as a link.
  * `total` is 0 for a page past the end. A `tag` keeps the days whose
- * description names it: a tag page, or a city's.
+ * description names it: a tag page, or a city's. `sort` is for the test that
+ * holds `orderBy` and `rankKeys` to one order; every page is most-added.
  */
 export async function publishedDaysPage(
-  filter: { cities?: string[]; countries?: string[]; authorId?: string; tag?: DescribedTag },
+  filter: { cities?: string[]; countries?: string[]; authorId?: string; tag?: DescribedTag; sort?: DiscoverSort },
   page: { limit: number; offset: number },
 ): Promise<{ days: DiscoverDay[]; total: number }> {
   const query: DiscoverQuery = {
@@ -1211,7 +1215,7 @@ export async function publishedDaysPage(
     countries: filter.countries ?? [],
     authorId: filter.authorId ?? null,
     scope: "everyone",
-    sort: "most-added",
+    sort: filter.sort ?? "most-added",
     budget: "any",
     length: "any",
     tag: filter.tag ?? "any",
@@ -1231,7 +1235,6 @@ export async function publishedDaysPage(
   `);
   const readable = [...rows.rows]
     .map((row) => toDiscoverDay(row, query.cities, null))
-    .filter((card): card is ReadCard => card !== null && keeps(query, card))
-    .map(({ day }) => day);
+    .filter((day): day is DiscoverDay => day !== null && keeps(query, day));
   return { days: readable.slice(page.offset, page.offset + page.limit), total: readable.length };
 }
