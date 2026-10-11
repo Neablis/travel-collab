@@ -673,7 +673,8 @@
               },
               "kind": "planned",
               "tags": [
-                "meal"
+                "meal",
+                "beach"
               ],
               "notes": "Tables on the sand, and one of the few kitchens here that will cook a whole fish properly. Ask the price by weight before they take it away.",
               "cost": {
@@ -725,7 +726,6 @@
               },
               "kind": "planned",
               "tags": [
-                "beach",
                 "tour"
               ],
               "notes": "3,000 baht for the boat for the day, arranged at the beach hut yesterday. A private longtail costs about twice a seat on a joined tour and buys the one thing that matters: leaving Poda while the speedboat groups are still eating lunch.",
@@ -750,8 +750,7 @@
               },
               "kind": "planned",
               "tags": [
-                "ticketed",
-                "outdoors"
+                "ticketed"
               ],
               "notes": "400 baht a head, cash, and it is not included in any tour price you were quoted — every operator lets you find that out at the ranger boat. Keep the ticket: it covers all four islands for the day.",
               "cost": {
@@ -1236,7 +1235,9 @@
                 "precision": "city"
               },
               "kind": "planned",
-              "tags": [],
+              "tags": [
+                "tour"
+              ],
               "notes": "Price includes hotel pickup, the national park fee and lunch — confirm all three are in it, because the park fee is the one operators leave out. Koh Rok over Koh Phi Phi: same crossing time, a fifth of the boats.",
               "cost": {
                 "amountMinor": 13000,
@@ -1282,7 +1283,8 @@
               },
               "kind": "planned",
               "tags": [
-                "meal"
+                "meal",
+                "beach"
               ],
               "cost": {
                 "amountMinor": 1200,

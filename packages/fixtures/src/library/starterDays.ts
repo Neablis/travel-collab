@@ -277,7 +277,6 @@ export const STARTER_SAVED_DAYS: SeededSavedDay[] = [
     addedBy: [{ tripId: "bc000000-0000-4000-8000-000000000010", addedBy: MAEVE }],
     stops: [
       stop("Park at the Three Sisters", "08:30", "08:45", { name: "Three Sisters Viewpoint", city: "Glencoe" }, {
-        tags: ["outdoors"],
         cost: money(400),
       }),
       stop("Up the Lost Valley", "09:00", "12:30", { name: "Coire Gabhail", city: "Glencoe" }, {

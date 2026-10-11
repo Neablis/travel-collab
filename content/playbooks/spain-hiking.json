@@ -174,7 +174,8 @@
           },
           "kind": "pending",
           "tags": [
-            "outdoors"
+            "outdoors",
+            "beach"
           ],
           "notes": "Snowmelt, so about eight degrees in May and worth exactly ninety seconds. Nobody regrets it on the walk back."
         },
@@ -513,8 +514,7 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed",
-            "outdoors"
+            "ticketed"
           ],
           "notes": "Ten euros general admission, eighteen with an official guide, booked on caminitodelrey.info. Tickets are personalised after purchase and the name has to match the passport you hand over - they do check. Helmets are issued here and worn the whole way.",
           "cost": {
@@ -1122,8 +1122,7 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed",
-            "outdoors"
+            "ticketed"
           ],
           "notes": "The summit permit stopped being free in 2026: fifteen euros for non-residents, six for other Canary residents, free for Tenerife residents and under-14s, booked on the TenerifeON platform. New places are released every Monday at 07:00 Canary time, 56 days out, and they go in minutes. The permit covers a two-hour window and the ranger checks the passport against the name.",
           "cost": {
@@ -1272,8 +1271,7 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed",
-            "outdoors"
+            "ticketed"
           ],
           "notes": "Free, but compulsory and genuinely enforced. Request it up to two months ahead through the Ventana del Visitante site; a PDF arrives by email and the forest guard reads it off your phone. The trail is closed 1 June to 15 October for griffon vulture nesting, which is what makes this a winter and spring walk rather than a summer one.",
           "cost": {

@@ -1146,8 +1146,7 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed",
-            "outdoors"
+            "ticketed"
           ],
           "notes": "A paper wristband, about 150 pesos per person per day, cash pesos, sold at the kiosk and not by the operator. No bracelet, no water — the inspectors do check on the boats. Buy it for the number of people actually swimming, not the number on board.",
           "cost": {
@@ -1597,8 +1596,7 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed",
-            "outdoors"
+            "ticketed"
           ],
           "notes": "Roughly 100 quetzales per person, collected at the gate, cash only, and it is not included in any tour price you were quoted no matter what the booking page implied. The gate does not make change for a Q200 note. Everyone in the group who forgot this holds up everyone who did not.",
           "cost": {
