@@ -86,4 +86,28 @@ describe("the tag widgets (M42 D11)", () => {
     }
     expect(outcome.rendered.block.text).toBe(describeByTags(all)!.text);
   });
+
+  it("Trip description's shares are of the stops the description counted, by hand from the Iceland bundle", () => {
+    // Counted by hand from `content/trips/iceland-ring-road.json`: 51 stops,
+    // 39 of them with a category other than Lodging (travel left out). Ties
+    // are in contract order.
+    expect(buildTripGlobals(iceland).description).toEqual({
+      text: "Outdoorsy",
+      counted: 39,
+      tags: [
+        { tag: "meal", activityCount: 18 }, { tag: "outdoors", activityCount: 16 },
+        { tag: "tour", activityCount: 3 }, { tag: "wellness", activityCount: 3 },
+        { tag: "drinks", activityCount: 2 }, { tag: "sight", activityCount: 2 },
+        { tag: "beach", activityCount: 2 }, { tag: "shopping", activityCount: 2 },
+        { tag: "museum", activityCount: 1 },
+      ],
+    });
+    const outcome = render(iceland, "trip.description", {});
+    if (outcome.status !== "ok" || outcome.rendered.kind !== "block" || outcome.rendered.block.kind !== "trip-description") {
+      throw new Error(`expected a trip-description block, got ${JSON.stringify(outcome)}`);
+    }
+    // 18/39, 16/39, 3/39.
+    expect(outcome.rendered.block.tags.map((t) => [t.label, t.share])).toEqual([["Food", "46%"], ["Outdoors", "41%"], ["Tour", "8%"]]);
+    expect(outcome.rendered.block.basis).toBe("Share of 39 tagged stops");
+  });
 });
