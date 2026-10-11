@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { Entitlement } from "@tc/contracts";
+import { useOnline } from "@/components/playbooks/useOnline";
 import type { AccountPlanView } from "@/lib/accountPlan";
 import { cachedRead, DEDUPE } from "@/lib/queryCache";
 import type { ApiResult } from "@/lib/apiClient";
@@ -97,9 +98,13 @@ export function useAiEntitled(): boolean | null {
  */
 export function useEntitled(capability: Entitlement, active = true): boolean | null {
   const [entitled, setEntitled] = useState<boolean | null>(null);
+  const online = useOnline();
 
+  // Asks again on reconnecting while the answer is still unknown. Failures are
+  // never cached (`cachedRead`), so a read that failed offline is retried
+  // rather than leaving `null` for the rest of the visit.
   useEffect(() => {
-    if (!active) return;
+    if (!active || !online || entitled !== null) return;
     let live = true;
     void cachedRead(accountPlanKey, readAccountPlan, { dedupeMs: DEDUPE.NAVIGATION }).then(
       (result) => {
@@ -117,7 +122,7 @@ export function useEntitled(capability: Entitlement, active = true): boolean | n
     return () => {
       live = false;
     };
-  }, [capability, active]);
+  }, [capability, active, online, entitled]);
 
   return active ? entitled : null;
 }

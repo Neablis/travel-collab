@@ -275,7 +275,9 @@ export function SharedDayScreen({
   // 401 (Copilot, PR #293). And only once the plan read has said the account
   // may review (M42): a free account's flush could only 402, under a Queued row
   // its note offers no way to discard. Strict here, unlike the form, because
-  // waiting costs nothing: the review stays stored for the next visit.
+  // waiting costs nothing: the review stays stored. A failed plan read is
+  // asked again when the browser comes back online (`useEntitled`), so a
+  // paying account's review still goes in the same visit once the read lands.
   const reviews = useDayReviews(
     savedDayId,
     feed.data?.publishedAt,

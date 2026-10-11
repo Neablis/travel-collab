@@ -683,6 +683,45 @@ describe("a shared day", () => {
       expect(await screen.findByTestId("review-form")).toBeTruthy();
     });
 
+    // A failed plan read leaves the answer unknown, and the held review waits.
+    // Coming back online asks again, so a paying account's review is sent in
+    // the same visit rather than waiting for the next one.
+    it("asks the plan again on reconnecting, and then sends the held review", async () => {
+      session = { id: "dev-bob" };
+      let planUp = false;
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (url: string) =>
+          String(url).endsWith("/api/account/plan") && planUp
+            ? new Response(JSON.stringify({ plan: { entitlements: ["playbook.review"] } }), { status: 200 })
+            : new Response("{}", { status: 503 }),
+        ),
+      );
+      holdReview(DAY_ID, { stars: 4, note: null, heldAt: "2026-09-10T00:00:00.000Z" });
+      putReviewMock.mockResolvedValue({ ok: false, error: { status: 0, message: "stop here" } });
+      renderDay();
+      expect(await screen.findByTestId("review-form")).toBeTruthy();
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      expect(putReviewMock).not.toHaveBeenCalled();
+
+      const onLine = vi.spyOn(window.navigator, "onLine", "get").mockReturnValue(false);
+      try {
+        await act(async () => {
+          window.dispatchEvent(new Event("offline"));
+        });
+        planUp = true;
+        onLine.mockReturnValue(true);
+        await act(async () => {
+          window.dispatchEvent(new Event("online"));
+        });
+        await waitFor(() => expect(putReviewMock).toHaveBeenCalledWith(DAY_ID, { stars: 4, note: null }));
+      } finally {
+        onLine.mockRestore();
+      }
+    });
+
     // Sent, it could only 402, and its error would sit inside a form this
     // account is not shown, under a "Queued" row with no way to discard it. It
     // waits in storage instead, as it does for a reader with no account.
