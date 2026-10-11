@@ -31,6 +31,21 @@ Format:
   1.14.0 → **1.15.0** (minor: an optional field) and a new `API_FINGERPRINT`.
 - Breaking? no: the field is defaulted, so a payload from before it parses as "no description".
 
+## 2026-10-11 — `ActivityTagDescribed`: the categories a description can name (M42 part 5, ADR-070 §3–§4)
+
+- **Added** `ActivityTagDescribed` (`packages/contracts/src/activity.ts`): `ActivityTagCategory`
+  less Lodging. These are the tags a description can name, so they are also the tags with a page
+  (`/playbooks/tag/<tag>`) and the values of Discover's tag filter.
+- Why: the set was spelled twice, as `DESCRIBED` in `@tc/domain` and as `DiscoverTag` in the app.
+  The app's UI needs it too and may not import the domain (AGENTS.md's lint wall), so it lives in
+  the contract both already read. It is one definition (ADR-068).
+- Consumers updated: `packages/domain` (`DescribedTag` is this type, and `DESCRIBED` is its
+  options); `apps/web` (`TagFilter`, `DiscoverDay.namedTags`, `SharedDayView.namedTags`,
+  `tagPath`, the filter bar, `tagPage.ts`). Not on the public API: `DiscoverDay.namedTags` is
+  omitted from `/v1/discover/playbooks`, so `openapi.json`, `API_VERSION` and `API_FINGERPRINT`
+  are unchanged.
+- Breaking? no: a new export only.
+
 ## 2026-10-11 — `TripSummary.description` and `TripPreview.description`: a trip says what kind of trip it is (M42 part 3, ADR-070 §3)
 
 - **Added** `description: string | null`, defaulted to `null`, to `TripSummary`

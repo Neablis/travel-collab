@@ -21,7 +21,7 @@ export type PlaceRouteProps = {
 };
 
 /** `?page=` as a whole number from 1; anything else is page one. */
-function pageOf(raw: string | string[] | undefined): number {
+export function pageOf(raw: string | string[] | undefined): number {
   const n = Number(Array.isArray(raw) ? raw[0] : raw);
   return Number.isInteger(n) && n >= 1 ? n : 1;
 }
@@ -79,5 +79,13 @@ export async function placeListing(
 ): Promise<ComponentProps<typeof PlaceDaysList>> {
   const { page, data } = await resolve(kind, props);
   if (data === null) notFound();
-  return { name: data.place.name, path: placePath(data.place), days: data.days, total: data.place.days, page };
+  const { name, days: total } = data.place;
+  return {
+    heading: `${name} playbooks`,
+    summary: total === 1 ? `1 day a traveler planned in ${name}.` : `${total} days other travelers planned in ${name}.`,
+    path: placePath(data.place),
+    days: data.days,
+    total,
+    page,
+  };
 }

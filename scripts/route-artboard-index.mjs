@@ -65,6 +65,8 @@ export const NOT_DRAWN = new Map([
   ["/developers/reference", "M22 API reference rendered by Scalar from /api/v1/openapi.json — no artboard"],
   ["/playbooks/city/[slug]", "SEO pass, part 5: a city's published days for crawlers — Discover's cards and grid under a heading, no artboard"],
   ["/playbooks/country/[slug]", "SEO pass, part 5: the city page over a country's days — no artboard"],
+  ["/playbooks/tag/[tag]", "M42 part 5: the city page over the days a tag describes — no artboard"],
+  ["/playbooks/city/[slug]/[tag]", "M42 part 5: the city page over one tag's days in that city — no artboard"],
   ["/demo", "the picker, M42 D1, has no artboard"],
 ]);
 

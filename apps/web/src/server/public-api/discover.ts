@@ -18,7 +18,9 @@ import type { CollectionDef } from "./route";
 // schema omits it and the handler drops it, both, because `route()` validates
 // an item against the schema but sends the handler's object — an `.omit` alone
 // would document the field away and still ship it. `discover.int.test.ts`
-// pins its absence from the wire.
+// pins its absence from the wire. `namedTags` (M42 part 5) goes the same way:
+// it says which of the app's tag chips link to a page, which the API has none
+// of.
 //
 // **Published only, whoever asks.** The app's `everyone` scope also shows the
 // reader their own private days; an API listing called "discover" that
@@ -49,7 +51,7 @@ type Query = z.infer<typeof Query>;
 // client mid-rollout can parse a card from before it; a caller of v1 reads
 // only what this server sends, and an optional field would tell them to
 // handle its absence for nothing.
-const ApiDiscoverDay = DiscoverDay.omit({ ownerDisplayName: true }).extend({ cover: TripCover.nullable() });
+const ApiDiscoverDay = DiscoverDay.omit({ ownerDisplayName: true, namedTags: true }).extend({ cover: TripCover.nullable() });
 type ApiDiscoverDay = z.infer<typeof ApiDiscoverDay>;
 
 export const discoverPlaybooksDef: CollectionDef<ApiDiscoverDay> = {
@@ -77,6 +79,6 @@ export const discoverPlaybooksDef: CollectionDef<ApiDiscoverDay> = {
       },
       page,
     );
-    return days.map(({ ownerDisplayName: _name, ...day }) => day);
+    return days.map(({ ownerDisplayName: _name, namedTags: _named, ...day }) => day);
   },
 };

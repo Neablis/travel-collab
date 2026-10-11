@@ -6,6 +6,7 @@
 // day. A link whose slug is missing or stale still opens: the page redirects
 // it to the current URL.
 
+import type { ActivityTag, ActivityTagDescribed } from "@tc/contracts";
 import { countryFacts } from "@tc/pages";
 import { countryName } from "./place";
 import { DISCOVER_PAGE_SIZE } from "./playbooks";
@@ -64,7 +65,7 @@ export const MIN_INDEXED_PLACE_DAYS = 3;
 // The sitemap and the page's robots tag both ask this, about the same
 // `PlacePage.days`: two thresholds, or one threshold over two counts, would let
 // a place be listed in the sitemap and `noindex` on arrival.
-/** Whether a city or country page is indexed and listed in the sitemap. */
+/** Whether a city, country or tag page is indexed and listed in the sitemap (M42 D10 holds tags to it too). */
 export function placeIndexable(place: { days: number }): boolean {
   return place.days >= MIN_INDEXED_PLACE_DAYS;
 }
@@ -102,6 +103,29 @@ export function countrySlug(code: string): string | null {
   if (name === null || name === code) return null;
   const slug = slugify(name);
   return slug === "" ? null : slug;
+}
+
+// The tag's key, never its label: ADR-070 never renames a key and may relabel
+// one (`meal` reads Food), and a URL has no redirect behind it to survive that.
+/**
+ * A tag page's path, page one: `/playbooks/tag/<tag>`, or
+ * `/playbooks/city/<slug>/<tag>` for that tag in one city's page.
+ */
+export function tagPath(tag: ActivityTagDescribed, citySlug: string | null = null): string {
+  return citySlug === null ? `/playbooks/tag/${tag}` : `/playbooks/city/${citySlug}/${tag}`;
+}
+
+/**
+ * Where a day's tag chip leads: its tag's page when the day's description
+ * names the tag, so the day is on that page (ADR-070 §4); null otherwise. A
+ * day of meals with one bar carries a Nightlife chip, and the Nightlife page
+ * does not list it, or does not exist.
+ */
+export function namedTagPath(named: readonly ActivityTagDescribed[]): (tag: ActivityTag) => string | null {
+  return (tag) => {
+    const page = named.find((name) => name === tag);
+    return page === undefined ? null : tagPath(page);
+  };
 }
 
 /** A place page's URL for page `page`; page one is the bare path, so it is self-canonical. */

@@ -1,4 +1,4 @@
-import { ActivityTagCategory, type ActivityKind, type ActivityTag } from "@tc/contracts";
+import { ActivityTagDescribed, type ActivityKind, type ActivityTag } from "@tc/contracts";
 
 // What kind of trip or day this is, from its stops' tags (ADR-070 decision 3,
 // M42 D8). Computed wherever it is shown and never stored: the tags are the
@@ -9,8 +9,8 @@ import { ActivityTagCategory, type ActivityKind, type ActivityTag } from "@tc/co
 // transit stop is travel between the things a trip is about, so it is not
 // counted either, whatever it is tagged.
 
-/** A category a description can name: every category but Lodging. */
-export type DescribedTag = Exclude<ActivityTagCategory, "lodging">;
+/** A category a description can name: every category but Lodging (the contract's `ActivityTagDescribed`). */
+export type DescribedTag = ActivityTagDescribed;
 
 /** The two fields the rule reads, so a trip's `ActivityView` and a saved day's `SavedStop` both fit. */
 export type DescribableStop = { readonly kind: ActivityKind; readonly tags: readonly ActivityTag[] };
@@ -56,9 +56,7 @@ export const TAG_DESCRIPTION_COPY: Record<DescribedTag, { adjective: string; nou
 
 // Contract order, which is also the tie-break everywhere below: two shares that
 // are equal must always come out the same way round.
-const DESCRIBED: readonly DescribedTag[] = ActivityTagCategory.options.filter(
-  (tag): tag is DescribedTag => tag !== "lodging",
-);
+const DESCRIBED: readonly DescribedTag[] = ActivityTagDescribed.options;
 
 /** How many counted stops carry each described tag, and how many are counted at all. */
 function tally(stops: readonly DescribableStop[]) {

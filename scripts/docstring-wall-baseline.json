@@ -326,7 +326,6 @@
   "apps/web/src/server/ids.ts::isUuid",
   "apps/web/src/server/pages.ts::getPage",
   "apps/web/src/server/pages.ts::listPages",
-  "apps/web/src/server/playbooks.ts::discoverDays",
   "apps/web/src/server/projections.ts::applyTripEvents",
   "apps/web/src/server/projections.ts::listTripSummaries",
   "apps/web/src/server/projections.ts::upsertTripDetail",
