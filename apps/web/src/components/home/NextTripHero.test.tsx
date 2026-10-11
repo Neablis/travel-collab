@@ -879,3 +879,17 @@ describe("NextTripHero — a cover", () => {
     expect(within(hero).queryByText(/Photo by/)).toBeNull();
   });
 });
+
+// M42 D9: the hero is filtered out of the grid, so it is the one place on Home
+// the next trip can say what kind of trip it is.
+describe("NextTripHero — what kind of trip", () => {
+  it("describes the trip under its name, and says nothing when the trip cannot say", () => {
+    fetchTripDetailMock.mockReturnValue(new Promise(() => {}));
+    render(<NextTripHero trip={tripSummaryFixture({ description: "Outdoorsy" })} />);
+    expect(screen.getByRole("link", { name: "Japan: Tokyo to Kyoto", description: "Outdoorsy" })).toBeTruthy();
+    cleanup();
+
+    render(<NextTripHero trip={tripSummaryFixture({ description: null })} />);
+    expect(screen.getByRole("link", { name: "Japan: Tokyo to Kyoto", description: "" })).toBeTruthy();
+  });
+});

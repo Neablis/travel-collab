@@ -39,6 +39,7 @@ const preview: TripPreview = {
   days: [{ date: "2026-10-01", city: "Kyoto", stops: [{ title: "Fushimi Inari", location: { name: "Fushimi Inari", city: "Kyoto" } }] }],
   people: [{ name: "Dana Reyes", avatar: null, color: "sky", colorShifted: false, travelling: true }],
   total: { amountMinor: 4_500, currency: "USD" },
+  description: null,
 };
 
 afterEach(cleanup);

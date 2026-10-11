@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { describeByTags } from "@tc/domain";
 import { travellerIds, type Location, type PreviewPlace, type TripDetail, type TripPreview } from "@tc/contracts";
 import { cityFor } from "@/lib/dayChips";
 import { displayNameFor } from "@/lib/displayName";
@@ -85,6 +86,10 @@ export async function readInvitePreview(
         travelling: travellers.has(p.userId),
       })),
       total: { amountMinor: costed.tripCostTotal, currency: costed.currency },
+      // Every activity, the backlog's too, as the home card describes it
+      // (`listTripSummariesVisibleTo`): what the trip is about, not only what
+      // is on a day yet. The words say nothing of who planned what.
+      description: describeByTags(Object.values(detail.activities))?.text ?? null,
     },
   };
 }

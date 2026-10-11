@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { Money, SavedDayAuthorKind, TimeWindow, TripCover } from "@tc/contracts";
+import { ActivityTag, Money, SavedDayAuthorKind, TimeWindow, TripCover } from "@tc/contracts";
 import { CityMatch } from "@/lib/cities";
 
 // The wire shapes of the public library's three read endpoints (M11b PR3):
@@ -375,6 +375,14 @@ export const DiscoverDay = z.object({
    * anything. Defaulted, so a card from before it parses as "no cover".
    */
   cover: TripCover.nullable().default(null),
+  /**
+   * What kind of day it is, by ADR-070's rule (`describeByTags`, M42 D8), or
+   * null when too few of its stops are tagged to say. Worked out by the server
+   * from the stops on every read, never stored. Defaulted, as `cover` is.
+   */
+  description: z.string().nullable().default(null),
+  /** The categories its stops carry, most used first (`describedTags`): the card's tag chips. */
+  tags: z.array(ActivityTag).default([]),
 });
 export type DiscoverDay = z.infer<typeof DiscoverDay>;
 

@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Check, Share } from "lucide-react";
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { SavedDay, TimeFormat, TripCover } from "@tc/contracts";
+import { StopTagChips } from "@/components/board/StopTagChips";
 import { Badge } from "@/components/ui/badge";
 import { CoverCredit } from "@/components/cover/CoverCredit";
 import { CoverImage } from "@/components/cover/CoverImage";
@@ -190,6 +191,8 @@ async function readDay(savedDayId: string): Promise<ApiResult<SharedDayView>> {
       publishedAt: dayResult.value.publishedAt,
       moderation: dayResult.value.moderation ?? null,
       cover: dayResult.value.cover ?? null,
+      description: dayResult.value.description ?? null,
+      tags: dayResult.value.tags ?? [],
     },
   };
 }
@@ -255,6 +258,7 @@ export function SharedDayScreen({
   // removal swaps one for the other under the open dialog, so the one that
   // opened it is gone when it closes, and focus would fall to `<body>`.
   const coverControl = useRef<HTMLButtonElement>(null);
+  const descriptionId = useId();
   const coverApi = useMemo<CoverApi>(
     () => ({
       read: () => fetchSavedDayCover(savedDayId),
@@ -421,7 +425,9 @@ export function SharedDayScreen({
     );
   }
 
-  const { day, isAuthor, author, moderation, cover } = feed.data;
+  const { day, isAuthor, author, moderation, cover, description, tags } = feed.data;
+  // The title's description to a screen reader, as on a Discover card.
+  const describedBy = description === null ? undefined : descriptionId;
   const facts = savedDayFacts(day.stops, day.dayCount);
   const length = dayLength(facts.window);
   const groups = playbookDays(day);
@@ -483,6 +489,7 @@ export function SharedDayScreen({
           badge={day.visibility === "private" ? <Badge variant="neutral">Private</Badge> : null}
           meta={metaLine}
           share={share}
+          describedBy={describedBy}
         />
       )}
 
@@ -523,7 +530,9 @@ export function SharedDayScreen({
               {cover === null && (
                 <>
                   <div className="flex flex-wrap items-center gap-2">
-                    <Heading level={1}>{day.name}</Heading>
+                    <Heading level={1} aria-describedby={describedBy}>
+                      {day.name}
+                    </Heading>
                     {day.visibility === "private" && <Badge variant="neutral">Private</Badge>}
                     {isAuthor ? (
                       <span className="ml-auto flex items-center gap-2">
@@ -545,6 +554,19 @@ export function SharedDayScreen({
                     {metaLine}
                   </DataText>
                 </>
+              )}
+              {/* What kind of day it is, and the tags that say so (M42 D9), under
+                  the title block with or without a cover. Plain chips: part 5
+                  makes each one a way to its tag's page. */}
+              {(description !== null || tags.length > 0) && (
+                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                  {description !== null && (
+                    <Text as="span" id={descriptionId} className="font-semibold">
+                      {description}
+                    </Text>
+                  )}
+                  <StopTagChips activityId={day.savedDayId} tags={tags} focusedTag={null} />
+                </div>
               )}
               {/* The author's own paragraph (`saved_days.summary`). It is also
                   the page's meta description, so what a search result prints is
@@ -1153,6 +1175,7 @@ function CoverBand({
   badge,
   meta,
   share,
+  describedBy,
 }: {
   cover: TripCover;
   back: { href: string; label: string };
@@ -1165,6 +1188,8 @@ function CoverBand({
   badge: React.ReactNode | null;
   meta: string;
   share: React.ReactNode;
+  /** The id of what kind of day it is, which describes the title; none when the day cannot say. */
+  describedBy: string | undefined;
 }) {
   return (
     <div data-testid="day-cover">
@@ -1206,7 +1231,7 @@ function CoverBand({
                 </Text>
               )}
               <div className="mt-1 flex flex-wrap items-center gap-2 md:mt-1.5">
-                <Heading level={1} className="text-balance lg:text-4xl">
+                <Heading level={1} className="text-balance lg:text-4xl" aria-describedby={describedBy}>
                   {title}
                 </Heading>
                 {badge}

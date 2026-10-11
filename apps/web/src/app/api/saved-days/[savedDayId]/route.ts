@@ -33,6 +33,9 @@ import { sharedDayRead } from "@/server/sharedDayView";
 // let this reader open the day — a day they may not read hides its cover with
 // it, moderation included.
 //
+// `description` and `tags` are what kind of day it is (M42 D9), worked out
+// from the stops by the domain's rule, which the page cannot import.
+//
 // A reader with no account (ADR-061) gets a published, unmoderated day or the
 // same 404 as anyone else, and is charged per IP. They never start a pin
 // backfill: it spends the reader's geocode quota, and they have none — the
@@ -53,6 +56,8 @@ export async function GET(
     publishedAt: view.publishedAt,
     moderation: view.moderation === null ? null : SavedDayModeration.parse(view.moderation),
     cover: view.cover === null ? null : TripCover.parse(view.cover),
+    description: view.description,
+    tags: view.tags,
   });
 }
 

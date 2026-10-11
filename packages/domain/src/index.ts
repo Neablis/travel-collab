@@ -14,3 +14,4 @@ export * from "./trip/freeTime";
 export * from "./trip/cities";
 export * from "./trip/pageState";
 export * from "./trip/personas";
+export * from "./trip/tagDescription";

@@ -7,7 +7,7 @@ import * as live from "./playbooks";
 import { getSavedDayCover } from "./savedDayCovers";
 import { schedulePinBackfill } from "./savedDayPinBackfill";
 import { publishedAtOf, readableSavedDay } from "./savedDays";
-import { sharedDayView } from "./sharedDayView";
+import { sharedDayView, whatKindOfDay } from "./sharedDayView";
 
 // The public library's reads, cached for a day (ADR-063). What the server
 // pages and the sitemap read; the JSON API under `/api/playbooks` and
@@ -88,6 +88,7 @@ export async function dayPageView(
       moderation: null,
       // In the day's cache entry, so a pick or a clear clears `dayTag` too.
       cover,
+      ...whatKindOfDay(day.stops),
     },
   };
 }

@@ -45,6 +45,7 @@ const preview: TripPreview = {
     { name: "Sam", avatar: null, color: null, colorShifted: false, travelling: false },
   ],
   total: { amountMinor: 123_450, currency: "USD" },
+  description: null,
 };
 
 const TODAY = "2027-05-27";

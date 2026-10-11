@@ -1,3 +1,5 @@
+import { describeByTags, describedTags } from "@tc/domain";
+import type { SavedStop } from "@tc/contracts";
 import type { SharedDayView } from "@/lib/sharedDayView";
 import { publicAuthor } from "./playbooks";
 import { getSavedDayCover } from "./savedDayCovers";
@@ -37,7 +39,17 @@ export async function sharedDayRead(
     publishedAt,
     moderation,
     cover,
+    ...whatKindOfDay(day.stops),
   };
+}
+
+/**
+ * What kind of day these stops make (M42 D9) and the categories they carry,
+ * for `SharedDayView`. One place, so the page's cached read and the live one
+ * cannot word the same day two ways.
+ */
+export function whatKindOfDay(stops: readonly SavedStop[]): Pick<SharedDayView, "description" | "tags"> {
+  return { description: describeByTags(stops)?.text ?? null, tags: describedTags(stops) };
 }
 
 /**

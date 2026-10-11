@@ -287,6 +287,19 @@ describe("TripCard — length, stops and the unplanned trip", () => {
   });
 });
 
+// M42 D9: the card says what kind of trip it is, as the description of the
+// name's link, where focus lands, so the two are read together.
+describe("TripCard — what kind of trip", () => {
+  it("describes the trip under its name, and says nothing when the trip cannot say", () => {
+    render(<TripCard trip={tripSummaryFixture({ description: "Beach & outdoors" })} />);
+    expect(screen.getByRole("link", { name: "Iceland Ring Road", description: "Beach & outdoors" })).toBeTruthy();
+    cleanup();
+
+    render(<TripCard trip={tripSummaryFixture({ description: null })} />);
+    expect(screen.getByRole("link", { name: "Iceland Ring Road", description: "" })).toBeTruthy();
+  });
+});
+
 // M37 part 4: the approved canvas's card with a cover — the photo as a strip,
 // credited where the badge was — and part 2's card, unchanged, without one.
 describe("TripCard — a cover", () => {

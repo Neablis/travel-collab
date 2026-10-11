@@ -448,6 +448,13 @@ export const TripSummary = z.object({
   // card never fetches it and no page view asks Unsplash for it (D2).
   // `.default(null)` for the same version skew as `startDate`.
   cover: TripCover.nullable().default(null),
+  // What kind of trip it is, from its stops' tags (M42 D8, ADR-070 §3):
+  // "Outdoorsy", "Beach & outdoors", "A bit of everything". Null when too few
+  // stops carry a category to say. Worked out in the listing query from every
+  // activity in the trip's document, the backlog's too, and never stored:
+  // `describeByTags` in `@tc/domain` is the only rule. `.default(null)` for
+  // the same version skew as `startDate`.
+  description: z.string().nullable().default(null),
 });
 export type TripSummary = z.infer<typeof TripSummary>;
 
@@ -456,11 +463,12 @@ export type TripSummary = z.infer<typeof TripSummary>;
  * `projectTripSummaries` folds from the log: a `TripSummary` without the
  * fields the list query reads from the trip's document instead of storing a
  * second copy — `endDate` (KI-2026-09-24-e), and the day, stop and idea counts
- * (M37) — and the cover, which is not planning state at all and lives in its
- * own CRUD table (M37 D1). Its members are the log's bare `TripMember`s: the
+ * (M37) — the cover, which is not planning state at all and lives in its
+ * own CRUD table (M37 D1), and the description, derived from the stops (M42
+ * D8). Its members are the log's bare `TripMember`s: the
  * persona is Identity's, overlaid at read time (M38, `TripSummaryMember`).
  */
 export type StoredTripSummary = Omit<
   TripSummary,
-  "endDate" | "dayCount" | "stopCount" | "ideaCount" | "cover" | "members"
+  "endDate" | "dayCount" | "stopCount" | "ideaCount" | "cover" | "members" | "description"
 > & { members: TripMember[] };

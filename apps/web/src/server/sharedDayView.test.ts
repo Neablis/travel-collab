@@ -4,9 +4,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // integration test.
 const publicAuthor = vi.fn();
 vi.mock("./playbooks", () => ({ publicAuthor: (...a: unknown[]) => publicAuthor(...a) }));
+// Three sights and a meal that is also one: enough to say what kind of day.
+const STOPS = [...Array.from({ length: 3 }, () => ({ kind: "planned", tags: ["sight"] })), { kind: "planned", tags: ["meal", "sight"] }];
 vi.mock("./savedDayPinBackfill", () => ({ schedulePinBackfill: () => false }));
 vi.mock("./savedDays", () => ({
-  readableSavedDay: async () => ({ savedDayId: "d-1", ownerId: "dev-alice" }),
+  readableSavedDay: async () => ({ savedDayId: "d-1", ownerId: "dev-alice", stops: STOPS }),
   publishedAtOf: async () => null,
   moderationOf: async () => null,
 }));
@@ -26,6 +28,13 @@ describe("sharedDayRead", () => {
     const read = await sharedDayRead("d-1", null);
     expect(read).not.toHaveProperty("author");
     expect(publicAuthor).not.toHaveBeenCalled();
+  });
+
+  // M42 D9: the page and the API's re-read both come through here, so the
+  // screen says the same thing on its first paint and after it reads again.
+  it("says what kind of day it is, from the stops, and the tags that say so", async () => {
+    const read = await sharedDayRead("d-1", null);
+    expect([read?.description, read?.tags]).toEqual(["Sightseeing", ["sight", "meal"]]);
   });
 });
 
