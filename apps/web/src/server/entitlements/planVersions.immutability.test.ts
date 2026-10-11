@@ -2,7 +2,7 @@
 // `planVersions.ts`'s immutability claim that `noExtension.test.ts` does not
 // cover (KI-2026-09-16-b).
 //
-// `noExtension.test.ts`'s `V1_AS_PUBLISHED` catches a pull request that edits a
+// `noExtension.test.ts`'s `AS_PUBLISHED` catches a pull request that edits a
 // published entry in source. This catches the other way an entry changes: a
 // code path writing to it after load — a stray `sort()`, a `push` onto an
 // entitlement list, a price overwritten through an `any`. The module header

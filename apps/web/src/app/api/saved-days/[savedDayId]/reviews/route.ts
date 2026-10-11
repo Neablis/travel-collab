@@ -7,13 +7,23 @@ import {
 } from "@tc/contracts";
 import { auth } from "@/server/auth";
 import { readSavedDayAsViewer, requireSavedDayRead } from "@/server/access/saved-day-access";
+import { accountCan } from "@/server/entitlements/resolver";
 import { publicLibraryReader } from "@/server/publicLibraryLimit";
-import { deleteReview, putReview, reviewsFor } from "@/server/reviews";
+import {
+  deleteReview,
+  putReview,
+  REVIEW_NOT_ENTITLED_CODE,
+  REVIEW_NOT_ENTITLED_REASON,
+  reviewsFor,
+} from "@/server/reviews";
 
 // A published day's reviews (M12 links 1-4): read the rail, post or replace
 // your own review, withdraw it. The GET is open to a reader with no account
 // (ADR-061), charged per IP, with `mine: null`; PUT and DELETE are signed-in
-// only, for the reason `saved-day-access.ts` gives.
+// only, for the reason `saved-day-access.ts` gives. PUT alone also needs
+// `playbook.review` (M42, ADR-071). Withdrawing a review you already left is
+// never gated, so through the API a free account can still take one back. The
+// page offers no withdraw control today.
 //
 // GET goes through `readSavedDayAsViewer` and PUT through `requireSavedDayRead`
 // first, so a day you cannot read is the same 404 here as on the day itself — this route never becomes a way to
@@ -34,8 +44,8 @@ export async function GET(request: Request, { params }: Params) {
 
 /**
  * Create or replace the caller's review. 200 with the stored review and the
- * fresh summary; 400 invalid (a note over 140 characters included); 401; 403
- * `own-day`; 404; 409 `day-changed`.
+ * fresh summary; 400 invalid (a note over 140 characters included); 401; 402
+ * `review-not-entitled`; 403 `own-day`; 404; 409 `day-changed`.
  */
 // A note over the cap is REFUSED at this parse, never truncated — M12's gate
 // box, and why the limit lives in the contract rather than in a `maxLength`.
@@ -43,6 +53,13 @@ export async function PUT(request: Request, { params }: Params) {
   const { savedDayId } = await params;
   const access = await requireSavedDayRead(savedDayId);
   if ("error" in access) return access.error;
+  // After the read check, so a day you cannot read is still the same 404.
+  if (!(await accountCan(access.readerId, "playbook.review"))) {
+    return Response.json(
+      { error: REVIEW_NOT_ENTITLED_REASON, code: REVIEW_NOT_ENTITLED_CODE },
+      { status: 402 },
+    );
+  }
   const body = PutReviewInput.safeParse(await request.json().catch(() => null));
   if (!body.success) return Response.json({ error: "invalid-review" }, { status: 400 });
 

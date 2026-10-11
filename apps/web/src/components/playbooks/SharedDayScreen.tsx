@@ -15,6 +15,7 @@ import { mapPanel } from "./sharedDayFacts";
 import { scopedGeometry } from "./sharedDayGeometry";
 import { useDistanceUnit } from "@/components/account/PreferencesProvider";
 import { useSessionUser } from "@/components/account/useSessionUser";
+import { useEntitled } from "@/components/assistant/useAiEntitled";
 import { Banner } from "@/components/ui/banner";
 import { Button, PHONE_TOUCH } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -226,6 +227,9 @@ export function SharedDayScreen({
   const feed = useLibraryRead(read, signature, initial);
   const user = useSessionUser();
   const signedOut = user === null;
+  // `null` (unknown, or the read failed) offers the form: the server's 402 is
+  // the gate, and this only spares a free account a form it cannot post.
+  const reviewEntitled = useEntitled("playbook.review", user != null);
 
   const [adding, setAdding] = useState(false);
   const [signingIn, setSigningIn] = useState(false);
@@ -272,8 +276,17 @@ export function SharedDayScreen({
   // A review held on this device is loaded and sent only for a CONFIRMED
   // reader, not merely one not yet known to be signed out: an expired cookie
   // reads `undefined` first, and flushing then would be a PUT that can only
-  // 401 (Copilot, PR #293).
-  const reviews = useDayReviews(savedDayId, feed.data?.publishedAt, Boolean(user));
+  // 401 (Copilot, PR #293). And only once the plan read has said the account
+  // may review (M42): a free account's flush could only 402, under a Queued row
+  // its note offers no way to discard. Strict here, unlike the form, because
+  // waiting costs nothing: the review stays stored. A failed plan read is
+  // asked again when the browser comes back online (`useEntitled`), so a
+  // paying account's review still goes in the same visit once the read lands.
+  const reviews = useDayReviews(
+    savedDayId,
+    feed.data?.publishedAt,
+    Boolean(user) && reviewEntitled === true,
+  );
 
   // **Back from signing in, having pressed Add while signed out**
   // (`SignInToAddDialog` banked it). Opens the add dialog and adds nothing:
@@ -771,7 +784,7 @@ export function SharedDayScreen({
             <ReviewsSection
               reviews={reviews}
               savedDayId={day.savedDayId}
-              canReview={!isAuthor && !signedOut}
+              offer={isAuthor || signedOut ? "none" : reviewEntitled === false ? "needs-plan" : "form"}
               canReport={!signedOut}
             />
           </div>

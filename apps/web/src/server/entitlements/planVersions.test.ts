@@ -86,12 +86,15 @@ describe("plan versions", () => {
       "ai.command",
       "trip.collaborators",
       "api.tokens",
+      "playbook.review",
     ]);
-    // `v1` never learned the word.
+    // `v1` never learned the word. (It did learn `playbook.review`, in place,
+    // under ADR-071 — the one kind of change that may reach a published entry.)
     expect(planVersionFromRef("premium@v1").entitlements).toEqual([
       "ai.ask",
       "ai.command",
       "trip.collaborators",
+      "playbook.review",
     ]);
     // And no other plan grants it — a membership fact about one plan, which is
     // the only shape a module with no ordering can express.
@@ -113,14 +116,16 @@ describe("plan versions", () => {
 
   // The launch table, stated once as behaviour rather than as shape. `free`
   // entitles trip planning in full — which is why its list is EMPTY: nothing
-  // gates planning, so nothing needs to name it.
+  // gates planning, so nothing needs to name it. `playbook.review` joined the
+  // two paid plans in place under ADR-071 (M42), and `free` stays empty.
   it("grants what the milestone's launch table says", () => {
     expect(planVersionFromRef("free@v1").entitlements).toEqual([]);
-    expect(planVersionFromRef("plus@v1").entitlements).toEqual(["ai.ask", "ai.command"]);
+    expect(planVersionFromRef("plus@v1").entitlements).toEqual(["ai.ask", "ai.command", "playbook.review"]);
     expect(planVersionFromRef("premium@v1").entitlements).toEqual([
       "ai.ask",
       "ai.command",
       "trip.collaborators",
+      "playbook.review",
     ]);
   });
 

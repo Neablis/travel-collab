@@ -14,7 +14,8 @@
     "version": 1,
     "entitlements": [
       "ai.ask",
-      "ai.command"
+      "ai.command",
+      "playbook.review"
     ],
     "perUserRequestsPerDay": 50,
     "perUserStepsPerDay": 400,
@@ -29,7 +30,8 @@
       "ai.ask",
       "ai.command",
       "trip.collaborators",
-      "api.tokens"
+      "api.tokens",
+      "playbook.review"
     ],
     "perUserRequestsPerDay": 200,
     "perUserStepsPerDay": 1600,

@@ -93,9 +93,10 @@ describe("no new entitlement and no new plan version", () => {
   // publishing a version. Exporting a trip is not such a change, and this
   // asserts it rather than trusting it — a new member here in a diff that also
   // touches export is the milestone's own scope line being crossed.
-  it("leaves Entitlement exactly as M22 left it", () => {
+  // `playbook.review` is M42's (ADR-071) and gates reviews, not export.
+  it("leaves Entitlement exactly as M22 left it, plus M42's review gate", () => {
     expect([...ENTITLEMENTS].sort()).toEqual(
-      ["ai.ask", "ai.command", "trip.collaborators", "api.tokens"].sort(),
+      ["ai.ask", "ai.command", "trip.collaborators", "api.tokens", "playbook.review"].sort(),
     );
   });
 });

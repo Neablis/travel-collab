@@ -639,6 +639,119 @@ describe("a shared day", () => {
     expect(screen.queryByRole("button", { name: "Report this day" })).toBeNull();
   });
 
+  // M42 (ADR-071): leaving a review needs `playbook.review`. A signed-in
+  // account without it is told where the form would be, rather than offered
+  // one the server answers with 402.
+  describe("leaving a review needs Plus or Premium", () => {
+    function servePlan(entitlements: string[]) {
+      const fetchMock = vi.fn(async (url: string) =>
+        String(url).endsWith("/api/account/plan")
+          ? new Response(JSON.stringify({ plan: { entitlements } }), { status: 200 })
+          : new Response("{}", { status: 404 }),
+      );
+      vi.stubGlobal("fetch", fetchMock);
+      return fetchMock;
+    }
+
+    it("tells a signed-in free account the reviews are for Plus and Premium, with the way to the plans", async () => {
+      session = { id: "dev-bob" };
+      servePlan([]);
+      renderDay();
+      const note = await screen.findByTestId("review-needs-plan");
+      expect(note.textContent).toContain("Reviews are for Plus and Premium");
+      expect(within(note).getByRole("link", { name: "See plans" }).getAttribute("href")).toBe("/plans");
+      expect(screen.queryByTestId("review-form")).toBeNull();
+      expect(screen.queryByRole("button", { name: "1 star" })).toBeNull();
+    });
+
+    // A review held on this device is sent only once the plan read has said
+    // yes: an unknown answer keeps it stored rather than spending a PUT that
+    // may 402. So this goes red if the read never answers `true`.
+    it("sends a review held on this device once the plan says the account can review", async () => {
+      session = { id: "dev-bob" };
+      servePlan(["ai.ask", "playbook.review"]);
+      holdReview(DAY_ID, { stars: 4, note: null, heldAt: "2026-09-10T00:00:00.000Z" });
+      putReviewMock.mockResolvedValue(
+        ok({
+          kind: "saved",
+          review: { savedDayId: DAY_ID, reviewerId: "dev-bob", reviewerDisplayName: "Bob", stars: 4, note: null, createdAt: "2026-09-10T00:00:00.000Z", updatedAt: "2026-09-10T00:00:00.000Z", isMine: true },
+          summary: { average: 4, count: 1, histogram: { 1: 0, 2: 0, 3: 0, 4: 1, 5: 0 } },
+        }),
+      );
+      renderDay();
+      await waitFor(() => expect(putReviewMock).toHaveBeenCalledWith(DAY_ID, { stars: 4, note: null }));
+      expect(await screen.findByTestId("review-form")).toBeTruthy();
+    });
+
+    // A failed plan read leaves the answer unknown, and the held review waits.
+    // Coming back online asks again, so a paying account's review is sent in
+    // the same visit rather than waiting for the next one.
+    it("asks the plan again on reconnecting, and then sends the held review", async () => {
+      session = { id: "dev-bob" };
+      let planUp = false;
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (url: string) =>
+          String(url).endsWith("/api/account/plan") && planUp
+            ? new Response(JSON.stringify({ plan: { entitlements: ["playbook.review"] } }), { status: 200 })
+            : new Response("{}", { status: 503 }),
+        ),
+      );
+      holdReview(DAY_ID, { stars: 4, note: null, heldAt: "2026-09-10T00:00:00.000Z" });
+      putReviewMock.mockResolvedValue({ ok: false, error: { status: 0, message: "stop here" } });
+      renderDay();
+      expect(await screen.findByTestId("review-form")).toBeTruthy();
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      expect(putReviewMock).not.toHaveBeenCalled();
+
+      const onLine = vi.spyOn(window.navigator, "onLine", "get").mockReturnValue(false);
+      try {
+        await act(async () => {
+          window.dispatchEvent(new Event("offline"));
+        });
+        planUp = true;
+        onLine.mockReturnValue(true);
+        await act(async () => {
+          window.dispatchEvent(new Event("online"));
+        });
+        await waitFor(() => expect(putReviewMock).toHaveBeenCalledWith(DAY_ID, { stars: 4, note: null }));
+      } finally {
+        onLine.mockRestore();
+      }
+    });
+
+    // Sent, it could only 402, and its error would sit inside a form this
+    // account is not shown, under a "Queued" row with no way to discard it. It
+    // waits in storage instead, as it does for a reader with no account.
+    it("neither shows nor sends a held review for an account that cannot review", async () => {
+      session = { id: "dev-bob" };
+      servePlan([]);
+      holdReview(DAY_ID, { stars: 4, note: null, heldAt: "2026-09-10T00:00:00.000Z" });
+      putReviewMock.mockResolvedValue({ ok: false, error: { status: 402, message: "Reviews are for Plus and Premium." } });
+      renderDay();
+      expect(await screen.findByTestId("review-needs-plan")).toBeTruthy();
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      expect(putReviewMock).not.toHaveBeenCalled();
+      expect(screen.queryByText("Queued")).toBeNull();
+    });
+
+    // A reader with no account keeps the header's Sign in as the offer, and
+    // costs no plan read: there is no account to ask about.
+    it("asks nothing and says nothing about plans to a reader with no account", async () => {
+      session = null;
+      const fetchMock = servePlan([]);
+      renderDay();
+      expect(await screen.findByTestId("reviews-empty")).toBeTruthy();
+      expect(screen.queryByTestId("review-needs-plan")).toBeNull();
+      expect(screen.queryByTestId("review-form")).toBeNull();
+      expect(fetchMock.mock.calls.map(([url]) => String(url))).not.toContain("/api/account/plan");
+    });
+  });
+
   it("reports the day itself, by id, with the reason picked", async () => {
     createReportMock.mockResolvedValue(ok({}));
     renderDay();

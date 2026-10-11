@@ -43,7 +43,7 @@ function isSubset(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
 
 describe("the fourth plan is not a subset of any other", () => {
   it("grants trip.collaborators without ai.command", () => {
-    expect(STUDIO.entitlements).toEqual(["ai.ask", "trip.collaborators"]);
+    expect(STUDIO.entitlements).toEqual(["ai.ask", "trip.collaborators", "playbook.review"]);
     const ent = entitlementSet(STUDIO.entitlements);
     expect(can(ent, "trip.collaborators")).toBe(true);
     expect(can(ent, "ai.command")).toBe(false);
@@ -66,10 +66,12 @@ describe("the fourth plan is not a subset of any other", () => {
   // everything is a subset of it — a fact about there being three capability
   // strings, not about the plans. It stops being true the moment a fourth
   // capability exists that `premium` does not grant, and the incomparability
-  // above never depended on it.
+  // above never depended on it. (`premium@v1` is four strings since M42 added
+  // `playbook.review` to both in place under ADR-071; still everything `studio`
+  // grants.)
   it("is a subset of premium only because premium holds the whole vocabulary", () => {
     expect(isSubset(setOf("studio"), setOf("premium"))).toBe(true);
-    expect(setOf("premium").size).toBe(3);
+    expect(setOf("premium").size).toBe(4);
   });
 
   // `free` grants nothing, so it is trivially a subset of everything. That is

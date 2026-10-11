@@ -144,4 +144,5 @@ export const ENTITLEMENT_LABEL: Record<Entitlement, string> = {
   // No "votes and comments": trips have neither (Mitchell, 2026-10-11).
   "trip.collaborators": "Invite friends to plan your trips with you",
   "api.tokens": "API tokens for your own tools",
+  "playbook.review": "Review playbooks with stars and a note",
 };
