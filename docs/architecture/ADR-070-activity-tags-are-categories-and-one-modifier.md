@@ -47,8 +47,9 @@ search engines get tag pages, and notebooks can chart the mix.
      label can change (`meal` reads *Food*).
    - **New keys are appended after the existing four.** Spend charts file a multi-tag stop under
      its first tag in contract order, so appending moves no existing stop's spend.
-   - The picker shows two groups: *What it is* (the twelve categories, in the order of the label
-     column above with Lodging last) and *Needs* (Ticketed). Toggling keeps contract order, because
+   - The picker shows two groups: *What it is* (the twelve categories in M42 D5's order: Food,
+     Drinks, Nightlife, Museum, Sight, Outdoors, Beach, Shopping, Show, Tour, Wellness, Lodging) and
+     *Needs* (Ticketed). Toggling keeps contract order, because
      `sameTags` compares in order.
    - Adding the nine keys is an additive change: `API_VERSION` minor, and a CHANGELOG entry.
 
