@@ -32,6 +32,14 @@
             "type": "command",
             "command": "node scripts/hooks/draft-pr-guard.mjs",
             "if": "Bash(gh *)"
+          },
+          {
+            "type": "command",
+            "command": "node scripts/hooks/check-test-lane.mjs"
+          },
+          {
+            "type": "command",
+            "command": "node scripts/hooks/commit-message-guard.mjs"
           }
         ]
       },
@@ -41,6 +49,24 @@
           {
             "type": "command",
             "command": "node scripts/hooks/subagent-file-scope.mjs"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node scripts/hooks/orchestrator-no-code.mjs"
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__github__create_pull_request|mcp__github__update_pull_request",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node scripts/hooks/pr-tool-guard.mjs"
           }
         ]
       }
@@ -55,6 +81,15 @@
             "statusMessage": "Typechecking touched package..."
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node scripts/hooks/push-review-nudge.mjs"
+          }
+        ]
       }
     ],
     "SubagentStop": [
@@ -63,6 +98,15 @@
           {
             "type": "command",
             "command": "node scripts/hooks/subagent-report-conformance.mjs"
+          }
+        ]
+      },
+      {
+        "matcher": "phase-implementer",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node scripts/hooks/implementer-report-check.mjs"
           }
         ]
       }
