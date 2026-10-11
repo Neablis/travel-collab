@@ -34,7 +34,9 @@ Candidates absorbed (each deleted by this gate):
 ### The front door
 
 1. **The picker lives on `/demo`**, with `/demo/<slug>` per trip. The landing page's CTA is
-   unchanged. Each trip in the picker shows its description (D8).
+   unchanged. Each trip in the picker shows its description (D8). *Added 2026-10-11 (part 6):* a
+   demo trip opens on **Plan**, not Overview, on desktop and phone; an explicit `?view=` still
+   wins, and old `/demo?view=…` links redirect to `/demo/japan` with their view.
 2. **One landing snapshot per trip**, from the generator in
    `docs/specs/2026-09-27-link-previews-and-real-hero-design.md` §3.2, which exists today as
    `apps/web/scripts/landing-demo.ts` for Japan only. `server/demoTrip.ts` folds any bundle, not
