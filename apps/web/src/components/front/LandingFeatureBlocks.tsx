@@ -27,6 +27,11 @@ import { cn } from "@/lib/cn";
 
 const CREW = ["SK", "PR", "JM", "MT"] as const;
 
+// A suggestion's Accept, drawn rather than live: the landing runs on nothing
+// (SPEC §14), so it is a picture of the button, hidden from the reader.
+const SUGGESTION_ACCEPT =
+  "flex-none self-center rounded-full bg-brand px-2 py-0.5 text-3xs font-semibold text-surface";
+
 // The Countdown block's steps. A fixture frozen the night before, never computed
 // from `Date.now()`: the page runs on nothing (SPEC §14), and a clock read here
 // would also render one thing on the server and another after hydration.
@@ -182,8 +187,8 @@ export function LandingFeatureBlocks(): React.ReactElement {
       {/* Together — `dc.html:2018-2093` */}
       <Card className="flex h-full min-h-107.5 flex-col overflow-hidden rounded-lg p-0">
         <BlockHead eyebrow="Together" title="The trip starts before the trip.">
-          One plan your whole group can touch. Drag a stop and watch everyone react. Tap the ones you
-          can&rsquo;t wait for. Argue about Pontocho now, thank yourselves in Kyoto.
+          One plan your whole group can touch. Drag a stop and everyone sees it move. Suggest a change
+          and the planners say yes. Argue about Pontocho now, thank yourselves in Kyoto.
         </BlockHead>
 
         <div className="flex min-h-0 flex-1 flex-col justify-between gap-2.5 px-4.5 pb-4.5">
@@ -210,11 +215,6 @@ export function LandingFeatureBlocks(): React.ReactElement {
             >
               <Text as="span" className="truncate text-xs">Fushimi Inari, early</Text>
               <span className={cn(NAME_CHIP, "bg-brand-tint text-brand-pressed")}>Sam</span>
-              {/* "Tap the ones you can't wait for" — three of the four did. */}
-              <span className="ml-auto flex flex-none items-center gap-0.5">
-                <span role="img" aria-label="Can't wait" className="text-2xs text-danger">♥</span>
-                <DataText className="text-3xs">3</DataText>
-              </span>
             </TimelineRow>
 
             <TravelGap>Train + 20 min walk</TravelGap>
@@ -251,20 +251,26 @@ export function LandingFeatureBlocks(): React.ReactElement {
               }
             >
               <Text as="span" variant="secondary" className="truncate text-xs">Pontocho, maybe</Text>
-              <Badge variant="neutral" className="flex-none px-1.5 text-3xs tracking-wider uppercase">Idea</Badge>
+              <Badge variant="neutral" className="flex-none px-1.5 text-3xs tracking-wider uppercase">Suggested</Badge>
             </TimelineRow>
           </div>
 
+          {/* Dana's suggestion, the dashed stop above, waiting on a planner
+              (M40). It was a comment thread with replies, which trips do not
+              have (Mitchell, 2026-10-11). */}
           <div className="flex items-start gap-2 rounded-md bg-moss px-2.75 py-2.25">
             <span className="grid size-5 flex-none place-items-center rounded-full bg-warning-tint text-3xs font-semibold text-warning-ink">
               DK
             </span>
-            <div className="flex flex-col gap-0.5">
+            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
               <Text as="span" className="text-xs">
                 “Keep Pontocho — we can decide on the night.”
               </Text>
-              <DataText className="text-3xs tracking-wider uppercase">Dana · 2 replies</DataText>
+              <DataText className="text-3xs tracking-wider uppercase">Dana suggested this</DataText>
             </div>
+            <span aria-hidden className={SUGGESTION_ACCEPT}>
+              Accept
+            </span>
           </div>
         </div>
       </Card>
@@ -317,12 +323,15 @@ export function LandingFeatureBlocks(): React.ReactElement {
             <span className="grid size-5 flex-none place-items-center rounded-full bg-brand-tint text-3xs font-semibold text-brand-pressed">
               PR
             </span>
-            <div className="flex flex-col gap-0.5">
+            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
               <Text as="span" className="text-xs">
-                “Bags are by the door. Is anyone else still up?”
+                “Meet at the station at 6:40 — I can&rsquo;t sleep anyway.”
               </Text>
-              <DataText className="text-3xs tracking-wider uppercase">Priya · 1:12 am · 3 replies</DataText>
+              <DataText className="text-3xs tracking-wider uppercase">Priya suggested this · 1:12 am</DataText>
             </div>
+            <span aria-hidden className={SUGGESTION_ACCEPT}>
+              Accept
+            </span>
           </div>
         </div>
       </Card>

@@ -58,16 +58,14 @@ describe("LandingFeatureBlocks", () => {
     expect(screen.getAllByRole("listitem").map((li) => li.textContent)).toEqual(["One month", "One week", "Tomorrow"]);
   });
 
-  it("lets the group mark the stop they can't wait for", () => {
-    render(<LandingFeatureBlocks />);
-    expect(screen.getByRole("img", { name: "Can't wait" })).toBeDefined();
-  });
-
-  it("marks the booked stop and the maybe on the Together timeline", () => {
+  // Mitchell, 2026-10-11: the group's say is a suggestion a planner accepts,
+  // which trips have — not a heart or a reply thread, which they do not.
+  it("marks the booked stop and Dana's suggested one on the Together timeline", () => {
     render(<LandingFeatureBlocks />);
     expect(screen.getByText("Pending")).toBeDefined();
-    expect(screen.getByText("Idea")).toBeDefined();
+    expect(screen.getByText("Suggested")).toBeDefined();
     expect(screen.getByText("Pontocho, maybe")).toBeDefined();
+    expect(screen.getByText("Dana suggested this")).toBeDefined();
   });
 
   // DRIFT §2: the Notebook's macro values and playbook sharing are unbuilt, and

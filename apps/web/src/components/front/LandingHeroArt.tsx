@@ -62,17 +62,15 @@ const CREW = ["SK", "PR", "JM", "MT"] as const;
 // collected here so the map view spends one disable on all three pins instead
 // of one each.
 //
-// `loved` is the retro's one change to this art (2026-09-28, DRIFT D21): a
-// "can't wait" heart on one stop, "so the feeling is visible before it's
-// explained". It rides on the pin rather than the label because the label is
-// `lg`-only and the heart should show at every width the map does.
+// The retro's "can't wait" heart on pin 1 (2026-09-28, DRIFT D21) is gone:
+// trips have no reactions (Mitchell, 2026-10-11).
 const MAP_PINS = [
-  { num: "1", title: "Fushimi Inari", time: "9:40", confirmed: true, loved: true, at: { left: "14%", top: "22%" } },
+  { num: "1", title: "Fushimi Inari", time: "9:40", confirmed: true, at: { left: "14%", top: "22%" } },
   { num: "2", title: "Nishiki Market", time: "1:15", confirmed: true, at: { left: "34%", top: "55%" } },
   { num: "3", title: "Ryokan · unconfirmed", time: null, confirmed: false, at: { left: "70%", top: "78%" } },
 ] as const;
 
-const MAP_COMMENT_AT = { left: "26%", right: "2%", top: "30%" };
+const MAP_SUGGESTION_AT = { left: "26%", right: "2%", top: "30%" };
 const MAP_PRESENCE_AT = { left: "46%", top: "62%" };
 // The Timeline and Notebook views hang their footer pill off the same 4% inset.
 const FOOT_PILL_AT = { left: "4%" };
@@ -81,9 +79,12 @@ const FOOT_PILL_AT = { left: "4%" };
 // STOP_GRID.
 const TIMELINE_GRID = { gridTemplateColumns: "62px 1fr" };
 
-const MAP_COMMENT = {
+// Suggestions, not comment threads: a trip has no replies, and a suggester's
+// change with a note on it, waiting on a planner's Accept, is the real thing
+// (M40; Mitchell, 2026-10-11).
+const MAP_SUGGESTION = {
   quote: "“Market before the shrine and we're walking back on ourselves.”",
-  meta: "Dana · on stop 2 · 2 replies",
+  meta: "Dana suggested swapping 1 and 2",
 };
 
 const TIMELINE_ROWS = [
@@ -92,7 +93,7 @@ const TIMELINE_ROWS = [
   {
     time: "1:30 pm",
     title: "Kuromon Market, lunch",
-    badge: { label: "2 replies", variant: "neutral" },
+    badge: { label: "Suggested", variant: "neutral" },
     // ¥10,000 stays prose, not `DataText`, and that is the design's own
     // distinction rather than an oversight: `dc.html:1992` wraps ¥1,340 in a
     // mono macro chip because it is a value pulled from the plan, while
@@ -114,10 +115,14 @@ const NOTEBOOK_PROSE = {
   tail: ", which leaves the evening open.",
 };
 
-const NOTEBOOK_COMMENT = {
-  quote: "“I added the towel bit — learned that the hard way in Hakone.”",
-  meta: "Priya · on this page · just now",
+const NOTEBOOK_SUGGESTION = {
+  quote: "“Take the 7:15 instead — the 7:45 is always packed.”",
+  meta: "Priya suggested a change to Day 5",
 };
+
+// The suggestion's Accept, drawn rather than live (see MAP_SUGGESTION).
+const SUGGESTION_ACCEPT =
+  "flex-none self-center rounded-full bg-brand px-2 py-0.5 text-3xs font-semibold text-surface";
 
 const MACRO_CHIP = "rounded-sm bg-brand-tint px-1.5 py-px text-brand-pressed";
 // Sized by its content, the static art's and the real panels' alike: the real
@@ -271,17 +276,6 @@ function MapView(): React.ReactElement {
             >
               {pin.num}
             </span>
-            {/* A sibling of the number, not inside it, so the pin's own text
-                stays "1" for anything that reads it. */}
-            {"loved" in pin ? (
-              <span
-                role="img"
-                aria-label="Can't wait"
-                className="absolute -top-1.5 -right-2 grid size-4.5 place-items-center rounded-full bg-surface text-2xs leading-none text-danger shadow-float"
-              >
-                ♥
-              </span>
-            ) : null}
           </span>
           {/* Labels only from `lg` up. The pin group is centred on its
               coordinate (`-translate-x-1/2`), so with a ~161px label attached
@@ -293,7 +287,7 @@ function MapView(): React.ReactElement {
               across 14-70% of a ~300px box do not fit at all. Dropping the
               labels leaves a 28px circle that does fit (pin 1 at 28.6px, pin 3
               at 227px at 320px wide), which keeps the map, the route, the
-              comment thread and the presence pill on a phone rather than
+              suggestion card and the presence pill on a phone rather than
               hiding the showcase outright. Mitchell chose this over hiding the
               art, scaling it, or accepting the clip (2026-08-27). The place
               names are what a phone loses; the design file specifies no phone
@@ -320,7 +314,7 @@ function MapView(): React.ReactElement {
       <div
         className="absolute flex items-start gap-2.5 rounded-lg rounded-bl-sm border border-hairline bg-surface px-3 py-2.5 shadow-lifted"
         // eslint-disable-next-line no-restricted-syntax -- absolute art coordinates, see MAP_PINS above
-        style={MAP_COMMENT_AT}
+        style={MAP_SUGGESTION_AT}
       >
         <span
           aria-hidden
@@ -328,12 +322,15 @@ function MapView(): React.ReactElement {
         >
           DK
         </span>
-        <div className="flex flex-col gap-1">
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
           <Text as="span" className="text-xs text-pretty">
-            {MAP_COMMENT.quote}
+            {MAP_SUGGESTION.quote}
           </Text>
-          <DataText className="text-3xs tracking-wider uppercase">{MAP_COMMENT.meta}</DataText>
+          <DataText className="text-3xs tracking-wider uppercase">{MAP_SUGGESTION.meta}</DataText>
         </div>
+        <span aria-hidden className={SUGGESTION_ACCEPT}>
+          Accept
+        </span>
       </div>
 
       <div
@@ -500,12 +497,15 @@ function NotebookArt(): React.ReactElement {
         >
           PR
         </span>
-        <div className="flex flex-col gap-1">
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
           <Text as="span" className="text-xs text-pretty">
-            {NOTEBOOK_COMMENT.quote}
+            {NOTEBOOK_SUGGESTION.quote}
           </Text>
-          <DataText className="text-3xs tracking-wider uppercase">{NOTEBOOK_COMMENT.meta}</DataText>
+          <DataText className="text-3xs tracking-wider uppercase">{NOTEBOOK_SUGGESTION.meta}</DataText>
         </div>
+        <span aria-hidden className={SUGGESTION_ACCEPT}>
+          Accept
+        </span>
       </div>
     </>
   );

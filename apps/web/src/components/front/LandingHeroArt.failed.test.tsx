@@ -11,6 +11,9 @@ import { LandingScreen } from "./LandingScreen";
 // resolves once per module (`SpendByDayBlock.failed.test.tsx`, same reason).
 vi.mock("./LandingHeroPanels", () => Promise.reject(new Error("Failed to fetch dynamically imported module")));
 
+/** A comment thread's markings: replies, or a comment pinned to the page. */
+const THREAD = /\brepl(y|ies)\b|on this page/i;
+
 afterEach(() => {
   cleanup();
   setViewportMatches({});
@@ -30,11 +33,15 @@ describe("LandingHeroArt when the real panels fail to load", () => {
     fireEvent.click(desktop.getByRole("button", { name: "Day 7" }));
     await waitFor(() => expect(logged).toHaveBeenCalled());
     expect(desktop.getByText("Day 7 · Kyoto → Osaka")).toBeDefined();
+    // The static art pictures only what trips have: suggestions, not comment
+    // threads with replies (Mitchell, 2026-10-11).
+    expect(desktop.queryAllByText(THREAD).map((el) => el.textContent)).toEqual([]);
 
     logged.mockClear();
     fireEvent.click(desktop.getByRole("button", { name: "Day 5" }));
     await waitFor(() => expect(logged).toHaveBeenCalled());
     expect(desktop.getByText("Getting to Kurama — Day 5")).toBeDefined();
+    expect(desktop.queryAllByText(THREAD).map((el) => el.textContent)).toEqual([]);
 
     expect(desktop.getByRole("heading", { name: "Put the best day on repeat." })).toBeDefined();
   });
