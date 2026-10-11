@@ -52,8 +52,11 @@ Candidates absorbed (each deleted by this gate):
    **D3 is overridden for the landing:** it shows three compact plan cards (name, price, one line
    each: Free — unlimited planned trips; Plus — AI tools to help plan; Premium — invite all your
    friends), with a link to `/plans` for the comparison. `/plans` keeps `PlanComparison` ("the
-   specifics are for the payment page, tracking your tier, or comparing"). **Voting and commenting
-   move from Premium-only to Plus and Premium** ("the cost keeps spammers out"), in part 7.
+   specifics are for the payment page, tracking your tier, or comparing"). **Leaving a playbook
+   review (stars and a note) needs Plus or Premium** ("the cost keeps spammers out"); reading stays
+   open, Free accounts' existing reviews stay, and no paying account loses anything. Trip "votes
+   and comments" never existed, so that claim leaves `/plans`, the account sheet, the invite
+   screens and SPEC §29. Both in part 7.
 4. **Profiles and the board are not indexed.** *Already true when M42 was scoped*: the SEO pass
    (merge #344) set `NOINDEX_FOLLOW` on `/playbooks/board` and `/playbooks/profile/[userId]`, and
    `sitemap.ts` leaves both out. Recorded; no work.
