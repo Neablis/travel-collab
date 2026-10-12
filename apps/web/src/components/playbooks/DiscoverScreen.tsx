@@ -13,15 +13,8 @@ import { UnderlineTabs } from "@/components/ui/underline-tabs";
 import { cn } from "@/lib/cn";
 import { PHONE_TOUCH } from "@/components/ui/button";
 import { useSessionUser } from "@/components/account/useSessionUser";
-import { searchPlaybooks } from "@/lib/apiClient";
-import type {
-  BudgetBand,
-  DiscoverResponse,
-  DiscoverScope,
-  DiscoverSort,
-  LengthBand,
-  RatingFloor,
-} from "@/lib/playbooks";
+import { searchPlaybooks, type ApiResult } from "@/lib/apiClient";
+import type { BudgetBand, DiscoverResponse, DiscoverScope, DiscoverSort } from "@/lib/playbooks";
 import {
   FILTER_DEFS,
   activeFilterCount,
@@ -69,21 +62,13 @@ const SORTS: readonly { value: DiscoverSort; label: string }[] = [
 /** How many skeleton cards stand in while the first read is in flight. */
 const SKELETON_COUNT = 6;
 
-type Filters = {
-  cities: string[];
-  /** ISO alpha-2 codes (M12 link 7) — OR'd with `cities` on the server. */
-  countries: string[];
-  scope: DiscoverScope;
-  sort: DiscoverSort;
-  rating: RatingFloor;
-  budget: BudgetBand;
-  length: LengthBand;
-};
+/** The URL's state, and the budget band, which is not in it (`discoverUrl.ts`). */
+type Filters = DiscoverUrlState & { budget: BudgetBand };
 
 const NO_FILTERS: Filters = { ...DISCOVER_URL_DEFAULTS, budget: "any" };
 
 /** The question half of the state — what `discoverFilters` counts and clears. */
-const questionsOf = (f: Filters): FilterState => ({ rating: f.rating, budget: f.budget, length: f.length });
+const questionsOf = (f: Filters): FilterState => ({ rating: f.rating, budget: f.budget, length: f.length, tag: f.tag });
 
 /**
  * §35.5's chip: 32px, a full pill, 13px/600, and a trailing caret. Idle is a
@@ -143,6 +128,45 @@ function FilterMenu({
   );
 }
 
+/** A Discover answer, and which search it answers (`DiscoverScreen`'s `searchKey`). */
+type Answer = DiscoverResponse & { forSearch: string };
+
+/**
+ * One of the pager's two ways on: a link a crawler can follow, or, with a
+ * budget band on, a button that turns the page in place.
+ */
+function PageTurn({
+  href,
+  onTurn,
+  label,
+  next = false,
+}: {
+  href: string | null;
+  onTurn: () => void;
+  label: string;
+  next?: boolean;
+}) {
+  const className = cn("inline-flex items-center underline", PHONE_TOUCH);
+  if (href !== null) {
+    return (
+      <Link href={href} rel={next ? "next" : undefined} className={className}>
+        {label}
+      </Link>
+    );
+  }
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      className={cn(className, "h-auto px-0 text-sm font-normal")}
+      onClick={onTurn}
+    >
+      {label}
+    </Button>
+  );
+}
+
 /**
  * §33.2's results sentence — `128 shared days` — stating how many days the
  * query MATCHES, not how many fit on the page (KI-2026-09-23-h: with 148
@@ -179,8 +203,18 @@ export function DiscoverScreen({
   /** The server's answer to the URL's own search. Rendered without a first fetch. */
   initialData?: DiscoverResponse;
 }) {
-  const [filters, setFilters] = useState<Filters>({ ...NO_FILTERS, ...initial });
-  const { cities, countries, sort, rating, budget, length } = filters;
+  const [filters, setState] = useState<Filters>({ ...NO_FILTERS, ...initial });
+  // Every change is a new search, and a cursor belongs to the search it was
+  // read under: page two of Kyoto is no place to start Kyoto at four stars.
+  const setFilters = useCallback(
+    (update: (prev: Filters) => Filters) =>
+      setState((prev) => {
+        const next = update(prev);
+        return next === prev ? prev : { ...next, after: null };
+      }),
+    [],
+  );
+  const { cities, countries, sort, rating, budget, length, tag, after } = filters;
   // **A reader with no account reads Everyone, whatever the URL says**
   // (ADR-061). *Yours* and *Saved* mean nothing without an account, so their
   // tabs are not drawn — and a pasted `?scope=saved` must not tell a stranger
@@ -195,10 +229,20 @@ export function DiscoverScreen({
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [phoneFiltersOpen, setPhoneFiltersOpen] = useState(false);
 
-  const read = useCallback(
-    () => searchPlaybooks({ cities, countries, scope, sort, budget, length, rating }),
-    [cities, countries, scope, sort, budget, length, rating],
-  );
+  // Which search an answer is for, carried on the answer: while a new search
+  // loads, or after it fails, the answer on screen is the last search's, and
+  // its `nextCursor` is no next page of this one.
+  const searchKey = JSON.stringify([cities, countries, scope, sort, budget, length, rating, tag, after]);
+  const [seedKey] = useState(searchKey);
+  const read = useCallback(async (): Promise<ApiResult<Answer>> => {
+    const result = await searchPlaybooks({ cities, countries, scope, sort, budget, length, rating, tag, after });
+    return result.ok ? { ok: true, value: { ...result.value, forSearch: searchKey } } : result;
+  }, [cities, countries, scope, sort, budget, length, rating, tag, after, searchKey]);
+  // The search as a query string, for the pager's links: the search, then where in it.
+  const search = { cities, countries, scope, sort, length, rating, tag };
+  // The budget band is not in the URL (`discoverUrl.ts`), so a page link would
+  // read a different list: with a band on, paging is a change of state.
+  const pagesByLink = budget === "any";
 
   // **State → URL, one direction.** `history.replaceState` rather than
   // `router.replace`: Next syncs the native history API into its router
@@ -214,10 +258,14 @@ export function DiscoverScreen({
       seeded.current = false;
       return;
     }
-    const query = discoverQueryString({ cities, countries, scope, sort, length, rating });
+    const query = discoverQueryString({
+      ...{ cities, countries, scope, sort, length, rating, tag },
+      // A cursor read under a band the URL cannot carry would reload as a page of another list.
+      after: pagesByLink ? after : null,
+    });
     const url = `${window.location.pathname}${query === "" ? "" : `?${query}`}`;
     window.history.replaceState(window.history.state, "", url);
-  }, [cities, countries, scope, sort, length, rating]);
+  }, [cities, countries, scope, sort, length, rating, tag, after, pagesByLink]);
   // The conflict signal is the DAY LIST plus each day's adds — the two things a
   // reader is looking at that somebody else can move. Deliberately not the
   // whole payload: sibling chip counts shift constantly and a banner that fired
@@ -226,10 +274,24 @@ export function DiscoverScreen({
     (value: DiscoverResponse) => value.days.map((d) => `${d.savedDayId}:${d.adds}`).join(","),
     [],
   );
-  const feed = useLibraryRead(read, signature, initialData);
+  const feed = useLibraryRead(read, signature, initialData && { ...initialData, forSearch: seedKey });
+  // The answer to the search on screen, or null while it is still the last one's.
+  const answer = feed.data?.forSearch === searchKey ? feed.data : null;
 
   const set = <K extends keyof Filters>(key: K, value: Filters[K]) =>
     setFilters((prev) => ({ ...prev, [key]: value }));
+  const pageLink = (from: string | null) => {
+    const query = discoverQueryString({ ...search, after: from });
+    return `/playbooks${query === "" ? "" : `?${query}`}`;
+  };
+  // Not `setFilters`, which starts every change from page one. The button
+  // pressed is gone while the page loads, so focus goes to the list it turns,
+  // not to the document.
+  const results = useRef<HTMLUListElement>(null);
+  const turnTo = (from: string | null) => {
+    setState((prev) => ({ ...prev, after: from }));
+    results.current?.focus();
+  };
 
   // Each filter's own options, resolved once against the current context. A
   // `null` means the filter cannot honestly be offered — Budget with no shared
@@ -271,9 +333,9 @@ export function DiscoverScreen({
       if (FILTER_DEFS.every((def) => def.value(cleared) === def.value(prev))) return prev;
       return { ...prev, ...cleared };
     });
-  }, [filterOptions]);
+  }, [filterOptions, setFilters]);
 
-  const questions: FilterState = { rating, budget, length };
+  const questions: FilterState = { rating, budget, length, tag };
   const activeCount = activeFilterCount(questions);
 
   const setQuestion = (def: FilterDef, value: string) =>
@@ -701,12 +763,6 @@ export function DiscoverScreen({
         </div>
       </div>
 
-      {feed.data?.truncated === true && (
-        <Text variant="muted" className="text-xs">
-          Showing the best matches. Narrow the places to see the rest.
-        </Text>
-      )}
-
       {/* Skeleton grid while fetching — and only on the FIRST fetch. A later
           read (a filter change, a Retry) leaves the previous results in place
           rather than flashing the page empty, which is what makes changing a
@@ -741,7 +797,7 @@ export function DiscoverScreen({
             // the search card.
             <Button
               variant="primary"
-              onClick={() => setFilters({ ...NO_FILTERS, scope, sort })}
+              onClick={() => setFilters(() => ({ ...NO_FILTERS, scope, sort }))}
               data-testid="discover-search-everywhere"
             >
               Search everywhere
@@ -749,11 +805,37 @@ export function DiscoverScreen({
           }
         />
       ) : (
-        <ul className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3" data-testid="discover-results">
+        <ul
+          ref={results}
+          // Focusable by script only: where a page turned in place leaves focus.
+          tabIndex={-1}
+          className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3"
+          data-testid="discover-results"
+        >
           {days.map((day) => (
             <DiscoverCard key={day.savedDayId} day={day} origin={{ from: "playbooks" }} />
           ))}
         </ul>
+      )}
+
+      {/* The pager (M42 part 5), real links so a crawler follows them. Keyset
+          pages go forward from a card, so the way back is to the first page;
+          over links the browser's Back steps one page at a time. Under a
+          budget band the pages turn in place, and Back leaves Discover. */}
+      {(after !== null || (answer?.nextCursor ?? null) !== null) && (
+        <nav aria-label="Pages" className="flex items-center gap-4 text-sm">
+          {after !== null && (
+            <PageTurn href={pagesByLink ? pageLink(null) : null} onTurn={() => turnTo(null)} label="First page" />
+          )}
+          {answer?.nextCursor != null && (
+            <PageTurn
+              href={pagesByLink ? pageLink(answer.nextCursor) : null}
+              onTurn={() => turnTo(answer.nextCursor)}
+              label="Next page"
+              next
+            />
+          )}
+        </nav>
       )}
 
       {/* The leaderboard's ONLY entrance. Not in the top bar: it is

@@ -1,0 +1,32 @@
+[
+  {
+    "slug": "japan",
+    "name": "Japan: Tokyo → Kyoto → Osaka",
+    "description": "Outdoors & sights",
+    "dayCount": 14
+  },
+  {
+    "slug": "dolomites-winter",
+    "name": "Dolomites: Cortina, Alta Badia and the Sellaronda",
+    "description": "Outdoors & drinks",
+    "dayCount": 7
+  },
+  {
+    "slug": "iceland-ring-road",
+    "name": "Iceland: Reykjavík, the South Coast, Jökulsárlón and the Golden Circle",
+    "description": "Outdoorsy",
+    "dayCount": 8
+  },
+  {
+    "slug": "northern-spain",
+    "name": "Northern Spain: San Sebastián → Bilbao → Picos → Santiago",
+    "description": "Food & drinks",
+    "dayCount": 9
+  },
+  {
+    "slug": "thailand-andaman",
+    "name": "Thailand: Bangkok → Krabi → Koh Lanta",
+    "description": "Food & beach",
+    "dayCount": 10
+  }
+]

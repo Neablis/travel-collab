@@ -69,7 +69,7 @@ test("page metadata: canonical, description, title and twitter image", async ({ 
   const demo = await head("/demo");
   expect(demo).toMatch(/<meta name="description" content="[^"]{10,}"/);
   const title = /<title>([^<]*)<\/title>/.exec(demo)?.[1] ?? "";
-  expect(title).toContain("An example trip");
+  expect(title).toContain("Example trips");
   expect(title).not.toContain("— Caesura — Caesura");
 
   // `noindex` on /signin cannot be told apart here: every non-production
@@ -91,7 +91,9 @@ test("sitemap.xml lists the static routes and published days, never a private on
     const response = await visitor.request.get("/sitemap.xml");
     expect(response.status()).toBe(200);
     const xml = await response.text();
-    for (const path of ["/", "/playbooks", "/demo", "/developers", "/developers/reference"]) {
+    // Each demo trip is a public page with no database behind it (M42 D1).
+    const demos = ["/demo/japan", "/demo/dolomites-winter", "/demo/iceland-ring-road", "/demo/northern-spain", "/demo/thailand-andaman"];
+    for (const path of ["/", "/playbooks", "/demo", ...demos, "/developers", "/developers/reference"]) {
       expect(xml).toMatch(new RegExp(`<loc>[^<]*${path}</loc>`));
     }
     // By its slugged URL, the one the day page answers 200 on: a bare id

@@ -1,18 +1,32 @@
 import { DiscoverScreen } from "@/components/playbooks/DiscoverScreen";
-import { DISCOVER_URL_DEFAULTS, parseDiscoverUrl, type DiscoverUrlState } from "@/components/playbooks/discoverUrl";
+import {
+  DISCOVER_URL_DEFAULTS,
+  discoverQueryString,
+  parseDiscoverUrl,
+  type DiscoverUrlState,
+} from "@/components/playbooks/discoverUrl";
 import { linkPreviewMetadata } from "@/lib/linkPreview";
-import { countrySlug, placeIndexable, placePath, slugify } from "@/lib/playbookUrls";
+import { countrySlug, placeIndexable, placePath, slugify, tagPath } from "@/lib/playbookUrls";
 import { playbooksPageMetadata } from "@/lib/playbooksPreview";
+import { NOINDEX_FOLLOW } from "@/lib/siteMetadata";
 import { auth } from "@/server/auth";
-import { discoverFor, placeFor } from "@/server/publicLibrary";
+import { discoverFor, placeFor, tagPageFor } from "@/server/publicLibrary";
 
 // One city or one country and nothing else is the list that place's page
 // shows, so the page is the canonical (SEO pass, D6). Only an indexed one: a
 // canonical naming a `noindex` page leaves neither URL in the index. Any other
-// search — a sort, a rating, a second place — is Discover's own.
-async function placeCanonical({ cities, countries, ...rest }: DiscoverUrlState): Promise<string | null> {
+// search — a sort, a rating, a second place — is Discover's own. A tag alone,
+// or a tag and one city, is that tag page's list the same way (M42 D10).
+async function placeCanonical({ cities, countries, tag, ...rest }: DiscoverUrlState): Promise<string | null> {
   const asked = (Object.keys(rest) as (keyof typeof rest)[]).some((key) => rest[key] !== DISCOVER_URL_DEFAULTS[key]);
   if (asked) return null;
+  if (tag !== "any") {
+    if (countries.length > 0 || cities.length > 1) return null;
+    const citySlug = cities.length === 1 ? slugify(cities[0]!) : null;
+    if (citySlug === "") return null;
+    const page = await tagPageFor(tag, citySlug);
+    return page !== null && placeIndexable(page) ? tagPath(tag, citySlug) : null;
+  }
   const wanted =
     cities.length === 1 && countries.length === 0
       ? { kind: "city" as const, slug: slugify(cities[0]!) }
@@ -47,6 +61,12 @@ export async function generateMetadata({
       : linkPreviewMetadata(`/api/og/playbooks/city/${encodeURIComponent(cities[0]!)}`, fallback),
     placeCanonical(state),
   ]);
+  // A page after the first (M42 part 5) is `noindex, follow`, with no
+  // canonical. Its cursor is a card, and the ranking moves as days are added
+  // and rated, so `?after=` holds different days from week to week: not a
+  // page to index, nor one to fold into page one. Crawlers still follow it to
+  // the days, which the sitemap lists anyway.
+  if (state.after !== null) return { ...meta, robots: NOINDEX_FOLLOW };
   return { ...meta, alternates: { canonical: place ?? "/playbooks" } };
 }
 
@@ -61,7 +81,7 @@ export async function generateMetadata({
 //
 // The query string seeds the search — `?city=` (a profile's "Knows" chip
 // for a city with no page),
-// `?country=`, `?sort=`, `?rating=` and the rest. `discoverUrl.ts` owns the
+// `?country=`, `?sort=`, `?rating=`, `?tag=`, the page's `?after=` and the rest. `discoverUrl.ts` owns the
 // spelling, and `DiscoverScreen` writes it back as the state changes. The
 // page also reads that search on the server (SEO pass, D5), so the HTML lists
 // the days rather than a skeleton.
@@ -84,7 +104,10 @@ export default async function PlaybooksPage({
   const initialData = await discoverFor({ ...initial, budget: "any" }, session?.user?.id ?? null);
   return (
     <main className="mx-auto max-w-6xl px-6 py-8">
-      <DiscoverScreen initial={initial} initialData={initialData} />
+      {/* Keyed by the search, so following a page link, which keeps this
+          route mounted, seeds a new screen rather than keeping the old one's
+          state over the new page's data. */}
+      <DiscoverScreen key={discoverQueryString(initial)} initial={initial} initialData={initialData} />
     </main>
   );
 }

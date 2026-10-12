@@ -12,7 +12,7 @@ import { getTripDetail } from "@/server/projections";
 // board's `TripProvider` makes and the write it offers, exercised through the
 // route handlers themselves rather than through the functions under them —
 // because "the ordinary endpoints serve it" is the claim, and a test of
-// `demoTripDetail()` alone would prove nothing about the routes.
+// `demoTripDetail(DEMO_TRIP_ID)` alone would prove nothing about the routes.
 
 const VISITOR = "demo-cloner";
 let currentUserId: string | null = null;
@@ -184,7 +184,7 @@ describe("the demo trip is read-only all the way down (KI-2026-09-05-d)", () => 
   // A REAL day of the demo trip, so the request is well-formed and the only
   // thing that can refuse it is the access seam under test.
   const demoDayId = () => {
-    const dayId = demoTripDetail().days[0]?.dayId;
+    const dayId = demoTripDetail(DEMO_TRIP_ID).days[0]?.dayId;
     if (dayId === undefined) throw new Error("demo trip has no days");
     return dayId;
   };

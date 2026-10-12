@@ -43,6 +43,7 @@ function day(over: Partial<DiscoverDay> = {}): DiscoverDay {
     cover: null,
     description: null,
     tags: [],
+    namedTags: [],
     ...over,
   };
 }
@@ -58,6 +59,7 @@ function response(over: Partial<DiscoverResponse> = {}): DiscoverResponse {
     matchCount: days.length,
     matchCountExact: true,
     sharedPlaybookCount: 1,
+    nextCursor: null,
     ...over,
   };
 }
@@ -513,6 +515,101 @@ describe("Discover", () => {
     searchPlaybooksMock.mockResolvedValue(ok(response({ days: page, truncated: true, matchCount: 148 })));
     render(<DiscoverScreen />);
     expect((await screen.findByTestId("discover-results-line")).textContent).toBe("24 of 148 shared days");
+  });
+
+  // M42 part 5: Discover pages. The next page is a link, so a crawler reaches
+  // it, under the same search and after the last card's cursor; a later page
+  // links back to the first.
+  it("links to the next page of the same search, and back to the first", async () => {
+    const last = "aa000000-0000-4000-8000-000000000024";
+    searchPlaybooksMock.mockResolvedValue(ok(response({ nextCursor: last })));
+    render(<DiscoverScreen initial={{ cities: ["Kyoto"], tag: "nightlife" }} />);
+    expect((await screen.findByRole("link", { name: "Next page" })).getAttribute("href")).toBe(
+      `/playbooks?city=Kyoto&tag=nightlife&after=${last}`,
+    );
+    expect(screen.queryByRole("link", { name: "First page" })).toBeNull();
+    cleanup();
+
+    searchPlaybooksMock.mockResolvedValue(ok(response()));
+    render(<DiscoverScreen initial={{ cities: ["Kyoto"], tag: "nightlife", after: last }} />);
+    expect((await screen.findByRole("link", { name: "First page" })).getAttribute("href")).toBe(
+      "/playbooks?city=Kyoto&tag=nightlife",
+    );
+    expect(searchPlaybooksMock).toHaveBeenLastCalledWith(expect.objectContaining({ tag: "nightlife", after: last }));
+    expect(screen.queryByRole("link", { name: "Next page" })).toBeNull();
+  });
+
+  // A cursor belongs to the search it was read under: page two of Kyoto is
+  // not a place to start a search for Kyoto rated four stars.
+  it("starts from the first page when the search changes", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const last = "aa000000-0000-4000-8000-000000000024";
+    render(<DiscoverScreen initial={{ after: last }} />);
+    await screen.findByTestId("discover-results");
+    await user.click(screen.getByTestId("filter-more"));
+    await user.click(screen.getByTestId("filter-more-tag-beach"));
+    await waitFor(() =>
+      expect(searchPlaybooksMock).toHaveBeenLastCalledWith(expect.objectContaining({ tag: "beach", after: null })),
+    );
+  });
+
+  // The budget band is not in the URL, so a link to page two would read a
+  // different list: every day after the cursor at any price. With a band on,
+  // Next page turns the page in place, under the band.
+  it("pages under a budget band without leaving it", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const last = "aa000000-0000-4000-8000-000000000024";
+    searchPlaybooksMock.mockResolvedValue(ok(response({ nextCursor: last })));
+    render(<DiscoverScreen initial={{ cities: ["Kyoto"] }} />);
+    await screen.findByTestId("discover-results");
+    await user.click(screen.getByTestId("filter-more"));
+    await user.click(screen.getByTestId("filter-more-budget-under200"));
+    await user.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(searchPlaybooksMock).toHaveBeenLastCalledWith(expect.objectContaining({ budget: "under200" })),
+    );
+    await user.click(await screen.findByRole("button", { name: "Next page" }));
+    await waitFor(() =>
+      expect(searchPlaybooksMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ cities: ["Kyoto"], budget: "under200", after: last }),
+      ),
+    );
+    expect(screen.queryByRole("link", { name: "Next page" })).toBeNull();
+  });
+
+  // The button pressed is gone while the page it turned to loads; focus
+  // lands on the list, not on the document.
+  it("keeps focus on the list when a page turns in place", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const last = "aa000000-0000-4000-8000-000000000024";
+    searchPlaybooksMock.mockResolvedValue(ok(response({ nextCursor: last })));
+    render(<DiscoverScreen initial={{ cities: ["Kyoto"] }} />);
+    await screen.findByTestId("discover-results");
+    await user.click(screen.getByTestId("filter-more"));
+    await user.click(screen.getByTestId("filter-more-budget-under200"));
+    await user.keyboard("{Escape}");
+    const next = await screen.findByRole("button", { name: "Next page" });
+    searchPlaybooksMock.mockReturnValue(new Promise(() => {}));
+    next.focus();
+    await user.keyboard("{Enter}");
+    expect(screen.getByTestId("discover-results").matches(":focus")).toBe(true);
+  });
+
+  // The cursor on screen while a new search loads is the last search's, and
+  // no next page of this one.
+  it("offers no next page while a new search is still loading", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const last = "aa000000-0000-4000-8000-000000000024";
+    searchPlaybooksMock.mockResolvedValue(ok(response({ nextCursor: last })));
+    render(<DiscoverScreen />);
+    expect(await screen.findByRole("link", { name: "Next page" })).toBeTruthy();
+    searchPlaybooksMock.mockReturnValue(new Promise(() => {}));
+    await user.click(screen.getByTestId("filter-more"));
+    await user.click(screen.getByTestId("filter-more-tag-beach"));
+    await waitFor(() =>
+      expect(searchPlaybooksMock).toHaveBeenLastCalledWith(expect.objectContaining({ tag: "beach" })),
+    );
+    expect(screen.queryByRole("link", { name: "Next page" })).toBeNull();
   });
 
   // Past the candidate window with a budget band on, the count is a floor and

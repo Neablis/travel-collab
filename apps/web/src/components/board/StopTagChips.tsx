@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import type { ActivityTag } from "@tc/contracts";
 import { cn } from "@/lib/cn";
 import { TAG_CHIP_CLASS, TAG_LABEL, tagFocusHint } from "@/lib/activityTags";
@@ -16,21 +17,44 @@ export function StopTagChips({
   tags,
   focusedTag,
   onToggleTag,
+  hrefOf,
 }: {
   activityId: string;
   tags: readonly ActivityTag[];
   focusedTag: ActivityTag | null;
   /** Withheld → the chips stay plain text (M18's shipped behaviour). */
   onToggleTag?: (tag: ActivityTag) => void;
+  /** A chip's page, for a chip that is a way somewhere (M42's tag pages); null leaves that chip text. */
+  hrefOf?: (tag: ActivityTag) => string | null;
 }) {
   if (tags.length === 0) return null;
   return (
-    <span data-testid={`tag-chips-${activityId}`} className="flex flex-wrap gap-1.5">
+    <span
+      data-testid={`tag-chips-${activityId}`}
+      // Linked chips wrap with a row gap that keeps one 44px reach from
+      // overlapping the next row's on a phone, as a Discover card's city chips do.
+      className={cn("flex flex-wrap", hrefOf === undefined ? "gap-1.5" : "gap-x-1.5 gap-y-6 md:gap-y-1.5")}
+    >
       {tags.map((tag) => {
         const chipClass = cn(
           "inline-flex items-center rounded-sm px-2 py-0.5 text-xs font-semibold",
           TAG_CHIP_CLASS[tag],
         );
+        const href = hrefOf?.(tag) ?? null;
+        if (href !== null) {
+          return (
+            <Link
+              key={tag}
+              href={href}
+              data-testid={`tag-chip-${tag}`}
+              aria-label={`${TAG_LABEL[tag]} playbooks`}
+              // The toggle's 44px reach around a 20px chip, below.
+              className="group/chip inline-flex min-h-11 -my-3 items-center fine:my-0 fine:min-h-0"
+            >
+              <span className={cn(chipClass, "group-hover/chip:underline")}>{TAG_LABEL[tag]}</span>
+            </Link>
+          );
+        }
         if (!onToggleTag) {
           return (
             <span key={tag} data-testid={`tag-chip-${tag}`} className={chipClass}>

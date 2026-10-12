@@ -6,6 +6,7 @@ import type { TripDetail } from "@tc/contracts";
 import { newDayReadBudget, type AssistantDeps } from "@/server/assistant/deps";
 import { MAX_DAYS_READ_PER_TURN } from "@/server/assistant/limits";
 import { demoTripDetail } from "@/server/demoTrip";
+import { DEMO_TRIP_ID } from "@/lib/demoTrip";
 import {
   findFreeTime,
   readDay,
@@ -31,10 +32,10 @@ function readToolSet() {
 }
 
 // The canonical fixture (ADR-030) — the 14-day Japan trip, folded through the
-// real domain by `demoTripDetail()`. Not a hand-built TripDetail: a fixture
+// real domain by `demoTripDetail(DEMO_TRIP_ID)`. Not a hand-built TripDetail: a fixture
 // that can drift from what the product actually renders is a fixture that
 // stops catching anything, and this one is verified by `pnpm seed:verify`.
-const japan: TripDetail = demoTripDetail();
+const japan: TripDetail = demoTripDetail(DEMO_TRIP_ID);
 
 // A day that carries real time windows, so the free-time assertions are about
 // arithmetic rather than about an empty trip.

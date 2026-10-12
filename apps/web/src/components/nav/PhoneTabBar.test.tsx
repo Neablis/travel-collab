@@ -245,7 +245,7 @@ describe("PhoneTabBar", () => {
     // only way between its views.
     it("still renders the demo's views", () => {
       session = null;
-      renderAt("/demo");
+      renderAt("/demo/iceland-ring-road");
       expect(screen.getAllByRole("link").map((el) => el.textContent)).toEqual(["Overview", "Plan", "Map"]);
     });
 
@@ -293,7 +293,7 @@ describe("PhoneTabBar", () => {
     });
   });
 
-  // **`/demo` is a trip too** (ADR-031), just not one under `/trips/<id>`, so a
+  // **`/demo/<slug>` is a trip too** (ADR-031), just not one under `/trips/<id>`, so a
   // bar that only recognised that shape gave a phone visitor no way to reach
   // Plan or Map: the board hides its own view strip below 768px because this
   // bar is supposed to carry them (Mitchell, 2026-10-01, option B).
@@ -303,27 +303,28 @@ describe("PhoneTabBar", () => {
     // Playbooks to signed-in surfaces — every one of them a sign-in wall for a
     // visitor with no account, which is a tab that leaves the demo.
     it("shows only the views the demo itself serves, linked to the demo", () => {
-      renderAt("/demo");
+      renderAt("/demo/iceland-ring-road");
       expect(screen.getAllByRole("link").map((el) => el.textContent)).toEqual(["Overview", "Plan", "Map"]);
-      expect(hrefOf("Overview")).toBe("/demo?view=Overview");
-      expect(hrefOf("Plan")).toBe("/demo?view=Plan");
-      expect(hrefOf("Map")).toBe("/demo?view=Map");
+      expect(hrefOf("Overview")).toBe("/demo/iceland-ring-road?view=Overview");
+      expect(hrefOf("Plan")).toBe("/demo/iceland-ring-road?view=Plan");
+      expect(hrefOf("Map")).toBe("/demo/iceland-ring-road?view=Map");
     });
 
     it.each([
-      ["/demo", "Overview"],
-      ["/demo?view=Overview", "Overview"],
-      ["/demo?view=Calendar", null],
-      ["/demo?view=Plan", "Plan"],
-      ["/demo?view=Map", "Map"],
-      ["/demo?lens=Map", "Map"],
+      // A demo opens on Plan (Mitchell, 2026-10-11); a real trip on Overview.
+      ["/demo/iceland-ring-road", "Plan"],
+      ["/demo/iceland-ring-road?view=Overview", "Overview"],
+      ["/demo/iceland-ring-road?view=Calendar", null],
+      ["/demo/iceland-ring-road?view=Plan", "Plan"],
+      ["/demo/iceland-ring-road?view=Map", "Map"],
+      ["/demo/iceland-ring-road?lens=Map", "Map"],
     ])("selects %s → %s", (at, expected) => {
       renderAt(at);
       expect(currentTab()).toBe(expected);
     });
 
     it("renders the same set from the server-safe fallback, lighting nothing", () => {
-      url = "/demo?view=Map";
+      url = "/demo/iceland-ring-road?view=Map";
       render(<PhoneTabBarFallback />);
       expect(screen.getAllByRole("link").map((el) => el.textContent)).toEqual(["Overview", "Plan", "Map"]);
       expect(currentTab()).toBeNull();
