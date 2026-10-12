@@ -56,7 +56,7 @@ import type {
 import { INSERT_PLAYBOOK_DAY } from "@/server/ai/writeTools";
 import { plain } from "@/server/assistant/prompt";
 import { ASSISTANT_TOOLS } from "@/server/assistant/registry";
-import { GO_TO_TOOL_NAME, PROPOSE_NOTEBOOK_EDITING_TOOL_NAME } from "@/server/assistant/tools/navigate";
+import { GO_TO_TOOL_NAME, OPEN_TRIP_TOOL_NAME, PROPOSE_NOTEBOOK_EDITING_TOOL_NAME } from "@/server/assistant/tools/navigate";
 import { TAG_LABEL, type WidgetMatch } from "@tc/pages";
 
 export const SIMULATED_MODEL_ID = "simulated/no-op";
@@ -1081,8 +1081,31 @@ function accountCall(question: string): ToolCall {
 
 const SIMULATED_ACCOUNT_FALLBACK = "I couldn't read your trips just now.";
 
-/** An account step: ask the one aggregate the question needs, then say what it returned. */
+// "open my Kyoto trip on the map": a verb of going, then a trip by its name.
+const OPEN_TRIP_REQUEST = /\b(?:open|show(?: me)?|take me to|go to)\s+(?:my\s+|the\s+)?(.+?)\s+trip\b/i;
+
+/** Which trip a request asks to open, and on which view, as `open_trip`'s input; null for anything else. */
+function openTripInput(question: string): Record<string, unknown> | null {
+  const trip = OPEN_TRIP_REQUEST.exec(question)?.[1];
+  if (trip === undefined) return null;
+  const view = VIEW_WORDS.find(([pattern]) => pattern.test(question))?.[1];
+  return view === undefined ? { trip } : { trip, view };
+}
+
+/**
+ * An account step: open the trip asked for (M45 D6), or else ask the one
+ * aggregate the question needs, then say what it returned.
+ */
 function accountTurn(results: readonly ToolResultLike[], question: string, options: CallOptionsLike): SimulatedStep {
+  const opening = openTripInput(question);
+  if (opening !== null && offered(options, OPEN_TRIP_TOOL_NAME)) {
+    if (!results.some((result) => result.toolName === OPEN_TRIP_TOOL_NAME)) {
+      return { content: [call(OPEN_TRIP_TOOL_NAME, opening)], finishReason: { unified: "tool-calls", raw: undefined } };
+    }
+    const done = resultFor<{ queued: boolean; refused?: string }>(results, OPEN_TRIP_TOOL_NAME);
+    if (done?.queued !== true) return speak([`I couldn't take you there: ${done?.refused ?? "that trip isn't one of yours."}`, SIMULATED_ASK_NOTICE]);
+    return speak(["Taking you there now.", SIMULATED_ASK_NOTICE]);
+  }
   if (results.length === 0) {
     const wanted = accountCall(question);
     if (!offered(options, wanted.toolName)) return speak([SIMULATED_ACCOUNT_FALLBACK, SIMULATED_ASK_NOTICE]);

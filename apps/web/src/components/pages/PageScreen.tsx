@@ -967,6 +967,10 @@ export function PageScreen({
   // because only one of the two can be true of any given turn.
   const [turnRefusal, setTurnRefusal] = useState<string | null>(null);
 
+  // ⌘K's *Ask: <text>* (M45 D6), as the board takes it: dropped once the
+  // rail has taken it, since it remounts on the next open and must not
+  // find it again.
+  const [handOff, setHandOff] = useState<{ text: string } | null>(null);
   // **Closing the surface hangs up on the turn.** Unmounting `AssistantRail`
   // does not: `useAskThread` lives HERE, so its cleanup runs only when the whole
   // screen goes, and a turn still streaming would land its `page-inserts` in a
@@ -992,6 +996,10 @@ export function PageScreen({
       ? () => setAssistantOpen(true)
       : undefined,
     assistantOpen,
+    (text) => {
+      setAssistantOpen(true);
+      setHandOff({ text });
+    },
   );
   // **Leaving Editing no longer hangs up, and that is a reversal.** It did,
   // because the assistant was an editing-only control and leaving Editing was
@@ -1645,9 +1653,9 @@ export function PageScreen({
           refusal SAYS so, because an assistant that answers nothing reads as
           broken rather than as declining.
 
-          The panel is not unmounted between openings: closing it hangs up on
-          the turn (`closeAssistant`) but the thread is `useAskThread`'s, which
-          lives on this screen, so a conversation survives being put away. */}
+          The panel unmounts between openings, but the thread is
+          `useAskThread`'s, which lives on this screen: closing hangs up on the
+          turn (`closeAssistant`) and the conversation survives being put away. */}
       {!isPhone && !assistantOpen ? (
         <AssistantBubble open={assistantOpen} onOpen={() => setAssistantOpen(true)} />
       ) : null}
@@ -1687,6 +1695,10 @@ export function PageScreen({
           // §29 / M26 link 10c — see `useAssistantPosition`. Per PAGE, like
           // this screen's own thread: each document is its own reading surface.
           rememberPositionAs={`assistant:position:page:${pageId}`}
+          // The unsent question, per page as well (KI-2026-10-12-g).
+          rememberDraftAs={`page:${pageId}`}
+          incoming={handOff}
+          onIncomingTaken={() => setHandOff(null)}
           // The phone's line is derived from the surface (§23); the desktop's
           // is the panel's own and is deliberately left alone — "Looking at" is
           // the floating panel's voice, "Asking about" is the sheet's, and the
@@ -1707,6 +1719,7 @@ export function PageScreen({
           emptyHint={isPhone ? phoneAsk.emptyHint : undefined}
           asksRemaining={ask.asksRemaining}
           restoreDraft={ask.restoredDraft}
+          onRestoreTaken={ask.clearRestoredDraft}
           onNewConversation={() => {
             setTurnRefusal(null);
             ask.startNewConversation();

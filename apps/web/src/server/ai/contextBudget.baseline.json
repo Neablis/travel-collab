@@ -226,6 +226,10 @@
       "chars": 412,
       "approxTokens": 124
     },
+    "open_trip": {
+      "chars": 401,
+      "approxTokens": 121
+    },
     "SetTripDates": {
       "chars": 395,
       "approxTokens": 119

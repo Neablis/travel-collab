@@ -63,6 +63,18 @@ export function useSessionUser(): SessionUser | null | undefined {
 }
 
 /**
+ * The provider's answer, and `undefined` with no provider above: never a read
+ * of its own. For a hook mounted on every assistant surface (the ask storage's
+ * owner, `useOwnedAskName`), where a fetch per mount would be a request each
+ * of their tests has to answer, and every route that mounts one is under
+ * `(app)/layout.tsx` already.
+ */
+export function useKnownSessionUser(): SessionUser | null | undefined {
+  const shared = useContext(SessionUserContext);
+  return shared === NO_PROVIDER ? undefined : shared;
+}
+
+/**
  * One session read for everything under `(app)/layout.tsx` (ADR-061).
  *
  * Before this, every component that asked `useSessionUser()` fetched

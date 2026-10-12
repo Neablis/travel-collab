@@ -335,6 +335,10 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
   // neither is the sheet's dress, which is unconditional because there is only
   // one presentation here to have.
   const isPhone = useIsPhone();
+  // ⌘K's *Ask: <text>* (M45 D6), as the board takes it: dropped once the
+  // sheet has taken it, since it remounts on the next open and must not
+  // find it again.
+  const [handOff, setHandOff] = useState<{ text: string } | null>(null);
   // Closing hangs up on the turn in flight, the same as `PageScreen`: the
   // thread lives on this screen, so unmounting the sheet cancels nothing on its
   // own and a still-streaming answer would keep running against the server
@@ -487,7 +491,18 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
   // The tab bar's Ask item is this screen's way in (Mitchell, 2026-10-10:
   // Ask moved from the phone's top rows into the bottom bar), offered once
   // the trip has landed for the reason above.
-  usePhoneAskEntry(phoneAsk === null ? undefined : () => setAssistantOpen(true), assistantOpen);
+  // ⌘K's Ask: only at phone width: this screen has no desktop assistant (see
+  // the rail below), and the guard above would close a sheet opened wider.
+  usePhoneAskEntry(
+    phoneAsk === null ? undefined : () => setAssistantOpen(true),
+    assistantOpen,
+    isPhone
+      ? (text) => {
+          setAssistantOpen(true);
+          setHandOff({ text });
+        }
+      : undefined,
+  );
 
   return (
     <PageContainer as="main">
@@ -872,6 +887,11 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
           emptyHint={phoneAsk.emptyHint}
           asksRemaining={ask.asksRemaining}
           restoreDraft={ask.restoredDraft}
+          onRestoreTaken={ask.clearRestoredDraft}
+          // Its own name, apart from the board's thread (KI-2026-10-12-g).
+          rememberDraftAs={`notebook:${tripId}`}
+          incoming={handOff}
+          onIncomingTaken={() => setHandOff(null)}
           onNewConversation={ask.startNewConversation}
           onAsk={(text) => void ask.runAsk(text)}
           asking={ask.asking}

@@ -1101,7 +1101,9 @@ export async function handleAccountAskRequest(
   const turnId = crypto.randomUUID();
   const admittedPlan: AskStepPlan = { model: grant.modelId, tier: grant.tier, escalated: false, pivoted: false };
   const stepPlans = new Map<number, AskStepPlan>();
-  const tools = aiToolsFor(grant.tools, { trips: newAccountTrips(userId, readAccountTrips) }, meter);
+  // Where `open_trip` queues the trip it opens (ADR-072), for the final chunk.
+  const paletteCommands = newPaletteCommandBuffer();
+  const tools = aiToolsFor(grant.tools, { trips: newAccountTrips(userId, readAccountTrips), paletteCommands }, meter);
   const offeredNames = grant.tools.map((tool) => tool.name);
 
   // The trip handler's settlement, on the same latch and for the same
@@ -1213,14 +1215,15 @@ export async function handleAccountAskRequest(
     });
     const stream = result.toUIMessageStream({
       originalMessages: validated.data,
-      // Only the failure is read here: an account turn ends on an answer,
-      // with no proposal or page to put on the final chunk.
+      // An account turn ends on an answer, with no proposal or page to put
+      // on the final chunk: only where it takes the person, as the trip
+      // door's does.
       messageMetadata: ({ part }): AskStreamMetadata | undefined => {
         if (part.type === "error") {
           clearTimeout(hardDeadline);
           recorder.abandon("error", part.error);
         }
-        return undefined;
+        return part.type === "finish" ? withPaletteCommands(undefined, paletteCommands) : undefined;
       },
       onError: askFailureMessage,
     });
@@ -1949,6 +1952,7 @@ export function accountInstructionBlocks(scope: AskScope, clock: TimeFormat = "1
     "Use ONLY what the tools return, and never guess a price, a place or a count.",
     UNTRUSTED_DATA_RULE,
     "Call spend_by_category for what they spent (\"meal\" is food), places_visited for where they have been and how many countries, visit_counts for which city or country they visited most, and suggest_next_country before suggesting where to go next — and suggest only a country it lists as unvisited. One call usually answers a question.",
+    "Opening a trip is not a change: when they ask to open, show or go to one of their trips, call open_trip with its name as they said it, and a view if they named one, then say in one short sentence where you are taking them.",
     "Only trips they are travelling on are counted; a trip they only helped plan is not theirs. Stops with no recorded city or country are counted as unknown: say some were not counted rather than guessing where they were.",
     "Every money amount is an integer in the currency's minor units (cents), never a decimal. Never add amounts in different currencies together.",
     clockTimesLine(clock),

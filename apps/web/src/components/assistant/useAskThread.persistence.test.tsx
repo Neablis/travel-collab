@@ -22,13 +22,25 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import type { ApiError } from "@/lib/apiClient";
 import { useAskThread } from "./useAskThread";
-import { loadAskThread, saveAskThread } from "@/components/assistant/askThreadStore";
+import { beyondTripThreadName, loadAskThread, saveAskThread } from "@/components/assistant/askThreadStore";
+import { ownedAskName } from "@/lib/askOwnership";
 import type { AssistantTurn } from "./Transcript";
 import type { ProposalStatus } from "./ProposalCard";
 import { registerPaletteCommands } from "@/components/palette/paletteRegistry";
 
+// Who is signed in: every stored name is theirs (`ownedAskName`), so a
+// conversation is mounted under its own name and found in storage under
+// `NAME`, the owned one.
+const session = vi.hoisted(() => ({ user: { id: "user-a" } as { id: string } | null | undefined }));
+vi.mock("@/components/account/useSessionUser", async (orig) => ({
+  ...(await orig<typeof import("@/components/account/useSessionUser")>()),
+  useKnownSessionUser: () => session.user,
+}));
+const USER = "user-a";
+
 const TRIP = "11111111-2222-4333-8444-555566667777";
-const NAME = `trip:${TRIP}`;
+const CONVERSATION = `trip:${TRIP}`;
+const NAME = ownedAskName(USER, CONVERSATION);
 
 function mount(persistAs: string | undefined) {
   return renderHook(() =>
@@ -65,15 +77,99 @@ const stored: AssistantTurn[] = [
 
 beforeEach(() => window.localStorage.clear());
 afterEach(() => {
+  session.user = { id: USER };
   cleanup();
   vi.unstubAllGlobals();
   window.localStorage.clear();
 });
 
 describe("useAskThread — durability", () => {
+  // M45 D7: Home's rail is no trip's. Its turn goes to the account door, and
+  // its conversation is kept under the scope's own name, apart from any trip's.
+  it("posts an account conversation to the account door, and keeps it under its own name", async () => {
+    const fetch = answeringFetch("Kyoto, on 2 trips.");
+    vi.stubGlobal("fetch", fetch);
+    const name = beyondTripThreadName({ kind: "account" });
+    const { result } = renderHook(() =>
+      useAskThread({ scope: { kind: "account" }, errorMessage: (error: ApiError) => error.message, persistAs: name }),
+    );
+    await act(async () => {
+      await result.current.runAsk("which city have I been to most?");
+    });
+
+    const [url] = fetch.mock.calls[0] as unknown as [string];
+    expect(new URL(url, "http://localhost").pathname).toBe("/api/ask");
+    expect(loadAskThread(ownedAskName(USER, name)).map((turn) => turn.text)).toEqual(["which city have I been to most?", "Kyoto, on 2 trips."]);
+    expect(loadAskThread(NAME)).toEqual([]);
+  });
+
+  // PR 426 review, finding 1: two accounts on one browser. Home's account
+  // conversation is wholly personal, and every account used to land on the
+  // same stored one: B saw A's spend and places, and posted them as history.
+  it("gives another account on this browser none of this one's conversation", async () => {
+    const account = beyondTripThreadName({ kind: "account" });
+    const mountAccount = () =>
+      renderHook(() =>
+        useAskThread({ scope: { kind: "account" }, errorMessage: (error: ApiError) => error.message, persistAs: account }),
+      );
+    vi.stubGlobal("fetch", answeringFetch("You spent most in Kyoto."));
+    const a = mountAccount();
+    await act(async () => {
+      await a.result.current.runAsk("what was my most expensive meal?");
+    });
+    a.unmount();
+
+    session.user = { id: "user-b" };
+    const fetch = answeringFetch("Lisbon, once.");
+    vi.stubGlobal("fetch", fetch);
+    const b = mountAccount();
+    await act(async () => {
+      await b.result.current.runAsk("where have I been?");
+    });
+    const [, init] = fetch.mock.calls[0] as unknown as [string, RequestInit];
+    expect((JSON.parse(String(init.body)) as { messages: unknown[] }).messages).toHaveLength(1);
+    expect(b.result.current.thread.map((turn) => turn.text)).toEqual(["where have I been?", "Lisbon, once."]);
+    b.unmount();
+
+    session.user = { id: USER };
+    const again = mountAccount();
+    await waitFor(() => expect(again.result.current.thread).toHaveLength(2));
+    expect(again.result.current.thread[0]!.text).toBe("what was my most expensive meal?");
+  });
+
+  // The owned name exists only once the session read answers, and a question
+  // can be asked before it does (the e2e lane types at once). Learning who is
+  // signed in must not abort that turn or wipe it with the stored thread.
+  it("keeps a turn asked before the session answered, after the stored conversation", async () => {
+    saveAskThread(NAME, stored);
+    session.user = undefined;
+    let answer: (response: Response) => void = () => {};
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((resolve) => (answer = resolve))));
+    const view = mount(CONVERSATION);
+    let turn: Promise<void> = Promise.resolve();
+    act(() => {
+      turn = view.result.current.runAsk("and the free time?");
+    });
+
+    session.user = { id: USER };
+    view.rerender();
+    await act(async () => {
+      answer(await answeringFetch("Two free afternoons.")());
+      await turn;
+    });
+    expect(view.result.current.thread.map((t) => t.text)).toEqual([
+      "how does this trip look?",
+      "Kyoto 2027 runs to 3 days.",
+      "and the free time?",
+      "Two free afternoons.",
+    ]);
+    const ids = view.result.current.thread.map((t) => t.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
   it("brings the conversation back on the next mount", async () => {
     saveAskThread(NAME, stored);
-    const { result } = mount(NAME);
+    const { result } = mount(CONVERSATION);
     await waitFor(() => expect(result.current.thread).toHaveLength(2));
     expect(result.current.thread.map((turn) => turn.text)).toEqual([
       "how does this trip look?",
@@ -100,7 +196,7 @@ describe("useAskThread — durability", () => {
   // land on the restored turn.
   it("mints ids past anything it restored", async () => {
     saveAskThread(NAME, stored);
-    const { result } = mount(NAME);
+    const { result } = mount(CONVERSATION);
     await waitFor(() => expect(result.current.thread).toHaveLength(2));
 
     // A turn that fails immediately still mints both ids before it posts.
@@ -138,7 +234,7 @@ describe("useAskThread — durability", () => {
           errorMessage: (error: ApiError) => error.message,
           persistAs: name,
         }),
-      { initialProps: { name: NAME } },
+      { initialProps: { name: CONVERSATION } },
     );
     await waitFor(() => expect(view.result.current.thread).toHaveLength(2));
 
@@ -147,7 +243,7 @@ describe("useAskThread — durability", () => {
 
     // The trip with no conversation still has none — in storage, not just on
     // screen, which is the half that outlived the switch.
-    expect(loadAskThread(OTHER)).toEqual([]);
+    expect(loadAskThread(ownedAskName(USER, OTHER))).toEqual([]);
     // And the trip that owns it kept it.
     expect(loadAskThread(NAME)).toHaveLength(2);
   });
@@ -181,7 +277,7 @@ describe("useAskThread — durability", () => {
           errorMessage: (error: ApiError) => error.message,
           persistAs: name,
         }),
-      { initialProps: { name: NAME } },
+      { initialProps: { name: CONVERSATION } },
     );
 
     await act(async () => {
@@ -196,7 +292,7 @@ describe("useAskThread — durability", () => {
 
   it("forgets the stored conversation when a new one is started", async () => {
     saveAskThread(NAME, stored);
-    const first = mount(NAME);
+    const first = mount(CONVERSATION);
     await waitFor(() => expect(first.result.current.thread).toHaveLength(2));
     act(() => first.result.current.startNewConversation());
     await waitFor(() => expect(first.result.current.thread).toHaveLength(0));
@@ -211,7 +307,7 @@ describe("useAskThread — durability", () => {
   // only way this asserts the thing the gate box is about.
   it("persists a turn this session produced, and restores it on the next mount", async () => {
     vi.stubGlobal("fetch", answeringFetch("Kyoto 2027 runs to 3 days."));
-    const first = mount(NAME);
+    const first = mount(CONVERSATION);
     await act(async () => {
       await first.result.current.runAsk("how does this trip look?");
     });
@@ -221,7 +317,7 @@ describe("useAskThread — durability", () => {
     ]);
     cleanup();
 
-    const second = mount(NAME);
+    const second = mount(CONVERSATION);
     await waitFor(() => expect(second.result.current.thread).toHaveLength(2));
     expect(second.result.current.thread.map((turn) => turn.text)).toEqual([
       "how does this trip look?",
@@ -299,7 +395,7 @@ describe("useAskThread — durability", () => {
   // rather than worked around: a stored orphan question is worse than none.
   it("stores nothing for a turn that failed before it said anything", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("nope", { status: 500 })));
-    const { result } = mount(NAME);
+    const { result } = mount(CONVERSATION);
     await act(async () => {
       await result.current.runAsk("a question that fails");
     });
@@ -329,7 +425,7 @@ describe("useAskThread — durability", () => {
       clear: () => real.clear(),
     });
 
-    const { result } = mount(NAME);
+    const { result } = mount(CONVERSATION);
     await waitFor(() => expect(result.current.thread).toHaveLength(2));
     expect(removals).toEqual([]);
   });
@@ -366,14 +462,14 @@ describe("useAskThread — durability", () => {
       ),
     );
 
-    const { result } = mount(NAME);
+    const { result } = mount(CONVERSATION);
     await waitFor(() => expect(result.current.asking).toBe(false));
     await act(async () => {
       await result.current.runAsk("how does this trip look?");
     });
     cleanup();
 
-    const second = mount(NAME);
+    const second = mount(CONVERSATION);
     await waitFor(() => expect(second.result.current.thread).toHaveLength(2));
     // The text, which is the round trip. That a turn stored WHILE pending comes
     // back settled is `askThreadStore.test.ts`'s — by the time `runAsk`
@@ -403,7 +499,7 @@ describe("useAskThread — durability", () => {
         throw new Error("SecurityError");
       },
     });
-    const { result } = mount(NAME);
+    const { result } = mount(CONVERSATION);
     await act(async () => {
       await result.current.runAsk("Does this still work?");
     });

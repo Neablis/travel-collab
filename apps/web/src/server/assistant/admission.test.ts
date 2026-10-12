@@ -722,7 +722,7 @@ describe("an account turn", () => {
     return { ...spied, classifiedOn };
   }
 
-  it("is granted the four aggregate tools and nothing else, on the session alone", async () => {
+  it("is granted the four aggregate tools and open_trip, and nothing else, on the session alone", async () => {
     const { ports, calls, records, classifiedOn } = accountPorts();
     const admission = await evaluateAiGrant({ request: askFor(ACCOUNT_TURN), tripId: null, ports });
 
@@ -733,6 +733,7 @@ describe("an account turn", () => {
       "places_visited",
       "visit_counts",
       "suggest_next_country",
+      "open_trip",
     ]);
     expect(admission.grant).toMatchObject({ surface: "account", posture: "read-only", taskClass: "question", tripId: null });
     // No page to load; the classifier still runs, as the off-topic gate.

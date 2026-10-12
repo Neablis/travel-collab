@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TripSummary } from "@tc/contracts";
@@ -28,6 +28,9 @@ vi.mock("@/components/install/InstallNudge", () => ({
 }));
 
 import Home from "./page";
+import { setViewportMatches } from "../../../vitest.setup";
+import { usePhoneAsk } from "@/components/nav/phoneAsk";
+import { SessionUserProvider } from "@/components/account/useSessionUser";
 import { DEMO_TRIP_ID, DEMO_TRIPS } from "@/lib/demoTrip";
 import { rememberDemoClone } from "@/lib/pendingDemoClone";
 import { rememberPlaybookAdd } from "@/lib/pendingPlaybookAdd";
@@ -1530,5 +1533,180 @@ describe("Home — Delete or Leave, never the wrong one", () => {
     // The optimistic removal is undone — a card that vanished on a failed
     // request is a trip the reader now believes they are off.
     expect(screen.getByRole("link", { name: /kyoto/i })).toBeTruthy();
+  });
+});
+
+// M45 D7, as Mitchell walked it on 2026-10-12: Home has an assistant of its
+// own, answering across every trip through the account door, closed until
+// asked for at every width, as the trip board's is.
+describe("Home's assistant", () => {
+  afterEach(() => window.localStorage.clear());
+
+  /** Home with one trip, whose `/ask` replies with `reply` (or what `refuse` returns) and records each request. */
+  function homeWithAsk(reply = "Kyoto, on 2 trips.", refuse?: () => Response) {
+    const asked: string[] = [];
+    fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/api/auth/session")) return jsonResponse(await getSessionMock());
+      if (url.endsWith("/api/trips")) return jsonResponse({ trips: [tripSummaryFixture()] });
+      if (/\/ask$/.test(url)) {
+        asked.push(`${new URL(url, "http://localhost").pathname} ${String(init?.body)}`);
+        if (refuse !== undefined) return refuse();
+        return new Response(`data: ${JSON.stringify({ type: "text-delta", delta: reply })}\n\ndata: [DONE]\n\n`, {
+          status: 200,
+          headers: { "Content-Type": "text/event-stream" },
+        });
+      }
+      return jsonResponse({ error: "unexpected" }, 404);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    return asked;
+  }
+
+  /** Home beside what the tab bar and ⌘K read of it: the entry it registers. */
+  function homeWithTabBar() {
+    const seen: { entry: ReturnType<typeof usePhoneAsk> } = { entry: null };
+    function TabBar() {
+      seen.entry = usePhoneAsk();
+      return null;
+    }
+    render(
+      <>
+        <Home />
+        <TabBar />
+      </>,
+    );
+    return seen;
+  }
+
+  const rail = () => screen.queryByRole("complementary", { name: "Assistant" });
+  const askButton = () => screen.findByRole("button", { name: "Ask" });
+
+  it("starts closed at 1280px; Ask docks it, it asks the account door, and Hide closes it", async () => {
+    const asked = homeWithAsk();
+    render(<Home />);
+    expect(await screen.findByRole("link", { name: /japan/i })).toBeTruthy();
+    expect(rail()).toBeNull();
+
+    await userEvent.click(await askButton());
+    const open = await screen.findByRole("complementary", { name: "Assistant" });
+    await userEvent.type(within(open).getByPlaceholderText("Ask about your trips…"), "which city have I been to most?{Enter}");
+    expect(await within(open).findByText("Kyoto, on 2 trips.")).toBeTruthy();
+    expect(asked).toHaveLength(1);
+    expect(asked[0]).toMatch(/^\/api\/ask /);
+    expect(asked[0]).toContain('"scope":{"kind":"account"}');
+
+    await userEvent.click(within(open).getByRole("button", { name: "Hide" }));
+    await waitFor(() => expect(rail()).toBeNull());
+  });
+
+  it("keeps an unsent question through Hide and Ask again", async () => {
+    homeWithAsk();
+    // The draft is stored under the signed-in user, read from the layout's provider.
+    render(
+      <SessionUserProvider>
+        <Home />
+      </SessionUserProvider>,
+    );
+    await userEvent.click(await askButton());
+    await userEvent.type(within(await screen.findByRole("complementary", { name: "Assistant" })).getByPlaceholderText("Ask about your trips…"), "where should I go next");
+    await userEvent.click(within(rail()!).getByRole("button", { name: "Hide" }));
+    await waitFor(() => expect(rail()).toBeNull());
+
+    await userEvent.click(await askButton());
+    const again = await screen.findByRole("complementary", { name: "Assistant" });
+    await waitFor(() => expect((within(again).getByPlaceholderText("Ask about your trips…") as HTMLInputElement).value).toBe("where should I go next"));
+  });
+
+  // PR 426 review round 4, finding 2: a refused question went back in the box
+  // on every open, not once, so a reopen put it over what was typed since.
+  it("puts a refused question back once, not over a newer draft on the next open", async () => {
+    homeWithAsk(undefined, () => jsonResponse({ error: "must be 4000 characters or fewer" }, 400));
+    render(
+      <SessionUserProvider>
+        <Home />
+      </SessionUserProvider>,
+    );
+    const box = () => within(rail()!).getByPlaceholderText("Ask about your trips…") as HTMLInputElement;
+    await userEvent.click(await askButton());
+    await screen.findByRole("complementary", { name: "Assistant" });
+    await userEvent.type(box(), "the refused question{Enter}");
+    await waitFor(() => expect(box().value).toBe("the refused question"));
+
+    await userEvent.clear(box());
+    await userEvent.type(box(), "a different draft");
+    await userEvent.click(within(rail()!).getByRole("button", { name: "Hide" }));
+    await waitFor(() => expect(rail()).toBeNull());
+    await userEvent.click(await askButton());
+    await screen.findByRole("complementary", { name: "Assistant" });
+    await waitFor(() => expect(box().value).toBe("a different draft"));
+  });
+
+  // PR 426 review round 4, finding 3: docked, nothing moved focus. Ask left it
+  // behind every trip card, and Hide dropped it to <body> with its button.
+  // Read through the keyboard, as a keyboard user meets it: the keys go
+  // wherever focus is.
+  it("from 1100px moves focus to the composer on Ask, and back to Ask on Hide", async () => {
+    homeWithAsk();
+    render(<Home />);
+    await userEvent.click(await askButton());
+    const open = await screen.findByRole("complementary", { name: "Assistant" });
+    await userEvent.keyboard("where next");
+    expect((within(open).getByPlaceholderText("Ask about your trips…") as HTMLInputElement).value).toBe("where next");
+
+    await userEvent.click(within(open).getByRole("button", { name: "Hide" }));
+    await waitFor(() => expect(rail()).toBeNull());
+    await userEvent.keyboard("{Enter}");
+    expect(rail()).not.toBeNull();
+  });
+
+  // ⌘K's *Ask: <text>* reaches Home through the entry the tab bar reads
+  // (`usePhoneAskEntry`); with the rail closed it has to open it, and ask once.
+  it("opens a closed rail for ⌘K's Ask: and sends it once", async () => {
+    const asked = homeWithAsk();
+    const palette = homeWithTabBar();
+    expect(await screen.findByRole("link", { name: /japan/i })).toBeTruthy();
+    await waitFor(() => expect(palette.entry?.onAsk).toBeDefined());
+    expect(rail()).toBeNull();
+
+    act(() => palette.entry!.onAsk!("which city have I been to most?"));
+    const open = await screen.findByRole("complementary", { name: "Assistant" });
+    expect(await within(open).findByText("Kyoto, on 2 trips.")).toBeTruthy();
+    expect(asked).toHaveLength(1);
+  });
+
+  it("below 1100px opens on Ask too, and closes on Hide", async () => {
+    homeWithAsk();
+    setViewportMatches({ "(min-width: 768px) and (max-width: 1099px)": true });
+    try {
+      render(<Home />);
+      expect(await screen.findByRole("link", { name: /japan/i })).toBeTruthy();
+      expect(rail()).toBeNull();
+      await userEvent.click(await askButton());
+      const open = await screen.findByRole("complementary", { name: "Assistant" });
+      expect(within(open).getByPlaceholderText("Ask about your trips…")).toBeTruthy();
+      await userEvent.click(within(open).getByRole("button", { name: "Hide" }));
+      await waitFor(() => expect(rail()).toBeNull());
+    } finally {
+      setViewportMatches({});
+    }
+  });
+
+  // PR 426 review, finding 7: on a phone the docked rail used to stay mounted,
+  // hidden by CSS, beside the sheet: two composers on one stored draft. There
+  // the tab bar's Ask opens the sheet.
+  it("opens as the sheet on a phone, from the tab bar's Ask", async () => {
+    homeWithAsk();
+    setViewportMatches({ "(max-width: 767px)": true });
+    try {
+      const tabBar = homeWithTabBar();
+      expect(await screen.findByRole("link", { name: /japan/i })).toBeTruthy();
+      await waitFor(() => expect(tabBar.entry).not.toBeNull());
+      act(() => tabBar.entry!.onOpen());
+      expect(await screen.findByRole("complementary", { name: "Assistant" })).toBeTruthy();
+      expect(screen.getByTestId("assistant-scrim")).toBeTruthy();
+    } finally {
+      setViewportMatches({});
+    }
   });
 });

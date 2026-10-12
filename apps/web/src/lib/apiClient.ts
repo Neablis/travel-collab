@@ -1440,7 +1440,8 @@ export async function actOnReport(
 }
 
 // ---------------------------------------------------------------------------
-// The assistant conversation — POST /api/trips/:id/ask (M16, ADR-022).
+// The assistant conversation — POST /api/trips/:id/ask (M16, ADR-022), and
+// POST /api/ask for a turn about no one trip (M45).
 //
 // Deliberately NOT `applyAssistantProposal`'s shape. Applying a batch answers
 // with a derived receipt; this one answers with the model's own prose,
@@ -1474,10 +1475,40 @@ export async function actOnReport(
  * resolves it to a page on THIS trip that this actor may edit before it offers
  * a page tool, and refuses rather than widening if it cannot.
  */
-export type AskScope =
+export type AskScope = TripAskScope | BeyondTripAskScope;
+
+/** A turn about one trip, posted to that trip's door. */
+export type TripAskScope =
   | { kind: "trip" }
   | { kind: "day"; dayIndex: number }
   | { kind: "page"; pageId: string };
+
+/**
+ * A turn about no one trip, each kind with its own door (M45). The account's
+ * answers across every trip you travelled on; another surface (the playbook
+ * pages) joins as another kind here, and the compiler then names every place
+ * that has to answer for it (`askPath`, the rail's copy, the thread's name).
+ */
+export type BeyondTripAskScope = { kind: "account" };
+
+/**
+ * Which door a turn goes to: a trip's, with that trip's id, or one of its own
+ * for a scope about no one trip. A pair so a trip scope cannot travel without
+ * its trip, nor an account scope with one.
+ */
+export type AskWhere = { tripId: string; scope: TripAskScope } | { tripId?: undefined; scope: BeyondTripAskScope };
+
+function askPath(where: AskWhere): string {
+  if (where.tripId !== undefined) return `/api/trips/${where.tripId}/ask`;
+  switch (where.scope.kind) {
+    case "account":
+      return "/api/ask";
+    default: {
+      const unhandled: never = where.scope.kind;
+      return unhandled;
+    }
+  }
+}
 
 /** An AI SDK v7 UIMessage, narrowed to the one part type this client sends. */
 export type AskWireMessage = {
@@ -1743,17 +1774,16 @@ function pageInsertsEvent(content: PageDoc, dropped: DroppedInsert[]): AskEvent 
  * answer text for callers that only want the end.
  */
 export async function askAssistant(
-  tripId: string,
+  where: AskWhere,
   messages: AskWireMessage[],
-  scope: AskScope,
   onEvent: (event: AskEvent) => void = () => {},
   signal?: AbortSignal,
 ): Promise<ApiResult<{ text: string }>> {
   try {
-    const res = await fetch(apiUrl(`/api/trips/${tripId}/ask`), {
+    const res = await fetch(apiUrl(askPath(where)), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages, scope }),
+      body: JSON.stringify({ messages, scope: where.scope }),
       signal,
     });
     if (!res.ok) {

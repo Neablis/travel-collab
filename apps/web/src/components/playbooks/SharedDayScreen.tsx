@@ -15,7 +15,7 @@ import { mapPanel } from "./sharedDayFacts";
 import { scopedGeometry } from "./sharedDayGeometry";
 import { useDistanceUnit } from "@/components/account/PreferencesProvider";
 import { useSessionUser } from "@/components/account/useSessionUser";
-import { useEntitled } from "@/components/assistant/useAiEntitled";
+import { useEntitled } from "@/lib/useAiEntitled";
 import { Banner } from "@/components/ui/banner";
 import { Button, PHONE_TOUCH } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signOut } from "next-auth/react";
+import { forgetAskConversationsOf } from "@/lib/askOwnership";
 import { Button, buttonVariants, PHONE_TOUCH } from "@/components/ui/button";
 import { PageContainer } from "@/components/ui/page-container";
 import { Heading } from "@/components/ui/heading";
@@ -185,7 +186,11 @@ export function AccountScreen() {
             variant="secondary"
             size="touch"
             data-testid="account-sign-out"
-            onClick={() => void signOut({ callbackUrl: "/welcome" })}
+            onClick={() => {
+              // As `AccountMenu`'s: this account's conversations stay behind.
+              if (user?.id) forgetAskConversationsOf(user.id);
+              void signOut({ callbackUrl: "/welcome" });
+            }}
           >
             Sign out
           </Button>

@@ -7,9 +7,11 @@
 // built against a trip that has since moved.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AssistantTurn } from "@/components/assistant/Transcript";
-import { clearAskThread, loadAskThread, saveAskThread } from "./askThreadStore";
+import { forgetAskConversationsOf, ownedAskName } from "@/lib/askOwnership";
+import { clearAskDraft, clearAskThread, loadAskDraft, loadAskThread, saveAskDraft, saveAskThread } from "./askThreadStore";
 
-const NAME = "trip:11111111-2222-4333-8444-555566667777";
+// Owned, as every caller stores it: an unowned name is a legacy key, swept.
+const NAME = ownedAskName("user-a", "trip:11111111-2222-4333-8444-555566667777");
 
 const user = (id: string, text: string): AssistantTurn => ({ id, role: "user", text });
 const answer = (id: string, text: string, extra: Partial<Extract<AssistantTurn, { role: "assistant" }>> = {}) =>
@@ -185,5 +187,91 @@ describe("the ask thread store", () => {
   it("ignores a thread stored under a different version", () => {
     window.localStorage.setItem("ask_thread_v0:" + NAME, JSON.stringify([user("u1", "old")]));
     expect(loadAskThread(NAME)).toEqual([]);
+  });
+});
+
+// KI-2026-10-12-g: the composer's unsent text, kept beside its conversation.
+describe("the ask draft store", () => {
+  it("keeps one draft per conversation, and an emptied box is no draft", () => {
+    saveAskDraft(NAME, "and the second day?");
+    saveAskDraft("account", "which city most?");
+    expect(loadAskDraft(NAME)).toBe("and the second day?");
+    expect(loadAskDraft("account")).toBe("which city most?");
+    saveAskDraft(NAME, "   ");
+    expect(loadAskDraft(NAME)).toBeNull();
+    clearAskDraft("account");
+    expect(loadAskDraft("account")).toBeNull();
+  });
+
+  it("degrades to no draft when the browser refuses storage", () => {
+    vi.stubGlobal("localStorage", {
+      getItem: () => {
+        throw new Error("SecurityError");
+      },
+      setItem: () => {
+        throw new Error("SecurityError");
+      },
+      removeItem: () => {
+        throw new Error("SecurityError");
+      },
+    });
+    expect(() => saveAskDraft(NAME, "hello")).not.toThrow();
+    expect(loadAskDraft(NAME)).toBeNull();
+    expect(() => clearAskDraft(NAME)).not.toThrow();
+  });
+});
+
+// PR 426 review, finding 1: sign-out forgets one account's conversations on a
+// shared browser, and no one else's, including an id this one is a prefix of.
+describe("forgetting one account's conversations", () => {
+  it("removes that account's threads and drafts and keeps every other account's", () => {
+    const turn: AssistantTurn = { id: "u1", role: "user", text: "what did I spend?" };
+    saveAskThread(ownedAskName("user-a", "account"), [turn]);
+    saveAskDraft(ownedAskName("user-a", NAME), "and dinner?");
+    saveAskThread(ownedAskName("user-ab", "account"), [turn]);
+    saveAskDraft(ownedAskName("user-b", NAME), "where next?");
+
+    forgetAskConversationsOf("user-a");
+
+    expect(loadAskThread(ownedAskName("user-a", "account"))).toEqual([]);
+    expect(loadAskDraft(ownedAskName("user-a", NAME))).toBeNull();
+    expect(loadAskThread(ownedAskName("user-ab", "account"))).toEqual([turn]);
+    expect(loadAskDraft(ownedAskName("user-b", NAME))).toBe("where next?");
+  });
+});
+
+// PR 426's round 1 put an owner in every name. Keys stored before it have
+// none, and can hold the conversation of whoever used this browser before.
+describe("the keys stored before conversations had owners", () => {
+  it("are removed on the store's first use, and owned keys are kept", async () => {
+    window.localStorage.setItem("ask_thread_v1:trip:11111111-2222-4333-8444-555566667777", "[]");
+    window.localStorage.setItem("ask_thread_v1:account", "[]");
+    window.localStorage.setItem("ask_draft_v1:notebook:t1", "and dinner?");
+    window.localStorage.setItem("ask_draft_v1:page:p1", "a packing list");
+    window.localStorage.setItem(`ask_draft_v1:${NAME}`, "where next?");
+    window.localStorage.setItem("ask_thread_v1:user-a:account", "[]");
+    window.localStorage.setItem("theme", "dark");
+
+    // A fresh module is a fresh page load.
+    vi.resetModules();
+    const store = await import("./askThreadStore");
+    expect(store.loadAskDraft(NAME)).toBe("where next?");
+
+    expect(Object.keys(window.localStorage).sort()).toEqual([`ask_draft_v1:${NAME}`, "ask_thread_v1:user-a:account", "theme"].sort());
+  });
+
+  it("still lets the store work when the browser refuses storage", async () => {
+    vi.stubGlobal("localStorage", {
+      get length(): number {
+        throw new Error("SecurityError");
+      },
+      getItem: () => {
+        throw new Error("SecurityError");
+      },
+    });
+    vi.resetModules();
+    const store = await import("./askThreadStore");
+    expect(store.loadAskDraft(NAME)).toBeNull();
+    expect(store.loadAskThread(NAME)).toEqual([]);
   });
 });

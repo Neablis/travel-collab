@@ -63,6 +63,7 @@ import { fetchPages } from "@/lib/pagesClient";
 import { cachedRead, DEDUPE } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
 import { useAssistantShape } from "@/components/assistant/useAssistantShape";
+import { useAssistantVisibility } from "@/components/assistant/useAssistantVisibility";
 import { AssistantRail } from "@/components/assistant/AssistantRail";
 import type { AssistantTurn } from "@/components/assistant/Transcript";
 import { proposalUndoFor, type ProposalState } from "@/components/assistant/ProposalCard";
@@ -74,30 +75,12 @@ import {
   DEMO_TRIP_UNSUPPORTED_CODE,
   applyAssistantProposal,
   type ApiError,
-  type AskScope,
+  type TripAskScope,
 } from "@/lib/apiClient";
 import { Board } from "./Board";
 import { ConflictsChip } from "./ConflictsChip";
 import { cn } from "@/lib/cn";
 
-// Closed until asked for, at every width (Mitchell, walking the #71 preview:
-// "Can we default the assistant to minimized? Its a better experience").
-//
-// This narrows the handoff (`current/…dc.html:1111-1119`), which had the rail
-// as an inline column at wide widths and an overlay below 1180px that starts
-// hidden. What changed here first was that a wide viewport no longer opens
-// the rail on the reader's behalf: the plan is what someone came for, and
-// the assistant is one click away rather than already occupying a column.
-// M16 Wave 1 (Task 4, SPEC §9 "the assistant — one panel, three
-// presentations") later replaced the overlay half too — the rail is a real
-// flex sibling of the plan at every width now, not an overlay below 1180px,
-// so there is no overlay-vs-column split left to gate on width at all;
-// docked is unconditional.
-//
-// The media query went with it rather than staying as dead weight. Its only
-// job was deciding the default per width, and there is one default now.
-// `userChose` went for the same reason — with no automatic opening there is
-// no automatic decision left to override.
 // What the rail SAYS when an ask fails. Branches on the server's `code`, not
 // its prose: a refusal's wording is free to change, and two of these are
 // refusals rather than failures. Everything else falls through to the
@@ -115,11 +98,6 @@ function askErrorMessage(error: ApiError): string {
   // still decides is how it is PRESENTED, which is `askUpgrade` below.
   if (error.code === AI_NOT_ENTITLED_CODE) return error.message;
   return error.message;
-}
-
-function useAssistantVisibility() {
-  const [open, setOpen] = useState(false);
-  return { open, show: () => setOpen(true), hide: () => setOpen(false) };
 }
 
 export function TripBoardScreen({ tripId }: { tripId: string }) {
@@ -171,7 +149,15 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   const { settled: coverSettled } = useTripCover(tripId, abovePhone === true && !isDemoTripId(tripId));
   const headerReady = abovePhone !== undefined && coverSettled;
   const boardRenders = status === "ready" && trip !== null && activeTrip !== null && headerReady;
-  usePhoneAskEntry(boardRenders && !isDemoTripId(tripId) ? assistant.show : undefined, assistant.open);
+  // ⌘K's *Ask: <text>* (M45 D6): opens the rail and hands it the words, which
+  // it sends through its own gate and `submitAssistantAsk`'s refusals. Dropped
+  // once the rail has taken it: the rail remounts on Hide and Show, and when
+  // the header skeleton comes back, and must not find it again.
+  const [handOff, setHandOff] = useState<{ text: string } | null>(null);
+  usePhoneAskEntry(boardRenders && !isDemoTripId(tripId) ? assistant.show : undefined, assistant.open, (text) => {
+    assistant.show();
+    setHandOff({ text });
+  });
   // **⌘K's commands are this screen's own functions** (M41 D9, ADR-068 §1,
   // ADR-069 §4). Each is named here, above the early returns because the
   // registration below must run on every render, and the board's controls
@@ -336,7 +322,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // `false` on the server and on the first client paint, so a JS-gated swap
   // paints the docked rail for a frame before correcting. That flash is real
   // wherever the panel can be on screen at first paint. It is not reachable
-  // here, and the reason is `useAssistantVisibility` directly above:
+  // here, and the reason is `useAssistantVisibility`:
   // `useState(false)`, with no restore from storage, no URL parameter and no
   // server prop, so `assistant.open` is false on EVERY first paint. The rail is
   // unmounted then. The only thing that opens it is a click, which cannot be
@@ -491,7 +477,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
       : null;
   // `dayIndex` is 0-based, matching TripDetail.days and /ask's scope; the day
   // NUMBER a human reads is +1, and that conversion happens in one place.
-  const askScope: AskScope = scopedDay !== null ? { kind: "day", dayIndex: scopedDay } : { kind: "trip" };
+  const askScope: TripAskScope = scopedDay !== null ? { kind: "day", dayIndex: scopedDay } : { kind: "trip" };
   // The conversation itself. What the board still owns is the one event only it
   // can act on: a `proposal`, attached to the answer and still PENDING. Nothing
   // has been committed — the only thing that writes is `applyAssistantProposal`,
@@ -1493,12 +1479,17 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             // thread already survived (`persistAs` above), the shape survives
             // (`useAssistantShape`), and the position survives through this
             // key. The open/closed state does not, deliberately —
-            // `useAssistantVisibility`'s note above is the reason, and
+            // `useAssistantVisibility`'s note is the reason, and
             // `useAssistantPosition` states the trade in full.
             //
             // Per TRIP, like the thread: a panel parked clear of one trip's
             // unscheduled rack has no business deciding where another's opens.
             rememberPositionAs={`assistant:position:trip:${tripId}`}
+            // Under the thread's own name: a reply that leaves this page, or
+            // a reload, keeps what was typed while it answered (KI-2026-10-12-g).
+            rememberDraftAs={`trip:${tripId}`}
+            incoming={handOff}
+            onIncomingTaken={() => setHandOff(null)}
             contextLine={isPhone ? phoneAsk.contextLine : assistantContextLine}
             scope={askScope}
             turns={thread}
@@ -1508,6 +1499,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             emptyHint={assistantPresentation === "sheet" ? phoneAsk.emptyHint : undefined}
             asksRemaining={ask.asksRemaining}
             restoreDraft={ask.restoredDraft}
+            onRestoreTaken={ask.clearRestoredDraft}
             onNewConversation={ask.startNewConversation}
             onAsk={(text) => submitAssistantAsk(text)}
             onApproveProposal={(turnId) => void approveProposal(turnId)}
@@ -1522,6 +1514,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             // would silently fall back to a red alert the day it did.
             askUpgrade={ask.askErrorCode === AI_NOT_ENTITLED_CODE}
             simulated={ask.simulated}
+            takeFocus={assistant.takeFocus}
             onHide={assistant.hide}
           />
         )}

@@ -5,12 +5,14 @@ import {
   askAssistant,
   type ApiError,
   type AskEvent,
-  type AskScope,
+  type AskWhere,
   type AskWireMessage,
+  withoutRetracted,
 } from "@/lib/apiClient";
 import { MAX_ASK_MESSAGES } from "@/lib/askLimits";
 import { clearAskThread, loadAskThread, saveAskThread } from "@/components/assistant/askThreadStore";
-import { withoutRetracted } from "@/lib/apiClient";
+import { SIGNED_OUT_OWNER, ownedAskName } from "@/lib/askOwnership";
+import { useKnownSessionUser } from "@/components/account/useSessionUser";
 import { offerPaletteCommand, runPaletteCommands } from "./runPaletteCommands";
 
 import { toolNoteLabel, type AssistantTurn } from "./Transcript";
@@ -74,6 +76,8 @@ export interface AskThread {
   simulated: boolean;
   asksRemaining: number;
   restoredDraft: string | null;
+  /** Drops `restoredDraft` once the rail has it, so the next open does not restore it again. */
+  clearRestoredDraft: () => void;
   /** Posts a turn. Deliberately not awaited by callers — see the board's own note. */
   runAsk: (text: string) => Promise<void>;
   startNewConversation: () => void;
@@ -114,17 +118,27 @@ function awaitsDecision(turn: AssistantTurn): boolean {
   return turn.role === "assistant" && turn.proposal != null && turn.proposal.status !== "applied" && turn.proposal.status !== "rejected";
 }
 
+/**
+ * Conversation `name` as the signed-in user keeps it (`ownedAskName`), or
+ * undefined (keep nothing) while who that is is not known yet, or with no
+ * session provider above to say. A signed-out visitor's has an owner of its
+ * own, so nothing they ask is read back by an account.
+ */
+export function useOwnedAskName(name: string | undefined): string | undefined {
+  const user = useKnownSessionUser();
+  if (name === undefined || user === undefined) return undefined;
+  if (user === null) return ownedAskName(SIGNED_OUT_OWNER, name);
+  return user.id ? ownedAskName(user.id, name) : undefined;
+}
+
 export function useAskThread({
-  tripId,
-  scope,
   onEvent,
   onTurnEnd,
   errorMessage,
-  persistAs,
+  persistAs: conversation,
   holdsLeaving,
-}: {
-  tripId: string;
-  scope: AskScope;
+  ...where
+}: AskWhere & {
   onEvent?: AskEventHandler;
   /**
    * Called once a turn's request settles — answered, failed, stopped or
@@ -146,6 +160,9 @@ export function useAskThread({
    *
    * Opt-in rather than on-by-default so a surface that has not thought about
    * what a restored transcript means on it gets the behaviour it has today.
+   *
+   * Stored under the signed-in user as well (`useOwnedAskName`), which the
+   * caller does not spell: two accounts on one browser keep two threads.
    */
   persistAs?: string;
   /**
@@ -157,6 +174,9 @@ export function useAskThread({
    */
   holdsLeaving?: () => string | null;
 }): AskThread {
+  // Stored under the signed-in user, so another account on this browser never
+  // gets this conversation back. `persistAs` is the caller's half of the name.
+  const persistAs = useOwnedAskName(conversation);
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [askError, setAskError] = useState<string | null>(null);
   const [askErrorCode, setAskErrorCode] = useState<string | null>(null);
@@ -215,6 +235,18 @@ export function useAskThread({
   // what makes that one rule instead of two.
   useEffect(() => {
     if (persistAs === undefined) return;
+    // **Learning who is signed in is not a switch of conversation.** The name
+    // is owned (`useOwnedAskName`), so it only exists once the session read
+    // answers, and a question can be asked before it does. That turn is this
+    // conversation's: it is kept, in flight or not, with the stored turns put
+    // before it under fresh ids (`patchAnswer` targets the live turn's).
+    if (savedKey.current === undefined && (threadRef.current.length > 0 || abort.current !== null)) {
+      const base = turnSeq.current;
+      const earlier = loadAskThread(persistAs).map((turn, i) => ({ ...turn, id: `${turn.role === "user" ? "u" : "a"}${base + i + 1}` }));
+      turnSeq.current = base + earlier.length;
+      setThread((current) => [...earlier, ...current]);
+      return;
+    }
     // **A request in flight belongs to the conversation being left.** Its
     // deltas would otherwise keep arriving after the new one is loaded, and
     // `patchAnswer` patches BY ID — a restored `a3` under the new key is a
@@ -340,9 +372,8 @@ export function useAskThread({
     // follows it in the same chunk arrives.
     let proposed = false;
     const result = await askAssistant(
-      tripId,
+      where,
       posted,
-      scope,
       (event) => {
         // **An abandoned turn stops writing anywhere, including into its
         // caller.** The identity guard below covers the turn's own completion;
@@ -530,6 +561,7 @@ export function useAskThread({
     simulated,
     asksRemaining,
     restoredDraft,
+    clearRestoredDraft: () => setRestoredDraft(null),
     runAsk,
     startNewConversation,
     cancel,

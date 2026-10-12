@@ -7,7 +7,7 @@ import { pageFixture, tripDetailFixture } from "@tc/factories";
 import { SYSTEM_ACTOR_ID } from "@tc/contracts";
 import { TEMPLATE_LIBRARY, instantiateDefaults } from "@tc/pages";
 import { makePagesHandlers, makeAccountPlanHandler, makeSavedNotebookHandlers } from "@/mocks/handlers";
-import type { AskEvent, AskScope, AskWireMessage } from "@/lib/apiClient";
+import type { AskEvent, AskWhere, AskWireMessage } from "@/lib/apiClient";
 
 const TRIP_ID = "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f";
 const pushMock = vi.fn();
@@ -30,9 +30,31 @@ vi.mock("@/lib/apiClient", async (orig) => {
 // way so a reader is not left wondering whether the screen got the real client.
 import { NotebookScreen } from "./NotebookScreen";
 import { PhoneAskTab } from "@/components/nav/PhoneTabBar";
+import { usePhoneAsk } from "@/components/nav/phoneAsk";
 import { fetchTripAccess } from "@/lib/apiClient";
 import { cachedRead } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
+
+/**
+ * ⌘K's *Ask:* row as the palette reads it: the mounted screen's entry, and its
+ * `onAsk` if it offers one, and the entry's opener beside it. Buttons rather
+ * than the palette itself, which would bring the session and trip reads along.
+ */
+function PaletteAskProbe({ text }: { text: string }) {
+  const entry = usePhoneAsk();
+  if (entry?.onAsk === undefined) return null;
+  const { onAsk, onOpen } = entry;
+  return (
+    <>
+      <button type="button" onClick={() => onAsk(text)}>
+        Ask: {text}
+      </button>
+      <button type="button" onClick={onOpen}>
+        Open the assistant
+      </button>
+    </>
+  );
+}
 
 /** A notebook the reader saved as a template from another trip (M14 link 10). */
 function savedPackingList() {
@@ -55,9 +77,8 @@ function savedPackingList() {
 /** The turn as `askAssistant` runs it: emit these events, then resolve `ok`. */
 function turnEmitting(...events: AskEvent[]) {
   return async (
-    _tripId: string,
+    _where: AskWhere,
     _messages: AskWireMessage[],
-    _scope: AskScope,
     onEvent: (e: AskEvent) => void,
   ) => {
     for (const event of events) onEvent(event);
@@ -613,8 +634,58 @@ describe("NotebookScreen", () => {
 
       await userEvent.type(screen.getByPlaceholderText(/Ask about this trip/i), "Which of these is stale?{Enter}");
       await waitFor(() => expect(askAssistantMock).toHaveBeenCalled());
-      const [, , scope] = askAssistantMock.mock.calls[0]!;
+      const [{ scope }] = askAssistantMock.mock.calls[0]!;
       expect(scope).toEqual({ kind: "trip" });
+    });
+
+    // M45 D6: ⌘K's *Ask: <text>* works "inside a trip", and the palette
+    // offers the row only where the screen's entry carries `onAsk`
+    // (`CommandPalette.test.tsx` pins that half). Choosing it opens the sheet
+    // and sends the words with this screen's scope.
+    it("takes ⌘K's Ask: text into the sheet and sends it, scoped to the trip", async () => {
+      server.use(...makePagesHandlers([pageFixture({ tripId: TRIP_ID })]));
+      render(
+        <>
+          <NotebookScreen tripId={TRIP_ID} />
+          <PaletteAskProbe text="Which of these is stale?" />
+        </>,
+      );
+      await screen.findByRole("region", { name: "Your notebooks" });
+      await userEvent.click(await screen.findByRole("button", { name: "Ask: Which of these is stale?" }));
+
+      expect(await screen.findByRole("complementary", { name: "Assistant" })).toBeTruthy();
+      await waitFor(() => expect(askAssistantMock).toHaveBeenCalled());
+      const [{ scope }, messages] = askAssistantMock.mock.calls[0]! as [AskWhere, AskWireMessage[]];
+      expect(scope).toEqual({ kind: "trip" });
+      expect(JSON.stringify(messages.at(-1))).toContain("Which of these is stale?");
+
+      // Taken once: the sheet mounts afresh on the next open, and must not
+      // find the words again (PR 426, the board's finding 3).
+      await userEvent.click(within(screen.getByRole("complementary", { name: "Assistant" })).getByRole("button", { name: "Hide" }));
+      await userEvent.click(screen.getByRole("button", { name: "Open the assistant" }));
+      expect(await screen.findByRole("complementary", { name: "Assistant" })).toBeTruthy();
+      expect(askAssistantMock).toHaveBeenCalledTimes(1);
+    });
+
+    // PR 426 review round 4, finding 2, as the board has it: the sheet mounts
+    // afresh on every open, and a refused question left set went back over
+    // the box each time.
+    it("puts a refused question back once, not again on a later open", async () => {
+      askAssistantMock.mockResolvedValueOnce({
+        ok: false,
+        error: { status: 400, message: "Your message must be 4000 characters or fewer." },
+      });
+      await openSheet();
+      const composer = () => screen.getByPlaceholderText<HTMLInputElement>(/Ask about this trip/i);
+      await userEvent.type(composer(), "Which of these is stale?{Enter}");
+      await waitFor(() => expect(composer().value).toBe("Which of these is stale?"));
+
+      // No signed-in user here, so nothing is stored: the box opens empty.
+      await userEvent.clear(composer());
+      await userEvent.click(within(screen.getByRole("complementary", { name: "Assistant" })).getByRole("button", { name: "Hide" }));
+      await userEvent.click(await screen.findByRole("button", { name: "Ask" }));
+      expect(await screen.findByRole("complementary", { name: "Assistant" })).toBeTruthy();
+      expect(composer().value).toBe("");
     });
 
     // DRIFT.md build-check 4c: *"An open assistant sheet must block the tab
@@ -639,9 +710,8 @@ describe("NotebookScreen", () => {
       let signal: AbortSignal | null = null;
       askAssistantMock.mockImplementation(
         async (
-          _t: string,
+          _w: AskWhere,
           _m: AskWireMessage[],
-          _s: AskScope,
           _onEvent: (e: AskEvent) => void,
           abortSignal: AbortSignal,
         ) => {
@@ -676,9 +746,8 @@ describe("NotebookScreen", () => {
       let signal: AbortSignal | null = null;
       askAssistantMock.mockImplementation(
         async (
-          _t: string,
+          _w: AskWhere,
           _m: AskWireMessage[],
-          _s: AskScope,
           _onEvent: (e: AskEvent) => void,
           abortSignal: AbortSignal,
         ) => {

@@ -13,6 +13,18 @@ vi.mock("@/components/account/useSessionUser", () => ({
   useSessionUser: () => (signedIn ? { userId: "u1", email: "a@example.com", name: "A" } : null),
 }));
 
+// Whether the plan includes the assistant: `null` (unknown, read as entitled)
+// unless a test says otherwise. Asked only where there is an Ask: to offer.
+let aiEntitled: boolean | null = null;
+const entitlementAsked = vi.fn();
+vi.mock("@/lib/useAiEntitled", () => ({
+  AI_ASK_ENTITLEMENT: "ai.ask",
+  useEntitled: (capability: string, active: boolean) => {
+    if (active) entitlementAsked(capability);
+    return active ? aiEntitled : null;
+  },
+}));
+
 const fetchTrips = vi.fn();
 vi.mock("@/lib/apiClient", () => ({ fetchTrips: () => fetchTrips() }));
 
@@ -30,6 +42,8 @@ beforeEach(() => {
   platform = "MacIntel";
   vi.spyOn(navigator, "platform", "get").mockImplementation(() => platform);
   signedIn = true;
+  aiEntitled = null;
+  entitlementAsked.mockReset();
   push.mockReset();
   fetchTrips.mockReset().mockResolvedValue({ ok: true, value: [] });
 });
@@ -111,7 +125,7 @@ describe("CommandPalette", () => {
     expect(plan).not.toHaveBeenCalled();
   });
 
-  // ADR-068 §5: unmatched text goes nowhere, not to the assistant.
+  // Where no assistant is mounted, unmatched text still goes nowhere.
   it("says so when nothing matches, and Enter then does nothing", async () => {
     const plan = vi.fn();
     offer([command("Plan", plan)]);
@@ -136,6 +150,60 @@ describe("CommandPalette", () => {
     await userEvent.keyboard("{Meta>}k{/Meta}ask");
     expect(palette()).toBeTruthy();
     expect(screen.queryByRole("option", { name: /Ask the assistant/ })).toBeNull();
+  });
+
+  // M45 D6, ADR-072 §7: where an assistant is mounted, text that matches
+  // nothing is offered to it, and choosing the row sends it.
+  it("offers Ask: <text> when nothing matches, and choosing it sends the text", async () => {
+    const onAsk = vi.fn();
+    taken.push(registerPhoneAsk({ open: false, onOpen: vi.fn(), onAsk }));
+    render(<CommandPalette />);
+    await userEvent.keyboard("{Meta>}k{/Meta}which city have I been to most");
+    expect(await screen.findByRole("option", { name: "Ask: which city have I been to most" })).toBeTruthy();
+    expect(screen.queryByText("No match")).toBeNull();
+    await userEvent.keyboard("{Enter}");
+    await waitFor(() => expect(onAsk).toHaveBeenCalledWith("which city have I been to most"));
+    expect(palette()).toBeNull();
+  });
+
+  // Mitchell, 2026-10-12: an account whose plan has no assistant is not
+  // offered one here; its unmatched text says No match, as anywhere else.
+  it("offers no Ask: row to an account whose plan has no assistant, and one to an account whose plan does", async () => {
+    taken.push(registerPhoneAsk({ open: false, onOpen: vi.fn(), onAsk: vi.fn() }));
+    aiEntitled = false;
+    const { unmount } = render(<CommandPalette />);
+    await userEvent.keyboard("{Meta>}k{/Meta}which city have I been to most");
+    expect(await screen.findByText("No match")).toBeTruthy();
+    expect(screen.queryByRole("option", { name: /^Ask:/ })).toBeNull();
+    expect(entitlementAsked).toHaveBeenCalledWith("ai.ask");
+    unmount();
+
+    aiEntitled = true;
+    render(<CommandPalette />);
+    await userEvent.keyboard("{Meta>}k{/Meta}which city have I been to most");
+    expect(await screen.findByRole("option", { name: "Ask: which city have I been to most" })).toBeTruthy();
+  });
+
+  it("offers no Ask: row while a command matches", async () => {
+    taken.push(registerPhoneAsk({ open: false, onOpen: vi.fn(), onAsk: vi.fn() }));
+    offer([command("Plan", vi.fn())]);
+    render(<CommandPalette />);
+    await userEvent.keyboard("{Meta>}k{/Meta}plan");
+    await screen.findByRole("option", { name: /Plan/ });
+    expect(screen.queryByRole("option", { name: /^Ask:/ })).toBeNull();
+  });
+
+  // A trip's name typed before the trips arrive matches nothing for a moment;
+  // Enter then must not hand the name to the model.
+  it("holds the Ask: row until this opening's trips have been read", async () => {
+    let answer: (value: unknown) => void = () => {};
+    fetchTrips.mockReturnValue(new Promise((resolve) => (answer = resolve)));
+    taken.push(registerPhoneAsk({ open: false, onOpen: vi.fn(), onAsk: vi.fn() }));
+    render(<CommandPalette />);
+    await userEvent.keyboard("{Meta>}k{/Meta}kyoto");
+    expect(screen.queryByRole("option", { name: /^Ask:/ })).toBeNull();
+    await act(async () => answer({ ok: true, value: [] }));
+    expect(await screen.findByRole("option", { name: "Ask: kyoto" })).toBeTruthy();
   });
 
   it("goes to one of your trips by name", async () => {

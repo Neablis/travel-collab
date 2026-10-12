@@ -34,6 +34,23 @@ import { tripSpend, plannedOfBudgetLine } from "@/lib/cost";
 import { orderHomeTrips } from "@/lib/homeTripOrder";
 import { newTripCommand } from "@/components/palette/commands";
 import { usePaletteSource } from "@/components/palette/paletteRegistry";
+import { BeyondTripAssistant, HomeAskButton } from "@/components/assistant/BeyondTripAssistant";
+
+/** Home's assistant answers across every trip you travelled on (M45 D7). */
+const ACCOUNT_SCOPE = { kind: "account" } as const;
+
+/**
+ * Home's list with its assistant, once opened, docked beside it: a flex row, so the rail
+ * takes its width from the list as on the trip page, rather than lying over it.
+ */
+function withAssistant(page: React.ReactNode) {
+  return (
+    <div className="flex">
+      {page}
+      <BeyondTripAssistant scope={ACCOUNT_SCOPE} />
+    </div>
+  );
+}
 
 // Today's calendar date as YYYY-MM-DD in local time, so formatTripDateLong
 // (which expects a calendar date, not an instant — see lib/formatDate.ts)
@@ -529,8 +546,8 @@ export default function Home() {
     );
   }
 
-  return (
-    <PageContainer as="main" width="content" className="home-rhythm">
+  return withAssistant(
+    <PageContainer as="main" width="content" className="home-rhythm min-w-0 flex-1">
       <div className="home-stack">
         <div>
           {/* Task 8.5: a mono uppercase date line above the page title —
@@ -561,9 +578,14 @@ export default function Home() {
                 the grid on a phone, and in the empty state. Starting from a
                 Playbook already lives in the new-trip sheet's own row and in
                 the empty state, so a third copy here was the duplicate. */}
-            <Button type="button" variant="primary" disabled={cloningDemo} onClick={startNewTrip}>
-              New trip
-            </Button>
+            <div className="flex items-center gap-2">
+              {/* And Ask, which opens Home's assistant: closed until asked
+                  for (Mitchell, 2026-10-12). A phone's is the tab bar's. */}
+              <HomeAskButton />
+              <Button type="button" variant="primary" disabled={cloningDemo} onClick={startNewTrip}>
+                New trip
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -801,6 +823,6 @@ export default function Home() {
           onDismiss={() => setToast(null)}
         />
       )}
-    </PageContainer>
+    </PageContainer>,
   );
 }
