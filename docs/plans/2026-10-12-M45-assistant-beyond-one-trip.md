@@ -63,7 +63,7 @@ code.
 | `server/ai/simulatedModel.ts` | `askTurn` ~:955 | phrase branch, e.g. *"show this on the map"*, *"open the packing notebook"*, *"turn on editing"* | `server/ai/simulatedModel.test.ts` |
 | `lib/apiClient.ts` | `AskEvent` :1494, `askEventFromFrame` :1585 | `{ type: "palette", commands }`; parsing **drops any value that is not an allowlisted id**, URLs included | `lib/apiClient.test.ts` (seen red with free URLs allowed) |
 | `components/assistant/useAskThread.ts` | `onEvent` :107/:357 | hand commands to the page's runner | `useAskThread.persistence.test.tsx` |
-| runner (new `components/assistant/runPaletteCommands.ts`) | — | navigation calls `runPaletteCommand(id)`; an id the page does not offer is a visible "I couldn't …" note; skip while the page holds unsaved input (no single dirty flag exists, survey risk 6; use TripProvider's `draftHeld` ~:923 and PageScreen's open session) | new unit test asserting the run **is** the registered command's `run` |
+| runner (new `components/assistant/runPaletteCommands.ts`) | — | navigation calls `runPaletteCommand(id)`; an id the page does not offer is a visible "I couldn't …" note; a command that leaves the page waits while a proposal card is undecided, and says so (`useAskThread` reads the thread) | new unit test asserting the run **is** the registered command's `run` |
 | `components/assistant/ProposalCard.tsx`, `Transcript.tsx` | `proposalWords` :79, :33 | a card variant for a command needing Approve (it's typed on `AssistantProposal` today) | `ProposalCard.test.tsx`, `Transcript.test.tsx` |
 | e2e | extend `apps/web/e2e/m16-assistant.spec.ts` | ask *"show this on the map"*, see Map; ask to turn on editing, Approve, see edit mode | itself |
 

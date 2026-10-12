@@ -49,8 +49,24 @@ be exactly that re-implementation, and the two would drift.
    own undo.
 4. **Navigation runs; a change asks.** A *Go to* or view command runs when the reply arrives. A
    command that changes app state (notebook edit mode) is shown on the proposal card and runs only
-   on Approve. Neither runs while the page holds unsaved input; the reply says what it would have
-   done instead.
+   on Approve. A command that leaves the page (`go:notebook:`, `go:trip:`) does not run while a
+   proposal card on the page is undecided, whether this turn's or an earlier one's, a failed apply
+   included: a card is not kept across leaving (`askThreadStore` drops pending proposals), so
+   leaving would discard it. The reply says what it would have done instead. Moving within the
+   page (`view:`, `go:day:`, `go:stop:`, `people`) still runs. Unsaved input is otherwise met by
+   structure rather than a check: a suggester's held draft (`draftHeld`) cannot coincide with a
+   run, because a suggester's turns are read-only and are never offered `go_to`; and a notebook's
+   open edit session commits when the page unmounts, keeping a browser draft if that fails.
+   The toggle carries its direction: a `notebook-editing` reference holds `on: boolean`, so the
+   card never offers the opposite of what was asked when the page has already moved there.
+
+   > **Amended 2026-10-12 (PR 424 review).** This section said neither kind of command runs
+   > *"while the page holds unsaved input"*. Building it found no input it could mean: the only
+   > candidate, TripProvider's `draftHeld`, belongs to suggesters, who never get `go_to`, so
+   > wiring it would be dead code; a notebook's edit session already commits on unmount. The
+   > state a navigation really loses is an undecided proposal card, so the guard is that
+   > (`runPaletteCommands`'s `cardWaiting`, read from the thread by `useAskThread`), and only
+   > for commands that leave the page. `notebook-editing` gained `on` in the same review.
 5. **An id the page does not offer does nothing.** Availability is the page's: an edit command
    that history preview or read-only access withholds from ⌘K is withheld from the assistant too.
    The reply says it could not.
