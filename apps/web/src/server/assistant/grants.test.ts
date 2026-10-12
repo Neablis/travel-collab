@@ -448,10 +448,13 @@ describe("the escalation tool is reachable in exactly one posture", () => {
 // M45 D1: the account surface answers across trips with the four aggregate
 // tools and nothing that reads one trip — there is no trip for `read_trip` to
 // read, and a planning tool would be a write across trips (out of scope).
+// `open_trip` is its one way to take you somewhere (D6's walk: "open my Kyoto
+// trip on the map"), and an account turn is read-only, so it must survive the
+// read-only filter.
 describe("the account surface", () => {
-  const ACCOUNT_TOOLS = ["spend_by_category", "places_visited", "visit_counts", "suggest_next_country"];
+  const ACCOUNT_TOOLS = ["spend_by_category", "places_visited", "visit_counts", "suggest_next_country", "open_trip"];
 
-  it("is offered exactly the four aggregate tools, whatever the other caps say", () => {
+  it("is offered exactly the four aggregate tools and open_trip, whatever the other caps say", () => {
     for (const role of ["read", "propose"] as const) {
       for (const classifier of ["read", "propose"] as const) {
         const caps = { surface: "account" as const, role, plan: "propose" as const, classifier };

@@ -335,12 +335,16 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
   // neither is the sheet's dress, which is unconditional because there is only
   // one presentation here to have.
   const isPhone = useIsPhone();
+  // ⌘K's *Ask: <text>* (M45 D6), as the board takes it: dropped on close,
+  // since the sheet remounts on the next open and would send it again.
+  const [handOff, setHandOff] = useState<{ text: string } | null>(null);
   // Closing hangs up on the turn in flight, the same as `PageScreen`: the
   // thread lives on this screen, so unmounting the sheet cancels nothing on its
   // own and a still-streaming answer would keep running against the server
   // behind a surface the user has put away.
   const closeAssistant = () => {
     ask.cancel();
+    setHandOff(null);
     setAssistantOpen(false);
   };
 
@@ -487,7 +491,18 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
   // The tab bar's Ask item is this screen's way in (Mitchell, 2026-10-10:
   // Ask moved from the phone's top rows into the bottom bar), offered once
   // the trip has landed for the reason above.
-  usePhoneAskEntry(phoneAsk === null ? undefined : () => setAssistantOpen(true), assistantOpen);
+  // ⌘K's Ask: only at phone width: this screen has no desktop assistant (see
+  // the rail below), and the guard above would close a sheet opened wider.
+  usePhoneAskEntry(
+    phoneAsk === null ? undefined : () => setAssistantOpen(true),
+    assistantOpen,
+    isPhone
+      ? (text) => {
+          setAssistantOpen(true);
+          setHandOff({ text });
+        }
+      : undefined,
+  );
 
   return (
     <PageContainer as="main">
@@ -874,6 +889,7 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
           restoreDraft={ask.restoredDraft}
           // Its own name, apart from the board's thread (KI-2026-10-12-g).
           rememberDraftAs={`notebook:${tripId}`}
+          incoming={handOff}
           onNewConversation={ask.startNewConversation}
           onAsk={(text) => void ask.runAsk(text)}
           asking={ask.asking}

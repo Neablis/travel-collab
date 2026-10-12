@@ -125,8 +125,8 @@ export const SURFACES = {
   // assistant reads across trips and writes within one"*). One domain, at
   // `read`, and no trip domain at all: there is no one trip for `read_trip` to
   // read, and every itinerary tool is about one. `go_to` (ADR-072) is an
-  // `itinerary` tool, so it is not offered here either: naming another trip
-  // from this surface is M45 part 4's, with an input this row can grant.
+  // `itinerary` tool, so it is not offered here either; its account twin,
+  // `open_trip`, is in this domain and names the trip in its input.
   account: [{ domain: "account", max: "read" }],
 } as const satisfies Record<SurfaceKind, SurfaceGrant>;
 

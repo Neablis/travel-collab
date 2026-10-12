@@ -12,11 +12,13 @@
 // notebook's editing on is a change, which waits for Approve (§4).
 import { z } from "zod";
 import { TRIP_VIEWS, type TripDetail } from "@tc/contracts";
+import { travelledTrips } from "@tc/domain";
 import type { AskScope } from "@/server/assistant/context";
 import type { NotebookRefs } from "@/server/assistant/deps";
 import { defineTool } from "@/server/assistant/defineTool";
 
 export const GO_TO_TOOL_NAME = "go_to";
+export const OPEN_TRIP_TOOL_NAME = "open_trip";
 export const PROPOSE_NOTEBOOK_EDITING_TOOL_NAME = "propose_notebook_editing";
 
 const GoToInput = z.object({
@@ -102,7 +104,7 @@ const QUEUED_NOTE =
  * alone (ADR-058 decision 9), and this does not reopen that; they still have
  * ⌘K. Availability is the page's either way (§5): the page runs only what it
  * registered for this person. No trip is chosen here: the turn's own trip is
- * the only one, and the account surface (part 4) is where another is named.
+ * the only one, and `open_trip` is where the account surface names another.
  */
 export const goToTool = defineTool({
   name: GO_TO_TOOL_NAME,
@@ -160,4 +162,52 @@ export const proposeNotebookEditingTool = defineTool({
   },
 });
 
-export const NAVIGATION_TOOLS = [goToTool, proposeNotebookEditingTool] as const;
+const OpenTripInput = z.object({
+  trip: z.string().min(1).describe("Its name, or the part of it they said."),
+  view: z.enum(TRIP_VIEWS).optional(),
+});
+
+/**
+ * **`go_to` for the account surface** (M45 D6, ADR-072 §6): from Home there is
+ * no one trip, so the person names one. Only a trip they are travelling on,
+ * the same set every account tool reads (`travelledTrips`, D2): a trip they can
+ * open but are not going on is refused like one they cannot open, so the
+ * assistant never takes anyone further than its answers reach (AGENTS.md
+ * invariant 7). The id it queues is Home's own ⌘K command for that trip
+ * (`placeCommands`), which Home registers only for trips it lists.
+ *
+ * Matched as `go_to` matches a notebook: the trip whose name it is, or else
+ * the only one whose name holds it. Never says the names back: they are typed
+ * by people, often not by the asker.
+ */
+export const openTripTool = defineTool({
+  name: OPEN_TRIP_TOOL_NAME,
+  description:
+    "Open one of the user's trips, on a view if they name one, when they ask to see, show, open or go to it. Name the trip as they did.",
+  domain: "account",
+  effect: "read",
+  spend: "none",
+  input: OpenTripInput,
+  output: NavigateOutput,
+  needs: ["trips", "paletteCommands"] as const,
+  minimumRole: "viewer",
+  // No `onReadOnlyTurns: false`: every account turn is read-only (it is about
+  // no trip a role could be held on), so the tag would take it off the one
+  // surface it is for. It changes nothing and spends nothing.
+  run: async (input, deps): Promise<NavigateOutput> => {
+    const key = input.trip.trim().toLowerCase();
+    const trips = travelledTrips(await deps.trips.load(), deps.trips.userId);
+    const exact = trips.filter((trip) => trip.name.trim().toLowerCase() === key);
+    const matches = exact.length > 0 ? exact : trips.filter((trip) => trip.name.toLowerCase().includes(key));
+    if (matches.length !== 1) {
+      const which = matches.length === 0 ? "no trip" : "more than one trip";
+      return { queued: false, refused: `You are travelling on ${which} called “${input.trip}”.` };
+    }
+    const { tripId } = matches[0]!;
+    const id = input.view === undefined ? `go:trip:${tripId}` : `go:trip:${tripId}:view:${input.view}`;
+    if (!deps.paletteCommands.add({ id, needsApproval: false })) return { queued: false, refused: "That is not somewhere I can take them." };
+    return { queued: true, note: QUEUED_NOTE };
+  },
+});
+
+export const NAVIGATION_TOOLS = [goToTool, proposeNotebookEditingTool, openTripTool] as const;

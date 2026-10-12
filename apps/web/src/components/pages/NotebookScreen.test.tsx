@@ -30,9 +30,24 @@ vi.mock("@/lib/apiClient", async (orig) => {
 // way so a reader is not left wondering whether the screen got the real client.
 import { NotebookScreen } from "./NotebookScreen";
 import { PhoneAskTab } from "@/components/nav/PhoneTabBar";
+import { usePhoneAsk } from "@/components/nav/phoneAsk";
 import { fetchTripAccess } from "@/lib/apiClient";
 import { cachedRead } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
+
+/**
+ * ⌘K's *Ask:* row as the palette reads it: the mounted screen's entry, and its
+ * `onAsk` if it offers one. A button rather than the palette itself, which
+ * would bring the session and trip reads along with it.
+ */
+function PaletteAskProbe({ text }: { text: string }) {
+  const onAsk = usePhoneAsk()?.onAsk;
+  return onAsk === undefined ? null : (
+    <button type="button" onClick={() => onAsk(text)}>
+      Ask: {text}
+    </button>
+  );
+}
 
 /** A notebook the reader saved as a template from another trip (M14 link 10). */
 function savedPackingList() {
@@ -615,6 +630,28 @@ describe("NotebookScreen", () => {
       await waitFor(() => expect(askAssistantMock).toHaveBeenCalled());
       const [, , scope] = askAssistantMock.mock.calls[0]!;
       expect(scope).toEqual({ kind: "trip" });
+    });
+
+    // M45 D6: ⌘K's *Ask: <text>* works "inside a trip", and the palette
+    // offers the row only where the screen's entry carries `onAsk`
+    // (`CommandPalette.test.tsx` pins that half). Choosing it opens the sheet
+    // and sends the words with this screen's scope.
+    it("takes ⌘K's Ask: text into the sheet and sends it, scoped to the trip", async () => {
+      server.use(...makePagesHandlers([pageFixture({ tripId: TRIP_ID })]));
+      render(
+        <>
+          <NotebookScreen tripId={TRIP_ID} />
+          <PaletteAskProbe text="Which of these is stale?" />
+        </>,
+      );
+      await screen.findByRole("region", { name: "Your notebooks" });
+      await userEvent.click(await screen.findByRole("button", { name: "Ask: Which of these is stale?" }));
+
+      expect(await screen.findByRole("complementary", { name: "Assistant" })).toBeTruthy();
+      await waitFor(() => expect(askAssistantMock).toHaveBeenCalled());
+      const [, messages, scope] = askAssistantMock.mock.calls[0]! as [string, AskWireMessage[], AskScope];
+      expect(scope).toEqual({ kind: "trip" });
+      expect(JSON.stringify(messages.at(-1))).toContain("Which of these is stale?");
     });
 
     // DRIFT.md build-check 4c: *"An open assistant sheet must block the tab

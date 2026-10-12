@@ -73,9 +73,20 @@ function spokenIn(body: string): string {
     .join("");
 }
 
+let kyoto = "";
+
+/** The palette commands a turn's final chunk carried, or [] when it named none. */
+function paletteCommandsIn(body: string): unknown[] {
+  return body
+    .split("\n")
+    .filter((line) => line.startsWith("data: ") && line !== "data: [DONE]")
+    .map((line) => JSON.parse(line.slice("data: ".length)) as { messageMetadata?: { paletteCommands?: unknown[] } })
+    .flatMap((chunk) => chunk.messageMetadata?.paletteCommands ?? []);
+}
+
 beforeAll(async () => {
   await upsertUser({ id: ASKER, email: null, name: null, image: null });
-  await seedTrip("Kyoto in spring", [
+  kyoto = await seedTrip("Kyoto in spring", [
     ["Kyoto", "JP"],
     ["Kyoto", "JP"],
   ]);
@@ -123,6 +134,20 @@ describe("POST /api/ask", () => {
     expect(ledgers[0]!.cost.endpoint).toBe("ask.account");
     const [row] = await db.select({ endpoint: aiUsage.endpoint }).from(aiUsage).where(eq(aiUsage.id, ledgers[0]!.cost.turnId!));
     expect(row?.endpoint).toBe("ask.account");
+  });
+
+  // M45 D6's walk: "open my Kyoto trip on the map" from Home lands on that
+  // trip's Map view, by the palette command Home's ⌘K registers for it. Only a
+  // trip the asker is travelling on: "Paris for Sam" is theirs to open but not
+  // theirs to go on, and the account surface counts it nowhere (D2).
+  it("takes the asker to a trip they are travelling on by its palette command, and to no other", async () => {
+    const going = await handleAccountAskRequest(ask("open my Kyoto trip on the map"), simulatedModel());
+    expect(paletteCommandsIn(await going.text())).toEqual([{ id: `go:trip:${kyoto}:view:Map`, needsApproval: false }]);
+
+    const refused = await handleAccountAskRequest(ask("open my Paris trip"), simulatedModel());
+    const body = await refused.text();
+    expect(paletteCommandsIn(body)).toEqual([]);
+    expect(spokenIn(body)).toContain("couldn't take you there");
   });
 
   it("is the account handler behind the route, and refuses a signed-out caller", async () => {
