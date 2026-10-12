@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { AI_NOT_ENTITLED_CODE, type ApiError, type BeyondTripAskScope } from "@/lib/apiClient";
-import { useIsPhone } from "@/lib/useIsPhone";
-import { usePhoneAskEntry } from "@/components/nav/phoneAsk";
+import { useIsPhone, useIsTabletWidth } from "@/lib/useIsPhone";
+import { usePhoneAsk, usePhoneAskEntry } from "@/components/nav/phoneAsk";
+import { AskPill } from "./AskPill";
 import { AssistantRail } from "./AssistantRail";
 import { beyondTripThreadName } from "./askThreadStore";
 import { useAskThread } from "./useAskThread";
@@ -22,13 +23,18 @@ const SURFACE = {
  * demand with a Hide, so they take the shared half (the scope, its thread
  * name, `SURFACE`) and own their open state.
  *
- * Docked from 768px up and always there, so it is chosen by a CSS breakpoint
- * across the first paint (`AssistantRail`'s `presentation` note), and unmounted
- * once `useIsPhone` says this is a phone. There the tab bar's Ask opens the
- * sheet instead, a mount point no first paint has, and only while it is a
- * phone. So at most one composer is mounted on the draft at a time, and a
- * rotation hands the draft from one to the other through storage. One
- * conversation behind both, so the thread is the same in either.
+ * Docked and always there from 1100px up, where the trip board docks too
+ * (Mitchell, 2026-10-12: at 768px Home's grids were left a column they were
+ * not drawn for). Below that it is a sheet, a mount point no first paint has:
+ * the page head's Ask opens it from 768px (`HomeAskButton`), the tab bar's
+ * below, and Hide closes it. So at most one composer is mounted on the draft
+ * at a time, and a resize or rotation hands the draft from one to the other
+ * through storage. One conversation behind both, so the thread is the same.
+ *
+ * The docked rail is mounted until the width hooks answer, under CSS that
+ * hides it on a phone (`AssistantRail`'s `presentation` note). Between 768 and
+ * 1099px that is one frame of the rail on a hard load: the line is the board's
+ * constant, which no CSS class can name.
  *
  * The caller lays it beside its content in a flex row, as the board does.
  */
@@ -36,14 +42,16 @@ export function BeyondTripAssistant({ scope }: { scope: BeyondTripAskScope }) {
   const name = beyondTripThreadName(scope);
   const ask = useAskThread({ scope, persistAs: name, errorMessage: (error: ApiError) => error.message });
   const isPhone = useIsPhone();
+  const isTabletWidth = useIsTabletWidth();
+  const docks = !isPhone && !isTabletWidth;
   const [sheetOpen, setSheetOpen] = useState(false);
-  const sheetShown = sheetOpen && isPhone;
+  const sheetShown = sheetOpen && !docks;
   // ⌘K's *Ask: <text>*, for whichever rail is mounted; it drops it once taken.
   const [handOff, setHandOff] = useState<{ text: string } | null>(null);
 
-  // Read at a press, after hydration, so `useIsPhone` has answered by then.
-  usePhoneAskEntry(() => setSheetOpen(true), sheetShown || !isPhone, (text) => {
-    if (isPhone) setSheetOpen(true);
+  // Read at a press, after hydration, so the width hooks have answered by then.
+  usePhoneAskEntry(() => setSheetOpen(true), sheetShown || docks, (text) => {
+    if (!docks) setSheetOpen(true);
     setHandOff({ text });
   });
 
@@ -68,7 +76,7 @@ export function BeyondTripAssistant({ scope }: { scope: BeyondTripAskScope }) {
 
   return (
     <>
-      {!isPhone && (
+      {docks && (
         <div className="hidden md:block">
           <AssistantRail presentation="docked" {...shared} />
         </div>
@@ -76,4 +84,16 @@ export function BeyondTripAssistant({ scope }: { scope: BeyondTripAskScope }) {
       {sheetShown && <AssistantRail presentation="sheet" {...shared} onHide={() => setSheetOpen(false)} />}
     </>
   );
+}
+
+/**
+ * Home's Ask from 768 to 1099px, where its assistant is not docked and there
+ * is no tab bar: the trip header's pill, opening the same entry the tab bar
+ * and ⌘K do (`usePhoneAskEntry` above), so it cannot open it differently.
+ */
+export function HomeAskButton() {
+  const entry = usePhoneAsk();
+  const isTabletWidth = useIsTabletWidth();
+  if (!isTabletWidth || entry === null) return null;
+  return <AskPill open={entry.open} onOpen={entry.onOpen} />;
 }

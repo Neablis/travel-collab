@@ -34,7 +34,7 @@ import { tripSpend, plannedOfBudgetLine } from "@/lib/cost";
 import { orderHomeTrips } from "@/lib/homeTripOrder";
 import { newTripCommand } from "@/components/palette/commands";
 import { usePaletteSource } from "@/components/palette/paletteRegistry";
-import { BeyondTripAssistant } from "@/components/assistant/BeyondTripAssistant";
+import { BeyondTripAssistant, HomeAskButton } from "@/components/assistant/BeyondTripAssistant";
 
 /** Home's assistant answers across every trip you travelled on (M45 D7). */
 const ACCOUNT_SCOPE = { kind: "account" } as const;
@@ -578,9 +578,14 @@ export default function Home() {
                 the grid on a phone, and in the empty state. Starting from a
                 Playbook already lives in the new-trip sheet's own row and in
                 the empty state, so a third copy here was the duplicate. */}
-            <Button type="button" variant="primary" disabled={cloningDemo} onClick={startNewTrip}>
-              New trip
-            </Button>
+            <div className="flex items-center gap-2">
+              {/* And Ask, from 768 to 1099px only, where the assistant is not
+                  docked beside the list (Mitchell, 2026-10-12). */}
+              <HomeAskButton />
+              <Button type="button" variant="primary" disabled={cloningDemo} onClick={startNewTrip}>
+                New trip
+              </Button>
+            </div>
           </div>
         </div>
 

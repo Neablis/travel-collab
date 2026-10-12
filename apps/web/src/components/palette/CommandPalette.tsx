@@ -4,6 +4,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation";
 import type { TripSummary } from "@tc/contracts";
 import { useSessionUser } from "@/components/account/useSessionUser";
+import { AI_ASK_ENTITLEMENT, useEntitled } from "@/components/assistant/useAiEntitled";
 import { usePhoneAsk } from "@/components/nav/phoneAsk";
 import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -42,7 +43,8 @@ import { type PaletteCommand, usePaletteCommands, usePaletteSource } from "./pal
 // **No match is offered to the assistant** (M45 D6, ADR-072 §7, amending
 // ADR-068 §5): where a screen has mounted one, the only row is *Ask: <text>*,
 // and choosing it opens the assistant and sends the text. Nothing reaches the
-// model before the row is chosen. Elsewhere, no match goes nowhere.
+// model before the row is chosen. Elsewhere, and for an account whose plan
+// has no assistant, no match goes nowhere.
 
 // On a Mac, Ctrl+K is a text field's kill-line, so ⌘K alone opens it there
 // (PR 398 review). `userAgentData` where the browser has it, else the
@@ -87,6 +89,9 @@ export function CommandPalette() {
   const signedIn = useSessionUser() != null;
   const registered = usePaletteCommands();
   const ask = usePhoneAsk();
+  // Asked only where a screen offers an Ask:, and so never for a signed-out
+  // visitor's demo, which has no account to ask about.
+  const aiEntitled = useEntitled(AI_ASK_ENTITLEMENT, signedIn && ask?.onAsk !== undefined);
   const [trips, setTrips] = useState<readonly TripSummary[]>([]);
   // Counts openings, so each one reads the trips afresh.
   const [openings, setOpenings] = useState(0);
@@ -177,7 +182,9 @@ export function CommandPalette() {
           }),
         );
   const askText = query.trim();
-  const onAsk = ask?.onAsk;
+  // **No Ask: for a plan without the assistant** (Mitchell, 2026-10-12): the
+  // rail's own gate, read the rail's way, so `null` (unknown) still offers it.
+  const onAsk = aiEntitled === false ? undefined : ask?.onAsk;
   const rows: Row[] =
     searched.length === 0 && askText !== "" && onAsk !== undefined && (!signedIn || readOpening === openings)
       ? [askRow(askText, onAsk)]

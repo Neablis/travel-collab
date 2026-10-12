@@ -335,8 +335,9 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
   // neither is the sheet's dress, which is unconditional because there is only
   // one presentation here to have.
   const isPhone = useIsPhone();
-  // ⌘K's *Ask: <text>* (M45 D6), as the board takes it: dropped on close,
-  // since the sheet remounts on the next open and would send it again.
+  // ⌘K's *Ask: <text>* (M45 D6), as the board takes it: dropped once the
+  // sheet has taken it, since it remounts on the next open and must not
+  // find it again.
   const [handOff, setHandOff] = useState<{ text: string } | null>(null);
   // Closing hangs up on the turn in flight, the same as `PageScreen`: the
   // thread lives on this screen, so unmounting the sheet cancels nothing on its
@@ -344,7 +345,6 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
   // behind a surface the user has put away.
   const closeAssistant = () => {
     ask.cancel();
-    setHandOff(null);
     setAssistantOpen(false);
   };
 
@@ -890,6 +890,7 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
           // Its own name, apart from the board's thread (KI-2026-10-12-g).
           rememberDraftAs={`notebook:${tripId}`}
           incoming={handOff}
+          onIncomingTaken={() => setHandOff(null)}
           onNewConversation={ask.startNewConversation}
           onAsk={(text) => void ask.runAsk(text)}
           asking={ask.asking}

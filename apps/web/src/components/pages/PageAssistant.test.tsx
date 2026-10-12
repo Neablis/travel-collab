@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Mock } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
@@ -200,11 +200,18 @@ describe("the assistant on a notebook page", () => {
   // out of this file. Choosing it opens the panel and asks with this page.
   it("takes ⌘K's Ask: text into the panel and sends it with this page's scope", async () => {
     function PaletteAskProbe({ text }: { text: string }) {
-      const onAsk = usePhoneAsk()?.onAsk;
-      return onAsk === undefined ? null : (
-        <button type="button" onClick={() => onAsk(text)}>
-          Ask: {text}
-        </button>
+      const entry = usePhoneAsk();
+      if (entry?.onAsk === undefined) return null;
+      const { onAsk, onOpen } = entry;
+      return (
+        <>
+          <button type="button" onClick={() => onAsk(text)}>
+            Ask: {text}
+          </button>
+          <button type="button" onClick={onOpen}>
+            Open the assistant
+          </button>
+        </>
       );
     }
     const trip = tripDetailFixture({ tripId: crypto.randomUUID(), days: [] });
@@ -227,6 +234,14 @@ describe("the assistant on a notebook page", () => {
     const [{ scope }, messages] = askAssistantMock.mock.calls[0]! as [AskWhere, AskWireMessage[]];
     expect(scope).toEqual({ kind: "page", pageId: page.id });
     expect(JSON.stringify(messages.at(-1))).toContain("Add a packing list");
+
+    // Taken once: the panel mounts afresh on the next open, and must not find
+    // the words again (PR 426, the board's finding 3).
+    await turnSettled();
+    await userEvent.click(within(screen.getByRole("complementary", { name: "Assistant" })).getByRole("button", { name: "Hide" }));
+    await userEvent.click(screen.getByRole("button", { name: "Open the assistant" }));
+    expect(await screen.findByRole("complementary", { name: "Assistant" })).toBeTruthy();
+    expect(askAssistantMock).toHaveBeenCalledTimes(1);
   });
 
   it("asks with a page scope carrying THIS page's id", async () => {

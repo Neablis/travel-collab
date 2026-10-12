@@ -967,8 +967,9 @@ export function PageScreen({
   // because only one of the two can be true of any given turn.
   const [turnRefusal, setTurnRefusal] = useState<string | null>(null);
 
-  // ⌘K's *Ask: <text>* (M45 D6), as the board takes it: dropped on close,
-  // since the rail remounts on the next open and would send it again.
+  // ⌘K's *Ask: <text>* (M45 D6), as the board takes it: dropped once the
+  // rail has taken it, since it remounts on the next open and must not
+  // find it again.
   const [handOff, setHandOff] = useState<{ text: string } | null>(null);
   // **Closing the surface hangs up on the turn.** Unmounting `AssistantRail`
   // does not: `useAskThread` lives HERE, so its cleanup runs only when the whole
@@ -977,7 +978,6 @@ export function PageScreen({
   // by Copilot and CodeRabbit on PR 139.
   const closeAssistant = () => {
     ask.cancel();
-    setHandOff(null);
     setAssistantOpen(false);
   };
   // **A phone's Ask is the tab bar's** (Mitchell, 2026-10-10: "Dont forget this
@@ -1698,6 +1698,7 @@ export function PageScreen({
           // The unsent question, per page as well (KI-2026-10-12-g).
           rememberDraftAs={`page:${pageId}`}
           incoming={handOff}
+          onIncomingTaken={() => setHandOff(null)}
           // The phone's line is derived from the surface (§23); the desktop's
           // is the panel's own and is deliberately left alone — "Looking at" is
           // the floating panel's voice, "Asking about" is the sheet's, and the

@@ -114,6 +114,7 @@ function storable(turn: AssistantTurn): AssistantTurn {
  * was trying to get back to.
  */
 export function loadAskThread(name: string): AssistantTurn[] {
+  sweepUnownedOnce();
   try {
     const raw = window.localStorage.getItem(keyFor(name));
     if (raw === null) return [];
@@ -253,6 +254,7 @@ const DRAFT_PREFIX = "ask_draft_v1";
 
 /** The stored draft for conversation `name`, or null. Never throws. */
 export function loadAskDraft(name: string): string | null {
+  sweepUnownedOnce();
   try {
     return window.localStorage.getItem(`${DRAFT_PREFIX}:${name}`);
   } catch {
@@ -277,6 +279,28 @@ export function saveAskDraft(name: string, text: string): void {
 export function clearAskDraft(name: string): void {
   try {
     window.localStorage.removeItem(`${DRAFT_PREFIX}:${name}`);
+  } catch {
+    // See `saveAskThread`.
+  }
+}
+
+// **Keys from before conversations had owners** (PR 426, round 1): every name
+// was the bare conversation (`trip:<id>`, `account`, `notebook:<id>`,
+// `page:<id>`), so whoever used this browser before can have left a thread or
+// a draft under one. Nothing reads them any more; they are removed once per
+// page load, at the store's first read. An owned name always puts the owner
+// first, so it never has one of these shapes.
+const UNOWNED_KEY = new RegExp(`^(${KEY_PREFIX}|${DRAFT_PREFIX}):(account|(trip|notebook|page):[^:]+)$`);
+let unownedSwept = false;
+
+function sweepUnownedOnce(): void {
+  if (unownedSwept) return;
+  unownedSwept = true;
+  try {
+    const keys = Array.from({ length: window.localStorage.length }, (_, i) => window.localStorage.key(i));
+    for (const key of keys) {
+      if (key !== null && UNOWNED_KEY.test(key)) window.localStorage.removeItem(key);
+    }
   } catch {
     // See `saveAskThread`.
   }

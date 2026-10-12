@@ -1564,6 +1564,37 @@ describe("Home's assistant", () => {
     expect(asked[0]).toContain('"scope":{"kind":"account"}');
   });
 
+  // Mitchell, 2026-10-12: docked from 1100px, the trip board's line. Below it,
+  // and above a phone's tab bar, an Ask button opens it and Hide puts it away.
+  it("docks from 1100px with no Ask button, and below that opens on Ask and closes on Hide", async () => {
+    const homeTrips = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.includes("/api/auth/session")) return jsonResponse(await getSessionMock());
+      if (url.endsWith("/api/trips")) return jsonResponse({ trips: [tripSummaryFixture()] });
+      return jsonResponse({ error: "unexpected" }, 404);
+    });
+    vi.stubGlobal("fetch", homeTrips);
+    const wide = render(<Home />);
+    expect(await screen.findByRole("link", { name: /japan/i })).toBeTruthy();
+    expect(screen.getByRole("complementary", { name: "Assistant" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Ask" })).toBeNull();
+    wide.unmount();
+
+    setViewportMatches({ "(min-width: 768px) and (max-width: 1099px)": true });
+    try {
+      render(<Home />);
+      expect(await screen.findByRole("link", { name: /japan/i })).toBeTruthy();
+      expect(screen.queryByRole("complementary", { name: "Assistant" })).toBeNull();
+      await userEvent.click(await screen.findByRole("button", { name: "Ask" }));
+      const rail = await screen.findByRole("complementary", { name: "Assistant" });
+      expect(within(rail).getByPlaceholderText("Ask about your trips…")).toBeTruthy();
+      await userEvent.click(within(rail).getByRole("button", { name: "Hide" }));
+      await waitFor(() => expect(screen.queryByRole("complementary", { name: "Assistant" })).toBeNull());
+    } finally {
+      setViewportMatches({});
+    }
+  });
+
   // PR 426 review, finding 7: on a phone the docked rail used to stay mounted,
   // hidden by CSS, beside the sheet: two composers on one stored draft, and
   // both panels on screen after a rotation. There the sheet is the only one.

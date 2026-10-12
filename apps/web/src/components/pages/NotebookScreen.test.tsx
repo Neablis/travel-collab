@@ -37,15 +37,22 @@ import { tripKeys } from "@/lib/queryKeys";
 
 /**
  * ⌘K's *Ask:* row as the palette reads it: the mounted screen's entry, and its
- * `onAsk` if it offers one. A button rather than the palette itself, which
- * would bring the session and trip reads along with it.
+ * `onAsk` if it offers one, and the entry's opener beside it. Buttons rather
+ * than the palette itself, which would bring the session and trip reads along.
  */
 function PaletteAskProbe({ text }: { text: string }) {
-  const onAsk = usePhoneAsk()?.onAsk;
-  return onAsk === undefined ? null : (
-    <button type="button" onClick={() => onAsk(text)}>
-      Ask: {text}
-    </button>
+  const entry = usePhoneAsk();
+  if (entry?.onAsk === undefined) return null;
+  const { onAsk, onOpen } = entry;
+  return (
+    <>
+      <button type="button" onClick={() => onAsk(text)}>
+        Ask: {text}
+      </button>
+      <button type="button" onClick={onOpen}>
+        Open the assistant
+      </button>
+    </>
   );
 }
 
@@ -651,6 +658,13 @@ describe("NotebookScreen", () => {
       const [{ scope }, messages] = askAssistantMock.mock.calls[0]! as [AskWhere, AskWireMessage[]];
       expect(scope).toEqual({ kind: "trip" });
       expect(JSON.stringify(messages.at(-1))).toContain("Which of these is stale?");
+
+      // Taken once: the sheet mounts afresh on the next open, and must not
+      // find the words again (PR 426, the board's finding 3).
+      await userEvent.click(within(screen.getByRole("complementary", { name: "Assistant" })).getByRole("button", { name: "Hide" }));
+      await userEvent.click(screen.getByRole("button", { name: "Open the assistant" }));
+      expect(await screen.findByRole("complementary", { name: "Assistant" })).toBeTruthy();
+      expect(askAssistantMock).toHaveBeenCalledTimes(1);
     });
 
     // DRIFT.md build-check 4c: *"An open assistant sheet must block the tab

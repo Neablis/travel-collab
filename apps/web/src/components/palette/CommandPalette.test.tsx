@@ -13,6 +13,18 @@ vi.mock("@/components/account/useSessionUser", () => ({
   useSessionUser: () => (signedIn ? { userId: "u1", email: "a@example.com", name: "A" } : null),
 }));
 
+// Whether the plan includes the assistant: `null` (unknown, read as entitled)
+// unless a test says otherwise. Asked only where there is an Ask: to offer.
+let aiEntitled: boolean | null = null;
+const entitlementAsked = vi.fn();
+vi.mock("@/components/assistant/useAiEntitled", () => ({
+  AI_ASK_ENTITLEMENT: "ai.ask",
+  useEntitled: (capability: string, active: boolean) => {
+    if (active) entitlementAsked(capability);
+    return active ? aiEntitled : null;
+  },
+}));
+
 const fetchTrips = vi.fn();
 vi.mock("@/lib/apiClient", () => ({ fetchTrips: () => fetchTrips() }));
 
@@ -30,6 +42,8 @@ beforeEach(() => {
   platform = "MacIntel";
   vi.spyOn(navigator, "platform", "get").mockImplementation(() => platform);
   signedIn = true;
+  aiEntitled = null;
+  entitlementAsked.mockReset();
   push.mockReset();
   fetchTrips.mockReset().mockResolvedValue({ ok: true, value: [] });
 });
@@ -150,6 +164,24 @@ describe("CommandPalette", () => {
     await userEvent.keyboard("{Enter}");
     await waitFor(() => expect(onAsk).toHaveBeenCalledWith("which city have I been to most"));
     expect(palette()).toBeNull();
+  });
+
+  // Mitchell, 2026-10-12: an account whose plan has no assistant is not
+  // offered one here; its unmatched text says No match, as anywhere else.
+  it("offers no Ask: row to an account whose plan has no assistant, and one to an account whose plan does", async () => {
+    taken.push(registerPhoneAsk({ open: false, onOpen: vi.fn(), onAsk: vi.fn() }));
+    aiEntitled = false;
+    const { unmount } = render(<CommandPalette />);
+    await userEvent.keyboard("{Meta>}k{/Meta}which city have I been to most");
+    expect(await screen.findByText("No match")).toBeTruthy();
+    expect(screen.queryByRole("option", { name: /^Ask:/ })).toBeNull();
+    expect(entitlementAsked).toHaveBeenCalledWith("ai.ask");
+    unmount();
+
+    aiEntitled = true;
+    render(<CommandPalette />);
+    await userEvent.keyboard("{Meta>}k{/Meta}which city have I been to most");
+    expect(await screen.findByRole("option", { name: "Ask: which city have I been to most" })).toBeTruthy();
   });
 
   it("offers no Ask: row while a command matches", async () => {

@@ -18,7 +18,8 @@ import {
   saveAskThread,
 } from "./askThreadStore";
 
-const NAME = "trip:11111111-2222-4333-8444-555566667777";
+// Owned, as every caller stores it: an unowned name is a legacy key, swept.
+const NAME = ownedAskName("user-a", "trip:11111111-2222-4333-8444-555566667777");
 
 const user = (id: string, text: string): AssistantTurn => ({ id, role: "user", text });
 const answer = (id: string, text: string, extra: Partial<Extract<AssistantTurn, { role: "assistant" }>> = {}) =>
@@ -244,5 +245,41 @@ describe("forgetting one account's conversations", () => {
     expect(loadAskDraft(ownedAskName("user-a", NAME))).toBeNull();
     expect(loadAskThread(ownedAskName("user-ab", "account"))).toEqual([turn]);
     expect(loadAskDraft(ownedAskName("user-b", NAME))).toBe("where next?");
+  });
+});
+
+// PR 426's round 1 put an owner in every name. Keys stored before it have
+// none, and can hold the conversation of whoever used this browser before.
+describe("the keys stored before conversations had owners", () => {
+  it("are removed on the store's first use, and owned keys are kept", async () => {
+    window.localStorage.setItem("ask_thread_v1:trip:11111111-2222-4333-8444-555566667777", "[]");
+    window.localStorage.setItem("ask_thread_v1:account", "[]");
+    window.localStorage.setItem("ask_draft_v1:notebook:t1", "and dinner?");
+    window.localStorage.setItem("ask_draft_v1:page:p1", "a packing list");
+    window.localStorage.setItem(`ask_draft_v1:${NAME}`, "where next?");
+    window.localStorage.setItem("ask_thread_v1:user-a:account", "[]");
+    window.localStorage.setItem("theme", "dark");
+
+    // A fresh module is a fresh page load.
+    vi.resetModules();
+    const store = await import("./askThreadStore");
+    expect(store.loadAskDraft(NAME)).toBe("where next?");
+
+    expect(Object.keys(window.localStorage).sort()).toEqual([`ask_draft_v1:${NAME}`, "ask_thread_v1:user-a:account", "theme"].sort());
+  });
+
+  it("still lets the store work when the browser refuses storage", async () => {
+    vi.stubGlobal("localStorage", {
+      get length(): number {
+        throw new Error("SecurityError");
+      },
+      getItem: () => {
+        throw new Error("SecurityError");
+      },
+    });
+    vi.resetModules();
+    const store = await import("./askThreadStore");
+    expect(store.loadAskDraft(NAME)).toBeNull();
+    expect(store.loadAskThread(NAME)).toEqual([]);
   });
 });
