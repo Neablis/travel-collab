@@ -36,9 +36,10 @@ Mitchell moved **M43 and M44 to the end** (*"Neither are impacting anything toda
   trip-on-a-view. **Ready to merge**: CI green on `d98fd1e` (run 38266060522), three review
   rounds, every finding fixed. The merge is Mitchell's; part 2 starts once it merges.
 - Part 3, PR 421 (`claude/m45-part3-account-ask`): `/api/ask`, the cross-trip tools, ledger
-  `ask.account`, eval cases. In its third fix round: review approved at `29de655`, two minor
-  findings being fixed. Its live eval still waits on Mitchell's go-ahead. The eval's country-name
-  check is filed as KI-2026-10-12-c, a follow-up rather than a merge condition.
+  `ask.account`, eval cases. **Ready to merge**: CI green on `8c4b228` on every job (first
+  attempt), four review rounds, every finding fixed or answered; m8 and n1-r3 moved to part 0 as
+  the ledger queries and KI-20261012-c. Its live eval has not been run and waits on Mitchell's
+  go-ahead. The merge is Mitchell's.
 - CI infra: the postgres service image pull failed three times (PRs 413, 422, 421), each green on
   a re-run; filed as KI-2026-10-12-b.
 - Part 2 (the assistant runs palette commands) starts after PR 422 merges; part 4 (Home rail,
