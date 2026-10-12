@@ -1,0 +1,109 @@
+{
+  "playbook": {
+    "savedDayId": "0846d130-f4bc-468a-8b53-072a1b78f3e1",
+    "ownerId": "google-113473133903263768833",
+    "ownerDisplayName": "Neablis",
+    "name": "Hanoi in 4 days: street food, egg coffee & Old Quarter chaos",
+    "cities": [
+      "Hanoi",
+      "Ninh Bình",
+      "Tam Cốc"
+    ],
+    "matchedCities": [],
+    "stopCount": 16,
+    "dayCount": 4,
+    "window": null,
+    "preview": [
+      {
+        "title": "Breakfast at Phở Gia Truyền",
+        "start": "07:30"
+      },
+      {
+        "title": "Hoàn Kiếm Lake and Ngọc Sơn Temple",
+        "start": "09:30"
+      },
+      {
+        "title": "Bánh mì at Bánh Mì 25",
+        "start": "11:00"
+      }
+    ],
+    "totalCost": null,
+    "adds": 12,
+    "rating": 4.7,
+    "reviewCount": 23,
+    "visibility": "public",
+    "authorKind": "human",
+    "sourceTripName": "Hanoi in 4 days: street food, egg coffee & Old Quarter chaos",
+    "createdAt": "2026-10-04T16:10:53.098Z",
+    "publishedAt": "2026-10-04T18:13:25.641Z",
+    "isMine": false,
+    "cover": {
+      "unsplashId": "82_jgTdi51Q",
+      "urls": {
+        "raw": "https://images.unsplash.com/photo-1712576752855-bf4721d76a86?ixid=M3wxMDk0NzI5fDB8MXxzZWFyY2h8NXx8SGFub2l8ZW58MXwwfHx8MTc5MTM4MzgxOXww&ixlib=rb-4.1.0",
+        "regular": "https://images.unsplash.com/photo-1712576752855-bf4721d76a86?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3wxMDk0NzI5fDB8MXxzZWFyY2h8NXx8SGFub2l8ZW58MXwwfHx8MTc5MTM4MzgxOXww&ixlib=rb-4.1.0&q=80&w=1080",
+        "small": "https://images.unsplash.com/photo-1712576752855-bf4721d76a86?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3wxMDk0NzI5fDB8MXxzZWFyY2h8NXx8SGFub2l8ZW58MXwwfHx8MTc5MTM4MzgxOXww&ixlib=rb-4.1.0&q=80&w=400"
+      },
+      "alt": "a group of people walking down a train track",
+      "photographerName": "Elric Pxl",
+      "photographerUrl": "https://unsplash.com/@elricpxl",
+      "photoPageUrl": "https://unsplash.com/photos/a-group-of-people-walking-down-a-train-track-82_jgTdi51Q"
+    },
+    "description": "Outdoors & food",
+    "tags": [
+      "meal",
+      "outdoors"
+    ],
+    "namedTags": []
+  },
+  "memory": [
+    [
+      {
+        "kind": "text",
+        "text": "Day six, "
+      },
+      {
+        "kind": "chip",
+        "name": "city",
+        "text": "Tokyo"
+      },
+      {
+        "kind": "text",
+        "text": " – "
+      },
+      {
+        "kind": "chip",
+        "name": "city",
+        "text": "Hakone"
+      },
+      {
+        "kind": "text",
+        "text": ": "
+      },
+      {
+        "kind": "chip",
+        "name": "value",
+        "text": "5 stops"
+      },
+      {
+        "kind": "text",
+        "text": ", and the one we still talk about is "
+      },
+      {
+        "kind": "chip",
+        "name": "value",
+        "text": "Check in at Gora Kadan"
+      },
+      {
+        "kind": "text",
+        "text": ". We stayed in the onsen until our fingers wrinkled, then ate far too much kaiseki."
+      }
+    ],
+    [
+      {
+        "kind": "text",
+        "text": "Nobody was in a hurry. Priya says it was the best night of the trip, and nobody argued."
+      }
+    ]
+  ]
+}

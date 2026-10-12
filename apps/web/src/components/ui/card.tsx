@@ -1,7 +1,7 @@
 import { forwardRef } from "react";
 import { cn } from "../../lib/cn";
 
-export const Card = forwardRef<HTMLElement, { raised?: boolean; as?: "div" | "li" } & React.HTMLAttributes<HTMLElement>>(
+export const Card = forwardRef<HTMLElement, { raised?: boolean; as?: "div" | "li" | "section" } & React.HTMLAttributes<HTMLElement>>(
   function Card({ raised = false, as: Tag = "div", className, ...props }, ref) {
     return (
       <Tag

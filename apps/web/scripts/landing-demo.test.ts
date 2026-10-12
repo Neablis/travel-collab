@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
-import { buildLandingDemo, CARDS_PATH, serializeLandingDemo, snapshotPath } from "./landing-demo";
+import { describe, expect, it, vi } from "vitest";
+import { buildLandingDemo, buildLandingFeatures, CARDS_PATH, FEATURES_PATH, serializeLandingDemo, snapshotPath } from "./landing-demo";
 import { demoTripCards } from "@/server/demoTrip";
 
 // `pnpm landing:verify`, inside `pnpm test` — where the fixture's own check
@@ -36,6 +36,31 @@ describe.each(SLUGS)("the landing's %s snapshot", (slug) => {
   // `/demo/<slug>` moves its dates and a frozen one would go stale.
   it("carries no calendar date", () => {
     expect(readFileSync(snapshotPath(slug), "utf8")).not.toMatch(/\d{4}-\d{2}-\d{2}|\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b/);
+  });
+});
+
+// The landing's card shows a cover photo, which is a stored `TripCover` and
+// Unsplash's CDN, never Unsplash's API: generating or verifying the snapshot
+// asks nobody anything, so `landing:verify` runs offline in CI.
+describe("the landing's snapshot generator", () => {
+  it("makes no network request, to Unsplash or anywhere", () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("offline"));
+    buildLandingFeatures();
+    expect(fetchSpy).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
+  });
+});
+
+// M42 part 9: the Playbooks block's card is a bundled playbook and the
+// Notebook block's page resolves widgets against Japan, so an edit to either
+// moves what the landing draws, and fails here until it is regenerated.
+describe("the landing's feature blocks", () => {
+  it("are exactly what the generator makes from the current playbook and trip", () => {
+    expect(existsSync(FEATURES_PATH), `${FEATURES_PATH} is not committed`).toBe(true);
+    const committed = readFileSync(FEATURES_PATH, "utf8");
+    const fresh = serializeLandingDemo(buildLandingFeatures());
+    expect(JSON.parse(committed)).toEqual(JSON.parse(fresh));
+    expect(committed).toBe(fresh);
   });
 });
 

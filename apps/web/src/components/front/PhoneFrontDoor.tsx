@@ -3,6 +3,7 @@
 import { type ReactNode, useEffect, useRef } from "react";
 import Link from "next/link";
 import { BrandMark } from "@/components/BrandMark";
+import { LandingFeaturePanel } from "@/components/front/LandingFeaturePanel";
 import { LandingPricing } from "@/components/front/LandingPricing";
 import { buttonVariants } from "@/components/ui/button";
 import { DataText } from "@/components/ui/data-text";
@@ -118,6 +119,12 @@ function ExampleCard({ children, className }: { children: ReactNode; className?:
  * an hour later — everyone sees it."` — the design's headline and its card's
  * caption concatenated into one sentence, because the card they belonged to was
  * not built. Split back apart, both halves read.
+ *
+ * **Three of the cards are now the product itself** (M42 part 9): the same
+ * river, Discover card and notebook page as the desktop blocks, at phone size
+ * (`LandingFeaturePanel`) — the Discover card in its compact form, which fits
+ * a short phone. The drawings below are the fallback if those cannot load.
+ * Countdown stays a drawing, as on the desktop.
  */
 const CLAIMS: readonly { label: string; body: string; example?: ReactNode }[] = [
   {
@@ -126,56 +133,60 @@ const CLAIMS: readonly { label: string; body: string; example?: ReactNode }[] = 
     label: "Playbooks",
     body: "Relive someone's perfect day.",
     example: (
-      <ExampleCard className="flex flex-col gap-2.5">
-        <span className="flex items-baseline justify-between gap-2.5">
-          <Text as="span" className="text-sm font-semibold text-ink">
-            A beach day in Phuket
+      <LandingFeaturePanel panel="playbook-compact">
+        <ExampleCard className="flex flex-col gap-2.5">
+          <span className="flex items-baseline justify-between gap-2.5">
+            <Text as="span" className="text-sm font-semibold text-ink">
+              A beach day in Phuket
+            </Text>
+            <DataText size="xs" className="shrink-0 text-slate">
+              4.8 ★
+            </DataText>
+          </span>
+          <Text as="span" className="text-xs text-slate">
+            6 stops · Relived 214 times
           </Text>
-          <DataText size="xs" className="shrink-0 text-slate">
-            4.8 ★
-          </DataText>
-        </span>
-        <Text as="span" className="text-xs text-slate">
-          6 stops · Relived 214 times
-        </Text>
-        <span className="flex items-center gap-2 rounded-lg bg-moss px-2.5 py-2">
-          <Text as="span" className="text-xs text-ink">
-            Dropping in as Day 2 — times shift to fit.
-          </Text>
-        </span>
-      </ExampleCard>
+          <span className="flex items-center gap-2 rounded-lg bg-moss px-2.5 py-2">
+            <Text as="span" className="text-xs text-ink">
+              Dropping in as Day 2 — times shift to fit.
+            </Text>
+          </span>
+        </ExampleCard>
+      </LandingFeaturePanel>
     ),
   },
   {
     label: "Together",
     body: "The trip starts before the trip.",
     example: (
-      <ExampleCard className="flex flex-col gap-2">
-        {CLAIM_STOPS.map((stop) => (
-          <span key={stop.title} className="flex items-baseline gap-2.5">
-            <DataText size="xs" className="w-14 shrink-0 text-slate">
-              {stop.time}
+      <LandingFeaturePanel panel="together">
+        <ExampleCard className="flex flex-col gap-2">
+          {CLAIM_STOPS.map((stop) => (
+            <span key={stop.title} className="flex items-baseline gap-2.5">
+              <DataText size="xs" className="w-14 shrink-0 text-slate">
+                {stop.time}
+              </DataText>
+              <Text as="span" className="truncate text-sm text-ink">
+                {stop.title}
+              </Text>
+            </span>
+          ))}
+          {/* The caption that used to be stuck on the end of the headline. It is
+              a change somebody else made, which is the whole claim, so it wears
+              the brand tint and their initials rather than sitting in the list. */}
+          <span className="flex items-center gap-2 rounded-lg bg-brand-tint px-2.5 py-2">
+            <DataText
+              size="xs"
+              className="grid size-5 shrink-0 place-items-center rounded-full bg-brand text-surface"
+            >
+              PR
             </DataText>
-            <Text as="span" className="truncate text-sm text-ink">
-              {stop.title}
+            <Text as="span" className="text-xs text-brand-pressed">
+              Priya moved this an hour later — everyone sees it.
             </Text>
           </span>
-        ))}
-        {/* The caption that used to be stuck on the end of the headline. It is
-            a change somebody else made, which is the whole claim, so it wears
-            the brand tint and their initials rather than sitting in the list. */}
-        <span className="flex items-center gap-2 rounded-lg bg-brand-tint px-2.5 py-2">
-          <DataText
-            size="xs"
-            className="grid size-5 shrink-0 place-items-center rounded-full bg-brand text-surface"
-          >
-            PR
-          </DataText>
-          <Text as="span" className="text-xs text-brand-pressed">
-            Priya moved this an hour later — everyone sees it.
-          </Text>
-        </span>
-      </ExampleCard>
+        </ExampleCard>
+      </LandingFeaturePanel>
     ),
   },
   {
@@ -220,18 +231,20 @@ const CLAIMS: readonly { label: string; body: string; example?: ReactNode }[] = 
     // dinner"*). Day 6 is Apr 9 because Countdown's wheels-up is Apr 4, and the
     // four are the landing's own crew.
     example: (
-      <ExampleCard className="flex flex-col gap-2">
-        <DataText size="xs" className="uppercase tracking-wider text-slate">
-          Day 6 · Hakone
-        </DataText>
-        <Text as="span" className="text-sm text-ink">
-          We stayed in the onsen until our fingers wrinkled, then ate far too much kaiseki. Priya says it was the
-          best night of the trip.
-        </Text>
-        <Text as="span" className="text-xs text-slate">
-          Sam, Priya, Dana, Marcus · Apr 9
-        </Text>
-      </ExampleCard>
+      <LandingFeaturePanel panel="notebook">
+        <ExampleCard className="flex flex-col gap-2">
+          <DataText size="xs" className="uppercase tracking-wider text-slate">
+            Day 6 · Hakone
+          </DataText>
+          <Text as="span" className="text-sm text-ink">
+            We stayed in the onsen until our fingers wrinkled, then ate far too much kaiseki. Priya says it was the
+            best night of the trip.
+          </Text>
+          <Text as="span" className="text-xs text-slate">
+            Sam, Priya, Dana, Marcus · Apr 9
+          </Text>
+        </ExampleCard>
+      </LandingFeaturePanel>
     ),
   },
 ];
@@ -336,12 +349,20 @@ export function PhoneFrontDoor() {
         //
         // Read back off `toFixed(3)` rather than off `opacity * tail`: a value
         // that rounds to `0.000` is gone from the screen, and a claim nobody
-        // can see is a claim nobody should hear. Nothing inside a claim is
-        // focusable, so hiding one cannot strand the keyboard on it.
+        // can see is a claim nobody should hear.
+        //
+        // **And nobody should reach or tap it** (M42 part 9). The claims hold
+        // real links now — the Discover card's — and they are stacked, so a
+        // faded claim later in the document sat over the shown one, took its
+        // taps, and kept its own links in the tab order inside `aria-hidden`.
+        // `inert` goes on and off with `aria-hidden`: out of the tab order,
+        // out of hit-testing, so a tap falls through to the claim on screen.
         const painted = (opacity * tail).toFixed(3);
+        const hidden = Number(painted) === 0;
         chunk.style.opacity = painted;
-        if (Number(painted) > 0) chunk.removeAttribute("aria-hidden");
-        else chunk.setAttribute("aria-hidden", "true");
+        if (hidden) chunk.setAttribute("aria-hidden", "true");
+        else chunk.removeAttribute("aria-hidden");
+        chunk.toggleAttribute("inert", hidden);
         chunk.style.transform = `translate3d(0,${dy.toFixed(1)}px,0)`;
       });
     };
@@ -483,8 +504,10 @@ export function PhoneFrontDoor() {
                   data-testid="front-door-claim"
                   // The authored rest state's other half: the three claims that
                   // start invisible start unannounced too, so the server's HTML
-                  // and the paint above agree before any effect has run.
+                  // and the paint above agree before any effect has run — and
+                  // inert, so their links can be neither tabbed to nor tapped.
                   aria-hidden={i !== 0}
+                  inert={i !== 0}
                   className="absolute inset-0 flex flex-col justify-center px-6"
                   // Note 2: the rest state is AUTHORED, not applied by the
                   // effect. Without it a cold load — or a browser that fires no

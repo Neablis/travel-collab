@@ -46,10 +46,7 @@
         "tags": [
           "meal"
         ],
-        "cost": {
-          "amountMinor": 1600,
-          "currency": "USD"
-        },
+        "cost": null,
         "bookedBy": null,
         "participants": [],
         "mode": null,
@@ -107,10 +104,7 @@
           "ticketed",
           "sight"
         ],
-        "cost": {
-          "amountMinor": 1000,
-          "currency": "USD"
-        },
+        "cost": null,
         "bookedBy": null,
         "participants": [],
         "mode": null,
@@ -139,10 +133,7 @@
           "meal",
           "drinks"
         ],
-        "cost": {
-          "amountMinor": 5000,
-          "currency": "USD"
-        },
+        "cost": null,
         "bookedBy": null,
         "participants": [],
         "mode": null,
@@ -200,10 +191,7 @@
           "meal",
           "drinks"
         ],
-        "cost": {
-          "amountMinor": 3000,
-          "currency": "USD"
-        },
+        "cost": null,
         "bookedBy": null,
         "participants": [],
         "mode": null,
@@ -230,10 +218,7 @@
           "meal",
           "drinks"
         ],
-        "cost": {
-          "amountMinor": 11000,
-          "currency": "USD"
-        },
+        "cost": null,
         "bookedBy": null,
         "participants": [],
         "mode": null,
@@ -335,14 +320,14 @@
         "Getaria"
       ],
       "window": "9 am – 10:15 pm",
-      "cost": "$1,656.00",
+      "cost": null,
       "ordinal": 3,
       "date": null,
       "activities": [
         {
           "title": "Breakfast at the hotel",
           "timeWindow": "9 am – 9:45 am",
-          "cost": "$16.00"
+          "cost": null
         },
         {
           "title": "Coast road to Getaria via Zarautz",
@@ -352,22 +337,22 @@
         {
           "title": "Cristóbal Balenciaga Museoa",
           "timeWindow": "10:50 am – 12:20 pm",
-          "cost": "$26.00"
+          "cost": null
         },
         {
           "title": "Lunch at Elkano",
           "timeWindow": "1:30 pm – 3:45 pm",
-          "cost": "$340.00"
+          "cost": null
         },
         {
           "title": "Txakoli tasting at Txomin Etxaniz",
           "timeWindow": "4:30 pm – 6 pm",
-          "cost": "$50.00"
+          "cost": null
         },
         {
           "title": "Quiet dinner at Bodegón Alejandro",
           "timeWindow": "8:30 pm – 10:15 pm",
-          "cost": "$120.00"
+          "cost": null
         }
       ]
     }

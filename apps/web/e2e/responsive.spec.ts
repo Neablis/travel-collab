@@ -830,20 +830,20 @@ test.describe("responsive (narrow viewport, signed out)", () => {
     // Four cards in page order since the 2026-09-28 retro (DRIFT D21), and the
     // order is asserted rather than sorted away: Playbooks leading is the
     // retro's whole argument.
+    //
+    // Each card is a region named by its title (M42 part 9), which is how a
+    // reader reaches one, so that is how they are found — in the desktop tree,
+    // since the phone front door is in the DOM too.
     const cardBoxes = async () => {
-      const boxes = await page.evaluate(() => {
-        return ["Playbooks", "Together", "Countdown", "Notebook"].map((eyebrow) => {
-          const span = Array.from(document.querySelectorAll("span")).find(
-            (el) => el.textContent?.trim() === eyebrow,
-          );
-          // `.min-h-107\\.5` is the card root's own height floor — a real class
-          // it renders with, not a hook added for this test.
-          const card = span?.closest("div.min-h-107\\.5");
-          if (!card) return null;
-          const r = card.getBoundingClientRect();
-          return { x: Math.round(r.x), y: Math.round(r.y), width: Math.round(r.width) };
-        });
-      });
+      const landing = page.getByTestId("desktop-landing");
+      const boxes = await Promise.all(
+        ["Relive someone’s perfect day.", "The trip starts before the trip.", "Too excited to sleep.", "How you’ll remember it."].map(
+          async (title) => {
+            const r = await landing.getByRole("region", { name: title }).boundingBox();
+            return r === null ? null : { x: Math.round(r.x), y: Math.round(r.y), width: Math.round(r.width) };
+          },
+        ),
+      );
       const found = boxes.filter((b) => b !== null);
       // eslint-disable-next-line playwright/no-conditional-in-test -- KI-2026-09-02-b: pre-existing, grandfathered. Do not add more.
       if (found.length !== 4) {
@@ -852,8 +852,7 @@ test.describe("responsive (narrow viewport, signed out)", () => {
       return found as { x: number; y: number; width: number }[];
     };
 
-    // 900px: one column — same x, y strictly increasing in page order, and
-    // each card wider than a column of the two-up layout.
+    // 900px: one column — same x, y strictly increasing in page order.
     await page.setViewportSize({ width: 900, height: 900 });
     await page.goto("/welcome");
     const stacked = await cardBoxes();
@@ -869,12 +868,13 @@ test.describe("responsive (narrow viewport, signed out)", () => {
     await page.setViewportSize({ width: 1280, height: 900 });
     const [playbooks, together, countdown, notebook] = await cardBoxes();
 
-    // The 900px comment claims each stacked card is wider than a two-up
-    // column — this is the line that makes that true rather than aspirational
-    // (CodeRabbit, PR #58). Narrowest stacked vs widest two-up: ~844 vs ~560.
-    expect(Math.min(...stacked.map((b) => b.width))).toBeGreaterThan(
-      Math.max(playbooks!.width, together!.width, countdown!.width, notebook!.width),
-    );
+    // Every card is a card's width in both layouts (M42 part 9): held to
+    // 480px, so a stacked card on a wide tablet does not span it either. This
+    // replaces "a stacked card is wider than a two-up column", which the cap
+    // made untrue on purpose; the x and y checks still tell the layouts apart.
+    for (const box of [...stacked, playbooks!, together!, countdown!, notebook!]) {
+      expect(box.width).toBeLessThanOrEqual(480);
+    }
 
     expect(together!.y).toBe(playbooks!.y);
     expect(notebook!.y).toBe(countdown!.y);
