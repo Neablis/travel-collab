@@ -56,7 +56,11 @@ be exactly that re-implementation, and the two would drift.
    page (`view:`, `go:day:`, `go:stop:`, `people`) still runs. Most unsaved input is met by
    structure rather than a check: a suggester's held draft (`draftHeld`) cannot coincide with a
    run, because a suggester's turns are read-only and are never offered `go_to`; and a notebook's
-   open edit session commits when the page unmounts, keeping a browser draft if that fails. An
+   open edit session commits when the page unmounts, keeping a browser draft if that fails. On a
+   notebook in Reading, a turn's inserts wait on the role read before Editing switches on, so
+   until that read answers, a command in the same reply that leaves the page is held and the
+   reply says so (*"…because what I wrote is still going into this page"*); once the inserts are
+   queued, Editing is on and the edit session commits them when the page unmounts. An
    open stop editor on the board is not: leaving the page unmounts the sheet and the fields typed
    into it, so while it is open a command that leaves the page is held as well, with a note saying
    so (*"I didn't open that notebook, because you have a stop open for editing."*), and moves on
@@ -76,6 +80,12 @@ be exactly that re-implementation, and the two would drift.
    > answers `useAskThread`'s `holdsLeaving` while its editor is open, which holds page-leaving
    > commands the same way and is asked only when no card is waiting; `runPaletteCommands`'s
    > `cardWaiting` became `held`, the reason either guard gives.
+   > The third review of PR 424 found a race behind the edit session's commit: on a notebook in
+   > Reading, a turn's inserts wait on the role read (`mayEdit()`) before Editing is on, and a
+   > page-leaving command in the same reply navigated at once, losing them. PageScreen now counts
+   > inserts awaiting the role read (`insertsAwaitingRole`) and answers `holdsLeaving` while any
+   > are, so the command is held as for an open stop editor. The card-waiting note
+   > (`CARD_WAITING`) now reads *"…waiting for you to approve or turn it down"*.
 5. **An id the page does not offer does nothing.** Availability is the page's: an edit command
    that history preview or read-only access withholds from ⌘K is withheld from the assistant too.
    The reply says it could not.
