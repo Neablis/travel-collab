@@ -61,6 +61,15 @@ Candidates absorbed (each deleted by this gate):
 7. **Home has an always-visible assistant rail**, docked like the trip page's, answering across
    your trips. *Chosen over the recommended panel opened from ⌘K.*
 8. **No memory.** *User memory* stays deferred with the eve port (ADR-062). *As recommended.*
+9. **The playbook pages get an assistant too** (added by Mitchell 2026-10-12, after parts 1–3
+   merged). Every playbook surface gets it: a playbook day, a playbook, Discover, and the city
+   and tag pages. Each sees **exactly what is on that page**: no extra logic and no tool the page
+   has no use for (no free-day, no stop edits). It answers about the playbook itself, and it can
+   **add the playbook to a trip on a day, or start a trip with it**. Those two replace the
+   page's own buttons and run the same commands, after Approve. The person names the trip and
+   day. The assistant never goes looking for "a trip with room". Only signed-in users on a plan
+   with assistant access see it. It is **opened on demand**, like the trip page's rail, not
+   always showing like Home's.
 
 ## Scope
 
@@ -78,7 +87,7 @@ Candidates absorbed (each deleted by this gate):
 
 ## Exit gate
 
-- [ ] **Decisions 1–8 are answered and recorded here**, and ADR-072 is written, amending
+- [ ] **Decisions 1–9 are answered and recorded here**, and ADR-072 is written, amending
       ADR-068 §5.
 - [ ] **Each aggregate tool is unit-tested over a fixture of several trips, each test seen red**,
       including a trip the user is not travelling on, which must be excluded.
@@ -106,4 +115,10 @@ Candidates absorbed (each deleted by this gate):
       provider.
 - [ ] **[walk]** On the PR preview, ask the home assistant *"which city have I been to most"* and
       *"open my Kyoto trip on the map"*.
+- [ ] **Each playbook surface grants only its own tools.** A grants test lists every playbook
+      surface's tools and is seen red with a trip tool (`find_free_time`) added. A signed-out or
+      non-assistant user gets no rail and a refused request.
+- [ ] **[walk]** On a playbook day in the preview, open the assistant, ask what the day covers,
+      then *"add this to my Kyoto trip on day 3"*. Approve, and the stop lands there. *"Start a
+      trip with this day"* creates the trip.
 - [ ] A retro is appended at gate close.

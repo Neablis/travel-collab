@@ -16,6 +16,7 @@ Line numbers are from `main` at `de46773`, so treat them as a starting point, no
 | 3 Account backend | `claude/m45-part3-account-ask` | — | 1 |
 | 2 Client actions | `claude/m45-part2-assistant-runs-commands` | 1 merged | 3 |
 | 4 Home rail and Ask: | `claude/m45-part4-home-rail` | 2 and 3 merged | — |
+| 5 Playbook assistant | `claude/m45-part5-playbook-assistant` | 4 merged | — |
 
 Every part targets `main`. A part that depends on another branches from `main` after that part
 has merged.
@@ -111,6 +112,37 @@ have I been to most"* answered.
 **Preview walk (the gate's [walk] box):** on Home, the rail is there. Ask *"which city have I
 been to most"*, then *"open my Kyoto trip on the map"*. In ⌘K, type a question and choose
 *Ask: …*.
+
+## Part 5 — an assistant on the playbook pages (D9)
+
+**Theme.** D9. Part 4's rail, given a playbook scope. It is not a new rail: part 4 builds the
+rail so that a scope can be passed in.
+
+- **Surfaces:** a playbook day, a playbook, Discover, and the city and tag pages. Each surface's
+  context is what that page shows and nothing more. A day is its stops. A playbook is its days.
+  A list page is its filter (city or tag) and the playbooks it lists.
+- **Tools, granted per surface in `server/assistant/grants.ts`:**
+  - **Reads:** the playbook or day on screen, plus the page's own playbook search, already
+    filtered to the city or tag the page shows.
+  - **Writes, on an approval card:** *add this playbook or day to <trip> on <day>* and *start a
+    trip with it*. Each runs the same server command as the page's own button. The trip and day
+    must be named, by the person or by an id the page holds. With none named, the assistant asks
+    which trip and day. It never searches for a trip with room.
+  - **Nothing else.** No `find_free_time`, no stop edits, no account aggregates.
+- **Access:** signed in, with a plan that has assistant access (the same entitlement as the trip
+  assistant). Otherwise no rail is drawn, and the route refuses through the one admission path.
+  Signed-out visitors to public playbook pages see no rail.
+- **Opened on demand**, like the trip page (`useAssistantVisibility`), never always showing.
+- **Ledger:** its own endpoint value, for example `ask.playbook`. Eval: add cases for one
+  read question and one add-to-trip proposal (added, never edited).
+- **Files:** found by the builder. Expect a `{ kind: "playbook" }` scope in
+  `server/assistant/context.ts`, a playbook row or rows in `grants.ts` and `intents.ts`, a route
+  or a scope on `/api/ask`, the rail mounted on the playbook screens, `simulatedModel.ts` phrase
+  branches, and an e2e spec `apps/web/e2e/m45-playbook-assistant.spec.ts`.
+
+**Preview walk:** on a playbook day, open the assistant and ask what the day covers. Then ask
+*"add this to my Kyoto trip on day 3"*, Approve, and see it land. *"Start a trip with this day"*
+creates one.
 
 ## Gate close (part 0)
 
