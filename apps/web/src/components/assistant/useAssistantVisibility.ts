@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 // Closed until asked for, at every width (Mitchell, walking the PR 71 preview:
 // "Can we default the assistant to minimized? Its a better experience").
@@ -27,7 +27,38 @@ import { useState } from "react";
 // is not remembered: every first paint has the rail unmounted, which is what
 // lets either caller pick its presentation by a width hook (`AssistantRail`'s
 // `presentation` note).
+//
+// Focus goes with it (PR 426 review round 4): `show` remembers the control
+// that opened the rail, which gets focus back once Hide has unmounted the
+// rail, or focus would fall to <body> with the Hide button; and the rail
+// claims one move into its composer per open (`takeFocus`), so a remount
+// while open (the board's header reload) never pulls focus from elsewhere.
+/**
+ * The assistant's open state, closed on every first paint: `open`, `show`,
+ * `hide`, and `takeFocus` for the rail to pass as `AssistantRail`'s.
+ */
 export function useAssistantVisibility() {
   const [open, setOpen] = useState(false);
-  return { open, show: () => setOpen(true), hide: () => setOpen(false) };
+  const opener = useRef<HTMLElement | null>(null);
+  const focusPending = useRef(false);
+  useEffect(() => {
+    if (open) return;
+    const control = opener.current;
+    opener.current = null;
+    // `isConnected`: ⌘K's palette input, for one, is gone by now.
+    if (control?.isConnected) control.focus();
+  }, [open]);
+  const show = () => {
+    if (!open) {
+      opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      focusPending.current = true;
+    }
+    setOpen(true);
+  };
+  const takeFocus = () => {
+    const pending = focusPending.current;
+    focusPending.current = false;
+    return pending;
+  };
+  return { open, show, hide: () => setOpen(false), takeFocus };
 }

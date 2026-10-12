@@ -76,6 +76,8 @@ export interface AskThread {
   simulated: boolean;
   asksRemaining: number;
   restoredDraft: string | null;
+  /** Drops `restoredDraft` once the rail has it, so the next open does not restore it again. */
+  clearRestoredDraft: () => void;
   /** Posts a turn. Deliberately not awaited by callers — see the board's own note. */
   runAsk: (text: string) => Promise<void>;
   startNewConversation: () => void;
@@ -559,6 +561,7 @@ export function useAskThread({
     simulated,
     asksRemaining,
     restoredDraft,
+    clearRestoredDraft: () => setRestoredDraft(null),
     runAsk,
     startNewConversation,
     cancel,

@@ -32,11 +32,13 @@ const SURFACE = {
  * (Mitchell, 2026-10-12: at 768px Home's grids were left a column they were
  * not drawn for).
  *
- * The width is read only once it is open, and nothing opens it before
- * hydration, so no rail is ever mounted on a guess (PR 426 review round 2:
- * one that unmounted a frame later stored its empty box over the draft). One
- * rail at a time, so one composer on the stored draft, which carries what was
- * typed through Hide and a reload. One conversation behind it either way.
+ * Nothing opens it before hydration, so the width it is presented by is
+ * always known when it mounts (PR 426 review round 2: a rail mounted on a
+ * guess stored its empty box over the draft as it unmounted). One rail at a
+ * time, so one composer on the stored draft, which carries what was typed
+ * through Hide and a reload. One conversation behind it either way. Opening
+ * moves focus to the composer and Hide gives it back to the control that
+ * opened it (`useAssistantVisibility`).
  *
  * The caller lays it beside its content in a flex row, as the board does.
  */
@@ -64,6 +66,7 @@ export function BeyondTripAssistant({ scope }: { scope: BeyondTripAskScope }) {
       suggestions={[...suggestions]}
       asksRemaining={ask.asksRemaining}
       restoreDraft={ask.restoredDraft}
+      onRestoreTaken={ask.clearRestoredDraft}
       rememberDraftAs={name}
       incoming={handOff}
       onIncomingTaken={() => setHandOff(null)}
@@ -73,6 +76,7 @@ export function BeyondTripAssistant({ scope }: { scope: BeyondTripAskScope }) {
       askError={ask.askError}
       askUpgrade={ask.askErrorCode === AI_NOT_ENTITLED_CODE}
       simulated={ask.simulated}
+      takeFocus={assistant.takeFocus}
       onHide={assistant.hide}
     />
   );

@@ -79,8 +79,8 @@ export function useIsAbovePhone(): boolean | undefined {
 /**
  * Whether an assistant that docks where the trip board does (from 1100px) is
  * docked: `false` on a phone and from 768 to 1099px, `undefined` until known,
- * as `useIsAbovePhone`. Home's (PR 426 review round 2): a rail mounted on a
- * guess and unmounted a frame later stores its empty box over the draft.
+ * as `useIsAbovePhone`. Home's, read while its rail is open; nothing opens it
+ * before hydration, by which time the answer is known.
  */
 export function useDocksAssistant(): boolean | undefined {
   const phone = useKnownMatches(PHONE);

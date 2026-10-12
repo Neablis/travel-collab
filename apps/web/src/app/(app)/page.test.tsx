@@ -1542,8 +1542,8 @@ describe("Home — Delete or Leave, never the wrong one", () => {
 describe("Home's assistant", () => {
   afterEach(() => window.localStorage.clear());
 
-  /** Home with one trip, whose `/ask` replies with `reply` and records each request. */
-  function homeWithAsk(reply = "Kyoto, on 2 trips.") {
+  /** Home with one trip, whose `/ask` replies with `reply` (or what `refuse` returns) and records each request. */
+  function homeWithAsk(reply = "Kyoto, on 2 trips.", refuse?: () => Response) {
     const asked: string[] = [];
     fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
       const url = String(input);
@@ -1551,6 +1551,7 @@ describe("Home's assistant", () => {
       if (url.endsWith("/api/trips")) return jsonResponse({ trips: [tripSummaryFixture()] });
       if (/\/ask$/.test(url)) {
         asked.push(`${new URL(url, "http://localhost").pathname} ${String(init?.body)}`);
+        if (refuse !== undefined) return refuse();
         return new Response(`data: ${JSON.stringify({ type: "text-delta", delta: reply })}\n\ndata: [DONE]\n\n`, {
           status: 200,
           headers: { "Content-Type": "text/event-stream" },
@@ -1615,6 +1616,48 @@ describe("Home's assistant", () => {
     await userEvent.click(await askButton());
     const again = await screen.findByRole("complementary", { name: "Assistant" });
     await waitFor(() => expect((within(again).getByPlaceholderText("Ask about your trips…") as HTMLInputElement).value).toBe("where should I go next"));
+  });
+
+  // PR 426 review round 4, finding 2: a refused question went back in the box
+  // on every open, not once, so a reopen put it over what was typed since.
+  it("puts a refused question back once, not over a newer draft on the next open", async () => {
+    homeWithAsk(undefined, () => jsonResponse({ error: "must be 4000 characters or fewer" }, 400));
+    render(
+      <SessionUserProvider>
+        <Home />
+      </SessionUserProvider>,
+    );
+    const box = () => within(rail()!).getByPlaceholderText("Ask about your trips…") as HTMLInputElement;
+    await userEvent.click(await askButton());
+    await screen.findByRole("complementary", { name: "Assistant" });
+    await userEvent.type(box(), "the refused question{Enter}");
+    await waitFor(() => expect(box().value).toBe("the refused question"));
+
+    await userEvent.clear(box());
+    await userEvent.type(box(), "a different draft");
+    await userEvent.click(within(rail()!).getByRole("button", { name: "Hide" }));
+    await waitFor(() => expect(rail()).toBeNull());
+    await userEvent.click(await askButton());
+    await screen.findByRole("complementary", { name: "Assistant" });
+    await waitFor(() => expect(box().value).toBe("a different draft"));
+  });
+
+  // PR 426 review round 4, finding 3: docked, nothing moved focus. Ask left it
+  // behind every trip card, and Hide dropped it to <body> with its button.
+  // Read through the keyboard, as a keyboard user meets it: the keys go
+  // wherever focus is.
+  it("from 1100px moves focus to the composer on Ask, and back to Ask on Hide", async () => {
+    homeWithAsk();
+    render(<Home />);
+    await userEvent.click(await askButton());
+    const open = await screen.findByRole("complementary", { name: "Assistant" });
+    await userEvent.keyboard("where next");
+    expect((within(open).getByPlaceholderText("Ask about your trips…") as HTMLInputElement).value).toBe("where next");
+
+    await userEvent.click(within(open).getByRole("button", { name: "Hide" }));
+    await waitFor(() => expect(rail()).toBeNull());
+    await userEvent.keyboard("{Enter}");
+    expect(rail()).not.toBeNull();
   });
 
   // ⌘K's *Ask: <text>* reaches Home through the entry the tab bar reads

@@ -183,6 +183,7 @@ const DRAFT_SAVE_MS = 300;
  * @param emptyHint - Text displayed above the suggested questions.
  * @param asksRemaining - Number of questions remaining in the conversation.
  * @param restoreDraft - Question text to restore in the composer.
+ * @param onRestoreTaken - Called once `restoreDraft` is in the composer, so the caller can drop it.
  * @param onAsk - Handles a submitted question. Returning `false` preserves the composer text.
  * @param onApproveProposal - Handles approval of a proposal in a turn.
  * @param onRejectProposal - Handles rejection of a proposal in a turn.
@@ -197,6 +198,7 @@ const DRAFT_SAVE_MS = 300;
  * @param rememberDraftAs - Conversation name to keep the unsent composer text under.
  * @param incoming - Text handed in from outside (⌘K's *Ask:*), sent as if typed here.
  * @param onIncomingTaken - Called once `incoming` is sent or waiting in the box.
+ * @param takeFocus - Whether this mount is a fresh open, whose composer takes focus; asked once per mount.
  */
 export function AssistantRail({
   contextLine,
@@ -206,6 +208,7 @@ export function AssistantRail({
   emptyHint = EMPTY_HINT[scope.kind],
   asksRemaining,
   restoreDraft = null,
+  onRestoreTaken,
   onAsk,
   onApproveProposal = () => {},
   onRejectProposal = () => {},
@@ -224,6 +227,7 @@ export function AssistantRail({
   rememberDraftAs,
   incoming = null,
   onIncomingTaken,
+  takeFocus,
   onHide,
 }: {
   contextLine: string;
@@ -275,6 +279,12 @@ export function AssistantRail({
    * still lands.
    */
   restoreDraft?: string | null;
+  /**
+   * Called once `restoreDraft` is in the box. The caller drops it: a rail
+   * mounts on every open, and one that found it still set would put it back
+   * over whatever was typed since (PR 426 review round 4).
+   */
+  onRestoreTaken?: () => void;
   // Resolves false when the ask was refused before it ever reached the model
   // (unsent edits still queued, or view-only access). The rail keeps the typed
   // prompt in that case — a refusal the user has to retype is a refusal that
@@ -431,6 +441,14 @@ export function AssistantRail({
    * must not find the same hand-off and ask it again.
    */
   onIncomingTaken?: () => void;
+  /**
+   * Asked once on mount: `true` when this mount is the reader opening the
+   * assistant, and the docked or floating composer then takes focus, so
+   * keyboard focus is not left behind the content the rail sits beside. A
+   * sheet's focus trap moves it in already. `useAssistantVisibility`'s, which
+   * answers `true` once per open, so a remount while open takes nothing.
+   */
+  takeFocus?: () => boolean;
 } & (
   | {
       presentation?: "docked" | "floating";
@@ -651,9 +669,20 @@ export function AssistantRail({
     setAsk((typed) => (!first ? (stored ?? "") : typed.trim() === "" && stored !== null ? stored : typed));
   }, [draftName]);
 
+  const restoreTaken = useRef(onRestoreTaken);
+  restoreTaken.current = onRestoreTaken;
   useEffect(() => {
-    if (restoreDraft !== null) setAsk(restoreDraft);
+    if (restoreDraft === null) return;
+    setAsk(restoreDraft);
+    restoreTaken.current?.();
   }, [restoreDraft]);
+
+  const composerRef = useRef<HTMLInputElement | null>(null);
+  useEffect(() => {
+    // Asked whatever the presentation, so a sheet's open is spent too.
+    if (takeFocus?.() === true && !isSheet) composerRef.current?.focus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per mount: `takeFocus` answers for the open that mounted this rail
+  }, []);
 
   // Stored a moment after the last keystroke, and at once on unmount: a reply
   // that leaves the page is an unmount, and it is the case this is for.
@@ -1076,6 +1105,7 @@ export function AssistantRail({
               )}
               <div className="flex gap-1.5">
                 <Input
+                  ref={composerRef}
                   placeholder={PLACEHOLDER[scope.kind]}
                   // `h-11` in the sheet, overriding the primitive's `h-9`:
                   // SPEC §13.1's floor is every control, and the box the

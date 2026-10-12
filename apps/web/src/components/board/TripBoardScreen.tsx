@@ -1499,6 +1499,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             emptyHint={assistantPresentation === "sheet" ? phoneAsk.emptyHint : undefined}
             asksRemaining={ask.asksRemaining}
             restoreDraft={ask.restoredDraft}
+            onRestoreTaken={ask.clearRestoredDraft}
             onNewConversation={ask.startNewConversation}
             onAsk={(text) => submitAssistantAsk(text)}
             onApproveProposal={(turnId) => void approveProposal(turnId)}
@@ -1513,6 +1514,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             // would silently fall back to a red alert the day it did.
             askUpgrade={ask.askErrorCode === AI_NOT_ENTITLED_CODE}
             simulated={ask.simulated}
+            takeFocus={assistant.takeFocus}
             onHide={assistant.hide}
           />
         )}

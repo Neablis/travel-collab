@@ -1151,6 +1151,32 @@ describe("TripBoardScreen", () => {
     expect(askCall(1).messages.map((m) => m.parts[0]!.text)).toEqual(["How many days?"]);
   });
 
+  // PR 426 review round 4, finding 2: the rail remounts on every open, and the
+  // refused question stayed set, so each open put it back over the box.
+  it("puts a rolled-back question back once, not again on a later open", async () => {
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    askAssistantMock.mockResolvedValueOnce({
+      ok: false,
+      error: { status: 400, message: "this trip has 2 days, so day 9 is out of range" },
+    });
+    renderScreen(fixture.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+    const composer = () => screen.getByPlaceholderText(/ask about this (?:day|trip)/i) as HTMLInputElement;
+
+    fireEvent.click(screen.getByTestId("ask-pill"));
+    fireEvent.change(composer(), { target: { value: "Day nine?" } });
+    fireEvent.click(askButton());
+    await waitFor(() => expect(composer().value).toBe("Day nine?"));
+
+    // No signed-in user here, so nothing is stored: the box opens empty.
+    fireEvent.change(composer(), { target: { value: "" } });
+    fireEvent.click(within(assistantPanel()).getByRole("button", { name: "Hide" }));
+    fireEvent.click(screen.getByTestId("ask-pill"));
+    expect(await screen.findByRole("complementary", { name: "Assistant" })).toBeTruthy();
+    expect(composer().value).toBe("");
+  });
+
   // A half-written answer stays: the words are on screen and deleting them
   // under the user is the worse lie. The failure arrived INSIDE a 200 stream,
   // which is the channel a `res.ok` check cannot see.
@@ -1746,6 +1772,27 @@ describe("assistant rail visibility", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Hide" }));
     expect(screen.queryByRole("complementary", { name: "Assistant" })).toBeNull();
+  });
+
+  // PR 426 review round 4, finding 3: docked, Hide dropped focus to <body>
+  // with its own button, and opening left it on the launcher.
+  it("moves focus to the composer on open, and back to the launcher on Hide", async () => {
+    setViewportMatches({ "(min-width: 1180px)": true });
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    renderScreen(fixture.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+
+    await userEvent.click(screen.getByTestId("ask-pill"));
+    const open = await screen.findByRole("complementary", { name: "Assistant" });
+    // The keys go wherever focus is, as they do for a keyboard user.
+    await userEvent.keyboard("busiest day?");
+    expect((within(open).getByPlaceholderText(/ask about this (?:day|trip)/i) as HTMLInputElement).value).toBe("busiest day?");
+
+    await userEvent.click(within(open).getByRole("button", { name: "Hide" }));
+    expect(screen.queryByRole("complementary", { name: "Assistant" })).toBeNull();
+    await userEvent.keyboard("{Enter}");
+    expect(screen.getByRole("complementary", { name: "Assistant" })).toBeTruthy();
   });
 });
 
