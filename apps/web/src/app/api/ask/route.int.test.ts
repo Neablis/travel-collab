@@ -11,6 +11,9 @@ import { db } from "@/server/db/client";
 import { aiUsage, rateLimitCounters } from "@/server/db/schema";
 import { writeTravelling } from "@/server/access/members";
 import { simulatedModel } from "@/server/ai/simulatedModel";
+import { askIntentVerdictText, isAskIntentCall } from "@/server/ai/askIntent";
+import { ASK_RETRACT_CHUNK } from "@tc/contracts";
+import { visibleText } from "@/server/ai/eval/grade";
 import type { AskAnalyticsRecord } from "@/server/assistant/askAnalytics";
 import type { TurnLedger } from "@/server/assistant/ledger";
 
@@ -84,6 +87,63 @@ function paletteCommandsIn(body: string): unknown[] {
     .flatMap((chunk) => chunk.messageMetadata?.paletteCommands ?? []);
 }
 
+/**
+ * A model that answers the classifier with `question` and then plays `steps`
+ * in order, each the parts one step emits: a string is text, anything else a
+ * provider part as given (a tool call, or reasoning).
+ */
+function scriptedStepsModel(steps: (string | Record<string, unknown>)[][]) {
+  let next = 0;
+  const usage = {
+    inputTokens: { total: 0, noCache: 0, cacheRead: undefined, cacheWrite: undefined },
+    outputTokens: { total: 0, text: undefined, reasoning: undefined },
+  };
+  const isClassifier = (options: { prompt?: { role?: string; content?: unknown }[] }) =>
+    isAskIntentCall((options.prompt ?? []).map((m) => (m.role === "system" && typeof m.content === "string" ? m.content : "")).join("\n"));
+  return {
+    specificationVersion: "v4",
+    provider: "test",
+    modelId: "test/scripted-steps",
+    supportedUrls: {},
+    doGenerate: async () => ({
+      content: [{ type: "text", text: askIntentVerdictText("question", "sure") }],
+      finishReason: { unified: "stop", raw: undefined },
+      usage,
+      warnings: [],
+    }),
+    doStream: async (options: { prompt?: { role?: string; content?: unknown }[] }) => {
+      const parts = isClassifier(options) ? [askIntentVerdictText("question", "sure")] : (steps[next++] ?? []);
+      const unified = parts.some((part) => typeof part !== "string" && part.type === "tool-call") ? "tool-calls" : "stop";
+      return {
+        stream: new ReadableStream({
+          start(controller) {
+            controller.enqueue({ type: "stream-start", warnings: [] });
+            for (const [i, part] of parts.entries()) {
+              if (typeof part !== "string") {
+                controller.enqueue(part);
+                continue;
+              }
+              controller.enqueue({ type: "text-start", id: `t${i}` });
+              controller.enqueue({ type: "text-delta", id: `t${i}`, delta: part });
+              controller.enqueue({ type: "text-end", id: `t${i}` });
+            }
+            controller.enqueue({ type: "finish", finishReason: { unified, raw: undefined }, usage });
+            controller.close();
+          },
+        }),
+      };
+    },
+  } as unknown as Parameters<typeof handleAccountAskRequest>[1];
+}
+
+/** The SSE body's chunks, in order. */
+function chunksIn(body: string): Record<string, unknown>[] {
+  return body
+    .split("\n")
+    .filter((line) => line.startsWith("data: ") && line !== "data: [DONE]")
+    .map((line) => JSON.parse(line.slice("data: ".length)) as Record<string, unknown>);
+}
+
 beforeAll(async () => {
   await upsertUser({ id: ASKER, email: null, name: null, image: null });
   kyoto = await seedTrip("Kyoto in spring", [
@@ -148,6 +208,22 @@ describe("POST /api/ask", () => {
     const body = await refused.text();
     expect(paletteCommandsIn(body)).toEqual([]);
     expect(spokenIn(body)).toContain("couldn't take you there");
+  });
+
+  // The trip door's retraction, on this door too (KI-2026-10-12-e): the note a
+  // model writes beside a tool call streams, then is taken back.
+  it("takes back exactly the tool step's text, and never the final step's", async () => {
+    const res = await handleAccountAskRequest(
+      ask("which city have I been to most?"),
+      scriptedStepsModel([
+        ["Count the cities first.", { type: "tool-call", toolCallId: "visits", toolName: "visit_counts", input: JSON.stringify({ by: "city" }) }],
+        ["Kyoto, on two days."],
+      ]),
+      () => {},
+    );
+    const chunks = chunksIn(await res.text());
+    expect(chunks.filter((c) => c.type === ASK_RETRACT_CHUNK)).toEqual([{ type: ASK_RETRACT_CHUNK, data: { ids: ["t0"] }, transient: true }]);
+    expect(visibleText(chunks)).toBe("Kyoto, on two days.");
   });
 
   it("is the account handler behind the route, and refuses a signed-out caller", async () => {

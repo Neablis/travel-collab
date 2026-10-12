@@ -1,6 +1,6 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { AskStreamMetadata, AssistantProposal, SIMULATED_HEADER, isAssistantCommandId } from "../src";
+import { ASK_RETRACT_CHUNK, AskRetractData, AskStreamMetadata, AssistantProposal, SIMULATED_HEADER, isAssistantCommandId } from "../src";
 
 const TRIP_ID = "11111111-1111-4111-8111-111111111111";
 const DAY_ID = "22222222-2222-4222-8222-222222222222";
@@ -476,5 +476,16 @@ describe("the simulated verdict's name", () => {
   // two, `handleAskRequest.ts` and `apiClient.ts`, each spelling the literal.
   it("is the name both ends already send and read", () => {
     expect(SIMULATED_HEADER).toBe("x-tc-ai-simulated");
+  });
+});
+
+describe("the retraction chunk", () => {
+  // A tab on the previous build reads this exact chunk, so its name and shape
+  // are the wire, not an implementation detail of `finalStepText.ts`.
+  it("is a `data-retract` part naming text part ids, and nothing else", () => {
+    expect(ASK_RETRACT_CHUNK).toBe("data-retract");
+    expect(AskRetractData.safeParse({ ids: ["0", "aitxt-1"] }).success).toBe(true);
+    expect(AskRetractData.safeParse({ partIds: ["0"] }).success).toBe(false);
+    expect(AskRetractData.safeParse({ ids: [1] }).success).toBe(false);
   });
 });

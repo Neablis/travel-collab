@@ -1,6 +1,8 @@
 import {
   ActivityTag,
   ActivityTagDescribed,
+  ASK_RETRACT_CHUNK,
+  AskRetractData,
   AskStreamMetadata,
   BatchableCommand,
   CoverCandidate,
@@ -1526,7 +1528,15 @@ export type AskWireMessage = {
 export type AskEvent =
   /** A tool call, seen the moment it is issued — before any answer text. */
   | { type: "tool"; toolCallId: string; toolName: string; input: unknown }
-  | { type: "text"; delta: string }
+  /** `id` is the text part's: a later `retract` names parts by it. */
+  | { type: "text"; delta: string; id?: string }
+  /**
+   * Text the server took back because the step that wrote it went on to a
+   * tool call (KI-2026-10-12-e): the model's note to itself, not its answer.
+   * `text` is what those parts said, resolved by `askAssistant` from their
+   * ids; remove it with `withoutRetracted`.
+   */
+  | { type: "retract"; text: string }
   /**
    * Emitted once, from the response HEADER, before a byte of the body — so a
    * turn that dies mid-answer is still badged correctly. Replaces Task 5's
@@ -1615,14 +1625,31 @@ export const AI_NOT_ENTITLED_STATUS = 402;
 // exports with no contract of their own, and widening P6 to cover them is a
 // change to the error surface rather than to this envelope.
 
-// One SSE frame -> its AskEvents: none, one, or a final chunk's outcome and
+/**
+ * The server's `ASK_RETRACT_CHUNK`, as one frame sees it: part ids only.
+ * `askAssistant` turns it into a `retract` event, since only it has seen the
+ * text those ids carried.
+ */
+export type AskRetractFrame = { type: "retract-ids"; ids: string[] };
+
+/**
+ * `text` with `retracted` taken out. Retracted text is the newest text on the
+ * turn when the retraction arrives (it goes out just before the tool call),
+ * so the last occurrence is the one to remove.
+ */
+export function withoutRetracted(text: string, retracted: string): string {
+  const at = retracted === "" ? -1 : text.lastIndexOf(retracted);
+  return at === -1 ? text : text.slice(0, at) + text.slice(at + retracted.length);
+}
+
+// One SSE frame -> its events: none, one, or a final chunk's outcome and
 // then its palette commands. Exported for its own unit test: the
 // chunk vocabulary is a wire contract, and the frames this deliberately
 // IGNORES (start, start-step, tool-output-available, finish, [DONE]) matter as
 // much as the ones it reads — the stream is a superset the server may grow,
 // and an unknown part type must never break a conversation.
 /** The events one SSE frame of an `/ask` stream carries, in the order a reader acts on them; none for a frame it ignores. */
-export function askEventsFromFrame(frame: string): AskEvent[] {
+export function askEventsFromFrame(frame: string): (AskEvent | AskRetractFrame)[] {
   const payload = frame
     .split("\n")
     .filter((line) => line.startsWith("data:"))
@@ -1638,7 +1665,11 @@ export function askEventsFromFrame(frame: string): AskEvent[] {
   if (typeof chunk !== "object" || chunk === null) return [];
   const part = chunk as Record<string, unknown>;
   if (part.type === "text-delta" && typeof part.delta === "string") {
-    return [{ type: "text", delta: part.delta }];
+    return [typeof part.id === "string" ? { type: "text", delta: part.delta, id: part.id } : { type: "text", delta: part.delta }];
+  }
+  if (part.type === ASK_RETRACT_CHUNK) {
+    const data = AskRetractData.safeParse(part.data);
+    return data.success ? [{ type: "retract-ids", ids: data.data.ids }] : [];
   }
   if (part.type === "tool-input-available" && typeof part.toolName === "string") {
     return [
@@ -1777,6 +1808,26 @@ export async function askAssistant(
     let buffer = "";
     let text = "";
     let streamError: string | null = null;
+    // Each text part's text, so a retraction naming ids can say what it took.
+    // AI SDK 7 makes text ids unique per run; forgetting a retracted part is
+    // defensive, so a provider or a later SDK that reuses an id starts afresh.
+    const parts = new Map<string, string>();
+    const handle = (frameEvent: AskEvent | AskRetractFrame) => {
+      let event: AskEvent;
+      if (frameEvent.type === "retract-ids") {
+        event = { type: "retract", text: frameEvent.ids.map((id) => parts.get(id) ?? "").join("") };
+        for (const id of frameEvent.ids) parts.delete(id);
+        text = withoutRetracted(text, event.text);
+      } else {
+        event = frameEvent;
+        if (event.type === "text") {
+          text += event.delta;
+          if (event.id !== undefined) parts.set(event.id, (parts.get(event.id) ?? "") + event.delta);
+        }
+        if (event.type === "error") streamError = event.message;
+      }
+      onEvent(event);
+    };
 
     // Frames are separated by a blank line and a network read lands wherever
     // it lands — mid-JSON as often as not — so an incomplete frame stays in
@@ -1788,22 +1839,14 @@ export async function askAssistant(
         if (end === -1) break;
         const frame = buffer.slice(0, end);
         buffer = buffer.slice(end + 2);
-        for (const event of askEventsFromFrame(frame)) {
-          if (event.type === "text") text += event.delta;
-          if (event.type === "error") streamError = event.message;
-          onEvent(event);
-        }
+        for (const event of askEventsFromFrame(frame)) handle(event);
       }
       // A stream that ends without a trailing blank line still owes us its
       // last frame.
       if (final && buffer.trim() !== "") {
         const events = askEventsFromFrame(buffer);
         buffer = "";
-        for (const event of events) {
-          if (event.type === "text") text += event.delta;
-          if (event.type === "error") streamError = event.message;
-          onEvent(event);
-        }
+        for (const event of events) handle(event);
       }
     };
 

@@ -793,6 +793,36 @@ describe("TripBoardScreen", () => {
     expect(log.textContent).not.toContain("{");
   });
 
+  // KI-2026-10-12-e: the model's note beside a tool call streams, then the server
+  // takes it back. It must leave the rendered thread as the signal arrives.
+  it("drops text the server takes back from the transcript", async () => {
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    let takeBack = () => {};
+    askAssistantMock.mockImplementation(async (...args: AskArgs) => {
+      const onEvent = args[2]!;
+      onEvent({ type: "meta", simulated: false });
+      onEvent({ type: "text", delta: "Checking day 1 first.", id: "0" });
+      await new Promise<void>((resolve) => (takeBack = resolve));
+      onEvent({ type: "retract", text: "Checking day 1 first." });
+      onEvent({ type: "tool", toolCallId: "t1", toolName: "read_day", input: { days: 1 } });
+      onEvent({ type: "text", delta: "Day 1 is free.", id: "aitxt-1" });
+      return { ok: true as const, value: { text: "Day 1 is free." } };
+    });
+    renderScreen(fixture.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+
+    fireEvent.click(screen.getByTestId("ask-pill"));
+    fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "When is day 1 free?" } });
+    fireEvent.click(askButton());
+
+    const log = await screen.findByRole("log", { name: "Conversation" });
+    await waitFor(() => expect(log.textContent).toContain("Checking day 1 first."));
+    act(() => takeBack());
+    await waitFor(() => expect(log.textContent).toContain("Day 1 is free."));
+    expect(log.textContent).not.toContain("Checking day 1 first.");
+  });
+
   // Ruling R1: conversation state is client-held, so turn 2 is the same POST
   // with a longer array. Without this the follow-up "what about the next day?"
   // has nothing to refine and the assistant answers a question nobody asked.

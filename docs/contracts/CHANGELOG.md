@@ -13,6 +13,23 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-12 — `ASK_RETRACT_CHUNK` / `AskRetractData`: `/ask` takes back text written beside a tool call (M45 part 5, KI-2026-10-12-e)
+
+- **Added** to `packages/contracts/src/assistant.ts`: `ASK_RETRACT_CHUNK` (`"data-retract"`) and
+  `AskRetractData` (`{ ids: string[] }`). The server sends a transient chunk of that type, naming
+  the text part ids a step wrote before going on to a tool call, and the client removes those
+  parts from what it shows and stores (KI-2026-10-12-h records the flicker this costs).
+- Why: the chunk crosses the wire and the UI may not import `@/server/*`, the reason
+  `SIMULATED_HEADER` and `ASK_FAILED_MESSAGE` moved here. Before this it was spelled three times
+  with hand casts, so a server that renamed `ids` would have left notes on screen with nothing
+  failing to compile. The server types its payload with `satisfies AskRetractData`; the client
+  and the eval read it with `AskRetractData.safeParse`.
+- Consumers updated: `apps/web` (`server/ai/finalStepText.ts`, `lib/apiClient.ts`,
+  `server/ai/eval/grade.ts`, and the tests that build or read the chunk). Not on the public API:
+  `openapi.json`, `API_VERSION` and `API_FINGERPRINT` are unchanged.
+- Breaking? no. New chunk; a tab open on an older build ignores an unknown `data-*` part, so it
+  shows the note it would have shown before.
+
 ## 2026-10-12 — `AskStreamMetadata.paletteCommands`: the assistant names palette commands (M45 part 2, ADR-072)
 
 - **Added** to `packages/contracts/src/assistant.ts`: `PaletteCommandRef` (`{ id, needsApproval, on? }`;

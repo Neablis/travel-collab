@@ -7,6 +7,7 @@ import {
   type AskEvent,
   type AskWhere,
   type AskWireMessage,
+  withoutRetracted,
 } from "@/lib/apiClient";
 import { MAX_ASK_MESSAGES } from "@/lib/askLimits";
 import {
@@ -393,6 +394,11 @@ export function useAskThread({
         if (event.type === "text") {
           streamed += event.delta;
           patchAnswer((turn) => ({ ...turn, text: turn.text + event.delta }));
+        } else if (event.type === "retract") {
+          // The model's note beside a tool call (KI-2026-10-12-e). Gone from the
+          // turn, so it is neither saved nor posted back as history.
+          streamed = withoutRetracted(streamed, event.text);
+          patchAnswer((turn) => ({ ...turn, text: withoutRetracted(turn.text, event.text) }));
         } else if (event.type === "tool") {
           patchAnswer((turn) => ({
             ...turn,

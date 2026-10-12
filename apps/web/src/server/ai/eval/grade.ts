@@ -12,11 +12,12 @@
 // model's prose is not reproducible; asserting it would make the eval fail on
 // a rephrase and teach everyone to ignore it.
 import type { AskAnalyticsRecord } from "@/server/assistant/askAnalytics";
+import { ASK_RETRACT_CHUNK, AskRetractData } from "@tc/contracts";
 
 /** One turn, as the runner observed it. */
 export interface EvalTurn {
   record: AskAnalyticsRecord;
-  /** The assistant's answer: the stream's text, concatenated. */
+  /** The assistant's answer: the text left on screen once retractions applied (`visibleText`). */
   text: string;
   /**
    * Changes the turn put up for review, wherever they went: the card's
@@ -24,6 +25,14 @@ export interface EvalTurn {
    * on the board. 0 when it proposed nothing. See `reviewedChanges`.
    */
   proposalCommands: number;
+  /** The stream left text on screen ahead of a tool call (`textBeforeToolCall`). */
+  textBeforeToolCall: boolean;
+  /**
+   * Text that streamed and was taken back (`retractedText`). Reported, never
+   * failed: Mitchell accepted the flicker on 2026-10-12, and this is the
+   * number a holistic fix moves (KI-2026-10-12-h).
+   */
+  retracted: { parts: number; chars: number };
 }
 
 /**
@@ -41,6 +50,78 @@ export function reviewedChanges(chunks: readonly Record<string, unknown>[]): num
   }
   return 0;
 }
+
+interface TextPart {
+  text: string;
+  retracted: boolean;
+  /** A tool call followed it in the stream. */
+  beforeToolCall: boolean;
+}
+
+/**
+ * The stream's text parts, in order, as the client sees them: an
+ * `ASK_RETRACT_CHUNK` (`finalStepText.ts`) takes back the parts it names. AI
+ * SDK 7 makes text ids unique per run, so the latest part by an id is the only
+ * one; resolving to the latest is defensive, in case a provider or a later SDK
+ * reuses ids, and matches the client's rule.
+ */
+function textParts(chunks: readonly Record<string, unknown>[]): TextPart[] {
+  const parts: (TextPart & { id: unknown })[] = [];
+  const latest = (id: unknown) => {
+    for (let i = parts.length - 1; i >= 0; i -= 1) if (parts[i]!.id === id && !parts[i]!.retracted) return parts[i];
+    return undefined;
+  };
+  for (const chunk of chunks) {
+    if (chunk.type === "text-start") parts.push({ id: chunk.id, text: "", retracted: false, beforeToolCall: false });
+    else if (chunk.type === "text-delta") {
+      const part = latest(chunk.id) ?? parts[parts.push({ id: chunk.id, text: "", retracted: false, beforeToolCall: false }) - 1]!;
+      part.text += String(chunk.delta);
+    } else if (chunk.type === ASK_RETRACT_CHUNK) {
+      const data = AskRetractData.safeParse(chunk.data);
+      for (const id of data.success ? data.data.ids : []) {
+        const part = latest(id);
+        if (part) part.retracted = true;
+      }
+    } else if (chunk.type === "tool-input-start" || chunk.type === "tool-input-available") {
+      for (const part of parts) part.beforeToolCall = true;
+    }
+  }
+  return parts;
+}
+
+/** The reply as the person reads it: every text part not taken back, joined. */
+export function visibleText(chunks: readonly Record<string, unknown>[]): string {
+  return textParts(chunks)
+    .filter((part) => !part.retracted)
+    .map((part) => part.text)
+    .join("");
+}
+
+/**
+ * Whether text left on screen came ahead of a tool call: a model's note to
+ * itself between reads, which the server is meant to take back
+ * (KI-2026-10-12-e, `finalStepText.ts`). Structural, not a phrase list. Any
+ * call, not the first: a note is usually written once a read has returned,
+ * beside the second call.
+ */
+export function textBeforeToolCall(chunks: readonly Record<string, unknown>[]): boolean {
+  return textParts(chunks).some((part) => !part.retracted && part.beforeToolCall && part.text !== "");
+}
+
+/** How much text streamed and was taken back: the flicker, counted. */
+export function retractedText(chunks: readonly Record<string, unknown>[]): { parts: number; chars: number } {
+  const gone = textParts(chunks).filter((part) => part.retracted && part.text.trim() !== "");
+  return { parts: gone.length, chars: gone.reduce((n, part) => n + part.text.length, 0) };
+}
+
+/**
+ * Two steps' text run together: a sentence end with the next sentence's
+ * capital straight after it ("in Shibuya.I'd add"), which is what a leaked
+ * step looks like once the client joins every text chunk. A backstop read
+ * from the text alone. Two letters before the stop, so an abbreviation
+ * ("e.g.Kyoto", "7 a.m.Breakfast") is not one.
+ */
+const STEP_SEAM = /[a-z]{2}[.!?][A-Z]/;
 
 /** What one prompt expects. Every field is optional; an absent field is not checked. */
 export interface EvalExpectation {
@@ -139,6 +220,12 @@ export function grade(turn: EvalTurn, expect: EvalExpectation): EvalCheck[] {
       detail: `outcome ${record.outcome}, answered ${record.answered}${record.cause ? `, ${record.cause.name}: ${record.cause.message}` : ""}`,
     });
   }
+  const seam = turn.text.match(STEP_SEAM);
+  checks.push({
+    name: "no text before a tool call",
+    pass: !turn.textBeforeToolCall && seam === null,
+    detail: turn.textBeforeToolCall ? "text left on screen before a tool call" : seam !== null ? `step seam "${seam[0]}"` : "none",
+  });
   if (expect.maxToolCalls !== undefined) {
     checks.push({
       name: `≤ ${expect.maxToolCalls} tool calls`,
