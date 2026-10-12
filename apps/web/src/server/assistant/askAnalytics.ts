@@ -22,6 +22,7 @@ import {
   NO_METER,
   type LedgerTaskClass,
   type StepSpend,
+  type TurnCost,
   type TurnLedger,
   type TurnMeter,
   type TurnOutcome,
@@ -262,7 +263,8 @@ export interface AskDroppedCall {
 
 export interface AskAnalyticsRecord {
   event: "ai.ask";
-  tripId: string;
+  /** Null on an account turn (M45), which is about no one trip. */
+  tripId: string | null;
   userId: string;
   scope: AskScope;
   /**
@@ -586,7 +588,9 @@ export interface AskStepPlan {
 }
 
 export interface AskRecorderParams {
-  tripId: string;
+  tripId: string | null;
+  /** The ledger's door. Absent is a trip's `ask`; the account door passes `ask.account` (M45). */
+  endpoint?: TurnCost["endpoint"];
   userId: string;
   scope: AskScope;
   /** The user's own text for this turn, verbatim — truncated for the log at write time, not here. */
@@ -914,7 +918,7 @@ export function createAskRecorder(params: AskRecorderParams): AskRecorder {
       cost: {
         turnId: params.turnId ?? null,
         userId: params.userId,
-        endpoint: "ask",
+        endpoint: params.endpoint ?? "ask",
         outcome,
         taskClass: params.taskClass,
         // Only a classifier CALL has a certainty: the affirmation rule's

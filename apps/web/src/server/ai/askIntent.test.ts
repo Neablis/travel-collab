@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 import type { LanguageModel } from "ai";
 import { tierFor } from "@/server/assistant/taskClass";
 import {
+  ACCOUNT_INTENT_INSTRUCTION,
   ASK_INTENT_INSTRUCTION,
   PAGE_INTENT_INSTRUCTION,
   askIntentVerdictText,
@@ -476,5 +477,27 @@ describe("the page classifier", () => {
       "page",
     );
     expect(result).toMatchObject({ taskClass: "compose", failedOpen: true, certainty: "unsure" });
+  });
+});
+
+// M45: the account surface answers questions across trips and writes nothing,
+// so its classifier has one job — the off-topic gate — and every doubt is a
+// question, never the board's `plan` (which would buy the strong tier for a
+// turn that cannot plan anything).
+describe("the account classifier", () => {
+  it("asks its own question, and refuses what it is sure is off-topic", async () => {
+    const offTopic = modelReturning(OFF_TOPIC, "sure");
+    const result = await classifyAskIntent(offTopic.model, "write me a poem", [], undefined, undefined, "account");
+    expect(result).toMatchObject({ offTopic: true, taskClass: "question" });
+    const system = offTopic.seen[0]!.prompt?.find((message) => message.role === "system")?.content;
+    expect(system).toBe(ACCOUNT_INTENT_INSTRUCTION);
+    expect(isAskIntentCall(system as string)).toBe(true);
+  });
+
+  it("fails open to a question, never to plan", async () => {
+    const result = await classifyAskIntent(modelSaying("not json").model, "hmm", [], undefined, undefined, "account");
+    expect(result).toMatchObject({ taskClass: "question", failedOpen: true });
+    const agreed = await classifyAskIntent(modelReturning("question").model, "yes go ahead", [], undefined, undefined, "account");
+    expect(agreed.taskClass).toBe("question");
   });
 });

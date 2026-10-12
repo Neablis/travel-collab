@@ -533,6 +533,32 @@ export function newNotebookRefs(load: () => Promise<readonly NotebookListing[]>,
 }
 
 /**
+ * **Every trip an account turn may read, and whose they are** (M45).
+ *
+ * The account surface has no `trip` for the guard to have checked, so the
+ * trips arrive through this port instead: every active trip the asker can
+ * open, each with its members overlaid with who is travelling. Which of them
+ * COUNT (D2) is the domain's call (`travelledTrips`), never the port's.
+ *
+ * `userId` rides on the port rather than on a tool's input for ADR-022 §3's
+ * reason: identity comes from the session, never from anything a model types.
+ */
+export interface AccountTrips {
+  readonly userId: string;
+  /** Read the store once per turn, however many tools ask. */
+  load(): Promise<readonly TripDetail[]>;
+}
+
+/** One turn's account trips for `userId`. Never shared between turns. */
+export function newAccountTrips(userId: string, read: (userId: string) => Promise<readonly TripDetail[]>): AccountTrips {
+  let loading: Promise<readonly TripDetail[]> | null = null;
+  return {
+    userId,
+    load: () => (loading ??= read(userId)),
+  };
+}
+
+/**
  * Everything any tool may reach. `defineTool`'s `needs` indexes into this and
  * nothing else, so "what can this tool touch?" is one line of its definition
  * and the set of answers is this interface.
@@ -576,6 +602,8 @@ export interface AssistantDeps {
   intent: IntentLatch;
   /** How many days `read_day` has read in full this turn, against the per-turn cap. */
   readBudget: DayReadBudget;
+  /** The account surface's trips (M45) — the cross-trip tools' only source. */
+  trips: AccountTrips;
 }
 
 export type DepKey = keyof AssistantDeps;
@@ -620,6 +648,7 @@ const TURN_DEP_KEY_SET: Record<TurnDepKey, true> = {
   typedAddresses: true,
   intent: true,
   readBudget: true,
+  trips: true,
 };
 export const TURN_DEP_KEYS = Object.keys(TURN_DEP_KEY_SET) as readonly TurnDepKey[];
 

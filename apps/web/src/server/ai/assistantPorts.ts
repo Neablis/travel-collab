@@ -23,6 +23,10 @@
 // vocabulary. What it does not do is choose a place, rank one, or decide what a
 // refusal means to the turn — all three are the tool's, and all three are in
 // `tools/places.ts`.
+import type { TripDetail } from "@tc/contracts";
+import { db } from "@/server/db/client";
+import { getTripDetail, listTripSummariesVisibleTo } from "@/server/projections";
+import { withEffectiveMembersByTrip } from "@/server/access/members";
 import { discoverDays } from "@/server/playbooks";
 import { readableSavedDay } from "@/server/savedDays";
 import { listPageEntries } from "@/server/pages";
@@ -243,5 +247,24 @@ function isPlaceable(place: Partial<ResolvedPlace> & { name: string }): place is
     Number.isFinite(place.lat) &&
     typeof place.lng === "number" &&
     Number.isFinite(place.lng)
+  );
+}
+
+/**
+ * The account surface's trips (M45): every active trip `userId` may open, as
+ * Home lists them, each with its effective members and who of them is
+ * travelling (`withEffectiveMembersByTrip` reads `trip_travellers` in one
+ * batch). Which of these the person TOOK is `travelledTrips`'s rule in the
+ * domain, not this read's — so the cross-trip tools hold it in one place.
+ *
+ * One detail read per trip. A person's trip count is small, and reading every
+ * document in one statement is an optimisation this does not need yet.
+ */
+export async function readAccountTrips(userId: string): Promise<TripDetail[]> {
+  const listed = await listTripSummariesVisibleTo(userId);
+  const details = await Promise.all(listed.map((row) => getTripDetail(row.tripId)));
+  return withEffectiveMembersByTrip(
+    db,
+    details.filter((detail): detail is TripDetail => detail !== null),
   );
 }

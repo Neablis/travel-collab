@@ -84,6 +84,9 @@ describe("the ask scope encoding", () => {
     // answer from `kind` alone and a scope that degraded to `trip` here would
     // make a page turn answer a question instead.
     { kind: "page", pageId: "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f" },
+    // M45: no trip at all. Degrading to `trip` here would send the simulated
+    // model to `read_trip`, which an account turn is not handed.
+    { kind: "account" },
   ];
 
   it("round-trips every scope through an instruction", () => {

@@ -53,6 +53,9 @@ export const SURFACE_INTENTS: Readonly<Record<SurfaceKind, SurfaceIntents>> = {
   trip: { default: "question", allowed: ["question", "edit", "plan"], pivot: "request_change_tools" },
   day: { default: "question", allowed: ["question", "edit", "plan"], pivot: "request_change_tools" },
   page: { default: "compose", allowed: ["compose", "question"], pivot: "switch_intent" },
+  // Questions only, so nowhere to pivot to: its grant holds no `system` or
+  // `pages` domain, so neither pivot tool can ever be offered on it.
+  account: { default: "question", allowed: ["question"], pivot: "request_change_tools" },
 };
 
 /**

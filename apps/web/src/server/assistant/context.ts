@@ -43,7 +43,10 @@ export type AiSurface = "ask";
 export type AskScope =
   | { kind: "trip" }
   | { kind: "day"; dayIndex: number }
-  | { kind: "page"; pageId: string };
+  | { kind: "page"; pageId: string }
+  // M45: every trip the asker travelled on, and no one trip. It names no row,
+  // so there is nothing to verify; the route it arrives on is what decides it.
+  | { kind: "account" };
 
 // How the scope is written into the /ask system instruction, and read back out
 // of it.
@@ -88,6 +91,9 @@ export function parseAskScope(instructions: string): AskScope {
       if (parsed?.kind === "page" && typeof parsed.pageId === "string" && parsed.pageId !== "") {
         return { kind: "page", pageId: parsed.pageId };
       }
+      // An account turn has no trip to fall back to, and the simulated model
+      // must not answer it with `read_trip`, which it is not handed.
+      if (parsed?.kind === "account") return { kind: "account" };
     } catch {
       // Malformed line — fall through to the trip-wide reading.
     }

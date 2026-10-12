@@ -12,6 +12,7 @@
 // admission logic outside the pipeline, and the `ai.grant` record's claim to
 // name everything a turn was allowed would stop being a measurement.
 import * as Sentry from "@sentry/nextjs";
+import { auth } from "@/server/auth";
 import { guard } from "@/server/pages-guard";
 import { getPage } from "@/server/pages";
 import { AI_NOT_ENTITLED_CODE, deniedResponse, selectAiModel } from "@/server/ai/modelSelection";
@@ -54,7 +55,14 @@ export const logAiGrant: AiGrantSink = (record: AiGrantRecord) => {
 };
 
 export const admissionPorts: AdmissionPorts = {
-  identifyActor: (tripId, minimum) => guard(tripId, minimum),
+  // No trip is the account door (M45): the session alone says who is asking,
+  // with the same 401 `GET /api/trips` answers a signed-out caller.
+  identifyActor: async (tripId, minimum) => {
+    if (tripId !== null) return guard(tripId, minimum);
+    const session = await auth();
+    const userId = session?.user?.id;
+    return userId ? { userId, detail: null } : { error: Response.json({ error: "unauthenticated" }, { status: 401 }) };
+  },
   loadPage: (pageId) => getPage(pageId),
   // `surface: "ask"` is fixed here rather than passed in: there is one door
   // (ADR-033), and a second surface reaching this pipeline would be a new
