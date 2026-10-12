@@ -21,10 +21,15 @@ general setup.
 
 ## Where the work is right now
 
-**M43 — A TRIP'S NOTEBOOKS KEEP UP WITH THEIR TEMPLATES — IS THE CURRENT MILESTONE AS OF
-2026-10-12**, by **M42's gate closing at 14 of 14**. **M43 is not scoped**: its decisions need
+**M45 — THE ASSISTANT ANSWERS ABOUT ALL YOUR TRIPS, AND CAN TAKE YOU PLACES — IS THE CURRENT
+MILESTONE AS OF 2026-10-12.** M42's gate closed at 14 of 14 and made M43 current; the same day
+Mitchell moved **M43 and M44 to the end** (*"Neither are impacting anything today"*) and minted
+**M49**, covers from any image URL on the public API, plus repositioning
+(`docs/milestones/M49-covers-from-anywhere.md`). **M45 is not scoped**: its decisions need
 answering with Mitchell, checked against today's UI, before any part is built
-(`docs/milestones/M43-notebooks-keep-up.md`). Order: `… M41 ✓ → M42 ✓ → M43 → M44 … M47 → M48`.
+(`docs/milestones/M45-the-assistant-beyond-one-trip.md`). Order:
+`… M42 ✓ → M45 → M46 → M47 → M48 → M49 → M43 → M44`; the reorder is recorded in
+`docs/milestones/README.md`, *2026-10-12 — reordered and minted*.
 
 **M48 was proposed 2026-10-11** from a PM brief: example playbook days retrieved into `plan` turns
 to cut their cost. Not scoped, placed last, and its offline gates can run early

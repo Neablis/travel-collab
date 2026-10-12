@@ -1,6 +1,6 @@
 # M45 — The assistant answers about all your trips, and can take you places
 
-**Status:** **Proposed 2026-10-06, placed after M44. Not scoped yet**: the decisions below are
+**Status:** **Proposed 2026-10-06, placed after M44; current from 2026-10-12, when M43 and M44 moved last. Not scoped yet**: the decisions below are
 recommendations and none has been answered. Minted from `docs/candidates.md` (see
 `docs/milestones/README.md`, *2026-10-06 — proposed: M37 to M47*). It is placed late on purpose.
 On 2026-10-03 Mitchell wanted users before increasing AI cost, and an account-wide assistant is

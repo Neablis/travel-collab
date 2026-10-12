@@ -1,6 +1,6 @@
 # M43 — A trip's notebooks keep up with their templates
 
-**Status:** **Proposed 2026-10-06, placed after M42. Not scoped yet**: the decisions below are
+**Status:** **Proposed 2026-10-06; moved last 2026-10-12, after M49, by Mitchell (nothing it fixes is hurting today). Not scoped yet**: the decisions below are
 recommendations and none has been answered. Minted from `docs/candidates.md` (see
 `docs/milestones/README.md`, *2026-10-06 — proposed: M37 to M47*).
 

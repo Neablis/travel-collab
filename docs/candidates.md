@@ -547,4 +547,4 @@ here two days later.
     shape). Where the control lives: on the band itself, or in Trip settings' Cover photo
     preview. Whether choosing a new photo resets the position. Keyboard and phone handling for
     the drag. Whether the stored position also applies to the card on Home.
-  **Not placed.**
+  *Placed 2026-10-12 → `docs/milestones/M49-covers-from-anywhere.md` (proposed, not yet scoped). M49's gate deletes this entry at close.*
