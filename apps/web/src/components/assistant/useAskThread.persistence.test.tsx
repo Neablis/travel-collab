@@ -52,6 +52,12 @@ function answeringFetch(text: string) {
   );
 }
 
+/** A fetch that answers the ask endpoint with these UI-message-stream frames. */
+function framesFetch(frames: object[]) {
+  const body = `${frames.map((frame) => `data: ${JSON.stringify(frame)}\n\n`).join("")}data: [DONE]\n\n`;
+  return vi.fn(async () => new Response(body, { status: 200, headers: { "Content-Type": "text/event-stream" } }));
+}
+
 const stored: AssistantTurn[] = [
   { id: "u1", role: "user", text: "how does this trip look?" },
   { id: "a2", role: "assistant", text: "Kyoto 2027 runs to 3 days.", tools: [], pending: false },
@@ -242,8 +248,7 @@ describe("useAskThread — durability", () => {
       { type: "text-delta", id: "aitxt-2", delta: "Day 1 is free." },
       { type: "text-end", id: "aitxt-2" },
     ];
-    const body = `${frames.map((frame) => `data: ${JSON.stringify(frame)}\n\n`).join("")}data: [DONE]\n\n`;
-    vi.stubGlobal("fetch", vi.fn(async () => new Response(body, { status: 200, headers: { "Content-Type": "text/event-stream" } })));
+    vi.stubGlobal("fetch", framesFetch(frames));
     const first = mount(NAME);
     await act(async () => {
       await first.result.current.runAsk("when is day 1 free?");
@@ -253,6 +258,40 @@ describe("useAskThread — durability", () => {
     const second = mount(NAME);
     await waitFor(() => expect(second.result.current.thread).toHaveLength(2));
     expect(second.result.current.thread.map((turn) => turn.text)).toEqual(["when is day 1 free?", "Day 1 is free."]);
+  });
+
+  // A turn whose only words were a blank group the server then took back said
+  // nothing, and must end the way a silent turn does. The answer bubble shows
+  // the deltas either way; what decides the ending is the hook's own `streamed`,
+  // so a retraction that updated only the bubble would leave an empty answer
+  // where the stopped line belongs.
+  const blankThenTakenBack = [
+    { type: "text-start", id: "a" },
+    { type: "text-delta", id: "a", delta: "\n\n" },
+    { type: "text-end", id: "a" },
+    { type: ASK_RETRACT_CHUNK, data: { ids: ["a"] }, transient: true },
+  ];
+
+  it("says a turn was stopped when the only text it wrote was taken back", async () => {
+    vi.stubGlobal("fetch", framesFetch([...blankThenTakenBack, { type: "abort" }]));
+    const { result } = mount(NAME);
+    await act(async () => {
+      await result.current.runAsk("plan every day in detail");
+    });
+    expect(result.current.thread.map((turn) => turn.text)).toEqual([
+      "plan every day in detail",
+      expect.stringContaining("took too long and was stopped"),
+    ]);
+  });
+
+  it("rolls back a failed turn when the only text it wrote was taken back", async () => {
+    vi.stubGlobal("fetch", framesFetch([...blankThenTakenBack, { type: "error", errorText: "the model failed" }]));
+    const { result } = mount(NAME);
+    await act(async () => {
+      await result.current.runAsk("plan every day in detail");
+    });
+    expect(result.current.thread).toEqual([]);
+    expect(result.current.restoredDraft).toBe("plan every day in detail");
   });
 
   // A turn that produced no text at all is rolled back by design — the
