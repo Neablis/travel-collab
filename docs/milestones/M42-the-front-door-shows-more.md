@@ -275,3 +275,6 @@ landing renders the real app (PR 413). No migrations. 267 files, about 12,200 li
 - Filed: KI-20261011-a (the quota property's rolled floor can trip on a low draw),
   KI-20261011-b (signed-out `/plans` cannot load the catalogue) and KI-20261011-c
   (`suggestions.test` fails once under a full local web unit run). KI-052 is resolved by part 1.
+
+**Cost.** The session cost $334, about twice M41 for the same amount of code. Where the tokens
+went, and the process fixes for M43, are in `docs/retros/2026-10-12-m42-token-spend-retro.md`.
