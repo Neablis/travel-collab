@@ -237,7 +237,7 @@ interface RunRow {
   inputTokens: number | null;
   outputTokens: number | null;
   answer: string;
-  /** Text that streamed and was taken back (KI-20261012-h). Reported, never failed. */
+  /** Text that streamed and was taken back (KI-2026-10-12-h). Reported, never failed. */
   retracted: { parts: number; chars: number };
   checks: EvalCheck[];
 }
@@ -275,7 +275,7 @@ afterAll(() => {
       "",
       `eval: ${rows.length} turns, ${rows.reduce((n, row) => n + row.checks.length, 0)} checks, ${failed.length} failed`,
       `models: ${JSON.stringify(models)}`,
-      `retracted: ${rows.reduce((n, row) => n + row.retracted.parts, 0)} text parts, ${rows.reduce((n, row) => n + row.retracted.chars, 0)} chars, across ${rows.filter((row) => row.retracted.parts > 0).length} turns (KI-20261012-h; not a failure)`,
+      `retracted: ${rows.reduce((n, row) => n + row.retracted.parts, 0)} text parts, ${rows.reduce((n, row) => n + row.retracted.chars, 0)} chars, across ${rows.filter((row) => row.retracted.parts > 0).length} turns (KI-2026-10-12-h; not a failure)`,
       `spent: ${dollars(spentMicroUsd)} of a ${capMicroUsd === null ? "invalid" : dollars(capMicroUsd)} cap${unpricedTurns > 0 ? ` (+ ${unpricedTurns} unpriced turn(s))` : ""}`,
       ...rows.map(
         (row) =>

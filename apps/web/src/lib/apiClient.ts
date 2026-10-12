@@ -1,6 +1,8 @@
 import {
   ActivityTag,
   ActivityTagDescribed,
+  ASK_RETRACT_CHUNK,
+  AskRetractData,
   AskStreamMetadata,
   BatchableCommand,
   CoverCandidate,
@@ -1499,7 +1501,7 @@ export type AskEvent =
   | { type: "text"; delta: string; id?: string }
   /**
    * Text the server took back because the step that wrote it went on to a
-   * tool call (KI-20261012-e): the model's note to itself, not its answer.
+   * tool call (KI-2026-10-12-e): the model's note to itself, not its answer.
    * `text` is what those parts said, resolved by `askAssistant` from their
    * ids; remove it with `withoutRetracted`.
    */
@@ -1593,10 +1595,9 @@ export const AI_NOT_ENTITLED_STATUS = 402;
 // change to the error surface rather than to this envelope.
 
 /**
- * The server's `data-retract` chunk, as one frame sees it: part ids only.
+ * The server's `ASK_RETRACT_CHUNK`, as one frame sees it: part ids only.
  * `askAssistant` turns it into a `retract` event, since only it has seen the
- * text those ids carried. The literal is `finalStepText.ts`'s `RETRACT_CHUNK`,
- * spelled again because the UI may not import `@/server/*`.
+ * text those ids carried.
  */
 export type AskRetractFrame = { type: "retract-ids"; ids: string[] };
 
@@ -1635,9 +1636,9 @@ export function askEventsFromFrame(frame: string): (AskEvent | AskRetractFrame)[
   if (part.type === "text-delta" && typeof part.delta === "string") {
     return [typeof part.id === "string" ? { type: "text", delta: part.delta, id: part.id } : { type: "text", delta: part.delta }];
   }
-  if (part.type === "data-retract") {
-    const ids = (part.data as { ids?: unknown } | undefined)?.ids;
-    return Array.isArray(ids) ? [{ type: "retract-ids", ids: ids.filter((id): id is string => typeof id === "string") }] : [];
+  if (part.type === ASK_RETRACT_CHUNK) {
+    const data = AskRetractData.safeParse(part.data);
+    return data.success ? [{ type: "retract-ids", ids: data.data.ids }] : [];
   }
   if (part.type === "tool-input-available" && typeof part.toolName === "string") {
     return [
@@ -1778,8 +1779,8 @@ export async function askAssistant(
     let text = "";
     let streamError: string | null = null;
     // Each text part's text, so a retraction naming ids can say what it took.
-    // A provider numbers its text blocks per step, so a later step reuses an
-    // id: a retracted part is forgotten, and the next one by that id is new.
+    // AI SDK 7 makes text ids unique per run; forgetting a retracted part is
+    // defensive, so a provider or a later SDK that reuses an id starts afresh.
     const parts = new Map<string, string>();
     const handle = (frameEvent: AskEvent | AskRetractFrame) => {
       let event: AskEvent;

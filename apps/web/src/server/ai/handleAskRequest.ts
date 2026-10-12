@@ -1013,7 +1013,7 @@ export async function handleAskRequest(
       },
     });
     return createUIMessageStreamResponse({
-      // Text written beside a tool call is taken back (KI-20261012-e). Upstream
+      // Text written beside a tool call is taken back (KI-2026-10-12-e). Upstream
       // of `suggestOnFinish`, so the `finish` chunk it swaps is unchanged.
       stream: stream.pipeThrough(retractTextBesideTools()).pipeThrough(
         suggestOnFinish(

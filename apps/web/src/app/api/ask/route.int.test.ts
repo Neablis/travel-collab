@@ -12,7 +12,7 @@ import { aiUsage, rateLimitCounters } from "@/server/db/schema";
 import { writeTravelling } from "@/server/access/members";
 import { simulatedModel } from "@/server/ai/simulatedModel";
 import { askIntentVerdictText, isAskIntentCall } from "@/server/ai/askIntent";
-import { RETRACT_CHUNK } from "@/server/ai/finalStepText";
+import { ASK_RETRACT_CHUNK } from "@tc/contracts";
 import { visibleText } from "@/server/ai/eval/grade";
 import type { AskAnalyticsRecord } from "@/server/assistant/askAnalytics";
 import type { TurnLedger } from "@/server/assistant/ledger";
@@ -185,7 +185,7 @@ describe("POST /api/ask", () => {
     expect(row?.endpoint).toBe("ask.account");
   });
 
-  // The trip door's retraction, on this door too (KI-20261012-e): the note a
+  // The trip door's retraction, on this door too (KI-2026-10-12-e): the note a
   // model writes beside a tool call streams, then is taken back.
   it("takes back exactly the tool step's text, and never the final step's", async () => {
     const res = await handleAccountAskRequest(
@@ -197,7 +197,7 @@ describe("POST /api/ask", () => {
       () => {},
     );
     const chunks = chunksIn(await res.text());
-    expect(chunks.filter((c) => c.type === RETRACT_CHUNK)).toEqual([{ type: RETRACT_CHUNK, data: { ids: ["t0"] }, transient: true }]);
+    expect(chunks.filter((c) => c.type === ASK_RETRACT_CHUNK)).toEqual([{ type: ASK_RETRACT_CHUNK, data: { ids: ["t0"] }, transient: true }]);
     expect(visibleText(chunks)).toBe("Kyoto, on two days.");
   });
 

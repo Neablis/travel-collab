@@ -1,11 +1,9 @@
+import { ASK_RETRACT_CHUNK, type AskRetractData } from "@tc/contracts";
 import type { UIMessageChunk } from "ai";
-
-/** The chunk type that takes text back. `apiClient.ts` spells it again: the UI may not import server code. */
-export const RETRACT_CHUNK = "data-retract";
 
 /**
  * **Text written beside a tool call streams, then is taken back**
- * (KI-20261012-e, KI-20261012-h).
+ * (KI-2026-10-12-e, KI-2026-10-12-h).
  *
  * `toUIMessageStream` forwards every step's text, so a note a model writes to
  * itself beside a tool call ("Gap 5:30–7 pm. Look up a cafe.") reached the
@@ -13,21 +11,26 @@ export const RETRACT_CHUNK = "data-retract";
  * space. Deterministic rather than a prompt rule: a model can always slip.
  *
  * Every step's text streams as it is written. When a step that wrote text goes
- * on to a tool call, a transient `data-retract` chunk naming that text's part
+ * on to a tool call, a transient `ASK_RETRACT_CHUNK` naming that text's part
  * ids goes out just ahead of the tool's first chunk, and the client removes
  * those parts. Text written after the call in the same step is taken back at
  * the next call or at `finish-step`. The UI `finish-step` chunk carries no
  * finish reason, so "the step called a tool" is "a `tool-*` chunk arrived in
- * it". The final step calls no tool, so its text is never taken back.
+ * it". The final step calls no tool, so its text is never taken back, unless
+ * it is blank: a group of bare newlines would sit above the answer, or be an
+ * empty answer of its own, so it goes the same way at its `finish-step` or at
+ * the end of the turn.
  *
  * **The cost is a flicker, accepted deliberately** (Mitchell, 2026-10-12): a
  * note appears, then goes. Holding each step's text until the step ends hid it
- * but stopped the answer streaming; KI-20261012-h records the holistic options.
+ * but stopped the answer streaming; KI-2026-10-12-h records the holistic options.
  *
  * Never a blank reply where the model did say something: if the turn ends
  * (`finish`, `abort`, `error`) with no text kept, the last text taken back is
- * sent again under a new id — the answer a model gave beside its final tool
- * call, or a deadline-cut turn's last words. "Text" is a delta with something
+ * sent again under a new id, once: the answer a model gave beside its final
+ * tool call, or a deadline-cut turn's last words. Once, because a model
+ * `error` does not end streamText's stream: `finish-step` and `finish` follow
+ * it, so the end of the turn arrives twice. "Text" is a delta with something
  * besides whitespace in it: streamText forwards a group with nothing in it
  * (always its start and end, and an empty delta carrying provider metadata), a
  * model can open a block with bare newlines, and neither is an answer.
@@ -48,7 +51,7 @@ export function retractTextBesideTools(): TransformStream<UIMessageChunk, UIMess
       const retract = () => {
         if (open.size === 0) return;
         const ids = [...open.keys()];
-        controller.enqueue({ type: RETRACT_CHUNK, data: { ids }, transient: true });
+        controller.enqueue({ type: ASK_RETRACT_CHUNK, data: { ids } satisfies AskRetractData, transient: true });
         if (spoke(open.values())) lastRetracted = { id: ids.at(-1)!, text: [...open.values()].join("") };
         open = new Map();
       };
@@ -64,20 +67,23 @@ export function retractTextBesideTools(): TransformStream<UIMessageChunk, UIMess
           open.set(chunk.id, (open.get(chunk.id) ?? "") + chunk.delta);
           break;
         case "finish-step":
-          if (calledTool) retract();
-          else if (spoke(open.values())) kept = true;
+          if (calledTool || !spoke(open.values())) retract();
+          else kept = true;
           open = new Map();
           break;
         case "finish":
         case "abort":
         case "error":
           // A step cut off mid-way keeps what it wrote: no tool call took it back.
+          if (!spoke(open.values())) retract();
           if (!kept && !spoke(open.values()) && lastRetracted !== null) {
             const id = `${lastRetracted.id}-kept`;
             controller.enqueue({ type: "text-start", id });
             controller.enqueue({ type: "text-delta", id, delta: lastRetracted.text });
             controller.enqueue({ type: "text-end", id });
           }
+          // Decided once (see above).
+          kept = true;
           open = new Map();
           break;
         default:

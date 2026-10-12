@@ -1,4 +1,4 @@
-import { ASK_FAILED_MESSAGE, ASK_INTERNAL_ERROR_MESSAGE, WidgetShape, newPageDoc, type AskStreamMetadata } from "@tc/contracts";
+import { ASK_FAILED_MESSAGE, ASK_INTERNAL_ERROR_MESSAGE, ASK_RETRACT_CHUNK, WidgetShape, newPageDoc, type AskStreamMetadata } from "@tc/contracts";
 import { MACRO_NAMES, getMacro } from "@tc/pages";
 import { APICallError, ToolLoopAgent } from "ai";
 import { randomUUID } from "node:crypto";
@@ -23,7 +23,6 @@ import { listSnapshots, saveSnapshot, SNAPSHOT_TRIP_MAX } from "@/server/snapsho
 import { listSuggestionChanges } from "@/server/suggestions/list";
 import { SUGGESTION_TRIP_PENDING_MAX } from "@/server/suggestions/shared";
 import { insertStoredSuggestion } from "@/server/test-support/storedSuggestion";
-import { RETRACT_CHUNK } from "@/server/ai/finalStepText";
 import { visibleText } from "@/server/ai/eval/grade";
 
 const ACTOR_ID = "ask-owner";
@@ -568,7 +567,7 @@ function toolCall(toolName: string, input: unknown): Record<string, unknown> {
  * A trip-turn model that answers the classifier with `question` and then plays
  * `steps` in order, each the parts one step emits: a string is text, anything
  * else a provider part as given (a tool call, or reasoning). Text BESIDE a tool call is the point — a model's note to
- * itself between reads (KI-20261012-e). An empty step says nothing at all.
+ * itself between reads (KI-2026-10-12-e). An empty step says nothing at all.
  */
 function scriptedStepsModel(steps: (string | Record<string, unknown>)[][]) {
   let next = 0;
@@ -2953,10 +2952,10 @@ describe("POST /api/trips/:id/ask", () => {
     });
 
     // **Text written beside a tool call streams, then is taken back**
-    // (KI-20261012-e). A model that writes a note to itself beside a tool call
-    // used to have it run into the answer: "…Look up a cafe.Day 1 has…". Both
-    // steps' text is the provider's block "t0", as a real provider numbers
-    // blocks per step, so the retraction must mean the first and only the first.
+    // (KI-2026-10-12-e). A model that writes a note to itself beside a tool call
+    // used to have it run into the answer: "…Look up a cafe.Day 1 has…". The
+    // scripted model names both steps' block "t0"; AI SDK 7 renames the second
+    // before it reaches the wire, so the retraction names the first alone.
     it("takes back exactly the tool step's text, ahead of its call, and never the final step's", async () => {
       const tripId = await seedTrip();
       const model = scriptedStepsModel([
@@ -2972,12 +2971,12 @@ describe("POST /api/trips/:id/ask", () => {
       );
 
       const types = chunks.map((c) => c.type);
-      const retractions = chunks.filter((c) => c.type === RETRACT_CHUNK);
-      expect(retractions).toEqual([{ type: RETRACT_CHUNK, data: { ids: ["t0"] }, transient: true }]);
+      const retractions = chunks.filter((c) => c.type === ASK_RETRACT_CHUNK);
+      expect(retractions).toEqual([{ type: ASK_RETRACT_CHUNK, data: { ids: ["t0"] }, transient: true }]);
       // Streamed live, then taken back before the call shows.
-      expect(types.indexOf("text-delta")).toBeLessThan(types.indexOf(RETRACT_CHUNK));
-      expect(types.indexOf(RETRACT_CHUNK)).toBeLessThan(types.indexOf("tool-input-available"));
-      expect(types.lastIndexOf("text-start")).toBeGreaterThan(types.indexOf(RETRACT_CHUNK));
+      expect(types.indexOf("text-delta")).toBeLessThan(types.indexOf(ASK_RETRACT_CHUNK));
+      expect(types.indexOf(ASK_RETRACT_CHUNK)).toBeLessThan(types.indexOf("tool-input-available"));
+      expect(types.lastIndexOf("text-start")).toBeGreaterThan(types.indexOf(ASK_RETRACT_CHUNK));
       expect(visibleText(chunks)).toBe("Day 1 is free from 5:30 to 7 pm.");
     });
 

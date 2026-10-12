@@ -1,6 +1,7 @@
 import type { UIMessageChunk } from "ai";
+import { ASK_RETRACT_CHUNK as RETRACT_CHUNK } from "@tc/contracts";
 import { describe, expect, it } from "vitest";
-import { RETRACT_CHUNK, retractTextBesideTools } from "./finalStepText";
+import { retractTextBesideTools } from "./finalStepText";
 
 async function through(chunks: UIMessageChunk[]): Promise<UIMessageChunk[]> {
   const out: UIMessageChunk[] = [];
@@ -34,8 +35,9 @@ const retractions = (chunks: UIMessageChunk[]) =>
   chunks.flatMap((chunk) => (chunk.type === RETRACT_CHUNK ? [(chunk as { data: { ids: string[] } }).data.ids] : []));
 
 /**
- * What is left on screen once every retraction has been applied, in order: a
- * provider numbers text blocks per step, so a later step can reuse an id.
+ * What is left on screen once every retraction has been applied, in order. AI
+ * SDK 7 makes text ids unique per run, so the latest part by an id is the only
+ * one; resolving to the latest is the client's defensive rule, mirrored here.
  */
 const visible = (chunks: UIMessageChunk[]) => {
   let parts: { id: string; text: string }[] = [];
@@ -68,8 +70,8 @@ describe("retractTextBesideTools", () => {
     expect(out.filter((chunk) => chunk.type.startsWith("tool-"))).toEqual(readDay);
   });
 
-  it("takes back a reused id's text only for the step that called the tool", async () => {
-    const out = await through([...step(text("0", "Checking."), readDay), ...step(text("0", "Day 1 is free.")), { type: "finish" }]);
+  it("takes back only the ids of the step that called the tool", async () => {
+    const out = await through([...step(text("0", "Checking."), readDay), ...step(text("aitxt-1", "Day 1 is free.")), { type: "finish" }]);
     expect(retractions(out)).toEqual([["0"]]);
     expect(visible(out)).toBe("Day 1 is free.");
   });
@@ -100,8 +102,20 @@ describe("retractTextBesideTools", () => {
   ])("%s text group", (_, blank) => {
     it("is not the answer when the final step says it", async () => {
       const out = await through([...step(text("a", "Day 1 is free."), readDay), ...step(text("b", blank)), { type: "finish" }]);
-      // The blank group itself still passes, ahead of the re-sent text.
-      expect(visible(out).trim()).toBe("Day 1 is free.");
+      // Taken back too, so no blank lines sit above the re-sent text.
+      expect(visible(out)).toBe("Day 1 is free.");
+    });
+
+    it("is taken back when the final step after a silent tool step says only it", async () => {
+      // Left on screen, it would be an empty answer bubble in place of "Thinking…".
+      const out = await through([...step(readDay), ...step(text("b", blank)), { type: "finish" }]);
+      expect(visible(out)).toBe("");
+    });
+
+    it("is taken back when the turn aborts in the first step", async () => {
+      // Left on screen, `useAskThread` would see text and not say the turn stopped.
+      const out = await through([{ type: "start-step" }, ...text("a", blank), { type: "abort" }]);
+      expect(visible(out)).toBe("");
     });
 
     it("beside a later tool call does not replace the last taken-back text", async () => {
@@ -111,7 +125,7 @@ describe("retractTextBesideTools", () => {
 
     it("in progress when the turn aborts does not win over the last taken-back text", async () => {
       const out = await through([...step(text("a", "Earlier note."), readDay), { type: "start-step" }, ...text("b", blank), { type: "abort" }]);
-      expect(visible(out).trim()).toBe("Earlier note.");
+      expect(visible(out)).toBe("Earlier note.");
     });
   });
 
@@ -124,6 +138,31 @@ describe("retractTextBesideTools", () => {
     const betweenSteps = await through([...step(text("a", "Day 1 is free."), readDay), { type: "start-step" }, ending]);
     expect(visible(betweenSteps)).toBe("Day 1 is free.");
     expect(betweenSteps.at(-1)).toEqual(ending);
+  });
+
+  // A model `error` chunk does not end streamText's stream: `finish-step` and
+  // `finish` follow it, so the end of the turn is reached twice.
+  it("re-sends the last taken-back text once when a provider error is followed by finish", async () => {
+    const out = await through([
+      ...step(text("a", "Day 1 is free."), readDay),
+      { type: "start-step" },
+      { type: "error", errorText: "overloaded" },
+      { type: "finish-step" },
+      { type: "finish" },
+    ]);
+    expect(visible(out)).toBe("Day 1 is free.");
+  });
+
+  it("keeps a partial answer cut by a provider error, without the earlier note after it", async () => {
+    const out = await through([
+      ...step(text("a", "Day 1 is free."), readDay),
+      { type: "start-step" },
+      ...text("b", "Half an ans"),
+      { type: "error", errorText: "overloaded" },
+      { type: "finish-step" },
+      { type: "finish" },
+    ]);
+    expect(visible(out)).toBe("Half an ans");
   });
 
   it("passes metadata and the final chunk through untouched", async () => {

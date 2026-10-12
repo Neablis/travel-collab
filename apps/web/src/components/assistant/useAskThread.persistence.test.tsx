@@ -17,6 +17,7 @@
 //
 // A reload is simulated by unmounting and mounting again under the same name,
 // which is what a reload is to a component.
+import { ASK_RETRACT_CHUNK } from "@tc/contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import type { ApiError } from "@/lib/apiClient";
@@ -222,25 +223,24 @@ describe("useAskThread — durability", () => {
     ]);
   });
 
-  // KI-20261012-e: the server takes back a note written beside a tool call. A
+  // KI-2026-10-12-e: the server takes back a note written beside a tool call. A
   // reload must not bring it back. Real frames, so the ids the server names go
-  // through `askAssistant`; the provider numbers blocks per step, so the
-  // answer reuses the note's id.
+  // through `askAssistant`, unique per run as AI SDK 7 sends them.
   it("restores none of the text the server took back", async () => {
     const frames = [
       { type: "text-start", id: "0" },
       { type: "text-delta", id: "0", delta: "Checking day 1 first." },
       { type: "text-end", id: "0" },
-      { type: "data-retract", data: { ids: ["0"] }, transient: true },
+      { type: ASK_RETRACT_CHUNK, data: { ids: ["0"] }, transient: true },
       { type: "tool-input-available", toolCallId: "c1", toolName: "read_day", input: { days: 1 } },
-      { type: "text-start", id: "0" },
-      { type: "text-delta", id: "0", delta: "Now the evening." },
-      { type: "text-end", id: "0" },
-      { type: "data-retract", data: { ids: ["0"] }, transient: true },
+      { type: "text-start", id: "aitxt-1" },
+      { type: "text-delta", id: "aitxt-1", delta: "Now the evening." },
+      { type: "text-end", id: "aitxt-1" },
+      { type: ASK_RETRACT_CHUNK, data: { ids: ["aitxt-1"] }, transient: true },
       { type: "tool-input-available", toolCallId: "c2", toolName: "read_day", input: { days: 1 } },
-      { type: "text-start", id: "0" },
-      { type: "text-delta", id: "0", delta: "Day 1 is free." },
-      { type: "text-end", id: "0" },
+      { type: "text-start", id: "aitxt-2" },
+      { type: "text-delta", id: "aitxt-2", delta: "Day 1 is free." },
+      { type: "text-end", id: "aitxt-2" },
     ];
     const body = `${frames.map((frame) => `data: ${JSON.stringify(frame)}\n\n`).join("")}data: [DONE]\n\n`;
     vi.stubGlobal("fetch", vi.fn(async () => new Response(body, { status: 200, headers: { "Content-Type": "text/event-stream" } })));

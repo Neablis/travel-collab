@@ -12,7 +12,7 @@
 // model's prose is not reproducible; asserting it would make the eval fail on
 // a rephrase and teach everyone to ignore it.
 import type { AskAnalyticsRecord } from "@/server/assistant/askAnalytics";
-import { RETRACT_CHUNK } from "@/server/ai/finalStepText";
+import { ASK_RETRACT_CHUNK, AskRetractData } from "@tc/contracts";
 
 /** One turn, as the runner observed it. */
 export interface EvalTurn {
@@ -30,7 +30,7 @@ export interface EvalTurn {
   /**
    * Text that streamed and was taken back (`retractedText`). Reported, never
    * failed: Mitchell accepted the flicker on 2026-10-12, and this is the
-   * number a holistic fix moves (KI-20261012-h).
+   * number a holistic fix moves (KI-2026-10-12-h).
    */
   retracted: { parts: number; chars: number };
 }
@@ -59,10 +59,11 @@ interface TextPart {
 }
 
 /**
- * The stream's text parts, in order, as the client sees them: a `data-retract`
- * chunk (`finalStepText.ts`) takes back the parts it names. Read in order
- * because a provider numbers text blocks per step, so a later step can reuse
- * an id; the retraction means the latest part by that id.
+ * The stream's text parts, in order, as the client sees them: an
+ * `ASK_RETRACT_CHUNK` (`finalStepText.ts`) takes back the parts it names. AI
+ * SDK 7 makes text ids unique per run, so the latest part by an id is the only
+ * one; resolving to the latest is defensive, in case a provider or a later SDK
+ * reuses ids, and matches the client's rule.
  */
 function textParts(chunks: readonly Record<string, unknown>[]): TextPart[] {
   const parts: (TextPart & { id: unknown })[] = [];
@@ -75,8 +76,9 @@ function textParts(chunks: readonly Record<string, unknown>[]): TextPart[] {
     else if (chunk.type === "text-delta") {
       const part = latest(chunk.id) ?? parts[parts.push({ id: chunk.id, text: "", retracted: false, beforeToolCall: false }) - 1]!;
       part.text += String(chunk.delta);
-    } else if (chunk.type === RETRACT_CHUNK) {
-      for (const id of (chunk.data as { ids?: unknown[] } | undefined)?.ids ?? []) {
+    } else if (chunk.type === ASK_RETRACT_CHUNK) {
+      const data = AskRetractData.safeParse(chunk.data);
+      for (const id of data.success ? data.data.ids : []) {
         const part = latest(id);
         if (part) part.retracted = true;
       }
@@ -98,7 +100,7 @@ export function visibleText(chunks: readonly Record<string, unknown>[]): string 
 /**
  * Whether text left on screen came ahead of a tool call: a model's note to
  * itself between reads, which the server is meant to take back
- * (KI-20261012-e, `finalStepText.ts`). Structural, not a phrase list. Any
+ * (KI-2026-10-12-e, `finalStepText.ts`). Structural, not a phrase list. Any
  * call, not the first: a note is usually written once a read has returned,
  * beside the second call.
  */

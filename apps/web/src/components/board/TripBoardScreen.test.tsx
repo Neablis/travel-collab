@@ -793,7 +793,7 @@ describe("TripBoardScreen", () => {
     expect(log.textContent).not.toContain("{");
   });
 
-  // KI-20261012-e: the model's note beside a tool call streams, then the server
+  // KI-2026-10-12-e: the model's note beside a tool call streams, then the server
   // takes it back. It must leave the rendered thread as the signal arrives.
   it("drops text the server takes back from the transcript", async () => {
     const fixture = tripDetailFixture();
@@ -806,7 +806,7 @@ describe("TripBoardScreen", () => {
       await new Promise<void>((resolve) => (takeBack = resolve));
       onEvent({ type: "retract", text: "Checking day 1 first." });
       onEvent({ type: "tool", toolCallId: "t1", toolName: "read_day", input: { days: 1 } });
-      onEvent({ type: "text", delta: "Day 1 is free.", id: "0" });
+      onEvent({ type: "text", delta: "Day 1 is free.", id: "aitxt-1" });
       return { ok: true as const, value: { text: "Day 1 is free." } };
     });
     renderScreen(fixture.tripId);

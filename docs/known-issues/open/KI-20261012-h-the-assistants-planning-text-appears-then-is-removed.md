@@ -4,9 +4,10 @@
   model's working notes for as long as it takes the model to start its tool call, and then
   watch it disappear.
 - **Area:** `apps/web/src/server/ai/finalStepText.ts` (`retractTextBesideTools`, piped on both
-  ask routes in `apps/web/src/server/ai/handleAskRequest.ts`), the client's handling of the
-  `data-retract` chunk in `apps/web/src/lib/apiClient.ts` (`askAssistant`, `withoutRetracted`)
-  and `apps/web/src/components/assistant/useAskThread.ts`, and the eval's count in
+  ask routes in `apps/web/src/server/ai/handleAskRequest.ts`), the `data-retract` chunk
+  (`ASK_RETRACT_CHUNK` in `packages/contracts/src/assistant.ts`), the client's handling of it
+  in `apps/web/src/lib/apiClient.ts` (`askAssistant`, `withoutRetracted`) and
+  `apps/web/src/components/assistant/useAskThread.ts`, and the eval's count in
   `apps/web/src/server/ai/eval/grade.ts` (`retractedText`), printed by `live.eval.ts`.
 - **Symptom:** the fix for KI-2026-10-12-e (PR 425). Every step's text streams as the model
   writes it. When a step that wrote text goes on to a tool call, the server sends a transient
@@ -14,7 +15,8 @@
   such as "Gap 5:30–7 pm. Look up a cafe." appears in the reply and then goes. The final step
   calls no tool, so the answer itself is never removed. The thread the client stores, and posts
   back as history, never holds retracted text, except in one window: a reload between a note
-  arriving and its retraction stores the note.
+  arriving and its retraction stores the note. Pressing Stop in the same window keeps the note
+  too, on screen and stored, because `askAssistant` stops reading before the retraction arrives.
 - **Why it is left like this (Mitchell, 2026-10-12):** chosen over holding each step's text
   until the step ends. Holding hid the note, but the final answer then arrived all at once at
   the end of its step instead of streaming. The flicker is accepted deliberately: it keeps the

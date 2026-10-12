@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { demoTripDetail } from "@/server/demoTrip";
 import { DEMO_TRIP_ID } from "@/lib/demoTrip";
-import { TripCommand } from "@tc/contracts";
+import { ASK_RETRACT_CHUNK, TripCommand } from "@tc/contracts";
 import {
   DAYTIME_END_MINUTES,
   DAYTIME_START_MINUTES,
@@ -303,7 +303,7 @@ describe("reviewedChanges", () => {
   });
 });
 
-// KI-20261012-e: a turn whose reply carried the model's note to itself passed
+// KI-2026-10-12-e: a turn whose reply carried the model's note to itself passed
 // every check, because none of them read the reply's text.
 describe("no text before a tool call", () => {
   const LEAKED =
@@ -349,7 +349,7 @@ describe("no text before a tool call", () => {
     expect(failing(grade({ ...turn(), textBeforeToolCall: false }, {}))).toEqual([]);
   });
 
-  // KI-20261012-h: the note streams, then a `data-retract` takes it back. The
+  // KI-2026-10-12-h: the note streams, then an `ASK_RETRACT_CHUNK` takes it back. The
   // check grades what is left on screen, so a taken-back note passes and the
   // same stream without its retraction fails.
   describe("graded on the text left after retractions", () => {
@@ -358,14 +358,14 @@ describe("no text before a tool call", () => {
       { type: "text-start", id: "0" },
       { type: "text-delta", id: "0", delta: "Gap 5:30–7 pm. Look up a cafe in Shibuya." },
       { type: "text-end", id: "0" },
-      ...(retract ? [{ type: "data-retract", data: { ids: ["0"] }, transient: true }] : []),
+      ...(retract ? [{ type: ASK_RETRACT_CHUNK, data: { ids: ["0"] }, transient: true }] : []),
       { type: "tool-input-start", toolName: "search_places" },
       { type: "finish-step" },
       { type: "start-step" },
-      // A provider numbers text blocks per step: the answer reuses the note's id.
-      { type: "text-start", id: "0" },
-      { type: "text-delta", id: "0", delta: "I'd add a coffee break to day 1." },
-      { type: "text-end", id: "0" },
+      // AI SDK 7 gives each text part in a run its own id.
+      { type: "text-start", id: "aitxt-1" },
+      { type: "text-delta", id: "aitxt-1", delta: "I'd add a coffee break to day 1." },
+      { type: "text-end", id: "aitxt-1" },
       { type: "finish-step" },
     ];
     const graded = (chunks: Record<string, unknown>[]) =>

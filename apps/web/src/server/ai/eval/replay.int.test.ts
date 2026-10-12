@@ -385,7 +385,7 @@ describe.each(everyTranscript())("replaying $name", (transcript) => {
 // it is spent on a real model.
 /**
  * The simulated model, writing itself a note beside each tool call as a real
- * model does (KI-20261012-e). It never does on its own, so without this the
+ * model does (KI-2026-10-12-e). It never does on its own, so without this the
  * structural check below could not see the door's filter regress.
  */
 function notingBesideCalls(model: ReturnType<typeof simulatedModel>): ReturnType<typeof simulatedModel> {
