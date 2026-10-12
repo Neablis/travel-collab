@@ -53,7 +53,7 @@ be exactly that re-implementation, and the two would drift.
    that history preview or read-only access withholds from ⌘K is withheld from the assistant too.
    The reply says it could not.
 6. **Crossing pages.** *Go to › Trip* may carry a view (`go:trip:<tripId>` landing on
-   `?lens=<View>`, which the trip page already reads), so *"open my Kyoto trip on the map"* is one
+   `?view=<View>`, which the trip page already reads for every view; `?lens=` maps only some), so *"open my Kyoto trip on the map"* is one
    command, not a chain the palette has no way to run.
 7. **§5 of ADR-068 is amended: the palette hands unmatched text to the assistant.** When nothing
    matches, the palette's last row is *Ask: <text>*, and choosing it opens the assistant with the
