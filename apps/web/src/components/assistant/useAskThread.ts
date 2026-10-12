@@ -237,6 +237,18 @@ export function useAskThread({
   // what makes that one rule instead of two.
   useEffect(() => {
     if (persistAs === undefined) return;
+    // **Learning who is signed in is not a switch of conversation.** The name
+    // is owned (`useOwnedAskName`), so it only exists once the session read
+    // answers, and a question can be asked before it does. That turn is this
+    // conversation's: it is kept, in flight or not, with the stored turns put
+    // before it under fresh ids (`patchAnswer` targets the live turn's).
+    if (savedKey.current === undefined && (threadRef.current.length > 0 || abort.current !== null)) {
+      const base = turnSeq.current;
+      const earlier = loadAskThread(persistAs).map((turn, i) => ({ ...turn, id: `${turn.role === "user" ? "u" : "a"}${base + i + 1}` }));
+      turnSeq.current = base + earlier.length;
+      setThread((current) => [...earlier, ...current]);
+      return;
+    }
     // **A request in flight belongs to the conversation being left.** Its
     // deltas would otherwise keep arriving after the new one is loaded, and
     // `patchAnswer` patches BY ID — a restored `a3` under the new key is a

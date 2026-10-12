@@ -643,13 +643,15 @@ export function AssistantRail({
   // one's draft, or empties if it has none, and the transition render saves
   // nothing (`draftKey`): it would store the old conversation's text under the
   // new name, the PR 188 bug `useAskThread` guards the same way. The first
-  // name, once the signed-in user is known, keeps whatever was typed before.
+  // name exists only once the signed-in user is known, and what was typed
+  // before then is this conversation's: it wins over a stored draft, and is
+  // stored.
   const draftKey = useRef<string | undefined>(undefined);
   useEffect(() => {
     if (draftName === undefined) return;
+    const first = draftKey.current === undefined;
     const stored = loadAskDraft(draftName);
-    if (stored !== null) setAsk(stored);
-    else if (draftKey.current !== undefined) setAsk("");
+    setAsk((typed) => (!first ? (stored ?? "") : typed.trim() === "" && stored !== null ? stored : typed));
   }, [draftName]);
 
   useEffect(() => {
@@ -662,11 +664,14 @@ export function AssistantRail({
   useEffect(() => {
     if (draftName === undefined) return;
     if (draftKey.current !== draftName) {
-      // The old conversation's last keystrokes, still inside the delay, are
-      // its own: stored under its name before the switch.
-      unsavedDraft.current?.();
+      const previous = draftKey.current;
       draftKey.current = draftName;
-      return;
+      if (previous !== undefined) {
+        // The old conversation's last keystrokes, still inside the delay, are
+        // its own: stored under its name before the switch.
+        unsavedDraft.current?.();
+        return;
+      }
     }
     const save = () => {
       unsavedDraft.current = null;

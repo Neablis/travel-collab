@@ -979,6 +979,18 @@ describe("AssistantRail — the unsent draft survives an unmount", () => {
     expect(loadAskDraft(ownedAskName("user-a", "trip:a"))).toBeNull();
   });
 
+  // The owned name exists only once the session read answers; what was typed
+  // before then is this conversation's draft, and is stored once it does.
+  it("stores what was typed before the session answered, once it does", async () => {
+    session.user = undefined;
+    const view = renderRail({ rememberDraftAs: "account" });
+    fireEvent.change(composer(), { target: { value: "where next?" } });
+    session.user = { id: "user-a" };
+    view.rerender(<AssistantRail {...baseProps} rememberDraftAs="account" />);
+    expect(composer().value).toBe("where next?");
+    await waitFor(() => expect(loadAskDraft(ownedAskName("user-a", "account"))).toBe("where next?"));
+  });
+
   // PR 426 review, finding 8: a rail handed another conversation's name took
   // the old one's text along and, a moment later, stored it under the new name.
   it("swaps the box to the other conversation's draft when the name changes", () => {

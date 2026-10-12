@@ -129,6 +129,36 @@ describe("useAskThread — durability", () => {
     expect(again.result.current.thread[0]!.text).toBe("what was my most expensive meal?");
   });
 
+  // The owned name exists only once the session read answers, and a question
+  // can be asked before it does (the e2e lane types at once). Learning who is
+  // signed in must not abort that turn or wipe it with the stored thread.
+  it("keeps a turn asked before the session answered, after the stored conversation", async () => {
+    saveAskThread(NAME, stored);
+    session.user = undefined;
+    let answer: (response: Response) => void = () => {};
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((resolve) => (answer = resolve))));
+    const view = mount(CONVERSATION);
+    let turn: Promise<void> = Promise.resolve();
+    act(() => {
+      turn = view.result.current.runAsk("and the free time?");
+    });
+
+    session.user = { id: USER };
+    view.rerender();
+    await act(async () => {
+      answer(await answeringFetch("Two free afternoons.")());
+      await turn;
+    });
+    expect(view.result.current.thread.map((t) => t.text)).toEqual([
+      "how does this trip look?",
+      "Kyoto 2027 runs to 3 days.",
+      "and the free time?",
+      "Two free afternoons.",
+    ]);
+    const ids = view.result.current.thread.map((t) => t.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
   it("brings the conversation back on the next mount", async () => {
     saveAskThread(NAME, stored);
     const { result } = mount(CONVERSATION);
