@@ -65,6 +65,11 @@ Candidates absorbed (each deleted by this gate):
    This bends SPEC §35.2 (*"New trip, and nothing else"*). `.design-sync/handoff/SPEC.md` is a
    build input, so the amendment rides a code PR (part 5), not part 0. ⌘K's *Ask:* row is
    **hidden for users without assistant access**.
+   *Reversed 2026-10-12 by Mitchell, on PR 426's preview:* "There should be a way to collapse or
+   hide the assistant and it starts closed." Home's rail now works like the trip board's
+   (`useAssistantVisibility`). It is **closed by default at every width**. The head's Ask button
+   opens it, docked from 1100px and as a sheet below that, and Hide closes it. The phone tab
+   bar's Ask pill is tinted only while its sheet is open.
 8. **No memory.** *User memory* stays deferred with the eve port (ADR-062). *As recommended.*
 9. **The playbook pages get an assistant too** (added by Mitchell 2026-10-12, after parts 1–3
    merged). Every playbook surface gets it: a playbook day, a playbook, Discover, and the city
@@ -118,7 +123,7 @@ Candidates absorbed (each deleted by this gate):
 - [ ] **The ledger shows the new surface's cost per turn** (`ai-usage` skill output pasted here).
 - [ ] **The e2e spec passes on `pnpm --filter web test:e2e:ci-like`** against the simulated
       provider.
-- [ ] **[walk]** On the PR preview, ask the home assistant *"which city have I been to most"* and
+- [ ] **[walk]** On the PR preview, open the home assistant (Ask) and ask it *"which city have I been to most"* and
       *"open my Kyoto trip on the map"*.
 - [ ] **Each playbook surface grants only its own tools.** A grants test lists every playbook
       surface's tools and is seen red with a trip tool (`find_free_time`) added. A signed-out or
