@@ -1109,7 +1109,7 @@ describe("simulatedModel — the page classification call", () => {
 // flag-off path has to reach for the aggregate a question needs, by phrase,
 // and answer from what came back.
 describe("simulatedModel — the account surface", () => {
-  const ACCOUNT_TOOLS = ["spend_by_category", "places_visited", "visit_counts", "suggest_next_country"];
+  const ACCOUNT_TOOLS = ["spend_by_category", "places_visited", "visit_counts", "suggest_next_country", "open_trip"];
 
   function accountPrompt(question: string, results: { toolName: string; value: unknown }[] = []) {
     const base = askPrompt({ kind: "account" }, results, { question });
@@ -1176,6 +1176,18 @@ describe("simulatedModel — the account surface", () => {
     expect(await say("how many countries have I been to?", "places_visited", places)).toContain("2 countries");
     expect(await say("which city have I been to most?", "visit_counts", counts)).toContain("Kyoto");
     expect(await say("which country should I visit next?", "suggest_next_country", next)).toContain("South Korea");
+  });
+
+  // D6's walk from Home: the trip is named, never chosen by the stand-in.
+  it.each([
+    ["open my Kyoto trip on the map", { trip: "Kyoto", view: "Map" }],
+    ["take me to my Lisbon trip", { trip: "Lisbon" }],
+  ])("asks open_trip for %j, and says what came of it", async (question, input) => {
+    const calls = callsOf(await probe().doGenerate(accountPrompt(question)));
+    expect(calls.map((c) => [c.toolName, JSON.parse(c.input)])).toEqual([["open_trip", input]]);
+    const said = async (value: unknown) => textOf(await probe().doGenerate(accountPrompt(question, [{ toolName: "open_trip", value }])));
+    expect(await said({ queued: true, note: "queued" })).toContain("Taking you there now.");
+    expect(await said({ queued: false, refused: "You are not travelling on a trip called “Kyoto”." })).toContain("not travelling on");
   });
 
   it("classifies an account question as a question", async () => {

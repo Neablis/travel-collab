@@ -9,6 +9,7 @@ import { pageFixture, tripDetailFixture } from "@tc/factories";
 import { makeAccountPlanHandler, makePagesHandlers } from "@/mocks/handlers";
 import type { AskEvent, AskWhere, AskWireMessage } from "@/lib/apiClient";
 import { registerPaletteCommands } from "@/components/palette/paletteRegistry";
+import { usePhoneAsk } from "@/components/nav/phoneAsk";
 
 // M14 link 8's second half: the notebook's AI surface is the assistant rail,
 // the same one the board runs — Mitchell, walking the preview (2026-09-04):
@@ -191,6 +192,42 @@ describe("the assistant on a notebook page", () => {
     );
   });
 
+
+  // M45 D6: ⌘K's *Ask: <text>* works "inside a trip", and the palette offers
+  // the row only where the screen's entry carries `onAsk` (pinned in
+  // `CommandPalette.test.tsx`). A button stands in for the row, reading the
+  // entry as the palette does, so the palette's session and trip reads stay
+  // out of this file. Choosing it opens the panel and asks with this page.
+  it("takes ⌘K's Ask: text into the panel and sends it with this page's scope", async () => {
+    function PaletteAskProbe({ text }: { text: string }) {
+      const onAsk = usePhoneAsk()?.onAsk;
+      return onAsk === undefined ? null : (
+        <button type="button" onClick={() => onAsk(text)}>
+          Ask: {text}
+        </button>
+      );
+    }
+    const trip = tripDetailFixture({ tripId: crypto.randomUUID(), days: [] });
+    const page = pageFixture({
+      tripId: trip.tripId,
+      content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Notes" }] }] },
+    });
+    server.use(...makePagesHandlers([page]), http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })));
+    render(
+      <>
+        <PageScreen tripId={trip.tripId} pageId={page.id} />
+        <PaletteAskProbe text="Add a packing list" />
+      </>,
+    );
+    await screen.findByText("Notes");
+    await userEvent.click(await screen.findByRole("button", { name: "Ask: Add a packing list" }));
+
+    expect(await screen.findByRole("complementary", { name: "Assistant" })).toBeTruthy();
+    await waitFor(() => expect(askAssistantMock).toHaveBeenCalled());
+    const [{ scope }, messages] = askAssistantMock.mock.calls[0]! as [AskWhere, AskWireMessage[]];
+    expect(scope).toEqual({ kind: "page", pageId: page.id });
+    expect(JSON.stringify(messages.at(-1))).toContain("Add a packing list");
+  });
 
   it("asks with a page scope carrying THIS page's id", async () => {
     const { page } = await openRail();

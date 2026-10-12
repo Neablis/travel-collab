@@ -14,12 +14,25 @@ function rail(page: Page) {
   return page.getByRole("complementary", { name: "Assistant" });
 }
 
+let tripName = "";
+let tripId = "";
+
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
   // A trip with places on it, so "which city" has one to name. Specs share
   // the dev user, so which city comes top is not this spec's to assert.
-  await createMappedTrip(page, e2eTripName("Home ask"), 2);
+  tripName = e2eTripName("Home ask");
+  tripId = await createMappedTrip(page, tripName, 2);
   await page.goto("/");
+});
+
+// D6's walk: the reply names Home's own ⌘K command for that trip's Map view
+// (ADR-072 §6), and the page runs it.
+test("asked to open a trip on the map, Home's rail lands on that trip's Map view", async ({ page }) => {
+  const composer = rail(page).getByPlaceholder("Ask about your trips…");
+  await composer.fill(`open my ${tripName} trip on the map`);
+  await composer.press("Enter");
+  await expect(page).toHaveURL(new RegExp(`/trips/${tripId}\\?view=Map$`));
 });
 
 test("Home's rail is there without opening, and asks across your trips", async ({ page }) => {
