@@ -14,7 +14,7 @@ import { LensRouter } from "@/components/trip/context/LensRouter";
 import { PhoneAskTab } from "@/components/nav/PhoneTabBar";
 import { usePhoneAsk } from "@/components/nav/phoneAsk";
 import { type PaletteCommand, usePaletteCommands } from "@/components/palette/paletteRegistry";
-import { activityFactory, costedTripDetailFixture, historyFixture, locationFactory, tripCoverFactory, tripDetailFixture } from "@tc/factories";
+import { activityFactory, costedTripDetailFixture, historyFixture, locationFactory, pageFixture, tripCoverFactory, tripDetailFixture } from "@tc/factories";
 import { makeTripHandlers, makeAccountPlanHandler, makeNearbyStopsHandler, makePagesHandlers } from "@/mocks/handlers";
 import { setViewportMatches, triggerResize } from "../../../vitest.setup";
 
@@ -112,6 +112,7 @@ const replaceSpy = vi.fn((url: string) => {
   search = new URLSearchParams(url.split("?")[1] ?? "");
   listeners.forEach((l) => l());
 });
+const pushSpy = vi.fn();
 vi.mock("next/navigation", () => ({
   useSearchParams: () =>
     useSyncExternalStore(
@@ -122,7 +123,7 @@ vi.mock("next/navigation", () => ({
       () => search,
     ),
   usePathname: () => "/trips/x",
-  useRouter: () => ({ replace: replaceSpy }),
+  useRouter: () => ({ replace: replaceSpy, push: pushSpy }),
 }));
 
 // Navigates by `?view=` the same way a real URL change would: mutate the
@@ -2890,6 +2891,21 @@ describe("⌘K runs the trip page's own actions", () => {
     // Waited for: the registry is written in an effect, after the header has
     // painted the version it shows.
     await waitFor(() => expect(changes(ids())).toEqual([]));
+  });
+
+  // M45 D4: *Go to › Notebook* goes where the Notebooks menu's row links.
+  it("goes to a notebook where the Notebooks menu's row goes", async () => {
+    const fixture = tripDetailFixture();
+    const notebook = pageFixture({ tripId: fixture.tripId, title: "Packing" });
+    server.use(...makePagesHandlers([notebook]), ...makeTripHandlers(fixture));
+    const { run, ids } = renderWithPalette(fixture.tripId);
+    await screen.findByRole("heading", { name: "Rome 2027" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Notebooks" }));
+    const row = await screen.findByRole("link", { name: /^Packing/ });
+    await waitFor(() => expect(ids()).toContain(`go:notebook:${notebook.id}`));
+    run(`go:notebook:${notebook.id}`);
+    expect(pushSpy).toHaveBeenLastCalledWith(row.getAttribute("href"));
   });
 
   // PR 398 review: a create sheet keeps its draft, so New stop over an open

@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import type { TimeWindow } from "@tc/contracts";
+import { useRouter, useSearchParams } from "next/navigation";
+import type { PageSummary, TimeWindow } from "@tc/contracts";
 import { useTrip } from "@/components/trip/context/TripProvider";
 import { useEditor } from "@/components/trip/context/EditorHost";
 import { useDaySync, useFocus } from "@/components/trip/context/FocusProvider";
@@ -11,6 +11,7 @@ import {
   addDayCommand,
   editStopCommands,
   goToDayCommands,
+  goToNotebookCommands,
   goToStopCommands,
   lensCommands,
   moveDayCommands,
@@ -58,6 +59,9 @@ import { lensAcceptsDrops } from "./lensAcceptsDrops";
 import { rackDisclosure, type RackDisclosure, type RackEvent } from "@/components/trip/rackDisclosure";
 import { legRoute, shortPlace } from "@/lib/place";
 import { isDemoTripId } from "@/lib/demoTrip";
+import { fetchPages } from "@/lib/pagesClient";
+import { cachedRead, DEDUPE } from "@/lib/queryCache";
+import { tripKeys } from "@/lib/queryKeys";
 import { useAssistantShape } from "@/components/assistant/useAssistantShape";
 import { AssistantRail } from "@/components/assistant/AssistantRail";
 import type { AssistantTurn } from "@/components/assistant/Transcript";
@@ -278,6 +282,22 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           focusedDayId: focusIn.dayId ?? (focusIn.activityId === null ? null : (activeTrip.days.find((d) => d.activityIds.includes(focusIn.activityId!))?.dayId ?? null)),
           selectedDayId: focusedDayId ?? null,
         });
+  // The trip's notebooks for *Go to › Notebook*, read once per trip through
+  // the cache Overview reads them through. None on the demo trip, which has
+  // no Notebooks menu either.
+  const router = useRouter();
+  const [notebooks, setNotebooks] = useState<readonly PageSummary[]>([]);
+  useEffect(() => {
+    setNotebooks([]);
+    if (isDemoTripId(tripId)) return;
+    let live = true;
+    void cachedRead(tripKeys.pages(tripId), () => fetchPages(tripId), { dedupeMs: DEDUPE.DOCUMENT }).then((result) => {
+      if (live && result.ok) setNotebooks(result.value.pages);
+    });
+    return () => {
+      live = false;
+    };
+  }, [tripId]);
   usePaletteSource(
     "trip-board",
     boardRenders && activeTrip !== null && targets !== null
@@ -285,6 +305,8 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           ...lensCommands(setView),
           ...goToDayCommands(targets.days, focusDay),
           ...goToStopCommands(targets.stops, focusActivity),
+          // Where the Notebooks menu's row links.
+          ...goToNotebookCommands(notebooks, (pageId) => router.push(`/trips/${tripId}/pages/${pageId}`)),
           ...(paletteChanges
             ? [
                 // The editor opened on the selected day with a fitted time

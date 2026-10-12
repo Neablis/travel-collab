@@ -24,7 +24,7 @@ export type PaletteAction = "Go to" | "Add" | "Edit" | "Move" | "Remove";
 /** The only commands with no Type or Target (ADR-069 §1). */
 export type PaletteSingleton = "Undo" | "Redo" | "Ask the assistant";
 /** What kind of thing a path's Target is (ADR-069 §1). */
-export type PaletteType = "Trip" | "Day" | "Stop" | "View" | "Page";
+export type PaletteType = "Trip" | "Day" | "Stop" | "View" | "Notebook" | "Page";
 
 /** A Target or Destination: what it is called, and any other words it answers to. */
 export type PaletteSegment = {
@@ -51,6 +51,13 @@ export type PaletteCommand = {
   id: string;
   nearness?: PaletteNearness;
   order?: number;
+  /**
+   * Runnable by id (`runPaletteCommand`) but never a row: a listed command's
+   * place, landing somewhere more exact, so the assistant can name it as one
+   * command (ADR-072 §6). A person reaches it by the listed command and then
+   * the page's own.
+   */
+  unlisted?: true;
   run: () => void;
 } & (
   | { action: PaletteAction; type: PaletteType; target?: PaletteSegment; destination?: PaletteSegment }
@@ -98,6 +105,22 @@ export function usePaletteCommands(): readonly PaletteCommand[] {
 }
 
 /**
+ * The registered command with `id`, for running one by name outside the
+ * palette (ADR-072 §1): the assistant names a command, never a URL or a
+ * handler, and this is the same object ⌘K would run.
+ */
+export function findPaletteCommand(id: string): PaletteCommand | undefined {
+  return snapshot.find((command) => command.id === id);
+}
+
+/** Runs the registered command with `id`; false, having run nothing, when no screen offers it. */
+export function runPaletteCommand(id: string): boolean {
+  const command = findPaletteCommand(id);
+  command?.run();
+  return command !== undefined;
+}
+
+/**
  * Offers `commands` under `source` while the calling component is mounted.
  * They may be fresh objects every render: each registered `run` calls the
  * latest command with its id, so the list is re-registered only when which
@@ -108,7 +131,7 @@ export function usePaletteSource(source: string, commands: readonly PaletteComma
   useEffect(() => {
     latest.current = commands;
   });
-  const shape = JSON.stringify(commands.map((c) => [c.id, c.action, c.type, c.target, c.destination, c.nearness, c.order]));
+  const shape = JSON.stringify(commands.map((c) => [c.id, c.action, c.type, c.target, c.destination, c.nearness, c.order, c.unlisted]));
   useEffect(() => {
     const offered = latest.current.map((command) => ({
       ...command,

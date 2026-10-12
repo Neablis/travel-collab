@@ -176,8 +176,37 @@ describe("CommandPalette", () => {
     fetchTrips.mockResolvedValue({ ok: false, error: { code: "network" } });
     await userEvent.keyboard("{Meta>}k{/Meta}kyo");
     expect(palette()).toBeTruthy();
-    await waitFor(() => expect(fetchTrips).toHaveBeenCalledTimes(2));
+    // On mount, then on each opening.
+    await waitFor(() => expect(fetchTrips).toHaveBeenCalledTimes(3));
     expect(screen.queryByRole("option", { name: /Kyoto in spring/ })).toBeNull();
+  });
+
+  // M45 D4: Notebook is a Type, in the vocabulary's place among the others
+  // (ADR-069: the closed sets never move), and "notebook" finds both its actions.
+  it("lists Notebook among the types in its place, and finds its commands by it", async () => {
+    signedIn = false;
+    const toggle = vi.fn();
+    offer([
+      command("Map", vi.fn()),
+      { id: "go:notebook:p1", action: "Go to", type: "Notebook", target: { key: "p1", label: "Packing" }, run: vi.fn() },
+      { id: "notebook-editing", action: "Edit", type: "Notebook", target: { label: "Turn editing on" }, run: toggle },
+    ]);
+    render(<CommandPalette />);
+    await userEvent.keyboard("{Meta>}k{/Meta}{Enter}");
+    expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual(["View›", "Notebook›", "Page›"]);
+    await userEvent.keyboard("{Escape}{Meta>}k{/Meta}notebook");
+    expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual(["Go to › Notebook›", "Go to › Notebook › Packing", "Edit › Notebook›"]);
+    await userEvent.keyboard("{Escape}{Meta>}k{/Meta}editing on{Enter}");
+    await waitFor(() => expect(toggle).toHaveBeenCalledTimes(1));
+  });
+
+  // ADR-072 §6: a command only the assistant names by id is not a row.
+  it("lists no unlisted command", async () => {
+    signedIn = false;
+    offer([{ id: "hidden", action: "Go to", type: "View", target: { label: "Hidden" }, unlisted: true, run: vi.fn() }]);
+    render(<CommandPalette />);
+    await userEvent.keyboard("{Meta>}k{/Meta}hidden");
+    expect(screen.queryAllByRole("option")).toEqual([]);
   });
 
   // PR 398 review: the list can shrink under the highlight while it is open.
