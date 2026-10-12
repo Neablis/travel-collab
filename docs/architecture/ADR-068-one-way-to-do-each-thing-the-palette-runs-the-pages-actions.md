@@ -44,7 +44,9 @@ gestures where a stop lives.
    why both stay (a phone and a desktop form of the same action, for example). The milestone's
    gate PR keeps the running list. This applies beyond M41: it is part of `stacked-prs.md` §3a's
    self-review from now on.
-5. **The palette does not talk to the model in v1.** Text that matches no command shows *No
+5. **The palette does not talk to the model in v1.** *(Amended 2026-10-12 by **ADR-072** §7:
+   unmatched text offers an* Ask: … *row that opens the assistant. The palette still shows no
+   reply.)* Text that matches no command shows *No
    match*. Handing it to the assistant would make the palette a second chat box, and the
    assistant already has one.
 

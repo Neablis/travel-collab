@@ -1,10 +1,15 @@
 # M45 — The assistant answers about all your trips, and can take you places
 
-**Status:** **Proposed 2026-10-06, placed after M44; current from 2026-10-12, when M43 and M44 moved last. Not scoped yet**: the decisions below are
-recommendations and none has been answered. Minted from `docs/candidates.md` (see
-`docs/milestones/README.md`, *2026-10-06 — proposed: M37 to M47*). It is placed late on purpose.
-On 2026-10-03 Mitchell wanted users before increasing AI cost, and an account-wide assistant is
-new AI traffic. If that changes, this milestone can move up without changing its scope.
+**Status:** **Proposed 2026-10-06; current from 2026-10-12, when M43 and M44 moved last. Scoped
+2026-10-12**: every decision below was answered by Mitchell that day. Minted from
+`docs/candidates.md` (see `docs/milestones/README.md`, *2026-10-06 — proposed: M37 to M47*). It
+was placed late because Mitchell wanted users before more AI cost (2026-10-03).
+
+**It was written before M41 built the ⌘K palette** (ADR-068, ADR-069), and scoping re-based it
+on that work at Mitchell's ask: *"it predates our command-k command pallet, so lets make sure this
+new milestone knows about that work and uses it"*. The assistant moves you around by running the
+palette's own commands, and the palette hands unmatched text to the assistant. ADR-072 records
+both.
 
 ## Why this exists
 
@@ -29,26 +34,41 @@ Candidates absorbed (each deleted by this gate):
 - *The assistant can move around the site* (2026-10-04)
 - *The assistant asks to change the app's own state, and you approve it* (2026-09-04)
 
-## Decisions it needs (recommendations; none answered)
+## Decisions (answered by Mitchell, 2026-10-12)
 
-1. **Aggregates are computed by deterministic tools, not by the model reading trip dumps.**
-   *Recommended:* `spend_by_category`, `places_visited`, `visit_counts`. They are cheaper,
-   correct, and testable without a model. The M32 free-day tool is the precedent.
+1. **Aggregates are computed by deterministic tools, not by the model reading trip dumps**:
+   `spend_by_category`, `places_visited`, `visit_counts` and `suggest_next_country`. They are
+   cheaper, correct, and testable without a model. The M32 free-day tool is the precedent.
+   *As recommended.*
 2. **Which trips count:** trips where the user is travelling (ADR-065), not every trip they can
-   open. Invariant 7 still holds, so nothing is read that the user could not open.
+   open. Invariant 7 still holds, so nothing is read that the user could not open. *As recommended.*
 3. **Country and city come from geocoded places, with the stop's city as the fallback.** A stop
    with neither is counted as unknown and never guessed. *Suggest the next country* subtracts the
-   visited set from a static list. That list is the only new data.
-4. **A client action is a typed destination, never a URL.** One ADR defines `ClientAction`, a
-   closed union (`openNotebook`, `setLens`, `focusDay`, `focusStop`, `openPeople`,
-   `setNotebookEditing`). Navigation runs visibly when the reply arrives. A state change such as
-   edit mode goes through Approve. Neither silently leaves a page that has unsaved input.
-5. **No memory.** *User memory* stays deferred with the eve port (ADR-062).
+   visited set from a static list. That list is the only new data. *As recommended.*
+4. **A client action is a ⌘K palette command, not a new union.** *Replaces the recommended
+   `ClientAction` union.* A reply names a palette command by id (`view:Map`, `go:day:<id>`,
+   `go:stop:<id>`, `people`, `go:trip:<id>`), and the client runs that command's own `run`, the
+   function the palette would call (ADR-068 §1). The two that did not exist are added **to the
+   palette first**, so a person can use them from ⌘K too: *Go to › Notebook › <name>* and
+   *Edit › Notebook › Turn editing on/off*. A reply that names a command the page does not offer
+   does nothing, and says so. A URL in a reply never navigates.
+5. **Navigation runs; a change asks.** A *Go to* command runs when the reply arrives. A command
+   that changes state (notebook edit mode) waits for Approve on the proposal card. Neither leaves a
+   page that has unsaved input.
+6. **⌘K hands unmatched text to the assistant.** When nothing matches, the palette's last row is
+   *Ask: <text>*, which opens the assistant with it, on Home and inside a trip. This amends
+   ADR-068 §5 (*"the palette does not talk to the model in v1"*); ADR-072 records the amendment.
+7. **Home has an always-visible assistant rail**, docked like the trip page's, answering across
+   your trips. *Chosen over the recommended panel opened from ⌘K.*
+8. **No memory.** *User memory* stays deferred with the eve port (ADR-062). *As recommended.*
 
 ## Scope
 
-- An assistant on the home page with the cross-trip read tools.
-- `ClientAction` and its ADR, the navigation tools, and the edit-mode proposal.
+- An always-visible assistant rail on Home with the cross-trip read tools.
+- The palette's notebook commands, a way to run a command by id, and *Go to › Trip* landing on a
+  chosen view.
+- ADR-072, the navigation tools that name palette commands, and the edit-mode proposal.
+- *Ask: …* as the palette's last row when nothing matches.
 - Usage recorded in the M31 ledger under its own surface, and cases added to the M33 eval suite.
 
 ## Out of scope
@@ -58,13 +78,17 @@ Candidates absorbed (each deleted by this gate):
 
 ## Exit gate
 
-- [ ] **Decisions 1–5 are answered and recorded here**, and the `ClientAction` ADR is written.
+- [ ] **Decisions 1–8 are answered and recorded here**, and ADR-072 is written, amending
+      ADR-068 §5.
 - [ ] **Each aggregate tool is unit-tested over a fixture of several trips, each test seen red**,
       including a trip the user is not travelling on, which must be excluded.
 - [ ] **The four example questions are answered correctly** in the eval suite (M33). The run's
       numbers are pasted here.
-- [ ] **A navigation reply changes the view the user sees, and a URL in a reply does not
-      navigate.** A test is seen red with free URLs allowed.
+- [ ] **A navigation reply runs the palette command it names and changes the view the user
+      sees; a command the page does not offer, or a URL, does nothing.** A test asserts the run is
+      the palette command's own function (ADR-068 §2), and one is seen red with free URLs allowed.
+- [ ] **⌘K's *Go to › Notebook* and *Edit › Notebook* work by hand**, and text that matches no
+      command offers *Ask: …*, which opens the assistant with it.
 - [ ] **Edit mode turns on only after Approve.**
 - [ ] **The ledger shows the new surface's cost per turn** (`ai-usage` skill output pasted here).
 - [ ] **The e2e spec passes on `pnpm --filter web test:e2e:ci-like`** against the simulated
