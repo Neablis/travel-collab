@@ -51,7 +51,7 @@ const HERO_DAYS = [
 // The design's own crew (`dc.html:2344`): Sam K, Priya R, Jonah M, Mei T. The
 // page this replaced shipped PS/SK/MJ/AL, which matched nothing — and PR
 // specifically has to be here, because Priya is named in this component's own
-// art (the map presence pill, the notebook comment) and again in
+// art (the map's "Priya moved stop 3", the notebook's change line) and again in
 // LandingFeatureBlocks. An avatar row without her contradicts the illustration
 // it sits on. Keep these two files' crews identical.
 const CREW = ["SK", "PR", "JM", "MT"] as const;
@@ -62,18 +62,17 @@ const CREW = ["SK", "PR", "JM", "MT"] as const;
 // collected here so the map view spends one disable on all three pins instead
 // of one each.
 //
-// `loved` is the retro's one change to this art (2026-09-28, DRIFT D21): a
-// "can't wait" heart on one stop, "so the feeling is visible before it's
-// explained". It rides on the pin rather than the label because the label is
-// `lg`-only and the heart should show at every width the map does.
+// The "can't wait" heart the 2026-09-28 landing retro put on pin 1
+// (`docs/design-feedback/2026-09-28-landing-retro-copy.md`) is gone: trips
+// have no reactions (Mitchell, 2026-10-11).
 const MAP_PINS = [
-  { num: "1", title: "Fushimi Inari", time: "9:40", confirmed: true, loved: true, at: { left: "14%", top: "22%" } },
+  { num: "1", title: "Fushimi Inari", time: "9:40", confirmed: true, at: { left: "14%", top: "22%" } },
   { num: "2", title: "Nishiki Market", time: "1:15", confirmed: true, at: { left: "34%", top: "55%" } },
   { num: "3", title: "Ryokan · unconfirmed", time: null, confirmed: false, at: { left: "70%", top: "78%" } },
 ] as const;
 
-const MAP_COMMENT_AT = { left: "26%", right: "2%", top: "30%" };
-const MAP_PRESENCE_AT = { left: "46%", top: "62%" };
+const MAP_SUGGESTION_AT = { left: "26%", right: "2%", top: "30%" };
+const MAP_CHANGE_AT = { left: "46%", top: "62%" };
 // The Timeline and Notebook views hang their footer pill off the same 4% inset.
 const FOOT_PILL_AT = { left: "4%" };
 // `…dc.html:1949`: a 62px time column, off the 4px grid (62 / 4 = 15.5) and
@@ -81,18 +80,21 @@ const FOOT_PILL_AT = { left: "4%" };
 // STOP_GRID.
 const TIMELINE_GRID = { gridTemplateColumns: "62px 1fr" };
 
-const MAP_COMMENT = {
+// Suggestions, not comment threads: a trip has no replies, and a suggester's
+// change with a note on it, waiting on a planner's Accept, is the real thing
+// (M40; Mitchell, 2026-10-11).
+const MAP_SUGGESTION = {
   quote: "“Market before the shrine and we're walking back on ourselves.”",
-  meta: "Dana · on stop 2 · 2 replies",
+  meta: "Dana suggested swapping 1 and 2",
 };
 
 const TIMELINE_ROWS = [
   { time: "8:20 am", title: "Shinkansen to Osaka", badge: { label: "Travel", variant: "info" } },
-  { time: "11:00 am", title: "Osaka Castle", chip: "Marcus is dragging this", highlighted: true },
+  { time: "11:00 am", title: "Osaka Castle", chip: "Marcus moved this", highlighted: true },
   {
     time: "1:30 pm",
     title: "Kuromon Market, lunch",
-    badge: { label: "2 replies", variant: "neutral" },
+    badge: { label: "Suggested", variant: "neutral" },
     // ¥10,000 stays prose, not `DataText`, and that is the design's own
     // distinction rather than an oversight: `dc.html:1992` wraps ¥1,340 in a
     // mono macro chip because it is a value pulled from the plan, while
@@ -114,10 +116,17 @@ const NOTEBOOK_PROSE = {
   tail: ", which leaves the evening open.",
 };
 
-const NOTEBOOK_COMMENT = {
-  quote: "“I added the towel bit — learned that the hard way in Hakone.”",
-  meta: "Priya · on this page · just now",
+// A change in the past tense, not a suggestion: the notebook offers no Accept,
+// and what it does show is the plan's times following an edit.
+const NOTEBOOK_CHANGE = {
+  line: "Moved the train home to 4:10 pm, and this page followed.",
+  meta: "Priya · Day 5",
 };
+
+// The suggestion's Accept, drawn rather than live (see MAP_SUGGESTION). Only on
+// the map, whose real counterpart (the board) offers one; the notebook does not.
+const SUGGESTION_ACCEPT =
+  "flex-none self-center rounded-full bg-brand px-2 py-0.5 text-3xs font-semibold text-surface";
 
 const MACRO_CHIP = "rounded-sm bg-brand-tint px-1.5 py-px text-brand-pressed";
 // Sized by its content, the static art's and the real panels' alike: the real
@@ -126,7 +135,9 @@ const MACRO_CHIP = "rounded-sm bg-brand-tint px-1.5 py-px text-brand-pressed";
 const PANEL = "absolute inset-x-0 top-14.5 overflow-hidden rounded-xl border border-hairline bg-surface shadow-lifted";
 const PANEL_HEAD = "flex items-center gap-2.5 border-b border-hairline px-3.5 py-3";
 const FOOT_LABEL = "absolute bottom-0 rounded-full bg-paper/80 px-2.5 py-1";
-const PRESENCE_PILL = "flex items-center gap-2 rounded-full border border-hairline bg-surface py-1 pr-3 pl-1.5 shadow-float";
+// A change somebody made, in the past tense ("Priya moved stop 3"): there is
+// no live presence to picture, since ADR-049 polls.
+const CHANGE_PILL = "flex items-center gap-2 rounded-full border border-hairline bg-surface py-1 pr-3 pl-1.5 shadow-float";
 
 // Not in the design: it auto-advances unconditionally. An animation a reader
 // cannot pause is the accessibility hole that guard exists for, so the
@@ -161,7 +172,8 @@ export function LandingHeroArt(): React.ReactElement {
 
   // The prefetch, only where this tree is on screen: it is rendered on a phone
   // too, hidden (`LandingScreen`'s `hidden md:flex`), and a phone that only ever
-  // sees `PhoneFrontDoor` should not download the river and the blocks. 768px
+  // sees `PhoneFrontDoor` should not download the hero's panels (its claims load
+  // their own, `LandingFeaturePanel`). 768px
   // is `md`, the breakpoint that hides it. A view that is shown still loads
   // its panel whatever the width. A failed prefetch is not this effect's to
   // report: the view that needs the panel meets the same failure and its
@@ -271,17 +283,6 @@ function MapView(): React.ReactElement {
             >
               {pin.num}
             </span>
-            {/* A sibling of the number, not inside it, so the pin's own text
-                stays "1" for anything that reads it. */}
-            {"loved" in pin ? (
-              <span
-                role="img"
-                aria-label="Can't wait"
-                className="absolute -top-1.5 -right-2 grid size-4.5 place-items-center rounded-full bg-surface text-2xs leading-none text-danger shadow-float"
-              >
-                ♥
-              </span>
-            ) : null}
           </span>
           {/* Labels only from `lg` up. The pin group is centred on its
               coordinate (`-translate-x-1/2`), so with a ~161px label attached
@@ -293,7 +294,7 @@ function MapView(): React.ReactElement {
               across 14-70% of a ~300px box do not fit at all. Dropping the
               labels leaves a 28px circle that does fit (pin 1 at 28.6px, pin 3
               at 227px at 320px wide), which keeps the map, the route, the
-              comment thread and the presence pill on a phone rather than
+              suggestion card and the change pill on a phone rather than
               hiding the showcase outright. Mitchell chose this over hiding the
               art, scaling it, or accepting the clip (2026-08-27). The place
               names are what a phone loses; the design file specifies no phone
@@ -320,7 +321,7 @@ function MapView(): React.ReactElement {
       <div
         className="absolute flex items-start gap-2.5 rounded-lg rounded-bl-sm border border-hairline bg-surface px-3 py-2.5 shadow-lifted"
         // eslint-disable-next-line no-restricted-syntax -- absolute art coordinates, see MAP_PINS above
-        style={MAP_COMMENT_AT}
+        style={MAP_SUGGESTION_AT}
       >
         <span
           aria-hidden
@@ -328,18 +329,21 @@ function MapView(): React.ReactElement {
         >
           DK
         </span>
-        <div className="flex flex-col gap-1">
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
           <Text as="span" className="text-xs text-pretty">
-            {MAP_COMMENT.quote}
+            {MAP_SUGGESTION.quote}
           </Text>
-          <DataText className="text-3xs tracking-wider uppercase">{MAP_COMMENT.meta}</DataText>
+          <DataText className="text-3xs tracking-wider uppercase">{MAP_SUGGESTION.meta}</DataText>
         </div>
+        <span aria-hidden className={SUGGESTION_ACCEPT}>
+          Accept
+        </span>
       </div>
 
       <div
-        className={cn("absolute", PRESENCE_PILL)}
+        className={cn("absolute", CHANGE_PILL)}
         // eslint-disable-next-line no-restricted-syntax -- absolute art coordinates, see MAP_PINS above
-        style={MAP_PRESENCE_AT}
+        style={MAP_CHANGE_AT}
       >
         <span
           aria-hidden
@@ -348,7 +352,7 @@ function MapView(): React.ReactElement {
           PR
         </span>
         <Text as="span" variant="secondary" className="text-2xs">
-          Priya is moving stop 3
+          Priya moved stop 3
         </Text>
       </div>
 
@@ -357,7 +361,7 @@ function MapView(): React.ReactElement {
           · 5 hr gap"). The map already shows the day, the three numbered pins
           and the route; restating the count and the distance underneath was
           the same facts in words. The other two views keep their footers
-          because theirs are not that — Timeline's is a presence pill, and
+          because theirs are not that — Timeline's is a change somebody made, and
           Notebook's is a caption making a claim the art cannot make on its
           own ("Times come from the plan — move the day and they follow"). */}
     </>
@@ -376,7 +380,7 @@ function TimelineView(): React.ReactElement {
       </div>
 
       <div
-        className={cn("absolute bottom-0", PRESENCE_PILL)}
+        className={cn("absolute bottom-0", CHANGE_PILL)}
         // eslint-disable-next-line no-restricted-syntax -- absolute art coordinates, see MAP_PINS above
         style={FOOT_PILL_AT}
       >
@@ -387,7 +391,7 @@ function TimelineView(): React.ReactElement {
           DK
         </span>
         <Text as="span" variant="secondary" className="text-2xs">
-          Dana is reading Day 7
+          Dana changed Day 7
         </Text>
       </div>
     </>
@@ -500,11 +504,11 @@ function NotebookArt(): React.ReactElement {
         >
           PR
         </span>
-        <div className="flex flex-col gap-1">
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
           <Text as="span" className="text-xs text-pretty">
-            {NOTEBOOK_COMMENT.quote}
+            {NOTEBOOK_CHANGE.line}
           </Text>
-          <DataText className="text-3xs tracking-wider uppercase">{NOTEBOOK_COMMENT.meta}</DataText>
+          <DataText className="text-3xs tracking-wider uppercase">{NOTEBOOK_CHANGE.meta}</DataText>
         </div>
       </div>
     </>

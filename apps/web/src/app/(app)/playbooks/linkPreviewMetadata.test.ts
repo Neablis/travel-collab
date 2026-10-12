@@ -161,6 +161,18 @@ describe("/playbooks canonical", () => {
     expect((await discover(params)).alternates?.canonical).toBe("/playbooks");
     expect(placeForMock).not.toHaveBeenCalled();
   });
+
+  // M42 part 5: a page after the first starts at a card, and the ranking
+  // moves, so it is neither indexed nor folded into page one by a canonical.
+  it("leaves a later page out of the index, with no canonical, and its links followed", async () => {
+    stubMeta(new Error("no card needed"));
+    placeForMock.mockResolvedValue(place("city", "kyoto", MIN_INDEXED_PLACE_DAYS));
+
+    const metadata = await discover({ city: "Kyoto", after: DAY_ID });
+
+    expect(metadata.robots).toEqual(NOINDEX_FOLLOW);
+    expect(metadata.alternates?.canonical).toBeUndefined();
+  });
 });
 
 describe("/playbooks/day/<slug>-<id> metadata", () => {
@@ -177,6 +189,9 @@ describe("/playbooks/day/<slug>-<id> metadata", () => {
       publishedAt: null,
       moderation: over.moderation ?? null,
       cover: null,
+      description: null,
+      tags: [],
+      namedTags: [],
     } satisfies SharedDayView,
     rating: { rating: null, reviewCount: 0 },
   });

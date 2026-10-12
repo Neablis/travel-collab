@@ -192,7 +192,8 @@
               },
               "kind": "planned",
               "tags": [
-                "meal"
+                "meal",
+                "drinks"
               ],
               "cost": {
                 "amountMinor": 1400,
@@ -300,7 +301,9 @@
                 "countryCode": "IT"
               },
               "kind": "pending",
-              "tags": [],
+              "tags": [
+                "drinks"
+              ],
               "notes": "Unclaimed by anyone in the party. Standing room only after six and no bookings; the point is the Alto Adige whites by the glass, not the plate of speck.",
               "cost": {
                 "amountMinor": 4000,
@@ -351,7 +354,9 @@
                 "countryCode": "IT"
               },
               "kind": "planned",
-              "tags": [],
+              "tags": [
+                "meal"
+              ],
               "notes": "Send the luggage round by taxi for about €110. Today's route ends at Armentarola on the far side of the Falzarego pass and there is no way to ski it with a suitcase — people try to solve this with buses and lose the whole afternoon.",
               "cost": {
                 "amountMinor": 12000,
@@ -572,7 +577,10 @@
                 "precision": "area"
               },
               "kind": "planned",
-              "tags": [],
+              "tags": [
+                "outdoors",
+                "drinks"
+              ],
               "notes": "Comici sits under the Sassolungo and is the one hut on the circuit worth stopping at twice — a coffee standing up costs nothing and the Sassolungo from its terrace is the picture people think they are taking all day.",
               "cost": {
                 "amountMinor": 4400,
@@ -592,7 +600,10 @@
                 "countryCode": "IT"
               },
               "kind": "planned",
-              "tags": [],
+              "tags": [
+                "outdoors",
+                "drinks"
+              ],
               "notes": "The last leg over Passo Gardena is flat and cold and everyone is tired — this is where people fall over. Take the Vallon chair for the final run into Corvara rather than the skiweg, which by five is scraped to ice.",
               "cost": {
                 "amountMinor": 1800,
@@ -683,7 +694,9 @@
                 "countryCode": "IT"
               },
               "kind": "planned",
-              "tags": [],
+              "tags": [
+                "wellness"
+              ],
               "notes": "Book the two massage slots at breakfast — the hotel's own guests fill them by ten and day rates are only sold if there is room left. Sauna is textile-free in the Austrian manner; nobody warns British guests about this and they should.",
               "cost": {
                 "amountMinor": 9000,
@@ -794,7 +807,9 @@
                 "countryCode": "IT"
               },
               "kind": "pending",
-              "tags": [],
+              "tags": [
+                "drinks"
+              ],
               "notes": "Floated, not agreed. It is the hotel that St. Hubertus sits inside, so if the dinner below comes off this is the waiting room; if it does not, this is a very expensive negroni in ski socks.",
               "cost": {
                 "amountMinor": 5000,
@@ -959,7 +974,8 @@
           },
           "kind": "pending",
           "tags": [
-            "outdoors"
+            "outdoors",
+            "sight"
           ],
           "notes": "The tunnels are open in winter with a torch and a helmet, but it takes a whole morning and it is a walk, not a ski — it would cost one of the two Cortina days."
         },
@@ -973,7 +989,8 @@
           },
           "kind": "pending",
           "tags": [
-            "outdoors"
+            "outdoors",
+            "tour"
           ],
           "notes": "Skins and a transceiver hired locally. Needs a guide booked a fortnight out and a settled avalanche forecast, so it can only be decided in the week."
         },
@@ -989,7 +1006,8 @@
           },
           "kind": "pending",
           "tags": [
-            "outdoors"
+            "outdoors",
+            "tour"
           ],
           "notes": "An hour's drive from Corvara and only in condition in a cold January. Parked as a wet-weather substitute rather than a plan."
         }

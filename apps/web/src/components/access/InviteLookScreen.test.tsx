@@ -39,6 +39,7 @@ const preview: TripPreview = {
   days: [{ date: "2026-10-01", city: "Kyoto", stops: [{ title: "Fushimi Inari", location: { name: "Fushimi Inari", city: "Kyoto" } }] }],
   people: [{ name: "Dana Reyes", avatar: null, color: "sky", colorShifted: false, travelling: true }],
   total: { amountMinor: 4_500, currency: "USD" },
+  description: null,
 };
 
 afterEach(cleanup);
@@ -56,6 +57,18 @@ describe("InviteLookScreen", () => {
         "You're having a look first. Join and you can suggest changes for the trip's planners to approve.",
       ),
     ).toBeTruthy();
+  });
+
+  // Trips have no voting or commenting (Mitchell, 2026-10-11).
+  it("tells an editor that joining lets them change the stops, and nothing unbuilt", async () => {
+    fetchInviteLandingMock.mockResolvedValue({ ok: true, value: { ...landing, role: "editor" } });
+    render(<InviteLookScreen token="tok" googleAvailable />);
+    expect(
+      await screen.findByText(
+        "You're having a look first. Join and you can add, move and change stops alongside everyone else.",
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByText(/\bvot(e|es|ing)\b|\bcomment/i)).toBeNull();
   });
 
   it("shows the landing's plan card, with the trip's total, under the banner's Join", async () => {

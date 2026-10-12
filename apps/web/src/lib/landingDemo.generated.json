@@ -47,10 +47,7 @@
         "anchors": [],
         "kind": "transit",
         "tags": [],
-        "cost": {
-          "amountMinor": 3000,
-          "currency": "USD"
-        },
+        "cost": null,
         "bookedBy": null,
         "participants": [],
         "mode": "train",
@@ -85,10 +82,7 @@
         "tags": [
           "meal"
         ],
-        "cost": {
-          "amountMinor": 2000,
-          "currency": "USD"
-        },
+        "cost": null,
         "bookedBy": null,
         "participants": [],
         "mode": null,
@@ -114,12 +108,10 @@
         "anchors": [],
         "kind": "planned",
         "tags": [
-          "ticketed"
+          "ticketed",
+          "sight"
         ],
-        "cost": {
-          "amountMinor": 7500,
-          "currency": "USD"
-        },
+        "cost": null,
         "bookedBy": null,
         "participants": [],
         "mode": null,
@@ -147,10 +139,7 @@
         "tags": [
           "lodging"
         ],
-        "cost": {
-          "amountMinor": 30500,
-          "currency": "USD"
-        },
+        "cost": null,
         "bookedBy": null,
         "participants": [],
         "mode": null,
@@ -333,34 +322,34 @@
         "Tokyo"
       ],
       "window": "9 am – 10 pm",
-      "cost": "$1,375.00",
+      "cost": null,
       "ordinal": 5,
       "date": null,
       "activities": [
         {
           "title": "Coffee at Koffee Mameya",
           "timeWindow": "9 am – 10 am",
-          "cost": "$65.00"
+          "cost": null
         },
         {
           "title": "Nezu Museum",
           "timeWindow": "10:30 am – 1 pm",
-          "cost": "$95.00"
+          "cost": null
         },
         {
           "title": "Lunch at Kagari",
           "timeWindow": "12:30 pm – 2 pm",
-          "cost": "$45.00"
+          "cost": null
         },
         {
           "title": "Itoya and Ginza Six",
           "timeWindow": "4 pm – 6 pm",
-          "cost": "$125.00"
+          "cost": null
         },
         {
           "title": "Omakase at Sushi Yoshitake",
           "timeWindow": "8 pm – 10 pm",
-          "cost": "$155.00"
+          "cost": null
         }
       ]
     }

@@ -127,7 +127,7 @@ export async function requireTripAccess(
     if (RANK_VIEWER_IS_ENOUGH !== minimum) {
       return { error: Response.json({ error: "forbidden" }, { status: 403 }) };
     }
-    const detail = demoTripDetail();
+    const detail = demoTripDetail(tripId);
     return { userId: DEMO_VISITOR_ID, role: "viewer", detail };
   }
   const session = await auth();

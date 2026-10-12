@@ -1,0 +1,354 @@
+{
+  "currency": "USD",
+  "accents": {
+    "00000000-0000-4000-8001-000000000001": "danger",
+    "00000000-0000-4000-8001-000000000002": "danger",
+    "00000000-0000-4000-8001-000000000003": "info",
+    "00000000-0000-4000-8001-000000000004": "success",
+    "00000000-0000-4000-8001-000000000005": "success",
+    "00000000-0000-4000-8001-000000000006": "brand",
+    "00000000-0000-4000-8001-000000000007": "warning"
+  },
+  "river": {
+    "dayId": "00000000-0000-4000-8001-000000000002",
+    "ordinal": 2,
+    "city": "Cortina d'Ampezzo",
+    "activityIds": [
+      "00000000-0000-4000-8001-000000000014",
+      "00000000-0000-4000-8001-000000000015",
+      "00000000-0000-4000-8001-000000000016",
+      "00000000-0000-4000-8001-000000000017",
+      "00000000-0000-4000-8001-000000000018",
+      "00000000-0000-4000-8001-000000000019",
+      "00000000-0000-4000-8001-000000000020"
+    ],
+    "activities": {
+      "00000000-0000-4000-8001-000000000014": {
+        "activityId": "00000000-0000-4000-8001-000000000014",
+        "title": "Coffee and strudel at Pasticceria Alverà",
+        "timeWindow": {
+          "start": "08:15",
+          "end": "08:45"
+        },
+        "location": {
+          "name": "Pasticceria Alverà, Corso Italia",
+          "lat": 46.537551,
+          "lng": 12.136783,
+          "countryCode": "IT",
+          "city": "Cortina d'Ampezzo",
+          "area": "Centro"
+        },
+        "notes": null,
+        "anchors": [],
+        "kind": "planned",
+        "tags": [
+          "meal",
+          "drinks"
+        ],
+        "cost": null,
+        "bookedBy": null,
+        "participants": [],
+        "mode": null,
+        "endLocation": null,
+        "pendingReason": null
+      },
+      "00000000-0000-4000-8001-000000000015": {
+        "activityId": "00000000-0000-4000-8001-000000000015",
+        "title": "Collect the six-day Dolomiti Superski pass",
+        "timeWindow": {
+          "start": "09:00",
+          "end": "09:25"
+        },
+        "location": {
+          "name": "Freccia nel Cielo ticket office",
+          "countryCode": "IT",
+          "city": "Cortina d'Ampezzo",
+          "area": "Tofana base"
+        },
+        "notes": "Buy the full Dolomiti Superski, not the Cortina-only pass. The Sellaronda, the Lagazuoi runs and Alta Badia are all on the big one, and the difference across six days is less than a single day ticket. Bought online, so this is a machine and a QR code, not a queue.",
+        "anchors": [],
+        "kind": "planned",
+        "tags": [
+          "ticketed"
+        ],
+        "cost": null,
+        "bookedBy": null,
+        "participants": [],
+        "mode": null,
+        "endLocation": null,
+        "pendingReason": null
+      },
+      "00000000-0000-4000-8001-000000000016": {
+        "activityId": "00000000-0000-4000-8001-000000000016",
+        "title": "Tofana: Freccia nel Cielo to Ra Valles",
+        "timeWindow": {
+          "start": "09:35",
+          "end": "12:30"
+        },
+        "location": {
+          "name": "Ra Valles, Tofana di Mezzo",
+          "lat": 46.556894,
+          "lng": 12.068364,
+          "countryCode": "IT",
+          "city": "Cortina d'Ampezzo",
+          "area": "Tofana"
+        },
+        "notes": "Ra Valles is 2,500 m and holds cold snow when everything lower is spring mush, so ski it first and low later — most people do exactly the reverse. The top stage to 3,244 m is a viewpoint, not a ski run worth the extra queue on day one.",
+        "anchors": [],
+        "kind": "planned",
+        "tags": [
+          "outdoors"
+        ],
+        "cost": null,
+        "bookedBy": null,
+        "participants": [],
+        "mode": null,
+        "endLocation": null,
+        "pendingReason": null
+      },
+      "00000000-0000-4000-8001-000000000017": {
+        "activityId": "00000000-0000-4000-8001-000000000017",
+        "title": "Lunch at Rifugio Duca d'Aosta",
+        "timeWindow": {
+          "start": "12:45",
+          "end": "14:00"
+        },
+        "location": {
+          "name": "Rifugio Duca d'Aosta, Pomedes",
+          "lat": 46.536962,
+          "lng": 12.08032,
+          "countryCode": "IT",
+          "city": "Cortina d'Ampezzo",
+          "area": "Tofana"
+        },
+        "notes": "Phone from the lift queue at eleven — the terrace tables go first and the inside room is dark and loud. Two courses and a glass, not the full menu: there are three hours of skiing left and the Pomedes red is not a run to take on half a litre of Lagrein.",
+        "anchors": [],
+        "kind": "planned",
+        "tags": [
+          "meal"
+        ],
+        "cost": null,
+        "bookedBy": null,
+        "participants": [],
+        "mode": null,
+        "endLocation": null,
+        "pendingReason": null
+      },
+      "00000000-0000-4000-8001-000000000018": {
+        "activityId": "00000000-0000-4000-8001-000000000018",
+        "title": "Socrepes and Pocol, skiing back into town",
+        "timeWindow": {
+          "start": "14:15",
+          "end": "16:15"
+        },
+        "location": {
+          "name": "Socrepes and Pocol pistes",
+          "lat": 46.524633,
+          "lng": 12.114609,
+          "countryCode": "IT",
+          "city": "Cortina d'Ampezzo",
+          "area": "Pocol"
+        },
+        "notes": "Wide blue cruisers and the right place to remember how a ski works. The run to the valley floor is only open when the low snow holds — if it is shut, the Socrepes gondola down is not an admission of defeat.",
+        "anchors": [],
+        "kind": "planned",
+        "tags": [
+          "outdoors"
+        ],
+        "cost": null,
+        "bookedBy": null,
+        "participants": [],
+        "mode": null,
+        "endLocation": null,
+        "pendingReason": null
+      },
+      "00000000-0000-4000-8001-000000000019": {
+        "activityId": "00000000-0000-4000-8001-000000000019",
+        "title": "Aperitivo at Enoteca Cortina",
+        "timeWindow": {
+          "start": "17:00",
+          "end": "18:00"
+        },
+        "location": {
+          "name": "Enoteca Cortina, Via del Mercato",
+          "lat": 46.537087,
+          "lng": 12.136643,
+          "countryCode": "IT",
+          "city": "Cortina d'Ampezzo",
+          "area": "Centro"
+        },
+        "notes": "Unclaimed by anyone in the party. Standing room only after six and no bookings; the point is the Alto Adige whites by the glass, not the plate of speck.",
+        "anchors": [],
+        "kind": "pending",
+        "tags": [
+          "drinks"
+        ],
+        "cost": null,
+        "bookedBy": null,
+        "participants": [],
+        "mode": null,
+        "endLocation": null,
+        "pendingReason": null
+      },
+      "00000000-0000-4000-8001-000000000020": {
+        "activityId": "00000000-0000-4000-8001-000000000020",
+        "title": "Dinner at Baita Fraina",
+        "timeWindow": {
+          "start": "20:00",
+          "end": "22:00"
+        },
+        "location": {
+          "name": "Baita Fraina, Località Fraina",
+          "lat": 46.523724,
+          "lng": 12.148209,
+          "countryCode": "IT",
+          "city": "Cortina d'Ampezzo",
+          "area": "Fraina"
+        },
+        "notes": "Booked three weeks out; they hold a shuttle for guests if you ask when you reserve, which saves a taxi up the hill in the dark. Ask for the cellar tour before you sit down — it is one of the best lists in the Veneto and they like showing it.",
+        "anchors": [],
+        "kind": "planned",
+        "tags": [
+          "meal"
+        ],
+        "cost": null,
+        "bookedBy": null,
+        "participants": [],
+        "mode": null,
+        "endLocation": null,
+        "pendingReason": null
+      }
+    }
+  },
+  "notebook": {
+    "strip": {
+      "kind": "trip-strip",
+      "runs": [
+        {
+          "city": "Cortina d'Ampezzo",
+          "days": [
+            {
+              "dayId": "00000000-0000-4000-8001-000000000001",
+              "ordinal": 1,
+              "date": null,
+              "city": "Cortina d'Ampezzo"
+            },
+            {
+              "dayId": "00000000-0000-4000-8001-000000000002",
+              "ordinal": 2,
+              "date": null,
+              "city": "Cortina d'Ampezzo"
+            }
+          ],
+          "phrase": "days 1–2 Cortina d'Ampezzo"
+        },
+        {
+          "city": "Badia",
+          "days": [
+            {
+              "dayId": "00000000-0000-4000-8001-000000000003",
+              "ordinal": 3,
+              "date": null,
+              "city": "Badia"
+            }
+          ],
+          "phrase": "day 3 Badia"
+        },
+        {
+          "city": "Corvara",
+          "days": [
+            {
+              "dayId": "00000000-0000-4000-8001-000000000004",
+              "ordinal": 4,
+              "date": null,
+              "city": "Corvara"
+            },
+            {
+              "dayId": "00000000-0000-4000-8001-000000000005",
+              "ordinal": 5,
+              "date": null,
+              "city": "Corvara"
+            }
+          ],
+          "phrase": "days 4–5 Corvara"
+        },
+        {
+          "city": "San Cassiano",
+          "days": [
+            {
+              "dayId": "00000000-0000-4000-8001-000000000006",
+              "ordinal": 6,
+              "date": null,
+              "city": "San Cassiano"
+            }
+          ],
+          "phrase": "day 6 San Cassiano"
+        },
+        {
+          "city": "Venice",
+          "days": [
+            {
+              "dayId": "00000000-0000-4000-8001-000000000007",
+              "ordinal": 7,
+              "date": null,
+              "city": "Venice"
+            }
+          ],
+          "phrase": "day 7 Venice"
+        }
+      ],
+      "summary": "Days 1–2 Cortina d'Ampezzo, day 3 Badia, days 4–5 Corvara, day 6 San Cassiano, day 7 Venice"
+    },
+    "day": {
+      "kind": "itinerary-day",
+      "dayId": "00000000-0000-4000-8001-000000000003",
+      "cities": [
+        "Cortina d'Ampezzo",
+        "San Cassiano",
+        "Corvara",
+        "Badia"
+      ],
+      "window": "7:30 am – 9:45 pm",
+      "cost": null,
+      "ordinal": 3,
+      "date": null,
+      "activities": [
+        {
+          "title": "Breakfast, check out, and the bags into a taxi for Corvara",
+          "timeWindow": "7:30 am – 8:15 am",
+          "cost": null
+        },
+        {
+          "title": "Ski bus to Passo Falzarego",
+          "timeWindow": "8:35 am – 9:05 am",
+          "cost": null
+        },
+        {
+          "title": "Cinque Torri and the Super8 loop",
+          "timeWindow": "9:15 am – 11:45 am",
+          "cost": null
+        },
+        {
+          "title": "Lunch at Rifugio Averau",
+          "timeWindow": "12 pm – 1:20 pm",
+          "cost": null
+        },
+        {
+          "title": "Lagazuoi cable car, and the Hidden Valley to Armentarola",
+          "timeWindow": "1:45 pm – 3:45 pm",
+          "cost": null
+        },
+        {
+          "title": "Check in at Hotel La Perla, Corvara",
+          "timeWindow": "4:30 pm – 5:20 pm",
+          "cost": null
+        },
+        {
+          "title": "Dinner at Maso Runch",
+          "timeWindow": "7:30 pm – 9:45 pm",
+          "cost": null
+        }
+      ]
+    }
+  }
+}

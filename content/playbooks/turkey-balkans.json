@@ -86,7 +86,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "drinks"
           ],
           "notes": "Do the buying the night before, not now: Topkapı and Hagia Sophia both sell timed tickets through the official Turkish Museums portal, and the queue in Sultanahmet is the ticket window, never the gate. With a QR code on your phone you walk straight to the security line. Also check what day it is — Topkapı is closed on Tuesdays and Hagia Sophia shuts to visitors for Friday congregational prayer, so Tuesday and Friday both break this day. Verified 2026-09-06: Topkapı is closed every Tuesday (and on the first day of Ramazan and Kurban Bayramı), and Hagia Sophia's visitor gallery is shut roughly 12:00-14:30 on Fridays for congregational prayer — Tuesday and Friday both break this day.",
           "cost": {
@@ -110,7 +111,8 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "sight"
           ],
           "notes": "This is the inversion the day is built on. Everyone starts at Hagia Sophia because it is the famous one; Topkapı is the one with the bottleneck, because the Harem and the Treasury are narrow rooms in single file and the queue for the Harem forms from about 10:30 and never clears. Be at the gate at 08:45 for the 09:00 opening and walk it backwards from what the signs suggest — Harem first, then the Treasury, then the Fourth Courtyard terraces over the Bosphorus, and back out through the courtyards against the incoming crowd. The Harem stopped being a separate ticket in 2024; one combined ticket now covers the palace, the Harem and Hagia Irene, so nobody needs to sell you an upgrade at the door. Verified 2026-09-06: opening is 09:00; closing is 18:30 with last entry 17:30 from April to October, and 17:30 with last entry 16:30 from November to March. Closed Tuesdays. The combined Palace + Harem + Hagia Irene ticket is confirmed at 2,750 TL for foreign visitors with the audio guide included, and the ticket office takes cards or İstanbulkart only — it does not take cash.",
           "cost": {
@@ -134,7 +136,8 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "sight"
           ],
           "notes": "It is a working mosque, so the ground floor is for worship and your ticket buys the upper gallery — which is where the Byzantine mosaics are, so this is not the consolation prize. Two things nobody tells you at the door: the visitors' entrance is a separate door on the north side, not the one the congregation uses, and tourist access pauses for each of the five daily prayers. On Fridays it is shut to visitors roughly noon to 14:30, which is why this stop sits before twelve. Shoulders and knees covered for everyone, a scarf for women — they hand out scarves but the queue for them is its own queue. Verified 2026-09-06: visitor hours are 08:00-19:00 April-October (from 09:00 in winter), the ticket office closes at 18:30 and the upper-gallery ticket is €25. Tourist access does pause for each of the five daily prayers, and on Fridays the gallery is closed to visitors from about 12:00 to 14:30. This 11:30-12:30 window therefore works on every day except Friday, when it is impossible as written and the whole day has to move — the first stop already says so, and it is the same warning as the Tuesday one for Topkapı. On other days the constraint is the midday prayer, which falls after this window in September.",
           "cost": {
@@ -182,7 +185,8 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "sight"
           ],
           "notes": "Run separately from the state museums since its restoration, so it is not on the museum pass and needs its own timed ticket. Two practical things: the two Medusa heads are at the far end on the left, past the point where most people turn round, and the evening ticket costs more, is darker for photographs and is busier because it is the one the hotels push. It is cold down there in every season. Verified 2026-09-06: the day session runs 09:00-18:30 and a separate night session 19:30-22:00, with the cistern shut between the two for the changeover; the day ticket for foreign visitors is 1,950 TL (2,150 TL with audio guide), so the model estimate on this stop is low. The night session has been suspended at times — check it is running before anyone buys an evening ticket.",
           "cost": {
@@ -205,7 +209,9 @@
             "countryCode": "TR"
           },
           "kind": "planned",
-          "tags": [],
+          "tags": [
+            "sight"
+          ],
           "notes": "Free, so there is nothing to book and nobody to buy a skip-the-line from — anyone offering one is selling you a guide. The visitors' door is on the Hippodrome side, not the grand courtyard everybody photographs, and it closes for about ninety minutes around each prayer, which in practice means turning up between calls and being flexible about which. Shoe bags at the door, bare feet on the carpet, and the İznik tile that gives it the name is up in the gallery arches, not at eye level. Verified 2026-09-06: visiting hours are about 08:30 until half an hour before the evening prayer, with the mosque closed to visitors for each of the five daily prayers and on Friday until roughly 14:30. The dress code described here is enforced at the door: shoulders and knees covered for everyone, a headscarf for women, shoes off.",
           "cost": {
             "amountMinor": 0,
@@ -227,7 +233,9 @@
             "countryCode": "TR"
           },
           "kind": "planned",
-          "tags": [],
+          "tags": [
+            "wellness"
+          ],
           "notes": "Book the plain traditional service — the scrub with the kese mitt and the olive-oil foam wash — and refuse the oil-massage add-ons at the desk, which triple the price for a fifteen-minute rub. Late afternoon is the trick: coach groups fill both chambers between eleven and two and the marble göbektaşı is elbow-to-elbow, whereas at five you may have it. Men's and women's sections are separate and both are the original 1584 rooms, which is not true of every 'historic' hammam in the district. Bring cash for the tip; it goes to your natır directly and is not on the bill. Verified 2026-09-06: open daily 06:00-24:00, so a 16:15 slot is never a closing-time problem; the plain traditional kese-and-foam service is about 2,650 TL and self-service entry about 2,100 TL. Online booking takes a deposit and the balance is settled at the hamam.",
           "cost": {
             "amountMinor": 4800,
@@ -341,7 +349,8 @@
           },
           "kind": "planned",
           "tags": [
-            "outdoors"
+            "outdoors",
+            "sight"
           ],
           "notes": "Twenty-five minutes of steep lane from the village, past a gauntlet of souvenir stalls that thins out after the first bend. The Byzantine ruin itself is fenced and half-excavated; the terrace below it, where the strait opens into the Black Sea, is the reason to climb. Be back at the pier by 14:50 — there is one boat home and it does not wait, and the alternative is a bus to Üsküdar that takes two hours. Verified 2026-09-06: the castle interior is closed off behind metal gates and the lower castle is a military zone — only the upper castle's exterior and the terrace below it can be walked, which is what this stop is for, and it is free.",
           "cost": {
@@ -408,7 +417,9 @@
             "countryCode": "TR"
           },
           "kind": "planned",
-          "tags": [],
+          "tags": [
+            "drinks"
+          ],
           "notes": "On Serasker Caddesi, and you will smell the roaster before you find the door. Ask for 'orta' — medium sweet — because plain is bitter enough to be a dare and şekerli is syrup. It is a counter with four stools and turnover is deliberate, so drink it standing like everyone else. Buy a bag of beans on the way out; it is a third of what the Spice Bazaar charges for worse coffee.",
           "cost": {
             "amountMinor": 250,
@@ -524,7 +535,9 @@
           },
           "kind": "pending",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "outdoors",
+            "tour"
           ],
           "notes": "Held, not booked, and that is the honest status. The number the booking sites do not print: SHGM, the Turkish civil aviation authority, grounds the entire Cappadocia fleet on roughly a third of all mornings taken across the year — and that average hides the seasons badly, because January runs near 70% cancelled while June to September flies more than 85% of mornings and August loses under one in ten. Rebooking means the next morning if a basket has space, so budget two mornings here and take the first one — people who allow a single morning are the ones who leave without flying. Pay the extra eighty euros or so for a sixteen-passenger 'comfort' basket rather than a twenty-eight-person one; the difference is an edge compartment instead of the middle. The champagne at the landing is included, ceremonial, and frequently sparkling apple juice. Verified 2026-09-06: the cancellation figures above are the corrected ones — this stop previously understated winter (a third, against nearer 70% in January) and overstated summer (one in six, against under one in ten in August). 'Hold' is still the right status, but a September traveller is holding against much better odds than a January one, and it is the winter visit that genuinely needs two spare mornings.",
           "cost": {
@@ -548,7 +561,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "drinks"
           ],
           "notes": "You have been awake four hours and eaten a biscuit. This is on the museum road, opens early for exactly this trade, and does a proper village breakfast — börek, eggs, honey, clotted kaymak — for the price of a coffee in Istanbul. If the flight was scrubbed, come here anyway and rebook from the table while the operator's phone is still answering.",
           "cost": {
@@ -621,7 +635,8 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "sight"
           ],
           "notes": "Kaymaklı rather than Derinkuyu if you are tall or at all claustrophobic: the tunnels are wider, the loop is shorter, and the descent is not eight storeys. Whichever you pick, come after two — the guided groups do the underground cities in the morning and a tunnel built for single file with two-way traffic in it is genuinely unpleasant. The route is arrowed, red going down and blue coming up, and following them is not optional if you do not want to meet a queue head-on in a passage you cannot turn round in. No phone signal, and last entry is well before closing, which in winter is earlier than the sign at the ticket office suggests. Verified 2026-09-06: open daily 08:00-19:00 April-October and 08:00-17:00 November-March, with last entry an hour before close. A 14:45 arrival is comfortable in season, but in winter the 16:00 cut-off means 'after the coaches' has to mean two o'clock, not four.",
           "cost": {
@@ -646,7 +661,8 @@
           "kind": "pending",
           "tags": [
             "ticketed",
-            "outdoors"
+            "outdoors",
+            "sight"
           ],
           "notes": "Göreme's Sunset Point is a hundred tripods facing the same way. Uçhisar is the highest rock in Cappadocia and you look down into the valleys instead of across at other people — a few lira to climb, twenty minutes at the top. The last flight of steps is exposed and there is no handrail worth the name, and they clear it at sunset sharp rather than after it, so go up early in the light rather than timing the last minute. Verified 2026-09-06: open about 08:00-20:00 in summer, entry around 400 TL, so a 17:00 climb is well inside the hours in season; in winter it closes with the light and this stop has to move to mid-afternoon.",
           "cost": {
@@ -730,7 +746,8 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "sight"
           ],
           "notes": "Gates open at eight and the first ninety minutes are the only ones with shade on Curetes Street and the only ones with the Library facade to yourself; by eleven it is a photograph of other people photographing it. Take the Odeon and the Fountain of Trajan on the way down rather than backtracking, and look at the paving — the ruts are cart tracks. There is no shade and no water for sale until the Lower Gate, and in July the site is genuinely dangerous by midday. Verified 2026-09-06: the site is open 08:00-19:00 April-October with last entry 30 minutes before close, so an 08:15 start really is at gate opening. From 3 June to 1 October it also runs night visits until 23:00 on Wednesday to Saturday, and entry after 19:00 is through the Lower Gate only — the Upper Gate this day depends on shuts at 19:00.",
           "cost": {
@@ -754,7 +771,9 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "museum",
+            "sight"
           ],
           "notes": "Sold separately at a booth inside the site, opposite the Library, and not included in site entry — which is why a lot of people walk past it thinking they have already paid. Do not. It is the roofed, climate-controlled excavation of six Roman apartment blocks, the mosaics and frescoes are the best-preserved thing at Ephesus, and it is the only place on the site where you are out of the sun. Forty-five minutes on the walkways is enough. Verified 2026-09-06: it is genuinely a second ticket, about €15, sold at the site and not covered by the Museum Pass Türkiye — and the Terrace Houses close at 18:30, half an hour before the rest of Ephesus.",
           "cost": {
@@ -779,7 +798,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "drinks"
           ],
           "notes": "Eight kilometres of switchbacks above Selçuk, in the old schoolhouse, looking down the valley. Ignore the fruit wine every stall in the village presses on you — it is a souvenir, not a drink — and eat the Aegean meze and the local olive oil instead. The village is at its worst from noon when the coaches arrive, so this is the last comfortable half-hour; buy nothing on the way in.",
           "cost": {
@@ -850,7 +870,8 @@
           },
           "kind": "planned",
           "tags": [
-            "outdoors"
+            "outdoors",
+            "sight"
           ],
           "notes": "The Roman city on the plateau is included and most day-trippers never walk to it. The theatre is fifteen minutes uphill from the top of the terraces and empties completely after five. Cleopatra's Antique Pool is a further separate fee and is a warm, crowded swimming pool with columns in it — skip it unless somebody in the party has been promised a swim.",
           "cost": {
@@ -922,7 +943,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "drinks"
           ],
           "notes": "Outside the Pile Gate with the terrace over the water, open before anything inside the walls is. Decide here whether you are buying a walls ticket or the one-day Dubrovnik Pass: the pass costs about the same as the walls alone and also covers the Rector's Palace, the Maritime Museum and the rest, so buying the walls ticket on its own only makes sense if the walls are genuinely all you want. Verified 2026-09-06: the walls ticket is €40 for an adult in season (€15 for under-18s) and includes Fort Lovrijenac, which is what makes the Dubrovnik Pass comparison close rather than obvious.",
           "cost": {
@@ -947,7 +969,8 @@
           "kind": "planned",
           "tags": [
             "ticketed",
-            "outdoors"
+            "outdoors",
+            "sight"
           ],
           "notes": "Opening is eight in summer and ten in the low season, and being in the first twenty people is the whole day: the circuit is one-way and enforced, so once you are on it you cannot let a group past and you cannot double back for the bit you missed. Going anticlockwise from Pile puts the seaward half in the mountain's shadow for the first hour, which matters more than it sounds on an unshaded two-kilometre wall with a hundred metres of stair. Two hours is the honest time with stops; the 'one hour' in the guidebooks is a walk without looking. There is one kiosk on the circuit and it charges accordingly — carry water. Verified 2026-09-06: April-October opening is 08:00 and closing is in the evening (published between 18:30 and 19:30 depending on the month), with the end of working hours doubling as the last entry. The circuit is one-way anticlockwise and enforced at checkpoints as described, and leaving by any gate ends the visit — there is no re-entry on the same ticket. The adult ticket is €40 in 2026, sold by the Society of Friends of Dubrovnik Antiquities and bookable on its own webshop; the cost on this stop has been raised to match.",
           "cost": {
@@ -971,7 +994,8 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "sight"
           ],
           "notes": "The walls ticket includes the free-standing fortress across the little bay and hardly anybody uses it, because nothing at the exit tells you. Corrected 2026-09-06: the walls ticket admits you to Lovrijenac (and the Western Outer Wall) for three days from the moment you first enter the walls, not the same day only as this stop used to claim — but the empty hour is now, so walk over anyway. The view back at the walls you have just done is the best photograph in Dubrovnik and it is empty at this hour.",
           "cost": {
@@ -996,7 +1020,8 @@
           "kind": "planned",
           "tags": [
             "ticketed",
-            "outdoors"
+            "outdoors",
+            "beach"
           ],
           "notes": "This stop is a tactic. Dubrovnik caps cruise arrivals at two ships a day, they berth at Gruž, and their passengers are inside the walls from roughly eleven to three — so the correct move is to not be. Boats leave the Old Port every half hour and the fare includes the island's own entry fee. On the island: the Benedictine cloister, the salt lagoon that is bath-warm and shallow, and peacocks that are aggressive about food. Check the last boat time when you board, because there is no other way off. Verified 2026-09-06: the boat leaves the Old Port every 15-30 minutes in high season, first at 09:00 and last back at about 19:00, and the €30 adult ticket covers the return crossing and the nature reserve's own entry. The whole operation is seasonal, roughly April to October — the island closes to visitors in winter, when this stop does not exist and the day needs a different hiding place.",
           "cost": {
@@ -1044,7 +1069,8 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "outdoors"
           ],
           "notes": "The queue is savage from five o'clock because everybody goes up for sunset; at half three you walk on. Buy a single rather than a return and come down the Serpentine, the old switchback track, in about fifty minutes — no shade, so not in August at midday, but fine in the late afternoon and it saves the descent queue entirely. The Napoleonic fort at the top holds the Homeland War museum, which is the only place in Dubrovnik that talks properly about the 1991–95 siege, and it deserves more than the twenty minutes people give it. Verified 2026-09-06: it runs late in summer, to around 23:00, with the last car up 30 minutes before closing; an adult return is €27-30 and the single this stop buys is less.",
           "cost": {
@@ -1067,7 +1093,9 @@
             "countryCode": "HR"
           },
           "kind": "pending",
-          "tags": [],
+          "tags": [
+            "drinks"
+          ],
           "notes": "Signposted by a hand-painted 'Cold Drinks' board and a doorway cut through the south wall, which is genuinely how you get in. The drinks cost roughly triple what they do a street inland and that is the deal — you are renting a ledge above the Adriatic. Cash. There are two Bužas a few hundred metres apart; the further one is quieter and has the better swim off the rocks.",
           "cost": {
             "amountMinor": 900,
@@ -1349,7 +1377,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "drinks"
           ],
           "notes": "Hvar Town keeps nightclub hours, which means the one genuinely empty part of the day is before nine — St Stephen's Square, the cathedral steps and the stone lanes of Groda belong to delivery vans and nobody else. Nonica does local cakes and a decent coffee in a lane above the square. It is also the last cheap thing you will buy today.",
           "cost": {
@@ -1372,7 +1401,9 @@
             "countryCode": "HR"
           },
           "kind": "planned",
-          "tags": [],
+          "tags": [
+            "tour"
+          ],
           "notes": "The boat is the price of the day and everything else is loose change, so get the contract right. An eight-to-ten-metre RIB with a skipper for eight hours is the sweet spot; what turns a good quote into a bad one is the three things quietly left out — fuel, mooring fees at Palmižana, and the skipper's lunch. Ask for all three in writing before you pay a deposit, because together they add a couple of hundred euros to a nine-hundred-euro day. One weather note that decides the route: the maestral gets up around one in the afternoon in July, so ask to do the exposed southern coves first and be back in the sheltered channel by lunch.",
           "cost": {
             "amountMinor": 98000,
@@ -1395,7 +1426,8 @@
           },
           "kind": "planned",
           "tags": [
-            "outdoors"
+            "outdoors",
+            "beach"
           ],
           "notes": "At this hour every bay in the archipelago is yours. By eleven the taxi boats from the Riva have filled Jerolim, and Stipanska has become a beach club with a door charge and a sound system. Ask for the north-facing coves of Marinkovac instead — same water, no speakers. The islands are called Pakleni after the pine pitch once boiled here for caulking, not after hell, whatever the tour commentary says.",
           "cost": {
@@ -1443,7 +1475,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "beach"
           ],
           "notes": "Reserve by phone days ahead and give them the boat's name so the skipper is told where to tie up. Zori and Meneghello sit at opposite ends of the same beach inside the Meneghello family's botanical garden, planted from the 1900s — Zori is the serious fish and the tasting menu, Meneghello is the older story and the garden itself, and Laganini is the third and slightly cheaper option on the same sand. None of them is cheap and pretending otherwise is how people get a shock at the end of a boat day. Two courses and a bottle of Hvar plavac is what this budget assumes. Verified 2026-09-06: Zori runs May to October only — there is no winter version of this day — and lunch service is 12:00-15:00, dinner from 18:30. The sitting has been moved to 12:35-14:45 so the table is inside service instead of ending exactly as the kitchen closes. Reservations are taken online with instant confirmation, or by phone.",
           "cost": {
@@ -1492,7 +1525,8 @@
           "kind": "planned",
           "tags": [
             "ticketed",
-            "outdoors"
+            "outdoors",
+            "sight"
           ],
           "notes": "Twenty minutes up through the Groda lanes on the signed footpath — not the road, which is twice as long and has cars on it. Everybody climbs at half seven for the sunset shot over the Pakleni, which means half five is the empty hour and the light on the islands is arguably better anyway. The Venetian cistern and the tiny amphora collection are included. Take water; there is a bar at the top and it charges fortress prices. Verified 2026-09-06: in the June-September high season the fortress is open from about 08:00 until 21:00 or later, so a 17:30 climb is safe on hours as well as on crowds; admission is €10-15, and the same €15 also buys the combined Hvar heritage ticket covering the Arsenal, the theatre, the loggia and the clock tower.",
           "cost": {
@@ -1563,7 +1597,9 @@
             "countryCode": "ME"
           },
           "kind": "planned",
-          "tags": [],
+          "tags": [
+            "sight"
+          ],
           "notes": "The cruise berth is two hundred metres from the Sea Gate, which is the whole problem with Kotor and the whole reason for this hour. The first passengers are inside by about half eight; between seven and eight the squares belong to cats, bread deliveries and people going to work, and it is the only time the twelfth-century cathedral square reads as a town rather than a set. Nothing is open. That is the point.",
           "cost": {
             "amountMinor": 0,
@@ -1587,7 +1623,8 @@
           "kind": "planned",
           "tags": [
             "ticketed",
-            "outdoors"
+            "outdoors",
+            "sight"
           ],
           "notes": "Two hundred and sixty metres of vertical on rough steps, and the only variable that matters is shade: the wall is in the mountain's shadow until roughly ten and is a furnace after it. The ticket booths at both gates open at eight and the staff work their way up the path, so an earlier start is a free start but not an honest one. The free-ish alternative is the Ladder of Kotor, the old switchback mule track behind the town that joins the wall higher up — there is a collector on that route now too, and it is an hour longer, so take it for the walk rather than the saving. Two litres of water; there is one drinks stall halfway and it knows what it has. Verified 2026-09-06: the ticket booths are staffed and charging 08:00-20:00 from May to September, the adult fare is €15 (under-12s free) and the ticket is valid for the whole day. So 08:00 is the first honest start, the shade window before ten is real, and the 1,350 steps are the published count.",
           "cost": {
@@ -1610,7 +1647,9 @@
             "countryCode": "ME"
           },
           "kind": "planned",
-          "tags": [],
+          "tags": [
+            "tour"
+          ],
           "notes": "A skippered boat for the day out of Kotor is the difference between the Boka and the Boka's bus tours, and the price is real money — agree the route before you pay, because most operators default to Our Lady of the Rocks and back inside ninety minutes and call it a day charter. Ask specifically for the Blue Cave down at Luštica, the abandoned submarine tunnels cut into the cliffs near Rose, and the Verige strait taken slowly, which is where the bay narrows to three hundred metres and the Venetians strung a chain across it.",
           "cost": {
             "amountMinor": 42000,
@@ -1633,7 +1672,8 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "sight"
           ],
           "notes": "The island is man-made — two centuries of Perast sailors dropping rocks onto a reef, and they still add to it every 22 July at the Fašinada, rowing out at dusk with stones. Pay the small extra for the museum upstairs: the silver votive plaques left by crews who came home, and a tapestry a woman spent twenty-five years embroidering with gold thread and her own hair while waiting for a sailor who did not. The cypress island next door is a working monastery and landing is not allowed, so do not ask the skipper to try. Verified 2026-09-06: the church and its museum keep seasonal hours — roughly to 17:00 in April, May, September and October, to 18:00 in June and to 19:00 in July and August — so this stop only works late in high summer and belongs before lunch in the shoulder season, which is where it already sits. Entry is €2-3 including the short talk in the church.",
           "cost": {
@@ -1681,7 +1721,8 @@
           },
           "kind": "planned",
           "tags": [
-            "outdoors"
+            "outdoors",
+            "beach"
           ],
           "notes": "Down at the mouth of the bay near the Luštica peninsula, an hour's run. The tour flotilla is there between eleven and one and there is genuinely not room for all of them, so being late is the correct strategy — by half two you may have it. The colour comes from light entering under the water rather than through the mouth, so swim rather than photograph; the phone will not get it and you will be disappointed. The submarine tunnels near Rose are five minutes further and take about ten.",
           "cost": {
@@ -1705,7 +1746,8 @@
           },
           "kind": "pending",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "sight"
           ],
           "notes": "Perast is one street, no cars, and a wall of coach parking at the entrance until about five, when it empties and becomes the best hour of the day here. A couple of euros gets you up the bell tower of St Nicholas on wooden stairs, and you look straight down onto both islands with the bay behind them. Uncommitted — if lunch has run long, and it will, this is the stop to drop.",
           "cost": {

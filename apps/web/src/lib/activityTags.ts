@@ -1,45 +1,70 @@
-import type { ActivityTag } from "@tc/contracts";
+import { ActivityTag, ActivityTagModifier, type ActivityTagCategory } from "@tc/contracts";
 import { TAG_LABEL } from "@tc/pages";
 
 /**
- * The four tags the contract carries, in the order the picker offers them and
- * the order `toggleTag` normalises to. Never the handoff's six — `considering`
- * and `travel` restate `kind: idea` and `kind: transit`, and synthesising them
- * here would put two settable fields in a position to disagree about one fact
- * (KI-52, and `packages/contracts/src/activity.ts`'s own note).
+ * The stop editor's tag picker, in ADR-070's two groups: what a stop IS, then
+ * what it NEEDS. The categories are in M42 decision 5's order, Food first and
+ * Lodging last, which is not the contract's; `toggleTag` puts a pick back in
+ * contract order.
+ *
+ * A hand-ordered list compiles with a tag left out, so `activityTags.test.ts`
+ * enumerates `ActivityTag.options` and fails on any tag not in exactly one group.
  */
-export const TAG_ORDER: readonly ActivityTag[] = ["meal", "lodging", "ticketed", "outdoors"];
+export const TAG_GROUPS: readonly { label: string; tags: readonly ActivityTag[] }[] = [
+  {
+    label: "What it is",
+    tags: [
+      "meal", "drinks", "nightlife", "museum", "sight", "outdoors",
+      "beach", "shopping", "show", "tour", "wellness", "lodging",
+    ] satisfies ActivityTagCategory[],
+  },
+  { label: "Needs", tags: ActivityTagModifier.options },
+];
 
 // One source with the notebook's `field` widget and filter selects.
 export { TAG_LABEL };
 
 /**
- * Chip colours, from the handoff's `TAGS` array (`Trip Planner
+ * Chip colours. The first four are the handoff's `TAGS` array (`Trip Planner
  * Redesign.dc.html:3703`), with one deviation: `outdoors` is given there as
  * `--color-surface` on `--color-slate`, and a stop card's own background IS
  * surface, so that chip would be invisible on it. It falls back to moss —
  * which is the handoff's own `TAG()` default background for a tag it cannot
  * find, so the deviation stays inside the design's vocabulary.
+ *
+ * ADR-070's nine have no handoff colour; each takes its own `tag-<key>-tint`
+ * and `-ink` (design-system.md, "Tag colours").
  */
 export const TAG_CHIP_CLASS: Record<ActivityTag, string> = {
   meal: "bg-warning-tint text-warning-ink",
   lodging: "bg-info-tint text-info-ink",
   ticketed: "bg-success-tint text-success-ink",
   outdoors: "bg-moss text-slate",
+  drinks: "bg-tag-drinks-tint text-tag-drinks-ink",
+  nightlife: "bg-tag-nightlife-tint text-tag-nightlife-ink",
+  museum: "bg-tag-museum-tint text-tag-museum-ink",
+  sight: "bg-tag-sight-tint text-tag-sight-ink",
+  beach: "bg-tag-beach-tint text-tag-beach-ink",
+  shopping: "bg-tag-shopping-tint text-tag-shopping-ink",
+  show: "bg-tag-show-tint text-tag-show-ink",
+  tour: "bg-tag-tour-tint text-tag-tour-ink",
+  wellness: "bg-tag-wellness-tint text-tag-wellness-ink",
 };
 
 /**
- * Add or drop one tag, always returning the whole set in `TAG_ORDER`.
+ * Add or drop one tag, always returning the whole set in contract order.
  *
  * Whole-array, because `UpdateActivity.tags` is a whole-array replace, not a
- * delta; canonical order, because otherwise the same four tags picked in two
+ * delta; canonical order, because otherwise the same tags picked in two
  * orders are two different arrays, and `activityStatesEqual` would call a
- * reorder a real change and write an event for it.
+ * reorder a real change and write an event for it. Contract order rather than
+ * the picker's, because it is the order every stop saved before ADR-070 is
+ * already in, and the one spend charts read a stop's first tag from.
  */
 export function toggleTag(tags: readonly ActivityTag[], tag: ActivityTag): ActivityTag[] {
   const next = new Set(tags);
   if (!next.delete(tag)) next.add(tag);
-  return TAG_ORDER.filter((t) => next.has(t));
+  return ActivityTag.options.filter((t) => next.has(t));
 }
 
 /**

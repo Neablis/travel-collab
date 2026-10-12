@@ -3,6 +3,8 @@
 import { type ReactNode, useEffect, useRef } from "react";
 import Link from "next/link";
 import { BrandMark } from "@/components/BrandMark";
+import { LandingFeaturePanel } from "@/components/front/LandingFeaturePanel";
+import { LandingPricing } from "@/components/front/LandingPricing";
 import { buttonVariants } from "@/components/ui/button";
 import { DataText } from "@/components/ui/data-text";
 import { Heading } from "@/components/ui/heading";
@@ -94,15 +96,6 @@ const CLAIM_STOPS = [
   { time: "4:00 pm", title: "Ryokan check-in, Higashiyama" },
 ] as const;
 
-// `dc.html:7486`. Not the desktop block's `COST_ROWS` — that one is two rows
-// totalling $550 and this is three totalling the $596 the paragraph above it
-// names. Both are the design's own numbers for two different screens.
-const CLAIM_COSTS = [
-  { label: "Ryokan · Hakone", amount: "$380" },
-  { label: "Dinner, all four", amount: "$164" },
-  { label: "Romancecar seats", amount: "$52" },
-] as const;
-
 // A card under a claim, in the design's own shape: `--radius-xl` is 14px, which
 // is the value `dc.html` draws these at.
 function ExampleCard({ children, className }: { children: ReactNode; className?: string }) {
@@ -126,6 +119,12 @@ function ExampleCard({ children, className }: { children: ReactNode; className?:
  * an hour later — everyone sees it."` — the design's headline and its card's
  * caption concatenated into one sentence, because the card they belonged to was
  * not built. Split back apart, both halves read.
+ *
+ * **Three of the cards are now the product itself** (M42 part 9): the same
+ * river, Discover card and notebook page as the desktop blocks, at phone size
+ * (`LandingFeaturePanel`) — the Discover card in its compact form, which fits
+ * a short phone. The drawings below are the fallback if those cannot load.
+ * Countdown stays a drawing, as on the desktop.
  */
 const CLAIMS: readonly { label: string; body: string; example?: ReactNode }[] = [
   {
@@ -134,56 +133,60 @@ const CLAIMS: readonly { label: string; body: string; example?: ReactNode }[] = 
     label: "Playbooks",
     body: "Relive someone's perfect day.",
     example: (
-      <ExampleCard className="flex flex-col gap-2.5">
-        <span className="flex items-baseline justify-between gap-2.5">
-          <Text as="span" className="text-sm font-semibold text-ink">
-            A beach day in Phuket
+      <LandingFeaturePanel panel="playbook-compact">
+        <ExampleCard className="flex flex-col gap-2.5">
+          <span className="flex items-baseline justify-between gap-2.5">
+            <Text as="span" className="text-sm font-semibold text-ink">
+              A beach day in Phuket
+            </Text>
+            <DataText size="xs" className="shrink-0 text-slate">
+              4.8 ★
+            </DataText>
+          </span>
+          <Text as="span" className="text-xs text-slate">
+            6 stops · Relived 214 times
           </Text>
-          <DataText size="xs" className="shrink-0 text-slate">
-            4.8 ★
-          </DataText>
-        </span>
-        <Text as="span" className="text-xs text-slate">
-          6 stops · Relived 214 times
-        </Text>
-        <span className="flex items-center gap-2 rounded-lg bg-moss px-2.5 py-2">
-          <Text as="span" className="text-xs text-ink">
-            Dropping in as Day 2 — times shift to fit.
-          </Text>
-        </span>
-      </ExampleCard>
+          <span className="flex items-center gap-2 rounded-lg bg-moss px-2.5 py-2">
+            <Text as="span" className="text-xs text-ink">
+              Dropping in as Day 2 — times shift to fit.
+            </Text>
+          </span>
+        </ExampleCard>
+      </LandingFeaturePanel>
     ),
   },
   {
     label: "Together",
     body: "The trip starts before the trip.",
     example: (
-      <ExampleCard className="flex flex-col gap-2">
-        {CLAIM_STOPS.map((stop) => (
-          <span key={stop.title} className="flex items-baseline gap-2.5">
-            <DataText size="xs" className="w-14 shrink-0 text-slate">
-              {stop.time}
+      <LandingFeaturePanel panel="together">
+        <ExampleCard className="flex flex-col gap-2">
+          {CLAIM_STOPS.map((stop) => (
+            <span key={stop.title} className="flex items-baseline gap-2.5">
+              <DataText size="xs" className="w-14 shrink-0 text-slate">
+                {stop.time}
+              </DataText>
+              <Text as="span" className="truncate text-sm text-ink">
+                {stop.title}
+              </Text>
+            </span>
+          ))}
+          {/* The caption that used to be stuck on the end of the headline. It is
+              a change somebody else made, which is the whole claim, so it wears
+              the brand tint and their initials rather than sitting in the list. */}
+          <span className="flex items-center gap-2 rounded-lg bg-brand-tint px-2.5 py-2">
+            <DataText
+              size="xs"
+              className="grid size-5 shrink-0 place-items-center rounded-full bg-brand text-surface"
+            >
+              PR
             </DataText>
-            <Text as="span" className="truncate text-sm text-ink">
-              {stop.title}
+            <Text as="span" className="text-xs text-brand-pressed">
+              Priya moved this an hour later — everyone sees it.
             </Text>
           </span>
-        ))}
-        {/* The caption that used to be stuck on the end of the headline. It is
-            a change somebody else made, which is the whole claim, so it wears
-            the brand tint and their initials rather than sitting in the list. */}
-        <span className="flex items-center gap-2 rounded-lg bg-brand-tint px-2.5 py-2">
-          <DataText
-            size="xs"
-            className="grid size-5 shrink-0 place-items-center rounded-full bg-brand text-surface"
-          >
-            PR
-          </DataText>
-          <Text as="span" className="text-xs text-brand-pressed">
-            Priya moved this an hour later — everyone sees it.
-          </Text>
-        </span>
-      </ExampleCard>
+        </ExampleCard>
+      </LandingFeaturePanel>
     ),
   },
   {
@@ -211,8 +214,10 @@ const CLAIMS: readonly { label: string; body: string; example?: ReactNode }[] = 
           >
             PR
           </DataText>
+          {/* A change somebody made, not a chat line: trips have no replies
+              (Mitchell, 2026-10-11), and a countdown offers no Accept. */}
           <Text as="span" className="text-xs text-brand-pressed">
-            Bags are by the door. Is anyone else still up?
+            Priya moved the meet-up to 6:40 am.
           </Text>
         </span>
       </ExampleCard>
@@ -221,31 +226,25 @@ const CLAIMS: readonly { label: string; body: string; example?: ReactNode }[] = 
   {
     label: "Notebook",
     body: "How you'll remember it.",
+    // A page of the trip as it was lived, not what it cost (Mitchell,
+    // 2026-10-11: *"it should be more nostalgic than how much you spent on
+    // dinner"*). Day 6 is Apr 9 because Countdown's wheels-up is Apr 4, and the
+    // four are the landing's own crew.
     example: (
-      <ExampleCard>
-        <Text as="span" className="mb-2 block text-sm text-ink">
-          Day 6 is the expensive one —{" "}
-          {/* The product's own widget-value treatment, deliberately: this is a
-              picture of a notebook, and a number that came from the trip rather
-              than from the writer wears brand tint under a brand rule wherever
-              it appears (`MacroView`'s `Segs`). A different treatment here would
-              be advertising a thing the product does not do. */}
-          <span className="rounded-sm border-b-2 border-brand bg-brand-tint px-1">$596</span> across four of us.
-        </Text>
-        {CLAIM_COSTS.map((row) => (
-          <span
-            key={row.label}
-            className="flex items-baseline justify-between gap-2.5 border-t border-hairline py-1.5"
-          >
-            <Text as="span" className="truncate text-xs text-ink">
-              {row.label}
-            </Text>
-            <DataText size="xs" className="shrink-0 text-slate">
-              {row.amount}
-            </DataText>
-          </span>
-        ))}
-      </ExampleCard>
+      <LandingFeaturePanel panel="notebook">
+        <ExampleCard className="flex flex-col gap-2">
+          <DataText size="xs" className="uppercase tracking-wider text-slate">
+            Day 6 · Hakone
+          </DataText>
+          <Text as="span" className="text-sm text-ink">
+            We stayed in the onsen until our fingers wrinkled, then ate far too much kaiseki. Priya says it was the
+            best night of the trip.
+          </Text>
+          <Text as="span" className="text-xs text-slate">
+            Sam, Priya, Dana, Marcus · Apr 9
+          </Text>
+        </ExampleCard>
+      </LandingFeaturePanel>
     ),
   },
 ];
@@ -256,6 +255,30 @@ export function PhoneFrontDoor() {
   const pinRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<SVGSVGElement | null>(null);
   const chunkRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const headerRef = useRef<HTMLElement | null>(null);
+  const pricingRef = useRef<HTMLElement | null>(null);
+
+  // **`#pricing` is answered here, not by the browser.** The id belongs to the
+  // desktop landing's section, since two elements cannot share it, and the
+  // browser scrolls to that one — which is `display: none` at this width, so
+  // nothing moves. On a wide screen this tree is the hidden one, every rect in
+  // it is zero and the scroll goes nowhere, so the two never fight.
+  //
+  // **Only this scroller moves, to just under the sticky bar.** The first
+  // version called `scrollIntoView`, which scrolls every ancestor: on a 390px
+  // phone it moved the window 374px as well and took the bar with it.
+  useEffect(() => {
+    const toPricing = () => {
+      const scroller = scrollerRef.current;
+      const pricing = pricingRef.current;
+      if (window.location.hash !== "#pricing" || scroller === null || pricing === null) return;
+      const below = pricing.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+      scroller.scrollTo({ top: scroller.scrollTop + below - (headerRef.current?.offsetHeight ?? 0) });
+    };
+    toPricing();
+    window.addEventListener("hashchange", toPricing);
+    return () => window.removeEventListener("hashchange", toPricing);
+  }, []);
 
   useEffect(() => {
     const scroller = scrollerRef.current;
@@ -267,6 +290,11 @@ export function PhoneFrontDoor() {
     const paint = () => {
       const usable = Math.max(1, pin.offsetHeight - scroller.clientHeight);
       const p = Math.max(0, Math.min(1, scroller.scrollTop / usable));
+
+      // **The bar goes to paper as the pin releases.** Over the stage there is
+      // nothing under it but the map; after, content scrolls beneath it, and a
+      // clear bar shows that content through its links (Mitchell, 2026-10-11).
+      headerRef.current?.toggleAttribute("data-solid", p >= 1);
 
       // The stage clears as ONE: the map and whatever claim is still on it go
       // together, so the pin releases onto empty paper rather than dropping the
@@ -321,12 +349,20 @@ export function PhoneFrontDoor() {
         //
         // Read back off `toFixed(3)` rather than off `opacity * tail`: a value
         // that rounds to `0.000` is gone from the screen, and a claim nobody
-        // can see is a claim nobody should hear. Nothing inside a claim is
-        // focusable, so hiding one cannot strand the keyboard on it.
+        // can see is a claim nobody should hear.
+        //
+        // **And nobody should reach or tap it** (M42 part 9). The claims hold
+        // real links now — the Discover card's — and they are stacked, so a
+        // faded claim later in the document sat over the shown one, took its
+        // taps, and kept its own links in the tab order inside `aria-hidden`.
+        // `inert` goes on and off with `aria-hidden`: out of the tab order,
+        // out of hit-testing, so a tap falls through to the claim on screen.
         const painted = (opacity * tail).toFixed(3);
+        const hidden = Number(painted) === 0;
         chunk.style.opacity = painted;
-        if (Number(painted) > 0) chunk.removeAttribute("aria-hidden");
-        else chunk.setAttribute("aria-hidden", "true");
+        if (hidden) chunk.setAttribute("aria-hidden", "true");
+        else chunk.removeAttribute("aria-hidden");
+        chunk.toggleAttribute("inert", hidden);
         chunk.style.transform = `translate3d(0,${dy.toFixed(1)}px,0)`;
       });
     };
@@ -364,7 +400,11 @@ export function PhoneFrontDoor() {
           stage's top padding is 64px and this bar is 64 (24 + a 28px mark +
           12). Both add the top safe-area inset (`.phone-front-door-header`,
           `.phone-front-door-stage`), so they still match under a status bar. */}
-      <header className="phone-front-door-header sticky top-0 z-10 flex items-center justify-between px-6 pb-3">
+      <header
+        ref={headerRef}
+        // Clear until `paint` marks it `data-solid`: the page opens on the map.
+        className="phone-front-door-header sticky top-0 z-10 flex items-center justify-between px-6 pb-3 transition-colors data-solid:bg-paper"
+      >
         <span className="flex items-center gap-2.5">
           <BrandMark size={28} />
           <Text as="span" className="font-display text-md font-semibold text-ink">
@@ -464,8 +504,10 @@ export function PhoneFrontDoor() {
                   data-testid="front-door-claim"
                   // The authored rest state's other half: the three claims that
                   // start invisible start unannounced too, so the server's HTML
-                  // and the paint above agree before any effect has run.
+                  // and the paint above agree before any effect has run — and
+                  // inert, so their links can be neither tabbed to nor tapped.
                   aria-hidden={i !== 0}
+                  inert={i !== 0}
                   className="absolute inset-0 flex flex-col justify-center px-6"
                   // Note 2: the rest state is AUTHORED, not applied by the
                   // effect. Without it a cold load — or a browser that fires no
@@ -516,6 +558,13 @@ export function PhoneFrontDoor() {
             Look around a real trip
           </Link>
         </section>
+
+        {/* After the call to action, not between it and the pin: §28's clear-out
+            lands on empty paper and the CTA, and Mitchell tuned that hand-off
+            twice. No sign-up of its own: "Start a trip" is just above. */}
+        <div className="bg-paper px-6 pb-10">
+          <LandingPricing ref={pricingRef} />
+        </div>
       </main>
 
       {/* The desktop landing's footer, same five items (see LandingScreen).

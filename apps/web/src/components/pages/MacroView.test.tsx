@@ -310,7 +310,7 @@ describe("MacroView", () => {
           place: null, timeZone: null,
         }],
         cities: [{ name: "Kyoto", dayIndexes: [0], activityCount: 1 }],
-        tags: [], homeTimeZone: null,
+        tags: [], description: null, homeTimeZone: null,
       };
       render(<MacroView detail={costedDetail} context={ctx} globals={globals} name="day.rows" params={{}} />);
       expect(screen.getByText("Kyoto").getAttribute("data-widget-value")).toBe("city");
@@ -488,14 +488,17 @@ pendingReason: null,
     },
   };
   // A place, a zone and a home zone, so the clock widgets (M14 link 11) resolve
-  // here too rather than answering `empty` and skipping the nesting walk.
+  // here too rather than answering `empty` and skipping the nesting walk. A
+  // description, so "Trip description" does as well.
   const richGlobals: TripGlobals = {
     days: [{
       index: 0, date: "2026-08-01", cities: ["Kyoto"], activityCount: 2, costSubtotal: 12345,
       place: { lat: 35.0116, lng: 135.7681, city: "Kyoto" }, timeZone: "Asia/Tokyo",
     }],
     cities: [{ name: "Kyoto", dayIndexes: [0], activityCount: 2 }],
-    tags: [], homeTimeZone: "America/Los_Angeles",
+    tags: [],
+    description: { text: "Foodie", counted: 4, tags: [{ tag: "meal", activityCount: 4 }] },
+    homeTimeZone: "America/Los_Angeles",
   };
   const richUser: UserPreferences = { displayName: "Priya", homeAirport: "SFO", distanceUnit: "km", timeFormat: "12h", avatar: null, color: null, publicDisplayName: false };
   // Weather for the day, as the route would hand it in (ADR-052); without it

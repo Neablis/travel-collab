@@ -1,0 +1,354 @@
+{
+  "currency": "USD",
+  "accents": {
+    "00000000-0000-4000-8002-000000000001": "warning",
+    "00000000-0000-4000-8002-000000000002": "warning",
+    "00000000-0000-4000-8002-000000000003": "danger",
+    "00000000-0000-4000-8002-000000000004": "danger",
+    "00000000-0000-4000-8002-000000000005": "brand",
+    "00000000-0000-4000-8002-000000000006": "info",
+    "00000000-0000-4000-8002-000000000007": "info",
+    "00000000-0000-4000-8002-000000000008": "success"
+  },
+  "river": {
+    "dayId": "00000000-0000-4000-8002-000000000003",
+    "ordinal": 3,
+    "city": "Vík í Mýrdal",
+    "activityIds": [
+      "00000000-0000-4000-8002-000000000020",
+      "00000000-0000-4000-8002-000000000021",
+      "00000000-0000-4000-8002-000000000022",
+      "00000000-0000-4000-8002-000000000023",
+      "00000000-0000-4000-8002-000000000024",
+      "00000000-0000-4000-8002-000000000025",
+      "00000000-0000-4000-8002-000000000026"
+    ],
+    "activities": {
+      "00000000-0000-4000-8002-000000000020": {
+        "activityId": "00000000-0000-4000-8002-000000000020",
+        "title": "Route 1 east to Seljalandsfoss",
+        "timeWindow": {
+          "start": "08:00",
+          "end": "09:30"
+        },
+        "location": {
+          "name": "Route 1 (Hringvegur), Reykjavík to Seljalandsfoss",
+          "lat": 63.750811,
+          "lng": -20.223842,
+          "countryCode": "IS",
+          "city": "Hvolsvöllur",
+          "area": "Route 1",
+          "precision": "city"
+        },
+        "notes": "Check road.is and vedur.is before you turn the key, every single morning of this trip. The colour on road.is changes hourly and a yellow warning for wind on the open stretch past Hvolsvöllur means car doors get ripped off their hinges — hold them with both hands when you open them.",
+        "anchors": [],
+        "kind": "transit",
+        "tags": [],
+        "cost": null,
+        "bookedBy": null,
+        "participants": [],
+        "mode": null,
+        "endLocation": null,
+        "pendingReason": null
+      },
+      "00000000-0000-4000-8002-000000000021": {
+        "activityId": "00000000-0000-4000-8002-000000000021",
+        "title": "Seljalandsfoss, and the hidden one next door",
+        "timeWindow": {
+          "start": "09:30",
+          "end": "10:45"
+        },
+        "location": {
+          "name": "Seljalandsfoss and Gljúfrabúi",
+          "lat": 63.615457,
+          "lng": -19.988169,
+          "countryCode": "IS",
+          "city": "Hvolsvöllur",
+          "area": "Seljalandsfoss",
+          "precision": "area"
+        },
+        "notes": "Parking is about 1,000 ISK, paid at the machine and enforced by plate camera. The path behind the falls is closed in ice and you will get soaked when it is open. Then walk 500 m north to Gljúfrabúi — it is a waterfall inside a slot canyon, it is free, you wade the last few metres, and nine coach parties out of ten never see it.",
+        "anchors": [],
+        "kind": "planned",
+        "tags": [
+          "outdoors"
+        ],
+        "cost": null,
+        "bookedBy": null,
+        "participants": [],
+        "mode": null,
+        "endLocation": null,
+        "pendingReason": null
+      },
+      "00000000-0000-4000-8002-000000000022": {
+        "activityId": "00000000-0000-4000-8002-000000000022",
+        "title": "Skógafoss, and the first flight of the Fimmvörðuháls steps",
+        "timeWindow": {
+          "start": "11:15",
+          "end": "12:30"
+        },
+        "location": {
+          "name": "Skógafoss",
+          "lat": 63.525243,
+          "lng": -19.507761,
+          "countryCode": "IS",
+          "city": "Skógar",
+          "area": "Skógafoss"
+        },
+        "notes": "Climb the 527 steps on the east side. Fifteen minutes up, and above the lip the river runs through a series of smaller falls that almost nobody walks to — the crowd stays at the bottom taking the same photograph.",
+        "anchors": [],
+        "kind": "planned",
+        "tags": [
+          "outdoors"
+        ],
+        "cost": null,
+        "bookedBy": null,
+        "participants": [],
+        "mode": null,
+        "endLocation": null,
+        "pendingReason": null
+      },
+      "00000000-0000-4000-8002-000000000023": {
+        "activityId": "00000000-0000-4000-8002-000000000023",
+        "title": "Lunch at Mia's Country Van",
+        "timeWindow": {
+          "start": "12:45",
+          "end": "13:45"
+        },
+        "location": {
+          "name": "Mia's Country Van, Skógar",
+          "lat": 63.524315,
+          "lng": -19.504866,
+          "countryCode": "IS",
+          "city": "Skógar",
+          "area": "Skógafoss car park"
+        },
+        "notes": "A van in the Skógafoss car park doing lamb and fish tacos, and better than anything with a roof between Hvolsvöllur and Vík. Winter hours are short and weather-dependent — the fallback is the café at the Skógar folk museum.",
+        "anchors": [],
+        "kind": "planned",
+        "tags": [
+          "meal"
+        ],
+        "cost": null,
+        "bookedBy": null,
+        "participants": [],
+        "mode": null,
+        "endLocation": null,
+        "pendingReason": null
+      },
+      "00000000-0000-4000-8002-000000000024": {
+        "activityId": "00000000-0000-4000-8002-000000000024",
+        "title": "Reynisfjara, from the safe end",
+        "timeWindow": {
+          "start": "14:30",
+          "end": "16:00"
+        },
+        "location": {
+          "name": "Reynisfjara black sand beach",
+          "countryCode": "IS",
+          "city": "Vík í Mýrdal",
+          "area": "Reynisfjara"
+        },
+        "notes": "Read the warning-light board at the car park before you walk down; it is a real forecast, not decoration. Sneaker waves here kill visitors most years. Stay above the wet line on the sand, never turn your back on the sea, and do not go near the water to take a photograph of someone standing near the water.",
+        "anchors": [],
+        "kind": "planned",
+        "tags": [
+          "outdoors",
+          "beach"
+        ],
+        "cost": null,
+        "bookedBy": null,
+        "participants": [],
+        "mode": null,
+        "endLocation": null,
+        "pendingReason": null
+      },
+      "00000000-0000-4000-8002-000000000025": {
+        "activityId": "00000000-0000-4000-8002-000000000025",
+        "title": "Check in at Hótel Kría",
+        "timeWindow": {
+          "start": "16:30",
+          "end": "17:15"
+        },
+        "location": {
+          "name": "Hótel Kría, Suðurvíkurvegur",
+          "lat": 63.417719,
+          "lng": -19.001372,
+          "countryCode": "IS",
+          "city": "Vík í Mýrdal",
+          "area": "Vík"
+        },
+        "notes": "Two nights in Vík rather than one. Everything from Seljalandsfoss to Jökulsárlón is a day's driving from here and the village has the only fuel, food and pharmacy for eighty kilometres in either direction.",
+        "anchors": [],
+        "kind": "planned",
+        "tags": [
+          "lodging"
+        ],
+        "cost": null,
+        "bookedBy": null,
+        "participants": [],
+        "mode": null,
+        "endLocation": null,
+        "pendingReason": null
+      },
+      "00000000-0000-4000-8002-000000000026": {
+        "activityId": "00000000-0000-4000-8002-000000000026",
+        "title": "Dinner at Suður-Vík",
+        "timeWindow": {
+          "start": "19:30",
+          "end": "21:00"
+        },
+        "location": {
+          "name": "Suður-Vík Restaurant, Suðurvíkurvegur",
+          "lat": 63.417719,
+          "lng": -19.001372,
+          "countryCode": "IS",
+          "city": "Vík í Mýrdal",
+          "area": "Vík"
+        },
+        "notes": "Held but not confirmed. It is an old house on the hill and it is one of three places to eat in the village, so it fills with everyone whose day ended here — ring at four and they will keep a table.",
+        "anchors": [],
+        "kind": "pending",
+        "tags": [
+          "meal"
+        ],
+        "cost": null,
+        "bookedBy": null,
+        "participants": [],
+        "mode": null,
+        "endLocation": null,
+        "pendingReason": null
+      }
+    }
+  },
+  "notebook": {
+    "strip": {
+      "kind": "trip-strip",
+      "runs": [
+        {
+          "city": "Reykjavík",
+          "days": [
+            {
+              "dayId": "00000000-0000-4000-8002-000000000001",
+              "ordinal": 1,
+              "date": null,
+              "city": "Reykjavík"
+            },
+            {
+              "dayId": "00000000-0000-4000-8002-000000000002",
+              "ordinal": 2,
+              "date": null,
+              "city": "Reykjavík"
+            }
+          ],
+          "phrase": "days 1–2 Reykjavík"
+        },
+        {
+          "city": "Vík í Mýrdal",
+          "days": [
+            {
+              "dayId": "00000000-0000-4000-8002-000000000003",
+              "ordinal": 3,
+              "date": null,
+              "city": "Vík í Mýrdal"
+            },
+            {
+              "dayId": "00000000-0000-4000-8002-000000000004",
+              "ordinal": 4,
+              "date": null,
+              "city": "Vík í Mýrdal"
+            }
+          ],
+          "phrase": "days 3–4 Vík í Mýrdal"
+        },
+        {
+          "city": "Öræfi",
+          "days": [
+            {
+              "dayId": "00000000-0000-4000-8002-000000000005",
+              "ordinal": 5,
+              "date": null,
+              "city": "Öræfi"
+            }
+          ],
+          "phrase": "day 5 Öræfi"
+        },
+        {
+          "city": "Hella",
+          "days": [
+            {
+              "dayId": "00000000-0000-4000-8002-000000000006",
+              "ordinal": 6,
+              "date": null,
+              "city": "Hella"
+            },
+            {
+              "dayId": "00000000-0000-4000-8002-000000000007",
+              "ordinal": 7,
+              "date": null,
+              "city": "Hella"
+            }
+          ],
+          "phrase": "days 6–7 Hella"
+        },
+        {
+          "city": "Keflavík",
+          "days": [
+            {
+              "dayId": "00000000-0000-4000-8002-000000000008",
+              "ordinal": 8,
+              "date": null,
+              "city": "Keflavík"
+            }
+          ],
+          "phrase": "day 8 Keflavík"
+        }
+      ],
+      "summary": "Days 1–2 Reykjavík, days 3–4 Vík í Mýrdal, day 5 Öræfi, days 6–7 Hella, day 8 Keflavík"
+    },
+    "day": {
+      "kind": "itinerary-day",
+      "dayId": "00000000-0000-4000-8002-000000000002",
+      "cities": [
+        "Reykjavík",
+        "Kópavogur"
+      ],
+      "window": "8:30 am – 10:30 pm",
+      "cost": null,
+      "ordinal": 2,
+      "date": null,
+      "activities": [
+        {
+          "title": "Cinnamon buns at Brauð & Co",
+          "timeWindow": "8:30 am – 9:10 am",
+          "cost": null
+        },
+        {
+          "title": "Up the Hallgrímskirkja tower",
+          "timeWindow": "9:20 am – 10:20 am",
+          "cost": null
+        },
+        {
+          "title": "The Settlement Exhibition",
+          "timeWindow": "10:45 am – 12:30 pm",
+          "cost": null
+        },
+        {
+          "title": "Lobster soup at Sægreifinn",
+          "timeWindow": "1 pm – 2:15 pm",
+          "cost": null
+        },
+        {
+          "title": "Sky Lagoon, and the seven-step ritual",
+          "timeWindow": "4 pm – 7 pm",
+          "cost": null
+        },
+        {
+          "title": "Dinner at Sumac",
+          "timeWindow": "8:30 pm – 10:30 pm",
+          "cost": null
+        }
+      ]
+    }
+  }
+}

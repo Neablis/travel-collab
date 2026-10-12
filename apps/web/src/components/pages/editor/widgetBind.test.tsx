@@ -49,7 +49,7 @@ function Harness({
 const stored = () => JSON.parse(screen.getByTestId("params").textContent ?? "{}") as Record<string, unknown>;
 
 // The kind and tag selects print the words the stop card prints ("Pending",
-// "Meal"), never the stored value, and still store the value.
+// "Food"), never the stored value, and still store the value.
 describe("optionsFor a kind or tag input", () => {
   const KIND: WidgetInput = { name: "kind", type: "kind", label: "Kind" };
   const TAGS: WidgetInput = { name: "tag", type: "tags", label: "Tag" };
@@ -64,7 +64,7 @@ describe("optionsFor a kind or tag input", () => {
     const globals = { cities: [], tags: [{ tag: "meal", activityCount: 1 }] } as unknown as TripGlobals;
     expect(optionsFor(TAGS, {}, detail, globals)).toEqual([
       { value: "", label: "Every stop" },
-      { value: "meal", label: "Meal" },
+      { value: "meal", label: "Food" },
     ]);
   });
 
@@ -327,6 +327,6 @@ describe("a spend breakdown's filters follow what it is split by", () => {
 
   it("does not claim a withheld tag in the 'Pointed at' summary", () => {
     expect(bindSummary("cost.breakdown", { by: "tag", tag: "meal" }, detail, globals)).toBe("everything");
-    expect(bindSummary("cost.breakdown", { by: "kind", tag: "meal" }, detail, globals)).toBe("Meal");
+    expect(bindSummary("cost.breakdown", { by: "kind", tag: "meal" }, detail, globals)).toBe("Food");
   });
 });

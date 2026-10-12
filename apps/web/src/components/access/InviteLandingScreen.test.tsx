@@ -93,6 +93,7 @@ const preview: TripPreview = {
     { name: "Kenji", avatar: null, color: "teal", colorShifted: false, travelling: false },
   ],
   total: { amountMinor: 123_450, currency: "USD" },
+  description: "Food & sights",
 };
 
 const answer = (landing: InviteLanding) => ({ ok: true, value: landing });
@@ -120,6 +121,21 @@ describe("InviteLandingScreen — a pending invite", () => {
     expect(screen.getByText("Dana Reyes invited you")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Have a look first" }).getAttribute("href")).toBe("/invite/tok/look");
     expect(screen.getByRole("link", { name: "Sign in" })).toBeTruthy();
+  });
+
+  // M42 D9: the trip's description, from the token-scoped read, says what kind
+  // of trip the name is.
+  it("says what kind of trip it is under its name, and nothing when the trip cannot say", async () => {
+    render(<InviteLandingScreen token="tok" googleAvailable />);
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Japan: food and temples", description: "Food & sights" }),
+    ).toBeTruthy();
+    cleanup();
+
+    fetchInvitePreviewMock.mockResolvedValue({ ok: true, value: { ...preview, description: null } });
+    render(<InviteLandingScreen token="tok" googleAvailable />);
+    await screen.findByText("in 5 days");
+    expect(screen.getByRole("heading", { level: 1, name: "Japan: food and temples", description: "" })).toBeTruthy();
   });
 
   // The fixed set (D5), each drawn by the notebook's widget from the preview.
@@ -155,6 +171,15 @@ describe("InviteLandingScreen — a pending invite", () => {
     // `person.share`'s sentence, which an amount would follow.
     expect(screen.queryByText(/is in for [$\d]/)).toBeNull();
     expect(screen.getByText("What each person is in for, and what each stop costs, show once you join.")).toBeTruthy();
+  });
+
+  // Mitchell, 2026-10-11: trips have no voting or commenting, so an editor is
+  // promised what an editor does — the stops — and nothing that isn't built.
+  it("tells an editor what they can change, and promises nothing unbuilt", async () => {
+    fetchInviteLandingMock.mockResolvedValue(answer(valid({ role: "editor" })));
+    render(<InviteLandingScreen token="tok" googleAvailable />);
+    expect(await screen.findByText(/You can add, move and change stops\./)).toBeTruthy();
+    expect(screen.queryByText(/\bvot(e|es|ing)\b|\bcomment/i)).toBeNull();
   });
 
   it("does not promise a viewer that they can change anything", async () => {

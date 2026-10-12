@@ -1,3 +1,5 @@
+import { describeByTags, describedTags } from "@tc/domain";
+import type { SavedStop } from "@tc/contracts";
 import type { SharedDayView } from "@/lib/sharedDayView";
 import { publicAuthor } from "./playbooks";
 import { getSavedDayCover } from "./savedDayCovers";
@@ -37,6 +39,28 @@ export async function sharedDayRead(
     publishedAt,
     moderation,
     cover,
+    // On a tag page only if published and not hidden by an operator.
+    ...whatKindOfDay(day.stops, day.visibility === "public" && moderation === null),
+  };
+}
+
+/**
+ * What kind of day these stops make (M42 D9), the categories they carry and
+ * the ones the description names, for `SharedDayView`. One place, so the
+ * page's cached read and the live one cannot word the same day two ways.
+ *
+ * `listed` is whether the day is in the public library, which is all tag
+ * pages list: off it, no tag is a page this day is on, so none is named.
+ */
+export function whatKindOfDay(
+  stops: readonly SavedStop[],
+  listed: boolean,
+): Pick<SharedDayView, "description" | "tags" | "namedTags"> {
+  const described = describeByTags(stops);
+  return {
+    description: described?.text ?? null,
+    tags: describedTags(stops),
+    namedTags: listed ? [...(described?.named ?? [])] : [],
   };
 }
 

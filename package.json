@@ -31,13 +31,14 @@
     "seed:verify": "SEED_VERIFY_REPORT=1 pnpm --filter @tc/fixtures test",
     "content:verify": "pnpm --filter web content:verify",
     "landing:verify": "pnpm --filter web landing:verify",
+    "landing:plans:verify": "pnpm --filter web landing:plans:verify",
     "og:verify": "pnpm --filter web og:verify"
   },
   "devDependencies": {
     "@stryker-mutator/core": "^10.0.0",
     "@stryker-mutator/vitest-runner": "^10.0.0",
-    "@typescript-eslint/eslint-plugin": "^8.71.0",
-    "@typescript-eslint/parser": "^8.71.0",
+    "@typescript-eslint/eslint-plugin": "^8.71.1",
+    "@typescript-eslint/parser": "^8.71.1",
     "dependency-cruiser": "^18.5.0",
     "eslint": "^9.39.4",
     "eslint-plugin-testing-library": "^7.16.2",

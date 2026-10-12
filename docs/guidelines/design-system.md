@@ -230,6 +230,44 @@ carry near-black.
 Every pair clears 4.5:1 for the 12px initials. `color: null` draws
 `person-slate`.
 
+### Tag colours
+
+ADR-070's thirteen activity tags. The original four keep the families they
+had: Food (`meal`) is warning, Lodging info, Ticketed success, Outdoors moss on
+slate. The nine added each have three tokens: `--color-tag-<key>` (the solid:
+its series in the spend charts), and `-tint` with `-ink` (its chip). Only
+`TAG_CHIP_CLASS` (`lib/activityTags.ts`) and `SPEND_SERIES_COLOR`
+(`spendColors.ts`) read them. A tag colour is identity, not state: it never
+stands in for a semantic colour.
+
+**The chart solids are one categorical palette.** The twelve category series,
+in contract order (Food, Lodging, Outdoors, then the nine), pass the dataviz
+validator as a whole against white (`validate_palette.js --mode light`):
+lightness band, chroma floor, worst adjacent CVD ΔE 14.5 (protan), worst
+adjacent normal-vision ΔE 19.1, every solid ≥ 3:1. Outdoors charts in
+`success` green, not its chip's slate, because a grey series fails the chroma
+floor. Ticketed is no series. Untagged stays `border-input`: the neutral
+remainder, deliberately not a hue.
+
+Only the light column ships. The dark column is recorded, like the person
+colours, so a dark look adopts approved values; the dark solids pass the same
+validator against `#12161F` (worst adjacent CVD ΔE 8.5, normal ΔE 15.5).
+
+| Key | Solid | vs white | Tint | Ink | ink on tint | Dark solid | Dark tint | Dark ink | dark ink on tint |
+|---|---|---|---|---|---|---|---|---|---|
+| `drinks` | `#DB64AC` | 3.27 | `#FFE9F4` | `#78335D` | 7.49 | `#DA65AC` | `#402333` | `#F8BCDD` | 8.78 |
+| `nightlife` | `#523EAD` | 7.92 | `#EEEEFF` | `#4C4489` | 7.34 | `#5464D3` | `#2C2A46` | `#CCCBFF` | 8.88 |
+| `museum` | `#A086C9` | 3.11 | `#F3EDFE` | `#5B3F82` | 7.41 | `#B17FBD` | `#322843` | `#DAC5FE` | 8.81 |
+| `sight` | `#8F452A` | 6.88 | `#FEECE5` | `#80361A` | 7.46 | `#DB7530` | `#43251A` | `#FFC0AB` | 8.81 |
+| `beach` | `#309EB4` | 3.15 | `#DBF6FD` | `#005A69` | 6.98 | `#1A9BA1` | `#04343D` | `#92DFF1` | 8.98 |
+| `shopping` | `#893F7D` | 6.84 | `#FDE9F9` | `#733568` | 7.46 | `#9A4DAA` | `#3D2438` | `#F2BEE7` | 8.82 |
+| `show` | `#E96B50` | 3.14 | `#FFEBE7` | `#813424` | 7.46 | `#E6656D` | `#43241D` | `#FFC0B1` | 8.90 |
+| `tour` | `#585C00` | 7.13 | `#F0F3DC` | `#515500` | 7.01 | `#7B8D08` | `#2E3010` | `#D1D79A` | 8.99 |
+| `wellness` | `#18A177` | 3.28 | `#DEF7EB` | `#005F44` | 6.84 | `#00AC9E` | `#103628` | `#9EE2C5` | 8.95 |
+
+The dark solids of the three tags on semantic families, for the same palette:
+Food `#9F7417`, Lodging `#5890FB`, Outdoors `#1D8922`.
+
 ### When to use what
 
 - **Brand teal never carries state meaning.** It marks *actions and location*
@@ -267,6 +305,7 @@ Normal text needs ≥ 4.5:1; non-text UI boundaries ≥ 3:1. All pass:
 | warning text on every other tint (city-accented day columns), Ledger look — lowest: danger-tint `#F4DEDB` | 4.69 (was 4.38 at `#8A5F0B`, the axe failure that moved it) |
 | border-input vs white (non-text) | 3.16 |
 | person-on on each person colour (lowest: moss) | 5.56 — full table under "Person colours" |
+| tag ink on its own tag tint, ADR-070's nine (lowest: wellness) | 6.84 — full table under "Tag colours" |
 
 Any new text/background combination added later must be computed and appended
 here before use.

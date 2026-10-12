@@ -99,6 +99,7 @@ function discover(days: DiscoverDay[]): ApiResult<DiscoverResponse> {
       matchCount: days.length,
       matchCountExact: true,
       sharedPlaybookCount: days.length,
+      nextCursor: null,
     },
   };
 }
@@ -123,6 +124,9 @@ function published(overrides: Partial<DiscoverDay> & Pick<DiscoverDay, "savedDay
     publishedAt: "2026-09-02T00:00:00.000Z",
     isMine: false,
     cover: null,
+    description: null,
+    tags: [],
+    namedTags: [],
     ...overrides,
   };
 }

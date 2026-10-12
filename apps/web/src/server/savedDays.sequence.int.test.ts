@@ -382,3 +382,35 @@ describe("a Discover card's stop preview", () => {
     expect(card.preview).toEqual([]);
   });
 });
+
+// M42 D9: the card says what kind of day it is, from every day's stops, and
+// shows the categories they carry, most used first.
+describe("a Discover card's description", () => {
+  it("describes the Playbook from all its days' stops and lists their categories", async () => {
+    const tripId = randomUUID();
+    const dayIds = [randomUUID(), randomUUID()];
+    await executeTripCommand({ type: "CreateTrip", tripId, name: "Amalfi" }, OWNER);
+    for (const dayId of dayIds) await executeTripCommand({ type: "AddDay", tripId, dayId }, OWNER);
+    const stops: [number, ("beach" | "meal" | "lodging" | "ticketed")[]][] = [
+      [0, ["beach"]],
+      [0, ["beach", "ticketed"]],
+      [0, ["lodging"]],
+      [1, ["beach"]],
+      [1, ["meal"]],
+    ];
+    for (const [day, tags] of stops) {
+      await executeTripCommand(
+        { type: "AddActivity", tripId, activityId: randomUUID(), dayId: dayIds[day], title: "Stop", tags },
+        OWNER,
+      );
+    }
+    const saved = await saveDay({ name: "Coast", dayIds }, (await getTripDetail(tripId))!, OWNER);
+    if (!saved.ok) throw new Error(saved.error.message);
+    const found = await discoverDays({
+      cities: [], scope: "yours", sort: "newest", budget: "any", length: "any", readerId: OWNER,
+    });
+    const card = found.days.find((d) => d.savedDayId === saved.value.savedDayId)!;
+    // Three beach stops of the four non-Lodging ones, across both days.
+    expect([card.description, card.tags]).toEqual(["Beachy", ["beach", "meal"]]);
+  });
+});

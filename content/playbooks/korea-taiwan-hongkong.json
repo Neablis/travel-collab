@@ -82,7 +82,8 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "sight"
           ],
           "cost": {
             "amountMinor": 0,
@@ -105,7 +106,9 @@
             "countryCode": "KR"
           },
           "kind": "planned",
-          "tags": [],
+          "tags": [
+            "sight"
+          ],
           "cost": {
             "amountMinor": 0,
             "currency": "USD"
@@ -128,7 +131,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "shopping"
           ],
           "cost": {
             "amountMinor": 750,
@@ -152,7 +156,8 @@
           },
           "kind": "planned",
           "tags": [
-            "ticketed"
+            "ticketed",
+            "sight"
           ],
           "cost": {
             "amountMinor": 500,
@@ -175,7 +180,9 @@
             "countryCode": "KR"
           },
           "kind": "planned",
-          "tags": [],
+          "tags": [
+            "sight"
+          ],
           "cost": {
             "amountMinor": 800,
             "currency": "USD"
@@ -198,7 +205,9 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "drinks",
+            "nightlife"
           ],
           "cost": {
             "amountMinor": 1120,
@@ -221,7 +230,10 @@
             "countryCode": "KR"
           },
           "kind": "pending",
-          "tags": [],
+          "tags": [
+            "drinks",
+            "nightlife"
+          ],
           "cost": {
             "amountMinor": 900,
             "currency": "USD"
@@ -274,7 +286,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "shopping"
           ],
           "cost": {
             "amountMinor": 1870,
@@ -319,7 +332,9 @@
             "countryCode": "KR"
           },
           "kind": "planned",
-          "tags": [],
+          "tags": [
+            "wellness"
+          ],
           "cost": {
             "amountMinor": 1270,
             "currency": "USD"
@@ -341,7 +356,9 @@
             "countryCode": "KR"
           },
           "kind": "planned",
-          "tags": [],
+          "tags": [
+            "museum"
+          ],
           "cost": {
             "amountMinor": 0,
             "currency": "USD"
@@ -387,7 +404,10 @@
             "countryCode": "KR"
           },
           "kind": "pending",
-          "tags": [],
+          "tags": [
+            "drinks",
+            "nightlife"
+          ],
           "cost": {
             "amountMinor": 2240,
             "currency": "USD"
@@ -477,7 +497,7 @@
           },
           "kind": "planned",
           "tags": [
-            "outdoors"
+            "sight"
           ],
           "cost": {
             "amountMinor": 150,
@@ -501,7 +521,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "shopping"
           ],
           "cost": {
             "amountMinor": 3360,
@@ -525,7 +546,8 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "shopping"
           ],
           "cost": {
             "amountMinor": 150,
@@ -597,7 +619,8 @@
           },
           "kind": "planned",
           "tags": [
-            "outdoors"
+            "nightlife",
+            "beach"
           ],
           "cost": {
             "amountMinor": 0,
@@ -667,7 +690,8 @@
           },
           "kind": "planned",
           "tags": [
-            "outdoors"
+            "museum",
+            "wellness"
           ],
           "cost": {
             "amountMinor": 1500,
@@ -690,7 +714,9 @@
             "countryCode": "TW"
           },
           "kind": "pending",
-          "tags": [],
+          "tags": [
+            "outdoors"
+          ],
           "cost": {
             "amountMinor": 0,
             "currency": "USD"
@@ -760,7 +786,9 @@
             "countryCode": "TW"
           },
           "kind": "planned",
-          "tags": [],
+          "tags": [
+            "sight"
+          ],
           "cost": {
             "amountMinor": 0,
             "currency": "USD"
@@ -807,7 +835,9 @@
           },
           "kind": "planned",
           "tags": [
-            "meal"
+            "meal",
+            "nightlife",
+            "shopping"
           ],
           "cost": {
             "amountMinor": 1250,

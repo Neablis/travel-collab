@@ -183,6 +183,17 @@ const nextConfig: NextConfig = {
   // and left as a plain runtime require. `sentry.server.config.ts` still
   // guards the import — this makes it work, that makes a failure survivable.
   serverExternalPackages: ["@sentry/profiling-node"],
+  // `/demo` was the Japan board until M42 made it a picker (D1), and a link
+  // into one of its views (`/demo?view=Map`, `?lens=`, `?page=`, `?day=`) still
+  // means Japan at that view. One rule per key because `has` is an AND; Next
+  // carries the query across, so the view survives. A bare `/demo` is the picker.
+  redirects: async () =>
+    ["view", "lens", "page", "day"].map((key) => ({
+      source: "/demo",
+      has: [{ type: "query" as const, key }],
+      destination: "/demo/japan",
+      permanent: true,
+    })),
   headers: async () => [
     { source: "/:path*", headers: securityHeaders },
     {

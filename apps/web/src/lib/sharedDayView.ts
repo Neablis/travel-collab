@@ -1,4 +1,4 @@
-import type { SavedDay, SavedDayModeration, TripCover } from "@tc/contracts";
+import type { ActivityTag, ActivityTagDescribed, SavedDay, SavedDayModeration, TripCover } from "@tc/contracts";
 import type { PublicAuthor } from "./playbooks";
 
 /**
@@ -21,4 +21,13 @@ export type SharedDayView = {
    * content and every owner read, and this is one read's picture of it.
    */
   cover: TripCover | null;
+  /**
+   * What kind of day it is (M42 D9), or null when too few stops are tagged to
+   * say, and the categories its stops carry, most used first. Worked out by the
+   * server (`describeByTags`, `describedTags`), since the rule is the domain's.
+   */
+  description: string | null;
+  tags: ActivityTag[];
+  /** The tags the description names: the chips that link to a tag page, which lists this day (ADR-070 §4). */
+  namedTags: ActivityTagDescribed[];
 };

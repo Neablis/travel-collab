@@ -13,6 +13,110 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-11 — `TripGlobals.description`: what kind of trip it is, for the *Trip description* widget (M42 part 4, ADR-070 §3)
+
+- **Added** `TripGlobalsDescription` (`packages/contracts/src/globals.ts`): `{ text, counted, tags }`,
+  where `tags` is a `TripGlobalsTag[]` of every category the description counted, the most
+  activities first. `TripGlobals` gains `description: TripGlobalsDescription | null`, defaulted to
+  `null`. Plain `.describe()`, so the field picker does not offer it.
+- Why: M42 D11's *Trip description* notebook widget must say what the home card says.
+  `buildTripGlobals` works it out with `describeByTags` (`@tc/domain`) over every activity, the
+  backlog's too, and asks `describedTags` one stop at a time for the counts behind the shares.
+  `@tc/pages` may not import the domain, so it reads the result here, as it reads `cities`.
+- Consumers updated: `apps/web` (`server/tripGlobals.ts`; `components/access/previewContext.ts`
+  sends `null`, the invite drawing no description widget); `packages/pages` (the new `tag.breakdown`,
+  `tag.byDay` and `trip.description` widgets, and four presets: *Activities by tag*, *Hours by tag*,
+  *Tags by day*, *Trip description*); test fixtures that build a `TripGlobals` by hand.
+  `TripGlobals` is `GET /v1/trips/:id/globals`, so `openapi.json` is regenerated: `API_VERSION`
+  1.14.0 → **1.15.0** (minor: an optional field) and a new `API_FINGERPRINT`.
+- Breaking? no: the field is defaulted, so a payload from before it parses as "no description".
+
+## 2026-10-11 — `ActivityTagDescribed`: the categories a description can name (M42 part 5, ADR-070 §3–§4)
+
+- **Added** `ActivityTagDescribed` (`packages/contracts/src/activity.ts`): `ActivityTagCategory`
+  less Lodging. These are the tags a description can name, so they are also the tags with a page
+  (`/playbooks/tag/<tag>`) and the values of Discover's tag filter.
+- Why: the set was spelled twice, as `DESCRIBED` in `@tc/domain` and as `DiscoverTag` in the app.
+  The app's UI needs it too and may not import the domain (AGENTS.md's lint wall), so it lives in
+  the contract both already read. It is one definition (ADR-068).
+- Consumers updated: `packages/domain` (`DescribedTag` is this type, and `DESCRIBED` is its
+  options); `apps/web` (`TagFilter`, `DiscoverDay.namedTags`, `SharedDayView.namedTags`,
+  `tagPath`, the filter bar, `tagPage.ts`). Not on the public API: `DiscoverDay.namedTags` is
+  omitted from `/v1/discover/playbooks`, so `openapi.json`, `API_VERSION` and `API_FINGERPRINT`
+  are unchanged.
+- Breaking? no: a new export only.
+
+## 2026-10-11 — `TripSummary.description` and `TripPreview.description`: a trip says what kind of trip it is (M42 part 3, ADR-070 §3)
+
+- **Added** `description: string | null`, defaulted to `null`, to `TripSummary`
+  (`packages/contracts/src/trip.ts`) and to `TripPreview` (`packages/contracts/src/invitePreview.ts`,
+  still `.strict()`). It is "Outdoorsy", "Beach & outdoors", "A bit of everything", or null when
+  fewer than four activities carry a category (Lodging and Ticketed aside). `StoredTripSummary`
+  omits it: the projection does not store it.
+- Why: M42 D8 and D9. The words are worked out at read time by `describeByTags` (`@tc/domain`,
+  new), from every activity on the trip, the backlog's as well as the days', and transit left out.
+  Nothing stores the result, so a retag is seen on the next read.
+- Consumers updated: `packages/domain` (`describeByTags`, `describedTags`, the copy table);
+  `packages/factories` (`tripSummaryFactory`); `apps/web` (the two listing queries in
+  `server/projections.ts`, `server/invitePreview.ts`, `TripCard`, `NextTripHero`,
+  `InviteLandingScreen`). Not contracts but on the same wire: the app's `DiscoverDay` and the
+  shared-day read (`SharedDayView`, `GET /api/saved-days/:id`) gain `description` and `tags`.
+  `TripSummary` and `DiscoverDay` are in the public API's `GET /v1/trips` and
+  `GET /v1/discover/playbooks`, so `openapi.json` is regenerated: `API_VERSION` 1.13.0 →
+  **1.14.0** (minor: optional fields) and a new `API_FINGERPRINT`.
+- Breaking? no: both fields are defaulted, so a payload from before them parses as "no description".
+
+## 2026-10-11 — `Entitlement` gains `playbook.review`: leaving a review needs Plus or Premium (M42 part 8, ADR-071)
+
+- **Added** `"playbook.review"` to `Entitlement` (`packages/contracts/src/entitlement.ts`), the
+  fifth capability. It gates `PUT /api/saved-days/:id/reviews`, which now answers
+  **402** `{ error, code: "review-not-entitled" }` to an account without it, the shape of
+  `ai-not-entitled` and `collaborators-not-entitled`. Reading reviews and withdrawing your own stay
+  open.
+- Why: Mitchell, 2026-10-11 (M42 D3): reviews on Plus and Premium only, *"the cost keeps spammers
+  out"*. Reviewing was free to every account before, so under ADR-071 the published versions that
+  sell it gained it **in place**: `plus@v1`, `premium@v1`, `premium@v2` and the disabled
+  `studio@v1`. `free@v1` did not. No holder or trial lost reviewing, and no new version, Stripe
+  Price or data write was needed. `planVersions.noExtension.test.ts` lists each addition with
+  ADR-071 and fails on any change to a published version it does not list.
+- Consumers updated: `apps/web`: `server/entitlements/planVersions.ts` and its tests; the reviews
+  route and `server/reviews.ts`; `lib/planCopy.ts` (`ENTITLEMENT_LABEL`, a `Record` over the enum);
+  `/plans`' comparison gains a *Review playbooks* row; the shared day asks `useEntitled` (the
+  assistant's plan read, generalised) and shows a free account *"Reviews are for Plus and
+  Premium"* with a link to `/plans` where the form was. `packages/contracts/test/entitlement.test.ts`.
+  Not on the public API: entitlements are not in `openapi.json` and the reviews route is `planned`
+  in `exposure.ts`, so no `API_VERSION` or `API_FINGERPRINT` change.
+- Breaking? yes, for a free account's review write only: it was 200 and is now 402. No migration;
+  reviews already written by free accounts stay and still show.
+
+## 2026-10-11 — `ActivityTag` has thirteen values: twelve categories and one modifier (M42 part 1, ADR-070)
+
+- **Added** nine values to `ActivityTag` (`packages/contracts/src/activity.ts`), appended after the
+  existing four: `drinks`, `nightlife`, `museum`, `sight`, `beach`, `shopping`, `show`, `tour`,
+  `wellness`. No existing key was renamed, removed or reordered.
+- **Added** `ActivityTagModifier` (`ticketed`) and `ActivityTagCategory` (the other twelve, in
+  contract order), both derived from `ActivityTag` (`.extract` / `.exclude`), so every consumer
+  reads one definition of which tag is which.
+- Why: four tags, two of them on nearly every trip, could not say what a trip is like, and
+  `ticketed` is a property of a stop rather than a kind of one (ADR-070). Appending keeps every
+  stored stop's first tag, which spend charts file it under, where it was.
+- **Behaviour change, no shape change: spend charts chart categories only.** *Spend by tag*'s
+  slices and *Spend by day*'s stacks (`SpendSeriesKey`, now `ActivityTagCategory | "untagged"`)
+  no longer have a Ticketed series. A stop tagged only `ticketed` is now charted as **Untagged**,
+  and a stop tagged `ticketed` with a category is charted under that category. *Spend by day*
+  filtered to Ticketed stacks those stops by category. The label of `meal` is now *Food*.
+- Consumers updated: `packages/pages` (`TAG_LABEL`, `spendSeries.ts`, the spend-by-tag preset's
+  text and keywords, `chartPayloads.ts`); `apps/web` (`lib/activityTags.ts`: chip classes and the
+  editor's two picker groups; `spendColors.ts`; nine `tag-<key>` colour tokens in `globals.css`;
+  the simulated model's topic words); `packages/fixtures` (the Japan fixture re-tagged so every
+  tag is on a stop, and its expected counts). The assistant's tools and content bundles take the
+  enum from the contract and needed no edit. The enum is in the public API's stop and filter
+  schemas, so `openapi.json` is regenerated: `API_VERSION` 1.12.0 → **1.13.0** (minor: additive
+  values) and a new `API_FINGERPRINT`.
+- Breaking? no for stored data: every value that parsed still parses, events stay at version 1,
+  and no row is rewritten. A public API client with an exhaustive switch over the tag values will
+  now meet values it does not know; that is the additive change the minor bump announces.
+
 ## 2026-10-10 — `ActivityMoved.fromDayId` and `TripDetail.parkedFrom`: a parked stop knows which day it left (M41 D6)
 
 - **Added** `fromDayId: uuid | null`, optional, to `ActivityMovedV1`'s payload

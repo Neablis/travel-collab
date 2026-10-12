@@ -142,14 +142,14 @@ async function cloneFrom(
  * product feel arbitrary.
  */
 export async function duplicateTrip(sourceTripId: string, actorId: string): Promise<CommandResult> {
-  // "Make this trip mine", from the demo at `/demo`, is this same endpoint
+  // "Make this trip mine", from a demo at `/demo/<slug>`, is this same endpoint
   // (ADR-031). It has to branch before the membership check below rather than
   // satisfy it: the demo grants every visitor `viewer` at the access seam, but
   // its member list names invented people, so `hasAtLeast` would refuse a real
   // account. Everything after this line — the id remap, the diff, the one
   // transaction that creates and fills the copy — is the path any other copy
   // takes.
-  if (isDemoTripId(sourceTripId)) return cloneDemoTrip(actorId);
+  if (isDemoTripId(sourceTripId)) return cloneDemoTrip(sourceTripId, actorId);
   const source = await getTripDetail(sourceTripId);
   if (source === null) {
     return { ok: false, error: { code: "not-found", message: "This trip does not exist." } };
@@ -193,7 +193,7 @@ export async function cloneSharedTrip(token: string, actorId: string): Promise<C
 }
 
 /**
- * The demo trip, copied into a real one the visitor owns.
+ * A demo trip, copied into a real one the visitor owns.
  *
  * The same `cloneFrom` every other copy goes through, handed a `TripDetail`
  * that was folded in memory instead of read out of Postgres (ADR-031). What
@@ -206,16 +206,16 @@ export async function cloneSharedTrip(token: string, actorId: string): Promise<C
  * somebody's first trip, and it is theirs — naming it "(copy)" would frame the
  * demo as the real one.
  *
- * The lineage names `DEMO_TRIP_ID`, a real UUID naming no row. `forkedFrom` is
+ * The lineage names the demo's id (`lib/demoTrip.ts`), a real UUID naming no row. `forkedFrom` is
  * display-only text today ("Copied from …, as it was at change N"), and this is
  * the trade the demo is worth: the alternative, `forkedFrom: null`, tells the
  * person who just copied the demo that their trip came from nowhere.
  */
-async function cloneDemoTrip(actorId: string): Promise<CommandResult> {
-  const detail = demoTripDetail();
+async function cloneDemoTrip(demoTripId: string, actorId: string): Promise<CommandResult> {
+  const detail = demoTripDetail(demoTripId);
   return cloneFrom(
     detail,
-    { tripId: detail.tripId, atSeq: demoTripHeadSeq(), name: detail.name },
+    { tripId: detail.tripId, atSeq: demoTripHeadSeq(demoTripId), name: detail.name },
     actorId,
     detail.name,
   );

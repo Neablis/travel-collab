@@ -53,10 +53,11 @@ vi.mock("@/lib/apiClient", () => ({
 
 // Mock next/navigation: URL is the store.
 let search = new URLSearchParams("");
+let pathname = "/trips/x";
 const replaceSpy = vi.fn((url: string) => { search = new URLSearchParams(url.split("?")[1] ?? ""); });
 vi.mock("next/navigation", () => ({
   useSearchParams: () => search,
-  usePathname: () => "/trips/x",
+  usePathname: () => pathname,
   useRouter: () => ({ replace: replaceSpy }),
 }));
 
@@ -64,7 +65,7 @@ import { TripProvider, useTrip } from "./TripProvider";
 import { EditorHost, useEditor } from "./EditorHost";
 import { LensRouter, useLens } from "./LensRouter";
 
-beforeEach(() => { search = new URLSearchParams(""); replaceSpy.mockClear(); dispatchSpy.mockClear(); });
+beforeEach(() => { search = new URLSearchParams(""); pathname = "/trips/x"; replaceSpy.mockClear(); dispatchSpy.mockClear(); });
 
 function Consumer() {
   const { activeTrip, dispatch } = useTrip();
@@ -114,6 +115,28 @@ describe("trip context spine", () => {
     await waitFor(() => expect(screen.getByTestId("lens").textContent).toBe("Overview"));
     fireEvent.click(screen.getByRole("button", { name: "go map" }));
     expect(replaceSpy).toHaveBeenCalledWith(expect.stringContaining("view=Map"), { scroll: false });
+  });
+
+  // A demo lands on Plan instead (Mitchell, 2026-10-11): a visitor is there to
+  // see the planning. A view in the URL still wins, and a notebook link
+  // (`?page=`) is still Overview's.
+  it.each([
+    ["", "Plan"],
+    ["view=Overview", "Overview"],
+    ["lens=Map", "Map"],
+    ["page=p1", "Overview"],
+  ])("a demo at /demo/japan?%s opens on %s", (query, expected) => {
+    pathname = "/demo/japan";
+    search = new URLSearchParams(query);
+    function View() {
+      return <span data-testid="lens">{useLens().view}</span>;
+    }
+    render(
+      <LensRouter>
+        <View />
+      </LensRouter>,
+    );
+    expect(screen.getByTestId("lens").textContent).toBe(expected);
   });
 
   it("openCreate opens the editor with prefill", async () => {

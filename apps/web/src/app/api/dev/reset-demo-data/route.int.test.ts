@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { commandsFor } from "@tc/factories";
-import type { TripCommand } from "@tc/contracts";
+import { ActivityTag, type TripCommand } from "@tc/contracts";
 import { executeTripCommand } from "@/server/commands";
 import { getTripDetail, listTripSummaries } from "@/server/projections";
 
@@ -163,7 +163,7 @@ describe("POST /api/dev/reset-demo-data", () => {
     ).toHaveLength(72);
 
     const tagged = new Set(activities.flatMap((a) => a.tags ?? []));
-    expect([...tagged].sort()).toEqual(["lodging", "meal", "outdoors", "ticketed"]);
+    expect([...tagged].sort()).toEqual([...ActivityTag.options].sort());
 
     const kinds = new Set(activities.map((a) => a.kind));
     expect([...kinds].sort()).toEqual(["pending", "planned", "transit"]);

@@ -5,7 +5,7 @@ import { expect, test } from "./fixtures/test";
 //
 // `/demo` rather than a seeded trip, for three reasons this milestone cares
 // about: it needs no database, it renders the canonical Japan fixture (which
-// carries 33 `meal`, 4 `lodging`, 11 `outdoors` and 8 `ticketed` tags — ADR-030),
+// carries every tag, 27 of them `meal` — ADR-030, `expectations.ts`),
 // and it is signed-out and read-only, which is exactly the surface where the
 // "focus is a view state, not a command" decision has to hold. Every write
 // affordance on this page is gone (ADR-031); the chips are not, and that is
@@ -68,7 +68,7 @@ test.describe("tag focus", () => {
     // edit. The stops these walks read are one tab away on arrival now, and
     // asking for them without saying so waited 30 seconds on a page showing
     // the trip's notebook.
-    await page.goto("/demo?view=Plan");
+    await page.goto("/demo/japan?view=Plan");
     await expect(page.getByRole("heading", { name: "Japan: Tokyo → Kyoto → Osaka" })).toBeVisible();
     await expect(page.getByText("Viewer", { exact: true })).toBeVisible();
 
@@ -93,9 +93,9 @@ test.describe("tag focus", () => {
     // The line beside the view tabs names it and offers Clear.
     const focusLine = page.getByTestId("tag-focus-line");
     await expect(focusLine).toBeVisible();
-    await expect(focusLine.getByText("Meal")).toBeVisible();
+    await expect(focusLine.getByText("Food")).toBeVisible();
     // The Clear control's own name, distinct from the chips' `Stop focusing
-    // on meal` — 34 chips carry that hint on this fixture, so the two must not
+    // on meal` — 27 chips carry that hint on this fixture, so the two must not
     // collide (they did, and this walk is what found it).
     await expect(page.getByRole("button", { name: "Clear meal focus" })).toBeVisible();
 
@@ -116,10 +116,10 @@ test.describe("tag focus", () => {
     // --- The Calendar counts rather than dimming stops -------------------
     await page.getByRole("tab", { name: "Calendar" }).click();
     await expect(page).toHaveURL(/view=Calendar/);
-    // Day 1 is four Tokyo stops, two of them `meal`. The count is in the
+    // Day 1 is four Tokyo stops, one of them `meal`. The count is in the
     // cell's accessible name as well as on the card, because the cell is a
     // button whose aria-label REPLACES its content.
-    await expect(page.getByLabel(/^Day 1, .*Tokyo, 4 stops,.*2 of 4 match/)).toBeVisible();
+    await expect(page.getByLabel(/^Day 1, .*Tokyo, 4 stops,.*1 of 4 match/)).toBeVisible();
     await expect(page.getByTestId("calendar-tag-match").first()).toBeVisible();
 
     // --- The Map keeps its own day dimming ------------------------------
@@ -151,7 +151,7 @@ test.describe("tag focus", () => {
   });
 
   test("clicking the same chip again clears, and a different chip replaces", async ({ page }) => {
-    await page.goto("/demo?view=Plan");
+    await page.goto("/demo/japan?view=Plan");
     const yakitori = card(page, "Yakitori at Torishiki");
     const teamlab = card(page, "teamLab Planets");
     await expect(yakitori).toBeVisible();
@@ -180,7 +180,7 @@ test.describe("tag focus", () => {
   // is the case that needs it — every lodging stop in the fixture is that short,
   // so without this `lodging` could not be focused on a desktop Plan at all.
   test("a stop too short to draw its tags can still focus one", async ({ page }) => {
-    await page.goto("/demo?view=Plan");
+    await page.goto("/demo/japan?view=Plan");
     const hotel = card(page, "Check in at Trunk Hotel");
     const haneda = card(page, "Land at Haneda");
     await expect(hotel).toBeVisible();
@@ -204,7 +204,7 @@ test.describe("tag focus", () => {
       storageState: { cookies: [], origins: [] },
     });
     const page = await tablet.newPage();
-    await page.goto("/demo?view=Plan");
+    await page.goto("/demo/japan?view=Plan");
     expect(await page.evaluate(() => matchMedia("(pointer: coarse)").matches)).toBe(true);
     const chip = card(page, "Check in at Trunk Hotel").getByTestId("tag-chip-lodging");
     await chip.scrollIntoViewIfNeeded();
@@ -226,7 +226,7 @@ test.describe("tag focus", () => {
   // against our own components: the filter row this replaced is gone and stays
   // gone (KI-47), and nothing here offers multi-select.
   test("offers no filter row, no Show everything, and no multi-select", async ({ page }) => {
-    await page.goto("/demo?view=Plan");
+    await page.goto("/demo/japan?view=Plan");
     const yakitori = card(page, "Yakitori at Torishiki");
     await expect(yakitori).toBeVisible();
     await yakitori.getByTestId("tag-chip-meal").click();

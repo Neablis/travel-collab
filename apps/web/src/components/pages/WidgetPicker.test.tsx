@@ -60,7 +60,7 @@ describe("WidgetPicker", () => {
     render(<WidgetPicker onPick={vi.fn()} />);
     expect(rows()).toHaveLength(catalogue.length);
     for (const w of catalogue) {
-      expect(screen.getByRole("button", { name: new RegExp(w.title) })).toBeTruthy();
+      expect(screen.getByRole("button", { name: new RegExp(`^${escapeRegExp(w.title)}`) })).toBeTruthy();
     }
   });
 

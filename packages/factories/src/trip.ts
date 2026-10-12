@@ -263,6 +263,7 @@ export const tripSummaryFactory = Factory.define<TripSummary>(({ sequence }) => 
   stopCount: 0,
   ideaCount: 0,
   cover: null,
+  description: null,
 }));
 
 // A trip's cover as the list carries it (M37), on Unsplash's hosts, so a card

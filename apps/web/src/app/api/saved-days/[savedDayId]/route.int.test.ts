@@ -215,10 +215,15 @@ describe("GET /api/saved-days/:id, read by nobody signed in", () => {
       savedDay: { savedDayId: string };
       isAuthor: boolean;
       moderation: unknown;
+      description: unknown;
+      tags: unknown;
     };
     expect(body.savedDay.savedDayId).toBe(savedDayId);
     expect(body.isAuthor).toBe(false);
     expect(body.moderation).toBeNull();
+    // M42 D9: the screen's re-read replaces the page's first paint, so the
+    // envelope says what kind of day it is too: here, two untagged stops.
+    expect([body.description, body.tags]).toEqual([null, []]);
   });
 
   it("404s a private day and a moderated one, though the author can read both", async () => {

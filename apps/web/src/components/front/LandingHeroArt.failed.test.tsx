@@ -1,5 +1,6 @@
+import { UNBUILT_SOCIAL } from "@/test-support/unbuiltSocial";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { setViewportMatches } from "../../../vitest.setup";
 import { LandingScreen } from "./LandingScreen";
 
@@ -10,6 +11,12 @@ import { LandingScreen } from "./LandingScreen";
 // the rotation or a pill showed a panel. A file of its own because `lazy`
 // resolves once per module (`SpendByDayBlock.failed.test.tsx`, same reason).
 vi.mock("./LandingHeroPanels", () => Promise.reject(new Error("Failed to fetch dynamically imported module")));
+
+// The feature blocks' panels do load, and a cold worker's first transform of
+// them outruns `findBy*` (`LandingHeroArt.test.tsx`), so they are loaded first.
+beforeAll(async () => {
+  await import("./LandingFeaturePanels");
+});
 
 afterEach(() => {
   cleanup();
@@ -27,14 +34,26 @@ describe("LandingHeroArt when the real panels fail to load", () => {
     // The static art is also what `Suspense` shows while loading, so it is
     // asserted only once the rejection has landed — the boundary's catch is
     // what React logs.
+    // The feature blocks' real panels are a module of their own and still
+    // load; they are waited for so the Together drawing they replace, which
+    // draws a suggestion's Accept, is not on the page for the checks below.
+    await desktop.findByRole("list", { name: "Day 7 timeline" });
+
     fireEvent.click(desktop.getByRole("button", { name: "Day 7" }));
     await waitFor(() => expect(logged).toHaveBeenCalled());
     expect(desktop.getByText("Day 7 · Kyoto → Osaka")).toBeDefined();
+    // The static art pictures only what trips have: suggestions, not comment
+    // threads with replies (Mitchell, 2026-10-11).
+    expect(desktop.queryAllByText(UNBUILT_SOCIAL).map((el) => el.textContent)).toEqual([]);
 
     logged.mockClear();
     fireEvent.click(desktop.getByRole("button", { name: "Day 5" }));
     await waitFor(() => expect(logged).toHaveBeenCalled());
     expect(desktop.getByText("Getting to Kurama — Day 5")).toBeDefined();
+    expect(desktop.queryAllByText(UNBUILT_SOCIAL).map((el) => el.textContent)).toEqual([]);
+    // A notebook offers no Accept, so its drawing draws none (review of PR 405);
+    // only the map's suggestion, on the board, has one.
+    expect(desktop.queryByText("Accept")).toBeNull();
 
     expect(desktop.getByRole("heading", { name: "Put the best day on repeat." })).toBeDefined();
   });

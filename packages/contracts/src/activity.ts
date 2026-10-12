@@ -234,8 +234,39 @@ export const StoredActivityKind = z.preprocess(readActivityKind, ActivityKind);
 // rendered dashed under a "Booked" badge with its cost outside the committed
 // total, and no surface would own the contradiction.
 // See docs/milestones/M18-stop-kind.md.
-export const ActivityTag = z.enum(["meal", "lodging", "ticketed", "outdoors"]);
+//
+// ADR-070 widened it to twelve categories and one modifier. The nine keys it
+// added go AFTER the original four, and no key is ever renamed or reordered:
+// stored events, trip documents and saved days parse with this strict enum,
+// and spend charts file a multi-tag stop under its first tag in this order, so
+// appending is what moves no existing stop's money.
+export const ActivityTag = z.enum([
+  "meal", "lodging", "ticketed", "outdoors",
+  "drinks", "nightlife", "museum", "sight", "beach", "shopping", "show", "tour", "wellness",
+]);
 export type ActivityTag = z.infer<typeof ActivityTag>;
+
+/**
+ * The tags that say what a stop NEEDS rather than what it IS (ADR-070
+ * decision 2): Ticketed. Left out of everything that describes or charts
+ * categories, so a stop whose only tag is Ticketed counts there as untagged.
+ */
+export const ActivityTagModifier = ActivityTag.extract(["ticketed"]);
+export type ActivityTagModifier = z.infer<typeof ActivityTagModifier>;
+
+/** The other twelve: what a stop IS. In contract order, like `ActivityTag`. */
+export const ActivityTagCategory = ActivityTag.exclude(ActivityTagModifier.options);
+export type ActivityTagCategory = z.infer<typeof ActivityTagCategory>;
+
+/**
+ * The categories a description can name (ADR-070 §3): every one but Lodging,
+ * which every trip has. A day belongs to a tag when its description names it
+ * (§4), so these are also the tags with a page and Discover's tag filter's
+ * values. Here rather than in `@tc/domain`, which owns the rule, because the
+ * app's UI reads it too and may not import the domain.
+ */
+export const ActivityTagDescribed = ActivityTagCategory.exclude(["lodging"]);
+export type ActivityTagDescribed = z.infer<typeof ActivityTagDescribed>;
 
 // HOW a transit stop travels — `kind: "transit"` says THAT it is travel, this
 // says by what (M24, ADR-053). Closed for the reason `ActivityTag` is: each

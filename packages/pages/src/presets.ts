@@ -475,13 +475,80 @@ export const PRESETS: readonly WidgetPreset[] = [
     widget: "cost.breakdown",
     params: { by: "tag" },
     title: "Spend by tag",
-    summary: "Splits what the trip costs into a pie by tag, such as meals, lodging and tickets, with each slice's amount and share.",
+    summary: "Splits what the trip costs into a pie by tag, such as food, drinks, lodging and museums, with each slice's amount and share.",
     keywords: [
       "spend", "spending", "chart", "pie", "donut", "breakdown", "split", "share", "tag", "tags", "meal", "meals",
-      "lodging", "ticketed", "outdoors", "untagged", "costs", "money", "budget",
+      "food", "lodging", "outdoors", "drinks", "bars", "nightlife", "museum", "museums", "sight", "sights",
+      "beach", "shopping", "show", "shows", "tour", "tours", "wellness", "spa", "untagged", "costs", "money", "budget",
     ],
-    description: "A pie of what the trip costs per tag — Meal, Lodging, Ticketed, Outdoors, Untagged; a stop with several tags counts under its first — with each tag's amount and share. Filter it to a day, dates, a city or a kind.",
-    preview: "a pie of what meals, lodging, tickets and the outdoors cost",
+    description: "A pie of what the trip costs per tag — Food, Lodging, Outdoors, Drinks, Nightlife, Museum, Sight, Beach, Shopping, Show, Tour, Wellness, Untagged; a stop with several tags counts under its first, and Ticketed is never a slice — with each tag's amount and share. Filter it to a day, dates, a city or a kind.",
+    preview: "a pie of what food, drinks, lodging and sights cost",
+  },
+  // ---- what the trip is made of (M42 D11) ----------------------------------
+  // Counted, not priced. Ticketed is never counted, and travel stops are left
+  // out (ADR-070 decision 2). "Hours by tag" lands as bars, and either can be
+  // switched to the other picture in its settings.
+  {
+    id: "activities-by-tag",
+    widget: "tag.breakdown",
+    params: { measure: "count" },
+    title: "Activities by tag",
+    summary: "Counts the trip's stops by tag, such as food, outdoors, museums and nightlife, as a pie or bars, with each tag's share.",
+    keywords: [
+      "activities", "activity", "stops", "count", "how many", "tag", "tags", "category", "categories", "mix", "pie",
+      "donut", "bar", "chart", "graph", "breakdown", "share", "food", "outdoors", "drinks", "nightlife", "museum",
+      "museums", "sight", "sights", "beach", "shopping", "show", "tour", "wellness",
+    ],
+    preview: "a pie of how many stops are food, outdoors or museums",
+  },
+  // Mitchell, PR 410 preview: the same chart alone, full width, its numbers on hover.
+  {
+    id: "activities-by-tag-chart",
+    widget: "tag.breakdown",
+    params: { measure: "count", key: "hidden" },
+    title: "Chart of activities by tag",
+    // Not "Activities by tag (chart only)": the picker's rows are found by title
+    // prefix, and no title may begin with another whole title.
+    summary: "Draws the trip's stops by tag as a chart only, a pie or bars with no table beside it; hover a slice or bar for its count and share.",
+    keywords: [
+      "activities", "stops", "count", "tag", "tags", "category", "mix", "pie", "donut", "bar", "chart", "graph",
+      "chart only", "no table", "picture", "hover",
+    ],
+    preview: "a pie of how many stops carry each tag, on its own",
+  },
+  {
+    id: "hours-by-tag",
+    widget: "tag.breakdown",
+    params: { measure: "hours", view: "bars" },
+    title: "Hours by tag",
+    summary: "Adds up how long the trip's timed stops take per tag, as bars or a pie, so you can see where the hours go.",
+    keywords: [
+      "hours", "time", "duration", "how long", "spent", "where the time goes", "tag", "tags", "category", "bar", "bars",
+      "pie", "chart", "graph", "breakdown", "share", "food", "outdoors", "museum", "sight", "beach", "tour",
+    ],
+    preview: "a bar per tag of the hours its stops take",
+  },
+  {
+    id: "tags-by-day",
+    widget: "tag.byDay",
+    params: {},
+    title: "Tags by day",
+    summary: "Charts each day's stops as a bar, stacked by tag, so you can see which days are food, outdoors or museums.",
+    keywords: [
+      "tags", "tag", "by day", "per day", "daily", "days", "stacked", "bar", "chart", "graph", "mix", "category",
+      "categories", "activities", "stops", "balance", "pace",
+    ],
+  },
+  {
+    id: "trip-description",
+    widget: "trip.description",
+    params: {},
+    title: "Trip description",
+    summary: "Says what kind of trip this is, such as Outdoorsy or Beach & outdoors, with its top tags and their shares.",
+    keywords: [
+      "description", "describe", "what kind", "kind of trip", "type of trip", "vibe", "style", "summary", "outdoorsy",
+      "foodie", "tags", "top tags", "category", "mix",
+    ],
   },
   // ---- the clock pair -----------------------------------------------------
   // M14 link 11. Unbound, so every located day; a day binding narrows either.

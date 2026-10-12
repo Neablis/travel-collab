@@ -1983,7 +1983,8 @@ it — a test clock and a database, not a browser.
 
 Fifteen places where the build is right and the handoff is behind — sixteen
 since link 11 added one of its own, numbered 0 because it was found rather than
-surveyed, and seventeen since the landing hero's panels (16, 2026-09-27). Link 0's
+surveyed, seventeen since the landing hero's panels (16, 2026-09-27), and eighteen
+since the landing's feature blocks (17, 2026-10-11). Link 0's
 guideline should say that finding one of these is a **normal outcome of a parity
 pass, not an anomaly** — and that the answer is an amendment to the handoff, in
 the same PR, not a regression in the code.
@@ -2042,6 +2043,15 @@ the same PR, not a regression in the code.
     loads (`LandingHeroArt.tsx`). The map panel, pills, copy and CTAs are
     unchanged. **Sent back to design as `DRIFT.md` D20** (Mitchell approved
     the entry), so the hero artboards can be redrawn to match.
+17. **The landing's Together, Playbooks and Notebook blocks** (`dc.html:2016-2199`)
+    — added 2026-10-11 (M42 part 9), on item 16's terms: the read-only
+    `DayRiver`, a real `DiscoverCard` of a published playbook, and a notebook
+    page (`TripStripBlock` and resolved widget values) from committed
+    snapshots, with the handoff's art as the placeholder while they load
+    (`LandingFeatureBlocks.tsx`); the phone front door's matching claims too.
+    Countdown, which the handoff never drew, stays art, as does the hero's
+    map. Not yet sent back to design: a `DRIFT.md` entry waits on Mitchell's
+    approval, as D20's did.
 
 **And two places the design disagrees with itself**, which only the design side
 can settle: the empty-home hero (a dashed "No trips yet" card) versus §32.1's

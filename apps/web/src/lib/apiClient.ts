@@ -1,4 +1,6 @@
 import {
+  ActivityTag,
+  ActivityTagDescribed,
   AskStreamMetadata,
   BatchableCommand,
   CoverCandidate,
@@ -65,6 +67,7 @@ import {
   type DiscoverScope,
   type DiscoverSort,
   type RatingFloor,
+  type TagFilter,
 } from "@/lib/playbooks";
 import {
   AdminReportActionResponse,
@@ -1141,6 +1144,9 @@ export async function fetchSavedDay(
     publishedAt?: string | null;
     moderation: SavedDayModeration | null;
     cover: TripCover | null;
+    description: string | null;
+    tags: ActivityTag[];
+    namedTags: ActivityTagDescribed[];
   }>
 > {
   try {
@@ -1153,8 +1159,15 @@ export async function fetchSavedDay(
         publishedAt?: unknown;
         moderation?: unknown;
         cover?: unknown;
+        description?: unknown;
+        tags?: unknown;
+        namedTags?: unknown;
       };
       return {
+        // What kind of day it is (M42 D9). Absent (an older server) is none.
+        description: typeof body.description === "string" ? body.description : null,
+        tags: body.tags == null ? [] : z.array(ActivityTag).parse(body.tags),
+        namedTags: body.namedTags == null ? [] : z.array(ActivityTagDescribed).parse(body.namedTags),
         // An operator hid it, and why — sent to the author only
         // (KI-2026-09-23-i). Absent (an older server) reads as "not hidden".
         moderation: body.moderation == null ? null : SavedDayModeration.parse(body.moderation),
@@ -1272,6 +1285,10 @@ export async function searchPlaybooks(query: {
   length?: LengthBand;
   /** The rating floor (M12 link 5). `"any"` is sent as nothing, like every other filter's default. */
   rating?: RatingFloor;
+  /** One tag the days' descriptions name (M42 D10); `"any"` is sent as nothing. */
+  tag?: TagFilter;
+  /** The last card of the page before, for the page after it; null or absent for page one. */
+  after?: string | null;
 }): Promise<ApiResult<DiscoverResponse>> {
   const params = new URLSearchParams();
   for (const city of query.cities ?? []) params.append("city", city);
@@ -1281,6 +1298,8 @@ export async function searchPlaybooks(query: {
   if (query.budget) params.set("budget", query.budget);
   if (query.length) params.set("length", query.length);
   if (query.rating && query.rating !== "any") params.set("rating", query.rating);
+  if (query.tag && query.tag !== "any") params.set("tag", query.tag);
+  if (query.after) params.set("after", query.after);
   try {
     const res = await fetch(apiUrl(`/api/playbooks?${params.toString()}`));
     return await readJson(res, (data) => DiscoverResponse.parse(data));

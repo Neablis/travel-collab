@@ -390,7 +390,7 @@ test("asked for a notebook about meals on a new notebook in Reading, the assista
   await expect(conversation).toContainText("I've started a meal notebook with 3 live widgets");
   await expect(conversation).toContainText("Switched to Editing to add");
   await expect(page.getByRole("button", { name: "Done editing" })).toBeVisible();
-  await expect(page.locator(".tc-page-editor").getByRole("heading", { name: "Meal" })).toBeVisible();
+  await expect(page.locator(".tc-page-editor").getByRole("heading", { name: "Food", level: 2, exact: true })).toBeVisible();
 
   // No "Done editing": the edit session's own commit when the page goes
   // (`pagehide`, ADR-036) persists it, as it would for a person. That request
@@ -405,7 +405,7 @@ test("asked for a notebook about meals on a new notebook in Reading, the assista
   };
   await expect.poll(savedTags).toEqual(["meal", "meal", "meal"]);
   await page.reload();
-  await expect(page.getByRole("heading", { name: "Meal" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Food", level: 2, exact: true })).toBeVisible();
 });
 
 type DocNode = { type: string; attrs?: { params?: { tag?: string } }; content?: DocNode[] };

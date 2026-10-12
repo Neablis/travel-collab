@@ -12,7 +12,7 @@ import { Text } from "@/components/ui/text";
 import { grantedTier, type AccountPlanChoice, type AccountPlanView } from "@/lib/accountPlan";
 import { formatDate, formatPrice } from "@/lib/planCopy";
 import { cn } from "@/lib/cn";
-import { PlanComparison, planBullets, whoItIsFor } from "./PlanComparison";
+import { PlanComparison, planBullets, planPrice, whoItIsFor } from "./PlanComparison";
 
 // **The `plans` route: chooser, confirm, result — one route, no overlay in any
 // of them** (SPEC §29).
@@ -589,11 +589,7 @@ function Chooser({
               ) : null}
             </div>
             <Text as="span" className="text-lg font-semibold text-ink">
-              {choice.priceMinor === null
-                ? "—"
-                : choice.priceMinor === 0
-                  ? "Free"
-                  : `${formatPrice(choice.priceMinor, choice.currency)} / month`}
+              {planPrice(choice)}
             </Text>
             <Text variant="secondary" className="text-xs">
               {whoItIsFor(choice)}

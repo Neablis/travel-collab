@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { demoTripDetail } from "@/server/demoTrip";
+import { DEMO_TRIP_ID } from "@/lib/demoTrip";
 import { DAYTIME_END_MINUTES, DAYTIME_START_MINUTES, summarizeFreeDays } from "@tc/domain";
 import type { AskAnalyticsRecord } from "@/server/assistant/askAnalytics";
 import { OVERVIEW_ABOVE_DAYS } from "@/server/assistant/tools/read";
@@ -106,7 +107,7 @@ describe("namesAmount", () => {
 });
 
 describe("the cases", () => {
-  const japan = demoTripDetail();
+  const japan = demoTripDetail(DEMO_TRIP_ID);
 
   // Travellers spec D1: the demo roster has a member who is not travelling, so
   // the split over travellers ($990) and the split over members ($792) differ,

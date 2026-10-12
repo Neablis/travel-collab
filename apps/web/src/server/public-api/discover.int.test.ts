@@ -14,7 +14,7 @@ import { livePlanVersion } from "@/server/entitlements/planVersions";
 import { mintToken } from "@/server/api-tokens";
 import { db } from "@/server/db/client";
 import { savedDays, users } from "@/server/db/schema";
-import { discoverDays } from "@/server/playbooks";
+import { discoverDays, publishedDaysPage } from "@/server/playbooks";
 
 vi.mock("@/server/auth", () => ({ auth: vi.fn(async () => null) }));
 
@@ -174,7 +174,7 @@ describe("GET /v1/discover/playbooks", () => {
     expect(await discover(secret, { city, limit: "2", sort: "newest", cursor: randomUUID() })).toEqual(first);
   });
 
-  it("ranks exactly as the app's Discover does, for every sort", async () => {
+  it("ranks exactly as the app's Discover and its place pages do, for every sort", async () => {
     const city = `Discoverville-${RUN}-d`;
     const { owner, secret } = await entitledToken();
     const ids: string[] = [];
@@ -204,10 +204,14 @@ describe("GET /v1/discover/playbooks", () => {
         readerId: owner,
       });
       const api = (await allPages(secret, { city, sort, limit: "4" })).flat();
-      expect(api.map((d) => d.savedDayId), sort).toEqual(app.days.map((d) => d.savedDayId));
-      // The app's card, field for field, less the owner's name the API never
-      // sends (the last test in this file).
-      expect(api, sort).toEqual(app.days.map(({ ownerDisplayName: _name, ...day }) => day));
+      // The keyset order (`rankKeys`) against `orderBy`'s, which the place
+      // pages and the candidate window read. The app's Discover cards are
+      // `discoverPage` too, so they cannot stand in for `orderBy` here.
+      const ordered = await publishedDaysPage({ cities: [city], sort }, { limit: 24, offset: 0 });
+      expect(api.map((d) => d.savedDayId), sort).toEqual(ordered.days.map((d) => d.savedDayId));
+      // The app's card, field for field, less the owner's name and the chip
+      // links the API never sends (the last test in this file).
+      expect(api, sort).toEqual(app.days.map(({ ownerDisplayName: _name, namedTags: _named, ...day }) => day));
     }
   });
 

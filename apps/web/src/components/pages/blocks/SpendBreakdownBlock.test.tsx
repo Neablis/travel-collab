@@ -1,7 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import { beforeAll, describe, expect, it } from "vitest";
 import { KIND_LABEL, TAG_LABEL, renderMacro, type SpendBreakdownPayload, type SpendByDayPayload } from "@tc/pages";
-import { ActivityKind, ActivityTag, type Money, type TripDetail } from "@tc/contracts";
+import { ActivityKind, ActivityTag, ActivityTagCategory, type Money, type TripDetail } from "@tc/contracts";
 import { tripDetailFactory } from "@tc/factories";
 import { SpendBreakdownBlock, breakdownChartConfig } from "./SpendBreakdownBlock";
 import { spendChartConfig } from "./SpendByDayBlock";
@@ -84,10 +84,9 @@ describe("SpendBreakdownBlock", () => {
     const table = screen.getByRole("table", { name: "Spend by tag · Pending" });
     expect(within(table).getByRole("columnheader", { name: "Tag" })).toBeDefined();
     expect(within(table).getAllByRole("row").slice(1).map((row) => row.textContent)).toEqual([
-      "Meal$300.0075%",
-      "Lodgingnothing priced—",
-      "Ticketednothing priced—",
-      "Outdoorsnothing priced—",
+      "Food$300.0075%",
+      ...["Lodging", "Outdoors", "Drinks", "Nightlife", "Museum", "Sight", "Beach", "Shopping", "Show", "Tour", "Wellness"]
+        .map((label) => `${label}nothing priced—`),
       "Untagged$100.0025%",
       "Total$400.00",
     ]);
@@ -135,7 +134,7 @@ describe("SpendBreakdownBlock", () => {
       series: tags.slices.map(({ key, label }) => ({ key: key as SpendByDayPayload["series"][number]["key"], label })),
     };
     const barColors = spendChartConfig(bars);
-    expect(tags.slices).toHaveLength(5);
+    expect(tags.slices).toHaveLength(ActivityTagCategory.options.length + 1);
     for (const slice of tags.slices) expect(tagColors[slice.key]!.color, slice.key).toBe(barColors[slice.key]!.color);
   });
 
@@ -156,8 +155,8 @@ describe("SpendBreakdownBlock", () => {
     const byKind = everyValue({});
     expect(byKind.slices.map((s) => [s.key, s.label])).toEqual(ActivityKind.options.map((k) => [k, KIND_LABEL[k]]));
     const byTag = everyValue({ by: "tag" });
-    expect(byTag.slices.map((s) => s.key)).toEqual([...ActivityTag.options, "untagged"]);
-    for (const tag of ActivityTag.options) expect(byTag.slices.find((s) => s.key === tag)!.label).toBe(TAG_LABEL[tag]);
+    expect(byTag.slices.map((s) => s.key)).toEqual([...ActivityTagCategory.options, "untagged"]);
+    for (const tag of ActivityTagCategory.options) expect(byTag.slices.find((s) => s.key === tag)!.label).toBe(TAG_LABEL[tag]);
 
     for (const payload of [byKind, byTag]) {
       const config = breakdownChartConfig(payload);

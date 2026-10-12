@@ -138,7 +138,8 @@
               },
               "kind": "planned",
               "tags": [
-                "meal"
+                "meal",
+                "drinks"
               ],
               "notes": "Two bars, no more, on a night that started at an airport. Zeruko for the theatrical ones and Ganbara for the sautéed wild mushrooms with an egg yolk — the mushrooms are ordered from the barman, not taken off the counter, and this is the single most common mistake visitors make.",
               "cost": {
@@ -191,7 +192,8 @@
               },
               "kind": "planned",
               "tags": [
-                "outdoors"
+                "outdoors",
+                "beach"
               ],
               "notes": "Go at high tide. Chillida's sculptures are the photograph, but the blowholes cut into the paving in front of them only fire when there is swell — at low water it is three lumps of iron and a puddle."
             },
@@ -211,7 +213,8 @@
               },
               "kind": "planned",
               "tags": [
-                "ticketed"
+                "ticketed",
+                "sight"
               ],
               "notes": "1912 wooden funicular, four euros return, and the view down the whole shell of the bay that every postcard uses. The rickety amusement park at the top is genuinely 1920s and genuinely rickety.",
               "cost": {
@@ -235,7 +238,8 @@
               },
               "kind": "pending",
               "tags": [
-                "meal"
+                "meal",
+                "drinks"
               ],
               "notes": "Néstor makes one tortilla at 13:00 and one at 20:00, twelve slices each, and that is the entire supply. You put your name on the list at noon or you do not eat it. Order the tomato salad and a txuleta while you wait — that is the actual meal; the tortilla is a slice.",
               "cost": {
@@ -259,7 +263,8 @@
               },
               "kind": "planned",
               "tags": [
-                "outdoors"
+                "outdoors",
+                "sight"
               ],
               "notes": "Twenty-five minutes up from behind the aquarium, free, and almost nobody does it. The 1813 siege museum inside the castle explains why the old town is entirely 19th-century — the answer is that the British and Portuguese burned it down."
             },
@@ -279,7 +284,8 @@
               },
               "kind": "planned",
               "tags": [
-                "meal"
+                "meal",
+                "drinks"
               ],
               "notes": "One thing, done nine ways: anchovies, cured in-house, on bread, with a different topping each time. Have the one with sea urchin and the plain one, and let them pour the txakoli from height.",
               "cost": {
@@ -301,7 +307,8 @@
               },
               "kind": "planned",
               "tags": [
-                "meal"
+                "meal",
+                "drinks"
               ],
               "notes": "One or two pintxos and one small glass per bar, then move — sitting down anywhere ends the crawl. Order the carrillera at Cuchara and the risotto de idiazábal at Borda Berri; both are cooked to order, so nothing on the counter is what you want.",
               "cost": {
@@ -371,7 +378,8 @@
               },
               "kind": "planned",
               "tags": [
-                "ticketed"
+                "ticketed",
+                "museum"
               ],
               "notes": "He was born in this village and the collection is the actual garments, not photographs of them. Closed Mondays outside July and August, which catches people out. Booked the 11:00 slot to leave a clean hour before lunch.",
               "cost": {
@@ -418,7 +426,9 @@
                 "countryCode": "ES"
               },
               "kind": "pending",
-              "tags": [],
+              "tags": [
+                "drinks"
+              ],
               "notes": "Provisional — visits must be booked and one of you has to not drink, because it is a switchback road back down to the N-634. The vines are trained high on wires so the sea wind dries them; that is the whole explanation of why the wine tastes like it does.",
               "cost": {
                 "amountMinor": 5000,
@@ -539,7 +549,8 @@
               },
               "kind": "planned",
               "tags": [
-                "meal"
+                "meal",
+                "drinks"
               ],
               "notes": "Bilbao's pintxos are bigger, cheaper and less clever than Donostia's and that is not a criticism. Gure Toki does the inventive ones; Víctor Montes is the belle-époque room with the counter you photograph. Sunday morning the square is a stamp and antiques market and the bars are heaving by eleven.",
               "cost": {
@@ -563,7 +574,8 @@
               },
               "kind": "planned",
               "tags": [
-                "ticketed"
+                "ticketed",
+                "museum"
               ],
               "notes": "Timed slot booked; closed Mondays except in August. Do the Richard Serra room first — it is on the ground floor and people walk past it looking for the stairs, then run out of attention before they come back. The audio guide is included and unusually good on the building itself.",
               "cost": {
@@ -587,7 +599,8 @@
               },
               "kind": "planned",
               "tags": [
-                "outdoors"
+                "outdoors",
+                "sight"
               ],
               "notes": "Cross at the Zubizuri and come back down the far bank — the titanium reads completely differently from Deusto in evening light, and it is the only angle where the building looks like a ship rather than a flower."
             },
@@ -636,7 +649,8 @@
               },
               "kind": "planned",
               "tags": [
-                "meal"
+                "meal",
+                "shopping"
               ],
               "notes": "One of the largest covered markets in Europe and a working one — go before noon on a weekday, because by one the bar tables belong to people who work nearby and by two the fishmongers are packing up. Coffee and a pintxo at the counter inside is three or four euros.",
               "cost": {
@@ -659,7 +673,9 @@
                 "countryCode": "ES"
               },
               "kind": "planned",
-              "tags": [],
+              "tags": [
+                "sight"
+              ],
               "notes": "Deliberately unstructured. The seven streets are the original medieval town; the Catedral de Santiago on Calle Santiago is a stop on the coastal Camino and takes fifteen minutes. Everything else here is shops and that is fine."
             },
             {
@@ -678,7 +694,8 @@
               },
               "kind": "planned",
               "tags": [
-                "meal"
+                "meal",
+                "drinks"
               ],
               "notes": "Txikiteo is the Bilbao word for the crawl — small glasses, one bar at a time, standing. Los Fueros dates from 1878 and is the oldest bar in the city; it is small, it is booked, and it does the classics properly rather than cleverly.",
               "cost": {
@@ -776,7 +793,8 @@
               },
               "kind": "planned",
               "tags": [
-                "meal"
+                "meal",
+                "drinks"
               ],
               "notes": "Let the waiter pour the sidra from above his head — it is not showing off. Natural cider is flat and the fall aerates it, which is why you get a finger of it at a time and drink each pour straight down. Order the cachopo to share between two, never one each.",
               "cost": {
@@ -918,7 +936,9 @@
                 "countryCode": "ES"
               },
               "kind": "pending",
-              "tags": [],
+              "tags": [
+                "tour"
+              ],
               "notes": "Nobody has committed to this and after six hours of walking it may not survive. Twenty minutes inside an actual maturing cave, and they sell the cheese cheaper than the shops in Cangas do.",
               "cost": {
                 "amountMinor": 3000,
@@ -941,7 +961,8 @@
               },
               "kind": "planned",
               "tags": [
-                "meal"
+                "meal",
+                "drinks"
               ],
               "notes": "A cider house rather than a restaurant: bottles by the bottle, cheese boards, and fabada if anyone can face it. Loud, tiled, and exactly right after a long day on a ledge.",
               "cost": {
@@ -993,7 +1014,8 @@
               },
               "kind": "planned",
               "tags": [
-                "outdoors"
+                "outdoors",
+                "beach"
               ],
               "notes": "Park at the top and walk down the steps — it is a pebble cove inside a rock amphitheatre and there is nothing at the bottom, no bar, no toilet, no shade. Fifteen minutes down and twenty back up, and the only reason to stop between Asturias and Galicia.",
               "cost": {
@@ -1086,7 +1108,9 @@
                 "countryCode": "ES"
               },
               "kind": "pending",
-              "tags": [],
+              "tags": [
+                "sight"
+              ],
               "notes": "Unplanned and better for it. The square empties after eight when the day's pilgrims have gone to eat, the floodlights come on, and someone is usually playing a gaita under the arch into Praza da Quintana."
             },
             {
@@ -1134,7 +1158,8 @@
               },
               "kind": "planned",
               "tags": [
-                "meal"
+                "meal",
+                "drinks"
               ],
               "notes": "Tables on the Quintana with the cathedral's Puerta Santa in front of you, and it opens before the tour groups arrive.",
               "cost": {
@@ -1158,7 +1183,9 @@
               },
               "kind": "planned",
               "tags": [
-                "ticketed"
+                "ticketed",
+                "sight",
+                "tour"
               ],
               "notes": "Booked online days ahead — it is the only way onto the granite roof and the slots genuinely sell out. Guided, an hour, and it goes ahead in rain, which in Santiago is the normal condition. Flat shoes, no exceptions at the door.",
               "cost": {
@@ -1181,7 +1208,10 @@
                 "countryCode": "ES"
               },
               "kind": "planned",
-              "tags": [],
+              "tags": [
+                "meal",
+                "shopping"
+              ],
               "notes": "Buy at a stall — percebes, scallops, a wedge of tetilla — and carry it to one of the kitchens in the market that will cook what you bought for a few euros a plate. That is the trick here and almost no visitor uses it.",
               "cost": {
                 "amountMinor": 2500,
@@ -1203,7 +1233,9 @@
                 "countryCode": "ES"
               },
               "kind": "planned",
-              "tags": [],
+              "tags": [
+                "sight"
+              ],
               "notes": "Free, open to everyone, and full by 11:30. The Botafumeiro only swings when a group has paid for it — the cathedral publishes which masses have one the day before, so check that page rather than hoping. Bags go through a scanner at the door and large rucksacks are refused."
             },
             {
@@ -1302,7 +1334,9 @@
           },
           "kind": "pending",
           "tags": [
-            "outdoors"
+            "ticketed",
+            "outdoors",
+            "sight"
           ],
           "notes": "241 steps out to a hermitage on a rock. Free but timed-entry ticketed and the slots go weeks in advance; it would cost the light day in Bilbao, which is a bad trade."
         },
@@ -1318,6 +1352,7 @@
           },
           "kind": "pending",
           "tags": [
+            "ticketed",
             "outdoors"
           ],
           "notes": "750 m of ascent in four minutes and a high plateau at the top. It is on the far side of the massif from Cangas — two hours' drive each way, so it only works if the Cares gets rained off."
@@ -1334,7 +1369,8 @@
           },
           "kind": "pending",
           "tags": [
-            "outdoors"
+            "outdoors",
+            "sight"
           ],
           "notes": "Ninety minutes west of Santiago and the traditional end of the walk. Needs the hire car for one more day than currently booked, which is the only thing stopping it."
         },
@@ -1350,7 +1386,8 @@
           },
           "kind": "pending",
           "tags": [
-            "meal"
+            "meal",
+            "drinks"
           ],
           "notes": "Standing, unlimited cider poured straight from the barrel, and food brought out in waves. Usually a weekend thing and needs a group; parked until someone finds one that takes two people."
         }

@@ -1,5 +1,7 @@
+import { UNBUILT_SOCIAL } from "@/test-support/unbuiltSocial";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { LANDING_FEATURES } from "@/lib/landingDemo";
 import { LandingScreen } from "./LandingScreen";
 
 // **The real panels are loaded before any test runs.** The hero `lazy()`-loads
@@ -13,7 +15,20 @@ import { LandingScreen } from "./LandingScreen";
 // fails is `LandingHeroArt.failed.test.tsx`'s business, not this file's.
 beforeAll(async () => {
   await import("./LandingHeroPanels");
+  await import("./LandingFeaturePanels");
 });
+
+/**
+ * Waits for the feature blocks' and the phone claims' real components (M42
+ * part 9), in both trees, so what a test reads next is what a visitor sees
+ * once they have arrived. `hidden`, because the phone's later claims start out
+ * unannounced.
+ */
+async function realPanels() {
+  expect(await screen.findAllByRole("link", { name: LANDING_FEATURES.playbook.name, hidden: true })).toHaveLength(2);
+  expect(await screen.findAllByRole("list", { name: "Day 7 timeline", hidden: true })).toHaveLength(2);
+  expect(await screen.findAllByRole("img", { name: /^Days 1–3 Tokyo/, hidden: true })).toHaveLength(2);
+}
 
 afterEach(() => {
   cleanup();
@@ -30,6 +45,7 @@ afterEach(() => {
 // helper holding the queries reads to `testing-library/prefer-screen-queries`
 // exactly like `render`'s own destructured queries — the shape that rule exists
 // to stop — and the wall rejects it. Verbose, and the wall is right.
+
 
 describe("LandingScreen", () => {
   it("leads with the product claim", () => {
@@ -76,9 +92,12 @@ describe("LandingScreen", () => {
   // held here rather than trusted. The hero mounts one view at a time, so each
   // is opened, and each is asserted to have drawn something real before the
   // spy is read — a view that failed to mount would otherwise pass for free.
-  it("calls fetch for nothing while it renders, in any hero view (SPEC §14)", async () => {
+  // The feature blocks and phone claims are the product's own components too,
+  // a Discover card among them, so they are waited for as well.
+  it("calls fetch for nothing while it renders, in any hero view or feature block (SPEC §14)", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     render(<LandingScreen />);
+    await realPanels();
     const desktop = within(screen.getByTestId("desktop-landing"));
 
     fireEvent.click(desktop.getByRole("button", { name: "Day 7" }));
@@ -103,6 +122,24 @@ describe("LandingScreen", () => {
     expect(within(screen.getByTestId("desktop-landing")).getByRole("link", { name: "Playbooks" }).getAttribute("href")).toBe(
       "/playbooks",
     );
+  });
+
+  // M42 D3: the plans and their prices at an anchor the header and any
+  // outside link can reach. A summary, not `/plans`' comparison table —
+  // Mitchell, 2026-10-11: *"the specifics are for the actual payment page"*.
+  it("summarises the plans at #pricing, linked from the header", () => {
+    render(<LandingScreen />);
+    const desktop = within(screen.getByTestId("desktop-landing"));
+    const pricing = desktop.getByRole("region", { name: "Pricing" });
+    expect(pricing.id).toBe("pricing");
+    expect(within(pricing).queryByRole("table")).toBeNull();
+    expect(within(pricing).getByText("Unlimited planned trips")).toBeDefined();
+    expect(within(pricing).getByText("AI tools to help plan the trip")).toBeDefined();
+    expect(within(pricing).getByText("Invite all your friends to come along")).toBeDefined();
+    expect(within(pricing).getByRole("link", { name: "Compare plans" }).getAttribute("href")).toBe(
+      "/signin?callbackUrl=%2Fplans",
+    );
+    expect(desktop.getByRole("link", { name: "Pricing" }).getAttribute("href")).toBe("#pricing");
   });
 
   it("links the developers page from the footer", () => {
@@ -133,12 +170,36 @@ describe("LandingScreen", () => {
   // "Free …" kicker straight after the header's "Start a trip" reads as
   // "tripFree" — no word boundary, no match. The old form passed with exactly
   // that planted; `queryAllByText` tests each element's own text.
+  //
+  // **Except the plan's name in the plan summary**: the `free` card's name and
+  // its "Free" price. SPEC §17.1: *"The `Free` plan name is not that claim"*.
+  // Only an element that is exactly the name is let through — "Free for a
+  // week" on a card is still a claim — and the other two patterns get no
+  // exemption at all.
   it.each([
     ["free", /\bfree\b/i],
     ["open source", /open[ -]source/i],
     ["no credit card", /credit card/i],
   ])("never sells itself on %s (SPEC §14)", (_label, pattern) => {
     render(<LandingScreen />);
-    expect(screen.queryAllByText(pattern)).toEqual([]);
+    const planNames = screen
+      .getAllByTestId("plan-summary")
+      .flatMap((table) => within(table).queryAllByText(/^free$/i));
+    expect(screen.queryAllByText(pattern).filter((el) => !planNames.includes(el))).toEqual([]);
+  });
+
+  // Mitchell, 2026-10-11: the landing draws what the app does. Trips have no
+  // replies, votes, comments, reactions or live presence — they have
+  // suggestions and a history of who changed what, and the public library
+  // has stars — so neither tree may picture the rest. Both trees, because the
+  // phone front door carries its own cards, and once their real components
+  // have arrived, because those are what a visitor reads; the hero's Timeline
+  // and Notebook views are swept in `LandingHeroArt.test.tsx`, and the
+  // drawings the real components replace in the `.failed` tests.
+  it("pictures no replies, votes, reactions or presence, which trips do not have", async () => {
+    render(<LandingScreen />);
+    await realPanels();
+    expect(screen.queryAllByText(UNBUILT_SOCIAL).map((el) => el.textContent)).toEqual([]);
+    expect(screen.queryAllByRole("img", { name: UNBUILT_SOCIAL })).toEqual([]);
   });
 });

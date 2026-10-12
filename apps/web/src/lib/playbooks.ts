@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { Money, SavedDayAuthorKind, TimeWindow, TripCover } from "@tc/contracts";
+import { ActivityTag, ActivityTagDescribed, Money, SavedDayAuthorKind, TimeWindow, TripCover } from "@tc/contracts";
 import { CityMatch } from "@/lib/cities";
 
 // The wire shapes of the public library's three read endpoints (M11b PR3):
@@ -375,6 +375,21 @@ export const DiscoverDay = z.object({
    * anything. Defaulted, so a card from before it parses as "no cover".
    */
   cover: TripCover.nullable().default(null),
+  /**
+   * What kind of day it is, by ADR-070's rule (`describeByTags`, M42 D8), or
+   * null when too few of its stops are tagged to say. Worked out by the server
+   * from the stops on every read, never stored. Defaulted, as `cover` is.
+   */
+  description: z.string().nullable().default(null),
+  /** The categories its stops carry, most used first (`describedTags`): the card's tag chips. */
+  tags: z.array(ActivityTag).default([]),
+  /**
+   * The tags its description names (`describeByTags`), which are the tag
+   * pages and tag searches it is on (ADR-070 §4): the chips that link to a
+   * page. A chip outside this would lead to a page without the day on it,
+   * or to none. **Not on the public API** — `public-api/discover.ts` drops it.
+   */
+  namedTags: z.array(ActivityTagDescribed).default([]),
 });
 export type DiscoverDay = z.infer<typeof DiscoverDay>;
 
@@ -417,10 +432,11 @@ export const DiscoverResponse = z.object({
    * KI-2026-09-23-h, so a library of 148 said "24 shared days".
    *
    * Exact whenever `matchCountExact` is true. It is false in exactly one case:
-   * the candidate window was full AND a budget band is on. The band is applied
-   * in application code over that window (a day's total is a sum over jsonb
-   * stops, ADR-029), so the in-band days past it cannot be counted, and this
-   * is then a floor — the in-band days within the window — not a total.
+   * the candidate window was full AND a budget band or a tag is on. Both are
+   * applied in application code over that window (a day's total and its
+   * description are both read off jsonb stops, ADR-029), so the matching days
+   * past it cannot be counted, and this is then a floor — the matching days
+   * within the window — not a total.
    */
   //
   // OPTIONAL, like `TripSummary.startDate`'s `.default(null)`: a body from a
@@ -442,8 +458,21 @@ export const DiscoverResponse = z.object({
    * and a Hakone query returning nothing does not mean nobody shares.
    */
   sharedPlaybookCount: z.number().int().nonnegative(),
+  /**
+   * The `?after=` of the next page — the last card's id — or null on the last
+   * page (M42 part 5). Defaulted, as `cover` is, for a body from a server one
+   * deploy behind, which had no next page.
+   */
+  nextCursor: z.string().nullable().default(null),
 });
 export type DiscoverResponse = z.infer<typeof DiscoverResponse>;
+
+/**
+ * Discover's tag filter (M42 D10): one tag a description can name, or `any`,
+ * the word its other filters use for not asking. Never Ticketed or Lodging.
+ */
+export const TagFilter = z.union([z.literal("any"), ActivityTagDescribed]);
+export type TagFilter = z.infer<typeof TagFilter>;
 
 /**
  * One person, as the leaderboard and the author strip see them.

@@ -1,7 +1,14 @@
 import { cleanup, render, screen, within, fireEvent } from "@testing-library/react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { LANDING_FEATURES } from "@/lib/landingDemo";
 import { PhoneFrontDoor } from "./PhoneFrontDoor";
+
+// The three real cards are `lazy()`-loaded; loaded here first so a cold
+// worker's transform does not outrun `findBy*` (`LandingHeroArt.test.tsx`).
+beforeAll(async () => {
+  await import("./LandingFeaturePanels");
+});
 
 afterEach(cleanup);
 
@@ -75,6 +82,23 @@ describe("the phone front door (SPEC §28)", () => {
     }
   });
 
+  // M42 part 9 put real links in the claims (the Discover card's), and the
+  // claims are stacked: a faded one later in the document sat over the shown
+  // one, took its taps, and kept its links in the tab order. Every claim the
+  // sequence hides is `inert` as well as `aria-hidden`. jsdom models neither
+  // focus nor hit-testing for it, so the attribute is held here and the
+  // behaviour in `m42-demo-trips.spec.ts`.
+  it("puts only the claims on screen within reach of a tap or a tab", () => {
+    render(<PhoneFrontDoor />);
+    const reachable = () => screen.getAllByTestId("front-door-claim").map((el) => !el.hasAttribute("inert"));
+
+    expect(reachable()).toEqual([true, false, false, false]);
+    for (const p of [0.3, 0.5, 0.62, 0.9]) {
+      scrollTo(p);
+      expect(reachable(), `at p=${p}`).toEqual(opacities().map((o) => o > 0));
+    }
+  });
+
   // And the markup carries it before any effect runs, for the same reason the
   // authored opacity has to: Next ships the server's HTML and hydration is a
   // tick later, so a page read in that gap would announce all four.
@@ -83,7 +107,11 @@ describe("the phone front door (SPEC §28)", () => {
     const claims = [...html.matchAll(/data-testid="front-door-claim"([^>]*)>/g)].map((m) => m[1]!);
     expect(claims).toHaveLength(4);
     expect(claims[0]).not.toContain('aria-hidden="true"');
-    for (const attrs of claims.slice(1)) expect(attrs).toContain('aria-hidden="true"');
+    expect(claims[0]).not.toContain("inert");
+    for (const attrs of claims.slice(1)) {
+      expect(attrs).toContain('aria-hidden="true"');
+      expect(attrs).toContain('inert=""');
+    }
   });
 
   // §28's first note: *"Progress is **scroll position inside the pinned
@@ -204,6 +232,79 @@ describe("the phone front door (SPEC §28)", () => {
     expect(within(main).getByRole("link", { name: "Start a trip" })).toBeTruthy();
   });
 
+  // M42 D3. The desktop tree owns the `pricing` id — two elements cannot share
+  // one — and comes second in the document, so a browser following
+  // `/welcome#pricing` at phone width finds the hidden desktop section and
+  // scrolls nowhere. The phone front door answers the hash itself, by
+  // scrolling its own scroller and nothing else (see the effect's comment).
+  describe("#pricing", () => {
+    const scrolled: { el: Element; top: number | undefined }[] = [];
+    beforeEach(() => {
+      scrolled.length = 0;
+      // jsdom implements no scrolling, so the call is recorded instead.
+      Element.prototype.scrollTo = function (this: Element, options?: ScrollToOptions | number) {
+        scrolled.push({ el: this, top: typeof options === "object" ? options.top : undefined });
+      } as Element["scrollTo"];
+    });
+    afterEach(() => {
+      window.history.replaceState(null, "", window.location.pathname);
+      delete (Element.prototype as Partial<Element>).scrollTo;
+    });
+
+    it("scrolls its own scroller when the page is opened at #pricing", () => {
+      window.history.replaceState(null, "", "#pricing");
+      render(<PhoneFrontDoor />);
+      expect(scrolled.map(({ el }) => el)).toEqual([screen.getByTestId("phone-front-door")]);
+    });
+
+    it("lands the section just under the sticky bar when the hash changes to #pricing", () => {
+      render(<PhoneFrontDoor />);
+      const door = screen.getByTestId("phone-front-door");
+      const pricing = within(door).getByRole("region", { name: "Pricing" });
+      // jsdom lays nothing out, so the geometry the effect reads is given here.
+      door.scrollTop = 100;
+      vi.spyOn(door, "getBoundingClientRect").mockReturnValue({ top: 0 } as DOMRect);
+      vi.spyOn(pricing, "getBoundingClientRect").mockReturnValue({ top: 5000 } as DOMRect);
+      Object.defineProperty(within(door).getByRole("banner"), "offsetHeight", { value: 64 });
+
+      window.history.replaceState(null, "", "#pricing");
+      fireEvent(window, new HashChangeEvent("hashchange"));
+
+      expect(scrolled).toEqual([{ el: door, top: 100 + 5000 - 64 }]);
+    });
+
+    // Mitchell, 2026-10-11: the front door summarises the plans and leaves
+    // the specifics to `/plans`. One line each, one way through to the rest —
+    // and no second sign-up button, because "Start a trip" sits just above.
+    it("summarises the plans and sends the specifics to /plans", () => {
+      render(<PhoneFrontDoor />);
+      const door = within(screen.getByTestId("phone-front-door"));
+      const pricing = within(door.getByRole("region", { name: "Pricing" }));
+      expect(pricing.queryByRole("table")).toBeNull();
+      expect(pricing.getByText("Unlimited planned trips")).toBeTruthy();
+      expect(pricing.getByText("AI tools to help plan the trip")).toBeTruthy();
+      expect(pricing.getByText("Invite all your friends to come along")).toBeTruthy();
+      expect(pricing.getByRole("link", { name: "Compare plans" }).getAttribute("href")).toBe("/signin?callbackUrl=%2Fplans");
+      expect(door.queryByRole("link", { name: "Sign up" })).toBeNull();
+    });
+  });
+
+  // Mitchell, 2026-10-11: the bar is clear over the map, where nothing sits
+  // under it to read, and paper once the pin releases — after that, content
+  // scrolls under it, and a clear bar shows that content through its links
+  // and takes the taps aimed at it.
+  it("puts the header on paper once the pin releases, and only then", () => {
+    render(<PhoneFrontDoor />);
+    const header = within(screen.getByTestId("phone-front-door")).getByRole("banner");
+    expect(header.hasAttribute("data-solid")).toBe(false);
+    scrollTo(0.97);
+    expect(header.hasAttribute("data-solid")).toBe(false);
+    scrollTo(1.2);
+    expect(header.hasAttribute("data-solid")).toBe(true);
+    scrollTo(0.5);
+    expect(header.hasAttribute("data-solid")).toBe(false);
+  });
+
   it("links the playbook library from the header", () => {
     render(<PhoneFrontDoor />);
     const playbooks = within(screen.getByTestId("phone-front-door")).getByRole("link", { name: "Playbooks" });
@@ -230,24 +331,42 @@ describe("the phone front door (SPEC §28)", () => {
     // *"Is also awkward wording ... and missing the graphic"*, twice, and
     // *"missing the example. Attached example of what it should look like"*.
     // Every claim carries a card since the 2026-09-28 retro (the card-less
-    // "One plan" opener went; Playbooks leads, and Countdown is new).
-    it("draws the example under every claim", () => {
+    // "One plan" opener went; Playbooks leads, and Countdown is new), and three
+    // of the four are the product itself since M42 part 9: the desktop blocks'
+    // river, Discover card and notebook page, at phone size. Found with
+    // `hidden`, because every claim but the first starts out unannounced.
+    it("draws the example under every claim, three of them the product's own", async () => {
       render(<PhoneFrontDoor />);
       const claims = screen.getAllByTestId("front-door-claim");
-      // Playbooks: somebody else's day, and what happens when you take it.
-      expect(within(claims[0]!).getByText("A beach day in Phuket")).toBeTruthy();
-      expect(within(claims[0]!).getByText(/Relived 214 times/)).toBeTruthy();
-      expect(within(claims[0]!).getByText(/Dropping in as Day 2/)).toBeTruthy();
-      // Together: three stops and the change somebody else made.
-      expect(within(claims[1]!).getByText("Fushimi Inari, early")).toBeTruthy();
-      expect(within(claims[1]!).getByText(/Priya moved this an hour later/)).toBeTruthy();
-      // Countdown: the night before, and somebody still awake.
+      // Playbooks: a real day from the library, as Discover shows it.
+      expect(
+        await within(claims[0]!).findByRole("link", { name: LANDING_FEATURES.playbook.name, hidden: true }),
+      ).toBeTruthy();
+      expect(within(claims[0]!).queryByText("A beach day in Phuket")).toBeNull();
+      // Together: the demo trip's day on the board's read-only river.
+      expect(await within(claims[1]!).findByRole("list", { name: "Day 7 timeline", hidden: true })).toBeTruthy();
+      expect(within(claims[1]!).queryByText("Fushimi Inari, early")).toBeNull();
+      // Countdown: the night before, and somebody still awake moving the
+      // start earlier — still a drawing, since the app's own reads the clock.
       expect(within(claims[2]!).getByText("Wheels up tomorrow")).toBeTruthy();
-      expect(within(claims[2]!).getByText(/Is anyone else still up/)).toBeTruthy();
-      // Notebook: a sentence with a value in it, over the costs that value is
-      // the total of.
-      expect(within(claims[3]!).getByText("$596")).toBeTruthy();
-      expect(within(claims[3]!).getByText("Ryokan · Hakone")).toBeTruthy();
+      expect(within(claims[2]!).getByText("Priya moved the meet-up to 6:40 am.")).toBeTruthy();
+      // A countdown offers no Accept, so its card draws none (review of PR 405).
+      expect(within(claims[2]!).queryByText("Accept")).toBeNull();
+      // Notebook: a page of the trip as it was lived, under the trip's strip.
+      expect(await within(claims[3]!).findByRole("img", { name: /^Days 1–3 Tokyo/, hidden: true })).toBeTruthy();
+      expect(within(claims[3]!).getByText(/best night of the trip/)).toBeTruthy();
+      expect(within(claims[3]!).queryByText("Sam, Priya, Dana, Marcus · Apr 9")).toBeNull();
+    });
+
+    // Mitchell, 2026-10-11: *"it should be more nostalgic than how much you
+    // spent on dinner."* The card used to be a day's spend and its receipts;
+    // "How you'll remember it" is not a total.
+    it("remembers the trip in the notebook without a price in it", async () => {
+      render(<PhoneFrontDoor />);
+      const notebook = screen.getAllByTestId("front-door-claim")[3]!;
+      expect(await within(notebook).findByText("Check in at Gora Kadan")).toBeTruthy();
+      expect(within(notebook).getByText("How you'll remember it.")).toBeTruthy();
+      expect(notebook.textContent).not.toMatch(/[$€£¥]\s?\d/);
     });
 
     // The half of "awkward wording" that was a BUILD defect rather than a copy

@@ -18,7 +18,7 @@ export async function getTripHistory(tripId: string): Promise<TripHistory | null
   // The demo trip's stream is built in memory, not stored (ADR-031) — but it
   // is a real envelope list, so its history came out of the same
   // `buildHistoryEntries` this function calls two lines down.
-  if (isDemoTripId(tripId)) return demoTripHistory();
+  if (isDemoTripId(tripId)) return demoTripHistory(tripId);
   const envelopes = await readStream(db, tripId);
   if (envelopes.length === 0) return null;
   const targets = deriveUndoRedo(groupBatches(envelopes));
@@ -32,7 +32,7 @@ export async function getTripHistory(tripId: string): Promise<TripHistory | null
 
 /** How many events the trip's stream carries, or null if it has none. */
 export async function getTripHead(tripId: string): Promise<number | null> {
-  if (isDemoTripId(tripId)) return demoTripHeadSeq();
+  if (isDemoTripId(tripId)) return demoTripHeadSeq(tripId);
   const envelopes = await readStream(db, tripId);
   return envelopes.length === 0 ? null : envelopes.length;
 }
@@ -54,8 +54,8 @@ export async function getTripDetailAtWithHead(
   seq: number,
 ): Promise<{ detail: TripDetail; headSeq: number } | null> {
   if (isDemoTripId(tripId)) {
-    const detail = demoTripDetailAt(seq);
-    return detail === null ? null : { detail, headSeq: demoTripHeadSeq() };
+    const detail = demoTripDetailAt(tripId, seq);
+    return detail === null ? null : { detail, headSeq: demoTripHeadSeq(tripId) };
   }
   const envelopes = await readStream(db, tripId);
   if (envelopes.length === 0 || !Number.isInteger(seq) || seq < 1 || seq > envelopes.length) {
