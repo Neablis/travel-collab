@@ -7,7 +7,8 @@
 // `@tc/contracts` alone (AGENTS.md invariant 4). The same 244 codes, so a
 // country the "Know before you go" card knows is a country this can suggest:
 // the inhabited ISO 3166-1 alpha-2 codes, plus `XK` because geocoders return
-// it. A correction there is a correction here.
+// it. A correction there is a correction here, and the web tool's test
+// (`server/assistant/tools/acrossTrips.test.ts`) fails until it is made.
 
 /** The regions, in the order the list below runs through them. */
 export type CountryRegion =

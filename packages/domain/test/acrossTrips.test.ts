@@ -31,6 +31,7 @@ function trip(
   members: TripMember[],
   days: StopSpec[][],
   backlog: StopSpec[] = [],
+  status: TripDetail["status"] = "active",
 ): TripDetail {
   const activities: Record<string, unknown> = {};
   const add = (spec: StopSpec): string => {
@@ -52,7 +53,7 @@ function trip(
   return TripDetail.parse({
     tripId: uuid(),
     name,
-    status: "active",
+    status,
     startDate: null,
     currency: "USD",
     budget: null,
@@ -124,10 +125,19 @@ const PARIS_I_HELPED_PLAN = trip(
 
 const NOT_MINE = trip("Someone else's", [travelling(FRIEND, "owner")], [[{ title: "Reykjavik", where: place("Reykjavik", "IS") }]]);
 
-const TRIPS = [KYOTO, PARIS_I_HELPED_PLAN, LISBON, NOT_MINE, KYOTO_AGAIN];
+// Travelled on, then deleted: its trip is gone, so its place is not a visit.
+const DELETED = trip(
+  "Mexico City, deleted",
+  [travelling(ME, "owner")],
+  [[{ title: "Tacos", where: place("Mexico City", "MX"), tags: ["meal"], cost: 90_000 }]],
+  [],
+  "deleted",
+);
+
+const TRIPS = [KYOTO, PARIS_I_HELPED_PLAN, LISBON, NOT_MINE, KYOTO_AGAIN, DELETED];
 
 describe("travelledTrips", () => {
-  it("keeps the trips this person is travelling on, and only those", () => {
+  it("keeps the active trips this person is travelling on, and only those", () => {
     expect(travelledTrips(TRIPS, ME).map((t) => t.name)).toEqual(["Kyoto in spring", "Lisbon", "Kyoto again"]);
   });
 });
@@ -195,10 +205,10 @@ describe("visitCounts", () => {
       tripsCounted: 3,
       by: "city",
       places: [
-        { place: "Kyoto", trips: 2, days: 3, stops: 4 },
-        { place: "Lisbon", trips: 1, days: 1, stops: 2 },
-        { place: "Nara", trips: 1, days: 1, stops: 1 },
-        { place: "Sintra", trips: 1, days: 1, stops: 1 },
+        { place: "Kyoto", countryCode: "JP", trips: 2, days: 3, stops: 4 },
+        { place: "Lisbon", countryCode: "PT", trips: 1, days: 1, stops: 2 },
+        { place: "Nara", countryCode: "JP", trips: 1, days: 1, stops: 1 },
+        { place: "Sintra", countryCode: "PT", trips: 1, days: 1, stops: 1 },
       ],
       unknownStops: 2,
     });
@@ -206,8 +216,30 @@ describe("visitCounts", () => {
 
   it("ranks countries the same way, a leg counted once however many ends it has there", () => {
     expect(visitCounts(TRIPS, ME, "country").places).toEqual([
-      { place: "JP", trips: 2, days: 3, stops: 5 },
-      { place: "PT", trips: 1, days: 1, stops: 2 },
+      { place: "JP", countryCode: "JP", trips: 2, days: 3, stops: 5 },
+      { place: "PT", countryCode: "PT", trips: 1, days: 1, stops: 2 },
+    ]);
+  });
+});
+
+describe("two cities with one name", () => {
+  // Paris, France and Paris, Texas are two places: merged, "Paris" would be
+  // the city visited most when neither is.
+  const TEXAS = trip("Paris, Texas", [travelling(ME, "owner")], [[{ title: "Eiffel replica", where: place("Paris", "US") }]]);
+  const FRANCE = trip("Paris", [travelling(ME, "owner")], [[{ title: "Louvre", where: place("Paris", "FR") }]]);
+  const trips = [TEXAS, FRANCE, KYOTO_AGAIN, KYOTO];
+
+  it("keeps them apart in the cities visited", () => {
+    expect(placesVisited(trips, ME).cities.filter((entry) => entry.city === "Paris")).toEqual([
+      { city: "Paris", countryCode: "FR" },
+      { city: "Paris", countryCode: "US" },
+    ]);
+  });
+
+  it("counts them apart, so neither outranks the city visited most", () => {
+    expect(visitCounts(trips, ME, "city").places.slice(0, 2)).toEqual([
+      { place: "Kyoto", countryCode: "JP", trips: 2, days: 3, stops: 4 },
+      { place: "Nara", countryCode: "JP", trips: 1, days: 1, stops: 1 },
     ]);
   });
 });

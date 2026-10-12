@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { TripDetail } from "@tc/contracts";
+import { COUNTRIES } from "@tc/domain";
 import { tripDetailFactory } from "@tc/factories";
+import { countryFacts } from "@tc/pages";
 import { newAccountTrips, type AccountTrips } from "@/server/assistant/deps";
 import { UNTRUSTED_CLOSE, UNTRUSTED_OPEN, plain } from "@/server/assistant/prompt";
 import { ACROSS_TRIP_TOOLS } from "./acrossTrips";
@@ -78,5 +80,14 @@ describe("the cross-trip tools", () => {
     });
     for (const definition of ACROSS_TRIP_TOOLS) await definition.invoke({}, { trips });
     expect(reads).toBe(1);
+  });
+
+  // `@tc/domain` copies the country list from `@tc/pages` (it may not import
+  // it, invariant 4); this is what holds the copy to the original. A country
+  // the assistant suggests is one the "Know before you go" card knows, by the
+  // same name.
+  it("suggests only countries the pages' country table knows, by its names", () => {
+    const strays = COUNTRIES.filter((country) => countryFacts(country.code)?.name !== country.name);
+    expect(strays).toEqual([]);
   });
 });

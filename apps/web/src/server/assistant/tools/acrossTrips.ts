@@ -109,7 +109,15 @@ const VisitCountsInputSchema = z.object({
 const VisitCountsReadoutSchema = z.object({
   tripsCounted: z.number().int(),
   by: z.enum(["city", "country"]),
-  places: z.array(z.object({ place: z.string(), trips: z.number().int(), days: z.number().int(), stops: z.number().int() })),
+  places: z.array(
+    z.object({
+      place: z.string(),
+      countryCode: z.string().nullable(),
+      trips: z.number().int(),
+      days: z.number().int(),
+      stops: z.number().int(),
+    }),
+  ),
   unknownStops: z.number().int(),
 });
 export type VisitCountsReadout = z.infer<typeof VisitCountsReadoutSchema>;

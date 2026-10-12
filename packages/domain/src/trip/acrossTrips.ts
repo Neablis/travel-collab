@@ -1,4 +1,5 @@
 import { ActivityTagCategory, stopTotal, travellerIds, type ActivityView, type TripDetail } from "@tc/contracts";
+import { citiesOfStops, countriesOfStops } from "./cities";
 import { COUNTRIES, type Country, type CountryRegion } from "./countryList";
 
 // **The account assistant's aggregates** (M45 D1–D3): what a person has spent,
@@ -18,13 +19,14 @@ import { COUNTRIES, type Country, type CountryRegion } from "./countryList";
 //      counting them would put a city on the map for a dinner that was never
 //      eaten.
 //   3. **Places come from what the geocoder wrote** (D3): `location.city` and
-//      `location.countryCode`, and both ends of a transit leg, as `cities.ts`
-//      reads them. A stop with neither is counted as unknown and never guessed
-//      from its name.
+//      `location.countryCode`, and both ends of a transit leg, read by
+//      `cities.ts`' one rule rather than a copy of it. A city is its name AND
+//      its country: Paris, France and Paris, Texas are two places. A stop with
+//      neither is counted as unknown and never guessed from its name.
 //   4. **Money is never summed across currencies.** A trip has one currency but
 //      a person's trips need not; yen and euros in one total is a wrong number.
 
-/** The trips `userId` is travelling on, in the order given. */
+/** The live (not deleted) trips `userId` is travelling on, in the order given. */
 export function travelledTrips(trips: readonly TripDetail[], userId: string): TripDetail[] {
   return trips.filter((trip) => trip.status === "active" && travellerIds(trip.members).includes(userId));
 }
@@ -95,15 +97,15 @@ export function placesVisited(
 } {
   const visits = visitsOf(travelledTrips(trips, userId));
   const countries = new Set<string>();
-  const cities = new Map<string, string | null>();
+  const cities = new Map<string, PlacedCity>();
   for (const visit of visits.placed) {
     for (const code of visit.countries) countries.add(code);
-    for (const [city, code] of visit.cities) if (cities.get(city) == null) cities.set(city, code);
+    for (const [key, city] of visit.cities) cities.set(key, city);
   }
   return {
     tripsCounted: visits.tripsCounted,
     countries: [...countries].sort().map((code) => ({ code, name: COUNTRY_BY_CODE.get(code)?.name ?? null })),
-    cities: [...cities.keys()].sort().map((city) => ({ city, countryCode: cities.get(city) ?? null })),
+    cities: [...cities.keys()].sort().map((key) => cities.get(key)!),
     unknownStops: visits.unknownStops,
   };
 }
@@ -111,6 +113,8 @@ export function placesVisited(
 export interface VisitCount {
   /** A city's name, or a country's ISO code. */
   place: string;
+  /** The city's country, which tells two same-named cities apart; a country's own code. */
+  countryCode: string | null;
   /** Travelled trips with a stop there. */
   trips: number;
   /** Days, across those trips, with a stop there. */
@@ -130,20 +134,28 @@ export function visitCounts(
   by: "city" | "country",
 ): { tripsCounted: number; by: "city" | "country"; places: VisitCount[]; unknownStops: number } {
   const visits = visitsOf(travelledTrips(trips, userId));
-  const tally = new Map<string, { trips: Set<string>; days: Set<string>; stops: number }>();
+  const tally = new Map<string, { place: string; countryCode: string | null; trips: Set<string>; days: Set<string>; stops: number }>();
   for (const visit of visits.placed) {
-    const places = by === "city" ? [...visit.cities.keys()] : [...visit.countries];
-    for (const place of places) {
-      const entry = tally.get(place) ?? { trips: new Set<string>(), days: new Set<string>(), stops: 0 };
+    const places: [string, PlacedCity][] =
+      by === "city" ? [...visit.cities] : [...visit.countries].map((code) => [code, { city: code, countryCode: code }]);
+    for (const [key, { city, countryCode }] of places) {
+      const entry = tally.get(key) ?? { place: city, countryCode, trips: new Set<string>(), days: new Set<string>(), stops: 0 };
       entry.trips.add(visit.tripId);
       entry.days.add(`${visit.tripId}|${visit.dayIndex}`);
       entry.stops += 1;
-      tally.set(place, entry);
+      tally.set(key, entry);
     }
   }
   const places = [...tally.entries()]
-    .map(([place, entry]) => ({ place, trips: entry.trips.size, days: entry.days.size, stops: entry.stops }))
-    .sort((a, b) => b.trips - a.trips || b.days - a.days || b.stops - a.stops || (a.place < b.place ? -1 : 1));
+    .map(([key, entry]) => ({
+      key,
+      count: { place: entry.place, countryCode: entry.countryCode, trips: entry.trips.size, days: entry.days.size, stops: entry.stops },
+    }))
+    .sort(
+      ({ key: ka, count: a }, { key: kb, count: b }) =>
+        b.trips - a.trips || b.days - a.days || b.stops - a.stops || (ka < kb ? -1 : 1),
+    )
+    .map(({ count }) => count);
   return { tripsCounted: visits.tripsCounted, by, places, unknownStops: visits.unknownStops };
 }
 
@@ -194,11 +206,16 @@ function categoryOf(stop: ActivityView): SpendCategory {
   return ActivityTagCategory.options.find((tag) => stop.tags.includes(tag)) ?? "untagged";
 }
 
+interface PlacedCity {
+  city: string;
+  countryCode: string | null;
+}
+
 interface StopVisit {
   tripId: string;
   dayIndex: number;
-  /** City name → the country code met with it first, when there was one. */
-  cities: Map<string, string | null>;
+  /** Keyed by name and country, so two same-named cities stay two. */
+  cities: Map<string, PlacedCity>;
   countries: Set<string>;
 }
 
@@ -208,17 +225,15 @@ function visitsOf(trips: readonly TripDetail[]): { tripsCounted: number; placed:
   let unknownStops = 0;
   for (const trip of trips) {
     for (const stop of scheduledStops(trip)) {
-      // Origin then destination, and the destination only on a leg — the
-      // contract's refinement guards commands, not stored documents.
-      const ends = stop.kind === "transit" ? [stop.location, stop.endLocation] : [stop.location];
       const visit: StopVisit = { tripId: trip.tripId, dayIndex: stop.dayIndex, cities: new Map(), countries: new Set() };
-      for (const end of ends) {
-        if (end === null) continue;
-        const code = end.countryCode?.trim().toUpperCase();
-        const country = code !== undefined && /^[A-Z]{2}$/.test(code) ? code : null;
-        const city = end.city?.trim() || null;
-        if (country !== null) visit.countries.add(country);
-        if (city !== null && visit.cities.get(city) == null) visit.cities.set(city, country);
+      // Each end through `cities.ts` on its own, so a city keeps the country it
+      // was met with: the origin, then the destination, which `cities.ts` reads
+      // only off a transit stop.
+      for (const end of [{ ...stop, endLocation: null }, { ...stop, location: null }]) {
+        const [city] = citiesOfStops([end]);
+        const [countryCode = null] = countriesOfStops([end]);
+        if (countryCode !== null) visit.countries.add(countryCode);
+        if (city !== undefined) visit.cities.set(`${city}|${countryCode ?? ""}`, { city, countryCode });
       }
       if (visit.cities.size === 0 && visit.countries.size === 0) unknownStops += 1;
       else placed.push(visit);
