@@ -11,6 +11,7 @@ import { db } from "@/server/db/client";
 import { aiUsage, rateLimitCounters } from "@/server/db/schema";
 import { writeTravelling } from "@/server/access/members";
 import { simulatedModel } from "@/server/ai/simulatedModel";
+import { askIntentVerdictText, isAskIntentCall } from "@/server/ai/askIntent";
 import type { AskAnalyticsRecord } from "@/server/assistant/askAnalytics";
 import type { TurnLedger } from "@/server/assistant/ledger";
 
@@ -73,6 +74,55 @@ function spokenIn(body: string): string {
     .join("");
 }
 
+/**
+ * A model that answers the classifier with `question`, then writes a note to
+ * itself beside a `visit_counts` call, then answers (KI-20261012-e).
+ */
+function notesBesideACallModel(note: string, answer: string) {
+  let step = 0;
+  const usage = {
+    inputTokens: { total: 0, noCache: 0, cacheRead: undefined, cacheWrite: undefined },
+    outputTokens: { total: 0, text: undefined, reasoning: undefined },
+  };
+  const text = (id: string, delta: string) => [
+    { type: "text-start", id },
+    { type: "text-delta", id, delta },
+    { type: "text-end", id },
+  ];
+  const isClassifier = (options: { prompt?: { role?: string; content?: unknown }[] }) =>
+    isAskIntentCall((options.prompt ?? []).map((m) => (m.role === "system" && typeof m.content === "string" ? m.content : "")).join("\n"));
+  return {
+    specificationVersion: "v4",
+    provider: "test",
+    modelId: "test/notes-beside-a-call",
+    supportedUrls: {},
+    doGenerate: async () => ({
+      content: [{ type: "text", text: askIntentVerdictText("question", "sure") }],
+      finishReason: { unified: "stop", raw: undefined },
+      usage,
+      warnings: [],
+    }),
+    doStream: async (options: { prompt?: { role?: string; content?: unknown }[] }) => {
+      const parts = isClassifier(options)
+        ? text("v", askIntentVerdictText("question", "sure"))
+        : step++ === 0
+          ? [...text("n", note), { type: "tool-call", toolCallId: "visits", toolName: "visit_counts", input: JSON.stringify({ by: "city" }) }]
+          : text("a", answer);
+      const unified = parts.some((part) => part.type === "tool-call") ? "tool-calls" : "stop";
+      return {
+        stream: new ReadableStream({
+          start(controller) {
+            controller.enqueue({ type: "stream-start", warnings: [] });
+            for (const part of parts) controller.enqueue(part);
+            controller.enqueue({ type: "finish", finishReason: { unified, raw: undefined }, usage });
+            controller.close();
+          },
+        }),
+      };
+    },
+  } as unknown as Parameters<typeof handleAccountAskRequest>[1];
+}
+
 beforeAll(async () => {
   await upsertUser({ id: ASKER, email: null, name: null, image: null });
   await seedTrip("Kyoto in spring", [
@@ -123,6 +173,17 @@ describe("POST /api/ask", () => {
     expect(ledgers[0]!.cost.endpoint).toBe("ask.account");
     const [row] = await db.select({ endpoint: aiUsage.endpoint }).from(aiUsage).where(eq(aiUsage.id, ledgers[0]!.cost.turnId!));
     expect(row?.endpoint).toBe("ask.account");
+  });
+
+  // The trip door's filter, on this door too (KI-20261012-e): the note a
+  // model writes beside a tool call is not part of its answer.
+  it("keeps text written beside a tool call out of the reply", async () => {
+    const res = await handleAccountAskRequest(
+      ask("which city have I been to most?"),
+      notesBesideACallModel("Count the cities first.", "Kyoto, on two days."),
+      () => {},
+    );
+    expect(spokenIn(await res.text())).toBe("Kyoto, on two days.");
   });
 
   it("is the account handler behind the route, and refuses a signed-out caller", async () => {

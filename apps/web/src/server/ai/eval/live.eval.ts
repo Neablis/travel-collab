@@ -35,7 +35,7 @@ import { writeTravelling } from "@/server/access/members";
 import type { AskAnalyticsRecord } from "@/server/assistant/askAnalytics";
 import type { TurnLedger } from "@/server/assistant/ledger";
 import { accountExpectationFor, expectationFor, type SeededAccountTrip } from "./cases";
-import { grade, reviewedChanges, type EvalCheck, type EvalTurn } from "./grade";
+import { grade, reviewedChanges, textBeforeToolCall, type EvalCheck, type EvalTurn } from "./grade";
 import { capMicroUsdFrom, dollars, turnMicroUsd, unpricedModels } from "./spend";
 import { ACCOUNT_TRIPS, accountTripCommands, longTripCommands, type EvalTripName } from "./trips";
 
@@ -217,6 +217,7 @@ async function runTurn(
     text,
     // A card's commands or a stored suggestion's changes (ADR-067).
     proposalCommands: reviewedChanges(chunks),
+    textBeforeToolCall: textBeforeToolCall(chunks),
     stepDurationsMs: ledgers[0]?.stepSpend.map((step) => step.durationMs) ?? [],
     providers: ledgers[0]?.stepSpend.map((step) => step.provider) ?? [],
     generationIds: ledgers[0]?.stepSpend.map((step) => step.gatewayGenerationId) ?? [],

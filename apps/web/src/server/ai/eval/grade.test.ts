@@ -17,7 +17,7 @@ import type { AskAnalyticsRecord } from "@/server/assistant/askAnalytics";
 import { OVERVIEW_ABOVE_DAYS } from "@/server/assistant/tools/read";
 import { accountExpectationFor, expectationFor, mostFreeDays, type SeededAccountTrip } from "./cases";
 import { ACCOUNT_TRIPS, EVAL_TRIPS, LONG_TRIP_DAYS, accountTripCommands, longTripCommands } from "./trips";
-import { grade, namesAmount, namesDayNumber, reviewedChanges, type EvalTurn } from "./grade";
+import { grade, namesAmount, namesDayNumber, reviewedChanges, textBeforeToolCall, type EvalTurn } from "./grade";
 
 // The fields `grade` reads, on an otherwise ordinary completed turn.
 function turn(over: Partial<AskAnalyticsRecord> = {}, text = "Day 3 is the most open.", proposalCommands = 0): EvalTurn {
@@ -46,7 +46,8 @@ describe("grade", () => {
       maxInputTokens: 10_000,
       namesOneOfDays: [3],
     });
-    expect(checks).toHaveLength(8);
+    // Seven asked for, and "no text before a tool call", which is always on.
+    expect(checks).toHaveLength(8 + 1);
     expect(failing(checks)).toEqual([]);
   });
 
@@ -299,5 +300,34 @@ describe("reviewedChanges", () => {
 
   it("counts nothing for a turn that proposed nothing", () => {
     expect(reviewedChanges([{ type: "finish" }])).toBe(0);
+  });
+});
+
+// KI-20261012-e: a turn whose reply carried the model's note to itself passed
+// every check, because none of them read the reply's text.
+describe("no text before a tool call", () => {
+  const LEAKED =
+    'Gap 5:30–7 pm. Look up a cafe in Shibuya.I\'d add a "Coffee break in Shibuya" stop to day 1, from 5:45 to 6:30 pm. ' +
+    "That fits the gap between the Trunk Hotel check-in, which ends at 5:30 pm, and dinner at Gonpachi at 7 pm. " +
+    "The change is waiting for your approval.";
+
+  it("fails the KI's reply on its seam, from the text alone", () => {
+    expect(failing(grade(turn({}, LEAKED, 1), { proposes: true }))).toEqual(["no text before a tool call"]);
+  });
+
+  it("fails a stream that spoke before it called a tool, whatever the text looks like", () => {
+    const chunks = [
+      { type: "text-delta", delta: "Checking day 1. " },
+      { type: "tool-input-start", toolName: "read_day" },
+      { type: "text-delta", delta: "Day 3 is the most open." },
+    ];
+    expect(textBeforeToolCall(chunks)).toBe(true);
+    expect(failing(grade({ ...turn(), textBeforeToolCall: textBeforeToolCall(chunks) }, {}))).toEqual(["no text before a tool call"]);
+  });
+
+  it("passes text that only follows the tool calls", () => {
+    const chunks = [{ type: "tool-input-start", toolName: "read_day" }, { type: "text-delta", delta: "Day 3 is the most open." }];
+    expect(textBeforeToolCall(chunks)).toBe(false);
+    expect(failing(grade({ ...turn(), textBeforeToolCall: false }, {}))).toEqual([]);
   });
 });

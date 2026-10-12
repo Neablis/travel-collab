@@ -83,6 +83,7 @@ import {
   parseApprovedCommands,
 } from "@/server/ai/writeTools";
 import { pageInsertsMetadata, pageOutcomeOf } from "@/server/ai/pageTools";
+import { finalStepTextOnly } from "@/server/ai/finalStepText";
 import {
   askOutcomeRecord,
   recordAskOutcome,
@@ -1003,7 +1004,9 @@ export async function handleAskRequest(
       },
     });
     return createUIMessageStreamResponse({
-      stream: stream.pipeThrough(
+      // Only the final step's text is the reply (KI-20261012-e). Upstream of
+      // `suggestOnFinish`, so the `finish` chunk it swaps is unchanged.
+      stream: stream.pipeThrough(finalStepTextOnly({ liveStep: (step) => wrapUpStep !== null && step >= wrapUpStep })).pipeThrough(
         suggestOnFinish(
           () => finalProposal,
           (proposal) => suggestProposal(proposal, { tripId, userId, question }),
@@ -1212,7 +1215,10 @@ export async function handleAccountAskRequest(
       },
       onError: askFailureMessage,
     });
-    return createUIMessageStreamResponse({ stream, headers: { [SIMULATED_HEADER]: String(grant.simulated) } });
+    return createUIMessageStreamResponse({
+      stream: stream.pipeThrough(finalStepTextOnly({ liveStep: (step) => wrapUpStep !== null && step >= wrapUpStep })),
+      headers: { [SIMULATED_HEADER]: String(grant.simulated) },
+    });
   } catch (err) {
     clearTimeout(hardDeadline);
     recorder.abandon("error", err);

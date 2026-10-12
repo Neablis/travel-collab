@@ -563,6 +563,64 @@ function toolCall(toolName: string, input: unknown): Record<string, unknown> {
 }
 
 /**
+ * A trip-turn model that answers the classifier with `question` and then plays
+ * `steps` in order, each the parts one step emits: a string is text, anything
+ * else a tool call. Text BESIDE a tool call is the point — a model's note to
+ * itself between reads (KI-20261012-e). An empty step says nothing at all.
+ */
+function scriptedStepsModel(steps: (string | Record<string, unknown>)[][]) {
+  let next = 0;
+  const usage = {
+    inputTokens: { total: 0, noCache: 0, cacheRead: undefined, cacheWrite: undefined },
+    outputTokens: { total: 0, text: undefined, reasoning: undefined },
+  };
+  function stepFor(options: { prompt?: { role?: string; content?: unknown }[] }) {
+    const system = (options.prompt ?? [])
+      .filter((m) => m.role === "system" && typeof m.content === "string")
+      .map((m) => m.content as string)
+      .join("\n");
+    if (isAskIntentCall(system)) return [askIntentVerdictText("question", "sure")];
+    return steps[next++] ?? [];
+  }
+  const finishOf = (parts: (string | Record<string, unknown>)[]) => ({
+    unified: parts.some((part) => typeof part !== "string") ? "tool-calls" : "stop",
+    raw: undefined,
+  });
+  return {
+    specificationVersion: "v4",
+    provider: "test",
+    modelId: "test/scripted-steps",
+    supportedUrls: {},
+    doGenerate: async (options: Parameters<typeof stepFor>[0]) => {
+      const parts = stepFor(options);
+      const content = parts.map((part) => (typeof part === "string" ? { type: "text", text: part } : part));
+      return { content, finishReason: finishOf(parts), usage, warnings: [] };
+    },
+    doStream: async (options: Parameters<typeof stepFor>[0]) => {
+      const parts = stepFor(options);
+      return {
+        stream: new ReadableStream({
+          start(controller) {
+            controller.enqueue({ type: "stream-start", warnings: [] });
+            for (const [i, part] of parts.entries()) {
+              if (typeof part !== "string") {
+                controller.enqueue(part);
+                continue;
+              }
+              controller.enqueue({ type: "text-start", id: `t${i}` });
+              controller.enqueue({ type: "text-delta", id: `t${i}`, delta: part });
+              controller.enqueue({ type: "text-end", id: `t${i}` });
+            }
+            controller.enqueue({ type: "finish", finishReason: finishOf(parts), usage });
+            controller.close();
+          },
+        }),
+      };
+    },
+  } as unknown as Parameters<typeof handleAskRequest>[2];
+}
+
+/**
  * A page-turn model that answers the PAGE classifier with `verdict` and then
  * plays `steps` in order: an array of tool calls, a sentence, or `"hang"` — a
  * step that never answers until the turn is aborted (the deadline tests).
@@ -2837,6 +2895,47 @@ describe("POST /api/trips/:id/ask", () => {
       });
       expect(res.status).toBe(200);
       expect(textOf(await chunksOf(res))).toContain("The biggest open stretch");
+    });
+
+    // **The reply is the last step's text, not every step's** (KI-20261012-e).
+    // A model that writes a note to itself beside a tool call used to have it
+    // streamed into the answer, run into the next step's text with no space:
+    // "…Look up a cafe.Day 1 has…". The note must not reach the client at all.
+    it("keeps text written beside a tool call out of the reply", async () => {
+      const tripId = await seedTrip();
+      const model = scriptedStepsModel([
+        ["Gap 5:30–7 pm. Look up a cafe.", toolCall("read_day", { days: 1 })],
+        ["Day 1 is free from 5:30 to 7 pm."],
+      ]);
+      const chunks = await chunksOf(
+        await handleAskRequest(
+          req(tripId, { messages: [userMessage("add a coffee stop to day 1")], scope: { kind: "trip" } }),
+          tripId,
+          model,
+        ),
+      );
+
+      expect(chunks.filter((c) => c.type === "tool-input-available").map((c) => c.toolName)).toEqual(["read_day"]);
+      expect(textOf(chunks)).toBe("Day 1 is free from 5:30 to 7 pm.");
+      const types = chunks.map((c) => c.type);
+      expect(types.indexOf("text-delta")).toBeGreaterThan(types.indexOf("tool-input-start"));
+    });
+
+    // The other side of the same filter: a turn whose last step says nothing
+    // must not end blank when an earlier step did say something.
+    it("falls back to the last tool step's text when the final step is silent", async () => {
+      const tripId = await seedTrip();
+      const model = scriptedStepsModel([["Day 1 is free from 5:30 to 7 pm.", toolCall("read_day", { days: 1 })], []]);
+      const chunks = await chunksOf(
+        await handleAskRequest(
+          req(tripId, { messages: [userMessage("when is day 1 free?")], scope: { kind: "trip" } }),
+          tripId,
+          model,
+        ),
+      );
+
+      expect(textOf(chunks)).toBe("Day 1 is free from 5:30 to 7 pm.");
+      expect(chunks.at(-1)).toMatchObject({ type: "finish" });
     });
   });
 
