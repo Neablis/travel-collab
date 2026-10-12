@@ -83,6 +83,7 @@ import {
   parseApprovedCommands,
 } from "@/server/ai/writeTools";
 import { pageInsertsMetadata, pageOutcomeOf } from "@/server/ai/pageTools";
+import { retractTextBesideTools } from "@/server/ai/finalStepText";
 import {
   askOutcomeRecord,
   recordAskOutcome,
@@ -1012,7 +1013,9 @@ export async function handleAskRequest(
       },
     });
     return createUIMessageStreamResponse({
-      stream: stream.pipeThrough(
+      // Text written beside a tool call is taken back (KI-2026-10-12-e). Upstream
+      // of `suggestOnFinish`, so the `finish` chunk it swaps is unchanged.
+      stream: stream.pipeThrough(retractTextBesideTools()).pipeThrough(
         suggestOnFinish(
           () => finalProposal,
           (proposal) => suggestProposal(proposal, { tripId, userId, question }),
@@ -1221,7 +1224,10 @@ export async function handleAccountAskRequest(
       },
       onError: askFailureMessage,
     });
-    return createUIMessageStreamResponse({ stream, headers: { [SIMULATED_HEADER]: String(grant.simulated) } });
+    return createUIMessageStreamResponse({
+      stream: stream.pipeThrough(retractTextBesideTools()),
+      headers: { [SIMULATED_HEADER]: String(grant.simulated) },
+    });
   } catch (err) {
     clearTimeout(hardDeadline);
     recorder.abandon("error", err);

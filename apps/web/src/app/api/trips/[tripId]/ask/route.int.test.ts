@@ -1,4 +1,4 @@
-import { ASK_FAILED_MESSAGE, ASK_INTERNAL_ERROR_MESSAGE, WidgetShape, newPageDoc, type AskStreamMetadata } from "@tc/contracts";
+import { ASK_FAILED_MESSAGE, ASK_INTERNAL_ERROR_MESSAGE, ASK_RETRACT_CHUNK, WidgetShape, newPageDoc, type AskStreamMetadata } from "@tc/contracts";
 import { MACRO_NAMES, getMacro } from "@tc/pages";
 import { APICallError, ToolLoopAgent } from "ai";
 import { randomUUID } from "node:crypto";
@@ -23,6 +23,7 @@ import { listSnapshots, saveSnapshot, SNAPSHOT_TRIP_MAX } from "@/server/snapsho
 import { listSuggestionChanges } from "@/server/suggestions/list";
 import { SUGGESTION_TRIP_PENDING_MAX } from "@/server/suggestions/shared";
 import { insertStoredSuggestion } from "@/server/test-support/storedSuggestion";
+import { visibleText } from "@/server/ai/eval/grade";
 
 const ACTOR_ID = "ask-owner";
 // A second author, so a published library day belongs to SOMEONE ELSE.
@@ -560,6 +561,64 @@ function strayToolsModel() {
 /** One tool call as a scripted model emits it. */
 function toolCall(toolName: string, input: unknown): Record<string, unknown> {
   return { type: "tool-call", toolCallId: randomUUID(), toolName, input: JSON.stringify(input) };
+}
+
+/**
+ * A trip-turn model that answers the classifier with `question` and then plays
+ * `steps` in order, each the parts one step emits: a string is text, anything
+ * else a provider part as given (a tool call, or reasoning). Text BESIDE a tool call is the point — a model's note to
+ * itself between reads (KI-2026-10-12-e). An empty step says nothing at all.
+ */
+function scriptedStepsModel(steps: (string | Record<string, unknown>)[][]) {
+  let next = 0;
+  const usage = {
+    inputTokens: { total: 0, noCache: 0, cacheRead: undefined, cacheWrite: undefined },
+    outputTokens: { total: 0, text: undefined, reasoning: undefined },
+  };
+  function stepFor(options: { prompt?: { role?: string; content?: unknown }[] }) {
+    const system = (options.prompt ?? [])
+      .filter((m) => m.role === "system" && typeof m.content === "string")
+      .map((m) => m.content as string)
+      .join("\n");
+    if (isAskIntentCall(system)) return [askIntentVerdictText("question", "sure")];
+    return steps[next++] ?? [];
+  }
+  const finishOf = (parts: (string | Record<string, unknown>)[]) => ({
+    unified: parts.some((part) => typeof part !== "string" && part.type === "tool-call") ? "tool-calls" : "stop",
+    raw: undefined,
+  });
+  return {
+    specificationVersion: "v4",
+    provider: "test",
+    modelId: "test/scripted-steps",
+    supportedUrls: {},
+    doGenerate: async (options: Parameters<typeof stepFor>[0]) => {
+      const parts = stepFor(options);
+      const content = parts.map((part) => (typeof part === "string" ? { type: "text", text: part } : part));
+      return { content, finishReason: finishOf(parts), usage, warnings: [] };
+    },
+    doStream: async (options: Parameters<typeof stepFor>[0]) => {
+      const parts = stepFor(options);
+      return {
+        stream: new ReadableStream({
+          start(controller) {
+            controller.enqueue({ type: "stream-start", warnings: [] });
+            for (const [i, part] of parts.entries()) {
+              if (typeof part !== "string") {
+                controller.enqueue(part);
+                continue;
+              }
+              controller.enqueue({ type: "text-start", id: `t${i}` });
+              controller.enqueue({ type: "text-delta", id: `t${i}`, delta: part });
+              controller.enqueue({ type: "text-end", id: `t${i}` });
+            }
+            controller.enqueue({ type: "finish", finishReason: finishOf(parts), usage });
+            controller.close();
+          },
+        }),
+      };
+    },
+  } as unknown as Parameters<typeof handleAskRequest>[2];
 }
 
 /**
@@ -2890,6 +2949,52 @@ describe("POST /api/trips/:id/ask", () => {
       });
       expect(res.status).toBe(200);
       expect(textOf(await chunksOf(res))).toContain("The biggest open stretch");
+    });
+
+    // **Text written beside a tool call streams, then is taken back**
+    // (KI-2026-10-12-e). A model that writes a note to itself beside a tool call
+    // used to have it run into the answer: "…Look up a cafe.Day 1 has…". The
+    // scripted model names both steps' block "t0"; AI SDK 7 renames the second
+    // before it reaches the wire, so the retraction names the first alone.
+    it("takes back exactly the tool step's text, ahead of its call, and never the final step's", async () => {
+      const tripId = await seedTrip();
+      const model = scriptedStepsModel([
+        ["Gap 5:30–7 pm. Look up a cafe.", toolCall("read_day", { days: 1 })],
+        ["Day 1 is free from 5:30 to 7 pm."],
+      ]);
+      const chunks = await chunksOf(
+        await handleAskRequest(
+          req(tripId, { messages: [userMessage("add a coffee stop to day 1")], scope: { kind: "trip" } }),
+          tripId,
+          model,
+        ),
+      );
+
+      const types = chunks.map((c) => c.type);
+      const retractions = chunks.filter((c) => c.type === ASK_RETRACT_CHUNK);
+      expect(retractions).toEqual([{ type: ASK_RETRACT_CHUNK, data: { ids: ["t0"] }, transient: true }]);
+      // Streamed live, then taken back before the call shows.
+      expect(types.indexOf("text-delta")).toBeLessThan(types.indexOf(ASK_RETRACT_CHUNK));
+      expect(types.indexOf(ASK_RETRACT_CHUNK)).toBeLessThan(types.indexOf("tool-input-available"));
+      expect(types.lastIndexOf("text-start")).toBeGreaterThan(types.indexOf(ASK_RETRACT_CHUNK));
+      expect(visibleText(chunks)).toBe("Day 1 is free from 5:30 to 7 pm.");
+    });
+
+    // The other side of the same filter: a turn whose last step says nothing
+    // must not end blank when an earlier step did say something.
+    it("falls back to the last tool step's text when the final step is silent", async () => {
+      const tripId = await seedTrip();
+      const model = scriptedStepsModel([["Day 1 is free from 5:30 to 7 pm.", toolCall("read_day", { days: 1 })], []]);
+      const chunks = await chunksOf(
+        await handleAskRequest(
+          req(tripId, { messages: [userMessage("when is day 1 free?")], scope: { kind: "trip" } }),
+          tripId,
+          model,
+        ),
+      );
+
+      expect(visibleText(chunks)).toBe("Day 1 is free from 5:30 to 7 pm.");
+      expect(chunks.at(-1)).toMatchObject({ type: "finish" });
     });
   });
 

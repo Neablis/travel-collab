@@ -83,6 +83,22 @@ export const ASK_FAILED_MESSAGE = "The assistant couldn't answer just now. Try a
  */
 export const ASK_INTERNAL_ERROR_MESSAGE = "The assistant hit a problem on our side, and it has been logged.";
 
+// M45 part 5 (KI-2026-10-12-e): `finalStepText.ts` sends it, `apiClient.ts`
+// applies it and the eval's `grade.ts` replays it. Here because the UI may not
+// import `@/server/*`, the reason `SIMULATED_HEADER` above moved: three hand
+// copies meant a server that renamed `ids` would leave notes on screen with
+// nothing failing to compile.
+/**
+ * The `/ask` stream chunk that takes text back: the text parts, by id, that a
+ * step wrote beside a tool call. Transient, so it is never part of a stored
+ * message; the client removes those parts from what it shows and keeps.
+ */
+export const ASK_RETRACT_CHUNK = "data-retract";
+
+/** The `data` of an `ASK_RETRACT_CHUNK` chunk. */
+export const AskRetractData = z.object({ ids: z.array(z.string()) });
+export type AskRetractData = z.infer<typeof AskRetractData>;
+
 // Derived from `BatchableCommand`'s own options rather than spelled again, for
 // the reason `describeProposedChange`'s exhaustive switch exists: a thirteenth
 // command joins this for free and can never drift from the union it describes.

@@ -348,7 +348,7 @@ const FETCHING_HELPERS: Record<string, () => Promise<ApiResult<unknown>>> = {
 // shares — they touch no network, so totality is not a claim about them.
 // Anything else exported as a function has to be in the table above.
 const NON_FETCHING_EXPORTS = new Set([
-  "apiUrl", "inviteLink", "shareLink", "askEventsFromFrame", "networkError", "refusal",
+  "apiUrl", "inviteLink", "shareLink", "askEventsFromFrame", "withoutRetracted", "networkError", "refusal",
 ]);
 
 // **The screen→client seam was covered; the client→URL seam was not.**

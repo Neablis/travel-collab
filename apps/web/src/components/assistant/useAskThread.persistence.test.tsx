@@ -17,6 +17,7 @@
 //
 // A reload is simulated by unmounting and mounting again under the same name,
 // which is what a reload is to a component.
+import { ASK_RETRACT_CHUNK } from "@tc/contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import type { ApiError } from "@/lib/apiClient";
@@ -49,6 +50,12 @@ function answeringFetch(text: string) {
         headers: { "Content-Type": "text/event-stream" },
       }),
   );
+}
+
+/** A fetch that answers the ask endpoint with these UI-message-stream frames. */
+function framesFetch(frames: object[]) {
+  const body = `${frames.map((frame) => `data: ${JSON.stringify(frame)}\n\n`).join("")}data: [DONE]\n\n`;
+  return vi.fn(async () => new Response(body, { status: 200, headers: { "Content-Type": "text/event-stream" } }));
 }
 
 const stored: AssistantTurn[] = [
@@ -220,6 +227,71 @@ describe("useAskThread — durability", () => {
       "how does this trip look?",
       "Kyoto 2027 runs to 3 days.",
     ]);
+  });
+
+  // KI-2026-10-12-e: the server takes back a note written beside a tool call. A
+  // reload must not bring it back. Real frames, so the ids the server names go
+  // through `askAssistant`, unique per run as AI SDK 7 sends them.
+  it("restores none of the text the server took back", async () => {
+    const frames = [
+      { type: "text-start", id: "0" },
+      { type: "text-delta", id: "0", delta: "Checking day 1 first." },
+      { type: "text-end", id: "0" },
+      { type: ASK_RETRACT_CHUNK, data: { ids: ["0"] }, transient: true },
+      { type: "tool-input-available", toolCallId: "c1", toolName: "read_day", input: { days: 1 } },
+      { type: "text-start", id: "aitxt-1" },
+      { type: "text-delta", id: "aitxt-1", delta: "Now the evening." },
+      { type: "text-end", id: "aitxt-1" },
+      { type: ASK_RETRACT_CHUNK, data: { ids: ["aitxt-1"] }, transient: true },
+      { type: "tool-input-available", toolCallId: "c2", toolName: "read_day", input: { days: 1 } },
+      { type: "text-start", id: "aitxt-2" },
+      { type: "text-delta", id: "aitxt-2", delta: "Day 1 is free." },
+      { type: "text-end", id: "aitxt-2" },
+    ];
+    vi.stubGlobal("fetch", framesFetch(frames));
+    const first = mount(NAME);
+    await act(async () => {
+      await first.result.current.runAsk("when is day 1 free?");
+    });
+    cleanup();
+
+    const second = mount(NAME);
+    await waitFor(() => expect(second.result.current.thread).toHaveLength(2));
+    expect(second.result.current.thread.map((turn) => turn.text)).toEqual(["when is day 1 free?", "Day 1 is free."]);
+  });
+
+  // A turn whose only words were a blank group the server then took back said
+  // nothing, and must end the way a silent turn does. The answer bubble shows
+  // the deltas either way; what decides the ending is the hook's own `streamed`,
+  // so a retraction that updated only the bubble would leave an empty answer
+  // where the stopped line belongs.
+  const blankThenTakenBack = [
+    { type: "text-start", id: "a" },
+    { type: "text-delta", id: "a", delta: "\n\n" },
+    { type: "text-end", id: "a" },
+    { type: ASK_RETRACT_CHUNK, data: { ids: ["a"] }, transient: true },
+  ];
+
+  it("says a turn was stopped when the only text it wrote was taken back", async () => {
+    vi.stubGlobal("fetch", framesFetch([...blankThenTakenBack, { type: "abort" }]));
+    const { result } = mount(NAME);
+    await act(async () => {
+      await result.current.runAsk("plan every day in detail");
+    });
+    expect(result.current.thread.map((turn) => turn.text)).toEqual([
+      "plan every day in detail",
+      expect.stringContaining("took too long and was stopped"),
+    ]);
+  });
+
+  it("rolls back a failed turn when the only text it wrote was taken back", async () => {
+    vi.stubGlobal("fetch", framesFetch([...blankThenTakenBack, { type: "error", errorText: "the model failed" }]));
+    const { result } = mount(NAME);
+    await act(async () => {
+      await result.current.runAsk("plan every day in detail");
+    });
+    expect(result.current.thread).toEqual([]);
+    expect(result.current.restoredDraft).toBe("plan every day in detail");
   });
 
   // A turn that produced no text at all is rolled back by design — the
