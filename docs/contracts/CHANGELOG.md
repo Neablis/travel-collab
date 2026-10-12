@@ -13,6 +13,29 @@ Format:
 - Breaking? yes/no — if yes, migration notes
 ```
 
+## 2026-10-12 — `AskStreamMetadata.paletteCommands`: the assistant names palette commands (M45 part 2, ADR-072)
+
+- **Added** to `packages/contracts/src/assistant.ts`: `PaletteCommandRef` (`{ id, needsApproval }`),
+  `isAssistantCommandId(id)`, `TRIP_VIEWS` / `TripView`, and an optional `paletteCommands` key on every
+  branch of `AskStreamMetadata`, the silent `{}` branch included. It is not an outcome: `OUTCOME_KEYS`
+  leaves it out, so the one-outcome rule is unchanged, and a turn may answer, propose or write and
+  also take you somewhere.
+- The parse **drops** any entry that is not a well-formed ref to an id the assistant may name
+  (ADR-072 §3 and §6: `view:<View>`, `go:day:`, `go:stop:`, `go:notebook:`, `go:trip:<id>` and
+  `go:trip:<id>:view:<View>`, `people`, `notebook-editing`; whole ids, never prefixes), so a URL in
+  a reply never reaches the page. `notebook-editing` always parses as `needsApproval: true`.
+- The empty branch was typed `Record<string, never>` by a transform; it is now
+  `z.strictObject({ paletteCommands })`, whose inferred type still refuses a misspelled key at the
+  producer (excess property, or weak type).
+- Why: M45 D4 and D5. The server queues ids through the same predicate (`PaletteCommandBuffer`,
+  `assistant/deps.ts`) and the client reads them through this parse (`askEventsFromFrame`).
+- Consumers updated: `apps/web` (`server/assistant/deps.ts`, `tools/navigate.ts`,
+  `server/ai/handleAskRequest.ts`, `lib/apiClient.ts`, `components/assistant/*`). Not on the public
+  API: `openapi.json`, `API_VERSION` and `API_FINGERPRINT` are unchanged.
+- Breaking? no for a client of this build. A tab open on an older build drops a chunk that carries
+  only `paletteCommands` (its empty branch is strict), which costs that turn its navigation and
+  nothing else.
+
 ## 2026-10-11 — `TripGlobals.description`: what kind of trip it is, for the *Trip description* widget (M42 part 4, ADR-070 §3)
 
 - **Added** `TripGlobalsDescription` (`packages/contracts/src/globals.ts`): `{ text, counted, tags }`,

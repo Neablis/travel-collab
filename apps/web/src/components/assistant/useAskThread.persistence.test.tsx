@@ -23,6 +23,7 @@ import type { ApiError } from "@/lib/apiClient";
 import { useAskThread } from "./useAskThread";
 import { loadAskThread, saveAskThread } from "@/components/assistant/askThreadStore";
 import type { AssistantTurn } from "./Transcript";
+import { registerPaletteCommands } from "@/components/palette/paletteRegistry";
 
 const TRIP = "11111111-2222-4333-8444-555566667777";
 const NAME = `trip:${TRIP}`;
@@ -382,5 +383,71 @@ describe("useAskThread — onTurnEnd", () => {
     act(() => result.current.cancel());
     await act(() => asked);
     await waitFor(() => expect(onTurnEnd).toHaveBeenCalledTimes(2));
+  });
+});
+
+// ADR-072: a reply's palette commands reach the page's runner from here, so no
+// surface has to wire them. Navigation runs on arrival; a change waits on a card.
+describe("useAskThread — where a reply takes you", () => {
+  const DAY = "22222222-2222-4222-8222-222222222222";
+  const taken: Array<() => void> = [];
+  afterEach(() => taken.splice(0).forEach((takeBack) => takeBack()));
+
+  function replying(paletteCommands: unknown[]) {
+    const frames = [
+      { type: "text-delta", delta: "Taking you there." },
+      { type: "finish", finishReason: "stop", messageMetadata: { paletteCommands } },
+    ];
+    return vi.fn(
+      async () =>
+        new Response(`${frames.map((frame) => `data: ${JSON.stringify(frame)}\n\n`).join("")}data: [DONE]\n\n`, {
+          status: 200,
+          headers: { "Content-Type": "text/event-stream" },
+        }),
+    );
+  }
+
+  function mountHolding(held: boolean) {
+    return renderHook(() =>
+      useAskThread({ tripId: TRIP, scope: { kind: "trip" }, errorMessage: (error: ApiError) => error.message, holdsUnsavedInput: () => held }),
+    );
+  }
+
+  it("runs the page's command, says what it could not do, and holds a change for Approve", async () => {
+    const setView = vi.fn();
+    const toggle = vi.fn();
+    taken.push(
+      registerPaletteCommands("test", [
+        { id: "view:Map", action: "Go to", type: "View", target: { label: "Map" }, run: setView },
+        { id: "notebook-editing", action: "Edit", type: "Notebook", target: { label: "Turn editing on" }, run: toggle },
+      ]),
+    );
+    vi.stubGlobal(
+      "fetch",
+      replying([
+        { id: "view:Map", needsApproval: false },
+        { id: `go:day:${DAY}`, needsApproval: false },
+        { id: "notebook-editing", needsApproval: true },
+      ]),
+    );
+    const { result } = mountHolding(false);
+    await act(() => result.current.runAsk("show day 2 on the map and turn on editing"));
+
+    expect(setView).toHaveBeenCalledTimes(1);
+    expect(toggle).not.toHaveBeenCalled();
+    const answer = result.current.thread.at(-1) as Extract<AssistantTurn, { role: "assistant" }>;
+    expect(answer.text).toBe("Taking you there.\n\nI couldn't go to that day from this page.");
+    expect(answer.offers?.map((offer) => offer.id)).toEqual(["notebook-editing"]);
+  });
+
+  it("goes nowhere while the page holds unsaved input, and says so", async () => {
+    const setView = vi.fn();
+    taken.push(registerPaletteCommands("test", [{ id: "view:Map", action: "Go to", type: "View", target: { label: "Map" }, run: setView }]));
+    vi.stubGlobal("fetch", replying([{ id: "view:Map", needsApproval: false }]));
+    const { result } = mountHolding(true);
+    await act(() => result.current.runAsk("show this on the map"));
+
+    expect(setView).not.toHaveBeenCalled();
+    expect(result.current.thread.at(-1)?.text).toContain("I didn't switch to Map, because this page has changes you haven't saved.");
   });
 });

@@ -3,7 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import type { AssistantSuggested } from "@tc/contracts";
-import { ProposalCard, type ProposalState, type ProposalUndo } from "./ProposalCard";
+import { CommandCard, ProposalCard, type PaletteOffer, type ProposalState, type ProposalUndo } from "./ProposalCard";
 import { SuggestedNote, suggestedWords } from "./SuggestedNote";
 
 /** One line of "showing its work" — a tool call, rendered as a sentence. */
@@ -37,6 +37,13 @@ export type AssistantTurn =
        * never both — the stream's final chunk is one or the other.
        */
       suggested?: AssistantSuggested | null;
+      /**
+       * The palette commands the reply named that wait for Approve (ADR-072
+       * §4), each drawn as its own card. Beside a proposal rather than in it:
+       * they change the app, not the trip, and nothing about them is undone by
+       * History.
+       */
+      offers?: PaletteOffer[];
     };
 
 /**
@@ -396,6 +403,9 @@ export function Transcript({
               />
             )}
             {turn.suggested != null && <SuggestedNote suggested={turn.suggested} />}
+            {/* Its own decision and its own handler, held beside the palette
+                registry, so no surface has to wire an Approve for it. */}
+            {turn.offers?.map((offer) => <CommandCard key={offer.key} offer={offer} touch={touch} />)}
             {/* Visible only, and no `role` — a second live region nested
                 inside the log is what finding 4 was about. Once text is
                 arriving the text IS the progress indicator, so this drops away

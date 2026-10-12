@@ -39,6 +39,7 @@ import {
   UserPreferences,
   type AssistantProposal,
   type AssistantSuggested,
+  type PaletteCommandRef,
   type AdminReportAction,
   type ChangeRoleInput,
   type CreateInviteInput,
@@ -1536,6 +1537,12 @@ export type AskEvent =
     }
   /** A page turn whose nodes failed validation, with the server's own reason. */
   | { type: "page-error"; message: string }
+  /**
+   * The palette commands the turn named (ADR-072), on the same final chunk and
+   * after its outcome. Only ids the assistant may name reach here: the rest,
+   * URLs included, were dropped by the parse. Never empty.
+   */
+  | { type: "palette"; commands: PaletteCommandRef[] }
   | { type: "error"; message: string }
   /**
    * The SERVER stopped the turn before it finished — its deadline
@@ -1577,43 +1584,48 @@ export const AI_NOT_ENTITLED_STATUS = 402;
 // exports with no contract of their own, and widening P6 to cover them is a
 // change to the error surface rather than to this envelope.
 
-// One SSE frame -> zero or one AskEvent. Exported for its own unit test: the
+// One SSE frame -> its AskEvents: none, one, or a final chunk's outcome and
+// then its palette commands. Exported for its own unit test: the
 // chunk vocabulary is a wire contract, and the frames this deliberately
 // IGNORES (start, start-step, tool-output-available, finish, [DONE]) matter as
 // much as the ones it reads — the stream is a superset the server may grow,
 // and an unknown part type must never break a conversation.
-export function askEventFromFrame(frame: string): AskEvent | null {
+export function askEventsFromFrame(frame: string): AskEvent[] {
   const payload = frame
     .split("\n")
     .filter((line) => line.startsWith("data:"))
     .map((line) => line.slice("data:".length).trimStart())
     .join("\n");
-  if (payload === "" || payload === "[DONE]") return null;
+  if (payload === "" || payload === "[DONE]") return [];
   let chunk: unknown;
   try {
     chunk = JSON.parse(payload);
   } catch {
-    return null;
+    return [];
   }
-  if (typeof chunk !== "object" || chunk === null) return null;
+  if (typeof chunk !== "object" || chunk === null) return [];
   const part = chunk as Record<string, unknown>;
   if (part.type === "text-delta" && typeof part.delta === "string") {
-    return { type: "text", delta: part.delta };
+    return [{ type: "text", delta: part.delta }];
   }
   if (part.type === "tool-input-available" && typeof part.toolName === "string") {
-    return {
-      type: "tool",
-      toolCallId: typeof part.toolCallId === "string" ? part.toolCallId : part.toolName,
-      toolName: part.toolName,
-      input: part.input,
-    };
+    return [
+      {
+        type: "tool",
+        toolCallId: typeof part.toolCallId === "string" ? part.toolCallId : part.toolName,
+        toolName: part.toolName,
+        input: part.input,
+      },
+    ];
   }
-  if (part.type === "abort") return { type: "stopped" };
+  if (part.type === "abort") return [{ type: "stopped" }];
   if (part.type === "error") {
-    return {
-      type: "error",
-      message: typeof part.errorText === "string" ? part.errorText : "The assistant stopped mid-answer.",
-    };
+    return [
+      {
+        type: "error",
+        message: typeof part.errorText === "string" ? part.errorText : "The assistant stopped mid-answer.",
+      },
+    ];
   }
   // The turn's outcome rides on the run's final chunk as message metadata — the
   // first moment the server knows every tool call the model made. A proposal OR
@@ -1640,18 +1652,27 @@ export function askEventFromFrame(frame: string): AskEvent | null {
   // at its deadline (or that fails mid-run) has no `finish` part; what a page
   // turn had inserted by then arrives on a `message-metadata` chunk instead,
   // and is exactly as much the turn's outcome.
+  //
+  // **The palette commands come after the outcome, filtered by the same parse**
+  // (ADR-072 §3): an id the assistant may not name, a URL included, never
+  // leaves this function, so it cannot reach the page's runner.
   if (part.type === "finish" || part.type === "message-metadata") {
     const metadata = AskStreamMetadata.safeParse(part.messageMetadata);
-    if (!metadata.success) return null;
-    if ("proposal" in metadata.data) return { type: "proposal", proposal: metadata.data.proposal };
-    if ("suggested" in metadata.data) return { type: "suggested", suggested: metadata.data.suggested };
-    if ("notApplied" in metadata.data) return { type: "not-applied", skipped: metadata.data.notApplied.skipped };
-    if ("pageInserts" in metadata.data) {
-      return pageInsertsEvent(metadata.data.pageInserts.content, metadata.data.pageInserts.dropped ?? []);
-    }
-    if ("composeError" in metadata.data) return { type: "page-error", message: metadata.data.composeError };
-    return null;
+    if (!metadata.success) return [];
+    const commands = metadata.data.paletteCommands ?? [];
+    const outcome = outcomeEvent(metadata.data);
+    return [...(outcome === null ? [] : [outcome]), ...(commands.length === 0 ? [] : [{ type: "palette" as const, commands }])];
   }
+  return [];
+}
+
+/** The final chunk's one outcome as an event, or null for silence. */
+function outcomeEvent(metadata: AskStreamMetadata): AskEvent | null {
+  if ("proposal" in metadata) return { type: "proposal", proposal: metadata.proposal };
+  if ("suggested" in metadata) return { type: "suggested", suggested: metadata.suggested };
+  if ("notApplied" in metadata) return { type: "not-applied", skipped: metadata.notApplied.skipped };
+  if ("pageInserts" in metadata) return pageInsertsEvent(metadata.pageInserts.content, metadata.pageInserts.dropped ?? []);
+  if ("composeError" in metadata) return { type: "page-error", message: metadata.composeError };
   return null;
 }
 
@@ -1736,18 +1757,18 @@ export async function askAssistant(
         if (end === -1) break;
         const frame = buffer.slice(0, end);
         buffer = buffer.slice(end + 2);
-        const event = askEventFromFrame(frame);
-        if (event === null) continue;
-        if (event.type === "text") text += event.delta;
-        if (event.type === "error") streamError = event.message;
-        onEvent(event);
+        for (const event of askEventsFromFrame(frame)) {
+          if (event.type === "text") text += event.delta;
+          if (event.type === "error") streamError = event.message;
+          onEvent(event);
+        }
       }
       // A stream that ends without a trailing blank line still owes us its
       // last frame.
       if (final && buffer.trim() !== "") {
-        const event = askEventFromFrame(buffer);
+        const events = askEventsFromFrame(buffer);
         buffer = "";
-        if (event !== null) {
+        for (const event of events) {
           if (event.type === "text") text += event.delta;
           if (event.type === "error") streamError = event.message;
           onEvent(event);

@@ -1,6 +1,8 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ProposalCard, proposalUndoFor, proposalWords, type ProposalState } from "./ProposalCard";
+import { CommandCard, ProposalCard, proposalUndoFor, proposalWords, type ProposalState } from "./ProposalCard";
+import { registerPaletteCommands } from "@/components/palette/paletteRegistry";
+import { offerPaletteCommand } from "./runPaletteCommands";
 import type { AssistantProposal, HistoryEntry, TripHistory } from "@tc/contracts";
 
 afterEach(cleanup);
@@ -223,5 +225,55 @@ describe("proposalUndoFor", () => {
     expect(proposalUndoFor(state(), history([entry(MINE)]))).toBeNull();
     expect(proposalUndoFor({ ...applied, batchId: null }, history([entry(MINE)]))).toBeNull();
     expect(proposalUndoFor(applied, null)).toBeNull();
+  });
+});
+
+// ADR-072 §4: a change to the app, not the trip, asks on a card of its own and
+// runs the page's registered command on Approve. M45's gate: "Edit mode turns
+// on only after Approve".
+describe("CommandCard", () => {
+  const taken: Array<() => void> = [];
+  afterEach(() => taken.splice(0).forEach((takeBack) => takeBack()));
+  const action = () => screen.getByRole("group", { name: "Suggested action" });
+
+  function offerEditing(label = "Turn editing on") {
+    const toggle = vi.fn();
+    taken.push(registerPaletteCommands("test", [{ id: "notebook-editing", action: "Edit", type: "Notebook", target: { label }, run: toggle }]));
+    return toggle;
+  }
+
+  it("names what Approve will do, and runs the page's own command only when approved", () => {
+    const toggle = offerEditing();
+    render(<CommandCard offer={{ id: "notebook-editing", key: offerPaletteCommand() }} />);
+
+    expect(action().textContent).toContain("Turn editing on");
+    expect(toggle).not.toHaveBeenCalled();
+    fireEvent.click(within(action()).getByRole("button", { name: "Approve" }));
+    expect(toggle).toHaveBeenCalledTimes(1);
+    expect(within(action()).getByRole("status").textContent).toBe("✓ Done.");
+    expect(within(action()).queryByRole("button")).toBeNull();
+  });
+
+  it("runs nothing on Not now", () => {
+    const toggle = offerEditing();
+    render(<CommandCard offer={{ id: "notebook-editing", key: offerPaletteCommand() }} />);
+    fireEvent.click(within(action()).getByRole("button", { name: "Not now" }));
+    expect(toggle).not.toHaveBeenCalled();
+    expect(within(action()).getByRole("status").textContent).toBe("Left as it is.");
+  });
+
+  // §5: a command the page withholds (a viewer, history preview) is withheld
+  // from the assistant too: no Approve to press.
+  it("offers no Approve for a command this page does not offer", () => {
+    render(<CommandCard offer={{ id: "notebook-editing", key: offerPaletteCommand() }} />);
+    expect(within(action()).queryByRole("button")).toBeNull();
+    expect(within(action()).getByRole("status").textContent).toBe("I couldn't do that from this page.");
+  });
+
+  // A card restored after a reload is not a live offer, like a restored proposal.
+  it("does not offer Approve again for an offer this page never made", () => {
+    offerEditing();
+    render(<CommandCard offer={{ id: "notebook-editing", key: "from-before-the-reload" }} />);
+    expect(within(action()).queryByRole("button")).toBeNull();
   });
 });

@@ -10,6 +10,7 @@ import {
 } from "@/lib/apiClient";
 import { MAX_ASK_MESSAGES } from "@/lib/askLimits";
 import { clearAskThread, loadAskThread, saveAskThread } from "@/components/assistant/askThreadStore";
+import { offerPaletteCommand, runPaletteCommands } from "./runPaletteCommands";
 
 import { toolNoteLabel, type AssistantTurn } from "./Transcript";
 
@@ -108,6 +109,7 @@ export function useAskThread({
   onTurnEnd,
   errorMessage,
   persistAs,
+  holdsUnsavedInput,
 }: {
   tripId: string;
   scope: AskScope;
@@ -134,6 +136,12 @@ export function useAskThread({
    * what a restored transcript means on it gets the behaviour it has today.
    */
   persistAs?: string;
+  /**
+   * Whether the surface holds input it has not saved, read when a reply names
+   * somewhere to go (ADR-072 §4): then the reply goes nowhere and says what it
+   * would have done. Absent reads as nothing held.
+   */
+  holdsUnsavedInput?: () => boolean;
 }): AskThread {
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [askError, setAskError] = useState<string | null>(null);
@@ -173,6 +181,8 @@ export function useAskThread({
   onTurnEndRef.current = onTurnEnd;
   const errorMessageRef = useRef(errorMessage);
   errorMessageRef.current = errorMessage;
+  const holdsUnsavedInputRef = useRef(holdsUnsavedInput);
+  holdsUnsavedInputRef.current = holdsUnsavedInput;
 
   // **Rehydrated in an effect, not in `useState`'s initialiser.** The
   // initialiser runs during the server render too, where `window` does not
@@ -350,6 +360,18 @@ export function useAskThread({
           // were collected, and only the final resolve finds the trip refusing
           // them. Text, not a card, because there is nothing to approve.
           patchAnswer((turn) => ({ ...turn, text: `${turn.text}${notAppliedNote(event.skipped)}` }));
+        } else if (event.type === "palette") {
+          // **Where the reply takes you, run by the page's own commands**
+          // (ADR-072). Navigation runs now; a change becomes a card that runs
+          // on Approve. What could not run is said under the answer, which may
+          // well have claimed it went.
+          const { notes, awaiting } = runPaletteCommands(event.commands, holdsUnsavedInputRef.current?.() ?? false);
+          const offers = awaiting.map((ref) => ({ id: ref.id, key: offerPaletteCommand() }));
+          patchAnswer((turn) => ({
+            ...turn,
+            text: notes.reduce((text, note) => `${text}\n\n${note}`, turn.text),
+            ...(offers.length > 0 ? { offers } : {}),
+          }));
         }
         // Everything else belongs to whoever mounted this. The board attaches a
         // `proposal` to the answer; a page inserts `page-inserts` into its

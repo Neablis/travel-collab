@@ -104,8 +104,10 @@ import {
   newEscalationBuffer,
   newNotebookRefs,
   newPageBuffer,
+  newPaletteCommandBuffer,
   newPlaceCache,
   newProposalBuffer,
+  type PaletteCommandBuffer,
   type PlaceCache,
 } from "@/server/assistant/deps";
 import type { RawToolIntent } from "@/server/assistant/batchResolver";
@@ -371,6 +373,9 @@ export async function handleAskRequest(
   // reason every collector here is — a count that outlived its turn would
   // refuse the next question for what the last one read.
   const readBudget = newDayReadBudget(MAX_DAYS_READ_PER_TURN);
+  // Where the turn takes the person (ADR-072): palette ids, carried on the
+  // final chunk beside whatever outcome the turn has.
+  const paletteCommands = newPaletteCommandBuffer();
   // **The turn's intent, and the one way it changes** (ADR-058). A board turn
   // holds a latch with nowhere to go — its pivot is the escalation above — so
   // `switch_intent` is never offered there and the latch is never asked.
@@ -427,6 +432,7 @@ export async function handleAskRequest(
       typedAddresses,
       intent,
       readBudget,
+      paletteCommands,
     },
     meter,
   );
@@ -916,6 +922,22 @@ export async function handleAskRequest(
     // storing is not, so the swap happens one stage downstream, in
     // `suggestOnFinish`, on the same chunk.
     let finalProposal: AssistantProposal | null = null;
+    // At most one of these is true — the grant caps `itinerary` at `read` on
+    // the surface that grants `pages` — so the final chunk carries a proposal
+    // or a page, never both.
+    const finalOutcome = (): AskStreamMetadata | undefined => {
+      if (proposesPage) return pageInsertsMetadata(pageBuffer.inserted());
+      if (!proposesPlan()) return undefined;
+      const proposal = buildProposal(
+        proposalBuffer.collected(),
+        detail,
+        { tripId, actorId: userId, placeCache },
+        proposalBuffer.inserts(),
+      );
+      if (proposal === null) return notAppliedMetadata(proposalBuffer.collected(), detail, { tripId, actorId: userId, placeCache });
+      finalProposal = proposal;
+      return { proposal };
+    };
     const stream = result.toUIMessageStream({
       originalMessages: validated.data,
       // **The proposal rides out on the run's final chunk.**
@@ -961,20 +983,7 @@ export async function handleAskRequest(
           return Object.keys(outcome).length === 0 ? undefined : outcome;
         }
         if (part.type !== "finish") return undefined;
-        // At most one of these is true — the grant caps `itinerary` at `read`
-        // on the surface that grants `pages` — so the final chunk carries a
-        // proposal or a page, never both.
-        if (proposesPage) return pageInsertsMetadata(pageBuffer.inserted());
-        if (!proposesPlan()) return undefined;
-        const proposal = buildProposal(
-          proposalBuffer.collected(),
-          detail,
-          { tripId, actorId: userId, placeCache },
-          proposalBuffer.inserts(),
-        );
-        if (proposal === null) return notAppliedMetadata(proposalBuffer.collected(), detail, { tripId, actorId: userId, placeCache });
-        finalProposal = proposal;
-        return { proposal };
+        return withPaletteCommands(finalOutcome(), paletteCommands);
       },
       onError: (error) => {
         // **This only words an error; it does not decide the turn failed.**
@@ -1298,9 +1307,26 @@ function suggestOnFinish(
       }
       const { metadata, outcome } = await store(proposal);
       record(proposal, outcome);
-      controller.enqueue({ ...chunk, messageMetadata: metadata });
+      // Where the turn takes you is not part of what was stored, so it stays.
+      const carried = (chunk.messageMetadata as AskStreamMetadata | undefined)?.paletteCommands;
+      controller.enqueue({ ...chunk, messageMetadata: carried === undefined ? metadata : { ...metadata, paletteCommands: carried } });
     },
   });
+}
+
+/**
+ * The turn's outcome with the palette commands it named beside it (ADR-072),
+ * so a turn that only takes you somewhere still ends on a chunk that says so.
+ * Only a finished turn carries them: a turn that failed or was stopped goes
+ * nowhere.
+ */
+function withPaletteCommands(
+  outcome: AskStreamMetadata | undefined,
+  buffer: PaletteCommandBuffer,
+): AskStreamMetadata | undefined {
+  const paletteCommands = buffer.collected();
+  if (paletteCommands.length === 0) return outcome;
+  return { ...(outcome ?? {}), paletteCommands };
 }
 
 /**

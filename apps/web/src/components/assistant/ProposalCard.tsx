@@ -1,7 +1,10 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import type { AssistantProposal, TripHistory } from "@tc/contracts";
+import { usePaletteCommands } from "@/components/palette/paletteRegistry";
+import { decideOffer, useOfferStatus, type OfferStatus } from "./runPaletteCommands";
 
 /**
  * Where a proposal is in its life. Five states, and the two that matter are
@@ -163,6 +166,66 @@ export function ProposalCard({
 
   const { title, detail } = proposalWords(proposal);
   const applying = status === "applying";
+
+  return (
+    <PendingCard
+      label="Suggested change"
+      title={title}
+      detail={detail}
+      touch={touch}
+      approveLabel={applying ? "Applying…" : "Make the change"}
+      onApprove={onApprove}
+      approveDisabled={disabled || applying}
+      onReject={onReject}
+      rejectDisabled={applying}
+    >
+      {/* ADR-067: several changes meant for the board that could not be put
+          there. The server's sentence says why; the card is the fallback. */}
+      {proposal.notSuggested !== undefined && (
+        <p className="pt-1 text-a-note text-pretty text-slate">{proposal.notSuggested}</p>
+      )}
+      {status === "failed" && note !== null && (
+        <p role="status" className="pt-1 text-a-note text-danger-ink">
+          {note}
+        </p>
+      )}
+      {disabled && disabledReason !== null && (
+        <p role="status" className="pt-1 text-a-note text-slate">
+          {disabledReason}
+        </p>
+      )}
+    </PendingCard>
+  );
+}
+
+/**
+ * An open card, waiting on you: what it would do, and the two buttons. Shared
+ * by a proposal and a palette command (ADR-072 §4), so the one place a person
+ * decides looks and reads the same whichever kind of change it is.
+ */
+function PendingCard({
+  label,
+  title,
+  detail,
+  touch,
+  approveLabel,
+  onApprove,
+  approveDisabled,
+  onReject,
+  rejectDisabled,
+  children,
+}: {
+  label: string;
+  title: string;
+  detail: string;
+  touch: boolean;
+  approveLabel: string;
+  onApprove: () => void;
+  approveDisabled: boolean;
+  onReject: () => void;
+  rejectDisabled: boolean;
+  children?: ReactNode;
+}) {
   // `min-h` on both sides of the release: `Button`'s base lets its phone floor
   // go under a mouse at `md` (`fine:`, M39 D3), and this card's target is its
   // own either way. The smaller target is a mouse's only: a wide touch screen
@@ -173,7 +236,7 @@ export function ProposalCard({
   return (
     <div
       role="group"
-      aria-label="Suggested change"
+      aria-label={label}
       className={`border border-brand bg-brand-tint p-3 ${touch ? "rounded-a-card-touch" : "rounded-a-card"}`}
     >
       <div className="flex items-center gap-1.75">
@@ -196,42 +259,83 @@ export function ProposalCard({
       {detail !== "" && (
         <p className="pt-0.5 text-a-note leading-normal text-pretty text-brand-pressed">{detail}</p>
       )}
-      {/* ADR-067: several changes meant for the board that could not be put
-          there. The server's sentence says why; the card is the fallback. */}
-      {proposal.notSuggested !== undefined && (
-        <p className="pt-1 text-a-note text-pretty text-slate">{proposal.notSuggested}</p>
-      )}
-      {status === "failed" && note !== null && (
-        <p role="status" className="pt-1 text-a-note text-danger-ink">
-          {note}
-        </p>
-      )}
-      {disabled && disabledReason !== null && (
-        <p role="status" className="pt-1 text-a-note text-slate">
-          {disabledReason}
-        </p>
-      )}
+      {children}
       <div className="flex gap-2 pt-2.5">
         <Button
           variant="primary"
           size="sm"
           onClick={onApprove}
-          disabled={disabled || applying}
+          disabled={approveDisabled}
           className={`h-auto flex-1 rounded-full font-semibold ${target}`}
         >
-          {applying ? "Applying…" : "Make the change"}
+          {approveLabel}
         </Button>
         {/* Always available while the card is open: declining sends nothing. */}
         <Button
           variant="secondary"
           size="sm"
           onClick={onReject}
-          disabled={applying}
+          disabled={rejectDisabled}
           className={`h-auto rounded-full border-brand bg-transparent px-3.5 text-brand-pressed hover:bg-brand-tint ${target}`}
         >
           Not now
         </Button>
       </div>
     </div>
+  );
+}
+
+/** A palette command a reply named that waits for Approve: its id, and the key its decision is kept under. */
+export type PaletteOffer = { id: string; key: string };
+
+/** What a settled command card says, one line, like a settled proposal. */
+const SETTLED: Record<Exclude<OfferStatus, "pending">, string> = {
+  ran: "✓ Done.",
+  declined: "Left as it is.",
+  unavailable: "I couldn't do that from this page.",
+};
+
+/**
+ * **A change the assistant asked to make to the app, not the trip** (ADR-072
+ * §4): turning a notebook's editing on, for one. Approve runs the command the
+ * page registered for ⌘K, once; Not now runs nothing.
+ *
+ * Its title is the page's own name for the command, read live, so it says
+ * what Approve will do now: a toggle reads "Turn editing off" once editing is
+ * on, whatever the reply said. A command the page does not offer has no
+ * Approve at all (§5).
+ */
+export function CommandCard({ offer, touch = false }: { offer: PaletteOffer; touch?: boolean }) {
+  const status = useOfferStatus(offer.key);
+  const command = usePaletteCommands().find((candidate) => candidate.id === offer.id);
+
+  if (status !== "pending" || command === undefined) {
+    const said =
+      status === undefined
+        ? "This was asked before the page reloaded. Ask again if you still want it."
+        : status === "pending"
+          ? SETTLED.unavailable
+          : SETTLED[status];
+    return (
+      <div role="group" aria-label="Suggested action" className="flex min-h-7.5 items-center text-a-note">
+        <span role="status" className={status === "ran" ? "text-success-ink" : "text-slate"}>
+          {said}
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <PendingCard
+      label="Suggested action"
+      title={command.target?.label ?? command.action}
+      detail="Nothing changes until you approve it."
+      touch={touch}
+      approveLabel="Approve"
+      onApprove={() => decideOffer(offer.key, offer.id, true)}
+      approveDisabled={false}
+      onReject={() => decideOffer(offer.key, offer.id, false)}
+      rejectDisabled={false}
+    />
   );
 }
