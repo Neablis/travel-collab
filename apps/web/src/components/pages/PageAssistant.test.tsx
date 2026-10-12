@@ -462,6 +462,15 @@ describe("the assistant on a notebook page", () => {
       answerAccess();
       expect(await screen.findByText("Bring a raincoat")).toBeTruthy();
       expect(screen.getByRole("button", { name: "Done editing" })).toBeTruthy();
+
+      // The hold ends with the role read: a later reply that only moves to the
+      // trip is not refused as if the first turn's inserts were still pending.
+      askAssistantMock.mockImplementation(
+        turnEmitting({ type: "palette", commands: [{ id: `go:trip:${trip.tripId}:view:Map`, needsApproval: false }] }),
+      );
+      await userEvent.type(screen.getByPlaceholderText(/add to this page/i), "Now show me the map{Enter}");
+      await turnSettled();
+      expect(openMap).toHaveBeenCalledTimes(1);
     } finally {
       takeBack();
     }
