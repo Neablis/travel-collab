@@ -16,7 +16,7 @@
 // nothing needs is a key nothing can audit.
 import { currentCallId } from "./callScope";
 import { z } from "zod";
-import type { PageNode, SavedDay, TripDetail } from "@tc/contracts";
+import { isAssistantCommandId, type PageNode, type PaletteCommandRef, type SavedDay, type TripDetail } from "@tc/contracts";
 import type { DiscoverDay } from "@/lib/playbooks";
 import type { RawToolIntent } from "@/server/assistant/batchResolver";
 import type { AskScope } from "@/server/assistant/context";
@@ -466,6 +466,36 @@ export function newEscalationBuffer(): EscalationBuffer {
 }
 
 /**
+ * **The palette commands this turn named** (ADR-072), for the stream's final
+ * chunk to carry: a collector for `ProposalBuffer`'s reason, since the tool
+ * runs several frames before `messageMetadata` reads it.
+ *
+ * **The allowlist is enforced here, where every id enters** (§3), so no tool
+ * can queue an id the assistant may not name, however it built it. Ids are
+ * matched whole: palette ids are not namespaced, and `settings` sits beside
+ * `people` in one menu.
+ */
+export interface PaletteCommandBuffer {
+  /** Queues `ref` once. False, queuing nothing, for an id the assistant may not name. */
+  add(ref: PaletteCommandRef): boolean;
+  /** What the turn queued, in the order it named it. */
+  collected(): PaletteCommandRef[];
+}
+
+/** One turn's palette commands. Never shared between turns. */
+export function newPaletteCommandBuffer(): PaletteCommandBuffer {
+  const queued: PaletteCommandRef[] = [];
+  return {
+    add: (ref) => {
+      if (!isAssistantCommandId(ref.id)) return false;
+      if (!queued.some((entry) => entry.id === ref.id)) queued.push({ ...ref });
+      return true;
+    },
+    collected: () => queued.map((ref) => ({ ...ref })),
+  };
+}
+
+/**
  * One notebook of this trip as the page store lists it — the whole of what the
  * kernel learns about a notebook it is not writing into.
  */
@@ -604,6 +634,8 @@ export interface AssistantDeps {
   readBudget: DayReadBudget;
   /** The account surface's trips (M45) — the cross-trip tools' only source. */
   trips: AccountTrips;
+  /** The palette commands the turn named, for its final chunk (ADR-072). */
+  paletteCommands: PaletteCommandBuffer;
 }
 
 export type DepKey = keyof AssistantDeps;
@@ -649,6 +681,7 @@ const TURN_DEP_KEY_SET: Record<TurnDepKey, true> = {
   intent: true,
   readBudget: true,
   trips: true,
+  paletteCommands: true,
 };
 export const TURN_DEP_KEYS = Object.keys(TURN_DEP_KEY_SET) as readonly TurnDepKey[];
 

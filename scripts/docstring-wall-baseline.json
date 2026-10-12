@@ -230,7 +230,6 @@
   "apps/web/src/instrumentation.ts::register",
   "apps/web/src/lib/apiClient.ts::acceptInvite",
   "apps/web/src/lib/apiClient.ts::apiUrl",
-  "apps/web/src/lib/apiClient.ts::askEventFromFrame",
   "apps/web/src/lib/apiClient.ts::createSavedDay",
   "apps/web/src/lib/apiClient.ts::createTrip",
   "apps/web/src/lib/apiClient.ts::createTripInvite",

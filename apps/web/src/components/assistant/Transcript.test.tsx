@@ -467,3 +467,26 @@ describe("Transcript — changes stored as suggestions", () => {
     expect(note.textContent).toContain("No snapshot this time: A trip keeps at most 20 snapshots.");
   });
 });
+
+// ADR-072 §4: the commands a reply named that wait for Approve are drawn under
+// the answer, each on its own card, with nothing for the surface to wire.
+describe("a reply's command that waits for Approve", () => {
+  it("is drawn as a card under the answer", () => {
+    render(
+      <Transcript
+        turns={[
+          { id: "u1", role: "user", text: "turn on editing" },
+          {
+            id: "a2",
+            role: "assistant",
+            text: "Approve the card below.",
+            tools: [],
+            pending: false,
+            offers: [{ id: "notebook-editing", key: "k1" }],
+          },
+        ]}
+      />,
+    );
+    expect(within(screen.getByRole("log", { name: "Conversation" })).getByRole("group", { name: "Suggested action" })).toBeTruthy();
+  });
+});

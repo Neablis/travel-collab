@@ -23,6 +23,8 @@ import type { ApiError } from "@/lib/apiClient";
 import { useAskThread } from "./useAskThread";
 import { loadAskThread, saveAskThread } from "@/components/assistant/askThreadStore";
 import type { AssistantTurn } from "./Transcript";
+import type { ProposalStatus } from "./ProposalCard";
+import { registerPaletteCommands } from "@/components/palette/paletteRegistry";
 
 const TRIP = "11111111-2222-4333-8444-555566667777";
 const NAME = `trip:${TRIP}`;
@@ -415,5 +417,164 @@ describe("useAskThread — onTurnEnd", () => {
     act(() => result.current.cancel());
     await act(() => asked);
     await waitFor(() => expect(onTurnEnd).toHaveBeenCalledTimes(2));
+  });
+});
+
+// ADR-072: a reply's palette commands reach the page's runner from here, so no
+// surface has to wire them. Navigation runs on arrival; a change waits on a card.
+describe("useAskThread — where a reply takes you", () => {
+  const DAY = "22222222-2222-4222-8222-222222222222";
+  const taken: Array<() => void> = [];
+  afterEach(() => taken.splice(0).forEach((takeBack) => takeBack()));
+
+  const NOTEBOOK = "33333333-3333-4333-8333-333333333333";
+  const PROPOSAL = {
+    proposalId: "p1",
+    changes: [{ type: "AddActivity", text: "Add “Coffee” to day 2" }],
+    commands: [{ type: "AddActivity", tripId: TRIP, activityId: DAY, dayId: DAY, title: "Coffee" }],
+    inserts: [],
+    skipped: [],
+  };
+
+  function replying(paletteCommands: unknown[], outcome: Record<string, unknown> = {}) {
+    const frames = [
+      { type: "text-delta", delta: "Taking you there." },
+      { type: "finish", finishReason: "stop", messageMetadata: { ...outcome, ...(paletteCommands.length > 0 && { paletteCommands }) } },
+    ];
+    return vi.fn(
+      async () =>
+        new Response(`${frames.map((frame) => `data: ${JSON.stringify(frame)}\n\n`).join("")}data: [DONE]\n\n`, {
+          status: 200,
+          headers: { "Content-Type": "text/event-stream" },
+        }),
+    );
+  }
+
+  // The board's own handler: a proposal is attached to its answer, pending.
+  function mountBoard(holdsLeaving?: () => string | null) {
+    return renderHook(() =>
+      useAskThread({
+        tripId: TRIP,
+        scope: { kind: "trip" },
+        errorMessage: (error: ApiError) => error.message,
+        ...(holdsLeaving !== undefined && { holdsLeaving }),
+        onEvent: (event, patchAnswer) => {
+          if (event.type === "proposal") patchAnswer((turn) => ({ ...turn, proposal: { proposal: event.proposal, status: "pending", note: null } }));
+        },
+      }),
+    );
+  }
+
+  function offerNotebookAndMap() {
+    const setView = vi.fn();
+    const openNotebook = vi.fn();
+    taken.push(
+      registerPaletteCommands("test", [
+        { id: "view:Map", action: "Go to", type: "View", target: { label: "Map" }, run: setView },
+        { id: `go:notebook:${NOTEBOOK}`, action: "Go to", type: "Notebook", target: { label: "Bookings" }, run: openNotebook },
+      ]),
+    );
+    return { setView, openNotebook };
+  }
+
+  it("runs the page's command, says what it could not do, and holds a change for Approve", async () => {
+    const setView = vi.fn();
+    const toggle = vi.fn();
+    taken.push(
+      registerPaletteCommands("test", [
+        { id: "view:Map", action: "Go to", type: "View", target: { label: "Map" }, run: setView },
+        { id: "notebook-editing", action: "Edit", type: "Notebook", target: { label: "Turn editing on" }, run: toggle },
+      ]),
+    );
+    vi.stubGlobal(
+      "fetch",
+      replying([
+        { id: "view:Map", needsApproval: false },
+        { id: `go:day:${DAY}`, needsApproval: false },
+        { id: "notebook-editing", needsApproval: true, on: true },
+      ]),
+    );
+    const { result } = mountBoard();
+    await act(() => result.current.runAsk("show day 2 on the map and turn on editing"));
+
+    expect(setView).toHaveBeenCalledTimes(1);
+    expect(toggle).not.toHaveBeenCalled();
+    const answer = result.current.thread.at(-1) as Extract<AssistantTurn, { role: "assistant" }>;
+    expect(answer.text).toBe("Taking you there.\n\nI couldn't go to that day from this page.");
+    // The direction travels with the offer: without `on` the card cannot tell
+    // the page is already there, and Approve would turn editing off.
+    expect(answer.offers).toEqual([{ id: "notebook-editing", key: expect.any(String), on: true }]);
+  });
+
+  // ADR-072 §4: a proposal is not kept across leaving the board
+  // (`askThreadStore` drops it), so a reply that both proposes and opens a
+  // notebook would lose the card before anyone could approve it. Moving on
+  // the board still runs; leaving it waits, and the reply says why.
+  it("leaves the board for nothing while this turn's change waits for Approve, and says so", async () => {
+    const { setView, openNotebook } = offerNotebookAndMap();
+    vi.stubGlobal(
+      "fetch",
+      replying(
+        [
+          { id: "view:Map", needsApproval: false },
+          { id: `go:notebook:${NOTEBOOK}`, needsApproval: false },
+        ],
+        { proposal: PROPOSAL },
+      ),
+    );
+    const { result } = mountBoard();
+    await act(() => result.current.runAsk("add coffee on day 2 and open my bookings notebook"));
+
+    expect(setView).toHaveBeenCalledTimes(1);
+    expect(openNotebook).not.toHaveBeenCalled();
+    expect(result.current.thread.at(-1)?.text).toContain(
+      "I didn't open that notebook, because the change above is waiting for you to approve or turn it down.",
+    );
+  });
+
+  // A card mid-apply, or one whose apply failed, still has an Approve to press.
+  it.each<ProposalStatus>(["pending", "applying", "failed"])("holds while an earlier turn's change is %s, and goes once it is decided", async (status) => {
+    const { openNotebook } = offerNotebookAndMap();
+    const { result } = mountBoard();
+    vi.stubGlobal("fetch", replying([], { proposal: PROPOSAL }));
+    await act(() => result.current.runAsk("add coffee on day 2"));
+    const card = result.current.thread.find((turn) => turn.role === "assistant" && turn.proposal != null)!;
+    act(() =>
+      result.current.patchTurn(card.id, (turn) =>
+        turn.role === "assistant" && turn.proposal != null ? { ...turn, proposal: { ...turn.proposal, status } } : turn,
+      ),
+    );
+
+    vi.stubGlobal("fetch", replying([{ id: `go:notebook:${NOTEBOOK}`, needsApproval: false }]));
+    await act(() => result.current.runAsk("open my bookings notebook"));
+    expect(openNotebook).not.toHaveBeenCalled();
+
+    const proposed = result.current.thread.find((turn) => turn.role === "assistant" && turn.proposal != null)!;
+    act(() =>
+      result.current.patchTurn(proposed.id, (turn) =>
+        turn.role === "assistant" && turn.proposal != null ? { ...turn, proposal: { ...turn.proposal, status: "rejected" } } : turn,
+      ),
+    );
+    await act(() => result.current.runAsk("open my bookings notebook"));
+    expect(openNotebook).toHaveBeenCalledTimes(1);
+  });
+
+  // ADR-072 §4: an open stop editor is unmounted by leaving the board, and its
+  // typed fields with it. The caller says so; moving on the board still runs.
+  it("leaves the page for nothing while the caller holds it, says why, and still moves on it", async () => {
+    const { setView, openNotebook } = offerNotebookAndMap();
+    const { result } = mountBoard(() => "you have a stop open for editing");
+    vi.stubGlobal(
+      "fetch",
+      replying([
+        { id: "view:Map", needsApproval: false },
+        { id: `go:notebook:${NOTEBOOK}`, needsApproval: false },
+      ]),
+    );
+    await act(() => result.current.runAsk("show the map and open my bookings notebook"));
+
+    expect(setView).toHaveBeenCalledTimes(1);
+    expect(openNotebook).not.toHaveBeenCalled();
+    expect(result.current.thread.at(-1)?.text).toContain("I didn't open that notebook, because you have a stop open for editing.");
   });
 });

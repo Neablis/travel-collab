@@ -11,6 +11,7 @@ import {
 import { MAX_ASK_MESSAGES } from "@/lib/askLimits";
 import { clearAskThread, loadAskThread, saveAskThread } from "@/components/assistant/askThreadStore";
 import { withoutRetracted } from "@/lib/apiClient";
+import { offerPaletteCommand, runPaletteCommands } from "./runPaletteCommands";
 
 import { toolNoteLabel, type AssistantTurn } from "./Transcript";
 
@@ -18,6 +19,9 @@ import { toolNoteLabel, type AssistantTurn } from "./Transcript";
 export function notAppliedNote(skipped: readonly string[]): string {
   return `\n\nNothing was changed: ${skipped.join(" ")}`;
 }
+
+/** Why a reply's page-leaving command waits while a card above is undecided: the card would not come along. */
+const CARD_WAITING = "the change above is waiting for you to approve or turn it down";
 
 /** What a turn the server stopped at its deadline says when it produced nothing (KI-2026-09-26-s). */
 const STOPPED_EMPTY = "This took too long and was stopped before it finished. Nothing was changed — try asking for less at once.";
@@ -102,6 +106,14 @@ function highestTurnSeq(thread: readonly AssistantTurn[]): number {
   }, 0);
 }
 
+/**
+ * Whether `turn` carries a card still waiting on the person: neither approved
+ * nor turned down. A failed apply keeps its Approve, so it is still waiting.
+ */
+function awaitsDecision(turn: AssistantTurn): boolean {
+  return turn.role === "assistant" && turn.proposal != null && turn.proposal.status !== "applied" && turn.proposal.status !== "rejected";
+}
+
 export function useAskThread({
   tripId,
   scope,
@@ -109,6 +121,7 @@ export function useAskThread({
   onTurnEnd,
   errorMessage,
   persistAs,
+  holdsLeaving,
 }: {
   tripId: string;
   scope: AskScope;
@@ -135,6 +148,14 @@ export function useAskThread({
    * what a restored transcript means on it gets the behaviour it has today.
    */
   persistAs?: string;
+  /**
+   * Why the person must not be taken off this page right now, as the end of
+   * "I didn't open that notebook, because …", or null. Asked when a reply
+   * names somewhere to go. The board answers while its stop editor is open:
+   * leaving unmounts the sheet and the fields typed into it. A notebook answers
+   * while a turn's inserts wait on its role read (ADR-072 §4).
+   */
+  holdsLeaving?: () => string | null;
 }): AskThread {
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [askError, setAskError] = useState<string | null>(null);
@@ -174,6 +195,12 @@ export function useAskThread({
   onTurnEndRef.current = onTurnEnd;
   const errorMessageRef = useRef(errorMessage);
   errorMessageRef.current = errorMessage;
+  const holdsLeavingRef = useRef(holdsLeaving);
+  holdsLeavingRef.current = holdsLeaving;
+  // Read when a reply names somewhere to go, which is mid-stream: the thread
+  // as last rendered holds every earlier turn's card and where it stands.
+  const threadRef = useRef(thread);
+  threadRef.current = thread;
 
   // **Rehydrated in an effect, not in `useState`'s initialiser.** The
   // initialiser runs during the server render too, where `window` does not
@@ -308,6 +335,10 @@ export function useAskThread({
     // the chat accounts for, and asking again would insert it twice.
     let delivered = false;
     let stopped = false;
+    // This turn's proposal, which reaches the thread through the caller's
+    // `onEvent` and so is not in `threadRef` yet when the palette event that
+    // follows it in the same chunk arrives.
+    let proposed = false;
     const result = await askAssistant(
       tripId,
       posted,
@@ -350,12 +381,27 @@ export function useAskThread({
           delivered = true;
         } else if (event.type === "stopped") {
           stopped = true;
+        } else if (event.type === "proposal") {
+          proposed = true;
         } else if (event.type === "not-applied") {
           // Said in the answer itself, after the model's own words — which may
           // well claim the changes were made: the model is told its write calls
           // were collected, and only the final resolve finds the trip refusing
           // them. Text, not a card, because there is nothing to approve.
           patchAnswer((turn) => ({ ...turn, text: `${turn.text}${notAppliedNote(event.skipped)}` }));
+        } else if (event.type === "palette") {
+          // **Where the reply takes you, run by the page's own commands**
+          // (ADR-072). Navigation runs now; a change becomes a card that runs
+          // on Approve. What could not run is said under the answer, which may
+          // well have claimed it went.
+          const held = proposed || threadRef.current.some(awaitsDecision) ? CARD_WAITING : (holdsLeavingRef.current?.() ?? null);
+          const { notes, awaiting } = runPaletteCommands(event.commands, held);
+          const offers = awaiting.map((ref) => ({ id: ref.id, key: offerPaletteCommand(), ...(ref.on !== undefined && { on: ref.on }) }));
+          patchAnswer((turn) => ({
+            ...turn,
+            text: notes.reduce((text, note) => `${text}\n\n${note}`, turn.text),
+            ...(offers.length > 0 ? { offers } : {}),
+          }));
         }
         // Everything else belongs to whoever mounted this. The board attaches a
         // `proposal` to the answer; a page inserts `page-inserts` into its

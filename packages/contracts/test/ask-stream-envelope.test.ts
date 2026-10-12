@@ -1,6 +1,6 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { AskStreamMetadata, AssistantProposal, SIMULATED_HEADER } from "../src";
+import { AskStreamMetadata, AssistantProposal, SIMULATED_HEADER, isAssistantCommandId } from "../src";
 
 const TRIP_ID = "11111111-1111-4111-8111-111111111111";
 const DAY_ID = "22222222-2222-4222-8222-222222222222";
@@ -143,6 +143,94 @@ describe("the envelope's TYPE pins the producer to the same five shapes", () => 
 
   it("still lets the empty shape be built, because silence is a real answer", () => {
     const messageMetadata = (): AskStreamMetadata | undefined => ({});
+    expect(AskStreamMetadata.safeParse(messageMetadata()).success).toBe(true);
+  });
+});
+
+// ADR-072: the palette commands a turn names. Not an outcome: a sibling any
+// outcome may carry, filtered to the allowlist rather than trusted.
+describe("the palette commands a turn names (ADR-072)", () => {
+  const MAP = { id: "view:Map", needsApproval: false };
+  const EDITING = { id: "notebook-editing", needsApproval: true };
+
+  const RIDES: [unknown, string][] = [
+    [{ paletteCommands: [MAP] }, "on their own"],
+    [{ proposal: PROPOSAL, paletteCommands: [MAP] }, "beside a proposal"],
+    [{ pageInserts: { content: PAGE_DOC }, paletteCommands: [MAP] }, "beside a page's inserts"],
+  ];
+
+  it.each(RIDES)("rides %j (%s)", (metadata) => {
+    const parsed = AskStreamMetadata.safeParse(metadata);
+    expect(parsed.success && parsed.data.paletteCommands).toEqual([MAP]);
+  });
+
+  it("is not an outcome, so it leaves the one-outcome rule as it was", () => {
+    expect(AskStreamMetadata.safeParse({ proposal: PROPOSAL, composeError: "boom", paletteCommands: [MAP] }).success).toBe(false);
+  });
+
+  // §3 and §6: whole ids by family, never a prefix, so neither a URL nor a
+  // palette sibling of an allowlisted id (`settings` beside `people`) passes.
+  const UUID = DAY_ID;
+  it.each([
+    "view:Overview",
+    "view:Map",
+    `go:day:${UUID}`,
+    `go:stop:${UUID}`,
+    `go:notebook:${UUID}`,
+    `go:trip:${UUID}`,
+    `go:trip:${UUID}:view:Calendar`,
+    "people",
+    "notebook-editing",
+  ])("may name %s", (id) => {
+    expect(isAssistantCommandId(id)).toBe(true);
+  });
+
+  it.each([
+    "settings",
+    "share",
+    "undo",
+    "new-stop",
+    "go:home",
+    "people-and-more",
+    " people",
+    "view:Board",
+    `go:trip:${UUID}:view:Board`,
+    `go:trip:${UUID}:share`,
+    `edit:stop:${UUID}`,
+    "go:day:2",
+    "https://example.com/trips",
+    `/trips/${UUID}?view=Map`,
+  ])("may not name %s", (id) => {
+    expect(isAssistantCommandId(id)).toBe(false);
+  });
+
+  it("drops what it may not name, URLs included, and keeps the rest and the outcome", () => {
+    const parsed = AskStreamMetadata.safeParse({
+      proposal: PROPOSAL,
+      paletteCommands: [
+        { id: "https://example.com/", needsApproval: false },
+        MAP,
+        { id: "settings", needsApproval: false },
+        "people",
+      ],
+    });
+    expect(parsed.success && parsed.data).toEqual({ proposal: PROPOSAL, paletteCommands: [MAP] });
+  });
+
+  // §4: a command that changes app state runs on Approve, whatever the wire said.
+  it("asks before turning editing on even when the reply says it need not", () => {
+    const parsed = AskStreamMetadata.safeParse({ paletteCommands: [{ ...EDITING, needsApproval: false }] });
+    expect(parsed.success && parsed.data.paletteCommands).toEqual([EDITING]);
+  });
+
+  // A toggle's ref says which way it was asked to go, so the card can tell.
+  it("keeps the direction a toggle was asked for", () => {
+    const parsed = AskStreamMetadata.safeParse({ paletteCommands: [{ ...EDITING, on: false }] });
+    expect(parsed.success && parsed.data.paletteCommands).toEqual([{ ...EDITING, on: false }]);
+  });
+
+  it("lets the producer build a turn that only takes you somewhere", () => {
+    const messageMetadata = (): AskStreamMetadata | undefined => ({ paletteCommands: [MAP] });
     expect(AskStreamMetadata.safeParse(messageMetadata()).success).toBe(true);
   });
 });

@@ -348,7 +348,7 @@ const FETCHING_HELPERS: Record<string, () => Promise<ApiResult<unknown>>> = {
 // shares — they touch no network, so totality is not a claim about them.
 // Anything else exported as a function has to be in the table above.
 const NON_FETCHING_EXPORTS = new Set([
-  "apiUrl", "inviteLink", "shareLink", "askEventFromFrame", "withoutRetracted", "networkError", "refusal",
+  "apiUrl", "inviteLink", "shareLink", "askEventsFromFrame", "withoutRetracted", "networkError", "refusal",
 ]);
 
 // **The screen→client seam was covered; the client→URL seam was not.**
@@ -924,7 +924,7 @@ describe("askAssistant", () => {
   });
 });
 
-describe("askEventFromFrame", () => {
+describe("askEventsFromFrame", () => {
   // The frames it must IGNORE are the contract too: the stream is a superset
   // the server may grow, and an unknown part type must never break a
   // conversation (nor render as raw JSON in the transcript).
@@ -941,19 +941,18 @@ describe("askEventFromFrame", () => {
     "",
     "not json at all",
   ])("ignores %s", (payload) => {
-    expect(apiClientModule.askEventFromFrame(`data: ${payload}`)).toBeNull();
+    expect(apiClientModule.askEventsFromFrame(`data: ${payload}`)).toEqual([]);
   });
 
   it("reads a multi-line data frame as one payload, per the SSE spec", () => {
-    expect(apiClientModule.askEventFromFrame('data: {"type":"text-delta",\ndata: "delta":"hi"}')).toEqual({
-      type: "text",
-      delta: "hi",
-    });
+    expect(apiClientModule.askEventsFromFrame('data: {"type":"text-delta",\ndata: "delta":"hi"}')).toEqual([
+      { type: "text", delta: "hi" },
+    ]);
   });
 
   it("falls back to a readable message when an error frame carries no errorText", () => {
-    const event = apiClientModule.askEventFromFrame('data: {"type":"error"}');
-    expect(event).toEqual({ type: "error", message: "The assistant stopped mid-answer." });
+    const events = apiClientModule.askEventsFromFrame('data: {"type":"error"}');
+    expect(events).toEqual([{ type: "error", message: "The assistant stopped mid-answer." }]);
   });
 });
 
@@ -1056,6 +1055,48 @@ describe("a turn that changed nothing, on the wire", () => {
     const events: apiClientModule.AskEvent[] = [];
     await askAssistant(TRIP_ID, [], { kind: "trip" }, (e) => events.push(e));
     expect(events.at(-1)).toEqual({ type: "not-applied", skipped });
+  });
+});
+
+// ADR-072 §1 and §3, and M45's gate box: "a URL in a reply does not
+// navigate". The reply names palette commands, and the reader keeps only the
+// ids the assistant may name, so a URL or a palette sibling never reaches the
+// page's runner, even beside a proposal it does keep.
+describe("the palette commands on the wire", () => {
+  const MAP = { id: "view:Map", needsApproval: false };
+
+  it("arrive as one `palette` event after the outcome, with every id it may not name dropped", async () => {
+    const paletteCommands = [
+      { id: "https://example.com/phish", needsApproval: false },
+      MAP,
+      { id: `/trips/${TRIP_ID}?view=Map`, needsApproval: false },
+      { id: "settings", needsApproval: false },
+      { id: `go:trip:${TRIP_ID}:view:Map`, needsApproval: false },
+    ];
+    server.use(
+      http.post("*/api/trips/:tripId/ask", () =>
+        sseResponse([
+          ...ANSWER_FRAMES,
+          `{"type":"finish","finishReason":"stop","messageMetadata":${JSON.stringify({ proposal: PROPOSAL, paletteCommands })}}`,
+        ]),
+      ),
+    );
+    const events: apiClientModule.AskEvent[] = [];
+    await askAssistant(TRIP_ID, [], { kind: "trip" }, (e) => events.push(e));
+    expect(events.filter((e) => e.type === "proposal")).toHaveLength(1);
+    expect(events.at(-1)).toEqual({ type: "palette", commands: [MAP, { id: `go:trip:${TRIP_ID}:view:Map`, needsApproval: false }] });
+  });
+
+  it("sends no `palette` event when nothing it may name is left", async () => {
+    const paletteCommands = [{ id: "https://example.com/", needsApproval: false }];
+    server.use(
+      http.post("*/api/trips/:tripId/ask", () =>
+        sseResponse([...ANSWER_FRAMES, `{"type":"finish","finishReason":"stop","messageMetadata":${JSON.stringify({ paletteCommands })}}`]),
+      ),
+    );
+    const events: apiClientModule.AskEvent[] = [];
+    await askAssistant(TRIP_ID, [], { kind: "trip" }, (e) => events.push(e));
+    expect(events.some((e) => e.type === "palette")).toBe(false);
   });
 });
 

@@ -8,6 +8,7 @@ import { newPageDoc } from "@tc/contracts";
 import { pageFixture, tripDetailFixture } from "@tc/factories";
 import { makeAccountPlanHandler, makePagesHandlers } from "@/mocks/handlers";
 import type { AskEvent, AskScope, AskWireMessage } from "@/lib/apiClient";
+import { registerPaletteCommands } from "@/components/palette/paletteRegistry";
 
 // M14 link 8's second half: the notebook's AI surface is the assistant rail,
 // the same one the board runs — Mitchell, walking the preview (2026-09-04):
@@ -141,7 +142,7 @@ afterEach(() => {
 });
 afterAll(() => server.close());
 
-async function openRail({ editing = true }: { editing?: boolean } = {}) {
+async function openRail({ editing = true, before }: { editing?: boolean; before?: () => void } = {}) {
   // Its own trip id each time: `cachedRead` keeps a trip's access answer, and
   // an owner's left behind would make a viewer case pass for the wrong reason.
   const trip = tripDetailFixture({ tripId: crypto.randomUUID(), days: [] });
@@ -154,6 +155,7 @@ async function openRail({ editing = true }: { editing?: boolean } = {}) {
     ...makePagesHandlers([page], { onUpdate }),
     http.get("/api/trips/:tripId", () => HttpResponse.json({ trip })),
   );
+  before?.();
   render(<PageScreen tripId={trip.tripId} pageId={page.id} />);
   await screen.findByText("Notes");
   if (editing) await userEvent.click(screen.getByRole("button", { name: "Edit page" }));
@@ -409,6 +411,69 @@ describe("the assistant on a notebook page", () => {
     expect(screen.getByRole("button", { name: "Done editing" })).toBeTruthy();
     // Still open. Hiding it was the old fix and is now the bug.
     expect(screen.getByRole("complementary", { name: "Assistant" })).toBeTruthy();
+  });
+
+  // **A turn that inserts and then names a trip view must not leave first**
+  // (ADR-072 §4). In Reading the inserts wait on the role read before they are
+  // even queued, while the palette event runs in the same synchronous loop: a
+  // route that committed before that read answered took the page — and the
+  // inserts — with it, and nothing said so. Review round 3 on PR 424.
+  it("holds a move to the trip while a Reading turn's inserts wait on the role read, then lands them", async () => {
+    let answerAccess = () => {};
+    const accessAnswered = new Promise<void>((resolve) => {
+      answerAccess = resolve;
+    });
+    const openMap = vi.fn();
+    const { trip } = await openRail({
+      editing: false,
+      before: () =>
+        server.use(
+          http.get("/api/trips/:tripId/access", async ({ params }) => {
+            await accessAnswered;
+            return HttpResponse.json({
+              access: {
+                tripId: params.tripId,
+                myRole: "owner",
+                members: [{ userId: "u1", role: "owner", name: null, email: null, image: null }],
+                invites: [],
+                collaboratorsEntitled: true,
+              },
+            });
+          }),
+        ),
+    });
+    const takeBack = registerPaletteCommands("test", [
+      { id: `go:trip:${trip.tripId}:view:Map`, action: "Go to", type: "Trip", target: { label: "Map" }, run: openMap },
+    ]);
+    askAssistantMock.mockImplementation(
+      turnEmitting(
+        { type: "page-inserts", content: DOC, dropped: [] },
+        { type: "palette", commands: [{ id: `go:trip:${trip.tripId}:view:Map`, needsApproval: false }] },
+      ),
+    );
+    try {
+      await userEvent.type(screen.getByPlaceholderText(/add to this page/i), "Add a packing list, then show me the map{Enter}");
+      await turnSettled();
+      expect(openMap).not.toHaveBeenCalled();
+      expect(screen.getByRole("log", { name: "Conversation" }).textContent).toContain(
+        "I didn't open the trip on Map, because what I wrote is still going into this page.",
+      );
+
+      answerAccess();
+      expect(await screen.findByText("Bring a raincoat")).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Done editing" })).toBeTruthy();
+
+      // The hold ends with the role read: a later reply that only moves to the
+      // trip is not refused as if the first turn's inserts were still pending.
+      askAssistantMock.mockImplementation(
+        turnEmitting({ type: "palette", commands: [{ id: `go:trip:${trip.tripId}:view:Map`, needsApproval: false }] }),
+      );
+      await userEvent.type(screen.getByPlaceholderText(/add to this page/i), "Now show me the map{Enter}");
+      await turnSettled();
+      expect(openMap).toHaveBeenCalledTimes(1);
+    } finally {
+      takeBack();
+    }
   });
 
   // **Only when the user could press the toggle.** A viewer cannot edit, so

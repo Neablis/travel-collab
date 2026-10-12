@@ -3020,4 +3020,37 @@ describe("⌘K runs the trip page's own actions", () => {
     expect(ids()).toContain("new-stop");
     expect(ids()).toContain("add-day");
   });
+
+  // PR 424 review: leaving the board unmounts the stop editor and its typed
+  // fields, so a reply that lands while it is open does not open a notebook.
+  it("does not leave for a notebook the assistant named while a stop is open for editing", async () => {
+    const fixture = tripDetailFixture();
+    const notebook = pageFixture({ tripId: fixture.tripId, title: "Packing" });
+    server.use(...makePagesHandlers([notebook]), ...makeTripHandlers(fixture));
+    let reply = () => {};
+    const replied = new Promise<void>((resolve) => (reply = resolve));
+    askAssistantMock.mockImplementation(async (...args: AskArgs) => {
+      await replied;
+      args[3]!({ type: "text", delta: "Opening Packing." });
+      args[3]!({ type: "palette", commands: [{ id: `go:notebook:${notebook.id}`, needsApproval: false }] });
+      return { ok: true as const, value: { text: "Opening Packing." } };
+    });
+    pushSpy.mockClear();
+    const { run, ids } = renderWithPalette(fixture.tripId);
+    await screen.findByRole("heading", { name: "Rome 2027" });
+    await waitFor(() => expect(ids()).toContain(`go:notebook:${notebook.id}`));
+
+    fireEvent.click(screen.getByTestId("ask-pill"));
+    fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "open my packing notebook" } });
+    fireEvent.click(askButton());
+    run("new-stop");
+    await screen.findByRole("dialog", { name: "Add a stop" });
+    await act(async () => reply());
+
+    // The modal sheet hides the rail from the accessibility tree.
+    const log = screen.getByRole("log", { name: "Conversation", hidden: true });
+    await waitFor(() => expect(log.textContent).toContain("I didn't open that notebook, because you have a stop open for editing."));
+    expect(pushSpy).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog", { name: "Add a stop" })).toBeTruthy();
+  });
 });
