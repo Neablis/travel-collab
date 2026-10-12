@@ -11,7 +11,8 @@ const GOOD = `- **Pushed:** claude/m41-part2-drawer-is-cards, 6c92e9a, PR 401
 
 - **Checks run:** eslint, vitest (1 file) — passed
 - **Judgement calls:** none
-- **Left:** none`;
+- **Left:** none
+- **Closed:** this agent takes no follow-ups; unsubscribe from PR 401`;
 
 const run = (payload) =>
   runHook("implementer-report-check.mjs", {
@@ -32,10 +33,22 @@ test("a report missing the sha or the red-first table blocks the stop", () => {
   }
 });
 
+test("a report with no Closed line blocks the stop and says what the line is for", () => {
+  for (const text of [GOOD.replace(/\n- \*\*Closed:.*/, ""), GOOD.replace("**Closed:**", "This agent is closed:")]) {
+    const res = run({ last_assistant_message: text });
+    assert.equal(res.status, 2, text);
+    assert.match(
+      res.stderr,
+      /a `Closed:` line: this agent takes no follow-ups; the orchestrator unsubscribes from PR <n>\. Missing: a `Closed:` line\.$/m,
+    );
+  }
+  assert.match(run({ last_assistant_message: "done" }).stderr, /Missing: the pushed sha, a Red first table, a `Closed:` line\./);
+});
+
 test("a complete report, a retry, another agent type or no agent type passes", () => {
   const bad = GOOD.replace("6c92e9a, ", "");
   assert.equal(run({ last_assistant_message: GOOD }).status, 0);
-  assert.equal(run({ last_assistant_message: `Pushed ${"a".repeat(40)}\n## Red first\nx` }).status, 0);
+  assert.equal(run({ last_assistant_message: `Pushed ${"a".repeat(40)}\n## Red first\nx\nClosed: yes` }).status, 0);
   assert.equal(run({ last_assistant_message: bad, stop_hook_active: true }).status, 0);
   assert.equal(run({ last_assistant_message: bad, agent_type: "part-reviewer" }).status, 0);
   assert.equal(run({ last_assistant_message: bad, agent_type: undefined }).status, 0);

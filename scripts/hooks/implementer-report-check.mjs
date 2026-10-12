@@ -1,11 +1,16 @@
 import { parseStdin, readAll } from "./lib/run-context.mjs";
 
 // SubagentStop hook (matcher: phase-implementer). The orchestrator never reads
-// code, so the implementer's report is all it sees. Two things in it are not
-// optional: the sha it pushed, and the red-first table (the source edit that
-// broke each test -> the failure text it printed). Missing either, the stop is
-// blocked once with the instruction; `stop_hook_active` lets the retry through
-// so this can never loop.
+// code, so the implementer's report is all it sees. Three things in it are not
+// optional: the sha it pushed, the red-first table (the source edit that
+// broke each test -> the failure text it printed), and a `Closed:` line.
+// Missing any, the stop is blocked once with the instruction;
+// `stop_hook_active` lets the retry through so this can never loop.
+//
+// `Closed:` is the builder saying it is finished for good: a fix after review
+// goes to a new agent with a brief (closed-agent-guard.mjs), and the line is
+// the orchestrator's cue to unsubscribe from the part's PR
+// (docs/retros/2026-10-12-m42-token-spend-retro.md, Fix 1 and Fix 2).
 //
 // Engages only when the payload names the agent as phase-implementer. A payload
 // with no `agent_type` is skipped, not guessed at. A report that declares
@@ -23,11 +28,15 @@ const sha = /\b[0-9a-f]{40}\b/.test(text) || /pushed\b[^\n]{0,120}?\b[0-9a-f]{7,
 // `[ \t]`, not `\s`, and no separate `\**`: either one let the prefix be
 // matched many ways, and a report of blank lines took seconds.
 const redFirst = /^[ \t#>*-]*red[ -]first\b/im.test(text);
+const closed = /^[ \t#>*-]*closed\**:/im.test(text);
 
-if (!sha || !redFirst) {
-  const missing = [!sha && "the pushed sha", !redFirst && "a Red first table"].filter(Boolean);
+if (!sha || !redFirst || !closed) {
+  const missing = [!sha && "the pushed sha", !redFirst && "a Red first table", !closed && "a `Closed:` line"].filter(
+    Boolean,
+  );
   console.error(
-    "finish: report the pushed sha and the red-first table (edit → failure text). " +
+    "finish: report the pushed sha and the red-first table (edit → failure text), and " +
+      "a `Closed:` line: this agent takes no follow-ups; the orchestrator unsubscribes from PR <n>. " +
       `Missing: ${missing.join(", ")}.`,
   );
   process.exit(2);
