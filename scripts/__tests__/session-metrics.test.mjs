@@ -473,6 +473,13 @@ test("an unrecognised frame is counted as `other`, never as human, and the block
   assert.equal(classifyTurn(""), "other");
   assert.equal(classifyTurn("<system-reminder>x</system-reminder>\n<new-thing/>"), "other");
   assert.equal(classifyTurn("<system-reminder>x</system-reminder>\nmerge it"), "human");
+  // The shape CodeQL flagged on PR 418 when this was one pattern: a long run of
+  // reminders with a non-reminder tail must classify at once, not backtrack.
+  const run = "<system-reminder>x</system-reminder>".repeat(5000);
+  const started = Date.now();
+  assert.equal(classifyTurn(`${run}\n \n`), "harness");
+  assert.equal(classifyTurn(`${run}!`), "human");
+  assert.ok(Date.now() - started < 1000, "classifying a run of reminders is linear");
   assert.equal(classifyTurn("the hook output is wrong, look again"), "human");
 
   const { root, transcript } = writeMilestone([

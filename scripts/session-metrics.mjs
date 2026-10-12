@@ -760,11 +760,14 @@ export const TURN_CLASSES = [
   ["subagent-finished", /<task-notification>/],
   [
     "harness",
-    // Only system-reminders; hook output; a compaction summary; a slash
-    // command's own frames. The prose alternatives are anchored to the start
+    // Hook output; a compaction summary; a slash command's own frames. (A turn
+    // of nothing but system-reminders is harness too, and classifyTurn decides
+    // that by stripping them: as a pattern here it needed a repeated group
+    // around a lazy match, which backtracks exponentially on a long run of
+    // reminders.) The prose alternatives are anchored to the start
     // and name the hook event, so that a person WRITING "the hook output is
     // wrong" stays human (the first draft of this row took that sentence).
-    /^\s*(?:<system-reminder>[\s\S]*?<\/system-reminder>\s*)+$|<[a-z-]*hook[a-z-]*>|^\s*(?:Stop|SubagentStop|PreToolUse|PostToolUse|UserPromptSubmit|SessionStart|PreCompact) hook (?:feedback|output|blocking error)\b|^\s*This session is being continued from a previous conversation|<local-command-(?:stdout|stderr|caveat)>|<command-name>/i,
+    /<[a-z-]*hook[a-z-]*>|^\s*(?:Stop|SubagentStop|PreToolUse|PostToolUse|UserPromptSubmit|SessionStart|PreCompact) hook (?:feedback|output|blocking error)\b|^\s*This session is being continued from a previous conversation|<local-command-(?:stdout|stderr|caveat)>|<command-name>/i,
   ],
 ];
 
@@ -790,6 +793,8 @@ const COORDINATOR_MESSAGE = "The coordinator sent a message";
 export function classifyTurn(text) {
   for (const [name, re] of TURN_CLASSES) if (re.test(text)) return name;
   const rest = text.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, "").trim();
+  // Nothing left once the reminders are gone, and there were some: the harness spoke, nobody else.
+  if (rest === "" && rest !== text.trim()) return "harness";
   if (rest === "" || /^<[a-z]/i.test(rest)) return "other";
   return "human";
 }
