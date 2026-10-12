@@ -672,6 +672,10 @@ export function AssistantRail({
         unsavedDraft.current?.();
         return;
       }
+      // Nothing typed yet: the box is about to take the stored draft, and a
+      // rail unmounted before it does (Home's, mounted on a width guess) would
+      // otherwise store its empty box over it (PR 426 review round 2).
+      if (ask.trim() === "") return;
     }
     const save = () => {
       unsavedDraft.current = null;

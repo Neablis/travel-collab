@@ -4,8 +4,10 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ASK_FAILED_MESSAGE } from "@tc/contracts";
 import { AssistantRail } from "./AssistantRail";
+import { BeyondTripAssistant } from "./BeyondTripAssistant";
+import { setViewportMatches } from "../../../vitest.setup";
 import { ownedAskName } from "@/lib/askOwnership";
-import { loadAskDraft } from "./askThreadStore";
+import { loadAskDraft, saveAskDraft } from "./askThreadStore";
 import type { AssistantTurn } from "./Transcript";
 
 // **The hook is mocked so the prop's precedence can actually be tested.**
@@ -1019,6 +1021,29 @@ describe("AssistantRail — the unsent draft survives an unmount", () => {
     session.user = { id: "user-a" };
     renderRail({ rememberDraftAs: "account" });
     await waitFor(() => expect(composer().value).toBe("and the second day?"));
+  });
+});
+
+// PR 426 review round 2, finding 2: Home reached by a client-side navigation
+// already knows who is signed in. Below 1100px a docked rail mounted on the
+// first render's width guess and, unmounting a frame later, flushed its empty
+// box over the draft the sheet had stored.
+describe("Home's assistant — the stored draft survives a mount below 1100px", () => {
+  afterEach(() => {
+    window.localStorage.clear();
+    setViewportMatches({});
+  });
+
+  it.each([
+    ["a phone", { "(max-width: 767px)": true }],
+    ["768-1099px", { "(min-width: 768px) and (max-width: 1099px)": true }],
+  ])("at %s", async (_width, matches) => {
+    setViewportMatches(matches);
+    saveAskDraft(ownedAskName("user-a", "account"), "where should I go next");
+    render(<BeyondTripAssistant scope={{ kind: "account" }} />);
+    // Past the save's delay, so a save armed on the first render has fired.
+    await act(() => new Promise((resolve) => setTimeout(resolve, 400)));
+    expect(loadAskDraft(ownedAskName("user-a", "account"))).toBe("where should I go next");
   });
 });
 

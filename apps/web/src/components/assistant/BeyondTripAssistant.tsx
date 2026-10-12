@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { AI_NOT_ENTITLED_CODE, type ApiError, type BeyondTripAskScope } from "@/lib/apiClient";
-import { useIsPhone, useIsTabletWidth } from "@/lib/useIsPhone";
+import { useDocksAssistant, useIsTabletWidth } from "@/lib/useIsPhone";
 import { usePhoneAsk, usePhoneAskEntry } from "@/components/nav/phoneAsk";
 import { AskPill } from "./AskPill";
 import { AssistantRail } from "./AssistantRail";
@@ -31,19 +31,18 @@ const SURFACE = {
  * at a time, and a resize or rotation hands the draft from one to the other
  * through storage. One conversation behind both, so the thread is the same.
  *
- * The docked rail is mounted until the width hooks answer, under CSS that
- * hides it on a phone (`AssistantRail`'s `presentation` note). Between 768 and
- * 1099px that is one frame of the rail on a hard load: the line is the board's
- * constant, which no CSS class can name.
+ * The width is read before the first render (`useDocksAssistant`), so a
+ * client-side navigation mounts the right one. Only a hydrating load guesses:
+ * the docked rail, under CSS that hides it on a phone (`AssistantRail`'s
+ * `presentation` note), so between 768 and 1099px a hard load shows it for a
+ * frame. The session is still unknown then, so it has no draft to touch.
  *
  * The caller lays it beside its content in a flex row, as the board does.
  */
 export function BeyondTripAssistant({ scope }: { scope: BeyondTripAskScope }) {
   const name = beyondTripThreadName(scope);
   const ask = useAskThread({ scope, persistAs: name, errorMessage: (error: ApiError) => error.message });
-  const isPhone = useIsPhone();
-  const isTabletWidth = useIsTabletWidth();
-  const docks = !isPhone && !isTabletWidth;
+  const docks = useDocksAssistant() ?? true;
   const [sheetOpen, setSheetOpen] = useState(false);
   const sheetShown = sheetOpen && !docks;
   // ⌘K's *Ask: <text>*, for whichever rail is mounted; it drops it once taken.
