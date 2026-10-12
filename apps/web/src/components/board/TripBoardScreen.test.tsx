@@ -2939,6 +2939,40 @@ describe("⌘K runs the trip page's own actions", () => {
     expect(ids()).not.toContain(`go:notebook:${deleted.id}`);
   });
 
+  // PR 422 review: a re-read that fails keeps the list it had. Emptied, the
+  // assistant's run-by-id of a notebook that exists would do nothing.
+  it("keeps its notebooks when a co-traveller's change is followed by a failed re-read", async () => {
+    const addListener = vi.spyOn(document, "addEventListener");
+    const fixture = tripDetailFixture({
+      members: [
+        { userId: "dev-alice", role: "owner" },
+        { userId: "dev-bob", role: "editor" },
+      ],
+    });
+    const notebook = pageFixture({ tripId: fixture.tripId, title: "Packing" });
+    server.use(...makePagesHandlers([notebook]), ...makeTripHandlers(fixture));
+    const { ids } = renderWithPalette(fixture.tripId);
+    await waitFor(() => expect(ids()).toContain(`go:notebook:${notebook.id}`));
+    await waitFor(() => expect(addListener).toHaveBeenCalledWith("visibilitychange", expect.any(Function)));
+    addListener.mockRestore();
+
+    let reread = false;
+    server.use(
+      http.get("/api/trips/:tripId/pages", () => {
+        reread = true;
+        return HttpResponse.json({ error: { code: "internal", message: "down" } }, { status: 500 });
+      }),
+      http.get("/api/trips/:tripId/events", () => HttpResponse.json({ headSeq: 1, events: [], resync: false })),
+    );
+    Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
+    document.dispatchEvent(new Event("visibilitychange"));
+
+    await waitFor(() => expect(reread).toBe(true));
+    // A macrotask settles the failed read and the registry write after it.
+    await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+    expect(ids()).toContain(`go:notebook:${notebook.id}`);
+  });
+
   // PR 398 review: a create sheet keeps its draft, so New stop over an open
   // editor would drop its prefill (and focus would go back into the sheet);
   // an edit sheet holds a stop a move or removal would change under it.

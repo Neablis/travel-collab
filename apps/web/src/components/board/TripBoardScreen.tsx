@@ -60,7 +60,7 @@ import { rackDisclosure, type RackDisclosure, type RackEvent } from "@/component
 import { legRoute, shortPlace } from "@/lib/place";
 import { isDemoTripId } from "@/lib/demoTrip";
 import { fetchPages } from "@/lib/pagesClient";
-import { cachedRead, DEDUPE, invalidate } from "@/lib/queryCache";
+import { cachedRead, DEDUPE } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
 import { useAssistantShape } from "@/components/assistant/useAssistantShape";
 import { AssistantRail } from "@/components/assistant/AssistantRail";
@@ -283,19 +283,21 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           selectedDayId: focusedDayId ?? null,
         });
   // The trip's notebooks for *Go to › Notebook*, read through the cache
-  // Overview reads them through, and again on a co-traveller's change, as
-  // Overview does: the board stays mounted, so a list read once would offer a
-  // deleted notebook and never a new one. `> 0` so a mount does not
-  // invalidate. None on the demo trip, which has no Notebooks menu either.
+  // Overview reads them through, and again on a co-traveller's change: the
+  // board stays mounted, so a list read once would offer a deleted notebook
+  // and never a new one. The re-read is fresh because `onRemoteChange`
+  // invalidates the whole trip before it bumps `remoteRevision`. Kept by trip
+  // rather than cleared, so a re-read in flight or failed still offers the
+  // last list, and another trip's never shows. None on the demo trip, which
+  // has no Notebooks menu either.
   const router = useRouter();
-  const [notebooks, setNotebooks] = useState<readonly PageSummary[]>([]);
+  const [read, setRead] = useState<{ tripId: string; pages: readonly PageSummary[] } | null>(null);
+  const notebooks = read !== null && read.tripId === tripId ? read.pages : [];
   useEffect(() => {
-    setNotebooks([]);
     if (isDemoTripId(tripId)) return;
     let live = true;
-    if (remoteRevision > 0) invalidate(tripKeys.pages(tripId));
     void cachedRead(tripKeys.pages(tripId), () => fetchPages(tripId), { dedupeMs: DEDUPE.DOCUMENT }).then((result) => {
-      if (live && result.ok) setNotebooks(result.value.pages);
+      if (live && result.ok) setRead({ tripId, pages: result.value.pages });
     });
     return () => {
       live = false;
