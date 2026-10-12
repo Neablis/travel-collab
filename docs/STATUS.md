@@ -24,7 +24,11 @@ general setup.
 **M42 — THE FRONT DOOR SHOWS MORE THAN ONE TRIP, AND WHAT IT COSTS — IS THE CURRENT MILESTONE AS
 OF 2026-10-11**, by **M41's gate closing at 13 of 13**. It is **not scoped**: its decisions are
 recommendations, and each needs checking against today's UI with Mitchell before anything is built
-(`docs/milestones/M42-the-front-door-shows-more.md`). Order: `… M40 ✓ → M41 ✓ → M42 → M43 … M47`.
+(`docs/milestones/M42-the-front-door-shows-more.md`). Order: `… M40 ✓ → M41 ✓ → M42 → M43 … M47 → M48`.
+
+**M48 was proposed 2026-10-11** from a PM brief: example playbook days retrieved into `plan` turns
+to cut their cost. Not scoped, placed last, and its offline gates can run early
+(`docs/milestones/M48-plans-start-from-examples.md`).
 
 **M41 closed 2026-10-11.** Moving and adding stops takes one gesture wherever you are: the
 editor's Day field moves any stop, a drawer of just cards with double-click to create, the

@@ -83,6 +83,7 @@ drift.
 - [ ] **M45 The assistant answers about all your trips, and can take you places** (proposed 2026-10-06 from `docs/candidates.md`, not scoped: account-wide assistant, ClientAction navigation, approved edit mode) → `docs/milestones/M45-the-assistant-beyond-one-trip.md`
 - [ ] **M46 A trip has a conversation, with the people taking it** (proposed 2026-10-06 from `docs/candidates.md`, not scoped: trip chat) → `docs/milestones/M46-a-trip-has-a-conversation.md`
 - [ ] **M47 The operator console shows tiers over time, and paid flows can be tested in production** (proposed 2026-10-06 from `docs/candidates.md`, not scoped: tier history rollup, Stripe livemode) → `docs/milestones/M47-the-business-over-time.md`
+- [ ] **M48 A planned trip starts from trips that already exist** (proposed 2026-10-11 from a PM brief, on Mitchell's ask, not scoped: retrieve example playbook days into plan turns to cut their cost; two offline gates before any serving code) → `docs/milestones/M48-plans-start-from-examples.md`
 - [x] **M15 Front door** — gate closed → `docs/milestones/M15-front-door.md`
 - [x] **M9 The assistant cites what it plans** — gate closed 2026-10-06 → `docs/milestones/M9-ai-planning-partner.md`
 

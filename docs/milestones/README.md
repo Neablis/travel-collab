@@ -128,6 +128,7 @@ for collaboration later landing on a product people already want to join.
 | M45 | The assistant answers about all your trips, and can take you places | **Proposed 2026-10-06, not scoped.** (This row said *"scoped 2026-10-07: all six decisions answered as recommended"* until 2026-10-10. That was a bulk edit; the milestone file never recorded an answer.) From `docs/candidates.md`; see *2026-10-06 — proposed: M37 to M47*. Account-wide read tools, `ClientAction` navigation, approved edit mode: `M45-the-assistant-beyond-one-trip.md` |
 | M46 | A trip has a conversation, with the people taking it | **Proposed 2026-10-06, not scoped.** (This row said *"scoped 2026-10-07: all six decisions answered as recommended"* until 2026-10-10. That was a bulk edit; the milestone file never recorded an answer.) From `docs/candidates.md`; see *2026-10-06 — proposed: M37 to M47*. Trip chat, its own store, unread counts, moderation: `M46-a-trip-has-a-conversation.md` |
 | M47 | The operator console shows tiers over time, and paid flows can be tested in production | **Proposed 2026-10-06, not scoped.** (This row said *"scoped 2026-10-07: all six decisions answered as recommended"* until 2026-10-10. That was a bulk edit; the milestone file never recorded an answer.) From `docs/candidates.md`; see *2026-10-06 — proposed: M37 to M47*. Weekly tier rollup and chart; Stripe `livemode` beside live: `M47-the-business-over-time.md` |
+| M48 | A planned trip starts from trips that already exist | **Proposed 2026-10-11, not scoped.** From a PM brief (Sunny), on Mitchell's ask; see *2026-10-11 — proposed: M48*. A `plan` turn adapts example days Caesura already holds instead of inventing them, measured in dollars per plan turn; how examples are found is open; a baseline and two offline gates before any serving code: `M48-plans-start-from-examples.md` |
 
 - **Restructure (2026-07-28), from the Phase 1 gate review.** The gate had not
   been met and the reason was structural, not cosmetic: a trip cannot be renamed
@@ -227,6 +228,19 @@ instruction, and they were 56% of this file.
 - **2026-10-06** — M35 closed; M37 is current
 - **2026-08-08, 2026-08-14, 2026-08-25, 2026-08-26** — the superseded reorders and M10's reopened gate, and the placement paragraphs for M26 to M28: *Moved out of README.md on 2026-09-30*, at the end
 - **Current-milestone placements, M14 to M34**: *Moved out of README.md on 2026-10-11*, at the end
+
+### 2026-10-11 — proposed: M48, retrieval for plan turns
+
+**Asked 2026-10-11:** *"Add as a upcoming milestone this new feature … its a starting point to
+validate the proposal, not the final product"*, with a product brief by Sunny (PM). M48 is
+proposed and placed after M47 in `TODO.md`. **It is not scoped.** The milestone commits to
+the feature, not to the brief's technical design: the brief's author could not read the code, and
+Mitchell said the same day *"focus on the feature, we can change the technical decisions"*.
+
+**Why last.** It saves money per plan turn, so it pays in proportion to plan-turn volume, and
+that follows users (2026-10-03). **Why that may not hold:** its baseline and its first two gates
+are offline scripts. They can run beside any milestone, and they decide whether the rest is built
+at all. Moving it up is moving its row.
 
 ### 2026-10-06 — proposed: M37 to M47, from the candidates file
 
