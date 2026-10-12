@@ -31,7 +31,7 @@ import { writeTravelling } from "@/server/access/members";
 import { simulatedModel } from "@/server/ai/simulatedModel";
 import { replayTranscript, type AskTranscript } from "./transcript";
 import { accountExpectationFor, type SeededAccountTrip } from "./cases";
-import { grade, type EvalCheck } from "./grade";
+import { grade, textBeforeToolCall, type EvalCheck } from "./grade";
 import { ACCOUNT_TRIPS, accountTripCommands } from "./trips";
 
 const ACTOR_ID = "replay-actor";
@@ -383,6 +383,34 @@ describe.each(everyTranscript())("replaying $name", (transcript) => {
 // the tools agree — including that the trip the asker is not travelling on,
 // which holds the priciest meal and the most days, is left out — before any of
 // it is spent on a real model.
+/**
+ * The simulated model, writing itself a note beside each tool call as a real
+ * model does (KI-20261012-e). It never does on its own, so without this the
+ * structural check below could not see the door's filter regress.
+ */
+function notingBesideCalls(model: ReturnType<typeof simulatedModel>): ReturnType<typeof simulatedModel> {
+  type Streaming = { doStream: (options: unknown) => Promise<{ stream: ReadableStream<{ type: string }> }> };
+  const inner = model as unknown as Streaming;
+  const noted: Streaming = {
+    ...inner,
+    doStream: async (options) => {
+      const result = await inner.doStream(options);
+      const note = new TransformStream<{ type: string }, Record<string, unknown>>({
+        transform(part, controller) {
+          if (part.type === "tool-call") {
+            controller.enqueue({ type: "text-start", id: "note" });
+            controller.enqueue({ type: "text-delta", id: "note", delta: "Reading your trips first." });
+            controller.enqueue({ type: "text-end", id: "note" });
+          }
+          controller.enqueue(part);
+        },
+      });
+      return { ...result, stream: result.stream.pipeThrough(note) as ReadableStream<{ type: string }> };
+    },
+  };
+  return noted as unknown as ReturnType<typeof simulatedModel>;
+}
+
 describe("the live set's account questions, on the simulated model", () => {
   const ACCOUNT_ASKER = "replay-account-asker";
   const prompts = (
@@ -436,19 +464,20 @@ describe("the live set's account questions, on the simulated model", () => {
             scope: { kind: "account" },
           }),
         }),
-        simulatedModel(),
+        notingBesideCalls(simulatedModel()),
         (record) => records.push(record),
       );
       body = await res.text();
     } finally {
       session.userId = ACTOR_ID;
     }
-    const text = chunksOf(body)
+    const chunks = chunksOf(body);
+    const text = chunks
       .filter((chunk) => chunk.type === "text-delta")
       .map((chunk) => String(chunk.delta))
       .join("");
     const checks: EvalCheck[] = grade(
-      { record: records[0]!, text, proposalCommands: 0 },
+      { record: records[0]!, text, proposalCommands: 0, textBeforeToolCall: textBeforeToolCall(chunks) },
       accountExpectationFor(id, seeded, ACCOUNT_ASKER)!,
     );
     expect(checks.filter((check) => !check.pass).map((check) => `${check.name}: ${check.detail}`)).toEqual([]);
