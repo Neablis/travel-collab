@@ -5,12 +5,18 @@ import {
   askAssistant,
   type ApiError,
   type AskEvent,
+  type AskWhere,
   type AskWireMessage,
-  type BeyondTripAskScope,
-  type TripAskScope,
 } from "@/lib/apiClient";
 import { MAX_ASK_MESSAGES } from "@/lib/askLimits";
-import { clearAskThread, loadAskThread, saveAskThread } from "@/components/assistant/askThreadStore";
+import {
+  SIGNED_OUT_OWNER,
+  clearAskThread,
+  loadAskThread,
+  ownedAskName,
+  saveAskThread,
+} from "@/components/assistant/askThreadStore";
+import { useKnownSessionUser } from "@/components/account/useSessionUser";
 import { offerPaletteCommand, runPaletteCommands } from "./runPaletteCommands";
 
 import { toolNoteLabel, type AssistantTurn } from "./Transcript";
@@ -115,19 +121,25 @@ function awaitsDecision(turn: AssistantTurn): boolean {
 }
 
 /**
- * Which conversation's door a turn goes to: a trip's, or one of its own for a
- * scope about no one trip (Home's account rail, M45 D7).
+ * Conversation `name` as the signed-in user keeps it (`ownedAskName`), or
+ * undefined (keep nothing) while who that is is not known yet, or with no
+ * session provider above to say. A signed-out visitor's has an owner of its
+ * own, so nothing they ask is read back by an account.
  */
-export type AskWhere = { tripId: string; scope: TripAskScope } | { tripId?: undefined; scope: BeyondTripAskScope };
+export function useOwnedAskName(name: string | undefined): string | undefined {
+  const user = useKnownSessionUser();
+  if (name === undefined || user === undefined) return undefined;
+  if (user === null) return ownedAskName(SIGNED_OUT_OWNER, name);
+  return user.id ? ownedAskName(user.id, name) : undefined;
+}
 
 export function useAskThread({
-  tripId,
-  scope,
   onEvent,
   onTurnEnd,
   errorMessage,
-  persistAs,
+  persistAs: conversation,
   holdsLeaving,
+  ...where
 }: AskWhere & {
   onEvent?: AskEventHandler;
   /**
@@ -150,6 +162,9 @@ export function useAskThread({
    *
    * Opt-in rather than on-by-default so a surface that has not thought about
    * what a restored transcript means on it gets the behaviour it has today.
+   *
+   * Stored under the signed-in user as well (`useOwnedAskName`), which the
+   * caller does not spell: two accounts on one browser keep two threads.
    */
   persistAs?: string;
   /**
@@ -161,6 +176,9 @@ export function useAskThread({
    */
   holdsLeaving?: () => string | null;
 }): AskThread {
+  // Stored under the signed-in user, so another account on this browser never
+  // gets this conversation back. `persistAs` is the caller's half of the name.
+  const persistAs = useOwnedAskName(conversation);
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [askError, setAskError] = useState<string | null>(null);
   const [askErrorCode, setAskErrorCode] = useState<string | null>(null);
@@ -344,9 +362,8 @@ export function useAskThread({
     // follows it in the same chunk arrives.
     let proposed = false;
     const result = await askAssistant(
-      tripId ?? null,
+      where,
       posted,
-      scope,
       (event) => {
         // **An abandoned turn stops writing anywhere, including into its
         // caller.** The identity guard below covers the turn's own completion;

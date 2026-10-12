@@ -173,7 +173,8 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   const boardRenders = status === "ready" && trip !== null && activeTrip !== null && headerReady;
   // ⌘K's *Ask: <text>* (M45 D6): opens the rail and hands it the words, which
   // it sends through its own gate and `submitAssistantAsk`'s refusals. Dropped
-  // on Hide, since the rail remounts on the next show.
+  // once the rail has taken it: the rail remounts on Hide and Show, and when
+  // the header skeleton comes back, and must not find it again.
   const [handOff, setHandOff] = useState<{ text: string } | null>(null);
   usePhoneAskEntry(boardRenders && !isDemoTripId(tripId) ? assistant.show : undefined, assistant.open, (text) => {
     assistant.show();
@@ -1510,6 +1511,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             // a reload, keeps what was typed while it answered (KI-2026-10-12-g).
             rememberDraftAs={`trip:${tripId}`}
             incoming={handOff}
+            onIncomingTaken={() => setHandOff(null)}
             contextLine={isPhone ? phoneAsk.contextLine : assistantContextLine}
             scope={askScope}
             turns={thread}
@@ -1533,10 +1535,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             // would silently fall back to a red alert the day it did.
             askUpgrade={ask.askErrorCode === AI_NOT_ENTITLED_CODE}
             simulated={ask.simulated}
-            onHide={() => {
-              setHandOff(null);
-              assistant.hide();
-            }}
+            onHide={assistant.hide}
           />
         )}
       </div>

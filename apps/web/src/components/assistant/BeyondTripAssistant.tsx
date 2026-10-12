@@ -18,14 +18,17 @@ const SURFACE = {
 
 /**
  * **An assistant that is always on screen, about no one trip** (M45 D7):
- * Home's, over the account, and the shape the playbook pages' will take with
- * a scope of their own.
+ * Home's, over the account. Not the playbook pages' shape: D9 opens theirs on
+ * demand with a Hide, so they take the shared half (the scope, its thread
+ * name, `SURFACE`) and own their open state.
  *
  * Docked from 768px up and always there, so it is chosen by a CSS breakpoint
- * and never across the first paint (`AssistantRail`'s `presentation` note).
- * On a phone a docked rail is the whole screen, so there it is hidden and the
- * tab bar's Ask opens the sheet instead: a mount point no first paint has.
- * One conversation behind both, so the thread is the same in either.
+ * across the first paint (`AssistantRail`'s `presentation` note), and unmounted
+ * once `useIsPhone` says this is a phone. There the tab bar's Ask opens the
+ * sheet instead, a mount point no first paint has, and only while it is a
+ * phone. So at most one composer is mounted on the draft at a time, and a
+ * rotation hands the draft from one to the other through storage. One
+ * conversation behind both, so the thread is the same in either.
  *
  * The caller lays it beside its content in a flex row, as the board does.
  */
@@ -34,49 +37,43 @@ export function BeyondTripAssistant({ scope }: { scope: BeyondTripAskScope }) {
   const ask = useAskThread({ scope, persistAs: name, errorMessage: (error: ApiError) => error.message });
   const isPhone = useIsPhone();
   const [sheetOpen, setSheetOpen] = useState(false);
-  // ⌘K's *Ask: <text>*, for the rail that is on screen. Dropped when the sheet
-  // closes, so reopening it does not send the same words again.
-  const [handOff, setHandOff] = useState<{ text: string; sheet: boolean } | null>(null);
+  const sheetShown = sheetOpen && isPhone;
+  // ⌘K's *Ask: <text>*, for whichever rail is mounted; it drops it once taken.
+  const [handOff, setHandOff] = useState<{ text: string } | null>(null);
 
   // Read at a press, after hydration, so `useIsPhone` has answered by then.
-  usePhoneAskEntry(() => setSheetOpen(true), sheetOpen || !isPhone, (text) => {
+  usePhoneAskEntry(() => setSheetOpen(true), sheetShown || !isPhone, (text) => {
     if (isPhone) setSheetOpen(true);
-    setHandOff({ text, sheet: isPhone });
+    setHandOff({ text });
   });
 
   const { contextLine, suggestions } = SURFACE[scope.kind];
-  const rail = (presentation: "docked" | "sheet") => (
-    <AssistantRail
-      presentation={presentation}
-      contextLine={contextLine}
-      scope={scope}
-      turns={ask.thread}
-      suggestions={[...suggestions]}
-      asksRemaining={ask.asksRemaining}
-      restoreDraft={ask.restoredDraft}
-      rememberDraftAs={name}
-      incoming={handOff !== null && handOff.sheet === (presentation === "sheet") ? handOff : null}
-      onNewConversation={ask.startNewConversation}
-      onAsk={(text) => void ask.runAsk(text)}
-      asking={ask.asking}
-      askError={ask.askError}
-      askUpgrade={ask.askErrorCode === AI_NOT_ENTITLED_CODE}
-      simulated={ask.simulated}
-      {...(presentation === "sheet"
-        ? {
-            onHide: () => {
-              setSheetOpen(false);
-              setHandOff(null);
-            },
-          }
-        : {})}
-    />
-  );
+  const shared = {
+    contextLine,
+    scope,
+    turns: ask.thread,
+    suggestions: [...suggestions],
+    asksRemaining: ask.asksRemaining,
+    restoreDraft: ask.restoredDraft,
+    rememberDraftAs: name,
+    incoming: handOff,
+    onIncomingTaken: () => setHandOff(null),
+    onNewConversation: ask.startNewConversation,
+    onAsk: (text: string) => void ask.runAsk(text),
+    asking: ask.asking,
+    askError: ask.askError,
+    askUpgrade: ask.askErrorCode === AI_NOT_ENTITLED_CODE,
+    simulated: ask.simulated,
+  };
 
   return (
     <>
-      <div className="hidden md:block">{rail("docked")}</div>
-      {sheetOpen && rail("sheet")}
+      {!isPhone && (
+        <div className="hidden md:block">
+          <AssistantRail presentation="docked" {...shared} />
+        </div>
+      )}
+      {sheetShown && <AssistantRail presentation="sheet" {...shared} onHide={() => setSheetOpen(false)} />}
     </>
   );
 }

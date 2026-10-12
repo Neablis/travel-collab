@@ -1,6 +1,7 @@
 import { cleanup, render, screen, fireEvent, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AccountScreen, accountTabFrom } from "./AccountScreen";
+import { loadAskDraft, loadAskThread, ownedAskName, saveAskDraft, saveAskThread } from "@/components/assistant/askThreadStore";
 
 // The tab is the route (SPEC §34.4, DRIFT §6 build-check 4), so the thing under
 // test is the relationship between `?tab=` and what is on the page. The router
@@ -13,7 +14,7 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => params,
 }));
 
-vi.mock("./useSessionUser", () => ({ useSessionUser: () => ({ email: "sam@example.com" }) }));
+vi.mock("./useSessionUser", () => ({ useSessionUser: () => ({ id: "user-a", email: "sam@example.com" }) }));
 
 const signOutMock = vi.fn();
 vi.mock("next-auth/react", () => ({ signOut: (...args: unknown[]) => signOutMock(...args) }));
@@ -191,6 +192,20 @@ describe("AccountScreen", () => {
     // navigation can outrun the Set-Cookie that clears the session —
     // `AccountMenu` measured that on Next 16. `/welcome` is public either way.
     expect(signOutMock).toHaveBeenCalledWith({ callbackUrl: "/welcome" });
+  });
+
+  // PR 426 review, finding 1: a shared browser keeps nothing this account
+  // asked once it signs out, and nothing of another account goes with it.
+  it("forgets this account's conversations and drafts on sign-out, and only this account's", () => {
+    saveAskThread(ownedAskName("user-a", "account"), [{ id: "u1", role: "user", text: "what did I spend?" }]);
+    saveAskDraft(ownedAskName("user-a", "trip:t1"), "and dinner?");
+    saveAskDraft(ownedAskName("user-b", "account"), "where next?");
+    mount();
+    fireEvent.click(screen.getByTestId("account-sign-out"));
+    expect(loadAskThread(ownedAskName("user-a", "account"))).toEqual([]);
+    expect(loadAskDraft(ownedAskName("user-a", "trip:t1"))).toBeNull();
+    expect(loadAskDraft(ownedAskName("user-b", "account"))).toBe("where next?");
+    window.localStorage.clear();
   });
 
   // §34.3: *"Done returns you to Trips."* The tab bar steps aside for this

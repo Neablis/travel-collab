@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { MAX_ASK_MESSAGES } from "@/lib/askLimits";
 import type { AskScope } from "@/lib/apiClient";
 import { clearAskDraft, loadAskDraft, saveAskDraft } from "./askThreadStore";
+import { useOwnedAskName } from "./useAskThread";
 import { cn } from "@/lib/cn";
 import { Transcript, type AssistantTurn } from "./Transcript";
 import type { ProposalState, ProposalUndo } from "./ProposalCard";
@@ -86,10 +87,32 @@ const ASK_WARNING_AT = 3;
  */
 const TRIP_EMPTY_HINT = "Ask about this trip and the conversation stays here.";
 
-/** The empty state's sentence on a scope about no one trip, by its kind (M45). */
-const BEYOND_TRIP_EMPTY_HINT = {
+/**
+ * The empty state's sentence by scope, when the caller supplies none. Keyed by
+ * every kind, so a new one does not compile until it says what it is about
+ * rather than falling back to "this trip".
+ */
+const EMPTY_HINT = {
+  trip: TRIP_EMPTY_HINT,
+  day: TRIP_EMPTY_HINT,
+  page: TRIP_EMPTY_HINT,
   account: "Ask about all your trips: where you've been most, what you spent, where to go next.",
-} as const;
+} as const satisfies Record<AskScope["kind"], string>;
+
+/**
+ * The composer's placeholder, worded FROM the scope for the same reason
+ * `contextLine` is: a box that says "Ask about this day…" under "Looking at
+ * Rome 2027" contradicts the line directly above it. A page's box says "add
+ * to", not "ask about": its tools insert, and the one thing a reader must not
+ * have to discover by trying is that an answer here lands in the document.
+ * Keyed by every kind, like `EMPTY_HINT`.
+ */
+const PLACEHOLDER = {
+  trip: "Ask about this trip…",
+  day: "Ask about this day…",
+  page: "Ask AI to add to this page…",
+  account: "Ask about your trips…",
+} as const satisfies Record<AskScope["kind"], string>;
 
 /** How long the composer waits after a keystroke before storing its draft. */
 const DRAFT_SAVE_MS = 300;
@@ -170,16 +193,17 @@ const DRAFT_SAVE_MS = 300;
  * @param askError - Error message displayed for the most recent question.
  * @param simulated - Whether the latest answer was generated in simulated mode.
  * @param presentation - Layout presentation for the panel.
- * @param onHide - Closes or hides the panel; omitted, the panel offers no Hide.
+ * @param onHide - Closes or hides the panel; required of a sheet, and omitted, a docked or floating panel offers no Hide.
  * @param rememberDraftAs - Conversation name to keep the unsent composer text under.
  * @param incoming - Text handed in from outside (⌘K's *Ask:*), sent as if typed here.
+ * @param onIncomingTaken - Called once `incoming` is sent or waiting in the box.
  */
 export function AssistantRail({
   contextLine,
   scope,
   turns,
   suggestions,
-  emptyHint = scope.kind === "account" ? BEYOND_TRIP_EMPTY_HINT[scope.kind] : TRIP_EMPTY_HINT,
+  emptyHint = EMPTY_HINT[scope.kind],
   asksRemaining,
   restoreDraft = null,
   onAsk,
@@ -199,6 +223,7 @@ export function AssistantRail({
   rememberPositionAs,
   rememberDraftAs,
   incoming = null,
+  onIncomingTaken,
   onHide,
 }: {
   contextLine: string;
@@ -401,12 +426,33 @@ export function AssistantRail({
    */
   incoming?: { text: string } | null;
   /**
-   * Hides the panel. Absent where it is always on screen (Home's rail, M45
-   * D7), which then draws no Hide; the sheet still closes through it.
+   * Called once `incoming` has been sent or put in the box, so the caller can
+   * drop it: a rail that remounts (the board's does when its header reloads)
+   * must not find the same hand-off and ask it again.
    */
-  onHide?: () => void;
-}) {
+  onIncomingTaken?: () => void;
+} & (
+  | {
+      presentation?: "docked" | "floating";
+      /**
+       * Hides the panel. Absent where it is always on screen (Home's rail,
+       * M45 D7), which then draws no Hide.
+       */
+      onHide?: () => void;
+    }
+  | {
+      presentation: "sheet";
+      /**
+       * Required of a sheet: it is modal, and its ✕, Escape and scrim all
+       * close it through this, so without one it could not be closed.
+       */
+      onHide: () => void;
+    }
+)) {
   const [ask, setAsk] = useState("");
+  // Under the signed-in user, like the thread, so another account on this
+  // browser never finds this draft in its box.
+  const draftName = useOwnedAskName(rememberDraftAs);
   const isSheet = presentation === "sheet";
   const isFloating = presentation === "floating";
 
@@ -505,8 +551,8 @@ export function AssistantRail({
 
   // The hook runs unconditionally — a hook cannot be skipped because a prop was
   // supplied — and the prop wins when it is given. Its read is cached and
-  // deduped (ADR-046), and the rail only mounts while the assistant is OPEN,
-  // so a reader who never opens it pays nothing.
+  // deduped (ADR-046), so however many rails mount (Home's is on every visit),
+  // the account's plan is asked for once.
   const aiEntitledFetched = useAiEntitled();
   // **`=== undefined`, not `??`.** The prop's contract is "supplied wins", and
   // `null` is a SUPPLIED value here — it means "this caller knows the answer is
@@ -592,11 +638,19 @@ export function AssistantRail({
   // initialiser: the rail renders on the server too, where reading storage
   // would make the first client render disagree with its HTML. Declared before
   // the restore below, so a rolled-back send still wins over a stored draft.
+  //
+  // A change of name is a change of conversation, so the box takes the new
+  // one's draft, or empties if it has none, and the transition render saves
+  // nothing (`draftKey`): it would store the old conversation's text under the
+  // new name, the PR 188 bug `useAskThread` guards the same way. The first
+  // name, once the signed-in user is known, keeps whatever was typed before.
+  const draftKey = useRef<string | undefined>(undefined);
   useEffect(() => {
-    if (rememberDraftAs === undefined) return;
-    const stored = loadAskDraft(rememberDraftAs);
+    if (draftName === undefined) return;
+    const stored = loadAskDraft(draftName);
     if (stored !== null) setAsk(stored);
-  }, [rememberDraftAs]);
+    else if (draftKey.current !== undefined) setAsk("");
+  }, [draftName]);
 
   useEffect(() => {
     if (restoreDraft !== null) setAsk(restoreDraft);
@@ -606,15 +660,22 @@ export function AssistantRail({
   // that leaves the page is an unmount, and it is the case this is for.
   const unsavedDraft = useRef<(() => void) | null>(null);
   useEffect(() => {
-    if (rememberDraftAs === undefined) return;
+    if (draftName === undefined) return;
+    if (draftKey.current !== draftName) {
+      // The old conversation's last keystrokes, still inside the delay, are
+      // its own: stored under its name before the switch.
+      unsavedDraft.current?.();
+      draftKey.current = draftName;
+      return;
+    }
     const save = () => {
       unsavedDraft.current = null;
-      saveAskDraft(rememberDraftAs, ask);
+      saveAskDraft(draftName, ask);
     };
     unsavedDraft.current = save;
     const timer = setTimeout(save, DRAFT_SAVE_MS);
     return () => clearTimeout(timer);
-  }, [ask, rememberDraftAs]);
+  }, [ask, draftName]);
   useEffect(() => () => unsavedDraft.current?.(), []);
 
   const threadFull = asksRemaining <= 0;
@@ -629,27 +690,31 @@ export function AssistantRail({
       setAsk("");
       // Now, not after the save's delay: a reload inside it would bring back
       // a question already asked.
-      if (rememberDraftAs !== undefined) clearAskDraft(rememberDraftAs);
+      if (draftName !== undefined) clearAskDraft(draftName);
     }
   };
 
   // ⌘K's hand-off, through the same gate as the Ask button. Unlike a typed
-  // question it never clears the box, which may hold a draft of its own, and
-  // a refusal puts it there so nothing is lost.
+  // question it never clears the box, which may hold a draft of its own: one
+  // that has to wait, or is refused, goes in after that draft, not over it.
+  // The ref stops StrictMode's second effect run sending it twice; the caller
+  // dropping it on `onIncomingTaken` stops a remount doing the same.
   const handedIn = useRef<{ text: string } | null>(null);
+  const keepHandedIn = (text: string) => setAsk((draft) => (draft.trim() === "" ? text : `${draft} ${text}`));
   const sendHandedIn = async (text: string) => {
     if (asking || threadFull || upgradeGated) {
-      setAsk(text);
+      keepHandedIn(text);
       return;
     }
-    if ((await onAsk(text)) === false) setAsk(text);
+    if ((await onAsk(text)) === false) keepHandedIn(text);
   };
-  const sendHandedInLatest = useRef(sendHandedIn);
-  sendHandedInLatest.current = sendHandedIn;
+  const sendHandedInLatest = useRef({ send: sendHandedIn, taken: onIncomingTaken });
+  sendHandedInLatest.current = { send: sendHandedIn, taken: onIncomingTaken };
   useEffect(() => {
     if (incoming === null || incoming === handedIn.current) return;
     handedIn.current = incoming;
-    void sendHandedInLatest.current(incoming.text);
+    void sendHandedInLatest.current.send(incoming.text);
+    sendHandedInLatest.current.taken?.();
   }, [incoming]);
 
   const panel = (
@@ -1005,21 +1070,7 @@ export function AssistantRail({
               )}
               <div className="flex gap-1.5">
                 <Input
-                  // Worded FROM the scope, for the same reason `contextLine` is:
-                  // a box that says "Ask about this day…" under "Looking at Rome
-                  // 2027" contradicts the line directly above it. A page's box
-                  // says "add to", not "ask about" — its tools insert, and the
-                  // one thing a reader must not have to discover by trying is
-                  // that an answer here lands in the document.
-                  placeholder={
-                    scope.kind === "day"
-                      ? "Ask about this day…"
-                      : scope.kind === "page"
-                        ? "Ask AI to add to this page…"
-                        : scope.kind === "account"
-                          ? "Ask about your trips…"
-                          : "Ask about this trip…"
-                  }
+                  placeholder={PLACEHOLDER[scope.kind]}
                   // `h-11` in the sheet, overriding the primitive's `h-9`:
                   // SPEC §13.1's floor is every control, and the box the
                   // whole sheet exists to reach is the last one that should

@@ -7,7 +7,7 @@ import { http, HttpResponse } from "msw";
 import { newPageDoc } from "@tc/contracts";
 import { pageFixture, tripDetailFixture } from "@tc/factories";
 import { makeAccountPlanHandler, makePagesHandlers } from "@/mocks/handlers";
-import type { AskEvent, AskScope, AskWireMessage } from "@/lib/apiClient";
+import type { AskEvent, AskWhere, AskWireMessage } from "@/lib/apiClient";
 import { registerPaletteCommands } from "@/components/palette/paletteRegistry";
 
 // M14 link 8's second half: the notebook's AI surface is the assistant rail,
@@ -80,9 +80,8 @@ const DOC = newPageDoc([{ type: "paragraph", content: [{ type: "text", text: "Br
 /** The turn as `askAssistant` runs it: emit these events, then resolve `ok`. */
 function turnEmitting(...events: AskEvent[]) {
   return async (
-    _tripId: string,
+    _where: AskWhere,
     _messages: AskWireMessage[],
-    _scope: AskScope,
     onEvent: (e: AskEvent) => void,
   ) => {
     for (const event of events) onEvent(event);
@@ -198,7 +197,7 @@ describe("the assistant on a notebook page", () => {
     await userEvent.type(screen.getByPlaceholderText(/add to this page/i), "Add a packing list{Enter}");
 
     await waitFor(() => expect(askAssistantMock).toHaveBeenCalled());
-    const [, , scope] = askAssistantMock.mock.calls[0]!;
+    const [{ scope }] = askAssistantMock.mock.calls[0]!;
     // Nothing else about the page goes on the wire: its title and its content
     // the server reads from the row it just verified (ADR-033 decision 4).
     expect(scope).toEqual({ kind: "page", pageId: page.id });
@@ -364,9 +363,8 @@ describe("the assistant on a notebook page", () => {
     let signal: AbortSignal | null = null;
     askAssistantMock.mockImplementation(
       async (
-        _t: string,
+        _w: AskWhere,
         _m: AskWireMessage[],
-        _s: AskScope,
         onEvent: (e: AskEvent) => void,
         abortSignal: AbortSignal,
       ) => {
@@ -563,7 +561,7 @@ describe("the assistant on a notebook page", () => {
   // a tool-only turn has no text — so the rollback used to remove the question
   // and the answer after the page had already changed.
   it("keeps a failed turn whose inserts landed, and says how much went in", async () => {
-    askAssistantMock.mockImplementation(async (_t: string, _m: AskWireMessage[], _s: AskScope, onEvent: (e: AskEvent) => void) => {
+    askAssistantMock.mockImplementation(async (_w: AskWhere, _m: AskWireMessage[], onEvent: (e: AskEvent) => void) => {
       onEvent({ type: "error", message: "The assistant hit a problem on our side, and it has been logged." });
       onEvent({ type: "page-inserts", content: DOC, dropped: [] });
       return { ok: false as const, error: { status: 200, message: "The assistant hit a problem on our side, and it has been logged." } };

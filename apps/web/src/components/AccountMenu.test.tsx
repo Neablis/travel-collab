@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PersonColor, UserPreferences } from "@tc/contracts";
 import { AccountMenu, HeaderSessionChrome } from "./AccountMenu";
 import { PreferencesProvider } from "@/components/account/PreferencesProvider";
+import { loadAskDraft, loadAskThread, ownedAskName, saveAskDraft, saveAskThread } from "@/components/assistant/askThreadStore";
 
 vi.mock("next-auth/react", () => ({
   getSession: vi.fn(),
@@ -303,9 +304,14 @@ describe("HeaderSessionChrome's account menu", () => {
   it("resolves the session client-side and dispatches the real signOut on click", async () => {
     const { getSession, signOut } = await import("next-auth/react");
     vi.mocked(getSession).mockResolvedValueOnce({
-      user: { name: "Sam K", email: "sam@example.com" },
+      user: { id: "user-a", name: "Sam K", email: "sam@example.com" },
       expires: "",
     });
+    // PR 426 review, finding 1: what this account asked on this browser goes
+    // when it signs out, and another account's stays.
+    saveAskThread(ownedAskName("user-a", "account"), [{ id: "u1", role: "user", text: "what did I spend?" }]);
+    saveAskDraft(ownedAskName("user-a", "account"), "and dinner?");
+    saveAskDraft(ownedAskName("user-b", "account"), "where next?");
 
     render(<HeaderSessionChrome />);
 
@@ -315,6 +321,10 @@ describe("HeaderSessionChrome's account menu", () => {
     // `/welcome`, not `/`: see AccountMenu.tsx's onSignOut comment — routing
     // sign-out through `/` raced the session cookie being cleared.
     expect(signOut).toHaveBeenCalledWith({ callbackUrl: "/welcome" });
+    expect(loadAskThread(ownedAskName("user-a", "account"))).toEqual([]);
+    expect(loadAskDraft(ownedAskName("user-a", "account"))).toBeNull();
+    expect(loadAskDraft(ownedAskName("user-b", "account"))).toBe("where next?");
+    window.localStorage.clear();
   });
 
   // M38 part 4: the header button is the person's own chip, so a glyph chosen

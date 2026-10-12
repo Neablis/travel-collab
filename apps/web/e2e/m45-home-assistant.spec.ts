@@ -53,7 +53,10 @@ test("a question typed and not sent is still there after a reload", async ({ pag
   const composer = rail(page).getByPlaceholder("Ask about your trips…");
   await composer.fill("where should I go next");
   // Stored a moment after the last keystroke; wait for it rather than a clock.
-  await expect.poll(() => page.evaluate(() => window.localStorage.getItem("ask_draft_v1:account"))).toBe("where should I go next");
+  // Under the signed-in user's id (`ownedAskName`), which this spec does not know.
+  const draft = () =>
+    page.evaluate(() => Object.entries(window.localStorage).find(([key]) => key.startsWith("ask_draft_v1:") && key.endsWith(":account"))?.[1] ?? null);
+  await expect.poll(draft).toBe("where should I go next");
 
   await page.reload();
   await expect(rail(page).getByPlaceholder("Ask about your trips…")).toHaveValue("where should I go next");

@@ -5,6 +5,7 @@ import type { AvatarKey, PersonColor } from "@tc/contracts";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
+import { forgetAskConversationsOf } from "@/components/assistant/askThreadStore";
 import { Popover } from "@/components/ui/popover";
 import { Button, buttonVariants, PHONE_TOUCH } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
@@ -457,7 +458,11 @@ function AccountMenuFor({
       // surfaced with that upgrade and not before). `/welcome` is public, so
       // going straight there is correct whether or not the cookie has landed
       // yet — and it is where `/` was going to send them anyway.
-      onSignOut={() => void signOut({ callbackUrl: "/welcome" })}
+      // What this account asked on this browser goes with it (PR 426 review).
+      onSignOut={() => {
+        if (user.id) forgetAskConversationsOf(user.id);
+        void signOut({ callbackUrl: "/welcome" });
+      }}
       demoResetEnabled={demoResetEnabled}
       onResetDemoData={demoResetEnabled ? handleResetDemoData : undefined}
     />

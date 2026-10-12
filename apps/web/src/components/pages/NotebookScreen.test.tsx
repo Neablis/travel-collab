@@ -7,7 +7,7 @@ import { pageFixture, tripDetailFixture } from "@tc/factories";
 import { SYSTEM_ACTOR_ID } from "@tc/contracts";
 import { TEMPLATE_LIBRARY, instantiateDefaults } from "@tc/pages";
 import { makePagesHandlers, makeAccountPlanHandler, makeSavedNotebookHandlers } from "@/mocks/handlers";
-import type { AskEvent, AskScope, AskWireMessage } from "@/lib/apiClient";
+import type { AskEvent, AskWhere, AskWireMessage } from "@/lib/apiClient";
 
 const TRIP_ID = "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f";
 const pushMock = vi.fn();
@@ -55,9 +55,8 @@ function savedPackingList() {
 /** The turn as `askAssistant` runs it: emit these events, then resolve `ok`. */
 function turnEmitting(...events: AskEvent[]) {
   return async (
-    _tripId: string,
+    _where: AskWhere,
     _messages: AskWireMessage[],
-    _scope: AskScope,
     onEvent: (e: AskEvent) => void,
   ) => {
     for (const event of events) onEvent(event);
@@ -613,7 +612,7 @@ describe("NotebookScreen", () => {
 
       await userEvent.type(screen.getByPlaceholderText(/Ask about this trip/i), "Which of these is stale?{Enter}");
       await waitFor(() => expect(askAssistantMock).toHaveBeenCalled());
-      const [, , scope] = askAssistantMock.mock.calls[0]!;
+      const [{ scope }] = askAssistantMock.mock.calls[0]!;
       expect(scope).toEqual({ kind: "trip" });
     });
 
@@ -639,9 +638,8 @@ describe("NotebookScreen", () => {
       let signal: AbortSignal | null = null;
       askAssistantMock.mockImplementation(
         async (
-          _t: string,
+          _w: AskWhere,
           _m: AskWireMessage[],
-          _s: AskScope,
           _onEvent: (e: AskEvent) => void,
           abortSignal: AbortSignal,
         ) => {
@@ -676,9 +674,8 @@ describe("NotebookScreen", () => {
       let signal: AbortSignal | null = null;
       askAssistantMock.mockImplementation(
         async (
-          _t: string,
+          _w: AskWhere,
           _m: AskWireMessage[],
-          _s: AskScope,
           _onEvent: (e: AskEvent) => void,
           abortSignal: AbortSignal,
         ) => {

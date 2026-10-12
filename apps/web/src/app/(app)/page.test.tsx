@@ -28,6 +28,7 @@ vi.mock("@/components/install/InstallNudge", () => ({
 }));
 
 import Home from "./page";
+import { setViewportMatches } from "../../../vitest.setup";
 import { DEMO_TRIP_ID, DEMO_TRIPS } from "@/lib/demoTrip";
 import { rememberDemoClone } from "@/lib/pendingDemoClone";
 import { rememberPlaybookAdd } from "@/lib/pendingPlaybookAdd";
@@ -1561,5 +1562,26 @@ describe("Home's assistant", () => {
     expect(asked).toHaveLength(1);
     expect(asked[0]).toMatch(/^\/api\/ask /);
     expect(asked[0]).toContain('"scope":{"kind":"account"}');
+  });
+
+  // PR 426 review, finding 7: on a phone the docked rail used to stay mounted,
+  // hidden by CSS, beside the sheet: two composers on one stored draft, and
+  // both panels on screen after a rotation. There the sheet is the only one.
+  it("mounts no docked rail on a phone, where the tab bar's Ask opens the sheet", async () => {
+    setViewportMatches({ "(max-width: 767px)": true });
+    try {
+      fetchMock = vi.fn(async (input: string | URL | Request) => {
+        const url = String(input);
+        if (url.includes("/api/auth/session")) return jsonResponse(await getSessionMock());
+        if (url.endsWith("/api/trips")) return jsonResponse({ trips: [tripSummaryFixture()] });
+        return jsonResponse({ error: "unexpected" }, 404);
+      });
+      vi.stubGlobal("fetch", fetchMock);
+      render(<Home />);
+      expect(await screen.findByRole("link", { name: /japan/i })).toBeTruthy();
+      expect(screen.queryByRole("complementary", { name: "Assistant" })).toBeNull();
+    } finally {
+      setViewportMatches({});
+    }
   });
 });

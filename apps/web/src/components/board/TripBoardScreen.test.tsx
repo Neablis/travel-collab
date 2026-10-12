@@ -58,7 +58,7 @@ vi.mock("@/lib/apiClient", async (orig) => {
  */
 function answers(text: string, toolName = "read_trip", input: unknown = {}, simulated = false) {
   return async (...args: AskArgs) => {
-    const onEvent = args[3]!;
+    const onEvent = args[2]!;
     onEvent({ type: "meta", simulated });
     onEvent({ type: "tool", toolCallId: "t1", toolName, input });
     onEvent({ type: "text", delta: text });
@@ -69,7 +69,7 @@ function answers(text: string, toolName = "read_trip", input: unknown = {}, simu
 /** The same, plus the proposal the turn's final chunk carried. */
 function proposes(text: string, proposal: import("@tc/contracts").AssistantProposal) {
   return async (...args: AskArgs) => {
-    const onEvent = args[3]!;
+    const onEvent = args[2]!;
     onEvent({ type: "meta", simulated: true });
     onEvent({ type: "tool", toolCallId: "t1", toolName: "AddActivity", input: { title: "Coffee" } });
     onEvent({ type: "text", delta: text });
@@ -80,8 +80,8 @@ function proposes(text: string, proposal: import("@tc/contracts").AssistantPropo
 
 /** The scope of the nth (0-based) ask, and the thread it carried. */
 function askCall(n: number) {
-  const [, messages, scope] = askAssistantMock.mock.calls[n] as AskArgs;
-  return { messages, scope };
+  const [where, messages] = askAssistantMock.mock.calls[n] as AskArgs;
+  return { messages, scope: where.scope };
 }
 
 // The Map lens's own viewer gate — no double-click-to-create — is
@@ -1128,8 +1128,8 @@ describe("TripBoardScreen", () => {
     const fixture = tripDetailFixture();
     server.use(...makeTripHandlers(fixture));
     askAssistantMock.mockImplementationOnce(async (...args: AskArgs) => {
-      args[3]!({ type: "text", delta: "Rome 2027 runs to " });
-      args[3]!({ type: "error", message: ASK_FAILED_MESSAGE });
+      args[2]!({ type: "text", delta: "Rome 2027 runs to " });
+      args[2]!({ type: "error", message: ASK_FAILED_MESSAGE });
       return { ok: false as const, error: { status: 200, message: ASK_FAILED_MESSAGE, code: "ask-stream-error" } };
     });
     renderScreen(fixture.tripId);
@@ -1176,9 +1176,9 @@ describe("TripBoardScreen", () => {
     askAssistantMock.mockImplementationOnce(async (...args: AskArgs) => {
       // The header arrives before the body, so the badge is decided before a
       // single word is — which is the whole reason it is a header.
-      args[3]!({ type: "meta", simulated: true });
-      args[3]!({ type: "text", delta: "Rome 2027 runs to 0 days. " });
-      args[3]!({ type: "error", message: ASK_FAILED_MESSAGE });
+      args[2]!({ type: "meta", simulated: true });
+      args[2]!({ type: "text", delta: "Rome 2027 runs to 0 days. " });
+      args[2]!({ type: "error", message: ASK_FAILED_MESSAGE });
       return {
         ok: false as const,
         error: { status: 200, message: ASK_FAILED_MESSAGE, code: "ask-stream-error" },
@@ -1229,7 +1229,7 @@ describe("TripBoardScreen", () => {
     askAssistantMock.mockImplementation(
       (...args: AskArgs) =>
         new Promise(() => {
-          signal = args[4];
+          signal = args[3];
         }),
     );
     const view = renderScreen(fixture.tripId);
@@ -2677,9 +2677,38 @@ describe("⌘K runs the trip page's own actions", () => {
         act(() => command.run());
       },
       openAssistant: () => act(() => ask?.onOpen()),
+      askAssistant: (text: string) => act(() => ask?.onAsk?.(text)),
       ids: () => commands.map((c) => c.id),
     };
   }
+
+  // M45 D6: ⌘K's *Ask: <text>* works inside a trip, not only on Home (PR 426
+  // review, finding 6: nothing failed without the board's offer). And the
+  // board drops the hand-off once its rail takes it (finding 3): the rail
+  // remounts on Hide and Show, as it does when the header skeleton comes
+  // back, and must not ask the same words again. jsdom's `matchMedia` fires
+  // no change, so Hide and Show is the remount this can drive.
+  it("hands ⌘K's Ask: text to its rail, which asks it once", async () => {
+    const fixture = tripDetailFixture();
+    server.use(...makeTripHandlers(fixture));
+    askAssistantMock.mockImplementation(answers("Day 2 is the busiest."));
+    const page = renderWithPalette(fixture.tripId);
+    expect(await screen.findByRole("heading", { name: "Rome 2027" })).toBeTruthy();
+
+    page.askAssistant("which day is busiest?");
+    await waitFor(() => expect(askAssistantMock).toHaveBeenCalledTimes(1));
+    expect(askCall(0).messages.at(-1)!.parts[0]!.text).toBe("which day is busiest?");
+    expect(await within(assistantPanel()).findByText("Day 2 is the busiest.")).toBeTruthy();
+
+    fireEvent.click(within(assistantPanel()).getByRole("button", { name: "Hide" }));
+    fireEvent.click(screen.getByTestId("ask-pill"));
+    expect(await screen.findByRole("complementary", { name: "Assistant" })).toBeTruthy();
+    expect(askAssistantMock).toHaveBeenCalledTimes(1);
+    fireEvent.change(screen.getByPlaceholderText(/ask about this (?:day|trip)/i), { target: { value: "and the quietest?" } });
+    fireEvent.click(askButton());
+    await waitFor(() => expect(askAssistantMock).toHaveBeenCalledTimes(2));
+    expect(askCall(1).messages.at(-1)!.parts[0]!.text).toBe("and the quietest?");
+  });
 
   // Every batch posted, as one list of commands each. Registered after the
   // trip's handlers, so it comes first (`server.use` prepends) and hands each
@@ -3001,8 +3030,8 @@ describe("⌘K runs the trip page's own actions", () => {
     const replied = new Promise<void>((resolve) => (reply = resolve));
     askAssistantMock.mockImplementation(async (...args: AskArgs) => {
       await replied;
-      args[3]!({ type: "text", delta: "Opening Packing." });
-      args[3]!({ type: "palette", commands: [{ id: `go:notebook:${notebook.id}`, needsApproval: false }] });
+      args[2]!({ type: "text", delta: "Opening Packing." });
+      args[2]!({ type: "palette", commands: [{ id: `go:notebook:${notebook.id}`, needsApproval: false }] });
       return { ok: true as const, value: { text: "Opening Packing." } };
     });
     pushSpy.mockClear();

@@ -198,11 +198,49 @@ function isTurn(value: unknown): value is AssistantTurn {
 }
 
 /**
- * The conversation name of a scope about no one trip: its kind, which no
- * trip-bound name (`trip:<id>`, `notebook:<id>`, `page:<id>`) can be.
+ * The conversation name of a scope about no one trip, which no trip-bound name
+ * (`trip:<id>`, `notebook:<id>`, `page:<id>`) can be. A switch with no default
+ * so a new kind does not compile until it is named here: one that covers many
+ * pages (a playbook's) needs the page in its name, or they share one thread.
  */
 export function beyondTripThreadName(scope: BeyondTripAskScope): string {
-  return scope.kind;
+  switch (scope.kind) {
+    case "account":
+      return "account";
+    default: {
+      const unhandled: never = scope.kind;
+      return unhandled;
+    }
+  }
+}
+
+/**
+ * Conversation `name` as `owner` keeps it: the signed-in user's id, so two
+ * accounts on one browser never read each other's threads or drafts (PR 426's
+ * review: Home's account thread is wholly personal, and every account landed
+ * on it). Every stored name goes through here; `useOwnedAskName` is how.
+ */
+export function ownedAskName(owner: string, name: string): string {
+  return `${owner}:${name}`;
+}
+
+/** The owner of what a signed-out visitor asks (the demo trip at `/plans`). */
+export const SIGNED_OUT_OWNER = "signed-out";
+
+/**
+ * Forgets every thread and draft `owner` stored. Sign-out calls it: a shared
+ * browser keeps nothing of the account that just left. Never throws.
+ */
+export function forgetAskConversationsOf(owner: string): void {
+  try {
+    const mine = [`${KEY_PREFIX}:${ownedAskName(owner, "")}`, `${DRAFT_PREFIX}:${ownedAskName(owner, "")}`];
+    const keys = Array.from({ length: window.localStorage.length }, (_, i) => window.localStorage.key(i));
+    for (const key of keys) {
+      if (key !== null && mine.some((prefix) => key.startsWith(prefix))) window.localStorage.removeItem(key);
+    }
+  } catch {
+    // See `saveAskThread`.
+  }
 }
 
 // **The composer's unsent text, beside its conversation** (KI-2026-10-12-g). A

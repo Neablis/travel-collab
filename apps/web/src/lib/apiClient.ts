@@ -1484,19 +1484,27 @@ export type TripAskScope =
 /**
  * A turn about no one trip, each kind with its own door (M45). The account's
  * answers across every trip you travelled on; another surface (the playbook
- * pages) joins as another kind here and another row in `beyondTripAskPath`.
+ * pages) joins as another kind here, and the compiler then names every place
+ * that has to answer for it (`askPath`, the rail's copy, the thread's name).
  */
 export type BeyondTripAskScope = { kind: "account" };
 
-/** Whether `scope` is answered by a door of its own rather than a trip's. */
-function isBeyondTripScope(scope: AskScope): scope is BeyondTripAskScope {
-  return scope.kind === "account";
-}
+/**
+ * Which door a turn goes to: a trip's, with that trip's id, or one of its own
+ * for a scope about no one trip. A pair so a trip scope cannot travel without
+ * its trip, nor an account scope with one.
+ */
+export type AskWhere = { tripId: string; scope: TripAskScope } | { tripId?: undefined; scope: BeyondTripAskScope };
 
-function beyondTripAskPath(scope: BeyondTripAskScope): string {
-  switch (scope.kind) {
+function askPath(where: AskWhere): string {
+  if (where.tripId !== undefined) return `/api/trips/${where.tripId}/ask`;
+  switch (where.scope.kind) {
     case "account":
       return "/api/ask";
+    default: {
+      const unhandled: never = where.scope.kind;
+      return unhandled;
+    }
   }
 }
 
@@ -1735,19 +1743,16 @@ function pageInsertsEvent(content: PageDoc, dropped: DroppedInsert[]): AskEvent 
  * answer text for callers that only want the end.
  */
 export async function askAssistant(
-  tripId: string | null,
+  where: AskWhere,
   messages: AskWireMessage[],
-  scope: AskScope,
   onEvent: (event: AskEvent) => void = () => {},
   signal?: AbortSignal,
 ): Promise<ApiResult<{ text: string }>> {
   try {
-    // `tripId` is null exactly when the scope has a door of its own.
-    const path = isBeyondTripScope(scope) ? beyondTripAskPath(scope) : `/api/trips/${tripId}/ask`;
-    const res = await fetch(apiUrl(path), {
+    const res = await fetch(apiUrl(askPath(where)), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages, scope }),
+      body: JSON.stringify({ messages, scope: where.scope }),
       signal,
     });
     if (!res.ok) {

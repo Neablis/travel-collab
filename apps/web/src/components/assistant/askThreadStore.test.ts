@@ -7,7 +7,16 @@
 // built against a trip that has since moved.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AssistantTurn } from "@/components/assistant/Transcript";
-import { clearAskDraft, clearAskThread, loadAskDraft, loadAskThread, saveAskDraft, saveAskThread } from "./askThreadStore";
+import {
+  clearAskDraft,
+  clearAskThread,
+  forgetAskConversationsOf,
+  loadAskDraft,
+  loadAskThread,
+  ownedAskName,
+  saveAskDraft,
+  saveAskThread,
+} from "./askThreadStore";
 
 const NAME = "trip:11111111-2222-4333-8444-555566667777";
 
@@ -216,5 +225,24 @@ describe("the ask draft store", () => {
     expect(() => saveAskDraft(NAME, "hello")).not.toThrow();
     expect(loadAskDraft(NAME)).toBeNull();
     expect(() => clearAskDraft(NAME)).not.toThrow();
+  });
+});
+
+// PR 426 review, finding 1: sign-out forgets one account's conversations on a
+// shared browser, and no one else's, including an id this one is a prefix of.
+describe("forgetting one account's conversations", () => {
+  it("removes that account's threads and drafts and keeps every other account's", () => {
+    const turn: AssistantTurn = { id: "u1", role: "user", text: "what did I spend?" };
+    saveAskThread(ownedAskName("user-a", "account"), [turn]);
+    saveAskDraft(ownedAskName("user-a", NAME), "and dinner?");
+    saveAskThread(ownedAskName("user-ab", "account"), [turn]);
+    saveAskDraft(ownedAskName("user-b", NAME), "where next?");
+
+    forgetAskConversationsOf("user-a");
+
+    expect(loadAskThread(ownedAskName("user-a", "account"))).toEqual([]);
+    expect(loadAskDraft(ownedAskName("user-a", NAME))).toBeNull();
+    expect(loadAskThread(ownedAskName("user-ab", "account"))).toEqual([turn]);
+    expect(loadAskDraft(ownedAskName("user-b", NAME))).toBe("where next?");
   });
 });
