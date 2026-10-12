@@ -197,7 +197,10 @@ export function accountExpectationFor(
     case "a-next-country": {
       // Read off the travelled trips' own scheduled stops, not through
       // `suggestNextCountry`, for the reason above: an answer naming a country
-      // already visited, and no other, fails.
+      // already visited, and no other, fails. Whole names only, or "romantic"
+      // passes as Oman. An answer that names an unvisited country in passing
+      // ("unlike Spain, Portugal...") still passes: no text rule tells a
+      // suggestion from a comparison.
       const been = new Set(
         trips.flatMap((trip) =>
           trip.days
@@ -208,7 +211,7 @@ export function accountExpectationFor(
       return {
         ...ACCOUNT_QUESTION,
         mustCall: ["suggest_next_country"],
-        mentionsOneOf: COUNTRIES.filter((country) => !been.has(country.code)).map((country) => country.name),
+        namesOneOf: COUNTRIES.filter((country) => !been.has(country.code)).map((country) => country.name),
       };
     }
     default:

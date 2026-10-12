@@ -118,6 +118,19 @@ describe("mentionsOneOf", () => {
   });
 });
 
+// A place name inside another word is not the place: "romantic" is not Oman,
+// "scuba" is not Cuba, "Indian" is not India.
+describe("namesOneOf", () => {
+  it("passes a whole name in any case, and fails one found only inside a word", () => {
+    expect(failing(grade(turn({}, "Try oman, then Jordan."), { namesOneOf: ["Oman"] }))).toEqual([]);
+    expect(failing(grade(turn({}, "Côte d'Ivoire next."), { namesOneOf: ["Côte d'Ivoire"] }))).toEqual([]);
+    expect(failing(grade(turn({}, "A romantic return to Japan."), { namesOneOf: ["Oman"] }))).toEqual(['names "Oman"']);
+    expect(failing(grade(turn({}, "Scuba off Okinawa, an Indian summer."), { namesOneOf: ["Cuba", "India"] }))).toEqual([
+      'names "Cuba" or "India"',
+    ]);
+  });
+});
+
 describe("the cases", () => {
   const japan = demoTripDetail(DEMO_TRIP_ID);
 
@@ -166,6 +179,17 @@ describe("the cases", () => {
     const plan = expectationFor("t-reads-and-says-nothing", japan)!;
     expect(plan.proposes).toBeUndefined();
     expect(plan.completes ?? true).toBe(true);
+  });
+
+  // Over a trip in Japan, every country but Japan is a right answer: one named
+  // only inside "romantic" or "scuba" is not.
+  it("fails a next country that names only one already visited", () => {
+    const next = accountExpectationFor("a-next-country", [{ detail: japan, travelling: true }], japan.members[0]!.userId)!;
+    const said = (text: string) => failing(grade(turn({ toolCalls: [{ name: "suggest_next_country", input: {} }] }, text), next));
+    expect(said("A romantic return to Japan, with scuba off Okinawa and an Indian summer in Hokkaido.")).toEqual([
+      `names one of ${next.namesOneOf!.length} places`,
+    ]);
+    expect(said("Portugal, for the food.")).toEqual([]);
   });
 
   it("has an expectation for every prompt in the live set", () => {

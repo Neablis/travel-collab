@@ -244,6 +244,41 @@ describe("two cities with one name", () => {
   });
 });
 
+describe("a city with and without a country", () => {
+  // The geocoder writes `city` and `countryCode` independently, so one Kyoto
+  // can arrive with no code. Kept apart, it would count as a second city and
+  // Lisbon (one trip) would outrank Kyoto (two).
+  const WITH_CODE = trip("Kyoto", [travelling(ME, "owner")], [[{ title: "Fushimi Inari", where: place("Kyoto", "JP") }]]);
+  const NO_CODE = trip("Kyoto again", [travelling(ME, "owner")], [[{ title: "Nishiki market", where: { city: "Kyoto" } }]]);
+  const LISBON = trip("Lisbon", [travelling(ME, "owner")], [
+    [{ title: "Alfama", where: place("Lisbon", "PT") }],
+    [{ title: "Belem", where: place("Lisbon", "PT") }],
+  ]);
+  const trips = [WITH_CODE, NO_CODE, LISBON];
+
+  it("is the one coded city of that name, counted once and ranked by both trips", () => {
+    expect(visitCounts(trips, ME, "city").places).toEqual([
+      { place: "Kyoto", countryCode: "JP", trips: 2, days: 2, stops: 2 },
+      { place: "Lisbon", countryCode: "PT", trips: 1, days: 2, stops: 2 },
+    ]);
+    expect(placesVisited(trips, ME).cities).toEqual([
+      { city: "Kyoto", countryCode: "JP" },
+      { city: "Lisbon", countryCode: "PT" },
+    ]);
+  });
+
+  it("stays apart when two coded cities share the name, since either could be it", () => {
+    const TEXAS = trip("Paris, Texas", [travelling(ME, "owner")], [[{ title: "Replica", where: place("Paris", "US") }]]);
+    const FRANCE = trip("Paris", [travelling(ME, "owner")], [[{ title: "Louvre", where: place("Paris", "FR") }]]);
+    const BARE = trip("Paris?", [travelling(ME, "owner")], [[{ title: "Cafe", where: { city: "Paris" } }]]);
+    expect(placesVisited([TEXAS, FRANCE, BARE], ME).cities).toEqual([
+      { city: "Paris", countryCode: null },
+      { city: "Paris", countryCode: "FR" },
+      { city: "Paris", countryCode: "US" },
+    ]);
+  });
+});
+
 describe("suggestNextCountry", () => {
   it("offers every country not yet visited, the regions already visited first", () => {
     const suggestion = suggestNextCountry(TRIPS, ME);

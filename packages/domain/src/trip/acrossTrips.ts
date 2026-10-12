@@ -239,5 +239,21 @@ function visitsOf(trips: readonly TripDetail[]): { tripsCounted: number; placed:
       else placed.push(visit);
     }
   }
+  // The geocoder can write a city without its country. When one coded city has
+  // that name, the bare one is it; with two (Paris, FR and Paris, US) it could
+  // be either, so it stays apart rather than be guessed.
+  const codesByName = new Map<string, Set<string>>();
+  for (const { city, countryCode } of placed.flatMap((visit) => [...visit.cities.values()])) {
+    if (countryCode !== null) codesByName.set(city, (codesByName.get(city) ?? new Set()).add(countryCode));
+  }
+  for (const visit of placed) {
+    for (const [key, { city, countryCode }] of [...visit.cities]) {
+      const codes = codesByName.get(city);
+      if (countryCode !== null || codes?.size !== 1) continue;
+      const [code] = codes;
+      visit.cities.delete(key);
+      visit.cities.set(`${city}|${code}`, { city, countryCode: code! });
+    }
+  }
   return { tripsCounted: trips.length, placed, unknownStops };
 }
