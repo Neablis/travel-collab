@@ -100,3 +100,13 @@ export function decision(res) {
   }
   return res.json?.hookSpecificOutput?.permissionDecision ?? null;
 }
+
+// A repo whose main session is the milestone orchestrator: the marker
+// lib/orchestrator.mjs looks for, in the repo's own git dir.
+export function makeOrchestratorRepo() {
+  const root = makeRepo();
+  const gitDir = execFileSync("git", ["rev-parse", "--absolute-git-dir"], { cwd: root, encoding: "utf8" }).trim();
+  const marker = join(gitDir, "tc-orchestrator");
+  writeFileSync(marker, "");
+  return { root, marker, guardLog: join(gitDir, "tc-guard-log.jsonl") };
+}

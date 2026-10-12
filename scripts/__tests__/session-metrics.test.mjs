@@ -32,6 +32,15 @@ import {
   parseSession,
   computeFindings,
   findTranscripts,
+  callUnits,
+  callContext,
+  classifyTurn,
+  parseMilestoneTranscript,
+  loadMilestone,
+  computeMilestone,
+  findRewrites,
+  readGuardLog,
+  renderMilestone,
 } from "../session-metrics.mjs";
 
 // --- helpers ---------------------------------------------------------------
@@ -294,5 +303,316 @@ test("a truncated final line does not abort the file", () => {
   const findings = computeFindings([parseSession(file)]);
   assert.equal(findings.f1.calls, 1);
   assert.equal(findings.f1.chars, 120);
+  rmSync(root, { recursive: true, force: true });
+});
+
+// --- --milestone: one milestone's spend ------------------------------------
+//
+// docs/retros/2026-10-12-m42-token-spend-retro.md is the baseline every later
+// milestone is compared with, so what is tested here is that each number is
+// computed THE RETRO'S WAY (its section 2). A figure that is merely plausible
+// is the failure: nobody re-derives a retro table by hand.
+
+function usage(input, cacheCreation, cacheRead) {
+  return {
+    input_tokens: input,
+    cache_creation_input_tokens: cacheCreation,
+    cache_read_input_tokens: cacheRead,
+    output_tokens: 3,
+  };
+}
+
+/** One assistant record. A streamed message is several of these with one id. */
+function call(id, u, tools = []) {
+  return JSON.stringify({
+    type: "assistant",
+    message: {
+      id,
+      role: "assistant",
+      usage: u,
+      content: tools.map((name, i) => ({ type: "tool_use", id: `${id}-t${i}`, name, input: {} })),
+    },
+  });
+}
+
+function said(text) {
+  return JSON.stringify({ type: "user", message: { role: "user", content: text } });
+}
+
+function toolReturned(id) {
+  return JSON.stringify({
+    type: "user",
+    message: { role: "user", content: [{ type: "tool_result", tool_use_id: id, content: "ok" }] },
+  });
+}
+
+/** An orchestrator transcript plus `<name>/subagents/agent-*.jsonl` beside it. */
+function writeMilestone(orchestrator, subagents = {}) {
+  const root = mkdtempSync(join(tmpdir(), "sm-milestone-"));
+  const transcript = join(root, "session-m43.jsonl");
+  writeFileSync(transcript, orchestrator.join("\n") + "\n");
+  const dir = join(root, "session-m43", "subagents");
+  mkdirSync(dir, { recursive: true });
+  for (const [name, { lines, meta }] of Object.entries(subagents)) {
+    writeFileSync(join(dir, `${name}.jsonl`), lines.join("\n") + "\n");
+    if (meta) writeFileSync(join(dir, `${name}.meta.json`), JSON.stringify(meta));
+  }
+  return { root, transcript };
+}
+
+const WAKE = '<wake reason="external-event">check_suite.completed</wake>';
+
+test("units are input + 1.25 x cache write + 0.1 x cache read, and context is their plain sum", () => {
+  const u = { input: 100, cacheCreation: 1_000, cacheRead: 10_000 };
+  assert.equal(callUnits(u), 100 + 1_250 + 1_000);
+  assert.equal(callContext(u), 11_100);
+});
+
+test("a streamed message logged once per content block is ONE call, by message.id", () => {
+  // Three records, one id: the retro's 3,923 calls would have been ~10,000,
+  // and every units figure with them, if these were summed.
+  const { root, transcript } = writeMilestone([
+    said("Build M43"),
+    call("msg_1", usage(100, 1_000, 10_000), ["Read"]),
+    call("msg_1", usage(100, 1_000, 10_000), ["Bash"]),
+    call("msg_1", usage(100, 1_000, 10_000)),
+    call("msg_2", usage(10, 0, 20_000)),
+  ]);
+  const m = computeMilestone(loadMilestone(transcript));
+  assert.equal(m.totals.calls, 2);
+  assert.equal(m.totals.units, 2_350 + 2_010);
+  const orch = m.byType.find((t) => t.agentType === "orchestrator");
+  assert.equal(orch.avgContext, (11_100 + 20_010) / 2);
+  assert.equal(orch.peakContext, 20_010);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("agents are grouped by the type in .meta.json, and a subagent without one is `unknown`", () => {
+  // The retro's own script labelled a meta-less file "orchestrator", which
+  // would fold a subagent into the one share the first target is about.
+  const { root, transcript } = writeMilestone(
+    [said("Build M43"), call("o1", usage(0, 0, 1_000))],
+    {
+      "agent-a": {
+        lines: [said("brief"), call("a1", usage(0, 0, 4_000))],
+        meta: { agentType: "phase-implementer", description: "Build M43 part 1" },
+      },
+      "agent-b": {
+        lines: [said("brief"), call("b1", usage(0, 0, 3_000))],
+        meta: { agentType: "phase-implementer", description: "Build M43 part 2" },
+      },
+      "agent-c": { lines: [said("brief"), call("c1", usage(0, 0, 2_000))] },
+    },
+  );
+  const m = computeMilestone(loadMilestone(transcript));
+  const types = Object.fromEntries(m.byType.map((t) => [t.agentType, t]));
+  assert.deepEqual(Object.keys(types).sort(), ["orchestrator", "phase-implementer", "unknown"]);
+  assert.equal(types["phase-implementer"].agents, 2);
+  assert.equal(types["phase-implementer"].units, 700);
+  assert.equal(types.unknown.units, 200);
+  assert.equal(types.orchestrator.units, 100);
+  assert.equal(types.orchestrator.share, 0.1);
+  assert.deepEqual(m.costliest.map((a) => a.description), ["Build M43 part 1", "Build M43 part 2", "agent-c"]);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("each turn is classified by what started it, and its calls' units land on that class", () => {
+  const { root, transcript } = writeMilestone([
+    said("Build M43 please"),
+    call("o1", usage(0, 0, 10_000), ["Agent"]),
+    toolReturned("o1-t0"),
+    // A tool_result is NOT a turn start: o2 still belongs to the human turn.
+    call("o2", usage(0, 0, 10_000)),
+    said(WAKE),
+    call("o3", usage(0, 0, 20_000), ["ReadNotifications"]),
+    said("<task-notification>agent-a finished</task-notification>"),
+    call("o4", usage(0, 0, 30_000)),
+    said("<agent-message from=\"agent-a\">PR opened</agent-message>"),
+    call("o5", usage(0, 0, 40_000)),
+    said("<system-reminder>todo list is empty</system-reminder>"),
+    call("o6", usage(0, 0, 50_000)),
+  ]);
+  const m = computeMilestone(loadMilestone(transcript));
+  const by = Object.fromEntries(m.turns.classes.map((c) => [c.cls, [c.turns, c.units]]));
+  assert.deepEqual(by, {
+    github: [1, 2_000],
+    "subagent-report": [1, 4_000],
+    "subagent-finished": [1, 3_000],
+    harness: [1, 5_000],
+    human: [1, 2_000],
+    other: [0, 0],
+  });
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("a notification turn is idle only if it used nothing beyond ReadNotifications or ToolSearch", () => {
+  const { root, transcript } = writeMilestone([
+    said(WAKE),
+    call("o1", usage(0, 0, 10_000), ["ReadNotifications"]),
+    said(WAKE),
+    call("o2", usage(0, 0, 10_000), ["ToolSearch", "mcp__github__ReadNotifications"]),
+    said(WAKE),
+    call("o3", usage(0, 0, 10_000), ["ReadNotifications"]),
+    toolReturned("o3-t0"),
+    call("o4", usage(0, 0, 10_000), ["Bash"]),
+    said("there are 2 notifications pending"),
+    call("o5", usage(0, 0, 10_000)),
+  ]);
+  const github = computeMilestone(loadMilestone(transcript)).turns.classes.find((c) => c.cls === "github");
+  assert.equal(github.turns, 4);
+  assert.equal(github.idle, 3, "the turn that went on to run Bash did work");
+  assert.equal(github.idleUnits, 3_000);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("an unrecognised frame is counted as `other`, never as human, and the block says so", () => {
+  // The patterns were written from the retro's prose, not from a transcript.
+  // If one is wrong, this is the row that has to show it: merged into
+  // `human`, a missed frame would read as Mitchell typing 190 times.
+  assert.equal(classifyTurn("<mystery-frame>payload</mystery-frame>"), "other");
+  assert.equal(classifyTurn(""), "other");
+  assert.equal(classifyTurn("<system-reminder>x</system-reminder>\n<new-thing/>"), "other");
+  assert.equal(classifyTurn("<system-reminder>x</system-reminder>\nmerge it"), "human");
+  // The shape CodeQL flagged on PR 418 when this was one pattern: a long run of
+  // reminders with a non-reminder tail must classify at once, not backtrack.
+  const run = "<system-reminder>x</system-reminder>".repeat(5000);
+  const started = Date.now();
+  assert.equal(classifyTurn(`${run}\n \n`), "harness");
+  assert.equal(classifyTurn(`${run}!`), "human");
+  assert.ok(Date.now() - started < 1000, "classifying a run of reminders is linear");
+  assert.equal(classifyTurn("the hook output is wrong, look again"), "human");
+
+  const { root, transcript } = writeMilestone([
+    said("<mystery-frame>payload text that must not be printed</mystery-frame>"),
+    call("o1", usage(0, 0, 10_000)),
+    said("go on"),
+    call("o2", usage(0, 0, 10_000)),
+  ]);
+  const m = computeMilestone(loadMilestone(transcript));
+  const by = Object.fromEntries(m.turns.classes.map((c) => [c.cls, c.turns]));
+  assert.equal(by.other, 1);
+  assert.equal(by.human, 1);
+  const out = renderMilestone(m);
+  assert.match(out, /\| Other \(unrecognised frame\) \| 1 \|/);
+  assert.match(out, /`<mystery-frame>` × 1/);
+  assert.doesNotMatch(out, /payload text/, "the frame's NAME is reported, never its contents");
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("a full cache re-write is a later call over 50k that is at least 80% freshly written", () => {
+  const { rewrites, coordinatorMessages } = findRewrites(
+    parseMilestoneTranscriptFrom([
+      // A brief that QUOTES the frame is not a follow-up: this session's own
+      // briefs did, and each was counted as one.
+      said("brief: count the turns that open with The coordinator sent a message"),
+      // The first call writes its whole context by definition: not a re-write.
+      call("a1", usage(0, 60_000, 0)),
+      call("a2", usage(0, 2_000, 98_000)),
+      said("a long tool result ".repeat(20) + "The coordinator sent a message, the retro says"),
+      said("The coordinator sent a message while you were working: fix the review findings"),
+      call("a3", usage(0, 90_000, 10_000)),
+      // Exactly 80% counts; 79% does not; nor does a small context, however fresh.
+      call("a4", usage(0, 80_000, 20_000), ["Bash"]),
+      toolReturned("a4-t0"),
+      call("a5", usage(0, 79_000, 21_000)),
+      call("a6", usage(0, 40_000, 0)),
+    ]),
+  );
+  assert.equal(coordinatorMessages, 1);
+  assert.deepEqual(rewrites, [
+    { tokens: 90_000, afterCoordinator: true },
+    { tokens: 80_000, afterCoordinator: false },
+  ]);
+});
+
+function parseMilestoneTranscriptFrom(lines) {
+  const { root, file } = writeCorpus(lines, { name: "agent-x.jsonl" });
+  const events = parseMilestoneTranscript(file);
+  rmSync(root, { recursive: true, force: true });
+  return events;
+}
+
+test("follow-ups, re-writes and the five targets are totalled across the milestone", () => {
+  const { root, transcript } = writeMilestone(
+    [
+      said("Build M43"),
+      call("o1", usage(0, 0, 100_000), ["Agent", "SendMessage"]),
+      call("o2", usage(0, 0, 100_000), ["SendMessage"]),
+      said(WAKE),
+      call("o3", usage(0, 0, 100_000), ["ReadNotifications"]),
+    ],
+    {
+      "agent-a": {
+        lines: [
+          said("brief"),
+          call("a1", usage(0, 300_000, 0)),
+          said("The coordinator sent a message while you were idle: one more thing"),
+          call("a2", usage(0, 300_000, 0)),
+          said("The coordinator sent a message while you were idle: and another"),
+          call("a3", usage(0, 300_000, 0)),
+        ],
+        meta: { agentType: "phase-implementer", description: "Build M43 part 1" },
+      },
+    },
+  );
+  const loaded = loadMilestone(transcript);
+  const bare = computeMilestone(loaded);
+  assert.equal(bare.followUps.sendMessages, 2);
+  assert.deepEqual(bare.followUps.received.map((r) => [r.description, r.messages]), [["Build M43 part 1", 2]]);
+  assert.deepEqual(bare.rewrites, { count: 2, tokens: 600_000, afterCoordinator: 2, afterCoordinatorTokens: 600_000 });
+  // units: orchestrator 30k, builder 1.125M -> 2.6% share; builder averages 300k.
+  assert.deepEqual(bare.targets.map((t) => t.status), ["met", "missed", "not measurable", "not measurable", "met"]);
+
+  const full = computeMilestone(loaded, { costUsd: 50, linesAdded: 2_000, parts: 1 });
+  assert.deepEqual(full.targets.map((t) => t.status), ["met", "missed", "met", "missed", "met"]);
+  assert.equal(full.targets[3].value, 25);
+  assert.equal(full.usdPerUnit, 50 / 1_155_000);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("the guard log is counted per hook and decision, and a missing file is `none recorded`", () => {
+  const root = mkdtempSync(join(tmpdir(), "sm-guard-"));
+  const log = join(root, "tc-guard-log.jsonl");
+  writeFileSync(
+    log,
+    [
+      { t: "2026-10-12T00:00:00Z", hook: "full-suite", decision: "deny" },
+      { t: "2026-10-12T00:01:00Z", hook: "full-suite", decision: "deny" },
+      { t: "2026-10-12T00:02:00Z", hook: "full-suite", decision: "note" },
+      { t: "2026-10-12T00:03:00Z", hook: "pr-watch", decision: "note" },
+    ].map((r) => JSON.stringify(r)).join("\n") + "\n",
+  );
+  assert.deepEqual(readGuardLog(log).byHook, { "full-suite": { deny: 2, note: 1 }, "pr-watch": { note: 1 } });
+  assert.equal(readGuardLog(join(root, "absent.jsonl")), null);
+
+  const { root: r2, transcript } = writeMilestone([said("hi"), call("o1", usage(0, 0, 1_000))]);
+  const loaded = loadMilestone(transcript);
+  assert.match(renderMilestone(computeMilestone(loaded, { guardLog: readGuardLog(log) })), /\| `full-suite` \| 2 \| 1 \|/);
+  assert.match(renderMilestone(computeMilestone(loaded, { guardLog: null })), /\*\*Guard hooks\*\*\n\nNone recorded\./);
+  rmSync(root, { recursive: true, force: true });
+  rmSync(r2, { recursive: true, force: true });
+});
+
+test("the block opens with the two lines `pnpm milestone close` looks for", () => {
+  // Spelled out rather than imported: scripts/milestone.mjs and every
+  // milestone file already closed depend on these exact bytes.
+  const { root, transcript } = writeMilestone([said("hi"), call("o1", usage(0, 0, 1_000))]);
+  const lines = renderMilestone(computeMilestone(loadMilestone(transcript))).split("\n");
+  assert.deepEqual(lines.slice(0, 2), ["## Spend", "<!-- session-metrics:milestone v1 -->"]);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("--cost-usd adds a dollars column of units x (cost / total units); without it there is none", () => {
+  const { root, transcript } = writeMilestone(
+    [said("hi"), call("o1", usage(0, 0, 1_000))],
+    { "agent-a": { lines: [said("b"), call("a1", usage(0, 0, 3_000))], meta: { agentType: "part-reviewer", description: "Review part 1" } } },
+  );
+  const loaded = loadMilestone(transcript);
+  const priced = renderMilestone(computeMilestone(loaded, { costUsd: 8 }));
+  assert.match(priced, /\| `part-reviewer` \| 1 \| 1 \| 3k \| 3k \| 300 \| \$6\.00 \| 75\.0% \|/);
+  assert.match(priced, /\| `orchestrator` \| 1 \| 1 \| 1k \| 1k \| 100 \| \$2\.00 \| 25\.0% \|/);
+  const bare = renderMilestone(computeMilestone(loaded));
+  assert.doesNotMatch(bare, /\$/);
+  assert.match(bare, /\| `part-reviewer` \| 1 \| 1 \| 3k \| 3k \| 300 \| 75\.0% \|/);
   rmSync(root, { recursive: true, force: true });
 });

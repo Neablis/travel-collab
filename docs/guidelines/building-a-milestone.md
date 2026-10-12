@@ -10,7 +10,9 @@ So the process now has three properties:
 
 - **The orchestrating session stays lean.** It holds the decisions, the tasks, PR state and the
   conversation with Mitchell. It never writes or reads source code; subagents carry every build,
-  fix, review and gate-close step, each with a written brief.
+  fix, review and gate-close step, each with a written brief. A session costs about *calls ×
+  context*, so it is also woken as rarely as possible and hands follow-ups to new agents (see
+  *Spend*, below).
 - **Each part is its own PR on `main`**, merged when it is ready. Only part 0, the prose-only gate
   PR, waits for the end.
 - **CI on the PR is the verdict.** Locally a part runs the checks that touch its diff and nothing
@@ -50,8 +52,9 @@ rule 1). When CI goes red, `ci-triage` finds the cause and the part gets a fix, 
 
 ## 3. Review each part — `review-a-part`
 
-The **`part-reviewer` subagent** reviews every push. It is read-only: it reports ranked findings
-with a failure scenario and a fix, and the implementer works them on the part's own branch.
+A new **`part-reviewer` subagent** reviews every push. It is read-only: it writes ranked findings
+with a failure scenario and a fix to a file, which the orchestrator posts on the PR and hands to a
+new implementer, who works them on the part's own branch.
 CodeRabbit is optional. It is asked once, on the riskiest or largest part, because this repo gets no
 automatic CodeRabbit reviews and about one an hour, and that limit must not pace the work. Every
 finding is fixed, or answered on its thread and resolved (`working-a-review.md`).
@@ -64,19 +67,37 @@ Mitchell merges it, and dispatches `migrate-production` after one that adds a mi
 Part 0's tracker records every part, review, CI run, merge and migration as it happens. Mitchell
 walks each part's preview, with the mouse and keyboard-only, and his comments are fixed on that
 part's branch. Each gate box is ticked only with evidence; CI on the merged parts is the e2e
-evidence. Then part 0 gets the retro, `pnpm milestone close <M>` (dry run, then `--confirm`), the
-STATUS update, and the plan's deletion (`docs/plans/README.md`). Part 0 is marked ready before its
+evidence. The close runs in a fresh session, handed off with `/next-prompt` once the parts are
+merged. Part 0 gets the retro (`writing-a-retro.md`, with its spend block), `pnpm milestone close
+<M>` (dry run, then `--confirm`), the STATUS update, and the plan's deletion
+(`docs/plans/README.md`). Part 0 is marked ready before its
 CI is relied on, and Mitchell merges it.
+
+## Spend
+
+M42 cost $334, 2.1× M41, for the same amount of code
+(`docs/retros/2026-10-12-m42-token-spend-retro.md`). Three habits did it, and each now has a hook
+rather than a rule, because the rule that existed ("read routine notifications silently") was
+followed and still cost $34:
+
+| Habit | What stops it |
+|---|---|
+| The orchestrator woken 190 times by GitHub events on part PRs | It watches only part 0. `notification-unsubscribe-nudge.mjs` says so on any other wake; the implementer's `Closed:` line names the PR to drop. |
+| Follow-ups sent to builders 250k–480k deep, often after their cache expired | `closed-agent-guard.mjs` denies the message; `implementer-brief-check.mjs` makes the new agent's brief complete. |
+| Logs and full reviews read into the orchestrator | `orchestrator-lean-reads.mjs` denies job logs; `reviewer-report-check.mjs` keeps the review in a file. |
+
+Every milestone's retro carries a `## Spend` block from `pnpm session-metrics --milestone`, and
+the gate close refuses without it. The targets are in `writing-a-retro.md`.
 
 ## Standing rules
 
 - **Merges are Mitchell's** unless he says otherwise. `migrate-production` is always his.
 - **Never run the live eval without asking him first.** `pnpm --filter web eval` costs money. The
   grader's own tests are free.
-- **Speak to Mitchell on a finding, a failure, a merge or a question.** Preview builds, CodeRabbit
-  skip notices and summary edits, and echoes of our own replies are read silently.
+- **Speak to Mitchell on a finding, a failure, a merge or a question.**
 - **Re-read the source before reporting state.** A PR, check or workflow run read earlier may be out
   of date by the time it is reported.
-- **Wait by ending the turn**, with PR subscriptions and scheduled reminders, not by polling.
+- **Wait by ending the turn**, not by polling. Subagent reports, part 0's PR and scheduled
+  reminders wake the session; part PRs do not.
 
 Work too big for one PR outside a milestone still uses `stacked-prs.md`.

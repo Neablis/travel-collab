@@ -35,6 +35,11 @@
           },
           {
             "type": "command",
+            "command": "node scripts/hooks/orchestrator-lean-reads.mjs",
+            "if": "Bash(gh *)"
+          },
+          {
+            "type": "command",
             "command": "node scripts/hooks/check-test-lane.mjs"
           },
           {
@@ -69,6 +74,33 @@
             "command": "node scripts/hooks/pr-tool-guard.mjs"
           }
         ]
+      },
+      {
+        "matcher": "mcp__.*__get_job_logs",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node scripts/hooks/orchestrator-lean-reads.mjs"
+          }
+        ]
+      },
+      {
+        "matcher": "SendMessage",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node scripts/hooks/closed-agent-guard.mjs"
+          }
+        ]
+      },
+      {
+        "matcher": "Agent|Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node scripts/hooks/implementer-brief-check.mjs"
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -90,6 +122,15 @@
             "command": "node scripts/hooks/push-review-nudge.mjs"
           }
         ]
+      },
+      {
+        "matcher": "ReadNotifications",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node scripts/hooks/notification-unsubscribe-nudge.mjs"
+          }
+        ]
       }
     ],
     "SubagentStop": [
@@ -107,6 +148,15 @@
           {
             "type": "command",
             "command": "node scripts/hooks/implementer-report-check.mjs"
+          }
+        ]
+      },
+      {
+        "matcher": "part-reviewer",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node scripts/hooks/reviewer-report-check.mjs"
           }
         ]
       }

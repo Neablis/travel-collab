@@ -374,6 +374,13 @@ CI completions, review comments and merge-state changes arrive as
 A blocking `gh pr checks --watch` here spends a median 6.6 minutes of session
 doing nothing, and still misses the review comment that lands afterwards.
 
+**A wake is not free.** Each one re-reads the session's whole context, so a subscription suits a
+session with a small context and one PR. A milestone orchestrator is neither: in M42 it was woken
+190 times, 141 of them for nothing, for $57
+(`docs/retros/2026-10-12-m42-token-spend-retro.md`, F1). It watches only part 0 and unsubscribes
+from each part's PR, which the harness subscribes it to when a subagent opens one
+(`building-a-milestone.md`, *Spend*).
+
 Two things that follow:
 
 - **Never run a blocking watch in a subscribed session.** It spends exactly the

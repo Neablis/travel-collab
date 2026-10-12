@@ -14,6 +14,12 @@ import { execFileSync } from "node:child_process";
 
 const SCRIPT = new URL("../milestone.mjs", import.meta.url).pathname;
 
+const M20_GATE = "# M20 — An account knows what it may do\n\n## Exit gate\n- [x] a\n- [x] b\n";
+// Written out, not imported from session-metrics.mjs: these two lines are a
+// contract between two scripts, and a test that imported the constant would
+// follow a rename straight past every milestone file already carrying it.
+const SPEND_BLOCK = "\n## Spend\n<!-- session-metrics:milestone v1 -->\n\n3 agents, 12 API calls.\n";
+
 function repo(overrides = {}) {
   const root = mkdtempSync(join(tmpdir(), "mc-test-"));
   const files = {
@@ -28,7 +34,9 @@ function repo(overrides = {}) {
     "docs/milestones/README.md": [
       "# Milestones", "", "## Table", "", "Current milestone: M20 — An account knows what it may do", "",
     ].join("\n"),
-    "docs/milestones/M20-tiers.md": "# M20 — An account knows what it may do\n\n## Exit gate\n- [x] a\n- [x] b\n",
+    // The spend block is part of a closeable milestone since the M42 retro, so
+    // the default fixture carries it; the tests for its ABSENCE override this.
+    "docs/milestones/M20-tiers.md": M20_GATE + SPEND_BLOCK,
     "docs/milestones/M21-billing.md": "# M21 — An account can pay for itself\n\n## Exit gate\n- [ ] a\n",
     "docs/STATUS.md": "# STATUS\n\n## Where the work is right now\n\nM20 is current.\n",
     "docs/candidates.md": [
@@ -346,4 +354,68 @@ test("with no un-paused row after it, close refuses rather than inventing one", 
   assert.match(out, /skipped as PAUSED: M21/);
   assertUntouched(root, before, "close M20 with only a paused row after it");
   rmSync(root, { recursive: true, force: true });
+});
+
+// --- the spend block --------------------------------------------------------
+//
+// docs/retros/2026-10-12-m42-token-spend-retro.md: M42's numbers exist only
+// because the measurement was run before its cloud container was reclaimed.
+// The close is the last moment that is still possible, so it is a refusal
+// here and not a line under "still yours to write".
+
+test("refuses a milestone file with no spend block, names the command, writes nothing", () => {
+  const root = repo({ "docs/milestones/M20-tiers.md": M20_GATE });
+  const before = snapshot(root);
+  const out = run(root, ["close", "M20", "--confirm"], { expectFail: true });
+  assert.match(out, /M20-tiers\.md has no spend block/);
+  assert.match(out, /pnpm session-metrics --milestone/);
+  assert.match(out, /--no-spend "<reason>"/);
+  assert.match(out, /Nothing was written/);
+  assertUntouched(root, before, "close M20 --confirm with no spend block");
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("a milestone file carrying the spend marker closes, and the checklist says so", () => {
+  const root = repo();
+  const out = run(root, ["close", "M20", "--confirm"]);
+  assert.match(out, /M20-tiers\.md: spend block present/);
+  assert.match(readFileSync(join(root, "TODO.md"), "utf8"), /- \[x\] \*\*M20/);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("the marker must be a line of its own — a mention in prose is not a spend block", () => {
+  // A retro note that QUOTES the marker ("paste the `<!-- ... -->` block here")
+  // is the likeliest false pass, and it is exactly a file with no numbers.
+  const root = repo({
+    "docs/milestones/M20-tiers.md":
+      M20_GATE + "\nTODO: paste the `<!-- session-metrics:milestone v1 -->` block here.\n",
+  });
+  const out = run(root, ["close", "M20", "--confirm"], { expectFail: true });
+  assert.match(out, /has no spend block/);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("--no-spend with a reason closes without the block and prints the reason", () => {
+  const root = repo({ "docs/milestones/M20-tiers.md": M20_GATE });
+  const out = run(root, ["close", "M20", "--no-spend", "built locally, no cloud transcript", "--confirm"]);
+  assert.match(out, /NO spend block — closed with --no-spend: built locally, no cloud transcript/);
+  assert.match(readFileSync(join(root, "TODO.md"), "utf8"), /- \[x\] \*\*M20/);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("--no-spend without a reason is refused: empty, blank, missing, or eating the next flag", () => {
+  for (const args of [
+    ["close", "M20", "--confirm", "--no-spend"],
+    ["close", "M20", "--no-spend", "", "--confirm"],
+    ["close", "M20", "--no-spend", "   ", "--confirm"],
+    ["close", "M20", "--no-spend", "--confirm"],
+  ]) {
+    const root = repo({ "docs/milestones/M20-tiers.md": M20_GATE });
+    const before = snapshot(root);
+    const out = run(root, args, { expectFail: true });
+    assert.match(out, /--no-spend needs a reason/, JSON.stringify(args));
+    assert.match(out, /Nothing was written/);
+    assertUntouched(root, before, JSON.stringify(args));
+    rmSync(root, { recursive: true, force: true });
+  }
 });
