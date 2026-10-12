@@ -76,14 +76,28 @@ describe("finalStepTextOnly", () => {
   });
 
   // streamText forwards a text group with no visible text: always its start
-  // and end, and an empty delta when the provider attaches metadata to it.
-  it("does not count a final step's empty text group as the answer", async () => {
-    const out = await through([
-      ...step(text("a", "Day 1 is free."), readDay),
-      ...step([{ type: "text-start", id: "b" }, { type: "text-delta", id: "b", delta: "" }, { type: "text-end", id: "b" }]),
-      { type: "finish" },
-    ]);
-    expect(spoken(out)).toBe("Day 1 is free.");
+  // and end, and an empty delta when the provider attaches metadata to it. A
+  // model can also open a block with bare newlines; that reads as blank too.
+  describe.each([
+    ["an empty", ""],
+    ["a whitespace-only", "\n\n"],
+  ])("%s text group", (_, blank) => {
+    it("is not the answer when the final step says it", async () => {
+      const out = await through([...step(text("a", "Day 1 is free."), readDay), ...step(text("b", blank)), { type: "finish" }]);
+      // The blank group itself still passes, ahead of the fallback.
+      expect(spoken(out).trim()).toBe("Day 1 is free.");
+    });
+
+    it("beside a later tool call does not replace the last dropped text", async () => {
+      const out = await through([...step(text("a", "Day 1 is free."), readDay), ...step(text("b", blank), readDay), { type: "finish" }]);
+      expect(spoken(out)).toBe("Day 1 is free.");
+    });
+
+    // Only abort or error can end a turn with a group still held.
+    it("held when the turn aborts does not win over the last dropped text", async () => {
+      const out = await through([...step(text("a", "Earlier note."), readDay), { type: "start-step" }, ...text("b", blank), { type: "abort" }]);
+      expect(spoken(out)).toBe("Earlier note.");
+    });
   });
 
   it.each(["abort", "error"] as const)("on %s, shows the step in progress, or else the last dropped text", async (end) => {

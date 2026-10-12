@@ -24,9 +24,10 @@ import type { UIMessageChunk } from "ai";
  * (`finish`, `abort`, `error`) with no text released, the step in progress's
  * text is shown, or else the last dropped step's — the answer a model gave
  * beside its final tool call, or a deadline-cut turn's last words. "Text" is
- * a non-empty delta: streamText forwards a group with nothing in it (always
- * its start and end, and an empty delta carrying provider metadata), and that
- * is not an answer.
+ * a delta with something besides whitespace in it: streamText forwards a
+ * group with nothing in it (always its start and end, and an empty delta
+ * carrying provider metadata), a model can open a block with bare newlines,
+ * and neither is an answer.
  *
  * **The cost: the answer no longer streams token by token.** A step cannot be
  * known to be tool-free until it ends, so the final step's text arrives whole
@@ -41,7 +42,7 @@ export function finalStepTextOnly(opts: { liveStep: (step: number) => boolean })
   let calledTool = false;
   let lastDropped: UIMessageChunk[] = [];
   let released = false;
-  const spoke = (chunks: UIMessageChunk[]) => chunks.some((chunk) => chunk.type === "text-delta" && chunk.delta.length > 0);
+  const spoke = (chunks: UIMessageChunk[]) => chunks.some((chunk) => chunk.type === "text-delta" && chunk.delta.trim().length > 0);
 
   return new TransformStream({
     transform(chunk, controller) {
