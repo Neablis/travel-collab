@@ -667,6 +667,27 @@ describe("NotebookScreen", () => {
       expect(askAssistantMock).toHaveBeenCalledTimes(1);
     });
 
+    // PR 426 review round 4, finding 2, as the board has it: the sheet mounts
+    // afresh on every open, and a refused question left set went back over
+    // the box each time.
+    it("puts a refused question back once, not again on a later open", async () => {
+      askAssistantMock.mockResolvedValueOnce({
+        ok: false,
+        error: { status: 400, message: "Your message must be 4000 characters or fewer." },
+      });
+      await openSheet();
+      const composer = () => screen.getByPlaceholderText<HTMLInputElement>(/Ask about this trip/i);
+      await userEvent.type(composer(), "Which of these is stale?{Enter}");
+      await waitFor(() => expect(composer().value).toBe("Which of these is stale?"));
+
+      // No signed-in user here, so nothing is stored: the box opens empty.
+      await userEvent.clear(composer());
+      await userEvent.click(within(screen.getByRole("complementary", { name: "Assistant" })).getByRole("button", { name: "Hide" }));
+      await userEvent.click(await screen.findByRole("button", { name: "Ask" }));
+      expect(await screen.findByRole("complementary", { name: "Assistant" })).toBeTruthy();
+      expect(composer().value).toBe("");
+    });
+
     // DRIFT.md build-check 4c: *"An open assistant sheet must block the tab
     // bar. Switching tabs behind an open sheet changes its scope mid-
     // conversation."* The scrim is the mechanism, and it is `position: fixed`

@@ -668,6 +668,27 @@ describe("the assistant on a notebook page", () => {
     await waitFor(() => expect(screen.queryByText(/params failed validation/)).toBeNull());
   });
 
+  // PR 426 review round 4, finding 2, as the board has it: the panel mounts
+  // afresh on every open, and a refused question left set went back over the
+  // box each time.
+  it("puts a refused question back once, not again on a later open", async () => {
+    askAssistantMock.mockResolvedValueOnce({
+      ok: false,
+      error: { status: 400, message: "Your message must be 4000 characters or fewer." },
+    });
+    await openRail();
+    const composer = () => screen.getByPlaceholderText<HTMLTextAreaElement>(/add to this page/i);
+    await userEvent.type(composer(), "Add a packing list{Enter}");
+    await waitFor(() => expect(composer().value).toBe("Add a packing list"));
+
+    // No signed-in user here, so nothing is stored: the box opens empty.
+    await userEvent.clear(composer());
+    await userEvent.click(within(screen.getByRole("complementary", { name: "Assistant" })).getByRole("button", { name: "Hide" }));
+    await userEvent.click(screen.getByTestId("assistant-launcher"));
+    expect(await screen.findByRole("complementary", { name: "Assistant" })).toBeTruthy();
+    expect(composer().value).toBe("");
+  });
+
   // The assistant is available in Reading, which it was not. A page opens in
   // Reading, so this is the state most readers meet it in.
   it("is reachable without entering Editing at all", async () => {

@@ -1653,9 +1653,9 @@ export function PageScreen({
           refusal SAYS so, because an assistant that answers nothing reads as
           broken rather than as declining.
 
-          The panel is not unmounted between openings: closing it hangs up on
-          the turn (`closeAssistant`) but the thread is `useAskThread`'s, which
-          lives on this screen, so a conversation survives being put away. */}
+          The panel unmounts between openings, but the thread is
+          `useAskThread`'s, which lives on this screen: closing hangs up on the
+          turn (`closeAssistant`) and the conversation survives being put away. */}
       {!isPhone && !assistantOpen ? (
         <AssistantBubble open={assistantOpen} onOpen={() => setAssistantOpen(true)} />
       ) : null}
@@ -1719,6 +1719,7 @@ export function PageScreen({
           emptyHint={isPhone ? phoneAsk.emptyHint : undefined}
           asksRemaining={ask.asksRemaining}
           restoreDraft={ask.restoredDraft}
+          onRestoreTaken={ask.clearRestoredDraft}
           onNewConversation={() => {
             setTurnRefusal(null);
             ask.startNewConversation();

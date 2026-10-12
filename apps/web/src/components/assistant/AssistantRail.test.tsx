@@ -1,10 +1,11 @@
-import { StrictMode } from "react";
+import { StrictMode, useState } from "react";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ASK_FAILED_MESSAGE } from "@tc/contracts";
 import { AssistantRail } from "./AssistantRail";
 import { BeyondTripAssistant } from "./BeyondTripAssistant";
+import { useAssistantVisibility } from "./useAssistantVisibility";
 import { setViewportMatches } from "../../../vitest.setup";
 import { ownedAskName } from "@/lib/askOwnership";
 import { loadAskDraft, saveAskDraft } from "./askThreadStore";
@@ -1119,5 +1120,45 @@ describe("AssistantRail — text handed in from ⌘K", () => {
     renderRail({ onAsk, asking: true, incoming: { text: "and where next?" } });
     expect(onAsk).not.toHaveBeenCalled();
     expect((screen.getByPlaceholderText(/ask about this day/i) as HTMLInputElement).value).toBe("and where next?");
+  });
+});
+
+// PR 426 review round 4, finding 3: opening moves focus into the composer,
+// once. The board's rail remounts while open (its header reload), and a
+// remount that took focus again would pull it from wherever the reader is.
+describe("AssistantRail — focus on open, from useAssistantVisibility", () => {
+  function Surface() {
+    const assistant = useAssistantVisibility();
+    const [mount, setMount] = useState(0);
+    return (
+      <>
+        <button type="button" onClick={assistant.show}>
+          Ask
+        </button>
+        <button type="button" onClick={() => setMount((n) => n + 1)}>
+          Remount
+        </button>
+        <input aria-label="Elsewhere" />
+        {assistant.open ? (
+          <AssistantRail key={mount} {...baseProps} takeFocus={assistant.takeFocus} onHide={assistant.hide} />
+        ) : null}
+      </>
+    );
+  }
+
+  it("takes focus when opened, and not when it remounts while open", async () => {
+    render(<Surface />);
+    await userEvent.click(screen.getByRole("button", { name: "Ask" }));
+    // The keys go wherever focus is, as they do for a keyboard user.
+    await userEvent.keyboard("a");
+    const composer = () => screen.getByPlaceholderText<HTMLInputElement>(/ask about this day/i);
+    expect(composer().value).toBe("a");
+
+    await userEvent.click(screen.getByRole("textbox", { name: "Elsewhere" }));
+    // `fireEvent`, not `userEvent`: a real click would move focus to the button.
+    fireEvent.click(screen.getByRole("button", { name: "Remount" }));
+    await userEvent.keyboard("b");
+    expect((screen.getByRole("textbox", { name: "Elsewhere" }) as HTMLInputElement).value).toBe("b");
+    expect(composer().value).toBe("");
   });
 });
