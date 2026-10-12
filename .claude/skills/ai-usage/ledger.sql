@@ -9,6 +9,12 @@
 -- Simulated turns (ai-live off, `turn_model = 'simulated/no-op'`) are
 -- excluded everywhere: they spend nothing and their tool calls are scripted.
 --
+-- Surfaces: `ai_usage.endpoint` is the surface a turn came through — `ask`
+-- (the trip assistant), `ask.apply` (applying a proposal) and, from M45,
+-- `ask.account` (the account-wide assistant on Home, trip_id null). Queries
+-- 4, 7 and 11 split by it; the per-tool and per-step queries (1-3, 5, 6, 8, 9)
+-- mix surfaces, so add `AND u.endpoint = '...'` to their WHERE to read one.
+--
 -- Tables: ai_usage (one row per turn; id is the turn id), ai_usage_steps
 -- (turn_id, step_index), ai_usage_tool_calls (turn_id, call_id). Turns written
 -- before 0035 have no child rows and are invisible to the per-step and
@@ -71,11 +77,14 @@ WHERE c.turn_id IN (SELECT id FROM turns)
 GROUP BY c.tool
 ORDER BY calls_per_turn DESC;
 
--- 4. Tokens per turn, p50 and p75, with the cached-read share.
+-- 4. Tokens per turn, p50 and p75, with the cached-read share, per surface.
 --    Agent steps only; the classifier's round-trip is on ai_usage itself.
+--    Split by endpoint, so account turns (`ask.account`) do not move the
+--    trip assistant's figures. Query 11 prices a surface per turn.
 WITH window_ AS (SELECT now() - interval '7 days' AS since),
      per_turn AS (
        SELECT s.turn_id,
+              u.endpoint,
               sum(s.tokens_in) AS tokens_in,
               sum(s.cache_read_tokens) AS cache_read,
               sum(s.tokens_out) AS tokens_out
@@ -83,13 +92,16 @@ WITH window_ AS (SELECT now() - interval '7 days' AS since),
        JOIN ai_usage u ON u.id = s.turn_id
        CROSS JOIN window_ w
        WHERE s.created_at >= w.since AND u.turn_model NOT LIKE 'simulated/%'
-       GROUP BY s.turn_id
+       GROUP BY s.turn_id, u.endpoint
      )
-SELECT count(*) AS turns,
+SELECT endpoint,
+       count(*) AS turns,
        percentile_cont(0.5) WITHIN GROUP (ORDER BY tokens_in + tokens_out) AS p50_tokens,
        percentile_cont(0.75) WITHIN GROUP (ORDER BY tokens_in + tokens_out) AS p75_tokens,
        round(sum(cache_read)::numeric / nullif(sum(tokens_in), 0), 3) AS cached_share
-FROM per_turn;
+FROM per_turn
+GROUP BY endpoint
+ORDER BY turns DESC;
 
 -- 5. Proposal-reached rate, over CHANGE turns: every measured turn admitted
 --    as `edit` or `plan`, whether or not it ever called a write tool. A
@@ -131,17 +143,18 @@ SELECT (SELECT count(*) FROM turns) AS turns,
        (SELECT sum(s.tokens_in + s.tokens_out) FROM ai_usage_steps s
           WHERE s.escalated AND s.turn_id IN (SELECT turn_id FROM turns)) AS tokens_after_escalation;
 
--- 7. Turn latency and outcome, p50 and p75, from ai_usage itself.
+-- 7. Turn latency and outcome, p50 and p75, per surface, from ai_usage itself.
 WITH window_ AS (SELECT now() - interval '7 days' AS since)
-SELECT u.outcome,
+SELECT u.endpoint,
+       u.outcome,
        count(*) AS turns,
        percentile_cont(0.5) WITHIN GROUP (ORDER BY u.latency_ms) AS p50_ms,
        percentile_cont(0.75) WITHIN GROUP (ORDER BY u.latency_ms) AS p75_ms
 FROM ai_usage u
 CROSS JOIN window_ w
 WHERE u.created_at >= w.since AND u.latency_ms IS NOT NULL AND u.turn_model NOT LIKE 'simulated/%'
-GROUP BY u.outcome
-ORDER BY turns DESC;
+GROUP BY u.endpoint, u.outcome
+ORDER BY u.endpoint, turns DESC;
 
 -- 8. Where a slow turn's time went, per step (M32). `duration_ms` runs from
 --    the previous step's end (step 0: the agent's start) to this step's end,
@@ -211,3 +224,49 @@ CROSS JOIN window_ w
 WHERE u.created_at >= w.since AND u.endpoint = 'ask' AND u.turn_model NOT LIKE 'simulated/%'
 GROUP BY 1
 ORDER BY 1;
+
+-- 11. Cost per turn, per surface: the tokens a turn spends, per model, for
+--     each endpoint (M45's gate: "the ledger shows the new surface's cost per
+--     turn", `ask.account` beside `ask`). One row per endpoint and model, with
+--     `part` saying whether the tokens are agent steps or the classifier's
+--     round-trip, since the two can run on different models. The per-turn
+--     columns divide by EVERY measured turn of that endpoint, including ones
+--     refused before any step (off-topic): those still paid the classifier.
+--     No dollars: multiply each row's per-turn columns by `modelRates.ts`'
+--     entry for that model in force over the window (uncached input, cached
+--     input and output each at their own rate), then sum an endpoint's rows.
+WITH window_ AS (SELECT now() - interval '7 days' AS since),
+     turns AS (
+       SELECT u.id, u.endpoint, u.classifier_model, u.classifier_tokens_in, u.classifier_tokens_out
+       FROM ai_usage u
+       CROSS JOIN window_ w
+       WHERE u.created_at >= w.since AND u.turn_model NOT LIKE 'simulated/%'
+     ),
+     per_endpoint AS (
+       SELECT endpoint, count(*) AS turns FROM turns GROUP BY endpoint
+     ),
+     spend AS (
+       SELECT t.endpoint, 'steps' AS part, s.model,
+              sum(s.tokens_in - coalesce(s.cache_read_tokens, 0)) AS uncached_in,
+              sum(coalesce(s.cache_read_tokens, 0)) AS cached_in,
+              sum(s.tokens_out) AS tokens_out
+       FROM ai_usage_steps s
+       JOIN turns t ON t.id = s.turn_id
+       GROUP BY t.endpoint, s.model
+       UNION ALL
+       SELECT t.endpoint, 'classifier' AS part, t.classifier_model,
+              sum(t.classifier_tokens_in), 0, sum(t.classifier_tokens_out)
+       FROM turns t
+       WHERE t.classifier_model IS NOT NULL
+       GROUP BY t.endpoint, t.classifier_model
+     )
+SELECT sp.endpoint,
+       e.turns,
+       sp.part,
+       sp.model,
+       round(sp.uncached_in::numeric / e.turns, 1) AS uncached_in_per_turn,
+       round(sp.cached_in::numeric / e.turns, 1) AS cached_in_per_turn,
+       round(sp.tokens_out::numeric / e.turns, 1) AS tokens_out_per_turn
+FROM spend sp
+JOIN per_endpoint e ON e.endpoint = sp.endpoint
+ORDER BY sp.endpoint, sp.part DESC, sp.model;
