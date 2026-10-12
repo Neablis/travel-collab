@@ -84,6 +84,17 @@ Candidates absorbed (each deleted by this gate):
       including a trip the user is not travelling on, which must be excluded.
 - [ ] **The four example questions are answered correctly** in the eval suite (M33). The run's
       numbers are pasted here.
+      *Evidence so far (2026-10-12, not ticked; the box is ticked at close):* live eval at `main`
+      `d34abe5`, run with Mitchell's go-ahead.
+      - Run 1, `EVAL_CONFIRM=1 pnpm --filter web eval` (default $0.10 cap): stopped at the cap
+        after 4 of 27 trip turns, all PASS; $0.1874 total, ~$0.047 per trip turn (Sonnet/Opus).
+        It surfaced KI-20261012-e (the assistant's planning text leaks into the reply).
+      - Run 2, `EVAL_CONFIRM=1 EVAL_MAX_USD=100 EVAL_ONLY=a-most-expensive-meal,a-countries-count,a-city-most,a-next-country`:
+        **4/4 PASS, 36/36 checks**; $0.0012 total, ~$0.0003 per account turn (Haiku 5.5), one
+        tool call each, 2.9–4.3 s per turn.
+      - Note: `a-next-country` suggested Spain while the fixture's not-travelling trip is
+        Barcelona. The tool sees only travelled trips, so this is most likely a popular pick, not
+        a leak of the excluded trip.
 - [ ] **A navigation reply runs the palette command it names and changes the view the user
       sees; a command the page does not offer, or a URL, does nothing.** A test asserts the run is
       the palette command's own function (ADR-068 §2), and one is seen red with free URLs allowed.

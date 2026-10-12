@@ -33,17 +33,20 @@ Mitchell moved **M43 and M44 to the end** (*"Neither are impacting anything toda
 **M45 in flight (2026-10-12)** — plan `docs/plans/2026-10-12-M45-assistant-beyond-one-trip.md`:
 - Part 0, PR 420: draft tracker on `claude/stoic-dijkstra-01wxup`; merges last.
 - Part 1, PR 422 (`claude/m45-part1-palette-notebooks`): palette notebook commands, run-by-id,
-  trip-on-a-view. **Ready to merge**: CI green on `d98fd1e` (run 38266060522), three review
-  rounds, every finding fixed. The merge is Mitchell's; part 2 starts once it merges.
+  trip-on-a-view. **Merged** by Mitchell as `bc2b587`.
 - Part 3, PR 421 (`claude/m45-part3-account-ask`): `/api/ask`, the cross-trip tools, ledger
-  `ask.account`, eval cases. **Ready to merge**: CI green on `8c4b228` on every job (first
-  attempt), four review rounds, every finding fixed or answered; m8 and n1-r3 moved to part 0 as
-  the ledger queries and KI-20261012-c. Its live eval has not been run and waits on Mitchell's
-  go-ahead. The merge is Mitchell's.
+  `ask.account`, eval cases. **Merged** by Mitchell as `d34abe5`; m8 and n1-r3 moved to part 0
+  as the ledger queries and KI-20261012-c.
+- Part 2, PR 424 (`claude/m45-part2-assistant-runs-commands`, head `05c8576`): the assistant runs
+  palette commands. Built, red-first evidence in the PR body, **under review**.
+- Live eval at `d34abe5`, with Mitchell's go-ahead (2026-10-12): run 1, the whole suite at the
+  default $0.10 cap, stopped after 4 of 27 trip turns, all PASS, $0.1874 (~$0.047 per trip
+  turn); it surfaced KI-20261012-e (planning text leaks into the reply). Run 2, the four account
+  cases only: **4/4 PASS, 36/36 checks**, $0.0012 (~$0.0003 per account turn). Numbers are in
+  the milestone file under the eval gate box (not ticked; ticks happen at close).
 - CI infra: the postgres service image pull failed three times (PRs 413, 422, 421), each green on
   a re-run; filed as KI-2026-10-12-b.
-- Part 2 (the assistant runs palette commands) starts after PR 422 merges; part 4 (Home rail,
-  ⌘K *Ask:*) after parts 2 and 3.
+- Part 4 (Home rail, ⌘K *Ask:*) starts after PR 424 merges.
 - Builders must each work in their own git worktree: parts 1 and 3 shared the main checkout and
   tangled each other's commits (both branches were rebuilt clean). Order:
 `… M42 ✓ → M45 → M46 → M47 → M48 → M49 → M43 → M44`; the reorder is recorded in
