@@ -9,7 +9,7 @@ import type { PaletteAction, PaletteCommand, PaletteNearness, PaletteSingleton, 
 /** The actions, in the order the empty palette lists them (ADR-069 §2). */
 export const ACTIONS: readonly PaletteAction[] = ["Go to", "Add", "Edit", "Move", "Remove"];
 const SINGLETONS: readonly PaletteSingleton[] = ["Undo", "Redo", "Ask the assistant"];
-const TYPES: readonly PaletteType[] = ["Trip", "Day", "Stop", "View", "Page"];
+const TYPES: readonly PaletteType[] = ["Trip", "Day", "Stop", "View", "Notebook", "Page"];
 
 // ADR-069 §3. The vocabulary's own words, so no screen can spell "delete"
 // differently from another.
@@ -26,6 +26,7 @@ const ALIASES: Record<PaletteAction | PaletteSingleton | PaletteType, readonly s
   Day: [],
   Stop: ["activity", "place"],
   View: ["lens"],
+  Notebook: [],
   Page: [],
 };
 

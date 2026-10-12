@@ -5,12 +5,14 @@ import {
   askCommand,
   editStopCommands,
   goToDayCommands,
+  goToNotebookCommands,
   goToStopCommands,
   lensCommands,
   moveDayCommands,
   moveStopCommands,
   newStopCommand,
   newTripCommand,
+  notebookEditingCommand,
   placeCommands,
   removeDayCommands,
   removeStopCommands,
@@ -71,9 +73,44 @@ describe("palette commands hold the page's own actions", () => {
       { tripId: "t1", name: "Kyoto" },
       { tripId: "t2", name: "Lisbon" },
     ]);
-    for (const command of commands) command.run();
+    const listed = commands.filter((c) => c.unlisted !== true);
+    for (const command of listed) command.run();
     expect(go.mock.calls.flat()).toEqual(["/", "/playbooks", "/account", "/trips/t1", "/trips/t2"]);
-    expect(commands.filter((c) => c.type === "Trip").map((c) => c.order)).toEqual([0, 1]);
+    expect(listed.filter((c) => c.type === "Trip").map((c) => c.order)).toEqual([0, 1]);
+  });
+
+  // ADR-072 §6, by the `?view=` LensRouter reads for every view (`?lens=`
+  // maps only some of them). Unlisted: the row is still the trip's one.
+  it("lands on a trip's view by an unlisted command per view", () => {
+    const go = vi.fn();
+    const onMap = placeCommands(go, [{ tripId: "t1", name: "Kyoto" }]).find((c) => c.id === "go:trip:t1:view:Map");
+    onMap?.run();
+    expect(go).toHaveBeenCalledWith("/trips/t1?view=Map");
+    expect(onMap?.unlisted).toBe(true);
+  });
+
+  it("goes to a notebook by the Notebooks menu's destination, in its order", () => {
+    const open = vi.fn();
+    const commands = goToNotebookCommands(
+      [
+        { id: "p1", title: "Packing" },
+        { id: "p2", title: "Packing" },
+      ],
+      open,
+    );
+    expect(commands.map((c) => [c.id, c.target?.key, c.order])).toEqual([
+      ["go:notebook:p1", "p1", 0],
+      ["go:notebook:p2", "p2", 1],
+    ]);
+    commands[1]!.run();
+    expect(open).toHaveBeenCalledWith("p2");
+  });
+
+  it("names the notebook's editing toggle for what it will do, and runs the toggle itself", () => {
+    const toggle = vi.fn();
+    expect(notebookEditingCommand(false, toggle).target?.label).toBe("Turn editing on");
+    expect(notebookEditingCommand(true, toggle).target?.label).toBe("Turn editing off");
+    expect(notebookEditingCommand(true, toggle).run).toBe(toggle);
   });
 });
 

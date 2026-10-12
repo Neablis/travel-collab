@@ -13,8 +13,9 @@ import type { PaletteCommand, PaletteNearness } from "./paletteRegistry";
 // the result (`usePaletteSource`).
 //
 // The command set is ADR-069 §4's; each screen registers the part it owns
-// the action for (TripBoardScreen the trip's days and stops, TripHeader its
-// settings and History, Home *Add › Trip*, the palette itself the places).
+// the action for (TripBoardScreen the trip's days, stops and notebooks,
+// TripHeader its settings and History, Home *Add › Trip*, the palette itself
+// the places, the notebook page its editing toggle).
 
 /** The trip's lenses, by the lens switcher's own `setView`. */
 export function lensCommands(setView: (view: View) => void): PaletteCommand[] {
@@ -75,22 +76,43 @@ export function newTripCommand(startNewTrip: () => void): PaletteCommand {
 /**
  * The app's pages and the person's trips, by the router the header's links
  * use. `trips` come in the order Home lists them, which is their order here.
+ * Each trip also has an unlisted `go:trip:<tripId>:view:<View>` per view,
+ * landing on the `?view=` the trip page reads for every view (ADR-072 §6).
  */
 export function placeCommands(go: (href: string) => void, trips: readonly { tripId: string; name: string }[]): PaletteCommand[] {
   return [
     { id: "go:home", action: "Go to", type: "Page", target: { label: "Home" }, nearness: "global", order: 0, run: () => go("/") },
     { id: "go:playbooks", action: "Go to", type: "Page", target: { label: "Playbooks" }, nearness: "global", order: 1, run: () => go("/playbooks") },
     { id: "go:account", action: "Go to", type: "Page", target: { label: "Account" }, nearness: "global", order: 2, run: () => go("/account") },
-    ...trips.map((trip, order) => ({
-      id: `go:trip:${trip.tripId}`,
-      action: "Go to" as const,
-      type: "Trip" as const,
-      target: { key: trip.tripId, label: trip.name },
-      nearness: "global" as const,
-      order,
-      run: () => go(`/trips/${trip.tripId}`),
-    })),
+    ...trips.flatMap((trip, order) => {
+      const toTrip = { action: "Go to" as const, type: "Trip" as const, target: { key: trip.tripId, label: trip.name }, nearness: "global" as const, order };
+      return [
+        { ...toTrip, id: `go:trip:${trip.tripId}`, run: () => go(`/trips/${trip.tripId}`) },
+        ...VIEWS.map((view) => ({ ...toTrip, id: `go:trip:${trip.tripId}:view:${view}`, unlisted: true as const, run: () => go(`/trips/${trip.tripId}?view=${view}`) })),
+      ];
+    }),
   ];
+}
+
+/**
+ * *Go to › Notebook › <title>*, by the Notebooks menu's own destination. In
+ * the order the menu lists them.
+ */
+export function goToNotebookCommands(notebooks: readonly { id: string; title: string }[], openNotebook: (pageId: string) => void): PaletteCommand[] {
+  return notebooks.map((notebook, order) => ({
+    id: `go:notebook:${notebook.id}`,
+    action: "Go to",
+    type: "Notebook",
+    target: { key: notebook.id, label: notebook.title },
+    nearness: "trip",
+    order,
+    run: () => openNotebook(notebook.id),
+  }));
+}
+
+/** *Edit › Notebook › Turn editing on/off*, by the toolbar's Edit page toggle, named for what it will do. */
+export function notebookEditingCommand(editing: boolean, toggleEditing: () => void): PaletteCommand {
+  return { id: "notebook-editing", action: "Edit", type: "Notebook", target: { label: editing ? "Turn editing off" : "Turn editing on" }, nearness: "trip", run: toggleEditing };
 }
 
 /** A day of this trip as every command names it, in day order. */

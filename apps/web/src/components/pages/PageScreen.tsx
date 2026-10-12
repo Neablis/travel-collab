@@ -45,6 +45,8 @@ import { forgetPageDraft, readPageDraft, rememberPageDraft, type PageDraft } fro
 import type { ApiError } from "@/lib/apiClient";
 import { usePublishSaveState } from "@/components/SaveLight";
 import { canEditNotebook } from "@/lib/tripRole";
+import { notebookEditingCommand } from "@/components/palette/commands";
+import { usePaletteSource } from "@/components/palette/paletteRegistry";
 import type { DroppedInsert, PageNode } from "@tc/contracts";
 import type { AskEventHandler } from "@/components/assistant/useAskThread";
 import { getMacro } from "@tc/pages";
@@ -1054,6 +1056,9 @@ export function PageScreen({
     if (!mayToggleEditing) return;
     setEditing((was) => !was);
   };
+  // ⌘K's *Edit › Notebook*, which is this toggle (ADR-068 §1), offered when
+  // the toolbar's button is.
+  usePaletteSource("notebook", mayToggleEditing && status === "ready" ? [notebookEditingCommand(editing, toggleEditing)] : []);
 
   // **The page's shape in outlines, never a word** (KI-2026-09-20-e). It used
   // to paint `Loading…` alone, the flicker on Overview → Edit Overview; then it

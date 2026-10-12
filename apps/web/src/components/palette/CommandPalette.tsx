@@ -14,7 +14,7 @@ import { localTodayIso } from "@/lib/today";
 import { askCommand, placeCommands } from "./commands";
 import { type PaletteNode, paletteLevel } from "./grammar";
 import { type PaletteStep, searchPalette } from "./match";
-import { type PaletteCommand, usePaletteCommands } from "./paletteRegistry";
+import { type PaletteCommand, usePaletteCommands, usePaletteSource } from "./paletteRegistry";
 
 // **⌘K** (M41 D9, ADR-068): go anywhere or start anything without the mouse.
 // Mounted once by `(app)/layout.tsx`, so it opens from every app page. What it
@@ -22,6 +22,10 @@ import { type PaletteCommand, usePaletteCommands } from "./paletteRegistry";
 // assistant's opener where a screen offers one (the same entry the phone's
 // tab bar Ask uses), and the app's places and your trips. It runs nothing of
 // its own: every command is a page control's function.
+//
+// **The places and trips are registered like any screen's**, under "places",
+// so a command named by id (`runPaletteCommand`, the assistant's) finds them
+// too, and so they are read on mount as well as on each opening.
 //
 // **It speaks ADR-069's grammar.** Empty, it lists the actions; Enter or Tab
 // on one drills in, a chip shows the path, and Backspace in an empty box
@@ -75,6 +79,8 @@ export function CommandPalette() {
   const registered = usePaletteCommands();
   const ask = usePhoneAsk();
   const [trips, setTrips] = useState<readonly TripSummary[]>([]);
+  // Counts openings, so each one reads the trips afresh.
+  const [openings, setOpenings] = useState(0);
   const listId = useId();
 
   const show = useCallback(() => {
@@ -85,6 +91,7 @@ export function CommandPalette() {
     // Not the last opening's list, which may hold a trip deleted since and
     // would stay if this opening's read fails.
     setTrips([]);
+    setOpenings((n) => n + 1);
     setOpen(true);
   }, []);
 
@@ -100,10 +107,11 @@ export function CommandPalette() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [open, show]);
 
-  // Your trips, read each time it opens: a list kept from the last opening
-  // would offer a trip deleted since. In Home's order (ADR-069 §5).
+  // Your trips, read on mount and again each time it opens: a list kept from
+  // the last opening would offer a trip deleted since. In Home's order
+  // (ADR-069 §5).
   useEffect(() => {
-    if (!open || !signedIn) return;
+    if (!signedIn) return;
     let live = true;
     void fetchTrips().then((result) => {
       if (live && result.ok) setTrips(orderHomeTrips(result.value.filter((trip) => trip.status === "active"), localTodayIso()));
@@ -111,15 +119,14 @@ export function CommandPalette() {
     return () => {
       live = false;
     };
-  }, [open, signedIn]);
+  }, [openings, signedIn]);
+
+  const go = (href: string) => router.push(href);
+  usePaletteSource("places", signedIn ? placeCommands(go, trips) : placeCommands(go, []).filter((c) => c.id === "go:playbooks"));
 
   const commands = useMemo<PaletteCommand[]>(
-    () => [
-      ...registered,
-      ...(ask === null || ask.open ? [] : [askCommand(ask.onOpen)]),
-      ...(signedIn ? placeCommands((href) => router.push(href), trips) : placeCommands((href) => router.push(href), []).filter((c) => c.id === "go:playbooks")),
-    ],
-    [registered, ask, signedIn, trips, router],
+    () => [...registered.filter((c) => c.unlisted !== true), ...(ask === null || ask.open ? [] : [askCommand(ask.onOpen)])],
+    [registered, ask],
   );
   // As deep as the trail still leads: a branch can empty while it is open
   // (the focused day's commands go when focus does), and the palette then

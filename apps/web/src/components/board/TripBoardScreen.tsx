@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import type { TimeWindow } from "@tc/contracts";
+import { useRouter, useSearchParams } from "next/navigation";
+import type { PageSummary, TimeWindow } from "@tc/contracts";
 import { useTrip } from "@/components/trip/context/TripProvider";
 import { useEditor } from "@/components/trip/context/EditorHost";
 import { useDaySync, useFocus } from "@/components/trip/context/FocusProvider";
@@ -11,6 +11,7 @@ import {
   addDayCommand,
   editStopCommands,
   goToDayCommands,
+  goToNotebookCommands,
   goToStopCommands,
   lensCommands,
   moveDayCommands,
@@ -58,6 +59,9 @@ import { lensAcceptsDrops } from "./lensAcceptsDrops";
 import { rackDisclosure, type RackDisclosure, type RackEvent } from "@/components/trip/rackDisclosure";
 import { legRoute, shortPlace } from "@/lib/place";
 import { isDemoTripId } from "@/lib/demoTrip";
+import { fetchPages } from "@/lib/pagesClient";
+import { cachedRead, DEDUPE } from "@/lib/queryCache";
+import { tripKeys } from "@/lib/queryKeys";
 import { useAssistantShape } from "@/components/assistant/useAssistantShape";
 import { AssistantRail } from "@/components/assistant/AssistantRail";
 import type { AssistantTurn } from "@/components/assistant/Transcript";
@@ -278,6 +282,27 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           focusedDayId: focusIn.dayId ?? (focusIn.activityId === null ? null : (activeTrip.days.find((d) => d.activityIds.includes(focusIn.activityId!))?.dayId ?? null)),
           selectedDayId: focusedDayId ?? null,
         });
+  // The trip's notebooks for *Go to › Notebook*, read through the cache
+  // Overview reads them through, and again on a co-traveller's change: the
+  // board stays mounted, so a list read once would offer a deleted notebook
+  // and never a new one. The re-read is fresh because `onRemoteChange`
+  // invalidates the whole trip before it bumps `remoteRevision`. Kept by trip
+  // rather than cleared, so a re-read in flight or failed still offers the
+  // last list, and another trip's never shows. None on the demo trip, which
+  // has no Notebooks menu either.
+  const router = useRouter();
+  const [read, setRead] = useState<{ tripId: string; pages: readonly PageSummary[] } | null>(null);
+  const notebooks = read !== null && read.tripId === tripId ? read.pages : [];
+  useEffect(() => {
+    if (isDemoTripId(tripId)) return;
+    let live = true;
+    void cachedRead(tripKeys.pages(tripId), () => fetchPages(tripId), { dedupeMs: DEDUPE.DOCUMENT }).then((result) => {
+      if (live && result.ok) setRead({ tripId, pages: result.value.pages });
+    });
+    return () => {
+      live = false;
+    };
+  }, [tripId, remoteRevision]);
   usePaletteSource(
     "trip-board",
     boardRenders && activeTrip !== null && targets !== null
@@ -285,6 +310,8 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
           ...lensCommands(setView),
           ...goToDayCommands(targets.days, focusDay),
           ...goToStopCommands(targets.stops, focusActivity),
+          // Where the Notebooks menu's row links.
+          ...goToNotebookCommands(notebooks, (pageId) => router.push(`/trips/${tripId}/pages/${pageId}`)),
           ...(paletteChanges
             ? [
                 // The editor opened on the selected day with a fitted time
