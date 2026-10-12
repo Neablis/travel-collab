@@ -20,7 +20,7 @@ export function notAppliedNote(skipped: readonly string[]): string {
 }
 
 /** Why a reply's page-leaving command waits while a card above is undecided: the card would not come along. */
-const CARD_WAITING = "the change above is waiting for you to approve it";
+const CARD_WAITING = "the change above is waiting for you to approve or turn it down";
 
 /** What a turn the server stopped at its deadline says when it produced nothing (KI-2026-09-26-s). */
 const STOPPED_EMPTY = "This took too long and was stopped before it finished. Nothing was changed — try asking for less at once.";
@@ -151,7 +151,8 @@ export function useAskThread({
    * Why the person must not be taken off this page right now, as the end of
    * "I didn't open that notebook, because …", or null. Asked when a reply
    * names somewhere to go. The board answers while its stop editor is open:
-   * leaving unmounts the sheet and the fields typed into it (ADR-072 §4).
+   * leaving unmounts the sheet and the fields typed into it. A notebook answers
+   * while a turn's inserts wait on its role read (ADR-072 §4).
    */
   holdsLeaving?: () => string | null;
 }): AskThread {

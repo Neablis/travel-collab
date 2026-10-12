@@ -47,8 +47,8 @@ describe("running the commands a reply named", () => {
       { id: `go:notebook:${DAY}`, action: "Go to", type: "Notebook", target: { label: "Bookings" }, run: openNotebook },
     );
 
-    expect(runPaletteCommands([go, { id: `go:notebook:${DAY}`, needsApproval: false }], "the change above is waiting for you to approve it").notes).toEqual([
-      "I didn't open that notebook, because the change above is waiting for you to approve it.",
+    expect(runPaletteCommands([go, { id: `go:notebook:${DAY}`, needsApproval: false }], "the change above is waiting for you to approve or turn it down").notes).toEqual([
+      "I didn't open that notebook, because the change above is waiting for you to approve or turn it down.",
     ]);
     expect(setView).toHaveBeenCalledTimes(1);
     expect(openNotebook).not.toHaveBeenCalled();

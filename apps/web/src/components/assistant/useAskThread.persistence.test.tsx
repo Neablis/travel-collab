@@ -495,7 +495,7 @@ describe("useAskThread — where a reply takes you", () => {
     expect(setView).toHaveBeenCalledTimes(1);
     expect(openNotebook).not.toHaveBeenCalled();
     expect(result.current.thread.at(-1)?.text).toContain(
-      "I didn't open that notebook, because the change above is waiting for you to approve it.",
+      "I didn't open that notebook, because the change above is waiting for you to approve or turn it down.",
     );
   });
 
