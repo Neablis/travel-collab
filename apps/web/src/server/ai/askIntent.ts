@@ -99,7 +99,7 @@ export type AskTaskClass = Exclude<TaskClass, "compose">;
  * *"how much are we spending on food?"* asked beside a notebook got a turn
  * holding insert tools and no way to read a day.
  */
-export type ClassifierSurface = "board" | "page";
+export type ClassifierSurface = "board" | "page" | "account";
 
 /**
  * **How sure the classifier is — the widened band** (M9 design §1a).
@@ -186,7 +186,11 @@ export const ASK_INTENT_INSTRUCTION = [
 
 /** True for the classification instruction above. Read by `simulatedModel`. */
 export function isAskIntentCall(instructions: string): boolean {
-  return instructions.includes(ASK_INTENT_MARKER) || instructions.includes(PAGE_INTENT_MARKER);
+  return (
+    instructions.includes(ASK_INTENT_MARKER) ||
+    instructions.includes(PAGE_INTENT_MARKER) ||
+    instructions.includes(ACCOUNT_INTENT_MARKER)
+  );
 }
 
 // The page classifier's marker — the same trick as `ASK_INTENT_MARKER`, so the
@@ -207,6 +211,26 @@ export const PAGE_INTENT_INSTRUCTION = [
   OFF_TOPIC_LINE,
   'Still pick the closest one when it is ambiguous, and set certainty to "unsure" — otherwise "sure".',
   PAGE_INTENT_MARKER,
+].join("\n");
+
+// The account classifier's marker, for the reason the other two have one.
+const ACCOUNT_INTENT_MARKER = "Set intent to question or off_topic.";
+
+/**
+ * The account surface's classification instruction (M45). Its only choice is
+ * the off-topic gate: a turn across every trip asks and never changes, so
+ * there is no class to pick between. `certainty` still does the work it does
+ * on the other surfaces: an unsure `off_topic` is answered rather than
+ * refused, and an unsure question (a bare "yes", or a failed-open call) runs
+ * on the `mid` tier, as doubt does everywhere (`tierFor`).
+ */
+export const ACCOUNT_INTENT_INSTRUCTION = [
+  "You classify the LAST message sent to an assistant that answers questions about all of a person's trips. You do not answer it.",
+  "Earlier messages are context only.",
+  'Use "question" if it asks about their trips, where they have been, what they spent, or where to travel next.',
+  OFF_TOPIC_LINE,
+  'Still pick the closest one when it is ambiguous, and set certainty to "unsure" — otherwise "sure".',
+  ACCOUNT_INTENT_MARKER,
 ].join("\n");
 
 /** True for the PAGE classification instruction specifically. Read by `simulatedModel`. */
@@ -265,6 +289,13 @@ const PAGE_INTENT_OUTPUT = Output.object({
   name: "verdict",
   description:
     "Whether the last message asks to build or change something on the notebook page (compose), asks a question about the trip to be answered in the chat (question), or has nothing to do with the trip or travel (off_topic) — and whether that reading is clear (sure) or could reasonably be another (unsure).",
+});
+
+const ACCOUNT_INTENT_OUTPUT = Output.object({
+  schema: z.object({ intent: z.enum([OFF_TOPIC, "question"]), certainty: z.enum(["sure", "unsure"]) }),
+  name: "verdict",
+  description:
+    "Whether the last message asks about the person's trips or travel (question) or has nothing to do with travel (off_topic) — and whether that reading is clear (sure) or could reasonably be another (unsure).",
 });
 
 const INTENT_OUTPUT = Output.object({
@@ -475,6 +506,8 @@ function truncate(text: string, max: number): string {
 const VARIANTS = {
   board: { instruction: ASK_INTENT_INSTRUCTION, output: INTENT_OUTPUT, failOpen: FAIL_OPEN_TASK_CLASS as TaskClass },
   page: { instruction: PAGE_INTENT_INSTRUCTION, output: PAGE_INTENT_OUTPUT, failOpen: "compose" as TaskClass },
+  // Questions only (M45), so a doubt is a question too.
+  account: { instruction: ACCOUNT_INTENT_INSTRUCTION, output: ACCOUNT_INTENT_OUTPUT, failOpen: "question" as TaskClass },
 } as const;
 
 /**

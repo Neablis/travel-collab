@@ -16,6 +16,10 @@
 // lane, and the difference from `replay.int.test.ts`, which replays a
 // recording to test the code around a model. This tests the model on our code.
 //
+// A prompt with `"surface": "account"` (M45) is asked at the account door,
+// `handleAccountAskRequest`, by a fresh account holding `ACCOUNT_TRIPS` — its
+// own, so the Japan trips every other prompt seeds are not counted among them.
+//
 // It writes a JSON report to `eval-results/` (git-ignored) and prints one line
 // per check. A failed check fails the run, so a regression is a red exit code.
 import { randomUUID } from "node:crypto";
@@ -27,16 +31,19 @@ import type { TripDetail } from "@tc/contracts";
 import { executeTripCommand, executeTripCommandBatch } from "@/server/commands";
 import { db } from "@/server/db/client";
 import { rateLimitCounters } from "@/server/db/schema";
+import { writeTravelling } from "@/server/access/members";
 import type { AskAnalyticsRecord } from "@/server/assistant/askAnalytics";
 import type { TurnLedger } from "@/server/assistant/ledger";
-import { expectationFor } from "./cases";
+import { accountExpectationFor, expectationFor, type SeededAccountTrip } from "./cases";
 import { grade, reviewedChanges, type EvalCheck, type EvalTurn } from "./grade";
 import { capMicroUsdFrom, dollars, turnMicroUsd, unpricedModels } from "./spend";
-import { longTripCommands, type EvalTripName } from "./trips";
+import { ACCOUNT_TRIPS, accountTripCommands, longTripCommands, type EvalTripName } from "./trips";
 
 const ACTOR_ID = "eval-actor";
 
-vi.mock("@/server/auth", () => ({ auth: async () => ({ user: { id: ACTOR_ID } }) }));
+// Who the session says is asking: the eval actor, or an account prompt's own.
+const session = vi.hoisted(() => ({ userId: "eval-actor" }));
+vi.mock("@/server/auth", () => ({ auth: async () => ({ user: { id: session.userId } }) }));
 
 // Place search answers from a stub at its port, so a run needs no LocationIQ
 // key and spends no lookups. The stub must not lie about geography: the first
@@ -70,7 +77,7 @@ vi.mock("@/server/ai/assistantPorts", async (importOriginal) => {
   };
 });
 
-const { handleAskRequest } = await import("@/server/ai/handleAskRequest");
+const { handleAccountAskRequest, handleAskRequest } = await import("@/server/ai/handleAskRequest");
 const { upsertUser } = await import("@/server/users");
 const { issueGrant } = await import("@/server/entitlements/grants");
 
@@ -80,6 +87,8 @@ interface LivePrompt {
   text: string;
   /** The trip it runs on (`trips.ts`); absent, the seeded Japan trip. */
   trip?: EvalTripName;
+  /** `account`: asked at the account door, across `ACCOUNT_TRIPS` (M45). */
+  surface?: "account";
 }
 
 const liveSet = JSON.parse(readFileSync(join(import.meta.dirname, "live-set.json"), "utf8")) as {
@@ -127,6 +136,34 @@ async function seedTripFor(prompt: LivePrompt): Promise<{ tripId: string; detail
   return { tripId, detail: seeded.detail };
 }
 
+/** The eval actor's grant, so every account is on the same plan and tiers. */
+async function enrol(userId: string): Promise<void> {
+  await upsertUser({ id: userId, email: null, name: null, image: null });
+  await issueGrant({ userId, planId: "premium", planVersion: 1, source: "admin", grantedBy: "eval", expiresAt: null });
+}
+
+/**
+ * A fresh account holding the account trips, through the real command path,
+ * with the one it is not travelling on marked so as the app marks it.
+ */
+async function seedAccount(): Promise<{ userId: string; seeded: SeededAccountTrip[] }> {
+  const userId = `eval-account-${randomUUID()}`;
+  await enrol(userId);
+  const seeded: SeededAccountTrip[] = [];
+  for (const trip of ACCOUNT_TRIPS) {
+    const tripId = randomUUID();
+    const created = await executeTripCommand({ type: "CreateTrip", tripId, name: trip.name }, userId);
+    if (!created.ok) throw new Error(`seed: ${created.error.message}`);
+    const built = await executeTripCommandBatch(accountTripCommands(tripId, trip), userId);
+    if (!built.ok) throw new Error(`seed: ${built.error.message}`);
+    if (!trip.travelling) {
+      await writeTravelling(db, { tripId, userId, travelling: false, updatedBy: userId, now: new Date().toISOString() });
+    }
+    seeded.push({ detail: built.detail, travelling: trip.travelling });
+  }
+  return { userId, seeded };
+}
+
 function chunksOf(body: string): Record<string, unknown>[] {
   return body
     .split("\n")
@@ -142,7 +179,8 @@ function chunksOf(body: string): Record<string, unknown>[] {
 
 async function runTurn(
   prompt: LivePrompt,
-  tripId: string,
+  /** The trip it is asked on, or null at the account door. */
+  tripId: string | null,
 ): Promise<EvalTurn & { stepDurationsMs: (number | null)[]; providers: (string | null)[]; generationIds: (string | null)[]; microUsd: number | null }> {
   // Keyed by actor, and every turn here is the same actor (see replay.int.test.ts).
   await db.delete(rateLimitCounters);
@@ -150,18 +188,20 @@ async function runTurn(
   // The ledger rides beside the record: where a slow turn's time went is its
   // per-step durations (M32), which the record does not carry.
   const ledgers: TurnLedger[] = [];
-  const request = new Request(`http://eval/api/trips/${tripId}/ask`, {
+  const request = new Request(tripId === null ? "http://eval/api/ask" : `http://eval/api/trips/${tripId}/ask`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       messages: [{ id: "m1", role: "user", parts: [{ type: "text", text: prompt.text }] }],
-      scope: { kind: "trip" },
+      scope: { kind: tripId === null ? "account" : "trip" },
     }),
   });
-  const response = await handleAskRequest(request, tripId, undefined, (record, ledger) => {
+  const sink = (record: AskAnalyticsRecord, ledger?: TurnLedger) => {
     records.push(record);
     if (ledger) ledgers.push(ledger);
-  });
+  };
+  const response =
+    tripId === null ? await handleAccountAskRequest(request, undefined, sink) : await handleAskRequest(request, tripId, undefined, sink);
   const body = await response.text();
   const record = records[0];
   if (record === undefined) {
@@ -215,15 +255,7 @@ beforeAll(async () => {
   if (unpriced.length > 0 && process.env.EVAL_ALLOW_UNPRICED !== "1") {
     throw new Error(`No rate in modelRates.ts for ${unpriced.join(", ")}, so this run's spend cannot be capped. Add the rate, or set EVAL_ALLOW_UNPRICED=1.`);
   }
-  await upsertUser({ id: ACTOR_ID, email: null, name: null, image: null });
-  await issueGrant({
-    userId: ACTOR_ID,
-    planId: "premium",
-    planVersion: 1,
-    source: "admin",
-    grantedBy: "eval",
-    expiresAt: null,
-  });
+  await enrol(ACTOR_ID);
 });
 
 afterAll(() => {
@@ -264,12 +296,26 @@ describe("the live set, on production's models", () => {
           context.skip();
           return;
         }
-        const { tripId, detail } = await seedTripFor(prompt);
-        const turn = await runTurn(prompt, tripId);
+        let turn: Awaited<ReturnType<typeof runTurn>>;
+        let expected;
+        if (prompt.surface === "account") {
+          const { userId, seeded } = await seedAccount();
+          session.userId = userId;
+          try {
+            turn = await runTurn(prompt, null);
+          } finally {
+            session.userId = ACTOR_ID;
+          }
+          expected = accountExpectationFor(prompt.id, seeded, userId);
+        } else {
+          const { tripId, detail } = await seedTripFor(prompt);
+          turn = await runTurn(prompt, tripId);
+          expected = expectationFor(prompt.id, detail);
+        }
         if (turn.microUsd === null) unpricedTurns += 1;
         else spentMicroUsd += turn.microUsd;
         console.log(`    cost: ${turn.microUsd === null ? "unpriced" : dollars(turn.microUsd)} (run so far ${dollars(spentMicroUsd)})`);
-        const checks = grade(turn, expectationFor(prompt.id, detail)!);
+        const checks = grade(turn, expected!);
         rows.push({
           id: prompt.id,
           run,

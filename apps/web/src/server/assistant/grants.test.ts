@@ -433,6 +433,29 @@ describe("the escalation tool is reachable in exactly one posture", () => {
 // ADR-058 decision 9: a viewer's assistant is read-only, and minimal
 // ---------------------------------------------------------------------------
 
+// M45 D1: the account surface answers across trips with the four aggregate
+// tools and nothing that reads one trip — there is no trip for `read_trip` to
+// read, and a planning tool would be a write across trips (out of scope).
+describe("the account surface", () => {
+  const ACCOUNT_TOOLS = ["spend_by_category", "places_visited", "visit_counts", "suggest_next_country"];
+
+  it("is offered exactly the four aggregate tools, whatever the other caps say", () => {
+    for (const role of ["read", "propose"] as const) {
+      for (const classifier of ["read", "propose"] as const) {
+        const caps = { surface: "account" as const, role, plan: "propose" as const, classifier };
+        expect(toolsFor(grantFor(caps), "question", postureFor(caps)).map((tool) => tool.name)).toEqual(ACCOUNT_TOOLS);
+      }
+    }
+  });
+
+  it("never offers an aggregate tool on a trip, day or page", () => {
+    for (const surface of ["trip", "day", "page"] as const) {
+      const offered = namesFor({ surface, ...EDITOR });
+      expect(offered.filter((name) => ACCOUNT_TOOLS.includes(name))).toEqual([]);
+    }
+  });
+});
+
 describe("a read-only turn", () => {
   // Mitchell, 2026-09-27: *"minimize the tool call as small as possible"*.
   it("is offered exactly read_trip and read_day on the trip and day surfaces", () => {

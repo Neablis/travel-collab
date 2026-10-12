@@ -15,3 +15,5 @@ export * from "./trip/cities";
 export * from "./trip/pageState";
 export * from "./trip/personas";
 export * from "./trip/tagDescription";
+export * from "./trip/acrossTrips";
+export * from "./trip/countryList";

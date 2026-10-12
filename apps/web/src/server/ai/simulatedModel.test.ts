@@ -1103,3 +1103,83 @@ describe("simulatedModel — the page classification call", () => {
     expect(question).toMatchObject({ taskClass: "question", failedOpen: false });
   });
 });
+
+// M45: the account surface. Its four tools are the whole of what it holds —
+// calling `read_trip` there ends the turn with `NoSuchToolError` — so the
+// flag-off path has to reach for the aggregate a question needs, by phrase,
+// and answer from what came back.
+describe("simulatedModel — the account surface", () => {
+  const ACCOUNT_TOOLS = ["spend_by_category", "places_visited", "visit_counts", "suggest_next_country"];
+
+  function accountPrompt(question: string, results: { toolName: string; value: unknown }[] = []) {
+    const base = askPrompt({ kind: "account" }, results, { question });
+    return { ...base, tools: ACCOUNT_TOOLS.map((name) => ({ name })) };
+  }
+
+  it.each([
+    ["what was my most expensive meal?", "spend_by_category", { category: "meal" }],
+    ["how many countries have I been to?", "places_visited", {}],
+    ["which city have I been to most?", "visit_counts", { by: "city" }],
+    ["which country should I visit next?", "suggest_next_country", {}],
+  ])("asks %j with %s, and never read_trip", async (question, tool, input) => {
+    const calls = callsOf(await probe().doGenerate(accountPrompt(question)));
+    expect(calls.map((c) => [c.toolName, JSON.parse(c.input)])).toEqual([[tool, input]]);
+  });
+
+  // Minor units in two currencies are two scales: 12,000 is not more than
+  // 4,000 when one is dollars and the other euros, so each currency gets its own.
+  it("names the priciest meal in each currency, never comparing across them", async () => {
+    const spend = {
+      tripsCounted: 3,
+      categories: [
+        {
+          category: "meal",
+          currency: "EUR",
+          totalMinor: 4_500,
+          stops: 2,
+          mostExpensive: { title: "Seafood dinner", tripName: "Lisbon", perPersonMinor: 4_000, totalMinor: 4_000 },
+        },
+        {
+          category: "meal",
+          currency: "USD",
+          totalMinor: 27_000,
+          stops: 2,
+          mostExpensive: { title: "Kaiseki dinner", tripName: "Kyoto", perPersonMinor: 12_000, totalMinor: 24_000 },
+        },
+      ],
+    };
+    const text = textOf(
+      await probe().doGenerate(accountPrompt("what was my most expensive meal?", [{ toolName: "spend_by_category", value: spend }])),
+    );
+    expect(text).toContain("Kaiseki dinner");
+    expect(text).toContain("$120.00");
+    expect(text).toContain("Seafood dinner");
+    expect(text).toContain("€40.00");
+  });
+
+  it("counts the countries, names the most-visited city and suggests only an unvisited country", async () => {
+    const places = {
+      tripsCounted: 3,
+      countries: [{ code: "JP", name: "Japan" }, { code: "PT", name: "Portugal" }],
+      cities: [{ city: "Kyoto", countryCode: "JP" }],
+      unknownStops: 0,
+    };
+    const counts = { tripsCounted: 3, by: "city", places: [{ place: "Kyoto", countryCode: "JP", trips: 2, days: 3, stops: 4 }], unknownStops: 0 };
+    const next = {
+      tripsCounted: 3,
+      visited: [{ code: "JP", name: "Japan", region: "East Asia" }],
+      unvisited: [{ region: "East Asia", countries: ["South Korea", "Taiwan"] }],
+    };
+    const say = async (question: string, toolName: string, value: unknown) =>
+      textOf(await probe().doGenerate(accountPrompt(question, [{ toolName, value }])));
+
+    expect(await say("how many countries have I been to?", "places_visited", places)).toContain("2 countries");
+    expect(await say("which city have I been to most?", "visit_counts", counts)).toContain("Kyoto");
+    expect(await say("which country should I visit next?", "suggest_next_country", next)).toContain("South Korea");
+  });
+
+  it("classifies an account question as a question", async () => {
+    const verdict = await classifyAskIntent(simulatedModel(), "which city have I been to most?", [], undefined, undefined, "account");
+    expect(verdict).toMatchObject({ taskClass: "question", offTopic: false, failedOpen: false });
+  });
+});

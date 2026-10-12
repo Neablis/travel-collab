@@ -72,6 +72,17 @@ export interface EvalExpectation {
   offTopic?: boolean;
   /** Text the answer must not contain — a line of the system instruction, for an extraction attempt. */
   mustNotSay?: readonly string[];
+  /**
+   * The answer names one of these, in any case — a fact the seeded trips
+   * determine that is neither a day nor an amount (the city visited most, M45).
+   * Computed from the trips by the runner, like the days.
+   */
+  mentionsOneOf?: readonly string[];
+  /**
+   * The answer names one of these as a whole word, in any case: a place name,
+   * where a substring would let "romantic" name Oman and "scuba" Cuba.
+   */
+  namesOneOf?: readonly string[];
 }
 
 export interface EvalCheck {
@@ -79,6 +90,12 @@ export interface EvalCheck {
   pass: boolean;
   /** What was observed, for the report. */
   detail: string;
+}
+
+/** `name` in `text`, in any case, with no letter on either side of it. */
+function namesWholeWord(text: string, name: string): boolean {
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(?<!\\p{L})${escaped}(?!\\p{L})`, "iu").test(text);
 }
 
 function countCalls(record: AskAnalyticsRecord): Map<string, number> {
@@ -184,6 +201,21 @@ export function grade(turn: EvalTurn, expect: EvalExpectation): EvalCheck[] {
     checks.push({
       name: `does not say "${phrase}"`,
       pass: !turn.text.includes(phrase),
+      detail: turn.text.length > 160 ? `${turn.text.slice(0, 157)}…` : turn.text,
+    });
+  }
+  if (expect.mentionsOneOf !== undefined) {
+    const said = turn.text.toLowerCase();
+    checks.push({
+      name: `mentions ${expect.mentionsOneOf.map((phrase) => `"${phrase}"`).join(" or ")}`,
+      pass: expect.mentionsOneOf.some((phrase) => said.includes(phrase.toLowerCase())),
+      detail: turn.text.length > 160 ? `${turn.text.slice(0, 157)}…` : turn.text,
+    });
+  }
+  if (expect.namesOneOf !== undefined) {
+    checks.push({
+      name: `names ${expect.namesOneOf.length > 6 ? `one of ${expect.namesOneOf.length} places` : expect.namesOneOf.map((name) => `"${name}"`).join(" or ")}`,
+      pass: expect.namesOneOf.some((name) => namesWholeWord(turn.text, name)),
       detail: turn.text.length > 160 ? `${turn.text.slice(0, 157)}…` : turn.text,
     });
   }

@@ -166,6 +166,10 @@
       "chars": 950,
       "approxTokens": 287
     },
+    "spend_by_category": {
+      "chars": 933,
+      "approxTokens": 282
+    },
     "search_playbooks": {
       "chars": 877,
       "approxTokens": 265
@@ -182,6 +186,10 @@
       "chars": 669,
       "approxTokens": 202
     },
+    "suggest_next_country": {
+      "chars": 661,
+      "approxTokens": 200
+    },
     "MoveActivity": {
       "chars": 605,
       "approxTokens": 183
@@ -193,6 +201,10 @@
     "get_widget": {
       "chars": 584,
       "approxTokens": 176
+    },
+    "visit_counts": {
+      "chars": 483,
+      "approxTokens": 146
     },
     "DismissConflict": {
       "chars": 470,
@@ -209,6 +221,10 @@
     "insert_text": {
       "chars": 385,
       "approxTokens": 116
+    },
+    "places_visited": {
+      "chars": 370,
+      "approxTokens": 112
     },
     "SetTripBudget": {
       "chars": 365,

@@ -115,6 +115,9 @@ const AskScopeSchema = z.discriminatedUnion("kind", [
   // a bare string because `pages.id` is a uuid column: a malformed id would
   // otherwise reach Postgres as a query it cannot run.
   z.object({ kind: z.literal("page"), pageId: z.string().uuid() }),
+  // M45. Accepted only at the account door — `resolveSurface` holds each scope
+  // to the door it arrived at.
+  z.object({ kind: z.literal("account") }),
 ]);
 
 export const AskRequest = z.object({
@@ -264,9 +267,11 @@ export interface AiRefusal {
  * `ai.grant` audit record is a record *of*.
  */
 export interface AiGrant {
-  tripId: string;
+  /** Null on an account turn (M45), which is about no one trip. */
+  tripId: string | null;
   userId: string;
-  detail: TripDetail;
+  /** The guard's trip, or null on an account turn. */
+  detail: TripDetail | null;
   /** What the user is looking at — `scope.kind`, VERIFIED, never claimed. */
   surface: SurfaceKind;
   scope: AskScope;
@@ -396,7 +401,10 @@ export interface AiGrant {
   stepReservation: StepReservationHandle | null;
 }
 
-export type AiAdmission = { ok: true; grant: AiGrant } | { ok: false; refusal: AiRefusal };
+export type AiAdmission<Grant extends AiGrant = AiGrant> = { ok: true; grant: Grant } | { ok: false; refusal: AiRefusal };
+
+/** What a trip's door is granted: a turn about the trip the guard read. */
+export type TripAiGrant = AiGrant & { tripId: string; detail: TripDetail };
 
 /**
  * Everything a stage does that is not a decision.
@@ -407,11 +415,15 @@ export type AiAdmission = { ok: true; grant: AiGrant } | { ok: false; refusal: A
  * measurement. `admissionPorts.ts` binds them to the real edges.
  */
 export interface AdmissionPorts {
-  /** `guard()` — the session, the membership check and the trip detail. */
+  /**
+   * `guard()` — the session, the membership check and the trip detail. With
+   * no trip (an account turn, M45) it is the session alone, and `detail` is
+   * null: there is no one trip to check a membership against.
+   */
   identifyActor(
-    tripId: string,
+    tripId: string | null,
     minimum: TripRole,
-  ): Promise<{ error: Response } | { userId: string; detail: TripDetail }>;
+  ): Promise<{ error: Response } | { userId: string; detail: TripDetail | null }>;
   /** The page store, keyed by id ALONE — see `resolveSurface`. */
   loadPage(pageId: string): Promise<Page | null>;
   /** `selectAiModel()` — the entitlement check and the `ai-live` kill switch. */
@@ -461,8 +473,8 @@ export interface AdmissionPorts {
     question: string,
     context: readonly { role: "user" | "assistant"; text: string }[],
     signal?: AbortSignal,
-    /** Which intents to choose between — the board's three or a page's two (ADR-058). */
-    surface?: "board" | "page",
+    /** Which intents to choose between — the board's three, a page's two (ADR-058), or the account's one (M45). */
+    surface?: "board" | "page" | "account",
   ): Promise<AskIntentRecord>;
   /** Where the one `ai.grant` record goes. */
   audit(record: AiGrantRecord): void;
@@ -548,7 +560,12 @@ export type QuotaVerdict =
 
 export interface AdmissionInput {
   request: Request;
-  tripId: string;
+  /**
+   * The trip in the URL, or null at the account door (M45), where a turn is
+   * about every trip the asker travelled on. Null is not a missing value: it
+   * is the one fact that tells each stage which door this is.
+   */
+  tripId: string | null;
   /**
    * Test seam: an injected model is used as-is and the flag is never
    * consulted. `simulated` is still derived from its IDENTITY — see
@@ -579,7 +596,7 @@ export interface AdmissionInput {
  */
 interface AdmissionDraft {
   readonly input: AdmissionInput;
-  actor?: { userId: string; detail: TripDetail; canWrite: boolean };
+  actor?: { userId: string; detail: TripDetail | null; canWrite: boolean };
   raw?: string;
   parsed?: {
     messages: AskUiMessage[];
@@ -659,7 +676,7 @@ function refuse(
 const refuseDemoTrip: AdmissionStage = {
   name: "refuseDemoTrip",
   run: async (draft) => {
-    if (!isDemoTripId(draft.input.tripId)) return null;
+    if (draft.input.tripId === null || !isDemoTripId(draft.input.tripId)) return null;
     const reason = "The assistant isn't available on the demo trip.";
     return refuse(
       "refuseDemoTrip",
@@ -696,7 +713,7 @@ const identifyActor: AdmissionStage = {
     // restore), and a turn admitted on one paid for a classifier call and
     // every agent step only for the domain to refuse each write at the end
     // (2026-10-10: three turns, ~$0.15, nothing changed). Here it costs nothing.
-    if (g.detail.status === "deleted") {
+    if (g.detail?.status === "deleted") {
       const reason = "This trip has been deleted, so the assistant can't work on it. Restore it to keep planning.";
       return refuse(
         "identifyActor",
@@ -708,7 +725,9 @@ const identifyActor: AdmissionStage = {
     draft.actor = {
       userId: g.userId,
       detail: g.detail,
-      canWrite: hasAtLeast(g.userId, g.detail.members, "editor"),
+      // An account turn writes nothing anywhere: it is about no trip a role
+      // could be held on.
+      canWrite: g.detail !== null && hasAtLeast(g.userId, g.detail.members, "editor"),
     };
     return null;
   },
@@ -789,6 +808,22 @@ const resolveSurface: AdmissionStage = {
   run: async (draft) => {
     const { scope } = required(draft.parsed, "parseRequest");
     const { detail, canWrite } = required(draft.actor, "identifyActor");
+
+    // **Each scope at its own door** (M45). An account scope at a trip's door
+    // would answer across trips from a URL that names one; a trip scope at the
+    // account door names no trip the guard read. Both are a client bug, and
+    // both cost nothing: this runs before model selection.
+    if ((scope.kind === "account") !== (draft.input.tripId === null)) {
+      const reason =
+        scope.kind === "account"
+          ? "an account question is asked at /api/ask, not at a trip's"
+          : "a question about one trip is asked at that trip's /ask";
+      return refuse("resolveSurface", reason, badRequest(reason));
+    }
+    if (detail === null) {
+      draft.surface = { page: null };
+      return null;
+    }
 
     // A scope pointing past the end of the trip is a client bug, not a
     // question: answering it "about the whole trip" would silently widen a
@@ -980,7 +1015,12 @@ const classifyTask: AdmissionStage = {
   run: async (draft) => {
     const { canWrite } = required(draft.actor, "identifyActor");
     const { page } = required(draft.surface, "resolveSurface");
-    const { messages, question } = required(draft.parsed, "parseRequest");
+    const { messages, question, scope } = required(draft.parsed, "parseRequest");
+    // **An account turn is classified though it cannot write** (M45): its
+    // classifier is the off-topic gate, and an assistant across every trip
+    // with no gate is a free chatbot on the operator's key. A viewer's trip
+    // turn stays unclassified, as it always was.
+    const account = scope.kind === "account";
     const { classifierModel } = required(draft.selected, "selectModel");
     // **A page turn is classified too, since ADR-058** — between the two
     // intents its surface allows. It used to be `compose` by construction, and
@@ -988,15 +1028,16 @@ const classifyTask: AdmissionStage = {
     // notebook asked for got the same turn: insert tools, day reads, and a
     // prompt telling it to read before writing.
     draft.classified = {
-      classification: canWrite
-        ? await draft.input.ports.classify(
-            classifierModel,
-            question,
-            recentContext(messages),
-            draft.input.request.signal,
-            page === null ? "board" : "page",
-          )
-        : null,
+      classification:
+        canWrite || account
+          ? await draft.input.ports.classify(
+              classifierModel,
+              question,
+              recentContext(messages),
+              draft.input.request.signal,
+              account ? "account" : page === null ? "board" : "page",
+            )
+          : null,
     };
     return null;
   },
@@ -1217,7 +1258,10 @@ const grantTools: AdmissionStage = {
       ...(escalation?.tools ?? []),
       ...Object.values(intents?.byIntent ?? {}).flatMap((entry) => entry.tools),
     ]);
-    if (!hasAtLeast(userId, detail.members, needed)) {
+    // An account turn has no members to hold the set against. It holds pure
+    // reads of the trips the asker can already open (`AccountTrips`), which is
+    // what a `viewer` set is, and the surface table grants it nothing more.
+    if (detail !== null && !hasAtLeast(userId, detail.members, needed)) {
       return refuse(
         "grantTools",
         `this tool set requires ${needed}`,
@@ -1333,7 +1377,8 @@ export const ADMISSION: readonly AdmissionStage[] = [
  */
 export interface AiGrantRecord {
   event: "ai.grant";
-  tripId: string;
+  /** Null on an account turn. */
+  tripId: string | null;
   /** Null when the refusal came before the guard answered. */
   userId: string | null;
   outcome: "granted" | "refused";
@@ -1371,6 +1416,12 @@ export type AiGrantSink = (record: AiGrantRecord) => void;
  * The last stage fills in the grant, so there is one audit call per outcome
  * and no branch outside the loop that could grow a second one.
  */
+// A trip's door is always granted with its trip: `identifyActor` answers a
+// trip id with the guard's detail, and only a null id answers none. The first
+// signature says so, so the trip handler reads `detail` without a check the
+// pipeline has already made.
+export async function evaluateAiGrant(input: AdmissionInput & { tripId: string }): Promise<AiAdmission<TripAiGrant>>;
+export async function evaluateAiGrant(input: AdmissionInput): Promise<AiAdmission>;
 export async function evaluateAiGrant(input: AdmissionInput): Promise<AiAdmission> {
   const draft: AdmissionDraft = { input };
   for (const stage of ADMISSION) {

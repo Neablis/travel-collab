@@ -29,7 +29,7 @@ import { ASSISTANT_TOOLS } from "./registry";
  * a viewer is read-only, and nothing about the surface says so. What the
  * surface contributes is one of the four caps below.
  */
-export type SurfaceKind = "trip" | "day" | "page";
+export type SurfaceKind = "trip" | "day" | "page" | "account";
 
 /** One domain, and the most a surface will ever grant in it. */
 export interface DomainCap {
@@ -48,9 +48,9 @@ export type SurfaceGrant = readonly DomainCap[];
 /**
  * The whole of "which tools exist on which surface", as data.
  *
- * A missing domain means NOT GRANTED — `account` is absent from every row here
- * because no tool declares it yet, and a tool that did would
- * be offered nowhere until a row named its domain. That is the correct default
+ * A missing domain means NOT GRANTED — `account` is absent from every trip row
+ * here, so the cross-trip tools that declare it (M45) are offered on the
+ * `account` surface and nowhere else. That is the correct default
  * for a capability table: silence denies. **`places` stopped being one of those
  * three when M9's grounding landed**, and the fact that adding the tool was not
  * enough — that it was offered nowhere until these two rows named its domain —
@@ -121,6 +121,12 @@ export const SURFACES = {
     { domain: "library", max: "read" },
     { domain: "pages", max: "propose" },
   ],
+  // **The account surface reads across trips and writes nothing** (M45: *"this
+  // assistant reads across trips and writes within one"*). One domain, at
+  // `read`, and no trip domain at all: there is no one trip for `read_trip` to
+  // read, and every itinerary tool is about one. A palette command to open a
+  // trip (part 2's `go_to`) would join this row when it lands.
+  account: [{ domain: "account", max: "read" }],
 } as const satisfies Record<SurfaceKind, SurfaceGrant>;
 
 /**

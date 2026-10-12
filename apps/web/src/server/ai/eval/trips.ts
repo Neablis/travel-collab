@@ -4,7 +4,8 @@
 // say nothing about how the assistant handles a long one. A prompt names its
 // trip with `"trip"` in `live-set.json`; one that names none runs on Japan, as
 // every prompt before this did, so no earlier prompt's run changed.
-import type { Location, TripCommand } from "@tc/contracts";
+import { randomUUID } from "node:crypto";
+import type { ActivityTag, Location, TripCommand } from "@tc/contracts";
 import { commandsFor } from "@tc/factories";
 
 /** The trips a live-set prompt may name, beyond the default Japan trip. */
@@ -54,3 +55,106 @@ export function longTripCommands(tripId: string): TripCommand[] {
     title: (dayIndex, i) => `${legOfDay[dayIndex]!.city} ${i === 0 ? "morning" : "afternoon"}, day ${dayIndex + 1}`,
   });
 }
+
+// **The account assistant's trips** (M45): several trips one person has, for
+// the four questions asked across them. One of them they are NOT travelling on
+// (ADR-065), and it is built to change every answer if it were counted — the
+// priciest meal, a third country, and the city with the most days. Every price
+// is in USD, the trips' default currency, so "most expensive" is one ranking.
+
+interface AccountStop {
+  title: string;
+  city: string;
+  countryCode: string;
+  lat: number;
+  lng: number;
+  tags?: ActivityTag[];
+  /** Per person, in cents. */
+  cost?: number;
+}
+
+/** One trip of the account fixture: its days' stops, and whether the asker is going. */
+export interface AccountEvalTrip {
+  name: string;
+  travelling: boolean;
+  days: readonly (readonly AccountStop[])[];
+}
+
+const KYOTO = { city: "Kyoto", countryCode: "JP", lat: 35.0116, lng: 135.7681 };
+const NARA = { city: "Nara", countryCode: "JP", lat: 34.6851, lng: 135.8048 };
+const LISBON = { city: "Lisbon", countryCode: "PT", lat: 38.7223, lng: -9.1393 };
+const SINTRA = { city: "Sintra", countryCode: "PT", lat: 38.8029, lng: -9.3817 };
+const PORTO = { city: "Porto", countryCode: "PT", lat: 41.1579, lng: -8.6291 };
+const BARCELONA = { city: "Barcelona", countryCode: "ES", lat: 41.3874, lng: 2.1686 };
+
+export const ACCOUNT_TRIPS: readonly AccountEvalTrip[] = [
+  {
+    name: "Kyoto in spring",
+    travelling: true,
+    days: [
+      [
+        { title: "Fushimi Inari", ...KYOTO, tags: ["sight"] },
+        { title: "Kaiseki dinner", ...KYOTO, tags: ["meal"], cost: 18_000 },
+      ],
+      [{ title: "Nishiki market lunch", ...KYOTO, tags: ["meal"], cost: 2_500 }],
+      [
+        { title: "Philosopher's Path", ...KYOTO, tags: ["outdoors"] },
+        { title: "Nara deer park", ...NARA, tags: ["outdoors"] },
+      ],
+    ],
+  },
+  {
+    name: "Lisbon long weekend",
+    travelling: true,
+    days: [
+      [{ title: "Pasteis de nata", ...LISBON, tags: ["meal"], cost: 400 }],
+      [{ title: "Pena Palace", ...SINTRA, tags: ["sight"], cost: 1_500 }],
+      [{ title: "Seafood dinner", ...LISBON, tags: ["meal"], cost: 6_500 }],
+    ],
+  },
+  {
+    name: "Porto weekend",
+    travelling: true,
+    days: [[{ title: "Port tasting", ...PORTO, tags: ["drinks"], cost: 2_000 }]],
+  },
+  {
+    // Theirs to open — they planned it — but they are not going.
+    name: "Barcelona for Sam",
+    travelling: false,
+    days: [
+      [{ title: "Tasting menu at Disfrutar", ...BARCELONA, tags: ["meal"], cost: 30_000 }],
+      [{ title: "Sagrada Familia", ...BARCELONA, tags: ["sight"], cost: 3_300 }],
+      [{ title: "Park Guell", ...BARCELONA, tags: ["outdoors"] }],
+      [{ title: "La Boqueria", ...BARCELONA, tags: ["shopping"] }],
+    ],
+  },
+];
+
+/** One account trip as the commands that build it after `CreateTrip`: dated days, then their stops. */
+export function accountTripCommands(tripId: string, trip: AccountEvalTrip): TripCommand[] {
+  const dayIds = trip.days.map(() => randomUUID());
+  return [
+    {
+      type: "SetTripDates",
+      tripId,
+      startDate: "2027-05-01",
+      endDate: `2027-05-${String(trip.days.length).padStart(2, "0")}`,
+      newDayIds: dayIds,
+    },
+    ...trip.days.flatMap((stops, day) =>
+      stops.map(
+        (stop): TripCommand => ({
+          type: "AddActivity",
+          tripId,
+          activityId: randomUUID(),
+          dayId: dayIds[day]!,
+          title: stop.title,
+          location: { name: stop.title, city: stop.city, countryCode: stop.countryCode, lat: stop.lat, lng: stop.lng },
+          ...(stop.tags === undefined ? {} : { tags: stop.tags }),
+          ...(stop.cost === undefined ? {} : { cost: { amountMinor: stop.cost, currency: "USD" } }),
+        }),
+      ),
+    ),
+  ];
+}
+

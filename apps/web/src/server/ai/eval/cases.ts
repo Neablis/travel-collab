@@ -11,7 +11,16 @@
 // meant to catch the 2026-10-04 shape (ten calls, 162 seconds) without failing
 // a turn that reads one extra day.
 import { travellerIds, type TripDetail } from "@tc/contracts";
-import { DAYTIME_END_MINUTES, DAYTIME_START_MINUTES, citiesOfDay, summarizeFreeDays } from "@tc/domain";
+import {
+  COUNTRIES,
+  DAYTIME_END_MINUTES,
+  DAYTIME_START_MINUTES,
+  citiesOfDay,
+  placesVisited,
+  spendByCategory,
+  summarizeFreeDays,
+  visitCounts,
+} from "@tc/domain";
 import type { EvalExpectation } from "./grade";
 
 const QUESTION: EvalExpectation = { proposes: false, maxToolCalls: 4, maxLatencyMs: 60_000 };
@@ -123,3 +132,109 @@ export function expectationFor(id: string, trip: TripDetail): EvalExpectation | 
       return undefined;
   }
 }
+
+/** One seeded account trip, and whether the asker is travelling on it (`ACCOUNT_TRIPS`). */
+export interface SeededAccountTrip {
+  detail: TripDetail;
+  travelling: boolean;
+}
+
+// The account door's questions (M45): reads only, and one aggregate answers
+// each — the tools exist so a turn does not read trip after trip. `read_trip`
+// is not offered there at all, and asking for it ends the turn.
+const ACCOUNT_QUESTION: EvalExpectation = {
+  proposes: false,
+  maxToolCalls: 3,
+  maxLatencyMs: 60_000,
+  mustNotCall: ["read_trip", "read_day"],
+};
+
+const COUNT_WORDS = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
+
+/**
+ * Expectations for the account prompts, from the trips the runner seeded.
+ *
+ * **The trip the asker is not going on is dropped HERE, by the fixture's own
+ * flag**, and never by the rule the door applies (`travelledTrips` over the
+ * stored travellers). Leaving it to that rule would compute the expected
+ * answer with the code under test: a door that counted every trip would agree
+ * with an expectation that did too, and the eval would pass it.
+ */
+export function accountExpectationFor(
+  id: string,
+  seeded: readonly SeededAccountTrip[],
+  userId: string,
+): EvalExpectation | undefined {
+  const trips = seeded.filter((trip) => trip.travelling).map((trip) => trip.detail);
+  // The not-travelling trip's places, which a right answer never names: it
+  // outranks the right answer, so a door that counted it gets "Barcelona, then
+  // Kyoto", and that still mentions Kyoto.
+  const notGoing = [
+    ...new Set(
+      seeded
+        .filter((trip) => !trip.travelling)
+        .flatMap((trip) => Object.values(trip.detail.activities).map((stop) => stop.location?.city))
+        .filter((city) => city !== undefined && city !== null),
+    ),
+  ];
+  switch (id) {
+    case "a-most-expensive-meal": {
+      // One row per currency, and each row's priciest meal is a right answer:
+      // minor units of two currencies do not compare.
+      const meals = spendByCategory(trips, userId, { category: "meal" }).categories.map((row) => row.mostExpensive);
+      return {
+        ...ACCOUNT_QUESTION,
+        mustCall: ["spend_by_category"],
+        // That trip's meal names its venue only inside a title ("Tasting menu
+        // at Disfrutar"), which an answer rarely quotes whole, so it is named.
+        mustNotSay: [...notGoing, "Disfrutar"],
+        ...(meals.length === 0
+          ? {}
+          : {
+              mentionsOneOf: meals.map((meal) => meal.title),
+              namesOneOfAmounts: [...new Set(meals.flatMap((meal) => [meal.perPersonMinor, meal.totalMinor]))],
+            }),
+      };
+    }
+    case "a-countries-count": {
+      const count = placesVisited(trips, userId).countries.length;
+      return {
+        ...ACCOUNT_QUESTION,
+        mustCall: ["places_visited"],
+        mentionsOneOf: [`${count} countr`, `${COUNT_WORDS[count] ?? count} countr`],
+      };
+    }
+    case "a-city-most": {
+      const top = visitCounts(trips, userId, "city").places[0];
+      return {
+        ...ACCOUNT_QUESTION,
+        mustCall: ["visit_counts"],
+        mustNotSay: notGoing,
+        ...(top === undefined ? {} : { mentionsOneOf: [top.place] }),
+      };
+    }
+    case "a-next-country": {
+      // Read off the travelled trips' own scheduled stops, not through
+      // `suggestNextCountry`, for the reason above: an answer naming a country
+      // already visited, and no other, fails. Whole names only, or "romantic"
+      // passes as Oman. An answer that names an unvisited country in passing
+      // ("unlike Spain, Portugal...") still passes: no text rule tells a
+      // suggestion from a comparison.
+      const been = new Set(
+        trips.flatMap((trip) =>
+          trip.days
+            .flatMap((day) => day.activityIds.map((id) => trip.activities[id]))
+            .flatMap((stop) => [stop?.location?.countryCode, stop?.endLocation?.countryCode]),
+        ),
+      );
+      return {
+        ...ACCOUNT_QUESTION,
+        mustCall: ["suggest_next_country"],
+        namesOneOf: COUNTRIES.filter((country) => !been.has(country.code)).map((country) => country.name),
+      };
+    }
+    default:
+      return undefined;
+  }
+}
+

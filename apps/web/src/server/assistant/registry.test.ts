@@ -24,6 +24,7 @@ import { z } from "zod";
 import {
   AMBIENT_DEP_KEYS,
   TURN_DEP_KEYS,
+  newAccountTrips,
   newDayReadBudget,
   newEscalationBuffer,
   newNotebookRefs,
@@ -41,6 +42,7 @@ import { INTENT_TOOLS } from "./tools/intent";
 import { newIntentLatch } from "./intents";
 import { READ_TOOLS } from "./tools/read";
 import { insertPlaybookDayTool } from "./tools/insertPlaybookDay";
+import { ACROSS_TRIP_TOOLS } from "./tools/acrossTrips";
 
 // **Derived from the two runtime lists, not written out.** This was a
 // hand-typed array of seven strings, which is the manifest shape ADR-043
@@ -65,6 +67,7 @@ const TURN_DEPS = {
   typedAddresses: typedAddressesIn(""),
   intent: newIntentLatch("compose", ["compose"], () => 0),
   readBudget: newDayReadBudget(15),
+  trips: newAccountTrips("registry-reader", async () => []),
 };
 
 /** The widget names `insert_widget`'s schema will accept, read off the schema. */
@@ -82,6 +85,7 @@ describe("the registry", () => {
     expect(names.sort()).toEqual(
       [
         ...READ_TOOLS.map((t) => t.name),
+        ...ACROSS_TRIP_TOOLS.map((t) => t.name),
         ...PLACE_TOOLS.map((t) => t.name),
         ...PLANNING_TOOLS.map((t) => t.name),
         insertPlaybookDayTool.name,

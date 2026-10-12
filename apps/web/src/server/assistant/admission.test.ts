@@ -697,3 +697,64 @@ describe("admission is handed the ceilings selection resolved", () => {
     expect(records[0]!.model).toBe("test/model-cheap");
   });
 });
+
+// M45: the account door. The same nine stages decide it — one admission path —
+// with no trip for the guard to read: the session answers who is asking, and
+// the scope must be the account's own.
+describe("an account turn", () => {
+  const ACCOUNT_TURN = {
+    messages: [{ id: "m1", role: "user", parts: [{ type: "text", text: "which city have I been to most?" }] }],
+    scope: { kind: "account" },
+  };
+
+  function accountPorts() {
+    const classifiedOn: (string | undefined)[] = [];
+    const spied = spyPorts({
+      identifyActor: async (tripId) => {
+        spied.calls.push(`identifyActor:${tripId}`);
+        return { userId: EDITOR, detail: null };
+      },
+      classify: async (_model, _question, _context, _signal, surface) => {
+        classifiedOn.push(surface);
+        return { ...CLASSIFIED_AS_WRITE, taskClass: "question", intent: "question" };
+      },
+    });
+    return { ...spied, classifiedOn };
+  }
+
+  it("is granted the four aggregate tools and nothing else, on the session alone", async () => {
+    const { ports, calls, records, classifiedOn } = accountPorts();
+    const admission = await evaluateAiGrant({ request: askFor(ACCOUNT_TURN), tripId: null, ports });
+
+    expect(admission.ok).toBe(true);
+    if (!admission.ok) return;
+    expect(admission.grant.tools.map((tool) => tool.name)).toEqual([
+      "spend_by_category",
+      "places_visited",
+      "visit_counts",
+      "suggest_next_country",
+    ]);
+    expect(admission.grant).toMatchObject({ surface: "account", posture: "read-only", taskClass: "question", tripId: null });
+    // No page to load; the classifier still runs, as the off-topic gate.
+    expect(calls).toEqual(["identifyActor:null", "selectModel", "admitQuota"]);
+    expect(classifiedOn).toEqual(["account"]);
+    expect(records).toMatchObject([{ outcome: "granted", tripId: null, surface: "account" }]);
+  });
+
+  it("refuses a trip's scope at the account door, and the account's at a trip's, before a model is chosen", async () => {
+    const atAccount = accountPorts();
+    const wrongScope = await evaluateAiGrant({ request: askFor(TRIP_TURN), tripId: null, ports: atAccount.ports });
+    expect(wrongScope.ok).toBe(false);
+    if (wrongScope.ok) return;
+    expect(wrongScope.refusal).toMatchObject({ stage: "resolveSurface" });
+    expect(wrongScope.refusal.response.status).toBe(400);
+    expect(atAccount.calls).toEqual(["identifyActor:null"]);
+
+    const atTrip = spyPorts();
+    const accountAtTrip = await evaluateAiGrant({ request: askFor(ACCOUNT_TURN), tripId: TRIP_ID, ports: atTrip.ports });
+    expect(accountAtTrip.ok).toBe(false);
+    if (accountAtTrip.ok) return;
+    expect(accountAtTrip.refusal).toMatchObject({ stage: "resolveSurface" });
+    expect(atTrip.calls).toEqual(["identifyActor"]);
+  });
+});

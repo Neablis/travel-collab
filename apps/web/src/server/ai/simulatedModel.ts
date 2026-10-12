@@ -36,6 +36,7 @@
 import { randomUUID } from "node:crypto";
 import type { LanguageModel } from "ai";
 import type { ActivityTag } from "@tc/contracts";
+import { formatMoney } from "@/lib/formatMoney";
 import { needsBooking } from "@/lib/needsBooking";
 import { parseAskScope, type AskScope } from "@/server/assistant/context";
 import { askIntentVerdictText, isAskIntentCall, isPageIntentCall } from "@/server/ai/askIntent";
@@ -46,6 +47,12 @@ import type {
   ReadToolProblem,
   TripReadout,
 } from "@/server/assistant/tools/read";
+import type {
+  PlacesVisitedReadout,
+  SpendByCategoryReadout,
+  SuggestNextCountryReadout,
+  VisitCountsReadout,
+} from "@/server/assistant/tools/acrossTrips";
 import { INSERT_PLAYBOOK_DAY } from "@/server/ai/writeTools";
 import { plain } from "@/server/assistant/prompt";
 import { ASSISTANT_TOOLS } from "@/server/assistant/registry";
@@ -964,6 +971,7 @@ function askTurn(options: CallOptionsLike): SimulatedStep {
   // composes, or — when no insert tool was handed over, the page's `question`
   // intent (ADR-058) — reads and answers.
   if (scope.kind === "page") return pageTurn(results, latestUserText(options), options);
+  if (scope.kind === "account") return accountTurn(results, latestUserText(options), options);
   if (results.length === 0) {
     return { content: askQuestions(scope, options), finishReason: { unified: "tool-calls", raw: undefined } };
   }
@@ -991,6 +999,73 @@ function askTurn(options: CallOptionsLike): SimulatedStep {
     return { content: proposeCalls(scope, results, question), finishReason: { unified: "tool-calls", raw: undefined } };
   }
   return speak(proposed ? proposalAnswer(scope, results) : askAnswer(scope, results));
+}
+
+// ---------------------------------------------------------------------------
+// The account half (M45): one aggregate, then an answer from it
+// ---------------------------------------------------------------------------
+
+/**
+ * Which cross-trip tool a question needs, by phrase — the four example
+ * questions' shapes, and `places_visited` for anything else. Never `read_trip`:
+ * an account turn is not handed it, and calling it would end the turn.
+ */
+function accountCall(question: string): ToolCall {
+  if (/\b(spen[dt]|cost|expensive|cheap|money|price)\b/i.test(question)) {
+    return call("spend_by_category", /\b(meal|food|eat|dinner|lunch|restaurant)\b/i.test(question) ? { category: "meal" } : {});
+  }
+  if (/\b(next|suggest|should i (go|visit))\b/i.test(question)) return call("suggest_next_country", {});
+  if (/\bmost\b/i.test(question)) return call("visit_counts", { by: /\bcountr(y|ies)\b/i.test(question) ? "country" : "city" });
+  return call("places_visited", {});
+}
+
+const SIMULATED_ACCOUNT_FALLBACK = "I couldn't read your trips just now.";
+
+/** An account step: ask the one aggregate the question needs, then say what it returned. */
+function accountTurn(results: readonly ToolResultLike[], question: string, options: CallOptionsLike): SimulatedStep {
+  if (results.length === 0) {
+    const wanted = accountCall(question);
+    if (!offered(options, wanted.toolName)) return speak([SIMULATED_ACCOUNT_FALLBACK, SIMULATED_ASK_NOTICE]);
+    return { content: [wanted], finishReason: { unified: "tool-calls", raw: undefined } };
+  }
+  return speak([...accountAnswer(results), SIMULATED_ASK_NOTICE]);
+}
+
+function accountAnswer(results: readonly ToolResultLike[]): string[] {
+  const spend = resultFor<SpendByCategoryReadout>(results, "spend_by_category");
+  if (spend) {
+    // The priciest per currency: minor units of two currencies do not compare.
+    const tops = new Map<string, (typeof spend.categories)[number]>();
+    for (const row of spend.categories) {
+      const top = tops.get(row.currency);
+      if (top === undefined || row.mostExpensive.perPersonMinor > top.mostExpensive.perPersonMinor) tops.set(row.currency, row);
+    }
+    if (tops.size === 0) return [`Nothing with a price on it across your ${spend.tripsCounted} trips.`];
+    return [...tops.values()].map(({ category, currency, mostExpensive: { title, tripName, perPersonMinor } }) => {
+      const what = `${category === "meal" ? "meal" : "stop"}${tops.size > 1 ? ` paid in ${currency}` : ""}`;
+      return `The most expensive ${what} across your trips was ${plain(title)} on ${plain(tripName)}, at ${formatMoney(perPersonMinor, currency)} per person.`;
+    });
+  }
+  const places = resultFor<PlacesVisitedReadout>(results, "places_visited");
+  if (places) {
+    const names = places.countries.map((country) => country.name ?? country.code).join(", ");
+    return [
+      `You've been to ${places.countries.length} countr${places.countries.length === 1 ? "y" : "ies"} across ${places.tripsCounted} trip${places.tripsCounted === 1 ? "" : "s"}${names ? `: ${names}` : ""}.`,
+    ];
+  }
+  const counts = resultFor<VisitCountsReadout>(results, "visit_counts");
+  if (counts) {
+    const top = counts.places[0];
+    if (top === undefined) return ["None of your trips has a stop with a recorded place yet."];
+    const count = (n: number, noun: string) => `${n} ${noun}${n === 1 ? "" : "s"}`;
+    return [`The ${counts.by} you've been to most is ${plain(top.place)}: ${count(top.trips, "trip")}, ${count(top.days, "day")}.`];
+  }
+  const next = resultFor<SuggestNextCountryReadout>(results, "suggest_next_country");
+  const pick = next?.unvisited[0];
+  if (pick !== undefined && pick.countries[0] !== undefined) {
+    return [`You haven't been to ${pick.countries[0]} yet, in ${pick.region} — it could be next.`];
+  }
+  return [SIMULATED_ACCOUNT_FALLBACK];
 }
 
 // A text step from a list of sentences: one message part, streamed sentence by
