@@ -33,10 +33,14 @@ Mitchell moved **M43 and M44 to the end** (*"Neither are impacting anything toda
 **M45 in flight (2026-10-12)** — plan `docs/plans/2026-10-12-M45-assistant-beyond-one-trip.md`:
 - Part 0, PR 420: draft tracker on `claude/stoic-dijkstra-01wxup`; merges last.
 - Part 1, PR 422 (`claude/m45-part1-palette-notebooks`): palette notebook commands, run-by-id,
-  trip-on-a-view. Built, red-first evidence in the PR body; **not yet reviewed**.
+  trip-on-a-view. **Ready to merge**: CI green on `d98fd1e` (run 38266060522), three review
+  rounds, every finding fixed. The merge is Mitchell's; part 2 starts once it merges.
 - Part 3, PR 421 (`claude/m45-part3-account-ask`): `/api/ask`, the cross-trip tools, ledger
-  `ask.account`, eval cases. Built, red-first evidence in the PR body; **not yet reviewed**; its
-  live eval waits on Mitchell's go-ahead.
+  `ask.account`, eval cases. In its third fix round: review approved at `29de655`, two minor
+  findings being fixed. Its live eval still waits on Mitchell's go-ahead. The eval's country-name
+  check is filed as KI-2026-10-12-c, a follow-up rather than a merge condition.
+- CI infra: the postgres service image pull failed three times (PRs 413, 422, 421), each green on
+  a re-run; filed as KI-2026-10-12-b.
 - Part 2 (the assistant runs palette commands) starts after PR 422 merges; part 4 (Home rail,
   ⌘K *Ask:*) after parts 2 and 3.
 - Builders must each work in their own git worktree: parts 1 and 3 shared the main checkout and
