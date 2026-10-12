@@ -24,7 +24,11 @@ general setup.
 **M43 — A TRIP'S NOTEBOOKS KEEP UP WITH THEIR TEMPLATES — IS THE CURRENT MILESTONE AS OF
 2026-10-12**, by **M42's gate closing at 14 of 14**. **M43 is not scoped**: its decisions need
 answering with Mitchell, checked against today's UI, before any part is built
-(`docs/milestones/M43-notebooks-keep-up.md`). Order: `… M41 ✓ → M42 ✓ → M43 → M44 … M47`.
+(`docs/milestones/M43-notebooks-keep-up.md`). Order: `… M41 ✓ → M42 ✓ → M43 → M44 … M47 → M48`.
+
+**M48 was proposed 2026-10-11** from a PM brief: example playbook days retrieved into `plan` turns
+to cut their cost. Not scoped, placed last, and its offline gates can run early
+(`docs/milestones/M48-plans-start-from-examples.md`).
 
 **M42 closed 2026-10-12.** The front door shows more than one trip, and what it costs:
 - `/demo/<slug>` for every bundled trip, with a picker on `/demo`; a demo opens on Plan (#411).
