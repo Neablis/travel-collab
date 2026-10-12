@@ -3,7 +3,9 @@
 // `--check`, fails if any committed file differs from a fresh generation.
 // Japan's slice is `src/lib/landingDemo.generated.json`, the one the hero reads
 // today; every other demo's is `src/lib/landingDemo.<slug>.generated.json`
-// (M42 D2); the cards are `src/lib/demoTripCards.generated.json` (D1).
+// (M42 D2); the cards are `src/lib/demoTripCards.generated.json` (D1); the
+// landing's Playbooks card and Notebook page are
+// `src/lib/landingFeatures.generated.json` (M42 part 9).
 //
 //   pnpm --filter web landing:generate   # rewrite the snapshots
 //   pnpm landing:verify                  # the drift check CI runs (also inside `pnpm test`)
@@ -21,18 +23,28 @@
 // resolving against the undated trip is the whole of it. The fold still needs
 // a start date, and it gets a fixed one so the output is reproducible.
 //
+// **So are prices** (M42 part 9). The front door sells the day, not what it
+// cost — Mitchell, 2026-10-11: *"nostalgic, not pricing"* — and a stop's
+// price reaches the river's accessible names and the notebook's day card as
+// text. Every stop is resolved with no cost, which is the form a stop nobody
+// priced already has.
+//
 // Run with `node --import ./scripts/lib/ts-resolve-register.mjs`, which lets
 // Node follow `src/**`'s extensionless imports and the `@/` alias.
 
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import type { TripDetail } from "@tc/contracts";
+import type { DiscoverDay } from "@/lib/playbooks";
+import { SavedStop, TripCover, type PageParagraphNode, type TripDetail } from "@tc/contracts";
+import { z } from "zod";
 import { REFERENCE_START_DATE } from "@tc/fixtures";
-import { renderMacro, type BlockPayload, type WidgetContext } from "@tc/pages";
+import { renderMacro, type BlockPayload, type Seg, type WidgetContext } from "@tc/pages";
 import { cityAccents } from "@/components/pages/cityAccents";
 import { DEMO_TRIPS, demoTripBySlug } from "@/lib/demoTrip";
-import type { LandingDemo } from "@/lib/landingDemo";
+import type { LandingDemo, LandingFeatures } from "@/lib/landingDemo";
 import { demoTripCards, demoTripDetailFor } from "@/server/demoTrip";
+import { toDiscoverDay } from "@/server/discoverDay";
+import { savedDayCities } from "@/server/savedDayCities";
 import { buildTripGlobals } from "@/server/tripGlobals";
 
 /** Where demo `slug`'s snapshot is committed. Japan's keeps the name it had before there were others. */
@@ -84,13 +96,24 @@ function resolveBlock<K extends BlockPayload["kind"]>(
   return outcome.rendered.block as Extract<BlockPayload, { kind: K }>;
 }
 
-/** Demo `slug`'s slice, folded and resolved exactly as `/demo/<slug>` and a notebook would, with no calendar dates. */
-export function buildLandingDemo(slug: string): LandingDemo {
+/** Demo `slug` as `/demo/<slug>` folds it, with its dates and prices removed, and the context a widget resolves in. */
+function undatedDemo(slug: string) {
   const demo = demoTripBySlug(slug);
   if (demo === undefined) throw new Error(`landing demo: ${slug} is not a demo`);
   const folded = demoTripDetailFor(demo.tripId, REFERENCE_START_DATE);
-  const trip: TripDetail = { ...folded, days: folded.days.map((day) => ({ ...day, date: null })) };
+  const trip: TripDetail = {
+    ...folded,
+    days: folded.days.map((day) => ({ ...day, date: null })),
+    activities: Object.fromEntries(Object.entries(folded.activities).map(([id, activity]) => [id, { ...activity, cost: null }])),
+  };
   const globals = buildTripGlobals(trip);
+  const ctx: WidgetContext = { trip, page: { tripId: demo.tripId }, user: null, globals, today: null };
+  return { trip, globals, ctx };
+}
+
+/** Demo `slug`'s slice, folded and resolved exactly as `/demo/<slug>` and a notebook would, with no calendar dates. */
+export function buildLandingDemo(slug: string): LandingDemo {
+  const { trip, globals, ctx } = undatedDemo(slug);
   const accents = cityAccents(trip);
   const { river: riverIndex, notebook: notebookIndex } = slug === "japan" ? JAPAN_DAYS : chooseDays(trip, globals);
 
@@ -106,8 +129,6 @@ export function buildLandingDemo(slug: string): LandingDemo {
   // panel is about where the group is for the rest of it.
   const city = globals.days[riverIndex]!.cities.at(-1);
   if (city === undefined) throw new Error(`landing demo: Day ${riverIndex + 1} names no city`);
-
-  const ctx: WidgetContext = { trip, page: { tripId: demo.tripId }, user: null, globals, today: null };
 
   return {
     currency: trip.currency,
@@ -126,6 +147,141 @@ export function buildLandingDemo(slug: string): LandingDemo {
   };
 }
 
+/**
+ * The Playbooks block's day: Mitchell's own published Hanoi playbook, featured
+ * with his approval, read once from its public endpoint and committed trimmed
+ * (`landing-day.json`: its stops without prices, its cover, its author's
+ * public name). Nothing here reaches production or Unsplash; the cover is a
+ * stored `TripCover`, whose images are Unsplash's CDN and cost no API call.
+ */
+const LANDING_DAY_PATH = new URL("./landing-day.json", import.meta.url);
+
+const LandingDay = z.object({
+  savedDayId: z.string().uuid(),
+  ownerId: z.string().min(1),
+  ownerDisplayName: z.string().min(1),
+  name: z.string().min(1),
+  dayCount: z.number().int().min(1),
+  cities: z.array(z.string()),
+  visibility: z.literal("public"),
+  authorKind: z.string(),
+  sourceTripName: z.string().min(1),
+  createdAt: z.string(),
+  publishedAt: z.string(),
+  description: z.string(),
+  cover: TripCover,
+  stops: z.array(SavedStop),
+});
+
+/**
+ * What the landing seeds onto the card, for the landing only (Mitchell,
+ * 2026-10-11): a rating and an adds count, where the day's own are new-day
+ * zeros, so the front door's example does not read "No reviews yet". Fixed
+ * numbers, so the snapshot stays reproducible; nothing writes them to the
+ * database, and Discover still shows the day's real numbers.
+ */
+const LANDING_SEED = { rating: 4.7, reviewCount: 23, adds: 12 };
+
+/** Where the Playbooks and Notebook blocks' slice is committed. */
+export const FEATURES_PATH = fileURLToPath(new URL("../src/lib/landingFeatures.generated.json", import.meta.url));
+
+/**
+ * The committed day as Discover draws it, through Discover's own
+ * `toDiscoverDay`, read signed out so it is nobody's own. Its cities and
+ * description are worked out again from its stops and held to what
+ * production said, so a rule change that would redraw the card fails here.
+ */
+function landingPlaybook(): DiscoverDay {
+  const day = LandingDay.parse(JSON.parse(readFileSync(LANDING_DAY_PATH, "utf8")));
+  const card = toDiscoverDay(
+    {
+      id: day.savedDayId,
+      owner_id: day.ownerId,
+      owner_display_name: day.ownerDisplayName,
+      owner_name: null,
+      name: day.name,
+      stops: day.stops,
+      cities: savedDayCities(day.stops),
+      visibility: day.visibility,
+      author_kind: day.authorKind,
+      day_count: day.dayCount,
+      adds: LANDING_SEED.adds,
+      rating: LANDING_SEED.rating,
+      review_count: LANDING_SEED.reviewCount,
+      source_trip_name: day.sourceTripName,
+      created_at: day.createdAt,
+      published_at: day.publishedAt,
+      cover: day.cover,
+      matched_count: 0,
+    },
+    [],
+    null,
+  );
+  if (card === null) throw new Error(`landing demo: ${day.name} does not read as a Discover card`);
+  if (JSON.stringify(card.cities) !== JSON.stringify(day.cities) || card.description !== day.description) {
+    throw new Error(`landing demo: ${day.name} now reads as ${card.description} in ${card.cities.join(", ")}, not as production drew it`);
+  }
+  // No price on the landing outside its plans (Mitchell, 2026-10-11): the
+  // blocks sell the day, not what it cost. And no tag that links: a
+  // front-door card sends nobody into tag pages, which may not be indexed, so
+  // its chips stay text, as a private day's do.
+  return { ...card, totalCost: null, namedTags: [] };
+}
+
+const MEMORY_DAY = { kind: "index", index: 5 };
+const text = (value: string): PageParagraphNode["content"][number] => ({ type: "text", text: value });
+const widget = (name: string, params: Record<string, unknown>): PageParagraphNode["content"][number] => ({
+  type: "macro",
+  attrs: { name, params },
+});
+
+/**
+ * The Notebook block's page: what somebody wrote after Japan's Day 6 in
+ * Hakone, with the plan's own facts in it as widgets. A memory, not a cost
+ * table (Mitchell, 2026-10-11: *"it should be more nostalgic than how much you
+ * spent on dinner"*), so no widget here reads money.
+ */
+const MEMORY_PAGE: PageParagraphNode[] = [
+  {
+    type: "paragraph",
+    content: [
+      text("Day six, "),
+      widget("city", { day: MEMORY_DAY }),
+      text(": "),
+      widget("count", { day: MEMORY_DAY }),
+      text(", and the one we still talk about is "),
+      widget("field", { field: "stop.title", day: MEMORY_DAY, tag: "wellness" }),
+      text(". We stayed in the onsen until our fingers wrinkled, then ate far too much kaiseki."),
+    ],
+  },
+  {
+    type: "paragraph",
+    content: [text("Nobody was in a hurry. Priya says it was the best night of the trip, and nobody argued.")],
+  },
+];
+
+/** One paragraph's text and widgets as the segments a notebook draws, each widget resolved against Japan. */
+function resolveParagraph(ctx: WidgetContext, paragraph: PageParagraphNode): Seg[] {
+  return paragraph.content.flatMap((node): Seg[] => {
+    if (node.type === "text") return [{ kind: "text", text: node.text }];
+    if (node.type !== "macro") throw new Error(`landing demo: the memory page holds a ${node.type} node it cannot draw`);
+    const outcome = renderMacro(ctx, node.attrs.name, node.attrs.params);
+    if (outcome.status !== "ok" || outcome.rendered.kind !== "inline") {
+      throw new Error(`landing demo: ${node.attrs.name} did not resolve to a value (${JSON.stringify(outcome)})`);
+    }
+    return [...outcome.rendered.segs];
+  });
+}
+
+/** The Playbooks block's card and the Notebook block's page, both from content the product ships. */
+export function buildLandingFeatures(): LandingFeatures {
+  const { ctx } = undatedDemo("japan");
+  return {
+    playbook: landingPlaybook(),
+    memory: MEMORY_PAGE.map((paragraph) => resolveParagraph(ctx, paragraph)),
+  };
+}
+
 /** A snapshot file's exact bytes: what the generator writes and what the verify step compares. */
 export function serializeLandingDemo(demo: unknown): string {
   return `${JSON.stringify(demo, null, 2)}\n`;
@@ -139,6 +295,7 @@ export function generatedFiles(): { path: string; fresh: string }[] {
   return [
     ...DEMO_TRIPS.map(({ slug }) => ({ path: snapshotPath(slug), fresh: serializeLandingDemo(buildLandingDemo(slug)) })),
     { path: CARDS_PATH, fresh: serializeLandingDemo(demoTripCards()) },
+    { path: FEATURES_PATH, fresh: serializeLandingDemo(buildLandingFeatures()) },
   ];
 }
 

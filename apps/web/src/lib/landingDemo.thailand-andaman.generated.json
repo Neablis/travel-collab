@@ -47,10 +47,7 @@
         "tags": [
           "meal"
         ],
-        "cost": {
-          "amountMinor": 1600,
-          "currency": "USD"
-        },
+        "cost": null,
         "bookedBy": null,
         "participants": [],
         "mode": null,
@@ -76,10 +73,7 @@
         "anchors": [],
         "kind": "transit",
         "tags": [],
-        "cost": {
-          "amountMinor": 120,
-          "currency": "USD"
-        },
+        "cost": null,
         "bookedBy": null,
         "participants": [],
         "mode": null,
@@ -108,10 +102,7 @@
           "ticketed",
           "sight"
         ],
-        "cost": {
-          "amountMinor": 3400,
-          "currency": "USD"
-        },
+        "cost": null,
         "bookedBy": null,
         "participants": [],
         "mode": null,
@@ -139,10 +130,7 @@
         "tags": [
           "meal"
         ],
-        "cost": {
-          "amountMinor": 3200,
-          "currency": "USD"
-        },
+        "cost": null,
         "bookedBy": null,
         "participants": [],
         "mode": null,
@@ -171,10 +159,7 @@
           "ticketed",
           "sight"
         ],
-        "cost": {
-          "amountMinor": 700,
-          "currency": "USD"
-        },
+        "cost": null,
         "bookedBy": null,
         "participants": [],
         "mode": null,
@@ -202,10 +187,7 @@
         "tags": [
           "drinks"
         ],
-        "cost": {
-          "amountMinor": 2200,
-          "currency": "USD"
-        },
+        "cost": null,
         "bookedBy": null,
         "participants": [],
         "mode": null,
@@ -233,10 +215,7 @@
         "tags": [
           "meal"
         ],
-        "cost": {
-          "amountMinor": 5500,
-          "currency": "USD"
-        },
+        "cost": null,
         "bookedBy": null,
         "participants": [],
         "mode": null,
@@ -344,44 +323,44 @@
         "Krabi"
       ],
       "window": "8:30 am – 8:45 pm",
-      "cost": "$3,207.00",
+      "cost": null,
       "ordinal": 3,
       "date": null,
       "activities": [
         {
           "title": "Breakfast on the Riva Surya terrace, then check out",
           "timeWindow": "8:30 am – 9:20 am",
-          "cost": "$14.00"
+          "cost": null
         },
         {
           "title": "Taxi to Don Mueang",
           "timeWindow": "10 am – 11:05 am",
-          "cost": "$14.00"
+          "cost": null
         },
         {
           "title": "Flight Bangkok to Krabi (DMK–KBV)",
           "timeWindow": "12:55 pm – 2:20 pm",
-          "cost": "$156.00"
+          "cost": null
         },
         {
           "title": "Airport minivan to Ao Nang",
           "timeWindow": "3 pm – 3:55 pm",
-          "cost": "$12.00"
+          "cost": null
         },
         {
           "title": "Longtail from Ao Nang to Railay West",
           "timeWindow": "4:20 pm – 4:50 pm",
-          "cost": "$9.00"
+          "cost": null
         },
         {
           "title": "Check in at Railay Bay Resort",
           "timeWindow": "5 pm – 5:45 pm",
-          "cost": "$840.00"
+          "cost": null
         },
         {
           "title": "Dinner at the Last Bar, East Railay",
           "timeWindow": "7 pm – 8:45 pm",
-          "cost": "$24.00"
+          "cost": null
         }
       ]
     }

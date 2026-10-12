@@ -592,7 +592,8 @@ describe("Discover", () => {
     searchPlaybooksMock.mockReturnValue(new Promise(() => {}));
     next.focus();
     await user.keyboard("{Enter}");
-    expect(screen.getByTestId("discover-results").matches(":focus")).toBe(true);
+    // Found by its name: focus lands on a list a screen reader can announce.
+    expect(screen.getByRole("list", { name: "Results" }).matches(":focus")).toBe(true);
   });
 
   // The cursor on screen while a new search loads is the last search's, and

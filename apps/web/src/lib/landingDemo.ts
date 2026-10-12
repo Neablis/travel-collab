@@ -1,7 +1,9 @@
 import type { ActivityView } from "@tc/contracts";
-import type { ItineraryDayPayload, TripStripPayload } from "@tc/pages";
+import type { ItineraryDayPayload, Seg, TripStripPayload } from "@tc/pages";
 import type { AccentFamily } from "@/lib/dayAccent";
+import type { DiscoverDay } from "@/lib/playbooks";
 import snapshot from "./landingDemo.generated.json";
+import features from "./landingFeatures.generated.json";
 
 // The slice of the `/demo` trip the front door's hero draws with real
 // components (docs/specs/2026-09-27-link-previews-and-real-hero-design.md §3).
@@ -38,7 +40,20 @@ export type LandingDemo = {
   };
 };
 
+/**
+ * The feature blocks' slice (M42 part 9), written by the same script and held
+ * by the same verify step: the Playbooks block's card, and the Notebook block's
+ * page as segments.
+ */
+export type LandingFeatures = {
+  /** Mitchell's published Hanoi playbook (`scripts/landing-day.json`), read through Discover's own `toDiscoverDay`. */
+  playbook: DiscoverDay;
+  /** The page's paragraphs: the author's words and the widgets' resolved values. */
+  memory: Seg[][];
+};
+
 // Through `unknown` because JSON infers `kind: string` where the payloads say
 // `"trip-strip"`. The shape is held by the generator's own return type, which
 // tsc checks, and by the verify step, which holds this file to its output.
 export const LANDING_DEMO = snapshot as unknown as LandingDemo;
+export const LANDING_FEATURES = features as unknown as LandingFeatures;

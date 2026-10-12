@@ -72,7 +72,7 @@ const MAP_PINS = [
 ] as const;
 
 const MAP_SUGGESTION_AT = { left: "26%", right: "2%", top: "30%" };
-const MAP_PRESENCE_AT = { left: "46%", top: "62%" };
+const MAP_CHANGE_AT = { left: "46%", top: "62%" };
 // The Timeline and Notebook views hang their footer pill off the same 4% inset.
 const FOOT_PILL_AT = { left: "4%" };
 // `…dc.html:1949`: a 62px time column, off the 4px grid (62 / 4 = 15.5) and
@@ -135,7 +135,9 @@ const MACRO_CHIP = "rounded-sm bg-brand-tint px-1.5 py-px text-brand-pressed";
 const PANEL = "absolute inset-x-0 top-14.5 overflow-hidden rounded-xl border border-hairline bg-surface shadow-lifted";
 const PANEL_HEAD = "flex items-center gap-2.5 border-b border-hairline px-3.5 py-3";
 const FOOT_LABEL = "absolute bottom-0 rounded-full bg-paper/80 px-2.5 py-1";
-const PRESENCE_PILL = "flex items-center gap-2 rounded-full border border-hairline bg-surface py-1 pr-3 pl-1.5 shadow-float";
+// A change somebody made, in the past tense ("Priya moved stop 3"): there is
+// no live presence to picture, since ADR-049 polls.
+const CHANGE_PILL = "flex items-center gap-2 rounded-full border border-hairline bg-surface py-1 pr-3 pl-1.5 shadow-float";
 
 // Not in the design: it auto-advances unconditionally. An animation a reader
 // cannot pause is the accessibility hole that guard exists for, so the
@@ -170,7 +172,8 @@ export function LandingHeroArt(): React.ReactElement {
 
   // The prefetch, only where this tree is on screen: it is rendered on a phone
   // too, hidden (`LandingScreen`'s `hidden md:flex`), and a phone that only ever
-  // sees `PhoneFrontDoor` should not download the river and the blocks. 768px
+  // sees `PhoneFrontDoor` should not download the hero's panels (its claims load
+  // their own, `LandingFeaturePanel`). 768px
   // is `md`, the breakpoint that hides it. A view that is shown still loads
   // its panel whatever the width. A failed prefetch is not this effect's to
   // report: the view that needs the panel meets the same failure and its
@@ -291,7 +294,7 @@ function MapView(): React.ReactElement {
               across 14-70% of a ~300px box do not fit at all. Dropping the
               labels leaves a 28px circle that does fit (pin 1 at 28.6px, pin 3
               at 227px at 320px wide), which keeps the map, the route, the
-              suggestion card and the presence pill on a phone rather than
+              suggestion card and the change pill on a phone rather than
               hiding the showcase outright. Mitchell chose this over hiding the
               art, scaling it, or accepting the clip (2026-08-27). The place
               names are what a phone loses; the design file specifies no phone
@@ -338,9 +341,9 @@ function MapView(): React.ReactElement {
       </div>
 
       <div
-        className={cn("absolute", PRESENCE_PILL)}
+        className={cn("absolute", CHANGE_PILL)}
         // eslint-disable-next-line no-restricted-syntax -- absolute art coordinates, see MAP_PINS above
-        style={MAP_PRESENCE_AT}
+        style={MAP_CHANGE_AT}
       >
         <span
           aria-hidden
@@ -358,7 +361,7 @@ function MapView(): React.ReactElement {
           · 5 hr gap"). The map already shows the day, the three numbered pins
           and the route; restating the count and the distance underneath was
           the same facts in words. The other two views keep their footers
-          because theirs are not that — Timeline's is a presence pill, and
+          because theirs are not that — Timeline's is a change somebody made, and
           Notebook's is a caption making a claim the art cannot make on its
           own ("Times come from the plan — move the day and they follow"). */}
     </>
@@ -377,7 +380,7 @@ function TimelineView(): React.ReactElement {
       </div>
 
       <div
-        className={cn("absolute bottom-0", PRESENCE_PILL)}
+        className={cn("absolute bottom-0", CHANGE_PILL)}
         // eslint-disable-next-line no-restricted-syntax -- absolute art coordinates, see MAP_PINS above
         style={FOOT_PILL_AT}
       >

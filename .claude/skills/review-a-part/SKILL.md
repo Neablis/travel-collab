@@ -14,7 +14,13 @@ description: Review policy for one milestone part in travel-collab — a part-re
    reviews (fewer than 10 stars) and about one an hour, so it never paces the work.
 3. **Work every finding.** Fix it, or answer on its thread why not and resolve the thread
    (`working-a-review.md`). A finding is a claim to check against the code, not an order.
-4. **Fixes go on the part's own branch**, through `build-a-part`. Parts sit on `main`, so nothing
+4. **Every review goes on the PR as a comment** (Mitchell, 2026-10-11: "so I can see what was found
+   and fixed"). The orchestrator posts it, never the read-only reviewer. Post it once the report
+   arrives: the head reviewed, the verdict, each finding (severity, file:line, what goes wrong, the
+   fix asked for), and what came out clean. Once the fix push lands, post a short follow-up saying
+   what each finding became (fixed in `<sha>`, or answered and why), and include the re-review's
+   verdict. Give CI failures fixed in the same push one line each.
+5. **Fixes go on the part's own branch**, through `build-a-part`. Parts sit on `main`, so nothing
    merges upward.
-5. **Ready to merge** when CI is green on the part's head and every finding is fixed or answered.
+6. **Ready to merge** when CI is green on the part's head and every finding is fixed or answered.
    Say so in the PR body and in part 0's tracker, tick the part's task, and tell Mitchell.
