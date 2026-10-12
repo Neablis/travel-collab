@@ -166,6 +166,17 @@ export function accountExpectationFor(
   userId: string,
 ): EvalExpectation | undefined {
   const trips = seeded.filter((trip) => trip.travelling).map((trip) => trip.detail);
+  // The not-travelling trip's places, which a right answer never names: it
+  // outranks the right answer, so a door that counted it gets "Barcelona, then
+  // Kyoto", and that still mentions Kyoto.
+  const notGoing = [
+    ...new Set(
+      seeded
+        .filter((trip) => !trip.travelling)
+        .flatMap((trip) => Object.values(trip.detail.activities).map((stop) => stop.location?.city))
+        .filter((city) => city !== undefined && city !== null),
+    ),
+  ];
   switch (id) {
     case "a-most-expensive-meal": {
       // One row per currency, and each row's priciest meal is a right answer:
@@ -174,6 +185,9 @@ export function accountExpectationFor(
       return {
         ...ACCOUNT_QUESTION,
         mustCall: ["spend_by_category"],
+        // That trip's meal names its venue only inside a title ("Tasting menu
+        // at Disfrutar"), which an answer rarely quotes whole, so it is named.
+        mustNotSay: [...notGoing, "Disfrutar"],
         ...(meals.length === 0
           ? {}
           : {
@@ -192,7 +206,12 @@ export function accountExpectationFor(
     }
     case "a-city-most": {
       const top = visitCounts(trips, userId, "city").places[0];
-      return { ...ACCOUNT_QUESTION, mustCall: ["visit_counts"], ...(top === undefined ? {} : { mentionsOneOf: [top.place] }) };
+      return {
+        ...ACCOUNT_QUESTION,
+        mustCall: ["visit_counts"],
+        mustNotSay: notGoing,
+        ...(top === undefined ? {} : { mentionsOneOf: [top.place] }),
+      };
     }
     case "a-next-country": {
       // Read off the travelled trips' own scheduled stops, not through

@@ -265,6 +265,9 @@ describe("a city with and without a country", () => {
       { city: "Kyoto", countryCode: "JP" },
       { city: "Lisbon", countryCode: "PT" },
     ]);
+    // Kyoto, Japan twice is Japan twice, or "how often have I been to Japan"
+    // and "to Kyoto" disagree.
+    expect(visitCounts(trips, ME, "country").places[0]).toEqual({ place: "JP", countryCode: "JP", trips: 2, days: 2, stops: 2 });
   });
 
   it("stays apart when two coded cities share the name, since either could be it", () => {

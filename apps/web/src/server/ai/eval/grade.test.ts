@@ -3,11 +3,20 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { demoTripDetail } from "@/server/demoTrip";
 import { DEMO_TRIP_ID } from "@/lib/demoTrip";
-import { DAYTIME_END_MINUTES, DAYTIME_START_MINUTES, summarizeFreeDays } from "@tc/domain";
+import { TripCommand } from "@tc/contracts";
+import {
+  DAYTIME_END_MINUTES,
+  DAYTIME_START_MINUTES,
+  decideTripCommand,
+  evolveTrip,
+  summarizeFreeDays,
+  tripDetailFromState,
+  type TripState,
+} from "@tc/domain";
 import type { AskAnalyticsRecord } from "@/server/assistant/askAnalytics";
 import { OVERVIEW_ABOVE_DAYS } from "@/server/assistant/tools/read";
-import { accountExpectationFor, expectationFor, mostFreeDays } from "./cases";
-import { EVAL_TRIPS, LONG_TRIP_DAYS, longTripCommands } from "./trips";
+import { accountExpectationFor, expectationFor, mostFreeDays, type SeededAccountTrip } from "./cases";
+import { ACCOUNT_TRIPS, EVAL_TRIPS, LONG_TRIP_DAYS, accountTripCommands, longTripCommands } from "./trips";
 import { grade, namesAmount, namesDayNumber, reviewedChanges, type EvalTurn } from "./grade";
 
 // The fields `grade` reads, on an otherwise ordinary completed turn.
@@ -190,6 +199,30 @@ describe("the cases", () => {
       `names one of ${next.namesOneOf!.length} places`,
     ]);
     expect(said("Portugal, for the food.")).toEqual([]);
+  });
+
+  // The trip the asker is not going on outranks the right answer to both: an
+  // answer that ranks it too ("Barcelona, then Kyoto") counted it.
+  it("fails an account answer that also ranks the trip the asker is not going on", () => {
+    const asker = "eval-reader";
+    const seeded = ACCOUNT_TRIPS.map((trip, i): SeededAccountTrip => {
+      const tripId = `00000000-0000-4000-8000-${String(i + 1).padStart(12, "0")}`;
+      let state: TripState | null = null;
+      for (const command of [TripCommand.parse({ type: "CreateTrip", tripId, name: trip.name }), ...accountTripCommands(tripId, trip)]) {
+        const decision = decideTripCommand(state, command, { actorId: asker });
+        if (!decision.ok) throw new Error(`the domain refused ${command.type}: ${decision.rejection.message}`);
+        for (const event of decision.events) state = evolveTrip(state, event);
+      }
+      return { detail: tripDetailFromState(state!, "2027-04-01T09:00:00.000Z"), travelling: trip.travelling };
+    });
+    const said = (id: string, tool: string, text: string) =>
+      failing(grade(turn({ toolCalls: [{ name: tool, input: {} }] }, text), accountExpectationFor(id, seeded, asker)!));
+    expect(said("a-city-most", "visit_counts", "Kyoto, 3 days.")).toEqual([]);
+    expect(said("a-city-most", "visit_counts", "Barcelona (4 days), then Kyoto (3).")).toEqual(['does not say "Barcelona"']);
+    expect(said("a-most-expensive-meal", "spend_by_category", "The Kaiseki dinner, at $180.")).toEqual([]);
+    expect(said("a-most-expensive-meal", "spend_by_category", "Disfrutar at $300, ahead of the Kaiseki dinner ($180).")).toEqual([
+      'does not say "Disfrutar"',
+    ]);
   });
 
   it("has an expectation for every prompt in the live set", () => {

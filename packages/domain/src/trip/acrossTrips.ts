@@ -241,7 +241,8 @@ function visitsOf(trips: readonly TripDetail[]): { tripsCounted: number; placed:
   }
   // The geocoder can write a city without its country. When one coded city has
   // that name, the bare one is it; with two (Paris, FR and Paris, US) it could
-  // be either, so it stays apart rather than be guessed.
+  // be either, so it stays apart rather than be guessed. The stop then counts
+  // toward that country too, or Kyoto, Japan would tally twice and Japan once.
   const codesByName = new Map<string, Set<string>>();
   for (const { city, countryCode } of placed.flatMap((visit) => [...visit.cities.values()])) {
     if (countryCode !== null) codesByName.set(city, (codesByName.get(city) ?? new Set()).add(countryCode));
@@ -253,6 +254,7 @@ function visitsOf(trips: readonly TripDetail[]): { tripsCounted: number; placed:
       const [code] = codes;
       visit.cities.delete(key);
       visit.cities.set(`${city}|${code}`, { city, countryCode: code! });
+      visit.countries.add(code!);
     }
   }
   return { tripsCounted: trips.length, placed, unknownStops };
