@@ -438,13 +438,15 @@ export function PhoneAskTab() {
       data-testid="ask-tab"
       className={cn(
         TAB_CLASS,
-        "h-auto rounded-none px-0 font-semibold text-brand-pressed hover:bg-transparent hover:text-brand-pressed",
+        "h-auto rounded-none px-0 hover:bg-transparent",
+        ask.open ? "font-semibold text-brand hover:text-brand" : "font-normal text-slate hover:text-slate",
       )}
     >
-      {/* The pill shape every tab's glyph sits in, filled with the brand tint
-          the header's Ask pill used — so it reads as the same control in its
-          new place, and as an action rather than the current tab. */}
-      <span className="phone-tab-pill grid place-items-center rounded-full bg-brand-tint">
+      {/* The tabs' own pill, and their two looks: filled only while the
+          assistant is up, as a tab's is while it is current. It was always
+          filled, which on a closed assistant read as the current tab
+          (Mitchell, walking PR 426 at 644px on 2026-10-12). */}
+      <span data-testid="phone-tab-pill" className={cn("phone-tab-pill grid place-items-center rounded-full", ask.open && "bg-brand-tint")}>
         <BrandMark size={16} tile={false} />
       </span>
       Ask

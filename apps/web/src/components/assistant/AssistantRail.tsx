@@ -434,10 +434,7 @@ export function AssistantRail({
 } & (
   | {
       presentation?: "docked" | "floating";
-      /**
-       * Hides the panel. Absent where it is always on screen (Home's rail,
-       * M45 D7), which then draws no Hide.
-       */
+      /** Hides the panel. Absent, the panel draws no Hide. */
       onHide?: () => void;
     }
   | {
@@ -551,7 +548,7 @@ export function AssistantRail({
 
   // The hook runs unconditionally — a hook cannot be skipped because a prop was
   // supplied — and the prop wins when it is given. Its read is cached and
-  // deduped (ADR-046), so however many rails mount (Home's is on every visit),
+  // deduped (ADR-046), so however many rails mount (Home's on every open),
   // the account's plan is asked for once.
   const aiEntitledFetched = useAiEntitled();
   // **`=== undefined`, not `??`.** The prop's contract is "supplied wins", and
@@ -673,7 +670,7 @@ export function AssistantRail({
         return;
       }
       // Nothing typed yet: the box is about to take the stored draft, and a
-      // rail unmounted before it does (Home's, mounted on a width guess) would
+      // rail unmounted before it does (Home's was, mounted on a width guess) would
       // otherwise store its empty box over it (PR 426 review round 2).
       if (ask.trim() === "") return;
     }

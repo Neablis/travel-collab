@@ -40,7 +40,7 @@ import { BeyondTripAssistant, HomeAskButton } from "@/components/assistant/Beyon
 const ACCOUNT_SCOPE = { kind: "account" } as const;
 
 /**
- * Home's list with its assistant docked beside it: a flex row, so the rail
+ * Home's list with its assistant, once opened, docked beside it: a flex row, so the rail
  * takes its width from the list as on the trip page, rather than lying over it.
  */
 function withAssistant(page: React.ReactNode) {
@@ -579,8 +579,8 @@ export default function Home() {
                 Playbook already lives in the new-trip sheet's own row and in
                 the empty state, so a third copy here was the duplicate. */}
             <div className="flex items-center gap-2">
-              {/* And Ask, from 768 to 1099px only, where the assistant is not
-                  docked beside the list (Mitchell, 2026-10-12). */}
+              {/* And Ask, which opens Home's assistant: closed until asked
+                  for (Mitchell, 2026-10-12). A phone's is the tab bar's. */}
               <HomeAskButton />
               <Button type="button" variant="primary" disabled={cloningDemo} onClick={startNewTrip}>
                 New trip

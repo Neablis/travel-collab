@@ -1047,7 +1047,7 @@ describe("Home's assistant — the stored draft survives a mount below 1100px", 
   });
 });
 
-// M45 D7: Home's rail answers across every trip, and is always on screen.
+// M45 D7: Home's rail answers across every trip.
 describe("AssistantRail — the account scope", () => {
   it("asks about your trips, with its own hint, when the scope is the account", () => {
     renderRail({ scope: { kind: "account" }, contextLine: "Across your trips" });

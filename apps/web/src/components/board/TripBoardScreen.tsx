@@ -63,6 +63,7 @@ import { fetchPages } from "@/lib/pagesClient";
 import { cachedRead, DEDUPE } from "@/lib/queryCache";
 import { tripKeys } from "@/lib/queryKeys";
 import { useAssistantShape } from "@/components/assistant/useAssistantShape";
+import { useAssistantVisibility } from "@/components/assistant/useAssistantVisibility";
 import { AssistantRail } from "@/components/assistant/AssistantRail";
 import type { AssistantTurn } from "@/components/assistant/Transcript";
 import { proposalUndoFor, type ProposalState } from "@/components/assistant/ProposalCard";
@@ -80,24 +81,6 @@ import { Board } from "./Board";
 import { ConflictsChip } from "./ConflictsChip";
 import { cn } from "@/lib/cn";
 
-// Closed until asked for, at every width (Mitchell, walking the #71 preview:
-// "Can we default the assistant to minimized? Its a better experience").
-//
-// This narrows the handoff (`current/…dc.html:1111-1119`), which had the rail
-// as an inline column at wide widths and an overlay below 1180px that starts
-// hidden. What changed here first was that a wide viewport no longer opens
-// the rail on the reader's behalf: the plan is what someone came for, and
-// the assistant is one click away rather than already occupying a column.
-// M16 Wave 1 (Task 4, SPEC §9 "the assistant — one panel, three
-// presentations") later replaced the overlay half too — the rail is a real
-// flex sibling of the plan at every width now, not an overlay below 1180px,
-// so there is no overlay-vs-column split left to gate on width at all;
-// docked is unconditional.
-//
-// The media query went with it rather than staying as dead weight. Its only
-// job was deciding the default per width, and there is one default now.
-// `userChose` went for the same reason — with no automatic opening there is
-// no automatic decision left to override.
 // What the rail SAYS when an ask fails. Branches on the server's `code`, not
 // its prose: a refusal's wording is free to change, and two of these are
 // refusals rather than failures. Everything else falls through to the
@@ -115,11 +98,6 @@ function askErrorMessage(error: ApiError): string {
   // still decides is how it is PRESENTED, which is `askUpgrade` below.
   if (error.code === AI_NOT_ENTITLED_CODE) return error.message;
   return error.message;
-}
-
-function useAssistantVisibility() {
-  const [open, setOpen] = useState(false);
-  return { open, show: () => setOpen(true), hide: () => setOpen(false) };
 }
 
 export function TripBoardScreen({ tripId }: { tripId: string }) {
@@ -344,7 +322,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   // `false` on the server and on the first client paint, so a JS-gated swap
   // paints the docked rail for a frame before correcting. That flash is real
   // wherever the panel can be on screen at first paint. It is not reachable
-  // here, and the reason is `useAssistantVisibility` directly above:
+  // here, and the reason is `useAssistantVisibility`:
   // `useState(false)`, with no restore from storage, no URL parameter and no
   // server prop, so `assistant.open` is false on EVERY first paint. The rail is
   // unmounted then. The only thing that opens it is a click, which cannot be
@@ -1501,7 +1479,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             // thread already survived (`persistAs` above), the shape survives
             // (`useAssistantShape`), and the position survives through this
             // key. The open/closed state does not, deliberately —
-            // `useAssistantVisibility`'s note above is the reason, and
+            // `useAssistantVisibility`'s note is the reason, and
             // `useAssistantPosition` states the trade in full.
             //
             // Per TRIP, like the thread: a panel parked clear of one trip's

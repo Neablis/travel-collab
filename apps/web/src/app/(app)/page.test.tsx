@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TripSummary } from "@tc/contracts";
@@ -29,6 +29,8 @@ vi.mock("@/components/install/InstallNudge", () => ({
 
 import Home from "./page";
 import { setViewportMatches } from "../../../vitest.setup";
+import { usePhoneAsk } from "@/components/nav/phoneAsk";
+import { SessionUserProvider } from "@/components/account/useSessionUser";
 import { DEMO_TRIP_ID, DEMO_TRIPS } from "@/lib/demoTrip";
 import { rememberDemoClone } from "@/lib/pendingDemoClone";
 import { rememberPlaybookAdd } from "@/lib/pendingPlaybookAdd";
@@ -1534,10 +1536,14 @@ describe("Home — Delete or Leave, never the wrong one", () => {
   });
 });
 
-// M45 D7: Home has an assistant of its own, on screen without being opened,
-// answering across every trip through the account door.
+// M45 D7, as Mitchell walked it on 2026-10-12: Home has an assistant of its
+// own, answering across every trip through the account door, closed until
+// asked for at every width, as the trip board's is.
 describe("Home's assistant", () => {
-  it("is on screen, and asks the account door rather than a trip's", async () => {
+  afterEach(() => window.localStorage.clear());
+
+  /** Home with one trip, whose `/ask` replies with `reply` and records each request. */
+  function homeWithAsk(reply = "Kyoto, on 2 trips.") {
     const asked: string[] = [];
     fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
       const url = String(input);
@@ -1545,7 +1551,7 @@ describe("Home's assistant", () => {
       if (url.endsWith("/api/trips")) return jsonResponse({ trips: [tripSummaryFixture()] });
       if (/\/ask$/.test(url)) {
         asked.push(`${new URL(url, "http://localhost").pathname} ${String(init?.body)}`);
-        return new Response(`data: ${JSON.stringify({ type: "text-delta", delta: "Kyoto, on 2 trips." })}\n\ndata: [DONE]\n\n`, {
+        return new Response(`data: ${JSON.stringify({ type: "text-delta", delta: reply })}\n\ndata: [DONE]\n\n`, {
           status: 200,
           headers: { "Content-Type": "text/event-stream" },
         });
@@ -1553,64 +1559,109 @@ describe("Home's assistant", () => {
       return jsonResponse({ error: "unexpected" }, 404);
     });
     vi.stubGlobal("fetch", fetchMock);
+    return asked;
+  }
+
+  /** Home beside what the tab bar and ⌘K read of it: the entry it registers. */
+  function homeWithTabBar() {
+    const seen: { entry: ReturnType<typeof usePhoneAsk> } = { entry: null };
+    function TabBar() {
+      seen.entry = usePhoneAsk();
+      return null;
+    }
+    render(
+      <>
+        <Home />
+        <TabBar />
+      </>,
+    );
+    return seen;
+  }
+
+  const rail = () => screen.queryByRole("complementary", { name: "Assistant" });
+  const askButton = () => screen.findByRole("button", { name: "Ask" });
+
+  it("starts closed at 1280px; Ask docks it, it asks the account door, and Hide closes it", async () => {
+    const asked = homeWithAsk();
     render(<Home />);
+    expect(await screen.findByRole("link", { name: /japan/i })).toBeTruthy();
+    expect(rail()).toBeNull();
 
-    const rail = screen.getByRole("complementary", { name: "Assistant" });
-    await userEvent.type(within(rail).getByPlaceholderText("Ask about your trips…"), "which city have I been to most?{Enter}");
-
-    expect(await within(rail).findByText("Kyoto, on 2 trips.")).toBeTruthy();
+    await userEvent.click(await askButton());
+    const open = await screen.findByRole("complementary", { name: "Assistant" });
+    await userEvent.type(within(open).getByPlaceholderText("Ask about your trips…"), "which city have I been to most?{Enter}");
+    expect(await within(open).findByText("Kyoto, on 2 trips.")).toBeTruthy();
     expect(asked).toHaveLength(1);
     expect(asked[0]).toMatch(/^\/api\/ask /);
     expect(asked[0]).toContain('"scope":{"kind":"account"}');
+
+    await userEvent.click(within(open).getByRole("button", { name: "Hide" }));
+    await waitFor(() => expect(rail()).toBeNull());
   });
 
-  // Mitchell, 2026-10-12: docked from 1100px, the trip board's line. Below it,
-  // and above a phone's tab bar, an Ask button opens it and Hide puts it away.
-  it("docks from 1100px with no Ask button, and below that opens on Ask and closes on Hide", async () => {
-    const homeTrips = vi.fn(async (input: string | URL | Request) => {
-      const url = String(input);
-      if (url.includes("/api/auth/session")) return jsonResponse(await getSessionMock());
-      if (url.endsWith("/api/trips")) return jsonResponse({ trips: [tripSummaryFixture()] });
-      return jsonResponse({ error: "unexpected" }, 404);
-    });
-    vi.stubGlobal("fetch", homeTrips);
-    const wide = render(<Home />);
-    expect(await screen.findByRole("link", { name: /japan/i })).toBeTruthy();
-    expect(screen.getByRole("complementary", { name: "Assistant" })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Ask" })).toBeNull();
-    wide.unmount();
+  it("keeps an unsent question through Hide and Ask again", async () => {
+    homeWithAsk();
+    // The draft is stored under the signed-in user, read from the layout's provider.
+    render(
+      <SessionUserProvider>
+        <Home />
+      </SessionUserProvider>,
+    );
+    await userEvent.click(await askButton());
+    await userEvent.type(within(await screen.findByRole("complementary", { name: "Assistant" })).getByPlaceholderText("Ask about your trips…"), "where should I go next");
+    await userEvent.click(within(rail()!).getByRole("button", { name: "Hide" }));
+    await waitFor(() => expect(rail()).toBeNull());
 
+    await userEvent.click(await askButton());
+    const again = await screen.findByRole("complementary", { name: "Assistant" });
+    await waitFor(() => expect((within(again).getByPlaceholderText("Ask about your trips…") as HTMLInputElement).value).toBe("where should I go next"));
+  });
+
+  // ⌘K's *Ask: <text>* reaches Home through the entry the tab bar reads
+  // (`usePhoneAskEntry`); with the rail closed it has to open it, and ask once.
+  it("opens a closed rail for ⌘K's Ask: and sends it once", async () => {
+    const asked = homeWithAsk();
+    const palette = homeWithTabBar();
+    expect(await screen.findByRole("link", { name: /japan/i })).toBeTruthy();
+    await waitFor(() => expect(palette.entry?.onAsk).toBeDefined());
+    expect(rail()).toBeNull();
+
+    act(() => palette.entry!.onAsk!("which city have I been to most?"));
+    const open = await screen.findByRole("complementary", { name: "Assistant" });
+    expect(await within(open).findByText("Kyoto, on 2 trips.")).toBeTruthy();
+    expect(asked).toHaveLength(1);
+  });
+
+  it("below 1100px opens on Ask too, and closes on Hide", async () => {
+    homeWithAsk();
     setViewportMatches({ "(min-width: 768px) and (max-width: 1099px)": true });
     try {
       render(<Home />);
       expect(await screen.findByRole("link", { name: /japan/i })).toBeTruthy();
-      expect(screen.queryByRole("complementary", { name: "Assistant" })).toBeNull();
-      await userEvent.click(await screen.findByRole("button", { name: "Ask" }));
-      const rail = await screen.findByRole("complementary", { name: "Assistant" });
-      expect(within(rail).getByPlaceholderText("Ask about your trips…")).toBeTruthy();
-      await userEvent.click(within(rail).getByRole("button", { name: "Hide" }));
-      await waitFor(() => expect(screen.queryByRole("complementary", { name: "Assistant" })).toBeNull());
+      expect(rail()).toBeNull();
+      await userEvent.click(await askButton());
+      const open = await screen.findByRole("complementary", { name: "Assistant" });
+      expect(within(open).getByPlaceholderText("Ask about your trips…")).toBeTruthy();
+      await userEvent.click(within(open).getByRole("button", { name: "Hide" }));
+      await waitFor(() => expect(rail()).toBeNull());
     } finally {
       setViewportMatches({});
     }
   });
 
   // PR 426 review, finding 7: on a phone the docked rail used to stay mounted,
-  // hidden by CSS, beside the sheet: two composers on one stored draft, and
-  // both panels on screen after a rotation. There the sheet is the only one.
-  it("mounts no docked rail on a phone, where the tab bar's Ask opens the sheet", async () => {
+  // hidden by CSS, beside the sheet: two composers on one stored draft. There
+  // the tab bar's Ask opens the sheet.
+  it("opens as the sheet on a phone, from the tab bar's Ask", async () => {
+    homeWithAsk();
     setViewportMatches({ "(max-width: 767px)": true });
     try {
-      fetchMock = vi.fn(async (input: string | URL | Request) => {
-        const url = String(input);
-        if (url.includes("/api/auth/session")) return jsonResponse(await getSessionMock());
-        if (url.endsWith("/api/trips")) return jsonResponse({ trips: [tripSummaryFixture()] });
-        return jsonResponse({ error: "unexpected" }, 404);
-      });
-      vi.stubGlobal("fetch", fetchMock);
-      render(<Home />);
+      const tabBar = homeWithTabBar();
       expect(await screen.findByRole("link", { name: /japan/i })).toBeTruthy();
-      expect(screen.queryByRole("complementary", { name: "Assistant" })).toBeNull();
+      await waitFor(() => expect(tabBar.entry).not.toBeNull());
+      act(() => tabBar.entry!.onOpen());
+      expect(await screen.findByRole("complementary", { name: "Assistant" })).toBeTruthy();
+      expect(screen.getByTestId("assistant-scrim")).toBeTruthy();
     } finally {
       setViewportMatches({});
     }
