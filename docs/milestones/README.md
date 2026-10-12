@@ -123,12 +123,13 @@ for collaboration later landing on a product people already want to join.
 | M40 | A big change is reviewed whole, taken whole, and undone whole | **Proposed 2026-10-06, scoped 2026-10-09**: all seven decisions answered as recommended. From `docs/candidates.md`; see *2026-10-06 — proposed: M37 to M47*. Accept all as one batch, named snapshots, assistant planning turns write suggestions (ADR-067); three parts after a phase-0 PR: `M40-a-big-change-is-one-change.md` |
 | M41 | Moving and adding stops takes one gesture wherever you are | **Closed 2026-10-11, gate 13 of 13.** **Proposed 2026-10-06, scoped 2026-10-10** by Mitchell in session, and re-framed: the 2026-10-06 recommendations predated the time river and the Calendar redesign. Fewer controls and more direct gestures: Calendar city-block drag that can grow the trip, the editor's Day field moves any stop, a drawer of just cards, Plan day drag, Option-drag copy, top-edge resize, paste-to-add, parked-stop origin, and a ⌘K palette that runs the page's own actions (ADR-068). Quick-add, search-to-add and optimistic Duplicate/Restore were cut back to candidates. `M41-planning-without-friction.md` |
 | M42 | The front door shows more than one trip, and what it costs | **Closed 2026-10-12, gate 14 of 14.** **Scoped 2026-10-11 with Mitchell: decisions 1–11 answered**, and widened with richer activity tags (ADR-070). Plan `docs/plans/2026-10-11-M42-front-door-and-tags.md` (deleted at close; in git history). `/demo/<slug>` picker, landing pricing, the SEO pass's leftovers, thirteen tags, trip descriptions, tag pages, tag widgets: `M42-the-front-door-shows-more.md` |
-| M43 | A trip's notebooks keep up with their templates | **Proposed 2026-10-06, not scoped.** (This row said *"scoped 2026-10-07: all six decisions answered as recommended"* until 2026-10-10. That was a bulk edit; the milestone file never recorded an answer.) From `docs/candidates.md`; see *2026-10-06 — proposed: M37 to M47*. Seed back-fill and reset, `pages.kind`, derived Overview title, the `open` widget's design and filters: `M43-notebooks-keep-up.md` |
-| M44 | A stop knows what was booked, and what it sits inside | **Proposed 2026-10-06, not scoped.** (This row said *"scoped 2026-10-07: all six decisions answered as recommended"* until 2026-10-10. That was a bulk edit; the milestone file never recorded an answer.) From `docs/candidates.md`; see *2026-10-06 — proposed: M37 to M47*. `booking` on the activity contract, the containment rule in `conflicts.ts`: `M44-a-stop-knows-what-was-booked.md` |
+| M43 | A trip's notebooks keep up with their templates | **Proposed 2026-10-06, not scoped. Moved last 2026-10-12**, behind M49, by Mitchell: nothing it fixes is hurting today. (This row said *"scoped 2026-10-07: all six decisions answered as recommended"* until 2026-10-10. That was a bulk edit; the milestone file never recorded an answer.) From `docs/candidates.md`; see *2026-10-06 — proposed: M37 to M47*. Seed back-fill and reset, `pages.kind`, derived Overview title, the `open` widget's design and filters: `M43-notebooks-keep-up.md` |
+| M44 | A stop knows what was booked, and what it sits inside | **Proposed 2026-10-06, not scoped. Moved last 2026-10-12**, after M43, by Mitchell: nothing it fixes is hurting today. (This row said *"scoped 2026-10-07: all six decisions answered as recommended"* until 2026-10-10. That was a bulk edit; the milestone file never recorded an answer.) From `docs/candidates.md`; see *2026-10-06 — proposed: M37 to M47*. `booking` on the activity contract, the containment rule in `conflicts.ts`: `M44-a-stop-knows-what-was-booked.md` |
 | M45 | The assistant answers about all your trips, and can take you places | **Proposed 2026-10-06, not scoped.** (This row said *"scoped 2026-10-07: all six decisions answered as recommended"* until 2026-10-10. That was a bulk edit; the milestone file never recorded an answer.) From `docs/candidates.md`; see *2026-10-06 — proposed: M37 to M47*. Account-wide read tools, `ClientAction` navigation, approved edit mode: `M45-the-assistant-beyond-one-trip.md` |
 | M46 | A trip has a conversation, with the people taking it | **Proposed 2026-10-06, not scoped.** (This row said *"scoped 2026-10-07: all six decisions answered as recommended"* until 2026-10-10. That was a bulk edit; the milestone file never recorded an answer.) From `docs/candidates.md`; see *2026-10-06 — proposed: M37 to M47*. Trip chat, its own store, unread counts, moderation: `M46-a-trip-has-a-conversation.md` |
 | M47 | The operator console shows tiers over time, and paid flows can be tested in production | **Proposed 2026-10-06, not scoped.** (This row said *"scoped 2026-10-07: all six decisions answered as recommended"* until 2026-10-10. That was a bulk edit; the milestone file never recorded an answer.) From `docs/candidates.md`; see *2026-10-06 — proposed: M37 to M47*. Weekly tier rollup and chart; Stripe `livemode` beside live: `M47-the-business-over-time.md` |
 | M48 | A planned trip starts from trips that already exist | **Proposed 2026-10-11, not scoped.** From a PM brief (Sunny), on Mitchell's ask; see *2026-10-11 — proposed: M48*. A `plan` turn adapts example days Caesura already holds instead of inventing them, measured in dollars per plan turn; how examples are found is open; a baseline and two offline gates before any serving code: `M48-plans-start-from-examples.md` |
+| M49 | A cover can come from anywhere, and be framed where you want it | **Proposed 2026-10-12, not scoped**; decisions 1–3 answered by Mitchell at minting. On his ask; see *2026-10-12 — reordered and minted*. Placed after M48, ahead of M43 and M44. A trip's cover set, read and cleared on the public API from any image URL (referenced, never stored), and a cover's crop repositioned in the API and by drag on the band. Absorbs the *Reposition a cover* candidate: `M49-covers-from-anywhere.md` |
 
 - **Restructure (2026-07-28), from the Phase 1 gate review.** The gate had not
   been met and the reason was structural, not cosmetic: a trip cannot be renamed
@@ -194,7 +195,7 @@ Placement notes (decided 2026-07-07):
   questions stay open — start-only trip dates, first-run vs. the four-step
   wizard, and whether the landing copy may sell M11/M12 — see the review's §8.
 
-Current milestone: M43 — A trip's notebooks keep up with their templates
+Current milestone: M45 — The assistant answers about all your trips, and can take you places
 
 ### Archived decision notes
 
@@ -228,6 +229,23 @@ instruction, and they were 56% of this file.
 - **2026-10-06** — M35 closed; M37 is current
 - **2026-08-08, 2026-08-14, 2026-08-25, 2026-08-26** — the superseded reorders and M10's reopened gate, and the placement paragraphs for M26 to M28: *Moved out of README.md on 2026-09-30*, at the end
 - **Current-milestone placements, M14 to M34**: *Moved out of README.md on 2026-10-11*, at the end
+
+### 2026-10-12 — reordered and minted: M43 and M44 go last; M49, covers from anywhere
+
+**Asked 2026-10-12**, after M42's close made M43 current. Shown what M43 and M44 would build,
+Mitchell: *"Neither are impacting anything today. so lets not do that work right now. Lets
+re-order them to the end"*. Their rows moved below M48 in `TODO.md`, so **M45 is current**. It is
+not scoped either, and its decisions need answering before any part is built.
+
+**M49 is minted** from the same conversation: *"Allowing the api to set a header image so i can
+use the api to find and add images to trips in the future."* Covers already existed (M37), but
+only from Unsplash and only from the app. The public API marks the cover routes `PLANNED`.
+Answered the same day:
+- **Any image URL**, not only Unsplash, and **referenced, not uploaded and stored**.
+- **Placed after M48, ahead of M43 and M44.**
+- **It absorbs *Reposition a cover***, in the API and as a drag on the band for Unsplash covers.
+
+Order now: `… M42 ✓ → M45 → M46 → M47 → M48 → M49 → M43 → M44`.
 
 ### 2026-10-11 — proposed: M48, retrieval for plan turns
 

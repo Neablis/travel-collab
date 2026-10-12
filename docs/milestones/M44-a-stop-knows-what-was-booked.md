@@ -1,6 +1,6 @@
 # M44 — A stop knows what was booked, and what it sits inside
 
-**Status:** **Proposed 2026-10-06, placed after M43. Not scoped yet**: the decisions below are
+**Status:** **Proposed 2026-10-06; moved last 2026-10-12, after M43, by Mitchell (nothing it fixes is hurting today). Not scoped yet**: the decisions below are
 recommendations and none has been answered. Minted from `docs/candidates.md` (see
 `docs/milestones/README.md`, *2026-10-06 — proposed: M37 to M47*).
 
