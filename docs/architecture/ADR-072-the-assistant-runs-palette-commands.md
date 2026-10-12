@@ -40,7 +40,9 @@ be exactly that re-implementation, and the two would drift.
 2. **A missing action is added to the palette first.** *Go to › Notebook › <name>* and
    *Edit › Notebook › Turn editing on/off* become palette commands, usable by hand, before the
    assistant may name them. An action the assistant can take that a person cannot take from ⌘K is
-   a defect.
+   a defect. An *unlisted* command (runnable by id, never a row; ADR-069) does not breach this
+   when it is the composition of listed commands a person can run in sequence: §6's
+   trip-on-a-view ids are the only ones, and each is *Go to › Trip* followed by *Go to › View*.
 3. **Which ids the assistant may name is an allowlist on the server**, by command family (`view:`,
    `go:day:`, `go:stop:`, `go:trip:`, `go:notebook:`, `people`, `notebook-editing`). Writes to the
    trip are not on it: those stay domain-command proposals and suggestions (ADR-067), with their
@@ -52,9 +54,15 @@ be exactly that re-implementation, and the two would drift.
 5. **An id the page does not offer does nothing.** Availability is the page's: an edit command
    that history preview or read-only access withholds from ⌘K is withheld from the assistant too.
    The reply says it could not.
-6. **Crossing pages.** *Go to › Trip* may carry a view (`go:trip:<tripId>` landing on
-   `?view=<View>`, which the trip page already reads for every view; `?lens=` maps only some), so *"open my Kyoto trip on the map"* is one
-   command, not a chain the palette has no way to run.
+6. **Crossing pages.** *Go to › Trip* may carry a view, so *"open my Kyoto trip on the map"* is one
+   command, not a chain the palette has no way to run. The id is
+   `go:trip:<tripId>:view:<View>` (`<View>` one of `Overview|Plan|Calendar|Map`), registered
+   **unlisted** beside each listed `go:trip:<tripId>` (`palette/commands.ts`, `placeCommands`;
+   ADR-069), landing on `?view=<View>`, which the trip page already reads for every view
+   (`?lens=` maps only some). By hand it is the two listed commands *Go to › Trip › <name>* then
+   *Go to › View › <View>* (`view:<View>`), so §2 holds. §3's `go:trip:` family covers both shapes: the server allowlist
+   and the client's id filter must accept `go:trip:<tripId>` and
+   `go:trip:<tripId>:view:<View>`, and nothing else under that prefix.
 7. **§5 of ADR-068 is amended: the palette hands unmatched text to the assistant.** When nothing
    matches, the palette's last row is *Ask: <text>*, and choosing it opens the assistant with the
    text sent. Nothing is sent to the model until the row is chosen, so typing in ⌘K still costs
