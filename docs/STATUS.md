@@ -25,9 +25,22 @@ general setup.
 MILESTONE AS OF 2026-10-12.** M42's gate closed at 14 of 14 and made M43 current; the same day
 Mitchell moved **M43 and M44 to the end** (*"Neither are impacting anything today"*) and minted
 **M49**, covers from any image URL on the public API, plus repositioning
-(`docs/milestones/M49-covers-from-anywhere.md`). **M45 is not scoped**: its decisions need
-answering with Mitchell, checked against today's UI, before any part is built
-(`docs/milestones/M45-the-assistant-beyond-one-trip.md`). Order:
+(`docs/milestones/M49-covers-from-anywhere.md`). **M45 was scoped the same day**
+(`docs/milestones/M45-the-assistant-beyond-one-trip.md`, D1–D8; ADR-072): it is re-based on M41's
+⌘K palette, so the assistant moves you around by running palette commands, and ⌘K offers
+*Ask: …* for unmatched text.
+
+**M45 in flight (2026-10-12)** — plan `docs/plans/2026-10-12-M45-assistant-beyond-one-trip.md`:
+- Part 0, PR 420: draft tracker on `claude/stoic-dijkstra-01wxup`; merges last.
+- Part 1, PR 422 (`claude/m45-part1-palette-notebooks`): palette notebook commands, run-by-id,
+  trip-on-a-view. Built, red-first evidence in the PR body; **not yet reviewed**.
+- Part 3, PR 421 (`claude/m45-part3-account-ask`): `/api/ask`, the cross-trip tools, ledger
+  `ask.account`, eval cases. Built, red-first evidence in the PR body; **not yet reviewed**; its
+  live eval waits on Mitchell's go-ahead.
+- Part 2 (the assistant runs palette commands) starts after PR 422 merges; part 4 (Home rail,
+  ⌘K *Ask:*) after parts 2 and 3.
+- Builders must each work in their own git worktree: parts 1 and 3 shared the main checkout and
+  tangled each other's commits (both branches were rebuilt clean). Order:
 `… M42 ✓ → M45 → M46 → M47 → M48 → M49 → M43 → M44`; the reorder is recorded in
 `docs/milestones/README.md`, *2026-10-12 — reordered and minted*.
 
