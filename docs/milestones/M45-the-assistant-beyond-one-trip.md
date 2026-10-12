@@ -60,6 +60,11 @@ Candidates absorbed (each deleted by this gate):
    ADR-068 §5 (*"the palette does not talk to the model in v1"*); ADR-072 records the amendment.
 7. **Home has an always-visible assistant rail**, docked like the trip page's, answering across
    your trips. *Chosen over the recommended panel opened from ⌘K.*
+   *Refined 2026-10-12 by Mitchell, on PR 426:* the rail docks from **1100px**, the trip
+   board's threshold. Between phone width and 1100px, an **Ask** button in Home's head opens it.
+   This bends SPEC §35.2 (*"New trip, and nothing else"*). `.design-sync/handoff/SPEC.md` is a
+   build input, so the amendment rides a code PR (part 5), not part 0. ⌘K's *Ask:* row is
+   **hidden for users without assistant access**.
 8. **No memory.** *User memory* stays deferred with the eve port (ADR-062). *As recommended.*
 9. **The playbook pages get an assistant too** (added by Mitchell 2026-10-12, after parts 1–3
    merged). Every playbook surface gets it: a playbook day, a playbook, Discover, and the city

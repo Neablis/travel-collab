@@ -61,3 +61,10 @@
     are still unconfirmed and stay listed as they are; persisting the composer does nothing
     for them.
 - **First noted:** 2026-10-12, M45 (PR 424 review round 4).
+
+- **Update 2026-10-12 (PR 426):** the composer half is fixed for all four rails. Drafts and
+  threads are stored per signed-in user, as `ask_draft_v1:<userId>:<name>`, and both sign-out
+  paths forget them. Still open:
+  - the date-pill and trip-name losses this entry lists;
+  - session expiry, a sign-out in another tab, or a cleared cookie forgets nothing. What is left
+    stays under the old user's id, and only devtools can read it.
