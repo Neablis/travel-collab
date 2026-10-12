@@ -29,3 +29,11 @@ description: Review policy for one milestone part in travel-collab — a part-re
    only if each has its own worktree. Parts sit on `main`, so nothing merges upward.
 6. **Ready to merge** when CI is green on the part's head and every finding is fixed or answered.
    Say so in the PR body and in part 0's tracker, tick the part's task, and tell Mitchell.
+   The PR body's "Ready to merge" section carries the **preview URL of the PR's head**, for
+   Mitchell's walk (Mitchell, 2026-10-12: Vercel's own PR comment stays off, `github.silent` in
+   `apps/web/vercel.json`, because its edits woke watching sessions). Take it from
+   `mcp__Vercel__list_deployments` (project `prj_UoxcnmAsWMtHXx8jLXyespRqSULM`, team
+   `team_FOAEiiLfMMxICIFszLWvzfzF`), filtered by the head's `sha`, state `READY`. If that
+   deployment is `ERROR` with `git_info_fail`, re-run the head's `vercel-preview` run
+   (`gh api -X POST repos/Neablis/travel-collab/actions/runs/<id>/rerun`); do not push to retry
+   (KI-20261012-d).

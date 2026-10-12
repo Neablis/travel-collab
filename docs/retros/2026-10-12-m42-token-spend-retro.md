@@ -335,7 +335,9 @@ features, but it is part of the gap with M41.
 - **Vercel:** in `apps/web/vercel.json`, either turn the preview comment off (`"github":
   { "silent": true }`) or leave it on and accept the 69 + 9 events. Mitchell's call: he uses the
   preview comment's link for walks. Check the current key name in Vercel's docs, because
-  `github.silent` may have been superseded.
+  `github.silent` may have been superseded. *(2026-10-12: Mitchell chose to keep the comment off;
+  the orchestrator now writes the head's preview URL into the PR body's "Ready to merge" section,
+  `review-a-part` step 6.)*
 
 **How to check it worked:** in the next milestone, GitHub wakes per merged part fall from about
 21 (190 ÷ 9) to 3–5.
