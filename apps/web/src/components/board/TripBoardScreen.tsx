@@ -514,6 +514,8 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
     // ends — answered, failed or stopped, announced or not — rather than on
     // the poll's next revision, which a solo trip never runs (W73).
     onTurnEnd: () => void refreshSuggestions.current?.(),
+    // One sheet at every width, so this holds on a phone as well.
+    holdsLeaving: () => (editor.mode !== null ? "you have a stop open for editing" : null),
     onEvent: (event, patchAnswer) => {
       if (event.type === "suggested") {
         patchAnswer((turn) => ({ ...turn, suggested: event.suggested }));

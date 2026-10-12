@@ -32,6 +32,10 @@ const PAGE_TOOLS = ["insert_text", "insert_widget"];
 // The widget lookup (ADR-057): `pages` at `read`, so offered wherever the page
 // tools are and nowhere else, and before them in registry order.
 const WIDGET_TOOLS = ["search_widgets", "get_widget"];
+// ADR-072: where to take the person, after everything else in registry order.
+// `go_to` is an `itinerary` read, so it is wherever the trip is read; the
+// editing proposal is `pages`/`propose`, so a notebook turn's alone.
+const GO_TO = ["go_to"];
 
 function namesFor(caps: EffectCaps): string[] {
   return toolsFor(grantFor(caps)).map((tool) => tool.name);
@@ -44,7 +48,7 @@ describe("the three tool sets a turn can be offered", () => {
   // Today's `READ_TOOL_NAMES`. Every domain capped at `read`, whichever surface
   // asks — which is what makes a viewer's trip turn and an editor's withheld
   // turn the same set without either being a special case.
-  it("is the five read tools plus search_places when every cap is `read`", () => {
+  it("is the five read tools, search_places and go_to when every cap is `read`", () => {
     // **`search_places` survives every `read` cap, and that is correct rather
     // than an oversight.** It IS a read — it reads a public gazetteer and
     // writes nothing — so a viewer may search and an editor whose turn was read
@@ -54,6 +58,7 @@ describe("the three tool sets a turn can be offered", () => {
     expect(namesFor({ surface: "trip", role: "read", plan: "read", classifier: "read" })).toEqual([
       ...READ_TOOLS,
       ...PLACE_TOOLS,
+      ...GO_TO,
     ]);
   });
 
@@ -62,7 +67,7 @@ describe("the three tool sets a turn can be offered", () => {
   // joins the set — and `minimumRoleFor`'s editor answer — with no edit here
   // (ADR-015 invariant 5).
   it("is the read tools plus every command plus insert_playbook_day on a trip or day surface", () => {
-    const expected = [...READ_TOOLS, ...PLACE_TOOLS, ...COMMAND_TOOLS, "insert_playbook_day"];
+    const expected = [...READ_TOOLS, ...PLACE_TOOLS, ...COMMAND_TOOLS, "insert_playbook_day", ...GO_TO];
     expect(namesFor({ ...EDITOR, surface: "trip" })).toEqual(expected);
     expect(namesFor({ ...EDITOR, surface: "day" })).toEqual(expected);
   });
@@ -73,7 +78,14 @@ describe("the three tool sets a turn can be offered", () => {
   it("is the read tools, the widget lookup and the two page tools on a page surface", () => {
     // `switch_intent` last (ADR-058): the page turn's pivot, offered wherever
     // `pages` is — admission drops it again when there is nowhere to pivot.
-    expect(namesFor({ ...EDITOR, surface: "page" })).toEqual([...READ_TOOLS, ...WIDGET_TOOLS, ...PAGE_TOOLS, "switch_intent"]);
+    expect(namesFor({ ...EDITOR, surface: "page" })).toEqual([
+      ...READ_TOOLS,
+      ...WIDGET_TOOLS,
+      ...PAGE_TOOLS,
+      "switch_intent",
+      ...GO_TO,
+      "propose_notebook_editing",
+    ]);
   });
 
   it("keeps the page and planning halves disjoint in both directions", () => {
@@ -140,7 +152,7 @@ describe("a grant is a minimum over four independent caps", () => {
     ["plan", { plan: "read" }],
     ["classifier", { classifier: "read" }],
   ] as const)("narrows a trip turn to the read tools when %s says read", (_label, override) => {
-    expect(namesFor({ ...EDITOR, surface: "trip", ...override })).toEqual([...READ_TOOLS, ...PLACE_TOOLS]);
+    expect(namesFor({ ...EDITOR, surface: "trip", ...override })).toEqual([...READ_TOOLS, ...PLACE_TOOLS, ...GO_TO]);
   });
 
   // The fourth cap, and the one that is not a scalar: the page surface caps

@@ -135,6 +135,47 @@ test("a multi-turn conversation, scoped by the focused day and started from a de
   await expect(log).toContainText("runs to 3 days");
 });
 
+// M45 D4 and D5 (ADR-072): the assistant moves you around by naming ⌘K
+// commands, which the page runs, and a change to the app waits for Approve.
+// Against the simulated model, which answers these phrases with `go_to` and
+// `propose_notebook_editing` (simulatedModel.ts).
+test("the assistant takes you to the map and to a notebook, and turns editing on only after Approve", async ({ page }) => {
+  const tripName = e2eTripName("TakeMe");
+  await page.goto("/");
+  const tripId = await createMappedTrip(page, tripName, 2);
+  await page.goto(`/trips/${tripId}?view=Plan`);
+  await expect(page.getByRole("heading", { name: tripName, level: 1 })).toBeVisible();
+
+  await openAssistantRail(page);
+  const log = page.getByRole("log", { name: "Conversation" });
+  const askTrip = async (text: string) => {
+    await page.getByPlaceholder(/^Ask about this/).fill(text);
+    await page.getByRole("button", { name: "Ask the assistant" }).click();
+  };
+
+  await askTrip("show this on the map");
+  await expect(log).toContainText("Taking you there now.");
+  await expect(page).toHaveURL(/view=Map/);
+  await expect(page.getByRole("tab", { name: "Map" })).toHaveAttribute("aria-selected", "true");
+
+  // A new trip has a Bookings notebook; *Go to › Notebook* opens it.
+  await askTrip("open the bookings notebook");
+  await expect(page).toHaveURL(new RegExp(`/trips/${tripId}/pages/`));
+  await expect(page.getByRole("heading", { level: 1, name: "Bookings" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Edit page" })).toHaveAttribute("aria-pressed", "false");
+
+  await openAssistantRail(page);
+  await page.getByPlaceholder("Ask AI to add to this page…").fill("turn on editing");
+  await page.getByRole("button", { name: "Ask the assistant" }).click();
+  const card = page.getByRole("group", { name: "Suggested action" });
+  await expect(card).toContainText("Turn editing on");
+  // Asked, not done: the page is still in Reading until Approve.
+  await expect(page.getByRole("button", { name: "Edit page" })).toHaveAttribute("aria-pressed", "false");
+  await card.getByRole("button", { name: "Approve" }).click();
+  await expect(page.getByRole("button", { name: "Done editing" })).toHaveAttribute("aria-pressed", "true");
+  await expect(card).toContainText("Done.");
+});
+
 // The four chips the final branch review found were dead ends. Every one is
 // derived from real trip state, and every one used to be answered by something
 // that ignored the question — on the ONLY path a deployment runs, since

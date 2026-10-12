@@ -29,6 +29,7 @@ import {
   newEscalationBuffer,
   newNotebookRefs,
   newPageBuffer,
+  newPaletteCommandBuffer,
   newPlaceCache,
   newProposalBuffer,
 } from "./deps";
@@ -43,6 +44,7 @@ import { newIntentLatch } from "./intents";
 import { READ_TOOLS } from "./tools/read";
 import { insertPlaybookDayTool } from "./tools/insertPlaybookDay";
 import { ACROSS_TRIP_TOOLS } from "./tools/acrossTrips";
+import { NAVIGATION_TOOLS } from "./tools/navigate";
 
 // **Derived from the two runtime lists, not written out.** This was a
 // hand-typed array of seven strings, which is the manifest shape ADR-043
@@ -68,6 +70,7 @@ const TURN_DEPS = {
   intent: newIntentLatch("compose", ["compose"], () => 0),
   readBudget: newDayReadBudget(15),
   trips: newAccountTrips("registry-reader", async () => []),
+  paletteCommands: newPaletteCommandBuffer(),
 };
 
 /** The widget names `insert_widget`'s schema will accept, read off the schema. */
@@ -92,6 +95,7 @@ describe("the registry", () => {
         ...WIDGET_TOOLS.map((t) => t.name),
         ...PAGE_TOOLS.map((t) => t.name),
         ...INTENT_TOOLS.map((t) => t.name),
+        ...NAVIGATION_TOOLS.map((t) => t.name),
         ...ESCALATION_TOOLS.map((t) => t.name),
       ].sort(),
     );

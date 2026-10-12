@@ -124,8 +124,9 @@ export const SURFACES = {
   // **The account surface reads across trips and writes nothing** (M45: *"this
   // assistant reads across trips and writes within one"*). One domain, at
   // `read`, and no trip domain at all: there is no one trip for `read_trip` to
-  // read, and every itinerary tool is about one. A palette command to open a
-  // trip (part 2's `go_to`) would join this row when it lands.
+  // read, and every itinerary tool is about one. `go_to` (ADR-072) is an
+  // `itinerary` tool, so it is not offered here either: naming another trip
+  // from this surface is M45 part 4's, with an input this row can grant.
   account: [{ domain: "account", max: "read" }],
 } as const satisfies Record<SurfaceKind, SurfaceGrant>;
 

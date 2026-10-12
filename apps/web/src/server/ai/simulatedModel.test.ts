@@ -1183,3 +1183,53 @@ describe("simulatedModel — the account surface", () => {
     expect(verdict).toMatchObject({ taskClass: "question", offTopic: false, failedOpen: false });
   });
 });
+
+// ADR-072: the switched-off deployment can take you places too, or e2e could
+// not reach a reply that does. One call, then a sentence.
+describe("simulatedModel — taking you somewhere", () => {
+  function goPrompt(scope: AskScope, question: string, results: { toolName: string; value: unknown }[] = [], extra: string[] = []) {
+    const base = askPrompt(scope, results, { question });
+    return { ...base, tools: [...base.tools, { name: "go_to" }, ...extra.map((name) => ({ name }))] };
+  }
+
+  it.each([
+    ["show this on the map", { view: "Map" }],
+    ["show me day 2 on the map", { view: "Map", day: 2 }],
+    ["open the packing notebook", { notebook: "packing" }],
+    ["switch to the calendar", { view: "Calendar" }],
+  ])("asks go_to for %j, before reading anything", async (question, input) => {
+    const calls = callsOf(await probe().doGenerate(goPrompt({ kind: "trip" }, question)));
+    expect(calls.map((c) => [c.toolName, JSON.parse(c.input)])).toEqual([["go_to", input]]);
+  });
+
+  it("answers as before when the request goes nowhere, or go_to was not handed over", async () => {
+    const reads = (result: Generated) => callsOf(result).map((c) => c.toolName);
+    expect(reads(await probe().doGenerate(goPrompt({ kind: "trip" }, "What's the plan for day 2?")))).toContain("read_trip");
+    expect(reads(await probe().doGenerate(goPrompt({ kind: "trip" }, "is there an open stretch on day 3?")))).toContain("read_trip");
+    expect(reads(await probe().doGenerate(askPrompt({ kind: "trip" }, [], { question: "show this on the map" })))).toContain("read_trip");
+  });
+
+  it("says it is going, or why not, from what go_to answered", async () => {
+    const said = async (value: unknown) =>
+      textOf(await probe().doGenerate(goPrompt({ kind: "trip" }, "show this on the map", [{ toolName: "go_to", value }])));
+    expect(await said({ queued: true, note: "queued" })).toContain("Taking you there now.");
+    expect(await said({ queued: false, refused: "There is no day 9: this trip has 2." })).toContain("There is no day 9");
+  });
+
+  it("asks to turn a notebook's editing on, and says the card is waiting", async () => {
+    const page = { kind: "page" as const, pageId: "p1" };
+    const calls = callsOf(await probe().doGenerate(goPrompt(page, "turn on editing", [], ["insert_text", "propose_notebook_editing"])));
+    expect(calls.map((c) => [c.toolName, JSON.parse(c.input)])).toEqual([["propose_notebook_editing", { on: true }]]);
+    const off = callsOf(await probe().doGenerate(goPrompt(page, "turn editing off", [], ["insert_text", "propose_notebook_editing"])));
+    expect(off.map((c) => [c.toolName, JSON.parse(c.input)])).toEqual([["propose_notebook_editing", { on: false }]]);
+    const text = textOf(
+      await probe().doGenerate(
+        goPrompt(page, "turn on editing", [{ toolName: "propose_notebook_editing", value: { queued: true, note: "card" } }], [
+          "insert_text",
+          "propose_notebook_editing",
+        ]),
+      ),
+    );
+    expect(text).toContain("Approve the card");
+  });
+});

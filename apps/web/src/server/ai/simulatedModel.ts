@@ -56,6 +56,7 @@ import type {
 import { INSERT_PLAYBOOK_DAY } from "@/server/ai/writeTools";
 import { plain } from "@/server/assistant/prompt";
 import { ASSISTANT_TOOLS } from "@/server/assistant/registry";
+import { GO_TO_TOOL_NAME, PROPOSE_NOTEBOOK_EDITING_TOOL_NAME } from "@/server/assistant/tools/navigate";
 import { TAG_LABEL, type WidgetMatch } from "@tc/pages";
 
 export const SIMULATED_MODEL_ID = "simulated/no-op";
@@ -802,6 +803,8 @@ const SIMULATED_PAGE_NOTICE =
  * (KI-67).
  */
 function pageTurn(results: readonly ToolResultLike[], question: string, options: CallOptionsLike): SimulatedStep {
+  const going = navigationTurn(results, question, options, true);
+  if (going !== null) return going;
   // **A page question** (ADR-058): no insert tool was handed over, so this is
   // answered like any other question — read, then speak.
   if (!(options.tools ?? []).some((tool) => tool?.name === "insert_text")) {
@@ -972,6 +975,8 @@ function askTurn(options: CallOptionsLike): SimulatedStep {
   // intent (ADR-058) — reads and answers.
   if (scope.kind === "page") return pageTurn(results, latestUserText(options), options);
   if (scope.kind === "account") return accountTurn(results, latestUserText(options), options);
+  const going = navigationTurn(results, latestUserText(options), options, false);
+  if (going !== null) return going;
   if (results.length === 0) {
     return { content: askQuestions(scope, options), finishReason: { unified: "tool-calls", raw: undefined } };
   }
@@ -999,6 +1004,61 @@ function askTurn(options: CallOptionsLike): SimulatedStep {
     return { content: proposeCalls(scope, results, question), finishReason: { unified: "tool-calls", raw: undefined } };
   }
   return speak(proposed ? proposalAnswer(scope, results) : askAnswer(scope, results));
+}
+
+// ---------------------------------------------------------------------------
+// Taking you somewhere (ADR-072): one call, then a sentence
+// ---------------------------------------------------------------------------
+
+// A verb of going, and then where. "What's the plan for day 2?" names a day
+// and goes nowhere; "show me day 2 on the map" goes. `open` only as a verb
+// with its object, since "the biggest open stretch on day 3" is a question.
+// `plan` is a view only as "the plan view", for `ITINERARY_REQUEST`'s reason.
+const GO_VERBS = /\b(show|switch|go to|take me|open (?:the|my|day|people))\b/i;
+const VIEW_WORDS: readonly [RegExp, string][] = [
+  [/\bmap\b/i, "Map"],
+  [/\bcalendar\b/i, "Calendar"],
+  [/\boverview\b/i, "Overview"],
+  [/\bplan view\b/i, "Plan"],
+];
+const EDITING_REQUEST = /\bturn (?:on |off )?editing\b|\bediting (?:on|off)\b/i;
+
+/** Where a request asks to go, as `go_to`'s input, or null when it asks to go nowhere. */
+function destinationOf(text: string): Record<string, unknown> | null {
+  if (!GO_VERBS.test(text)) return null;
+  const input: Record<string, unknown> = {};
+  const view = VIEW_WORDS.find(([pattern]) => pattern.test(text))?.[1];
+  if (view !== undefined) input.view = view;
+  const day = /\bday\s+(\d+)\b/i.exec(text)?.[1];
+  if (day !== undefined) input.day = Number(day);
+  const notebook = /\bthe\s+(.+?)\s+notebook\b/i.exec(text)?.[1];
+  if (notebook !== undefined) input.notebook = notebook;
+  if (/\bpeople\b/i.test(text)) input.people = true;
+  return Object.keys(input).length === 0 ? null : input;
+}
+
+/**
+ * A request to go somewhere, or (on a notebook) to turn its editing on or off: the
+ * one call, then what came of it. Null for anything else, or when the tool
+ * was not handed over, so the turn is answered as it would have been.
+ */
+function navigationTurn(
+  results: readonly ToolResultLike[],
+  question: string,
+  options: CallOptionsLike,
+  onPage: boolean,
+): SimulatedStep | null {
+  const editing = onPage && EDITING_REQUEST.test(question) && offered(options, PROPOSE_NOTEBOOK_EDITING_TOOL_NAME);
+  const toolName = editing ? PROPOSE_NOTEBOOK_EDITING_TOOL_NAME : GO_TO_TOOL_NAME;
+  const input = editing ? { on: !/\boff\b/i.test(question) } : destinationOf(question);
+  if (input === null || !offered(options, toolName)) return null;
+  // Asked once: what came back decides the sentence, whatever its shape.
+  if (!results.some((result) => result.toolName === toolName)) {
+    return { content: [call(toolName, input)], finishReason: { unified: "tool-calls", raw: undefined } };
+  }
+  const done = resultFor<{ queued: boolean; refused?: string }>(results, toolName);
+  if (done?.queued !== true) return speak([`I couldn't take you there: ${done?.refused ?? "it isn't on this trip."}`, SIMULATED_ASK_NOTICE]);
+  return speak([editing ? "Approve the card below and I'll switch this notebook's editing." : "Taking you there now.", SIMULATED_ASK_NOTICE]);
 }
 
 // ---------------------------------------------------------------------------

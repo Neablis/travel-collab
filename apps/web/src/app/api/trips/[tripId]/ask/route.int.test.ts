@@ -1,4 +1,4 @@
-import { ASK_FAILED_MESSAGE, ASK_INTERNAL_ERROR_MESSAGE, WidgetShape, newPageDoc } from "@tc/contracts";
+import { ASK_FAILED_MESSAGE, ASK_INTERNAL_ERROR_MESSAGE, WidgetShape, newPageDoc, type AskStreamMetadata } from "@tc/contracts";
 import { MACRO_NAMES, getMacro } from "@tc/pages";
 import { APICallError, ToolLoopAgent } from "ai";
 import { randomUUID } from "node:crypto";
@@ -870,7 +870,7 @@ describe("POST /api/trips/:id/ask", () => {
       // nothing can use.
       expect(PAGE_TURN_TOOL_NAMES).not.toContain("search_places");
       expect(PAGE_TURN_TOOL_NAMES).toEqual([
-        ...READ_TOOL_NAMES.filter((name) => name !== "search_places"),
+        ...READ_TOOL_NAMES.filter((name) => name !== "search_places" && name !== "go_to"),
         // The widget lookup (ADR-057) — `pages` at `read`, so here and only here.
         "search_widgets",
         "get_widget",
@@ -878,6 +878,10 @@ describe("POST /api/trips/:id/ask", () => {
         "insert_widget",
         // The page turn's pivot (ADR-058) — `pages` at `read`, so here only.
         "switch_intent",
+        // Where to take the person (ADR-072), last in registry order; asking
+        // to turn editing on is `pages`/`propose`, so a notebook's alone.
+        "go_to",
+        "propose_notebook_editing",
       ]);
       expect(PLANNING_TOOL_NAMES).not.toContain("insert_widget");
       expect(PLANNING_TOOL_NAMES).not.toContain("switch_intent");
@@ -1701,6 +1705,28 @@ describe("POST /api/trips/:id/ask", () => {
       expect(output?.output?.reason).toMatch(/A stop this trip has never had/);
     });
 
+    // ADR-072: where a turn takes the person rides out on its final chunk as
+    // palette ids, never a URL: the lens on a trip turn, the trip on that
+    // view from a notebook, and editing only as a command waiting for Approve.
+    it("puts the palette commands a turn named on its final chunk", async () => {
+      const tripId = await seedTrip();
+      const finishOf = async (body: unknown) => {
+        const chunks = await chunksOf(await ask(tripId, body));
+        return (chunks.find((c) => c.type === "finish") as { messageMetadata?: AskStreamMetadata } | undefined)?.messageMetadata;
+      };
+
+      expect(await finishOf({ messages: [userMessage("show this on the map")], scope: { kind: "trip" } })).toEqual({
+        paletteCommands: [{ id: "view:Map", needsApproval: false }],
+      });
+      const pageId = await seedPage(tripId);
+      expect(await finishOf({ messages: [userMessage("show this on the map")], scope: { kind: "page", pageId } })).toEqual({
+        paletteCommands: [{ id: `go:trip:${tripId}:view:Map`, needsApproval: false }],
+      });
+      expect(await finishOf({ messages: [userMessage("turn on editing")], scope: { kind: "page", pageId } })).toEqual({
+        paletteCommands: [{ id: "notebook-editing", needsApproval: true, on: true }],
+      });
+    });
+
     // The requirement in one test: a turn that PROPOSES commits nothing.
     it("proposes without committing — the trip is byte-identical afterwards", async () => {
       const tripId = await seedTrip();
@@ -1904,6 +1930,33 @@ describe("POST /api/trips/:id/ask", () => {
       expect(JSON.stringify(await getTripHistory(tripId))).toBe(JSON.stringify(beforeHistory));
     });
 
+    // ADR-072: where the turn takes you is not part of what was stored, so the
+    // swap from proposal to suggestion keeps it on the same final chunk.
+    it("keeps the turn's palette commands when its proposal is stored as a suggestion", async () => {
+      const tripId = await seedTrip();
+      await editorsOn(tripId);
+      currentUserId = ASKER;
+      const { model } = scriptedPageModel("edit", [
+        [
+          toolCall("AddActivity", { title: "Coffee", dayRef: "day 1" }),
+          toolCall("AddActivity", { title: "Stroll", dayRef: "day 1" }),
+          toolCall("go_to", { view: "Map" }),
+        ],
+        "Two stops on day 1, and here is the map.",
+      ]);
+      const res = await handleAskRequest(
+        req(tripId, { messages: [userMessage("add a coffee and a stroll to day 1 and show it on the map")], scope: { kind: "trip" } }),
+        tripId,
+        model,
+        () => {},
+      );
+
+      const outcome = outcomeOf(await chunksOf(res));
+      expect(outcome).not.toHaveProperty("proposal");
+      expect(outcome?.suggested).toMatchObject({ changeCount: 2 });
+      expect(outcome?.paletteCommands).toEqual([{ id: "view:Map", needsApproval: false }]);
+    });
+
     it("keeps the card for a one-change turn, and stores nothing", async () => {
       const tripId = await seedTrip();
       await editorsOn(tripId);
@@ -2057,7 +2110,7 @@ describe("POST /api/trips/:id/ask", () => {
       // fourteen days to decide which live widgets to insert.
       expect(records[0]!.classification?.taskClass).toBe("compose");
       expect(records[0]!.offeredTools.sort()).toEqual(
-        ["read_trip", "search_widgets", "get_widget", "insert_text", "insert_widget", "switch_intent"].sort(),
+        ["read_trip", "search_widgets", "get_widget", "insert_text", "insert_widget", "switch_intent", "go_to", "propose_notebook_editing"].sort(),
       );
       for (const name of WRITE_ONLY_NAMES) {
         expect(records[0]!.offeredTools, `a page turn must not be offered ${name}`).not.toContain(name);
@@ -3060,12 +3113,13 @@ describe("POST /api/trips/:id/ask", () => {
       //
       // `find_days` sits beside `read_day` for the same reason: it is the
       // locator for a trip too long for read_trip's per-day rows, and this
-      // one is not.
+      // one is not. `go_to` (ADR-072) because the question asked to go nowhere.
       expect(record.uncalledTools).toEqual([
         "read_day",
         "find_days",
         "search_playbooks",
         "search_places",
+        "go_to",
         "request_change_tools",
       ]);
       expect(record.latencyMs).toBeGreaterThanOrEqual(0);
@@ -3087,12 +3141,13 @@ describe("POST /api/trips/:id/ask", () => {
       // never needs — one because the corpus is outside the trip (ADR-042), the
       // other because the day's stops are already placed. `find_days` locates
       // days on a trip too long for read_trip to list, and a turn that already
-      // knows its day has nothing to locate. The last is the escalation this
-      // turn did not have to take.
+      // knows its day has nothing to locate. `go_to` asked to go nowhere, and
+      // the last is the escalation this turn did not have to take.
       expect(records[0]!.uncalledTools).toEqual([
         "find_days",
         "search_playbooks",
         "search_places",
+        "go_to",
         "request_change_tools",
       ]);
     });

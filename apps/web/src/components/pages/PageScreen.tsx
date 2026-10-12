@@ -833,6 +833,12 @@ export function PageScreen({
   // Inserts waiting for Editing to switch on — see the Reading branch below.
   const pendingInserts = useRef<PendingInsert[]>([]);
   const [pendingCount, setPendingCount] = useState(0);
+  // Turns whose inserts are still waiting on `mayEdit`, counted BEFORE it is
+  // asked. A reply that also names a trip view runs that in the same
+  // synchronous dispatch, long before the role read answers, so this is what
+  // holds it: leaving now would unmount the page before the inserts were even
+  // queued, and lose them without a word (ADR-072 §4; review round 3, PR 424).
+  const insertsAwaitingRole = useRef(0);
   // Whether this reader may edit: the role read Overview's Edit path uses.
   const mayEdit = async (): Promise<boolean> => {
     const access = await cachedRead(tripKeys.access(tripId), () => fetchTripAccess(tripId));
@@ -879,6 +885,7 @@ export function PageScreen({
     // cannot reach a page, so this is deliberately the identity rather than a
     // copy of it that would go stale.
     errorMessage: (error: ApiError) => error.message,
+    holdsLeaving: () => (insertsAwaitingRole.current > 0 ? "what I wrote is still going into this page" : null),
     onEvent: (event, patchAnswer) => {
       // **The server's own refusal, which was being dropped on the floor.** A
       // page turn whose nodes fail registry validation finishes with
@@ -925,7 +932,9 @@ export function PageScreen({
       // The inserts are queued rather than made here, because the edit session
       // only records changes made WHILE editing: the effect below lands them
       // once the render that turned Editing on has reached the editor.
+      insertsAwaitingRole.current += 1;
       void mayEdit().then((allowed) => {
+        insertsAwaitingRole.current -= 1;
         if (!allowed) {
           patchAnswer((turn) => ({ ...turn, text: `${turn.text}\n\n${READING_REFUSAL}` }));
           return;
