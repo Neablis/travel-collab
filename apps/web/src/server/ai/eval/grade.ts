@@ -72,6 +72,12 @@ export interface EvalExpectation {
   offTopic?: boolean;
   /** Text the answer must not contain — a line of the system instruction, for an extraction attempt. */
   mustNotSay?: readonly string[];
+  /**
+   * The answer names one of these, in any case — a fact the seeded trips
+   * determine that is neither a day nor an amount (the city visited most, M45).
+   * Computed from the trips by the runner, like the days.
+   */
+  mentionsOneOf?: readonly string[];
 }
 
 export interface EvalCheck {
@@ -184,6 +190,14 @@ export function grade(turn: EvalTurn, expect: EvalExpectation): EvalCheck[] {
     checks.push({
       name: `does not say "${phrase}"`,
       pass: !turn.text.includes(phrase),
+      detail: turn.text.length > 160 ? `${turn.text.slice(0, 157)}…` : turn.text,
+    });
+  }
+  if (expect.mentionsOneOf !== undefined) {
+    const said = turn.text.toLowerCase();
+    checks.push({
+      name: `mentions ${expect.mentionsOneOf.map((phrase) => `"${phrase}"`).join(" or ")}`,
+      pass: expect.mentionsOneOf.some((phrase) => said.includes(phrase.toLowerCase())),
       detail: turn.text.length > 160 ? `${turn.text.slice(0, 157)}…` : turn.text,
     });
   }

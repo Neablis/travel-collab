@@ -21,21 +21,28 @@ import { randomUUID } from "node:crypto";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { executeTripCommand } from "@/server/commands";
+import { executeTripCommand, executeTripCommandBatch } from "@/server/commands";
 import { db } from "@/server/db/client";
 import { rateLimitCounters, tripMemberships } from "@/server/db/schema";
 import { UNTRUSTED_CLOSE, UNTRUSTED_OPEN } from "@/server/assistant/prompt";
 import type { AskAnalyticsRecord } from "@/server/assistant/askAnalytics";
 import { listSuggestionChanges } from "@/server/suggestions/list";
+import { writeTravelling } from "@/server/access/members";
+import { simulatedModel } from "@/server/ai/simulatedModel";
 import { replayTranscript, type AskTranscript } from "./transcript";
+import { accountExpectationFor, type SeededAccountTrip } from "./cases";
+import { grade, type EvalCheck } from "./grade";
+import { ACCOUNT_TRIPS, accountTripCommands } from "./trips";
 
 const ACTOR_ID = "replay-actor";
 
 // `guard()` reaches next-auth, which a unit lane cannot load — the same mock
 // the /ask route's own integration suite uses, for the same reason.
-vi.mock("@/server/auth", () => ({ auth: async () => ({ user: { id: ACTOR_ID } }) }));
+// Who the session says is asking: the replay actor, or the account asker below.
+const session = vi.hoisted(() => ({ userId: "replay-actor" }));
+vi.mock("@/server/auth", () => ({ auth: async () => ({ user: { id: session.userId } }) }));
 
-const { handleAskRequest } = await import("@/server/ai/handleAskRequest");
+const { handleAccountAskRequest, handleAskRequest } = await import("@/server/ai/handleAskRequest");
 
 const TRANSCRIPT_DIR = join(import.meta.dirname, "transcripts");
 
@@ -368,3 +375,83 @@ describe.each(everyTranscript())("replaying $name", (transcript) => {
     }
   });
 });
+
+// **The account questions (M45), on the flag-off path.** Not a recording: the
+// simulated model is what every Vercel environment runs, and the four prompts
+// are the live set's own account cases, graded by the same expectations the
+// paid run uses. So a green run here says the fixture, the cases, the door and
+// the tools agree — including that the trip the asker is not travelling on,
+// which holds the priciest meal and the most days, is left out — before any of
+// it is spent on a real model.
+describe("the live set's account questions, on the simulated model", () => {
+  const ACCOUNT_ASKER = "replay-account-asker";
+  const prompts = (
+    JSON.parse(readFileSync(join(import.meta.dirname, "live-set.json"), "utf8")) as {
+      prompts: { id: string; surface?: string; text: string }[];
+    }
+  ).prompts.filter((prompt) => prompt.surface === "account");
+  let seeded: SeededAccountTrip[];
+
+  beforeAll(async () => {
+    seeded = [];
+    for (const trip of ACCOUNT_TRIPS) {
+      const tripId = randomUUID();
+      const created = await executeTripCommand({ type: "CreateTrip", tripId, name: trip.name }, ACCOUNT_ASKER);
+      if (!created.ok) throw new Error(`seed: ${created.error.message}`);
+      const built = await executeTripCommandBatch(accountTripCommands(tripId, trip), ACCOUNT_ASKER);
+      if (!built.ok) throw new Error(`seed: ${built.error.message}`);
+      if (!trip.travelling) {
+        await writeTravelling(db, {
+          tripId,
+          userId: ACCOUNT_ASKER,
+          travelling: false,
+          updatedBy: ACCOUNT_ASKER,
+          now: new Date().toISOString(),
+        });
+      }
+      seeded.push({ detail: built.detail, travelling: trip.travelling });
+    }
+  });
+
+  it("asks all four", () => {
+    expect(prompts.map((prompt) => prompt.id)).toEqual([
+      "a-most-expensive-meal",
+      "a-countries-count",
+      "a-city-most",
+      "a-next-country",
+    ]);
+  });
+
+  it.each(prompts.map((prompt) => [prompt.id, prompt] as const))("answers %s correctly", async (id, prompt) => {
+    session.userId = ACCOUNT_ASKER;
+    const records: AskAnalyticsRecord[] = [];
+    let body: string;
+    try {
+      const res = await handleAccountAskRequest(
+        new Request("http://test/api/ask", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            messages: [{ id: "m1", role: "user", parts: [{ type: "text", text: prompt.text }] }],
+            scope: { kind: "account" },
+          }),
+        }),
+        simulatedModel(),
+        (record) => records.push(record),
+      );
+      body = await res.text();
+    } finally {
+      session.userId = ACTOR_ID;
+    }
+    const text = chunksOf(body)
+      .filter((chunk) => chunk.type === "text-delta")
+      .map((chunk) => String(chunk.delta))
+      .join("");
+    const checks: EvalCheck[] = grade(
+      { record: records[0]!, text, proposalCommands: 0 },
+      accountExpectationFor(id, seeded, ACCOUNT_ASKER)!,
+    );
+    expect(checks.filter((check) => !check.pass).map((check) => `${check.name}: ${check.detail}`)).toEqual([]);
+  });
+});
+

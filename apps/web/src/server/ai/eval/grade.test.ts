@@ -6,7 +6,7 @@ import { DEMO_TRIP_ID } from "@/lib/demoTrip";
 import { DAYTIME_END_MINUTES, DAYTIME_START_MINUTES, summarizeFreeDays } from "@tc/domain";
 import type { AskAnalyticsRecord } from "@/server/assistant/askAnalytics";
 import { OVERVIEW_ABOVE_DAYS } from "@/server/assistant/tools/read";
-import { expectationFor, mostFreeDays } from "./cases";
+import { accountExpectationFor, expectationFor, mostFreeDays } from "./cases";
 import { EVAL_TRIPS, LONG_TRIP_DAYS, longTripCommands } from "./trips";
 import { grade, namesAmount, namesDayNumber, reviewedChanges, type EvalTurn } from "./grade";
 
@@ -106,6 +106,18 @@ describe("namesAmount", () => {
   });
 });
 
+// M45: a fact the trips determine and no day or amount can name — the city
+// visited most, how many countries. Case-insensitive, because "kyoto" at the
+// start of a sentence is still Kyoto.
+describe("mentionsOneOf", () => {
+  it("passes an answer that names one of them, in any case, and fails one that names none", () => {
+    expect(failing(grade(turn({}, "Mostly kyoto, three times."), { mentionsOneOf: ["Kyoto"] }))).toEqual([]);
+    expect(failing(grade(turn({}, "Mostly Barcelona."), { mentionsOneOf: ["Kyoto", "Nara"] }))).toEqual([
+      'mentions "Kyoto" or "Nara"',
+    ]);
+  });
+});
+
 describe("the cases", () => {
   const japan = demoTripDetail(DEMO_TRIP_ID);
 
@@ -157,8 +169,14 @@ describe("the cases", () => {
   });
 
   it("has an expectation for every prompt in the live set", () => {
-    const set = JSON.parse(readFileSync(join(import.meta.dirname, "live-set.json"), "utf8")) as { prompts: { id: string }[] };
-    for (const prompt of set.prompts) expect(expectationFor(prompt.id, japan), prompt.id).toBeDefined();
+    const set = JSON.parse(readFileSync(join(import.meta.dirname, "live-set.json"), "utf8")) as {
+      prompts: { id: string; surface?: string }[];
+    };
+    for (const prompt of set.prompts) {
+      const expected =
+        prompt.surface === "account" ? accountExpectationFor(prompt.id, [], "eval-reader") : expectationFor(prompt.id, japan);
+      expect(expected, prompt.id).toBeDefined();
+    }
   });
 
   // A prompt that names a trip the runner cannot seed would fail only on a
