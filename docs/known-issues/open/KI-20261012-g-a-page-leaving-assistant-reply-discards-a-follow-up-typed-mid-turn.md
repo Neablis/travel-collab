@@ -24,10 +24,40 @@
 - **Not traced:** the budget chip's popover (`BudgetChip.tsx`, `MoneyInput`), `InviteDialog`'s
   email field, the notebook's `RepeatSettings`, and the keep-a-day dialog (`KeepDayDialog.tsx`,
   a modal with its own save button). The stop editor (`EditorHost`) is already held by PR 424.
-- **Fix direction (a product call for Mitchell):**
-  - hold a page-leaving command while the composer has text, and say why in the conversation
-    (as PR 424 already does for an open stop editor);
-  - carry the draft across the navigation into the destination's rail. This needs the rail to
-    report or lift its draft.
-  - accept the loss and close this entry.
+- **Fix direction (decided, Mitchell 2026-10-12): persist the composer's unsent draft to
+  `localStorage`.** Not fixed in PR 424; this entry stays open until it is. Holding the
+  page-leaving command and carrying the draft across the navigation were the other options and
+  are not being taken. A stored draft also covers a reload, which neither of those did. Sketch,
+  from PR 424's branch at `58d4faf` (the lines cited above are unchanged there):
+  - **Where it lives.** Next to the thread in `askThreadStore.ts`: `loadAskDraft(name)`,
+    `saveAskDraft(name, text)` and `clearAskDraft(name)` under their own versioned prefix
+    (`ask_draft_v1:${name}`, built the way `keyFor` builds `ask_thread_v1:${name}`). Every
+    read, write and remove goes in its own `try/catch` the way `saveAskThread` and
+    `clearAskThread` already do: private mode, a full origin, or no `localStorage` at all must
+    cost only the draft's durability, never the composer.
+  - **Keyed by the thread's own name**, so each conversation has its own draft. The board
+    already persists its thread as ``persistAs: `trip:${tripId}` `` (`TripBoardScreen.tsx:512`);
+    its draft uses the same name. `NotebookScreen.tsx:307` and `PageScreen.tsx:879` pass no
+    `persistAs` today, so they have no name to share yet. Give each a draft name that cannot
+    collide with the board's (for example `notebook:${tripId}` and `page:${pageId}`) without
+    turning on transcript persistence for them, which is a separate change.
+  - **How the rail gets the name.** `AssistantRail` owns the text (`AssistantRail.tsx:377`) but
+    not the thread's name. Pass it in as an optional prop, `rememberDraftAs`, the same way
+    `rememberPositionAs` (`:374`) already reaches the rail. Undefined keeps today's behaviour.
+  - **Write on change, debounced** (a few hundred ms) from an effect on `ask`. An empty or
+    whitespace-only composer removes the key instead of storing `""`. Flush the pending write on
+    unmount, since a page-leaving reply is an unmount and it is exactly the case this fixes.
+  - **Restore on mount** from an effect, not a lazy `useState` initialiser: the rail is
+    server-rendered too, and reading storage during render would make the first client render
+    disagree with the server's. The existing `restoreDraft` effect (`:559-561`, a rolled-back
+    send) still wins over a stored draft, and the write-on-change effect then stores what it
+    restored.
+  - **Clear on submit**, at the same point the composer clears: `submitAsk`'s
+    `if (accepted !== false) setAsk("")` (`:571`). A refused send (`false`) keeps both. "New
+    conversation" (`clearAskThread`) should clear the draft under the same name too.
+  - **The account rail (M45 part 4)** uses this same mechanism under its own name rather than
+    a second draft store.
+  - **Not covered:** the date pill and the Trip-name field above are a separate question. They
+    are still unconfirmed and stay listed as they are; persisting the composer does nothing
+    for them.
 - **First noted:** 2026-10-12, M45 (PR 424 review round 4).
