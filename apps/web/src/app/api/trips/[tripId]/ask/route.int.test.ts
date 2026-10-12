@@ -565,7 +565,7 @@ function toolCall(toolName: string, input: unknown): Record<string, unknown> {
 /**
  * A trip-turn model that answers the classifier with `question` and then plays
  * `steps` in order, each the parts one step emits: a string is text, anything
- * else a tool call. Text BESIDE a tool call is the point — a model's note to
+ * else a provider part as given (a tool call, or reasoning). Text BESIDE a tool call is the point — a model's note to
  * itself between reads (KI-20261012-e). An empty step says nothing at all.
  */
 function scriptedStepsModel(steps: (string | Record<string, unknown>)[][]) {
@@ -583,7 +583,7 @@ function scriptedStepsModel(steps: (string | Record<string, unknown>)[][]) {
     return steps[next++] ?? [];
   }
   const finishOf = (parts: (string | Record<string, unknown>)[]) => ({
-    unified: parts.some((part) => typeof part !== "string") ? "tool-calls" : "stop",
+    unified: parts.some((part) => typeof part !== "string" && part.type === "tool-call") ? "tool-calls" : "stop",
     raw: undefined,
   });
   return {
@@ -2918,7 +2918,33 @@ describe("POST /api/trips/:id/ask", () => {
       expect(chunks.filter((c) => c.type === "tool-input-available").map((c) => c.toolName)).toEqual(["read_day"]);
       expect(textOf(chunks)).toBe("Day 1 is free from 5:30 to 7 pm.");
       const types = chunks.map((c) => c.type);
-      expect(types.indexOf("text-delta")).toBeGreaterThan(types.indexOf("tool-input-start"));
+      expect(types.indexOf("text-delta")).toBeGreaterThan(types.indexOf("tool-input-available"));
+    });
+
+    // The wrap-up step is offered no tools, so its text is the answer as it
+    // comes: it streams, rather than waiting for the step to end. Reasoning
+    // after the text is how that shows from outside — held text would be
+    // released at `finish-step`, behind it.
+    it("streams the wrap-up step's text live", async () => {
+      const tripId = await seedTrip();
+      const model = scriptedStepsModel([
+        ["Out of time, so here is what I have.", { type: "reasoning-start", id: "r" }, { type: "reasoning-end", id: "r" }],
+      ]);
+      const records: AskAnalyticsRecord[] = [];
+      const chunks = await chunksOf(
+        await handleAskRequest(
+          req(tripId, { messages: [userMessage("when is day 1 free?")], scope: { kind: "trip" } }),
+          tripId,
+          model,
+          (r) => records.push(r),
+          { stepMs: 0, hardMs: 60_000 },
+        ),
+      );
+
+      expect(records[0]).toMatchObject({ wrapUp: "deadline" });
+      const types = chunks.map((c) => c.type);
+      expect(types.indexOf("text-delta")).toBeGreaterThan(-1);
+      expect(types.indexOf("text-delta")).toBeLessThan(types.indexOf("reasoning-start"));
     });
 
     // The other side of the same filter: a turn whose last step says nothing

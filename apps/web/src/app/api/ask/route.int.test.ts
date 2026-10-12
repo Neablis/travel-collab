@@ -75,26 +75,22 @@ function spokenIn(body: string): string {
 }
 
 /**
- * A model that answers the classifier with `question`, then writes a note to
- * itself beside a `visit_counts` call, then answers (KI-20261012-e).
+ * A model that answers the classifier with `question` and then plays `steps`
+ * in order, each the parts one step emits: a string is text, anything else a
+ * provider part as given (a tool call, or reasoning).
  */
-function notesBesideACallModel(note: string, answer: string) {
-  let step = 0;
+function scriptedStepsModel(steps: (string | Record<string, unknown>)[][]) {
+  let next = 0;
   const usage = {
     inputTokens: { total: 0, noCache: 0, cacheRead: undefined, cacheWrite: undefined },
     outputTokens: { total: 0, text: undefined, reasoning: undefined },
   };
-  const text = (id: string, delta: string) => [
-    { type: "text-start", id },
-    { type: "text-delta", id, delta },
-    { type: "text-end", id },
-  ];
   const isClassifier = (options: { prompt?: { role?: string; content?: unknown }[] }) =>
     isAskIntentCall((options.prompt ?? []).map((m) => (m.role === "system" && typeof m.content === "string" ? m.content : "")).join("\n"));
   return {
     specificationVersion: "v4",
     provider: "test",
-    modelId: "test/notes-beside-a-call",
+    modelId: "test/scripted-steps",
     supportedUrls: {},
     doGenerate: async () => ({
       content: [{ type: "text", text: askIntentVerdictText("question", "sure") }],
@@ -103,17 +99,21 @@ function notesBesideACallModel(note: string, answer: string) {
       warnings: [],
     }),
     doStream: async (options: { prompt?: { role?: string; content?: unknown }[] }) => {
-      const parts = isClassifier(options)
-        ? text("v", askIntentVerdictText("question", "sure"))
-        : step++ === 0
-          ? [...text("n", note), { type: "tool-call", toolCallId: "visits", toolName: "visit_counts", input: JSON.stringify({ by: "city" }) }]
-          : text("a", answer);
-      const unified = parts.some((part) => part.type === "tool-call") ? "tool-calls" : "stop";
+      const parts = isClassifier(options) ? [askIntentVerdictText("question", "sure")] : (steps[next++] ?? []);
+      const unified = parts.some((part) => typeof part !== "string" && part.type === "tool-call") ? "tool-calls" : "stop";
       return {
         stream: new ReadableStream({
           start(controller) {
             controller.enqueue({ type: "stream-start", warnings: [] });
-            for (const part of parts) controller.enqueue(part);
+            for (const [i, part] of parts.entries()) {
+              if (typeof part !== "string") {
+                controller.enqueue(part);
+                continue;
+              }
+              controller.enqueue({ type: "text-start", id: `t${i}` });
+              controller.enqueue({ type: "text-delta", id: `t${i}`, delta: part });
+              controller.enqueue({ type: "text-end", id: `t${i}` });
+            }
             controller.enqueue({ type: "finish", finishReason: { unified, raw: undefined }, usage });
             controller.close();
           },
@@ -121,6 +121,14 @@ function notesBesideACallModel(note: string, answer: string) {
       };
     },
   } as unknown as Parameters<typeof handleAccountAskRequest>[1];
+}
+
+/** The SSE body's chunk types, in order. */
+function typesIn(body: string): string[] {
+  return body
+    .split("\n")
+    .filter((line) => line.startsWith("data: ") && line !== "data: [DONE]")
+    .map((line) => (JSON.parse(line.slice("data: ".length)) as { type: string }).type);
 }
 
 beforeAll(async () => {
@@ -180,10 +188,30 @@ describe("POST /api/ask", () => {
   it("keeps text written beside a tool call out of the reply", async () => {
     const res = await handleAccountAskRequest(
       ask("which city have I been to most?"),
-      notesBesideACallModel("Count the cities first.", "Kyoto, on two days."),
+      scriptedStepsModel([
+        ["Count the cities first.", { type: "tool-call", toolCallId: "visits", toolName: "visit_counts", input: JSON.stringify({ by: "city" }) }],
+        ["Kyoto, on two days."],
+      ]),
       () => {},
     );
     expect(spokenIn(await res.text())).toBe("Kyoto, on two days.");
+  });
+
+  // The wrap-up step is offered no tools, so its text streams as it comes
+  // rather than at the step's end: reasoning after it shows that from outside.
+  it("streams the wrap-up step's text live", async () => {
+    const records: AskAnalyticsRecord[] = [];
+    const res = await handleAccountAskRequest(
+      ask("which city have I been to most?"),
+      scriptedStepsModel([["Out of time, so here is what I have.", { type: "reasoning-start", id: "r" }, { type: "reasoning-end", id: "r" }]]),
+      (record) => records.push(record),
+      { stepMs: 0, hardMs: 60_000 },
+    );
+    const types = typesIn(await res.text());
+
+    expect(records[0]).toMatchObject({ wrapUp: "deadline" });
+    expect(types.indexOf("text-delta")).toBeGreaterThan(-1);
+    expect(types.indexOf("text-delta")).toBeLessThan(types.indexOf("reasoning-start"));
   });
 
   it("is the account handler behind the route, and refuses a signed-out caller", async () => {
