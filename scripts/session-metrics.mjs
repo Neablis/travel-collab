@@ -38,7 +38,8 @@
 //      review measured 51.3x. A byte saved at write time is not saved once.
 
 import { readFileSync, readdirSync, statSync } from "node:fs";
-import { join, basename } from "node:path";
+import { join, basename, resolve } from "node:path";
+import { execFileSync } from "node:child_process";
 import { homedir } from "node:os";
 import { pathToFileURL } from "node:url";
 
@@ -607,6 +608,536 @@ export function selfReport(session, { sessionId, branch } = {}) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// --milestone: where one milestone's tokens went.
+//
+// docs/retros/2026-10-12-m42-token-spend-retro.md found M42 cost twice M41 for
+// the same lines, and found it with a one-off Python script (its section 8)
+// run inside a cloud container that was then reclaimed. That is the same
+// failure this file's header describes for the 2026-09-02 review: a
+// measurement that lives in prose is made once. This mode makes it a command,
+// and `pnpm milestone close` refuses a milestone file that lacks its output,
+// so every retro carries the same numbers.
+//
+// THE METHOD IS THE RETRO'S SECTION 2, NOT A NEW ONE — a figure here must be
+// comparable with the M42 baseline or it is not worth printing:
+//
+//   - one call  = one assistant `message.id`, deduplicated (a streamed message
+//                 is logged once per content block);
+//   - units     = input + 1.25 x cache_creation + 0.1 x cache_read, the ratios
+//                 between Anthropic's prices. Output is EXCLUDED: the logged
+//                 output_tokens is the stream-start value, so it understates;
+//   - context   = input + cache_creation + cache_read of that call.
+//
+// Note this is a DIFFERENT dedupe key from parseSession() above, which keys by
+// requestId because the 2026-09-02 review did. Each mode reproduces its own
+// baseline; unifying them would move one of the two.
+// ---------------------------------------------------------------------------
+
+/** First line of the block, and what `milestone close` looks for. */
+export const MILESTONE_SPEND_HEADING = "## Spend";
+export const MILESTONE_SPEND_MARKER = "<!-- session-metrics:milestone v1 -->";
+
+function usageOf(u) {
+  return {
+    input: u?.input_tokens ?? 0,
+    cacheCreation: u?.cache_creation_input_tokens ?? 0,
+    cacheRead: u?.cache_read_input_tokens ?? 0,
+  };
+}
+
+export function callUnits(u) {
+  return u.input + 1.25 * u.cacheCreation + 0.1 * u.cacheRead;
+}
+
+export function callContext(u) {
+  return u.input + u.cacheCreation + u.cacheRead;
+}
+
+/** A user-role record's text, or null when it is a tool_result (not a turn start). */
+function userText(content) {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  if (content.some((b) => b?.type === "tool_result")) return null;
+  return content
+    .filter((b) => b?.type === "text")
+    .map((b) => String(b.text ?? ""))
+    .join("\n");
+}
+
+/**
+ * One transcript as an ordered list of events: `{kind:"call", usage, tools}`
+ * and `{kind:"user", text}`. Order is what the turn, follow-up and re-write
+ * sections all need, and none of them need anything else from the file.
+ */
+export function parseMilestoneTranscript(file) {
+  const events = [];
+  const callsById = new Map();
+  const seenToolUse = new Set();
+  let anonymous = 0;
+  for (const rec of jsonlRecords(file)) {
+    const m = rec.message;
+    if (!m || typeof m !== "object") continue;
+    if (m.role === "assistant" && m.usage) {
+      // A record with no id cannot be deduplicated, so it is counted as its
+      // own call: under-counting silently is the worse of the two errors.
+      const key = m.id ?? rec.requestId ?? `anonymous-${(anonymous += 1)}`;
+      let call = callsById.get(key);
+      if (!call) {
+        call = { kind: "call", id: key, usage: null, tools: [] };
+        callsById.set(key, call);
+        events.push(call);
+      }
+      // Overwrite, never accumulate — the retro's script keeps one usage per
+      // id for the same reason parseSession() keeps one per requestId.
+      call.usage = usageOf(m.usage);
+      for (const block of Array.isArray(m.content) ? m.content : []) {
+        if (block?.type !== "tool_use" || seenToolUse.has(block.id)) continue;
+        if (block.id) seenToolUse.add(block.id);
+        call.tools.push(String(block.name ?? ""));
+      }
+    } else if (m.role === "user") {
+      const text = userText(m.content);
+      if (text !== null) events.push({ kind: "user", text });
+    }
+  }
+  return events;
+}
+
+/**
+ * The orchestrator's transcript plus its subagents'.
+ *
+ * `agent-*.meta.json` is OBSERVED in cloud sessions, not documented anywhere,
+ * so its absence is a label (`unknown`) rather than an error. The retro's own
+ * script called a meta-less file "orchestrator", which would fold a subagent
+ * into the row this report most needs to be right.
+ */
+export function loadMilestone(transcript) {
+  const dir = join(transcript.replace(/\.jsonl$/, ""), "subagents");
+  let entries = [];
+  try {
+    entries = readdirSync(dir).filter((e) => /^agent-.*\.jsonl$/.test(e)).sort();
+  } catch {
+    // No subagents directory: a session that dispatched nothing.
+  }
+  const subagents = entries.map((e) => {
+    let meta = {};
+    try {
+      meta = JSON.parse(readFileSync(join(dir, e.replace(/\.jsonl$/, ".meta.json")), "utf8")) ?? {};
+    } catch {
+      // Absent or unreadable: labelled below.
+    }
+    return {
+      id: basename(e, ".jsonl"),
+      agentType: typeof meta.agentType === "string" && meta.agentType ? meta.agentType : "unknown",
+      description: typeof meta.description === "string" && meta.description ? meta.description : basename(e, ".jsonl"),
+      events: parseMilestoneTranscript(join(dir, e)),
+    };
+  });
+  return {
+    orchestrator: {
+      id: basename(transcript, ".jsonl"),
+      agentType: "orchestrator",
+      description: "orchestrator",
+      events: parseMilestoneTranscript(transcript),
+    },
+    subagents,
+  };
+}
+
+// What started an orchestrator turn. First match wins, top down.
+//
+// THESE PATTERNS WERE WRITTEN FROM THE RETRO'S DESCRIPTION OF THE FRAMES (its
+// F1 table), NOT FROM A TRANSCRIPT: cloud transcripts do not exist on the
+// machine this was written on, and M42's were reclaimed with its container.
+// Check every row against the first real M43 transcript. Until then the
+// `other` row is the alarm: a turn that looks like a frame but matches nothing
+// here lands there, and it is always printed, so a wrong pattern shows up as a
+// large `other` instead of quietly inflating `human`.
+export const TURN_CLASSES = [
+  ["github", /<wake reason="external-event"|\bnotifications?[- ](?:are )?pending\b|\bpending notifications?\b/i],
+  ["subagent-report", /<agent-message\b|<teammate-message\b|<subagent[-_](?:handback|hand-back|report|message)\b/i],
+  ["subagent-finished", /<task-notification>/],
+  [
+    "harness",
+    // Only system-reminders; hook output; a compaction summary; a slash
+    // command's own frames. The prose alternatives are anchored to the start
+    // and name the hook event, so that a person WRITING "the hook output is
+    // wrong" stays human (the first draft of this row took that sentence).
+    /^\s*(?:<system-reminder>[\s\S]*?<\/system-reminder>\s*)+$|<[a-z-]*hook[a-z-]*>|^\s*(?:Stop|SubagentStop|PreToolUse|PostToolUse|UserPromptSubmit|SessionStart|PreCompact) hook (?:feedback|output|blocking error)\b|^\s*This session is being continued from a previous conversation|<local-command-(?:stdout|stderr|caveat)>|<command-name>/i,
+  ],
+];
+
+export const TURN_LABELS = {
+  github: "GitHub / trigger notification",
+  "subagent-report": "Subagent report",
+  "subagent-finished": "Subagent finished",
+  harness: "Harness",
+  human: "Human",
+  other: "Other (unrecognised frame)",
+};
+
+// A notification turn that did nothing but read the notification.
+const IDLE_TOOLS = new Set(["ReadNotifications", "ToolSearch"]);
+const COORDINATOR_MESSAGE = "The coordinator sent a message";
+
+/**
+ * `human` is what is left once every frame is accounted for, so it needs a
+ * guard of its own: text that still OPENS with a tag after the reminders are
+ * stripped is a frame nobody has a pattern for, and an empty message is not a
+ * person typing. Both are `other`.
+ */
+export function classifyTurn(text) {
+  for (const [name, re] of TURN_CLASSES) if (re.test(text)) return name;
+  const rest = text.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, "").trim();
+  if (rest === "" || /^<[a-z]/i.test(rest)) return "other";
+  return "human";
+}
+
+// The tag an `other` turn opens with: the frame's NAME, which is what a new
+// TURN_CLASSES row would be written from, and never its contents.
+function leadingTag(text) {
+  const m = /^<([a-z][a-z0-9_-]{0,39})/i.exec(
+    text.replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, "").trim(),
+  );
+  return m ? `<${m[1].toLowerCase()}>` : "(empty)";
+}
+
+function bareToolName(name) {
+  // `mcp__server__ReadNotifications` and `ReadNotifications` are one tool.
+  return name.startsWith("mcp__") ? name.split("__").slice(2).join("__") : name;
+}
+
+function agentStats(agent) {
+  let calls = 0;
+  let units = 0;
+  let contextSum = 0;
+  let peak = 0;
+  for (const e of agent.events) {
+    if (e.kind !== "call") continue;
+    const ctx = callContext(e.usage);
+    calls += 1;
+    units += callUnits(e.usage);
+    contextSum += ctx;
+    if (ctx > peak) peak = ctx;
+  }
+  return {
+    id: agent.id,
+    agentType: agent.agentType,
+    description: agent.description,
+    calls,
+    units,
+    avgContext: calls ? contextSum / calls : 0,
+    peakContext: peak,
+    contextSum,
+  };
+}
+
+export function orchestratorTurns(events) {
+  const turns = [];
+  let turn = null;
+  for (const e of events) {
+    if (e.kind === "user") {
+      turn = { cls: classifyTurn(e.text), tag: null, units: 0, calls: 0, tools: [] };
+      if (turn.cls === "other") turn.tag = leadingTag(e.text);
+      turns.push(turn);
+      continue;
+    }
+    if (!turn) {
+      // Calls before any user record. Not expected, so not guessed at.
+      turn = { cls: "other", tag: "(before first turn)", units: 0, calls: 0, tools: [] };
+      turns.push(turn);
+    }
+    turn.units += callUnits(e.usage);
+    turn.calls += 1;
+    turn.tools.push(...e.tools);
+  }
+  for (const t of turns) t.idle = t.tools.every((n) => IDLE_TOOLS.has(bareToolName(n)));
+  return turns;
+}
+
+/**
+ * Full cache re-writes: a call that is not the agent's first, whose context is
+ * over 50k and at least 80% freshly written. That is the signature of the
+ * 5-minute cache having expired under an idle agent (retro F3), and the first
+ * call is excluded because writing the whole context is what a first call IS.
+ */
+export function findRewrites(events) {
+  const out = [];
+  let index = 0;
+  let coordinatorSincePrevCall = false;
+  let coordinatorMessages = 0;
+  for (const e of events) {
+    if (e.kind === "user") {
+      // After the first call, and near the top of the message: a brief or a
+      // file that merely quotes the frame is not a follow-up.
+      if (index > 0 && e.text.slice(0, 200).includes(COORDINATOR_MESSAGE)) {
+        coordinatorMessages += 1;
+        coordinatorSincePrevCall = true;
+      }
+      continue;
+    }
+    const ctx = callContext(e.usage);
+    if (index > 0 && ctx > 50_000 && e.usage.cacheCreation >= 0.8 * ctx) {
+      out.push({ tokens: e.usage.cacheCreation, afterCoordinator: coordinatorSincePrevCall });
+    }
+    index += 1;
+    coordinatorSincePrevCall = false;
+  }
+  return { rewrites: out, coordinatorMessages };
+}
+
+/** Guard-hook decisions, or null when the log does not exist ("none recorded"). */
+export function readGuardLog(path) {
+  if (!path) return null;
+  try {
+    statSync(path);
+  } catch {
+    return null;
+  }
+  const byHook = new Map();
+  let lines = 0;
+  for (const rec of jsonlRecords(path)) {
+    if (!rec || typeof rec.hook !== "string") continue;
+    lines += 1;
+    const row = byHook.get(rec.hook) ?? {};
+    const decision = String(rec.decision ?? "unknown");
+    row[decision] = (row[decision] ?? 0) + 1;
+    byHook.set(rec.hook, row);
+  }
+  return { path, lines, byHook: Object.fromEntries(byHook) };
+}
+
+export function defaultGuardLogPath(cwd = process.cwd()) {
+  try {
+    // The COMMON dir, so every worktree of the repo shares one log.
+    const dir = execFileSync("git", ["rev-parse", "--git-common-dir"], {
+      cwd,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+    return resolve(cwd, dir, "tc-guard-log.jsonl");
+  } catch {
+    return null;
+  }
+}
+
+export function computeMilestone({ orchestrator, subagents }, opts = {}) {
+  const { costUsd = null, linesAdded = null, parts = null, guardLog = null } = opts;
+  const orch = agentStats(orchestrator);
+  const subs = subagents.map(agentStats);
+  const all = [orch, ...subs];
+  const totalUnits = all.reduce((n, a) => n + a.units, 0);
+  const share = (u) => (totalUnits > 0 ? u / totalUnits : 0);
+
+  // 1. by agent type
+  const typeMap = new Map();
+  for (const a of all) {
+    const t = typeMap.get(a.agentType) ?? { agentType: a.agentType, agents: 0, calls: 0, units: 0, contextSum: 0, peakContext: 0 };
+    t.agents += 1;
+    t.calls += a.calls;
+    t.units += a.units;
+    t.contextSum += a.contextSum;
+    t.peakContext = Math.max(t.peakContext, a.peakContext);
+    typeMap.set(a.agentType, t);
+  }
+  const byType = [...typeMap.values()]
+    .map((t) => ({ ...t, avgContext: t.calls ? t.contextSum / t.calls : 0, share: share(t.units) }))
+    .sort((a, b) => b.units - a.units);
+
+  // 2. the costliest subagents (the orchestrator has its own row in 1)
+  const costliest = [...subs].sort((a, b) => b.units - a.units).slice(0, 10);
+
+  // 3. orchestrator turns
+  const turns = orchestratorTurns(orchestrator.events);
+  const turnClasses = Object.keys(TURN_LABELS).map((cls) => {
+    const mine = turns.filter((t) => t.cls === cls);
+    return {
+      cls,
+      turns: mine.length,
+      units: mine.reduce((n, t) => n + t.units, 0),
+      idle: mine.filter((t) => t.idle).length,
+      idleUnits: mine.filter((t) => t.idle).reduce((n, t) => n + t.units, 0),
+    };
+  });
+  const otherTags = {};
+  for (const t of turns) if (t.cls === "other") otherTags[t.tag] = (otherTags[t.tag] ?? 0) + 1;
+
+  // 4 and 5. follow-ups and re-writes
+  const sendMessages = orchestrator.events
+    .filter((e) => e.kind === "call")
+    .reduce((n, e) => n + e.tools.filter((t) => bareToolName(t) === "SendMessage").length, 0);
+  const received = [];
+  const rewrites = { count: 0, tokens: 0, afterCoordinator: 0, afterCoordinatorTokens: 0 };
+  subagents.forEach((agent, i) => {
+    const r = findRewrites(agent.events);
+    if (r.coordinatorMessages > 0) {
+      received.push({ description: subs[i].description, agentType: subs[i].agentType, messages: r.coordinatorMessages });
+    }
+    for (const w of r.rewrites) {
+      rewrites.count += 1;
+      rewrites.tokens += w.tokens;
+      if (w.afterCoordinator) {
+        rewrites.afterCoordinator += 1;
+        rewrites.afterCoordinatorTokens += w.tokens;
+      }
+    }
+  });
+  received.sort((a, b) => b.messages - a.messages);
+
+  // 7. targets — the retro's four for M43, plus the re-write ceiling.
+  const githubTurns = turnClasses.find((c) => c.cls === "github").turns;
+  const builders = subs.filter((a) => a.agentType === "phase-implementer" && a.calls > 0);
+  const worstBuilder = builders.reduce((m, a) => Math.max(m, a.avgContext), 0);
+  const target = (name, measurable, value, met, shown, need) => ({
+    name,
+    status: !measurable ? "not measurable" : met ? "met" : "missed",
+    value: measurable ? value : null,
+    shown: measurable ? shown : need,
+  });
+  const orchShare = share(orch.units);
+  const wakesPerPart = parts ? githubTurns / parts : null;
+  const usdPerKLines = costUsd !== null && linesAdded ? costUsd / (linesAdded / 1000) : null;
+  const targets = [
+    target("Orchestrator share of units < 15%", totalUnits > 0, orchShare, orchShare < 0.15, pctOf(orchShare), "no calls in the transcript"),
+    target("No phase-implementer averaging > 250k context", builders.length > 0, worstBuilder, worstBuilder <= 250_000, `worst ${tok(worstBuilder)}`, "no phase-implementer transcripts"),
+    target("GitHub wakes per merged part < 5", wakesPerPart !== null, wakesPerPart, wakesPerPart < 5, `${githubTurns} / ${parts} = ${wakesPerPart?.toFixed(1)}`, "needs --parts"),
+    target("Dollars per 1k lines added < 20", usdPerKLines !== null, usdPerKLines, usdPerKLines < 20, `$${usdPerKLines?.toFixed(2)}`, "needs --cost-usd and --lines-added"),
+    target("Coordinator-message re-writes <= 2", true, rewrites.afterCoordinator, rewrites.afterCoordinator <= 2, String(rewrites.afterCoordinator), ""),
+  ];
+
+  return {
+    schema: 1,
+    totals: { agents: all.length, calls: all.reduce((n, a) => n + a.calls, 0), units: totalUnits },
+    usdPerUnit: costUsd !== null && totalUnits > 0 ? costUsd / totalUnits : null,
+    inputs: { costUsd, linesAdded, parts },
+    byType,
+    costliest: costliest.map((a) => ({ ...a, share: share(a.units) })),
+    turns: { classes: turnClasses, orchestratorUnits: orch.units, otherTags },
+    followUps: { sendMessages, received },
+    rewrites,
+    guardLog,
+    targets,
+  };
+}
+
+function tok(n) {
+  if (n >= 1e6) return `${(n / 1e6).toFixed(2)}M`;
+  if (n >= 1e3) return `${Math.round(n / 1e3)}k`;
+  return String(Math.round(n));
+}
+
+function pctOf(fraction) {
+  return `${(fraction * 100).toFixed(1)}%`;
+}
+
+// A description is the one free-text field allowed out (the brief a human
+// already chose to label the agent with); keep it from breaking the table.
+function cell(text) {
+  const flat = String(text).replace(/\s+/g, " ").replace(/\|/g, "/").trim();
+  return flat.length > 60 ? `${flat.slice(0, 57)}...` : flat;
+}
+
+/**
+ * The block, as markdown that pastes into a milestone file unchanged. Its
+ * first two lines are a contract with scripts/milestone.mjs.
+ *
+ * Same privacy rule as selfReport(): counts, token sums and agent
+ * descriptions. No prompt text, no tool arguments, no file contents.
+ */
+export function renderMilestone(m) {
+  const usd = m.usdPerUnit;
+  const money = (units) => (usd === null ? [] : [`$${(units * usd).toFixed(2)}`]);
+  const head = (cols) => [`| ${cols.join(" | ")} |`, `|${cols.map(() => "---").join("|")}|`];
+  const row = (cols) => `| ${cols.join(" | ")} |`;
+  const dollarsCol = usd === null ? [] : ["≈ $"];
+  const L = [MILESTONE_SPEND_HEADING, MILESTONE_SPEND_MARKER, ""];
+
+  L.push(
+    `${m.totals.agents} agents, ${m.totals.calls.toLocaleString("en-US")} API calls, ${tok(m.totals.units)} units` +
+      (m.inputs.costUsd !== null ? `, $${m.inputs.costUsd.toFixed(2)} recorded` : "") +
+      ". One call is one assistant `message.id`; units = input + 1.25 × cache write + 0.1 × cache read (output excluded, transcripts understate it).",
+  );
+  L.push("");
+
+  L.push("**By agent type**", "");
+  L.push(...head(["Who", "Agents", "Calls", "Avg context", "Peak context", "Units", ...dollarsCol, "Share"]));
+  for (const t of m.byType) {
+    L.push(row([`\`${t.agentType}\``, t.agents, t.calls, tok(t.avgContext), tok(t.peakContext), tok(t.units), ...money(t.units), pctOf(t.share)]));
+  }
+  L.push("");
+
+  L.push("**Costliest agents**", "");
+  if (m.costliest.length === 0) L.push("No subagent transcripts found.");
+  else {
+    L.push(...head(["Agent (description)", "Type", "Calls", "Avg context", "Peak context", "Units", ...dollarsCol]));
+    for (const a of m.costliest) {
+      L.push(row([cell(a.description), `\`${a.agentType}\``, a.calls, tok(a.avgContext), tok(a.peakContext), tok(a.units), ...money(a.units)]));
+    }
+  }
+  L.push("");
+
+  L.push("**Orchestrator turns, by what started them**", "");
+  L.push(...head(["What started the turn", "Turns", "Units", ...dollarsCol, "Share of orchestrator", "Idle"]));
+  for (const c of m.turns.classes) {
+    const ofOrch = m.turns.orchestratorUnits > 0 ? pctOf(c.units / m.turns.orchestratorUnits) : "n/a";
+    // Idle is only a claim about notification turns: "read it, did nothing".
+    const idle = c.cls === "github" ? `${c.idle} of ${c.turns} (${tok(c.idleUnits)} units)` : "–";
+    L.push(row([TURN_LABELS[c.cls], c.turns, tok(c.units), ...money(c.units), ofOrch, idle]));
+  }
+  const tags = Object.entries(m.turns.otherTags);
+  if (tags.length > 0) {
+    L.push("");
+    L.push(`Unrecognised frames, by opening tag: ${tags.map(([t, n]) => `\`${t}\` × ${n}`).join(", ")}. Add a row to \`TURN_CLASSES\`.`);
+  }
+  L.push("");
+
+  L.push("**Follow-ups and cache re-writes**", "");
+  L.push(...head(["Measure", "Count", "Tokens"]));
+  const totalReceived = m.followUps.received.reduce((n, r) => n + r.messages, 0);
+  L.push(row(["`SendMessage` calls by the orchestrator", m.followUps.sendMessages, "–"]));
+  L.push(row([`Coordinator messages received mid-life, by ${m.followUps.received.length} subagent(s)`, totalReceived, "–"]));
+  L.push(row(["Full cache re-writes in subagents", m.rewrites.count, tok(m.rewrites.tokens)]));
+  L.push(row(["— directly after a coordinator message", m.rewrites.afterCoordinator, tok(m.rewrites.afterCoordinatorTokens)]));
+  if (m.followUps.received.length > 0) {
+    L.push("");
+    L.push(
+      "Most messaged: " +
+        m.followUps.received.slice(0, 10).map((r) => `${cell(r.description)} (${r.messages})`).join("; ") +
+        ".",
+    );
+  }
+  L.push("");
+
+  L.push("**Guard hooks**", "");
+  const hooks = m.guardLog ? Object.entries(m.guardLog.byHook) : [];
+  if (hooks.length === 0) L.push("None recorded.");
+  else {
+    const decisions = [...new Set(["deny", "note", ...hooks.flatMap(([, d]) => Object.keys(d))])];
+    L.push(...head(["Hook", ...decisions]));
+    for (const [hook, d] of hooks.sort((a, b) => a[0].localeCompare(b[0]))) {
+      L.push(row([`\`${cell(hook)}\``, ...decisions.map((k) => d[k] ?? 0)]));
+    }
+  }
+  L.push("");
+
+  L.push("**Targets**", "");
+  L.push(...head(["Target", "Result", "Measured"]));
+  for (const t of m.targets) L.push(row([t.name, t.status, t.shown]));
+
+  return L.join("\n");
+}
+
+function numberFlag(name, raw) {
+  if (raw === undefined) return null;
+  const n = Number(raw);
+  if (raw.trim() === "" || !Number.isFinite(n) || n < 0) {
+    console.error(`session-metrics: ${name} needs a non-negative number, got "${raw}".`);
+    process.exit(1);
+  }
+  return n;
+}
+
 function main() {
   const argv = process.argv.slice(2);
   const get = (flag) => {
@@ -628,6 +1159,32 @@ function main() {
         selfReport(parseSession(self), { sessionId: get("--session-id"), branch: get("--branch") })
       )
     );
+    return;
+  }
+
+  // --milestone <orchestrator-transcript.jsonl>: the `## Spend` block for a
+  // milestone file. Run it before the cloud container is reclaimed; the
+  // subagent transcripts beside the orchestrator's go with it.
+  const milestone = get("--milestone");
+  if (argv.includes("--milestone")) {
+    if (!milestone || milestone.startsWith("--")) {
+      console.error("session-metrics: --milestone needs the orchestrator's transcript (.jsonl).");
+      process.exit(1);
+    }
+    try {
+      statSync(milestone);
+    } catch {
+      console.error(`session-metrics: ${milestone} not found.`);
+      console.error("Transcripts live on the machine (or cloud container) that ran the session.");
+      process.exit(1);
+    }
+    const result = computeMilestone(loadMilestone(milestone), {
+      costUsd: numberFlag("--cost-usd", get("--cost-usd")),
+      linesAdded: numberFlag("--lines-added", get("--lines-added")),
+      parts: numberFlag("--parts", get("--parts")),
+      guardLog: readGuardLog(get("--guard-log") ?? defaultGuardLogPath()),
+    });
+    console.log(asJson ? JSON.stringify(result, null, 2) : renderMilestone(result));
     return;
   }
 

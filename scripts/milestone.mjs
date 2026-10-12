@@ -26,6 +26,11 @@
 // - Proceed on a parse that found nothing. assertAnchors() throws first — see
 //   the anchor contract in scripts/lib/roadmap-read.mjs. Writing four files
 //   off a silent miss is how you corrupt four files.
+// - Close a milestone whose file has no `## Spend` block (the output of
+//   `pnpm session-metrics --milestone`). The M42 retro's numbers exist only
+//   because somebody thought to measure before the cloud container was
+//   reclaimed; a milestone closed without them cannot be measured afterwards.
+//   `--no-spend "<reason>"` is the one escape, and the reason is printed.
 // - Apply anything without --confirm. It prints a unified diff and stops.
 // - Guess which milestone becomes current. It reads it: TODO.md's unticked
 //   milestone rows, top down and skipping PAUSED ones, are the execution order
@@ -55,6 +60,9 @@ import {
   plain,
 } from "./lib/roadmap-read.mjs";
 import { collect as surfaceRows } from "./surface-size.mjs";
+// The marker has one definition, in the script that prints it. Importing is
+// safe: session-metrics.mjs only runs main() when it is the entry point.
+import { MILESTONE_SPEND_MARKER } from "./session-metrics.mjs";
 
 const root = process.env.CLAUDE_PROJECT_DIR ?? process.cwd();
 
@@ -188,7 +196,7 @@ function stepPruneCandidates(text, id, cands) {
 
 // --- driver -----------------------------------------------------------------
 
-function close(id, { confirm, nextId }) {
+function close(id, { confirm, nextId, noSpend }) {
   const readers = {
     "current milestone": readCurrentMilestone(root),
     "TODO.md": readTodo(root),
@@ -206,6 +214,22 @@ function close(id, { confirm, nextId }) {
         `[${gate.rel}:${gate.line}].\n` +
         `The gate is the definition of done. Closing around it is the bookkeeping ` +
         `without the meaning — tick the boxes, or amend the gate (Mitchell's call, recorded).`,
+    );
+    process.exit(1);
+  }
+
+  // The spend block is checked here, with the other refusals, and not as a
+  // "still yours to write" line at the end: transcripts live in a cloud
+  // container that is reclaimed, so the one moment this can be measured is
+  // before the close, and a reminder printed after it arrives too late.
+  const hasSpend = read(gate.rel).split("\n").some((line) => line.trim() === MILESTONE_SPEND_MARKER);
+  if (!hasSpend && !noSpend) {
+    console.error(
+      `milestone close: ${gate.rel} has no spend block (the line \`${MILESTONE_SPEND_MARKER}\`). ` +
+        `Nothing was written.\n` +
+        `  Run \`pnpm session-metrics --milestone <orchestrator-transcript.jsonl>\` in the session ` +
+        `that built ${id}, before its container is reclaimed, and paste the output into that file.\n` +
+        `  If the transcripts are gone, or ${id} was built locally: --no-spend "<reason>".`,
     );
     process.exit(1);
   }
@@ -284,6 +308,11 @@ function close(id, { confirm, nextId }) {
     "docs/candidates.md": read("docs/candidates.md"),
   };
   const notes = [];
+  notes.push(
+    hasSpend
+      ? `${gate.rel}: spend block present`
+      : `${gate.rel}: NO spend block — closed with --no-spend: ${noSpend}`,
+  );
 
   let r = stepTickTodo(files["TODO.md"], id);
   if (r.fatal) {
@@ -353,10 +382,12 @@ function close(id, { confirm, nextId }) {
 function main() {
   const [cmd, id, ...rest] = process.argv.slice(2);
   if (cmd !== "close" || !id) {
-    console.error("usage: pnpm milestone close <id> [--next <id>] [--confirm]");
+    console.error('usage: pnpm milestone close <id> [--next <id>] [--no-spend "<reason>"] [--confirm]');
     console.error("  Runs the gate-close checklist across TODO.md, milestones/README.md");
     console.error("  and candidates.md. Prints a diff and stops unless --confirm. The next");
     console.error("  milestone is TODO.md's next un-paused row; --next only asserts it.");
+    console.error("  The milestone file must carry `pnpm session-metrics --milestone` output;");
+    console.error("  --no-spend records why it cannot.");
     process.exit(1);
   }
   const nextFlag = rest.indexOf("--next");
@@ -369,9 +400,20 @@ function main() {
     console.error("milestone close: --next needs a milestone id. Nothing written.");
     process.exit(1);
   }
+  // Same shape as --next, for the same reason, plus one more: the reason is
+  // the whole point of the flag. An escape that accepts "" is a switch, and a
+  // switch gets flipped without anybody writing down why the numbers are
+  // missing.
+  const noSpendFlag = rest.indexOf("--no-spend");
+  const noSpendValue = noSpendFlag === -1 ? null : rest[noSpendFlag + 1];
+  if (noSpendFlag !== -1 && (!noSpendValue || !noSpendValue.trim() || noSpendValue.startsWith("--"))) {
+    console.error('milestone close: --no-spend needs a reason, e.g. --no-spend "built locally". Nothing was written.');
+    process.exit(1);
+  }
   close(id, {
     confirm: rest.includes("--confirm"),
     nextId: nextValue,
+    noSpend: noSpendValue ? noSpendValue.trim() : null,
   });
 }
 
