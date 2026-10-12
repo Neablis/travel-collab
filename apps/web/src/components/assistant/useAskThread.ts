@@ -5,8 +5,9 @@ import {
   askAssistant,
   type ApiError,
   type AskEvent,
-  type AskScope,
   type AskWireMessage,
+  type BeyondTripAskScope,
+  type TripAskScope,
 } from "@/lib/apiClient";
 import { MAX_ASK_MESSAGES } from "@/lib/askLimits";
 import { clearAskThread, loadAskThread, saveAskThread } from "@/components/assistant/askThreadStore";
@@ -113,6 +114,12 @@ function awaitsDecision(turn: AssistantTurn): boolean {
   return turn.role === "assistant" && turn.proposal != null && turn.proposal.status !== "applied" && turn.proposal.status !== "rejected";
 }
 
+/**
+ * Which conversation's door a turn goes to: a trip's, or one of its own for a
+ * scope about no one trip (Home's account rail, M45 D7).
+ */
+export type AskWhere = { tripId: string; scope: TripAskScope } | { tripId?: undefined; scope: BeyondTripAskScope };
+
 export function useAskThread({
   tripId,
   scope,
@@ -121,9 +128,7 @@ export function useAskThread({
   errorMessage,
   persistAs,
   holdsLeaving,
-}: {
-  tripId: string;
-  scope: AskScope;
+}: AskWhere & {
   onEvent?: AskEventHandler;
   /**
    * Called once a turn's request settles — answered, failed, stopped or
@@ -339,7 +344,7 @@ export function useAskThread({
     // follows it in the same chunk arrives.
     let proposed = false;
     const result = await askAssistant(
-      tripId,
+      tripId ?? null,
       posted,
       scope,
       (event) => {

@@ -1532,3 +1532,34 @@ describe("Home — Delete or Leave, never the wrong one", () => {
     expect(screen.getByRole("link", { name: /kyoto/i })).toBeTruthy();
   });
 });
+
+// M45 D7: Home has an assistant of its own, on screen without being opened,
+// answering across every trip through the account door.
+describe("Home's assistant", () => {
+  it("is on screen, and asks the account door rather than a trip's", async () => {
+    const asked: string[] = [];
+    fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/api/auth/session")) return jsonResponse(await getSessionMock());
+      if (url.endsWith("/api/trips")) return jsonResponse({ trips: [tripSummaryFixture()] });
+      if (/\/ask$/.test(url)) {
+        asked.push(`${new URL(url, "http://localhost").pathname} ${String(init?.body)}`);
+        return new Response(`data: ${JSON.stringify({ type: "text-delta", delta: "Kyoto, on 2 trips." })}\n\ndata: [DONE]\n\n`, {
+          status: 200,
+          headers: { "Content-Type": "text/event-stream" },
+        });
+      }
+      return jsonResponse({ error: "unexpected" }, 404);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<Home />);
+
+    const rail = screen.getByRole("complementary", { name: "Assistant" });
+    await userEvent.type(within(rail).getByPlaceholderText("Ask about your trips…"), "which city have I been to most?{Enter}");
+
+    expect(await within(rail).findByText("Kyoto, on 2 trips.")).toBeTruthy();
+    expect(asked).toHaveLength(1);
+    expect(asked[0]).toMatch(/^\/api\/ask /);
+    expect(asked[0]).toContain('"scope":{"kind":"account"}');
+  });
+});

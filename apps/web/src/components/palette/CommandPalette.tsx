@@ -39,8 +39,10 @@ import { type PaletteCommand, usePaletteCommands, usePaletteSource } from "./pal
 // it opens closes onto the control you were on rather than onto <body>
 // (KI-2026-10-09-b).
 //
-// **No match goes nowhere** (ADR-068 §5): unmatched text is not handed to the
-// assistant in v1.
+// **No match is offered to the assistant** (M45 D6, ADR-072 §7, amending
+// ADR-068 §5): where a screen has mounted one, the only row is *Ask: <text>*,
+// and choosing it opens the assistant and sends the text. Nothing reaches the
+// model before the row is chosen. Elsewhere, no match goes nowhere.
 
 // On a Mac, Ctrl+K is a text field's kill-line, so ⌘K alone opens it there
 // (PR 398 review). `userAgentData` where the browser has it, else the
@@ -65,6 +67,13 @@ function isK(event: KeyboardEvent): boolean {
  */
 type Row = { id: string; heading?: string; spoken?: string; label: string; nested?: boolean; steps: readonly PaletteStep[]; node: PaletteNode };
 
+/** *Ask: <text>*, the row text that matches nothing becomes where an assistant is mounted. */
+function askRow(text: string, onAsk: (text: string) => void): Row {
+  const label = `Ask: ${text}`;
+  const command: PaletteCommand = { id: "ask:text", action: "Ask the assistant", run: () => onAsk(text) };
+  return { id: command.id, label, steps: [{ key: command.id, label }], node: { kind: "leaf", key: command.id, label, command } };
+}
+
 /** Opens on ⌘K (Ctrl+K off a Mac) from anywhere in the app. */
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
@@ -81,6 +90,9 @@ export function CommandPalette() {
   const [trips, setTrips] = useState<readonly TripSummary[]>([]);
   // Counts openings, so each one reads the trips afresh.
   const [openings, setOpenings] = useState(0);
+  // The opening whose trip read has settled. Until it has, a trip's name
+  // matches nothing, and Enter on *Ask:* would send it to the model.
+  const [readOpening, setReadOpening] = useState<number | null>(null);
   const listId = useId();
 
   const show = useCallback(() => {
@@ -114,7 +126,9 @@ export function CommandPalette() {
     if (!signedIn) return;
     let live = true;
     void fetchTrips().then((result) => {
-      if (live && result.ok) setTrips(orderHomeTrips(result.value.filter((trip) => trip.status === "active"), localTodayIso()));
+      if (!live) return;
+      if (result.ok) setTrips(orderHomeTrips(result.value.filter((trip) => trip.status === "active"), localTodayIso()));
+      setReadOpening(openings);
     });
     return () => {
       live = false;
@@ -140,7 +154,7 @@ export function CommandPalette() {
   const path = trail.slice(0, depth);
   const at = path.map((step) => step.key);
   const text = (steps: readonly PaletteStep[]) => steps.map((step) => step.label).join(" › ");
-  const rows: Row[] =
+  const searched: Row[] =
     query.trim() === ""
       ? level.map((node) => ({ id: node.key, label: node.label, steps: [...path, { key: node.key, label: node.label }], node }))
       : searchPalette(commands, query, at).flatMap((group) =>
@@ -162,6 +176,12 @@ export function CommandPalette() {
             };
           }),
         );
+  const askText = query.trim();
+  const onAsk = ask?.onAsk;
+  const rows: Row[] =
+    searched.length === 0 && askText !== "" && onAsk !== undefined && (!signedIn || readOpening === openings)
+      ? [askRow(askText, onAsk)]
+      : searched;
   // Held inside the list, which can shrink under it while it is open (a
   // screen's commands change, the trips arrive): past its end, Enter would
   // run nothing and the box would name an option that is not there.

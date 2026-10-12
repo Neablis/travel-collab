@@ -844,6 +844,21 @@ describe("askAssistant", () => {
     expect(seen).toEqual({ messages: thread, scope: { kind: "day", dayIndex: 2 } });
   });
 
+  // M45 D7: Home's rail is no trip's, so its turn goes to the account door.
+  it("posts an account turn to /api/ask, not to a trip's door", async () => {
+    let seen: unknown;
+    server.use(
+      http.post("*/api/ask", async ({ request }) => {
+        seen = await request.json();
+        return sseResponse(ANSWER_FRAMES);
+      }),
+    );
+    const thread: apiClientModule.AskWireMessage[] = [{ id: "u1", role: "user", parts: [{ type: "text", text: "which city have I been to most?" }] }];
+    const result = await askAssistant(null, thread, { kind: "account" });
+    expect(result.ok).toBe(true);
+    expect(seen).toEqual({ messages: thread, scope: { kind: "account" } });
+  });
+
   it("streams text deltas in order and concatenates them into one answer", async () => {
     server.use(http.post("*/api/trips/:tripId/ask", () => sseResponse(ANSWER_FRAMES)));
     const events: apiClientModule.AskEvent[] = [];

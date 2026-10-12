@@ -74,7 +74,7 @@ import {
   DEMO_TRIP_UNSUPPORTED_CODE,
   applyAssistantProposal,
   type ApiError,
-  type AskScope,
+  type TripAskScope,
 } from "@/lib/apiClient";
 import { Board } from "./Board";
 import { ConflictsChip } from "./ConflictsChip";
@@ -171,7 +171,14 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
   const { settled: coverSettled } = useTripCover(tripId, abovePhone === true && !isDemoTripId(tripId));
   const headerReady = abovePhone !== undefined && coverSettled;
   const boardRenders = status === "ready" && trip !== null && activeTrip !== null && headerReady;
-  usePhoneAskEntry(boardRenders && !isDemoTripId(tripId) ? assistant.show : undefined, assistant.open);
+  // ⌘K's *Ask: <text>* (M45 D6): opens the rail and hands it the words, which
+  // it sends through its own gate and `submitAssistantAsk`'s refusals. Dropped
+  // on Hide, since the rail remounts on the next show.
+  const [handOff, setHandOff] = useState<{ text: string } | null>(null);
+  usePhoneAskEntry(boardRenders && !isDemoTripId(tripId) ? assistant.show : undefined, assistant.open, (text) => {
+    assistant.show();
+    setHandOff({ text });
+  });
   // **⌘K's commands are this screen's own functions** (M41 D9, ADR-068 §1,
   // ADR-069 §4). Each is named here, above the early returns because the
   // registration below must run on every render, and the board's controls
@@ -491,7 +498,7 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
       : null;
   // `dayIndex` is 0-based, matching TripDetail.days and /ask's scope; the day
   // NUMBER a human reads is +1, and that conversion happens in one place.
-  const askScope: AskScope = scopedDay !== null ? { kind: "day", dayIndex: scopedDay } : { kind: "trip" };
+  const askScope: TripAskScope = scopedDay !== null ? { kind: "day", dayIndex: scopedDay } : { kind: "trip" };
   // The conversation itself. What the board still owns is the one event only it
   // can act on: a `proposal`, attached to the answer and still PENDING. Nothing
   // has been committed — the only thing that writes is `applyAssistantProposal`,
@@ -1499,6 +1506,10 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             // Per TRIP, like the thread: a panel parked clear of one trip's
             // unscheduled rack has no business deciding where another's opens.
             rememberPositionAs={`assistant:position:trip:${tripId}`}
+            // Under the thread's own name: a reply that leaves this page, or
+            // a reload, keeps what was typed while it answered (KI-2026-10-12-g).
+            rememberDraftAs={`trip:${tripId}`}
+            incoming={handOff}
             contextLine={isPhone ? phoneAsk.contextLine : assistantContextLine}
             scope={askScope}
             turns={thread}
@@ -1522,7 +1533,10 @@ export function TripBoardScreen({ tripId }: { tripId: string }) {
             // would silently fall back to a red alert the day it did.
             askUpgrade={ask.askErrorCode === AI_NOT_ENTITLED_CODE}
             simulated={ask.simulated}
-            onHide={assistant.hide}
+            onHide={() => {
+              setHandOff(null);
+              assistant.hide();
+            }}
           />
         )}
       </div>

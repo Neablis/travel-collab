@@ -401,15 +401,17 @@ describe("PhoneTabBar", () => {
       expect(ask()).toBeNull();
     });
 
-    it("is not drawn outside a trip", () => {
-      url = "/playbooks";
+    // M45 D7: Home has an assistant of its own now, so the bar follows the
+    // screen's offer rather than the route.
+    it("is drawn on Home once Home offers its assistant, after the account pair", () => {
+      url = "/";
       render(
         <>
           <Screen onOpen={() => {}} />
           <PhoneTabBar />
         </>,
       );
-      expect(ask()).toBeNull();
+      expect(screen.getByRole("navigation", { name: "Phone navigation" }).textContent).toBe("TripsPlaybooksAsk");
     });
   });
 });

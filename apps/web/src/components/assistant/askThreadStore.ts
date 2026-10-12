@@ -33,6 +33,7 @@
  */
 
 import type { AssistantTurn } from "@/components/assistant/Transcript";
+import type { BeyondTripAskScope } from "@/lib/apiClient";
 
 /**
  * **Versioned, because §28 is a recorded incident rather than a worry.** The
@@ -194,4 +195,51 @@ function isTurn(value: unknown): value is AssistantTurn {
         typeof (note as { label?: unknown }).label === "string",
     )
   );
+}
+
+/**
+ * The conversation name of a scope about no one trip: its kind, which no
+ * trip-bound name (`trip:<id>`, `notebook:<id>`, `page:<id>`) can be.
+ */
+export function beyondTripThreadName(scope: BeyondTripAskScope): string {
+  return scope.kind;
+}
+
+// **The composer's unsent text, beside its conversation** (KI-2026-10-12-g). A
+// reply that runs a page-leaving command unmounts the rail with whatever the
+// person had typed while it answered; so does a reload. Its own versioned
+// prefix, since it is a string and not a thread, and wrapped like the thread's
+// accesses for the same reasons: losing storage costs the draft's durability,
+// never the composer.
+const DRAFT_PREFIX = "ask_draft_v1";
+
+/** The stored draft for conversation `name`, or null. Never throws. */
+export function loadAskDraft(name: string): string | null {
+  try {
+    return window.localStorage.getItem(`${DRAFT_PREFIX}:${name}`);
+  } catch {
+    return null;
+  }
+}
+
+/** Stores `text` as the draft for `name`; a blank one removes it. Never throws. */
+export function saveAskDraft(name: string, text: string): void {
+  if (text.trim() === "") {
+    clearAskDraft(name);
+    return;
+  }
+  try {
+    window.localStorage.setItem(`${DRAFT_PREFIX}:${name}`, text);
+  } catch {
+    // See `saveAskThread`.
+  }
+}
+
+/** Forgets the draft for `name`. Never throws. */
+export function clearAskDraft(name: string): void {
+  try {
+    window.localStorage.removeItem(`${DRAFT_PREFIX}:${name}`);
+  } catch {
+    // See `saveAskThread`.
+  }
 }

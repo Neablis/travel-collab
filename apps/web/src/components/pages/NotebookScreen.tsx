@@ -872,6 +872,8 @@ export function NotebookScreen({ tripId }: { tripId: string }) {
           emptyHint={phoneAsk.emptyHint}
           asksRemaining={ask.asksRemaining}
           restoreDraft={ask.restoredDraft}
+          // Its own name, apart from the board's thread (KI-2026-10-12-g).
+          rememberDraftAs={`notebook:${tripId}`}
           onNewConversation={ask.startNewConversation}
           onAsk={(text) => void ask.runAsk(text)}
           asking={ask.asking}

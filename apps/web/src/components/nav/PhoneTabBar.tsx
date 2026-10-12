@@ -405,20 +405,21 @@ function PhoneTabBarView({
           </Link>
         );
       })}
-      {scopeOf(pathname) !== "account" && <PhoneAskTab />}
+      <PhoneAskTab />
     </nav>
   );
 }
 
 /**
- * **Ask, as the bar's last item, inside a trip** (Mitchell, 2026-10-10: the
+ * **Ask, as the bar's last item, wherever a screen offers one** (Mitchell, 2026-10-10: the
  * phone trip header was "way too crowded"; "give the ai button a place on
  * bottom toolbar"). Not a tab: it navigates nowhere and holds no state. It
  * opens the assistant of whichever screen registered one (`usePhoneAskEntry`
  * — the board, the notebook index, an open notebook page), so it inherits that
  * screen's scope exactly as the header pill did, which was SPEC §23's reason
- * for not making Ask a destination. Absent where nothing registered: `/demo`,
- * whose trip the assistant refuses (KI-79), and a locked notebook page.
+ * for not making Ask a destination. Home registers its own (M45 D7). Absent
+ * where nothing registered: `/demo`, whose trip the assistant refuses
+ * (KI-79), a locked notebook page, and the account pages.
  *
  * Exported so a screen's own test can render it beside the screen: the bar
  * itself needs a route, and the item is what the screen talks to.

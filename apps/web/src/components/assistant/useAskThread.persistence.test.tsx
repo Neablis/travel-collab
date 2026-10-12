@@ -21,7 +21,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import type { ApiError } from "@/lib/apiClient";
 import { useAskThread } from "./useAskThread";
-import { loadAskThread, saveAskThread } from "@/components/assistant/askThreadStore";
+import { beyondTripThreadName, loadAskThread, saveAskThread } from "@/components/assistant/askThreadStore";
 import type { AssistantTurn } from "./Transcript";
 import type { ProposalStatus } from "./ProposalCard";
 import { registerPaletteCommands } from "@/components/palette/paletteRegistry";
@@ -64,6 +64,25 @@ afterEach(() => {
 });
 
 describe("useAskThread — durability", () => {
+  // M45 D7: Home's rail is no trip's. Its turn goes to the account door, and
+  // its conversation is kept under the scope's own name, apart from any trip's.
+  it("posts an account conversation to the account door, and keeps it under its own name", async () => {
+    const fetch = answeringFetch("Kyoto, on 2 trips.");
+    vi.stubGlobal("fetch", fetch);
+    const name = beyondTripThreadName({ kind: "account" });
+    const { result } = renderHook(() =>
+      useAskThread({ scope: { kind: "account" }, errorMessage: (error: ApiError) => error.message, persistAs: name }),
+    );
+    await act(async () => {
+      await result.current.runAsk("which city have I been to most?");
+    });
+
+    const [url] = fetch.mock.calls[0] as unknown as [string];
+    expect(new URL(url, "http://localhost").pathname).toBe("/api/ask");
+    expect(loadAskThread(name).map((turn) => turn.text)).toEqual(["which city have I been to most?", "Kyoto, on 2 trips."]);
+    expect(loadAskThread(NAME)).toEqual([]);
+  });
+
   it("brings the conversation back on the next mount", async () => {
     saveAskThread(NAME, stored);
     const { result } = mount(NAME);

@@ -10,6 +10,7 @@ import { BrandMark } from "@/components/BrandMark";
 import { Input } from "@/components/ui/input";
 import { MAX_ASK_MESSAGES } from "@/lib/askLimits";
 import type { AskScope } from "@/lib/apiClient";
+import { clearAskDraft, loadAskDraft, saveAskDraft } from "./askThreadStore";
 import { cn } from "@/lib/cn";
 import { Transcript, type AssistantTurn } from "./Transcript";
 import type { ProposalState, ProposalUndo } from "./ProposalCard";
@@ -84,6 +85,14 @@ const ASK_WARNING_AT = 3;
  * day or the page you were reading — hence `emptyHint`.
  */
 const TRIP_EMPTY_HINT = "Ask about this trip and the conversation stays here.";
+
+/** The empty state's sentence on a scope about no one trip, by its kind (M45). */
+const BEYOND_TRIP_EMPTY_HINT = {
+  account: "Ask about all your trips: where you've been most, what you spent, where to go next.",
+} as const;
+
+/** How long the composer waits after a keystroke before storing its draft. */
+const DRAFT_SAVE_MS = 300;
 
 // M10 redesign-feedback follow-up (post-gate): the rail's header (mark,
 // title, Hide) and its ask box are the SAME real conversational feature the
@@ -161,14 +170,16 @@ const TRIP_EMPTY_HINT = "Ask about this trip and the conversation stays here.";
  * @param askError - Error message displayed for the most recent question.
  * @param simulated - Whether the latest answer was generated in simulated mode.
  * @param presentation - Layout presentation for the panel.
- * @param onHide - Closes or hides the panel.
+ * @param onHide - Closes or hides the panel; omitted, the panel offers no Hide.
+ * @param rememberDraftAs - Conversation name to keep the unsent composer text under.
+ * @param incoming - Text handed in from outside (⌘K's *Ask:*), sent as if typed here.
  */
 export function AssistantRail({
   contextLine,
   scope,
   turns,
   suggestions,
-  emptyHint = TRIP_EMPTY_HINT,
+  emptyHint = scope.kind === "account" ? BEYOND_TRIP_EMPTY_HINT[scope.kind] : TRIP_EMPTY_HINT,
   asksRemaining,
   restoreDraft = null,
   onAsk,
@@ -186,6 +197,8 @@ export function AssistantRail({
   presentation = "docked",
   onShapeChange,
   rememberPositionAs,
+  rememberDraftAs,
+  incoming = null,
   onHide,
 }: {
   contextLine: string;
@@ -372,7 +385,26 @@ export function AssistantRail({
    * what is delivered instead.
    */
   rememberPositionAs?: string;
-  onHide: () => void;
+  /**
+   * **Keep the unsent composer text under this conversation's name**
+   * (KI-2026-10-12-g). A reply that runs a page-leaving command unmounts the
+   * rail, and the follow-up typed while it answered (KI-2026-09-07-c keeps
+   * the box editable for exactly that) went with it; so did anything typed
+   * before a reload. Absent, the text lives only as long as the rail.
+   */
+  rememberDraftAs?: string;
+  /**
+   * **Text to send as if typed here and asked** (M45 D6: ⌘K's *Ask: <text>*).
+   * A new object each hand-off, so the same words twice send twice. It goes
+   * through the composer's own gate: while a turn answers, the thread is
+   * full or the plan withholds the assistant, it waits in the box instead.
+   */
+  incoming?: { text: string } | null;
+  /**
+   * Hides the panel. Absent where it is always on screen (Home's rail, M45
+   * D7), which then draws no Hide; the sheet still closes through it.
+   */
+  onHide?: () => void;
 }) {
   const [ask, setAsk] = useState("");
   const isSheet = presentation === "sheet";
@@ -556,9 +588,34 @@ export function AssistantRail({
   usePinToBottom(scrollportRef, [turns]);
   if (isSheet && openerRef.current === null) openerRef.current = document.activeElement;
 
+  // The stored draft comes back in an effect rather than `useState`'s
+  // initialiser: the rail renders on the server too, where reading storage
+  // would make the first client render disagree with its HTML. Declared before
+  // the restore below, so a rolled-back send still wins over a stored draft.
+  useEffect(() => {
+    if (rememberDraftAs === undefined) return;
+    const stored = loadAskDraft(rememberDraftAs);
+    if (stored !== null) setAsk(stored);
+  }, [rememberDraftAs]);
+
   useEffect(() => {
     if (restoreDraft !== null) setAsk(restoreDraft);
   }, [restoreDraft]);
+
+  // Stored a moment after the last keystroke, and at once on unmount: a reply
+  // that leaves the page is an unmount, and it is the case this is for.
+  const unsavedDraft = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    if (rememberDraftAs === undefined) return;
+    const save = () => {
+      unsavedDraft.current = null;
+      saveAskDraft(rememberDraftAs, ask);
+    };
+    unsavedDraft.current = save;
+    const timer = setTimeout(save, DRAFT_SAVE_MS);
+    return () => clearTimeout(timer);
+  }, [ask, rememberDraftAs]);
+  useEffect(() => () => unsavedDraft.current?.(), []);
 
   const threadFull = asksRemaining <= 0;
 
@@ -568,8 +625,32 @@ export function AssistantRail({
     // a gate spelled only on the button is a gate with two ways around it.
     if (ask.trim() === "" || asking || threadFull || upgradeGated) return;
     const accepted = await onAsk(ask);
-    if (accepted !== false) setAsk("");
+    if (accepted !== false) {
+      setAsk("");
+      // Now, not after the save's delay: a reload inside it would bring back
+      // a question already asked.
+      if (rememberDraftAs !== undefined) clearAskDraft(rememberDraftAs);
+    }
   };
+
+  // ⌘K's hand-off, through the same gate as the Ask button. Unlike a typed
+  // question it never clears the box, which may hold a draft of its own, and
+  // a refusal puts it there so nothing is lost.
+  const handedIn = useRef<{ text: string } | null>(null);
+  const sendHandedIn = async (text: string) => {
+    if (asking || threadFull || upgradeGated) {
+      setAsk(text);
+      return;
+    }
+    if ((await onAsk(text)) === false) setAsk(text);
+  };
+  const sendHandedInLatest = useRef(sendHandedIn);
+  sendHandedInLatest.current = sendHandedIn;
+  useEffect(() => {
+    if (incoming === null || incoming === handedIn.current) return;
+    handedIn.current = incoming;
+    void sendHandedInLatest.current(incoming.text);
+  }, [incoming]);
 
   const panel = (
     <>
@@ -595,7 +676,7 @@ export function AssistantRail({
           interaction OUTSIDE the dialog, so Radix would dismiss and then this
           `onClick` would call `onHide` a second time. */}
       {isSheet && (
-        <div aria-hidden data-testid="assistant-scrim" className="assistant-sheet-scrim" onClick={onHide} />
+        <div aria-hidden data-testid="assistant-scrim" className="assistant-sheet-scrim" onClick={() => onHide?.()} />
       )}
       <aside
         ref={panelRef}
@@ -747,24 +828,26 @@ export function AssistantRail({
                 design's exact 44×44 here — `min-w-11` wins over `px-3.5` for
                 a single glyph, so the box is square without a second rule
                 saying so. */}
-            <Button
-              variant="ghost"
-              size={isSheet ? "touch" : "sm"}
-              aria-label="Hide"
-              onClick={onHide}
-              // Full-screen below 768px (`.assistant-rail`, globals.css) makes
-              // this the ONLY way back to the plan — SPEC §13.1's 44px target
-              // floor applies to it for the first time, and the added border
-              // reads as an exit rather than a tertiary ghost action once
-              // there is nothing else on screen to suggest one (KI-84 mobile
-              // fix). Not applied to the sheet: `size="touch"` already carries
-              // the floor there, and the sheet is never the only thing on
-              // screen — the plan is visible behind it, which is the whole
-              // difference between §23's sheet and KI-84's takeover.
-              className={cn(!isSheet && "max-md:h-11 max-md:min-w-11 max-md:border max-md:border-border-strong max-md:px-4")}
-            >
-              {isSheet ? "✕" : "Hide"}
-            </Button>
+            {onHide !== undefined && (
+              <Button
+                variant="ghost"
+                size={isSheet ? "touch" : "sm"}
+                aria-label="Hide"
+                onClick={onHide}
+                // Full-screen below 768px (`.assistant-rail`, globals.css) makes
+                // this the ONLY way back to the plan — SPEC §13.1's 44px target
+                // floor applies to it for the first time, and the added border
+                // reads as an exit rather than a tertiary ghost action once
+                // there is nothing else on screen to suggest one (KI-84 mobile
+                // fix). Not applied to the sheet: `size="touch"` already carries
+                // the floor there, and the sheet is never the only thing on
+                // screen — the plan is visible behind it, which is the whole
+                // difference between §23's sheet and KI-84's takeover.
+                className={cn(!isSheet && "max-md:h-11 max-md:min-w-11 max-md:border max-md:border-border-strong max-md:px-4")}
+              >
+                {isSheet ? "✕" : "Hide"}
+              </Button>
+            )}
           </div>
           <div className="mt-2 rounded-sm bg-paper px-2.5 py-1.5 text-xs text-slate">{contextLine}</div>
         </div>
@@ -933,7 +1016,9 @@ export function AssistantRail({
                       ? "Ask about this day…"
                       : scope.kind === "page"
                         ? "Ask AI to add to this page…"
-                        : "Ask about this trip…"
+                        : scope.kind === "account"
+                          ? "Ask about your trips…"
+                          : "Ask about this trip…"
                   }
                   // `h-11` in the sheet, overriding the primitive's `h-9`:
                   // SPEC §13.1's floor is every control, and the box the
@@ -1048,7 +1133,7 @@ export function AssistantRail({
     <RadixDialog.Root
       open
       onOpenChange={(next) => {
-        if (!next) onHide();
+        if (!next) onHide?.();
       }}
     >
       <RadixDialog.Content

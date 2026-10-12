@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ASK_FAILED_MESSAGE } from "@tc/contracts";
 import { AssistantRail } from "./AssistantRail";
+import { loadAskDraft } from "./askThreadStore";
 import type { AssistantTurn } from "./Transcript";
 
 // **The hook is mocked so the prop's precedence can actually be tested.**
@@ -929,5 +930,77 @@ describe("AssistantRail — the dragged position survives leaving the route", ()
       renderRail({ presentation: "floating", onShapeChange: vi.fn(), rememberPositionAs: KEY });
       expect(positionOf(), JSON.stringify(bad)).toEqual({ left: "", top: "" });
     }
+  });
+});
+
+// KI-2026-10-12-g: a reply that leaves the page, or a reload, unmounts the
+// rail with whatever was typed while it answered. The draft is kept per
+// conversation, so it comes back on the next mount under the same name.
+describe("AssistantRail — the unsent draft survives an unmount", () => {
+  afterEach(() => window.localStorage.clear());
+
+  const composer = () => screen.getByPlaceholderText(/ask about this day/i) as HTMLInputElement;
+
+  it("puts back what was typed under the same conversation, and only there", async () => {
+    const first = renderRail({ rememberDraftAs: "trip:a" });
+    fireEvent.change(composer(), { target: { value: "and the second day?" } });
+    first.unmount();
+
+    const again = renderRail({ rememberDraftAs: "trip:a" });
+    await waitFor(() => expect(composer().value).toBe("and the second day?"));
+    again.unmount();
+
+    renderRail({ rememberDraftAs: "trip:b" });
+    expect(composer().value).toBe("");
+  });
+
+  // At once, not after the save's delay: a reload inside it runs no cleanup,
+  // and would bring back a question already asked.
+  it("forgets the draft the moment it is sent", async () => {
+    const onAsk = vi.fn();
+    const first = renderRail({ rememberDraftAs: "trip:a" });
+    fireEvent.change(composer(), { target: { value: "and the second day?" } });
+    first.unmount();
+    renderRail({ onAsk, rememberDraftAs: "trip:a" });
+    await waitFor(() => expect(composer().value).toBe("and the second day?"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Ask the assistant" }));
+    await waitFor(() => expect(composer().value).toBe(""));
+    expect(onAsk).toHaveBeenCalledWith("and the second day?");
+    expect(loadAskDraft("trip:a")).toBeNull();
+  });
+});
+
+// M45 D7: Home's rail answers across every trip, and is always on screen.
+describe("AssistantRail — the account scope", () => {
+  it("asks about your trips, with its own hint, when the scope is the account", () => {
+    renderRail({ scope: { kind: "account" }, contextLine: "Across your trips" });
+    expect(screen.getByPlaceholderText("Ask about your trips…")).not.toBeNull();
+    expect(screen.queryByText("Ask about this trip and the conversation stays here.")).toBeNull();
+  });
+
+  it("draws no Hide when the caller offers no way to hide it", () => {
+    render(<AssistantRail {...baseProps} onHide={undefined} />);
+    expect(screen.queryByRole("button", { name: "Hide" })).toBeNull();
+  });
+});
+
+// M45 D6: ⌘K's *Ask: <text>* hands its text to the rail, which sends it the
+// way its own Ask button would, once.
+describe("AssistantRail — text handed in from ⌘K", () => {
+  it("sends it once, and a second hand-off of the same words sends again", () => {
+    const onAsk = vi.fn();
+    const view = renderRail({ onAsk, incoming: { text: "which city have I been to most?" } });
+    expect(onAsk).toHaveBeenCalledTimes(1);
+    expect(onAsk).toHaveBeenCalledWith("which city have I been to most?");
+    view.rerender(<AssistantRail {...baseProps} onAsk={onAsk} incoming={{ text: "which city have I been to most?" }} />);
+    expect(onAsk).toHaveBeenCalledTimes(2);
+  });
+
+  it("leaves it waiting in the composer while a turn is answering", () => {
+    const onAsk = vi.fn();
+    renderRail({ onAsk, asking: true, incoming: { text: "and where next?" } });
+    expect(onAsk).not.toHaveBeenCalled();
+    expect((screen.getByPlaceholderText(/ask about this day/i) as HTMLInputElement).value).toBe("and where next?");
   });
 });

@@ -7,7 +7,7 @@
 // built against a trip that has since moved.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AssistantTurn } from "@/components/assistant/Transcript";
-import { clearAskThread, loadAskThread, saveAskThread } from "./askThreadStore";
+import { clearAskDraft, clearAskThread, loadAskDraft, loadAskThread, saveAskDraft, saveAskThread } from "./askThreadStore";
 
 const NAME = "trip:11111111-2222-4333-8444-555566667777";
 
@@ -185,5 +185,36 @@ describe("the ask thread store", () => {
   it("ignores a thread stored under a different version", () => {
     window.localStorage.setItem("ask_thread_v0:" + NAME, JSON.stringify([user("u1", "old")]));
     expect(loadAskThread(NAME)).toEqual([]);
+  });
+});
+
+// KI-2026-10-12-g: the composer's unsent text, kept beside its conversation.
+describe("the ask draft store", () => {
+  it("keeps one draft per conversation, and an emptied box is no draft", () => {
+    saveAskDraft(NAME, "and the second day?");
+    saveAskDraft("account", "which city most?");
+    expect(loadAskDraft(NAME)).toBe("and the second day?");
+    expect(loadAskDraft("account")).toBe("which city most?");
+    saveAskDraft(NAME, "   ");
+    expect(loadAskDraft(NAME)).toBeNull();
+    clearAskDraft("account");
+    expect(loadAskDraft("account")).toBeNull();
+  });
+
+  it("degrades to no draft when the browser refuses storage", () => {
+    vi.stubGlobal("localStorage", {
+      getItem: () => {
+        throw new Error("SecurityError");
+      },
+      setItem: () => {
+        throw new Error("SecurityError");
+      },
+      removeItem: () => {
+        throw new Error("SecurityError");
+      },
+    });
+    expect(() => saveAskDraft(NAME, "hello")).not.toThrow();
+    expect(loadAskDraft(NAME)).toBeNull();
+    expect(() => clearAskDraft(NAME)).not.toThrow();
   });
 });
