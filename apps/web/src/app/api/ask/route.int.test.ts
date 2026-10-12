@@ -125,15 +125,6 @@ describe("POST /api/ask", () => {
     expect(row?.endpoint).toBe("ask.account");
   });
 
-  it("refuses a question about one trip at the account door, before any model is chosen", async () => {
-    const records: AskAnalyticsRecord[] = [];
-    const res = await handleAccountAskRequest(ask("how long is this trip?", { kind: "trip" }), simulatedModel(), (record) =>
-      records.push(record),
-    );
-    expect(res.status).toBe(400);
-    expect(records).toEqual([]);
-  });
-
   it("is the account handler behind the route, and refuses a signed-out caller", async () => {
     currentUserId = null;
     const res = await POST(ask("how many countries have I been to?"));

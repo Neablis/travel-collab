@@ -8,6 +8,7 @@
 import { after } from "next/server";
 import { handleAccountAskRequest } from "@/server/ai/handleAskRequest";
 
+/** The account assistant's turn: a UI message stream answering across every trip the asker travelled on. */
 export async function POST(request: Request) {
   // `after` keeps the turn's ledger writes alive past the response, as on the
   // trip door (KI-2026-09-14-b).
