@@ -30,25 +30,28 @@ Mitchell moved **M43 and M44 to the end** (*"Neither are impacting anything toda
 ⌘K palette, so the assistant moves you around by running palette commands, and ⌘K offers
 *Ask: …* for unmatched text.
 
-**M45 in flight (2026-10-12)** — plan `docs/plans/2026-10-12-M45-assistant-beyond-one-trip.md`:
+**M45 in flight (2026-10-12 ~17:45Z)** — plan `docs/plans/2026-10-12-M45-assistant-beyond-one-trip.md`:
 - Part 0, PR 420: draft tracker on `claude/stoic-dijkstra-01wxup`; merges last.
-- Part 1, PR 422 (`claude/m45-part1-palette-notebooks`): palette notebook commands, run-by-id,
-  trip-on-a-view. **Merged** by Mitchell as `bc2b587`.
-- Part 3, PR 421 (`claude/m45-part3-account-ask`): `/api/ask`, the cross-trip tools, ledger
-  `ask.account`, eval cases. **Merged** by Mitchell as `d34abe5`; m8 and n1-r3 moved to part 0
-  as the ledger queries and KI-20261012-c.
-- Part 2, PR 424 (`claude/m45-part2-assistant-runs-commands`, head `05c8576`): the assistant runs
-  palette commands. Built, red-first evidence in the PR body, **under review**.
-- Live eval at `d34abe5`, with Mitchell's go-ahead (2026-10-12): run 1, the whole suite at the
-  default $0.10 cap, stopped after 4 of 27 trip turns, all PASS, $0.1874 (~$0.047 per trip
-  turn); it surfaced KI-20261012-e (planning text leaks into the reply). Run 2, the four account
-  cases only: **4/4 PASS, 36/36 checks**, $0.0012 (~$0.0003 per account turn). Numbers are in
-  the milestone file under the eval gate box (not ticked; ticks happen at close).
-- CI infra: the postgres service image pull failed three times (PRs 413, 422, 421), each green on
-  a re-run; filed as KI-2026-10-12-b.
-- Part 4 (Home rail, ⌘K *Ask:*) starts after PR 424 merges.
-- Builders must each work in their own git worktree: parts 1 and 3 shared the main checkout and
-  tangled each other's commits (both branches were rebuilt clean). Order:
+- Part 1, PR 422: palette notebook commands, run-by-id. **Merged** by Mitchell as `bc2b587`.
+- Part 3, PR 421: `/api/ask`, cross-trip tools, ledger `ask.account`. **Merged** as `d34abe5`.
+  Not walked on a preview by Mitchell; it has no UI until part 4.
+- Part 2, PR 424 (`claude/m45-part2-assistant-runs-commands`, head `58d4faf`): **ready to merge**
+  (Mitchell merges). CI green on every job at `58d4faf`; four part-reviewer rounds, every finding
+  fixed or answered; the last push was test-only with red-first shown, not re-reviewed. Preview
+  link and walk steps in its PR body. Not yet walked by Mitchell.
+- Fix PR 425 (`claude/m45-part5-final-step-text`, head `b59c5e9`) for KI-20261012-e: server
+  filter `finalStepTextOnly` on both ask routes keeps only the final step's text (deterministic,
+  no prompt rule — Mitchell's call), plus a default-on eval check "no text before a tool call".
+  Red-first in its PR body. **Not reviewed**; CI queued at handoff. "part5" in the branch name is
+  only for the brief hook, not a plan part. When it merges, move KI-20261012-e to `resolved/`.
+- Part 4 (Home rail, ⌘K *Ask:*) starts after PR 424 merges, and also builds KI-20261012-g's
+  decided fix: persist the composer's unsent draft to localStorage per thread.
+- Live eval at `d34abe5` (Mitchell's go-ahead): account cases 4/4 PASS, 36/36 checks, $0.0012;
+  trip run stopped at the $0.10 cap after 4 of 27 turns, all PASS. Numbers in the milestone file.
+- **Next session: dispatch a part-reviewer on PR 425 first.**
+- Builders must each work in their own git worktree (parts 1 and 3 once tangled the main checkout).
+
+Order:
 `… M42 ✓ → M45 → M46 → M47 → M48 → M49 → M43 → M44`; the reorder is recorded in
 `docs/milestones/README.md`, *2026-10-12 — reordered and minted*.
 
