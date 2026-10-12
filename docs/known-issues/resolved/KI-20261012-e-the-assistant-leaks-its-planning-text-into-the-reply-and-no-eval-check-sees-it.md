@@ -1,4 +1,4 @@
-### KI-2026-10-12-e — the assistant leaks its planning text into the reply, and no eval check sees it
+### KI-2026-10-12-e — the assistant leaks its planning text into the reply, and no eval check sees it — RESOLVED
 
 - **Severity:** minor-to-major for the product (a person reads the assistant's working notes run
   into its answer, with no space between them); correctness of the eval, which passed the turn.
@@ -50,3 +50,12 @@
   cannot tell that fair question from a turn that reads and only summarises: a check that the
   reply either proposes something or ends in a question would separate the two.
 - **First noted:** 2026-10-12, M45, from the live eval run at `main` `d34abe5`.
+
+- **Resolved:** 2026-10-12, by PR 425 (merged as `c0e0bf4`). Mitchell chose "stream it, then
+  remove it". Every step's text streams live. When a step goes on to a tool call, the server
+  sends `ASK_RETRACT_CHUNK` (`packages/contracts`) and the client drops that step's text. The
+  final step's text is never removed, and a silent final step falls back to the last removed
+  text. A stored thread keeps only what stayed on screen. The default-on eval check "no text
+  before a tool call" grades the visible text, and the eval reports a count of removed text that
+  does not fail the run. The flicker this leaves on screen is open as KI-2026-10-12-h, kept on
+  purpose so that a holistic fix has something to move.

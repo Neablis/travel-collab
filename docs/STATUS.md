@@ -30,25 +30,23 @@ Mitchell moved **M43 and M44 to the end** (*"Neither are impacting anything toda
 ⌘K palette, so the assistant moves you around by running palette commands, and ⌘K offers
 *Ask: …* for unmatched text.
 
-**M45 in flight (2026-10-12 ~17:45Z)** — plan `docs/plans/2026-10-12-M45-assistant-beyond-one-trip.md`:
+**M45 in flight (2026-10-12 ~21:45Z)** — plan `docs/plans/2026-10-12-M45-assistant-beyond-one-trip.md`:
 - Part 0, PR 420: draft tracker on `claude/stoic-dijkstra-01wxup`; merges last.
 - Part 1, PR 422: palette notebook commands, run-by-id. **Merged** by Mitchell as `bc2b587`.
 - Part 3, PR 421: `/api/ask`, cross-trip tools, ledger `ask.account`. **Merged** as `d34abe5`.
   Not walked on a preview by Mitchell; it has no UI until part 4.
-- Part 2, PR 424 (`claude/m45-part2-assistant-runs-commands`, head `58d4faf`): **ready to merge**
-  (Mitchell merges). CI green on every job at `58d4faf`; four part-reviewer rounds, every finding
-  fixed or answered; the last push was test-only with red-first shown, not re-reviewed. Preview
-  link and walk steps in its PR body. Not yet walked by Mitchell.
-- Fix PR 425 (`claude/m45-part5-final-step-text`, head `b59c5e9`) for KI-20261012-e: server
-  filter `finalStepTextOnly` on both ask routes keeps only the final step's text (deterministic,
-  no prompt rule — Mitchell's call), plus a default-on eval check "no text before a tool call".
-  Red-first in its PR body. **Not reviewed**; CI queued at handoff. "part5" in the branch name is
-  only for the brief hook, not a plan part. When it merges, move KI-20261012-e to `resolved/`.
-- Part 4 (Home rail, ⌘K *Ask:*) starts after PR 424 merges, and also builds KI-20261012-g's
-  decided fix: persist the composer's unsent draft to localStorage per thread.
+- Part 2, PR 424: **merged** by Mitchell as `f2cf10c`.
+- Fix PR 425 (KI-2026-10-12-e): **merged** as `c0e0bf4`. The design is "stream it, then remove
+  it", Mitchell's call: text streams live, and text beside a tool call is taken back. The flicker
+  stays open on purpose as KI-2026-10-12-h. KI-e is moved to `resolved/` on part 0.
+- Part 4, PR 426 (`claude/m45-part4-home-rail`, head `373182c`): the Home rail, ⌘K *Ask:*,
+  per-user stored threads and drafts (KI-g's composer half), and `open_trip` for account
+  navigation. Mitchell's calls are in: the rail docks from 1100px with an Ask button below that,
+  and *Ask:* is hidden without assistant access. Under second-round review. It conflicts with
+  main in `app/api/ask/route.int.test.ts` only, after PR 425.
+- Part 5 (D9, the playbook-pages assistant) starts when PR 426 merges. Plan section on part 0.
 - Live eval at `d34abe5` (Mitchell's go-ahead): account cases 4/4 PASS, 36/36 checks, $0.0012;
   trip run stopped at the $0.10 cap after 4 of 27 turns, all PASS. Numbers in the milestone file.
-- **Next session: dispatch a part-reviewer on PR 425 first.**
 - Builders must each work in their own git worktree (parts 1 and 3 once tangled the main checkout).
 
 Order:
