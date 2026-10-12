@@ -2908,6 +2908,37 @@ describe("⌘K runs the trip page's own actions", () => {
     expect(pushSpy).toHaveBeenLastCalledWith(row.getAttribute("href"));
   });
 
+  // PR 422 review: the board stays mounted while a co-traveller deletes one
+  // notebook and adds another, so ⌘K must re-read on the poll's news, as the
+  // Notebooks menu and Overview do, or it offers a page that no longer exists.
+  it("re-reads its notebooks when a co-traveller changes the trip", async () => {
+    const addListener = vi.spyOn(document, "addEventListener");
+    const fixture = tripDetailFixture({
+      members: [
+        { userId: "dev-alice", role: "owner" },
+        { userId: "dev-bob", role: "editor" },
+      ],
+    });
+    const deleted = pageFixture({ tripId: fixture.tripId, title: "Packing" });
+    const added = pageFixture({ id: "0b1c2d3e-4f5a-4b6c-8d7e-9f0a1b2c3d4e", tripId: fixture.tripId, title: "Food" });
+    server.use(...makePagesHandlers([deleted]), ...makeTripHandlers(fixture));
+    const { ids } = renderWithPalette(fixture.tripId);
+    await waitFor(() => expect(ids()).toContain(`go:notebook:${deleted.id}`));
+    // KI-2026-09-22-e: a rendered trip is not yet an armed poll.
+    await waitFor(() => expect(addListener).toHaveBeenCalledWith("visibilitychange", expect.any(Function)));
+    addListener.mockRestore();
+
+    server.use(
+      ...makePagesHandlers([added]),
+      http.get("/api/trips/:tripId/events", () => HttpResponse.json({ headSeq: 1, events: [], resync: false })),
+    );
+    Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
+    document.dispatchEvent(new Event("visibilitychange"));
+
+    await waitFor(() => expect(ids()).toContain(`go:notebook:${added.id}`));
+    expect(ids()).not.toContain(`go:notebook:${deleted.id}`);
+  });
+
   // PR 398 review: a create sheet keeps its draft, so New stop over an open
   // editor would drop its prefill (and focus would go back into the sheet);
   // an edit sheet holds a stop a move or removal would change under it.
