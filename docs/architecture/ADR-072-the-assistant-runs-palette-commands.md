@@ -53,10 +53,14 @@ be exactly that re-implementation, and the two would drift.
    proposal card on the page is undecided, whether this turn's or an earlier one's, a failed apply
    included: a card is not kept across leaving (`askThreadStore` drops pending proposals), so
    leaving would discard it. The reply says what it would have done instead. Moving within the
-   page (`view:`, `go:day:`, `go:stop:`, `people`) still runs. Unsaved input is otherwise met by
+   page (`view:`, `go:day:`, `go:stop:`, `people`) still runs. Most unsaved input is met by
    structure rather than a check: a suggester's held draft (`draftHeld`) cannot coincide with a
    run, because a suggester's turns are read-only and are never offered `go_to`; and a notebook's
-   open edit session commits when the page unmounts, keeping a browser draft if that fails.
+   open edit session commits when the page unmounts, keeping a browser draft if that fails. An
+   open stop editor on the board is not: leaving the page unmounts the sheet and the fields typed
+   into it, so while it is open a command that leaves the page is held as well, with a note saying
+   so (*"I didn't open that notebook, because you have a stop open for editing."*), and moves on
+   the page still run. A waiting card's note takes precedence when both apply.
    The toggle carries its direction: a `notebook-editing` reference holds `on: boolean`, so the
    card never offers the opposite of what was asked when the page has already moved there.
 
@@ -67,6 +71,11 @@ be exactly that re-implementation, and the two would drift.
    > state a navigation really loses is an undecided proposal card, so the guard is that
    > (`runPaletteCommands`'s `cardWaiting`, read from the thread by `useAskThread`), and only
    > for commands that leave the page. `notebook-editing` gained `on` in the same review.
+   > The second review of PR 424 found that overclaimed: an open stop editor on the board is
+   > unsaved input that structure does not cover, since leaving unmounts its sheet. The board now
+   > answers `useAskThread`'s `holdsLeaving` while its editor is open, which holds page-leaving
+   > commands the same way and is asked only when no card is waiting; `runPaletteCommands`'s
+   > `cardWaiting` became `held`, the reason either guard gives.
 5. **An id the page does not offer does nothing.** Availability is the page's: an edit command
    that history preview or read-only access withholds from ⌘K is withheld from the assistant too.
    The reply says it could not.
