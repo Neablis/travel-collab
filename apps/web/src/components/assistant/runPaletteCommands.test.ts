@@ -22,7 +22,7 @@ describe("running the commands a reply named", () => {
     const setView = vi.fn();
     offer({ id: "view:Map", action: "Go to", type: "View", target: { label: "Map" }, run: setView });
 
-    expect(runPaletteCommands([go], false)).toEqual({ notes: [], awaiting: [] });
+    expect(runPaletteCommands([go], null)).toEqual({ notes: [], awaiting: [] });
     expect(setView).toHaveBeenCalledTimes(1);
   });
 
@@ -32,7 +32,7 @@ describe("running the commands a reply named", () => {
     const setView = vi.fn();
     offer({ id: "view:Map", action: "Go to", type: "View", target: { label: "Map" }, run: setView });
 
-    const run = runPaletteCommands([{ id: `go:day:${DAY}`, needsApproval: false }], false);
+    const run = runPaletteCommands([{ id: `go:day:${DAY}`, needsApproval: false }], null);
     expect(run.notes).toEqual(["I couldn't go to that day from this page."]);
     expect(setView).not.toHaveBeenCalled();
   });
@@ -47,7 +47,7 @@ describe("running the commands a reply named", () => {
       { id: `go:notebook:${DAY}`, action: "Go to", type: "Notebook", target: { label: "Bookings" }, run: openNotebook },
     );
 
-    expect(runPaletteCommands([go, { id: `go:notebook:${DAY}`, needsApproval: false }], true).notes).toEqual([
+    expect(runPaletteCommands([go, { id: `go:notebook:${DAY}`, needsApproval: false }], "the change above is waiting for you to approve it").notes).toEqual([
       "I didn't open that notebook, because the change above is waiting for you to approve it.",
     ]);
     expect(setView).toHaveBeenCalledTimes(1);
@@ -60,7 +60,7 @@ describe("running the commands a reply named", () => {
     offer({ id: "notebook-editing", action: "Edit", type: "Notebook", target: { label: "Turn editing on" }, run: toggle });
     const editing = { id: "notebook-editing", needsApproval: true };
 
-    expect(runPaletteCommands([editing], false)).toEqual({ notes: [], awaiting: [editing] });
+    expect(runPaletteCommands([editing], null)).toEqual({ notes: [], awaiting: [editing] });
     expect(toggle).not.toHaveBeenCalled();
   });
 });

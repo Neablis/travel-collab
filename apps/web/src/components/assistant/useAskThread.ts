@@ -19,6 +19,9 @@ export function notAppliedNote(skipped: readonly string[]): string {
   return `\n\nNothing was changed: ${skipped.join(" ")}`;
 }
 
+/** Why a reply's page-leaving command waits while a card above is undecided: the card would not come along. */
+const CARD_WAITING = "the change above is waiting for you to approve it";
+
 /** What a turn the server stopped at its deadline says when it produced nothing (KI-2026-09-26-s). */
 const STOPPED_EMPTY = "This took too long and was stopped before it finished. Nothing was changed — try asking for less at once.";
 
@@ -117,6 +120,7 @@ export function useAskThread({
   onTurnEnd,
   errorMessage,
   persistAs,
+  holdsLeaving,
 }: {
   tripId: string;
   scope: AskScope;
@@ -143,6 +147,13 @@ export function useAskThread({
    * what a restored transcript means on it gets the behaviour it has today.
    */
   persistAs?: string;
+  /**
+   * Why the person must not be taken off this page right now, as the end of
+   * "I didn't open that notebook, because …", or null. Asked when a reply
+   * names somewhere to go. The board answers while its stop editor is open:
+   * leaving unmounts the sheet and the fields typed into it (ADR-072 §4).
+   */
+  holdsLeaving?: () => string | null;
 }): AskThread {
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [askError, setAskError] = useState<string | null>(null);
@@ -182,6 +193,8 @@ export function useAskThread({
   onTurnEndRef.current = onTurnEnd;
   const errorMessageRef = useRef(errorMessage);
   errorMessageRef.current = errorMessage;
+  const holdsLeavingRef = useRef(holdsLeaving);
+  holdsLeavingRef.current = holdsLeaving;
   // Read when a reply names somewhere to go, which is mid-stream: the thread
   // as last rendered holds every earlier turn's card and where it stands.
   const threadRef = useRef(thread);
@@ -374,7 +387,8 @@ export function useAskThread({
           // (ADR-072). Navigation runs now; a change becomes a card that runs
           // on Approve. What could not run is said under the answer, which may
           // well have claimed it went.
-          const { notes, awaiting } = runPaletteCommands(event.commands, proposed || threadRef.current.some(awaitsDecision));
+          const held = proposed || threadRef.current.some(awaitsDecision) ? CARD_WAITING : (holdsLeavingRef.current?.() ?? null);
+          const { notes, awaiting } = runPaletteCommands(event.commands, held);
           const offers = awaiting.map((ref) => ({ id: ref.id, key: offerPaletteCommand(), ...(ref.on !== undefined && { on: ref.on }) }));
           patchAnswer((turn) => ({
             ...turn,

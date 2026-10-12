@@ -23,6 +23,7 @@ import type { ApiError } from "@/lib/apiClient";
 import { useAskThread } from "./useAskThread";
 import { loadAskThread, saveAskThread } from "@/components/assistant/askThreadStore";
 import type { AssistantTurn } from "./Transcript";
+import type { ProposalStatus } from "./ProposalCard";
 import { registerPaletteCommands } from "@/components/palette/paletteRegistry";
 
 const TRIP = "11111111-2222-4333-8444-555566667777";
@@ -417,12 +418,13 @@ describe("useAskThread — where a reply takes you", () => {
   }
 
   // The board's own handler: a proposal is attached to its answer, pending.
-  function mountBoard() {
+  function mountBoard(holdsLeaving?: () => string | null) {
     return renderHook(() =>
       useAskThread({
         tripId: TRIP,
         scope: { kind: "trip" },
         errorMessage: (error: ApiError) => error.message,
+        ...(holdsLeaving !== undefined && { holdsLeaving }),
         onEvent: (event, patchAnswer) => {
           if (event.type === "proposal") patchAnswer((turn) => ({ ...turn, proposal: { proposal: event.proposal, status: "pending", note: null } }));
         },
@@ -456,7 +458,7 @@ describe("useAskThread — where a reply takes you", () => {
       replying([
         { id: "view:Map", needsApproval: false },
         { id: `go:day:${DAY}`, needsApproval: false },
-        { id: "notebook-editing", needsApproval: true },
+        { id: "notebook-editing", needsApproval: true, on: true },
       ]),
     );
     const { result } = mountBoard();
@@ -466,7 +468,9 @@ describe("useAskThread — where a reply takes you", () => {
     expect(toggle).not.toHaveBeenCalled();
     const answer = result.current.thread.at(-1) as Extract<AssistantTurn, { role: "assistant" }>;
     expect(answer.text).toBe("Taking you there.\n\nI couldn't go to that day from this page.");
-    expect(answer.offers?.map((offer) => offer.id)).toEqual(["notebook-editing"]);
+    // The direction travels with the offer: without `on` the card cannot tell
+    // the page is already there, and Approve would turn editing off.
+    expect(answer.offers).toEqual([{ id: "notebook-editing", key: expect.any(String), on: true }]);
   });
 
   // ADR-072 §4: a proposal is not kept across leaving the board
@@ -495,11 +499,18 @@ describe("useAskThread — where a reply takes you", () => {
     );
   });
 
-  it("holds while an earlier turn's change is undecided, and goes once it is decided", async () => {
+  // A card mid-apply, or one whose apply failed, still has an Approve to press.
+  it.each<ProposalStatus>(["pending", "applying", "failed"])("holds while an earlier turn's change is %s, and goes once it is decided", async (status) => {
     const { openNotebook } = offerNotebookAndMap();
     const { result } = mountBoard();
     vi.stubGlobal("fetch", replying([], { proposal: PROPOSAL }));
     await act(() => result.current.runAsk("add coffee on day 2"));
+    const card = result.current.thread.find((turn) => turn.role === "assistant" && turn.proposal != null)!;
+    act(() =>
+      result.current.patchTurn(card.id, (turn) =>
+        turn.role === "assistant" && turn.proposal != null ? { ...turn, proposal: { ...turn.proposal, status } } : turn,
+      ),
+    );
 
     vi.stubGlobal("fetch", replying([{ id: `go:notebook:${NOTEBOOK}`, needsApproval: false }]));
     await act(() => result.current.runAsk("open my bookings notebook"));
@@ -513,5 +524,24 @@ describe("useAskThread — where a reply takes you", () => {
     );
     await act(() => result.current.runAsk("open my bookings notebook"));
     expect(openNotebook).toHaveBeenCalledTimes(1);
+  });
+
+  // ADR-072 §4: an open stop editor is unmounted by leaving the board, and its
+  // typed fields with it. The caller says so; moving on the board still runs.
+  it("leaves the page for nothing while the caller holds it, says why, and still moves on it", async () => {
+    const { setView, openNotebook } = offerNotebookAndMap();
+    const { result } = mountBoard(() => "you have a stop open for editing");
+    vi.stubGlobal(
+      "fetch",
+      replying([
+        { id: "view:Map", needsApproval: false },
+        { id: `go:notebook:${NOTEBOOK}`, needsApproval: false },
+      ]),
+    );
+    await act(() => result.current.runAsk("show the map and open my bookings notebook"));
+
+    expect(setView).toHaveBeenCalledTimes(1);
+    expect(openNotebook).not.toHaveBeenCalled();
+    expect(result.current.thread.at(-1)?.text).toContain("I didn't open that notebook, because you have a stop open for editing.");
   });
 });

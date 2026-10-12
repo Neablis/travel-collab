@@ -33,12 +33,12 @@ function leavesPage(id: string): boolean {
 
 /**
  * Runs the navigation a reply named, in order, and hands back the commands
- * that wait for Approve (§4). `cardWaiting` is whether a proposal on this page
- * is still undecided: a card is not kept across leaving the page
- * (`askThreadStore` drops it), so a command that leaves becomes a note saying
- * what it would have done, and one that stays on the page still runs.
+ * that wait for Approve (§4). `held` is why this page must not be left right
+ * now, or null: an undecided card or an open editor would be lost with it, so
+ * a command that leaves becomes a note saying what it would have done and
+ * why, and one that stays on the page still runs.
  */
-export function runPaletteCommands(commands: readonly PaletteCommandRef[], cardWaiting: boolean): PaletteRun {
+export function runPaletteCommands(commands: readonly PaletteCommandRef[], held: string | null): PaletteRun {
   const notes: string[] = [];
   const awaiting: PaletteCommandRef[] = [];
   for (const ref of commands) {
@@ -48,7 +48,7 @@ export function runPaletteCommands(commands: readonly PaletteCommandRef[], cardW
     }
     const command = findPaletteCommand(ref.id);
     if (command === undefined) notes.push(`I couldn't ${what(ref.id)} from this page.`);
-    else if (cardWaiting && leavesPage(ref.id)) notes.push(`I didn't ${what(ref.id)}, because the change above is waiting for you to approve it.`);
+    else if (held !== null && leavesPage(ref.id)) notes.push(`I didn't ${what(ref.id)}, because ${held}.`);
     else command.run();
   }
   return { notes, awaiting };
