@@ -1,81 +1,90 @@
 import type { UIMessageChunk } from "ai";
 
+/** The chunk type that takes text back. `apiClient.ts` spells it again: the UI may not import server code. */
+export const RETRACT_CHUNK = "data-retract";
+
 /**
- * **The reply is the final step's text, not every step's** (KI-20261012-e).
+ * **Text written beside a tool call streams, then is taken back**
+ * (KI-20261012-e, KI-20261012-h).
  *
  * `toUIMessageStream` forwards every step's text, so a note a model writes to
  * itself beside a tool call ("Gap 5:30–7 pm. Look up a cafe.") reached the
  * client as the start of its answer, run into the next step's text with no
  * space. Deterministic rather than a prompt rule: a model can always slip.
  *
- * A step's text is held until the step ends, and released only if the step
- * called no tool. The UI `finish-step` chunk carries no finish reason, so "the
- * step called a tool" is "a `tool-*` chunk arrived in it". Whole
- * `text-start`…`text-end` groups are held or dropped, so ids stay paired.
- * Everything that is not text passes through at once and unchanged.
+ * Every step's text streams as it is written. When a step that wrote text goes
+ * on to a tool call, a transient `data-retract` chunk naming that text's part
+ * ids goes out just ahead of the tool's first chunk, and the client removes
+ * those parts. Text written after the call in the same step is taken back at
+ * the next call or at `finish-step`. The UI `finish-step` chunk carries no
+ * finish reason, so "the step called a tool" is "a `tool-*` chunk arrived in
+ * it". The final step calls no tool, so its text is never taken back.
  *
- * `liveStep(index)` — index counted from 0 by `start-step`, as `prepareStep`
- * counts — names a step that cannot call a tool (the wrap-up step, offered
- * none); its text streams as it arrives. An index, not a flag read now: the
- * chunks of an earlier step can still be in flight when the loop has already
- * prepared the wrap-up step.
+ * **The cost is a flicker, accepted deliberately** (Mitchell, 2026-10-12): a
+ * note appears, then goes. Holding each step's text until the step ends hid it
+ * but stopped the answer streaming; KI-20261012-h records the holistic options.
  *
  * Never a blank reply where the model did say something: if the turn ends
- * (`finish`, `abort`, `error`) with no text released, the step in progress's
- * text is shown, or else the last dropped step's — the answer a model gave
- * beside its final tool call, or a deadline-cut turn's last words. "Text" is
- * a delta with something besides whitespace in it: streamText forwards a
- * group with nothing in it (always its start and end, and an empty delta
- * carrying provider metadata), a model can open a block with bare newlines,
- * and neither is an answer.
+ * (`finish`, `abort`, `error`) with no text kept, the last text taken back is
+ * sent again under a new id — the answer a model gave beside its final tool
+ * call, or a deadline-cut turn's last words. "Text" is a delta with something
+ * besides whitespace in it: streamText forwards a group with nothing in it
+ * (always its start and end, and an empty delta carrying provider metadata), a
+ * model can open a block with bare newlines, and neither is an answer.
  *
- * **The cost: the answer no longer streams token by token.** A step cannot be
- * known to be tool-free until it ends, so the final step's text arrives whole
- * at its `finish-step` — time to first text grows by that step's generation
- * time, several seconds for a long itinerary answer. Only the wrap-up step
- * still streams live. Inherent to a deterministic filter, and the price of it.
+ * Retracted text is never stored: the thread the client keeps, and posts back
+ * as history, is what is left on screen.
  */
-export function finalStepTextOnly(opts: { liveStep: (step: number) => boolean }): TransformStream<UIMessageChunk, UIMessageChunk> {
-  let step = -1;
-  let live = false;
-  let held: UIMessageChunk[] = [];
+export function retractTextBesideTools(): TransformStream<UIMessageChunk, UIMessageChunk> {
+  // This step's text not yet taken back, by part id, in the order it opened.
+  let open = new Map<string, string>();
   let calledTool = false;
-  let lastDropped: UIMessageChunk[] = [];
-  let released = false;
-  const spoke = (chunks: UIMessageChunk[]) => chunks.some((chunk) => chunk.type === "text-delta" && chunk.delta.trim().length > 0);
+  let kept = false;
+  let lastRetracted: { id: string; text: string } | null = null;
+  const spoke = (texts: Iterable<string>) => [...texts].some((text) => text.trim().length > 0);
 
   return new TransformStream({
     transform(chunk, controller) {
-      const release = (chunks: UIMessageChunk[]) => {
-        for (const text of chunks) controller.enqueue(text);
-        if (spoke(chunks)) released = true;
+      const retract = () => {
+        if (open.size === 0) return;
+        const ids = [...open.keys()];
+        controller.enqueue({ type: RETRACT_CHUNK, data: { ids }, transient: true });
+        if (spoke(open.values())) lastRetracted = { id: ids.at(-1)!, text: [...open.values()].join("") };
+        open = new Map();
       };
       switch (chunk.type) {
         case "start-step":
-          step += 1;
-          live = opts.liveStep(step);
-          held = [];
+          open = new Map();
           calledTool = false;
           break;
         case "text-start":
+          open.set(chunk.id, "");
+          break;
         case "text-delta":
-        case "text-end":
-          if (live) release([chunk]);
-          else held.push(chunk);
-          return;
+          open.set(chunk.id, (open.get(chunk.id) ?? "") + chunk.delta);
+          break;
         case "finish-step":
-          if (!calledTool) release(held);
-          else if (spoke(held)) lastDropped = held;
-          held = [];
+          if (calledTool) retract();
+          else if (spoke(open.values())) kept = true;
+          open = new Map();
           break;
         case "finish":
         case "abort":
         case "error":
-          if (!released) release(spoke(held) ? held : lastDropped);
-          held = [];
+          // A step cut off mid-way keeps what it wrote: no tool call took it back.
+          if (!kept && !spoke(open.values()) && lastRetracted !== null) {
+            const id = `${lastRetracted.id}-kept`;
+            controller.enqueue({ type: "text-start", id });
+            controller.enqueue({ type: "text-delta", id, delta: lastRetracted.text });
+            controller.enqueue({ type: "text-end", id });
+          }
+          open = new Map();
           break;
         default:
-          if (chunk.type.startsWith("tool-")) calledTool = true;
+          if (chunk.type.startsWith("tool-")) {
+            calledTool = true;
+            retract();
+          }
       }
       controller.enqueue(chunk);
     },

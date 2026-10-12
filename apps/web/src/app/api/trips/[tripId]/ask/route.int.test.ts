@@ -23,6 +23,8 @@ import { listSnapshots, saveSnapshot, SNAPSHOT_TRIP_MAX } from "@/server/snapsho
 import { listSuggestionChanges } from "@/server/suggestions/list";
 import { SUGGESTION_TRIP_PENDING_MAX } from "@/server/suggestions/shared";
 import { insertStoredSuggestion } from "@/server/test-support/storedSuggestion";
+import { RETRACT_CHUNK } from "@/server/ai/finalStepText";
+import { visibleText } from "@/server/ai/eval/grade";
 
 const ACTOR_ID = "ask-owner";
 // A second author, so a published library day belongs to SOMEONE ELSE.
@@ -2897,11 +2899,12 @@ describe("POST /api/trips/:id/ask", () => {
       expect(textOf(await chunksOf(res))).toContain("The biggest open stretch");
     });
 
-    // **The reply is the last step's text, not every step's** (KI-20261012-e).
-    // A model that writes a note to itself beside a tool call used to have it
-    // streamed into the answer, run into the next step's text with no space:
-    // "…Look up a cafe.Day 1 has…". The note must not reach the client at all.
-    it("keeps text written beside a tool call out of the reply", async () => {
+    // **Text written beside a tool call streams, then is taken back**
+    // (KI-20261012-e). A model that writes a note to itself beside a tool call
+    // used to have it run into the answer: "…Look up a cafe.Day 1 has…". Both
+    // steps' text is the provider's block "t0", as a real provider numbers
+    // blocks per step, so the retraction must mean the first and only the first.
+    it("takes back exactly the tool step's text, ahead of its call, and never the final step's", async () => {
       const tripId = await seedTrip();
       const model = scriptedStepsModel([
         ["Gap 5:30–7 pm. Look up a cafe.", toolCall("read_day", { days: 1 })],
@@ -2915,36 +2918,14 @@ describe("POST /api/trips/:id/ask", () => {
         ),
       );
 
-      expect(chunks.filter((c) => c.type === "tool-input-available").map((c) => c.toolName)).toEqual(["read_day"]);
-      expect(textOf(chunks)).toBe("Day 1 is free from 5:30 to 7 pm.");
       const types = chunks.map((c) => c.type);
-      expect(types.indexOf("text-delta")).toBeGreaterThan(types.indexOf("tool-input-available"));
-    });
-
-    // The wrap-up step is offered no tools, so its text is the answer as it
-    // comes: it streams, rather than waiting for the step to end. Reasoning
-    // after the text is how that shows from outside — held text would be
-    // released at `finish-step`, behind it.
-    it("streams the wrap-up step's text live", async () => {
-      const tripId = await seedTrip();
-      const model = scriptedStepsModel([
-        ["Out of time, so here is what I have.", { type: "reasoning-start", id: "r" }, { type: "reasoning-end", id: "r" }],
-      ]);
-      const records: AskAnalyticsRecord[] = [];
-      const chunks = await chunksOf(
-        await handleAskRequest(
-          req(tripId, { messages: [userMessage("when is day 1 free?")], scope: { kind: "trip" } }),
-          tripId,
-          model,
-          (r) => records.push(r),
-          { stepMs: 0, hardMs: 60_000 },
-        ),
-      );
-
-      expect(records[0]).toMatchObject({ wrapUp: "deadline" });
-      const types = chunks.map((c) => c.type);
-      expect(types.indexOf("text-delta")).toBeGreaterThan(-1);
-      expect(types.indexOf("text-delta")).toBeLessThan(types.indexOf("reasoning-start"));
+      const retractions = chunks.filter((c) => c.type === RETRACT_CHUNK);
+      expect(retractions).toEqual([{ type: RETRACT_CHUNK, data: { ids: ["t0"] }, transient: true }]);
+      // Streamed live, then taken back before the call shows.
+      expect(types.indexOf("text-delta")).toBeLessThan(types.indexOf(RETRACT_CHUNK));
+      expect(types.indexOf(RETRACT_CHUNK)).toBeLessThan(types.indexOf("tool-input-available"));
+      expect(types.lastIndexOf("text-start")).toBeGreaterThan(types.indexOf(RETRACT_CHUNK));
+      expect(visibleText(chunks)).toBe("Day 1 is free from 5:30 to 7 pm.");
     });
 
     // The other side of the same filter: a turn whose last step says nothing
@@ -2960,7 +2941,7 @@ describe("POST /api/trips/:id/ask", () => {
         ),
       );
 
-      expect(textOf(chunks)).toBe("Day 1 is free from 5:30 to 7 pm.");
+      expect(visibleText(chunks)).toBe("Day 1 is free from 5:30 to 7 pm.");
       expect(chunks.at(-1)).toMatchObject({ type: "finish" });
     });
   });

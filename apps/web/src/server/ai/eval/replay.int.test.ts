@@ -31,7 +31,7 @@ import { writeTravelling } from "@/server/access/members";
 import { simulatedModel } from "@/server/ai/simulatedModel";
 import { replayTranscript, type AskTranscript } from "./transcript";
 import { accountExpectationFor, type SeededAccountTrip } from "./cases";
-import { grade, textBeforeToolCall, type EvalCheck } from "./grade";
+import { grade, retractedText, textBeforeToolCall, visibleText, type EvalCheck } from "./grade";
 import { ACCOUNT_TRIPS, accountTripCommands } from "./trips";
 
 const ACTOR_ID = "replay-actor";
@@ -472,15 +472,18 @@ describe("the live set's account questions, on the simulated model", () => {
       session.userId = ACTOR_ID;
     }
     const chunks = chunksOf(body);
-    const text = chunks
-      .filter((chunk) => chunk.type === "text-delta")
-      .map((chunk) => String(chunk.delta))
-      .join("");
     const checks: EvalCheck[] = grade(
-      { record: records[0]!, text, proposalCommands: 0, textBeforeToolCall: textBeforeToolCall(chunks) },
+      {
+        record: records[0]!,
+        text: visibleText(chunks),
+        proposalCommands: 0,
+        textBeforeToolCall: textBeforeToolCall(chunks),
+        retracted: retractedText(chunks),
+      },
       accountExpectationFor(id, seeded, ACCOUNT_ASKER)!,
     );
     expect(checks.filter((check) => !check.pass).map((check) => `${check.name}: ${check.detail}`)).toEqual([]);
+    // The notes were written, streamed and taken back, not never sent.
+    expect(retractedText(chunks).parts).toBeGreaterThan(0);
   });
 });
-

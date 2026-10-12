@@ -1,15 +1,15 @@
 import type { UIMessageChunk } from "ai";
 import { describe, expect, it } from "vitest";
-import { finalStepTextOnly } from "./finalStepText";
+import { RETRACT_CHUNK, retractTextBesideTools } from "./finalStepText";
 
-async function through(chunks: UIMessageChunk[], liveStep: (step: number) => boolean = () => false): Promise<UIMessageChunk[]> {
+async function through(chunks: UIMessageChunk[]): Promise<UIMessageChunk[]> {
   const out: UIMessageChunk[] = [];
   const stream = new ReadableStream<UIMessageChunk>({
     start(controller) {
       for (const chunk of chunks) controller.enqueue(chunk);
       controller.close();
     },
-  }).pipeThrough(finalStepTextOnly({ liveStep }));
+  }).pipeThrough(retractTextBesideTools());
   const reader = stream.getReader();
   for (let next = await reader.read(); !next.done; next = await reader.read()) out.push(next.value);
   return out;
@@ -29,49 +29,65 @@ const readDay: UIMessageChunk[] = [
 
 const step = (...chunks: UIMessageChunk[][]): UIMessageChunk[] => [{ type: "start-step" }, ...chunks.flat(), { type: "finish-step" }];
 
-const spoken = (chunks: UIMessageChunk[]) =>
-  chunks.flatMap((chunk) => (chunk.type === "text-delta" ? [chunk.delta] : [])).join("");
+/** The ids each retraction named, in order. */
+const retractions = (chunks: UIMessageChunk[]) =>
+  chunks.flatMap((chunk) => (chunk.type === RETRACT_CHUNK ? [(chunk as { data: { ids: string[] } }).data.ids] : []));
 
-describe("finalStepTextOnly", () => {
-  it("drops the text of a step that called a tool and keeps the final step's", async () => {
+/**
+ * What is left on screen once every retraction has been applied, in order: a
+ * provider numbers text blocks per step, so a later step can reuse an id.
+ */
+const visible = (chunks: UIMessageChunk[]) => {
+  let parts: { id: string; text: string }[] = [];
+  for (const chunk of chunks) {
+    if (chunk.type === "text-start") parts.push({ id: chunk.id, text: "" });
+    if (chunk.type === "text-delta") [...parts].reverse().find((part) => part.id === chunk.id)!.text += chunk.delta;
+    if (chunk.type === RETRACT_CHUNK) {
+      const ids = (chunk as { data: { ids: string[] } }).data.ids;
+      parts = parts.filter((part) => !ids.includes(part.id));
+    }
+  }
+  return parts.map((part) => part.text).join("");
+};
+
+describe("retractTextBesideTools", () => {
+  it("streams a tool step's text, then takes back exactly its ids ahead of the call, and keeps the final step's", async () => {
     const out = await through([
       { type: "start" },
-      ...step(text("a", "Gap 5:30–7 pm. Look up a cafe."), readDay),
+      ...step(text("a", "Gap 5:30–7 pm. "), text("a2", "Look up a cafe."), readDay),
       ...step(text("b", "Day 1 is free from 5:30 to 7 pm.")),
       { type: "finish" },
     ]);
-    expect(spoken(out)).toBe("Day 1 is free from 5:30 to 7 pm.");
-    // The tool's chunks, and the whole of the dropped group, start to end.
-    expect(out.filter((chunk) => chunk.type.startsWith("tool-"))).toEqual(readDay);
-    expect(out.filter((chunk) => chunk.type === "text-start").map((chunk) => (chunk as { id: string }).id)).toEqual(["b"]);
-  });
-
-  // The wrap-up step is offered no tools, so its text is the answer: it
-  // streams as it comes rather than waiting for the step to end.
-  it("streams the live step's text as it arrives", async () => {
-    const out = await through(
-      [
-        ...step(readDay),
-        { type: "start-step" },
-        ...text("w", "Out of time."),
-        { type: "reasoning-start", id: "r" },
-        { type: "finish-step" },
-        { type: "finish" },
-      ],
-      (index) => index === 1,
-    );
     const types = out.map((chunk) => chunk.type);
-    expect(types.indexOf("text-delta")).toBeLessThan(types.indexOf("reasoning-start"));
+    // Streamed as written: the note's text is out before the step's tool call.
+    expect(types.indexOf("text-delta")).toBeLessThan(types.indexOf(RETRACT_CHUNK));
+    expect(types.indexOf(RETRACT_CHUNK)).toBe(types.indexOf("tool-input-start") - 1);
+    expect(retractions(out)).toEqual([["a", "a2"]]);
+    expect(out.find((chunk) => chunk.type === RETRACT_CHUNK)).toMatchObject({ transient: true });
+    expect(visible(out)).toBe("Day 1 is free from 5:30 to 7 pm.");
+    expect(out.filter((chunk) => chunk.type.startsWith("tool-"))).toEqual(readDay);
   });
 
-  it("answers with the last tool step's text when the final step says nothing", async () => {
+  it("takes back a reused id's text only for the step that called the tool", async () => {
+    const out = await through([...step(text("0", "Checking."), readDay), ...step(text("0", "Day 1 is free.")), { type: "finish" }]);
+    expect(retractions(out)).toEqual([["0"]]);
+    expect(visible(out)).toBe("Day 1 is free.");
+  });
+
+  it("takes back text written after the call in the same step when the step ends", async () => {
+    const out = await through([...step(readDay, text("a", "Now the cafe.")), ...step(text("b", "Done.")), { type: "finish" }]);
+    expect(retractions(out)).toEqual([["a"]]);
+    expect(visible(out)).toBe("Done.");
+  });
+
+  it("re-sends the last taken-back text when the final step says nothing", async () => {
     const out = await through([
       ...step(text("a", "Too early to say."), readDay),
       ...step(text("b", "Day 1 is free from 5:30 to 7 pm."), readDay),
       ...step(),
       { type: "finish" },
     ]);
-    expect(spoken(out)).toBe("Day 1 is free from 5:30 to 7 pm.");
+    expect(visible(out)).toBe("Day 1 is free from 5:30 to 7 pm.");
     expect(out.at(-1)).toEqual({ type: "finish" });
   });
 
@@ -84,30 +100,29 @@ describe("finalStepTextOnly", () => {
   ])("%s text group", (_, blank) => {
     it("is not the answer when the final step says it", async () => {
       const out = await through([...step(text("a", "Day 1 is free."), readDay), ...step(text("b", blank)), { type: "finish" }]);
-      // The blank group itself still passes, ahead of the fallback.
-      expect(spoken(out).trim()).toBe("Day 1 is free.");
+      // The blank group itself still passes, ahead of the re-sent text.
+      expect(visible(out).trim()).toBe("Day 1 is free.");
     });
 
-    it("beside a later tool call does not replace the last dropped text", async () => {
+    it("beside a later tool call does not replace the last taken-back text", async () => {
       const out = await through([...step(text("a", "Day 1 is free."), readDay), ...step(text("b", blank), readDay), { type: "finish" }]);
-      expect(spoken(out)).toBe("Day 1 is free.");
+      expect(visible(out)).toBe("Day 1 is free.");
     });
 
-    // Only abort or error can end a turn with a group still held.
-    it("held when the turn aborts does not win over the last dropped text", async () => {
+    it("in progress when the turn aborts does not win over the last taken-back text", async () => {
       const out = await through([...step(text("a", "Earlier note."), readDay), { type: "start-step" }, ...text("b", blank), { type: "abort" }]);
-      expect(spoken(out)).toBe("Earlier note.");
+      expect(visible(out).trim()).toBe("Earlier note.");
     });
   });
 
-  it.each(["abort", "error"] as const)("on %s, shows the step in progress, or else the last dropped text", async (end) => {
+  it.each(["abort", "error"] as const)("on %s, keeps the step in progress, or else re-sends the last taken-back text", async (end) => {
     const ending: UIMessageChunk = end === "abort" ? { type: "abort" } : { type: "error", errorText: "failed" };
     const midStep = await through([...step(text("a", "Earlier note."), readDay), { type: "start-step" }, ...text("b", "Half an ans"), ending]);
-    expect(spoken(midStep)).toBe("Half an ans");
+    expect(visible(midStep)).toBe("Half an ans");
     expect(midStep.at(-1)).toEqual(ending);
 
     const betweenSteps = await through([...step(text("a", "Day 1 is free."), readDay), { type: "start-step" }, ending]);
-    expect(spoken(betweenSteps)).toBe("Day 1 is free.");
+    expect(visible(betweenSteps)).toBe("Day 1 is free.");
     expect(betweenSteps.at(-1)).toEqual(ending);
   });
 

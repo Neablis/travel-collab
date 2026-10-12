@@ -12,11 +12,12 @@
 // model's prose is not reproducible; asserting it would make the eval fail on
 // a rephrase and teach everyone to ignore it.
 import type { AskAnalyticsRecord } from "@/server/assistant/askAnalytics";
+import { RETRACT_CHUNK } from "@/server/ai/finalStepText";
 
 /** One turn, as the runner observed it. */
 export interface EvalTurn {
   record: AskAnalyticsRecord;
-  /** The assistant's answer: the stream's text, concatenated. */
+  /** The assistant's answer: the text left on screen once retractions applied (`visibleText`). */
   text: string;
   /**
    * Changes the turn put up for review, wherever they went: the card's
@@ -24,8 +25,14 @@ export interface EvalTurn {
    * on the board. 0 when it proposed nothing. See `reviewedChanges`.
    */
   proposalCommands: number;
-  /** The stream carried text before a tool call (`textBeforeToolCall`). */
+  /** The stream left text on screen ahead of a tool call (`textBeforeToolCall`). */
   textBeforeToolCall: boolean;
+  /**
+   * Text that streamed and was taken back (`retractedText`). Reported, never
+   * failed: Mitchell accepted the flicker on 2026-10-12, and this is the
+   * number a holistic fix moves (KI-20261012-h).
+   */
+  retracted: { parts: number; chars: number };
 }
 
 /**
@@ -44,20 +51,65 @@ export function reviewedChanges(chunks: readonly Record<string, unknown>[]): num
   return 0;
 }
 
+interface TextPart {
+  text: string;
+  retracted: boolean;
+  /** A tool call followed it in the stream. */
+  beforeToolCall: boolean;
+}
+
 /**
- * Whether any text reached the client ahead of a tool call: a model's note to
- * itself between reads, which the server is meant to keep out of the reply
- * (KI-20261012-e, `finalStepText.ts`). Structural, not a phrase list.
+ * The stream's text parts, in order, as the client sees them: a `data-retract`
+ * chunk (`finalStepText.ts`) takes back the parts it names. Read in order
+ * because a provider numbers text blocks per step, so a later step can reuse
+ * an id; the retraction means the latest part by that id.
+ */
+function textParts(chunks: readonly Record<string, unknown>[]): TextPart[] {
+  const parts: (TextPart & { id: unknown })[] = [];
+  const latest = (id: unknown) => {
+    for (let i = parts.length - 1; i >= 0; i -= 1) if (parts[i]!.id === id && !parts[i]!.retracted) return parts[i];
+    return undefined;
+  };
+  for (const chunk of chunks) {
+    if (chunk.type === "text-start") parts.push({ id: chunk.id, text: "", retracted: false, beforeToolCall: false });
+    else if (chunk.type === "text-delta") {
+      const part = latest(chunk.id) ?? parts[parts.push({ id: chunk.id, text: "", retracted: false, beforeToolCall: false }) - 1]!;
+      part.text += String(chunk.delta);
+    } else if (chunk.type === RETRACT_CHUNK) {
+      for (const id of (chunk.data as { ids?: unknown[] } | undefined)?.ids ?? []) {
+        const part = latest(id);
+        if (part) part.retracted = true;
+      }
+    } else if (chunk.type === "tool-input-start" || chunk.type === "tool-input-available") {
+      for (const part of parts) part.beforeToolCall = true;
+    }
+  }
+  return parts;
+}
+
+/** The reply as the person reads it: every text part not taken back, joined. */
+export function visibleText(chunks: readonly Record<string, unknown>[]): string {
+  return textParts(chunks)
+    .filter((part) => !part.retracted)
+    .map((part) => part.text)
+    .join("");
+}
+
+/**
+ * Whether text left on screen came ahead of a tool call: a model's note to
+ * itself between reads, which the server is meant to take back
+ * (KI-20261012-e, `finalStepText.ts`). Structural, not a phrase list. Any
+ * call, not the first: a note is usually written once a read has returned,
+ * beside the second call.
  */
 export function textBeforeToolCall(chunks: readonly Record<string, unknown>[]): boolean {
-  // Any call, not the first: a note is usually written once a read has
-  // returned, beside the second call.
-  let spoke = false;
-  for (const chunk of chunks) {
-    if (chunk.type === "text-delta") spoke = true;
-    else if (spoke && (chunk.type === "tool-input-start" || chunk.type === "tool-input-available")) return true;
-  }
-  return false;
+  return textParts(chunks).some((part) => !part.retracted && part.beforeToolCall && part.text !== "");
+}
+
+/** How much text streamed and was taken back: the flicker, counted. */
+export function retractedText(chunks: readonly Record<string, unknown>[]): { parts: number; chars: number } {
+  const gone = textParts(chunks).filter((part) => part.retracted && part.text.trim() !== "");
+  return { parts: gone.length, chars: gone.reduce((n, part) => n + part.text.length, 0) };
 }
 
 /**
@@ -170,7 +222,7 @@ export function grade(turn: EvalTurn, expect: EvalExpectation): EvalCheck[] {
   checks.push({
     name: "no text before a tool call",
     pass: !turn.textBeforeToolCall && seam === null,
-    detail: turn.textBeforeToolCall ? "text streamed before a tool call" : seam !== null ? `step seam "${seam[0]}"` : "none",
+    detail: turn.textBeforeToolCall ? "text left on screen before a tool call" : seam !== null ? `step seam "${seam[0]}"` : "none",
   });
   if (expect.maxToolCalls !== undefined) {
     checks.push({

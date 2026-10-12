@@ -17,7 +17,7 @@ import type { AskAnalyticsRecord } from "@/server/assistant/askAnalytics";
 import { OVERVIEW_ABOVE_DAYS } from "@/server/assistant/tools/read";
 import { accountExpectationFor, expectationFor, mostFreeDays, type SeededAccountTrip } from "./cases";
 import { ACCOUNT_TRIPS, EVAL_TRIPS, LONG_TRIP_DAYS, accountTripCommands, longTripCommands } from "./trips";
-import { grade, namesAmount, namesDayNumber, reviewedChanges, textBeforeToolCall, type EvalTurn } from "./grade";
+import { grade, namesAmount, namesDayNumber, retractedText, reviewedChanges, textBeforeToolCall, visibleText, type EvalTurn } from "./grade";
 
 // The fields `grade` reads, on an otherwise ordinary completed turn.
 function turn(over: Partial<AskAnalyticsRecord> = {}, text = "Day 3 is the most open.", proposalCommands = 0): EvalTurn {
@@ -30,7 +30,7 @@ function turn(over: Partial<AskAnalyticsRecord> = {}, text = "Day 3 is the most 
     usage: { inputTokens: 3_000, outputTokens: 200, totalTokens: 3_200 },
     ...over,
   } as AskAnalyticsRecord;
-  return { record, text, proposalCommands, textBeforeToolCall: false };
+  return { record, text, proposalCommands, textBeforeToolCall: false, retracted: { parts: 0, chars: 0 } };
 }
 
 const failing = (checks: ReturnType<typeof grade>) => checks.filter((check) => !check.pass).map((check) => check.name);
@@ -347,5 +347,42 @@ describe("no text before a tool call", () => {
     const chunks = [{ type: "tool-input-start", toolName: "read_day" }, { type: "text-delta", delta: "Day 3 is the most open." }];
     expect(textBeforeToolCall(chunks)).toBe(false);
     expect(failing(grade({ ...turn(), textBeforeToolCall: false }, {}))).toEqual([]);
+  });
+
+  // KI-20261012-h: the note streams, then a `data-retract` takes it back. The
+  // check grades what is left on screen, so a taken-back note passes and the
+  // same stream without its retraction fails.
+  describe("graded on the text left after retractions", () => {
+    const streamed = (retract: boolean) => [
+      { type: "start-step" },
+      { type: "text-start", id: "0" },
+      { type: "text-delta", id: "0", delta: "Gap 5:30–7 pm. Look up a cafe in Shibuya." },
+      { type: "text-end", id: "0" },
+      ...(retract ? [{ type: "data-retract", data: { ids: ["0"] }, transient: true }] : []),
+      { type: "tool-input-start", toolName: "search_places" },
+      { type: "finish-step" },
+      { type: "start-step" },
+      // A provider numbers text blocks per step: the answer reuses the note's id.
+      { type: "text-start", id: "0" },
+      { type: "text-delta", id: "0", delta: "I'd add a coffee break to day 1." },
+      { type: "text-end", id: "0" },
+      { type: "finish-step" },
+    ];
+    const graded = (chunks: Record<string, unknown>[]) =>
+      failing(grade({ ...turn({}, visibleText(chunks), 1), textBeforeToolCall: textBeforeToolCall(chunks) }, { proposes: true }));
+
+    it("passes when the note was taken back", () => {
+      expect(visibleText(streamed(true))).toBe("I'd add a coffee break to day 1.");
+      expect(graded(streamed(true))).toEqual([]);
+    });
+
+    it("fails when the retraction is skipped", () => {
+      expect(graded(streamed(false))).toEqual(["no text before a tool call"]);
+    });
+
+    it("counts what was taken back, for the report", () => {
+      expect(retractedText(streamed(true))).toEqual({ parts: 1, chars: "Gap 5:30–7 pm. Look up a cafe in Shibuya.".length });
+      expect(retractedText(streamed(false))).toEqual({ parts: 0, chars: 0 });
+    });
   });
 });

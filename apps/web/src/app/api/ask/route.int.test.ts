@@ -12,6 +12,8 @@ import { aiUsage, rateLimitCounters } from "@/server/db/schema";
 import { writeTravelling } from "@/server/access/members";
 import { simulatedModel } from "@/server/ai/simulatedModel";
 import { askIntentVerdictText, isAskIntentCall } from "@/server/ai/askIntent";
+import { RETRACT_CHUNK } from "@/server/ai/finalStepText";
+import { visibleText } from "@/server/ai/eval/grade";
 import type { AskAnalyticsRecord } from "@/server/assistant/askAnalytics";
 import type { TurnLedger } from "@/server/assistant/ledger";
 
@@ -123,12 +125,12 @@ function scriptedStepsModel(steps: (string | Record<string, unknown>)[][]) {
   } as unknown as Parameters<typeof handleAccountAskRequest>[1];
 }
 
-/** The SSE body's chunk types, in order. */
-function typesIn(body: string): string[] {
+/** The SSE body's chunks, in order. */
+function chunksIn(body: string): Record<string, unknown>[] {
   return body
     .split("\n")
     .filter((line) => line.startsWith("data: ") && line !== "data: [DONE]")
-    .map((line) => (JSON.parse(line.slice("data: ".length)) as { type: string }).type);
+    .map((line) => JSON.parse(line.slice("data: ".length)) as Record<string, unknown>);
 }
 
 beforeAll(async () => {
@@ -183,9 +185,9 @@ describe("POST /api/ask", () => {
     expect(row?.endpoint).toBe("ask.account");
   });
 
-  // The trip door's filter, on this door too (KI-20261012-e): the note a
-  // model writes beside a tool call is not part of its answer.
-  it("keeps text written beside a tool call out of the reply", async () => {
+  // The trip door's retraction, on this door too (KI-20261012-e): the note a
+  // model writes beside a tool call streams, then is taken back.
+  it("takes back exactly the tool step's text, and never the final step's", async () => {
     const res = await handleAccountAskRequest(
       ask("which city have I been to most?"),
       scriptedStepsModel([
@@ -194,24 +196,9 @@ describe("POST /api/ask", () => {
       ]),
       () => {},
     );
-    expect(spokenIn(await res.text())).toBe("Kyoto, on two days.");
-  });
-
-  // The wrap-up step is offered no tools, so its text streams as it comes
-  // rather than at the step's end: reasoning after it shows that from outside.
-  it("streams the wrap-up step's text live", async () => {
-    const records: AskAnalyticsRecord[] = [];
-    const res = await handleAccountAskRequest(
-      ask("which city have I been to most?"),
-      scriptedStepsModel([["Out of time, so here is what I have.", { type: "reasoning-start", id: "r" }, { type: "reasoning-end", id: "r" }]]),
-      (record) => records.push(record),
-      { stepMs: 0, hardMs: 60_000 },
-    );
-    const types = typesIn(await res.text());
-
-    expect(records[0]).toMatchObject({ wrapUp: "deadline" });
-    expect(types.indexOf("text-delta")).toBeGreaterThan(-1);
-    expect(types.indexOf("text-delta")).toBeLessThan(types.indexOf("reasoning-start"));
+    const chunks = chunksIn(await res.text());
+    expect(chunks.filter((c) => c.type === RETRACT_CHUNK)).toEqual([{ type: RETRACT_CHUNK, data: { ids: ["t0"] }, transient: true }]);
+    expect(visibleText(chunks)).toBe("Kyoto, on two days.");
   });
 
   it("is the account handler behind the route, and refuses a signed-out caller", async () => {

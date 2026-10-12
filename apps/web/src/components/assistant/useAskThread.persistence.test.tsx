@@ -220,6 +220,39 @@ describe("useAskThread — durability", () => {
     ]);
   });
 
+  // KI-20261012-e: the server takes back a note written beside a tool call. A
+  // reload must not bring it back. Real frames, so the ids the server names go
+  // through `askAssistant`; the provider numbers blocks per step, so the
+  // answer reuses the note's id.
+  it("restores none of the text the server took back", async () => {
+    const frames = [
+      { type: "text-start", id: "0" },
+      { type: "text-delta", id: "0", delta: "Checking day 1 first." },
+      { type: "text-end", id: "0" },
+      { type: "data-retract", data: { ids: ["0"] }, transient: true },
+      { type: "tool-input-available", toolCallId: "c1", toolName: "read_day", input: { days: 1 } },
+      { type: "text-start", id: "0" },
+      { type: "text-delta", id: "0", delta: "Now the evening." },
+      { type: "text-end", id: "0" },
+      { type: "data-retract", data: { ids: ["0"] }, transient: true },
+      { type: "tool-input-available", toolCallId: "c2", toolName: "read_day", input: { days: 1 } },
+      { type: "text-start", id: "0" },
+      { type: "text-delta", id: "0", delta: "Day 1 is free." },
+      { type: "text-end", id: "0" },
+    ];
+    const body = `${frames.map((frame) => `data: ${JSON.stringify(frame)}\n\n`).join("")}data: [DONE]\n\n`;
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(body, { status: 200, headers: { "Content-Type": "text/event-stream" } })));
+    const first = mount(NAME);
+    await act(async () => {
+      await first.result.current.runAsk("when is day 1 free?");
+    });
+    cleanup();
+
+    const second = mount(NAME);
+    await waitFor(() => expect(second.result.current.thread).toHaveLength(2));
+    expect(second.result.current.thread.map((turn) => turn.text)).toEqual(["when is day 1 free?", "Day 1 is free."]);
+  });
+
   // A turn that produced no text at all is rolled back by design — the
   // question goes back in the composer — so there is nothing to persist. Pinned
   // rather than worked around: a stored orphan question is worse than none.

@@ -35,7 +35,7 @@ import { writeTravelling } from "@/server/access/members";
 import type { AskAnalyticsRecord } from "@/server/assistant/askAnalytics";
 import type { TurnLedger } from "@/server/assistant/ledger";
 import { accountExpectationFor, expectationFor, type SeededAccountTrip } from "./cases";
-import { grade, reviewedChanges, textBeforeToolCall, type EvalCheck, type EvalTurn } from "./grade";
+import { grade, retractedText, reviewedChanges, textBeforeToolCall, visibleText, type EvalCheck, type EvalTurn } from "./grade";
 import { capMicroUsdFrom, dollars, turnMicroUsd, unpricedModels } from "./spend";
 import { ACCOUNT_TRIPS, accountTripCommands, longTripCommands, type EvalTripName } from "./trips";
 
@@ -208,16 +208,13 @@ async function runTurn(
     throw new Error(`no ai.ask record: HTTP ${response.status} ${body.slice(0, 300)}`);
   }
   const chunks = chunksOf(body);
-  const text = chunks
-    .filter((chunk) => chunk.type === "text-delta" && typeof chunk.delta === "string")
-    .map((chunk) => chunk.delta as string)
-    .join("");
   return {
     record,
-    text,
+    text: visibleText(chunks),
     // A card's commands or a stored suggestion's changes (ADR-067).
     proposalCommands: reviewedChanges(chunks),
     textBeforeToolCall: textBeforeToolCall(chunks),
+    retracted: retractedText(chunks),
     stepDurationsMs: ledgers[0]?.stepSpend.map((step) => step.durationMs) ?? [],
     providers: ledgers[0]?.stepSpend.map((step) => step.provider) ?? [],
     generationIds: ledgers[0]?.stepSpend.map((step) => step.gatewayGenerationId) ?? [],
@@ -240,6 +237,8 @@ interface RunRow {
   inputTokens: number | null;
   outputTokens: number | null;
   answer: string;
+  /** Text that streamed and was taken back (KI-20261012-h). Reported, never failed. */
+  retracted: { parts: number; chars: number };
   checks: EvalCheck[];
 }
 
@@ -276,12 +275,14 @@ afterAll(() => {
       "",
       `eval: ${rows.length} turns, ${rows.reduce((n, row) => n + row.checks.length, 0)} checks, ${failed.length} failed`,
       `models: ${JSON.stringify(models)}`,
+      `retracted: ${rows.reduce((n, row) => n + row.retracted.parts, 0)} text parts, ${rows.reduce((n, row) => n + row.retracted.chars, 0)} chars, across ${rows.filter((row) => row.retracted.parts > 0).length} turns (KI-20261012-h; not a failure)`,
       `spent: ${dollars(spentMicroUsd)} of a ${capMicroUsd === null ? "invalid" : dollars(capMicroUsd)} cap${unpricedTurns > 0 ? ` (+ ${unpricedTurns} unpriced turn(s))` : ""}`,
       ...rows.map(
         (row) =>
           `  ${row.checks.every((check) => check.pass) ? "PASS" : "FAIL"} ${row.id}#${row.run}  ${row.model}  ${row.steps} steps  ` +
           `${row.toolCalls.length} calls  ${(row.latencyMs / 1000).toFixed(1)}s ` +
-          `[${row.stepDurationsMs.map((ms) => (ms === null ? "?" : (ms / 1000).toFixed(1))).join(" + ")}]  ${row.inputTokens ?? "?"} in  via ${[...new Set(row.providers)].join(",") || "?"}`,
+          `[${row.stepDurationsMs.map((ms) => (ms === null ? "?" : (ms / 1000).toFixed(1))).join(" + ")}]  ${row.inputTokens ?? "?"} in  via ${[...new Set(row.providers)].join(",") || "?"}` +
+          `  retracted ${row.retracted.parts}/${row.retracted.chars}ch`,
       ),
       `report: ${file}`,
     ].join("\n"),
@@ -330,6 +331,7 @@ describe("the live set, on production's models", () => {
           inputTokens: turn.record.usage.inputTokens,
           outputTokens: turn.record.usage.outputTokens,
           answer: turn.text,
+          retracted: turn.retracted,
           checks,
         });
         for (const check of checks) console.log(`    ${check.pass ? "✓" : "✗"} ${check.name}: ${check.detail}`);
