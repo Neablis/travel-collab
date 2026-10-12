@@ -24,11 +24,8 @@ export interface EvalTurn {
    * on the board. 0 when it proposed nothing. See `reviewedChanges`.
    */
   proposalCommands: number;
-  /**
-   * The stream carried text before a tool call (`textBeforeToolCall`). Absent
-   * where the runner kept no chunks; the text's own seam is still checked.
-   */
-  textBeforeToolCall?: boolean;
+  /** The stream carried text before a tool call (`textBeforeToolCall`). */
+  textBeforeToolCall: boolean;
 }
 
 /**
@@ -53,17 +50,24 @@ export function reviewedChanges(chunks: readonly Record<string, unknown>[]): num
  * (KI-20261012-e, `finalStepText.ts`). Structural, not a phrase list.
  */
 export function textBeforeToolCall(chunks: readonly Record<string, unknown>[]): boolean {
-  const firstCall = chunks.findIndex((chunk) => chunk.type === "tool-input-start" || chunk.type === "tool-input-available");
-  return firstCall > 0 && chunks.slice(0, firstCall).some((chunk) => chunk.type === "text-delta");
+  // Any call, not the first: a note is usually written once a read has
+  // returned, beside the second call.
+  let spoke = false;
+  for (const chunk of chunks) {
+    if (chunk.type === "text-delta") spoke = true;
+    else if (spoke && (chunk.type === "tool-input-start" || chunk.type === "tool-input-available")) return true;
+  }
+  return false;
 }
 
 /**
  * Two steps' text run together: a sentence end with the next sentence's
  * capital straight after it ("in Shibuya.I'd add"), which is what a leaked
- * step looks like once the client joins every text chunk. Read from the text,
- * so it holds where a runner kept no chunks (the replay suite) too.
+ * step looks like once the client joins every text chunk. A backstop read
+ * from the text alone. Two letters before the stop, so an abbreviation
+ * ("e.g.Kyoto", "7 a.m.Breakfast") is not one.
  */
-const STEP_SEAM = /[a-z][.!?][A-Z]/;
+const STEP_SEAM = /[a-z]{2}[.!?][A-Z]/;
 
 /** What one prompt expects. Every field is optional; an absent field is not checked. */
 export interface EvalExpectation {
@@ -165,8 +169,8 @@ export function grade(turn: EvalTurn, expect: EvalExpectation): EvalCheck[] {
   const seam = turn.text.match(STEP_SEAM);
   checks.push({
     name: "no text before a tool call",
-    pass: turn.textBeforeToolCall !== true && seam === null,
-    detail: turn.textBeforeToolCall === true ? "text streamed before a tool call" : seam !== null ? `step seam "${seam[0]}"` : "none",
+    pass: !turn.textBeforeToolCall && seam === null,
+    detail: turn.textBeforeToolCall ? "text streamed before a tool call" : seam !== null ? `step seam "${seam[0]}"` : "none",
   });
   if (expect.maxToolCalls !== undefined) {
     checks.push({

@@ -75,6 +75,17 @@ describe("finalStepTextOnly", () => {
     expect(out.at(-1)).toEqual({ type: "finish" });
   });
 
+  // streamText forwards a text group with no visible text: always its start
+  // and end, and an empty delta when the provider attaches metadata to it.
+  it("does not count a final step's empty text group as the answer", async () => {
+    const out = await through([
+      ...step(text("a", "Day 1 is free."), readDay),
+      ...step([{ type: "text-start", id: "b" }, { type: "text-delta", id: "b", delta: "" }, { type: "text-end", id: "b" }]),
+      { type: "finish" },
+    ]);
+    expect(spoken(out)).toBe("Day 1 is free.");
+  });
+
   it.each(["abort", "error"] as const)("on %s, shows the step in progress, or else the last dropped text", async (end) => {
     const ending: UIMessageChunk = end === "abort" ? { type: "abort" } : { type: "error", errorText: "failed" };
     const midStep = await through([...step(text("a", "Earlier note."), readDay), { type: "start-step" }, ...text("b", "Half an ans"), ending]);

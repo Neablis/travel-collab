@@ -23,7 +23,16 @@ import type { UIMessageChunk } from "ai";
  * Never a blank reply where the model did say something: if the turn ends
  * (`finish`, `abort`, `error`) with no text released, the step in progress's
  * text is shown, or else the last dropped step's — the answer a model gave
- * beside its final tool call, or a deadline-cut turn's last words.
+ * beside its final tool call, or a deadline-cut turn's last words. "Text" is
+ * a non-empty delta: streamText forwards a group with nothing in it (always
+ * its start and end, and an empty delta carrying provider metadata), and that
+ * is not an answer.
+ *
+ * **The cost: the answer no longer streams token by token.** A step cannot be
+ * known to be tool-free until it ends, so the final step's text arrives whole
+ * at its `finish-step` — time to first text grows by that step's generation
+ * time, several seconds for a long itinerary answer. Only the wrap-up step
+ * still streams live. Inherent to a deterministic filter, and the price of it.
  */
 export function finalStepTextOnly(opts: { liveStep: (step: number) => boolean }): TransformStream<UIMessageChunk, UIMessageChunk> {
   let step = -1;
@@ -32,12 +41,13 @@ export function finalStepTextOnly(opts: { liveStep: (step: number) => boolean })
   let calledTool = false;
   let lastDropped: UIMessageChunk[] = [];
   let released = false;
+  const spoke = (chunks: UIMessageChunk[]) => chunks.some((chunk) => chunk.type === "text-delta" && chunk.delta.length > 0);
 
   return new TransformStream({
     transform(chunk, controller) {
       const release = (chunks: UIMessageChunk[]) => {
         for (const text of chunks) controller.enqueue(text);
-        if (chunks.length > 0) released = true;
+        if (spoke(chunks)) released = true;
       };
       switch (chunk.type) {
         case "start-step":
@@ -54,13 +64,13 @@ export function finalStepTextOnly(opts: { liveStep: (step: number) => boolean })
           return;
         case "finish-step":
           if (!calledTool) release(held);
-          else if (held.length > 0) lastDropped = held;
+          else if (spoke(held)) lastDropped = held;
           held = [];
           break;
         case "finish":
         case "abort":
         case "error":
-          if (!released) release(held.length > 0 ? held : lastDropped);
+          if (!released) release(spoke(held) ? held : lastDropped);
           held = [];
           break;
         default:

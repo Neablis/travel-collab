@@ -30,7 +30,7 @@ function turn(over: Partial<AskAnalyticsRecord> = {}, text = "Day 3 is the most 
     usage: { inputTokens: 3_000, outputTokens: 200, totalTokens: 3_200 },
     ...over,
   } as AskAnalyticsRecord;
-  return { record, text, proposalCommands };
+  return { record, text, proposalCommands, textBeforeToolCall: false };
 }
 
 const failing = (checks: ReturnType<typeof grade>) => checks.filter((check) => !check.pass).map((check) => check.name);
@@ -323,6 +323,24 @@ describe("no text before a tool call", () => {
     ];
     expect(textBeforeToolCall(chunks)).toBe(true);
     expect(failing(grade({ ...turn(), textBeforeToolCall: textBeforeToolCall(chunks) }, {}))).toEqual(["no text before a tool call"]);
+  });
+
+  // The KI's own reproduction: step 1 reads silently, step 2 notes the gap
+  // beside its call, step 3 answers. Text after the first call still leaked.
+  it("fails text written beside a later tool call, not only before the first", () => {
+    const chunks = [
+      { type: "tool-input-start", toolName: "read_day" },
+      { type: "text-delta", delta: "Gap 5:30–7 pm. Look up a cafe." },
+      { type: "tool-input-start", toolName: "search_places" },
+      { type: "text-delta", delta: "Day 1 is free from 5:30 to 7 pm." },
+    ];
+    expect(textBeforeToolCall(chunks)).toBe(true);
+  });
+
+  // An abbreviation is not a seam: two lowercase letters must end the sentence.
+  it("reads a seam only after a word, not an abbreviation", () => {
+    expect(failing(grade(turn({}, "Start at the shrine, e.g.Kyoto's Fushimi Inari, at 7 a.m.Breakfast after."), {}))).toEqual([]);
+    expect(failing(grade(turn({}, "Look up a cafe in Shibuya.I'd add a stop."), {}))).toEqual(["no text before a tool call"]);
   });
 
   it("passes text that only follows the tool calls", () => {
