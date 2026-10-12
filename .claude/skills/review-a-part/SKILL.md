@@ -5,8 +5,9 @@ description: Review policy for one milestone part in travel-collab — a part-re
 
 # Review a part
 
-1. **After every push, run the `part-reviewer` agent** on the PR and its base (`main`). On a re-run,
-   list the fixes the last review asked for so it checks they hold. A push of a part branch tells
+1. **After every push, run a new `part-reviewer` agent** on the PR and its base (`main`). On a
+   re-run, give it the path of the last review's file so it checks those fixes hold; never message
+   the earlier reviewer (`closed-agent-guard.mjs`). A push of a part branch tells
    whoever pushed, usually the implementer, to report it (`push-review-nudge.mjs`); the hook does
    not reach you, so dispatch the reviewer when the implementer's report names the push.
 2. **CodeRabbit is optional.** Post `@coderabbitai review` once, on the riskiest or largest part
@@ -15,12 +16,16 @@ description: Review policy for one milestone part in travel-collab — a part-re
 3. **Work every finding.** Fix it, or answer on its thread why not and resolve the thread
    (`working-a-review.md`). A finding is a claim to check against the code, not an order.
 4. **Every review goes on the PR as a comment** (Mitchell, 2026-10-11: "so I can see what was found
-   and fixed"). The orchestrator posts it, never the read-only reviewer. Post it once the report
-   arrives: the head reviewed, the verdict, each finding (severity, file:line, what goes wrong, the
-   fix asked for), and what came out clean. Once the fix push lands, post a short follow-up saying
+   and fixed"). The orchestrator posts it, never the read-only reviewer. The reviewer writes the
+   full review to a file and hands back its path with one line per finding
+   (`reviewer-report-check.mjs`); post the file without reading it into your context:
+   `gh pr comment <n> --body-file <path>`. It holds the head reviewed, the verdict, each finding
+   (severity, file:line, what goes wrong, the fix asked for), and what came out clean. Once the fix push lands, post a short follow-up saying
    what each finding became (fixed in `<sha>`, or answered and why), and include the re-review's
    verdict. Give CI failures fixed in the same push one line each.
-5. **Fixes go on the part's own branch**, through `build-a-part`. Parts sit on `main`, so nothing
-   merges upward.
+5. **Fixes go on the part's own branch**, through `build-a-part`, by a **new**
+   `phase-implementer` whose brief names the branch, the head sha, the review file's path, the
+   files and what done means. Findings in different files can go to separate agents in parallel
+   only if each has its own worktree. Parts sit on `main`, so nothing merges upward.
 6. **Ready to merge** when CI is green on the part's head and every finding is fixed or answered.
    Say so in the PR body and in part 0's tracker, tick the part's task, and tell Mitchell.

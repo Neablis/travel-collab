@@ -20,7 +20,9 @@ do the code survey.
 3. **Name the session** after the milestone: `set_session_title` with its own session id.
 4. **Open part 0** on the session's designated branch, after merging `main` into it. It is prose
    only: the answered decisions in the milestone file, any ADR, the plan in `docs/plans/` (per
-   part: its theme, files, and what to click on its preview), and a PR body that tracks the gate.
+   part: its theme, **the files it touches with each entry point and its test file**, and what to
+   click on its preview; one `Explore` survey produces the lists, and a builder's brief is refused
+   without them), and a PR body that tracks the gate.
    Pick migration, ADR and KI numbers only after that merge. **Open it as a draft**; it is marked
    ready only at the gate (`close-a-milestone`). Its branch must not look like a part's
    (`claude/m<N>-part<K>-…`), so the part-only hooks leave it alone. Subscribe to it. Part 0

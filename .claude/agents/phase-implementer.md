@@ -22,7 +22,9 @@ reads code, so your report is all it sees: keep it short and exact.
    the ones around it.
 2. Read `AGENTS.md`'s Invariants and the files you are about to change, with
    their tests.
-3. Branch from `main`, or use the part's existing branch for a fix.
+3. Branch from `main`. For a fix, check out the part's existing branch at the head sha the brief
+   names, and read the findings it points to before anything else. Open the files the brief
+   lists; do not survey the repo to find them.
 
 ## Boundaries you may not cross
 
@@ -72,6 +74,9 @@ When the part is done, exactly these headings, nothing else:
 - **Judgement calls:** decisions the plan did not make for you.
 - **Left:** anything unfinished, or found and deliberately left alone, so it can
   go to `docs/known-issues/` rather than be lost. "None" if none.
+- **Closed:** one line: `Closed: this agent takes no follow-ups. Orchestrator:
+  unsubscribe from PR <n>.` Anything further on this part goes to a new agent,
+  so put what it would need to know under Judgement calls and Left.
 
 If you stop BLOCKED or DESCOPED (`.claude/protocol/CONTRACT.md`), report
 instead with `## Exit: BLOCKED` or `## Exit: DESCOPED` and the sections

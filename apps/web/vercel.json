@@ -5,5 +5,8 @@
       "main": true,
       "**": false
     }
+  },
+  "github": {
+    "silent": true
   }
 }

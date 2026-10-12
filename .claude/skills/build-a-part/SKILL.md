@@ -36,8 +36,11 @@ PR opens ready and a push prints the review reminder.
    title or body (`--title`, `--body`, `--body-file`, or the MCP fields) and in the commit message
    (`commit-message-guard.mjs`). A push while a PR is draft cancels its ready-for-review run. Fill `.github/PULL_REQUEST_TEMPLATE.md`, with each test's source edit and
    real failure text. After that, do not push again until CI has started on the head.
-6. **Report** in the `phase-implementer` format; a stop without the pushed sha and the red-first
-   table is sent back (`implementer-report-check.mjs`). Review is `review-a-part`.
+6. **Report** in the `phase-implementer` format; a stop without the pushed sha, the red-first
+   table and the `Closed:` line is sent back (`implementer-report-check.mjs`). Review is
+   `review-a-part`. Once you have reported you are closed: you take no follow-up.
 
-A fix after review is the same loop on the same branch: red first where the fix is a behaviour,
-then the recipe, then push.
+A fix after review is the same loop on the same branch, run by a **new** agent from a brief: the
+branch and its head sha, the findings (usually the path of the reviewer's file: read it first), the
+files, and what done means. Start from those files, not from a survey of the repo. Red first where
+the fix is a behaviour, then the recipe, then push.

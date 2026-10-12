@@ -34,6 +34,7 @@ practice. Read the one that matches your task:
 | `third-party-services-on-a-preview.md` | My feature depends on a third-party service — what do the automated tests stub instead, and what do I check by hand on a Vercel preview? |
 | `repo-automation.md` | What scripts, commands, subagents, skills and hooks already exist, and why each one does — before I hand-roll a workflow |
 | `retiring-a-rule.md` | A first-read file is near its surface budget — what may leave it, where it goes, and how to bring it back? |
+| `writing-a-retro.md` | The gate is closing — what goes in the retro, how is the spend block generated, and what are the targets it is read against? |
 
 Document map for orientation:
 

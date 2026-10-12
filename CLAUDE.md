@@ -24,6 +24,7 @@ Quick orientation:
 - Calling the public API, or adding an endpoint to it without writing auth,
   errors, pagination or docs again: `docs/guidelines/using-the-api.md` (M22)
 - What to do with PR feedback (four surfaces, only some self-resolving): `docs/guidelines/working-a-review.md`
+- A milestone's retro, its generated spend block and the targets: `docs/guidelines/writing-a-retro.md`
 - Working in a cloud session (what's different here): `docs/guidelines/cloud-agent-sessions.md`
 - Work too big for one PR — planning, merging and finishing a stack: `docs/guidelines/stacked-prs.md`
 - Building a whole milestone ("next milestone"), from decisions to the closed gate: `docs/guidelines/building-a-milestone.md`.

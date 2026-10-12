@@ -23,10 +23,28 @@ one sub-skill per stage and hands every hands-on step to a subagent.
   to a subagent with a written brief: the part, its branch, its scope, what done means.
 - **You own** the decisions with Mitchell, the sidebar tasks, PR state, and answering Mitchell.
   Move a part's task the moment its state changes.
-- **Routine notifications get no message.** Preview builds, CodeRabbit "review skipped" notices and
-  summary edits, and echoes of our own replies are read silently. Speak only on a finding, a
-  failure, a merge, or a question.
+- **A wake costs your whole context, read or not** (M42: 190 wakes, $57, 141 of them for nothing).
+  So you watch only part 0's PR. The harness subscribes you to every PR a subagent opens: when an
+  implementer's report arrives with its `Closed:` line, call `unsubscribe_pr_activity` for that
+  PR. `notification-unsubscribe-nudge.mjs` repeats this on any wake you still get. A part's CI
+  state comes from its implementer's report and the reviewer's re-check; read it yourself with one
+  `pull_request_read get_check_runs` call, when Mitchell asks or before saying a part is ready.
+- **A subagent that has reported is closed.** Review fixes, CI fixes and Mitchell's walk changes go
+  to a **new** `phase-implementer`; a re-review goes to a new `part-reviewer`.
+  `closed-agent-guard.mjs` denies `SendMessage` to an agent idle over 270 seconds or over 150k
+  context, because resuming it re-writes and then carries everything it ever read. `SendMessage`
+  is for answering an agent that is still running and blocked on you.
+- **A brief names the branch, the files and what done means**, and for a follow-up the head sha and
+  the findings (`implementer-brief-check.mjs` refuses a dispatch without them). Pass findings as
+  the path of the reviewer's file, not as text.
+- **Keep your own context small.** Never read job logs (`orchestrator-lean-reads.mjs` denies it):
+  send a red run to a subagent with `ci-triage` and ask for the cause in under 200 words. Speak to
+  Mitchell only on a finding, a failure, a merge, or a question.
 - **Merges are Mitchell's** unless he says otherwise. `migrate-production` is always his.
 - Never run the live eval (`pnpm --filter web eval`) without asking him first.
-- Never poll with `sleep`. Wait by ending the turn: PR events and reminders wake the session.
+- Never poll with `sleep`. Wait by ending the turn: subagent reports, part 0's events and
+  reminders wake the session.
+- **The gate close starts in a fresh session.** Once every part is merged, write the handoff with
+  `/next-prompt` and tell Mitchell to start it there (M42's close ran at about 400k context; a
+  fresh session starts near 85k). Do the same earlier if your context passes about 250k.
 - Re-read a PR, check or workflow run before reporting its state.

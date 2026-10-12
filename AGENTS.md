@@ -337,7 +337,9 @@ point: they describe the change, not the ceremony around it.
 `subscribe_pr_activity(owner, repo, pullNumber)`. CI results, review comments
 and merge-state changes arrive as `<wake reason="external-event">` envelopes —
 including the review forty minutes later that no `--watch` sees. Never combine
-it with a blocking `--watch`. `unsubscribe_pr_activity` on merge or close.
+it with a blocking `--watch`. `unsubscribe_pr_activity` on merge or close. A
+wake re-reads the whole context: a milestone orchestrator watches only part 0
+(`building-a-milestone.md`, *Spend*).
 
 **Locally**, one blocking command: `gh pr checks <n> --watch --fail-fast`.
 Hand-polling is a reliable time sink.

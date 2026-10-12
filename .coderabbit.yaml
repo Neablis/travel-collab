@@ -40,7 +40,11 @@ reviews:
   collapse_walkthrough: true
   # Pure noise in a repo where every PR is already narrated in its description.
   poem: false
-  review_status: true
+  # Off since 2026-10-11. This repo is below CodeRabbit's auto-review threshold,
+  # so the status it posted was "review skipped", created and then edited on
+  # every push: 40 of the 235 GitHub events that woke M42's orchestrator
+  # (docs/retros/2026-10-12-m42-token-spend-retro.md, F1).
+  review_status: false
 
   auto_review:
     enabled: true

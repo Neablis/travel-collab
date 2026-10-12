@@ -6,7 +6,8 @@ description: Close a travel-collab milestone on its prose-only part 0 — keep t
 # Close a milestone
 
 `docs/guidelines/building-a-milestone.md` §4 is the source. A subagent does the edits; you answer
-Mitchell.
+Mitchell. **Steps 4 to 6 run in a fresh session**, started from the `/next-prompt` handoff once
+every part is merged, so the close does not re-read the whole build on every call.
 
 1. **Keep part 0's tracker current**: every part with its PR, state, review result, CI run and merge,
    plus the merge and migration order. Update it after every event.
@@ -19,7 +20,11 @@ Mitchell.
 4. **Tick gate boxes only with evidence**: a run, a commit, a file and line. CI on the merged parts
    is the e2e evidence; no full suite runs locally.
 5. **Close on part 0.** Merge `main` into it, then:
-   - append the retro to the milestone file;
+   - append the retro to the milestone file, in the shape `docs/guidelines/writing-a-retro.md`
+     gives. Its `## Spend` block comes from
+     `pnpm -s session-metrics --milestone <the build session's transcript> --parts <n> --lines-added <n> --cost-usd <n>`,
+     run in the build session before the handoff, because the transcripts go with the container.
+     `pnpm milestone close` refuses without that block;
    - run `pnpm milestone close <M>`, then again with `--confirm`;
    - write STATUS's *Where the work is right now* and *Next action*;
    - delete the plan in the same commit as the retro (`docs/plans/README.md`), after promoting
