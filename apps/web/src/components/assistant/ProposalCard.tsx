@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import type { AssistantProposal, TripHistory } from "@tc/contracts";
 import { usePaletteCommands } from "@/components/palette/paletteRegistry";
-import { decideOffer, useOfferStatus, type OfferStatus } from "./runPaletteCommands";
+import { alreadyThere, decideOffer, useOfferStatus, type OfferStatus } from "./runPaletteCommands";
 
 /**
  * Where a proposal is in its life. Five states, and the two that matter are
@@ -285,8 +285,11 @@ function PendingCard({
   );
 }
 
-/** A palette command a reply named that waits for Approve: its id, and the key its decision is kept under. */
-export type PaletteOffer = { id: string; key: string };
+/**
+ * A palette command a reply named that waits for Approve: its id, the key its
+ * decision is kept under, and for a toggle the state it was asked for.
+ */
+export type PaletteOffer = { id: string; key: string; on?: boolean };
 
 /** What a settled command card says, one line, like a settled proposal. */
 const SETTLED: Record<Exclude<OfferStatus, "pending">, string> = {
@@ -309,13 +312,17 @@ export function CommandCard({ offer, touch = false }: { offer: PaletteOffer; tou
   const status = useOfferStatus(offer.key);
   const command = usePaletteCommands().find((candidate) => candidate.id === offer.id);
 
-  if (status !== "pending" || command === undefined) {
+  // Read live, like the title: the person may have flipped it since.
+  const there = command !== undefined && alreadyThere(command, offer.on);
+  if (status !== "pending" || command === undefined || there) {
     const said =
       status === undefined
         ? "This was asked before the page reloaded. Ask again if you still want it."
-        : status === "pending"
-          ? SETTLED.unavailable
-          : SETTLED[status];
+        : status !== "pending"
+          ? SETTLED[status]
+          : there
+            ? `Editing is already ${offer.on === true ? "on" : "off"}.`
+            : SETTLED.unavailable;
     return (
       <div role="group" aria-label="Suggested action" className="flex min-h-7.5 items-center text-a-note">
         <span role="status" className={status === "ran" ? "text-success-ink" : "text-slate"}>

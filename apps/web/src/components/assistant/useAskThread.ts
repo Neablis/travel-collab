@@ -102,6 +102,14 @@ function highestTurnSeq(thread: readonly AssistantTurn[]): number {
   }, 0);
 }
 
+/**
+ * Whether `turn` carries a card still waiting on the person: neither approved
+ * nor turned down. A failed apply keeps its Approve, so it is still waiting.
+ */
+function awaitsDecision(turn: AssistantTurn): boolean {
+  return turn.role === "assistant" && turn.proposal != null && turn.proposal.status !== "applied" && turn.proposal.status !== "rejected";
+}
+
 export function useAskThread({
   tripId,
   scope,
@@ -109,7 +117,6 @@ export function useAskThread({
   onTurnEnd,
   errorMessage,
   persistAs,
-  holdsUnsavedInput,
 }: {
   tripId: string;
   scope: AskScope;
@@ -136,12 +143,6 @@ export function useAskThread({
    * what a restored transcript means on it gets the behaviour it has today.
    */
   persistAs?: string;
-  /**
-   * Whether the surface holds input it has not saved, read when a reply names
-   * somewhere to go (ADR-072 §4): then the reply goes nowhere and says what it
-   * would have done. Absent reads as nothing held.
-   */
-  holdsUnsavedInput?: () => boolean;
 }): AskThread {
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [askError, setAskError] = useState<string | null>(null);
@@ -181,8 +182,10 @@ export function useAskThread({
   onTurnEndRef.current = onTurnEnd;
   const errorMessageRef = useRef(errorMessage);
   errorMessageRef.current = errorMessage;
-  const holdsUnsavedInputRef = useRef(holdsUnsavedInput);
-  holdsUnsavedInputRef.current = holdsUnsavedInput;
+  // Read when a reply names somewhere to go, which is mid-stream: the thread
+  // as last rendered holds every earlier turn's card and where it stands.
+  const threadRef = useRef(thread);
+  threadRef.current = thread;
 
   // **Rehydrated in an effect, not in `useState`'s initialiser.** The
   // initialiser runs during the server render too, where `window` does not
@@ -317,6 +320,10 @@ export function useAskThread({
     // the chat accounts for, and asking again would insert it twice.
     let delivered = false;
     let stopped = false;
+    // This turn's proposal, which reaches the thread through the caller's
+    // `onEvent` and so is not in `threadRef` yet when the palette event that
+    // follows it in the same chunk arrives.
+    let proposed = false;
     const result = await askAssistant(
       tripId,
       posted,
@@ -354,6 +361,8 @@ export function useAskThread({
           delivered = true;
         } else if (event.type === "stopped") {
           stopped = true;
+        } else if (event.type === "proposal") {
+          proposed = true;
         } else if (event.type === "not-applied") {
           // Said in the answer itself, after the model's own words — which may
           // well claim the changes were made: the model is told its write calls
@@ -365,8 +374,8 @@ export function useAskThread({
           // (ADR-072). Navigation runs now; a change becomes a card that runs
           // on Approve. What could not run is said under the answer, which may
           // well have claimed it went.
-          const { notes, awaiting } = runPaletteCommands(event.commands, holdsUnsavedInputRef.current?.() ?? false);
-          const offers = awaiting.map((ref) => ({ id: ref.id, key: offerPaletteCommand() }));
+          const { notes, awaiting } = runPaletteCommands(event.commands, proposed || threadRef.current.some(awaitsDecision));
+          const offers = awaiting.map((ref) => ({ id: ref.id, key: offerPaletteCommand(), ...(ref.on !== undefined && { on: ref.on }) }));
           patchAnswer((turn) => ({
             ...turn,
             text: notes.reduce((text, note) => `${text}\n\n${note}`, turn.text),

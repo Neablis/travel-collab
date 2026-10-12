@@ -2,7 +2,8 @@
 
 import { useSyncExternalStore } from "react";
 import type { PaletteCommandRef } from "@tc/contracts";
-import { findPaletteCommand } from "@/components/palette/paletteRegistry";
+import { notebookEditingCommand } from "@/components/palette/commands";
+import { findPaletteCommand, type PaletteCommand } from "@/components/palette/paletteRegistry";
 
 // **The assistant's client actions are palette commands** (ADR-072 §1). A
 // reply names a command by id; this looks it up among the commands the page
@@ -25,13 +26,19 @@ function what(id: string): string {
   return "change this notebook's editing";
 }
 
+/** Whether running `id` takes the person off this page, rather than somewhere on it. */
+function leavesPage(id: string): boolean {
+  return id.startsWith("go:notebook:") || id.startsWith("go:trip:");
+}
+
 /**
  * Runs the navigation a reply named, in order, and hands back the commands
- * that wait for Approve (§4). `inputHeld` is whether the page holds input it
- * has not saved: then nothing runs, and each command becomes a note saying
- * what it would have done.
+ * that wait for Approve (§4). `cardWaiting` is whether a proposal on this page
+ * is still undecided: a card is not kept across leaving the page
+ * (`askThreadStore` drops it), so a command that leaves becomes a note saying
+ * what it would have done, and one that stays on the page still runs.
  */
-export function runPaletteCommands(commands: readonly PaletteCommandRef[], inputHeld: boolean): PaletteRun {
+export function runPaletteCommands(commands: readonly PaletteCommandRef[], cardWaiting: boolean): PaletteRun {
   const notes: string[] = [];
   const awaiting: PaletteCommandRef[] = [];
   for (const ref of commands) {
@@ -41,10 +48,24 @@ export function runPaletteCommands(commands: readonly PaletteCommandRef[], input
     }
     const command = findPaletteCommand(ref.id);
     if (command === undefined) notes.push(`I couldn't ${what(ref.id)} from this page.`);
-    else if (inputHeld) notes.push(`I didn't ${what(ref.id)}, because this page has changes you haven't saved.`);
+    else if (cardWaiting && leavesPage(ref.id)) notes.push(`I didn't ${what(ref.id)}, because the change above is waiting for you to approve it.`);
     else command.run();
   }
   return { notes, awaiting };
+}
+
+// The editing toggle is named for what it will do, so the label it carries
+// while editing is on is how a card tells which way the page is. Read off the
+// page's own builder rather than written out again here.
+const TURNS_EDITING_OFF = notebookEditingCommand(true, () => {}).target?.label;
+
+/**
+ * Whether the page is already where a toggle was asked to go (`on`), so that
+ * Approve would undo the request rather than carry it out. False for a
+ * command that names no direction.
+ */
+export function alreadyThere(command: PaletteCommand, on: boolean | undefined): boolean {
+  return on !== undefined && (command.target?.label === TURNS_EDITING_OFF) === on;
 }
 
 // **An Approve card's decision, kept beside the registry rather than on the

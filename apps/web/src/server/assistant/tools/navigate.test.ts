@@ -10,7 +10,10 @@ import { goToTool, proposeNotebookEditingTool } from "./navigate";
 // ids the page registered, never a URL.
 
 const PAGE_ID = "44444444-4444-4444-8444-444444444444";
-const trip = tripDetailFactory.build({}, { transient: { dayCount: 2, activitiesPerDay: 1 } });
+const built = tripDetailFactory.build({}, { transient: { dayCount: 2, activitiesPerDay: 1, unscheduledCount: 1 } });
+// The factory reuses titles, so the parked stop gets one of its own to be named by.
+const PARKED = built.backlog[0]!;
+const trip = { ...built, activities: { ...built.activities, [PARKED]: { ...built.activities[PARKED]!, title: "Onsen" } } };
 const notebooks = () =>
   newNotebookRefs(async () => [{ id: PAGE_ID, title: "Packing list", firstLine: null }], null);
 
@@ -74,22 +77,37 @@ describe("go_to", () => {
     [{ stop: "Nowhere at all" }, /Nowhere at all/],
     [{ notebook: "Budget" }, /Budget/],
     [{}, /where/],
+    // The board offers no Go to for a parked stop (`goToStopCommands`).
+    [{ stop: "Onsen" }, /on no day/],
   ])("refuses %j, and queues nothing", async (input, said) => {
     const { result, queued } = await goTo(input);
     expect(result).toEqual({ queued: false, refused: expect.stringMatching(said) });
     expect(queued).toEqual([]);
   });
+
+  // A notebook page registers none of the board's day, stop, notebook or
+  // People commands, so from there only the trip on a view is somewhere to go.
+  it.each([{ day: 1 }, { stop: trip.activities[trip.days[0]!.activityIds[0]!]!.title }, { notebook: "packing" }, { people: true as const }, { view: "Map" as const, day: 1 }])(
+    "refuses %j from a notebook, and queues nothing",
+    async (input) => {
+      const { result, queued } = await goTo(input, { kind: "page", pageId: PAGE_ID });
+      expect(result).toEqual({ queued: false, refused: expect.stringMatching(/From a notebook/) });
+      expect(queued).toEqual([]);
+    },
+  );
 });
 
 describe("propose_notebook_editing", () => {
-  it("queues the editing toggle to wait for Approve, on a notebook turn only", async () => {
+  // The toggle has no direction of its own, so the ref carries the one asked
+  // for, and a card can say so when the page is already there.
+  it.each([true, false])("queues the editing toggle to wait for Approve, turning it on: %s, on a notebook turn only", async (on) => {
     const paletteCommands = newPaletteCommandBuffer();
-    const result = await proposeNotebookEditingTool.run({}, { scope: { kind: "page", pageId: PAGE_ID }, paletteCommands });
+    const result = await proposeNotebookEditingTool.run({ on }, { scope: { kind: "page", pageId: PAGE_ID }, paletteCommands });
     expect(result.queued).toBe(true);
-    expect(paletteCommands.collected()).toEqual([{ id: "notebook-editing", needsApproval: true }]);
+    expect(paletteCommands.collected()).toEqual([{ id: "notebook-editing", needsApproval: true, on }]);
 
     const offPage = newPaletteCommandBuffer();
-    expect((await proposeNotebookEditingTool.run({}, { scope: { kind: "trip" }, paletteCommands: offPage })).queued).toBe(false);
+    expect((await proposeNotebookEditingTool.run({ on }, { scope: { kind: "trip" }, paletteCommands: offPage })).queued).toBe(false);
     expect(offPage.collected()).toEqual([]);
   });
 

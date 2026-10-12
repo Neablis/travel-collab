@@ -15,7 +15,8 @@ Format:
 
 ## 2026-10-12 — `AskStreamMetadata.paletteCommands`: the assistant names palette commands (M45 part 2, ADR-072)
 
-- **Added** to `packages/contracts/src/assistant.ts`: `PaletteCommandRef` (`{ id, needsApproval }`),
+- **Added** to `packages/contracts/src/assistant.ts`: `PaletteCommandRef` (`{ id, needsApproval, on? }`;
+  `on` is the state a toggle was asked for, so a card can say when the page is already there),
   `isAssistantCommandId(id)`, `TRIP_VIEWS` / `TripView`, and an optional `paletteCommands` key on every
   branch of `AskStreamMetadata`, the silent `{}` branch included. It is not an outcome: `OUTCOME_KEYS`
   leaves it out, so the one-outcome rule is unchanged, and a turn may answer, propose or write and
@@ -23,7 +24,8 @@ Format:
 - The parse **drops** any entry that is not a well-formed ref to an id the assistant may name
   (ADR-072 §3 and §6: `view:<View>`, `go:day:`, `go:stop:`, `go:notebook:`, `go:trip:<id>` and
   `go:trip:<id>:view:<View>`, `people`, `notebook-editing`; whole ids, never prefixes), so a URL in
-  a reply never reaches the page. `notebook-editing` always parses as `needsApproval: true`.
+  a reply never reaches the page. `notebook-editing` always parses as `needsApproval: true`, and an
+  entry's `on` is kept when present.
 - The empty branch was typed `Record<string, never>` by a transform; it is now
   `z.strictObject({ paletteCommands })`, whose inferred type still refuses a misspelled key at the
   producer (excess property, or weak type).

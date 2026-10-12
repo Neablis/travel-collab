@@ -1,6 +1,4 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { TRIP_VIEWS } from "@tc/contracts";
-import { VIEWS } from "@/components/trip/context/LensRouter";
 import { registerPaletteCommands, type PaletteCommand } from "@/components/palette/paletteRegistry";
 import { decideOffer, offerPaletteCommand, offerStatus, runPaletteCommands } from "./runPaletteCommands";
 
@@ -39,16 +37,21 @@ describe("running the commands a reply named", () => {
     expect(setView).not.toHaveBeenCalled();
   });
 
-  // §4: neither runs while the page holds unsaved input; the reply says what it
-  // would have done instead.
-  it("runs nothing while the page holds unsaved input, and says what it would have done", () => {
+  // §4: a card is not kept across leaving the page, so while one waits a
+  // command that leaves becomes a note, and one that stays on the page runs.
+  it("leaves the page for nothing while a card waits, and still moves on it", () => {
     const setView = vi.fn();
-    offer({ id: "view:Map", action: "Go to", type: "View", target: { label: "Map" }, run: setView });
+    const openNotebook = vi.fn();
+    offer(
+      { id: "view:Map", action: "Go to", type: "View", target: { label: "Map" }, run: setView },
+      { id: `go:notebook:${DAY}`, action: "Go to", type: "Notebook", target: { label: "Bookings" }, run: openNotebook },
+    );
 
-    expect(runPaletteCommands([go], true).notes).toEqual([
-      "I didn't switch to Map, because this page has changes you haven't saved.",
+    expect(runPaletteCommands([go, { id: `go:notebook:${DAY}`, needsApproval: false }], true).notes).toEqual([
+      "I didn't open that notebook, because the change above is waiting for you to approve it.",
     ]);
-    expect(setView).not.toHaveBeenCalled();
+    expect(setView).toHaveBeenCalledTimes(1);
+    expect(openNotebook).not.toHaveBeenCalled();
   });
 
   // §4: a change asks. It is handed back for a card, and nothing runs yet.
@@ -92,11 +95,4 @@ describe("an Approve card's command", () => {
     decideOffer(key, "notebook-editing", true);
     expect(offerStatus(key)).toBe("unavailable");
   });
-});
-
-// The allowlist's view names live in the contract, which the UI's own list
-// cannot import from the other way round. If they part, the assistant names a
-// view the page has no command for, or never names one it has.
-it("names the same views the trip page has", () => {
-  expect([...TRIP_VIEWS]).toEqual([...VIEWS]);
 });

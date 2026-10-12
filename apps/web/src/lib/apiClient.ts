@@ -1590,6 +1590,7 @@ export const AI_NOT_ENTITLED_STATUS = 402;
 // IGNORES (start, start-step, tool-output-available, finish, [DONE]) matter as
 // much as the ones it reads — the stream is a superset the server may grow,
 // and an unknown part type must never break a conversation.
+/** The events one SSE frame of an `/ask` stream carries, in the order a reader acts on them; none for a frame it ignores. */
 export function askEventsFromFrame(frame: string): AskEvent[] {
   const payload = frame
     .split("\n")

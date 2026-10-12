@@ -119,10 +119,10 @@
         "go_to",
         "propose_notebook_editing"
       ],
-      "toolChars": 5694,
+      "toolChars": 5798,
       "instructionChars": 3564,
-      "totalChars": 9258,
-      "approxTokens": 2797
+      "totalChars": 9362,
+      "approxTokens": 2828
     },
     "page · question": {
       "tools": [
@@ -135,10 +135,10 @@
         "go_to",
         "propose_notebook_editing"
       ],
-      "toolChars": 6694,
+      "toolChars": 6798,
       "instructionChars": 1712,
-      "totalChars": 8406,
-      "approxTokens": 2540
+      "totalChars": 8510,
+      "approxTokens": 2571
     }
   },
   "tools": {
@@ -242,6 +242,10 @@
       "chars": 365,
       "approxTokens": 110
     },
+    "propose_notebook_editing": {
+      "chars": 364,
+      "approxTokens": 110
+    },
     "RemoveActivity": {
       "chars": 319,
       "approxTokens": 96
@@ -249,10 +253,6 @@
     "SetTripStartDate": {
       "chars": 275,
       "approxTokens": 83
-    },
-    "propose_notebook_editing": {
-      "chars": 260,
-      "approxTokens": 79
     },
     "SetTripCurrency": {
       "chars": 224,

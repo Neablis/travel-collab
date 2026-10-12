@@ -1038,7 +1038,7 @@ function destinationOf(text: string): Record<string, unknown> | null {
 }
 
 /**
- * A request to go somewhere, or (on a notebook) to turn its editing on: the
+ * A request to go somewhere, or (on a notebook) to turn its editing on or off: the
  * one call, then what came of it. Null for anything else, or when the tool
  * was not handed over, so the turn is answered as it would have been.
  */
@@ -1050,7 +1050,7 @@ function navigationTurn(
 ): SimulatedStep | null {
   const editing = onPage && EDITING_REQUEST.test(question) && offered(options, PROPOSE_NOTEBOOK_EDITING_TOOL_NAME);
   const toolName = editing ? PROPOSE_NOTEBOOK_EDITING_TOOL_NAME : GO_TO_TOOL_NAME;
-  const input = editing ? {} : destinationOf(question);
+  const input = editing ? { on: !/\boff\b/i.test(question) } : destinationOf(question);
   if (input === null || !offered(options, toolName)) return null;
   // Asked once: what came back decides the sentence, whatever its shape.
   if (!results.some((result) => result.toolName === toolName)) {

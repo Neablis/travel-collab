@@ -1219,7 +1219,9 @@ describe("simulatedModel — taking you somewhere", () => {
   it("asks to turn a notebook's editing on, and says the card is waiting", async () => {
     const page = { kind: "page" as const, pageId: "p1" };
     const calls = callsOf(await probe().doGenerate(goPrompt(page, "turn on editing", [], ["insert_text", "propose_notebook_editing"])));
-    expect(calls.map((c) => [c.toolName, JSON.parse(c.input)])).toEqual([["propose_notebook_editing", {}]]);
+    expect(calls.map((c) => [c.toolName, JSON.parse(c.input)])).toEqual([["propose_notebook_editing", { on: true }]]);
+    const off = callsOf(await probe().doGenerate(goPrompt(page, "turn editing off", [], ["insert_text", "propose_notebook_editing"])));
+    expect(off.map((c) => [c.toolName, JSON.parse(c.input)])).toEqual([["propose_notebook_editing", { on: false }]]);
     const text = textOf(
       await probe().doGenerate(
         goPrompt(page, "turn on editing", [{ toolName: "propose_notebook_editing", value: { queued: true, note: "card" } }], [

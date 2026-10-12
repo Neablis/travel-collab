@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CommandCard, ProposalCard, proposalUndoFor, proposalWords, type ProposalState } from "./ProposalCard";
 import { registerPaletteCommands } from "@/components/palette/paletteRegistry";
+import { notebookEditingCommand } from "@/components/palette/commands";
 import { offerPaletteCommand } from "./runPaletteCommands";
 import type { AssistantProposal, HistoryEntry, TripHistory } from "@tc/contracts";
 
@@ -268,6 +269,25 @@ describe("CommandCard", () => {
     render(<CommandCard offer={{ id: "notebook-editing", key: offerPaletteCommand() }} />);
     expect(within(action()).queryByRole("button")).toBeNull();
     expect(within(action()).getByRole("status").textContent).toBe("I couldn't do that from this page.");
+  });
+
+  // The toggle reads "Turn editing off" while editing is on, so a card asked to
+  // turn it ON would otherwise offer to turn it off. It says where it is instead.
+  it.each([
+    [true, "Editing is already on."],
+    [false, "Editing is already off."],
+  ])("offers no Approve when the page is already where it was asked to go (on: %s)", (on, said) => {
+    const toggle = vi.fn();
+    taken.push(registerPaletteCommands("test", [notebookEditingCommand(on, toggle)]));
+    render(<CommandCard offer={{ id: "notebook-editing", key: offerPaletteCommand(), on }} />);
+    expect(within(action()).queryByRole("button", { name: "Approve" })).toBeNull();
+    expect(within(action()).getByRole("status").textContent).toBe(said);
+  });
+
+  it("offers Approve when the page is the other way", () => {
+    taken.push(registerPaletteCommands("test", [notebookEditingCommand(false, vi.fn())]));
+    render(<CommandCard offer={{ id: "notebook-editing", key: offerPaletteCommand(), on: true }} />);
+    expect(within(action()).getByRole("button", { name: "Approve" })).toBeTruthy();
   });
 
   // A card restored after a reload is not a live offer, like a restored proposal.

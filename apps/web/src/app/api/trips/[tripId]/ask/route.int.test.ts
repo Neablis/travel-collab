@@ -1723,7 +1723,7 @@ describe("POST /api/trips/:id/ask", () => {
         paletteCommands: [{ id: `go:trip:${tripId}:view:Map`, needsApproval: false }],
       });
       expect(await finishOf({ messages: [userMessage("turn on editing")], scope: { kind: "page", pageId } })).toEqual({
-        paletteCommands: [{ id: "notebook-editing", needsApproval: true }],
+        paletteCommands: [{ id: "notebook-editing", needsApproval: true, on: true }],
       });
     });
 
@@ -1928,6 +1928,33 @@ describe("POST /api/trips/:id/ask", () => {
       // Still nothing on the trip: a suggestion is not planning state.
       expect(JSON.stringify(await getTripDetail(tripId))).toBe(JSON.stringify(before));
       expect(JSON.stringify(await getTripHistory(tripId))).toBe(JSON.stringify(beforeHistory));
+    });
+
+    // ADR-072: where the turn takes you is not part of what was stored, so the
+    // swap from proposal to suggestion keeps it on the same final chunk.
+    it("keeps the turn's palette commands when its proposal is stored as a suggestion", async () => {
+      const tripId = await seedTrip();
+      await editorsOn(tripId);
+      currentUserId = ASKER;
+      const { model } = scriptedPageModel("edit", [
+        [
+          toolCall("AddActivity", { title: "Coffee", dayRef: "day 1" }),
+          toolCall("AddActivity", { title: "Stroll", dayRef: "day 1" }),
+          toolCall("go_to", { view: "Map" }),
+        ],
+        "Two stops on day 1, and here is the map.",
+      ]);
+      const res = await handleAskRequest(
+        req(tripId, { messages: [userMessage("add a coffee and a stroll to day 1 and show it on the map")], scope: { kind: "trip" } }),
+        tripId,
+        model,
+        () => {},
+      );
+
+      const outcome = outcomeOf(await chunksOf(res));
+      expect(outcome).not.toHaveProperty("proposal");
+      expect(outcome?.suggested).toMatchObject({ changeCount: 2 });
+      expect(outcome?.paletteCommands).toEqual([{ id: "view:Map", needsApproval: false }]);
     });
 
     it("keeps the card for a one-change turn, and stores nothing", async () => {

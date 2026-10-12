@@ -35,13 +35,19 @@ type NavigateOutput = z.infer<typeof NavigateOutput>;
 
 type Resolved = { id: string } | { refused: string };
 
-/** A stop by its title, as `batchResolver` reads an `activityRef`: whole, ignoring case. */
+/**
+ * A stop by its title, as `batchResolver` reads an `activityRef`: whole,
+ * ignoring case. Only a stop on a day: the board offers no Go to for a parked
+ * one (`goToStopCommands`), so naming it would end on "couldn't from this page".
+ */
 function stopId(trip: TripDetail, title: string): Resolved {
   const key = title.trim().toLowerCase();
   const matches = Object.entries(trip.activities).filter(([, activity]) => activity.title.trim().toLowerCase() === key);
-  if (matches.length === 1) return { id: `go:stop:${matches[0]![0]}` };
-  if (matches.length === 0) return { refused: `No stop is called “${title}”. Use its exact title as read_day shows it.` };
-  return { refused: `“${title}” names ${matches.length} stops. Go to its day instead.` };
+  if (matches.length > 1) return { refused: `“${title}” names ${matches.length} stops. Go to its day instead.` };
+  const [activityId] = matches[0] ?? [];
+  if (activityId === undefined) return { refused: `No stop is called “${title}”. Use its exact title as read_day shows it.` };
+  if (!trip.days.some((day) => day.activityIds.includes(activityId))) return { refused: `“${title}” is on no day, so there is nowhere on the board to go to it.` };
+  return { id: `go:stop:${activityId}` };
 }
 
 /**
@@ -66,12 +72,17 @@ async function destinations(
   scope: AskScope,
   notebooks: NotebookRefs,
 ): Promise<Resolved[]> {
-  const found: Resolved[] = [];
   // A notebook page has no lenses of its own, so a view from there is the
-  // trip on that view: one unlisted command, not a chain (§6).
-  if (input.view !== undefined) {
-    found.push({ id: scope.kind === "page" ? `go:trip:${trip.tripId}:view:${input.view}` : `view:${input.view}` });
+  // trip on that view: one unlisted command, not a chain (§6). It registers
+  // none of the board's day, stop, notebook or People commands either, so
+  // those are refused here rather than queued to fail on arrival.
+  if (scope.kind === "page") {
+    const offBoard = input.day !== undefined || input.stop !== undefined || input.notebook !== undefined || input.people === true;
+    if (offBoard) return [{ refused: `From a notebook I can only open the trip on a view (${TRIP_VIEWS.join(", ")}).` }];
+    return input.view === undefined ? [] : [{ id: `go:trip:${trip.tripId}:view:${input.view}` }];
   }
+  const found: Resolved[] = [];
+  if (input.view !== undefined) found.push({ id: `view:${input.view}` });
   if (input.day !== undefined) {
     const day = trip.days[input.day - 1];
     found.push(day === undefined ? { refused: `There is no day ${input.day}: this trip has ${trip.days.length}.` } : { id: `go:day:${day.dayId}` });
@@ -135,13 +146,16 @@ export const proposeNotebookEditingTool = defineTool({
   domain: "pages",
   effect: "propose",
   spend: "none",
-  input: z.object({}),
+  // The page's toggle has no direction, and only the page knows whether it
+  // is editing, so the direction asked for rides on the ref and the card
+  // says so when the page is already there (ADR-072 §4).
+  input: z.object({ on: z.boolean().describe("true to turn editing on, false to turn it off.") }),
   output: NavigateOutput,
   needs: ["scope", "paletteCommands"] as const,
   minimumRole: "editor",
-  run: (_input, deps): NavigateOutput => {
+  run: (input, deps): NavigateOutput => {
     if (deps.scope.kind !== "page") return { queued: false, refused: "Only a notebook has editing to turn on." };
-    deps.paletteCommands.add({ id: "notebook-editing", needsApproval: true });
+    deps.paletteCommands.add({ id: "notebook-editing", needsApproval: true, on: input.on });
     return { queued: true, note: "A card asks them to approve it. Say that it is waiting for them." };
   },
 });

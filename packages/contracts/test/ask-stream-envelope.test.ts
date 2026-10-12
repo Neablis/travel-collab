@@ -223,6 +223,12 @@ describe("the palette commands a turn names (ADR-072)", () => {
     expect(parsed.success && parsed.data.paletteCommands).toEqual([EDITING]);
   });
 
+  // A toggle's ref says which way it was asked to go, so the card can tell.
+  it("keeps the direction a toggle was asked for", () => {
+    const parsed = AskStreamMetadata.safeParse({ paletteCommands: [{ ...EDITING, on: false }] });
+    expect(parsed.success && parsed.data.paletteCommands).toEqual([{ ...EDITING, on: false }]);
+  });
+
   it("lets the producer build a turn that only takes you somewhere", () => {
     const messageMetadata = (): AskStreamMetadata | undefined => ({ paletteCommands: [MAP] });
     expect(AskStreamMetadata.safeParse(messageMetadata()).success).toBe(true);

@@ -253,8 +253,12 @@ export function isAssistantCommandId(id: string): boolean {
 // the wire, so a reply that left the flag off still cannot turn editing on.
 const CHANGES_STATE: ReadonlySet<string> = new Set(["notebook-editing"]);
 
-/** A palette command a turn named, and whether it waits for Approve. */
-export const PaletteCommandRef = z.object({ id: z.string().min(1), needsApproval: z.boolean() });
+/**
+ * A palette command a turn named, and whether it waits for Approve. `on` is
+ * the state a toggle was asked for: the command itself has no direction, so
+ * without it a card cannot tell "turn editing on" from a page already editing.
+ */
+export const PaletteCommandRef = z.object({ id: z.string().min(1), needsApproval: z.boolean(), on: z.boolean().optional() });
 export type PaletteCommandRef = z.infer<typeof PaletteCommandRef>;
 
 /**
@@ -266,7 +270,8 @@ const PaletteCommands = z.array(z.unknown()).transform((entries): PaletteCommand
   entries.flatMap((entry) => {
     const ref = PaletteCommandRef.safeParse(entry);
     if (!ref.success || !isAssistantCommandId(ref.data.id)) return [];
-    return [{ id: ref.data.id, needsApproval: ref.data.needsApproval || CHANGES_STATE.has(ref.data.id) }];
+    const { id, needsApproval, on } = ref.data;
+    return [{ id, needsApproval: needsApproval || CHANGES_STATE.has(id), ...(on !== undefined && { on }) }];
   }),
 );
 
