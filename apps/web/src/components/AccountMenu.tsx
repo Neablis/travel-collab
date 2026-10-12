@@ -5,7 +5,7 @@ import type { AvatarKey, PersonColor } from "@tc/contracts";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { forgetAskConversationsOf } from "@/components/assistant/askThreadStore";
+import { forgetAskConversationsOf } from "@/lib/askOwnership";
 import { Popover } from "@/components/ui/popover";
 import { Button, buttonVariants, PHONE_TOUCH } from "@/components/ui/button";
 import { cn } from "@/lib/cn";

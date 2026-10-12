@@ -4,7 +4,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation";
 import type { TripSummary } from "@tc/contracts";
 import { useSessionUser } from "@/components/account/useSessionUser";
-import { AI_ASK_ENTITLEMENT, useEntitled } from "@/components/assistant/useAiEntitled";
+import { AI_ASK_ENTITLEMENT, useEntitled } from "@/lib/useAiEntitled";
 import { usePhoneAsk } from "@/components/nav/phoneAsk";
 import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";

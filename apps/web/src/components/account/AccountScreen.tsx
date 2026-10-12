@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { forgetAskConversationsOf } from "@/components/assistant/askThreadStore";
+import { forgetAskConversationsOf } from "@/lib/askOwnership";
 import { Button, buttonVariants, PHONE_TOUCH } from "@/components/ui/button";
 import { PageContainer } from "@/components/ui/page-container";
 import { Heading } from "@/components/ui/heading";

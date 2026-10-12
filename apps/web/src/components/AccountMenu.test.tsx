@@ -4,7 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PersonColor, UserPreferences } from "@tc/contracts";
 import { AccountMenu, HeaderSessionChrome } from "./AccountMenu";
 import { PreferencesProvider } from "@/components/account/PreferencesProvider";
-import { loadAskDraft, loadAskThread, ownedAskName, saveAskDraft, saveAskThread } from "@/components/assistant/askThreadStore";
+import { loadAskDraft, loadAskThread, saveAskDraft, saveAskThread } from "@/components/assistant/askThreadStore";
+import { ownedAskName } from "@/lib/askOwnership";
 
 vi.mock("next-auth/react", () => ({
   getSession: vi.fn(),

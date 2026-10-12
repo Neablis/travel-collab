@@ -17,7 +17,7 @@ vi.mock("@/components/account/useSessionUser", () => ({
 // unless a test says otherwise. Asked only where there is an Ask: to offer.
 let aiEntitled: boolean | null = null;
 const entitlementAsked = vi.fn();
-vi.mock("@/components/assistant/useAiEntitled", () => ({
+vi.mock("@/lib/useAiEntitled", () => ({
   AI_ASK_ENTITLEMENT: "ai.ask",
   useEntitled: (capability: string, active: boolean) => {
     if (active) entitlementAsked(capability);

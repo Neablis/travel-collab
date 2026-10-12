@@ -4,7 +4,8 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ASK_FAILED_MESSAGE } from "@tc/contracts";
 import { AssistantRail } from "./AssistantRail";
-import { loadAskDraft, ownedAskName } from "./askThreadStore";
+import { ownedAskName } from "@/lib/askOwnership";
+import { loadAskDraft } from "./askThreadStore";
 import type { AssistantTurn } from "./Transcript";
 
 // **The hook is mocked so the prop's precedence can actually be tested.**
@@ -14,7 +15,7 @@ import type { AssistantTurn } from "./Transcript";
 // `null`. That is the defect CodeRabbit found in the code and it was invisible
 // here for exactly the same reason. `aiEntitledFetched` is what this controls.
 const fetchedEntitlement = vi.hoisted(() => ({ value: null as boolean | null }));
-vi.mock("./useAiEntitled", () => ({
+vi.mock("@/lib/useAiEntitled", () => ({
   useAiEntitled: () => fetchedEntitlement.value,
   AI_ASK_ENTITLEMENT: "ai.ask",
   accountPlanKey: "account:plan",

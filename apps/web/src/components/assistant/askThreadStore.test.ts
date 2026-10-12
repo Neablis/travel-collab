@@ -7,16 +7,8 @@
 // built against a trip that has since moved.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AssistantTurn } from "@/components/assistant/Transcript";
-import {
-  clearAskDraft,
-  clearAskThread,
-  forgetAskConversationsOf,
-  loadAskDraft,
-  loadAskThread,
-  ownedAskName,
-  saveAskDraft,
-  saveAskThread,
-} from "./askThreadStore";
+import { forgetAskConversationsOf, ownedAskName } from "@/lib/askOwnership";
+import { clearAskDraft, clearAskThread, loadAskDraft, loadAskThread, saveAskDraft, saveAskThread } from "./askThreadStore";
 
 // Owned, as every caller stores it: an unowned name is a legacy key, swept.
 const NAME = ownedAskName("user-a", "trip:11111111-2222-4333-8444-555566667777");

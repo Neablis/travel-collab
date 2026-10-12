@@ -29,20 +29,12 @@
  * reasons beside that one: KI-2026-09-02-a (Node 26 leaves
  * `window.localStorage` undefined in the jsdom unit lane), and `SPEC.md` §28,
  * where the old `theme` key still held a stale stored value, which is why the
- * key below carries a version.
+ * key (`lib/askOwnership.ts`) carries a version.
  */
 
 import type { AssistantTurn } from "@/components/assistant/Transcript";
 import type { BeyondTripAskScope } from "@/lib/apiClient";
-
-/**
- * **Versioned, because §28 is a recorded incident rather than a worry.** The
- * shape stored here is `AssistantTurn`'s, which is a UI type and will change;
- * a stale value under an unversioned key is read as a current one. Bumping this
- * abandons every stored thread, which is the correct cost for a working surface
- * and would be the wrong one for a record.
- */
-const KEY_PREFIX = "ask_thread_v1";
+import { ASK_DRAFT_PREFIX as DRAFT_PREFIX, ASK_THREAD_PREFIX as KEY_PREFIX } from "@/lib/askOwnership";
 
 /**
  * How many turns are kept.
@@ -215,42 +207,7 @@ export function beyondTripThreadName(scope: BeyondTripAskScope): string {
   }
 }
 
-/**
- * Conversation `name` as `owner` keeps it: the signed-in user's id, so two
- * accounts on one browser never read each other's threads or drafts (PR 426's
- * review: Home's account thread is wholly personal, and every account landed
- * on it). Every stored name goes through here; `useOwnedAskName` is how.
- */
-export function ownedAskName(owner: string, name: string): string {
-  return `${owner}:${name}`;
-}
-
-/** The owner of what a signed-out visitor asks (the demo trip at `/plans`). */
-export const SIGNED_OUT_OWNER = "signed-out";
-
-/**
- * Forgets every thread and draft `owner` stored. Sign-out calls it: a shared
- * browser keeps nothing of the account that just left. Never throws.
- */
-export function forgetAskConversationsOf(owner: string): void {
-  try {
-    const mine = [`${KEY_PREFIX}:${ownedAskName(owner, "")}`, `${DRAFT_PREFIX}:${ownedAskName(owner, "")}`];
-    const keys = Array.from({ length: window.localStorage.length }, (_, i) => window.localStorage.key(i));
-    for (const key of keys) {
-      if (key !== null && mine.some((prefix) => key.startsWith(prefix))) window.localStorage.removeItem(key);
-    }
-  } catch {
-    // See `saveAskThread`.
-  }
-}
-
-// **The composer's unsent text, beside its conversation** (KI-2026-10-12-g). A
-// reply that runs a page-leaving command unmounts the rail with whatever the
-// person had typed while it answered; so does a reload. Its own versioned
-// prefix, since it is a string and not a thread, and wrapped like the thread's
-// accesses for the same reasons: losing storage costs the draft's durability,
-// never the composer.
-const DRAFT_PREFIX = "ask_draft_v1";
+// The composer's unsent text, beside its conversation (KI-2026-10-12-g).
 
 /** The stored draft for conversation `name`, or null. Never throws. */
 export function loadAskDraft(name: string): string | null {

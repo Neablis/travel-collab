@@ -10,13 +10,8 @@ import {
   withoutRetracted,
 } from "@/lib/apiClient";
 import { MAX_ASK_MESSAGES } from "@/lib/askLimits";
-import {
-  SIGNED_OUT_OWNER,
-  clearAskThread,
-  loadAskThread,
-  ownedAskName,
-  saveAskThread,
-} from "@/components/assistant/askThreadStore";
+import { clearAskThread, loadAskThread, saveAskThread } from "@/components/assistant/askThreadStore";
+import { SIGNED_OUT_OWNER, ownedAskName } from "@/lib/askOwnership";
 import { useKnownSessionUser } from "@/components/account/useSessionUser";
 import { offerPaletteCommand, runPaletteCommands } from "./runPaletteCommands";
 

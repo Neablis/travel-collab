@@ -24,7 +24,7 @@ import {
 } from "./assistantPosition";
 import { useAssistantPosition } from "./useAssistantShape";
 import { usePinToBottom } from "./usePinToBottom";
-import { useAiEntitled } from "./useAiEntitled";
+import { useAiEntitled } from "@/lib/useAiEntitled";
 
 /**
  * The device's safe-area insets in px, for clamping a dragged card to the

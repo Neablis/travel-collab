@@ -1,7 +1,8 @@
 import { cleanup, render, screen, fireEvent, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AccountScreen, accountTabFrom } from "./AccountScreen";
-import { loadAskDraft, loadAskThread, ownedAskName, saveAskDraft, saveAskThread } from "@/components/assistant/askThreadStore";
+import { loadAskDraft, loadAskThread, saveAskDraft, saveAskThread } from "@/components/assistant/askThreadStore";
+import { ownedAskName } from "@/lib/askOwnership";
 
 // The tab is the route (SPEC §34.4, DRIFT §6 build-check 4), so the thing under
 // test is the relationship between `?tab=` and what is on the page. The router
