@@ -166,6 +166,10 @@
       "chars": 950,
       "approxTokens": 287
     },
+    "spend_by_category": {
+      "chars": 933,
+      "approxTokens": 282
+    },
     "search_playbooks": {
       "chars": 877,
       "approxTokens": 265
@@ -173,10 +177,6 @@
     "read_trip": {
       "chars": 853,
       "approxTokens": 258
-    },
-    "spend_by_category": {
-      "chars": 836,
-      "approxTokens": 253
     },
     "request_change_tools": {
       "chars": 725,

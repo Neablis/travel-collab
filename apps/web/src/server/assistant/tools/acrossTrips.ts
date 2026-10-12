@@ -54,7 +54,7 @@ export type SpendByCategoryReadout = z.infer<typeof SpendByCategoryReadoutSchema
 export const spendByCategoryTool = defineTool({
   name: "spend_by_category",
   description:
-    "What the user has spent across every trip they travelled on, by category (a stop's first category tag; \"meal\" is food, \"untagged\" has none), per currency — never add different currencies together. Each row has its total for everyone travelling, its number of costed stops, and its most expensive stop by price for one person, which answers \"what was my most expensive meal?\". Amounts are integers in minor units (cents). Only stops on a day count; the ideas list does not.",
+    "What the user has spent across every trip they travelled on, by category (a stop's first category tag; \"meal\" is food, \"untagged\" has none), per currency — never add different currencies together. With more than one currency, name the most expensive in each and do not convert or compare them. Each row has its total for everyone travelling, its number of costed stops, and its most expensive stop by price for one person, which answers \"what was my most expensive meal?\". Amounts are integers in minor units (cents). Only stops on a day count; the ideas list does not.",
   domain: "account",
   effect: "read",
   spend: "none",

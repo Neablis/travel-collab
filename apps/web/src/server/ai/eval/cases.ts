@@ -12,6 +12,7 @@
 // a turn that reads one extra day.
 import { travellerIds, type TripDetail } from "@tc/contracts";
 import {
+  COUNTRIES,
   DAYTIME_END_MINUTES,
   DAYTIME_START_MINUTES,
   citiesOfDay,
@@ -167,13 +168,18 @@ export function accountExpectationFor(
   const trips = seeded.filter((trip) => trip.travelling).map((trip) => trip.detail);
   switch (id) {
     case "a-most-expensive-meal": {
-      const meal = spendByCategory(trips, userId, { category: "meal" }).categories
-        .map((row) => row.mostExpensive)
-        .sort((a, b) => b.perPersonMinor - a.perPersonMinor)[0];
+      // One row per currency, and each row's priciest meal is a right answer:
+      // minor units of two currencies do not compare.
+      const meals = spendByCategory(trips, userId, { category: "meal" }).categories.map((row) => row.mostExpensive);
       return {
         ...ACCOUNT_QUESTION,
         mustCall: ["spend_by_category"],
-        ...(meal === undefined ? {} : { mentionsOneOf: [meal.title], namesOneOfAmounts: [...new Set([meal.perPersonMinor, meal.totalMinor])] }),
+        ...(meals.length === 0
+          ? {}
+          : {
+              mentionsOneOf: meals.map((meal) => meal.title),
+              namesOneOfAmounts: [...new Set(meals.flatMap((meal) => [meal.perPersonMinor, meal.totalMinor]))],
+            }),
       };
     }
     case "a-countries-count": {
@@ -188,8 +194,23 @@ export function accountExpectationFor(
       const top = visitCounts(trips, userId, "city").places[0];
       return { ...ACCOUNT_QUESTION, mustCall: ["visit_counts"], ...(top === undefined ? {} : { mentionsOneOf: [top.place] }) };
     }
-    case "a-next-country":
-      return { ...ACCOUNT_QUESTION, mustCall: ["suggest_next_country"] };
+    case "a-next-country": {
+      // Read off the travelled trips' own scheduled stops, not through
+      // `suggestNextCountry`, for the reason above: an answer naming a country
+      // already visited, and no other, fails.
+      const been = new Set(
+        trips.flatMap((trip) =>
+          trip.days
+            .flatMap((day) => day.activityIds.map((id) => trip.activities[id]))
+            .flatMap((stop) => [stop?.location?.countryCode, stop?.endLocation?.countryCode]),
+        ),
+      );
+      return {
+        ...ACCOUNT_QUESTION,
+        mustCall: ["suggest_next_country"],
+        mentionsOneOf: COUNTRIES.filter((country) => !been.has(country.code)).map((country) => country.name),
+      };
+    }
     default:
       return undefined;
   }

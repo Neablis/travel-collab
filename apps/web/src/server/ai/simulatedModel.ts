@@ -36,6 +36,7 @@
 import { randomUUID } from "node:crypto";
 import type { LanguageModel } from "ai";
 import type { ActivityTag } from "@tc/contracts";
+import { formatMoney } from "@/lib/formatMoney";
 import { needsBooking } from "@/lib/needsBooking";
 import { parseAskScope, type AskScope } from "@/server/assistant/context";
 import { askIntentVerdictText, isAskIntentCall, isPageIntentCall } from "@/server/ai/askIntent";
@@ -1020,11 +1021,6 @@ function accountCall(question: string): ToolCall {
 
 const SIMULATED_ACCOUNT_FALLBACK = "I couldn't read your trips just now.";
 
-/** An amount in minor units as the tools hand it over, written for a person: `12000` USD is "120.00 USD". */
-function majorUnits(amountMinor: number, currency: string): string {
-  return `${(amountMinor / 100).toFixed(2)} ${currency}`;
-}
-
 /** An account step: ask the one aggregate the question needs, then say what it returned. */
 function accountTurn(results: readonly ToolResultLike[], question: string, options: CallOptionsLike): SimulatedStep {
   if (results.length === 0) {
@@ -1038,12 +1034,17 @@ function accountTurn(results: readonly ToolResultLike[], question: string, optio
 function accountAnswer(results: readonly ToolResultLike[]): string[] {
   const spend = resultFor<SpendByCategoryReadout>(results, "spend_by_category");
   if (spend) {
-    const top = [...spend.categories].sort((a, b) => b.mostExpensive.perPersonMinor - a.mostExpensive.perPersonMinor)[0];
-    if (top === undefined) return [`Nothing with a price on it across your ${spend.tripsCounted} trips.`];
-    const { title, tripName, perPersonMinor } = top.mostExpensive;
-    return [
-      `The most expensive ${top.category === "meal" ? "meal" : "stop"} across your trips was ${plain(title)} on ${plain(tripName)}, at ${majorUnits(perPersonMinor, top.currency)} per person.`,
-    ];
+    // The priciest per currency: minor units of two currencies do not compare.
+    const tops = new Map<string, (typeof spend.categories)[number]>();
+    for (const row of spend.categories) {
+      const top = tops.get(row.currency);
+      if (top === undefined || row.mostExpensive.perPersonMinor > top.mostExpensive.perPersonMinor) tops.set(row.currency, row);
+    }
+    if (tops.size === 0) return [`Nothing with a price on it across your ${spend.tripsCounted} trips.`];
+    return [...tops.values()].map(({ category, currency, mostExpensive: { title, tripName, perPersonMinor } }) => {
+      const what = `${category === "meal" ? "meal" : "stop"}${tops.size > 1 ? ` paid in ${currency}` : ""}`;
+      return `The most expensive ${what} across your trips was ${plain(title)} on ${plain(tripName)}, at ${formatMoney(perPersonMinor, currency)} per person.`;
+    });
   }
   const places = resultFor<PlacesVisitedReadout>(results, "places_visited");
   if (places) {

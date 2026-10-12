@@ -219,7 +219,10 @@ const ACCOUNT_INTENT_MARKER = "Set intent to question or off_topic.";
 /**
  * The account surface's classification instruction (M45). Its only choice is
  * the off-topic gate: a turn across every trip asks and never changes, so
- * there is no class to pick between and no tier for a doubt to raise.
+ * there is no class to pick between. `certainty` still does the work it does
+ * on the other surfaces: an unsure `off_topic` is answered rather than
+ * refused, and an unsure question (a bare "yes", or a failed-open call) runs
+ * on the `mid` tier, as doubt does everywhere (`tierFor`).
  */
 export const ACCOUNT_INTENT_INSTRUCTION = [
   "You classify the LAST message sent to an assistant that answers questions about all of a person's trips. You do not answer it.",

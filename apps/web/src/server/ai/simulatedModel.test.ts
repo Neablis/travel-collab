@@ -1126,10 +1126,19 @@ describe("simulatedModel — the account surface", () => {
     expect(calls.map((c) => [c.toolName, JSON.parse(c.input)])).toEqual([[tool, input]]);
   });
 
-  it("names the priciest meal and what it cost", async () => {
+  // Minor units in two currencies are two scales: 12,000 is not more than
+  // 4,000 when one is dollars and the other euros, so each currency gets its own.
+  it("names the priciest meal in each currency, never comparing across them", async () => {
     const spend = {
-      tripsCounted: 2,
+      tripsCounted: 3,
       categories: [
+        {
+          category: "meal",
+          currency: "EUR",
+          totalMinor: 4_500,
+          stops: 2,
+          mostExpensive: { title: "Seafood dinner", tripName: "Lisbon", perPersonMinor: 4_000, totalMinor: 4_000 },
+        },
         {
           category: "meal",
           currency: "USD",
@@ -1143,7 +1152,9 @@ describe("simulatedModel — the account surface", () => {
       await probe().doGenerate(accountPrompt("what was my most expensive meal?", [{ toolName: "spend_by_category", value: spend }])),
     );
     expect(text).toContain("Kaiseki dinner");
-    expect(text).toContain("120.00 USD");
+    expect(text).toContain("$120.00");
+    expect(text).toContain("Seafood dinner");
+    expect(text).toContain("€40.00");
   });
 
   it("counts the countries, names the most-visited city and suggests only an unvisited country", async () => {
@@ -1153,7 +1164,7 @@ describe("simulatedModel — the account surface", () => {
       cities: [{ city: "Kyoto", countryCode: "JP" }],
       unknownStops: 0,
     };
-    const counts = { tripsCounted: 3, by: "city", places: [{ place: "Kyoto", trips: 2, days: 3, stops: 4 }], unknownStops: 0 };
+    const counts = { tripsCounted: 3, by: "city", places: [{ place: "Kyoto", countryCode: "JP", trips: 2, days: 3, stops: 4 }], unknownStops: 0 };
     const next = {
       tripsCounted: 3,
       visited: [{ code: "JP", name: "Japan", region: "East Asia" }],
