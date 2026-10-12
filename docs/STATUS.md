@@ -21,13 +21,27 @@ general setup.
 
 ## Where the work is right now
 
-**M42 — THE FRONT DOOR SHOWS MORE THAN ONE TRIP, AND WHAT IT COSTS — IS THE CURRENT MILESTONE AS
-OF 2026-10-11**, by **M41's gate closing at 13 of 13**. It was **scoped 2026-10-11 with Mitchell**:
-decisions 1–11 are answered, and he widened it with richer activity tags — thirteen tags (twelve
-categories and Ticketed as a modifier), trip descriptions, tag pages and tag widgets (ADR-070). It
-is built as seven parts, each its own PR on `main`, with part 0 (the prose and the gate tracker) on
-`claude/dreamy-ritchie-kfnsa2` merging last
-(`docs/milestones/M42-the-front-door-shows-more.md`, plan `docs/plans/2026-10-11-M42-front-door-and-tags.md`). Order: `… M40 ✓ → M41 ✓ → M42 → M43 … M47`.
+**M43 — A TRIP'S NOTEBOOKS KEEP UP WITH THEIR TEMPLATES — IS THE CURRENT MILESTONE AS OF
+2026-10-12**, by **M42's gate closing at 14 of 14**. **M43 is not scoped**: its decisions need
+answering with Mitchell, checked against today's UI, before any part is built
+(`docs/milestones/M43-notebooks-keep-up.md`). Order: `… M41 ✓ → M42 ✓ → M43 → M44 … M47`.
+
+**M42 closed 2026-10-12.** The front door shows more than one trip, and what it costs:
+- `/demo/<slug>` for every bundled trip, with a picker on `/demo`; a demo opens on Plan (#411).
+- Three plan cards and prices on the landing at `#pricing`, read from a generated snapshot of
+  `planVersions.ts` (#405).
+- Thirteen activity tags (twelve categories, Ticketed as a modifier), with bundled content
+  re-tagged, API 1.13.0 → 1.15.0 (#406, #408, ADR-070).
+- A trip or day description worked out from its tags, on five surfaces (#409); tag and city×tag
+  pages, a Discover tag filter and Discover pagination (#412); four tag widgets (#410).
+- Leaving a playbook review needs Plus or Premium (#407, ADR-071).
+- The landing's feature blocks and phone claims render the real app, with Mitchell's Hanoi
+  playbook as the Discover card (#413).
+
+It shipped as #405–#413, all merged by 2026-10-12; part 0 is #404. CI on #413's head (`97c4d9e`,
+run 38184850349, attempt 2) was green on every job, including both e2e shards. Mitchell walked it
+after every part had merged. No migrations. Its retro is at the end of
+`docs/milestones/M42-the-front-door-shows-more.md`.
 
 **M41 closed 2026-10-11.** Moving and adding stops takes one gesture wherever you are: the
 editor's Day field moves any stop, a drawer of just cards with double-click to create, the
@@ -287,11 +301,10 @@ half, the model guessing a coordinate rather than citing one, is M9 scope.
 
 ## Next action
 
-**Build M42's parts** (`docs/plans/2026-10-11-M42-front-door-and-tags.md`): parts 1 (the tag
-vocabulary) and 7 (landing pricing) first, in parallel; the rest follow as their dependencies merge
-to `main`. M41 is merged (#391), with no migration.
-All 48 migrations are applied (M40 added `0045` and `0046`; `0047` landed between milestones). Separately,
-`KI-2026-10-04-c` resolves on query 8 of `ledger.sql` over a few days of cheap-tier step durations.
+**Scope M43** (`docs/milestones/M43-notebooks-keep-up.md`) with Mitchell: answer its decisions
+against today's UI, then plan its parts (`build-a-milestone`). M42 is merged, with no migration.
+All 48 migrations are applied. Separately, `KI-2026-10-04-c` resolves on query 8 of `ledger.sql`
+over a few days of cheap-tier step durations.
 
 **Carried out of M24, not gating:** `KI-2026-09-25-q`. About a dozen
 surfaces read `activity.location.city` directly, including the M14 ones this

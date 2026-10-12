@@ -1,10 +1,11 @@
 # M42 — The front door shows more than one trip, and what it costs
 
-**Status:** **Scoped 2026-10-11 with Mitchell**: every decision below is answered. Proposed
+**Status:** **Closed 2026-10-12 — gate 14 of 14.** Built 2026-10-11 as #405–#413, part 0 #404.
+**Scoped 2026-10-11 with Mitchell**: every decision below is answered. Proposed
 2026-10-06 and minted from `docs/candidates.md` (see `docs/milestones/README.md`,
 *2026-10-06 — proposed: M37 to M47*). On 2026-10-11 Mitchell widened it with **richer activity
 tags** (D5–D11), because they feed the same front door: tag pages for search, and a description
-that says what kind of trip each demo is. Build plan: `docs/plans/2026-10-11-M42-front-door-and-tags.md`.
+that says what kind of trip each demo is. Build plan: `docs/plans/2026-10-11-M42-front-door-and-tags.md` (deleted at close; in git history).
 Decision record for the tags: **ADR-070**.
 
 ## Why this exists
@@ -213,8 +214,9 @@ M42's code. Line numbers are on `main` at `7a52e22`.
       an e2e shard could not pull the postgres image, ECR `toomanyrequests`). ci-like locally, per
       the PR bodies: m42-demo-trips 12 passed (PR 413), m42-tag-pages passed with no retries
       (PR 412).*
-- [ ] **[walk]** The PR preview is walked signed out at desktop and phone widths, and the tag
-      picker and widgets signed in.
+- [x] **[walk]** The PR preview is walked signed out at desktop and phone widths, and the tag
+      picker and widgets signed in. *Ticked 2026-10-12 on Mitchell's word: "Walked and looked good",
+      after every part had merged to `main`.*
 - [x] A retro is appended at gate close. *Ticked 2026-10-12: below.*
 
 ## Retro — written 2026-10-12, before the walk (13 of 14 boxes ticked; the open one is Mitchell's walk)

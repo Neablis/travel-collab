@@ -119,49 +119,6 @@ here two days later.
   behaves on a shared trip. It depends on the eve port (the entry above), which is
   deferred.
 
-- **An SEO pass over the public library (asked 2026-10-02).** ADR-061 made
-  `/playbooks`, its days, profiles and board readable without an account.
-  Mitchell, 2026-10-02: *"I have no issue being crawled, we should do a seo pass
-  at some point soon"*. So crawling stays allowed (there is no `robots` file,
-  and none is wanted to block it). The pass would cover:
-  - a `sitemap.ts` of published days;
-  - canonical URLs without `?from=`;
-  - per-page `description`s, which today come from the og `meta` lookup;
-  - structured data for a day;
-  - whether profile and board pages earn a place in the index.
-
-  **Built 2026-10-03 as five stacked PRs, #295 (crawl plumbing), #296
-  (sitemap), #297 (server-rendered days, real 404s, slugs), #298 (structured
-  data) and #299 (city and country pages), to merge in that order.** Plan:
-  `docs/plans/2026-10-02-seo-pass.md`. What spec §7 left out, still candidates:
-  indexing profiles or the board; paginating Discover; public notebook
-  templates (a contract change); public pages for the sample trips under
-  `content/trips/`. Still Mitchell's, outside the code: the firewall bypass
-  for `/`, `/welcome`, `/playbooks/**`, `/robots.txt` and `/sitemap.xml`;
-  submitting the sitemap; the production canonical check.
-
-  **Audited and designed 2026-10-02; Mitchell: *"Lets start the SEO work"*.**
-  The design, with its nine decisions and five stacked PRs, is
-  `docs/specs/2026-10-02-seo-pass-design.md`; it has no plan yet. What the audit
-  added to that list, most valuable first:
-  - **The Vercel firewall challenges crawlers on every page this pass is
-    about.** `/`, `/robots.txt` and `/sitemap.xml` answered `429 Vercel Security
-    Checkpoint` to non-browser clients from two networks; `/llms.txt` and
-    `/api/og/playbooks` answered 200. It is the dashboard rule
-    `docs/guidelines/using-the-api.md` already describes. Whether verified
-    Googlebot passes was not testable from here.
-  - Every day page has one `<title>`, "A playbook — Caesura"
-    (`apps/web/src/lib/linkPreview.ts` keeps the tab title generic on purpose).
-  - The public screens are client-rendered, so the HTML a crawler gets is a
-    skeleton (KI-2026-09-20-f), and a missing day answers 200.
-  - Discover shows 24 days with no pagination, so the sitemap is the only way
-    most days are found.
-  - City pages as paths (`/playbooks/city/kyoto`) and not `?city=`: the city
-    card and copy already exist.
-  - `/welcome` renders two `<h1>`s, and `/s/<token>` and `/invite/<token>`
-    carry no `noindex`.
-  *Placed 2026-10-06 → `docs/milestones/M42-the-front-door-shows-more.md` (proposed, not yet scoped). M42's gate deletes this entry at close.*
-
 - **Structured booking fields on a stop — confirmation number, provider, link
   (asked 2026-09-30).** From an external API consumer's feedback: confirmation
   numbers live in `notes` today. A stop has `cost`, `bookedBy` (a member id) and
@@ -242,16 +199,6 @@ here two days later.
   annotation step, which `docs/milestones/README.md` records as not adopted and
   `scripts/milestone.mjs`'s checklist does not have; and the KI `Area:` → node
   binding.
-
-- **More than one demo trip: a picker on the front door and `/demo/<slug>`
-  (asked 2026-09-27).** Only Japan is public; `content/trips/` holds four more
-  (Dolomites, Iceland, Northern Spain, Thailand) that nothing public shows.
-  Mitchell liked a hero trip picker but kept it off the home page for now to
-  avoid complicating it. Depends on the landing snapshot generator in
-  `docs/specs/2026-09-27-link-previews-and-real-hero-design.md` §3.2 (one
-  snapshot per trip) and on `server/demoTrip.ts` folding a bundle, not only the
-  Japan fixture.
-  *Placed 2026-10-06 → `docs/milestones/M42-the-front-door-shows-more.md` (proposed, not yet scoped). M42's gate deletes this entry at close.*
 
 - **Stripe test mode alongside live, without a redeploy to switch.** Asked for
   2026-09-16: *"i would like to be able to use test card without needing to take
@@ -448,23 +395,6 @@ here two days later.
   mode, which is the argument for doing it properly once. Vercel toolbar thread
   `ULm7F9Ys7Cyx`.
   *Placed 2026-10-06 → `docs/milestones/M45-the-assistant-beyond-one-trip.md` (proposed, not yet scoped). M45's gate deletes this entry at close.*
-
-- **Pricing on the landing page (designed 2026-09-02, `SPEC.md` §17.1).** A
-  section plus a `#pricing` nav anchor on M15's existing landing route — three
-  plan cards, each enumerating its own contents in full. **Parked here by
-  Mitchell, 2026-09-02**, having been ruled out of both commercial milestones:
-  M20 forbids a price string in its own diff, and all seven of M21's links are
-  authenticated. **The full requirement lives in
-  `docs/milestones/M21-subscriptions-and-billing.md` under *An unowned
-  surface*** and is not copied here, per this file's own rule. Two constraints
-  on wherever it eventually lands: it may only **name a price at or after
-  M21**, or it ships priceless; and it is a **section on a route that already
-  exists**, so it is small wherever it goes. Revisit when M21 opens.
-  **Unblocked (audited 2026-09-25):** M21's gate closed 2026-09-19 with prices
-  set, so it can now name one. `PlansScreen` / `PlanComparison` on the
-  signed-in `/plans` route (#177) are the obvious parts to reuse; the landing
-  route (`LandingScreen.tsx`) still has no section and no `#pricing` anchor.
-  *Placed 2026-10-06 → `docs/milestones/M42-the-front-door-shows-more.md` (proposed, not yet scoped). M42's gate deletes this entry at close.*
 
 - **Save light: move Retry out of the mark and into a popover on it
   (2026-08-26, Mitchell, PR #55 — "nice to have, to do later").** SPEC's "The
