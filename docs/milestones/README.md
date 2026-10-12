@@ -122,7 +122,7 @@ for collaboration later landing on a product people already want to join.
 | M39 | The phone layout is decided once, and Caesura installs like an app | **Proposed 2026-10-06, scoped 2026-10-07**: all six decisions answered as recommended. From `docs/candidates.md`; see *2026-10-06 — proposed: M37 to M47*. The phone/tablet design critique and its KIs, the phone conflict state, PWA install tiers 1–2: `M39-the-phone-is-decided.md` |
 | M40 | A big change is reviewed whole, taken whole, and undone whole | **Proposed 2026-10-06, scoped 2026-10-09**: all seven decisions answered as recommended. From `docs/candidates.md`; see *2026-10-06 — proposed: M37 to M47*. Accept all as one batch, named snapshots, assistant planning turns write suggestions (ADR-067); three parts after a phase-0 PR: `M40-a-big-change-is-one-change.md` |
 | M41 | Moving and adding stops takes one gesture wherever you are | **Closed 2026-10-11, gate 13 of 13.** **Proposed 2026-10-06, scoped 2026-10-10** by Mitchell in session, and re-framed: the 2026-10-06 recommendations predated the time river and the Calendar redesign. Fewer controls and more direct gestures: Calendar city-block drag that can grow the trip, the editor's Day field moves any stop, a drawer of just cards, Plan day drag, Option-drag copy, top-edge resize, paste-to-add, parked-stop origin, and a ⌘K palette that runs the page's own actions (ADR-068). Quick-add, search-to-add and optimistic Duplicate/Restore were cut back to candidates. `M41-planning-without-friction.md` |
-| M42 | The front door shows more than one trip, and what it costs | **Current (since M41 closed 2026-10-11). Proposed 2026-10-06, not scoped.** (This row said *"scoped 2026-10-07: all six decisions answered as recommended"* until 2026-10-10. That was a bulk edit; the milestone file never recorded an answer.) From `docs/candidates.md`; see *2026-10-06 — proposed: M37 to M47*. `/demo/<slug>` picker, landing pricing, the SEO pass's leftovers: `M42-the-front-door-shows-more.md` |
+| M42 | The front door shows more than one trip, and what it costs | **Closed 2026-10-12, gate 14 of 14.** **Scoped 2026-10-11 with Mitchell: decisions 1–11 answered**, and widened with richer activity tags (ADR-070). Plan `docs/plans/2026-10-11-M42-front-door-and-tags.md` (deleted at close; in git history). `/demo/<slug>` picker, landing pricing, the SEO pass's leftovers, thirteen tags, trip descriptions, tag pages, tag widgets: `M42-the-front-door-shows-more.md` |
 | M43 | A trip's notebooks keep up with their templates | **Proposed 2026-10-06, not scoped.** (This row said *"scoped 2026-10-07: all six decisions answered as recommended"* until 2026-10-10. That was a bulk edit; the milestone file never recorded an answer.) From `docs/candidates.md`; see *2026-10-06 — proposed: M37 to M47*. Seed back-fill and reset, `pages.kind`, derived Overview title, the `open` widget's design and filters: `M43-notebooks-keep-up.md` |
 | M44 | A stop knows what was booked, and what it sits inside | **Proposed 2026-10-06, not scoped.** (This row said *"scoped 2026-10-07: all six decisions answered as recommended"* until 2026-10-10. That was a bulk edit; the milestone file never recorded an answer.) From `docs/candidates.md`; see *2026-10-06 — proposed: M37 to M47*. `booking` on the activity contract, the containment rule in `conflicts.ts`: `M44-a-stop-knows-what-was-booked.md` |
 | M45 | The assistant answers about all your trips, and can take you places | **Proposed 2026-10-06, not scoped.** (This row said *"scoped 2026-10-07: all six decisions answered as recommended"* until 2026-10-10. That was a bulk edit; the milestone file never recorded an answer.) From `docs/candidates.md`; see *2026-10-06 — proposed: M37 to M47*. Account-wide read tools, `ClientAction` navigation, approved edit mode: `M45-the-assistant-beyond-one-trip.md` |
@@ -193,7 +193,7 @@ Placement notes (decided 2026-07-07):
   questions stay open — start-only trip dates, first-run vs. the four-step
   wizard, and whether the landing copy may sell M11/M12 — see the review's §8.
 
-Current milestone: M42 — The front door shows more than one trip, and what it…
+Current milestone: M43 — A trip's notebooks keep up with their templates
 
 ### Archived decision notes
 
@@ -248,7 +248,7 @@ The 42 unplaced candidates were grouped by what they would change for a user:
 | The phone | M39 | design critique (5 KIs), PWA tiers 1–2, phone conflict state |
 | Reviewing big changes | M40 | Accept all as one batch, named snapshots, assistant proposes via suggestions |
 | Board ergonomics | M41 | Calendar drag, M8 C/D trim, unscheduled add, parked origin, optimistic duplicate |
-| Signed-out visitors | M42 | demo picker, landing pricing, SEO leftovers |
+| Signed-out visitors | M42 | demo picker, landing pricing, SEO leftovers, tag pages, trip descriptions |
 | Seeded notebooks | M43 | reset/back-fill, Overview identity, Overview title, `open` shape, `open` filters |
 | The activity contract | M44 | booking fields, contained activities |
 | Assistant reach | M45 | account-wide assistant, navigation, UI-action approval |
