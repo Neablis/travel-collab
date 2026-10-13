@@ -40,6 +40,14 @@ vi.mock("@/components/account/PreferencesProvider", async (orig) => {
   return { ...actual, usePreferences: () => ({ ...actual.usePreferences(), color: chosenColor }) };
 });
 
+// Who the trip's poll last said has it open (M46 D7). Null renders outside a
+// trip, which is every test here but the one about the dot.
+let tripOnline: ReadonlySet<string> | null = null;
+vi.mock("@/components/trip/context/TripProvider", async (orig) => {
+  const actual = await orig<typeof import("@/components/trip/context/TripProvider")>();
+  return { ...actual, useOptionalTrip: () => (tripOnline === null ? null : { online: tripOnline }) };
+});
+
 import { PeopleSection } from "./PeopleSection";
 
 const tripId = "6e9a2c9e-3f7a-4b6e-9d3f-2b1a5c8d7e6f";
@@ -77,6 +85,7 @@ afterEach(cleanup);
 beforeEach(() => {
   meId = "dev-alice";
   chosenColor = null;
+  tripOnline = null;
   fetchTripAccessMock.mockReset().mockResolvedValue({ ok: true, value: access() });
   createTripInviteMock.mockReset();
   revokeTripInviteMock.mockReset().mockResolvedValue({ ok: true, value: { ...invite, status: "revoked" } });
@@ -161,6 +170,17 @@ describe("PeopleSection", () => {
 
     expect(await screen.findByText("Bobby")).toBeTruthy();
     expect(personRow("dev-bob").innerHTML).toContain("lucide-mountain");
+  });
+
+  it("says online on the row of each member the trip's poll says has it open", async () => {
+    tripOnline = new Set(["dev-bob"]);
+    render(<PeopleSection tripId={tripId} />);
+    await screen.findByText("Alice");
+    expect(within(personRow("dev-bob")).getByText("online")).toBeTruthy();
+    expect(within(personRow("dev-alice")).queryByText("online")).toBeNull();
+    // Whose row it is comes first: a screen reader reads the row in order, and
+    // "online" before a name says nothing.
+    expect(personRow("dev-bob").textContent).toMatch(/bob@example\.com.*online/);
   });
 
   it("marks the reader's own row, and crowns the owner's", async () => {
