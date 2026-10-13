@@ -9,8 +9,10 @@ description: Close a travel-collab milestone on its prose-only part 0 — keep t
 Mitchell. **Steps 4 to 6 run in a fresh session**, started from the `/next-prompt` handoff once
 every part is merged, so the close does not re-read the whole build on every call.
 
-1. **Keep part 0's tracker current**: every part with its PR, state, review result, CI run and merge,
-   plus the merge and migration order. Update it after every event.
+1. **Keep part 0's tracker current**: a table in its PR body, edited in place, with every part's PR,
+   state, review result, CI run and merge, plus the merge and migration order. Update a row after
+   every event; never post a comment per event (`working-a-review.md`, *What we post to GitHub is
+   short*).
 2. **Support Mitchell's walk** of each part's preview, mouse and keyboard-only. The link is in the
    PR body's "Ready to merge" section (`review-a-part` step 6), not a Vercel comment. Read his comments
    with `mcp__Vercel__list_toolbar_threads`. Each fix goes on that part's branch (`build-a-part`),

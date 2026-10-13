@@ -55,6 +55,9 @@ it, report that rather than expanding silently.
   package, and still leaves the full suites to CI.
 - Open the PR **ready for review, never draft**, and push nothing more until CI
   has started on the head.
+- Anything you post on GitHub after the PR body is short: a thread reply is one
+  line naming the commit, a CI fix one line
+  (`docs/guidelines/working-a-review.md`, *What we post to GitHub is short*).
 
 ## Style
 

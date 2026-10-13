@@ -16,14 +16,13 @@ description: Review policy for one milestone part in travel-collab — a part-re
    Mitchell removed it on 2026-10-13; nothing outside the repo reviews a part now.
 3. **Work every finding.** Fix it, or answer on its thread why not and resolve the thread
    (`working-a-review.md`). A finding is a claim to check against the code, not an order.
-4. **Every review goes on the PR as a comment** (Mitchell, 2026-10-11: "so I can see what was found
-   and fixed"). The orchestrator posts it, never the read-only reviewer. The reviewer writes the
-   full review to a file and hands back its path with one line per finding
-   (`reviewer-report-check.mjs`); post the file without reading it into your context:
-   `gh pr comment <n> --body-file <path>`. It holds the head reviewed, the verdict, each finding
-   (severity, file:line, what goes wrong, the fix asked for), and what came out clean. Once the fix push lands, post a short follow-up saying
-   what each finding became (fixed in `<sha>`, or answered and why), and include the re-review's
-   verdict. Give CI failures fixed in the same push one line each.
+4. **Every review goes on the PR as a short comment** (Mitchell, 2026-10-11: "so I can see what was
+   found and fixed"; 2026-10-13: shorter). The orchestrator posts it, never the read-only reviewer,
+   in the shape `working-a-review.md` (*What we post to GitHub is short*) gives: a verdict line
+   and one line per blocking finding, `file:line — the problem`, at most about 10 lines, built from
+   the reviewer's hand-back. **Never post the reviewer's file** (`--body-file`): it stays local and
+   goes to the fixer. After the fix push, each finding's thread or line gets one line naming its
+   commit, and a CI fix gets one line.
 5. **Fixes go on the part's own branch**, through `build-a-part`, by a **new**
    `phase-implementer` whose brief names the branch, the head sha, the review file's path, the
    files and what done means. Findings in different files can go to separate agents in parallel

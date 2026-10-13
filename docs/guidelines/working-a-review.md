@@ -8,6 +8,24 @@ was learned by getting it wrong on a real PR.
 every push; CodeRabbit was removed on 2026-10-13). This file owns what to do with
 the findings once they exist, and how much of it goes on GitHub.
 
+## What we post to GitHub is short
+
+Mitchell, 2026-10-13: the comments were useful but too much. This is the one
+place the rule is stated; the skills and agents point here.
+
+| What | Its whole length |
+|---|---|
+| A review, on the PR | a verdict line, then one line per blocking finding: `file:line — the problem`. At most about 10 lines. |
+| A reply on a thread | one line naming the commit: `Fixed in abc1234.`, or why not. |
+| A CI fix | one line: what was red and the commit that fixed it. |
+| A tracker | a table in the PR body, edited in place. No narration. |
+
+- **The full review stays off GitHub.** The reviewer's file stays local and goes
+  to whoever fixes the findings; it is not pasted or attached.
+- **Never a new comment per event.** A part merging, a run going green or a
+  review landing changes a row of the tracker, in place.
+- **No restating the diff.** The PR already shows it.
+
 ## The three surfaces
 
 | Surface | Where it appears | Auto-resolves when fixed? |
