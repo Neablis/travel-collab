@@ -11,17 +11,22 @@ import { lastCall } from "./lib/transcript.mjs";
 // Fix 1). Nothing can stop the wake that already happened; this says, at the
 // moment it is cheapest to act on, to drop the subscription.
 //
+// Since 2026-10-13 (after the M45 retro) that covers every PR, part 0's
+// included: the orchestrator watches none. It arms long `send_later`
+// check-ins and reads all its PRs' state in one `pnpm pr-digest` at each.
+//
 // Engages only for the milestone orchestrator (lib/orchestrator.mjs).
 // Advisory: it never blocks and exits 0 on anything it cannot work out. The
 // note stays under 60 words because, once added, it is re-read on every later
 // call like the rest of the context.
 
-const MAX_NAMED = 6;
+const MAX_NAMED = 4;
 
 // M42's orchestrator averaged 416k and every wake re-read it. Past this, a
-// fresh session seeded by /next-prompt is cheaper than each further wake; the
-// agent cannot rotate itself, so it is told to ask. A wake is where this is
-// said because wakes are what the size multiplies.
+// fresh session seeded by /next-prompt is cheaper than each further wake. It
+// starts that session itself with `create_session` (no longer asking
+// Mitchell) and moves its check-ins there, or the old session keeps waking.
+// A wake is where this is said because wakes are what the size multiplies.
 const CONTEXT_LIMIT_TOKENS = 250_000;
 
 try {
@@ -44,8 +49,9 @@ try {
     const { context } = lastCall(payload.transcript_path);
     if (context !== null && context > CONTEXT_LIMIT_TOKENS) {
       handoff =
-        ` Your context is ${Math.round(context / 1000)}k (limit ${CONTEXT_LIMIT_TOKENS / 1000}k): write the ` +
-        "`/next-prompt` handoff and ask Mitchell to start a fresh session.";
+        ` Context ${Math.round(context / 1000)}k, over ${CONTEXT_LIMIT_TOKENS / 1000}k: write the ` +
+        "`/next-prompt` text, `create_session` with it (source_url https://github.com/Neablis/travel-collab, " +
+        "same environment), delete this session's pending `send_later` check-ins, re-arm them there.";
       recordGuard(payload.cwd, "orchestrator-context-limit", "note");
     }
   } catch {
@@ -58,9 +64,8 @@ try {
       hookSpecificOutput: {
         hookEventName: "PostToolUse",
         additionalContext:
-          "The orchestrator watches only part 0's PR. If these events came from a part's PR, call " +
-          "`unsubscribe_pr_activity` for it now; CI state comes from implementer reports and review " +
-          `re-checks.${seen}${handoff}`,
+          "Call `unsubscribe_pr_activity` for every PR these events came from, part 0's included: PR state " +
+          `comes from \`pnpm -s pr-digest\` at a \`send_later\` check-in.${seen}${handoff}`,
       },
     }),
   );
