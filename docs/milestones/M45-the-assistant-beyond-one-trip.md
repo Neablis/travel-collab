@@ -238,3 +238,184 @@ plan and is in the server HTML (`apps/web/e2e/m45-playbook-assistant.spec.ts:100
 that Ask is hidden, and the tab bar's Ask is registered in an effect, so it appears at hydration
 on every surface that offers one, not only the playbook pages. The fix is a contract between the
 layout and every page, so it is open as KI-2026-10-13-a and not built in M45.
+
+## Retro — written 2026-10-13, before the walks (9 of 12 boxes ticked; open: the two [walk] boxes and the ledger box)
+
+**What shipped.** Part 0 (PR 420) and seven PRs on `main`: part 1, the palette learns notebooks
+and runs a command by id (PR 422, `bc2b587`); part 3, the account-scoped ask with four
+deterministic cross-trip tools (PR 421, `d34abe5`); part 2, the assistant names palette commands
+(PR 424, `f2cf10c`); a fix the first live eval found, KI-2026-10-12-e (PR 425, `c0e0bf4`); part 4,
+Home's rail and ⌘K's *Ask:* row (PR 426, `204c9dd`); part 5, the assistant on the playbook pages
+(PR 427, `940df19`); and part 6, the trip-name matcher the second live eval found (PR 429, open
+at the close, merge sha `<PR 429 merge sha>`). No migrations, as the plan expected:
+`ai_usage.endpoint` is unchecked text, so the new surfaces are the values `ask.account` and
+`ask.playbook`. 10,180 lines added across the seven PRs by GitHub's count (10,065 without
+`docs/`, the guideline's count).
+
+### What went well
+
+- **Deterministic aggregate tools (D1) made the account surface cheap and right.** The four
+  example questions passed on both live runs, at `d34abe5` and `940df19`, each with one tool
+  call on Haiku 5.5, at about $0.0003 a turn. A trip-surface turn at `940df19` averaged about
+  $0.0168.
+- **Parts 1 and 3 ran in parallel against `main`**, and every part merged on its own once green.
+  All six planned PRs merged between 2026-10-12 and 2026-10-13 02:59Z, with no stack to rebase.
+  Each part's last head was green on every CI job, both e2e shards included (the gate's table).
+- **The live eval found two real defects that the simulated model could not.** The run at
+  `d34abe5` surfaced the planning-text leak (KI-2026-10-12-e, fixed in PR 425). The run at
+  `940df19` failed `p-add-to-trip`: a real model passed the trip as "Kyoto trip", and
+  `tripsCalled` (`navigate.ts:177-181` at `940df19`) matched only names containing the typed text,
+  although its docstring said "my Kyoto trip" would work. The same matcher backs `open_trip`, so
+  the gate walk's "open my Kyoto trip on the map" could have failed on prod. PR 429 fixes it.
+- **Every part's PR body carries a red-first table**: the source edit and the failure text for
+  each new test (PRs 421, 422, 424, 426 and 427). The gate's evidence is read from them.
+- **Mitchell's walk of part 4's preview changed D7 before it merged**: Home's rail starts closed
+  at every width and Ask opens it (`b426862a`). The walk did its job at the right time.
+- **The palette-first rule (D4) held.** *Go to › Notebook* and *Edit › Notebook* are palette
+  commands a person can run from ⌘K (`apps/web/e2e/m41-command-palette.spec.ts:145`), and the
+  assistant runs those same commands' `run` (`runPaletteCommands.test.ts:21`). No second action
+  union was written.
+
+### What could be better
+
+- **The simulated model pre-extracts tool inputs, so the deterministic tests could not see the
+  trip-name miss.** It passes `trip: "Kyoto"` (`simulatedModel.test.ts:1183`,
+  `route.int.test.ts:320` at `940df19`), where a real model passes what the person typed. Only
+  the paid live run found it. The change that would have prevented it: a tool that matches a
+  person's words is unit-tested on those words, as typed ("my Kyoto trip", "the Kyoto trip."),
+  and not on the name already extracted. PR 429's tests now do that.
+- **Navigation had no live case until the close.** No case in the 29-case live set asked to open
+  or go anywhere, so `open_trip` and `go_to` were never run against a real model before the gate.
+  PR 429 adds `a-open-trip` and `p-start-trip`; neither has run live. A part that adds a model
+  tool should add its live case in the same PR.
+- **PR 427 took four review rounds, and its first fix round was the costliest agent of the final
+  session** (3.03M units, 133 calls, peak context 245k, close to the 250k ceiling). Mitchell's
+  part 5 answers, the third of which ("send the plan with the page") is a cross-cutting change to
+  the `(app)` layout, arrived after the PR was opened and went into the fix round with the
+  review's blocker. D9 itself was added after parts 1–3 had merged. Questions a part depends on
+  should be settled at planning, before the builder starts.
+- **Decision 3 of those answers holds from the `md` width up, and not on a phone**
+  (KI-2026-10-13-a, found in PR 427's review round 2). The tab bar is mounted by the layout and
+  learns of a page's Ask in an effect, so the phone's Ask appears at hydration on every surface.
+  It was accepted at close as a known gap, because the fix is a contract between the layout and
+  every page.
+- **One `test / unit` red is unexplained.** PR 427's `5dff1cb` failed `test / unit` (run
+  38336845167). Its log could not be read from the build container, and the job was green before
+  that commit and after it (`408f7e0`, run 38337996066). The cause is unknown; it is recorded as
+  unexplained, not as a flake. Fetching the failed job's log while it is fresh (`ci-triage`)
+  would have settled it.
+- **The orchestrator's share of the final session was 19.8%, against a target under 15%.** Most of
+  it was the 43 turns started by subagent reports and finishes (76% of the orchestrator's units),
+  across PR 427's four review rounds, PR 429 and the eval.
+- **The spend block covers only the final build session.** That session ran part 5's review and
+  fix rounds, PR 429 and the live eval at `940df19`. The sessions that built parts 1 to 4 and
+  PR 425 ran in other containers, whose transcripts went with them, and none ran
+  `session-metrics` before it ended. Running it at every session handoff, not only at the last,
+  would have kept them.
+
+### Leftovers
+
+- **PR 429** (the trip-name matcher, two new live cases): open and under re-review at the close.
+  Mitchell's to merge; its sha goes in the gate's table.
+- **The two [walk] boxes**: Mitchell's walk on prod, after PR 429 is deployed.
+- **The ledger box**: production has no `ask.account` or `ask.playbook` turn yet. Mitchell's walk
+  makes the first ones; then `.claude/skills/ai-usage/ledger.sql` query 11 is pasted in.
+- **KI-2026-10-13-a**, the phone tab bar's Ask at hydration (decision 3 on a phone): open.
+- **KI-2026-10-12-h**, the planning text that streams and is then taken back: open on purpose.
+- **KI-2026-10-12-g**: the composer half is fixed (PR 426); the date-pill and trip-name losses, and
+  drafts left behind by a session expiry, stay open there.
+- **KI-2026-10-12-c**, the eval's country-name check misgrades both ways: open.
+- **KI-2026-10-12-a, -b, -d and -f** (the costs and weather properties, the CI postgres image
+  pull, a preview's `git_info_fail`): open, none caused by M45.
+- **The eval's unpriced turn**: `c-remove` on Opus came back `unpriced` at `940df19`, because
+  `turnMicroUsd` returns null when any step reports a null token count. No known-issue entry yet;
+  Mitchell's call whether to file one.
+- **The classifier called `p-add-to-trip` a `question`** (cheap tier) although it asks for a
+  change. It did not cause the failure. Not filed; Mitchell's call.
+- **The unexplained unit red on `5dff1cb`**: recorded above; nothing to file without a cause.
+- **From the deleted plan, kept here:** every behaviour e2e reaches needs a phrase branch in
+  `apps/web/src/server/ai/simulatedModel.ts` and a case in `simulatedModel.test.ts`, and that is
+  also why the simulated lane cannot see what a real model passes as a tool's input (above).
+
+## Spend
+<!-- session-metrics:milestone v1 -->
+
+13 agents, 633 API calls, 9.19M units. One call is one assistant `message.id`; units = input + 1.25 × cache write + 0.1 × cache read (output excluded, transcripts understate it).
+
+**By agent type**
+
+| Who | Agents | Calls | Avg context | Peak context | Units | Share |
+|---|---|---|---|---|---|---|
+| `phase-implementer` | 5 | 269 | 107k | 245k | 4.30M | 46.8% |
+| `part-reviewer` | 6 | 208 | 77k | 160k | 2.36M | 25.7% |
+| `orchestrator` | 1 | 93 | 172k | 243k | 1.82M | 19.8% |
+| `general-purpose` | 1 | 63 | 89k | 119k | 699k | 7.6% |
+
+**Costliest agents**
+
+| Agent (description) | Type | Calls | Avg context | Peak context | Units |
+|---|---|---|---|---|---|
+| Fix round 1 for PR 427 | `phase-implementer` | 133 | 148k | 245k | 3.03M |
+| Re-review PR 427 round 2 | `part-reviewer` | 55 | 90k | 134k | 771k |
+| Run M45 live eval on main | `general-purpose` | 63 | 89k | 119k | 699k |
+| Review M45 part 5 PR 427 | `part-reviewer` | 49 | 103k | 160k | 690k |
+| Fix trip-name matching (M45) | `phase-implementer` | 52 | 82k | 123k | 566k |
+| Re-review PR 427 round 3 | `part-reviewer` | 64 | 65k | 98k | 529k |
+| Fix round 2 for PR 427 | `phase-implementer` | 45 | 67k | 91k | 397k |
+| Review PR 429 trip-name fix | `part-reviewer` | 18 | 61k | 85k | 208k |
+| Fix round 1 for PR 429 | `phase-implementer` | 20 | 47k | 58k | 154k |
+| Fix round 3 for PR 427 | `phase-implementer` | 19 | 46k | 57k | 153k |
+
+**Orchestrator turns, by what started them**
+
+| What started the turn | Turns | Units | Share of orchestrator | Idle |
+|---|---|---|---|---|
+| GitHub / trigger notification | 0 | 0 | 0.0% | 0 of 0 (0 units) |
+| Subagent report | 11 | 590k | 32.4% | – |
+| Subagent finished | 32 | 794k | 43.6% | – |
+| Harness | 0 | 0 | 0.0% | – |
+| Human | 6 | 438k | 24.0% | – |
+| Other (unrecognised frame) | 0 | 0 | 0.0% | – |
+
+**Follow-ups and cache re-writes**
+
+| Measure | Count | Tokens |
+|---|---|---|
+| `SendMessage` calls by the orchestrator | 0 | – |
+| Coordinator messages received mid-life, by 0 subagent(s) | 0 | – |
+| Full cache re-writes in subagents | 4 | 793k |
+| — directly after a coordinator message | 0 | 0 |
+
+**Guard hooks**
+
+| Hook | deny | note |
+|---|---|---|
+| `implementer-brief-check` | 1 | 0 |
+| `notification-unsubscribe-nudge` | 0 | 2 |
+
+**Targets**
+
+| Target | Result | Measured |
+|---|---|---|
+| Orchestrator share of units < 15% | missed | 19.8% |
+| No phase-implementer averaging > 250k context | met | worst 148k |
+| GitHub wakes per merged part < 5 | met | 0 / 7 = 0.0 |
+| Dollars per 1k lines added < 20 | not measurable | needs --cost-usd and --lines-added |
+| Coordinator-message re-writes <= 2 | met | 0 |
+
+### Spend against the last milestone
+
+The block is the final build session only, so it compares with M42's whole-milestone numbers
+loosely. That session's recorded cost was $38.81 at 04:01Z on 2026-10-13 (`get_session`,
+`external_metadata.usage.cost_usd`), while the close was still running.
+
+- **Dollars per 1,000 lines added (under 20):** not measurable for M45. The cost of the sessions
+  that built parts 1 to 4 is gone with their containers, and $38.81 against the whole
+  milestone's 10,180 lines would understate it. M42: 34.
+- **Orchestrator's share (under 15%):** missed, 19.8% (M42: 30%). Subagent reports and finishes
+  started 43 of its 49 turns, across PR 427's four rounds, PR 429 and the eval.
+- **A builder's average context (none over 250k):** met, worst 148k (M42: 315k). PR 427's first
+  fix round peaked at 245k.
+- **GitHub wakes per merged part (under 5):** met in this session, 0 of 7 (M42: 21).
+- **Cache re-writes after a coordinator message (2 or fewer):** met, 0 (M42: 24). The orchestrator
+  sent no `SendMessage`; each fix round was a new agent.
